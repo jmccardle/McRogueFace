@@ -3,3 +3,6 @@
 bin
 .msvc-intermediate/
 *.bak*
+PCbuild
+.vs
+
