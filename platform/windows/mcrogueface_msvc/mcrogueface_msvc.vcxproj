@@ -18,6 +18,23 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\src\Button.cpp" />
+    <ClCompile Include="..\..\..\src\Entity.cpp" />
+    <ClCompile Include="..\..\..\src\EntityManager.cpp" />
+    <ClCompile Include="..\..\..\src\GameEngine.cpp" />
+    <ClCompile Include="..\..\..\src\main.cpp" />
+    <ClCompile Include="..\..\..\src\MenuScene.cpp" />
+    <ClCompile Include="..\..\..\src\Scene.cpp" />
+    <ClCompile Include="..\..\..\src\UIMenu.cpp" />
+    <ClCompile Include="..\..\..\src\UITestScene.cpp" />
+    <ClCompile Include="..\..\..\src\VectorShape.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\src\ActionCode.h" />
+    <ClInclude Include="..\..\..\src\Common.h" />
+    <ClInclude Include="..\..\..\src\Components.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -86,7 +103,7 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)..\..\..\bin\windows\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)..\.msvc-intermediate\$(Configuration)\</IntDir>
-    <TargetName>combined_poc</TargetName>
+    <TargetName>mcrogueface</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -152,9 +169,6 @@
       <AdditionalDependencies>libtcod.lib;sfml-audio.lib;sfml-graphics.lib;sfml-window.lib;sfml-system.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\..\src\combined_poc.cpp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
