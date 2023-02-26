@@ -18,10 +18,10 @@ I did the r/RoguelikeDev TCOD tutorial in Python. I loved it, but I did not want
 ## To-do
 
 * ✅ Initial Commit
-* ❌ Integrate scene, action, entity, component system from COMP4300 engine
-* ❌ Windows / Visual Studio project
-* ❌ Draw Sprites
-* ❌ Play Sounds
+* ✅ Integrate scene, action, entity, component system from COMP4300 engine
+* ✅ Windows / Visual Studio project
+* ✅ Draw Sprites
+* ✅ Play Sounds
 * ❌ Draw UI, spawn entity from Python code
 * ❌ Python AI for entities (NPCs on set paths, enemies towards player)
 * ❌ Walking / Collision; "Boards" (stairs / doors / walk off edge of screen)
