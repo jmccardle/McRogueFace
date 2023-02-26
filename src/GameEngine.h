@@ -4,6 +4,7 @@
 #include "Entity.h"
 #include "EntityManager.h"
 #include "Scene.h"
+#include "McRFPy_API.h"
 
 class GameEngine
 {
@@ -15,6 +16,7 @@ class GameEngine
     bool paused = false;
     int currentFrame = 0;
     sf::View visible;
+    //McRFPy_API* api;
 
 public:
     GameEngine();

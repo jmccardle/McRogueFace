@@ -2,6 +2,7 @@
 #include "MenuScene.h"
 #include "UITestScene.h"
 #include "ActionCode.h"
+#include "McRFPy_API.h"
 
 GameEngine::GameEngine()
 {
@@ -14,6 +15,10 @@ GameEngine::GameEngine()
     scenes["menu"] = new MenuScene(this);
     //std::cout << "Constructed MenuScene" <<std::endl;
     scenes["play"] = new UITestScene(this);
+    //api = new McRFPy_API(this);
+    McRFPy_API::game = this;
+    McRFPy_API::api_init();
+    McRFPy_API::executePyString("import mcrfpy");
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }

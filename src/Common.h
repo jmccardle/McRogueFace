@@ -8,3 +8,9 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+
+// wstring<->string conversion
+#include <locale>
+#include <codecvt>
+#include <filesystem>
+

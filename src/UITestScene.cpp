@@ -285,6 +285,13 @@ void UITestScene::sRender()
 
     }
 
+    // test Python sprite code
+    McRFPy_API::executePyString("mcrfpy.drawSprite(123, 10, 10)");
+    McRFPy_API::executePyString("mcrfpy.drawSprite(121, 15, 15)");
+
+    //game->api->executePyString("mcrfpy.drawSprite(123, 10, 10)")
+    //game->api->executePyString("mcrfpy.drawSprite(121, 15, 15)")
+
     // draw test sprite on top of everything
     game->getWindow().draw(test_sprite); 
 
