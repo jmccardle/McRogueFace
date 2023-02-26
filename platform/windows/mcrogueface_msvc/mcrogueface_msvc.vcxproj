@@ -24,6 +24,7 @@
     <ClCompile Include="..\..\..\src\EntityManager.cpp" />
     <ClCompile Include="..\..\..\src\GameEngine.cpp" />
     <ClCompile Include="..\..\..\src\main.cpp" />
+    <ClCompile Include="..\..\..\src\McRFPy_API.cpp" />
     <ClCompile Include="..\..\..\src\MenuScene.cpp" />
     <ClCompile Include="..\..\..\src\Scene.cpp" />
     <ClCompile Include="..\..\..\src\UIMenu.cpp" />
@@ -34,6 +35,7 @@
     <ClInclude Include="..\..\..\src\ActionCode.h" />
     <ClInclude Include="..\..\..\src\Common.h" />
     <ClInclude Include="..\..\..\src\Components.h" />
+    <ClInclude Include="..\platform.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -155,7 +157,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>C:\Users\jpm68\Share\McRogueFace\deps_windows\posix-stub;C:\Users\jpm68\Share\McRogueFace\platform\windows;C:\Users\jpm68\Share\McRogueFace\deps_windows\SFML-2.5.1\include;C:\Users\jpm68\Share\McRogueFace\deps_windows\Python-3.11.1\Include;C:\Users\jpm68\Share\McRogueFace\deps_windows\Python-3.11.1\PC;C:\Users\jpm68\Share\McRogueFace\deps_windows\libtcod-1.23.1-x86_64-msvc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
