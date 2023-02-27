@@ -96,7 +96,10 @@ PyObject* McRFPy_API::_drawSprite(PyObject *self, PyObject *args)
     int ti, gx, gy;
     if (!PyArg_ParseTuple(args, "iii", &ti, &gx, &gy)) return NULL;
     drawSprite(ti, gx, gy);
-    return NULL;
+
+    // return None correctly
+    Py_INCREF(Py_None);
+    return Py_None;
 }
 
 void McRFPy_API::api_init() {
