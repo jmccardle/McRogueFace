@@ -6,6 +6,7 @@
 #include "Button.h"
 #include "UIMenu.h"
 #include "VectorShape.h"
+#include "Grid.h"
 
 class UITestScene: public Scene
 {
@@ -21,6 +22,7 @@ class UITestScene: public Scene
     float zoom = 1;
     sf::Vector2f resolution;
     int grid_spacing = 500;
+    Grid grid;
 
 public:
     UITestScene(GameEngine*);
