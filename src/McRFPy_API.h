@@ -30,10 +30,39 @@ public:
     static void setSpriteTexture(int);
     inline static GameEngine* game;
     static void api_init();
+    static void api_shutdown();
     // Python API functionality - use mcrfpy.* in scripts
     static PyObject* _drawSprite(PyObject*, PyObject*);
+    static void REPL_device(FILE * fp, const char *filename);
+    static void REPL();
 
-//    McRFPy_API(GameEngine*);
+    // Jank mode engage: let the API hold data for Python to hack on
+    std::vector<UIMenu> menus;
+    EntityManager entities; // this is also kinda good, entities not on the current grid can still act (like monsters following you through doors??)
+    std::vector<Grid> grids;
+
+    // Jank Python Method Exposures
+    static PyObject* _createMenu(PyObject*, PyObject*); // creates a new menu object in McRFPy_API::menus
+    static PyObject* _listMenus(PyObject*, PyObject*);
+    //static PyObject* _createCaption(PyObject*, PyObject*); // calls menu.add_caption
+    //static PyObject* _listCaptions(PyObject*, PyObject*);
+    //static PyObject* _createButton(PyObject*, PyObject*);
+    //static PyObject* _listButtons(PyObject*, PyObject*);
+    //static PyObject* _createEntity(PyObject*, PyObject*);
+    //static PyObject* _listEntities(PyObject*, PyObject*);
+    //static PyObject* _createGrid(PyObject*, PyObject*);
+    //static PyObject* _listGrids(PyObject*, PyObject*);
+    //static PyObject* _createSprite(PyObject*, PyObject*);
+
+    // Jank Functionality
+    static UIMenu createMenu(int sizex, int sizey);
+    //static Button createButton(UIMenu & menu, int x, int y, int w, int h);
+    //static sf::Sprite createSprite(int tex_index, int x, int y);
+    //static void playSound(const char * filename);
+    //static void playMusic(const char * filename);
+
+
+    //    McRFPy_API(GameEngine*);
 
     // API functionality - use from C++ directly
 

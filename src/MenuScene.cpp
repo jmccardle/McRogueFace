@@ -31,9 +31,9 @@ void MenuScene::doAction(std::string name, std::string type)
     if(ACTION("start_game", "start"))
         game->changeScene("play");
     else if(ACTIONONCE("up"))
-        game->getWindow().setSize(sf::Vector2u(1024, 768));
+        game->getWindow().setSize(sf::Vector2u(1280, 800));
     else if(ACTIONONCE("down"))
-        game->getWindow().setSize(sf::Vector2u(640, 480));
+        game->getWindow().setSize(sf::Vector2u(1024, 768));
 }
 
 void MenuScene::sRender()

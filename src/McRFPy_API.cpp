@@ -1,6 +1,7 @@
 #include "McRFPy_API.h"
 #include "platform.h"
 #include "GameEngine.h"
+#include "Grid.h"
 
 static PyMethodDef mcrfpyMethods[] = {
     {"drawSprite", McRFPy_API::_drawSprite, METH_VARARGS,
@@ -80,6 +81,9 @@ void McRFPy_API::setSpriteTexture(int ti)
 }
 
 // functionality
+//void McRFPy_API::
+
+// functionality
 void McRFPy_API::drawSprite(int tex_index, int grid_x, int grid_y)
 {
     setSpriteTexture(tex_index);
@@ -104,22 +108,30 @@ PyObject* McRFPy_API::_drawSprite(PyObject *self, PyObject *args)
 
 void McRFPy_API::api_init() {
 
-    // initialization time build of Py API elements
-    /*
-    mcrfpyMethodsVector.push_back(
-            {"drawSprite", _drawSprite, METH_VARARGS,
-                "Draw a sprite (index, x, y)"}
-            );
-    mcrfpyMethodsVector.push_back(
-            {NULL, NULL, 0, NULL}
-            );
-    mcrfpyMethods = &mcrfpyMethodsVector[0];
-    */
-
     // build API exposure before python initialization
     PyImport_AppendInittab("mcrfpy", PyInit_mcrfpy);
     // use full path version of argv[0] from OS to init python
     init_python(narrow_string(executable_filename()).c_str());
+
+/*
+    // Create Python translations of types
+    PyTypeObject * gridpoint_pytype = new PyTypeObject;
+    gridpoint_pytype->tp_name = "GridPoint";
+    gridpoint_pytype->tp_basicsize = sizeof(GridPoint);
+    gridpoint_pytype->tp_dealloc = [](PyObject* obj) {
+        delete ((GridPoint*) obj);
+    };
+    gridpoint_pytype->tp_flags = Py_TPFLAGS_DEFAULT;
+    gridpoint_pytype->tp_doc = "GridPoint";
+    gridpoint_pytype->tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) {
+        return (PyObject*) new GridPoint();
+    };
+    PyType_Ready(gridpoint_pytype);
+    PyModule_AddObject(
+            PyImport_AddModule("__main__"), "GridPoint", (PyObject*) gridpoint_pytype);
+*/
+
+
 
     texture.loadFromFile("./assets/kenney_tinydungeon.png");
     //texture_size = 16, texture_width = 12, texture_height= 11;
@@ -140,7 +152,70 @@ void McRFPy_API::executeScript(std::string filename)
     }
 }
 
+void McRFPy_API::api_shutdown()
+{
+    Py_Finalize();
+}
+
+
 void McRFPy_API::executePyString(std::string pycode)
 {
     PyRun_SimpleString(pycode.c_str());
+}
+
+void McRFPy_API::REPL()
+{
+    PyRun_InteractiveLoop(stdin, "<stdin>");
+}
+
+void McRFPy_API::REPL_device(FILE * fp, const char *filename)
+{
+    PyRun_InteractiveLoop(fp, filename);
+}
+
+PyObject* _createMenu(PyObject *self, PyObject *args) {
+
+    int sizex, sizey;
+    if (!PyArg_ParseTuple(args, "ii", &sizex, &sizey)) return NULL;
+    menus.push_back(createMenu(sizex, sizey));
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* _listMenus(PyObject*, PyObject*); {
+    // todo - get the (Py) classes UIMenu, Button, Caption, Sprite
+    // and call BuildValue (tuples) -> their constructors
+    PyObject* menulist = PyList_New(menus.size());
+    for (int i = 0; i < menus.size(); i++) {
+        auto p = menus[i].box.getPosition();
+        auto s = menus[i].box.getSize();
+        PyObject* menu_args = Py_BuildValue("(iiii)", p.x, p.y, s.x, s.y);
+        // * need uimenu_type (imported already to __main__)
+        PyObject* menuobj = PyObject_CallObject((PyObject*) uimenu_type, menu_args);
+        PyObject* button_list = PyObject_GetAttrString(menuobj, "buttons");
+        for(auto& b : menus[i].buttons) {
+            auto bp = b.rect.getPosition();
+            auto bs = b.rect.getSize();
+            auto bg = b.rect.getFillColor();
+            auto bf = b.caption.getFillColor();
+            PyObject* btn_args = Py_BuildValue("(iiii(iii)(iii)ss)",
+                    bp.x, bp.y, bs.x, bs.y,
+                    bg.r, bg.g, bg.b,
+                    bf.r, bf.g, bf.b,
+                    b.caption.getString.toAnsiString().c_str(),
+                    b.action.c_str());
+            // * need btn_type
+            PyObject buttonobj = PyObject_CallObject((PyObject*) btn_type, btn_args);
+            PyList_Append(button_list, buttonobj);
+        }
+
+        PyObject* caption_list = PyObject_GetAttrString(menuobj, "captions");
+        for () { }
+
+        PyObject* sprite_list = PyObject_GetAttrString(menuobj, "sprites");
+        for () { }
+
+        PyList_SET_ITEM(menulist, i, menuobj);
+    }
+    return menulist;
 }

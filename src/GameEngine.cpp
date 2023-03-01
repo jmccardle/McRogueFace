@@ -7,7 +7,7 @@
 GameEngine::GameEngine()
 {
     font.loadFromFile("./assets/JetbrainsMono.ttf");
-    window.create(sf::VideoMode(640, 480), "McRogueFace Engine by John McCardle");
+    window.create(sf::VideoMode(1024, 768), "McRogueFace Engine by John McCardle");
     visible = window.getDefaultView();
     window.setFramerateLimit(30);
     scene = "menu";
@@ -19,6 +19,7 @@ GameEngine::GameEngine()
     McRFPy_API::game = this;
     McRFPy_API::api_init();
     McRFPy_API::executePyString("import mcrfpy");
+    McRFPy_API::executePyString("from UIMenu import *");
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }

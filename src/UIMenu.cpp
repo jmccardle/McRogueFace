@@ -1,4 +1,5 @@
 #include "UIMenu.h"
+#include "Common.h"
 
 UIMenu::UIMenu(sf::Font & _font)
 : font(_font)
@@ -18,6 +19,7 @@ void UIMenu::render(sf::RenderWindow & window)
         window.draw(c);
     }
     for (auto& b : buttons) { b.render(window); }
+    for (auto& s: sprites) { window.draw(s); }
 }
 
 void UIMenu::refresh()
@@ -46,3 +48,9 @@ void UIMenu::add_button(Button b)
     next_button += 50;
     buttons.push_back(b);
 }
+
+void UIMenu::add_sprite(sf::Sprite s)
+{
+    sprites.push_back(s);
+}
+
