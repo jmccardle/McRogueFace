@@ -206,8 +206,12 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
     for (int i = 0; i < menus.size(); i++) {
         auto p = menus[i].box.getPosition();
         auto s = menus[i].box.getSize();
-        PyObject* menu_args = Py_BuildValue("(iiii)", p.x, p.y, s.x, s.y);
-        // * need uimenu_type (imported already to __main__)
+        auto g = menus[i].box.getFillColor();
+        PyObject* menu_args = Py_BuildValue("(iiii(iii)O)",
+            (int)p.x, (int)p.y, (int)s.x, (int)s.y,
+            (int)g.r, (int)g.g, (int)g.b, 
+            menus[i].visible ? Py_True: Py_False);
+        menus[i].visible ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
         PyObject* menuobj = PyObject_CallObject((PyObject*) uimenu_type, menu_args);
 
         // Loop: Convert Button objects to Python Objects
@@ -218,12 +222,11 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
             auto bg = b.rect.getFillColor();
             auto bf = b.caption.getFillColor();
             PyObject* btn_args = Py_BuildValue("(iiii(iii)(iii)ss)",
-                bp.x, bp.y, bs.x, bs.y,
-                bg.r, bg.g, bg.b,
-                bf.r, bf.g, bf.b,
+                (int)bp.x, (int)bp.y, (int)bs.x, (int)bs.y,
+                (int)bg.r, (int)bg.g, (int)bg.b,
+                (int)bf.r, (int)bf.g, (int)bf.b,
                 b.caption.getString().toAnsiString().c_str(),
                 b.action.c_str());
-            // * need btn_type
             PyObject* buttonobj = PyObject_CallObject((PyObject*) btn_type, btn_args);
             PyList_Append(button_list, buttonobj);
         }
@@ -243,7 +246,7 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
         // Loop: Convert Sprite objects to Python Objects
         PyObject* sprite_list = PyObject_GetAttrString(menuobj, "sprites");
         for (auto& s : menus[i].sprites) {
-            PyObject* spr_args = Py_BuildValue("iiii",
+            PyObject* spr_args = Py_BuildValue("(iiii)",
                 s.texture_index, s.sprite_index, s.x, s.y);
         }
 
