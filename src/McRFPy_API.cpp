@@ -4,8 +4,8 @@
 #include "Grid.h"
 
 // static class members...?
-std::vector<UIMenu> McRFPy_API::menus;
-std::vector<Grid> McRFPy_API::grids;
+std::map<std::string, UIMenu*> McRFPy_API::menus;
+std::map<std::string, Grid*> McRFPy_API::grids;
 
 static PyMethodDef mcrfpyMethods[] = {
     {"drawSprite", McRFPy_API::_drawSprite, METH_VARARGS,
@@ -185,10 +185,11 @@ void McRFPy_API::REPL_device(FILE * fp, const char *filename)
 }
 
 PyObject* McRFPy_API::_createMenu(PyObject *self, PyObject *args) {
-
+    const char* title_cstr;
     int posx, posy, sizex, sizey;
-    if (!PyArg_ParseTuple(args, "iiii", &posx, &posy, &sizex, &sizey)) return NULL;
-    menus.push_back(createMenu(posx, posy, sizex, sizey));
+    if (!PyArg_ParseTuple(args, "siiii", &title_cstr, &posx, &posy, &sizex, &sizey)) return NULL;
+    std::string title = title_cstr;
+    menus[title] = createMenu(posx, posy, sizex, sizey);
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -203,20 +204,26 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
     PyObject* spr_type = PyObject_GetAttrString(uimodule, "Sprite");
 
     PyObject* menulist = PyList_New(menus.size());
-    for (int i = 0; i < menus.size(); i++) {
-        auto p = menus[i].box.getPosition();
-        auto s = menus[i].box.getSize();
-        auto g = menus[i].box.getFillColor();
-        PyObject* menu_args = Py_BuildValue("(iiii(iii)O)",
+    std::map<std::string, UIMenu*>::iterator it = menus.begin();
+    //for (int i = 0; i < menus.size(); i++) {
+    int i = 0;
+    for (auto it = menus.begin(); it != menus.end(); it++) {
+        std::string title = it->first;
+        auto menu = it->second;
+        auto p = menu->box.getPosition();
+        auto s = menu->box.getSize();
+        auto g = menu->box.getFillColor();
+        PyObject* menu_args = Py_BuildValue("(siiii(iii)O)",
+            title.c_str(),
             (int)p.x, (int)p.y, (int)s.x, (int)s.y,
             (int)g.r, (int)g.g, (int)g.b, 
-            menus[i].visible ? Py_True: Py_False);
-        menus[i].visible ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
+            menu->visible ? Py_True: Py_False);
+        menu->visible ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
         PyObject* menuobj = PyObject_CallObject((PyObject*) uimenu_type, menu_args);
 
         // Loop: Convert Button objects to Python Objects
         PyObject* button_list = PyObject_GetAttrString(menuobj, "buttons");
-        for(auto& b : menus[i].buttons) {
+        for(auto& b : menu->buttons) {
             auto bp = b.rect.getPosition();
             auto bs = b.rect.getSize();
             auto bg = b.rect.getFillColor();
@@ -233,7 +240,7 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
 
         // Loop: Convert Caption objects to Python Objects
         PyObject* caption_list = PyObject_GetAttrString(menuobj, "captions");
-        for (auto& c : menus[i].captions) {
+        for (auto& c : menu->captions) {
             auto cc = c.getFillColor();
             PyObject* cap_args = Py_BuildValue("si(iii)",
                c.getString().toAnsiString().c_str(),
@@ -245,19 +252,20 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
 
         // Loop: Convert Sprite objects to Python Objects
         PyObject* sprite_list = PyObject_GetAttrString(menuobj, "sprites");
-        for (auto& s : menus[i].sprites) {
+        for (auto& s : menu->sprites) {
             PyObject* spr_args = Py_BuildValue("(iiii)",
                 s.texture_index, s.sprite_index, s.x, s.y);
         }
 
         PyList_SET_ITEM(menulist, i, menuobj);
+        i++; // count iterator steps
     }
     return menulist;
 }
 
-UIMenu McRFPy_API::createMenu(int posx, int posy, int sizex, int sizey) {
-    auto m = UIMenu(game->getFont());
-    m.box.setPosition(sf::Vector2f(posx, posy));
-    m.box.setSize(sf::Vector2f(sizex, sizey));
+UIMenu *McRFPy_API::createMenu(int posx, int posy, int sizex, int sizey) {
+    auto m = new UIMenu(game->getFont());
+    m->box.setPosition(sf::Vector2f(posx, posy));
+    m->box.setSize(sf::Vector2f(sizex, sizey));
     return m;
 }

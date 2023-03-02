@@ -41,9 +41,9 @@ public:
     static void REPL();
 
     // Jank mode engage: let the API hold data for Python to hack on
-    static std::vector<UIMenu> menus;
+    static std::map<std::string, UIMenu*> menus;
     EntityManager entities; // this is also kinda good, entities not on the current grid can still act (like monsters following you through doors??)
-    static std::vector<Grid> grids;
+    static std::map<std::string, Grid*> grids;
 
     // Jank Python Method Exposures
     static PyObject* _createMenu(PyObject*, PyObject*); // creates a new menu object in McRFPy_API::menus
@@ -59,7 +59,7 @@ public:
     //static PyObject* _createSprite(PyObject*, PyObject*);
 
     // Jank Functionality
-    static UIMenu createMenu(int posx, int posy, int sizex, int sizey);
+    static UIMenu* createMenu(int posx, int posy, int sizex, int sizey);
     //static Button createButton(UIMenu & menu, int x, int y, int w, int h);
     //static sf::Sprite createSprite(int tex_index, int x, int y);
     //static void playSound(const char * filename);
