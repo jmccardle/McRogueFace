@@ -48,20 +48,28 @@ public:
     // Jank Python Method Exposures
     static PyObject* _createMenu(PyObject*, PyObject*); // creates a new menu object in McRFPy_API::menus
     static PyObject* _listMenus(PyObject*, PyObject*);
-    //static PyObject* _createCaption(PyObject*, PyObject*); // calls menu.add_caption
+    static PyObject* _createCaption(PyObject*, PyObject*); // calls menu.add_caption
+    static PyObject* _createButton(PyObject*, PyObject*);
+    static PyObject* _createTexture(PyObject*, PyObject*);
+    static PyObject* _listTextures(PyObject*, PyObject*);
+    static PyObject* _createSprite(PyObject*, PyObject*);
+
+    // use _listMenus, probably will not implement
     //static PyObject* _listCaptions(PyObject*, PyObject*);
-    //static PyObject* _createButton(PyObject*, PyObject*);
     //static PyObject* _listButtons(PyObject*, PyObject*);
+
     //static PyObject* _createEntity(PyObject*, PyObject*);
     //static PyObject* _listEntities(PyObject*, PyObject*);
+
     //static PyObject* _createGrid(PyObject*, PyObject*);
     //static PyObject* _listGrids(PyObject*, PyObject*);
-    //static PyObject* _createSprite(PyObject*, PyObject*);
 
     // Jank Functionality
     static UIMenu* createMenu(int posx, int posy, int sizex, int sizey);
-    //static Button createButton(UIMenu & menu, int x, int y, int w, int h);
-    //static sf::Sprite createSprite(int tex_index, int x, int y);
+    static void createCaption(std::string menukey, std::string text, int fontsize, sf::Color textcolor);
+    static void createButton(std::string menukey, int x, int y, int w, int h, sf::Color bgcolor, sf::Color textcolor, std::string caption, std::string action);
+    static void createSprite(std::string menukey, int ti, int si, int x, int y, float scale);
+    static int createTexture(std::string filename, int grid_size, int grid_width, int grid_height);
     //static void playSound(const char * filename);
     //static void playMusic(const char * filename);
 

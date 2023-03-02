@@ -274,6 +274,12 @@ void UITestScene::sRender()
 
     }
 
+    // Python API menus
+    for (auto pair: McRFPy_API::menus)
+    {
+        pair.second->render(game->getWindow());
+    }
+
     // test Python sprite code
     //McRFPy_API::executePyString("mcrfpy.drawSprite(123, 36, 10)");
 

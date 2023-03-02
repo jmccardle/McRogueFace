@@ -12,10 +12,22 @@ static PyMethodDef mcrfpyMethods[] = {
         "Draw a sprite (index, x, y)"},
 
     {"createMenu", McRFPy_API::_createMenu, METH_VARARGS,
-        "Create a new uimenu (x, y, w, h)"},
+        "Create a new uimenu (name_str, x, y, w, h)"},
 
     {"listMenus", McRFPy_API::_listMenus, METH_VARARGS,
         "return a list of existing menus"},
+
+    {"createCaption", McRFPy_API::_createCaption, METH_VARARGS,
+        "Create a new text caption (menu_str, text_str, fontsize, r, g, b)"},
+
+    {"createButton", McRFPy_API::_createButton, METH_VARARGS,
+        "Create a new button (menu_str, x, y, w, h, (bg r, g, b), (text r, g, b), caption, action_code)"},
+
+    {"createSprite", McRFPy_API::_createSprite, METH_VARARGS,
+        "Create a new sprite (menu_str, texture_index, sprite_index, x, y, scale)"},
+
+    {"createTexture", McRFPy_API::_createTexture, METH_VARARGS,
+        "Create a new texture (filename_str, grid_size, width, height) - grid_size is in pixels (only square sprites for now), width and height are in tiles"},
 
     {NULL, NULL, 0, NULL}
 };
@@ -263,9 +275,84 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
     return menulist;
 }
 
+PyObject* McRFPy_API::_createCaption(PyObject* self, PyObject* args) {
+    const char* menukey_cstr, *text_cstr;
+    int fontsize, cr, cg, cb;
+    if (!PyArg_ParseTuple(args, "ssi(iii)", 
+        &menukey_cstr, &text_cstr,
+        &fontsize, &cr, &cg, &cb)) return NULL;
+    createCaption(std::string(menukey_cstr), std::string(text_cstr), fontsize, sf::Color(cr, cg, cb));
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_createButton(PyObject* self, PyObject* args) {
+    const char *menukey_cstr, *caption_cstr, *action_cstr;
+    int x, y, w, h, bgr, bgg, bgb, fgr, fgg, fgb;
+    if (!PyArg_ParseTuple(args, "siiii(iii)(iii)ss",
+        &menukey_cstr, &x, &y, &w, &h, 
+        &bgr, &bgg, &bgb, &fgr, &fgg, &fgb,
+        &caption_cstr, &action_cstr
+        )) return NULL;
+    createButton(std::string(menukey_cstr), x, y, w, h, sf::Color(bgr, bgg, bgb), sf::Color(fgr, fgg, fgb), std::string(caption_cstr), std::string(action_cstr));
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_createTexture(PyObject* self, PyObject* args) {
+    const char *fn_cstr;
+    int gs, gw, gh;
+    if (!PyArg_ParseTuple(args, "siii", &fn_cstr, &gs, &gw, &gh)) return NULL;
+    createTexture(std::string(fn_cstr), gs, gw, gh);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_listTextures(PyObject*, PyObject*) {
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_createSprite(PyObject* self, PyObject* args) {
+    const char * menu_cstr;
+    int ti, si, x, y;
+    float s;
+    if (!PyArg_ParseTuple(args, "siiiif", &menu_cstr, &ti, &si, &x, &y, &s)) return NULL;
+    createSprite(std::string(menu_cstr), ti, si, x, y, s);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 UIMenu *McRFPy_API::createMenu(int posx, int posy, int sizex, int sizey) {
     auto m = new UIMenu(game->getFont());
     m->box.setPosition(sf::Vector2f(posx, posy));
     m->box.setSize(sf::Vector2f(sizex, sizey));
     return m;
+}
+
+void McRFPy_API::createCaption(std::string menukey, std::string text, int fontsize, sf::Color textcolor) {
+    auto menu = menus[menukey];
+    menu->add_caption(text.c_str(), fontsize, textcolor);
+}
+
+void McRFPy_API::createButton(std::string menukey, int x, int y, int w, int h, sf::Color bgcolor, sf::Color textcolor, std::string caption, std::string action) {
+    auto menu = menus[menukey];
+    auto b = Button(x, y, w, h, bgcolor, textcolor, caption.c_str(), game->getFont(), action.c_str());
+    menu->add_button(b);
+}
+
+void McRFPy_API::createSprite(std::string menukey, int ti, int si, int x, int y, float scale) {
+    auto menu = menus[menukey];
+    auto s = IndexSprite(ti, si, x, y, scale);
+    menu->add_sprite(s);
+}
+
+int McRFPy_API::createTexture(std::string filename, int grid_size, int grid_width, int grid_height) {
+    sf::Texture t;
+    t.loadFromFile(filename.c_str());
+    t.setSmooth(false);
+    auto indextex = IndexTexture(t, grid_size, grid_width, grid_height);
+    game->textures.push_back(indextex);
+
+    return game->textures.size() - 1;
 }
