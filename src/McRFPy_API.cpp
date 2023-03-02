@@ -3,9 +3,20 @@
 #include "GameEngine.h"
 #include "Grid.h"
 
+// static class members...?
+std::vector<UIMenu> McRFPy_API::menus;
+std::vector<Grid> McRFPy_API::grids;
+
 static PyMethodDef mcrfpyMethods[] = {
     {"drawSprite", McRFPy_API::_drawSprite, METH_VARARGS,
         "Draw a sprite (index, x, y)"},
+
+    {"createMenu", McRFPy_API::_createMenu, METH_VARARGS,
+        "Create a new uimenu (x, y, w, h)"},
+
+    {"listMenus", McRFPy_API::_listMenus, METH_VARARGS,
+        "return a list of existing menus"},
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -173,18 +184,24 @@ void McRFPy_API::REPL_device(FILE * fp, const char *filename)
     PyRun_InteractiveLoop(fp, filename);
 }
 
-PyObject* _createMenu(PyObject *self, PyObject *args) {
+PyObject* McRFPy_API::_createMenu(PyObject *self, PyObject *args) {
 
-    int sizex, sizey;
-    if (!PyArg_ParseTuple(args, "ii", &sizex, &sizey)) return NULL;
-    menus.push_back(createMenu(sizex, sizey));
+    int posx, posy, sizex, sizey;
+    if (!PyArg_ParseTuple(args, "iiii", &posx, &posy, &sizex, &sizey)) return NULL;
+    menus.push_back(createMenu(posx, posy, sizex, sizey));
     Py_INCREF(Py_None);
     return Py_None;
 }
 
-PyObject* _listMenus(PyObject*, PyObject*); {
+PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
     // todo - get the (Py) classes UIMenu, Button, Caption, Sprite
     // and call BuildValue (tuples) -> their constructors
+    PyObject* uimodule = PyImport_AddModule("UIMenu"); //already imported
+    PyObject* uimenu_type = PyObject_GetAttrString(uimodule, "UIMenu");
+    PyObject* btn_type = PyObject_GetAttrString(uimodule, "Button");
+    PyObject* cap_type = PyObject_GetAttrString(uimodule, "Caption");
+    PyObject* spr_type = PyObject_GetAttrString(uimodule, "Sprite");
+
     PyObject* menulist = PyList_New(menus.size());
     for (int i = 0; i < menus.size(); i++) {
         auto p = menus[i].box.getPosition();
@@ -192,6 +209,8 @@ PyObject* _listMenus(PyObject*, PyObject*); {
         PyObject* menu_args = Py_BuildValue("(iiii)", p.x, p.y, s.x, s.y);
         // * need uimenu_type (imported already to __main__)
         PyObject* menuobj = PyObject_CallObject((PyObject*) uimenu_type, menu_args);
+
+        // Loop: Convert Button objects to Python Objects
         PyObject* button_list = PyObject_GetAttrString(menuobj, "buttons");
         for(auto& b : menus[i].buttons) {
             auto bp = b.rect.getPosition();
@@ -199,23 +218,43 @@ PyObject* _listMenus(PyObject*, PyObject*); {
             auto bg = b.rect.getFillColor();
             auto bf = b.caption.getFillColor();
             PyObject* btn_args = Py_BuildValue("(iiii(iii)(iii)ss)",
-                    bp.x, bp.y, bs.x, bs.y,
-                    bg.r, bg.g, bg.b,
-                    bf.r, bf.g, bf.b,
-                    b.caption.getString.toAnsiString().c_str(),
-                    b.action.c_str());
+                bp.x, bp.y, bs.x, bs.y,
+                bg.r, bg.g, bg.b,
+                bf.r, bf.g, bf.b,
+                b.caption.getString().toAnsiString().c_str(),
+                b.action.c_str());
             // * need btn_type
-            PyObject buttonobj = PyObject_CallObject((PyObject*) btn_type, btn_args);
+            PyObject* buttonobj = PyObject_CallObject((PyObject*) btn_type, btn_args);
             PyList_Append(button_list, buttonobj);
         }
 
+        // Loop: Convert Caption objects to Python Objects
         PyObject* caption_list = PyObject_GetAttrString(menuobj, "captions");
-        for () { }
+        for (auto& c : menus[i].captions) {
+            auto cc = c.getFillColor();
+            PyObject* cap_args = Py_BuildValue("si(iii)",
+               c.getString().toAnsiString().c_str(),
+               c.getCharacterSize(),
+               cc.r, cc.g, cc.b);
+            PyObject* capobj = PyObject_CallObject((PyObject*) cap_type, cap_args);
+            PyList_Append(caption_list, capobj);
+        }
 
+        // Loop: Convert Sprite objects to Python Objects
         PyObject* sprite_list = PyObject_GetAttrString(menuobj, "sprites");
-        for () { }
+        for (auto& s : menus[i].sprites) {
+            PyObject* spr_args = Py_BuildValue("iiii",
+                s.texture_index, s.sprite_index, s.x, s.y);
+        }
 
         PyList_SET_ITEM(menulist, i, menuobj);
     }
     return menulist;
+}
+
+UIMenu McRFPy_API::createMenu(int posx, int posy, int sizex, int sizey) {
+    auto m = UIMenu(game->getFont());
+    m.box.setPosition(sf::Vector2f(posx, posy));
+    m.box.setSize(sf::Vector2f(sizex, sizey));
+    return m;
 }

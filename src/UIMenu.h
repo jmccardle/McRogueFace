@@ -2,6 +2,7 @@
 
 #include "Common.h"
 #include "Button.h"
+#include "IndexSprite.h"
 
 class UIMenu
 {
@@ -11,7 +12,7 @@ public:
     UIMenu(sf::Font & _font);
     std::vector<sf::Text> captions;
     std::vector<Button> buttons;
-    std::vector<sf::Sprite> sprites;
+    std::vector<IndexSprite> sprites;
     sf::RectangleShape box;
     bool visible = false;
     int next_text = 10;
@@ -21,7 +22,7 @@ public:
     void refresh();
     void add_caption(const char* text, int size, sf::Color color);
     void add_button(Button b);
-    void add_sprite(sf::Sprite s);
+    void add_sprite(IndexSprite s);
 
 
 protected:

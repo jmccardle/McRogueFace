@@ -20,6 +20,8 @@ GameEngine::GameEngine()
     McRFPy_API::api_init();
     McRFPy_API::executePyString("import mcrfpy");
     McRFPy_API::executePyString("from UIMenu import *");
+
+    IndexSprite::game = this;
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }

@@ -6,11 +6,14 @@ class Button
 {
 
 protected:
+
+public:
+    // TODO / JankMode: setter & getter for these three fields
+    // were protected, but directly changing them should be...fine?
     sf::RectangleShape rect;
     sf::Text caption;
     std::string action;
 
-public:
     Button() {};
     Button(int x, int y, int w, int h,
         sf::Color _background, sf::Color _textcolor,
@@ -24,5 +27,6 @@ public:
     void render(sf::RenderWindow & window);
     auto contains(sf::Vector2i p) { return rect.getGlobalBounds().contains(p.x, p.y); }
     auto getAction() { return action; }
+
 private:
 };

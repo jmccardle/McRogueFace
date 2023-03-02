@@ -19,7 +19,10 @@ void UIMenu::render(sf::RenderWindow & window)
         window.draw(c);
     }
     for (auto& b : buttons) { b.render(window); }
-    for (auto& s: sprites) { window.draw(s); }
+    for (auto& s: sprites) {
+        auto _s = s.drawable();
+        // TODO: s.move or whatever to make it's 0,0 relative to menu box
+        window.draw(_s); }
 }
 
 void UIMenu::refresh()
@@ -49,7 +52,7 @@ void UIMenu::add_button(Button b)
     buttons.push_back(b);
 }
 
-void UIMenu::add_sprite(sf::Sprite s)
+void UIMenu::add_sprite(IndexSprite s)
 {
     sprites.push_back(s);
 }

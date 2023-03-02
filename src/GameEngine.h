@@ -5,6 +5,7 @@
 #include "EntityManager.h"
 #include "Scene.h"
 #include "McRFPy_API.h"
+#include "IndexTexture.h"
 
 class GameEngine
 {
@@ -16,7 +17,6 @@ class GameEngine
     bool paused = false;
     int currentFrame = 0;
     sf::View visible;
-    //McRFPy_API* api;
 
 public:
     GameEngine();
@@ -30,4 +30,12 @@ public:
     void sUserInput();
     int getFrame() { return currentFrame; }
     sf::View getView() { return visible; }
+
+    // global textures for scripts to access
+    std::vector<IndexTexture> textures;
+    
+    // global audio storage
+    std::vector<sf::SoundBuffer> sfxbuffers;
+    sf::Music music;
+    sf::Sound sfx;
 };
