@@ -270,6 +270,9 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
         for (auto& s : menu->sprites) {
             PyObject* spr_args = Py_BuildValue("(iiii)",
                 s.texture_index, s.sprite_index, s.x, s.y);
+
+            PyObject* sprobj = PyObject_CallObject((PyObject*) spr_type, spr_args);
+            PyList_Append(sprite_list, sprobj);
         }
 
         PyList_SET_ITEM(menulist, i, menuobj);
@@ -300,6 +303,78 @@ PyObject* McRFPy_API::_modMenu(PyObject* self, PyObject* args) {
     menu->box.setSize(sf::Vector2f(w, h));
     menu->box.setFillColor(bgcolor);
     menu->visible = visible;
+
+    // jank, or dank? iterate over .captions, .buttons, .sprites to modify them
+    // captions
+    PyObject* captionlist = PyObject_GetAttrString(o, "captions");
+    std::cout << PyUnicode_AsUTF8(PyObject_Repr(captionlist)) << std::endl;
+    for (int i = 0; i < menu->captions.size(); i++) {
+        PyObject* captionobj = PyList_GetItem(captionlist, i);
+        menu->captions[i].setString(
+            PyUnicode_AsUTF8(PyObject_GetAttrString(captionobj, "text")));
+        //menu->captions[i].setCharacterSize(
+        //    PyLong_AsLong(PyObject_GetAttrString(captionobj, "textsize")));
+        PyObject* fgtuple = PyObject_GetAttrString(captionobj, "color");
+        menu->captions[i].setFillColor(
+            sf::Color(
+                PyLong_AsLong(PyTuple_GetItem(fgtuple, 0)),
+                PyLong_AsLong(PyTuple_GetItem(fgtuple, 1)),
+                PyLong_AsLong(PyTuple_GetItem(fgtuple, 2))
+                ));
+    }
+
+    // buttons
+    PyObject* buttonlist = PyObject_GetAttrString(o, "buttons");
+    std::cout << PyUnicode_AsUTF8(PyObject_Repr(buttonlist)) << std::endl;
+    for (int i = 0; i < menu->buttons.size(); i++) {
+        PyObject* buttonobj = PyList_GetItem(buttonlist, i);
+        menu->buttons[i].setPosition(sf::Vector2f(
+            PyLong_AsLong(PyObject_GetAttrString(buttonobj, "x")),
+            PyLong_AsLong(PyObject_GetAttrString(buttonobj, "y"))
+            ));
+        auto sizevec = sf::Vector2f(
+            PyLong_AsLong(PyObject_GetAttrString(buttonobj, "w")),
+            PyLong_AsLong(PyObject_GetAttrString(buttonobj, "h"))
+            );
+        menu->buttons[i].setSize(sizevec);
+        PyObject* btncolor = PyObject_GetAttrString(buttonobj, "bgcolor");
+        std::cout << PyUnicode_AsUTF8(PyObject_Repr(btncolor)) << std::endl;
+        menu->buttons[i].setBackground(
+            sf::Color(
+                PyLong_AsLong(PyTuple_GetItem(btncolor, 0)),
+                PyLong_AsLong(PyTuple_GetItem(btncolor, 1)),
+                PyLong_AsLong(PyTuple_GetItem(btncolor, 2))
+                ));
+        PyObject* btxtcolor = PyObject_GetAttrString(buttonobj, "textcolor");
+        std::cout << PyUnicode_AsUTF8(PyObject_Repr(btxtcolor)) << std::endl;
+        menu->buttons[i].setTextColor(
+            sf::Color(
+                PyLong_AsLong(PyTuple_GetItem(btxtcolor, 0)),
+                PyLong_AsLong(PyTuple_GetItem(btxtcolor, 1)),
+                PyLong_AsLong(PyTuple_GetItem(btxtcolor, 2))
+                ));
+        std::cout << PyObject_Repr(PyObject_GetAttrString(buttonobj, "text")) << std::endl;
+        menu->buttons[i].caption.setString(
+        PyUnicode_AsUTF8(PyObject_GetAttrString(buttonobj, "text")));
+        std::cout << PyObject_Repr(PyObject_GetAttrString(buttonobj, "actioncode")) << std::endl;
+        menu->buttons[i].action = 
+        PyUnicode_AsUTF8(PyObject_GetAttrString(buttonobj, "actioncode"));
+    }
+
+    // sprites
+    PyObject* spriteslist = PyObject_GetAttrString(o, "sprites");
+    std::cout << PyUnicode_AsUTF8(PyObject_Repr(spriteslist)) << std::endl;
+    for (int i = 0; i < menu->sprites.size(); i++) {
+        PyObject* spriteobj = PyList_GetItem(spriteslist, i);
+        menu->sprites[i].texture_index = 
+            PyLong_AsLong(PyObject_GetAttrString(spriteobj, "tex_index"));
+        menu->sprites[i].sprite_index = 
+            PyLong_AsLong(PyObject_GetAttrString(spriteobj, "sprite_index"));
+        menu->sprites[i].x = 
+            PyLong_AsLong(PyObject_GetAttrString(spriteobj, "x"));
+        menu->sprites[i].y = 
+            PyLong_AsLong(PyObject_GetAttrString(spriteobj, "y"));
+    }
 
     Py_INCREF(Py_None);
     return Py_None;
