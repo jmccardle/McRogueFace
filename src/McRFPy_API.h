@@ -48,6 +48,8 @@ public:
     // Jank Python Method Exposures
     static PyObject* _createMenu(PyObject*, PyObject*); // creates a new menu object in McRFPy_API::menus
     static PyObject* _listMenus(PyObject*, PyObject*);
+    static PyObject* _modMenu(PyObject*, PyObject*);
+
     static PyObject* _createCaption(PyObject*, PyObject*); // calls menu.add_caption
     static PyObject* _createButton(PyObject*, PyObject*);
     static PyObject* _createTexture(PyObject*, PyObject*);

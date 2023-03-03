@@ -17,6 +17,9 @@ static PyMethodDef mcrfpyMethods[] = {
     {"listMenus", McRFPy_API::_listMenus, METH_VARARGS,
         "return a list of existing menus"},
 
+    {"modMenu", McRFPy_API::_modMenu, METH_VARARGS,
+        "call with a UIMenu object to update all fields"},
+
     {"createCaption", McRFPy_API::_createCaption, METH_VARARGS,
         "Create a new text caption (menu_str, text_str, fontsize, r, g, b)"},
 
@@ -273,6 +276,33 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
         i++; // count iterator steps
     }
     return menulist;
+}
+
+PyObject* McRFPy_API::_modMenu(PyObject* self, PyObject* args) {
+    PyObject* o;
+    if (!PyArg_ParseTuple(args, "O", &o)) return NULL;
+    std::string title = PyUnicode_AsUTF8(PyObject_GetAttrString(o, "title"));
+    int x = PyLong_AsLong(PyObject_GetAttrString(o, "x"));
+    int y = PyLong_AsLong(PyObject_GetAttrString(o, "y"));
+    int w = PyLong_AsLong(PyObject_GetAttrString(o, "w"));
+    int h = PyLong_AsLong(PyObject_GetAttrString(o, "h"));
+    PyObject* bgtuple = PyObject_GetAttrString(o, "bgcolor");
+    auto bgcolor = sf::Color(
+        PyLong_AsLong(PyTuple_GetItem(bgtuple, 0)),
+        PyLong_AsLong(PyTuple_GetItem(bgtuple, 1)),
+        PyLong_AsLong(PyTuple_GetItem(bgtuple, 2))
+        );
+    bool visible = PyObject_IsTrue(PyObject_GetAttrString(o, "visible"));
+
+    auto menu = menus[title];
+    if (menu == NULL) return NULL;
+    menu->box.setPosition(sf::Vector2f(x, y));
+    menu->box.setSize(sf::Vector2f(w, h));
+    menu->box.setFillColor(bgcolor);
+    menu->visible = visible;
+
+    Py_INCREF(Py_None);
+    return Py_None;
 }
 
 PyObject* McRFPy_API::_createCaption(PyObject* self, PyObject* args) {
