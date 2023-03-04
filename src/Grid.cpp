@@ -70,6 +70,10 @@ void Grid::screenToGrid(int sx, int sy, int& gx, int& gy) {
     float ans_x = mouse_x_sq + left_edge;
     float ans_y = mouse_y_sq + top_edge;
 
+    // casting float turns -0.5 to 0; I want any negative coord to be OOB
+    if (ans_x < 0) ans_x = -1;
+    if (ans_y < 0) ans_y = -1;
+
     gx = ans_x;
     gy = ans_y;
     /*
