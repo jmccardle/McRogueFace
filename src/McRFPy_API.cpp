@@ -36,6 +36,12 @@ static PyMethodDef mcrfpyMethods[] = {
     {"registerPyAction", McRFPy_API::_registerPyAction, METH_VARARGS,
         "Register a callable Python object to correspond to an action string. (actionstr, callable)"},
 
+    {"createGrid", McRFPy_API::_createGrid, METH_VARARGS,
+        "create a new grid (title, grid_x, grid_y, grid_size, x, y, w, h). grid_x and grid_y are the width and height in squares. grid_size is the pixel w/h of sprites on the grid. x,y are the grid's screen position. w,h are the grid's screen size" },
+
+    {"listGrids", McRFPy_API::_listGrids, METH_VARARGS,
+        "return grid objects and all points" },
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -208,6 +214,7 @@ PyObject* McRFPy_API::_createMenu(PyObject *self, PyObject *args) {
     int posx, posy, sizex, sizey;
     if (!PyArg_ParseTuple(args, "siiii", &title_cstr, &posx, &posy, &sizex, &sizey)) return NULL;
     std::string title = title_cstr;
+    //TODO (Bug 2) check for and free existing key before overwriting ptr
     menus[title] = createMenu(posx, posy, sizex, sizey);
     Py_INCREF(Py_None);
     return Py_None;
@@ -484,4 +491,69 @@ void McRFPy_API::doAction(std::string actionstr) {
     if (callbacks.find(actionstr) == callbacks.end()) return;
     //std::cout << "Calling: " << PyUnicode_AsUTF8(PyObject_Repr(callbacks[actionstr])) << std::endl;
     PyObject_Call(callbacks[actionstr], PyTuple_New(0), NULL);
+}
+
+PyObject* McRFPy_API::_createGrid(PyObject *self, PyObject *args) {
+    const char* title_cstr;
+    int gx, gy, gs, x, y, w, h;
+    if (!PyArg_ParseTuple(args, "siiiiiii", &title_cstr, &gx, &gy, &gs, &x, &y, &w, &h)) return NULL;
+    std::string title = title_cstr;
+    //TODO - (Bug 2) check for key existing, and free if overwriting
+    grids[title] = new Grid(gx, gy, gs, x, y, w, h);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_listGrids(PyObject*, PyObject*) {
+    PyObject* gridmodule = PyImport_AddModule("Grid"); //already imported
+    PyObject* grid_type = PyObject_GetAttrString(gridmodule, "Grid");
+    PyObject* gridpoint_type = PyObject_GetAttrString(gridmodule, "GridPoint");
+
+    std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridmodule)) << std::endl;
+    std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_type)) << std::endl;
+    std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridpoint_type)) << std::endl;
+        
+    PyObject* gridlist = PyList_New(grids.size());
+    std::map<std::string, Grid*>::iterator it = grids.begin();
+    int i = 0;
+    for (auto it = grids.begin(); it != grids.end(); it++) {
+        std::string title = it->first;
+        auto grid = it->second;
+        auto p = grid->box.getPosition();
+        auto s = grid->box.getSize();
+        PyObject* grid_args = Py_BuildValue("(siiiiiii)",
+            title.c_str(),
+            (int)grid->grid_x, (int)grid->grid_y, (int)grid->grid_size,
+			(int)p.x, (int)p.y, (int)s.x, (int)s.y);
+
+        std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_args)) << std::endl;
+
+        PyObject* gridobj = PyObject_CallObject((PyObject*) grid_type, grid_args);
+        std::cout << (long)gridobj << std::flush <<std::endl;
+
+        std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridobj)) << std::endl;
+        // Loop: Convert GridPoint objects to Python Objects
+        PyObject* gridp_list = PyObject_GetAttrString(gridobj, "points");
+        for(auto& p : grid->points) {
+            PyObject* gridp_args = Py_BuildValue("((iii)OiOOO(iii)ii)",
+                (int)p.color.r, (int)p.color.g, (int)p.color.b,
+				p.walkable ? Py_True: Py_False,
+        		p.tilesprite,
+				p.transparent ? Py_True: Py_False,
+				p.visible ? Py_True: Py_False,
+				p.discovered ? Py_True: Py_False,
+                (int)p.color_overlay.r, (int)p.color_overlay.g, (int)p.color_overlay.b,
+                p.tile_overlay,
+				p.uisprite);
+			p.walkable ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
+			p.transparent ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
+            p.visible ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
+			p.discovered ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
+            PyObject* gridpobj = PyObject_CallObject((PyObject*) gridpoint_type, gridp_args);
+            PyList_Append(gridp_list, gridpobj);
+		}
+		PyList_SET_ITEM(gridlist, i, gridobj);
+        i++; // count iterator steps
+    }
+    return gridlist;
 }

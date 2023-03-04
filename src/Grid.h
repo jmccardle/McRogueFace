@@ -17,6 +17,7 @@ public:
 class Grid
 {
 private:
+public:
     Grid();
     sf::RectangleShape box; // view on window
     sf::Texture texture;
@@ -25,7 +26,6 @@ private:
     void setSprite(int);
     const int texture_width, texture_height;
 
-public:
     Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h);
     int grid_x, grid_y; // rectangle map size (integer - sprites)
     int grid_size; // pixel size of 1 sprite
