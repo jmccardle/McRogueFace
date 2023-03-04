@@ -34,7 +34,7 @@ public:
     std::vector<GridPoint> points; // grid visible contents
     void render(sf::RenderWindow&); // draw to screen
     GridPoint& at(int, int);
-
+    bool inBounds(int, int);
     void screenToGrid(int, int, int&, int&);
     GridPoint* atScreenPixel(int, int, int*, int*);
 

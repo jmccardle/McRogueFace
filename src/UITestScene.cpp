@@ -283,10 +283,19 @@ void UITestScene::doAction(std::string name, std::string type)
     }
 
     if (ACTION("gridtests", "start")) {
+        
         int tx, ty;
         auto mousepos = sf::Mouse::getPosition(game->getWindow());
+        /*
         GridPoint* pgrid = grid.atScreenPixel(mousepos.x, mousepos.y, &tx, &ty);
         std::cout << "\ntx: " << tx << " ty: " << ty << std::endl;
+        */
+        grid.screenToGrid(mousepos.x, mousepos.y, tx, ty);
+        if (grid.inBounds(tx, ty)) {
+            auto gridsq = grid.at(tx, ty);
+            std::cout << "At (" << tx << ", " << ty << "): " << gridsq.tilesprite << std::endl;
+        }
+
     }
 
     // after processing: set actionState

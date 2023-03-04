@@ -44,6 +44,10 @@ Grid::Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h):
     sprite.setTexture(texture);
 }
 
+bool Grid::inBounds(int x, int y) {
+    return (x >= 0 && y >= 0 && x < grid_x && y < grid_y);
+}
+
 void Grid::screenToGrid(int sx, int sy, int& gx, int& gy) {
     float width_sq = box.getSize().x / (grid_size * zoom);
     float height_sq = box.getSize().y / (grid_size * zoom);
@@ -53,13 +57,13 @@ void Grid::screenToGrid(int sx, int sy, int& gx, int& gy) {
     float bottom_edge = center_y + (height_sq / 2.0);
 
     float grid_px = zoom * grid_size;
-    std::cout <<  "##############################" << 
-        "\nscreen coord: (" << sx << ", " << sy << ")" << std::endl;
+    //std::cout <<  "##############################" << 
+    //    "\nscreen coord: (" << sx << ", " << sy << ")" << std::endl;
 
     sx -= box.getPosition().x;
     sy -= box.getPosition().y;
 
-    std::cout << "box coord: (" << sx << ", " << sy << ")" << std::endl;
+    //std::cout << "box coord: (" << sx << ", " << sy << ")" << std::endl;
     float mouse_x_sq = sx / grid_px;
     float mouse_y_sq = sy / grid_px;
 
@@ -68,6 +72,7 @@ void Grid::screenToGrid(int sx, int sy, int& gx, int& gy) {
 
     gx = ans_x;
     gy = ans_y;
+    /*
     std::cout <<
         "C: (" << center_x << ", " << center_y << ")" << std::endl <<
         "W: " << width_sq << " H: " << height_sq << std::endl <<
@@ -77,6 +82,7 @@ void Grid::screenToGrid(int sx, int sy, int& gx, int& gy) {
         "answer: G(" << ans_x << ", " << ans_y << ")" << std::endl << 
         "##############################" << 
         std::endl;
+    */
 }
 
 void Grid::render(sf::RenderWindow & window)
