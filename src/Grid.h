@@ -35,4 +35,8 @@ public:
     void render(sf::RenderWindow&); // draw to screen
     GridPoint& at(int, int);
 
+    void screenToGrid(int, int, int&, int&);
+    GridPoint* atScreenPixel(int, int, int*, int*);
+
+    
 };

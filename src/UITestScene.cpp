@@ -19,8 +19,15 @@ void setSpriteTexture(int ti)
     test_sprite.setTextureRect(sf::IntRect(tx * texture_size, ty * texture_size, texture_size, texture_size));
 }
 
+// random for this test
+std::random_device rd;  // Will be used to obtain a seed for the random number engine
+std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+std::uniform_int_distribution<> distrib(0, 10);
+std::uniform_int_distribution<> coldistrib(64, 192);
+std::uniform_real_distribution<> snoise(-3, 3);
+
 UITestScene::UITestScene(GameEngine* g)
-: Scene(g), grid(150, 150, 16, 20, 20, 800, 520) 
+: Scene(g), grid(10, 20, 16, 20, 20, 800, 520) 
 {
     // demo sprites from texture file
     texture.loadFromFile("./assets/kenney_tinydungeon.png");
@@ -32,21 +39,26 @@ UITestScene::UITestScene(GameEngine* g)
     test_sprite.setScale(sf::Vector2f(4.0f, 4.0f));
     setSpriteTexture(0);
 
-    // random for this test
-    std::random_device rd;  // Will be used to obtain a seed for the random number engine
-    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
-    std::uniform_int_distribution<> distrib(84, 100);
+
 
     // Test grid with random sprite noise
 
-    for (int _x = 0; _x < 150; _x++)
-        for (int _y = 0; _y < 150; _y++)
+    //std::array<int, 11> ground = {0, 12, 24, 48, 42, 48, 49, 50, 51, -1, -1};
+    std::array<int, 11> ground = {0, 0, 0, -1, -1, -1, -1, -1, -1, -1, 51};
+
+    for (int _x = 0; _x < 10; _x++)
+        for (int _y = 0; _y < 20; _y++) {
             //grid.at(_x, _y).tilesprite = _y*11 + _x;
             //if (!_x % 2 || _y == 0) grid.at(_x, _y).tilesprite = 121;
             //else 
-            grid.at(_x, _y).tilesprite = distrib(gen);
+            auto &gridpoint = grid.at(_x, _y);
+            grid.at(_x, _y).tilesprite = ground[distrib(gen)];
+            grid.at(_x, _y).color = sf::Color(
+                    coldistrib(gen), 0, 0);
 
-    for (int _x = 0; _x < 30; _x++)
+        }
+
+    for (int _x = 0; _x < 10; _x++)
     {
         grid.at(_x, 0).tilesprite = 121;
         grid.at(_x, 5).tilesprite = 123;
@@ -79,6 +91,7 @@ UITestScene::UITestScene(GameEngine* g)
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NEG + ActionCode::WHEEL_DEL, "wheel_down");
 
     registerAction(ActionCode::KEY + sf::Keyboard::Num4, "sound_test");
+    registerAction(ActionCode::KEY + sf::Keyboard::Q, "gridtests");
 
     registerAction(0, "event");
 
@@ -117,7 +130,7 @@ UITestScene::UITestScene(GameEngine* g)
 
 void UITestScene::update()
 {
-
+    /*
     if (abs(desired_angle - test_ship.angle) < 1)
     {
         test_ship.angle = desired_angle;
@@ -127,6 +140,19 @@ void UITestScene::update()
     } else if (test_ship.angle > desired_angle){
         test_ship.angle -= 1;
     }
+    */
+
+    /*
+    // Too slow: updating every grid manually
+    // Restrict to visible squares... use noise for coherence?
+    for (int _x = 0; _x < grid.grid_x; _x++)
+        for (int _y = 0; _y < grid.grid_y; _y++) {
+            auto &square = grid.at(_x, _y);
+            square.color.r += snoise(gen);
+            if (square.color.r > 254) square.color.r = 254;
+            if (square.color.r < 1) square.color.r = 1;
+        }
+    */
 
     entities.update();
 
@@ -183,6 +209,20 @@ void UITestScene::doAction(std::string name, std::string type)
                     ui_clicked = true;
                 }
             }
+        }
+        if (!ui_clicked) {
+            for (auto pair : McRFPy_API::menus) {
+                if (!pair.second->visible) continue;
+                for (auto b : pair.second->buttons)
+                {
+                    if (b.contains(mousepos)) {
+                        std::cout << "(api) " << b.getAction() <<std::endl;
+                        McRFPy_API::doAction(b.getAction());
+                        ui_clicked = true;
+                    }
+                }
+            }
+
         }
         if (!ui_clicked) {
             auto mousepos = sf::Mouse::getPosition(game->getWindow());
@@ -242,6 +282,13 @@ void UITestScene::doAction(std::string name, std::string type)
         viewport.zoom(zoom);
     }
 
+    if (ACTION("gridtests", "start")) {
+        int tx, ty;
+        auto mousepos = sf::Mouse::getPosition(game->getWindow());
+        GridPoint* pgrid = grid.atScreenPixel(mousepos.x, mousepos.y, &tx, &ty);
+        std::cout << "\ntx: " << tx << " ty: " << ty << std::endl;
+    }
+
     // after processing: set actionState
     if      (type.compare("start") == 0 && !actionState[name]) { actionState[name] = true; }
     else if (type.compare("end") == 0   &&  actionState[name]) { actionState[name] = false; }
@@ -277,6 +324,7 @@ void UITestScene::sRender()
     // Python API menus
     for (auto pair: McRFPy_API::menus)
     {
+        if (!pair.second->visible) continue;
         pair.second->render(game->getWindow());
     }
 
@@ -284,7 +332,7 @@ void UITestScene::sRender()
     //McRFPy_API::executePyString("mcrfpy.drawSprite(123, 36, 10)");
 
     // draw test sprite on top of everything
-    game->getWindow().draw(test_sprite); 
+    //game->getWindow().draw(test_sprite); 
 
     game->getWindow().display();
 }

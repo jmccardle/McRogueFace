@@ -13,16 +13,17 @@ UIMenu::UIMenu(sf::Font & _font)
 void UIMenu::render(sf::RenderWindow & window)
 {
     window.draw(box);
+    for (auto& s: sprites) {
+        auto _s = s.drawable();
+        _s.move(box.getPosition());
+        window.draw(_s);
+    }
     for (auto& c : captions) {
         //auto s = std::string(c.getString());
         //std::cout << s << std::flush << std::endl;
         window.draw(c);
     }
     for (auto& b : buttons) { b.render(window); }
-    for (auto& s: sprites) {
-        auto _s = s.drawable();
-        // TODO: s.move or whatever to make it's 0,0 relative to menu box
-        window.draw(_s); }
 }
 
 void UIMenu::refresh()

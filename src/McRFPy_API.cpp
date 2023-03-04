@@ -6,6 +6,7 @@
 // static class members...?
 std::map<std::string, UIMenu*> McRFPy_API::menus;
 std::map<std::string, Grid*> McRFPy_API::grids;
+std::map<std::string, PyObject*> McRFPy_API::callbacks;
 
 static PyMethodDef mcrfpyMethods[] = {
     {"drawSprite", McRFPy_API::_drawSprite, METH_VARARGS,
@@ -31,6 +32,9 @@ static PyMethodDef mcrfpyMethods[] = {
 
     {"createTexture", McRFPy_API::_createTexture, METH_VARARGS,
         "Create a new texture (filename_str, grid_size, width, height) - grid_size is in pixels (only square sprites for now), width and height are in tiles"},
+
+    {"registerPyAction", McRFPy_API::_registerPyAction, METH_VARARGS,
+        "Register a callable Python object to correspond to an action string. (actionstr, callable)"},
 
     {NULL, NULL, 0, NULL}
 };
@@ -307,7 +311,7 @@ PyObject* McRFPy_API::_modMenu(PyObject* self, PyObject* args) {
     // jank, or dank? iterate over .captions, .buttons, .sprites to modify them
     // captions
     PyObject* captionlist = PyObject_GetAttrString(o, "captions");
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(captionlist)) << std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(captionlist)) << std::endl;
     for (int i = 0; i < menu->captions.size(); i++) {
         PyObject* captionobj = PyList_GetItem(captionlist, i);
         menu->captions[i].setString(
@@ -325,7 +329,7 @@ PyObject* McRFPy_API::_modMenu(PyObject* self, PyObject* args) {
 
     // buttons
     PyObject* buttonlist = PyObject_GetAttrString(o, "buttons");
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(buttonlist)) << std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(buttonlist)) << std::endl;
     for (int i = 0; i < menu->buttons.size(); i++) {
         PyObject* buttonobj = PyList_GetItem(buttonlist, i);
         menu->buttons[i].setPosition(sf::Vector2f(
@@ -338,7 +342,7 @@ PyObject* McRFPy_API::_modMenu(PyObject* self, PyObject* args) {
             );
         menu->buttons[i].setSize(sizevec);
         PyObject* btncolor = PyObject_GetAttrString(buttonobj, "bgcolor");
-        std::cout << PyUnicode_AsUTF8(PyObject_Repr(btncolor)) << std::endl;
+        //std::cout << PyUnicode_AsUTF8(PyObject_Repr(btncolor)) << std::endl;
         menu->buttons[i].setBackground(
             sf::Color(
                 PyLong_AsLong(PyTuple_GetItem(btncolor, 0)),
@@ -346,24 +350,24 @@ PyObject* McRFPy_API::_modMenu(PyObject* self, PyObject* args) {
                 PyLong_AsLong(PyTuple_GetItem(btncolor, 2))
                 ));
         PyObject* btxtcolor = PyObject_GetAttrString(buttonobj, "textcolor");
-        std::cout << PyUnicode_AsUTF8(PyObject_Repr(btxtcolor)) << std::endl;
+        //std::cout << PyUnicode_AsUTF8(PyObject_Repr(btxtcolor)) << std::endl;
         menu->buttons[i].setTextColor(
             sf::Color(
                 PyLong_AsLong(PyTuple_GetItem(btxtcolor, 0)),
                 PyLong_AsLong(PyTuple_GetItem(btxtcolor, 1)),
                 PyLong_AsLong(PyTuple_GetItem(btxtcolor, 2))
                 ));
-        std::cout << PyObject_Repr(PyObject_GetAttrString(buttonobj, "text")) << std::endl;
+        //std::cout << PyObject_Repr(PyObject_GetAttrString(buttonobj, "text")) << std::endl;
         menu->buttons[i].caption.setString(
         PyUnicode_AsUTF8(PyObject_GetAttrString(buttonobj, "text")));
-        std::cout << PyObject_Repr(PyObject_GetAttrString(buttonobj, "actioncode")) << std::endl;
+        //std::cout << PyObject_Repr(PyObject_GetAttrString(buttonobj, "actioncode")) << std::endl;
         menu->buttons[i].action = 
         PyUnicode_AsUTF8(PyObject_GetAttrString(buttonobj, "actioncode"));
     }
 
     // sprites
     PyObject* spriteslist = PyObject_GetAttrString(o, "sprites");
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(spriteslist)) << std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(spriteslist)) << std::endl;
     for (int i = 0; i < menu->sprites.size(); i++) {
         PyObject* spriteobj = PyList_GetItem(spriteslist, i);
         menu->sprites[i].texture_index = 
@@ -460,4 +464,24 @@ int McRFPy_API::createTexture(std::string filename, int grid_size, int grid_widt
     game->textures.push_back(indextex);
 
     return game->textures.size() - 1;
+}
+
+// python connection
+PyObject* McRFPy_API::_registerPyAction(PyObject *self, PyObject *args)
+{
+    PyObject* callable;
+    const char * actionstr;
+    if (!PyArg_ParseTuple(args, "sO", &actionstr, &callable)) return NULL;
+    callbacks[std::string(actionstr)] = callable;
+    Py_INCREF(callable);
+
+    // return None correctly
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+void McRFPy_API::doAction(std::string actionstr) {
+    if (callbacks.find(actionstr) == callbacks.end()) return;
+    //std::cout << "Calling: " << PyUnicode_AsUTF8(PyObject_Repr(callbacks[actionstr])) << std::endl;
+    PyObject_Call(callbacks[actionstr], PyTuple_New(0), NULL);
 }

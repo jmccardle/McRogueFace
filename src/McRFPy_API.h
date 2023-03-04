@@ -45,6 +45,8 @@ public:
     EntityManager entities; // this is also kinda good, entities not on the current grid can still act (like monsters following you through doors??)
     static std::map<std::string, Grid*> grids;
 
+    static std::map<std::string, PyObject*> callbacks;
+
     // Jank Python Method Exposures
     static PyObject* _createMenu(PyObject*, PyObject*); // creates a new menu object in McRFPy_API::menus
     static PyObject* _listMenus(PyObject*, PyObject*);
@@ -65,6 +67,8 @@ public:
 
     //static PyObject* _createGrid(PyObject*, PyObject*);
     //static PyObject* _listGrids(PyObject*, PyObject*);
+    
+    static PyObject* _registerPyAction(PyObject*, PyObject*);
 
     // Jank Functionality
     static UIMenu* createMenu(int posx, int posy, int sizex, int sizey);
@@ -74,6 +78,8 @@ public:
     static int createTexture(std::string filename, int grid_size, int grid_width, int grid_height);
     //static void playSound(const char * filename);
     //static void playMusic(const char * filename);
+    
+    static void doAction(std::string);
 
 
     //    McRFPy_API(GameEngine*);
