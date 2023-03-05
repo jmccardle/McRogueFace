@@ -14,7 +14,7 @@ void Grid::setSprite(int ti)
 Grid::Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h):
     grid_size(gs),
     grid_x(gx), grid_y(gy), 
-    zoom(1.0f), center_x(gx), center_y(gy),
+    zoom(1.0f), center_x((gx/2) * gs), center_y((gy/2) * gs),
     texture_width(12), texture_height(11)
 {
     //grid_size = gs;
@@ -49,12 +49,16 @@ bool Grid::inBounds(int x, int y) {
 }
 
 void Grid::screenToGrid(int sx, int sy, int& gx, int& gy) {
+
+    float center_x_sq = center_x / grid_size;
+    float center_y_sq = center_y / grid_size;
+
     float width_sq = box.getSize().x / (grid_size * zoom);
     float height_sq = box.getSize().y / (grid_size * zoom);
-    float left_edge = center_x - (width_sq / 2.0);
-    float right_edge = center_x + (width_sq / 2.0);
-    float top_edge = center_y - (height_sq / 2.0);
-    float bottom_edge = center_y + (height_sq / 2.0);
+    float left_edge = center_x_sq - (width_sq / 2.0);
+    float right_edge = center_x_sq + (width_sq / 2.0);
+    float top_edge = center_y_sq - (height_sq / 2.0);
+    float bottom_edge = center_y_sq + (height_sq / 2.0);
 
     float grid_px = zoom * grid_size;
     //std::cout <<  "##############################" << 
@@ -69,6 +73,20 @@ void Grid::screenToGrid(int sx, int sy, int& gx, int& gy) {
 
     float ans_x = mouse_x_sq + left_edge;
     float ans_y = mouse_y_sq + top_edge;
+
+    // compare integer method with this (mostly working) one
+    //int diff_realpixel_x = box.getSize().x / 2.0 - sx;
+    //int diff_realpixel_y = box.getSize().y / 2.0 - sy;
+    int left_spritepixels = center_x - (box.getSize().x / 2.0 / zoom);
+    int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
+
+    std::cout << "Float method got ans (" << ans_x << ", " << ans_y << ")"
+        << std::endl << "Int method px (" << left_spritepixels + (sx/zoom) << ", " << 
+        top_spritepixels + (sy/zoom) << ")" << std::endl << 
+        "Int grid (" << (left_spritepixels + (sx/zoom) ) / grid_size << 
+        ", " << (top_spritepixels + (sy/zoom)) / grid_size << ")" << 
+
+        std::endl;
 
     // casting float turns -0.5 to 0; I want any negative coord to be OOB
     if (ans_x < 0) ans_x = -1;
@@ -89,68 +107,117 @@ void Grid::screenToGrid(int sx, int sy, int& gx, int& gy) {
     */
 }
 
+void Grid::renderPxToGrid(int sx, int sy, int& gx, int& gy) {
+    // just like screen px coversion, but no offset by grid's position
+    float center_x_sq = center_x / grid_size;
+    float center_y_sq = center_y / grid_size;
+
+    float width_sq = box.getSize().x / (grid_size * zoom);
+    float height_sq = box.getSize().y / (grid_size * zoom);
+
+    int width_px = box.getSize().x / 2.0;
+    int height_px = box.getSize().y / 2.0;
+
+    float left_edge = center_x_sq - (width_sq / 2.0);
+    float top_edge = center_y_sq - (height_sq / 2.0);
+
+    float grid_px = zoom * grid_size;
+    float sx_sq = sx / grid_px;
+    float sy_sq = sy / grid_px;
+
+    float ans_x = sx_sq + left_edge;
+    float ans_y = sy_sq + top_edge;
+
+    if (ans_x < 0) ans_x = -1;
+    if (ans_y < 0) ans_y = -1;
+
+    gx = ans_x;
+    gy = ans_y;
+}
+
+void Grid::integerGrid(float fx, float fy, int& gx, int& gy) {
+    if (fx < 0) fx -= 0.5;
+    if (fy < 0) fy -= 0.5;
+    gx = fx;
+    gy = fy;
+}
+
+void Grid::gridToRenderPx(int gx, int gy, int& sx, int& sy) {
+    // integer grid square (gx, gy) - what pixel (on rendertexture)
+    // should it's top left corner be at (the sprite's position)
+
+    // eff_gridsize = grid_size * zoom
+    // if center_x = 161, and grid_size is 16, that's 10 + 1/16 sprites
+    // center_x - (box.getSize().x / 2 / zoom) = left edge (in px)
+    // gx * eff_gridsize = pixel position without panning
+    // pixel_gx - left_edge = grid's render position
+
+    sx = (gx * grid_size * zoom) - (center_x - (box.getSize().x / 2.0 / zoom));
+    sy = (gy * grid_size * zoom) - (center_y - (box.getSize().y / 2.0 / zoom));
+}
+
 void Grid::render(sf::RenderWindow & window)
 {
     renderTexture.clear();
     //renderTexture.draw(box);
 
     // sprites that are visible according to zoom, center_x, center_y, and box width
+    float center_x_sq = center_x / grid_size;
+    float center_y_sq = center_y / grid_size;
+
     float width_sq = box.getSize().x / (grid_size * zoom);
     float height_sq = box.getSize().y / (grid_size * zoom);
-    float left_edge = center_x - (width_sq / 2.0);
-    float right_edge = center_x + (width_sq / 2.0);
-    float top_edge = center_y - (height_sq / 2.0);
-    float bottom_edge = center_y + (height_sq / 2.0);
+    float left_edge = center_x_sq - (width_sq / 2.0);
+    //float right_edge = center_x_sq + (width_sq / 2.0);
+    float top_edge = center_y_sq - (height_sq / 2.0);
+    //float bottom_edge = center_y_sq + (height_sq / 2.0);
 
-    //auto box_size = box.getSize();
-    //float view_width = box_size.x / (grid_size * zoom);
-    //float view_height = box_size.y / (grid_size * zoom);
 
-    //float top_offset = (center_y * grid_size) - box_size.y/2.0f;
-    //float left_offset = (center_x * grid_size) - box_size.x/2.0f;
+    int left_spritepixels = center_x - (box.getSize().x / 2.0 / zoom);
+    int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
 
     sprite.setScale(sf::Vector2f(zoom, zoom));
     sf::RectangleShape r; // for colors and overlays
     r.setSize(sf::Vector2f(grid_size * zoom, grid_size * zoom));
     r.setOutlineThickness(0);
 
-    //auto box_pos = box.getPosition();
-
-    //int x_start = std::floor(center_x - view_width/2.0f);
-    //int x_end = std::ceil(center_x + view_width/2.0f);
-    //int y_start = std::floor(center_y - view_height/2.0f);
-    //int y_end = std::ceil(center_y + view_height/2.0f);
-    int x_limit = left_edge + width_sq + 1;
+    int x_limit = left_edge + width_sq + 2;
     if (x_limit > grid_x) x_limit = grid_x;
 
-    int y_limit = top_edge + height_sq + 1;
+    int y_limit = top_edge + height_sq + 2;
     if (y_limit > grid_y) y_limit = grid_y;
 
-    for (float x = (left_edge >= 0 ? left_edge : 0); 
+    //for (float x = (left_edge >= 0 ? left_edge : 0); 
+    for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
         x < x_limit; //x < view_width; 
-        x+=1.0)
+        x+=1)
     {
-        for (float y = (top_edge >= 0 ? top_edge : 0); 
+        //for (float y = (top_edge >= 0 ? top_edge : 0); 
+        for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
             y < y_limit; //y < view_height;
-            y+=1.0)
+            y+=1)
         {
+            // Converting everything to integer pixels to avoid jitter
+            //auto pixel_pos = sf::Vector2f(
+            //    (x - left_edge) * (zoom * grid_size),
+            //    (y - top_edge) * (zoom * grid_size));
+
+            // This failed horribly:
+            //int gx, gy; integerGrid(x, y, gx, gy);
+            //int px_x, px_y; gridToRenderPx(gx, gy, px_x, px_y);
+            //auto pixel_pos = sf::Vector2f(px_x, px_y);
+           
+            // this draws coherently, but the coordinates
+            // don't match up with the mouse cursor function
+            // jitter not eliminated
             auto pixel_pos = sf::Vector2f(
-                (x - left_edge) * (zoom * grid_size),
-                (y - top_edge) * (zoom * grid_size));
+                    (x*grid_size - left_spritepixels) * zoom,
+                    (y*grid_size - top_spritepixels) * zoom );
+
             auto gridpoint = at(std::floor(x), std::floor(y));
 
-            // convert grid's coordinate to pixel coords to draw
-            //float window_x = (x_start + x) * grid_size * zoom;
-            //float window_y = (y_start + y) * grid_size * zoom;
-            //float natural_x = x * grid_size * zoom;
-            //float natural_y = y * grid_size * zoom;
             sprite.setPosition(pixel_pos);
-                //sf::Vector2f(natural_x - left_offset, 
-                //             natural_y - top_offset));
             
-            // color?
-            //r.setPosition(sf::Vector2f(natural_x - left_offset,
-            //            natural_y - top_offset));
             r.setPosition(pixel_pos);
             r.setFillColor(gridpoint.color);
             renderTexture.draw(r);
@@ -197,57 +264,4 @@ void Grid::render(sf::RenderWindow & window)
 GridPoint& Grid::at(int x, int y)
 {
     return points[y * grid_x + x];
-}
-
-GridPoint* Grid::atScreenPixel(int sx, int sy, int* gx=NULL, int* gy=NULL) {
-
-    int _x, _y;
-    screenToGrid(sx, sy, _x, _y);
-    std::cout << "screenToGrid gave: (" << _x << ", " << _y << ")" << std::endl;
-
-    auto p = box.getPosition();
-    auto s = box.getSize();
-
-    // debug render values
-    int x_start = std::floor(center_x - s.x/2.0f);
-    int x_end = std::ceil(center_x + s.x/2.0f);
-    int y_start = std::floor(center_y - s.y/2.0f);
-    int y_end = std::ceil(center_y + s.y/2.0f);
-    std::cout << "Center: " << center_x << ", " << center_y << std::endl <<
-        "Start grid: " << x_start << ", " << y_start << std::endl <<
-        "End grid: " << x_end << ", " << y_end << std::endl;
-
-
-    // check if the mouse is even over the grid
-    if (sx < p.x || sx > p.x+s.x || sy < p.y || sy > p.y+s.y) {
-        std::cout << "(" << sx << ", " << sy << ") not over grid" << std::endl;
-        return NULL;
-    }
-    // get dx, dy to box's center
-    int dx = sx - (s.x/2.0 + p.x),
-        dy = sy - (s.y/2.0 + p.y);
-
-    // divide dx, dy by (gridsize * zoom) to get # in boxes
-    int gdx = dx / (grid_size * zoom),
-        gdy = dy / (grid_size * zoom);
-
-    int targetx = gdx + center_x,
-        targety = gdy + center_y;
-    // return
-    if (gx) {
-        *gx = targetx;
-    }
-
-    if (gy) {
-        *gy = targety;
-    }
-
-    if (targetx >= 0 && targetx <= grid_x && targety >= 0 && targety <= grid_y) {
-        return &points[targety * grid_x + targetx];
-    }
-    else {
-        std::cout << "(" << sx << ", " << sy << ") not over actual grid content" << std::endl;
-        return NULL;
-    }
-
 }

@@ -29,14 +29,16 @@ public:
     Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h);
     int grid_x, grid_y; // rectangle map size (integer - sprites)
     int grid_size; // pixel size of 1 sprite
-    float zoom, center_x, center_y; // center in fractional sprites
+    float zoom;
+    int center_x, center_y; // center in 1.0x Pixels
 
     std::vector<GridPoint> points; // grid visible contents
     void render(sf::RenderWindow&); // draw to screen
     GridPoint& at(int, int);
     bool inBounds(int, int);
     void screenToGrid(int, int, int&, int&);
-    GridPoint* atScreenPixel(int, int, int*, int*);
 
-    
+    void renderPxToGrid(int, int, int&, int&);
+    void gridToRenderPx(int, int, int&, int&);
+    void integerGrid(float, float, int&, int&); 
 };

@@ -253,16 +253,16 @@ void UITestScene::doAction(std::string name, std::string type)
     if (ACTION("sound_test", "start")) { sound.play(); }
 
     if (ACTION("left", "start"))  {
-        grid.center_x -= 0.5;
+        grid.center_x -= 1;
     }
     if (ACTION("right", "start")) {
-        grid.center_x += 0.5;
+        grid.center_x += 1;
     }
     if (ACTION("up", "start"))    {
-        grid.center_y -= 0.5;
+        grid.center_y -= 1;
     }
     if (ACTION("down", "start"))  {
-        grid.center_y += 0.5;
+        grid.center_y += 1;
     }
     if (ACTION("zoom_down", "start"))  {
         if (grid.zoom > 0.75f) grid.zoom -= 0.25f;
@@ -293,7 +293,7 @@ void UITestScene::doAction(std::string name, std::string type)
         grid.screenToGrid(mousepos.x, mousepos.y, tx, ty);
         if (grid.inBounds(tx, ty)) {
             auto gridsq = grid.at(tx, ty);
-            std::cout << "At (" << tx << ", " << ty << "): " << gridsq.tilesprite << std::endl;
+            std::cout << "At (" << tx << ", " << ty << "): " << gridsq.tilesprite << " Center: (" << grid.center_x << ", " << grid.center_y << ")" << std::endl;
         }
 
     }
