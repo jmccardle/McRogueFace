@@ -42,7 +42,7 @@ public:
 
     // Jank mode engage: let the API hold data for Python to hack on
     static std::map<std::string, UIMenu*> menus;
-    EntityManager entities; // this is also kinda good, entities not on the current grid can still act (like monsters following you through doors??)
+    static EntityManager entities; // this is also kinda good, entities not on the current grid can still act (like monsters following you through doors??)
     static std::map<std::string, Grid*> grids;
 
     static std::map<std::string, PyObject*> callbacks;

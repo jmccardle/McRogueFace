@@ -20,11 +20,13 @@ private:
 public:
     Grid();
     sf::RectangleShape box; // view on window
+    bool visible;
     sf::Texture texture;
     sf::Sprite sprite, output;
     sf::RenderTexture renderTexture;
     void setSprite(int);
     const int texture_width, texture_height;
+    auto contains(sf::Vector2i p) { return box.getGlobalBounds().contains(p.x, p.y); }
 
     Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h);
     int grid_x, grid_y; // rectangle map size (integer - sprites)

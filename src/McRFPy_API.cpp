@@ -7,6 +7,7 @@
 std::map<std::string, UIMenu*> McRFPy_API::menus;
 std::map<std::string, Grid*> McRFPy_API::grids;
 std::map<std::string, PyObject*> McRFPy_API::callbacks;
+EntityManager McRFPy_API::entities;
 
 static PyMethodDef mcrfpyMethods[] = {
     {"drawSprite", McRFPy_API::_drawSprite, METH_VARARGS,

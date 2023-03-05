@@ -15,7 +15,7 @@ Grid::Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h):
     grid_size(gs),
     grid_x(gx), grid_y(gy), 
     zoom(1.0f), center_x((gx/2) * gs), center_y((gy/2) * gs),
-    texture_width(12), texture_height(11)
+    texture_width(12), texture_height(11), visible(false)
 {
     //grid_size = gs;
     //zoom = 1.0f;

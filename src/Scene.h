@@ -3,6 +3,7 @@
 // macros for scene input
 #define ACTION(X, Y) (name.compare(X) == 0 && type.compare(Y) == 0)
 #define ACTIONONCE(X) ((name.compare(X) == 0 && type.compare("start") == 0 && !actionState[name]))
+#define ACTIONAFTER(X) ((name.compare(X) == 0 && type.compare("end") == 0 && actionState[name]))
 
 #include "Common.h"
 //#include "GameEngine.h"

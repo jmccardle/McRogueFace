@@ -3,6 +3,7 @@
 #include "UITestScene.h"
 #include "ActionCode.h"
 #include "McRFPy_API.h"
+#include "PythonScene.h"
 
 GameEngine::GameEngine()
 {
@@ -10,17 +11,20 @@ GameEngine::GameEngine()
     window.create(sf::VideoMode(1024, 768), "McRogueFace Engine by John McCardle");
     visible = window.getDefaultView();
     window.setFramerateLimit(30);
-    scene = "menu";
+    scene = "py";
     //std::cout << "Constructing MenuScene" << std::endl;
     scenes["menu"] = new MenuScene(this);
     //std::cout << "Constructed MenuScene" <<std::endl;
     scenes["play"] = new UITestScene(this);
     //api = new McRFPy_API(this);
+    
     McRFPy_API::game = this;
     McRFPy_API::api_init();
     McRFPy_API::executePyString("import mcrfpy");
     McRFPy_API::executePyString("from UIMenu import *");
     McRFPy_API::executePyString("from Grid import *");
+
+    scenes["py"] = new PythonScene(this, "TestScene");
 
     IndexSprite::game = this;
 }
