@@ -6,7 +6,7 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
 : Scene(g) {
     // mouse events
     registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Left, "click");
-    registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Left, "rclick");
+    registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Right, "rclick");
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_DEL, "wheel_up");
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NEG + ActionCode::WHEEL_DEL, "wheel_down");
 
@@ -35,6 +35,7 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
     registerAction(0, "event");
 
     dragging = false;
+    drag_grid = NULL;
     
     // import pymodule and call start()
     McRFPy_API::executePyString("import " + pymodule);
@@ -47,11 +48,13 @@ void PythonScene::update() {
     // check if left click is still down & mouse has moved
     // continue the drag motion
     if (dragging && drag_grid) {
+        //std::cout << "Compute dragging" << std::endl;
         auto mousepos = sf::Mouse::getPosition(game->getWindow());
-        auto dx = mousepos.x - mouseprev.x,
-             dy = mousepos.y - mouseprev.y;
+        auto dx = mouseprev.x - mousepos.x,
+             dy = mouseprev.y - mousepos.y;
         drag_grid->center_x += (dx / drag_grid->zoom);
         drag_grid->center_y += (dy / drag_grid->zoom);
+        mouseprev = mousepos;
     }
 
 }
@@ -104,8 +107,10 @@ void PythonScene::doZoom(sf::Vector2i mousepos, int value) {
 
 void PythonScene::doAction(std::string name, std::string type) {
     auto mousepos = sf::Mouse::getPosition(game->getWindow());
+    //std::cout << "name: " << name << ", type: " << type << std::endl;
     if (ACTIONONCE("click")) {
         // left click start
+        //std::cout << "LClick started at (" << mousepos.x << ", " << mousepos.y << ")" << std::endl;
         dragstart = mousepos;
         mouseprev = mousepos;
         dragging = true;
@@ -120,9 +125,11 @@ void PythonScene::doAction(std::string name, std::string type) {
     }
     else if (ACTIONAFTER("click")) {
         // left click end
+        //std::cout << "LClick ended at (" << mousepos.x << ", " << mousepos.y << ")" << std::endl;
         // if click ended without starting a drag event, try lclick?
         if (dragstart == mousepos) {
             // mouse did not move, do click
+            //std::cout << "(did not move)" << std::endl;
             doLClick(mousepos);
         }
         dragging = false;

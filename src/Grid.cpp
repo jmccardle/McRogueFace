@@ -238,6 +238,7 @@ void Grid::render(sf::RenderWindow & window)
     }
 
     // grid lines for testing & validation
+    /*
     sf::Vertex line[] =
     {
         sf::Vertex(sf::Vector2f(0, 0), sf::Color::Red),
@@ -254,7 +255,7 @@ void Grid::render(sf::RenderWindow & window)
     };
 
     renderTexture.draw(lineb, 2, sf::Lines);
-
+    */
 
     // render to window
     renderTexture.display();

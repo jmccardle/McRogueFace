@@ -43,6 +43,9 @@ static PyMethodDef mcrfpyMethods[] = {
     {"listGrids", McRFPy_API::_listGrids, METH_VARARGS,
         "return grid objects and all points" },
 
+    {"modGrid", McRFPy_API::_modGrid, METH_VARARGS,
+        "call with a Grid object to update all fields"},
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -489,6 +492,8 @@ PyObject* McRFPy_API::_registerPyAction(PyObject *self, PyObject *args)
 }
 
 void McRFPy_API::doAction(std::string actionstr) {
+    // hard coded actions that require no registration
+    if (!actionstr.compare("startrepl")) return McRFPy_API::REPL();
     if (callbacks.find(actionstr) == callbacks.end()) return;
     //std::cout << "Calling: " << PyUnicode_AsUTF8(PyObject_Repr(callbacks[actionstr])) << std::endl;
     PyObject_Call(callbacks[actionstr], PyTuple_New(0), NULL);
@@ -557,4 +562,56 @@ PyObject* McRFPy_API::_listGrids(PyObject*, PyObject*) {
         i++; // count iterator steps
     }
     return gridlist;
+}
+
+PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
+    PyObject* o;
+    if (!PyArg_ParseTuple(args, "O", &o)) return NULL;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(o)) << std::endl;
+    std::string title = PyUnicode_AsUTF8(PyObject_GetAttrString(o, "title"));
+    int grid_x = PyLong_AsLong(PyObject_GetAttrString(o, "grid_x"));
+    int grid_y = PyLong_AsLong(PyObject_GetAttrString(o, "grid_y"));
+    int grid_size = PyLong_AsLong(PyObject_GetAttrString(o, "grid_size"));
+    int x = PyLong_AsLong(PyObject_GetAttrString(o, "x"));
+    int y = PyLong_AsLong(PyObject_GetAttrString(o, "y"));
+    int w = PyLong_AsLong(PyObject_GetAttrString(o, "w"));
+    int h = PyLong_AsLong(PyObject_GetAttrString(o, "h"));
+    bool visible = PyObject_IsTrue(PyObject_GetAttrString(o, "visible"));
+
+    auto grid = grids[title];
+    if (grid == NULL) return NULL;
+    grid->box.setPosition(sf::Vector2f(x, y));
+    grid->box.setSize(sf::Vector2f(w, h));
+    grid->visible = visible;
+
+    //iterate over gridpoints
+	PyObject* gpointlist = PyObject_GetAttrString(o, "points");
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(gpointlist)) << std::endl;
+    for (int i = 0; i < grid->points.size(); i++) {
+        PyObject* gpointobj = PyList_GetItem(gpointlist, i);
+        PyObject* colortuple = PyObject_GetAttrString(gpointobj, "color");
+        grid->points[i].color =
+            sf::Color(
+                PyLong_AsLong(PyTuple_GetItem(colortuple, 0)),
+                PyLong_AsLong(PyTuple_GetItem(colortuple, 1)),
+                PyLong_AsLong(PyTuple_GetItem(colortuple, 2))
+                );
+		grid->points[i].walkable = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "walkable"));
+		grid->points[i].tilesprite = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "tilesprite"));
+		grid->points[i].transparent = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "transparent"));
+		grid->points[i].visible = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "visible"));
+		grid->points[i].discovered = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "discovered"));
+		PyObject* overlaycolortuple = PyObject_GetAttrString(gpointobj, "color_overlay");
+        grid->points[i].color_overlay =
+            sf::Color(
+                PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 0)),
+                PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 1)),
+                PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 2))
+                );
+        grid->points[i].tile_overlay = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "tile_overlay"));
+        grid->points[i].uisprite = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "uisprite"));
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
 }

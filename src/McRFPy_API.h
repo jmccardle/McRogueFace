@@ -67,6 +67,7 @@ public:
 
     static PyObject* _createGrid(PyObject*, PyObject*);
     static PyObject* _listGrids(PyObject*, PyObject*);
+    static PyObject* _modGrid(PyObject*, PyObject*);
     
     static PyObject* _registerPyAction(PyObject*, PyObject*);
 
