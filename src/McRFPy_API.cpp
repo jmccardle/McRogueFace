@@ -629,3 +629,20 @@ PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
     Py_INCREF(Py_None);
     return Py_None;
 }
+
+PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
+    //LerpAnimation<T>::LerpAnimation(float _d, T _ev, T* _t, std::function<void()> _cb, std::function<void(T)> _w, bool _l)
+    std::string menu_key = "demobox1";
+    McRFPy_API::animations.push_back(
+        new LerpAnimation<sf::Vector2f>(
+         3.0, 
+         sf::Vector2f(100, 100), 
+         McRFPy_API::menus[menu_key]->box.getPosition(),
+         [](){McRFPy_API::executePyString("print('animation callback')");},
+         [=](sf::Vector2f v) {std::cout << "write lambda!" << std::endl; McRFPy_API::menus[menu_key]->box.setPosition(v); std::cout << "Position set to" << McRFPy_API::menus[menu_key]->box.getPosition().x << ", " << McRFPy_API::menus[menu_key]->box.getPosition().y << std::endl;}, 
+         false)
+    );
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}

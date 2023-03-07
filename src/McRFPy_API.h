@@ -10,6 +10,10 @@
 #include "Grid.h"
 #include "IndexSprite.h"
 #include "EntityManager.h"
+#include <list>
+
+// implementation required to link templates
+#include "Animation.h"
 
 class GameEngine; // forward declared (circular members)
 

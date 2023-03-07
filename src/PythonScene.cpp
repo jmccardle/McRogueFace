@@ -1,7 +1,7 @@
 #include "PythonScene.h"
 #include "ActionCode.h"
 #include "McRFPy_API.h"
-#include "Animation.h"
+//#include "Animation.h"
 
 PythonScene::PythonScene(GameEngine* g, std::string pymodule)
 : Scene(g) {
@@ -44,14 +44,18 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
 }
 
 void PythonScene::animate() {
+    std::cout << "Number of animations: " << McRFPy_API::animations.size() << std::endl;
     auto frametime = game->getFrameTime();
     auto it = McRFPy_API::animations.begin();
-    while (it != animations.end()) {
+    while (it != McRFPy_API::animations.end()) {
+        std::cout << "Iterating" << std::endl;
         (*it)->step(frametime);
+        std::cout << "Step complete" << std::endl;
         if ((*it)->isDone()) {
+            std::cout << "Cleaning up" << std::endl;
             auto prev = it;
             it++;
-            animations.erase(prev);
+            McRFPy_API::animations.erase(prev);
         } else it++;
     }
     /* // workin on it

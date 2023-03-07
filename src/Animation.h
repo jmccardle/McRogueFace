@@ -6,13 +6,13 @@ class Animation
 protected:
     static constexpr float EPSILON = 0.05;
     float duration, elapsed;
-    void* target;
     std::function<void()> callback;
     bool loop;
 public:
     //Animation(float, T, T*, std::function<void()>, bool); // lerp
     //Animation(float, std::vector<T>, T*, std::function<void()>, bool); // discrete 
-    Animation(float, void*, std::function<void()>, bool);
+    Animation(float, std::function<void()>, bool);
+    Animation() {};
     virtual void step(float) = 0;
     virtual void cancel() = 0;
     bool isDone();
@@ -22,10 +22,12 @@ template<typename T>
 class LerpAnimation: public Animation
 {
     T startvalue, endvalue;
+    std::function<void(T)> write;
     void lerp();
 public:
     ~LerpAnimation() { cancel(); }
-    LerpAnimation(float, T, T*, std::function<void()>, bool);
+    LerpAnimation(float, T, T, std::function<void()>, std::function<void(T)>, bool);
+    LerpAnimation() {};
     void step(float) override final;
     void cancel() override final;
 };
@@ -34,10 +36,12 @@ template<typename T>
 class DiscreteAnimation: public Animation
 {
     std::vector<T> values;
+    std::function<void(T)> write;
     float nonelapsed, timestep;
     int index;
 public:
-    DiscreteAnimation(float, std::vector<T>, T*, std::function<void()>, bool);
+    DiscreteAnimation(float, std::vector<T>, std::function<void()>, std::function<void(T)>, bool);
+    DiscreteAnimation() {};
     ~DiscreteAnimation() { cancel(); }
     void step(float) override final;
     void cancel() override final;
