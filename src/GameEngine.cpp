@@ -27,6 +27,8 @@ GameEngine::GameEngine()
     scenes["py"] = new PythonScene(this, "TestScene");
 
     IndexSprite::game = this;
+
+    clock.restart();
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }
@@ -38,6 +40,7 @@ sf::RenderWindow & GameEngine::getWindow() { return window; }
 
 void GameEngine::run()
 {
+    clock.restart();
     while (running)
     {
         currentScene()->update();
@@ -47,6 +50,7 @@ void GameEngine::run()
         }
         currentScene()->sRender();
         currentFrame++;
+        frameTime = clock.restart().asSeconds();
     }
 }
 

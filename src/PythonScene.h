@@ -4,6 +4,8 @@
 #include "Scene.h"
 #include "GameEngine.h"
 #include "Grid.h"
+//#include "Animation.h"
+//#include <list>
 
 class PythonScene: public Scene
 {
@@ -13,6 +15,8 @@ class PythonScene: public Scene
     void doLClick(sf::Vector2i);
     void doRClick(sf::Vector2i);
     void doZoom(sf::Vector2i, int);
+    //std::list<Animation*> animations;
+    void animate();
 public:
     PythonScene(GameEngine*, std::string);
     void update() override final;

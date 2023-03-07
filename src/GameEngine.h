@@ -17,6 +17,8 @@ class GameEngine
     bool paused = false;
     int currentFrame = 0;
     sf::View visible;
+    sf::Clock clock;
+    float frameTime;
 
 public:
     GameEngine();
@@ -29,6 +31,7 @@ public:
     void run();
     void sUserInput();
     int getFrame() { return currentFrame; }
+    float getFrameTime() { return frameTime; }
     sf::View getView() { return visible; }
 
     // global textures for scripts to access

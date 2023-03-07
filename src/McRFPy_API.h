@@ -44,6 +44,7 @@ public:
     static std::map<std::string, UIMenu*> menus;
     static EntityManager entities; // this is also kinda good, entities not on the current grid can still act (like monsters following you through doors??)
     static std::map<std::string, Grid*> grids;
+    static std::list<Animation*> animations;
 
     static std::map<std::string, PyObject*> callbacks;
 
@@ -68,6 +69,8 @@ public:
     static PyObject* _createGrid(PyObject*, PyObject*);
     static PyObject* _listGrids(PyObject*, PyObject*);
     static PyObject* _modGrid(PyObject*, PyObject*);
+
+    static PyObject* _createAnimation(PyObject*, PyObject*);
     
     static PyObject* _registerPyAction(PyObject*, PyObject*);
 

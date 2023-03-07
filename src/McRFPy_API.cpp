@@ -7,6 +7,8 @@
 std::map<std::string, UIMenu*> McRFPy_API::menus;
 std::map<std::string, Grid*> McRFPy_API::grids;
 std::map<std::string, PyObject*> McRFPy_API::callbacks;
+std::list<Animation*> McRFPy_API::animations;
+
 EntityManager McRFPy_API::entities;
 
 static PyMethodDef mcrfpyMethods[] = {
@@ -45,6 +47,18 @@ static PyMethodDef mcrfpyMethods[] = {
 
     {"modGrid", McRFPy_API::_modGrid, METH_VARARGS,
         "call with a Grid object to update all fields"},
+
+    {"createAnimation", McRFPy_API::_createAnimation, METH_VARARGS,
+        "Create a new animation:\n"
+        "createAnimation(duration:float, parent:string, target_type:string, target_id:string or int, field:string, callback:function, loop:bool, frames:list)\n"
+        "duration: total animation time in seconds\n"
+        "parent: the name of a UI menu or grid\n"
+        "target_type: 'caption', 'button', 'sprite', or 'entity'\n"
+        "target_id: integer index of the caption or button, or string ID of entity\n"
+        "field: what to animate. 'position', 'size', 'bgcolor', 'textcolor' or 'sprite'\n"
+        "callback: called when the animation completes\n"
+        "loop: if True, animation repeats; if False, animation is deleted\n"
+        "frames: if animating a sprite, list the frames. For other data types, the value will change in discrete steps at a rate of duration/len(frames).\n"},
 
     {NULL, NULL, 0, NULL}
 };

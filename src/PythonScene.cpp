@@ -1,6 +1,7 @@
 #include "PythonScene.h"
 #include "ActionCode.h"
 #include "McRFPy_API.h"
+#include "Animation.h"
 
 PythonScene::PythonScene(GameEngine* g, std::string pymodule)
 : Scene(g) {
@@ -42,6 +43,58 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
     McRFPy_API::executePyString(pymodule + ".start()");
 }
 
+void PythonScene::animate() {
+    auto frametime = game->getFrameTime();
+    auto it = McRFPy_API::animations.begin();
+    while (it != animations.end()) {
+        (*it)->step(frametime);
+        if ((*it)->isDone()) {
+            auto prev = it;
+            it++;
+            animations.erase(prev);
+        } else it++;
+    }
+    /* // workin on it
+    for (auto p : animations) {
+        if (p.first == "int") {
+            ((Animation<int>)p.second).step(frametime);
+        } else if (p.first == "string") {
+            ((Animation<std::string>)p.second).step(frametime);
+        } else if (p.first == "float") {
+            ((Animation<float>)p.second).step(frametime);
+        } else if (p.first == "vector2f") {
+            ((Animation<sf::Vector2f>)p.second).step(frametime);
+        } else if (p.first == "vector2i") {
+            ((Animation<sf::Vector2i>)p.second).step(frametime);
+        } else if (p.first == "color") {
+            ((Animation<int>)p.second).step(frametime); // TODO
+        } else {
+            std::cout << "Animation has label " << p.first << "; no type found" << std::endl;
+        }
+    }
+    auto it = animations.begin();
+    while (it != animations.end()) {
+        bool done = false;
+        if (p.first == "int") {
+            ((Animation<int>)p.second).step(frametime);
+        } else if (p.first == "string") {
+            if ((Animation<std::string>)p.second).isDone()
+                delete (Animation<std::string>)p.second
+        } else if (p.first == "float") {
+            ((Animation<float>)p.second).step(frametime);
+        } else if (p.first == "vector2f") {
+            ((Animation<sf::Vector2f>)p.second).step(frametime);
+        } else if (p.first == "vector2i") {
+            ((Animation<sf::Vector2i>)p.second).step(frametime);
+        } else if (p.first == "color") {
+            ((Animation<int>)p.second).step(frametime); // TODO
+        if ((*it).second.isDone()) {
+            animations.erase(it++);
+        } else { it++; }
+    }
+        */
+}
+
 void PythonScene::update() {
     McRFPy_API::entities.update();
 
@@ -57,6 +110,7 @@ void PythonScene::update() {
         mouseprev = mousepos;
     }
 
+    animate();
 }
 
 void PythonScene::doLClick(sf::Vector2i mousepos) {
