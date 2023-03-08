@@ -630,7 +630,7 @@ PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
     return Py_None;
 }
 
-PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
+PyObject* _test_createAnimation(PyObject *self, PyObject *args) {
     //LerpAnimation<T>::LerpAnimation(float _d, T _ev, T* _t, std::function<void()> _cb, std::function<void(T)> _w, bool _l)
     std::string menu_key = "demobox1";
     McRFPy_API::animations.push_back(
@@ -650,4 +650,123 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
 
     Py_INCREF(Py_None);
     return Py_None;
+}
+
+#define CEQ(A, B) (std::string(A).compare(B) == 0)
+
+PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
+	std::cout << "Creating animation called..." << std::endl;
+    float duration;
+	const char* parent;
+	const char* target_type;
+	PyObject* target_id_obj;
+	const char* field;
+	PyObject* callback;
+	PyObject* loop_obj;
+	PyObject* values_obj;
+	PyObject* evdata; // for decoding values_obj
+	//std::cout << PyUnicode_AsUTF8(PyObject_Repr(args)) << std::endl;
+    if (!PyArg_ParseTuple(args, "fssOsOOO", &duration, &parent, &target_type, &target_id_obj, &field, &callback, &loop_obj, &values_obj)) { return NULL; }
+    bool loop = PyObject_IsTrue(loop_obj);
+    int target_id = PyLong_AsLong(target_id_obj);
+    Py_INCREF(callback);
+    std::cout << "Animation fields received:" <<
+		"\nduration: " << duration <<
+		"\nparent: " << parent <<
+		"\ntarget type: " << target_type <<
+		"\ntarget id: " << PyUnicode_AsUTF8(PyObject_Repr(target_id_obj)) <<
+		"\nfield: " << field <<
+		"\ncallback: " << PyUnicode_AsUTF8(PyObject_Repr(callback)) <<
+		"\nloop: " << loop <<
+		"\nvalues: " << PyUnicode_AsUTF8(PyObject_Repr(values_obj)) << std::endl;
+	/* Jank alert:
+	 * The following block is meant to raise an exception when index is missing from object animations that require one,
+	 * but accept the target_id_obj error (and accept None as an index) for menus/grids.
+	 * Instead, I get a "latent" exception, not properly raised, when the index is None.
+	 * That not-really-raised exception causes other scripts to silently fail to execute
+	 * until I go into the REPL and run any code, and get a bizarre, botched traceback.
+	 * So, Grid/Menu can just take an index of 0 in the scripts until this is dejankified
+	 */
+	if (!CEQ(target_type, "menu") && !CEQ(target_type, "grid") && target_id == -1) {
+		PyErr_SetObject(PyExc_TypeError, target_id_obj);
+		PyErr_SetString(PyExc_TypeError, "target_id (integer, index value) is required for targets other than 'menu' or 'grid'");
+		return NULL;
+	}
+	// at this point, `values` needs to be decoded based on the `field` provided
+	
+//            3.0, # duration, seconds
+//            "demobox1", # parent: a UIMenu or Grid key
+//            "menu", # target type: 'menu', 'grid', 'caption', 'button', 'sprite', or 'entity'
+//            None, # target id: integer index for menu or grid objs; None for grid/menu
+//            "position", # field: 'position', 'size', 'bgcolor', 'textcolor', or 'sprite'
+//            lambda: self.animation_done("demobox1"), #callback: callable once animation is complete
+//            False, #loop: repeat indefinitely
+//            [100, 100] # values: iterable of frames for 'sprite', lerp target for others
+
+//LerpAnimation<T>::LerpAnimation(float _d, T _ev, T _sv, std::function<void()> _cb, std::function<void(T)> _w, bool _l)
+	if (CEQ(target_type, "menu")) {
+		auto obj = menus[std::string(parent)];
+		if (CEQ(field, "position")) {
+			if (PyList_Check(values_obj)) evdata = PyList_AsTuple(values_obj); else evdata = values_obj;
+			auto end_value = sf::Vector2f(PyFloat_AsDouble(PyTuple_GetItem(evdata, 0)),
+										  PyFloat_AsDouble(PyTuple_GetItem(evdata, 1)));
+			McRFPy_API::animations.push_back(new LerpAnimation<sf::Vector2f>(
+				duration, end_value,
+				obj->box.getPosition(),
+				[=](){PyObject_Call(callback, PyTuple_New(0), NULL);},
+				[=](sf::Vector2f v){obj->box.setPosition(v);},
+				loop)
+			);	
+		}
+		else if (CEQ(field, "size")) {
+			if (PyList_Check(values_obj)) evdata = PyList_AsTuple(values_obj); else evdata = values_obj;
+			auto end_value = sf::Vector2f(PyFloat_AsDouble(PyTuple_GetItem(evdata, 0)),
+										  PyFloat_AsDouble(PyTuple_GetItem(evdata, 1)));
+			McRFPy_API::animations.push_back(new LerpAnimation<sf::Vector2f>(
+				duration, end_value,
+				obj->box.getSize(),
+				[=](){PyObject_Call(callback, PyTuple_New(0), NULL);},
+				[=](sf::Vector2f v){obj->box.setSize(v);},
+				loop)
+			);
+		}
+		// else if (CEQ(field, "bgcolor")) { )
+	}
+	else if (CEQ(target_type, "sprite")) {
+		auto obj = menus[std::string(parent)]->sprites[target_id];
+		if (CEQ(field, "position")) {
+			PyObject* evdata;
+			if (PyList_Check(values_obj)) evdata = PyList_AsTuple(values_obj); else evdata = values_obj;
+			auto end_value = sf::Vector2f(PyFloat_AsDouble(PyTuple_GetItem(evdata, 0)),
+										  PyFloat_AsDouble(PyTuple_GetItem(evdata, 1)));
+			McRFPy_API::animations.push_back(new LerpAnimation<sf::Vector2f>(duration, end_value,
+				sf::Vector2f(obj.x, obj.y),
+				[=](){PyObject_Call(callback, PyTuple_New(0), NULL);},
+				[&](sf::Vector2f v){obj.x = v.x; obj.y = v.y;},
+				loop)
+			);			
+		}
+		else if (CEQ(field, "sprite")) {
+			auto obj = menus[std::string(parent)];
+			PyObject* evdata;
+			if (PyList_Check(values_obj)) evdata = PyList_AsTuple(values_obj); else evdata = values_obj;
+			std::vector<int> frames;
+			for (int i = 0; i < PyTuple_Size(evdata); i++) {
+				frames.push_back(PyLong_AsLong(PyTuple_GetItem(evdata, i)));
+			}
+//DiscreteAnimation(float _d, std::vector<T> _v, std::function<void()> _cb, std::function<void(T)> _w, bool _l)
+			McRFPy_API::animations.push_back(new DiscreteAnimation<int>(
+				duration,
+				frames,
+				[=](){PyObject_Call(callback, PyTuple_New(0), NULL);},
+				[=](int s){obj->sprites[target_id].sprite_index = s;},
+				loop)
+			);
+			std::cout << "Frame animation constructed, there are now " <<McRFPy_API::animations.size() << std::endl;
+		}
+	}
+	
+
+    Py_INCREF(Py_None);
+    return Py_None;	
 }

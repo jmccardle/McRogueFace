@@ -9,6 +9,7 @@ protected:
     float duration, elapsed;
     std::function<void()> callback;
     bool loop;
+	bool complete=false;
 public:
     //Animation(float, T, T*, std::function<void()>, bool); // lerp
     //Animation(float, std::vector<T>, T*, std::function<void()>, bool); // discrete 

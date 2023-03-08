@@ -48,11 +48,11 @@ void PythonScene::animate() {
     auto frametime = game->getFrameTime();
     auto it = McRFPy_API::animations.begin();
     while (it != McRFPy_API::animations.end()) {
-        std::cout << "Iterating" << std::endl;
+        //std::cout << "Iterating" << std::endl;
         (*it)->step(frametime);
-        std::cout << "Step complete" << std::endl;
+        //std::cout << "Step complete" << std::endl;
         if ((*it)->isDone()) {
-            std::cout << "Cleaning up" << std::endl;
+            std::cout << "Cleaning up Animation" << std::endl;
             auto prev = it;
             it++;
             McRFPy_API::animations.erase(prev);

@@ -19,10 +19,12 @@ class TestScene:
         mcrfpy.createMenu(ui_name, 20, 520, 500, 200)
         mcrfpy.createCaption(ui_name, "Hello There", 18, BLACK)
         mcrfpy.createCaption(ui_name, "", 18, BLACK)
-        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (0, 0, 0), "clicky", "testaction")
+        #mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (0, 0, 0), "clicky", "testaction")
         mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKRED, (0, 0, 0), "REPL", "startrepl")
         mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKGREEN, (0, 0, 0), "map gen", "gridgen")
-        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (192, 0, 0), "anim", "animtest")
+        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKGREEN, (0, 0, 0), "mapL", "gridgen2")
+        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (192, 0, 0), "a_menu", "animtest")
+        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKRED, GREEN, "a_spr", "animtest2")
         mcrfpy.createSprite(ui_name, 0, randint(0, 3), 300, 20, 5.0)
         self.menus = mcrfpy.listMenus()
         self.menus[0].visible = True
@@ -30,9 +32,11 @@ class TestScene:
 
         # Button behavior
         self.clicks = 0
-        mcrfpy.registerPyAction("testaction", self.click)
+        #mcrfpy.registerPyAction("testaction", self.click)
         mcrfpy.registerPyAction("gridgen", self.gridgen)
-        mcrfpy.registerPyAction("animtest", lambda: mcrfpy.createAnimation())
+        mcrfpy.registerPyAction("gridgen2", lambda: self.gridgen())
+        mcrfpy.registerPyAction("animtest", lambda: self.createAnimation())
+        mcrfpy.registerPyAction("animtest2", lambda: self.createAnimation2())
 
         # create grid (title, gx, gy, gs, x, y, w, h)
         mcrfpy.createGrid(grid_name, 20, 20, 16, 20, 20, 800, 500)
@@ -51,6 +55,43 @@ class TestScene:
         print("[Python] Modifying:")
         self.grids[0].visible = True
         mcrfpy.modGrid(self.grids[0])
+        
+    def animation_done(self, s):
+        print(f"The `{s}` animation completed.")
+        #self.menus = mcrfpy.listMenus()
+        
+    # if (!PyArg_ParseTuple(args, "fsssiOOO", &duration, &parent, &target_type, &target_id, &field, &callback, &loop_obj, &values_obj)) return NULL;
+    def createAnimation(self):
+        print(self.menus)
+        self.menus = mcrfpy.listMenus()
+        self.menus[0].w = 500
+        self.menus[0].h = 200
+        print(self.menus)
+        mcrfpy.modMenu(self.menus[0])
+        print(self.menus)
+        mcrfpy.createAnimation(
+            3.0, # duration, seconds
+            "demobox1", # parent: a UIMenu or Grid key
+            "menu", # target type: 'menu', 'grid', 'caption', 'button', 'sprite', or 'entity'
+            0, # target id: integer index for menu or grid objs; None for grid/menu
+            "size", # field: 'position', 'size', 'bgcolor', 'textcolor', or 'sprite'
+            lambda: self.animation_done("demobox1"), #callback: callable once animation is complete
+            False, #loop: repeat indefinitely
+            [150, 100] # values: iterable of frames for 'sprite', lerp target for others
+        )
+        
+    def createAnimation2(self):
+        mcrfpy.createAnimation(
+            5,
+            "demobox1",
+            "sprite",
+            0,
+            "sprite",
+            lambda: self.animation_done("sprite change"),
+            False,
+            [0, 1, 2, 1, 2, 0]
+        )
+        
 scene = None
 def start():
     global scene

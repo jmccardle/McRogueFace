@@ -14,7 +14,7 @@ template<typename T>
 DiscreteAnimation<T>::DiscreteAnimation(float _d, std::vector<T> _v, std::function<void()> _cb, std::function<void(T)> _w, bool _l)
 :Animation(_d, _cb, _l), //duration(_d), target(_t), callback(_cb), loop(_l), elapsed(0.0f),
 index(0), nonelapsed(0.0f), values(_v), write(_w) {
-    timestep = _v.size() / _d;
+    timestep = _d / _v.size();
 }
 
 /* // don't call virtual functions (like cancel()) from base class destructor
@@ -47,11 +47,11 @@ void LerpAnimation<float>::lerp() {
 
 template<>
 void LerpAnimation<sf::Vector2f>::lerp() {
-    std::cout << "sf::Vector2f implementation of lerp." << std::endl;
+    //std::cout << "sf::Vector2f implementation of lerp." << std::endl;
     int delta_x = endvalue.x - startvalue.x;
     int delta_y = endvalue.y - startvalue.y;
-    std::cout << "Start: " << startvalue.x << ", " << startvalue.y << "; End: " << endvalue.x << ", " << endvalue.y << std::endl;
-    std::cout << "Delta: " << delta_x << ", " << delta_y << std::endl;
+    //std::cout << "Start: " << startvalue.x << ", " << startvalue.y << "; End: " << endvalue.x << ", " << endvalue.y << std::endl;
+    //std::cout << "Delta: " << delta_x << ", " << delta_y << std::endl;
     //((sf::Vector2f*)target)->x = startvalue.x + (elapsed / duration * delta_x);
     //((sf::Vector2f*)target)->y = startvalue.y + (elapsed / duration * delta_y);
     write(sf::Vector2f(startvalue.x + (elapsed / duration * delta_x), 
@@ -70,24 +70,28 @@ void LerpAnimation<sf::Vector2i>::lerp() {
 
 template<typename T>
 void LerpAnimation<T>::step(float delta) {
+	if (complete) return;
     elapsed += delta;
-    std::cout << "LerpAnimation step function. Elapsed: " << elapsed <<std::endl;
+    //std::cout << "LerpAnimation step function. Elapsed: " << elapsed <<std::endl;
     lerp();
-    if (isDone()) cancel(); //use the exact value, not my math
+    if (isDone()) { callback(); complete = true; cancel(); }; //use the exact value, not my math
 }
 
 template<typename T>
 void DiscreteAnimation<T>::step(float delta)
 {
+	if (complete) return;
     nonelapsed += delta;
+    //std::cout << "Nonelapsed: " << nonelapsed << " elapsed (pre-add): " << elapsed << " timestep: " << timestep << " duration: " << duration << " index: " << index << std::endl;
     if (nonelapsed < timestep) return;
-    if (index == values.size() - 1) return;
+    //std::cout << "values size: " << values.size() << " isDone(): " << isDone() << std::endl;
+    if (elapsed > duration && !complete) {callback(); complete = true; return; }
     elapsed += nonelapsed; // or should it be += timestep?
+    if (index == values.size() - 1) return;
     nonelapsed = 0; // or should it -= timestep?
     index++;
     //*(T*)target = values[index];
     write(values[index]);
-    if (isDone()) cancel(); //use the exact value, not my math
 }
 
 template<typename T>
@@ -111,6 +115,7 @@ namespace animation_template_implementations {
     //LerpAnimation<sf::Vector2f> implement_vector2f;
 
     auto implement_v2f_const = LerpAnimation<sf::Vector2<float>>(4.0, sf::Vector2<float>(), sf::Vector2f(1,1), [](){}, [](sf::Vector2f v){}, false);
+    auto implement_disc_i = DiscreteAnimation<int>(3.0, std::vector<int>{0},[](){},[](int){},false);
     //LerpAnimation<sf::Vector2i> implement_vector2i;
     //LerpAnimation<int> implment_int;
     //LerpAnimation<std::string> implment_string;
