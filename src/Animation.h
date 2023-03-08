@@ -12,7 +12,7 @@ public:
     //Animation(float, T, T*, std::function<void()>, bool); // lerp
     //Animation(float, std::vector<T>, T*, std::function<void()>, bool); // discrete 
     Animation(float, std::function<void()>, bool);
-    Animation() {};
+    //Animation() {};
     virtual void step(float) = 0;
     virtual void cancel() = 0;
     bool isDone();
@@ -27,7 +27,7 @@ class LerpAnimation: public Animation
 public:
     ~LerpAnimation() { cancel(); }
     LerpAnimation(float, T, T, std::function<void()>, std::function<void(T)>, bool);
-    LerpAnimation() {};
+    //LerpAnimation() {};
     void step(float) override final;
     void cancel() override final;
 };

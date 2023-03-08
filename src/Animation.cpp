@@ -108,12 +108,12 @@ bool Animation::isDone() {
 
 namespace animation_template_implementations {
     // instantiate to compile concrete templates
-    LerpAnimation<sf::Vector2f> implement_vector2f;
+    //LerpAnimation<sf::Vector2f> implement_vector2f;
 
     auto implement_v2f_const = LerpAnimation<sf::Vector2<float>>(4.0, sf::Vector2<float>(), sf::Vector2f(1,1), [](){}, [](sf::Vector2f v){}, false);
-    LerpAnimation<sf::Vector2i> implement_vector2i;
-    LerpAnimation<int> implment_int;
-    LerpAnimation<std::string> implment_string;
-    LerpAnimation<float> implement_float;
-    DiscreteAnimation<int> implement_int_discrete;
+    //LerpAnimation<sf::Vector2i> implement_vector2i;
+    //LerpAnimation<int> implment_int;
+    //LerpAnimation<std::string> implment_string;
+    //LerpAnimation<float> implement_float;
+    //DiscreteAnimation<int> implement_int_discrete;
 }

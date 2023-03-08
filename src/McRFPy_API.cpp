@@ -639,7 +639,12 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
          sf::Vector2f(100, 100), 
          McRFPy_API::menus[menu_key]->box.getPosition(),
          [](){McRFPy_API::executePyString("print('animation callback')");},
-         [=](sf::Vector2f v) {std::cout << "write lambda!" << std::endl; McRFPy_API::menus[menu_key]->box.setPosition(v); std::cout << "Position set to" << McRFPy_API::menus[menu_key]->box.getPosition().x << ", " << McRFPy_API::menus[menu_key]->box.getPosition().y << std::endl;}, 
+         [=](sf::Vector2f v) {
+			 std::cout << "write lambda!" << std::endl; 
+			 McRFPy_API::menus[menu_key]->box.setPosition(v); 
+			 std::cout << "Position set to" << McRFPy_API::menus[menu_key]->box.getPosition().x 
+			 << ", " << McRFPy_API::menus[menu_key]->box.getPosition().y << std::endl;
+			 }, 
          false)
     );
 

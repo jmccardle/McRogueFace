@@ -44,7 +44,7 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
 }
 
 void PythonScene::animate() {
-    std::cout << "Number of animations: " << McRFPy_API::animations.size() << std::endl;
+    //std::cout << "Number of animations: " << McRFPy_API::animations.size() << std::endl;
     auto frametime = game->getFrameTime();
     auto it = McRFPy_API::animations.begin();
     while (it != McRFPy_API::animations.end()) {
@@ -122,7 +122,13 @@ void PythonScene::doLClick(sf::Vector2i mousepos) {
     for (auto pair : McRFPy_API::menus) {
         if (!pair.second->visible) continue;
         for (auto b : pair.second->buttons) {
-            if (b.contains(mousepos)) {
+			//std::cout << "Box: " << pair.second->box.getPosition().x << ", " 
+			//<< pair.second->box.getPosition().y << "; Button:" << b.rect.getPosition().x <<
+			//", "  << b.rect.getPosition().y << "; Mouse: " << mousepos.x << ", " <<
+			//mousepos.y << std::endl;
+			
+			// JANK: provide the button a relative coordinate.
+            if (b.contains(pair.second->box.getPosition(), mousepos)) {
                 McRFPy_API::doAction(b.getAction());
                 return;
             }

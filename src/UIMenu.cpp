@@ -21,9 +21,18 @@ void UIMenu::render(sf::RenderWindow & window)
     for (auto& c : captions) {
         //auto s = std::string(c.getString());
         //std::cout << s << std::flush << std::endl;
+        c.move(box.getPosition());
         window.draw(c);
+        c.move(-box.getPosition());
     }
-    for (auto& b : buttons) { b.render(window); }
+    for (auto& b : buttons) { 
+		//b.render(window); 
+		b.setPosition(box.getPosition() + b.rect.getPosition());
+		//b.caption.setPosition(box.getPosition() + b.caption.getPosition());
+		b.render(window);
+		b.setPosition(b.rect.getPosition() - box.getPosition());
+		//b.caption.setPosition(b.caption.getPosition() - box.getPosition());
+	}
 }
 
 void UIMenu::refresh()
@@ -34,10 +43,10 @@ void UIMenu::refresh()
 void UIMenu::add_caption(const char* text, int tsize, sf::Color color)
 {
     auto c = sf::Text();
-    auto bpos = box.getPosition();
+    //auto bpos = box.getPosition();
 
     c.setFillColor(color);
-    c.setPosition(bpos.x + 10, bpos.y + next_text);
+    c.setPosition(10, next_text);
     next_text += 50;
     c.setCharacterSize(tsize);
     c.setString(text);
@@ -48,7 +57,7 @@ void UIMenu::add_caption(const char* text, int tsize, sf::Color color)
 
 void UIMenu::add_button(Button b)
 {
-    b.setPosition(box.getPosition() + sf::Vector2f(box.getSize().x / 2.0f, next_button));
+    b.setPosition(sf::Vector2f(box.getSize().x / 2.0f, next_button));
     next_button += 50;
     buttons.push_back(b);
 }

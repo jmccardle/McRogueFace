@@ -26,6 +26,9 @@ public:
     void setTextColor(sf::Color c) { caption.setFillColor(c); }
     void render(sf::RenderWindow & window);
     auto contains(sf::Vector2i p) { return rect.getGlobalBounds().contains(p.x, p.y); }
+    auto contains(sf::Vector2f rel, sf::Vector2i p) { 
+		return rect.getGlobalBounds().contains(p.x - rel.x, p.y - rel.y);
+	}
     auto getAction() { return action; }
 
 private:
