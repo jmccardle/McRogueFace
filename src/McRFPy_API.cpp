@@ -8,6 +8,9 @@ std::map<std::string, UIMenu*> McRFPy_API::menus;
 std::map<std::string, Grid*> McRFPy_API::grids;
 std::map<std::string, PyObject*> McRFPy_API::callbacks;
 std::list<Animation*> McRFPy_API::animations;
+std::vector<sf::SoundBuffer> McRFPy_API::soundbuffers;
+sf::Music McRFPy_API::music;
+sf::Sound McRFPy_API::sfx;
 
 EntityManager McRFPy_API::entities;
 
@@ -59,6 +62,23 @@ static PyMethodDef mcrfpyMethods[] = {
         "callback: called when the animation completes\n"
         "loop: if True, animation repeats; if False, animation is deleted\n"
         "frames: if animating a sprite, list the frames. For other data types, the value will change in discrete steps at a rate of duration/len(frames).\n"},
+
+/*
+    static PyObject* _createSoundBuffer(PyObject*, PyObject*);
+    static PyObject* _loadMusic(PyObject*, PyObject*);
+    static PyObject* _setMusicVolume(PyObject*, PyObject*);
+    static PyObject* _setSoundVolume(PyObject*, PyObject*);
+    static PyObject* _playSound(PyObject*, PyObject*);
+    static PyObject* _getMusicVolume(PyObject*, PyObject*);
+    static PyObject* _getSoundVolume(PyObject*, PyObject*);
+*/
+	{"createSoundBuffer", McRFPy_API::_createSoundBuffer, METH_VARARGS, "(filename)"},
+	{"loadMusic", McRFPy_API::_loadMusic, METH_VARARGS, "(filename)"},
+	{"setMusicVolume", McRFPy_API::_setMusicVolume, METH_VARARGS, "(int)"},
+	{"setSoundVolume", McRFPy_API::_setSoundVolume, METH_VARARGS, "(int)"},
+	{"playSound", McRFPy_API::_playSound, METH_VARARGS, "(int)"},
+	{"getMusicVolume", McRFPy_API::_getMusicVolume, METH_VARARGS, ""},
+	{"getSoundVolume", McRFPy_API::_getSoundVolume, METH_VARARGS, ""},
 
     {NULL, NULL, 0, NULL}
 };
@@ -769,4 +789,65 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
 
     Py_INCREF(Py_None);
     return Py_None;	
+}
+
+PyObject* McRFPy_API::_createSoundBuffer(PyObject* self, PyObject* args) {
+	const char *fn_cstr;
+	if (!PyArg_ParseTuple(args, "s", &fn_cstr)) return NULL;
+	auto b = sf::SoundBuffer();
+	b.loadFromFile(fn_cstr);
+	McRFPy_API::soundbuffers.push_back(b);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_loadMusic(PyObject* self, PyObject* args) {
+	const char *fn_cstr;
+	PyObject* loop_obj;
+	if (!PyArg_ParseTuple(args, "s|O", &fn_cstr, &loop_obj)) return NULL;
+	McRFPy_API::music.stop();
+	// get params for sf::Music initialization
+	//sf::InputSoundFile file;
+	//file.openFromFile(fn_cstr);
+	McRFPy_API::music.openFromFile(fn_cstr);
+	McRFPy_API::music.setLoop(PyObject_IsTrue(loop_obj));
+	//McRFPy_API::music.initialize(file.getChannelCount(), file.getSampleRate());
+	McRFPy_API::music.play();
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_setMusicVolume(PyObject* self, PyObject* args) {
+	int vol;
+	if (!PyArg_ParseTuple(args, "i", &vol)) return NULL;
+	McRFPy_API::music.setVolume(vol);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_setSoundVolume(PyObject* self, PyObject* args) {
+	float vol;
+	if (!PyArg_ParseTuple(args, "f", &vol)) return NULL;
+	McRFPy_API::sfx.setVolume(vol);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_playSound(PyObject* self, PyObject* args) {
+	float index;
+	if (!PyArg_ParseTuple(args, "f", &index)) return NULL;
+	if (index >= McRFPy_API::soundbuffers.size()) return NULL;
+	McRFPy_API::sfx.stop();
+	McRFPy_API::sfx.setBuffer(McRFPy_API::soundbuffers[index]);
+	McRFPy_API::sfx.play();
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_getMusicVolume(PyObject* self, PyObject* args) {
+	return Py_BuildValue("f", McRFPy_API::music.getVolume());
+}
+
+PyObject* McRFPy_API::_getSoundVolume(PyObject* self, PyObject* args) {
+	return Py_BuildValue("f", McRFPy_API::sfx.getVolume());
 }

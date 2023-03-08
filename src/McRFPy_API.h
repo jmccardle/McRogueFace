@@ -49,6 +49,9 @@ public:
     static EntityManager entities; // this is also kinda good, entities not on the current grid can still act (like monsters following you through doors??)
     static std::map<std::string, Grid*> grids;
     static std::list<Animation*> animations;
+    static std::vector<sf::SoundBuffer> soundbuffers;
+    static sf::Music music;
+    static sf::Sound sfx;
 
     static std::map<std::string, PyObject*> callbacks;
 
@@ -77,6 +80,14 @@ public:
     static PyObject* _createAnimation(PyObject*, PyObject*);
     
     static PyObject* _registerPyAction(PyObject*, PyObject*);
+    
+    static PyObject* _createSoundBuffer(PyObject*, PyObject*);
+    static PyObject* _loadMusic(PyObject*, PyObject*);
+    static PyObject* _setMusicVolume(PyObject*, PyObject*);
+    static PyObject* _setSoundVolume(PyObject*, PyObject*);
+    static PyObject* _playSound(PyObject*, PyObject*);
+    static PyObject* _getMusicVolume(PyObject*, PyObject*);
+    static PyObject* _getSoundVolume(PyObject*, PyObject*);
 
     // Jank Functionality
     static UIMenu* createMenu(int posx, int posy, int sizex, int sizey);
@@ -88,7 +99,6 @@ public:
     //static void playMusic(const char * filename);
     
     static void doAction(std::string);
-
 
     //    McRFPy_API(GameEngine*);
 
