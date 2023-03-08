@@ -21,7 +21,8 @@ class TestScene:
         mcrfpy.createCaption(ui_name, "", 18, BLACK)
         mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (0, 0, 0), "clicky", "testaction")
         mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKRED, (0, 0, 0), "REPL", "startrepl")
-        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKRED, (0, 0, 0), "map gen", "gridgen")
+        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKGREEN, (0, 0, 0), "map gen", "gridgen")
+        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (192, 0, 0), "anim", "animtest")
         mcrfpy.createSprite(ui_name, 0, randint(0, 3), 300, 20, 5.0)
         self.menus = mcrfpy.listMenus()
         self.menus[0].visible = True
@@ -31,6 +32,7 @@ class TestScene:
         self.clicks = 0
         mcrfpy.registerPyAction("testaction", self.click)
         mcrfpy.registerPyAction("gridgen", self.gridgen)
+        mcrfpy.registerPyAction("animtest", lambda: mcrfpy.createAnimation())
 
         # create grid (title, gx, gy, gs, x, y, w, h)
         mcrfpy.createGrid(grid_name, 20, 20, 16, 20, 20, 800, 500)
