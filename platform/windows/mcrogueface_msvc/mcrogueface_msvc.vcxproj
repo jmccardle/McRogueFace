@@ -19,13 +19,18 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\src\Animation.cpp" />
     <ClCompile Include="..\..\..\src\Button.cpp" />
     <ClCompile Include="..\..\..\src\Entity.cpp" />
     <ClCompile Include="..\..\..\src\EntityManager.cpp" />
     <ClCompile Include="..\..\..\src\GameEngine.cpp" />
+    <ClCompile Include="..\..\..\src\Grid.cpp" />
+    <ClCompile Include="..\..\..\src\IndexSprite.cpp" />
+    <ClCompile Include="..\..\..\src\IndexTexture.cpp" />
     <ClCompile Include="..\..\..\src\main.cpp" />
     <ClCompile Include="..\..\..\src\McRFPy_API.cpp" />
     <ClCompile Include="..\..\..\src\MenuScene.cpp" />
+    <ClCompile Include="..\..\..\src\PythonScene.cpp" />
     <ClCompile Include="..\..\..\src\Scene.cpp" />
     <ClCompile Include="..\..\..\src\UIMenu.cpp" />
     <ClCompile Include="..\..\..\src\UITestScene.cpp" />
