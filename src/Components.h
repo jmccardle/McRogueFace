@@ -1,6 +1,63 @@
 #pragma once
 
 #include "Common.h"
+#include "IndexSprite.h"
+#include "Grid.h"
+#include "Item.h"
+#include "Python.h"
+#include <list>
+
+class CGrid
+{
+public:
+	bool visible;
+	int x, y;
+	IndexSprite indexsprite;
+	Grid* grid;
+	CGrid(Grid* _g, int _ti, int _si, int _x, int _y, bool _v)
+	: visible(_v), x(_x), y(_y), grid(_g), indexsprite(_ti, _si, _x, _y, 1.0) {}
+};
+
+class CInventory
+{
+public:
+	//std::list<std::shared_ptr<Item>>;
+	int x;
+};
+
+class CBehavior
+{
+public:
+	PyObject* object;
+	CBehavior(PyObject* p): object(p) {}
+};
+
+/*
+class CCombatant
+{
+public:
+	int hp;
+	int maxhp; 
+}
+
+class CCaster
+{
+public:
+	int mp;
+	int maxmp;
+}
+
+class CLevel
+{
+	int constitution; // +HP, resist effects
+	int strength; // +damage, block/parry
+	int dexterity; // +speed, dodge
+	int intelligence; // +MP, spell resist
+	int wisdom; // +damage, deflect
+	int luck; // crit, loot
+}
+*/
+
 
 /*
 class CTransform
@@ -15,6 +72,7 @@ public:
 };
 */
 
+/*
 class CShape
 {
 public:
@@ -77,3 +135,4 @@ public:
     float theta_max;
     float dtheta_max;
 };
+*/

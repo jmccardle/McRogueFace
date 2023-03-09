@@ -52,6 +52,8 @@ public:
     static std::vector<sf::SoundBuffer> soundbuffers;
     static sf::Music music;
     static sf::Sound sfx;
+    
+    static std::shared_ptr<Entity> player;
 
     static std::map<std::string, PyObject*> callbacks;
 
@@ -70,8 +72,8 @@ public:
     //static PyObject* _listCaptions(PyObject*, PyObject*);
     //static PyObject* _listButtons(PyObject*, PyObject*);
 
-    //static PyObject* _createEntity(PyObject*, PyObject*);
-    //static PyObject* _listEntities(PyObject*, PyObject*);
+    static PyObject* _createEntity(PyObject*, PyObject*);
+    static PyObject* _listEntities(PyObject*, PyObject*);
 
     static PyObject* _createGrid(PyObject*, PyObject*);
     static PyObject* _listGrids(PyObject*, PyObject*);
@@ -88,6 +90,22 @@ public:
     static PyObject* _playSound(PyObject*, PyObject*);
     static PyObject* _getMusicVolume(PyObject*, PyObject*);
     static PyObject* _getSoundVolume(PyObject*, PyObject*);
+    
+    // allow all player actions (items, menus, movement, combat)
+    static PyObject* _unlockPlayerInput(PyObject*, PyObject*);
+    // disallow player actions (animating enemy actions)
+    static PyObject* _lockPlayerInput(PyObject*, PyObject*);
+    // prompt C++/Grid Objects to callback with a target Entity or grid space
+    static PyObject* _requestGridTarget(PyObject*, PyObject*);
+    // string for labeling the map
+    static std::string active_grid;
+    static PyObject* _activeGrid(PyObject*, PyObject*);
+    // string for prompting input
+    static std::string input_mode;
+    static PyObject* _inputMode(PyObject*, PyObject*);
+    // turn cycle
+    static int turn_number;
+    static PyObject* _turnNumber(PyObject*, PyObject*);
 
     // Jank Functionality
     static UIMenu* createMenu(int posx, int posy, int sizex, int sizey);

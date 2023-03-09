@@ -18,11 +18,14 @@ class Entity
 public:
     // component pointers
     //std::shared_ptr<CTransform> cTransform;
-    std::shared_ptr<CShape> cShape;
-    std::shared_ptr<CCollision> cCollision;
-    std::shared_ptr<CInput> cInput;
-    std::shared_ptr<CScore> cScore;
-    std::shared_ptr<CLifespan> cLifespan;
+    //std::shared_ptr<CShape> cShape;
+    //std::shared_ptr<CCollision> cCollision;
+    //std::shared_ptr<CInput> cInput;
+    //std::shared_ptr<CScore> cScore;
+    //std::shared_ptr<CLifespan> cLifespan;
+    std::shared_ptr<CGrid> cGrid;
+    std::shared_ptr<CInventory> cInventory;
+    std::shared_ptr<CBehavior> cBehavior;
 
     //private member access functions
     bool isActive() const;

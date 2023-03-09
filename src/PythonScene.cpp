@@ -41,6 +41,7 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
     // import pymodule and call start()
     McRFPy_API::executePyString("import " + pymodule);
     McRFPy_API::executePyString(pymodule + ".start()");
+    
 }
 
 void PythonScene::animate() {

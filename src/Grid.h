@@ -1,5 +1,7 @@
 #pragma once
 #include "Common.h"
+//#include "Entity.h"
+class Entity; // forward declare
 
 class GridPoint
 {
@@ -35,6 +37,7 @@ public:
     int center_x, center_y; // center in 1.0x Pixels
 
     std::vector<GridPoint> points; // grid visible contents
+    std::vector<std::shared_ptr<Entity>> entities;
     void render(sf::RenderWindow&); // draw to screen
     GridPoint& at(int, int);
     bool inBounds(int, int);

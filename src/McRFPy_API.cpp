@@ -11,6 +11,9 @@ std::list<Animation*> McRFPy_API::animations;
 std::vector<sf::SoundBuffer> McRFPy_API::soundbuffers;
 sf::Music McRFPy_API::music;
 sf::Sound McRFPy_API::sfx;
+std::string McRFPy_API::input_mode;
+int McRFPy_API::turn_number;
+std::string McRFPy_API::active_grid;
 
 EntityManager McRFPy_API::entities;
 
@@ -79,6 +82,15 @@ static PyMethodDef mcrfpyMethods[] = {
 	{"playSound", McRFPy_API::_playSound, METH_VARARGS, "(int)"},
 	{"getMusicVolume", McRFPy_API::_getMusicVolume, METH_VARARGS, ""},
 	{"getSoundVolume", McRFPy_API::_getSoundVolume, METH_VARARGS, ""},
+	
+	{"unlockPlayerInput", McRFPy_API::_unlockPlayerInput, METH_VARARGS, ""},
+	{"lockPlayerInput", McRFPy_API::_lockPlayerInput, METH_VARARGS, ""},
+	{"requestGridTarget", McRFPy_API::_requestGridTarget, METH_VARARGS, ""},
+	{"activeGrid", McRFPy_API::_activeGrid, METH_VARARGS, ""},
+	{"inputMode", McRFPy_API::_inputMode, METH_VARARGS, ""},
+	{"turnNumber", McRFPy_API::_turnNumber, METH_VARARGS, ""},
+	{"createEntity", McRFPy_API::_createEntity, METH_VARARGS, ""},
+	{"listEntities", McRFPy_API::_listEntities, METH_VARARGS, ""},
 
     {NULL, NULL, 0, NULL}
 };
@@ -850,4 +862,49 @@ PyObject* McRFPy_API::_getMusicVolume(PyObject* self, PyObject* args) {
 
 PyObject* McRFPy_API::_getSoundVolume(PyObject* self, PyObject* args) {
 	return Py_BuildValue("f", McRFPy_API::sfx.getVolume());
+}
+
+PyObject* McRFPy_API::_unlockPlayerInput(PyObject* self, PyObject* args) {
+	McRFPy_API::input_mode = "playerturn";
+    Py_INCREF(Py_None);
+    return Py_None;	
+}
+PyObject* McRFPy_API::_lockPlayerInput(PyObject* self, PyObject* args) {
+	McRFPy_API::input_mode = "computerturn";
+    Py_INCREF(Py_None);
+    return Py_None;		
+}
+PyObject* McRFPy_API::_requestGridTarget(PyObject* self, PyObject* args) {
+	const char* requestmode;
+	if (!PyArg_ParseTuple(args, "s", &requestmode)) return NULL;
+	McRFPy_API::input_mode = requestmode;
+    Py_INCREF(Py_None);
+    return Py_None;	
+}
+PyObject* McRFPy_API::_activeGrid(PyObject* self, PyObject* args) {
+	return Py_BuildValue("s", McRFPy_API::active_grid.c_str());
+}
+PyObject* McRFPy_API::_inputMode(PyObject* self, PyObject* args) {
+	return Py_BuildValue("s", McRFPy_API::input_mode.c_str());
+}
+PyObject* McRFPy_API::_turnNumber(PyObject* self, PyObject* args) {
+	return Py_BuildValue("i", McRFPy_API::turn_number);
+}
+PyObject* McRFPy_API::_createEntity(PyObject* self, PyObject* args) {
+	const char * grid_cstr, *entity_tag;
+    int ti, si, x, y;
+    PyObject* behavior_obj;
+    if (!PyArg_ParseTuple(args, "ssiiii|O", &grid_cstr, &entity_tag, &ti, &si, &x, &y, &behavior_obj)) return NULL;
+    auto e = entities.addEntity(std::string(entity_tag));
+    Grid* grid_ptr = grids[grid_cstr];
+	grid_ptr->entities.push_back(e);
+    e->cGrid = std::make_shared<CGrid>(grid_ptr, ti, si, x, y, true);
+    e->cBehavior = std::make_shared<CBehavior>(behavior_obj);
+    Py_INCREF(behavior_obj);
+	Py_INCREF(Py_None);
+    return Py_None;
+}
+PyObject* McRFPy_API::_listEntities(PyObject* self, PyObject* args) {
+	Py_INCREF(Py_None);
+    return Py_None;	
 }

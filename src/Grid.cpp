@@ -1,5 +1,6 @@
 #include "Grid.h"
 #include <cmath>
+#include "Entity.h"
 
 GridPoint::GridPoint():
     color(0, 0, 0, 0), walkable(true), tilesprite(-1), transparent(true), visible(false), discovered(false), color_overlay(0,0,0,255), tile_overlay(-1), uisprite(-1)
@@ -236,6 +237,16 @@ void Grid::render(sf::RenderWindow & window)
 
         }
     }
+    
+    for (auto e : entities) {
+		auto drawent = e->cGrid->indexsprite.drawable();
+		drawent.setScale(zoom, zoom);
+		auto pixel_pos = sf::Vector2f(
+			(drawent.getPosition().x*grid_size - left_spritepixels) * zoom,
+			(drawent.getPosition().y*grid_size - top_spritepixels) * zoom );
+		drawent.setPosition(pixel_pos);
+		renderTexture.draw(drawent);
+	}
 
     // grid lines for testing & validation
     /*
