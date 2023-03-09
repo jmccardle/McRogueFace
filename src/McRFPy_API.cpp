@@ -797,7 +797,26 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
 			std::cout << "Frame animation constructed, there are now " <<McRFPy_API::animations.size() << std::endl;
 		}
 	}
-	
+	else if (CEQ(target_type, "entity")) {
+		//auto obj = grids[std::string(parent)];//->entities[target_id];
+		if (CEQ(field, "sprite")) {
+			auto obj = grids[std::string(parent)];
+			PyObject* evdata;
+			if (PyList_Check(values_obj)) evdata = PyList_AsTuple(values_obj); else evdata = values_obj;
+			std::vector<int> frames;
+			for (int i = 0; i < PyTuple_Size(evdata); i++) {
+				frames.push_back(PyLong_AsLong(PyTuple_GetItem(evdata, i)));
+			}
+//DiscreteAnimation(float _d, std::vector<T> _v, std::function<void()> _cb, std::function<void(T)> _w, bool _l)
+			McRFPy_API::animations.push_back(new DiscreteAnimation<int>(
+				duration,
+				frames,
+				[=](){PyObject_Call(callback, PyTuple_New(0), NULL);},
+				[=](int s){obj->entities[target_id]->cGrid->indexsprite.sprite_index = s;},
+				loop)
+			);
+		}
+	}
 
     Py_INCREF(Py_None);
     return Py_None;	

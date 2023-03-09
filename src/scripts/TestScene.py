@@ -8,43 +8,123 @@ WHITE = (255, 255, 255)
 RED, GREEN, BLUE = (255, 0, 0), (0, 255, 0), (0, 0, 255)
 DARKRED, DARKGREEN, DARKBLUE = (192, 0, 0), (0, 192, 0), (0, 0, 192)
 
+class TestEntity:
+    pass
+
 class TestScene:
     def __init__(self, ui_name = "demobox1", grid_name = "demogrid"):
         # Texture & Sound Loading
+        print("Load textures")
         mcrfpy.createTexture("./assets/test_portraits.png", 32, 8, 8) #0 - portraits
+        mcrfpy.createTexture("./assets/alives_other.png", 16, 64, 64) #1 - TinyWorld NPCs
+        mcrfpy.createTexture("./assets/alives_other.png", 32, 32, 32) #2 - TinyWorld NPCs - 2x2 sprite
         self.ui_name = ui_name
         self.grid_name = grid_name
 
+        print("Create UI")
         # Create dialog UI
         mcrfpy.createMenu(ui_name, 20, 520, 500, 200)
-        mcrfpy.createCaption(ui_name, "Hello There", 18, BLACK)
-        mcrfpy.createCaption(ui_name, "", 18, BLACK)
+        #mcrfpy.createCaption(ui_name, "Hello There", 18, BLACK)
+        mcrfpy.createCaption(ui_name, "", 24, RED)
         #mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (0, 0, 0), "clicky", "testaction")
         mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKRED, (0, 0, 0), "REPL", "startrepl")
         mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKGREEN, (0, 0, 0), "map gen", "gridgen")
-        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKGREEN, (0, 0, 0), "mapL", "gridgen2")
-        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (192, 0, 0), "a_menu", "animtest")
-        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKRED, GREEN, "a_spr", "animtest2")
-        mcrfpy.createSprite(ui_name, 0, randint(0, 3), 300, 20, 5.0)
+        #mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKGREEN, (0, 0, 0), "mapL", "gridgen2")
+        #mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (192, 0, 0), "a_menu", "animtest")
+        #mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKRED, GREEN, "a_spr", "animtest2")
+        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, GREEN, "Next sp", "nextsp")
+        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, RED, "Prev sp", "prevsp")
+        mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, RED, "+16 sp", "skipsp")
+        mcrfpy.createSprite(ui_name, 2, randint(0, 3), 20, 40, 5.0)
+        
+        print("Create UI 2")
+        entitymenu = "entitytestmenu"
+        
+        mcrfpy.createMenu(entitymenu, 840, 20, 20, 500)
+        mcrfpy.createButton(entitymenu, 0, 10, 150, 40, DARKBLUE, BLACK, "Up", "test_up")
+        mcrfpy.createButton(entitymenu, 0, 60, 150, 40, DARKBLUE, BLACK, "Down", "test_down")
+        mcrfpy.createButton(entitymenu, 0, 110, 150, 40, DARKBLUE, BLACK, "Left", "test_left")
+        mcrfpy.createButton(entitymenu, 0, 160, 150, 40, DARKBLUE, BLACK, "Right", "test_right")
+        mcrfpy.createButton(entitymenu, 0, 210, 150, 40, DARKBLUE, BLACK, "Attack", "test_attack")
+        
+        print("Make UIs visible")
         self.menus = mcrfpy.listMenus()
         self.menus[0].visible = True
+        self.menus[1].w = 170
+        self.menus[1].visible = True
         mcrfpy.modMenu(self.menus[0])
+        mcrfpy.modMenu(self.menus[1])
 
-        # Button behavior
-        self.clicks = 0
-        #mcrfpy.registerPyAction("testaction", self.click)
-        mcrfpy.registerPyAction("gridgen", self.gridgen)
-        mcrfpy.registerPyAction("gridgen2", lambda: self.gridgen())
-        mcrfpy.registerPyAction("animtest", lambda: self.createAnimation())
-        mcrfpy.registerPyAction("animtest2", lambda: self.createAnimation2())
-
+        print("Create grid")
         # create grid (title, gx, gy, gs, x, y, w, h)
         mcrfpy.createGrid(grid_name, 20, 20, 16, 20, 20, 800, 500)
         self.grids = mcrfpy.listGrids()
+        
+        print("Create entities")
+        mcrfpy.createEntity("demogrid", "dragon", 2, 545, 10, 10, lambda: None)
+        mcrfpy.createEntity("demogrid", "tinyenemy", 1, 1538, 3, 6, lambda: None)
+        
+        self.entity_direction = 0
+        mcrfpy.registerPyAction("test_down",   lambda: self.animate_entity(0, False))
+        mcrfpy.registerPyAction("test_up",     lambda: self.animate_entity(1, False))
+        mcrfpy.registerPyAction("test_right",  lambda: self.animate_entity(2, False))
+        mcrfpy.registerPyAction("test_left",   lambda: self.animate_entity(3, False))
+        mcrfpy.registerPyAction("test_attack", lambda: self.animate_entity(None, True))
 
+        # Button behavior
+        self.clicks = 0
+        self.sprite_index = 0
+        #mcrfpy.registerPyAction("testaction", self.click)
+        mcrfpy.registerPyAction("gridgen", self.gridgen)
+        #mcrfpy.registerPyAction("gridgen2", lambda: self.gridgen())
+        #mcrfpy.registerPyAction("animtest", lambda: self.createAnimation())
+        #mcrfpy.registerPyAction("animtest2", lambda: self.createAnimation2())
+        mcrfpy.registerPyAction("nextsp", lambda: self.changesprite(1))
+        mcrfpy.registerPyAction("prevsp", lambda: self.changesprite(-1))
+        mcrfpy.registerPyAction("skipsp", lambda: self.changesprite(16))
+
+    def animate_entity(self, direction, attacking=False):
+        if direction is None:
+            direction = self.entity_direction
+        else:
+            self.entity_direction = direction
+        
+        dragon_sprite = 545 + (32 * (direction + (4 if attacking else 0)))
+        dragon_animation = [dragon_sprite + i for i in range((5 if attacking else 4))]
+        mcrfpy.createAnimation(
+            1.0, # duration, seconds
+            "demogrid", # parent: a UIMenu or Grid key
+            "entity", # target type: 'menu', 'grid', 'caption', 'button', 'sprite', or 'entity'
+            0, # target id: integer index for menu or grid objs; None for grid/menu
+            "sprite", # field: 'position', 'size', 'bgcolor', 'textcolor', or 'sprite'
+            lambda: self.animation_done("demobox1"), #callback: callable once animation is complete
+            False, #loop: repeat indefinitely
+            dragon_animation # values: iterable of frames for 'sprite', lerp target for others
+        )
+        
+        orc_sprite = 1538 + (64 * (direction + (4 if attacking else 0)))
+        orc_animation = [orc_sprite + i for i in range((5 if attacking else 4))]
+        mcrfpy.createAnimation(
+            1.0, # duration, seconds
+            "demogrid", # parent: a UIMenu or Grid key
+            "entity", # target type: 'menu', 'grid', 'caption', 'button', 'sprite', or 'entity'
+             1, # target id: integer index for menu or grid objs; None for grid/menu
+             "sprite", # field: 'position', 'size', 'bgcolor', 'textcolor', or 'sprite'
+             lambda: self.animation_done("demobox1"), #callback: callable once animation is complete
+             False, #loop: repeat indefinitely
+             orc_animation # values: iterable of frames for 'sprite', lerp target for others
+        )
+        
+        
+    def changesprite(self, n):
+        self.sprite_index += n
+        self.menus[0].captions[0].text = f"Sprite #{self.sprite_index}"
+        self.menus[0].sprites[0].sprite_index = self.sprite_index
+        mcrfpy.modMenu(self.menus[0])
+        
     def click(self):
         self.clicks += 1
-        self.menus[0].captions[1].text = f"Clicks: {self.clicks}"
+        self.menus[0].captions[0].text = f"Clicks: {self.clicks}"
         self.menus[0].sprites[0].sprite_index = randint(0, 3)
         mcrfpy.modMenu(self.menus[0])
 
