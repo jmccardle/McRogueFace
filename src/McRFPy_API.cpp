@@ -582,7 +582,7 @@ PyObject* McRFPy_API::_listGrids(PyObject*, PyObject*) {
 			grid->visible? Py_True: Py_False);
 
 		grid->visible ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
-        std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_args)) << std::endl;
+        //std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_args)) << std::endl;
 
         PyObject* gridobj = PyObject_CallObject((PyObject*) grid_type, grid_args);
         //std::cout << (long)gridobj << std::flush <<std::endl;
@@ -634,8 +634,9 @@ PyObject* McRFPy_API::_listGrids(PyObject*, PyObject*) {
 
 PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
     PyObject* o;
-    if (!PyArg_ParseTuple(args, "O", &o)) return NULL;
-    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(o)) << std::endl;
+    PyObject* bool_is_entityonly = Py_False;
+    if (!PyArg_ParseTuple(args, "O|O", &o, &bool_is_entityonly)) return NULL;
+    std::cout << "EntOnly Flag: " << PyUnicode_AsUTF8(PyObject_Repr(bool_is_entityonly)) << std::endl;
     std::string title = PyUnicode_AsUTF8(PyObject_GetAttrString(o, "title"));
     int grid_x = PyLong_AsLong(PyObject_GetAttrString(o, "grid_x"));
     int grid_y = PyLong_AsLong(PyObject_GetAttrString(o, "grid_y"));
@@ -653,33 +654,34 @@ PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
     grid->visible = visible;
 
     //iterate over gridpoints
-	PyObject* gpointlist = PyObject_GetAttrString(o, "points");
-    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(gpointlist)) << std::endl;
-    for (int i = 0; i < grid->points.size(); i++) {
-        PyObject* gpointobj = PyList_GetItem(gpointlist, i);
-        PyObject* colortuple = PyObject_GetAttrString(gpointobj, "color");
-        grid->points[i].color =
-            sf::Color(
-                PyLong_AsLong(PyTuple_GetItem(colortuple, 0)),
-                PyLong_AsLong(PyTuple_GetItem(colortuple, 1)),
-                PyLong_AsLong(PyTuple_GetItem(colortuple, 2))
-                );
-		grid->points[i].walkable = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "walkable"));
-		grid->points[i].tilesprite = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "tilesprite"));
-		grid->points[i].transparent = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "transparent"));
-		grid->points[i].visible = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "visible"));
-		grid->points[i].discovered = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "discovered"));
-		PyObject* overlaycolortuple = PyObject_GetAttrString(gpointobj, "color_overlay");
-        grid->points[i].color_overlay =
-            sf::Color(
-                PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 0)),
-                PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 1)),
-                PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 2))
-                );
-        grid->points[i].tile_overlay = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "tile_overlay"));
-        grid->points[i].uisprite = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "uisprite"));
-    }
-    
+    if (!PyObject_IsTrue(bool_is_entityonly)) {
+		PyObject* gpointlist = PyObject_GetAttrString(o, "points");
+		//std::cout << PyUnicode_AsUTF8(PyObject_Repr(gpointlist)) << std::endl;
+		for (int i = 0; i < grid->points.size(); i++) {
+			PyObject* gpointobj = PyList_GetItem(gpointlist, i);
+			PyObject* colortuple = PyObject_GetAttrString(gpointobj, "color");
+			grid->points[i].color =
+				sf::Color(
+					PyLong_AsLong(PyTuple_GetItem(colortuple, 0)),
+					PyLong_AsLong(PyTuple_GetItem(colortuple, 1)),
+					PyLong_AsLong(PyTuple_GetItem(colortuple, 2))
+					);
+			grid->points[i].walkable = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "walkable"));
+			grid->points[i].tilesprite = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "tilesprite"));
+			grid->points[i].transparent = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "transparent"));
+			grid->points[i].visible = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "visible"));
+			grid->points[i].discovered = PyObject_IsTrue(PyObject_GetAttrString(gpointobj, "discovered"));
+			PyObject* overlaycolortuple = PyObject_GetAttrString(gpointobj, "color_overlay");
+			grid->points[i].color_overlay =
+				sf::Color(
+					PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 0)),
+					PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 1)),
+					PyLong_AsLong(PyTuple_GetItem(overlaycolortuple, 2))
+					);
+			grid->points[i].tile_overlay = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "tile_overlay"));
+			grid->points[i].uisprite = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "uisprite"));
+		}
+	}
     PyObject* entlist = PyObject_GetAttrString(o, "entities");
     //std::cout << PyUnicode_AsUTF8(PyObject_Repr(entlist)) << std::endl;
     for (int i = 0; i < grid->entities.size(); i++) {

@@ -10,6 +10,9 @@ DARKRED, DARKGREEN, DARKBLUE = (192, 0, 0), (0, 192, 0), (0, 0, 192)
 
 animations_in_progress = 0
 
+# don't load grid over and over, use the global scene
+scene = None
+
 class TestEntity:
     def __init__(self, grid, label, tex_index, basesprite, x, y, texture_width=64, walk_frames=5, attack_frames=6):
         self.grid = grid
@@ -30,8 +33,8 @@ class TestEntity:
     def move(self, dx, dy):
         # select animation direction
         # prefer left or right for diagonals.
-        grids = mcrfpy.listGrids()
-        for g in grids:
+        #grids = mcrfpy.listGrids()
+        for g in scene.grids:
             if g.title == self.grid:
                 if not g.at(self.x + dx, self.y + dy).walkable:
                     print("Blocked at target location.")
@@ -74,11 +77,12 @@ class TestEntity:
                 pos = animove
                 self.x, self.y = animove
             #scene.move_entity(self.grid, self.entity_index, pos)
-            for g in mcrfpy.listGrids():
+            #for g in mcrfpy.listGrids():
+            for g in scene.grids:
                 if g.title == self.grid:
                     g.entities[self.entity_index].x = pos[0]
                     g.entities[self.entity_index].y = pos[1]
-                    mcrfpy.modGrid(g)
+                    mcrfpy.modGrid(g, True)
         if animove:
             mcrfpy.createAnimation(
                 0.25, # duration, seconds
@@ -147,7 +151,7 @@ class TestScene:
 
         print("Create grid")
         # create grid (title, gx, gy, gs, x, y, w, h)
-        mcrfpy.createGrid(grid_name, 20, 20, 16, 20, 20, 800, 500)
+        mcrfpy.createGrid(grid_name, 100, 100, 16, 20, 20, 800, 500)
         self.grids = mcrfpy.listGrids()
         print(self.grids)
         
@@ -250,10 +254,10 @@ class TestScene:
         mcrfpy.modMenu(self.menus[0])
 
     def gridgen(self):
-        #print(f"[Python] modifying {len(self.grids[0].points)} grid points")
+        print(f"[Python] modifying {len(self.grids[0].points)} grid points")
         for p in self.grids[0].points:
             p.color = (randint(0, 255), randint(64, 192), 0)
-        #print("[Python] Modifying:")
+        print("[Python] Modifying:")
         self.grids[0].at(10, 10).color = (255, 255, 255)
         self.grids[0].at(10, 10).walkable = False
         self.grids[0].visible = True
@@ -297,7 +301,6 @@ class TestScene:
             [0, 1, 2, 1, 2, 0]
         )
         
-scene = None
 def start():
     global scene
     print("TestScene.start called")
