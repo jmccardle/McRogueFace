@@ -30,6 +30,12 @@ class TestEntity:
     def move(self, dx, dy):
         # select animation direction
         # prefer left or right for diagonals.
+        grids = mcrfpy.listGrids()
+        for g in grids:
+            if g.title == self.grid:
+                if not g.at(self.x + dx, self.y + dy).walkable:
+                    print("Blocked at target location.")
+                    return
         if (dx == 0 and dy == 0):
             direction = self.facing_direction # TODO, jump straight to computer turn
         elif (dx):
@@ -248,6 +254,8 @@ class TestScene:
         for p in self.grids[0].points:
             p.color = (randint(0, 255), randint(64, 192), 0)
         #print("[Python] Modifying:")
+        self.grids[0].at(10, 10).color = (255, 255, 255)
+        self.grids[0].at(10, 10).walkable = False
         self.grids[0].visible = True
         mcrfpy.modGrid(self.grids[0])
         print(f"Sent grid: {repr(self.grids[0])}")
