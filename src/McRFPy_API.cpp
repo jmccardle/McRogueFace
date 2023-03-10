@@ -575,12 +575,14 @@ PyObject* McRFPy_API::_listGrids(PyObject*, PyObject*) {
         auto grid = it->second;
         auto p = grid->box.getPosition();
         auto s = grid->box.getSize();
-        PyObject* grid_args = Py_BuildValue("(siiiiiii)",
+        PyObject* grid_args = Py_BuildValue("(siiiiiiiO)",
             title.c_str(),
             (int)grid->grid_x, (int)grid->grid_y, (int)grid->grid_size,
-			(int)p.x, (int)p.y, (int)s.x, (int)s.y);
+			(int)p.x, (int)p.y, (int)s.x, (int)s.y, 
+			grid->visible? Py_True: Py_False);
 
-        //std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_args)) << std::endl;
+		grid->visible ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
+        std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_args)) << std::endl;
 
         PyObject* gridobj = PyObject_CallObject((PyObject*) grid_type, grid_args);
         //std::cout << (long)gridobj << std::flush <<std::endl;
@@ -677,6 +679,17 @@ PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
         grid->points[i].tile_overlay = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "tile_overlay"));
         grid->points[i].uisprite = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "uisprite"));
     }
+    
+    PyObject* entlist = PyObject_GetAttrString(o, "entities");
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(entlist)) << std::endl;
+    for (int i = 0; i < grid->entities.size(); i++) {
+		PyObject* entobj = PyList_GetItem(entlist, i);
+		//std::cout << PyUnicode_AsUTF8(PyObject_Repr(entobj)) << std::endl;
+		grid->entities[i]->cGrid->x = PyLong_AsLong(PyObject_GetAttrString(entobj, "x"));
+		grid->entities[i]->cGrid->y = PyLong_AsLong(PyObject_GetAttrString(entobj, "y"));
+		grid->entities[i]->cGrid->indexsprite.texture_index = PyLong_AsLong(PyObject_GetAttrString(entobj, "tex_index"));
+		grid->entities[i]->cGrid->indexsprite.sprite_index = PyLong_AsLong(PyObject_GetAttrString(entobj, "sprite_index"));
+	}
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -964,3 +977,38 @@ PyObject* McRFPy_API::_listEntities(PyObject* self, PyObject* args) {
     return Py_None;	
 }
 */
+
+void McRFPy_API::player_input(int dx, int dy) {
+	std::cout << "# entities tagged 'player': " << McRFPy_API::entities.getEntities("player").size() << std::endl;
+	auto player_entity = McRFPy_API::entities.getEntities("player")[0];
+	auto grid = player_entity->cGrid->grid;
+	std::cout << "Grid pointed to: " << (long)player_entity->cGrid->grid << std::endl;
+	if (!McRFPy_API::input_mode.compare("computerturn")) {
+		// no input accepted while computer moving
+		std::cout << "Can't move while computer is moving." << std::endl;
+		return;
+	}
+	// TODO: selection cursor via keyboard
+	// else if (!input_mode.compare("selectpoint") {}
+	// else if (!input_mode.compare("selectentity") {}
+	
+	// grid bounds check
+	if (player_entity->cGrid->x + dx < 0 ||
+	    player_entity->cGrid->y + dy < 0 ||
+	    player_entity->cGrid->x + dx > grid->grid_x - 1 ||
+	    player_entity->cGrid->y + dy > grid->grid_y - 1) {
+	    std::cout << "(" << player_entity->cGrid->x << ", " << player_entity->cGrid->y <<
+	      ") + (" << dx << ", " << dy << ") is OOB." << std::endl;
+	    return;
+	}
+	std::cout << PyUnicode_AsUTF8(PyObject_Repr(player_entity->cBehavior->object)) << std::endl;
+	PyObject* move_fn = PyObject_GetAttrString(player_entity->cBehavior->object, "move");
+	std::cout << PyUnicode_AsUTF8(PyObject_Repr(move_fn)) << std::endl;
+	if (move_fn) {
+		std::cout << "Calling `move`" << std::endl;
+		PyObject* move_args = Py_BuildValue("(ii)", dx, dy);
+		PyObject_CallObject((PyObject*) move_fn, move_args);
+	} else {
+		std::cout << "player_input called on entity with no `move` method" << std::endl;
+	}
+}

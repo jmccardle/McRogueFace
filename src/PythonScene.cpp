@@ -212,6 +212,15 @@ void PythonScene::doAction(std::string name, std::string type) {
         // try zoom out
         doZoom(mousepos, -1);
     }
+    else if (ACTIONONCE("up"))        { McRFPy_API::player_input(+0, -1); }
+    else if (ACTIONONCE("upright"))   { McRFPy_API::player_input(+1, -1); }
+    else if (ACTIONONCE("right"))     { McRFPy_API::player_input(+1, +0); }
+    else if (ACTIONONCE("downright")) { McRFPy_API::player_input(+1, +1); }
+    else if (ACTIONONCE("down"))      { McRFPy_API::player_input(+0, +1); }
+    else if (ACTIONONCE("downleft"))  { McRFPy_API::player_input(-1, +1); }
+    else if (ACTIONONCE("left"))      { McRFPy_API::player_input(-1, +0); }
+    else if (ACTIONONCE("upleft"))    { McRFPy_API::player_input(-1, -1); }
+    else if (ACTIONONCE("wait"))      { McRFPy_API::player_input(+0, +0); }
 }
 
 void PythonScene::sRender() {

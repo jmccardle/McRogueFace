@@ -24,7 +24,7 @@ GameEngine::GameEngine()
     McRFPy_API::executePyString("from UIMenu import *");
     McRFPy_API::executePyString("from Grid import *");
 
-    scenes["py"] = new PythonScene(this, "MusicScene");
+    scenes["py"] = new PythonScene(this, "TestScene");
 
     IndexSprite::game = this;
 
