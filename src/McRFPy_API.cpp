@@ -90,7 +90,7 @@ static PyMethodDef mcrfpyMethods[] = {
 	{"inputMode", McRFPy_API::_inputMode, METH_VARARGS, ""},
 	{"turnNumber", McRFPy_API::_turnNumber, METH_VARARGS, ""},
 	{"createEntity", McRFPy_API::_createEntity, METH_VARARGS, ""},
-	{"listEntities", McRFPy_API::_listEntities, METH_VARARGS, ""},
+	//{"listEntities", McRFPy_API::_listEntities, METH_VARARGS, ""},
 
     {NULL, NULL, 0, NULL}
 };
@@ -560,10 +560,12 @@ PyObject* McRFPy_API::_listGrids(PyObject*, PyObject*) {
     PyObject* gridmodule = PyImport_AddModule("Grid"); //already imported
     PyObject* grid_type = PyObject_GetAttrString(gridmodule, "Grid");
     PyObject* gridpoint_type = PyObject_GetAttrString(gridmodule, "GridPoint");
+    PyObject* entity_type = PyObject_GetAttrString(gridmodule, "Entity");
 
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridmodule)) << std::endl;
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_type)) << std::endl;
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridpoint_type)) << std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridmodule)) << std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_type)) << std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridpoint_type)) << std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(entity_type)) << std::endl;
         
     PyObject* gridlist = PyList_New(grids.size());
     std::map<std::string, Grid*>::iterator it = grids.begin();
@@ -578,12 +580,12 @@ PyObject* McRFPy_API::_listGrids(PyObject*, PyObject*) {
             (int)grid->grid_x, (int)grid->grid_y, (int)grid->grid_size,
 			(int)p.x, (int)p.y, (int)s.x, (int)s.y);
 
-        std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_args)) << std::endl;
+        //std::cout << PyUnicode_AsUTF8(PyObject_Repr(grid_args)) << std::endl;
 
         PyObject* gridobj = PyObject_CallObject((PyObject*) grid_type, grid_args);
-        std::cout << (long)gridobj << std::flush <<std::endl;
+        //std::cout << (long)gridobj << std::flush <<std::endl;
 
-        std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridobj)) << std::endl;
+        //std::cout << PyUnicode_AsUTF8(PyObject_Repr(gridobj)) << std::endl;
         // Loop: Convert GridPoint objects to Python Objects
         PyObject* gridp_list = PyObject_GetAttrString(gridobj, "points");
         for(auto& p : grid->points) {
@@ -604,6 +606,24 @@ PyObject* McRFPy_API::_listGrids(PyObject*, PyObject*) {
             PyObject* gridpobj = PyObject_CallObject((PyObject*) gridpoint_type, gridp_args);
             PyList_Append(gridp_list, gridpobj);
 		}
+		
+		PyObject* ent_list = PyObject_GetAttrString(gridobj, "entities");
+		for (auto e : grid->entities) {
+			//def __init__(self, parent, tex_index, sprite_index, x, y, visible=True):
+			PyObject* ent_args = Py_BuildValue("siiiiO",
+				title.c_str(),
+				e->cGrid->indexsprite.texture_index,
+				e->cGrid->indexsprite.sprite_index,
+				e->cGrid->x,
+				e->cGrid->y,
+				e->cGrid->visible ? Py_True: Py_False);
+			//std::cout << PyUnicode_AsUTF8(PyObject_Repr(ent_args)) << std::endl;
+			e->cGrid->visible ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
+			PyObject* entobj = PyObject_CallObject((PyObject*) entity_type, ent_args);
+			PyList_Append(ent_list, entobj);
+			//std::cout << PyUnicode_AsUTF8(PyObject_Repr(ent_list)) << std::endl;
+		}
+		
 		PyList_SET_ITEM(gridlist, i, gridobj);
         i++; // count iterator steps
     }
@@ -672,10 +692,10 @@ PyObject* _test_createAnimation(PyObject *self, PyObject *args) {
          McRFPy_API::menus[menu_key]->box.getPosition(),
          [](){McRFPy_API::executePyString("print('animation callback')");},
          [=](sf::Vector2f v) {
-			 std::cout << "write lambda!" << std::endl; 
+			 //std::cout << "write lambda!" << std::endl; 
 			 McRFPy_API::menus[menu_key]->box.setPosition(v); 
-			 std::cout << "Position set to" << McRFPy_API::menus[menu_key]->box.getPosition().x 
-			 << ", " << McRFPy_API::menus[menu_key]->box.getPosition().y << std::endl;
+			 //std::cout << "Position set to" << McRFPy_API::menus[menu_key]->box.getPosition().x 
+			 //<< ", " << McRFPy_API::menus[menu_key]->box.getPosition().y << std::endl;
 			 }, 
          false)
     );
@@ -687,7 +707,7 @@ PyObject* _test_createAnimation(PyObject *self, PyObject *args) {
 #define CEQ(A, B) (std::string(A).compare(B) == 0)
 
 PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
-	std::cout << "Creating animation called..." << std::endl;
+	//std::cout << "Creating animation called..." << std::endl;
     float duration;
 	const char* parent;
 	const char* target_type;
@@ -702,6 +722,7 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
     bool loop = PyObject_IsTrue(loop_obj);
     int target_id = PyLong_AsLong(target_id_obj);
     Py_INCREF(callback);
+    /*
     std::cout << "Animation fields received:" <<
 		"\nduration: " << duration <<
 		"\nparent: " << parent <<
@@ -711,6 +732,7 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
 		"\ncallback: " << PyUnicode_AsUTF8(PyObject_Repr(callback)) <<
 		"\nloop: " << loop <<
 		"\nvalues: " << PyUnicode_AsUTF8(PyObject_Repr(values_obj)) << std::endl;
+	*/
 	/* Jank alert:
 	 * The following block is meant to raise an exception when index is missing from object animations that require one,
 	 * but accept the target_id_obj error (and accept None as an index) for menus/grids.
@@ -765,8 +787,8 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
 		// else if (CEQ(field, "bgcolor")) { )
 	}
 	else if (CEQ(target_type, "sprite")) {
-		auto obj = menus[std::string(parent)]->sprites[target_id];
 		if (CEQ(field, "position")) {
+			auto obj = menus[std::string(parent)]->sprites[target_id];
 			PyObject* evdata;
 			if (PyList_Check(values_obj)) evdata = PyList_AsTuple(values_obj); else evdata = values_obj;
 			auto end_value = sf::Vector2f(PyFloat_AsDouble(PyTuple_GetItem(evdata, 0)),
@@ -798,8 +820,20 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
 		}
 	}
 	else if (CEQ(target_type, "entity")) {
-		//auto obj = grids[std::string(parent)];//->entities[target_id];
-		if (CEQ(field, "sprite")) {
+		if (CEQ(field, "position")) {
+			auto obj = grids[std::string(parent)]->entities[target_id];
+			PyObject* evdata;
+			if (PyList_Check(values_obj)) evdata = PyList_AsTuple(values_obj); else evdata = values_obj;
+			auto end_value = sf::Vector2f(PyFloat_AsDouble(PyTuple_GetItem(evdata, 0)),
+										  PyFloat_AsDouble(PyTuple_GetItem(evdata, 1)));
+			McRFPy_API::animations.push_back(new LerpAnimation<sf::Vector2f>(duration, end_value,
+				sf::Vector2f(obj->cGrid->indexsprite.x, obj->cGrid->indexsprite.y),
+				[=](){PyObject_Call(callback, PyTuple_New(0), NULL);},
+				[=](sf::Vector2f v){obj->cGrid->indexsprite.x = v.x; obj->cGrid->indexsprite.y = v.y;},
+				loop)
+			);			
+		}
+		else if (CEQ(field, "sprite")) {
 			auto obj = grids[std::string(parent)];
 			PyObject* evdata;
 			if (PyList_Check(values_obj)) evdata = PyList_AsTuple(values_obj); else evdata = values_obj;
@@ -923,7 +957,10 @@ PyObject* McRFPy_API::_createEntity(PyObject* self, PyObject* args) {
 	Py_INCREF(Py_None);
     return Py_None;
 }
+
+/*
 PyObject* McRFPy_API::_listEntities(PyObject* self, PyObject* args) {
 	Py_INCREF(Py_None);
     return Py_None;	
 }
+*/

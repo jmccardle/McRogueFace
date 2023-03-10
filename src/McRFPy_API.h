@@ -73,7 +73,7 @@ public:
     //static PyObject* _listButtons(PyObject*, PyObject*);
 
     static PyObject* _createEntity(PyObject*, PyObject*);
-    static PyObject* _listEntities(PyObject*, PyObject*);
+    //static PyObject* _listEntities(PyObject*, PyObject*);
 
     static PyObject* _createGrid(PyObject*, PyObject*);
     static PyObject* _listGrids(PyObject*, PyObject*);
