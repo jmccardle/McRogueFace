@@ -108,10 +108,15 @@ public:
     static int turn_number;
     static PyObject* _turnNumber(PyObject*, PyObject*);
     static PyObject* _refreshFov(PyObject*, PyObject*);
+    static bool do_camfollow;
+    static void camFollow();
+    static PyObject* _camFollow(PyObject*, PyObject*);
     
     // accept keyboard input from scene
     static sf::Vector2i cursor_position;
     static void player_input(int, int);
+    static void computerTurn();
+    static void playerTurn();
 
     // Jank Functionality
     static UIMenu* createMenu(int posx, int posy, int sizex, int sizey);

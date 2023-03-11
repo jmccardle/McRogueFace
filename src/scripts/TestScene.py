@@ -24,12 +24,23 @@ class TestEntity:
         self.y = y
         self.facing_direction = 0
         self.do_fov = do_fov
+        self.label = label
         #print(f"Calling C++ with: {repr((self.grid, label, tex_index, self.basesprite, x, y, self))}")
         grids = mcrfpy.listGrids()
         for g in grids:
             if g.title == self.grid:
                 self.entity_index = len(g.entities)
         mcrfpy.createEntity(self.grid, label, tex_index, self.basesprite, x, y, self)
+        
+    def ai_act(self):
+        if self.label == "player": return
+        self.move(randint(-1, 1), randint(-1, 1))
+        scene.actors += 1
+        
+    def player_act(self):
+        #print("I'M INTERVENING")
+        mcrfpy.unlockPlayerInput()
+        scene.updatehints()
         
     def move(self, dx, dy):
         # select animation direction
@@ -40,6 +51,9 @@ class TestEntity:
                 if g.at(self.x + dx, self.y + dy) is None or not g.at(self.x + dx, self.y + dy).walkable:
                     print("Blocked at target location.")
                     return
+        if self.label == "player": 
+            mcrfpy.lockPlayerInput()
+            scene.updatehints()
         if (dx == 0 and dy == 0):
             direction = self.facing_direction # TODO, jump straight to computer turn
         elif (dx):
@@ -64,8 +78,8 @@ class TestEntity:
             False, #loop: repeat indefinitely
             animation_frames # values: iterable of frames for 'sprite', lerp target for others
         )
-        global animations_in_progress
-        animations_in_progress += 1
+        #global animations_in_progress
+        #animations_in_progress += 1
         if move:
             pos = [self.x, self.y]
             if (direction == 0): pos[1] += 1
@@ -96,18 +110,22 @@ class TestEntity:
                 False, #loop: repeat indefinitely
                 animove # values: iterable of frames for 'sprite', lerp target for others
             )
-            animations_in_progress += 1
+            #animations_in_progress += 1
 
         
     def animation_done(self):
-        global animations_in_progress
-        animations_in_progress -= 1
-        #print(f"{self} done animating")
-        # if animations_in_progress == 0: mcrfpy.unlockPlayerInput()
+        #global animations_in_progress
+        #animations_in_progress -= 1
+        scene.actors -= 1
+        #print(f"{self} done animating - {scene.actors} remaining")
+        if scene.actors == 0:
+            mcrfpy.unlockPlayerInput()
+            scene.updatehints()
 
 class TestScene:
     def __init__(self, ui_name = "demobox1", grid_name = "demogrid"):
         # Texture & Sound Loading
+        self.actors = 0
         print("Load textures")
         mcrfpy.createTexture("./assets/test_portraits.png", 32, 8, 8) #0 - portraits
         mcrfpy.createTexture("./assets/alives_other.png", 16, 64, 64) #1 - TinyWorld NPCs
@@ -287,11 +305,12 @@ class TestScene:
             p.walkable = False
             p.transparent = False
             
-        room_centers = [(randint(0, self.grids[0].grid_x-1), randint(0, self.grids[0].grid_y-1)) for i in range(6)]
-        room_centers.append((3, 5))
+        room_centers = [(randint(0, self.grids[0].grid_x-1), randint(0, self.grids[0].grid_y-1)) for i in range(20)] + \
+            [ (3, 5), (10, 10), (20, 20), (30, 30), (40, 40) ]
+        #room_centers.append((3, 5))
         for r in room_centers:
             print(r)
-            room_color = (randint(128, 192), randint(128, 192), randint(128, 192))
+            room_color = (randint(16, 24)*8, randint(16, 24)*8, randint(16, 24)*8)
             #self.grids[0].at(r[0], r[1]).walkable = True
             #self.grids[0].at(r[0], r[1]).color = room_color
             halfx, halfy = randint(2, 11), randint(2,11)

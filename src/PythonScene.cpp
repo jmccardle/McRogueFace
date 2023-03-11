@@ -36,6 +36,7 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
     registerAction(0, "event");
 
     dragging = false;
+    McRFPy_API::do_camfollow = false;
     drag_grid = NULL;
     
     // import pymodule and call start()
@@ -53,7 +54,7 @@ void PythonScene::animate() {
         (*it)->step(frametime);
         //std::cout << "Step complete" << std::endl;
         if ((*it)->isDone()) {
-            std::cout << "Cleaning up Animation" << std::endl;
+            //std::cout << "Cleaning up Animation" << std::endl;
             auto prev = it;
             it++;
             McRFPy_API::animations.erase(prev);
@@ -101,6 +102,15 @@ void PythonScene::animate() {
 }
 
 void PythonScene::update() {
+	
+	// turn cycle: If player's input made the state "computerturnwait", finish
+	// 		all animations and then let the NPCs act
+	if (McRFPy_API::animations.size() == 0 && McRFPy_API::input_mode.compare("computerturnwait") == 0) {
+		McRFPy_API::input_mode = "computerturn";
+	}
+	else if (McRFPy_API::animations.size() == 0 && McRFPy_API::input_mode.compare("computerturnrunning") == 0) {
+		McRFPy_API::input_mode = "playerturnstart";
+	}
     McRFPy_API::entities.update();
 
     // check if left click is still down & mouse has moved
@@ -116,6 +126,9 @@ void PythonScene::update() {
     }
 
     animate();
+    McRFPy_API::camFollow();
+    if (McRFPy_API::input_mode.compare(std::string("computerturn")) == 0) McRFPy_API::computerTurn();
+    if (McRFPy_API::input_mode.compare(std::string("playerturnstart")) == 0) McRFPy_API::playerTurn();
 }
 
 void PythonScene::doLClick(sf::Vector2i mousepos) {

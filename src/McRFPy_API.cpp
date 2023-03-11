@@ -14,6 +14,7 @@ sf::Sound McRFPy_API::sfx;
 std::string McRFPy_API::input_mode;
 int McRFPy_API::turn_number;
 std::string McRFPy_API::active_grid;
+bool McRFPy_API::do_camfollow;
 
 EntityManager McRFPy_API::entities;
 
@@ -93,6 +94,7 @@ static PyMethodDef mcrfpyMethods[] = {
 	{"createEntity", McRFPy_API::_createEntity, METH_VARARGS, ""},
 	//{"listEntities", McRFPy_API::_listEntities, METH_VARARGS, ""},
 	{"refreshFov", McRFPy_API::_refreshFov, METH_VARARGS, ""},
+	{"camFollow", McRFPy_API::_camFollow, METH_VARARGS, ""},
 
     {NULL, NULL, 0, NULL}
 };
@@ -638,7 +640,7 @@ PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
     PyObject* o;
     PyObject* bool_is_entityonly = Py_False;
     if (!PyArg_ParseTuple(args, "O|O", &o, &bool_is_entityonly)) return NULL;
-    std::cout << "EntOnly Flag: " << PyUnicode_AsUTF8(PyObject_Repr(bool_is_entityonly)) << std::endl;
+    //std::cout << "EntOnly Flag: " << PyUnicode_AsUTF8(PyObject_Repr(bool_is_entityonly)) << std::endl;
     std::string title = PyUnicode_AsUTF8(PyObject_GetAttrString(o, "title"));
     int grid_x = PyLong_AsLong(PyObject_GetAttrString(o, "grid_x"));
     int grid_y = PyLong_AsLong(PyObject_GetAttrString(o, "grid_y"));
@@ -847,7 +849,7 @@ PyObject* McRFPy_API::_createAnimation(PyObject *self, PyObject *args) {
 				[=](int s){obj->sprites[target_id].sprite_index = s;},
 				loop)
 			);
-			std::cout << "Frame animation constructed, there are now " <<McRFPy_API::animations.size() << std::endl;
+			//std::cout << "Frame animation constructed, there are now " <<McRFPy_API::animations.size() << std::endl;
 		}
 	}
 	else if (CEQ(target_type, "entity")) {
@@ -954,7 +956,7 @@ PyObject* McRFPy_API::_unlockPlayerInput(PyObject* self, PyObject* args) {
     return Py_None;	
 }
 PyObject* McRFPy_API::_lockPlayerInput(PyObject* self, PyObject* args) {
-	McRFPy_API::input_mode = "computerturn";
+	McRFPy_API::input_mode = "computerturnwait";
     Py_INCREF(Py_None);
     return Py_None;		
 }
@@ -1004,13 +1006,13 @@ PyObject* McRFPy_API::_listEntities(PyObject* self, PyObject* args) {
 */
 
 void McRFPy_API::player_input(int dx, int dy) {
-	std::cout << "# entities tagged 'player': " << McRFPy_API::entities.getEntities("player").size() << std::endl;
+	//std::cout << "# entities tagged 'player': " << McRFPy_API::entities.getEntities("player").size() << std::endl;
 	auto player_entity = McRFPy_API::entities.getEntities("player")[0];
 	auto grid = player_entity->cGrid->grid;
-	std::cout << "Grid pointed to: " << (long)player_entity->cGrid->grid << std::endl;
-	if (!McRFPy_API::input_mode.compare("computerturn")) {
+	//std::cout << "Grid pointed to: " << (long)player_entity->cGrid->grid << std::endl;
+	if (McRFPy_API::input_mode.compare("playerturn") != 0) {
 		// no input accepted while computer moving
-		std::cout << "Can't move while computer is moving." << std::endl;
+		std::cout << "Can't move while it's not player's turn." << std::endl;
 		return;
 	}
 	// TODO: selection cursor via keyboard
@@ -1026,9 +1028,9 @@ void McRFPy_API::player_input(int dx, int dy) {
 	      ") + (" << dx << ", " << dy << ") is OOB." << std::endl;
 	    return;
 	}
-	std::cout << PyUnicode_AsUTF8(PyObject_Repr(player_entity->cBehavior->object)) << std::endl;
+	//std::cout << PyUnicode_AsUTF8(PyObject_Repr(player_entity->cBehavior->object)) << std::endl;
 	PyObject* move_fn = PyObject_GetAttrString(player_entity->cBehavior->object, "move");
-	std::cout << PyUnicode_AsUTF8(PyObject_Repr(move_fn)) << std::endl;
+	//std::cout << PyUnicode_AsUTF8(PyObject_Repr(move_fn)) << std::endl;
 	if (move_fn) {
 		std::cout << "Calling `move`" << std::endl;
 		PyObject* move_args = Py_BuildValue("(ii)", dx, dy);
@@ -1036,4 +1038,48 @@ void McRFPy_API::player_input(int dx, int dy) {
 	} else {
 		std::cout << "player_input called on entity with no `move` method" << std::endl;
 	}
+}
+
+void McRFPy_API::computerTurn() {
+	McRFPy_API::input_mode = "computerturnrunning";
+	for (auto e : McRFPy_API::grids[McRFPy_API::active_grid]->entities) {
+		if (e->cBehavior) {
+			PyObject_Call(PyObject_GetAttrString(e->cBehavior->object, "ai_act"), PyTuple_New(0), NULL);
+		}
+	}
+}
+
+void McRFPy_API::playerTurn() {
+	McRFPy_API::input_mode = "playerturn";
+	for (auto e : McRFPy_API::entities.getEntities("player")) {
+		if (e->cBehavior) {
+			PyObject_Call(PyObject_GetAttrString(e->cBehavior->object, "player_act"), PyTuple_New(0), NULL);
+		}
+	}
+}
+
+void McRFPy_API::camFollow() {
+	if (!McRFPy_API::do_camfollow) return;
+	auto& ag = McRFPy_API::grids[McRFPy_API::active_grid];
+	for (auto e : McRFPy_API::entities.getEntities("player")) {
+		//std::cout << "grid center: " << ag->center_x << ", " << ag->center_y << std::endl <<
+		//             "player grid pos: " << e->cGrid->x << ", " << e->cGrid->y << std::endl <<
+		//             "player sprite pos: " << e->cGrid->indexsprite.x << ", " << e->cGrid->indexsprite.y << std::endl;
+		ag->center_x = e->cGrid->indexsprite.x * ag->grid_size + ag->grid_size * 0.5;
+		ag->center_y = e->cGrid->indexsprite.y * ag->grid_size + ag->grid_size * 0.5;
+	}
+}
+
+PyObject* McRFPy_API::_camFollow(PyObject* self, PyObject* args) {
+	PyObject* set_camfollow;
+	if (!PyArg_ParseTuple(args, "|O", &set_camfollow)) return NULL;
+	if (set_camfollow == NULL) {
+		// return value
+		Py_INCREF(McRFPy_API::do_camfollow ? Py_True : Py_False);
+		return McRFPy_API::do_camfollow ? Py_True : Py_False;
+	}
+	
+	McRFPy_API::do_camfollow = PyObject_IsTrue(set_camfollow);
+	Py_INCREF(Py_None);
+    return Py_None;
 }

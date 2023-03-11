@@ -22,14 +22,22 @@ void EntityManager::update()
     //if (m_entitiesToAdd.size())
     //    m_entitiesToAdd.erase(m_entitiesToAdd.begin(), m_entitiesToAdd.end());
     m_entitiesToAdd = EntityVec();
+    
 }
 
 void EntityManager::removeDeadEntities(EntityVec & vec)
 {
     EntityVec survivors; // New vector
-    for (auto& e : m_entities)
-    {
+    for (auto& e : m_entities){
         if (e->isActive()) survivors.push_back(e); // populate new vector
+        else if (e->cGrid) { // erase vector from grid
+			for( auto it = e->cGrid->grid->entities.begin(); it != e->cGrid->grid->entities.end(); it++){
+				if( *it == e ){
+					e->cGrid->grid->entities.erase( it );
+					break;
+				}
+			}
+		}
     }
     //std::cout << "All entities: " << m_entities.size() << " Survivors: " << survivors.size() << std::endl;
     m_entities = survivors; // point to new vector
