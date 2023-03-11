@@ -14,7 +14,7 @@ animations_in_progress = 0
 scene = None
 
 class TestEntity:
-    def __init__(self, grid, label, tex_index, basesprite, x, y, texture_width=64, walk_frames=5, attack_frames=6):
+    def __init__(self, grid, label, tex_index, basesprite, x, y, texture_width=64, walk_frames=5, attack_frames=6, do_fov=False):
         self.grid = grid
         self.basesprite = basesprite
         self.texture_width = texture_width
@@ -23,6 +23,7 @@ class TestEntity:
         self.x = x
         self.y = y
         self.facing_direction = 0
+        self.do_fov = do_fov
         #print(f"Calling C++ with: {repr((self.grid, label, tex_index, self.basesprite, x, y, self))}")
         grids = mcrfpy.listGrids()
         for g in grids:
@@ -36,7 +37,7 @@ class TestEntity:
         #grids = mcrfpy.listGrids()
         for g in scene.grids:
             if g.title == self.grid:
-                if not g.at(self.x + dx, self.y + dy).walkable:
+                if g.at(self.x + dx, self.y + dy) is None or not g.at(self.x + dx, self.y + dy).walkable:
                     print("Blocked at target location.")
                     return
         if (dx == 0 and dy == 0):
@@ -47,6 +48,7 @@ class TestEntity:
             direction = 0 if dy == +1 else 1
         self.animate(direction, move=True, animove=(self.x + dx, self.y+dy))
         self.facing_direction = direction
+        if (self.do_fov): mcrfpy.refreshFov()
 
         
     def animate(self, direction, attacking=False, move=False, animove=None):
@@ -140,13 +142,26 @@ class TestScene:
         mcrfpy.createButton(entitymenu, 0, 160, 150, 40, DARKBLUE, BLACK, "Right", "test_right")
         mcrfpy.createButton(entitymenu, 0, 210, 150, 40, DARKBLUE, BLACK, "Attack", "test_attack")
         mcrfpy.createButton(entitymenu, 0, 210, 150, 40, DARKBLUE, RED, "TE", "testent")
+        
+        mcrfpy.createMenu("gridtitlemenu", 0, -10, 0, 0)
+        mcrfpy.createCaption("gridtitlemenu", "<grid name>", 18, WHITE)
+        
+        mcrfpy.createMenu("hintsmenu", 0, 505, 0, 0)
+        mcrfpy.createCaption("hintsmenu", "<hintline>", 16, WHITE)
+        
         print("Make UIs visible")
         self.menus = mcrfpy.listMenus()
         self.menus[0].visible = True
         self.menus[1].w = 170
         self.menus[1].visible = True
+        self.menus[2].visible = True
+        self.menus[2].bgcolor = BLACK
+        self.menus[3].visible = True
+        self.menus[3].bgcolor = BLACK
         mcrfpy.modMenu(self.menus[0])
         mcrfpy.modMenu(self.menus[1])
+        mcrfpy.modMenu(self.menus[2])
+        mcrfpy.modMenu(self.menus[3])
         print(mcrfpy.listMenus())
 
         print("Create grid")
@@ -172,7 +187,7 @@ class TestScene:
             TestEntity("demogrid", "classtest", 1, 143, 13, 11, 64, walk_frames=5, attack_frames=6),
             TestEntity("demogrid", "classtest", 1, 158, 15, 13, 64, walk_frames=5, attack_frames=6),
             TestEntity("demogrid", "classtest", 1, 165, 17, 15, 64, walk_frames=5, attack_frames=6),
-            TestEntity("demogrid", "player", 3, 20, 17, 3, 5, walk_frames=4, attack_frames=5)
+            TestEntity("demogrid", "player", 3, 20, 17, 3, 5, walk_frames=4, attack_frames=5, do_fov=True)
             ]
         self.grids = mcrfpy.listGrids()
         
@@ -195,6 +210,9 @@ class TestScene:
         mcrfpy.registerPyAction("nextsp", lambda: self.changesprite(1))
         mcrfpy.registerPyAction("prevsp", lambda: self.changesprite(-1))
         mcrfpy.registerPyAction("skipsp", lambda: self.changesprite(16))
+        mcrfpy.unlockPlayerInput()
+        mcrfpy.setActiveGrid("demogrid")
+        self.updatehints()
 
     def animate_entity(self, direction, attacking=False):
         if direction is None:
@@ -252,18 +270,47 @@ class TestScene:
         self.menus[0].captions[0].text = f"Clicks: {self.clicks}"
         self.menus[0].sprites[0].sprite_index = randint(0, 3)
         mcrfpy.modMenu(self.menus[0])
+        
+    def updatehints(self):
+        self.menus[2].captions[0].text=mcrfpy.activeGrid()
+        mcrfpy.modMenu(self.menus[2])
+        self.menus[3].captions[0].text=mcrfpy.inputMode()
+        mcrfpy.modMenu(self.menus[3])
+        
 
     def gridgen(self):
+        
         print(f"[Python] modifying {len(self.grids[0].points)} grid points")
         for p in self.grids[0].points:
-            p.color = (randint(0, 255), randint(64, 192), 0)
-        print("[Python] Modifying:")
+            #p.color = (randint(0, 255), randint(64, 192), 0)
+            p.color = (0,0,0)
+            p.walkable = False
+            p.transparent = False
+            
+        room_centers = [(randint(0, self.grids[0].grid_x-1), randint(0, self.grids[0].grid_y-1)) for i in range(6)]
+        room_centers.append((3, 5))
+        for r in room_centers:
+            print(r)
+            room_color = (randint(128, 192), randint(128, 192), randint(128, 192))
+            #self.grids[0].at(r[0], r[1]).walkable = True
+            #self.grids[0].at(r[0], r[1]).color = room_color
+            halfx, halfy = randint(2, 11), randint(2,11)
+            for p_x in range(r[0] - halfx, r[0] + halfx):
+                for p_y in range(r[1] - halfy, r[1] + halfy):
+                    gpoint = self.grids[0].at(p_x, p_y)
+                    if gpoint is None: continue
+                    gpoint.walkable = True
+                    gpoint.transparent = True
+                    gpoint.color = room_color
+            print()
+                    
+        #print("[Python] Modifying:")
         self.grids[0].at(10, 10).color = (255, 255, 255)
         self.grids[0].at(10, 10).walkable = False
         self.grids[0].visible = True
         mcrfpy.modGrid(self.grids[0])
-        print(f"Sent grid: {repr(self.grids[0])}")
-        print(f"Received grid: {repr(mcrfpy.listGrids()[0])}")
+        #print(f"Sent grid: {repr(self.grids[0])}")
+        #print(f"Received grid: {repr(mcrfpy.listGrids()[0])}")
         
     def animation_done(self, s):
         print(f"The `{s}` animation completed.")

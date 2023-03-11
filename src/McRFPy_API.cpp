@@ -87,6 +87,7 @@ static PyMethodDef mcrfpyMethods[] = {
 	{"lockPlayerInput", McRFPy_API::_lockPlayerInput, METH_VARARGS, ""},
 	{"requestGridTarget", McRFPy_API::_requestGridTarget, METH_VARARGS, ""},
 	{"activeGrid", McRFPy_API::_activeGrid, METH_VARARGS, ""},
+	{"setActiveGrid", McRFPy_API::_setActiveGrid, METH_VARARGS, ""},
 	{"inputMode", McRFPy_API::_inputMode, METH_VARARGS, ""},
 	{"turnNumber", McRFPy_API::_turnNumber, METH_VARARGS, ""},
 	{"createEntity", McRFPy_API::_createEntity, METH_VARARGS, ""},
@@ -966,6 +967,13 @@ PyObject* McRFPy_API::_requestGridTarget(PyObject* self, PyObject* args) {
 }
 PyObject* McRFPy_API::_activeGrid(PyObject* self, PyObject* args) {
 	return Py_BuildValue("s", McRFPy_API::active_grid.c_str());
+}
+PyObject* McRFPy_API::_setActiveGrid(PyObject* self, PyObject* args) {
+	const char* newactivegrid;
+	if (!PyArg_ParseTuple(args, "s", &newactivegrid)) return NULL;
+	McRFPy_API::active_grid = newactivegrid;
+    Py_INCREF(Py_None);
+    return Py_None;		
 }
 PyObject* McRFPy_API::_inputMode(PyObject* self, PyObject* args) {
 	return Py_BuildValue("s", McRFPy_API::input_mode.c_str());

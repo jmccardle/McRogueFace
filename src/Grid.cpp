@@ -58,7 +58,7 @@ void Grid::refreshTCODmap() {
 	std::cout << "Map refreshed: " << total << " squares, " << walkable << "walkable, " << transparent << " transparent" << std::endl;
 }
 void Grid::refreshTCODsight(int x, int y) {
-	tcodmap->computeFov(x,y);
+	tcodmap->computeFov(x,y, 0, true, FOV_PERMISSIVE_8);
 	for (int x = 0; x < grid_x; x++) {
 		for (int y = 0; y < grid_y; y++) {
 			auto& p = at(x, y);

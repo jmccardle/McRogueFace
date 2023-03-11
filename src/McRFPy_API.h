@@ -100,6 +100,7 @@ public:
     // string for labeling the map
     static std::string active_grid;
     static PyObject* _activeGrid(PyObject*, PyObject*);
+    static PyObject* _setActiveGrid(PyObject*, PyObject*);
     // string for prompting input
     static std::string input_mode;
     static PyObject* _inputMode(PyObject*, PyObject*);
