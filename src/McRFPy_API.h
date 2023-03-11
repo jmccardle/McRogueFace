@@ -122,7 +122,7 @@ public:
     static UIMenu* createMenu(int posx, int posy, int sizex, int sizey);
     static void createCaption(std::string menukey, std::string text, int fontsize, sf::Color textcolor);
     static void createButton(std::string menukey, int x, int y, int w, int h, sf::Color bgcolor, sf::Color textcolor, std::string caption, std::string action);
-    static void createSprite(std::string menukey, int ti, int si, int x, int y, float scale);
+    static void createSprite(std::string menukey, int ti, int si, float x, float y, float scale);
     static int createTexture(std::string filename, int grid_size, int grid_width, int grid_height);
     //static void playSound(const char * filename);
     //static void playMusic(const char * filename);

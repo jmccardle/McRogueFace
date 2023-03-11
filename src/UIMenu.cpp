@@ -15,7 +15,11 @@ void UIMenu::render(sf::RenderWindow & window)
     window.draw(box);
     for (auto& s: sprites) {
         auto _s = s.drawable();
+        //std::cout << "Sprite has values " << s.x << ", " << s.y << std::endl;
+        //std::cout << "Drawable generated @ " << _s.getPosition().x << ", " << _s.getPosition().y << std::endl;
         _s.move(box.getPosition());
+        //std::cout << "Moved by  " << box.getPosition().x << ", " << box.getPosition().y << std::endl;
+        //std::cout << "Render UIMenu Sprite @ " << _s.getPosition().x << ", " << _s.getPosition().y << std::endl;
         window.draw(_s);
     }
     for (auto& c : captions) {
@@ -64,6 +68,7 @@ void UIMenu::add_button(Button b)
 
 void UIMenu::add_sprite(IndexSprite s)
 {
+	//std::cout << "Adding sprite to UIMenu x,y " << s.x << ", " << s.y << std::endl;
     sprites.push_back(s);
 }
 

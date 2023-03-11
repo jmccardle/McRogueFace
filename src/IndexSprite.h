@@ -9,5 +9,5 @@ public:
     float scale;
     static GameEngine* game;
     sf::Sprite drawable();
-    IndexSprite(int, int, int, int, float);
+    IndexSprite(int, int, float, float, float);
 };

@@ -333,7 +333,7 @@ PyObject* McRFPy_API::_listMenus(PyObject*, PyObject*) {
         // Loop: Convert Sprite objects to Python Objects
         PyObject* sprite_list = PyObject_GetAttrString(menuobj, "sprites");
         for (auto& s : menu->sprites) {
-            PyObject* spr_args = Py_BuildValue("(iiii)",
+            PyObject* spr_args = Py_BuildValue("(iiff)",
                 s.texture_index, s.sprite_index, s.x, s.y);
 
             PyObject* sprobj = PyObject_CallObject((PyObject*) spr_type, spr_args);
@@ -436,9 +436,9 @@ PyObject* McRFPy_API::_modMenu(PyObject* self, PyObject* args) {
         menu->sprites[i].sprite_index = 
             PyLong_AsLong(PyObject_GetAttrString(spriteobj, "sprite_index"));
         menu->sprites[i].x = 
-            PyLong_AsLong(PyObject_GetAttrString(spriteobj, "x"));
+            PyFloat_AsDouble(PyObject_GetAttrString(spriteobj, "x"));
         menu->sprites[i].y = 
-            PyLong_AsLong(PyObject_GetAttrString(spriteobj, "y"));
+            PyFloat_AsDouble(PyObject_GetAttrString(spriteobj, "y"));
     }
 
     Py_INCREF(Py_None);
@@ -485,9 +485,11 @@ PyObject* McRFPy_API::_listTextures(PyObject*, PyObject*) {
 
 PyObject* McRFPy_API::_createSprite(PyObject* self, PyObject* args) {
     const char * menu_cstr;
-    int ti, si, x, y;
+    int ti, si;
+    float x, y;
     float s;
-    if (!PyArg_ParseTuple(args, "siiiif", &menu_cstr, &ti, &si, &x, &y, &s)) return NULL;
+    if (!PyArg_ParseTuple(args, "siifff", &menu_cstr, &ti, &si, &x, &y, &s)) return NULL;
+    //std::cout << "Creating uisprite " << ti << " " << si << " " << x << " " << y << " " << s << " " << std::endl;
     createSprite(std::string(menu_cstr), ti, si, x, y, s);
     Py_INCREF(Py_None);
     return Py_None;
@@ -511,10 +513,11 @@ void McRFPy_API::createButton(std::string menukey, int x, int y, int w, int h, s
     menu->add_button(b);
 }
 
-void McRFPy_API::createSprite(std::string menukey, int ti, int si, int x, int y, float scale) {
+void McRFPy_API::createSprite(std::string menukey, int ti, int si, float x, float y, float scale) {
     auto menu = menus[menukey];
     auto s = IndexSprite(ti, si, x, y, scale);
     menu->add_sprite(s);
+    //std::cout << "indexsprite just created has values x,y " << s.x << ", " << s.y << std::endl;
 }
 
 int McRFPy_API::createTexture(std::string filename, int grid_size, int grid_width, int grid_height) {
