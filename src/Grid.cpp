@@ -3,7 +3,7 @@
 #include "Entity.h"
 
 GridPoint::GridPoint():
-    color(0, 0, 0, 0), walkable(true), tilesprite(-1), transparent(true), visible(false), discovered(false), color_overlay(0,0,0,255), tile_overlay(-1), uisprite(-1)
+    color(0, 0, 0, 0), walkable(false), tilesprite(-1), transparent(false), visible(false), discovered(false), color_overlay(0,0,0,255), tile_overlay(-1), uisprite(-1)
 {};
 
 void Grid::setSprite(int ti)
@@ -22,6 +22,7 @@ Grid::Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h):
     //zoom = 1.0f;
     //grid_x = gx;
     //grid_y = gy;
+    tcodmap = new TCODMap(gx, gy);
     points.resize(gx*gy);
     box.setSize(sf::Vector2f(_w, _h));
     box.setPosition(sf::Vector2f(_x, _y));
@@ -43,6 +44,33 @@ Grid::Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h):
 
     // Show one texture at a time
     sprite.setTexture(texture);
+}
+
+void Grid::refreshTCODmap() {
+	int total = 0, walkable = 0, transparent = 0;
+	for (int x = 0; x < grid_x; x++) {
+		for (int y = 0; y < grid_y; y++) {
+			auto p = at(x, y);
+			total++; if (p.walkable) walkable++; if (p.transparent) transparent++;
+			tcodmap->setProperties(x, y, p.transparent, p.walkable);
+		}
+	}
+	std::cout << "Map refreshed: " << total << " squares, " << walkable << "walkable, " << transparent << " transparent" << std::endl;
+}
+void Grid::refreshTCODsight(int x, int y) {
+	tcodmap->computeFov(x,y);
+	for (int x = 0; x < grid_x; x++) {
+		for (int y = 0; y < grid_y; y++) {
+			auto& p = at(x, y);
+			if (p.visible && !tcodmap->isInFov(x, y)) {
+				p.discovered = true;
+				p.visible = false;
+			} else if (!p.visible && tcodmap->isInFov(x,y)) {
+				p.discovered = true;
+				p.visible = true;
+			}
+		}
+	}
 }
 
 bool Grid::inBounds(int x, int y) {
@@ -230,10 +258,8 @@ void Grid::render(sf::RenderWindow & window)
                 setSprite(gridpoint.tilesprite);
                 renderTexture.draw(sprite);
             }
-
-            // overlay
-
-            // uisprite
+            
+            
 
         }
     }
@@ -247,7 +273,42 @@ void Grid::render(sf::RenderWindow & window)
 		drawent.setPosition(pixel_pos);
 		renderTexture.draw(drawent);
 	}
+	
+	// loop again and draw on top of entities
+	for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
+        x < x_limit; //x < view_width; 
+        x+=1)
+    {
+        //for (float y = (top_edge >= 0 ? top_edge : 0); 
+        for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
+            y < y_limit; //y < view_height;
+            y+=1)
+        {
+			
+			auto pixel_pos = sf::Vector2f(
+                    (x*grid_size - left_spritepixels) * zoom,
+                    (y*grid_size - top_spritepixels) * zoom );
 
+            auto gridpoint = at(std::floor(x), std::floor(y));
+
+            sprite.setPosition(pixel_pos);
+            
+            r.setPosition(pixel_pos);
+			
+			// visible & discovered layers for testing purposes
+            if (!gridpoint.discovered) {
+				r.setFillColor(sf::Color(16, 16, 20, 255));
+				renderTexture.draw(r);
+			} else if (!gridpoint.visible) {
+				r.setFillColor(sf::Color(32, 32, 40, 128));
+				renderTexture.draw(r);
+			}
+
+            // overlay
+
+            // uisprite
+		}
+	}
     // grid lines for testing & validation
     /*
     sf::Vertex line[] =

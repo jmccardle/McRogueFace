@@ -106,6 +106,7 @@ public:
     // turn cycle
     static int turn_number;
     static PyObject* _turnNumber(PyObject*, PyObject*);
+    static PyObject* _refreshFov(PyObject*, PyObject*);
     
     // accept keyboard input from scene
     static sf::Vector2i cursor_position;

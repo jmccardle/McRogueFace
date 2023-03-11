@@ -1,5 +1,7 @@
 #pragma once
 #include "Common.h"
+#include "libtcod.h"
+
 //#include "Entity.h"
 class Entity; // forward declare
 
@@ -26,6 +28,7 @@ public:
     sf::Texture texture;
     sf::Sprite sprite, output;
     sf::RenderTexture renderTexture;
+    TCODMap* tcodmap;
     void setSprite(int);
     const int texture_width, texture_height;
     auto contains(sf::Vector2i p) { return box.getGlobalBounds().contains(p.x, p.y); }
@@ -45,5 +48,9 @@ public:
 
     void renderPxToGrid(int, int, int&, int&);
     void gridToRenderPx(int, int, int&, int&);
-    void integerGrid(float, float, int&, int&); 
+    void integerGrid(float, float, int&, int&);
+    
+    void refreshTCODmap();
+    void refreshTCODsight(int, int);
+    TCODDijkstra *dijkstra; //= new TCODDijkstra(myMap);
 };

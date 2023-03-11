@@ -91,6 +91,7 @@ static PyMethodDef mcrfpyMethods[] = {
 	{"turnNumber", McRFPy_API::_turnNumber, METH_VARARGS, ""},
 	{"createEntity", McRFPy_API::_createEntity, METH_VARARGS, ""},
 	//{"listEntities", McRFPy_API::_listEntities, METH_VARARGS, ""},
+	{"refreshFov", McRFPy_API::_refreshFov, METH_VARARGS, ""},
 
     {NULL, NULL, 0, NULL}
 };
@@ -681,6 +682,12 @@ PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
 			grid->points[i].tile_overlay = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "tile_overlay"));
 			grid->points[i].uisprite = PyLong_AsLong(PyObject_GetAttrString(gpointobj, "uisprite"));
 		}
+		
+		// update grid pathfinding & visibility
+		grid->refreshTCODmap();
+		for (auto e : McRFPy_API::entities.getEntities("player")) {
+			grid->refreshTCODsight(e->cGrid->x, e->cGrid->y);
+		}
 	}
     PyObject* entlist = PyObject_GetAttrString(o, "entities");
     //std::cout << PyUnicode_AsUTF8(PyObject_Repr(entlist)) << std::endl;
@@ -694,6 +701,14 @@ PyObject* McRFPy_API::_modGrid(PyObject* self, PyObject* args) {
 	}
 
     Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_refreshFov(PyObject* self, PyObject* args) {
+	for (auto e : McRFPy_API::entities.getEntities("player")) {
+		e->cGrid->grid->refreshTCODsight(e->cGrid->x, e->cGrid->y);
+	}
+	Py_INCREF(Py_None);
     return Py_None;
 }
 
