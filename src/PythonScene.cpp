@@ -36,7 +36,6 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
     registerAction(0, "event");
 
     dragging = false;
-    McRFPy_API::do_camfollow = false;
     drag_grid = NULL;
     
     // import pymodule and call start()
@@ -120,6 +119,7 @@ void PythonScene::update() {
         auto mousepos = sf::Mouse::getPosition(game->getWindow());
         auto dx = mouseprev.x - mousepos.x,
              dy = mouseprev.y - mousepos.y;
+        if (dx != 0 || dy != 0) { McRFPy_API::do_camfollow = false; }
         drag_grid->center_x += (dx / drag_grid->zoom);
         drag_grid->center_y += (dy / drag_grid->zoom);
         mouseprev = mousepos;
@@ -192,6 +192,7 @@ void PythonScene::doAction(std::string name, std::string type) {
         dragstart = mousepos;
         mouseprev = mousepos;
         dragging = true;
+        
         // determine the grid that contains the cursor
         for (auto pair : McRFPy_API::grids) {
             if (!pair.second->visible) continue;

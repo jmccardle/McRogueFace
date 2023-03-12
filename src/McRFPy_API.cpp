@@ -1074,13 +1074,17 @@ void McRFPy_API::camFollow() {
 }
 
 PyObject* McRFPy_API::_camFollow(PyObject* self, PyObject* args) {
-	PyObject* set_camfollow;
+	PyObject* set_camfollow = NULL;
+	//std::cout << "camFollow Parse Args" << std::endl;
 	if (!PyArg_ParseTuple(args, "|O", &set_camfollow)) return NULL;
+	//std::cout << "Parsed" << std::endl;
 	if (set_camfollow == NULL) {
 		// return value
+		//std::cout << "null; Returning value " << McRFPy_API::do_camfollow << std::endl;
 		Py_INCREF(McRFPy_API::do_camfollow ? Py_True : Py_False);
 		return McRFPy_API::do_camfollow ? Py_True : Py_False;
 	}
+	//std::cout << "non-null; setting value" << std::endl;
 	
 	McRFPy_API::do_camfollow = PyObject_IsTrue(set_camfollow);
 	Py_INCREF(Py_None);

@@ -2,6 +2,7 @@ import UIMenu
 import Grid
 import mcrfpy
 from random import randint
+from pprint import pprint
 print("TestScene imported")
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -145,10 +146,10 @@ class TestScene:
         #mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKGREEN, (0, 0, 0), "mapL", "gridgen2")
         #mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKBLUE, (192, 0, 0), "a_menu", "animtest")
         #mcrfpy.createButton(ui_name, 250, 20, 100, 50, DARKRED, GREEN, "a_spr", "animtest2")
-        mcrfpy.createButton(ui_name, 250, 0, 130, 40, DARKBLUE, GREEN, "Next sp", "nextsp")
-        mcrfpy.createButton(ui_name, 250, 0, 130, 40, DARKBLUE, RED, "Prev sp", "prevsp")
-        mcrfpy.createButton(ui_name, 250, 0, 130, 40, DARKBLUE, DARKGREEN, "+16 sp", "skipsp")
-        mcrfpy.createSprite(ui_name, 1, 0, 20, 40, 3.0)
+        #mcrfpy.createButton(ui_name, 250, 0, 130, 40, DARKBLUE, GREEN, "Next sp", "nextsp")
+        #mcrfpy.createButton(ui_name, 250, 0, 130, 40, DARKBLUE, RED, "Prev sp", "prevsp")
+        #mcrfpy.createButton(ui_name, 250, 0, 130, 40, DARKBLUE, DARKGREEN, "+16 sp", "skipsp")
+        mcrfpy.createSprite(ui_name, 0, 0, 20, 20, 5.0)
         
         print("Create UI 2")
         entitymenu = "entitytestmenu"
@@ -161,11 +162,17 @@ class TestScene:
         mcrfpy.createButton(entitymenu, 0, 210, 150, 40, DARKBLUE, BLACK, "Attack", "test_attack")
         mcrfpy.createButton(entitymenu, 0, 210, 150, 40, DARKBLUE, RED, "TE", "testent")
         
-        mcrfpy.createMenu("gridtitlemenu", 0, -10, 0, 0)
+        mcrfpy.createMenu(   "gridtitlemenu", 0, -10, 0, 0)
         mcrfpy.createCaption("gridtitlemenu", "<grid name>", 18, WHITE)
+        #mcrfpy.createCaption("gridtitlemenu", "<camstate>", 16, WHITE)
         
-        mcrfpy.createMenu("hintsmenu", 0, 505, 0, 0)
+        mcrfpy.createMenu(   "hintsmenu", 0, 505, 0, 0)
         mcrfpy.createCaption("hintsmenu", "<hintline>", 16, WHITE)
+        
+        mcrfpy.createMenu(   "i",            600, 20, 0, 0)
+        #mcrfpy.createMenu(   "camstatemenu", 600, 20, 0, 0)
+        mcrfpy.createCaption("i", "<camstate>", 16, WHITE)
+        mcrfpy.createButton( "i", 0, 0, 40, 40, DARKBLUE, WHITE, "Recenter", "activatecamfollow")
         
         print("Make UIs visible")
         self.menus = mcrfpy.listMenus()
@@ -176,17 +183,21 @@ class TestScene:
         self.menus[2].bgcolor = BLACK
         self.menus[3].visible = True
         self.menus[3].bgcolor = BLACK
+        self.menus[4].visible = True
+        self.menus[4].bgcolor = BLACK
         mcrfpy.modMenu(self.menus[0])
         mcrfpy.modMenu(self.menus[1])
         mcrfpy.modMenu(self.menus[2])
         mcrfpy.modMenu(self.menus[3])
-        print(mcrfpy.listMenus())
+        mcrfpy.modMenu(self.menus[4])
+        pprint(mcrfpy.listMenus())
+        print(f"UI 1 gave back this sprite: {self.menus[0].sprites}")
 
         print("Create grid")
         # create grid (title, gx, gy, gs, x, y, w, h)
         mcrfpy.createGrid(grid_name, 100, 100, 16, 20, 20, 800, 500)
         self.grids = mcrfpy.listGrids()
-        print(self.grids)
+        #print(self.grids)
         
         print("Create entities")
         #mcrfpy.createEntity("demogrid", "dragon", 2, 545, 10, 10, lambda: None)
@@ -194,17 +205,17 @@ class TestScene:
         
         print("Create fancy entity")
         self.tes = [
-            TestEntity("demogrid", "classtest", 1, 1538, 5, 7, 64, walk_frames=5, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 1545, 7, 9, 64, walk_frames=5, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 1552, 9, 11, 64, walk_frames=5, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 1566, 11, 13, 64, walk_frames=4, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 1573, 13, 15, 64, walk_frames=4, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 1583, 15, 17, 64, walk_frames=4, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 130, 9, 7, 64, walk_frames=5, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 136, 11, 9, 64, walk_frames=5, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 143, 13, 11, 64, walk_frames=5, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 158, 15, 13, 64, walk_frames=5, attack_frames=6),
-            TestEntity("demogrid", "classtest", 1, 165, 17, 15, 64, walk_frames=5, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 1538, 5, 7, 64, walk_frames=5, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 1545, 7, 9, 64, walk_frames=5, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 1552, 9, 11, 64, walk_frames=5, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 1566, 11, 13, 64, walk_frames=4, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 1573, 13, 15, 64, walk_frames=4, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 1583, 15, 17, 64, walk_frames=4, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 130, 9, 7, 64, walk_frames=5, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 136, 11, 9, 64, walk_frames=5, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 143, 13, 11, 64, walk_frames=5, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 158, 15, 13, 64, walk_frames=5, attack_frames=6),
+            #TestEntity("demogrid", "classtest", 1, 165, 17, 15, 64, walk_frames=5, attack_frames=6),
             TestEntity("demogrid", "player", 3, 20, 17, 3, 5, walk_frames=4, attack_frames=5, do_fov=True)
             ]
         self.grids = mcrfpy.listGrids()
@@ -216,6 +227,7 @@ class TestScene:
         mcrfpy.registerPyAction("test_left",   lambda: [te.animate(3, False, True) for te in self.tes])
         mcrfpy.registerPyAction("test_attack", lambda: [te.animate(0, True) for te in self.tes])
         mcrfpy.registerPyAction("testent",     lambda: [te.animate(2, True) for te in self.tes])
+        mcrfpy.registerPyAction("activatecamfollow", lambda: mcrfpy.camFollow(True))
 
         # Button behavior
         self.clicks = 0
@@ -291,9 +303,16 @@ class TestScene:
         
     def updatehints(self):
         self.menus[2].captions[0].text=mcrfpy.activeGrid()
+        #print(mcrfpy.camFollow)
+        #print(mcrfpy.camFollow())
+        
         mcrfpy.modMenu(self.menus[2])
         self.menus[3].captions[0].text=mcrfpy.inputMode()
         mcrfpy.modMenu(self.menus[3])
+        #self.menus[4].captions[0].text=f"follow: {mcrfpy.camFollow()}"
+        
+        self.menus[4].captions[0].text="following" if mcrfpy.camFollow() else "free"
+        mcrfpy.modMenu(self.menus[4])
         
 
     def gridgen(self):
