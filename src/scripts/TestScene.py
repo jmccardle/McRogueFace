@@ -1,7 +1,7 @@
 import UIMenu
 import Grid
 import mcrfpy
-from random import randint
+from random import randint, choice
 from pprint import pprint
 print("TestScene imported")
 BLACK = (0, 0, 0)
@@ -127,7 +127,7 @@ class TestScene:
     def __init__(self, ui_name = "demobox1", grid_name = "demogrid"):
         # Texture & Sound Loading
         self.actors = 0
-        print("Load textures")
+        #print("Load textures")
         mcrfpy.createTexture("./assets/test_portraits.png", 32, 8, 8) #0 - portraits
         mcrfpy.createTexture("./assets/alives_other.png", 16, 64, 64) #1 - TinyWorld NPCs
         mcrfpy.createTexture("./assets/alives_other.png", 32, 32, 32) #2 - TinyWorld NPCs - 2x2 sprite
@@ -135,7 +135,7 @@ class TestScene:
         self.ui_name = ui_name
         self.grid_name = grid_name
 
-        print("Create UI")
+        #print("Create UI")
         # Create dialog UI
         mcrfpy.createMenu(ui_name, 20, 540, 500, 200)
         #mcrfpy.createCaption(ui_name, "Hello There", 18, BLACK)
@@ -151,7 +151,7 @@ class TestScene:
         #mcrfpy.createButton(ui_name, 250, 0, 130, 40, DARKBLUE, DARKGREEN, "+16 sp", "skipsp")
         mcrfpy.createSprite(ui_name, 0, 0, 20, 20, 5.0)
         
-        print("Create UI 2")
+        #print("Create UI 2")
         entitymenu = "entitytestmenu"
         
         mcrfpy.createMenu(entitymenu, 840, 20, 20, 500)
@@ -174,7 +174,7 @@ class TestScene:
         mcrfpy.createCaption("i", "<camstate>", 16, WHITE)
         mcrfpy.createButton( "i", 0, 0, 40, 40, DARKBLUE, WHITE, "Recenter", "activatecamfollow")
         
-        print("Make UIs visible")
+        #print("Make UIs visible")
         self.menus = mcrfpy.listMenus()
         self.menus[0].visible = True
         self.menus[1].w = 170
@@ -190,20 +190,20 @@ class TestScene:
         mcrfpy.modMenu(self.menus[2])
         mcrfpy.modMenu(self.menus[3])
         mcrfpy.modMenu(self.menus[4])
-        pprint(mcrfpy.listMenus())
-        print(f"UI 1 gave back this sprite: {self.menus[0].sprites}")
+        #pprint(mcrfpy.listMenus())
+        #print(f"UI 1 gave back this sprite: {self.menus[0].sprites}")
 
-        print("Create grid")
+        #print("Create grid")
         # create grid (title, gx, gy, gs, x, y, w, h)
         mcrfpy.createGrid(grid_name, 100, 100, 16, 20, 20, 800, 500)
         self.grids = mcrfpy.listGrids()
         #print(self.grids)
         
-        print("Create entities")
+        #print("Create entities")
         #mcrfpy.createEntity("demogrid", "dragon", 2, 545, 10, 10, lambda: None)
         #mcrfpy.createEntity("demogrid", "tinyenemy", 1, 1538, 3, 6, lambda: None)
         
-        print("Create fancy entity")
+        #print("Create fancy entity")
         self.tes = [
             #TestEntity("demogrid", "classtest", 1, 1538, 5, 7, 64, walk_frames=5, attack_frames=6),
             #TestEntity("demogrid", "classtest", 1, 1545, 7, 9, 64, walk_frames=5, attack_frames=6),
@@ -324,11 +324,32 @@ class TestScene:
             p.walkable = False
             p.transparent = False
             
-        room_centers = [(randint(0, self.grids[0].grid_x-1), randint(0, self.grids[0].grid_y-1)) for i in range(20)] + \
-            [ (3, 5), (10, 10), (20, 20), (30, 30), (40, 40) ]
+        room_centers = [(randint(0, self.grids[0].grid_x-1), randint(0, self.grids[0].grid_y-1)) for i in range(20)] + [(17, 3)]
         #room_centers.append((3, 5))
         for r in room_centers:
-            print(r)
+            # random hallway
+            target = choice(room_centers)
+            length1 = abs(target[0] - r[0])
+            
+            xbase = min(target[0], r[0])
+            for x in range(length1):
+                gpoint = self.grids[0].at(x, r[1])
+                if gpoint is None: continue
+                gpoint.walkable = True
+                gpoint.transparent = True
+                gpoint.color = (192, 192, 192)
+            
+            length2 = abs(target[1] - r[1])
+            ybase = min(target[1], r[1])
+            for y in range(length2):
+                gpoint = self.grids[0].at(r[0], y)
+                if gpoint is None: continue
+                gpoint.walkable = True
+                gpoint.transparent = True
+                gpoint.color = (192, 192, 192)
+                
+        for r in room_centers:
+            #print(r)
             room_color = (randint(16, 24)*8, randint(16, 24)*8, randint(16, 24)*8)
             #self.grids[0].at(r[0], r[1]).walkable = True
             #self.grids[0].at(r[0], r[1]).color = room_color
@@ -340,7 +361,7 @@ class TestScene:
                     gpoint.walkable = True
                     gpoint.transparent = True
                     gpoint.color = room_color
-            print()
+            #print()
                     
         #print("[Python] Modifying:")
         self.grids[0].at(10, 10).color = (255, 255, 255)
