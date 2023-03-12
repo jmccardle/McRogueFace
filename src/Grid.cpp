@@ -47,15 +47,15 @@ Grid::Grid(int gx, int gy, int gs, int _x, int _y, int _w, int _h):
 }
 
 void Grid::refreshTCODmap() {
-	int total = 0, walkable = 0, transparent = 0;
+	//int total = 0, walkable = 0, transparent = 0;
 	for (int x = 0; x < grid_x; x++) {
 		for (int y = 0; y < grid_y; y++) {
 			auto p = at(x, y);
-			total++; if (p.walkable) walkable++; if (p.transparent) transparent++;
+			//total++; if (p.walkable) walkable++; if (p.transparent) transparent++;
 			tcodmap->setProperties(x, y, p.transparent, p.walkable);
 		}
 	}
-	std::cout << "Map refreshed: " << total << " squares, " << walkable << "walkable, " << transparent << " transparent" << std::endl;
+	//std::cout << "Map refreshed: " << total << " squares, " << walkable << "walkable, " << transparent << " transparent" << std::endl;
 }
 void Grid::refreshTCODsight(int x, int y) {
 	tcodmap->computeFov(x,y, 0, true, FOV_PERMISSIVE_8);

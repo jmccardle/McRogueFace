@@ -8,10 +8,10 @@
 GameEngine::GameEngine()
 {
     font.loadFromFile("./assets/JetbrainsMono.ttf");
-    window.create(sf::VideoMode(1024, 768), "McRogueFace Engine by John McCardle");
+    window.create(sf::VideoMode(1024, 768), "McRogueFace - 7DRL Submission by John McCardle");
     visible = window.getDefaultView();
     window.setFramerateLimit(30);
-    scene = "py";
+    scene = "menu";
     //std::cout << "Constructing MenuScene" << std::endl;
     scenes["menu"] = new MenuScene(this);
     //std::cout << "Constructed MenuScene" <<std::endl;
@@ -67,7 +67,7 @@ void GameEngine::sUserInput()
             sf::FloatRect area(0.f, 0.f, event.size.width, event.size.height);
             visible = sf::View(area);
             window.setView(visible);
-            std::cout << "Visible area set to (0, 0, " << event.size.width << ", " << event.size.height <<")"<<std::endl;
+            //std::cout << "Visible area set to (0, 0, " << event.size.width << ", " << event.size.height <<")"<<std::endl;
             actionType = "resize";
         }
 
@@ -107,7 +107,7 @@ void GameEngine::sUserInput()
         }
         else
         {
-            std::cout << "[GameEngine] Action not registered for input: " << actionCode << ": " << actionType << std::endl;
+            //std::cout << "[GameEngine] Action not registered for input: " << actionCode << ": " << actionType << std::endl;
         }
     }
 }

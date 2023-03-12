@@ -1015,7 +1015,7 @@ void McRFPy_API::player_input(int dx, int dy) {
 	//std::cout << "Grid pointed to: " << (long)player_entity->cGrid->grid << std::endl;
 	if (McRFPy_API::input_mode.compare("playerturn") != 0) {
 		// no input accepted while computer moving
-		std::cout << "Can't move while it's not player's turn." << std::endl;
+		//std::cout << "Can't move while it's not player's turn." << std::endl;
 		return;
 	}
 	// TODO: selection cursor via keyboard
@@ -1027,19 +1027,19 @@ void McRFPy_API::player_input(int dx, int dy) {
 	    player_entity->cGrid->y + dy < 0 ||
 	    player_entity->cGrid->x + dx > grid->grid_x - 1 ||
 	    player_entity->cGrid->y + dy > grid->grid_y - 1) {
-	    std::cout << "(" << player_entity->cGrid->x << ", " << player_entity->cGrid->y <<
-	      ") + (" << dx << ", " << dy << ") is OOB." << std::endl;
+	    //std::cout << "(" << player_entity->cGrid->x << ", " << player_entity->cGrid->y <<
+	    //  ") + (" << dx << ", " << dy << ") is OOB." << std::endl;
 	    return;
 	}
 	//std::cout << PyUnicode_AsUTF8(PyObject_Repr(player_entity->cBehavior->object)) << std::endl;
 	PyObject* move_fn = PyObject_GetAttrString(player_entity->cBehavior->object, "move");
 	//std::cout << PyUnicode_AsUTF8(PyObject_Repr(move_fn)) << std::endl;
 	if (move_fn) {
-		std::cout << "Calling `move`" << std::endl;
+		//std::cout << "Calling `move`" << std::endl;
 		PyObject* move_args = Py_BuildValue("(ii)", dx, dy);
 		PyObject_CallObject((PyObject*) move_fn, move_args);
 	} else {
-		std::cout << "player_input called on entity with no `move` method" << std::endl;
+		//std::cout << "player_input called on entity with no `move` method" << std::endl;
 	}
 }
 

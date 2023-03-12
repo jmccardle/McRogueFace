@@ -3,7 +3,7 @@ import Grid
 import mcrfpy
 from random import randint, choice
 from pprint import pprint
-print("TestScene imported")
+#print("TestScene imported")
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 RED, GREEN, BLUE = (255, 0, 0), (0, 255, 0), (0, 0, 255)
@@ -50,7 +50,7 @@ class TestEntity:
         for g in scene.grids:
             if g.title == self.grid:
                 if g.at(self.x + dx, self.y + dy) is None or not g.at(self.x + dx, self.y + dy).walkable:
-                    print("Blocked at target location.")
+                    #print("Blocked at target location.")
                     return
         if self.label == "player": 
             mcrfpy.lockPlayerInput()
@@ -169,27 +169,32 @@ class TestScene:
         mcrfpy.createMenu(   "hintsmenu", 0, 505, 0, 0)
         mcrfpy.createCaption("hintsmenu", "<hintline>", 16, WHITE)
         
+        # menu names must be created in alphabetical order (?!) - thanks, C++ hash map
         mcrfpy.createMenu(   "i",            600, 20, 0, 0)
         #mcrfpy.createMenu(   "camstatemenu", 600, 20, 0, 0)
         mcrfpy.createCaption("i", "<camstate>", 16, WHITE)
-        mcrfpy.createButton( "i", 0, 0, 40, 40, DARKBLUE, WHITE, "Recenter", "activatecamfollow")
+        
+        mcrfpy.createMenu( "j", 600, 500, 0, 0)
+        mcrfpy.createButton( "j", 0, 0, 80, 40, DARKBLUE, WHITE, "Recenter", "activatecamfollow")
         
         #print("Make UIs visible")
         self.menus = mcrfpy.listMenus()
         self.menus[0].visible = True
         self.menus[1].w = 170
         self.menus[1].visible = True
-        self.menus[2].visible = True
+        #self.menus[2].visible = True
         self.menus[2].bgcolor = BLACK
         self.menus[3].visible = True
         self.menus[3].bgcolor = BLACK
         self.menus[4].visible = True
         self.menus[4].bgcolor = BLACK
+        self.menus[5].visible = True
         mcrfpy.modMenu(self.menus[0])
         mcrfpy.modMenu(self.menus[1])
         mcrfpy.modMenu(self.menus[2])
         mcrfpy.modMenu(self.menus[3])
         mcrfpy.modMenu(self.menus[4])
+        mcrfpy.modMenu(self.menus[5])
         #pprint(mcrfpy.listMenus())
         #print(f"UI 1 gave back this sprite: {self.menus[0].sprites}")
 
@@ -205,17 +210,17 @@ class TestScene:
         
         #print("Create fancy entity")
         self.tes = [
-            #TestEntity("demogrid", "classtest", 1, 1538, 5, 7, 64, walk_frames=5, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 1545, 7, 9, 64, walk_frames=5, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 1552, 9, 11, 64, walk_frames=5, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 1566, 11, 13, 64, walk_frames=4, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 1573, 13, 15, 64, walk_frames=4, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 1583, 15, 17, 64, walk_frames=4, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 130, 9, 7, 64, walk_frames=5, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 136, 11, 9, 64, walk_frames=5, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 143, 13, 11, 64, walk_frames=5, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 158, 15, 13, 64, walk_frames=5, attack_frames=6),
-            #TestEntity("demogrid", "classtest", 1, 165, 17, 15, 64, walk_frames=5, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 1538, 5, 7, 64, walk_frames=5, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 1545, 7, 9, 64, walk_frames=5, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 1552, 9, 11, 64, walk_frames=5, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 1566, 11, 13, 64, walk_frames=4, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 1573, 13, 15, 64, walk_frames=4, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 1583, 15, 17, 64, walk_frames=4, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 130, 9, 7, 64, walk_frames=5, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 136, 11, 9, 64, walk_frames=5, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 143, 13, 11, 64, walk_frames=5, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 158, 15, 13, 64, walk_frames=5, attack_frames=6),
+            TestEntity("demogrid", "classtest", 1, 165, 17, 15, 64, walk_frames=5, attack_frames=6),
             TestEntity("demogrid", "player", 3, 20, 17, 3, 5, walk_frames=4, attack_frames=5, do_fov=True)
             ]
         self.grids = mcrfpy.listGrids()
@@ -242,7 +247,9 @@ class TestScene:
         mcrfpy.registerPyAction("skipsp", lambda: self.changesprite(16))
         mcrfpy.unlockPlayerInput()
         mcrfpy.setActiveGrid("demogrid")
+        self.gridgen()
         self.updatehints()
+        mcrfpy.camFollow(True)
 
     def animate_entity(self, direction, attacking=False):
         if direction is None:
@@ -303,10 +310,8 @@ class TestScene:
         
     def updatehints(self):
         self.menus[2].captions[0].text=mcrfpy.activeGrid()
-        #print(mcrfpy.camFollow)
-        #print(mcrfpy.camFollow())
-        
         mcrfpy.modMenu(self.menus[2])
+        
         self.menus[3].captions[0].text=mcrfpy.inputMode()
         mcrfpy.modMenu(self.menus[3])
         #self.menus[4].captions[0].text=f"follow: {mcrfpy.camFollow()}"
@@ -314,10 +319,13 @@ class TestScene:
         self.menus[4].captions[0].text="following" if mcrfpy.camFollow() else "free"
         mcrfpy.modMenu(self.menus[4])
         
+        self.menus[5].visible = not mcrfpy.camFollow()
+        mcrfpy.modMenu(self.menus[5])
+        
 
     def gridgen(self):
         
-        print(f"[Python] modifying {len(self.grids[0].points)} grid points")
+        #print(f"[Python] modifying {len(self.grids[0].points)} grid points")
         for p in self.grids[0].points:
             #p.color = (randint(0, 255), randint(64, 192), 0)
             p.color = (0,0,0)
@@ -368,6 +376,7 @@ class TestScene:
         self.grids[0].at(10, 10).walkable = False
         self.grids[0].visible = True
         mcrfpy.modGrid(self.grids[0])
+        #self.grids = mcrfpy.listGrids()
         #print(f"Sent grid: {repr(self.grids[0])}")
         #print(f"Received grid: {repr(mcrfpy.listGrids()[0])}")
         
@@ -409,6 +418,6 @@ class TestScene:
         
 def start():
     global scene
-    print("TestScene.start called")
+    #print("TestScene.start called")
     scene = TestScene()
 
