@@ -8,7 +8,7 @@
 GameEngine::GameEngine()
 {
     font.loadFromFile("./assets/JetbrainsMono.ttf");
-    window.create(sf::VideoMode(1024, 768), "McRogueFace - 7DRL Submission by John McCardle");
+    window.create(sf::VideoMode(1024, 768), "McRogueFace - LGJ Submission by John McCardle");
     visible = window.getDefaultView();
     window.setFramerateLimit(30);
     scene = "menu";

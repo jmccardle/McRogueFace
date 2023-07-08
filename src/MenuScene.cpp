@@ -4,7 +4,7 @@
 MenuScene::MenuScene(GameEngine* g) : Scene(g)
 {
     text.setFont(game->getFont());
-    text.setString("McRogueFace Engine - 7DRL 2023 Submission (Incomplete)");
+    text.setString("McRogueFace Engine - LGJ 2023 (Incomplete)");
     text.setCharacterSize(24);
     //std::cout << "MenuScene Initialized. " << game << std::endl;
     //std::cout << "Font: " << game->getFont().getInfo().family << std::endl;
@@ -13,6 +13,11 @@ MenuScene::MenuScene(GameEngine* g) : Scene(g)
     text2.setString("Press 'Spacebar' to run demo");
     text2.setCharacterSize(16);
     text2.setPosition(0.0f, 50.0f);
+    
+    text3.setFont(game->getFont());
+    text3.setString("use 'W' 'A' 'S' 'D' to move (even when blank; it's a bug)");
+    text3.setCharacterSize(16);
+    text3.setPosition(0.0f, 80.0f);
 
     registerAction(ActionCode::KEY + sf::Keyboard::Space, "start_game");
     registerAction(ActionCode::KEY + sf::Keyboard::Up, "up");
@@ -43,5 +48,6 @@ void MenuScene::sRender()
     game->getWindow().clear();
     game->getWindow().draw(text);
     game->getWindow().draw(text2);
+    game->getWindow().draw(text3);
     game->getWindow().display();
 }

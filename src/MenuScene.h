@@ -8,6 +8,7 @@ class MenuScene: public Scene
 {
     sf::Text text;
     sf::Text text2;
+    sf::Text text3;
 
 public:
     MenuScene(GameEngine*);
