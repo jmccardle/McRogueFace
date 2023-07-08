@@ -24,6 +24,7 @@ I did the r/RoguelikeDev TCOD tutorial in Python. I loved it, but I did not want
 * ✅ Play Sounds
 * ✅ Draw UI, spawn entity from Python code
 * ❌ Python AI for entities (NPCs on set paths, enemies towards player)
-* ❌ Walking / Collision; "Boards" (stairs / doors / walk off edge of screen)
+* ✅ Walking / Collision
+* ❌ "Boards" (stairs / doors / walk off edge of screen)
 * ❌ Cutscenes - interrupt normal controls, text scroll, character portraits
 * ❌ Mouse integration - tooltips, zoom, click to select targets, cursors
