@@ -7,7 +7,7 @@ An experimental prototype game engine built for my own use in 7DRL 2023.
 ## Tenets:
 
 * C++ first, Python close behind.
-* Entity-Component system based on David Churchill's Memorial University COP4300 course lectures available on Youtube.
+* Entity-Component system based on David Churchill's Memorial University COMP4300 course lectures available on Youtube.
 * Graphics, particles and shaders provided by SFML.
 * Pathfinding, noise generation, and other Roguelike goodness provided by TCOD.
 
