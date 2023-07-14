@@ -82,6 +82,7 @@ public:
     static PyObject* _createAnimation(PyObject*, PyObject*);
     
     static PyObject* _registerPyAction(PyObject*, PyObject*);
+    static PyObject* _registerInputAction(PyObject*, PyObject*);
     
     static PyObject* _createSoundBuffer(PyObject*, PyObject*);
     static PyObject* _loadMusic(PyObject*, PyObject*);

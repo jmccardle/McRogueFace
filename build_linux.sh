@@ -35,7 +35,7 @@ do
         -I../../deps_linux \
         -I../../deps_linux/Python-3.11.1 \
         -I../../platform/linux \
-        --std=c++17 \
+        --std=c++2a \
         -c ../../src/$fn.cpp \
         -o ../../obj/$fn.o \
         -lm \
@@ -53,7 +53,7 @@ done
 
 # Final executable
 g++ \
-    --std=c++17 \
+    --std=c++2a \
     -I../../deps_linux \
     -I../../deps_linux/Python-3.11.1 \
     -I../../platform/linux \

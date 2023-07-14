@@ -4,7 +4,7 @@
 MenuScene::MenuScene(GameEngine* g) : Scene(g)
 {
     text.setFont(game->getFont());
-    text.setString("McRogueFace Engine - LGJ 2023 (Incomplete)");
+    text.setString("McRogueFace Engine - r/RoguelikeDev Tutorial 2023");
     text.setCharacterSize(24);
     //std::cout << "MenuScene Initialized. " << game << std::endl;
     //std::cout << "Font: " << game->getFont().getInfo().family << std::endl;

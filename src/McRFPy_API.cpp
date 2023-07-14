@@ -45,6 +45,9 @@ static PyMethodDef mcrfpyMethods[] = {
 
     {"registerPyAction", McRFPy_API::_registerPyAction, METH_VARARGS,
         "Register a callable Python object to correspond to an action string. (actionstr, callable)"},
+        
+    {"registerInputAction", McRFPy_API::_registerInputAction, METH_VARARGS,
+        "Register a SFML input code to correspond to an action string. (input_code, actionstr)"},
 
     {"createGrid", McRFPy_API::_createGrid, METH_VARARGS,
         "create a new grid (title, grid_x, grid_y, grid_size, x, y, w, h). grid_x and grid_y are the width and height in squares. grid_size is the pixel w/h of sprites on the grid. x,y are the grid's screen position. w,h are the grid's screen size" },
@@ -536,6 +539,8 @@ PyObject* McRFPy_API::_registerPyAction(PyObject *self, PyObject *args)
     PyObject* callable;
     const char * actionstr;
     if (!PyArg_ParseTuple(args, "sO", &actionstr, &callable)) return NULL;
+    //TODO: if the string already exists in the callbacks map, 
+    //  decrease our reference count so it can potentially be garbage collected
     callbacks[std::string(actionstr)] = callable;
     Py_INCREF(callable);
 
@@ -544,11 +549,35 @@ PyObject* McRFPy_API::_registerPyAction(PyObject *self, PyObject *args)
     return Py_None;
 }
 
+PyObject* McRFPy_API::_registerInputAction(PyObject *self, PyObject *args)
+{
+    int action_code;
+    const char * actionstr;
+    if (!PyArg_ParseTuple(args, "iz", &action_code, &actionstr)) return NULL;
+    
+    bool success;
+    
+    if (actionstr == NULL) { // Action provided is None, i.e. unregister
+        success = game->currentScene()->unregisterActionInjected(action_code, std::string(actionstr) + "_py");
+    } else {
+        success = game->currentScene()->registerActionInjected(action_code, std::string(actionstr) + "_py");
+    }
+    
+    success ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
+    return success ? Py_True : Py_False;
+    
+}
+
 void McRFPy_API::doAction(std::string actionstr) {
     // hard coded actions that require no registration
+    //std::cout << "Calling Python Action: " << actionstr;
     if (!actionstr.compare("startrepl")) return McRFPy_API::REPL();
-    if (callbacks.find(actionstr) == callbacks.end()) return;
-    //std::cout << "Calling: " << PyUnicode_AsUTF8(PyObject_Repr(callbacks[actionstr])) << std::endl;
+    if (callbacks.find(actionstr) == callbacks.end()) 
+    {
+        //std::cout << " (not found)" << std::endl;
+        return;
+    }
+    //std::cout << " (" << PyUnicode_AsUTF8(PyObject_Repr(callbacks[actionstr])) << ")" << std::endl;
     PyObject_Call(callbacks[actionstr], PyTuple_New(0), NULL);
 }
 

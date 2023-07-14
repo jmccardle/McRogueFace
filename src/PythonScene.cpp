@@ -186,7 +186,10 @@ void PythonScene::doZoom(sf::Vector2i mousepos, int value) {
 void PythonScene::doAction(std::string name, std::string type) {
     auto mousepos = sf::Mouse::getPosition(game->getWindow());
     //std::cout << "name: " << name << ", type: " << type << std::endl;
-    if (ACTIONONCE("click")) {
+    if (ACTIONPY) {
+        McRFPy_API::doAction(name);
+    }
+    else if (ACTIONONCE("click")) {
         // left click start
         //std::cout << "LClick started at (" << mousepos.x << ", " << mousepos.y << ")" << std::endl;
         dragstart = mousepos;
@@ -235,6 +238,15 @@ void PythonScene::doAction(std::string name, std::string type) {
     else if (ACTIONONCE("left"))      { McRFPy_API::player_input(-1, +0); }
     else if (ACTIONONCE("upleft"))    { McRFPy_API::player_input(-1, -1); }
     else if (ACTIONONCE("wait"))      { McRFPy_API::player_input(+0, +0); }
+}
+
+bool PythonScene::registerActionInjected(int code, std::string name) {
+    return false;
+    
+}
+
+bool PythonScene::unregisterActionInjected(int code, std::string name) {
+    return false;
 }
 
 void PythonScene::sRender() {

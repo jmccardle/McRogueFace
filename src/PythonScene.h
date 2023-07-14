@@ -17,9 +17,13 @@ class PythonScene: public Scene
     void doZoom(sf::Vector2i, int);
     //std::list<Animation*> animations;
     void animate();
+    std::map<std::string, bool> actionInjected;
+    
 public:
     PythonScene(GameEngine*, std::string);
     void update() override final;
     void doAction(std::string, std::string) override final;
     void sRender() override final;
+    bool registerActionInjected(int, std::string) override final;
+    bool unregisterActionInjected(int, std::string) override final;
 };

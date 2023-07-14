@@ -23,3 +23,13 @@ std::string Scene::action(int code)
 {
     return actions[code];
 }
+
+bool Scene::registerActionInjected(int code, std::string name)
+{
+    return false;
+}
+
+bool Scene::unregisterActionInjected(int code, std::string name)
+{
+    return false;
+}

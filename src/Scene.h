@@ -4,6 +4,7 @@
 #define ACTION(X, Y) (name.compare(X) == 0 && type.compare(Y) == 0)
 #define ACTIONONCE(X) ((name.compare(X) == 0 && type.compare("start") == 0 && !actionState[name]))
 #define ACTIONAFTER(X) ((name.compare(X) == 0 && type.compare("end") == 0))
+#define ACTIONPY ((name.size() > 3 && name.compare(name.size() - 3, 3, "_py") == 0))
 
 #include "Common.h"
 //#include "GameEngine.h"
@@ -32,5 +33,8 @@ public:
     bool hasAction(std::string);
     bool hasAction(int);
     std::string action(int);
+    
+    virtual bool registerActionInjected(int, std::string);
+    virtual bool unregisterActionInjected(int, std::string);
 
 };

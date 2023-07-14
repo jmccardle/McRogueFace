@@ -15,3 +15,70 @@
 	* ==Buttons don't know their parent...?== So there's arithmetic happening in the event loop to determine it's actual positions. Fix this with the widgets-on-widgets system (so we can go deeper, and just ask the widgets if they or their children were clicked)
 * Keep aspect ratio correct (and hopefully unbork any mouse issues) when maximizing / full screening the game
 ```
+
+# r/RoguelikeDev Does the Complete Roguelike Tutorial - July 2023
+
+## Planning
+
+Event ends roughly 26 August (last post will be 22 August)
+
+* Add and remove keystroke registration from Python scripts
+* Error checking: raise Python exceptions instead of null reference segfault in C++
+* Proper exception handling: figure out the "any code at REPL shows the unhandled exception" bug thingy
+* Extra clarity: display more status info about what Python stuff is being done
+  - load all files in directory at first
+  - list modules / classes found
+  - list Scenes that were found
+  - Read all Python modules, then call objects & methods at C++-managed events (Engine provided decorators, perhaps??)
+* PythonScene version of MenuScene
+  - instantiate PythonScenes
+* Switch Scenes from Python (edge of board / stairs / teleportation feature)
+* Update the visible map from Python (fix "map blank until you move" bug)
+  - update "camera state" and "Recenter camera" buttons' API info as well without a whole Turn
+* C++/TCOD Entity pathfinding without calling Python every Turn
+* Replace jank .py files that define engine-required objects with C++ definitions inside of `mcrfpy` module
+
+This actually a pretty big list, but there's about 7 weeks left, so it's just over one item per week.
+
+I have no bad feelings if these items leak over to EngJam or beyond.
+
+
+
+## Notes 12 July
+
+Some changes to make in McRFPy_API.cpp:
+* create a parallel to _registerPyAction which will register a keystroke to a Python label in the current scene.
+
+## Notes 13 July
+
+- working on API endpoint `_registerInputAction`.
+
+it will add "_py" as a suffix to the action string and register it along with other scene actions.
+
+- Adding public Scene methods. These are on the base class with default of return `false`.
+
+`bool Scene::registerActionInjected(int code, std::string name)` and `unregisterActionInjected`
+
+the PythonScene (and other scenes that support injected user input) can override this method, check existing registrations, and return `true` when succeeding.
+
+- then remove `McRFPy_API::player_input`
+
+This behavior can be more flexibly implemented in Python using keyboard registration. There's some deduplication as well, since I have a Python implementation of collision detection anyway (for items, doors, and NPCs).
+
+Also, upgraded to C++20 (g++ `c++2a`), mostly because I want to use map::contains.
+
+More ideas:
+
+* Need to make "pan" and "zoom" optional on each grid (for minimap type use cases)
+* clicks are handled by C++ and only used on buttons. Grids could have a Python click function (with pixel & grid coords available)
+* pixel-on-menu Python click function should be possible too
+* Need to call a Python update function when C++ events cause camera following to change: UI is only updating after player input
+
+
+Tomorrow, start with:
+
+* implement checks in PythonScene::registerActionInjected - Save injected actions, don't let regular actions be overwritten, return success
+* Remove PythonScene key definitions and McRFPy_API::player_input
+* re-implement walking via keyboard input in Python
+* Find a good spot for camera following to update Python immediately
+* Find a good spot for grid updates to redraw TCOD line of sight immediately
