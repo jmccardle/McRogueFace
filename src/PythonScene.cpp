@@ -187,7 +187,7 @@ void PythonScene::doAction(std::string name, std::string type) {
     auto mousepos = sf::Mouse::getPosition(game->getWindow());
     //std::cout << "name: " << name << ", type: " << type << std::endl;
     if (ACTIONPY) {
-        McRFPy_API::doAction(name);
+        McRFPy_API::doAction(name.substr(0, name.size() - 3));
     }
     else if (ACTIONONCE("click")) {
         // left click start
@@ -241,8 +241,10 @@ void PythonScene::doAction(std::string name, std::string type) {
 }
 
 bool PythonScene::registerActionInjected(int code, std::string name) {
-    return false;
-    
+    std::cout << "Registering injected action (PythonScene): " << code << " (" << ActionCode::KEY + code << ")\n";
+    registerAction(ActionCode::KEY + code, name);
+    //return false;
+    return true;
 }
 
 bool PythonScene::unregisterActionInjected(int code, std::string name) {

@@ -558,8 +558,10 @@ PyObject* McRFPy_API::_registerInputAction(PyObject *self, PyObject *args)
     bool success;
     
     if (actionstr == NULL) { // Action provided is None, i.e. unregister
+        std::cout << "Unregistering\n";
         success = game->currentScene()->unregisterActionInjected(action_code, std::string(actionstr) + "_py");
     } else {
+        std::cout << "Registering" << actionstr << "_py to " << action_code << "\n";
         success = game->currentScene()->registerActionInjected(action_code, std::string(actionstr) + "_py");
     }
     

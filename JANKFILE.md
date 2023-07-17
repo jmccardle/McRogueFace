@@ -75,10 +75,18 @@ More ideas:
 * Need to call a Python update function when C++ events cause camera following to change: UI is only updating after player input
 
 
-Tomorrow, start with:
+Continue with:
 
 * implement checks in PythonScene::registerActionInjected - Save injected actions, don't let regular actions be overwritten, return success
 * Remove PythonScene key definitions and McRFPy_API::player_input
 * re-implement walking via keyboard input in Python
 * Find a good spot for camera following to update Python immediately
 * Find a good spot for grid updates to redraw TCOD line of sight immediately
+
+## Notes 16 July
+
+Main problem that came up today: all Python code is executed at the moment the GameEngine instantiates the PythonScene, which is actually when the game starts up. The active scene at that point is the MenuScene, so the Python code registers events against that scene (which rejects injected event binding and has no API functionality).
+
+Workaround: There's a clickable button that performs the input registration. This is good for working out the behavior, but doesn't really allow Python scripts to properly control and set up their own environment.
+
+The module name is passed to the PythonScene constructor, and the `start()` method is called to set up class objects. Can I add more methods that are called on this module to swap scenes?

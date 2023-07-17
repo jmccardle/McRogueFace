@@ -24,6 +24,6 @@ public:
     void update() override final;
     void doAction(std::string, std::string) override final;
     void sRender() override final;
-    bool registerActionInjected(int, std::string) override final;
-    bool unregisterActionInjected(int, std::string) override final;
+    bool registerActionInjected(int, std::string) override;
+    bool unregisterActionInjected(int, std::string) override;
 };

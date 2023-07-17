@@ -32,7 +32,7 @@ GameEngine::GameEngine()
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }
-void GameEngine::changeScene(std::string s) { scene = s; }
+void GameEngine::changeScene(std::string s) { std::cout << "Current scene is now '" << s << "'\n"; scene = s; }
 void GameEngine::quit() { running = false; }
 void GameEngine::setPause(bool p) { paused = p; }
 sf::Font & GameEngine::getFont() { return font; }

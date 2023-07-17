@@ -26,6 +26,7 @@ std::string Scene::action(int code)
 
 bool Scene::registerActionInjected(int code, std::string name)
 {
+    std::cout << "Inject registered action - default implementation\n";
     return false;
 }
 

@@ -257,6 +257,10 @@ class TestScene:
         
         mcrfpy.createMenu("o", 540 + (80 * 4), 540, 80, 80) #10
         mcrfpy.createSprite("o", 4, 4, 10, 10, 1.0)
+        
+        mcrfpy.createMenu("p", 20, 20, 40, 40) #11
+        mcrfpy.createButton("p", 0, 0, 130, 40, DARKGREEN, (0, 0, 0), "Register", "keyregistration")
+        mcrfpy.registerPyAction("keyregistration", keyregistration)
         #print("Make UIs visible")
         self.menus = mcrfpy.listMenus()
         self.menus[0].visible = True
@@ -273,6 +277,9 @@ class TestScene:
             self.menus[mn].bgcolor = BLACK
             self.menus[mn].visible = False
             mcrfpy.modMenu(self.menus[mn])
+        
+        self.menus[11].visible=True
+        mcrfpy.modMenu(self.menus[11])
                                             
         #self.menus[2].bgcolor = BLACK
         #self.menus[3].visible = True
@@ -536,10 +543,21 @@ class TestScene:
             False,
             [0, 1, 2, 1, 2, 0]
         )
-        
+
+def keytest():
+    print("Key tested.")
+
+def keyregistration():
+    print("Registering 'keytest'")
+    mcrfpy.registerPyAction("keytest", keytest)
+    print("Registering input")
+    print(mcrfpy.registerInputAction(15, "keytest"))
+
 def start():
     global scene
     #print("TestScene.start called")
     scene = TestScene()
     mcrfpy.refreshFov()
+    
+    
     scene.updatehints()
