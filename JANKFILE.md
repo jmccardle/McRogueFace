@@ -90,3 +90,12 @@ Main problem that came up today: all Python code is executed at the moment the G
 Workaround: There's a clickable button that performs the input registration. This is good for working out the behavior, but doesn't really allow Python scripts to properly control and set up their own environment.
 
 The module name is passed to the PythonScene constructor, and the `start()` method is called to set up class objects. Can I add more methods that are called on this module to swap scenes?
+
+## Notes 17 July
+
+The player entity is moving around via Python now!
+
+Unfortunately, the "actiononce" macro I use in C++ is not the behavior passed on to the Python key events. Key release events are being passed to Python just the way that keypresses are.
+
+I'll need to expose more of the input event properties down to Python. I also don't like how keycodes are being passed from python to C++, which currently limits user input to key strokes. Mouse buttons and mouse wheel should be possible too (just as they are under the SFML event binding).
+

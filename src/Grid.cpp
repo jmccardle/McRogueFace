@@ -297,7 +297,7 @@ void Grid::render(sf::RenderWindow & window)
 			
 			// visible & discovered layers for testing purposes
             if (!gridpoint.discovered) {
-				r.setFillColor(sf::Color(16, 16, 20, 255));
+				r.setFillColor(sf::Color(16, 16, 20, 192)); // 255 opacity for actual blackout
 				renderTexture.draw(r);
 			} else if (!gridpoint.visible) {
 				r.setFillColor(sf::Color(32, 32, 40, 128));

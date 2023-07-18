@@ -12,6 +12,7 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NEG + ActionCode::WHEEL_DEL, "wheel_down");
 
     // keyboard events
+    /*
     registerAction(ActionCode::KEY + sf::Keyboard::Q, "upleft");
     registerAction(ActionCode::KEY + sf::Keyboard::W, "up");
     registerAction(ActionCode::KEY + sf::Keyboard::E, "upright");
@@ -31,7 +32,7 @@ PythonScene::PythonScene(GameEngine* g, std::string pymodule)
     registerAction(ActionCode::KEY + sf::Keyboard::Numpad1, "downleft");
     registerAction(ActionCode::KEY + sf::Keyboard::Numpad2, "down");
     registerAction(ActionCode::KEY + sf::Keyboard::Numpad3, "downright");
-
+    */
     // window resize
     registerAction(0, "event");
 

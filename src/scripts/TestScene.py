@@ -259,14 +259,15 @@ class TestScene:
         mcrfpy.createSprite("o", 4, 4, 10, 10, 1.0)
         
         mcrfpy.createMenu("p", 20, 20, 40, 40) #11
-        mcrfpy.createButton("p", 0, 0, 130, 40, DARKGREEN, (0, 0, 0), "Register", "keyregistration")
+        #mcrfpy.createButton("p", 0, 0, 130, 40, DARKGREEN, (0, 0, 0), "Register", "keyregistration")
+        mcrfpy.createButton("p", 0, 0, 130, 40, DARKGREEN, (0, 0, 0), "Register", "startrepl")
         mcrfpy.registerPyAction("keyregistration", keyregistration)
         #print("Make UIs visible")
         self.menus = mcrfpy.listMenus()
         self.menus[0].visible = True
         self.menus[1].w = 170
         self.menus[1].visible = True
-        #self.menus[2].visible = True
+        self.menus[2].visible = True
         
         for mn in range(2, 6):
             self.menus[mn].bgcolor = BLACK
@@ -551,7 +552,18 @@ def keyregistration():
     print("Registering 'keytest'")
     mcrfpy.registerPyAction("keytest", keytest)
     print("Registering input")
-    print(mcrfpy.registerInputAction(15, "keytest"))
+    print(mcrfpy.registerInputAction(15, "keytest")) # 15 = P
+    
+    mcrfpy.registerPyAction("player_move_up", lambda: scene.player.move(0, -1))
+    mcrfpy.registerPyAction("player_move_left", lambda: scene.player.move(-1, 0))
+    mcrfpy.registerPyAction("player_move_down", lambda: scene.player.move(0, 1))
+    mcrfpy.registerPyAction("player_move_right", lambda: scene.player.move(1, 0))
+    
+    mcrfpy.registerInputAction(ord('w') - ord('a'), "player_move_up")
+    mcrfpy.registerInputAction(ord('a') - ord('a'), "player_move_left")
+    mcrfpy.registerInputAction(ord('s') - ord('a'), "player_move_down")
+    mcrfpy.registerInputAction(ord('d') - ord('a'), "player_move_right")
+    
 
 def start():
     global scene
