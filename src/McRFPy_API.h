@@ -136,9 +136,6 @@ public:
 
     //void spawnEntity(int tex_index, int grid_x, int grid_y, PyObject* script);
 
-    // test function, do not use in production
-    static void drawSprite(int tex_index, int grid_x, int grid_y);
-
     static void executeScript(std::string);
     static void executePyString(std::string);
 };

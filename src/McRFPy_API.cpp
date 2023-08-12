@@ -19,9 +19,6 @@ bool McRFPy_API::do_camfollow;
 EntityManager McRFPy_API::entities;
 
 static PyMethodDef mcrfpyMethods[] = {
-    {"drawSprite", McRFPy_API::_drawSprite, METH_VARARGS,
-        "Draw a sprite (index, x, y)"},
-
     {"createMenu", McRFPy_API::_createMenu, METH_VARARGS,
         "Create a new uimenu (name_str, x, y, w, h)"},
 
@@ -175,29 +172,6 @@ void McRFPy_API::setSpriteTexture(int ti)
 
 // functionality
 //void McRFPy_API::
-
-// functionality
-void McRFPy_API::drawSprite(int tex_index, int grid_x, int grid_y)
-{
-    setSpriteTexture(tex_index);
-    sprite.setPosition(
-            sf::Vector2f(grid_x * texture_size, 
-                         grid_y * texture_size)
-            );
-    game->getWindow().draw(sprite);
-}
-
-// python connection
-PyObject* McRFPy_API::_drawSprite(PyObject *self, PyObject *args)
-{
-    int ti, gx, gy;
-    if (!PyArg_ParseTuple(args, "iii", &ti, &gx, &gy)) return NULL;
-    drawSprite(ti, gx, gy);
-
-    // return None correctly
-    Py_INCREF(Py_None);
-    return Py_None;
-}
 
 void McRFPy_API::api_init() {
 
