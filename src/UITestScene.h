@@ -5,7 +5,7 @@
 #include "GameEngine.h"
 #include "Button.h"
 #include "UIMenu.h"
-#include "VectorShape.h"
+//#include "VectorShape.h"
 #include "Grid.h"
 
 class UITestScene: public Scene
@@ -16,7 +16,7 @@ class UITestScene: public Scene
     //UIMenu test_menu;
     //UIMenu test_menu2;
     std::vector<UIMenu> menus;
-    VectorShape test_ship;
+    //VectorShape test_ship;
     float desired_angle = 0;
     sf::View viewport;
     float zoom = 1;
