@@ -107,7 +107,21 @@ static PyModuleDef mcrfpyModule = {
 // Module initializer fn, passed to PyImport_AppendInittab
 PyObject* PyInit_mcrfpy()
 {
-    return PyModule_Create(&mcrfpyModule);
+    PyObject* m = PyModule_Create(&mcrfpyModule);
+
+    if (m == NULL) return NULL;
+
+    /*
+    // add C++ classes exposed to Python here
+    Py_INCREF(&PyUIMenuType);
+    if (PyModule_AddObject(m, "Menu", (PyObject *) & PyUIMenuType) < 0)
+    {
+        Py_DECREF(&PyUIMenuType);
+        return NULL;
+    }
+    */
+
+    return m;
 }
 
 // init_python - configure interpreter details here
