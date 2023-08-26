@@ -4,16 +4,20 @@
 #include "ActionCode.h"
 #include "McRFPy_API.h"
 #include "PythonScene.h"
+#include "UITestScene.h"
+#include "Resources.h"
 
 GameEngine::GameEngine()
 {
-    font.loadFromFile("./assets/JetbrainsMono.ttf");
+    Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
+    Resources::game = this;
     window.create(sf::VideoMode(1024, 768), "McRogueFace - r/RoguelikeDev Tutorial Run");
     visible = window.getDefaultView();
     window.setFramerateLimit(30);
-    scene = "menu";
+    scene = "uitest";
     //std::cout << "Constructing MenuScene" << std::endl;
     scenes["menu"] = new MenuScene(this);
+    scenes["uitest"] = new UITestScene(this);
     //std::cout << "Constructed MenuScene" <<std::endl;
     //scenes["play"] = new UITestScene(this);
     //api = new McRFPy_API(this);
@@ -21,10 +25,10 @@ GameEngine::GameEngine()
     McRFPy_API::game = this;
     McRFPy_API::api_init();
     McRFPy_API::executePyString("import mcrfpy");
-    McRFPy_API::executePyString("from UIMenu import *");
-    McRFPy_API::executePyString("from Grid import *");
+    //McRFPy_API::executePyString("from UIMenu import *");
+    //McRFPy_API::executePyString("from Grid import *");
 
-    scenes["py"] = new PythonScene(this, "TestScene");
+    //scenes["py"] = new PythonScene(this, "TestScene");
 
     IndexSprite::game = this;
 
@@ -35,7 +39,7 @@ Scene* GameEngine::currentScene() { return scenes[scene]; }
 void GameEngine::changeScene(std::string s) { std::cout << "Current scene is now '" << s << "'\n"; scene = s; }
 void GameEngine::quit() { running = false; }
 void GameEngine::setPause(bool p) { paused = p; }
-sf::Font & GameEngine::getFont() { return font; }
+sf::Font & GameEngine::getFont() { /*return font; */ return Resources::font; }
 sf::RenderWindow & GameEngine::getWindow() { return window; }
 
 void GameEngine::run()

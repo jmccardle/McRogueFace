@@ -2,6 +2,7 @@
 #include "platform.h"
 #include "GameEngine.h"
 #include "Grid.h"
+#include "UI.h"
 
 // static class members...?
 std::map<std::string, UIMenu*> McRFPy_API::menus;
@@ -104,23 +105,127 @@ static PyModuleDef mcrfpyModule = {
     NULL, NULL, NULL, NULL
 };
 
+//
+//  Point class dump
+//
+
+// Point class example
+    
+    class Point
+{
+public:
+    float x, y;
+    float magnitude() {
+        return std::sqrt(x*x + y*y);
+    }
+};
+
+
+
+static PyObject* PyPoint_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
+{
+    Point* self;
+    self = (Point*)type->tp_alloc(type, 0);
+    if (self != nullptr)
+    {   
+        self->x = 0.0f;
+        self->y = 0.0f;
+    }
+    return (PyObject*)self;
+}
+
+
+// Method to initialize the Point object
+static int PyPoint_init(Point* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = { "x", "y", nullptr };
+    float x = 0.0f, y = 0.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ff", const_cast<char**>(keywords), &x, &y))
+    {
+        return -1;
+    }
+
+    self->x = x;
+    self->y = y;
+
+    return 0;
+}
+
+// Method to calculate the magnitude of the Point
+static PyObject* PyPoint_magnitude(Point* self)
+{
+    float mag = self->magnitude();
+    return PyFloat_FromDouble(mag);
+}
+
+static PyMethodDef PyPoint_methods[] = {
+    {"magnitude", (PyCFunction)PyPoint_magnitude, METH_NOARGS,
+        "Vector length, or distance from origin."},
+    {NULL, NULL, 0, NULL}
+};
+
+static PyMemberDef PyPoint_members[] = {
+    {"x", T_FLOAT, offsetof(Point, x), 0},
+    {"y", T_FLOAT, offsetof(Point, y), 0},
+    {NULL}
+};
+
+
+static PyTypeObject PyPointType = {
+    .tp_name = "mcrfpy.Point",
+    .tp_basicsize = sizeof(Point),
+    //.tp_itemsize = 0,
+    //.tp_dealloc = NULL,
+    //.tp_repr = NULL,
+    //.tp_hash = NULL,
+    //.tp_iter
+    //.tp_iternext
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    //.tp_doc = PyDoc_STR("Custom point object. (x, y)"),
+    //.tp_methods = PyPoint_methods,
+    .tp_members = PyPoint_members,
+    //.tp_init = (initproc)PyPoint_init,
+    //.tp_new = PyPoint_new, //PyType_GenericNew ?
+};
+
+
+//
+// End Dump
+//
+
 // Module initializer fn, passed to PyImport_AppendInittab
 PyObject* PyInit_mcrfpy()
 {
     PyObject* m = PyModule_Create(&mcrfpyModule);
-
-    if (m == NULL) return NULL;
-
-    /*
-    // add C++ classes exposed to Python here
-    Py_INCREF(&PyUIMenuType);
-    if (PyModule_AddObject(m, "Menu", (PyObject *) & PyUIMenuType) < 0)
+    
+    if (m == NULL) 
     {
-        Py_DECREF(&PyUIMenuType);
+        std::cout << "ohno, module didn't ):\n";
         return NULL;
     }
+    
+    /*
+    // This code runs, but Python segfaults when accessing the UIFrame type.
+    std::cout << "Adding UIFrame object to module\n";
+    Py_INCREF(&mcrfpydef::PyUIFrameType);
+    if (PyModule_AddObject(m, "UIFrame", (PyObject *) & mcrfpydef::PyUIFrameType) < 0)
+    {
+        std::cout << "Failed to add UIFrame object\n";
+        Py_DECREF(&mcrfpydef::PyUIFrameType);
+        //return NULL;
+    }
+    std::cout << "Returning module\n";
     */
-
+    
+    Py_INCREF(&PyPointType);
+    if (PyModule_AddObject(m, "Point", (PyObject *) &PyPointType) < 0) {
+        std::cout << "ohno, couldn't add\n";
+        Py_DECREF(&PyPointType);
+        Py_DECREF(m);
+        return NULL;
+    }
+    
     return m;
 }
 
@@ -190,7 +295,7 @@ void McRFPy_API::setSpriteTexture(int ti)
 void McRFPy_API::api_init() {
 
     // build API exposure before python initialization
-    PyImport_AppendInittab("mcrfpy", PyInit_mcrfpy);
+    PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
     // use full path version of argv[0] from OS to init python
     init_python(narrow_string(executable_filename()).c_str());
 

@@ -1,5 +1,6 @@
 #include "UIMenu.h"
 #include "Common.h"
+#include "Resources.h"
 
 UIMenu::UIMenu(sf::Font & _font)
 : font(_font)
@@ -8,6 +9,14 @@ UIMenu::UIMenu(sf::Font & _font)
     box.setSize(sf::Vector2f(300, 400));
     box.setPosition(sf::Vector2f(300, 250));
     box.setFillColor(sf::Color(0,0,255));
+}
+
+UIMenu::UIMenu()
+: font(Resources::font)
+{
+    box.setSize(sf::Vector2f(300, 400));
+    box.setPosition(sf::Vector2f(300, 250));
+    box.setFillColor(sf::Color(0,0,255));   
 }
 
 void UIMenu::render(sf::RenderWindow & window)

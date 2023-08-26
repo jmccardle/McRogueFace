@@ -10,9 +10,13 @@ public:
     //UIMenu() {};
     sf::Font & font;
     UIMenu(sf::Font & _font);
+    UIMenu();
     std::vector<sf::Text> captions;
     std::vector<Button> buttons;
     std::vector<IndexSprite> sprites;
+    
+    /* idea: */ //std::vector<UIDrawable> children; // on the UIBox class?
+    
     sf::RectangleShape box;
     bool visible = false;
     int next_text = 10;
