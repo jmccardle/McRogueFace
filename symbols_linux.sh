@@ -32,6 +32,7 @@ do
 
     echo "Compile $fn.cpp"
     g++ \
+        -g \
         -I../../deps_linux \
         -I../../deps_linux/Python-3.11.1 \
         -I../../platform/linux \
@@ -54,6 +55,7 @@ done
 # Final executable 
 # --std= : c++2a vs c++17
 g++ \
+    -g \
     --std=c++2a \
     -I../../deps_linux \
     -I../../deps_linux/Python-3.11.1 \
