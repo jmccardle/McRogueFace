@@ -19,6 +19,7 @@ class GameEngine
     sf::View visible;
     sf::Clock clock;
     float frameTime;
+    std::string window_title;
 
 public:
     GameEngine();

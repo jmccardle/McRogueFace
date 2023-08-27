@@ -11,7 +11,8 @@ GameEngine::GameEngine()
 {
     Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
     Resources::game = this;
-    window.create(sf::VideoMode(1024, 768), "McRogueFace - r/RoguelikeDev Tutorial Run");
+    window_title = "McRogueFace - r/RoguelikeDev Tutorial Run";
+    window.create(sf::VideoMode(1024, 768), window_title);
     visible = window.getDefaultView();
     window.setFramerateLimit(30);
     scene = "uitest";
@@ -44,6 +45,7 @@ sf::RenderWindow & GameEngine::getWindow() { return window; }
 
 void GameEngine::run()
 {
+    float fps = 0.0;
     clock.restart();
     while (running)
     {
@@ -55,6 +57,8 @@ void GameEngine::run()
         currentScene()->sRender();
         currentFrame++;
         frameTime = clock.restart().asSeconds();
+        fps = 1 / frameTime;
+        window.setTitle(window_title + " " + std::to_string(fps) + " FPS");
     }
 }
 
