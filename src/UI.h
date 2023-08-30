@@ -14,19 +14,38 @@ public:
     std::string action;
 };
 
+//PyColorObject struct required to embed Python colors into UIFrame
+
+typedef struct {
+    PyObject_HEAD
+    sf::Color color;
+} PyColorObject;
+
 class UIFrame: public UIDrawable
 {
 public:
     UIFrame(float, float, float, float);
     UIFrame();
+    ~UIFrame();
     //sf::RectangleShape box;
-    
+
     //Simulate RectangleShape
-    sf::Color fillColor, outlineColor;
     float x, y, w, h, outline;
     std::vector<UIDrawable*> children;
     void render(sf::Vector2f) override final;
     void move(sf::Vector2f);
+    
+    sf::Color fillColor(); // getter
+    void fillColor(sf::Color c); // C++ setter
+    void fillColor(PyColorObject* pyColor); // Python setter
+    
+    sf::Color outlineColor(); // getter
+    void outlineColor(sf::Color c); // C++ setter
+    void outlineColor(PyColorObject* pyColor); // Python setter
+    
+private:
+    sf::Color *_fillColor, *_outlineColor;
+    PyColorObject *pyFillColor, *pyOutlineColor;
 };
 
 class UICaption: public UIDrawable
@@ -49,10 +68,7 @@ namespace mcrfpydef {
     
     // Color Definitions
     // struct, members, new, set_member, PyTypeObject
-    typedef struct {
-        PyObject_HEAD
-        sf::Color color;
-    } PyColorObject;
+
     
     static PyMemberDef PyColor_members[]
     {

@@ -15,23 +15,23 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     
     // Create a UI element or three?
     e1 = UIFrame(100,150,400,400);
-    //e1.box.setPosition(100, 150);
-    //e1.box.setSize(sf::Vector2f(400,400));
-    //e1.box.setFillColor(sf::Color(255, 0, 0));
-    e1.fillColor = sf::Color(255,0,0);
+        //e1.box.setPosition(100, 150);
+        //e1.box.setSize(sf::Vector2f(400,400));
+        //e1.box.setFillColor(sf::Color(255, 0, 0));
+    e1.fillColor(sf::Color(255,0,0));
     
     e1a = UIFrame(50,50,200,200);
-    //e1a.box.setPosition(50, 50);
-    //e1a.box.setSize(sf::Vector2f(200,200));
-    //e1a.box.setFillColor(sf::Color(0, 255, 0));
-    e1a.fillColor = sf::Color(0, 255, 0);
+        //e1a.box.setPosition(50, 50);
+        //e1a.box.setSize(sf::Vector2f(200,200));
+        //e1a.box.setFillColor(sf::Color(0, 255, 0));
+    e1a.fillColor(sf::Color(0, 255, 0));
     e1.children.push_back(&e1a);
     
     e1aa = UIFrame(5,5,100,100);
-    //e1aa.box.setPosition(5, 5);
-    //e1aa.box.setSize(sf::Vector2f(100,100));
-    //e1aa.box.setFillColor(sf::Color(0, 0, 255));
-    e1aa.fillColor = sf::Color(0, 0, 255);  
+        //e1aa.box.setPosition(5, 5);
+        //e1aa.box.setSize(sf::Vector2f(100,100));
+        //e1aa.box.setFillColor(sf::Color(0, 0, 255));
+    e1aa.fillColor(sf::Color(0, 0, 255));  
     e1a.children.push_back(&e1aa);
     
     e2 = UICaption();
