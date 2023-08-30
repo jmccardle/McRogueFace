@@ -27,10 +27,10 @@ x(_x), y(_y), w(_w), h(_h), outline(0)
 
 UIFrame::~UIFrame()
 {
-    if (pyOutlineColor) { Py_DECREF(pyOutlineColor); }
-    else { if (_outlineColor) { delete _outlineColor; } }
-    if (pyFillColor) { Py_DECREF(pyFillColor); }
-    else { if (_fillColor) { delete _fillColor; } }
+    if (pyOutlineColor) Py_DECREF(pyOutlineColor);
+    else if (_outlineColor) delete _outlineColor;
+    if (pyFillColor) Py_DECREF(pyFillColor);
+    else if (_fillColor) delete _fillColor;
 }
 
 /*
