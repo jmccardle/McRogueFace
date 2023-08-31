@@ -112,6 +112,8 @@ public:
     static bool do_camfollow;
     static void camFollow();
     static PyObject* _camFollow(PyObject*, PyObject*);
+
+    static PyObject* _sceneUI(PyObject*, PyObject*);
     
     // accept keyboard input from scene
     static sf::Vector2i cursor_position;

@@ -7,6 +7,8 @@
 #define ACTIONPY ((name.size() > 3 && name.compare(name.size() - 3, 3, "_py") == 0))
 
 #include "Common.h"
+#include <list>
+#include "UI.h"
 //#include "GameEngine.h"
 
 class GameEngine; // forward declare
@@ -36,5 +38,7 @@ public:
     
     virtual bool registerActionInjected(int, std::string);
     virtual bool unregisterActionInjected(int, std::string);
+    
+    std::vector<std::shared_ptr<UIDrawable>> ui_elements;
 
 };

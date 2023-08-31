@@ -19,6 +19,7 @@ GameEngine::GameEngine()
     //std::cout << "Constructing MenuScene" << std::endl;
     scenes["menu"] = new MenuScene(this);
     scenes["uitest"] = new UITestScene(this);
+
     //std::cout << "Constructed MenuScene" <<std::endl;
     //scenes["play"] = new UITestScene(this);
     //api = new McRFPy_API(this);
@@ -118,4 +119,22 @@ void GameEngine::sUserInput()
             //std::cout << "[GameEngine] Action not registered for input: " << actionCode << ": " << actionType << std::endl;
         }
     }
+}
+
+std::vector<std::shared_ptr<UIDrawable>>* GameEngine::scene_ui(std::string target)
+{
+    /* 
+    // facts about maps
+    // You just can't do this during scenes["new_menu"] being assigned.
+    std::cout << "Current scene is: " << scene << ". Searching for: " << target << ".\n";
+    std::cout << "scenes.size(): " << scenes.size() << std::endl;
+    std::cout << "scenes.count(target): " << scenes.count(target) << std::endl;
+    std::cout << "scenes.find(target): " << std::distance(scenes.begin(), scenes.find(target)) << std::endl;
+    std::cout << "iterators: " << std::distance(scenes.begin(), scenes.begin()) << " " <<
+        std::distance(scenes.begin(), scenes.end()) << std::endl;
+    std::cout << "scenes.contains(target): " << scenes.contains(target) << std::endl;
+    std::cout << "scenes[target]: " << (long)(scenes[target]) << std::endl;
+    */
+    if (scenes.count(target) == 0) return NULL;
+    return &scenes[target]->ui_elements;
 }

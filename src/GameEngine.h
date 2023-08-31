@@ -42,4 +42,6 @@ public:
     std::vector<sf::SoundBuffer> sfxbuffers;
     sf::Music music;
     sf::Sound sfx;
+    std::vector<std::shared_ptr<UIDrawable>>* scene_ui(std::string scene);
+    
 };

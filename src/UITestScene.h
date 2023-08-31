@@ -3,15 +3,15 @@
 #include "Common.h"
 #include "Scene.h"
 #include "GameEngine.h"
-#include <list>
-#include "UI.h"
+//#include <list>
+//#include "UI.h"
 
 class UITestScene: public Scene
 {
     sf::Text text;
-    UIFrame e1, e1a, e1aa;
-    UICaption e2;
-    std::vector<UIDrawable*> ui_elements;
+    //UIFrame e1, e1a, e1aa;
+    //UICaption e2;
+    //std::vector<UIDrawable*> ui_elements;
 
 public:
     UITestScene(GameEngine*);

@@ -3,6 +3,7 @@
 #include "GameEngine.h"
 #include "Grid.h"
 #include "UI.h"
+#include "Resources.h"
 
 // static class members...?
 std::map<std::string, UIMenu*> McRFPy_API::menus;
@@ -99,6 +100,8 @@ static PyMethodDef mcrfpyMethods[] = {
 	
 	{"camFollow", McRFPy_API::_camFollow, METH_VARARGS, ""},
 
+    {"sceneUI", McRFPy_API::_sceneUI, METH_VARARGS, "sceneUI(scene) - Returns a list of UI elements"},
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -118,14 +121,17 @@ PyObject* PyInit_mcrfpy()
     }
     
     // This code runs, but Python segfaults when accessing the UIFrame type.
-    std::cout << "Adding UIFrame object to module\n";
+    //std::cout << "Adding UIFrame object to module\n";
     PyModule_AddType(m, &mcrfpydef::PyColorType);
+    
+    /* 
     if (PyModule_AddType(m, &mcrfpydef::PyUIFrameType) < 0)
     {
         std::cout << "Error adding UIFrame type to module; aborting" << std::endl;
         Py_DECREF(&mcrfpydef::PyUIFrameType);
         return NULL;
     }
+    */
 
     return m;
 }
@@ -1113,5 +1119,16 @@ PyObject* McRFPy_API::_camFollow(PyObject* self, PyObject* args) {
 	
 	McRFPy_API::do_camfollow = PyObject_IsTrue(set_camfollow);
 	Py_INCREF(Py_None);
+    return Py_None;
+}
+
+//McRFPy_API::_sceneUI
+PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
+	const char *scene_cstr;
+	if (!PyArg_ParseTuple(args, "s", &scene_cstr)) return NULL;
+
+    auto ui = Resources::game->scene_ui("uitest");
+    if(ui) std::cout << "vector returned has size=" << ui->size() << std::endl;
+    Py_INCREF(Py_None);
     return Py_None;
 }

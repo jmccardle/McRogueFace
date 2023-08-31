@@ -1,4 +1,6 @@
 #include "Common.h"
+#include <list>
+#include "UI.h"
 
 class GameEngine; // forward declared
 
