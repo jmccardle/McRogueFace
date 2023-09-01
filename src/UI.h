@@ -218,13 +218,19 @@ namespace mcrfpydef {
      *
      */
 
-    static PyObject* PyUIFrame_get_member(PyUIFrameObject* self, void* closure)
+    static PyObject* PyUIFrame_get_float_member(PyUIFrameObject* self, void* closure)
     {
         auto member_ptr = reinterpret_cast<long>(closure);
         if (member_ptr == 0)
-            return PyLong_FromLong(self->data->box.getPosition().x);
+            return PyFloat_FromDouble(self->data->box.getPosition().x);
         else if (member_ptr == 1)
-            return PyLong_FromLong(self->data->box.getPosition().y);
+            return PyFloat_FromDouble(self->data->box.getPosition().y);
+        else if (member_ptr == 2)
+            return PyFloat_FromDouble(self->data->box.getSize().x);
+        else if (member_ptr == 3)
+            return PyFloat_FromDouble(self->data->box.getSize().y);
+        else if (member_ptr == 4)
+            return PyFloat_FromDouble(self->data->box.getOutlineThickness());
         else
         {
             PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
@@ -232,46 +238,63 @@ namespace mcrfpydef {
         }
     }
 
-    static int PyUIFrame_set_member(PyUIFrameObject* self, PyObject* value, void* closure)
+    static int PyUIFrame_set_float_member(PyUIFrameObject* self, PyObject* value, void* closure)
     {
-        if (PyLong_Check(value))
+        float val;
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (PyFloat_Check(value))
         {
-            /*
-            long int_val = PyLong_AsLong(value);
-            if (int_val < 0)
-                int_val = 0;
-            else if (int_val > 255)
-                int_val = 255;
-            auto member_ptr = reinterpret_cast<long>(closure);
-            if (member_ptr == 0)
-                self->data->r = static_cast<sf::Uint8>(int_val);
-            else if (member_ptr == 1)
-                self->data->g = static_cast<sf::Uint8>(int_val);
-            else if (member_ptr == 2)
-                self->data->b = static_cast<sf::Uint8>(int_val);
-            else if (member_ptr == 3)
-                self->data->a = static_cast<sf::Uint8>(int_val);
-            */
+            val = PyFloat_AsDouble(value);
+        }
+        else if (PyLong_Check(value))
+        {
+            val = PyLong_AsLong(value);
         }
         else
         {
             PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
             return -1;
         }
+        if (member_ptr == 0) //x
+            self->data->box.setPosition(val, self->data->box.getPosition().y);
+        else if (member_ptr == 1) //y
+            self->data->box.setPosition(self->data->box.getPosition().x, val);
+        else if (member_ptr == 2) //w
+            self->data->box.setSize(sf::Vector2f(val, self->data->box.getSize().y));
+        else if (member_ptr == 3) //h
+            self->data->box.setSize(sf::Vector2f(self->data->box.getSize().x, val));
+        else if (member_ptr == 4) //outline
+            self->data->box.setOutlineThickness(val);
         return 0;
     }
 
     static PyGetSetDef PyUIFrame_getsetters[] = {
-        {"x", (getter)PyUIFrame_get_member, (setter)PyUIFrame_set_member, "member desc",   (void*)0},
-        {"y", (getter)PyUIFrame_get_member, (setter)PyUIFrame_set_member, "member desc",   (void*)1},
+        {"x", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "X coordinate of top-left corner",   (void*)0},
+        {"y", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "Y coordinate of top-left corner",   (void*)1},
+        {"w", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "width of the rectangle",   (void*)2},
+        {"h", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "height of the rectangle",   (void*)3},
+        {"outline", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "Thickness of the border",   (void*)4},
+        //{"fill_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Fill color of the rectangle", (void*)0},
+        //{"outline_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Outline color of the rectangle", (void*)1},
         {NULL}
     };
     
     static PyObject* PyUIFrame_repr(PyUIFrameObject* self)
     {
         std::ostringstream ss;
-        ss << "<UIFrame ()>";
-        
+        if (!self->data) ss << "<Frame (invalid internal object)>";
+        else {
+            auto box = self->data->box;
+            auto fc = box.getFillColor();
+            auto oc = box.getOutlineColor();
+            ss << "<Frame (x=" << box.getPosition().x << ", y=" << box.getPosition().y << ", x=" << 
+                box.getSize().x << ", w=" << box.getSize().y << ", " <<
+                "outline=" << box.getOutlineThickness() << ", " << 
+                "fill_color=(" << (int)fc.r << ", " << (int)fc.g << ", " << (int)fc.b << ", " << (int)fc.a <<"), " <<
+                "outlinecolor=(" << (int)oc.r << ", " << (int)oc.g << ", " << (int)oc.b << ", " << (int)oc.a <<"), " <<
+                self->data->children.size() << " child" << (self->data->children.size() == 1 ? "" : "ren") <<  " objects" <<
+                ")>";
+        }
         std::string repr_str = ss.str();
         return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
     }
