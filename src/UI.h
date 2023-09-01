@@ -268,14 +268,106 @@ namespace mcrfpydef {
         return 0;
     }
 
+    static PyObject* PyUIFrame_get_color_member(PyUIFrameObject* self, void* closure)
+    {
+        // validate closure (should be impossible to be wrong, but it's thorough)
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (member_ptr != 0 && member_ptr != 1)
+        {
+            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+            return nullptr;
+        }
+        PyTypeObject* colorType = &PyColorType;
+        PyObject* pyColor = colorType->tp_alloc(colorType, 0);
+        if (pyColor == NULL)
+        {
+            std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
+            return NULL;
+        }
+        PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
+
+        // fetch correct member data
+        sf::Color color;
+        if (member_ptr == 0)
+        {
+            color = self->data->box.getFillColor();
+            //return Py_BuildValue("(iii)", color.r, color.g, color.b);
+        }
+        else if (member_ptr == 1)
+        {
+            color = self->data->box.getOutlineColor();
+            //return Py_BuildValue("(iii)", color.r, color.g, color.b);
+        }
+        
+        // initialize new mcrfpy.Color instance
+        pyColorObj->data = std::make_shared<sf::Color>(color);
+
+        return pyColor;
+    }
+
+    static int PyUIFrame_set_color_member(PyUIFrameObject* self, PyObject* value, void* closure)
+    {
+        auto member_ptr = reinterpret_cast<long>(closure);
+        int r, g, b, a;
+        if (PyObject_IsInstance(value, (PyObject*)&PyColorType))
+        {
+            // get value from mcrfpy.Color instance
+            PyColorObject* color = reinterpret_cast<PyColorObject*>(value);
+            r = color->data->r;
+            g = color->data->g;
+            b = color->data->b;
+            a = color->data->a;
+        }
+        else if (!PyTuple_Check(value) || PyTuple_Size(value) < 3 || PyTuple_Size(value) > 4)
+        {
+            // reject non-Color, non-tuple value
+            PyErr_SetString(PyExc_TypeError, "Value must be a tuple of 3 or 4 integers or an mcrfpy.Color object.");
+            return -1;
+        }
+        else // get value from tuples
+        {
+            r = PyLong_AsLong(PyTuple_GetItem(value, 0));
+            g = PyLong_AsLong(PyTuple_GetItem(value, 1));
+            b = PyLong_AsLong(PyTuple_GetItem(value, 2));
+            a = 255;
+
+            if (PyTuple_Size(value) == 4)
+            {
+                a = PyLong_AsLong(PyTuple_GetItem(value, 3));
+            }
+        }
+
+        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
+        {
+            PyErr_SetString(PyExc_ValueError, "Color values must be between 0 and 255.");
+            return -1;
+        }
+
+        if (member_ptr == 0)
+        {
+            self->data->box.setFillColor(sf::Color(r, g, b, a));
+        }
+        else if (member_ptr == 1)
+        {
+            self->data->box.setOutlineColor(sf::Color(r, g, b, a));
+        }
+        else
+        {
+            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+            return -1;
+        }
+
+        return 0;
+    }
+
     static PyGetSetDef PyUIFrame_getsetters[] = {
         {"x", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "X coordinate of top-left corner",   (void*)0},
         {"y", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "Y coordinate of top-left corner",   (void*)1},
         {"w", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "width of the rectangle",   (void*)2},
         {"h", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "height of the rectangle",   (void*)3},
         {"outline", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "Thickness of the border",   (void*)4},
-        //{"fill_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Fill color of the rectangle", (void*)0},
-        //{"outline_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Outline color of the rectangle", (void*)1},
+        {"fill_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Fill color of the rectangle", (void*)0},
+        {"outline_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Outline color of the rectangle", (void*)1},
         {NULL}
     };
     
