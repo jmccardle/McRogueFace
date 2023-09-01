@@ -86,13 +86,10 @@ struct CPythonSharedObject {
 typedef CPythonSharedObject<UIFrame> PyUIFrameObject;
 */
 
-//equivalent
-/*
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIFrame> data;
 } PyUIFrameObject;
-*/
 
 typedef struct {
     PyObject_HEAD
@@ -215,117 +212,62 @@ namespace mcrfpydef {
         }
     };
 
-
-
-    /* 
-    static PyTypeObject PyUIFrameType = {
-        .tp_name = "mcrfpy.Frame",
-        .tp_basicsize = sizeof(PyUIFrameObject),
-        .tp_itemsize = 0,
-        .tp_dealloc = (destructor)[](PyObject* self) {
-            PyUIFrameObject* obj = (PyUIFrameObject*)self;
-            obj->data.reset();
-            Py_TYPE(self)->tp_free(self);
-        },
-        //.tp_init = (initproc)PyUIFrame_init, // needs implementation
-        //.tp_new = PyUIFrame_new, // needs implementation
-    };
-    */
-
     /*
-    static PyTypeObject PyUIFrameType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "mcrfpy.Frame",
-        .tp_basicsize = sizeof(PyColorObject),
-        .tp_itemsize = 0,
-        //.tp_dealloc = [](PyObject* obj) { Py_TYPE(obj)->tp_free(obj); },
-        //.tp_repr = (reprfunc)PyUIFrame_repr,
-        //.tp_hash = NULL,
-        //.tp_iter
-        //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Color object (RGBA)"),
-        //.tp_methods = PyUIFrame_methods,
-        //.tp_members = PyColor_members,
-        .tp_getset = PyColor_getsetters,
-        //.tp_base = NULL,
-        //.tp_init = (initproc)PyUIFrame_init,
-        .tp_new = PyColor_new, //PyType_GenericNew ?
-    };
-    
-    static PyTypeObject PyCaptionType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "mcrfpy.Caption",
-        .tp_basicsize = sizeof(PyColorObject),
-        .tp_itemsize = 0,
-        //.tp_dealloc = [](PyObject* obj) { Py_TYPE(obj)->tp_free(obj); },
-        //.tp_repr = (reprfunc)PyUIFrame_repr,
-        //.tp_hash = NULL,
-        //.tp_iter
-        //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Color object (RGBA)"),
-        //.tp_methods = PyUIFrame_methods,
-        //.tp_members = PyColor_members,
-        .tp_getset = PyColor_getsetters,
-        //.tp_base = NULL,
-        //.tp_init = (initproc)PyUIFrame_init,
-        .tp_new = PyColor_new, //PyType_GenericNew ?
-    };
-    
-    static PyTypeObject PySpriteType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "mcrfpy.Sprite",
-        .tp_basicsize = sizeof(PyColorObject),
-        .tp_itemsize = 0,
-        //.tp_dealloc = [](PyObject* obj) { Py_TYPE(obj)->tp_free(obj); },
-        //.tp_repr = (reprfunc)PyUIFrame_repr,
-        //.tp_hash = NULL,
-        //.tp_iter
-        //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Color object (RGBA)"),
-        //.tp_methods = PyUIFrame_methods,
-        //.tp_members = PyColor_members,
-        .tp_getset = PyColor_getsetters,
-        //.tp_base = NULL,
-        //.tp_init = (initproc)PyUIFrame_init,
-        .tp_new = PyColor_new, //PyType_GenericNew ?
-    };
-    */
+     *
+     * Begin template generation for PyUIFrameType
+     *
+     */
 
-    // UIFrame Definitions
-    // new, init, repr, set_size, methods, members, PyTypeObject
-    /*
-    static PyObject* PyUIFrame_new(PyTypeObject* type, PyObject* args, PyObject* kwds)
+    static PyObject* PyUIFrame_get_member(PyUIFrameObject* self, void* closure)
     {
-        std::cout << "New called\n";
-        UIFrame* self;
-        self = (UIFrame*)type->tp_alloc(type, 0);
-        if (self != nullptr)
-        {   
-        }
-        return (PyObject*)self;
-    }
-    
-    static int PyUIFrame_init(UIFrame* self, PyObject* args, PyObject* kwds)
-    {
-        std::cout << "Init called\n";
-        static const char* keywords[] = { "x", "y", nullptr }; // TODO: keywords and other python objects to configure box (sf::RectangleShape)
-        float x = 0.0f, y = 0.0f;
-    
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ff", const_cast<char**>(keywords), &x, &y))
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (member_ptr == 0)
+            return PyLong_FromLong(self->data->box.getPosition().x);
+        else if (member_ptr == 1)
+            return PyLong_FromLong(self->data->box.getPosition().y);
+        else
         {
+            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+            return nullptr;
+        }
+    }
+
+    static int PyUIFrame_set_member(PyUIFrameObject* self, PyObject* value, void* closure)
+    {
+        if (PyLong_Check(value))
+        {
+            /*
+            long int_val = PyLong_AsLong(value);
+            if (int_val < 0)
+                int_val = 0;
+            else if (int_val > 255)
+                int_val = 255;
+            auto member_ptr = reinterpret_cast<long>(closure);
+            if (member_ptr == 0)
+                self->data->r = static_cast<sf::Uint8>(int_val);
+            else if (member_ptr == 1)
+                self->data->g = static_cast<sf::Uint8>(int_val);
+            else if (member_ptr == 2)
+                self->data->b = static_cast<sf::Uint8>(int_val);
+            else if (member_ptr == 3)
+                self->data->a = static_cast<sf::Uint8>(int_val);
+            */
+        }
+        else
+        {
+            PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
             return -1;
         }
-    
-        //self->x = x;
-        //self->y = y;
-    
         return 0;
     }
+
+    static PyGetSetDef PyUIFrame_getsetters[] = {
+        {"x", (getter)PyUIFrame_get_member, (setter)PyUIFrame_set_member, "member desc",   (void*)0},
+        {"y", (getter)PyUIFrame_get_member, (setter)PyUIFrame_set_member, "member desc",   (void*)1},
+        {NULL}
+    };
     
-    static PyObject* PyUIFrame_repr(UIFrame* self)
+    static PyObject* PyUIFrame_repr(PyUIFrameObject* self)
     {
         std::ostringstream ss;
         ss << "<UIFrame ()>";
@@ -333,50 +275,59 @@ namespace mcrfpydef {
         std::string repr_str = ss.str();
         return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
     }
-   
-    static PyObject* PyUIFrame_setSize(UIFrame* self, PyObject* args)
+
+    static int PyUIFrame_init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     {
-        //float w, h;
-        if (!PyArg_ParseTuple(args, "ff", &self->w, &self->h)) return (PyObject*)-1;
-        //self->box.setSize(sf::Vector2f(w, h));
-        Py_INCREF(Py_None);
-        //return PyFloat_FromDouble(mag);
-        return Py_None;
+        //std::cout << "Init called\n";
+        static const char* keywords[] = { "x", "y", nullptr }; 
+        float x = 0.0f, y = 0.0f;
+    
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ff", const_cast<char**>(keywords), &x, &y))
+        {
+            return -1;
+        }
+    
+        //self->data->x = x;
+        //self->data->y = y;
+    
+        return 0;
     }
-         
-    static PyMethodDef PyUIFrame_methods[] = {
-        {"set_size", (PyCFunction)PyUIFrame_setSize, METH_VARARGS,
-            "Set the width and height of the UIFrame's visible box"},
-        {NULL, NULL, 0, NULL}
-    };
-    */
-    
-    /*
-    static PyMemberDef PyUIFrame_members[] = {
-        {"box", T_OBJECT, offsetof(UIFrame, box), 0},
-        {NULL}
-    };
-    */
-    
-    /*
+
     static PyTypeObject PyUIFrameType = {
         //PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "mcrfpy.UIFrame",
-        .tp_basicsize = sizeof(UIFrame),
+        .tp_name = "mcrfpy.Frame",
+        .tp_basicsize = sizeof(PyUIFrameObject),
         .tp_itemsize = 0,
-        .tp_dealloc = [](PyObject* obj) { Py_TYPE(obj)->tp_free(obj); },
-        //.tp_repr = (reprfunc)PyUIFrame_repr,
+        .tp_dealloc = (destructor)[](PyObject* self)
+        {
+            PyUIFrameObject* obj = (PyUIFrameObject*)self;
+            obj->data.reset();
+            Py_TYPE(self)->tp_free(self);
+        },
+        .tp_repr = (reprfunc)PyUIFrame_repr,
         //.tp_hash = NULL,
         //.tp_iter
         //.tp_iternext
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("Custom UIFrame object"),
-        .tp_methods = PyUIFrame_methods,
+        .tp_doc = PyDoc_STR("docstring"),
+        //.tp_methods = PyUIFrame_methods,
         //.tp_members = PyUIFrame_members,
+        .tp_getset = PyUIFrame_getsetters,
         //.tp_base = NULL,
         .tp_init = (initproc)PyUIFrame_init,
-        .tp_new = PyUIFrame_new, //PyType_GenericNew ?
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            PyUIFrameObject* self = (PyUIFrameObject*)type->tp_alloc(type, 0);
+            if (self) self->data = std::make_shared<UIFrame>();
+            return (PyObject*)self;
+        }
     };
-    */  
-         
-}
+
+    /*
+     *
+     * End auto-generated PyUIFrameType generation
+     *
+     */
+
+
+} // namespace mcrfpydef

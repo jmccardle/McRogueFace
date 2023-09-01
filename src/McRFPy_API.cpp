@@ -124,14 +124,14 @@ PyObject* PyInit_mcrfpy()
     //std::cout << "Adding UIFrame object to module\n";
     PyModule_AddType(m, &mcrfpydef::PyColorType);
     
-    /* 
+     
     if (PyModule_AddType(m, &mcrfpydef::PyUIFrameType) < 0)
     {
         std::cout << "Error adding UIFrame type to module; aborting" << std::endl;
         Py_DECREF(&mcrfpydef::PyUIFrameType);
         return NULL;
     }
-    */
+    
 
     return m;
 }
