@@ -451,6 +451,89 @@ namespace mcrfpydef {
      *
      */
 
+    /*
+     *
+     * Begin PyUICollectionIter defs
+     *
+     */
+    typedef struct {
+        PyObject_HEAD
+        std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
+        int index;
+        int start_size;
+    } PyUICollectionIterObject;
+
+    static int PyUICollectionIter_init(PyUICollectionIterObject* self, PyObject* args, PyObject* kwds)
+    {
+        PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
+        return -1;
+    }
+
+    static PyObject* PyUICollectionIter_next(PyUICollectionIterObject* self)
+    {
+        if (self->data->size() != self->start_size)
+        {
+            PyErr_SetString(PyExc_RuntimeError, "collection changed size during iteration");
+            return NULL;
+        }
+
+        if (self->index > self->start_size)
+        {
+            PyErr_SetNone(PyExc_StopIteration);
+            return NULL;
+        }
+		self->index++;
+        auto vec = self->data.get();
+        if (!vec)
+        {
+            PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+            return NULL;
+        }
+        auto target = vec[self->index-1];
+        // TODO build PyObject* of the correct UIDrawable subclass to return
+    }
+
+	static PyObject* PyUICollectionIter_repr(PyUICollectionIterObject* self)
+	{
+		std::ostringstream ss;
+		if (!self->data) ss << "<UICollectionIter (invalid internal object)>";
+		else {
+		    ss << "<UICollectionIter (" << self->data->size() << " child objects, @ index " << self->index  << ")>";
+		}
+		std::string repr_str = ss.str();
+		return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+	}
+
+    static PyTypeObject PyUICollectionIterType = {
+        //PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "mcrfpy.UICollectionIter",
+        .tp_basicsize = sizeof(PyUICollectionIterObject),
+        .tp_itemsize = 0,
+        .tp_dealloc = (destructor)[](PyObject* self)
+        {
+            PyUICollectionIterObject* obj = (PyUICollectionIterObject*)self;
+            obj->data.reset();
+            Py_TYPE(self)->tp_free(self);
+        },
+        .tp_repr = (reprfunc)PyUICollectionIter_repr,
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR("Iterator for a collection of UI objects"),
+        .tp_iternext = (iternextfunc)PyUICollectionIter_next,
+        //.tp_getset = PyUICollection_getset,
+        .tp_init = (initproc)PyUICollectionIter_init, // just raise an exception
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
+            return NULL;
+        }
+    };
+
+    /*
+     *
+     * End PyUICollectionIter defs
+     *
+     */
+
 
     /*
 	 *
@@ -522,6 +605,21 @@ namespace mcrfpydef {
     {
         PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
         return -1;
+    }
+
+    static PyObject* PyUICollection_iter(PyUICollectionObject* self)
+    {
+        PyUICollectionIterObject* iterObj;
+        iterObj = (PyUICollectionIterObject*)PyUICollectionIterType.tp_alloc(&PyUICollectionIterType, 0);
+        if (iterObj == NULL) {
+            return NULL;  // Failed to allocate memory for the iterator object
+        }
+
+        iterObj->data = self->data;
+        iterObj->index = 0;
+        iterObj->start_size = self->data->size();
+
+        return (PyObject*)iterObj;
     }
 
     /*
