@@ -121,7 +121,7 @@ void GameEngine::sUserInput()
     }
 }
 
-std::vector<std::shared_ptr<UIDrawable>>* GameEngine::scene_ui(std::string target)
+std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> GameEngine::scene_ui(std::string target)
 {
     /* 
     // facts about maps
@@ -136,5 +136,5 @@ std::vector<std::shared_ptr<UIDrawable>>* GameEngine::scene_ui(std::string targe
     std::cout << "scenes[target]: " << (long)(scenes[target]) << std::endl;
     */
     if (scenes.count(target) == 0) return NULL;
-    return &scenes[target]->ui_elements;
+    return scenes[target]->ui_elements;
 }

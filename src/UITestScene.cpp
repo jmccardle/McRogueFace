@@ -13,6 +13,9 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     //registerAction(ActionCode::KEY + sf::Keyboard::Up, "up");
     //registerAction(ActionCode::KEY + sf::Keyboard::Down, "down");
     
+    // note - you can't use the pointer to UI elements in constructor.
+    // The scene map is still being assigned to, so this object can't be looked up. 
+    /*
     auto ui = Resources::game->scene_ui("uitest");
     if (ui)
     {
@@ -20,6 +23,7 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     } else {
         std::cout << "No UI vector was returned.\n";
     }
+    */
 
     // Create a UI element or three?
     auto e1 = std::make_shared<UIFrame>(100,150,400,400);
@@ -28,21 +32,21 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     e1->box.setFillColor(sf::Color(255, 0, 0));
     //e1.fillColor(sf::Color(255,0,0));
     //if (ui) ui->push_back(e1);
-    ui_elements.push_back(e1);
+    ui_elements->push_back(e1);
 
     auto e1a = std::make_shared<UIFrame>(50,50,200,200);
     e1a->box.setPosition(50, 50);
     e1a->box.setSize(sf::Vector2f(200,200));
     e1a->box.setFillColor(sf::Color(0, 255, 0));
     //e1a.fillColor(sf::Color(0, 255, 0));
-    e1->children.push_back(e1a);
+    e1->children->push_back(e1a);
     
     auto e1aa = std::make_shared<UIFrame>(5,5,100,100);
     e1aa->box.setPosition(5, 5);
     e1aa->box.setSize(sf::Vector2f(100,100));
     e1aa->box.setFillColor(sf::Color(0, 0, 255));
     //e1aa.fillColor(sf::Color(0, 0, 255));  
-    e1a->children.push_back(e1aa);
+    e1a->children->push_back(e1aa);
     
     auto e2 = std::make_shared<UICaption>();
     e2->text.setFont(game->getFont());
@@ -51,12 +55,16 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     e2->text.setPosition(50, 250);
     
     //if (ui) ui->push_back(e2);
-    ui_elements.push_back(e2);
+    ui_elements->push_back(e2);
     //ui_elements.push_back(&e1);
     //ui_elements.push_back(&e2);
-    
+   
+    /*
+    // note - you can't use the pointer to UI elements in constructor.
+    // The scene map is still being assigned to, so this object can't be looked up. 
     if (ui)
     std::cout << "pointer to ui_elements now shows size=" << ui->size() << std::endl;
+    */
 }
 
 void UITestScene::update()
@@ -87,7 +95,8 @@ void UITestScene::sRender()
     //for (auto e: ui_elements)
     //auto ui = Resources::game->scene_ui("uitest");
     //if (ui)
-    for (auto e: ui_elements)
+    auto vec = *ui_elements;
+    for (auto e: vec)
     {
         //std::cout << "Rendering element\n";
         if (e)

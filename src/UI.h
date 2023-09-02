@@ -38,7 +38,7 @@ public:
 
     //Simulate RectangleShape
     float x, y, w, h, outline;
-    std::vector<std::shared_ptr<UIDrawable>> children;
+    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
     void render(sf::Vector2f) override final;
     void move(sf::Vector2f);
     
@@ -391,7 +391,7 @@ namespace mcrfpydef {
                 "outline=" << box.getOutlineThickness() << ", " << 
                 "fill_color=(" << (int)fc.r << ", " << (int)fc.g << ", " << (int)fc.b << ", " << (int)fc.a <<"), " <<
                 "outlinecolor=(" << (int)oc.r << ", " << (int)oc.g << ", " << (int)oc.b << ", " << (int)oc.a <<"), " <<
-                self->data->children.size() << " child" << (self->data->children.size() == 1 ? "" : "ren") <<  " objects" <<
+                self->data->children->size() << " child objects" <<
                 ")>";
         }
         std::string repr_str = ss.str();

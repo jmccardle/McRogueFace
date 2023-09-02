@@ -10,6 +10,7 @@ void UIDrawable::render()
 UIFrame::UIFrame():
 x(0), y(0), w(0), h(0), outline(0)
 {
+    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
     /*
     pyOutlineColor = NULL;
     pyFillColor = NULL;
@@ -21,6 +22,7 @@ x(0), y(0), w(0), h(0), outline(0)
 UIFrame::UIFrame(float _x, float _y, float _w, float _h):
 x(_x), y(_y), w(_w), h(_h), outline(0)
 {
+    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
     /*
     pyOutlineColor = NULL;
     pyFillColor = NULL;
@@ -31,6 +33,7 @@ x(_x), y(_y), w(_w), h(_h), outline(0)
 
 UIFrame::~UIFrame()
 {
+    children.reset();
     /*
     if (pyOutlineColor) Py_DECREF(pyOutlineColor);
     else if (_outlineColor) delete _outlineColor;
@@ -64,7 +67,7 @@ void UIFrame::render(sf::Vector2f offset)
     //if (_outlineColor) { box.setOutlineColor(outlineColor()); }
     //box.setOutlineThickness(outline);
     //Resources::game->getWindow().draw(box);
-    for (auto drawable : children) {
+    for (auto drawable : *children) {
         drawable->render(offset + box.getPosition());
     }
 }

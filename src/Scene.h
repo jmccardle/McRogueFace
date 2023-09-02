@@ -39,6 +39,6 @@ public:
     virtual bool registerActionInjected(int, std::string);
     virtual bool unregisterActionInjected(int, std::string);
     
-    std::vector<std::shared_ptr<UIDrawable>> ui_elements;
+    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> ui_elements;
 
 };
