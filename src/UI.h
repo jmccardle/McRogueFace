@@ -445,4 +445,109 @@ namespace mcrfpydef {
      */
 
 
+    /*
+	 *
+	 * Begin PyUICollection defs
+	 *
+	 */
+	typedef struct {
+		PyObject_HEAD
+		std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
+	} PyUICollectionObject;
+
+	static Py_ssize_t PyUICollection_len(PyUICollectionObject* self) {
+		return self->data->size();
+	}
+
+	static PyObject* PyUICollection_getitem(PyUICollectionObject* self, Py_ssize_t index) {
+		if (index >= self->data->size())
+		{
+			// set exception text
+			return NULL;
+		}
+		// build a Python version of item at self->data[index]
+	}
+
+	PySequenceMethods PyUICollection_sqmethods = {
+		.sq_length = (lenfunc)PyUICollection_len,
+		.sq_item = (ssizeargfunc)PyUICollection_getitem,
+		//.sq_item_by_index = PyUICollection_getitem
+		//.sq_slice - return a subset of the iterable
+		//.sq_ass_item - called when `o[x] = y` is executed (x is any object type)
+		//.sq_ass_slice - cool; no thanks, for now
+		//.sq_contains - called when `x in o` is executed
+		//.sq_ass_item_by_index - called when `o[x] = y` is executed (x is explictly an integer)
+	};
+
+	static PyObject* PyUICollection_append(PyUICollectionObject* self, PyObject* o)
+	{
+		// if not UIDrawable subclass, reject it
+		// self->data->push_back( c++ object inside o );
+	}
+
+	static PyObject* PyUICollection_remove(PyUICollectionObject* self, PyObject* o)
+	{
+		// if (!PyLong_Check(o)) { //exception text; return -1; }
+		// long index = PyLong_AsLong(o);
+		// if (index >= self->data->size()) { //exception text; return -1; }
+		// release the shared pointer at self->data[index];
+	}
+
+	static PyMethodDef PyUICollection_methods[] = {
+		{"append", (PyCFunction)PyUICollection_append, METH_O},
+        //{"extend", (PyCFunction)PyUICollection_extend, METH_O}, // TODO
+		{"remove", (PyCFunction)PyUICollection_remove, METH_O},
+		{NULL, NULL, 0, NULL}
+	};
+
+	static PyObject* PyUICollection_repr(PyUICollectionObject* self)
+	{
+		std::ostringstream ss;
+		if (!self->data) ss << "<UICollection (invalid internal object)>";
+		else {
+		    ss << "<UICollection (" << self->data->size() << " child objects)>";
+		}
+		std::string repr_str = ss.str();
+		return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+	}
+
+    static int PyUICollection_init(PyUICollectionObject* self, PyObject* args, PyObject* kwds)
+    {
+        // raise exception, this class can't be instantiated by users
+        return -1;
+    }
+
+	static PyTypeObject PyUICollectionType = {
+		//PyVarObject_HEAD_INIT(NULL, 0)
+		.tp_name = "mcrfpy.UICollection",
+		.tp_basicsize = sizeof(PyUICollectionObject),
+		.tp_itemsize = 0,
+		.tp_dealloc = (destructor)[](PyObject* self)
+		{
+		    PyUICollectionObject* obj = (PyUICollectionObject*)self;
+		    obj->data.reset();
+		    Py_TYPE(self)->tp_free(self);
+		},
+		.tp_repr = (reprfunc)PyUICollection_repr,
+		.tp_as_sequence = &PyUICollection_sqmethods,
+		.tp_flags = Py_TPFLAGS_DEFAULT,
+		.tp_doc = PyDoc_STR("Iterable, indexable collection of UI objects"),
+		.tp_methods = PyUICollection_methods, // append, remove
+		.tp_init = (initproc)PyUICollection_init, // just raise an exception
+		.tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+		{
+		    PyColorObject* self = (PyColorObject*)type->tp_alloc(type, 0);
+		    if (self) self->data = std::make_shared<sf::Color>();
+		    return (PyObject*)self;
+		}
+	};
+	/*
+	 *
+	 * End PyUICollection defs
+	 *
+	 */
+
+
+
+
 } // namespace mcrfpydef
