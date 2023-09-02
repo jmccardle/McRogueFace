@@ -360,6 +360,12 @@ namespace mcrfpydef {
         return 0;
     }
 
+    static PyObject* PyUIFrame_get_children(PyUIFrameObject* self, void* closure)
+    {
+        // create PyUICollection instance pointing to self->data->children
+        return NULL;
+    }
+
     static PyGetSetDef PyUIFrame_getsetters[] = {
         {"x", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "X coordinate of top-left corner",   (void*)0},
         {"y", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "Y coordinate of top-left corner",   (void*)1},
@@ -368,6 +374,7 @@ namespace mcrfpydef {
         {"outline", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "Thickness of the border",   (void*)4},
         {"fill_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Fill color of the rectangle", (void*)0},
         {"outline_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Outline color of the rectangle", (void*)1},
+        {"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
         {NULL}
     };
     
@@ -468,7 +475,7 @@ namespace mcrfpydef {
 		// build a Python version of item at self->data[index]
 	}
 
-	PySequenceMethods PyUICollection_sqmethods = {
+	static PySequenceMethods PyUICollection_sqmethods = {
 		.sq_length = (lenfunc)PyUICollection_len,
 		.sq_item = (ssizeargfunc)PyUICollection_getitem,
 		//.sq_item_by_index = PyUICollection_getitem
@@ -513,9 +520,15 @@ namespace mcrfpydef {
 
     static int PyUICollection_init(PyUICollectionObject* self, PyObject* args, PyObject* kwds)
     {
-        // raise exception, this class can't be instantiated by users
+        PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
         return -1;
     }
+
+    /*
+    static PyGetSetDef PyUICollection_getsetters[] = {
+        {NULL}
+    };
+    */
 
 	static PyTypeObject PyUICollectionType = {
 		//PyVarObject_HEAD_INIT(NULL, 0)
@@ -532,13 +545,16 @@ namespace mcrfpydef {
 		.tp_as_sequence = &PyUICollection_sqmethods,
 		.tp_flags = Py_TPFLAGS_DEFAULT,
 		.tp_doc = PyDoc_STR("Iterable, indexable collection of UI objects"),
+        .tp_iter = (getiterfunc)PyUICollection_iter,
 		.tp_methods = PyUICollection_methods, // append, remove
+        //.tp_getset = PyUICollection_getset,
 		.tp_init = (initproc)PyUICollection_init, // just raise an exception
 		.tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
 		{
-		    PyColorObject* self = (PyColorObject*)type->tp_alloc(type, 0);
-		    if (self) self->data = std::make_shared<sf::Color>();
-		    return (PyObject*)self;
+            // Does PyUICollectionType need __new__ if it's not supposed to be instantiable by the user? 
+            // Should I just raise an exception? Or is the uninitialized shared_ptr enough of a blocker?
+            PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
+		    return NULL;
 		}
 	};
 	/*
