@@ -3,6 +3,14 @@
 #include "Python.h"
 #include "structmember.h"
 
+enum PyObjectsEnum
+{
+    UIFRAME = 1,
+    UICAPTION,
+    UISPRITE,
+    UIGRID
+};
+
 class UIDrawable
 {
 public:
@@ -13,6 +21,7 @@ public:
     //virtual sf::Vector2i position();
     bool handle_event(/* ??? click, scroll, keystroke*/);
     std::string action;
+    virtual PyObjectsEnum derived_type() = 0;
 };
 
 //Python object types & forward declarations
@@ -42,6 +51,7 @@ public:
     void render(sf::Vector2f) override final;
     void move(sf::Vector2f);
     
+    PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UIFrame;  };
     /*
     sf::Color fillColor(); // getter
     void fillColor(sf::Color c); // C++ setter
@@ -65,6 +75,7 @@ class UICaption: public UIDrawable
 public:
     sf::Text text;
     void render(sf::Vector2f) override final;
+    PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UICaption;  };
 };
 
 class UISprite: public UIDrawable
@@ -74,6 +85,7 @@ public:
     int texture_index, sprite_index;
     float scale;
     sf::Sprite sprite;
+    PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UISprite;  };
 };
 
 /*
@@ -101,8 +113,9 @@ typedef struct {
     std::shared_ptr<UISprite> data;
 } PyUISpriteObject;
 
+PyObject* py_instance(std::shared_ptr<UIDrawable> source);
+
 namespace mcrfpydef {
-    
     // Color Definitions
     // struct, members, new, set_member, PyTypeObject
 
@@ -448,6 +461,25 @@ namespace mcrfpydef {
     /*
      *
      * End auto-generated PyUIFrameType generation
+     *
+     */
+
+    /*
+     *
+     * Begin Python Class Instantiator (iterator helper)
+     *
+     */
+
+    /* // definition can't go in the header file
+    PyObject* py_instance(UIDrawable* obj)
+    {
+
+    }
+    */
+
+    /*
+     *
+     * End Python Class Instantitator (iterator helper)
      *
      */
 

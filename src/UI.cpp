@@ -52,6 +52,10 @@ UIFrame::~UIFrame()
     void outlineColor(PyObject* pyColor); // Python setter
 */
 
+PyObjectsEnum UIFrame::derived_type()
+{
+    return PyObjectsEnum::UIFRAME;
+}
 
 void UIFrame::render(sf::Vector2f offset)
 {
@@ -85,4 +89,49 @@ void UISprite::render(sf::Vector2f offset)
     sprite.move(offset);
     Resources::game->getWindow().draw(sprite);
     sprite.move(-offset);
+}
+
+PyObjectsEnum UICaption::derived_type()
+{
+    return PyObjectsEnum::UICAPTION;
+}
+
+PyObjectsEnum UISprite::derived_type()
+{
+    return PyObjectsEnum::UISPRITE;
+}
+
+PyObject* py_instance(std::shared_ptr<UIDrawable> source)
+{
+    // takes a UI drawable, calls its derived_type virtual function, and builds a Python object based on the return value.
+    using namespace mcrfpydef;
+    PyObject* newobj; 
+    switch (source->derived_type())
+    {
+        case PyObjectsEnum::UIFRAME:
+            {
+                PyUIFrameObject* o = (PyUIFrameObject*)PyUIFrameType.tp_alloc(&PyUIFrameType, 0);
+                if (o)
+                    o->data = std::static_pointer_cast<UIFrame>(source);
+                newobj = (PyObject*)o;
+                break;
+            }
+        /* not yet implemented
+        case PyObjectsEnum::UICAPTION:
+            PyUICaptionObject* o = (PyUICaptionObject*)PyUICaptionType.tp_alloc(&PyUICaptionType, 0);
+            if (o)
+                o->data = std::static_pointer_cast<UICaption>(source);
+            break;
+        case PyObjectsEnum::UISPRITE:
+            PyUISpriteObject* o = (PyUISpriteObject*)PyUISpriteType.tp_alloc(&PyUISpriteType, 0);
+            if (o)
+                o->data = std::static_pointer_cast<UISprite>(source);
+            break;
+        */
+        default:
+            return NULL;
+            break;
+    }
+
+    return newobj;
 }
