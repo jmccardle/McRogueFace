@@ -101,33 +101,101 @@ PyObjectsEnum UISprite::derived_type()
     return PyObjectsEnum::UISPRITE;
 }
 
-PyObject* py_instance(std::shared_ptr<UIDrawable> source)
+PyObject* mcrfpydef::py_instance(std::shared_ptr<UIDrawable> source)
 {
     // takes a UI drawable, calls its derived_type virtual function, and builds a Python object based on the return value.
-    using namespace mcrfpydef;
-    PyObject* newobj; 
+    //using namespace mcrfpydef;
+
+PyTypeObject* colorType = &PyColorType;
+            PyObject* pyColor = colorType->tp_alloc(colorType, 0);
+            if (pyColor == NULL)
+            {
+                std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
+                return NULL;
+            }
+            PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
+            pyColorObj->data = std::make_shared<sf::Color>();
+            pyColorObj->data-> r = 255;
+            return (PyObject*)pyColorObj;
+
+
+    PyObject* newobj = NULL; 
+    std::cout << "py_instance called\n";
     switch (source->derived_type())
     {
         case PyObjectsEnum::UIFRAME:
+        {
+            std::cout << "UIFRAME case\n" << std::flush;
+            PyTypeObject* UIFrameType = &PyUIFrameType;
+            //std::cout << "tp_alloc\n" << std::flush;
+            //PyObject* _o = UIFrameType->tp_alloc(UIFrameType, 0);
+            //std::cout << "reinterpret_cast\n" << std::flush;
+            //auto o = reinterpret_cast<PyUICollectionObject*>(_o);
+            //PyUIFrameObject* o = (PyUIFrameObject*)PyObject_New(PyUIFrameObject, UIFrameType);
+            
+            PyUIFrameObject* o = (PyUIFrameObject*)(UIFrameType->tp_alloc(UIFrameType, 0));
+            //PyUIFrameObject* o = PyObject_New(PyUIFrameObject, UIFrameType);
+
+            /*
+            // backtracking the problem: instantiate a PyColor of (255, 0, 0) for testing
+            PyTypeObject* colorType = &PyColorType;
+            PyObject* pyColor = colorType->tp_alloc(colorType, 0);
+            if (pyColor == NULL)
             {
-                PyUIFrameObject* o = (PyUIFrameObject*)PyUIFrameType.tp_alloc(&PyUIFrameType, 0);
-                if (o)
-                    o->data = std::static_pointer_cast<UIFrame>(source);
-                newobj = (PyObject*)o;
-                break;
+                std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
+                return NULL;
             }
-        /* not yet implemented
+            PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
+            pyColorObj->data = std::make_shared<sf::Color>();
+            pyColorObj->data-> r = 255;
+            return (PyObject*)pyColorObj;
+            */
+
+            
+            std::cout << "pointer check: " << o << "\n" << std::flush;
+            if (o)
+            {
+                std::cout << "Casting data...\n" << std::flush;
+                auto p = std::static_pointer_cast<UIFrame>(source);
+                std::cout << "casted. Assigning...\n" << std::flush;
+                //o->data = std::make_shared<UIFrame>();
+
+                o->data = p;
+                //std::cout << "assigned.\n" << std::flush;
+                auto usource = o->data; //(UIFrame*)source.get();
+                std::cout << "Loaded data into object. " << usource->box.getPosition().x << " " << usource->box.getPosition().y << " " <<
+                    usource->box.getSize().x << " " << usource->box.getSize().y << std::endl;
+            }
+            else
+            {
+                std::cout << "Allocation failed.\n" << std::flush;
+            }
+            newobj = (PyObject*)o;
+            break;
+            
+        }
         case PyObjectsEnum::UICAPTION:
+        {
+            std::cout << "UICAPTION case\n";
+            PyErr_SetString(PyExc_NotImplementedError, "UICaption class not implemented in Python yet.");
+            /* not yet implemented
             PyUICaptionObject* o = (PyUICaptionObject*)PyUICaptionType.tp_alloc(&PyUICaptionType, 0);
             if (o)
                 o->data = std::static_pointer_cast<UICaption>(source);
+            */
             break;
+        }
         case PyObjectsEnum::UISPRITE:
+        {
+            std::cout << "UISPRITE case\n";
+            PyErr_SetString(PyExc_NotImplementedError, "UISprite class not implemented in Python yet.");
+            /*
             PyUISpriteObject* o = (PyUISpriteObject*)PyUISpriteType.tp_alloc(&PyUISpriteType, 0);
             if (o)
                 o->data = std::static_pointer_cast<UISprite>(source);
+            */
             break;
-        */
+        }
         default:
             return NULL;
             break;

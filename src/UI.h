@@ -113,9 +113,9 @@ typedef struct {
     std::shared_ptr<UISprite> data;
 } PyUISpriteObject;
 
-PyObject* py_instance(std::shared_ptr<UIDrawable> source);
 
 namespace mcrfpydef {
+    PyObject* py_instance(std::shared_ptr<UIDrawable> source);
     // Color Definitions
     // struct, members, new, set_member, PyTypeObject
 
@@ -373,11 +373,8 @@ namespace mcrfpydef {
         return 0;
     }
 
-    static PyObject* PyUIFrame_get_children(PyUIFrameObject* self, void* closure)
-    {
-        // create PyUICollection instance pointing to self->data->children
-        return NULL;
-    }
+    static PyObject* PyUIFrame_get_children(PyUIFrameObject*, void*);
+    // implementation after the PyUICollectionType definition
 
     static PyGetSetDef PyUIFrame_getsetters[] = {
         {"x", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "X coordinate of top-left corner",   (void*)0},
@@ -424,6 +421,8 @@ namespace mcrfpydef {
     
         //self->data->x = x;
         //self->data->y = y;
+        self->data->box.setFillColor(sf::Color(0,0,0,255));
+        self->data->box.setOutlineColor(sf::Color(128,128,128,255));
     
         return 0;
     }
@@ -509,7 +508,7 @@ namespace mcrfpydef {
             return NULL;
         }
 
-        if (self->index > self->start_size)
+        if (self->index > self->start_size - 1)
         {
             PyErr_SetNone(PyExc_StopIteration);
             return NULL;
@@ -521,8 +520,9 @@ namespace mcrfpydef {
             PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
             return NULL;
         }
-        auto target = vec[self->index-1];
+        auto target = (*vec)[self->index-1];
         // TODO build PyObject* of the correct UIDrawable subclass to return
+        return py_instance(target);
     }
 
 	static PyObject* PyUICollectionIter_repr(PyUICollectionIterObject* self)
@@ -588,6 +588,79 @@ namespace mcrfpydef {
 			return NULL;
 		}
 		// build a Python version of item at self->data[index]
+        //  Copy pasted::
+        auto vec = self->data.get();
+        if (!vec)
+        {
+            PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+            return NULL;
+        }
+        while (index < 0) index += self->data->size();
+        if (index > self->data->size() - 1)
+        {
+            PyErr_SetString(PyExc_IndexError, "UICollection index out of range");
+            return NULL;
+        }
+        auto target = (*vec)[index];
+        // TODO build PyObject* of the correct UIDrawable subclass to return
+        //return py_instance(target);
+        /*
+            PyTypeObject* colorType = &PyColorType;
+            PyObject* pyColor = colorType->tp_alloc(colorType, 0);
+            if (pyColor == NULL)
+            {
+                std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
+                return NULL;
+            }
+            PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
+            pyColorObj->data = std::make_shared<sf::Color>();
+            pyColorObj->data-> r = 255;
+            return (PyObject*)pyColorObj;
+        */
+
+
+
+
+
+
+    PyObject* newobj = NULL;
+    std::cout << "Instantiating object\n";
+    switch (target->derived_type())
+    {
+        case PyObjectsEnum::UIFRAME:
+        {
+            std::cout << "UIFRAME case\n" << std::flush;
+			PyUIFrameObject* o = (PyUIFrameObject*)((&PyUIFrameType)->tp_alloc(&PyUIFrameType, 0));
+            if (o)
+            {
+                std::cout << "Casting data...\n" << std::flush;
+                auto p = std::static_pointer_cast<UIFrame>(target);
+                std::cout << "casted. Assigning...\n" << std::flush;
+                //o->data = std::make_shared<UIFrame>();
+
+                o->data = p;
+                //std::cout << "assigned.\n" << std::flush;
+                auto utarget = o->data; //(UIFrame*)target.get();
+                std::cout << "Loaded data into object. " << utarget->box.getPosition().x << " " << utarget->box.getPosition().y << " " <<
+                    utarget->box.getSize().x << " " << utarget->box.getSize().y << std::endl;
+            }
+            else
+            {
+                std::cout << "Allocation failed.\n" << std::flush;
+            }
+            return (PyObject*)o;
+		}
+	}
+
+
+
+
+
+
+
+    return NULL;
+
+
 	}
 
 	static PySequenceMethods PyUICollection_sqmethods = {
@@ -605,6 +678,7 @@ namespace mcrfpydef {
 	{
 		// if not UIDrawable subclass, reject it
 		// self->data->push_back( c++ object inside o );
+        return NULL; // TODO
 	}
 
 	static PyObject* PyUICollection_remove(PyUICollectionObject* self, PyObject* o)
@@ -613,6 +687,7 @@ namespace mcrfpydef {
 		// long index = PyLong_AsLong(o);
 		// if (index >= self->data->size()) { //exception text; return -1; }
 		// release the shared pointer at self->data[index];
+        return NULL; // TODO
 	}
 
 	static PyMethodDef PyUICollection_methods[] = {
@@ -692,6 +767,16 @@ namespace mcrfpydef {
 	 * End PyUICollection defs
 	 *
 	 */
+
+
+    static PyObject* PyUIFrame_get_children(PyUIFrameObject* self, void* closure)
+    {
+        // create PyUICollection instance pointing to self->data->children
+        PyUICollectionObject* o = (PyUICollectionObject*)PyUICollectionType.tp_alloc(&PyUICollectionType, 0);
+        if (o)
+            o->data = self->data->children;
+        return (PyObject*)o;
+    }
 
 
 

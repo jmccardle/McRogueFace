@@ -131,6 +131,8 @@ PyObject* PyInit_mcrfpy()
         Py_DECREF(&mcrfpydef::PyUIFrameType);
         return NULL;
     }
+    PyModule_AddType(m, &mcrfpydef::PyUICollectionType);
+    PyModule_AddType(m, &mcrfpydef::PyUICollectionIterType);
     
 
     return m;
@@ -1124,11 +1126,21 @@ PyObject* McRFPy_API::_camFollow(PyObject* self, PyObject* args) {
 
 //McRFPy_API::_sceneUI
 PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
+    using namespace mcrfpydef;
 	const char *scene_cstr;
 	if (!PyArg_ParseTuple(args, "s", &scene_cstr)) return NULL;
 
-    auto ui = Resources::game->scene_ui("uitest");
-    if(ui) std::cout << "vector returned has size=" << ui->size() << std::endl;
-    Py_INCREF(Py_None);
-    return Py_None;
+    auto ui = Resources::game->scene_ui(scene_cstr);
+    if(!ui) 
+    {
+        PyErr_SetString(PyExc_RuntimeError, "No scene found by that name");
+        return NULL;
+    }
+    //std::cout << "vector returned has size=" << ui->size() << std::endl;
+    //Py_INCREF(Py_None);
+    //return Py_None;
+    PyUICollectionObject* o = (PyUICollectionObject*)PyUICollectionType.tp_alloc(&PyUICollectionType, 0);
+        if (o)
+            o->data = ui;
+        return (PyObject*)o;
 }
