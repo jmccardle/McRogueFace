@@ -81,9 +81,10 @@ public:
 class UISprite: public UIDrawable
 {
 public:
+    void update();
     void render(sf::Vector2f) override final;
     int texture_index, sprite_index;
-    float scale;
+    float x, y, scale;
     sf::Sprite sprite;
     PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UISprite;  };
 };
@@ -115,7 +116,60 @@ typedef struct {
 
 
 namespace mcrfpydef {
-    PyObject* py_instance(std::shared_ptr<UIDrawable> source);
+    //PyObject* py_instance(std::shared_ptr<UIDrawable> source);
+    // This function segfaults on tp_alloc for an unknown reason, but works inline with mcrfpydef:: methods.
+
+#define RET_PY_INSTANCE(target) {                       \
+switch (target->derived_type())                         \
+{                                                       \
+    case PyObjectsEnum::UIFRAME:                        \
+    {                                                   \
+        PyUIFrameObject* o = (PyUIFrameObject*)((&PyUIFrameType)->tp_alloc(&PyUIFrameType, 0)); \
+        if (o)                                          \
+        {                                               \
+            auto p = std::static_pointer_cast<UIFrame>(target); \
+            o->data = p;                                \
+            auto utarget = o->data;                     \
+        }                                               \
+        return (PyObject*)o;                            \
+    }                                                   \
+    case PyObjectsEnum::UICAPTION:                        \
+    {                                                   \
+        PyUICaptionObject* o = (PyUICaptionObject*)((&PyUICaptionType)->tp_alloc(&PyUICaptionType, 0)); \
+        if (o)                                          \
+        {                                               \
+            auto p = std::static_pointer_cast<UICaption>(target); \
+            o->data = p;                                \
+            auto utarget = o->data;                     \
+        }                                               \
+        return (PyObject*)o;                            \
+    }                                                   \
+    case PyObjectsEnum::UISPRITE:                        \
+    {                                                   \
+        PyUIFrameObject* o = (PyUIFrameObject*)((&PyUIFrameType)->tp_alloc(&PyUIFrameType, 0)); \
+        if (o)                                          \
+        {                                               \
+            auto p = std::static_pointer_cast<UIFrame>(target); \
+            o->data = p;                                \
+            auto utarget = o->data;                     \
+        }                                               \
+        return (PyObject*)o;                            \
+    }                                                   \
+    case PyObjectsEnum::UIGRID:                        \
+    {                                                   \
+        PyUIFrameObject* o = (PyUIFrameObject*)((&PyUIFrameType)->tp_alloc(&PyUIFrameType, 0)); \
+        if (o)                                          \
+        {                                               \
+            auto p = std::static_pointer_cast<UIFrame>(target); \
+            o->data = p;                                \
+            auto utarget = o->data;                     \
+        }                                               \
+        return (PyObject*)o;                            \
+    }                                                   \
+}                                                       \
+}
+// end macro definition
+
     // Color Definitions
     // struct, members, new, set_member, PyTypeObject
 
@@ -227,6 +281,250 @@ namespace mcrfpydef {
 
     /*
      *
+     * Begin template generation for PyUICaptionType
+     *
+     */
+
+    static PyObject* PyUICaption_get_float_member(PyUICaptionObject* self, void* closure)
+    {
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (member_ptr == 0)
+            return PyFloat_FromDouble(self->data->text.getPosition().x);
+        else if (member_ptr == 1)
+            return PyFloat_FromDouble(self->data->text.getPosition().y);
+        else if (member_ptr == 4)
+            return PyFloat_FromDouble(self->data->text.getOutlineThickness());
+        else if (member_ptr == 5)
+            return PyLong_FromLong(self->data->text.getCharacterSize());
+        else
+        {
+            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+            return nullptr;
+        }
+    }
+
+    static int PyUICaption_set_float_member(PyUICaptionObject* self, PyObject* value, void* closure)
+    {
+        float val;
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (PyFloat_Check(value))
+        {
+            val = PyFloat_AsDouble(value);
+        }
+        else if (PyLong_Check(value))
+        {
+            val = PyLong_AsLong(value);
+        }
+        else
+        {
+            PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
+            return -1;
+        }
+        if (member_ptr == 0) //x
+            self->data->text.setPosition(val, self->data->text.getPosition().y);
+        else if (member_ptr == 1) //y
+            self->data->text.setPosition(self->data->text.getPosition().x, val);
+        else if (member_ptr == 4) //outline
+            self->data->text.setOutlineThickness(val);
+        else if (member_ptr == 5) // character size
+            self->data->text.setCharacterSize(val);
+        return 0;
+    }
+
+    static PyObject* PyUICaption_get_color_member(PyUICaptionObject* self, void* closure)
+    {
+        // validate closure (should be impossible to be wrong, but it's thorough)
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (member_ptr != 0 && member_ptr != 1)
+        {
+            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+            return nullptr;
+        }
+        PyTypeObject* colorType = &PyColorType;
+        PyObject* pyColor = colorType->tp_alloc(colorType, 0);
+        if (pyColor == NULL)
+        {
+            std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
+            return NULL;
+        }
+        PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
+
+        // fetch correct member data
+        sf::Color color;
+        if (member_ptr == 0)
+        {
+            color = self->data->text.getFillColor();
+            //return Py_BuildValue("(iii)", color.r, color.g, color.b);
+        }
+        else if (member_ptr == 1)
+        {
+            color = self->data->text.getOutlineColor();
+            //return Py_BuildValue("(iii)", color.r, color.g, color.b);
+        }
+
+        // initialize new mcrfpy.Color instance
+        pyColorObj->data = std::make_shared<sf::Color>(color);
+        
+        return pyColor;
+    }
+
+    static int PyUICaption_set_color_member(PyUICaptionObject* self, PyObject* value, void* closure)
+    {
+        auto member_ptr = reinterpret_cast<long>(closure);
+        int r, g, b, a;
+        if (PyObject_IsInstance(value, (PyObject*)&PyColorType))
+        {
+            // get value from mcrfpy.Color instance
+            PyColorObject* color = reinterpret_cast<PyColorObject*>(value);
+            r = color->data->r;
+            g = color->data->g;
+            b = color->data->b;
+            a = color->data->a;
+        }
+        else if (!PyTuple_Check(value) || PyTuple_Size(value) < 3 || PyTuple_Size(value) > 4)
+        {
+            // reject non-Color, non-tuple value
+            PyErr_SetString(PyExc_TypeError, "Value must be a tuple of 3 or 4 integers or an mcrfpy.Color object.");
+            return -1;
+        }
+        else // get value from tuples
+        {
+            r = PyLong_AsLong(PyTuple_GetItem(value, 0));
+            g = PyLong_AsLong(PyTuple_GetItem(value, 1));
+            b = PyLong_AsLong(PyTuple_GetItem(value, 2));
+            a = 255;
+
+            if (PyTuple_Size(value) == 4)
+            {
+                a = PyLong_AsLong(PyTuple_GetItem(value, 3));
+            }
+        }
+
+        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
+        {
+            PyErr_SetString(PyExc_ValueError, "Color values must be between 0 and 255.");
+            return -1;
+        }
+
+        if (member_ptr == 0)
+        {
+            self->data->text.setFillColor(sf::Color(r, g, b, a));
+        }
+        else if (member_ptr == 1)
+        {
+            self->data->text.setOutlineColor(sf::Color(r, g, b, a));
+        }
+        else
+        {
+            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+            return -1;
+        }
+
+        return 0;
+    }
+
+    static PyObject* PyUICaption_get_text(PyUICaptionObject* self, void* closure)
+    {
+        return PyUnicode_FromString("Test String, Please Ignore");
+    }
+
+    static int PyUICaption_set_text(PyUICaptionObject* self, PyObject* value, void* closure)
+    {
+        return 0;
+    }
+
+    static PyGetSetDef PyUICaption_getsetters[] = {
+        {"x", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "X coordinate of top-left corner",   (void*)0},
+        {"y", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "Y coordinate of top-left corner",   (void*)1},
+        //{"w", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "width of the rectangle",   (void*)2},
+        //{"h", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "height of the rectangle",   (void*)3},
+        {"outline", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "Thickness of the border",   (void*)4},
+        {"fill_color", (getter)PyUICaption_get_color_member, (setter)PyUICaption_set_color_member, "Fill color of the text", (void*)0},
+        {"outline_color", (getter)PyUICaption_get_color_member, (setter)PyUICaption_set_color_member, "Outline color of the text", (void*)1},
+        //{"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
+        {"text", (getter)PyUICaption_get_text, (setter)PyUICaption_set_text, "The text displayed", NULL},
+        {"size", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "Text size (integer) in points", (void*)5},
+        {NULL}
+    };
+
+    static PyObject* PyUICaption_repr(PyUICaptionObject* self)
+    {
+        std::ostringstream ss;
+        if (!self->data) ss << "<Frame (invalid internal object)>";
+        else {
+            auto text = self->data->text;
+            auto fc = text.getFillColor();
+            auto oc = text.getOutlineColor();
+            ss << "<Caption (x=" << text.getPosition().x << ", y=" << text.getPosition().y << ", " <<
+                "text='" << (std::string)text.getString() << "', " <<
+                "outline=" << text.getOutlineThickness() << ", " <<
+                "fill_color=(" << (int)fc.r << ", " << (int)fc.g << ", " << (int)fc.b << ", " << (int)fc.a <<"), " <<
+                "outlinecolor=(" << (int)oc.r << ", " << (int)oc.g << ", " << (int)oc.b << ", " << (int)oc.a <<"), " <<
+                ")>";
+        }
+        std::string repr_str = ss.str();
+        return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+    }
+
+    static int PyUICaption_init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
+    {
+        //std::cout << "Init called\n";
+        static const char* keywords[] = { "x", "y", "text", nullptr };
+        float x = 0.0f, y = 0.0f;
+        char* text;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffz", const_cast<char**>(keywords), &x, &y, &text))
+        {
+            return -1;
+        }
+
+        //self->data->x = x;
+        //self->data->y = y;
+        self->data->text.setFillColor(sf::Color(0,0,0,255));
+        self->data->text.setOutlineColor(sf::Color(128,128,128,255));
+
+        return 0;
+    }
+
+    static PyTypeObject PyUICaptionType = {
+        //PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "mcrfpy.Caption",
+        .tp_basicsize = sizeof(PyUICaptionObject),
+        .tp_itemsize = 0,
+        .tp_dealloc = (destructor)[](PyObject* self)
+        {
+            PyUICaptionObject* obj = (PyUICaptionObject*)self;
+            obj->data.reset();
+            Py_TYPE(self)->tp_free(self);
+        },
+        .tp_repr = (reprfunc)PyUICaption_repr,
+        //.tp_hash = NULL,
+        //.tp_iter
+        //.tp_iternext
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR("docstring"),
+        //.tp_methods = PyUIFrame_methods,
+        //.tp_members = PyUIFrame_members,
+        .tp_getset = PyUICaption_getsetters,
+        //.tp_base = NULL,
+        .tp_init = (initproc)PyUICaption_init,
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            PyUICaptionObject* self = (PyUICaptionObject*)type->tp_alloc(type, 0);
+            if (self) self->data = std::make_shared<UICaption>();
+            return (PyObject*)self;
+        }
+    };
+
+    /*
+     *
+     * End PyUICaptionType generation
+     *
+     */
+
+
+    /*
+     *
      * Begin template generation for PyUIFrameType
      *
      */
@@ -330,6 +628,7 @@ namespace mcrfpydef {
             g = color->data->g;
             b = color->data->b;
             a = color->data->a;
+            std::cout << "using color: " << r << " " << g << " " << b << " " << a << std::endl;
         }
         else if (!PyTuple_Check(value) || PyTuple_Size(value) < 3 || PyTuple_Size(value) > 4)
         {
@@ -522,7 +821,8 @@ namespace mcrfpydef {
         }
         auto target = (*vec)[self->index-1];
         // TODO build PyObject* of the correct UIDrawable subclass to return
-        return py_instance(target);
+        //return py_instance(target);
+        return NULL;
     }
 
 	static PyObject* PyUICollectionIter_repr(PyUICollectionIterObject* self)
@@ -582,11 +882,6 @@ namespace mcrfpydef {
 	}
 
 	static PyObject* PyUICollection_getitem(PyUICollectionObject* self, Py_ssize_t index) {
-		if (index >= self->data->size())
-		{
-			// set exception text
-			return NULL;
-		}
 		// build a Python version of item at self->data[index]
         //  Copy pasted::
         auto vec = self->data.get();
@@ -602,27 +897,11 @@ namespace mcrfpydef {
             return NULL;
         }
         auto target = (*vec)[index];
-        // TODO build PyObject* of the correct UIDrawable subclass to return
-        //return py_instance(target);
-        /*
-            PyTypeObject* colorType = &PyColorType;
-            PyObject* pyColor = colorType->tp_alloc(colorType, 0);
-            if (pyColor == NULL)
-            {
-                std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
-                return NULL;
-            }
-            PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
-            pyColorObj->data = std::make_shared<sf::Color>();
-            pyColorObj->data-> r = 255;
-            return (PyObject*)pyColorObj;
-        */
+        RET_PY_INSTANCE(target);
 
+    // copy-pasted object determination & instantiation
 
-
-
-
-
+    /*
     PyObject* newobj = NULL;
     std::cout << "Instantiating object\n";
     switch (target->derived_type())
@@ -651,7 +930,7 @@ namespace mcrfpydef {
             return (PyObject*)o;
 		}
 	}
-
+    */
 
 
 

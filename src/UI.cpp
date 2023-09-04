@@ -84,6 +84,16 @@ void UICaption::render(sf::Vector2f offset)
     text.move(-offset);
 }
 
+void UISprite::update()
+{
+    auto& tex = Resources::game->textures[texture_index];
+    sprite.setTexture(tex.texture);
+    sprite.setScale(sf::Vector2f(scale, scale));
+    sprite.setPosition(sf::Vector2f(x, y));
+    //std::cout << "Drawable position: " << x << ", " << y << " -> " << s.getPosition().x << ", " << s.getPosition().y << std::endl;
+    sprite.setTextureRect(tex.spriteCoordinates(sprite_index));
+}
+
 void UISprite::render(sf::Vector2f offset)
 {
     sprite.move(offset);
@@ -101,23 +111,10 @@ PyObjectsEnum UISprite::derived_type()
     return PyObjectsEnum::UISPRITE;
 }
 
-PyObject* mcrfpydef::py_instance(std::shared_ptr<UIDrawable> source)
+PyObject* DEFUNCT_py_instance(std::shared_ptr<UIDrawable> source)
 {
     // takes a UI drawable, calls its derived_type virtual function, and builds a Python object based on the return value.
-    //using namespace mcrfpydef;
-
-PyTypeObject* colorType = &PyColorType;
-            PyObject* pyColor = colorType->tp_alloc(colorType, 0);
-            if (pyColor == NULL)
-            {
-                std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
-                return NULL;
-            }
-            PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
-            pyColorObj->data = std::make_shared<sf::Color>();
-            pyColorObj->data-> r = 255;
-            return (PyObject*)pyColorObj;
-
+    using namespace mcrfpydef;
 
     PyObject* newobj = NULL; 
     std::cout << "py_instance called\n";

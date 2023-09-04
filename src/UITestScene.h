@@ -12,6 +12,7 @@ class UITestScene: public Scene
     //UIFrame e1, e1a, e1aa;
     //UICaption e2;
     //std::vector<UIDrawable*> ui_elements;
+    sf::Texture t;
 
 public:
     UITestScene(GameEngine*);

@@ -124,6 +124,7 @@ PyObject* PyInit_mcrfpy()
     //std::cout << "Adding UIFrame object to module\n";
     PyModule_AddType(m, &mcrfpydef::PyColorType);
     
+    PyModule_AddType(m, &mcrfpydef::PyUICaptionType);
      
     if (PyModule_AddType(m, &mcrfpydef::PyUIFrameType) < 0)
     {
@@ -133,6 +134,7 @@ PyObject* PyInit_mcrfpy()
     }
     PyModule_AddType(m, &mcrfpydef::PyUICollectionType);
     PyModule_AddType(m, &mcrfpydef::PyUICollectionIterType);
+
     
 
     return m;

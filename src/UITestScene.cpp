@@ -58,7 +58,21 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     ui_elements->push_back(e2);
     //ui_elements.push_back(&e1);
     //ui_elements.push_back(&e2);
-   
+
+    t.loadFromFile("./assets/kenney_tinydungeon.png");
+    t.setSmooth(false);
+    auto indextex = IndexTexture(t, 16, 12, 11);
+    Resources::game->textures.push_back(indextex);
+
+    //std::cout << Resources::game->textures.size() << " textures loaded.\n";
+    auto e3 = std::make_shared<UISprite>();
+    e3->x = 10; e3->y = 10;
+    e3->texture_index = 0;
+    e3->sprite_index = 84;
+    e3->scale = 4.0f;
+    e3->update();
+
+    e1aa->children->push_back(e3); 
     /*
     // note - you can't use the pointer to UI elements in constructor.
     // The scene map is still being assigned to, so this object can't be looked up. 
