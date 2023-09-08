@@ -107,6 +107,7 @@ typedef struct {
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UICaption> data;
+    PyObject* font;
 } PyUICaptionObject;
 
 typedef struct {
@@ -517,17 +518,41 @@ switch (target->derived_type())                         \
     static int PyUICaption_init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     {
         //std::cout << "Init called\n";
-        static const char* keywords[] = { "x", "y", "text", nullptr };
+        static const char* keywords[] = { "x", "y", "text", "font", "fill_color", "outline_color", nullptr };
         float x = 0.0f, y = 0.0f;
         char* text;
+        PyObject* font, fill_color, outline_color;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffz", const_cast<char**>(keywords), &x, &y, &text))
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOO", 
+            const_cast<char**>(keywords), &x, &y, &text, &font, &fill_color, &outline_color))
         {
             return -1;
         }
 
-        //self->data->x = x;
-        //self->data->y = y;
+        // check types for font, fill_color, outline_color
+        //
+        // Set Font
+        //
+        if (font != NULL && !PyObject_IsInstance(font, (PyObject*)&PyFontType)){
+            PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance");
+            return -1;
+        } else if (font != NULL)
+        {
+            auto font_obj = (PyFontObject*)font;
+            self->data->text.setFont(*font_obj->data);
+            self->font = font;
+            Py_INCREF(font);
+        } else
+        {
+            // default font
+            //self->data->text.setFont(Resources::game->getFont());
+        }
+
+        //
+        // Set Color
+        //
+        self->data->text.setPosition(sf::Vector2f(x, y));
+        self->data->text.setString((std::string)text);
         self->data->text.setFillColor(sf::Color(0,0,0,255));
         self->data->text.setOutlineColor(sf::Color(128,128,128,255));
 
@@ -542,6 +567,8 @@ switch (target->derived_type())                         \
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUICaptionObject* obj = (PyUICaptionObject*)self;
+            // release reference to font object
+            if (obj->font) Py_DECREF(obj->font);
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
