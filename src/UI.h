@@ -194,6 +194,54 @@ switch (target->derived_type())                         \
         std::shared_ptr<UISprite> data;
     } PyUISpriteObject;
     */
+
+    /*
+     *
+     * Begin PyFontType defs
+     *
+     */
+
+    typedef struct {
+        PyObject_HEAD
+        std::shared_ptr<sf::Font> data;
+    } PyFontObject;
+
+    static int PyFont_init(PyFontObject* self, PyObject* args, PyObject* kwds)
+    {
+        //std::cout << "Init called\n";
+        static const char* keywords[] = { "filename", nullptr };
+        char* filename;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", const_cast<char**>(keywords), &filename))
+        {
+            return -1;
+        }
+        self->data->loadFromFile((std::string)filename);
+        return 0;
+    }
+
+     static PyTypeObject PyFontType = {
+        //PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "mcrfpy.Font",
+        .tp_basicsize = sizeof(PyFontObject),
+        .tp_itemsize = 0,
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR("SFML Font Object"),
+        .tp_init = (initproc)PyFont_init,
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            PyFontObject* self = (PyFontObject*)type->tp_alloc(type, 0);
+            self->data = std::make_shared<sf::Font>();
+            return (PyObject*)self;
+        }
+    };
+
+    /*
+     *
+     * End PyFontType defs
+     *
+     */
+
     
     static PyObject* PyColor_get_member(PyColorObject* self, void* closure)
     {

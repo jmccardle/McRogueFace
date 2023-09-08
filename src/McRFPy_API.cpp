@@ -123,7 +123,7 @@ PyObject* PyInit_mcrfpy()
     // This code runs, but Python segfaults when accessing the UIFrame type.
     //std::cout << "Adding UIFrame object to module\n";
     PyModule_AddType(m, &mcrfpydef::PyColorType);
-    
+    PyModule_AddType(m, &mcrfpydef::PyFontType);
     PyModule_AddType(m, &mcrfpydef::PyUICaptionType);
      
     if (PyModule_AddType(m, &mcrfpydef::PyUIFrameType) < 0)
