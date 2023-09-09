@@ -1062,11 +1062,27 @@ switch (target->derived_type())                         \
 
 	static PyObject* PyUICollection_remove(PyUICollectionObject* self, PyObject* o)
 	{
-		// if (!PyLong_Check(o)) { //exception text; return -1; }
-		// long index = PyLong_AsLong(o);
-		// if (index >= self->data->size()) { //exception text; return -1; }
+		if (!PyLong_Check(o))
+        {
+            PyErr_SetString(PyExc_TypeError, "UICollection.remove requires an integer index to remove");
+            return NULL;
+        }
+		long index = PyLong_AsLong(o);
+		if (index >= self->data->size())
+        {
+            PyErr_SetString(PyExc_ValueError, "Index out of range");
+            return NULL;
+        }
+        else if (index < 0)
+        {
+            PyErr_SetString(PyExc_NotImplementedError, "reverse indexing is not implemented.");
+            return NULL;
+        }
+
 		// release the shared pointer at self->data[index];
-        return NULL; // TODO
+        self->data->erase(self->data->begin() + index);
+        Py_INCREF(Py_None);
+        return Py_None;
 	}
 
 	static PyMethodDef PyUICollection_methods[] = {
