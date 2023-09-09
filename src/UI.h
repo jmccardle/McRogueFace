@@ -1032,7 +1032,32 @@ switch (target->derived_type())                         \
 	{
 		// if not UIDrawable subclass, reject it
 		// self->data->push_back( c++ object inside o );
-        return NULL; // TODO
+
+        // this would be a great use case for .tp_base
+        if (!PyObject_IsInstance(o, (PyObject*)&PyUIFrameType) &&
+            //!PyObject_IsInstance(o, (PyObject*)&PyUISpriteType) &&
+            !PyObject_IsInstance(o, (PyObject*)&PyUICaptionType))
+        {
+            PyErr_SetString(PyExc_TypeError, "Only Frame, Caption, Sprite, and Grid objects can be added to UICollection");
+            return NULL;
+        }
+
+        if (PyObject_IsInstance(o, (PyObject*)&PyUIFrameType))
+        {
+            PyUIFrameObject* frame = (PyUIFrameObject*)o;
+            self->data->push_back(frame->data);
+        }
+        if (PyObject_IsInstance(o, (PyObject*)&PyUICaptionType))
+        {
+            PyUICaptionObject* caption = (PyUICaptionObject*)o;
+            self->data->push_back(caption->data);
+        }
+        //if (PyObject_IsInstance(o, (PyObject*)&PyUISpriteType))
+        //{
+        //}
+
+        Py_INCREF(Py_None);
+        return Py_None;
 	}
 
 	static PyObject* PyUICollection_remove(PyUICollectionObject* self, PyObject* o)
