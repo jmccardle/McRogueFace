@@ -125,6 +125,7 @@ PyObject* PyInit_mcrfpy()
     PyModule_AddType(m, &mcrfpydef::PyColorType);
     PyModule_AddType(m, &mcrfpydef::PyFontType);
     PyModule_AddType(m, &mcrfpydef::PyUICaptionType);
+    PyModule_AddType(m, &mcrfpydef::PyTextureType);
      
     if (PyModule_AddType(m, &mcrfpydef::PyUIFrameType) < 0)
     {

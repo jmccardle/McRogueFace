@@ -84,21 +84,56 @@ void UICaption::render(sf::Vector2f offset)
     text.move(-offset);
 }
 
-void UISprite::update()
+UISprite::UISprite() {}
+
+UISprite::UISprite(IndexTexture* _itex, int _sprite_index, float x = 0.0, float y = 0.0, float s = 1.0)
+: itex(_itex), sprite_index(_sprite_index)
 {
-    auto& tex = Resources::game->textures[texture_index];
-    sprite.setTexture(tex.texture);
-    sprite.setScale(sf::Vector2f(scale, scale));
+    sprite.setTexture(_itex->texture);
+    sprite.setTextureRect(_itex->spriteCoordinates(_sprite_index));
     sprite.setPosition(sf::Vector2f(x, y));
-    //std::cout << "Drawable position: " << x << ", " << y << " -> " << s.getPosition().x << ", " << s.getPosition().y << std::endl;
-    sprite.setTextureRect(tex.spriteCoordinates(sprite_index));
+    sprite.setScale(sf::Vector2f(s, s));
 }
+
+UISprite::UISprite(IndexTexture* _itex, int _sprite_index, sf::Vector2f pos, float s = 1.0)
+: itex(_itex), sprite_index(_sprite_index)
+{
+    sprite.setTexture(_itex->texture);
+    sprite.setTextureRect(_itex->spriteCoordinates(_sprite_index));
+    sprite.setPosition(pos);
+    sprite.setScale(sf::Vector2f(s, s));
+}
+
+//void UISprite::update()
+//{
+    //auto& tex = Resources::game->textures[texture_index];
+    //sprite.setTexture(tex.texture);
+    //sprite.setScale(sf::Vector2f(scale, scale));
+    //sprite.setPosition(sf::Vector2f(x, y));
+    //std::cout << "Drawable position: " << x << ", " << y << " -> " << s.getPosition().x << ", " << s.getPosition().y << std::endl;
+    //sprite.setTextureRect(tex.spriteCoordinates(sprite_index));
+//}
 
 void UISprite::render(sf::Vector2f offset)
 {
     sprite.move(offset);
     Resources::game->getWindow().draw(sprite);
     sprite.move(-offset);
+}
+
+void UISprite::setPosition(float x, float y)
+{
+    setPosition(sf::Vector2f(x, y));
+}
+
+void UISprite::setPosition(sf::Vector2f pos)
+{
+    sprite.setPosition(pos);
+}
+
+void UISprite::setScale(float s)
+{
+    sprite.setScale(sf::Vector2f(s, s));
 }
 
 PyObjectsEnum UICaption::derived_type()

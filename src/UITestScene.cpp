@@ -61,18 +61,40 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
 
     t.loadFromFile("./assets/kenney_tinydungeon.png");
     t.setSmooth(false);
-    auto indextex = IndexTexture(t, 16, 12, 11);
-    Resources::game->textures.push_back(indextex);
+    auto* indextex = new IndexTexture(t, 16, 12, 11);
+    Resources::game->textures.push_back(*indextex);
+
+
 
     //std::cout << Resources::game->textures.size() << " textures loaded.\n";
     auto e3 = std::make_shared<UISprite>();
-    e3->x = 10; e3->y = 10;
-    e3->texture_index = 0;
-    e3->sprite_index = 84;
-    e3->scale = 4.0f;
-    e3->update();
 
-    e1aa->children->push_back(e3); 
+    // Make UISprite more like IndexSprite: this is bad
+    //e3->x = 10; e3->y = 10;
+    //e3->texture_index = 0;
+    //e3->sprite_index = 84;
+    //e3->scale = 4.0f;
+    //e3->update();
+
+    // This goes to show how inconvenient the default constructor is. It should be removed
+    e3->itex = &Resources::game->textures[0];
+    e3->sprite.setTexture(e3->itex->texture);
+    e3->sprite_index = 84;
+    e3->sprite.setTextureRect(e3->itex->spriteCoordinates(e3->sprite_index));
+    e3->setPosition(10, 10);
+    e3->setScale(4.0f);
+
+    e1aa->children->push_back(e3);
+
+
+
+    auto e4 = std::make_shared<UISprite>(
+            indextex, //&Resources::game->textures[0],
+            85, sf::Vector2f(90, 10), 4.0);
+    e1aa->children->push_back(e4);
+    //std::cout << "UISprite built: " << e4->sprite.getPosition().x << " " << e4->sprite.getPosition().y << " " << e4->sprite.getScale().x << " " <<
+    //    e4->sprite_index << " " << std::endl;
+
     /*
     // note - you can't use the pointer to UI elements in constructor.
     // The scene map is still being assigned to, so this object can't be looked up. 

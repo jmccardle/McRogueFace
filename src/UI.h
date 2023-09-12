@@ -2,6 +2,7 @@
 #include "Common.h"
 #include "Python.h"
 #include "structmember.h"
+#include "IndexTexture.h"
 
 enum PyObjectsEnum
 {
@@ -81,11 +82,18 @@ public:
 class UISprite: public UIDrawable
 {
 public:
+    UISprite();
+    UISprite(IndexTexture*, int, float, float, float);
+    UISprite(IndexTexture*, int, sf::Vector2f, float);
     void update();
     void render(sf::Vector2f) override final;
-    int texture_index, sprite_index;
-    float x, y, scale;
+    int /*texture_index,*/ sprite_index;
+    IndexTexture* itex;
+    //float x, y, scale;
     sf::Sprite sprite;
+    void setPosition(float, float);
+    void setPosition(sf::Vector2f);
+    void setScale(float);
     PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UISprite;  };
 };
 
@@ -113,6 +121,7 @@ typedef struct {
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UISprite> data;
+    PyObject* texture;
 } PyUISpriteObject;
 
 
@@ -243,7 +252,7 @@ switch (target->derived_type())                         \
      *
      */
 
-    
+
     static PyObject* PyColor_get_member(PyColorObject* self, void* closure)
     {
         auto member_ptr = reinterpret_cast<long>(closure);
@@ -855,6 +864,56 @@ switch (target->derived_type())                         \
      * End Python Class Instantitator (iterator helper)
      *
      */
+
+    /*
+     *
+     * Begin PyTextureType defs
+     *
+     */
+
+    typedef struct {
+        PyObject_HEAD
+        std::shared_ptr<IndexTexture> data;
+    } PyTextureObject;
+
+    static int PyTexture_init(PyTextureObject* self, PyObject* args, PyObject* kwds)
+    {
+        //std::cout << "Init called\n";
+        static const char* keywords[] = { "filename", "grid_size", "grid_width", "grid_height", nullptr };
+        char* filename;
+        int grid_size, grid_width, grid_height;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "siii", const_cast<char**>(keywords), &filename, &grid_size, &grid_width, &grid_height))
+        {
+            return -1;
+        }
+        sf::Texture t = sf::Texture();
+        t.loadFromFile((std::string)filename);
+        self->data = std::make_shared<IndexTexture>(t, grid_size, grid_width, grid_height);
+        return 0;
+    }
+
+     static PyTypeObject PyTextureType = {
+        //PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "mcrfpy.Texture",
+        .tp_basicsize = sizeof(PyTextureObject),
+        .tp_itemsize = 0,
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR("SFML Texture Object"),
+        .tp_init = (initproc)PyTexture_init,
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            PyTextureObject* self = (PyTextureObject*)type->tp_alloc(type, 0);
+            return (PyObject*)self;
+        }
+    };
+
+    /*
+     *
+     * End PyTextureType defs
+     *
+     */
+
 
     /*
      *
