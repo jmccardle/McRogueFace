@@ -488,6 +488,7 @@ switch (target->derived_type())                         \
 
     static int PyUICaption_set_text(PyUICaptionObject* self, PyObject* value, void* closure)
     {
+        // asdf
         return 0;
     }
 
@@ -914,6 +915,191 @@ switch (target->derived_type())                         \
      *
      */
 
+    /*
+     *
+     * Begin template generation for PyUISpriteType
+     *
+     */
+
+    static PyObject* PyUISprite_get_float_member(PyUISpriteObject* self, void* closure)
+    {
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (member_ptr == 0)
+            return PyFloat_FromDouble(self->data->sprite.getPosition().x);
+        else if (member_ptr == 1)
+            return PyFloat_FromDouble(self->data->sprite.getPosition().y);
+        else if (member_ptr == 2)
+            return PyFloat_FromDouble(self->data->sprite.getScale().x); // scale X and Y are identical, presently
+        else
+        {
+            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+            return nullptr;
+        }
+    }
+
+
+    static int PyUISprite_set_float_member(PyUISpriteObject* self, PyObject* value, void* closure)
+    {
+        float val;
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (PyFloat_Check(value))
+        {
+            val = PyFloat_AsDouble(value);
+        }
+        else if (PyLong_Check(value))
+        {
+            val = PyLong_AsLong(value);
+        }
+        else
+        {
+            PyErr_SetString(PyExc_TypeError, "Value must be a floating point number.");
+            return -1;
+        }
+        if (member_ptr == 0) //x
+            self->data->sprite.setPosition(val, self->data->sprite.getPosition().y);
+        else if (member_ptr == 1) //y
+            self->data->sprite.setPosition(self->data->sprite.getPosition().x, val);
+        else if (member_ptr == 2) // scale
+            self->data->sprite.setScale(sf::Vector2f(val, val));
+        return 0;
+    }
+    
+    static PyObject* PyUISprite_get_int_member(PyUISpriteObject* self, void* closure)
+    {
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (false) {}
+        else
+        {
+            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+            return nullptr;
+        }
+        
+        return PyLong_FromDouble(self->data->sprite_index);
+    }
+
+
+    static int PyUISprite_set_int_member(PyUISpriteObject* self, PyObject* value, void* closure)
+    {
+        int val;
+        auto member_ptr = reinterpret_cast<long>(closure);
+        if (PyLong_Check(value))
+        {
+            val = PyLong_AsLong(value);
+        }
+        else
+        {
+            PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
+            return -1;
+        }
+        self->data->sprite_index = val;
+        return 0;
+    }
+    
+    static PyObject* PyUISprite_get_texture(PyUISpriteObject* self, void* closure)
+    {
+        return NULL;
+    }
+    
+    static int PyUISprite_set_texture(PyUISpriteObject* self, PyObject* value, void* closure)
+    {
+        return -1;
+    }
+
+    static PyGetSetDef PyUISprite_getsetters[] = {
+        {"x", (getter)PyUISprite_get_float_member, (setter)PyUISprite_set_float_member, "X coordinate of top-left corner",   (void*)0},
+        {"y", (getter)PyUISprite_get_float_member, (setter)PyUISprite_set_float_member, "Y coordinate of top-left corner",   (void*)1},
+        {"scale", (getter)PyUISprite_get_float_member, (setter)PyUISprite_set_float_member, "Size factor",                   (void*)2},
+        {"sprite_number", (getter)PyUISprite_get_int_member, (setter)PyUISprite_set_int_member, "Which sprite on the texture is shown", NULL},
+        {"texture", (getter)PyUISprite_get_texture, (setter)PyUISprite_set_texture,     "Texture object",                    NULL},
+        {NULL}
+    };
+    
+    static PyObject* PyUISprite_repr(PyUISpriteObject* self)
+    {
+        std::ostringstream ss;
+        if (!self->data) ss << "<Sprite (invalid internal object)>";
+        else {
+            auto sprite = self->data->sprite;
+            ss << "<Sprite (x=" << sprite.getPosition().x << ", y=" << sprite.getPosition().y << ", " <<
+                "sprite='" << self->data->sprite_index <<
+                ")>";
+        }
+        std::string repr_str = ss.str();
+        return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+    }
+
+    static int PyUISprite_init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
+    {
+        //std::cout << "Init called\n";
+        static const char* keywords[] = { "x", "y", "texture", "sprite_index", "scale", nullptr };
+        float x = 0.0f, y = 0.0f, scale = 1.0f;
+        int sprite_index;
+        PyObject* texture;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffOif",
+            const_cast<char**>(keywords), &x, &y, &texture, &sprite_index, &scale))
+        {
+            return -1;
+        }
+
+        // check types for texture
+        //
+        // Set Texture
+        //
+        if (texture != NULL && !PyObject_IsInstance(texture, (PyObject*)&PyTextureType)){
+            PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
+            return -1;
+        } else if (texture != NULL)
+        {   
+            self->texture = texture;
+            Py_INCREF(texture);
+        } else
+        {
+            // default tex?
+        }
+        auto pytexture = (PyTextureObject*)texture;
+        self->data = std::make_shared<UISprite>(pytexture->data.get(), sprite_index, sf::Vector2f(x, y), scale);
+        self->data->sprite.setPosition(sf::Vector2f(x, y));
+
+        return 0;
+    }
+    
+    static PyTypeObject PyUISpriteType = {
+        //PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "mcrfpy.Sprite",
+        .tp_basicsize = sizeof(PyUISpriteObject),
+        .tp_itemsize = 0,
+        .tp_dealloc = (destructor)[](PyObject* self)
+        {
+            PyUISpriteObject* obj = (PyUISpriteObject*)self;
+            // release reference to font object
+            if (obj->texture) Py_DECREF(obj->texture);
+            obj->data.reset();
+            Py_TYPE(self)->tp_free(self);
+        },
+        .tp_repr = (reprfunc)PyUISprite_repr,
+        //.tp_hash = NULL,
+        //.tp_iter
+        //.tp_iternext
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR("docstring"),
+        //.tp_methods = PyUIFrame_methods,
+        //.tp_members = PyUIFrame_members,
+        .tp_getset = PyUISprite_getsetters,
+        //.tp_base = NULL,
+        .tp_init = (initproc)PyUISprite_init,
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            PyUISpriteObject* self = (PyUISpriteObject*)type->tp_alloc(type, 0);
+            //if (self) self->data = std::make_shared<UICaption>();
+            return (PyObject*)self;
+        }
+    }; 
+    /*
+     *
+     * End template for PyUISpriteType
+     *
+     */
 
     /*
      *
