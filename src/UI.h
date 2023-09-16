@@ -156,10 +156,10 @@ switch (target->derived_type())                         \
     }                                                   \
     case PyObjectsEnum::UISPRITE:                        \
     {                                                   \
-        PyUIFrameObject* o = (PyUIFrameObject*)((&PyUIFrameType)->tp_alloc(&PyUIFrameType, 0)); \
+        PyUISpriteObject* o = (PyUISpriteObject*)((&PyUISpriteType)->tp_alloc(&PyUISpriteType, 0)); \
         if (o)                                          \
         {                                               \
-            auto p = std::static_pointer_cast<UIFrame>(target); \
+            auto p = std::static_pointer_cast<UISprite>(target); \
             o->data = p;                                \
             auto utarget = o->data;                     \
         }                                               \
@@ -967,7 +967,7 @@ switch (target->derived_type())                         \
     static PyObject* PyUISprite_get_int_member(PyUISpriteObject* self, void* closure)
     {
         auto member_ptr = reinterpret_cast<long>(closure);
-        if (false) {}
+        if (true) {}
         else
         {
             PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
@@ -992,6 +992,7 @@ switch (target->derived_type())                         \
             return -1;
         }
         self->data->sprite_index = val;
+        self->data->sprite.setTextureRect(self->data->itex->spriteCoordinates(val));
         return 0;
     }
     
@@ -1021,8 +1022,8 @@ switch (target->derived_type())                         \
         else {
             auto sprite = self->data->sprite;
             ss << "<Sprite (x=" << sprite.getPosition().x << ", y=" << sprite.getPosition().y << ", " <<
-                "sprite='" << self->data->sprite_index <<
-                ")>";
+                "scale=" << sprite.getScale().x << ", " <<
+                "sprite_number=" << self->data->sprite_index << ")>";
         }
         std::string repr_str = ss.str();
         return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
