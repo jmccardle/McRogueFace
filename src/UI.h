@@ -1281,8 +1281,10 @@ switch (target->derived_type())                         \
 
         // this would be a great use case for .tp_base
         if (!PyObject_IsInstance(o, (PyObject*)&PyUIFrameType) &&
-            //!PyObject_IsInstance(o, (PyObject*)&PyUISpriteType) &&
-            !PyObject_IsInstance(o, (PyObject*)&PyUICaptionType))
+            !PyObject_IsInstance(o, (PyObject*)&PyUISpriteType) &&
+            !PyObject_IsInstance(o, (PyObject*)&PyUICaptionType) // &&
+            //!PyObject_IsInstance(o, (PyObject*)&PyUIGridType)
+            )
         {
             PyErr_SetString(PyExc_TypeError, "Only Frame, Caption, Sprite, and Grid objects can be added to UICollection");
             return NULL;
@@ -1298,9 +1300,11 @@ switch (target->derived_type())                         \
             PyUICaptionObject* caption = (PyUICaptionObject*)o;
             self->data->push_back(caption->data);
         }
-        //if (PyObject_IsInstance(o, (PyObject*)&PyUISpriteType))
-        //{
-        //}
+        if (PyObject_IsInstance(o, (PyObject*)&PyUISpriteType))
+        {
+            PyUISpriteObject* sprite = (PyUISpriteObject*)o;
+            self->data->push_back(sprite->data);
+        }
 
         Py_INCREF(Py_None);
         return Py_None;
