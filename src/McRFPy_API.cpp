@@ -162,7 +162,7 @@ PyStatus init_python(const char *program_name)
 	config.dev_mode = 0;
 
 	PyConfig_SetBytesString(&config, &config.home, 
-        narrow_string(executable_path() + L"/Python311").c_str());
+        narrow_string(executable_path() + L"/lib/Python").c_str());
 
     status = PyConfig_SetBytesString(&config, &config.program_name,
                                      program_name);
@@ -174,10 +174,10 @@ PyStatus init_python(const char *program_name)
 	// search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/Python311/lib.linux-x86_64-3.11",
-	    L"/Python311",
-        L"/Python311/Lib",
-        L"/venv/lib/python3.11/site-packages"
+        L"/lib/Python/lib.linux-x86_64-3.12",
+	    L"/lib/Python",
+        L"/lib/Python/Lib",
+        L"/venv/lib/python3.12/site-packages"
     };
     
 

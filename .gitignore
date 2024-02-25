@@ -6,4 +6,7 @@ bin
 PCbuild
 .vs
 obj
+build
+lib
+obj
 
