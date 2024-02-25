@@ -1,0 +1,15 @@
+[submodule "modules/imgui"]
+	path = modules/imgui
+	url = git@github.com:SFML/imgui-sfml.git
+[submodule "modules/imgui-sfml"]
+	path = modules/imgui-sfml
+	url = git@github.com:SFML/imgui-sfml.git
+[submodule "modules/cpython"]
+	path = modules/cpython
+	url = git@github.com:python/cpython.git
+[submodule "modules/SFML"]
+	path = modules/SFML
+	url = git@github.com:SFML/SFML.git
+[submodule "modules/libtcod"]
+	path = modules/libtcod
+	url = git@github.com:libtcod/libtcod.git

@@ -1,3 +1,9 @@
+# About McRogueFace Engine
+
+This software is distributed on Github and other git repos for review & discussion purposes. This engine was made in preparation and during the 2023 7 Day Roguelike game jam. It's not production ready. I don't want to support this buggy version of the software - do not create derivative works, modify, or redistribute this git repo. Not that you'd actually want to: take a close look at the code and you'll quickly find reasons not to depend on the codebase in its present state.
+
+I expect to release the engine under BSD, MIT, or similar license after overhauling my technical debt incurred during the game jam. see JANKFILE.md for outstanding issues.
+
 # Software Licenses
 
 ## Dependencies included in this repo
