@@ -17,10 +17,6 @@ include_directories(${CMAKE_SOURCE_DIR}/deps/libtcod)
 include_directories(${CMAKE_SOURCE_DIR}/deps/cpython)
 include_directories(${CMAKE_SOURCE_DIR}/deps/Python)
 
-# TODO: Move this into the WIN32 if block below (as 'else')
-#include_directories(${CMAKE_SOURCE_DIR}/platform/linux)
-include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
-
 # Collect all the source files
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
@@ -43,6 +39,9 @@ if(WIN32)
     # include_directories(path_to_additional_includes)
     # link_directories(path_to_additional_libs)
     # list(APPEND LINK_LIBS additional_windows_libs)
+    include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
+else()
+    include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
 endif()
 
 # Add the directory where the linker should look for the libraries
