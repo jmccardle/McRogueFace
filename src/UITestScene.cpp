@@ -101,6 +101,16 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     if (ui)
     std::cout << "pointer to ui_elements now shows size=" << ui->size() << std::endl;
     */
+
+    // UIGrid test:               (in grid cells)      (in screen pixels)
+    //              constructor args:  w  h  texture    x    y    w    h   
+    auto e5 = std::make_shared<UIGrid>(4, 4, indextex, 550, 150, 200, 200);
+    e5->points[0].color =  sf::Color(255, 0, 0);
+    e5->points[5].color =  sf::Color(0, 255, 0);
+    e5->points[10].color = sf::Color(0, 0, 255);
+    e5->points[15].color = sf::Color(255, 255, 255);
+
+    ui_elements->push_back(e5);
 }
 
 void UITestScene::update()
@@ -145,5 +155,5 @@ void UITestScene::sRender()
     
     game->getWindow().display();
     
-    McRFPy_API::REPL();
+    //McRFPy_API::REPL();
 }

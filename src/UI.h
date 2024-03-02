@@ -3,6 +3,7 @@
 #include "Python.h"
 #include "structmember.h"
 #include "IndexTexture.h"
+#include <list>
 
 enum PyObjectsEnum
 {
@@ -15,7 +16,7 @@ enum PyObjectsEnum
 class UIDrawable
 {
 public:
-    UIDrawable* parent;
+    //UIDrawable* parent;
     void render();
     virtual void render(sf::Vector2f) = 0;
     //virtual sf::Rect<int> aabb(); // not sure I care about this yet
@@ -95,6 +96,59 @@ public:
     void setPosition(sf::Vector2f);
     void setScale(float);
     PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UISprite;  };
+};
+
+// UIGridPoint - revised grid data for each point
+class UIGridPoint
+{
+public:
+    sf::Color color, color_overlay;
+    bool walkable, transparent;
+    int tilesprite, tile_overlay, uisprite;
+    UIGridPoint();
+};
+
+// UIGridPointState - entity-specific info for each cell
+class UIGridPointState
+{
+public:
+    bool visible, discovered;
+};
+
+class UIGrid;
+
+class UIEntity: public UIDrawable
+{
+public:
+    //PyObject* self;
+    std::shared_ptr<UIGrid> grid;
+    std::vector<UIGridPointState> gridstate;
+    UISprite sprite;
+    void render(sf::Vector2f) override final;
+    
+};
+
+class UIGrid: public UIDrawable
+{
+public:
+    UIGrid();
+    UIGrid(int, int, IndexTexture*, float, float, float, float);
+    UIGrid(int, int, IndexTexture*, sf::Vector2f, sf::Vector2f);
+    void update();
+    void render(sf::Vector2f) override final;
+    UIGridPoint& at(int, int);
+    PyObjectsEnum derived_type() override final;
+    void setSprite(int);
+
+    int grid_x, grid_y;
+    //int grid_size; // grid sizes are implied by IndexTexture now
+    sf::RectangleShape box;
+    float center_x, center_y, zoom;
+    IndexTexture* itex;
+    sf::Sprite sprite, output;
+    sf::RenderTexture renderTexture;
+    std::vector<UIGridPoint> points;
+    std::list<std::shared_ptr<UIEntity>> entities;
 };
 
 /*
