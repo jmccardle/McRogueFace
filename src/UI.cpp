@@ -121,6 +121,14 @@ void UISprite::render(sf::Vector2f offset)
     sprite.move(-offset);
 }
 
+// 7DRL hack; needed to draw entities to UIGrid. TODO, apply this technique to all UIDrawables
+void UISprite::render(sf::Vector2f offset, sf::RenderTexture& target)
+{
+    sprite.move(offset);
+    target.draw(sprite);
+    sprite.move(-offset);
+}
+
 void UISprite::setPosition(float x, float y)
 {
     setPosition(sf::Vector2f(x, y));
@@ -165,6 +173,9 @@ UIGrid::UIGrid(int gx, int gy, IndexTexture* _itex, float _x, float _y, float _w
   zoom(1.0f), center_x((gx/2) * _itex->grid_size), center_y((gy/2) * _itex->grid_size),
   itex(_itex), points(gx * gy)
 {
+    // set up blank list of entities
+    entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
+
     box.setSize(sf::Vector2f(_w, _h));
     box.setPosition(sf::Vector2f(_x, _y));
 
@@ -268,17 +279,21 @@ void UIGrid::render(sf::Vector2f)
     }
 
     // middle layer - entities
-    /* // disabling entity rendering until I can render their UISprite inside the rendertexture (not directly to window)
-    for (auto e : entities) {
-        auto drawent = e->cGrid->indexsprite.drawable();
-        drawent.setScale(zoom, zoom);
+    // disabling entity rendering until I can render their UISprite inside the rendertexture (not directly to window)
+    for (auto e : *entities) {
+        // TODO skip out-of-bounds entities (grid square not visible at all, check for partially on visible grid squares / floating point grid position)
+        //auto drawent = e->cGrid->indexsprite.drawable();
+        auto drawent = e->sprite;
+        //drawent.setScale(zoom, zoom);
+        drawent.setScale(zoom);
         auto pixel_pos = sf::Vector2f(
-            (drawent.getPosition().x*grid_size - left_spritepixels) * zoom,
-            (drawent.getPosition().y*grid_size - top_spritepixels) * zoom );
-        drawent.setPosition(pixel_pos);
-        renderTexture.draw(drawent);
+            (e->position.x*itex->grid_size - left_spritepixels) * zoom,
+            (e->position.y*itex->grid_size - top_spritepixels) * zoom );
+        //drawent.setPosition(pixel_pos);
+        //renderTexture.draw(drawent);
+        drawent.render(pixel_pos, renderTexture);
     }
-    */
+    
 
     // top layer - opacity for discovered / visible status (debug, basically)
     /* // Disabled until I attach a "perspective"

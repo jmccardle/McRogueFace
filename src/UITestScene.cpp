@@ -105,12 +105,27 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     // UIGrid test:               (in grid cells)      (in screen pixels)
     //              constructor args:  w  h  texture    x    y    w    h   
     auto e5 = std::make_shared<UIGrid>(4, 4, indextex, 550, 150, 200, 200);
+    e5->zoom=2.0;
     e5->points[0].color =  sf::Color(255, 0, 0);
+    e5->points[1].tilesprite = 1;
     e5->points[5].color =  sf::Color(0, 255, 0);
+    e5->points[6].tilesprite = 2;
     e5->points[10].color = sf::Color(0, 0, 255);
+    e5->points[11].tilesprite = 3;
     e5->points[15].color = sf::Color(255, 255, 255);
 
     ui_elements->push_back(e5);
+
+    //UIEntity test:
+    // asdf
+    // TODO - reimplement UISprite style rendering within UIEntity class. Entities don't have a screen pixel position, they have a grid position, and grid sets zoom when rendering them.
+    auto e5a = std::make_shared<UIEntity>(); // default constructor sucks: sprite position + zoom are irrelevant for UIEntity.
+    auto e5as = UISprite(indextex, 85, sf::Vector2f(0, 0), 1.0);
+    e5a->sprite = e5as; // will copy constructor even exist for UISprite...?
+    e5a->position = sf::Vector2f(1, 0);
+
+    e5->entities->push_back(e5a);
+
 }
 
 void UITestScene::update()
@@ -155,5 +170,5 @@ void UITestScene::sRender()
     
     game->getWindow().display();
     
-    //McRFPy_API::REPL();
+    McRFPy_API::REPL();
 }

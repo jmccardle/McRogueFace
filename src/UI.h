@@ -88,6 +88,9 @@ public:
     UISprite(IndexTexture*, int, sf::Vector2f, float);
     void update();
     void render(sf::Vector2f) override final;
+    
+    // 7DRL hack - TODO apply RenderTexture concept to all UIDrawables (via `sf::RenderTarget`)
+    void render(sf::Vector2f, sf::RenderTexture&);
     int /*texture_index,*/ sprite_index;
     IndexTexture* itex;
     //float x, y, scale;
@@ -117,14 +120,17 @@ public:
 
 class UIGrid;
 
-class UIEntity: public UIDrawable
+// TODO: make UIEntity a drawable(?) Maybe just rely on UISprite/UIGrid to
+// somehow properly render the thing? Poorly designed interface
+class UIEntity//: public UIDrawable
 {
 public:
     //PyObject* self;
     std::shared_ptr<UIGrid> grid;
     std::vector<UIGridPointState> gridstate;
     UISprite sprite;
-    void render(sf::Vector2f) override final;
+    sf::Vector2f position; //(x,y) in grid coordinates; float for animation
+    void render(sf::Vector2f); //override final;
     
 };
 
@@ -148,7 +154,7 @@ public:
     sf::Sprite sprite, output;
     sf::RenderTexture renderTexture;
     std::vector<UIGridPoint> points;
-    std::list<std::shared_ptr<UIEntity>> entities;
+    std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> entities;
 };
 
 /*
@@ -178,6 +184,26 @@ typedef struct {
     PyObject* texture;
 } PyUISpriteObject;
 
+typedef struct {
+    PyObject_HEAD
+    std::shared_ptr<UIGridPoint> data;
+} PyUIGridPointObject;
+
+typedef struct {
+    PyObject_HEAD
+    std::shared_ptr<UIGridPointState> data;
+} PyUIGridPointStateObject;
+
+typedef struct {
+    PyObject_HEAD
+    std::shared_ptr<UIEntity> data;
+} PyUIEntityObject;
+
+typedef struct {
+    PyObject_HEAD
+    std::shared_ptr<UIGrid> data;
+    PyObject* texture;
+} PyUIGridObject;
 
 namespace mcrfpydef {
     //PyObject* py_instance(std::shared_ptr<UIDrawable> source);
@@ -452,6 +478,8 @@ switch (target->derived_type())                         \
             PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
             return nullptr;
         }
+
+        // TODO: manually calling tp_alloc to create a PyColorObject seems like an antipattern
         PyTypeObject* colorType = &PyColorType;
         PyObject* pyColor = colorType->tp_alloc(colorType, 0);
         if (pyColor == NULL)
@@ -483,6 +511,7 @@ switch (target->derived_type())                         \
     static int PyUICaption_set_color_member(PyUICaptionObject* self, PyObject* value, void* closure)
     {
         auto member_ptr = reinterpret_cast<long>(closure);
+        //TODO: this logic of (PyColor instance OR tuple -> sf::color) should be encapsulated for reuse
         int r, g, b, a;
         if (PyObject_IsInstance(value, (PyObject*)&PyColorType))
         {
@@ -757,6 +786,7 @@ switch (target->derived_type())                         \
 
     static int PyUIFrame_set_color_member(PyUIFrameObject* self, PyObject* value, void* closure)
     {
+        //TODO: this logic of (PyColor instance OR tuple -> sf::color) should be encapsulated for reuse
         auto member_ptr = reinterpret_cast<long>(closure);
         int r, g, b, a;
         if (PyObject_IsInstance(value, (PyObject*)&PyColorType))
@@ -1435,7 +1465,7 @@ switch (target->derived_type())                         \
     */
 
 	static PyTypeObject PyUICollectionType = {
-		//PyVarObject_HEAD_INIT(NULL, 0)
+		//PyVarObject_/HEAD_INIT(NULL, 0)
 		.tp_name = "mcrfpy.UICollection",
 		.tp_basicsize = sizeof(PyUICollectionObject),
 		.tp_itemsize = 0,
@@ -1476,6 +1506,689 @@ switch (target->derived_type())                         \
             o->data = self->data->children;
         return (PyObject*)o;
     }
+
+    /*
+     *
+     * PyUIGridPoint defs
+     *
+     */
+
+// TODO: question: are sfColor_to_PyObject and PyObject_to_sfColor duplicitive? How does UIFrame get/set colors?
+
+// Utility function to convert sf::Color to PyObject*
+static PyObject* sfColor_to_PyObject(sf::Color color) {
+    return Py_BuildValue("(iiii)", color.r, color.g, color.b, color.a);
+}
+
+// Utility function to convert PyObject* to sf::Color
+static sf::Color PyObject_to_sfColor(PyObject* obj) {
+    int r, g, b, a = 255; // Default alpha to fully opaque if not specified
+    if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
+        return sf::Color(); // Return default color on parse error
+    }
+    return sf::Color(r, g, b, a);
+}
+
+static PyObject* PyUIGridPoint_get_color(PyUIGridPointObject* self, void* closure) {
+    if (reinterpret_cast<long>(closure) == 0) { // color
+        return sfColor_to_PyObject(self->data->color);
+    } else { // color_overlay
+        return sfColor_to_PyObject(self->data->color_overlay);
+    }
+}
+
+static int PyUIGridPoint_set_color(PyUIGridPointObject* self, PyObject* value, void* closure) {
+    sf::Color color = PyObject_to_sfColor(value);
+    if (reinterpret_cast<long>(closure) == 0) { // color
+        self->data->color = color;
+    } else { // color_overlay
+        self->data->color_overlay = color;
+    }
+    return 0;
+}
+
+static PyObject* PyUIGridPoint_get_bool_member(PyUIGridPointObject* self, void* closure) {
+    if (reinterpret_cast<long>(closure) == 0) { // walkable
+        return PyBool_FromLong(self->data->walkable);
+    } else { // transparent
+        return PyBool_FromLong(self->data->transparent);
+    }
+}
+
+static int PyUIGridPoint_set_bool_member(PyUIGridPointObject* self, PyObject* value, void* closure) {
+    if (value == Py_True) {
+        if (reinterpret_cast<long>(closure) == 0) { // walkable
+            self->data->walkable = true;
+        } else { // transparent
+            self->data->transparent = true;
+        }
+    } else if (value == Py_False) {
+        if (reinterpret_cast<long>(closure) == 0) { // walkable
+            self->data->walkable = false;
+        } else { // transparent
+            self->data->transparent = false;
+        }
+    } else {
+        PyErr_SetString(PyExc_ValueError, "Expected a boolean value");
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject* PyUIGridPoint_get_int_member(PyUIGridPointObject* self, void* closure) {
+    switch(reinterpret_cast<long>(closure)) {
+        case 0: return PyLong_FromLong(self->data->tilesprite);
+        case 1: return PyLong_FromLong(self->data->tile_overlay);
+        case 2: return PyLong_FromLong(self->data->uisprite);
+        default: PyErr_SetString(PyExc_RuntimeError, "Invalid closure"); return nullptr;
+    }
+}
+
+static int PyUIGridPoint_set_int_member(PyUIGridPointObject* self, PyObject* value, void* closure) {
+    long val = PyLong_AsLong(value);
+    if (PyErr_Occurred()) return -1;
+
+    switch(reinterpret_cast<long>(closure)) {
+        case 0: self->data->tilesprite = val; break;
+        case 1: self->data->tile_overlay = val; break;
+        case 2: self->data->uisprite = val; break;
+        default: PyErr_SetString(PyExc_RuntimeError, "Invalid closure"); return -1;
+    }
+    return 0;
+}
+
+static PyGetSetDef PyUIGridPoint_getsetters[] = {
+    {"color", (getter)PyUIGridPoint_get_color, (setter)PyUIGridPoint_set_color, "GridPoint color", (void*)0},
+    {"color_overlay", (getter)PyUIGridPoint_get_color, (setter)PyUIGridPoint_set_color, "GridPoint color overlay", (void*)1},
+    {"walkable", (getter)PyUIGridPoint_get_bool_member, (setter)PyUIGridPoint_set_bool_member, "Is the GridPoint walkable", (void*)0},
+    {"transparent", (getter)PyUIGridPoint_get_bool_member, (setter)PyUIGridPoint_set_bool_member, "Is the GridPoint transparent", (void*)1},
+    {"tilesprite", (getter)PyUIGridPoint_get_int_member, (setter)PyUIGridPoint_set_int_member, "Tile sprite index", (void*)0},
+    {"tile_overlay", (getter)PyUIGridPoint_get_int_member, (setter)PyUIGridPoint_set_int_member, "Tile overlay sprite index", (void*)1},
+    {"uisprite", (getter)PyUIGridPoint_get_int_member, (setter)PyUIGridPoint_set_int_member, "UI sprite index", (void*)2},
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject PyUIGridPointType = {
+    //PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "mcrfpy.GridPoint",
+    .tp_basicsize = sizeof(PyUIGridPointObject),
+    .tp_itemsize = 0,
+    // Methods omitted for brevity
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "UIGridPoint objects",
+    .tp_getset = PyUIGridPoint_getsetters,
+    //.tp_init = (initproc)PyUIGridPoint_init, // TODO Define the init function
+    .tp_new = PyType_GenericNew,
+};
+
+    /*
+     *
+     * end PyUIGridPoint defs
+     *
+     */
+
+
+
+    /*
+     *
+     * PyUIGridPointState defs
+     *
+     */
+
+static PyObject* PyUIGridPointState_get_bool_member(PyUIGridPointStateObject* self, void* closure) {
+    if (reinterpret_cast<long>(closure) == 0) { // visible
+        return PyBool_FromLong(self->data->visible);
+    } else { // discovered
+        return PyBool_FromLong(self->data->discovered);
+    }
+}
+
+static int PyUIGridPointState_set_bool_member(PyUIGridPointStateObject* self, PyObject* value, void* closure) {
+    if (!PyBool_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "Value must be a boolean");
+        return -1;
+    }
+
+    int truthValue = PyObject_IsTrue(value);
+    if (truthValue < 0) {
+        return -1; // PyObject_IsTrue returns -1 on error
+    }
+
+    if (reinterpret_cast<long>(closure) == 0) { // visible
+        self->data->visible = truthValue;
+    } else { // discovered
+        self->data->discovered = truthValue;
+    }
+
+    return 0;
+}
+
+static PyGetSetDef PyUIGridPointState_getsetters[] = {
+    {"visible", (getter)PyUIGridPointState_get_bool_member, (setter)PyUIGridPointState_set_bool_member, "Is the GridPointState visible", (void*)0},
+    {"discovered", (getter)PyUIGridPointState_get_bool_member, (setter)PyUIGridPointState_set_bool_member, "Has the GridPointState been discovered", (void*)1},
+    {NULL}  /* Sentinel */
+};
+
+static PyTypeObject PyUIGridPointStateType = {
+    //PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "mcrfpy.GridPointState",
+    .tp_basicsize = sizeof(PyUIGridPointStateObject),
+    .tp_itemsize = 0,
+    // Methods omitted for brevity
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "UIGridPointState objects", // TODO: Add PyUIGridPointState tp_init
+    .tp_getset = PyUIGridPointState_getsetters,
+    .tp_new = PyType_GenericNew,
+};
+
+
+    /*
+     *
+     * end PyUIGridPointState defs
+     *
+     */
+
+    /*
+     *
+     * PyUIEntity defs
+     *
+     */
+
+// TODO: sf::Vector2f convenience functions here might benefit from a PyVectorObject much like PyColorObject
+// Utility function to convert sf::Vector2f to PyObject*
+static PyObject* sfVector2f_to_PyObject(sf::Vector2f vector) {
+    return Py_BuildValue("(ff)", vector.x, vector.y);
+}
+
+// Utility function to convert PyObject* to sf::Vector2f
+static sf::Vector2f PyObject_to_sfVector2f(PyObject* obj) {
+    float x, y;
+    if (!PyArg_ParseTuple(obj, "ff", &x, &y)) {
+        return sf::Vector2f(); // TODO / reconsider this default: Return default vector on parse error
+    }
+    return sf::Vector2f(x, y);
+}
+
+// Utility function to convert UIGridPointState to PyObject*
+static PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state) {
+    PyObject* obj = PyObject_New(PyObject, &PyUIGridPointStateType);
+    if (!obj) return PyErr_NoMemory();
+
+    // Assuming PyUIGridPointStateObject structure has a UIGridPointState* member called 'data'
+    //((PyUIGridPointStateObject*)obj)->data = new UIGridPointState(state); // Copy constructor // TODO / BUGFIX - don't use new, get shared_ptr working
+
+    return obj;
+}
+
+// Function to convert std::vector<UIGridPointState> to a Python list TODO need a PyUICollection style iterable
+static PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& vec) {
+    PyObject* list = PyList_New(vec.size());
+    if (!list) return PyErr_NoMemory();
+
+    for (size_t i = 0; i < vec.size(); ++i) {
+        PyObject* obj = UIGridPointState_to_PyObject(vec[i]);
+        if (!obj) { // Cleanup on failure
+            Py_DECREF(list);
+            return NULL;
+        }
+        PyList_SET_ITEM(list, i, obj); // This steals a reference to obj
+    }
+
+    return list;
+}
+
+static PyObject* PyUIEntity_get_position(PyUIEntityObject* self, void* closure) {
+    return sfVector2f_to_PyObject(self->data->position);
+}
+
+static int PyUIEntity_set_position(PyUIEntityObject* self, PyObject* value, void* closure) {
+    self->data->position = PyObject_to_sfVector2f(value);
+    return 0;
+}
+
+static PyObject* PyUIEntity_get_gridstate(PyUIEntityObject* self, void* closure) {
+    // Assuming a function to convert std::vector<UIGridPointState> to PyObject* list
+    return UIGridPointStateVector_to_PyList(self->data->gridstate);
+}
+
+// Define getters and setters
+static PyGetSetDef PyUIEntity_getsetters[] = {
+    {"position", (getter)PyUIEntity_get_position, (setter)PyUIEntity_set_position, "Entity position", NULL},
+    {"gridstate", (getter)PyUIEntity_get_gridstate, NULL, "Grid point states for the entity", NULL},
+    {NULL}  /* Sentinel */
+};
+
+
+// Implement the init function for UIEntity
+static int PyUIEntity_init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
+    // Parse arguments to initialize a UIEntity instance
+    // This function should handle parsing the Python arguments and initializing the UIEntity instance appropriately
+    return 0;
+}
+
+
+// Define the PyTypeObject for UIEntity
+static PyTypeObject PyUIEntityType = {
+    //PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "mcrfpy.Entity",
+    .tp_basicsize = sizeof(PyUIEntityObject),
+    .tp_itemsize = 0,
+    // Methods omitted for brevity
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "UIEntity objects",
+    .tp_getset = PyUIEntity_getsetters,
+    .tp_init = (initproc)PyUIEntity_init,
+    .tp_new = PyType_GenericNew,
+};
+
+
+    /*
+     *
+     * end PyUIEntity defs
+     *
+     */
+
+    /*
+     *
+     * PyUIGrid defs
+     *
+     */
+
+static int PyUIGrid_init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
+    int grid_x, grid_y;
+    PyObject* textureObj;
+    float box_x, box_y, box_w, box_h;
+
+    if (!PyArg_ParseTuple(args, "iiOffff", &grid_x, &grid_y, &textureObj, &box_x, &box_y, &box_w, &box_h)) {
+        return -1; // If parsing fails, return an error
+    }
+
+    // Convert PyObject texture to IndexTexture*
+    // This requires the texture object to have been initialized similar to UISprite's texture handling
+    if (!PyObject_IsInstance(textureObj, (PyObject*)&PyTextureType)) {
+        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
+        return -1;
+    }
+    PyTextureObject* pyTexture = reinterpret_cast<PyTextureObject*>(textureObj);
+    // TODO (7DRL day 2, item 4.) use shared_ptr / PyTextureObject on UIGrid
+    IndexTexture* texture = pyTexture->data.get();
+
+    // Initialize UIGrid
+    //self->data = new UIGrid(grid_x, grid_y, texture, sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
+    self->data = std::make_shared<UIGrid>(grid_x, grid_y, texture, box_x, box_y, box_w, box_h);
+    return 0; // Success
+}
+
+static PyObject* PyUIGrid_get_grid_size(PyUIGridObject* self, void* closure) {
+    return Py_BuildValue("(ii)", self->data->grid_x, self->data->grid_y);
+}
+
+static PyObject* PyUIGrid_get_position(PyUIGridObject* self, void* closure) {
+    auto& box = self->data->box;
+    return Py_BuildValue("(ff)", box.getPosition().x, box.getPosition().y);
+}
+
+static int PyUIGrid_set_position(PyUIGridObject* self, PyObject* value, void* closure) {
+    float x, y;
+    if (!PyArg_ParseTuple(value, "ff", &x, &y)) {
+        PyErr_SetString(PyExc_ValueError, "Position must be a tuple of two floats");
+        return -1;
+    }
+    self->data->box.setPosition(x, y);
+    return 0;
+}
+
+static PyObject* PyUIGrid_get_size(PyUIGridObject* self, void* closure) {
+    auto& box = self->data->box;
+    return Py_BuildValue("(ff)", box.getSize().x, box.getSize().y);
+}
+
+static int PyUIGrid_set_size(PyUIGridObject* self, PyObject* value, void* closure) {
+    float w, h;
+    if (!PyArg_ParseTuple(value, "ff", &w, &h)) {
+        PyErr_SetString(PyExc_ValueError, "Size must be a tuple of two floats");
+        return -1;
+    }
+    self->data->box.setSize(sf::Vector2f(w, h));
+    return 0;
+}
+
+// TODO (7DRL Day 2, item 5.) return Texture object
+/*
+static PyObject* PyUIGrid_get_texture(PyUIGridObject* self, void* closure) {
+    Py_INCREF(self->texture);
+    return self->texture;
+}
+*/
+
+static PyObject* PyUIGrid_get_children(PyUIGridObject* self, void* closure); // forward declare
+
+static PyGetSetDef PyUIGrid_getsetters[] = {
+    {"grid_size", (getter)PyUIGrid_get_grid_size, NULL, "Grid dimensions (grid_x, grid_y)", NULL},
+    {"position", (getter)PyUIGrid_get_position, (setter)PyUIGrid_set_position, "Position of the grid (x, y)", NULL},
+    {"size", (getter)PyUIGrid_get_size, (setter)PyUIGrid_set_size, "Size of the grid (width, height)", NULL},
+    {"entities", (getter)PyUIGrid_get_children, NULL, "EntityCollection of entities on this grid", NULL},
+    //{"texture", (getter)PyUIGrid_get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
+    {NULL}  /* Sentinel */
+};
+
+
+/* // TODO standard pointer would need deleted, but I opted for a shared pointer. tp_dealloc currently not even defined in the PyTypeObject
+static void PyUIGrid_dealloc(PyUIGridObject* self) {
+    delete self->data; // Clean up the allocated UIGrid object
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+*/
+
+    static PyTypeObject PyUIGridType = {
+        //PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "mcrfpy.Grid",
+        .tp_basicsize = sizeof(PyUIGridObject),
+        .tp_itemsize = 0,
+        //.tp_dealloc = (destructor)[](PyObject* self)
+        //{
+        //    PyUIGridObject* obj = (PyUIGridObject*)self;
+        //    obj->data.reset();
+        //    Py_TYPE(self)->tp_free(self);
+        //},
+        //TODO - PyUIGrid REPR def:
+        // .tp_repr = (reprfunc)PyUIGrid_repr,
+        //.tp_hash = NULL,
+        //.tp_iter
+        //.tp_iternext
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR("docstring"),
+        //.tp_methods = PyUIGrid_methods,
+        //.tp_members = PyUIGrid_members,
+        .tp_getset = PyUIGrid_getsetters,
+        //.tp_base = NULL,
+        .tp_init = (initproc)PyUIGrid_init,
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            PyUIGridObject* self = (PyUIGridObject*)type->tp_alloc(type, 0);
+            if (self) self->data = std::make_shared<UIGrid>();
+            return (PyObject*)self;
+        }
+    };
+
+
+    /*
+     *
+     * end PyUIGrid defs
+     *
+     */
+
+/*
+     *
+     * Begin PyUIEntityCollectionIter defs
+     *
+     */
+    typedef struct {
+        PyObject_HEAD
+        std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> data;
+        int index;
+        int start_size;
+    } PyUIEntityCollectionIterObject;
+
+    static int PyUIEntityCollectionIter_init(PyUIEntityCollectionIterObject* self, PyObject* args, PyObject* kwds)
+    {
+        PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
+        return -1;
+    }
+
+    static PyObject* PyUIEntityCollectionIter_next(PyUIEntityCollectionIterObject* self)
+    {
+        if (self->data->size() != self->start_size)
+        {
+            PyErr_SetString(PyExc_RuntimeError, "collection changed size during iteration");
+            return NULL;
+        }
+
+        if (self->index > self->start_size - 1)
+        {
+            PyErr_SetNone(PyExc_StopIteration);
+            return NULL;
+        }
+        self->index++;
+        auto vec = self->data.get();
+        if (!vec)
+        {
+            PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+            return NULL;
+        }
+        // Advance list iterator since Entities are not stored in a vector (if this code even worked)
+        // vectors only: //auto target = (*vec)[self->index-1];
+        //auto l_front = (*vec).begin();
+        //std::advance(l_front, self->index-1);
+
+        // TODO build PyObject* of the correct UIDrawable subclass to return
+        //return py_instance(target);
+        return NULL;
+    }
+
+    static PyObject* PyUIEntityCollectionIter_repr(PyUIEntityCollectionIterObject* self)
+    {
+        std::ostringstream ss;
+        if (!self->data) ss << "<UICollectionIter (invalid internal object)>";
+        else {
+            ss << "<UICollectionIter (" << self->data->size() << " child objects, @ index " << self->index  << ")>";
+        }
+        std::string repr_str = ss.str();
+        return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+    }
+    static PyTypeObject PyUIEntityCollectionIterType = {
+        //PyVarObject_HEAD_INIT(NULL, 0)
+        .tp_name = "mcrfpy.UICollectionIter",
+        .tp_basicsize = sizeof(PyUIEntityCollectionIterObject),
+        .tp_itemsize = 0,
+        .tp_dealloc = (destructor)[](PyObject* self)
+        {
+            PyUIEntityCollectionIterObject* obj = (PyUIEntityCollectionIterObject*)self;
+            obj->data.reset();
+            Py_TYPE(self)->tp_free(self);
+        },
+        .tp_repr = (reprfunc)PyUIEntityCollectionIter_repr,
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR("Iterator for a collection of UI objects"),
+        .tp_iternext = (iternextfunc)PyUIEntityCollectionIter_next,
+        //.tp_getset = PyUIEntityCollection_getset,
+        .tp_init = (initproc)PyUIEntityCollectionIter_init, // just raise an exception
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
+            return NULL;
+        }
+    };
+
+    /*
+     *
+     * End PyUIEntityCollectionIter defs
+     *
+     */
+
+/*
+     *
+     * Begin PyUIEntityCollection defs
+     *
+     */
+    typedef struct {
+        PyObject_HEAD
+        std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> data;
+    } PyUIEntityCollectionObject;
+
+    static Py_ssize_t PyUIEntityCollection_len(PyUIEntityCollectionObject* self) {
+        return self->data->size();
+    }
+
+    static PyObject* PyUIEntityCollection_getitem(PyUIEntityCollectionObject* self, Py_ssize_t index) {
+        // build a Python version of item at self->data[index]
+        //  Copy pasted::
+        auto vec = self->data.get();
+        if (!vec)
+        {
+            PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+            return NULL;
+        }
+        while (index < 0) index += self->data->size();
+        if (index > self->data->size() - 1)
+        {
+            PyErr_SetString(PyExc_IndexError, "EntityCollection index out of range");
+            return NULL;
+        }
+        auto l_begin = (*vec).begin();
+        std::advance(l_begin, index);
+        auto target = *l_begin; //auto target = (*vec)[index];
+        //RET_PY_INSTANCE(target);
+        // construct and return an entity object that points directly into the UIGrid's entity vector
+        PyUIEntityObject* o = (PyUIEntityObject*)((&PyUIEntityType)->tp_alloc(&PyUIEntityType, 0));
+        auto p = std::static_pointer_cast<UIEntity>(target);
+        o->data = p;
+        return (PyObject*)o;
+    return NULL;
+
+
+    }
+
+    static PySequenceMethods PyUIEntityCollection_sqmethods = {
+        .sq_length = (lenfunc)PyUIEntityCollection_len,
+        .sq_item = (ssizeargfunc)PyUIEntityCollection_getitem,
+        //.sq_item_by_index = PyUIEntityCollection_getitem
+        //.sq_slice - return a subset of the iterable
+        //.sq_ass_item - called when `o[x] = y` is executed (x is any object type)
+        //.sq_ass_slice - cool; no thanks, for now
+        //.sq_contains - called when `x in o` is executed
+        //.sq_ass_item_by_index - called when `o[x] = y` is executed (x is explictly an integer)
+    };
+
+    static PyObject* PyUIEntityCollection_append(PyUIEntityCollectionObject* self, PyObject* o)
+    {
+        // if not UIDrawable subclass, reject it
+        // self->data->push_back( c++ object inside o );
+
+        // this would be a great use case for .tp_base
+        if (!PyObject_IsInstance(o, (PyObject*)&PyUIEntityType))
+        {
+            PyErr_SetString(PyExc_TypeError, "Only Entity objects can be added to EntityCollection");
+            return NULL;
+        }
+        PyUIEntityObject* entity = (PyUIEntityObject*)o;
+        self->data->push_back(entity->data);
+
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+    static PyObject* PyUIEntityCollection_remove(PyUIEntityCollectionObject* self, PyObject* o)
+    {
+        if (!PyLong_Check(o))
+        {
+            PyErr_SetString(PyExc_TypeError, "UICollection.remove requires an integer index to remove");
+            return NULL;
+        }
+        long index = PyLong_AsLong(o);
+        if (index >= self->data->size())
+        {
+            PyErr_SetString(PyExc_ValueError, "Index out of range");
+            return NULL;
+        }
+        else if (index < 0)
+        {
+            PyErr_SetString(PyExc_NotImplementedError, "reverse indexing is not implemented.");
+            return NULL;
+        }
+
+        // release the shared pointer at self->data[index];
+        //self->data->erase(self->data->begin() + index);
+        // (Advance list to position)
+        auto l_front = self->data->begin();
+        std::advance(l_front, index);
+        //self->data->erase(std::remove(l_front, std::next(l_front)); // TODO / BUGFIX - ???
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    static PyMethodDef PyUIEntityCollection_methods[] = {
+        {"append", (PyCFunction)PyUIEntityCollection_append, METH_O},
+        //{"extend", (PyCFunction)PyUIEntityCollection_extend, METH_O}, // TODO
+        {"remove", (PyCFunction)PyUIEntityCollection_remove, METH_O},
+        {NULL, NULL, 0, NULL}
+    };
+
+    static PyObject* PyUIEntityCollection_repr(PyUIEntityCollectionObject* self)
+    {
+        std::ostringstream ss;
+        if (!self->data) ss << "<UICollection (invalid internal object)>";
+        else {
+            ss << "<UICollection (" << self->data->size() << " child objects)>";
+        }
+        std::string repr_str = ss.str();
+        return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+    }
+
+    static int PyUIEntityCollection_init(PyUIEntityCollectionObject* self, PyObject* args, PyObject* kwds)
+    {
+        PyErr_SetString(PyExc_TypeError, "EntityCollection cannot be instantiated: a C++ data source is required.");
+        return -1;
+    }
+
+    static PyObject* PyUIEntityCollection_iter(PyUIEntityCollectionObject* self)
+    {
+        PyUIEntityCollectionIterObject* iterObj;
+        iterObj = (PyUIEntityCollectionIterObject*)PyUIEntityCollectionIterType.tp_alloc(&PyUIEntityCollectionIterType, 0);
+        if (iterObj == NULL) {
+            return NULL;  // Failed to allocate memory for the iterator object
+        }
+
+        iterObj->data = self->data; // TODO / BUGFIX - mismatch between the Iter Type and Collection Type Data members
+        iterObj->index = 0;
+        iterObj->start_size = self->data->size();
+
+        return (PyObject*)iterObj;
+    }
+    static PyTypeObject PyUIEntityCollectionType = {
+        //PyVarObject_/HEAD_INIT(NULL, 0)
+        .tp_name = "mcrfpy.EntityCollection",
+        .tp_basicsize = sizeof(PyUIEntityCollectionObject),
+        .tp_itemsize = 0,
+        .tp_dealloc = (destructor)[](PyObject* self)
+        {
+            PyUIEntityCollectionObject* obj = (PyUIEntityCollectionObject*)self;
+            obj->data.reset();
+            Py_TYPE(self)->tp_free(self);
+        },
+        .tp_repr = (reprfunc)PyUIEntityCollection_repr,
+        .tp_as_sequence = &PyUIEntityCollection_sqmethods,
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR("Iterable, indexable collection of Entities"),
+        .tp_iter = (getiterfunc)PyUIEntityCollection_iter,
+        .tp_methods = PyUIEntityCollection_methods, // append, remove
+        //.tp_getset = PyUIEntityCollection_getset,
+        .tp_init = (initproc)PyUIEntityCollection_init, // just raise an exception
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+        {
+            // Does PyUIEntityCollectionType need __new__ if it's not supposed to be instantiable by the user?
+            // Should I just raise an exception? Or is the uninitialized shared_ptr enough of a blocker?
+            PyErr_SetString(PyExc_TypeError, "EntityCollection cannot be instantiated: a C++ data source is required.");
+            return NULL;
+        }
+    };
+
+    // Grid's get_children def must follow the EntityCollection def
+    static PyObject* PyUIGrid_get_children(PyUIGridObject* self, void* closure)
+    {
+        // create PyUICollection instance pointing to self->data->children
+        PyUIEntityCollectionObject* o = (PyUIEntityCollectionObject*)PyUIEntityCollectionType.tp_alloc(&PyUIEntityCollectionType, 0);
+        if (o)
+            o->data = self->data->entities; // TODO / BUGFIX - entities isn't a shared pointer on UIGrid, what to do?
+        return (PyObject*)o;
+    }
+
+    /*
+     *
+     * End PyUIEntityCollection defs
+     *
+     */
+
+
 
 
 
