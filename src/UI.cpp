@@ -162,6 +162,13 @@ UIGridPoint::UIGridPoint()
 {
 }
 
+UIEntity::UIEntity() {} // this will not work lol. TODO remove default constructor by finding the shared pointer inits that use it
+
+UIEntity::UIEntity(UIGrid& grid)
+: gridstate(grid.grid_x * grid.grid_y)
+{
+}
+
 // UIGrid methods
 
 UIGrid::UIGrid()
@@ -195,11 +202,17 @@ UIGrid::UIGrid(int gx, int gy, IndexTexture* _itex, sf::Vector2f _xy, sf::Vector
   zoom(1.0f), center_x((gx/2) * _itex->grid_size), center_y((gy/2) * _itex->grid_size),
   itex(_itex), points(gx * gy)
 {
+    // set up blank list of entities
+    entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
+
     box.setSize(_wh);
     box.setPosition(_xy); 
 
     box.setFillColor(sf::Color(0,0,0,0));
-    renderTexture.create(_wh.x, _wh.y);
+    //renderTexture.create(_wh.x, _wh.y);
+    // create renderTexture with maximum theoretical size; sprite can resize to show whatever amount needs to be rendered
+    renderTexture.create(1920, 1080); // TODO - renderTexture should be window size; above 1080p this will cause rendering errors
+    
     sprite.setTexture(_itex->texture);
     output.setTextureRect(
          sf::IntRect(0, 0,
@@ -222,7 +235,12 @@ void UIGrid::setSprite(int ti)
 
 void UIGrid::render(sf::Vector2f)
 {
-    renderTexture.clear();
+    output.setPosition(box.getPosition()); // output sprite can move; update position when drawing
+    // output size can change; update size when drawing
+    output.setTextureRect(
+         sf::IntRect(0, 0,
+         box.getSize().x, box.getSize().y));
+    renderTexture.clear(sf::Color(8, 8, 8, 255)); // TODO - UIGrid needs a "background color" field
     // sprites that are visible according to zoom, center_x, center_y, and box width
     float center_x_sq = center_x / itex->grid_size;
     float center_y_sq = center_y / itex->grid_size;

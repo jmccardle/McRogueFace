@@ -140,6 +140,10 @@ PyObject* PyInit_mcrfpy()
     PyModule_AddType(m, &mcrfpydef::PyUIGridPointType);
     PyModule_AddType(m, &mcrfpydef::PyUIGridPointStateType);
     PyModule_AddType(m, &mcrfpydef::PyUIEntityType);
+
+    PyModule_AddType(m, &mcrfpydef::PyUIEntityCollectionIterType);
+    PyModule_AddType(m, &mcrfpydef::PyUIEntityCollectionType);
+
     PyModule_AddType(m, &mcrfpydef::PyUIGridType);
 
     

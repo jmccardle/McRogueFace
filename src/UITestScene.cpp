@@ -119,7 +119,8 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     //UIEntity test:
     // asdf
     // TODO - reimplement UISprite style rendering within UIEntity class. Entities don't have a screen pixel position, they have a grid position, and grid sets zoom when rendering them.
-    auto e5a = std::make_shared<UIEntity>(); // default constructor sucks: sprite position + zoom are irrelevant for UIEntity.
+    auto e5a = std::make_shared<UIEntity>(*e5); // this basic constructor sucks: sprite position + zoom are irrelevant for UIEntity.
+    e5a->grid = e5;
     auto e5as = UISprite(indextex, 85, sf::Vector2f(0, 0), 1.0);
     e5a->sprite = e5as; // will copy constructor even exist for UISprite...?
     e5a->position = sf::Vector2f(1, 0);

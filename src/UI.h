@@ -131,6 +131,9 @@ public:
     UISprite sprite;
     sf::Vector2f position; //(x,y) in grid coordinates; float for animation
     void render(sf::Vector2f); //override final;
+
+    UIEntity();
+    UIEntity(UIGrid&);
     
 };
 
@@ -191,17 +194,21 @@ typedef struct {
 
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<UIGridPoint> data;
+    UIGridPoint* data;
+    std::shared_ptr<UIGrid> grid;
 } PyUIGridPointObject;
 
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<UIGridPointState> data;
+    UIGridPointState* data;
+    std::shared_ptr<UIGrid> grid;
+    std::shared_ptr<UIEntity> entity;
 } PyUIGridPointStateObject;
 
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIEntity> data;
+    PyObject* texture;
 } PyUIEntityObject;
 
 typedef struct {
@@ -1438,20 +1445,60 @@ static PyObject* PyUIEntity_get_gridstate(PyUIEntityObject* self, void* closure)
     return UIGridPointStateVector_to_PyList(self->data->gridstate);
 }
 
+static PyObject* PyUIEntity_get_spritenumber(PyUIEntityObject* self, void* closure) {
+    return PyLong_FromDouble(self->data->sprite.sprite_index);
+}
+
+static int PyUIEntity_set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure) {
+    int val;
+    if (PyLong_Check(value))
+        val = PyLong_AsLong(value);
+    else
+    {
+        PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
+        return -1;
+    }
+    self->data->sprite.sprite_index = val;
+    self->data->sprite.sprite.setTextureRect(self->data->sprite.itex->spriteCoordinates(val)); // TODO - I don't like ".sprite.sprite" in this stack of UIEntity.UISprite.sf::Sprite
+    return 0;
+}
+
+static PyObject* PyUIEntity_at(PyUIEntityObject* self, PyObject* o)
+{
+    int x, y;
+    if (!PyArg_ParseTuple(o, "ii", &x, &y)) {
+        PyErr_SetString(PyExc_TypeError, "UIEntity.at requires two integer arguments: (x, y)");
+        return NULL;
+    }
+
+    if (self->data->grid == NULL) {
+        PyErr_SetString(PyExc_ValueError, "Entity cannot access surroundings because it is not associated with a grid");
+        return NULL;
+    }
+
+    PyUIGridPointStateObject* obj = (PyUIGridPointStateObject*)((&PyUIGridPointStateType)->tp_alloc(&PyUIGridPointStateType, 0));
+    //auto target = std::static_pointer_cast<UIEntity>(target);
+    obj->data = &(self->data->gridstate[y + self->data->grid->grid_x * x]);
+    obj->grid = self->data->grid;
+    obj->entity = self->data;
+    return (PyObject*)obj;
+}
+
+static PyMethodDef PyUIEntity_methods[] = {
+    {"at", (PyCFunction)PyUIEntity_at, METH_O},
+    {NULL, NULL, 0, NULL}
+};
+
 // Define getters and setters
 static PyGetSetDef PyUIEntity_getsetters[] = {
     {"position", (getter)PyUIEntity_get_position, (setter)PyUIEntity_set_position, "Entity position", NULL},
     {"gridstate", (getter)PyUIEntity_get_gridstate, NULL, "Grid point states for the entity", NULL},
+    {"sprite_number", (getter)PyUIEntity_get_spritenumber, (setter)PyUIEntity_set_spritenumber, "Sprite number (index) on the texture on the display", NULL},
     {NULL}  /* Sentinel */
 };
 
+static int PyUIEntity_init(PyUIEntityObject*, PyObject*, PyObject*); // forward declare
 
-// Implement the init function for UIEntity
-static int PyUIEntity_init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
-    // Parse arguments to initialize a UIEntity instance
-    // This function should handle parsing the Python arguments and initializing the UIEntity instance appropriately
-    return 0;
-}
 
 
 // Define the PyTypeObject for UIEntity
@@ -1463,6 +1510,7 @@ static PyTypeObject PyUIEntityType = {
     // Methods omitted for brevity
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_doc = "UIEntity objects",
+    .tp_methods = PyUIEntity_methods,
     .tp_getset = PyUIEntity_getsetters,
     .tp_init = (initproc)PyUIEntity_init,
     .tp_new = PyType_GenericNew,
@@ -1540,6 +1588,79 @@ static int PyUIGrid_set_size(PyUIGridObject* self, PyObject* value, void* closur
     return 0;
 }
 
+static PyObject* PyUIGrid_get_center(PyUIGridObject* self, void* closure) {
+    return Py_BuildValue("(ff)", self->data->center_x, self->data->center_y);
+}
+
+static int PyUIGrid_set_center(PyUIGridObject* self, PyObject* value, void* closure) {
+    float x, y;
+    if (!PyArg_ParseTuple(value, "ff", &x, &y)) {
+        PyErr_SetString(PyExc_ValueError, "Size must be a tuple of two floats");
+        return -1;
+    }
+    self->data->center_x = x;
+    self->data->center_y = y;
+    return 0;
+}
+
+static PyObject* PyUIGrid_get_float_member(PyUIGridObject* self, void* closure)
+{
+    auto member_ptr = reinterpret_cast<long>(closure);
+    if (member_ptr == 0) // x
+        return PyFloat_FromDouble(self->data->box.getPosition().x);
+    else if (member_ptr == 1) // y
+        return PyFloat_FromDouble(self->data->box.getPosition().y);
+    else if (member_ptr == 2) // w
+        return PyFloat_FromDouble(self->data->box.getSize().x);
+    else if (member_ptr == 3) // h
+        return PyFloat_FromDouble(self->data->box.getSize().y);
+    else if (member_ptr == 4) // center_x
+        return PyFloat_FromDouble(self->data->center_x);
+    else if (member_ptr == 5) // center_y
+        return PyFloat_FromDouble(self->data->center_y);
+    else if (member_ptr == 6) // zoom
+        return PyFloat_FromDouble(self->data->zoom);
+    else
+    {
+        PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+        return nullptr;
+    }
+}
+
+
+static int PyUIGrid_set_float_member(PyUIGridObject* self, PyObject* value, void* closure)
+{
+    float val;
+    auto member_ptr = reinterpret_cast<long>(closure);
+    if (PyFloat_Check(value))
+    {
+        val = PyFloat_AsDouble(value);
+    }
+    else if (PyLong_Check(value))
+    {
+        val = PyLong_AsLong(value);
+    }
+    else
+    {
+        PyErr_SetString(PyExc_TypeError, "Value must be a floating point number.");
+        return -1;
+    }
+    if (member_ptr == 0) // x
+        self->data->box.setPosition(val, self->data->box.getPosition().y);
+    else if (member_ptr == 1) // y
+        self->data->box.setPosition(self->data->box.getPosition().x, val);
+    else if (member_ptr == 2) // w
+        self->data->box.setSize(sf::Vector2f(val, self->data->box.getSize().y));
+    else if (member_ptr == 3) // h
+        self->data->box.setSize(sf::Vector2f(self->data->box.getSize().x, val));
+    else if (member_ptr == 4) // center_x
+        self->data->center_x = val;
+    else if (member_ptr == 5) // center_y
+        self->data->center_y = val;
+    else if (member_ptr == 6) // zoom
+        self->data->zoom = val;
+    return 0;
+}
 // TODO (7DRL Day 2, item 5.) return Texture object
 /*
 static PyObject* PyUIGrid_get_texture(PyUIGridObject* self, void* closure) {
@@ -1548,13 +1669,47 @@ static PyObject* PyUIGrid_get_texture(PyUIGridObject* self, void* closure) {
 }
 */
 
+static PyObject* PyUIGrid_at(PyUIGridObject* self, PyObject* o)
+{
+    int x, y;
+    if (!PyArg_ParseTuple(o, "ii", &x, &y)) {
+        PyErr_SetString(PyExc_TypeError, "UIGrid.at requires two integer arguments: (x, y)");
+        return NULL;
+    }
+
+    PyUIGridPointObject* obj = (PyUIGridPointObject*)((&PyUIGridPointType)->tp_alloc(&PyUIGridPointType, 0));
+    //auto target = std::static_pointer_cast<UIEntity>(target);
+    obj->data = &(self->data->points[y + self->data->grid_x * x]);
+    obj->grid = self->data;
+    return (PyObject*)obj;
+}
+
+static PyMethodDef PyUIGrid_methods[] = {
+    {"at", (PyCFunction)PyUIGrid_at, METH_O},
+    {NULL, NULL, 0, NULL}
+};
+
 static PyObject* PyUIGrid_get_children(PyUIGridObject* self, void* closure); // forward declare
 
 static PyGetSetDef PyUIGrid_getsetters[] = {
+
+    // TODO - refactor into get_vector_member with field identifier values `(void*)n`
     {"grid_size", (getter)PyUIGrid_get_grid_size, NULL, "Grid dimensions (grid_x, grid_y)", NULL},
     {"position", (getter)PyUIGrid_get_position, (setter)PyUIGrid_set_position, "Position of the grid (x, y)", NULL},
     {"size", (getter)PyUIGrid_get_size, (setter)PyUIGrid_set_size, "Size of the grid (width, height)", NULL},
+    {"center", (getter)PyUIGrid_get_center, (setter)PyUIGrid_set_center, "Grid coordinate at the center of the Grid's view (pan)", NULL},
+
+    // TODO / BUGFIX - everything about Entity collection
     {"entities", (getter)PyUIGrid_get_children, NULL, "EntityCollection of entities on this grid", NULL},
+
+    {"x", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "top-left corner X-coordinate", (void*)0},
+    {"y", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "top-left corner Y-coordinate", (void*)1},
+    {"w", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "visible widget width", (void*)2},
+    {"h", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "visible widget height", (void*)3},
+    {"center_x", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "center of the view X-coordinate", (void*)4},
+    {"center_y", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "center of the view Y-coordinate", (void*)5},
+    {"zoom", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "zoom factor for displaying the Grid", (void*)6},
+
     //{"texture", (getter)PyUIGrid_get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
     {NULL}  /* Sentinel */
 };
@@ -1585,7 +1740,7 @@ static void PyUIGrid_dealloc(PyUIGridObject* self) {
         //.tp_iternext
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("docstring"),
-        //.tp_methods = PyUIGrid_methods,
+        .tp_methods = PyUIGrid_methods,
         //.tp_members = PyUIGrid_members,
         .tp_getset = PyUIGrid_getsetters,
         //.tp_base = NULL,
@@ -1604,6 +1759,59 @@ static void PyUIGrid_dealloc(PyUIGridObject* self) {
      * end PyUIGrid defs
      *
      */
+
+// PyUIEntity_init defined here because it depends on the PyUIGridType (to accept grid optional keyword argument)
+static int PyUIEntity_init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
+    static const char* keywords[] = { "x", "y", "texture", "sprite_index", "grid", nullptr };
+    float x = 0.0f, y = 0.0f, scale = 1.0f;
+    int sprite_index = -1;
+    PyObject* texture = NULL;
+    PyObject* grid = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ffOi|O",
+        const_cast<char**>(keywords), &x, &y, &texture, &sprite_index, &grid))
+    {
+        return -1;
+    }
+
+    // check types for texture
+    //
+    // Set Texture
+    //
+    if (texture != NULL && !PyObject_IsInstance(texture, (PyObject*)&PyTextureType)){
+        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
+        return -1;
+    } else if (texture != NULL)
+    {   
+        self->texture = texture;
+        Py_INCREF(texture);
+    } else
+    {
+        // default tex?
+    }
+
+    if (grid != NULL && !PyObject_IsInstance(grid, (PyObject*)&PyUIGridType)) {
+        PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
+        return -1;
+    }
+
+    auto pytexture = (PyTextureObject*)texture;
+    if (grid == NULL)
+        self->data = std::make_shared<UIEntity>(); 
+    else
+        self->data = std::make_shared<UIEntity>(*((PyUIGridObject*)grid)->data);
+
+    // TODO - PyTextureObjects and IndexTextures are a little bit of a mess with shared/unshared pointers
+    self->data->sprite = UISprite(pytexture->data.get(), sprite_index, sf::Vector2f(0,0), 1.0);
+    self->data->position = sf::Vector2f(x, y);
+    if (grid != NULL) {
+        PyUIGridObject* pygrid = (PyUIGridObject*)grid;
+        self->data->grid = pygrid->data;
+        // todone - on creation of Entity with Grid assignment, also append it to the entity list
+        pygrid->data->entities->push_back(self->data);
+    }
+    return 0;
+}
 
 /*
      *
@@ -1701,6 +1909,7 @@ static void PyUIGrid_dealloc(PyUIGridObject* self) {
     typedef struct {
         PyObject_HEAD
         std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> data;
+        std::shared_ptr<UIGrid> grid;
     } PyUIEntityCollectionObject;
 
     static Py_ssize_t PyUIEntityCollection_len(PyUIEntityCollectionObject* self) {
@@ -1760,6 +1969,7 @@ static void PyUIGrid_dealloc(PyUIGridObject* self) {
         }
         PyUIEntityObject* entity = (PyUIEntityObject*)o;
         self->data->push_back(entity->data);
+        entity->data->grid = self->grid;
 
         Py_INCREF(Py_None);
         return Py_None;
@@ -1786,9 +1996,10 @@ static void PyUIGrid_dealloc(PyUIGridObject* self) {
         // release the shared pointer at self->data[index];
         //self->data->erase(self->data->begin() + index);
         // (Advance list to position)
-        auto l_front = self->data->begin();
-        std::advance(l_front, index);
+        //auto l_front = self->data->begin();
+        //std::advance(l_front, index);
         //self->data->erase(std::remove(l_front, std::next(l_front)); // TODO / BUGFIX - ???
+        self->data->erase(std::next(self->data->begin(), index));
         Py_INCREF(Py_None);
         return Py_None;
     }
@@ -1864,8 +2075,10 @@ static void PyUIGrid_dealloc(PyUIGridObject* self) {
     {
         // create PyUICollection instance pointing to self->data->children
         PyUIEntityCollectionObject* o = (PyUIEntityCollectionObject*)PyUIEntityCollectionType.tp_alloc(&PyUIEntityCollectionType, 0);
-        if (o)
-            o->data = self->data->entities; // TODO / BUGFIX - entities isn't a shared pointer on UIGrid, what to do?
+        if (o) {
+            o->data = self->data->entities; // todone. / BUGFIX - entities isn't a shared pointer on UIGrid, what to do? -- I made it a sp<list<sp<UIEntity>>>
+            o->grid = self->data;
+        }
         return (PyObject*)o;
     }
 
