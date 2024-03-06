@@ -114,6 +114,11 @@ public:
     static PyObject* _camFollow(PyObject*, PyObject*);
 
     static PyObject* _sceneUI(PyObject*, PyObject*);
+
+    // scene control
+    static PyObject* _setScene(PyObject*, PyObject*);
+    static PyObject* _currentScene(PyObject*, PyObject*);
+    static PyObject* _createScene(PyObject*, PyObject*);
     
     // accept keyboard input from scene
     static sf::Vector2i cursor_position;
@@ -129,6 +134,7 @@ public:
     static int createTexture(std::string filename, int grid_size, int grid_width, int grid_height);
     //static void playSound(const char * filename);
     //static void playMusic(const char * filename);
+    
     
     static void doAction(std::string);
 

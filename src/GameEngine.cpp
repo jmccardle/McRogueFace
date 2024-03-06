@@ -3,7 +3,8 @@
 //#include "UITestScene.h"
 #include "ActionCode.h"
 #include "McRFPy_API.h"
-#include "PythonScene.h"
+//#include "PythonScene.h"
+#include "PyScene.h"
 #include "UITestScene.h"
 #include "Resources.h"
 
@@ -11,7 +12,7 @@ GameEngine::GameEngine()
 {
     Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
     Resources::game = this;
-    window_title = "McRogueFace - r/RoguelikeDev Tutorial Run";
+    window_title = "McRogueFace - 7DRL 2024 Engine Demo";
     window.create(sf::VideoMode(1024, 768), window_title);
     visible = window.getDefaultView();
     window.setFramerateLimit(30);
@@ -27,6 +28,7 @@ GameEngine::GameEngine()
     McRFPy_API::game = this;
     McRFPy_API::api_init();
     McRFPy_API::executePyString("import mcrfpy");
+    McRFPy_API::executeScript("scripts/game.py");
     //McRFPy_API::executePyString("from UIMenu import *");
     //McRFPy_API::executePyString("from Grid import *");
 
@@ -38,11 +40,13 @@ GameEngine::GameEngine()
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }
-void GameEngine::changeScene(std::string s) { std::cout << "Current scene is now '" << s << "'\n"; scene = s; }
+void GameEngine::changeScene(std::string s) { /*std::cout << "Current scene is now '" << s << "'\n";*/ scene = s; }
 void GameEngine::quit() { running = false; }
 void GameEngine::setPause(bool p) { paused = p; }
 sf::Font & GameEngine::getFont() { /*return font; */ return Resources::font; }
 sf::RenderWindow & GameEngine::getWindow() { return window; }
+
+void GameEngine::createScene(std::string s) { scenes[s] = new PyScene(this); }
 
 void GameEngine::run()
 {
@@ -72,6 +76,7 @@ void GameEngine::sUserInput()
         int actionCode = 0;
 
         if (event.type == sf::Event::Closed) { running = false; continue; }
+        // TODO: add resize event to Scene to react; call it after constructor too, maybe
         else if (event.type == sf::Event::Resized) {
             sf::FloatRect area(0.f, 0.f, event.size.width, event.size.height);
             visible = sf::View(area);

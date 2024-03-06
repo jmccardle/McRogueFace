@@ -21,7 +21,7 @@ bool McRFPy_API::do_camfollow;
 EntityManager McRFPy_API::entities;
 
 static PyMethodDef mcrfpyMethods[] = {
-
+/*
     {"createMenu", McRFPy_API::_createMenu, METH_VARARGS,
         "Create a new uimenu (name_str, x, y, w, h)"},
 
@@ -42,13 +42,13 @@ static PyMethodDef mcrfpyMethods[] = {
 
     {"createTexture", McRFPy_API::_createTexture, METH_VARARGS,
         "Create a new texture (filename_str, grid_size, width, height) - grid_size is in pixels (only square sprites for now), width and height are in tiles"},
-
+*/
     {"registerPyAction", McRFPy_API::_registerPyAction, METH_VARARGS,
         "Register a callable Python object to correspond to an action string. (actionstr, callable)"},
         
     {"registerInputAction", McRFPy_API::_registerInputAction, METH_VARARGS,
         "Register a SFML input code to correspond to an action string. (input_code, actionstr)"},
-
+/*
     {"createGrid", McRFPy_API::_createGrid, METH_VARARGS,
         "create a new grid (title, grid_x, grid_y, grid_size, x, y, w, h). grid_x and grid_y are the width and height in squares. grid_size is the pixel w/h of sprites on the grid. x,y are the grid's screen position. w,h are the grid's screen size" },
 
@@ -69,7 +69,7 @@ static PyMethodDef mcrfpyMethods[] = {
         "callback: called when the animation completes\n"
         "loop: if True, animation repeats; if False, animation is deleted\n"
         "frames: if animating a sprite, list the frames. For other data types, the value will change in discrete steps at a rate of duration/len(frames).\n"},
-
+*/
 /*
     static PyObject* _createSoundBuffer(PyObject*, PyObject*);
     static PyObject* _loadMusic(PyObject*, PyObject*);
@@ -86,12 +86,14 @@ static PyMethodDef mcrfpyMethods[] = {
 	{"playSound", McRFPy_API::_playSound, METH_VARARGS, "(int)"},
 	{"getMusicVolume", McRFPy_API::_getMusicVolume, METH_VARARGS, ""},
 	{"getSoundVolume", McRFPy_API::_getSoundVolume, METH_VARARGS, ""},
-	
+/*	
 	{"unlockPlayerInput", McRFPy_API::_unlockPlayerInput, METH_VARARGS, ""},
 	{"lockPlayerInput", McRFPy_API::_lockPlayerInput, METH_VARARGS, ""},
 	{"requestGridTarget", McRFPy_API::_requestGridTarget, METH_VARARGS, ""},
+*/
 	{"activeGrid", McRFPy_API::_activeGrid, METH_VARARGS, ""},
 	{"setActiveGrid", McRFPy_API::_setActiveGrid, METH_VARARGS, ""},
+/*
 	{"inputMode", McRFPy_API::_inputMode, METH_VARARGS, ""},
 	{"turnNumber", McRFPy_API::_turnNumber, METH_VARARGS, ""},
 	{"createEntity", McRFPy_API::_createEntity, METH_VARARGS, ""},
@@ -99,8 +101,12 @@ static PyMethodDef mcrfpyMethods[] = {
 	{"refreshFov", McRFPy_API::_refreshFov, METH_VARARGS, ""},
 	
 	{"camFollow", McRFPy_API::_camFollow, METH_VARARGS, ""},
-
+*/
     {"sceneUI", McRFPy_API::_sceneUI, METH_VARARGS, "sceneUI(scene) - Returns a list of UI elements"},
+
+    {"currentScene", McRFPy_API::_currentScene, METH_VARARGS, "currentScene() - Current scene's name. Returns a string"},
+    {"setScene", McRFPy_API::_setScene, METH_VARARGS, "setScene(scene) - transition to a different scene"},
+    {"createScene", McRFPy_API::_createScene, METH_VARARGS, "createScene(scene) - create a new blank scene with given name"},
 
     {NULL, NULL, 0, NULL}
 };
@@ -1156,4 +1162,24 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
         if (o)
             o->data = ui;
         return (PyObject*)o;
+}
+
+PyObject* McRFPy_API::_currentScene(PyObject* self, PyObject* args) {
+	return Py_BuildValue("s", game->scene.c_str());
+}
+
+PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
+	const char* newscene;
+	if (!PyArg_ParseTuple(args, "s", &newscene)) return NULL;
+	game->changeScene(newscene);
+    Py_INCREF(Py_None);
+    return Py_None;		
+}
+
+PyObject* McRFPy_API::_createScene(PyObject* self, PyObject* args) {
+	const char* newscene;
+	if (!PyArg_ParseTuple(args, "s", &newscene)) return NULL;
+	game->createScene(newscene);
+    Py_INCREF(Py_None);
+    return Py_None;		
 }

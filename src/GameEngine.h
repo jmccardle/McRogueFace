@@ -11,7 +11,6 @@ class GameEngine
 {
     sf::RenderWindow window;
     sf::Font font;
-    std::string scene;
     std::map<std::string, Scene*> scenes;
     bool running = true;
     bool paused = false;
@@ -22,9 +21,11 @@ class GameEngine
     std::string window_title;
 
 public:
+    std::string scene;
     GameEngine();
     Scene* currentScene();
     void changeScene(std::string);
+    void createScene(std::string);
     void quit();
     void setPause(bool);
     sf::Font & getFont();
