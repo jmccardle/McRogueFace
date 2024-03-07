@@ -1,5 +1,5 @@
 #include "GameEngine.h"
-#include "MenuScene.h"
+//#include "MenuScene.h"
 //#include "UITestScene.h"
 #include "ActionCode.h"
 #include "McRFPy_API.h"
@@ -18,7 +18,7 @@ GameEngine::GameEngine()
     window.setFramerateLimit(30);
     scene = "uitest";
     //std::cout << "Constructing MenuScene" << std::endl;
-    scenes["menu"] = new MenuScene(this);
+    //scenes["menu"] = new MenuScene(this);
     scenes["uitest"] = new UITestScene(this);
 
     //std::cout << "Constructed MenuScene" <<std::endl;
@@ -41,7 +41,14 @@ GameEngine::GameEngine()
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }
-void GameEngine::changeScene(std::string s) { /*std::cout << "Current scene is now '" << s << "'\n";*/ scene = s; }
+void GameEngine::changeScene(std::string s)
+{
+    /*std::cout << "Current scene is now '" << s << "'\n";*/
+    if (scenes.find(s) != scenes.end())
+        scene = s;
+    else
+        std::cout << "Attempted to change to a scene that doesn't exist (`" << s << "`)" << std::endl;
+}
 void GameEngine::quit() { running = false; }
 void GameEngine::setPause(bool p) { paused = p; }
 sf::Font & GameEngine::getFont() { /*return font; */ return Resources::font; }
