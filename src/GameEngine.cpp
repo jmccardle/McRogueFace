@@ -119,6 +119,11 @@ void GameEngine::sUserInput()
             std::string name = currentScene()->action(actionCode);
             currentScene()->doAction(name, actionType);
         }
+        else if (currentScene()->key_callable != NULL && currentScene()->key_callable != Py_None)
+        {
+            PyObject* args = Py_BuildValue("(ss)", ActionCode::key_str(event.key.code).c_str(), actionType.c_str());
+            PyObject_Call(currentScene()->key_callable, args, NULL);
+        }
         else
         {
             //std::cout << "[GameEngine] Action not registered for input: " << actionCode << ": " << actionType << std::endl;

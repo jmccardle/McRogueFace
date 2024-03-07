@@ -41,4 +41,7 @@ public:
     
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> ui_elements;
 
+    PyObject* key_callable;
+    void key_register(PyObject*);
+    void key_unregister();
 };

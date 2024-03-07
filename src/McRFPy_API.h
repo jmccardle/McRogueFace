@@ -73,7 +73,7 @@ public:
     static PyObject* _setScene(PyObject*, PyObject*);
     static PyObject* _currentScene(PyObject*, PyObject*);
     static PyObject* _createScene(PyObject*, PyObject*);
-    
+    static PyObject* _keypressScene(PyObject*, PyObject*); 
     // accept keyboard input from scene
     static sf::Vector2i cursor_position;
     static void player_input(int, int);

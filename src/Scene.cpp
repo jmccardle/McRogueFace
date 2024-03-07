@@ -39,3 +39,21 @@ bool Scene::unregisterActionInjected(int code, std::string name)
 {
     return false;
 }
+
+void Scene::key_register(PyObject* callable)
+{
+    if (key_callable)
+    {
+        // decrement reference before overwriting
+        Py_DECREF(key_callable);
+    }
+    key_callable = callable;
+    Py_INCREF(key_callable);
+}
+
+void Scene::key_unregister()
+{
+    if (key_callable == NULL) return;
+    Py_DECREF(key_callable);
+    key_callable = NULL;
+}

@@ -5,44 +5,12 @@
 #include "UI.h"
 #include "Resources.h"
 
-// static class members...?
-//std::map<std::string, UIMenu*> McRFPy_API::menus;
-//std::map<std::string, Grid*> McRFPy_API::grids;
 std::map<std::string, PyObject*> McRFPy_API::callbacks;
-//std::list<Animation*> McRFPy_API::animations;
 std::vector<sf::SoundBuffer> McRFPy_API::soundbuffers;
 sf::Music McRFPy_API::music;
 sf::Sound McRFPy_API::sfx;
-//std::string McRFPy_API::input_mode;
-//int McRFPy_API::turn_number;
-//std::string McRFPy_API::active_grid;
-//bool McRFPy_API::do_camfollow;
-
-//EntityManager McRFPy_API::entities;
 
 static PyMethodDef mcrfpyMethods[] = {
-/*
-    {"createMenu", McRFPy_API::_createMenu, METH_VARARGS,
-        "Create a new uimenu (name_str, x, y, w, h)"},
-
-    {"listMenus", McRFPy_API::_listMenus, METH_VARARGS,
-        "return a list of existing menus"},
-
-    {"modMenu", McRFPy_API::_modMenu, METH_VARARGS,
-        "call with a UIMenu object to update all fields"},
-
-    {"createCaption", McRFPy_API::_createCaption, METH_VARARGS,
-        "Create a new text caption (menu_str, text_str, fontsize, r, g, b)"},
-
-    {"createButton", McRFPy_API::_createButton, METH_VARARGS,
-        "Create a new button (menu_str, x, y, w, h, (bg r, g, b), (text r, g, b), caption, action_code)"},
-
-    {"createSprite", McRFPy_API::_createSprite, METH_VARARGS,
-        "Create a new sprite (menu_str, texture_index, sprite_index, x, y, scale)"},
-
-    {"createTexture", McRFPy_API::_createTexture, METH_VARARGS,
-        "Create a new texture (filename_str, grid_size, width, height) - grid_size is in pixels (only square sprites for now), width and height are in tiles"},
-*/
     {"registerPyAction", McRFPy_API::_registerPyAction, METH_VARARGS,
         "Register a callable Python object to correspond to an action string. (actionstr, callable)"},
         
@@ -56,25 +24,13 @@ static PyMethodDef mcrfpyMethods[] = {
 	{"playSound", McRFPy_API::_playSound, METH_VARARGS, "(int)"},
 	{"getMusicVolume", McRFPy_API::_getMusicVolume, METH_VARARGS, ""},
 	{"getSoundVolume", McRFPy_API::_getSoundVolume, METH_VARARGS, ""},
-/*	
-	{"unlockPlayerInput", McRFPy_API::_unlockPlayerInput, METH_VARARGS, ""},
-	{"lockPlayerInput", McRFPy_API::_lockPlayerInput, METH_VARARGS, ""},
-	{"requestGridTarget", McRFPy_API::_requestGridTarget, METH_VARARGS, ""},
-	{"activeGrid", McRFPy_API::_activeGrid, METH_VARARGS, ""},
-	{"setActiveGrid", McRFPy_API::_setActiveGrid, METH_VARARGS, ""},
-	{"inputMode", McRFPy_API::_inputMode, METH_VARARGS, ""},
-	{"turnNumber", McRFPy_API::_turnNumber, METH_VARARGS, ""},
-	{"createEntity", McRFPy_API::_createEntity, METH_VARARGS, ""},
-	//{"listEntities", McRFPy_API::_listEntities, METH_VARARGS, ""},
-	{"refreshFov", McRFPy_API::_refreshFov, METH_VARARGS, ""},
-	
-	{"camFollow", McRFPy_API::_camFollow, METH_VARARGS, ""},
-*/
+
     {"sceneUI", McRFPy_API::_sceneUI, METH_VARARGS, "sceneUI(scene) - Returns a list of UI elements"},
 
     {"currentScene", McRFPy_API::_currentScene, METH_VARARGS, "currentScene() - Current scene's name. Returns a string"},
     {"setScene", McRFPy_API::_setScene, METH_VARARGS, "setScene(scene) - transition to a different scene"},
     {"createScene", McRFPy_API::_createScene, METH_VARARGS, "createScene(scene) - create a new blank scene with given name"},
+    {"keypressScene", McRFPy_API::_keypressScene, METH_VARARGS, "keypressScene(callable) - assign a callable object to the current scene receive keypress events"},
 
     {NULL, NULL, 0, NULL}
 };
@@ -478,6 +434,19 @@ PyObject* McRFPy_API::_createScene(PyObject* self, PyObject* args) {
 	const char* newscene;
 	if (!PyArg_ParseTuple(args, "s", &newscene)) return NULL;
 	game->createScene(newscene);
+    Py_INCREF(Py_None);
+    return Py_None;		
+}
+
+PyObject* McRFPy_API::_keypressScene(PyObject* self, PyObject* args) {
+    PyObject* callable;
+	if (!PyArg_ParseTuple(args, "O", &callable)) return NULL;
+    if (game->currentScene()->key_callable != NULL and game->currentScene()->key_callable != Py_None)
+    {
+        Py_DECREF(game->currentScene()->key_callable);
+    }
+    Py_INCREF(callable);
+    game->currentScene()->key_callable = callable;
     Py_INCREF(Py_None);
     return Py_None;		
 }
