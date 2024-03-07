@@ -5,7 +5,7 @@
 UITestScene::UITestScene(GameEngine* g) : Scene(g)
 {
     text.setFont(game->getFont());
-    text.setString("Test Scene for UI elements");
+    text.setString("UITest: surprised to be here? game.py raised an exception.");
     text.setCharacterSize(24);
 
 

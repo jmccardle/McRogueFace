@@ -961,7 +961,7 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
                 box.getSize().x << ", w=" << box.getSize().y << ", " <<
                 "outline=" << box.getOutlineThickness() << ", " << 
                 "fill_color=(" << (int)fc.r << ", " << (int)fc.g << ", " << (int)fc.b << ", " << (int)fc.a <<"), " <<
-                "outlinecolor=(" << (int)oc.r << ", " << (int)oc.g << ", " << (int)oc.b << ", " << (int)oc.a <<"), " <<
+                "outline_color=(" << (int)oc.r << ", " << (int)oc.g << ", " << (int)oc.b << ", " << (int)oc.a <<"), " <<
                 self->data->children->size() << " child objects" <<
                 ")>";
         }
@@ -972,19 +972,29 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
     static int PyUIFrame_init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     {
         //std::cout << "Init called\n";
-        static const char* keywords[] = { "x", "y", nullptr }; 
-        float x = 0.0f, y = 0.0f;
+        static const char* keywords[] = { "x", "y", "w", "h", "fill_color", "outline_color", "outline", nullptr }; 
+        float x = 0.0f, y = 0.0f, w = 0.0f, h=0.0f, outline=0.0f;
+        PyObject* fill_color = 0;
+        PyObject* outline_color = 0;
     
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ff", const_cast<char**>(keywords), &x, &y))
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "ffff|OOf", const_cast<char**>(keywords), &x, &y, &w, &h, &fill_color, &outline_color, &outline))
         {
             return -1;
         }
     
         //self->data->x = x;
         //self->data->y = y;
-        self->data->box.setFillColor(sf::Color(0,0,0,255));
-        self->data->box.setOutlineColor(sf::Color(128,128,128,255));
-    
+        self->data->box.setPosition(sf::Vector2f(x, y));
+        self->data->box.setSize(sf::Vector2f(w, h));
+        self->data->box.setOutlineThickness(outline);
+        // getsetter abuse because I haven't standardized Color object parsing (TODO)
+        int err_val = 0;
+        if (fill_color && fill_color != Py_None) err_val = PyUIFrame_set_color_member(self, fill_color, (void*)0);
+        else self->data->box.setFillColor(sf::Color(0,0,0,255));
+        if (err_val) return err_val;
+        if (outline_color && outline_color != Py_None) err_val = PyUIFrame_set_color_member(self, outline_color, (void*)1);
+        else self->data->box.setOutlineColor(sf::Color(128,128,128,255));
+        if (err_val) return err_val;
         return 0;
     }
 
