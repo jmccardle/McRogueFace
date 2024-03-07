@@ -72,12 +72,13 @@ void GameEngine::run()
 void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
 {
     //std::cout << "Manage timer called. " << name << " " << interval << std::endl;
-    if (timers.find(name) != timers.end()) // overwrite existing
+    auto it = timers.find(name);
+    if (it != timers.end()) // overwrite existing
     {
         if (target == NULL || target == Py_None) // delete
         {
-            Py_DECREF(target);
-            timers.erase(name);
+            Py_DECREF(timers[name].target);
+            timers.erase(it);
             return;
         }
     }
