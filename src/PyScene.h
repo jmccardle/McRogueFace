@@ -12,4 +12,6 @@ public:
     void update() override final;
     void doAction(std::string, std::string) override final;
     void sRender() override final;
+
+    void do_mouse_input(std::string, std::string);
 };

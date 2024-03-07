@@ -5,7 +5,7 @@
 #include "IndexTexture.h"
 #include <list>
 
-enum PyObjectsEnum
+enum PyObjectsEnum : int
 {
     UIFRAME = 1,
     UICAPTION,
@@ -21,9 +21,17 @@ public:
     virtual void render(sf::Vector2f) = 0;
     //virtual sf::Rect<int> aabb(); // not sure I care about this yet
     //virtual sf::Vector2i position();
-    bool handle_event(/* ??? click, scroll, keystroke*/);
-    std::string action;
+    //bool handle_event(/* ??? click, scroll, keystroke*/);
+    //std::string action;
     virtual PyObjectsEnum derived_type() = 0;
+
+    // Mouse input handling - callable object, methods to find event's destination
+    PyObject* click_callable;
+    virtual UIDrawable* click_at(sf::Vector2f point) = 0;
+    void click_register(PyObject*);
+    void click_unregister();
+
+    UIDrawable();
 };
 
 //Python object types & forward declarations
@@ -46,14 +54,17 @@ public:
     UIFrame();
     ~UIFrame();
     sf::RectangleShape box;
+    // todone: why does UIFrame have x,y,w,h AND a box? Which one should be used for bounds checks? (floats removed)
 
     //Simulate RectangleShape
-    float x, y, w, h, outline;
+    //float x, y, w, h, 
+    float outline;
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
     void render(sf::Vector2f) override final;
     void move(sf::Vector2f);
     
     PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UIFrame;  };
+    virtual UIDrawable* click_at(sf::Vector2f point) override final;
     /*
     sf::Color fillColor(); // getter
     void fillColor(sf::Color c); // C++ setter
@@ -78,6 +89,7 @@ public:
     sf::Text text;
     void render(sf::Vector2f) override final;
     PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UICaption;  };
+    virtual UIDrawable* click_at(sf::Vector2f point) override final;
 };
 
 class UISprite: public UIDrawable
@@ -88,6 +100,7 @@ public:
     UISprite(IndexTexture*, int, sf::Vector2f, float);
     void update();
     void render(sf::Vector2f) override final;
+    virtual UIDrawable* click_at(sf::Vector2f point) override final;
     
     // 7DRL hack - TODO apply RenderTexture concept to all UIDrawables (via `sf::RenderTarget`)
     void render(sf::Vector2f, sf::RenderTexture&);
@@ -148,6 +161,7 @@ public:
     UIGridPoint& at(int, int);
     PyObjectsEnum derived_type() override final;
     void setSprite(int);
+    virtual UIDrawable* click_at(sf::Vector2f point) override final;
 
     int grid_x, grid_y;
     //int grid_size; // grid sizes are implied by IndexTexture now
@@ -296,6 +310,71 @@ switch (target->derived_type())                         \
         std::shared_ptr<UISprite> data;
     } PyUISpriteObject;
     */
+
+//
+// Clickable / Callable Object Assignment
+//
+static PyObject* PyUIDrawable_get_click(PyUIGridObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure)); // trust me bro, it's an Enum
+    PyObject* ptr;
+
+    switch (objtype)
+    {
+        case PyObjectsEnum::UIFRAME:
+            ptr = ((PyUIFrameObject*)self)->data->click_callable;
+            break;
+        case PyObjectsEnum::UICAPTION:
+            ptr = ((PyUICaptionObject*)self)->data->click_callable;
+            break;
+        case PyObjectsEnum::UISPRITE:
+            ptr = ((PyUISpriteObject*)self)->data->click_callable;
+            break;
+        case PyObjectsEnum::UIGRID:
+            ptr = ((PyUIGridObject*)self)->data->click_callable;
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _get_click");
+            return NULL;
+    }
+    if (ptr && ptr != Py_None)
+        return ptr;
+    else
+        return Py_None;
+}
+
+static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure)); // trust me bro, it's an Enum
+    UIDrawable* target;
+    switch (objtype)
+    {
+        case PyObjectsEnum::UIFRAME:
+            target = (((PyUIFrameObject*)self)->data.get());
+            break;
+        case PyObjectsEnum::UICAPTION:
+            target = (((PyUICaptionObject*)self)->data.get());
+            break;
+        case PyObjectsEnum::UISPRITE:
+            target = (((PyUISpriteObject*)self)->data.get());
+            break;
+        case PyObjectsEnum::UIGRID:
+            target = (((PyUIGridObject*)self)->data.get());
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _set_click");
+            return -1;
+    }
+
+	if (value == Py_None)
+	{
+		target->click_unregister();
+	} else {
+	    target->click_register(value);
+	}
+    return 0;
+}
+
+// End Clickability implementation
+
 
     /*
      *
@@ -598,6 +677,7 @@ switch (target->derived_type())                         \
         //{"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
         {"text", (getter)PyUICaption_get_text, (setter)PyUICaption_set_text, "The text displayed", NULL},
         {"size", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "Text size (integer) in points", (void*)5},
+        {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UICAPTION},
         {NULL}
     };
 
@@ -865,6 +945,7 @@ switch (target->derived_type())                         \
         {"fill_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Fill color of the rectangle", (void*)0},
         {"outline_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Outline color of the rectangle", (void*)1},
         {"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
+        {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIFRAME},
         {NULL}
     };
     
@@ -1108,6 +1189,7 @@ switch (target->derived_type())                         \
         {"scale", (getter)PyUISprite_get_float_member, (setter)PyUISprite_set_float_member, "Size factor",                   (void*)2},
         {"sprite_number", (getter)PyUISprite_get_int_member, (setter)PyUISprite_set_int_member, "Which sprite on the texture is shown", NULL},
         {"texture", (getter)PyUISprite_get_texture, (setter)PyUISprite_set_texture,     "Texture object",                    NULL},
+        {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UISPRITE},
         {NULL}
     };
     
@@ -1709,6 +1791,8 @@ static PyGetSetDef PyUIGrid_getsetters[] = {
     {"center_x", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "center of the view X-coordinate", (void*)4},
     {"center_y", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "center of the view Y-coordinate", (void*)5},
     {"zoom", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "zoom factor for displaying the Grid", (void*)6},
+
+    {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIGRID},
 
     //{"texture", (getter)PyUIGrid_get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
     {NULL}  /* Sentinel */

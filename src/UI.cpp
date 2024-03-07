@@ -2,15 +2,88 @@
 #include "Resources.h"
 #include "GameEngine.h"
 
+/* //callability fields & methods
+    PyObject* click_callable;
+    virtual UIDrawable* click_at(sf::Vector2f point);
+    void click_register(PyObject*);
+    void click_unregister();
+*/
+
+UIDrawable::UIDrawable() { click_callable = NULL;  }
+
+UIDrawable* UIFrame::click_at(sf::Vector2f point)
+{
+    for (auto e: *children)
+    {
+        auto p = e->click_at(point + box.getPosition());
+        if (p)
+            return p;
+    }
+    if (click_callable)
+    {
+        float x = box.getPosition().x, y = box.getPosition().y, w = box.getSize().x, h = box.getSize().y;
+        if (point.x > x && point.y > y && point.x < x+w && point.y < y+h) return this;
+    }
+    return NULL;
+}
+
+UIDrawable* UICaption::click_at(sf::Vector2f point)
+{
+    if (click_callable)
+    {
+        if (text.getGlobalBounds().contains(point)) return this;
+    }
+    return NULL;
+}
+
+UIDrawable* UISprite::click_at(sf::Vector2f point)
+{
+    if (click_callable)
+    {
+        if(sprite.getGlobalBounds().contains(point)) return this;
+    }
+    return NULL;
+}
+
+UIDrawable* UIGrid::click_at(sf::Vector2f point)
+{
+    if (click_callable)
+    {
+        if(box.getGlobalBounds().contains(point)) return this;
+    }
+    return NULL;
+}
+
+void UIDrawable::click_register(PyObject* callable)
+{
+    if (click_callable)
+    {
+        // decrement reference before overwriting
+        Py_DECREF(click_callable);
+    }
+    click_callable = callable;
+    Py_INCREF(click_callable);
+}
+
+void UIDrawable::click_unregister()
+{
+    if (click_callable == NULL) return;
+    Py_DECREF(click_callable);
+    click_callable = NULL;
+}
+
 void UIDrawable::render()
 {
     //std::cout << "Rendering base UIDrawable\n";
     render(sf::Vector2f());
 }
 UIFrame::UIFrame():
-x(0), y(0), w(0), h(0), outline(0)
+//x(0), y(0), w(0), h(0), 
+outline(0)
 {
     children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
+    box.setPosition(0, 0);
+    box.setSize(sf::Vector2f(0, 0));
     /*
     pyOutlineColor = NULL;
     pyFillColor = NULL;
@@ -20,8 +93,11 @@ x(0), y(0), w(0), h(0), outline(0)
 }
 
 UIFrame::UIFrame(float _x, float _y, float _w, float _h):
-x(_x), y(_y), w(_w), h(_h), outline(0)
+//x(_x), y(_y), w(_w), h(_h),
+outline(0)
 {
+    box.setPosition(_x, _y);
+    box.setSize(sf::Vector2f(_w, _h));
     children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
     /*
     pyOutlineColor = NULL;
@@ -51,6 +127,7 @@ UIFrame::~UIFrame()
     void outlineColor(sf::Color c); // C++ setter
     void outlineColor(PyObject* pyColor); // Python setter
 */
+
 
 PyObjectsEnum UIFrame::derived_type()
 {
@@ -385,94 +462,4 @@ UIGridPoint& UIGrid::at(int x, int y)
 PyObjectsEnum UIGrid::derived_type()
 {
     return PyObjectsEnum::UIGRID;
-}
-
-PyObject* DEFUNCT_py_instance(std::shared_ptr<UIDrawable> source)
-{
-    // takes a UI drawable, calls its derived_type virtual function, and builds a Python object based on the return value.
-    using namespace mcrfpydef;
-
-    PyObject* newobj = NULL; 
-    std::cout << "py_instance called\n";
-    switch (source->derived_type())
-    {
-        case PyObjectsEnum::UIFRAME:
-        {
-            std::cout << "UIFRAME case\n" << std::flush;
-            PyTypeObject* UIFrameType = &PyUIFrameType;
-            //std::cout << "tp_alloc\n" << std::flush;
-            //PyObject* _o = UIFrameType->tp_alloc(UIFrameType, 0);
-            //std::cout << "reinterpret_cast\n" << std::flush;
-            //auto o = reinterpret_cast<PyUICollectionObject*>(_o);
-            //PyUIFrameObject* o = (PyUIFrameObject*)PyObject_New(PyUIFrameObject, UIFrameType);
-            
-            PyUIFrameObject* o = (PyUIFrameObject*)(UIFrameType->tp_alloc(UIFrameType, 0));
-            //PyUIFrameObject* o = PyObject_New(PyUIFrameObject, UIFrameType);
-
-            /*
-            // backtracking the problem: instantiate a PyColor of (255, 0, 0) for testing
-            PyTypeObject* colorType = &PyColorType;
-            PyObject* pyColor = colorType->tp_alloc(colorType, 0);
-            if (pyColor == NULL)
-            {
-                std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
-                return NULL;
-            }
-            PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
-            pyColorObj->data = std::make_shared<sf::Color>();
-            pyColorObj->data-> r = 255;
-            return (PyObject*)pyColorObj;
-            */
-
-            
-            std::cout << "pointer check: " << o << "\n" << std::flush;
-            if (o)
-            {
-                std::cout << "Casting data...\n" << std::flush;
-                auto p = std::static_pointer_cast<UIFrame>(source);
-                std::cout << "casted. Assigning...\n" << std::flush;
-                //o->data = std::make_shared<UIFrame>();
-
-                o->data = p;
-                //std::cout << "assigned.\n" << std::flush;
-                auto usource = o->data; //(UIFrame*)source.get();
-                std::cout << "Loaded data into object. " << usource->box.getPosition().x << " " << usource->box.getPosition().y << " " <<
-                    usource->box.getSize().x << " " << usource->box.getSize().y << std::endl;
-            }
-            else
-            {
-                std::cout << "Allocation failed.\n" << std::flush;
-            }
-            newobj = (PyObject*)o;
-            break;
-            
-        }
-        case PyObjectsEnum::UICAPTION:
-        {
-            std::cout << "UICAPTION case\n";
-            PyErr_SetString(PyExc_NotImplementedError, "UICaption class not implemented in Python yet.");
-            /* not yet implemented
-            PyUICaptionObject* o = (PyUICaptionObject*)PyUICaptionType.tp_alloc(&PyUICaptionType, 0);
-            if (o)
-                o->data = std::static_pointer_cast<UICaption>(source);
-            */
-            break;
-        }
-        case PyObjectsEnum::UISPRITE:
-        {
-            std::cout << "UISPRITE case\n";
-            PyErr_SetString(PyExc_NotImplementedError, "UISprite class not implemented in Python yet.");
-            /*
-            PyUISpriteObject* o = (PyUISpriteObject*)PyUISpriteType.tp_alloc(&PyUISpriteType, 0);
-            if (o)
-                o->data = std::static_pointer_cast<UISprite>(source);
-            */
-            break;
-        }
-        default:
-            return NULL;
-            break;
-    }
-
-    return newobj;
 }
