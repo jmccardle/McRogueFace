@@ -3,6 +3,7 @@
 #include "Python.h"
 #include "structmember.h"
 #include "IndexTexture.h"
+#include "Resources.h"
 #include <list>
 
 enum PyObjectsEnum : int
@@ -657,12 +658,19 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
 
     static PyObject* PyUICaption_get_text(PyUICaptionObject* self, void* closure)
     {
-        return PyUnicode_FromString("Test String, Please Ignore");
+        Resources::caption_buffer = self->data->text.getString();
+        return PyUnicode_FromString(Resources::caption_buffer.c_str());
     }
 
     static int PyUICaption_set_text(PyUICaptionObject* self, PyObject* value, void* closure)
     {
-        // asdf
+        PyObject* s = PyObject_Str(value);
+        PyObject * temp_bytes = PyUnicode_AsEncodedString(s, "UTF-8", "strict"); // Owned reference
+        if (temp_bytes != NULL) {
+            Resources::caption_buffer = PyBytes_AS_STRING(temp_bytes); // Borrowed pointer
+            Py_DECREF(temp_bytes);
+        }
+        self->data->text.setString(Resources::caption_buffer);
         return 0;
     }
 
