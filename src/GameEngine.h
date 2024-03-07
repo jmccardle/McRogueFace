@@ -6,6 +6,7 @@
 #include "Scene.h"
 #include "McRFPy_API.h"
 #include "IndexTexture.h"
+#include "Timer.h"
 
 class GameEngine
 {
@@ -19,6 +20,10 @@ class GameEngine
     sf::Clock clock;
     float frameTime;
     std::string window_title;
+
+    sf::Clock runtime;
+    std::map<std::string, Timer> timers;
+    void testTimers();
 
 public:
     std::string scene;
@@ -35,6 +40,7 @@ public:
     int getFrame() { return currentFrame; }
     float getFrameTime() { return frameTime; }
     sf::View getView() { return visible; }
+    void manageTimer(std::string, PyObject*, int);
 
     // global textures for scripts to access
     std::vector<IndexTexture> textures;

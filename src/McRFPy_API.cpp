@@ -32,6 +32,9 @@ static PyMethodDef mcrfpyMethods[] = {
     {"createScene", McRFPy_API::_createScene, METH_VARARGS, "createScene(scene) - create a new blank scene with given name"},
     {"keypressScene", McRFPy_API::_keypressScene, METH_VARARGS, "keypressScene(callable) - assign a callable object to the current scene receive keypress events"},
 
+    {"setTimer", McRFPy_API::_setTimer, METH_VARARGS, "setTimer(name:str, callable:object, interval:int) - callable will be called with args (runtime:float) every `interval` milliseconds"},
+    {"delTimer", McRFPy_API::_delTimer, METH_VARARGS, "delTimer(name:str) - stop calling the timer labelled with `name`"},
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -449,4 +452,22 @@ PyObject* McRFPy_API::_keypressScene(PyObject* self, PyObject* args) {
     game->currentScene()->key_callable = callable;
     Py_INCREF(Py_None);
     return Py_None;		
+}
+
+PyObject* McRFPy_API::_setTimer(PyObject* self, PyObject* args) { // TODO - compare with UIDrawable mouse & Scene Keyboard methods - inconsistent responsibility for incref/decref around mcrogueface
+    const char* name;
+    PyObject* callable;
+    int interval;
+	if (!PyArg_ParseTuple(args, "sOi", &name, &callable, &interval)) return NULL;
+    game->manageTimer(name, callable, interval);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_delTimer(PyObject* self, PyObject* args) {
+	const char* name;
+	if (!PyArg_ParseTuple(args, "s", &name)) return NULL;
+    game->manageTimer(name, NULL, 0);
+    Py_INCREF(Py_None);
+    return Py_None;
 }

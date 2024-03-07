@@ -37,6 +37,7 @@ GameEngine::GameEngine()
     IndexSprite::game = this;
 
     clock.restart();
+    runtime.restart();
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }
@@ -55,6 +56,7 @@ void GameEngine::run()
     while (running)
     {
         currentScene()->update();
+        testTimers();
         sUserInput();
         if (!paused)
         {
@@ -64,6 +66,36 @@ void GameEngine::run()
         frameTime = clock.restart().asSeconds();
         fps = 1 / frameTime;
         window.setTitle(window_title + " " + std::to_string(fps) + " FPS");
+    }
+}
+
+void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
+{
+    //std::cout << "Manage timer called. " << name << " " << interval << std::endl;
+    if (timers.find(name) != timers.end()) // overwrite existing
+    {
+        if (target == NULL || target == Py_None) // delete
+        {
+            Py_DECREF(target);
+            timers.erase(name);
+            return;
+        }
+    }
+    if (target == NULL || target == Py_None)
+    {
+        std::cout << "Refusing to initialize timer to None. It's not an error, it's just pointless." << std::endl;
+        return;
+    }
+    timers[name] = Timer(target, interval, runtime.getElapsedTime().asMilliseconds());
+    Py_INCREF(target);
+}
+
+void GameEngine::testTimers()
+{
+    int now = runtime.getElapsedTime().asMilliseconds();
+    for (auto& [name, timer]: timers)
+    {
+        timer.test(now);
     }
 }
 
