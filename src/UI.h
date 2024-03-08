@@ -1776,10 +1776,18 @@ static PyObject* PyUIGrid_at(PyUIGridObject* self, PyObject* o)
         PyErr_SetString(PyExc_TypeError, "UIGrid.at requires two integer arguments: (x, y)");
         return NULL;
     }
+    if (x < 0 || x >= self->data->grid_x) {
+        PyErr_SetString(PyExc_ValueError, "x value out of range (0, Grid.grid_y)");
+        return NULL;
+    }
+    if (y < 0 || y >= self->data->grid_y) {
+        PyErr_SetString(PyExc_ValueError, "y value out of range (0, Grid.grid_y)");
+        return NULL;
+    }
 
     PyUIGridPointObject* obj = (PyUIGridPointObject*)((&PyUIGridPointType)->tp_alloc(&PyUIGridPointType, 0));
     //auto target = std::static_pointer_cast<UIEntity>(target);
-    obj->data = &(self->data->points[y + self->data->grid_x * x]);
+    obj->data = &(self->data->points[x + self->data->grid_x * y]);
     obj->grid = self->data;
     return (PyObject*)obj;
 }
