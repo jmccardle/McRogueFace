@@ -34,7 +34,7 @@ static PyMethodDef mcrfpyMethods[] = {
 
     {"setTimer", McRFPy_API::_setTimer, METH_VARARGS, "setTimer(name:str, callable:object, interval:int) - callable will be called with args (runtime:float) every `interval` milliseconds"},
     {"delTimer", McRFPy_API::_delTimer, METH_VARARGS, "delTimer(name:str) - stop calling the timer labelled with `name`"},
-
+    {"exit", McRFPy_API::_exit, METH_VARARGS, "exit() - close down the game engine"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -468,6 +468,12 @@ PyObject* McRFPy_API::_delTimer(PyObject* self, PyObject* args) {
 	const char* name;
 	if (!PyArg_ParseTuple(args, "s", &name)) return NULL;
     game->manageTimer(name, NULL, 0);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_exit(PyObject* self, PyObject* args) {
+    game->quit();
     Py_INCREF(Py_None);
     return Py_None;
 }

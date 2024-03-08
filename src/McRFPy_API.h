@@ -79,6 +79,8 @@ public:
     static PyObject* _setTimer(PyObject*, PyObject*);
     static PyObject* _delTimer(PyObject*, PyObject*);
 
+    static PyObject* _exit(PyObject*, PyObject*);
+
     // accept keyboard input from scene
     static sf::Vector2i cursor_position;
     static void player_input(int, int);
