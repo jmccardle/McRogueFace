@@ -80,6 +80,7 @@ public:
     static PyObject* _delTimer(PyObject*, PyObject*);
 
     static PyObject* _exit(PyObject*, PyObject*);
+    static PyObject* _setScale(PyObject*, PyObject*);
 
     // accept keyboard input from scene
     static sf::Vector2i cursor_position;

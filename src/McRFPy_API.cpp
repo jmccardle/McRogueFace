@@ -35,6 +35,7 @@ static PyMethodDef mcrfpyMethods[] = {
     {"setTimer", McRFPy_API::_setTimer, METH_VARARGS, "setTimer(name:str, callable:object, interval:int) - callable will be called with args (runtime:float) every `interval` milliseconds"},
     {"delTimer", McRFPy_API::_delTimer, METH_VARARGS, "delTimer(name:str) - stop calling the timer labelled with `name`"},
     {"exit", McRFPy_API::_exit, METH_VARARGS, "exit() - close down the game engine"},
+    {"setScale", McRFPy_API::_setScale, METH_VARARGS, "setScale(multiplier:float) - resize the window (still 1024x768, but bigger)"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -483,6 +484,19 @@ PyObject* McRFPy_API::_delTimer(PyObject* self, PyObject* args) {
 
 PyObject* McRFPy_API::_exit(PyObject* self, PyObject* args) {
     game->quit();
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* McRFPy_API::_setScale(PyObject* self, PyObject* args) {
+	float multiplier;
+	if (!PyArg_ParseTuple(args, "f", &multiplier)) return NULL;
+    if (multiplier < 0.2 || multiplier > 4)
+    {
+        PyErr_SetString(PyExc_ValueError, "Window scale must be between 0.2 and 4");
+        return NULL;
+    }
+    game->setWindowScale(multiplier);
     Py_INCREF(Py_None);
     return Py_None;
 }

@@ -19,14 +19,15 @@ void PyScene::update()
 
 void PyScene::do_mouse_input(std::string button, std::string type)
 {
-    auto mousepos = sf::Mouse::getPosition(game->getWindow());
+    auto unscaledmousepos = sf::Mouse::getPosition(game->getWindow());
+    auto mousepos = game->getWindow().mapPixelToCoords(unscaledmousepos);
     UIDrawable* target;
     for (auto d: *ui_elements)
     {
         target = d->click_at(sf::Vector2f(mousepos));
         if (target)
         {
-            PyObject* args = Py_BuildValue("(iiss)", mousepos.x, mousepos.y, button.c_str(), type.c_str());
+            PyObject* args = Py_BuildValue("(iiss)", (int)mousepos.x, (int)mousepos.y, button.c_str(), type.c_str());
             PyObject* retval = PyObject_Call(target->click_callable, args, NULL);
             if (!retval)
             {   

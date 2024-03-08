@@ -41,6 +41,7 @@ public:
     float getFrameTime() { return frameTime; }
     sf::View getView() { return visible; }
     void manageTimer(std::string, PyObject*, int);
+    void setWindowScale(float);
 
     // global textures for scripts to access
     std::vector<IndexTexture> textures;

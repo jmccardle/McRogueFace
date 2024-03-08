@@ -13,7 +13,7 @@ GameEngine::GameEngine()
     Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
     Resources::game = this;
     window_title = "McRogueFace - 7DRL 2024 Engine Demo";
-    window.create(sf::VideoMode(1024, 768), window_title);
+    window.create(sf::VideoMode(1024, 768), window_title, sf::Style::Titlebar | sf::Style::Close);
     visible = window.getDefaultView();
     window.setFramerateLimit(30);
     scene = "uitest";
@@ -55,6 +55,12 @@ sf::Font & GameEngine::getFont() { /*return font; */ return Resources::font; }
 sf::RenderWindow & GameEngine::getWindow() { return window; }
 
 void GameEngine::createScene(std::string s) { scenes[s] = new PyScene(this); }
+
+void GameEngine::setWindowScale(float multiplier)
+{
+    window.setSize(sf::Vector2u(1024 * multiplier, 768 * multiplier)); // 7DRL 2024: window scaling
+    //window.create(sf::VideoMode(1024 * multiplier, 768 * multiplier), window_title, sf::Style::Titlebar | sf::Style::Close);
+}
 
 void GameEngine::run()
 {
@@ -118,11 +124,18 @@ void GameEngine::sUserInput()
         if (event.type == sf::Event::Closed) { running = false; continue; }
         // TODO: add resize event to Scene to react; call it after constructor too, maybe
         else if (event.type == sf::Event::Resized) {
+            continue; // 7DRL short circuit. Resizing manually disabled
+            /*
             sf::FloatRect area(0.f, 0.f, event.size.width, event.size.height);
+            //sf::FloatRect area(0.f, 0.f, 1024.f, 768.f); // 7DRL 2024: attempt to set scale appropriately
+            //sf::FloatRect area(0.f, 0.f, event.size.width, event.size.width * 0.75);
             visible = sf::View(area);
             window.setView(visible);
-            //std::cout << "Visible area set to (0, 0, " << event.size.width << ", " << event.size.height <<")"<<std::endl;
+            //window.setSize(sf::Vector2u(event.size.width, event.size.width * 0.75)); // 7DRL 2024: window scaling
+            std::cout << "Visible area set to (0, 0, " << event.size.width << ", " << event.size.height <<")"<<std::endl;
             actionType = "resize";
+            //window.setSize(sf::Vector2u(event.size.width, event.size.width * 0.75)); // 7DRL 2024: window scaling
+            */
         }
 
         else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::MouseButtonPressed || event.type == sf::Event::MouseWheelScrolled) actionType = "start";
