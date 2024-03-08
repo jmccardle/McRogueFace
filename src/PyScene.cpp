@@ -27,7 +27,16 @@ void PyScene::do_mouse_input(std::string button, std::string type)
         if (target)
         {
             PyObject* args = Py_BuildValue("(iiss)", mousepos.x, mousepos.y, button.c_str(), type.c_str());
-            PyObject_Call(target->click_callable, args, NULL);
+            PyObject* retval = PyObject_Call(target->click_callable, args, NULL);
+            if (!retval)
+            {   
+                std::cout << "click_callable has raised an exception. It's going to STDERR and being dropped:" << std::endl;
+                PyErr_Print();
+                PyErr_Clear();
+            } else if (retval != Py_None)
+            {   
+                std::cout << "click_callable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
+            }
         }
     }
 }

@@ -240,7 +240,16 @@ void McRFPy_API::doAction(std::string actionstr) {
         return;
     }
     //std::cout << " (" << PyUnicode_AsUTF8(PyObject_Repr(callbacks[actionstr])) << ")" << std::endl;
-    PyObject_Call(callbacks[actionstr], PyTuple_New(0), NULL);
+    PyObject* retval = PyObject_Call(callbacks[actionstr], PyTuple_New(0), NULL);
+    if (!retval)
+    {
+        std::cout << "doAction has raised an exception. It's going to STDERR and being dropped:" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+    } else if (retval != Py_None)
+    {
+        std::cout << "doAction returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
+    }
 }
 
 /*

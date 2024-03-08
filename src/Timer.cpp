@@ -15,7 +15,16 @@ bool Timer::test(int now)
     {
         last_ran = now;
         PyObject* args = Py_BuildValue("(i)", now);
-        PyObject_Call(target, args, NULL);
+        PyObject* retval = PyObject_Call(target, args, NULL);
+        if (!retval)
+        {   
+            std::cout << "timer has raised an exception. It's going to STDERR and being dropped:" << std::endl;
+            PyErr_Print();
+            PyErr_Clear();
+        } else if (retval != Py_None)
+        {   
+            std::cout << "timer returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
+        }
         return true;
     }
     return false;

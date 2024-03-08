@@ -4,6 +4,7 @@
 //Scene::Scene() { game = 0; std::cout << "WARN: default Scene constructor called. (game = " << game << ")" << std::endl;};
 Scene::Scene(GameEngine* g)
 {
+    key_callable = Py_None;
     game = g; 
     ui_elements = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
 }
