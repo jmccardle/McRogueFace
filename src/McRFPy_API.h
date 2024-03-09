@@ -1,19 +1,7 @@
 #pragma once
 #include "Common.h"
-#include "Entity.h"
-//#include "EntityManager.h"
-//#include "Scene.h"
-//#include "GameEngine.h" // can't - need forward declaration
-//#include "ActionCode.h"
 #include "Python.h"
-#include "UIMenu.h"
-#include "Grid.h"
-#include "IndexSprite.h"
-#include "EntityManager.h"
 #include <list>
-
-// implementation required to link templates
-#include "Animation.h"
 
 class GameEngine; // forward declared (circular members)
 
@@ -44,17 +32,10 @@ public:
     static void REPL_device(FILE * fp, const char *filename);
     static void REPL();
 
-    // Jank mode engage: let the API hold data for Python to hack on
-    //static std::map<std::string, UIMenu*> menus;
-    //static EntityManager entities; // this is also kinda good, entities not on the current grid can still act (like monsters following you through doors??)
-    //static std::map<std::string, Grid*> grids;
-    //static std::list<Animation*> animations;
     static std::vector<sf::SoundBuffer> soundbuffers;
     static sf::Music music;
     static sf::Sound sfx;
     
-    static std::shared_ptr<Entity> player;
-
     static std::map<std::string, PyObject*> callbacks;
     static PyObject* _registerPyAction(PyObject*, PyObject*);
     static PyObject* _registerInputAction(PyObject*, PyObject*);

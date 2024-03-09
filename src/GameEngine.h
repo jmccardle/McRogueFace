@@ -1,8 +1,6 @@
 #pragma once
 
 #include "Common.h"
-#include "Entity.h"
-#include "EntityManager.h"
 #include "Scene.h"
 #include "McRFPy_API.h"
 #include "IndexTexture.h"
