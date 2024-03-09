@@ -4,6 +4,8 @@
 
 UITestScene::UITestScene(GameEngine* g) : Scene(g)
 {
+    registerAction(ActionCode::KEY + sf::Keyboard::Grave, "debug_menu");
+
     text.setFont(game->getFont());
     text.setString("UITest: surprised to be here? game.py raised an exception.");
     text.setCharacterSize(24);
@@ -140,6 +142,9 @@ void UITestScene::doAction(std::string name, std::string type)
     //if (name.compare("start_game") == 0 and type.compare("start") == 0)
     if(ACTION("start_game", "start"))
         game->changeScene("py");
+    else if ACTIONONCE("debug_menu") {
+        McRFPy_API::REPL();
+    }
     /*
     else if(ACTIONONCE("up"))
         game->getWindow().setSize(sf::Vector2u(1280, 800));
@@ -171,5 +176,5 @@ void UITestScene::sRender()
     
     game->getWindow().display();
     
-    McRFPy_API::REPL();
+    //McRFPy_API::REPL();
 }
