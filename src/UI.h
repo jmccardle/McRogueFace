@@ -1509,7 +1509,7 @@ static PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state) {
     if (!obj) return PyErr_NoMemory();
 
     // Assuming PyUIGridPointStateObject structure has a UIGridPointState* member called 'data'
-    //((PyUIGridPointStateObject*)obj)->data = new UIGridPointState(state); // Copy constructor // TODO / BUGFIX - don't use new, get shared_ptr working
+    //((PyUIGridPointStateObject*)obj)->data = new UIGridPointState(state); // Copy constructor // wontimplement / feat - don't use new, get shared_ptr working
 
     return obj;
 }
@@ -1807,7 +1807,6 @@ static PyGetSetDef PyUIGrid_getsetters[] = {
     {"size", (getter)PyUIGrid_get_size, (setter)PyUIGrid_set_size, "Size of the grid (width, height)", NULL},
     {"center", (getter)PyUIGrid_get_center, (setter)PyUIGrid_set_center, "Grid coordinate at the center of the Grid's view (pan)", NULL},
 
-    // TODO / BUGFIX - everything about Entity collection
     {"entities", (getter)PyUIGrid_get_children, NULL, "EntityCollection of entities on this grid", NULL},
 
     {"x", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "top-left corner X-coordinate", (void*)0},
@@ -2103,12 +2102,7 @@ static int PyUIEntity_init(PyUIEntityObject* self, PyObject* args, PyObject* kwd
             return NULL;
         }
 
-        // release the shared pointer at self->data[index];
-        //self->data->erase(self->data->begin() + index);
-        // (Advance list to position)
-        //auto l_front = self->data->begin();
-        //std::advance(l_front, index);
-        //self->data->erase(std::remove(l_front, std::next(l_front)); // TODO / BUGFIX - ???
+        // release the shared pointer at correct part of the list
         self->data->erase(std::next(self->data->begin(), index));
         Py_INCREF(Py_None);
         return Py_None;
@@ -2146,7 +2140,7 @@ static int PyUIEntity_init(PyUIEntityObject* self, PyObject* args, PyObject* kwd
             return NULL;  // Failed to allocate memory for the iterator object
         }
 
-        iterObj->data = self->data; // TODO / BUGFIX - mismatch between the Iter Type and Collection Type Data members
+        iterObj->data = self->data;
         iterObj->index = 0;
         iterObj->start_size = self->data->size();
 
