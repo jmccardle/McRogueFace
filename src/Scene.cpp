@@ -4,7 +4,7 @@
 //Scene::Scene() { game = 0; std::cout << "WARN: default Scene constructor called. (game = " << game << ")" << std::endl;};
 Scene::Scene(GameEngine* g)
 {
-    key_callable = Py_None;
+    key_callable = std::make_unique<PyKeyCallable>();
     game = g; 
     ui_elements = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
 }
@@ -43,6 +43,7 @@ bool Scene::unregisterActionInjected(int code, std::string name)
 
 void Scene::key_register(PyObject* callable)
 {
+    /*
     if (key_callable)
     {
         // decrement reference before overwriting
@@ -50,11 +51,16 @@ void Scene::key_register(PyObject* callable)
     }
     key_callable = callable;
     Py_INCREF(key_callable);
+    */
+    key_callable = std::make_unique<PyKeyCallable>(callable);
 }
 
 void Scene::key_unregister()
 {
+    /*
     if (key_callable == NULL) return;
     Py_DECREF(key_callable);
     key_callable = NULL;
+    */
+    key_callable.reset();
 }

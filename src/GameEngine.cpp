@@ -157,8 +157,10 @@ void GameEngine::sUserInput()
             std::string name = currentScene()->action(actionCode);
             currentScene()->doAction(name, actionType);
         }
-        else if (currentScene()->key_callable != NULL && currentScene()->key_callable != Py_None)
+        else if (currentScene()->key_callable)
         {
+            currentScene()->key_callable->call(ActionCode::key_str(event.key.code), actionType);
+            /*
             PyObject* args = Py_BuildValue("(ss)", ActionCode::key_str(event.key.code).c_str(), actionType.c_str());
             PyObject* retval = PyObject_Call(currentScene()->key_callable, args, NULL);
             if (!retval)
@@ -170,6 +172,7 @@ void GameEngine::sUserInput()
             {   
                 std::cout << "key_callable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
             }
+            */
         }
         else
         {

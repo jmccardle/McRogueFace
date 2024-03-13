@@ -9,6 +9,7 @@
 #include "Common.h"
 #include <list>
 #include "UI.h"
+#include "PyCallable.h"
 //#include "GameEngine.h"
 
 class GameEngine; // forward declare
@@ -41,7 +42,8 @@ public:
     
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> ui_elements;
 
-    PyObject* key_callable;
+    //PyObject* key_callable;
+    std::unique_ptr<PyKeyCallable> key_callable;
     void key_register(PyObject*);
     void key_unregister();
 };
