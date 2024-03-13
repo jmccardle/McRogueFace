@@ -75,7 +75,7 @@ void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
     {
         if (target == NULL || target == Py_None) // delete
         {
-            Py_DECREF(timers[name].target);
+            //Py_DECREF(timers[name].target);
             timers.erase(it);
             return;
         }
@@ -85,7 +85,7 @@ void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
         std::cout << "Refusing to initialize timer to None. It's not an error, it's just pointless." << std::endl;
         return;
     }
-    timers[name] = Timer(target, interval, runtime.getElapsedTime().asMilliseconds());
+    timers[name] = std::make_shared<PyTimerCallable>(target, interval, runtime.getElapsedTime().asMilliseconds());
     Py_INCREF(target);
 }
 
@@ -94,7 +94,7 @@ void GameEngine::testTimers()
     int now = runtime.getElapsedTime().asMilliseconds();
     for (auto& [name, timer]: timers)
     {
-        timer.test(now);
+        timer->test(now);
     }
 }
 
