@@ -5,6 +5,7 @@
 #include "McRFPy_API.h"
 #include "IndexTexture.h"
 #include "Timer.h"
+#include "PyCallable.h"
 
 class GameEngine
 {
@@ -20,7 +21,8 @@ class GameEngine
     std::string window_title;
 
     sf::Clock runtime;
-    std::map<std::string, Timer> timers;
+    //std::map<std::string, Timer> timers;
+    std::map<std::string, std::shared_ptr<PyTimerCallable>> timers;
     void testTimers();
 
 public:

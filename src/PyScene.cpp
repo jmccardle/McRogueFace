@@ -1,6 +1,7 @@
 #include "PyScene.h"
 #include "ActionCode.h"
 #include "Resources.h"
+#include "PyCallable.h"
 
 PyScene::PyScene(GameEngine* g) : Scene(g)
 {
@@ -27,6 +28,7 @@ void PyScene::do_mouse_input(std::string button, std::string type)
         target = d->click_at(sf::Vector2f(mousepos));
         if (target)
         {
+            /*
             PyObject* args = Py_BuildValue("(iiss)", (int)mousepos.x, (int)mousepos.y, button.c_str(), type.c_str());
             PyObject* retval = PyObject_Call(target->click_callable, args, NULL);
             if (!retval)
@@ -38,6 +40,8 @@ void PyScene::do_mouse_input(std::string button, std::string type)
             {   
                 std::cout << "click_callable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
             }
+            */
+            target->click_callable->call(mousepos, button, type);
         }
     }
 }

@@ -453,6 +453,7 @@ PyObject* McRFPy_API::_createScene(PyObject* self, PyObject* args) {
 PyObject* McRFPy_API::_keypressScene(PyObject* self, PyObject* args) {
     PyObject* callable;
 	if (!PyArg_ParseTuple(args, "O", &callable)) return NULL;
+    /*
     if (game->currentScene()->key_callable != NULL and game->currentScene()->key_callable != Py_None)
     {
         Py_DECREF(game->currentScene()->key_callable);
@@ -460,6 +461,8 @@ PyObject* McRFPy_API::_keypressScene(PyObject* self, PyObject* args) {
     Py_INCREF(callable);
     game->currentScene()->key_callable = callable;
     Py_INCREF(Py_None);
+    */
+    game->currentScene()->key_callable = std::make_unique<PyKeyCallable>(callable);
     return Py_None;		
 }
 

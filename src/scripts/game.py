@@ -9,7 +9,7 @@ texture_hot = mcrfpy.Texture("assets/kenney_lava.png", 16, 12, 11)
 
 # Test stuff
 mcrfpy.createScene("boom")
-#mcrfpy.setScene("boom")
+mcrfpy.setScene("boom")
 ui = mcrfpy.sceneUI("boom")
 box = mcrfpy.Frame(40, 60, 200, 300, fill_color=(255,128,0), outline=4.0, outline_color=(64,64,255,96))
 ui.append(box)
@@ -36,10 +36,95 @@ box.children.append(sprite)
 box.children.append(spritecap)
 box.click = click_sprite
 
+f_a = mcrfpy.Frame(250, 60, 80, 80, fill_color=(255, 92, 92))
+f_a_txt = mcrfpy.Caption(5, 5, "0", font)
+
+f_b = mcrfpy.Frame(340, 60, 80, 80, fill_color=(92, 255, 92))
+f_b_txt = mcrfpy.Caption(5, 5, "0", font)
+
+f_c = mcrfpy.Frame(430, 60, 80, 80, fill_color=(92, 92, 255))
+f_c_txt = mcrfpy.Caption(5, 5, "0", font)
+
+
+ui.append(f_a)
+f_a.children.append(f_a_txt)
+ui.append(f_b)
+f_b.children.append(f_b_txt)
+ui.append(f_c)
+f_c.children.append(f_c_txt)
+
+import sys
+def ding(*args):
+    f_a_txt.text = str(sys.getrefcount(ding)) + " refs"
+    f_b_txt.text = sys.getrefcount(dong)
+    f_c_txt.text = sys.getrefcount(stress_test)
+
+def dong(*args):
+    f_a_txt.text = str(sys.getrefcount(ding)) + " refs"
+    f_b_txt.text = sys.getrefcount(dong)
+    f_c_txt.text = sys.getrefcount(stress_test)
+
+running = False
+timers = []
+
+def add_ding():
+    global timers
+    n = len(timers)
+    mcrfpy.setTimer(f"timer{n}", ding, 100)
+    print("+1 ding:", timers)
+
+def add_dong():
+    global timers
+    n = len(timers)
+    mcrfpy.setTimer(f"timer{n}", dong, 100)
+    print("+1 dong:", timers)
+
+def remove_random():
+    global timers
+    target = random.choice(timers)
+    print("-1 timer:", target)
+    print("remove from list")
+    timers.remove(target)
+    print("delTimer")
+    mcrfpy.delTimer(target)
+    print("done")
+
+import random
+import time
+def stress_test(*args):
+    global running
+    global timers
+    if not running:
+        print("stress test initial")
+        running = True
+        timers.append("recurse")
+        add_ding()
+        add_dong()
+        mcrfpy.setTimer("recurse", stress_test, 1000)
+        mcrfpy.setTimer("terminate", lambda *args: mcrfpy.delTimer("recurse"), 30000)
+        ding(); dong()
+    else:
+        #print("stress test random activity")
+        #random.choice([
+        #    add_ding,
+        #    add_dong,
+        #    remove_random
+        #    ])()
+        #print(timers)
+        print("Segfaultin' time")
+        mcrfpy.delTimer("recurse")
+        print("Does this still work?")
+        time.sleep(0.5)
+        print("How about now?")
+
+
+stress_test()
+
+
 # Loading Screen
 mcrfpy.createScene("loading")
 ui = mcrfpy.sceneUI("loading")
-mcrfpy.setScene("loading")
+#mcrfpy.setScene("loading")
 logo_texture = mcrfpy.Texture("assets/temp_logo.png", 1024, 1, 1)
 logo_sprite = mcrfpy.Sprite(50, 50, logo_texture, 0, 0.5)
 ui.append(logo_sprite)

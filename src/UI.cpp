@@ -56,6 +56,7 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
 
 void UIDrawable::click_register(PyObject* callable)
 {
+    /*
     if (click_callable)
     {
         // decrement reference before overwriting
@@ -63,13 +64,18 @@ void UIDrawable::click_register(PyObject* callable)
     }
     click_callable = callable;
     Py_INCREF(click_callable);
+    */
+    click_callable = std::make_unique<PyClickCallable>(callable);
 }
 
 void UIDrawable::click_unregister()
 {
+    /*
     if (click_callable == NULL) return;
     Py_DECREF(click_callable);
     click_callable = NULL;
+    */
+    click_callable.reset();
 }
 
 void UIDrawable::render()
@@ -378,7 +384,7 @@ void UIGrid::render(sf::Vector2f)
     for (auto e : *entities) {
         // TODO skip out-of-bounds entities (grid square not visible at all, check for partially on visible grid squares / floating point grid position)
         //auto drawent = e->cGrid->indexsprite.drawable();
-        auto drawent = e->sprite;
+        auto& drawent = e->sprite;
         //drawent.setScale(zoom, zoom);
         drawent.setScale(zoom);
         auto pixel_pos = sf::Vector2f(

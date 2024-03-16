@@ -5,6 +5,7 @@
 #include "IndexTexture.h"
 #include "Resources.h"
 #include <list>
+#include "PyCallable.h"
 
 enum PyObjectsEnum : int
 {
@@ -27,7 +28,8 @@ public:
     virtual PyObjectsEnum derived_type() = 0;
 
     // Mouse input handling - callable object, methods to find event's destination
-    PyObject* click_callable;
+    //PyObject* click_callable;
+    std::unique_ptr<PyClickCallable> click_callable;
     virtual UIDrawable* click_at(sf::Vector2f point) = 0;
     void click_register(PyObject*);
     void click_unregister();
@@ -322,16 +324,16 @@ static PyObject* PyUIDrawable_get_click(PyUIGridObject* self, void* closure) {
     switch (objtype)
     {
         case PyObjectsEnum::UIFRAME:
-            ptr = ((PyUIFrameObject*)self)->data->click_callable;
+            ptr = ((PyUIFrameObject*)self)->data->click_callable->borrow();
             break;
         case PyObjectsEnum::UICAPTION:
-            ptr = ((PyUICaptionObject*)self)->data->click_callable;
+            ptr = ((PyUICaptionObject*)self)->data->click_callable->borrow();
             break;
         case PyObjectsEnum::UISPRITE:
-            ptr = ((PyUISpriteObject*)self)->data->click_callable;
+            ptr = ((PyUISpriteObject*)self)->data->click_callable->borrow();
             break;
         case PyObjectsEnum::UIGRID:
-            ptr = ((PyUIGridObject*)self)->data->click_callable;
+            ptr = ((PyUIGridObject*)self)->data->click_callable->borrow();
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _get_click");

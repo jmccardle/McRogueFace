@@ -69,14 +69,14 @@ void GameEngine::run()
 
 void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
 {
-    //std::cout << "Manage timer called. " << name << " " << interval << std::endl;
     auto it = timers.find(name);
     if (it != timers.end()) // overwrite existing
     {
-        if (target == NULL || target == Py_None) // delete
+        if (target == NULL || target == Py_None)
         {
-            Py_DECREF(timers[name].target);
-            timers.erase(it);
+            // Delete: Overwrite existing timer with one that calls None. This will be deleted in the next timer check
+            // see gitea issue #4: this allows for a timer to be deleted during its own call to itself
+            timers[name] = std::make_shared<PyTimerCallable>(Py_None, 1000, runtime.getElapsedTime().asMilliseconds());
             return;
         }
     }
@@ -85,16 +85,23 @@ void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
         std::cout << "Refusing to initialize timer to None. It's not an error, it's just pointless." << std::endl;
         return;
     }
-    timers[name] = Timer(target, interval, runtime.getElapsedTime().asMilliseconds());
-    Py_INCREF(target);
+    timers[name] = std::make_shared<PyTimerCallable>(target, interval, runtime.getElapsedTime().asMilliseconds());
 }
 
 void GameEngine::testTimers()
 {
     int now = runtime.getElapsedTime().asMilliseconds();
-    for (auto& [name, timer]: timers)
+    auto it = timers.begin();
+    while (it != timers.end())
     {
-        timer.test(now);
+        it->second->test(now);
+        
+        if (it->second->isNone())
+        {
+            it = timers.erase(it);
+        }
+        else
+            it++;
     }
 }
 
@@ -157,8 +164,10 @@ void GameEngine::sUserInput()
             std::string name = currentScene()->action(actionCode);
             currentScene()->doAction(name, actionType);
         }
-        else if (currentScene()->key_callable != NULL && currentScene()->key_callable != Py_None)
+        else if (currentScene()->key_callable)
         {
+            currentScene()->key_callable->call(ActionCode::key_str(event.key.code), actionType);
+            /*
             PyObject* args = Py_BuildValue("(ss)", ActionCode::key_str(event.key.code).c_str(), actionType.c_str());
             PyObject* retval = PyObject_Call(currentScene()->key_callable, args, NULL);
             if (!retval)
@@ -170,6 +179,7 @@ void GameEngine::sUserInput()
             {   
                 std::cout << "key_callable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
             }
+            */
         }
         else
         {

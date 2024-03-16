@@ -12,12 +12,6 @@ private:
         texture_width = 12, texture_height = 11, // w & h sprite/frame count
         texture_sprite_count = 11 * 12; // t_width * t_height, minus blanks?
 
-    // TODO: this is wrong, load resources @ GameEngineSprite sprite;
-    // sf::Texture texture;
-
-    //std::vector<PyMethodDef> mcrfpyMethodsVector;
-    //static PyObject* PyInit_mcrfpy();
-
     McRFPy_API();
 
 public:
