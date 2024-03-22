@@ -53,33 +53,29 @@ PyObject* PyInit_mcrfpy()
         return NULL;
     }
     
-    // This code runs, but Python segfaults when accessing the UIFrame type.
-    //std::cout << "Adding UIFrame object to module\n";
-    PyModule_AddType(m, &mcrfpydef::PyColorType);
-    PyModule_AddType(m, &mcrfpydef::PyFontType);
-    PyModule_AddType(m, &mcrfpydef::PyUICaptionType);
-    PyModule_AddType(m, &mcrfpydef::PyTextureType);
-    PyModule_AddType(m, &mcrfpydef::PyUISpriteType);
-     
-    if (PyModule_AddType(m, &mcrfpydef::PyUIFrameType) < 0)
+    using namespace mcrfpydef;
+    PyTypeObject* pytypes[] = {
+        /*SFML exposed types*/
+        &PyColorType, &PyFontType, &PyTextureType,
+
+        /*UI widgets*/
+        &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,
+
+        /*game map & perspective data*/
+        &PyUIGridPointType, &PyUIGridPointStateType,
+
+        /*collections & iterators*/
+        &PyUICollectionType, &PyUICollectionIterType,
+        &PyUIEntityCollectionType, &PyUIEntityCollectionIterType,
+        nullptr};
+    int i = 0;
+    auto t = pytypes[i];
+    while (t != nullptr)
     {
-        std::cout << "Error adding UIFrame type to module; aborting" << std::endl;
-        Py_DECREF(&mcrfpydef::PyUIFrameType);
-        return NULL;
+        PyType_Ready(t);
+        PyModule_AddType(m, t);
+        t = pytypes[i++];
     }
-    PyModule_AddType(m, &mcrfpydef::PyUICollectionType);
-    PyModule_AddType(m, &mcrfpydef::PyUICollectionIterType);
-
-    PyModule_AddType(m, &mcrfpydef::PyUIGridPointType);
-    PyModule_AddType(m, &mcrfpydef::PyUIGridPointStateType);
-    PyModule_AddType(m, &mcrfpydef::PyUIEntityType);
-
-    PyModule_AddType(m, &mcrfpydef::PyUIEntityCollectionIterType);
-    PyModule_AddType(m, &mcrfpydef::PyUIEntityCollectionType);
-
-    PyModule_AddType(m, &mcrfpydef::PyUIGridType);
-
-    
 
     return m;
 }

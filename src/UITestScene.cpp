@@ -61,15 +61,15 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     //ui_elements.push_back(&e1);
     //ui_elements.push_back(&e2);
 
-    t.loadFromFile("./assets/kenney_tinydungeon.png");
-    t.setSmooth(false);
-    auto* indextex = new IndexTexture(t, 16, 12, 11);
-    Resources::game->textures.push_back(*indextex);
+    //t.loadFromFile("./assets/kenney_tinydungeon.png");
+    //t.setSmooth(false);
+    //auto* indextex = new IndexTexture(t, 16, 12, 11);
+    //Resources::game->textures.push_back(*indextex);
 
-
+    auto ptex = std::make_shared<PyTexture>("./assets/kenney_tinydungeon.png", 16, 16);
 
     //std::cout << Resources::game->textures.size() << " textures loaded.\n";
-    auto e3 = std::make_shared<UISprite>();
+    auto e3 = std::make_shared<UISprite>(ptex, 84, sf::Vector2f(10, 10), 4.0);
 
     // Make UISprite more like IndexSprite: this is bad
     //e3->x = 10; e3->y = 10;
@@ -79,19 +79,19 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     //e3->update();
 
     // This goes to show how inconvenient the default constructor is. It should be removed
-    e3->itex = &Resources::game->textures[0];
-    e3->sprite.setTexture(e3->itex->texture);
-    e3->sprite_index = 84;
-    e3->sprite.setTextureRect(e3->itex->spriteCoordinates(e3->sprite_index));
-    e3->setPosition(10, 10);
-    e3->setScale(4.0f);
+    //e3->itex = &Resources::game->textures[0];
+    //e3->sprite.setTexture(e3->itex->texture);
+    //e3->sprite_index = 84;
+    //e3->sprite.setTextureRect(e3->itex->spriteCoordinates(e3->sprite_index));
+    //e3->setPosition(10, 10);
+    //e3->setScale(4.0f);
 
     e1aa->children->push_back(e3);
 
 
 
     auto e4 = std::make_shared<UISprite>(
-            indextex, //&Resources::game->textures[0],
+            ptex, //indextex, //&Resources::game->textures[0],
             85, sf::Vector2f(90, 10), 4.0);
     e1aa->children->push_back(e4);
     //std::cout << "UISprite built: " << e4->sprite.getPosition().x << " " << e4->sprite.getPosition().y << " " << e4->sprite.getScale().x << " " <<
@@ -104,9 +104,9 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     std::cout << "pointer to ui_elements now shows size=" << ui->size() << std::endl;
     */
 
-    // UIGrid test:               (in grid cells)      (in screen pixels)
-    //              constructor args:  w  h  texture    x    y    w    h   
-    auto e5 = std::make_shared<UIGrid>(4, 4, indextex, 550, 150, 200, 200);
+    // UIGrid test:                (in grid cells)         (          in screen pixels            )
+    //              constructor args:  w  h  texture             x    y                  w    h   
+    auto e5 = std::make_shared<UIGrid>(4, 4, ptex, sf::Vector2f(550, 150), sf::Vector2f(200, 200));
     e5->zoom=2.0;
     e5->points[0].color =  sf::Color(255, 0, 0);
     e5->points[1].tilesprite = 1;
@@ -125,7 +125,7 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     e5a->grid = e5;
     //auto e5as = UISprite(indextex, 85, sf::Vector2f(0, 0), 1.0);
     //e5a->sprite = e5as; // will copy constructor even exist for UISprite...?
-    e5a->sprite = UISprite(indextex, 85, sf::Vector2f(0, 0), 1.0);
+    e5a->sprite = UISprite(ptex, 85, sf::Vector2f(0, 0), 1.0);
     e5a->position = sf::Vector2f(1, 0);
 
     e5->entities->push_back(e5a);

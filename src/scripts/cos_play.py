@@ -1,7 +1,7 @@
 import mcrfpy
 mcrfpy.createScene("play")
 ui = mcrfpy.sceneUI("play")
-t = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 12, 11)
+t = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16) # 12, 11)
 font = mcrfpy.Font("assets/JetbrainsMono.ttf")
 
 frame_color = (64, 64, 128)

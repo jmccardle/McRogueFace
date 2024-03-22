@@ -3,9 +3,9 @@ import mcrfpy
 import cos_play
 # Universal stuff
 font = mcrfpy.Font("assets/JetbrainsMono.ttf")
-texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 12, 11)
-texture_cold = mcrfpy.Texture("assets/kenney_ice.png", 16, 12, 11)
-texture_hot = mcrfpy.Texture("assets/kenney_lava.png", 16, 12, 11)
+texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16) #12, 11)
+texture_cold = mcrfpy.Texture("assets/kenney_ice.png", 16, 16) #12, 11)
+texture_hot = mcrfpy.Texture("assets/kenney_lava.png", 16, 16) #12, 11)
 
 # Test stuff
 mcrfpy.createScene("boom")
@@ -125,7 +125,7 @@ stress_test()
 mcrfpy.createScene("loading")
 ui = mcrfpy.sceneUI("loading")
 #mcrfpy.setScene("loading")
-logo_texture = mcrfpy.Texture("assets/temp_logo.png", 1024, 1, 1)
+logo_texture = mcrfpy.Texture("assets/temp_logo.png", 1024, 1024)#1, 1)
 logo_sprite = mcrfpy.Sprite(50, 50, logo_texture, 0, 0.5)
 ui.append(logo_sprite)
 logo_sprite.click = lambda *args: mcrfpy.setScene("menu")

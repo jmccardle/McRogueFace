@@ -6,6 +6,7 @@
 #include "Resources.h"
 #include <list>
 #include "PyCallable.h"
+#include "PyTexture.h"
 
 enum PyObjectsEnum : int
 {
@@ -97,23 +98,36 @@ public:
 
 class UISprite: public UIDrawable
 {
+private:
+    int sprite_index;
+    sf::Sprite sprite;
+protected:
+    std::shared_ptr<PyTexture> ptex;
 public:
     UISprite();
-    UISprite(IndexTexture*, int, float, float, float);
-    UISprite(IndexTexture*, int, sf::Vector2f, float);
+    //UISprite(IndexTexture*, int, float, float, float);
+    //UISprite(IndexTexture*, int, sf::Vector2f, float);
+    UISprite(std::shared_ptr<PyTexture>, int, sf::Vector2f, float);
     void update();
     void render(sf::Vector2f) override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
     
     // 7DRL hack - TODO apply RenderTexture concept to all UIDrawables (via `sf::RenderTarget`)
     void render(sf::Vector2f, sf::RenderTexture&);
-    int /*texture_index,*/ sprite_index;
-    IndexTexture* itex;
-    //float x, y, scale;
-    sf::Sprite sprite;
-    void setPosition(float, float);
+    //IndexTexture* itex;
+    //sf::Vector2f pos;
+    //float scale;
+    //void setPosition(float, float);
     void setPosition(sf::Vector2f);
-    void setScale(float);
+    sf::Vector2f getPosition();
+    void setScale(sf::Vector2f);
+    sf::Vector2f getScale();
+    void setSpriteIndex(int);
+    int getSpriteIndex();
+
+    void setTexture(std::shared_ptr<PyTexture> _ptex, int _sprite_index=-1);
+    std::shared_ptr<PyTexture> getTexture();
+
     PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UISprite;  };
 };
 
@@ -155,22 +169,25 @@ public:
 
 class UIGrid: public UIDrawable
 {
+private:
+    std::shared_ptr<PyTexture> ptex;
 public:
     UIGrid();
-    UIGrid(int, int, IndexTexture*, float, float, float, float);
-    UIGrid(int, int, IndexTexture*, sf::Vector2f, sf::Vector2f);
+    //UIGrid(int, int, IndexTexture*, float, float, float, float);
+    UIGrid(int, int, std::shared_ptr<PyTexture>, sf::Vector2f, sf::Vector2f);
     void update();
     void render(sf::Vector2f) override final;
     UIGridPoint& at(int, int);
     PyObjectsEnum derived_type() override final;
-    void setSprite(int);
+    //void setSprite(int);
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
 
     int grid_x, grid_y;
     //int grid_size; // grid sizes are implied by IndexTexture now
     sf::RectangleShape box;
     float center_x, center_y, zoom;
-    IndexTexture* itex;
+    //IndexTexture* itex;
+    std::shared_ptr<PyTexture> getTexture();
     sf::Sprite sprite, output;
     sf::RenderTexture renderTexture;
     std::vector<UIGridPoint> points;
@@ -201,7 +218,7 @@ typedef struct {
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UISprite> data;
-    PyObject* texture;
+    //PyObject* texture;
 } PyUISpriteObject;
 
 typedef struct {
@@ -225,13 +242,13 @@ typedef struct {
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIEntity> data;
-    PyObject* texture;
+    //PyObject* texture;
 } PyUIEntityObject;
 
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIGrid> data;
-    PyObject* texture;
+    //PyObject* texture;
 } PyUIGridObject;
 
 namespace mcrfpydef {
@@ -1065,55 +1082,6 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
 
     /*
      *
-     * Begin PyTextureType defs
-     *
-     */
-
-    typedef struct {
-        PyObject_HEAD
-        std::shared_ptr<IndexTexture> data;
-    } PyTextureObject;
-
-    static int PyTexture_init(PyTextureObject* self, PyObject* args, PyObject* kwds)
-    {
-        //std::cout << "Init called\n";
-        static const char* keywords[] = { "filename", "grid_size", "grid_width", "grid_height", nullptr };
-        char* filename;
-        int grid_size, grid_width, grid_height;
-
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "siii", const_cast<char**>(keywords), &filename, &grid_size, &grid_width, &grid_height))
-        {
-            return -1;
-        }
-        sf::Texture t = sf::Texture();
-        t.loadFromFile((std::string)filename);
-        self->data = std::make_shared<IndexTexture>(t, grid_size, grid_width, grid_height);
-        return 0;
-    }
-
-     static PyTypeObject PyTextureType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "mcrfpy.Texture",
-        .tp_basicsize = sizeof(PyTextureObject),
-        .tp_itemsize = 0,
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Texture Object"),
-        .tp_init = (initproc)PyTexture_init,
-        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
-        {
-            PyTextureObject* self = (PyTextureObject*)type->tp_alloc(type, 0);
-            return (PyObject*)self;
-        }
-    };
-
-    /*
-     *
-     * End PyTextureType defs
-     *
-     */
-
-    /*
-     *
      * Begin template generation for PyUISpriteType
      *
      */
@@ -1122,11 +1090,11 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
     {
         auto member_ptr = reinterpret_cast<long>(closure);
         if (member_ptr == 0)
-            return PyFloat_FromDouble(self->data->sprite.getPosition().x);
+            return PyFloat_FromDouble(self->data->getPosition().x);
         else if (member_ptr == 1)
-            return PyFloat_FromDouble(self->data->sprite.getPosition().y);
+            return PyFloat_FromDouble(self->data->getPosition().y);
         else if (member_ptr == 2)
-            return PyFloat_FromDouble(self->data->sprite.getScale().x); // scale X and Y are identical, presently
+            return PyFloat_FromDouble(self->data->getScale().x); // scale X and Y are identical, presently
         else
         {
             PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
@@ -1153,11 +1121,11 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
             return -1;
         }
         if (member_ptr == 0) //x
-            self->data->sprite.setPosition(val, self->data->sprite.getPosition().y);
+            self->data->setPosition(sf::Vector2f(val, self->data->getPosition().y));
         else if (member_ptr == 1) //y
-            self->data->sprite.setPosition(self->data->sprite.getPosition().x, val);
+            self->data->setPosition(sf::Vector2f(self->data->getPosition().x, val));
         else if (member_ptr == 2) // scale
-            self->data->sprite.setScale(sf::Vector2f(val, val));
+            self->data->setScale(sf::Vector2f(val, val));
         return 0;
     }
     
@@ -1171,7 +1139,7 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
             return nullptr;
         }
         
-        return PyLong_FromDouble(self->data->sprite_index);
+        return PyLong_FromDouble(self->data->getSpriteIndex());
     }
 
 
@@ -1188,14 +1156,15 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
             PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
             return -1;
         }
-        self->data->sprite_index = val;
-        self->data->sprite.setTextureRect(self->data->itex->spriteCoordinates(val));
+        //self->data->sprite_index = val;
+        //self->data->sprite.setTextureRect(self->data->itex->spriteCoordinates(val));
+        self->data->setSpriteIndex(val);
         return 0;
     }
     
     static PyObject* PyUISprite_get_texture(PyUISpriteObject* self, void* closure)
     {
-        return NULL;
+        return self->data->getTexture()->pyObject();
     }
     
     static int PyUISprite_set_texture(PyUISpriteObject* self, PyObject* value, void* closure)
@@ -1218,10 +1187,10 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         std::ostringstream ss;
         if (!self->data) ss << "<Sprite (invalid internal object)>";
         else {
-            auto sprite = self->data->sprite;
-            ss << "<Sprite (x=" << sprite.getPosition().x << ", y=" << sprite.getPosition().y << ", " <<
-                "scale=" << sprite.getScale().x << ", " <<
-                "sprite_number=" << self->data->sprite_index << ")>";
+            //auto sprite = self->data->sprite;
+            ss << "<Sprite (x=" << self->data->getPosition().x << ", y=" << self->data->getPosition().y << ", " <<
+                "scale=" << self->data->getScale().x << ", " <<
+                "sprite_number=" << self->data->getSpriteIndex() << ")>";
         }
         std::string repr_str = ss.str();
         return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
@@ -1248,17 +1217,17 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         if (texture != NULL && !PyObject_IsInstance(texture, (PyObject*)&PyTextureType)){
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
             return -1;
-        } else if (texture != NULL)
+        } /*else if (texture != NULL) // to be removed: UIObjects don't manage texture references
         {   
             self->texture = texture;
             Py_INCREF(texture);
         } else
         {
             // default tex?
-        }
+        }*/
         auto pytexture = (PyTextureObject*)texture;
-        self->data = std::make_shared<UISprite>(pytexture->data.get(), sprite_index, sf::Vector2f(x, y), scale);
-        self->data->sprite.setPosition(sf::Vector2f(x, y));
+        self->data = std::make_shared<UISprite>(pytexture->data, sprite_index, sf::Vector2f(x, y), scale);
+        self->data->setPosition(sf::Vector2f(x, y));
 
         return 0;
     }
@@ -1272,7 +1241,7 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         {
             PyUISpriteObject* obj = (PyUISpriteObject*)self;
             // release reference to font object
-            if (obj->texture) Py_DECREF(obj->texture);
+            //if (obj->texture) Py_DECREF(obj->texture);
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
@@ -1548,7 +1517,7 @@ static PyObject* PyUIEntity_get_gridstate(PyUIEntityObject* self, void* closure)
 }
 
 static PyObject* PyUIEntity_get_spritenumber(PyUIEntityObject* self, void* closure) {
-    return PyLong_FromDouble(self->data->sprite.sprite_index);
+    return PyLong_FromDouble(self->data->sprite.getSpriteIndex());
 }
 
 static int PyUIEntity_set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure) {
@@ -1560,8 +1529,8 @@ static int PyUIEntity_set_spritenumber(PyUIEntityObject* self, PyObject* value, 
         PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
         return -1;
     }
-    self->data->sprite.sprite_index = val;
-    self->data->sprite.sprite.setTextureRect(self->data->sprite.itex->spriteCoordinates(val)); // TODO - I don't like ".sprite.sprite" in this stack of UIEntity.UISprite.sf::Sprite
+    //self->data->sprite.sprite_index = val;
+    self->data->sprite.setSpriteIndex(val); // todone - I don't like ".sprite.sprite" in this stack of UIEntity.UISprite.sf::Sprite
     return 0;
 }
 
@@ -1648,11 +1617,12 @@ static int PyUIGrid_init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     }
     PyTextureObject* pyTexture = reinterpret_cast<PyTextureObject*>(textureObj);
     // TODO (7DRL day 2, item 4.) use shared_ptr / PyTextureObject on UIGrid
-    IndexTexture* texture = pyTexture->data.get();
-
+    //IndexTexture* texture = pyTexture->data.get();
+    
     // Initialize UIGrid
     //self->data = new UIGrid(grid_x, grid_y, texture, sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
-    self->data = std::make_shared<UIGrid>(grid_x, grid_y, texture, box_x, box_y, box_w, box_h);
+    self->data = std::make_shared<UIGrid>(grid_x, grid_y, pyTexture->data, 
+            sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
     return 0; // Success
 }
 
@@ -1770,6 +1740,12 @@ static PyObject* PyUIGrid_get_texture(PyUIGridObject* self, void* closure) {
     return self->texture;
 }
 */
+static PyObject* PyUIGrid_get_texture(PyUIGridObject* self, void* closure) {
+        //return self->data->getTexture()->pyObject();
+        PyTextureObject* obj = (PyTextureObject*)((&PyTextureType)->tp_alloc(&PyTextureType, 0));
+        obj->data = self->data->getTexture();
+        return (PyObject*)obj;
+}
 
 static PyObject* PyUIGrid_at(PyUIGridObject* self, PyObject* o)
 {
@@ -1821,7 +1797,7 @@ static PyGetSetDef PyUIGrid_getsetters[] = {
 
     {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIGRID},
 
-    //{"texture", (getter)PyUIGrid_get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
+    {"texture", (getter)PyUIGrid_get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
     {NULL}  /* Sentinel */
 };
 
@@ -1892,14 +1868,14 @@ static int PyUIEntity_init(PyUIEntityObject* self, PyObject* args, PyObject* kwd
     if (texture != NULL && !PyObject_IsInstance(texture, (PyObject*)&PyTextureType)){
         PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
         return -1;
-    } else if (texture != NULL)
+    } /*else if (texture != NULL) // this section needs to go; texture isn't optional and isn't managed by the UI objects anymore
     {   
         self->texture = texture;
         Py_INCREF(texture);
     } else
     {
         // default tex?
-    }
+    }*/
 
     if (grid != NULL && !PyObject_IsInstance(grid, (PyObject*)&PyUIGridType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
@@ -1913,7 +1889,7 @@ static int PyUIEntity_init(PyUIEntityObject* self, PyObject* args, PyObject* kwd
         self->data = std::make_shared<UIEntity>(*((PyUIGridObject*)grid)->data);
 
     // TODO - PyTextureObjects and IndexTextures are a little bit of a mess with shared/unshared pointers
-    self->data->sprite = UISprite(pytexture->data.get(), sprite_index, sf::Vector2f(0,0), 1.0);
+    self->data->sprite = UISprite(pytexture->data, sprite_index, sf::Vector2f(0,0), 1.0);
     self->data->position = sf::Vector2f(x, y);
     if (grid != NULL) {
         PyUIGridObject* pygrid = (PyUIGridObject*)grid;

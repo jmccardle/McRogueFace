@@ -168,7 +168,8 @@ void UICaption::render(sf::Vector2f offset)
 }
 
 UISprite::UISprite() {}
-
+/*
+ // * tearing down the old IndexTexture way of life 
 UISprite::UISprite(IndexTexture* _itex, int _sprite_index, float x = 0.0, float y = 0.0, float s = 1.0)
 : itex(_itex), sprite_index(_sprite_index)
 {
@@ -185,6 +186,13 @@ UISprite::UISprite(IndexTexture* _itex, int _sprite_index, sf::Vector2f pos, flo
     sprite.setTextureRect(_itex->spriteCoordinates(_sprite_index));
     sprite.setPosition(pos);
     sprite.setScale(sf::Vector2f(s, s));
+}
+*/
+
+UISprite::UISprite(std::shared_ptr<PyTexture> _ptex, int _sprite_index, sf::Vector2f _pos, float _scale)
+: ptex(_ptex), sprite_index(_sprite_index)
+{
+    sprite = ptex->sprite(sprite_index, _pos, sf::Vector2f(_scale, _scale));
 }
 
 //void UISprite::update()
@@ -212,19 +220,55 @@ void UISprite::render(sf::Vector2f offset, sf::RenderTexture& target)
     sprite.move(-offset);
 }
 
+/*
 void UISprite::setPosition(float x, float y)
 {
     setPosition(sf::Vector2f(x, y));
 }
+*/
 
 void UISprite::setPosition(sf::Vector2f pos)
 {
     sprite.setPosition(pos);
 }
 
-void UISprite::setScale(float s)
+void UISprite::setScale(sf::Vector2f s)
 {
-    sprite.setScale(sf::Vector2f(s, s));
+    sprite.setScale(s);
+}
+
+void UISprite::setTexture(std::shared_ptr<PyTexture> _ptex, int _sprite_index)
+{
+    ptex = _ptex;
+    if (_sprite_index != -1) // if you are changing textures, there's a good chance you need a new index too
+        sprite_index = _sprite_index;
+    sprite = ptex->sprite(sprite_index, sprite.getPosition(), sprite.getScale());
+}
+
+void UISprite::setSpriteIndex(int _sprite_index)
+{
+    sprite_index = _sprite_index;
+    sprite = ptex->sprite(sprite_index, sprite.getPosition(), sprite.getScale());
+}
+
+sf::Vector2f UISprite::getScale()
+{
+    return sprite.getScale();
+}
+
+sf::Vector2f UISprite::getPosition()
+{
+    return sprite.getPosition();
+}
+
+std::shared_ptr<PyTexture> UISprite::getTexture()
+{
+    return ptex;
+}
+
+int UISprite::getSpriteIndex()
+{
+    return sprite_index;
 }
 
 PyObjectsEnum UICaption::derived_type()
@@ -258,9 +302,10 @@ UIGrid::UIGrid()
 {
 }
 
-UIGrid::UIGrid(int gx, int gy, IndexTexture* _itex, float _x, float _y, float _w, float _h)
+/*
+UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, float _x, float _y, float _w, float _h)
 : grid_x(gx), grid_y(gy),
-  zoom(1.0f), center_x((gx/2) * _itex->grid_size), center_y((gy/2) * _itex->grid_size),
+  zoom(1.0f), center_x((gx/2) * _ptex->sheet_width), center_y((gy/2) * _ptex->sheet_height),
   itex(_itex), points(gx * gy)
 {
     // set up blank list of entities
@@ -279,11 +324,12 @@ UIGrid::UIGrid(int gx, int gy, IndexTexture* _itex, float _x, float _y, float _w
      // textures are upside-down inside renderTexture
      output.setTexture(renderTexture.getTexture());
 }
+*/
 
-UIGrid::UIGrid(int gx, int gy, IndexTexture* _itex, sf::Vector2f _xy, sf::Vector2f _wh)
+UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _xy, sf::Vector2f _wh)
 : grid_x(gx), grid_y(gy),
-  zoom(1.0f), center_x((gx/2) * _itex->grid_size), center_y((gy/2) * _itex->grid_size),
-  itex(_itex), points(gx * gy)
+  zoom(1.0f), center_x((gx/2) * _ptex->sprite_width), center_y((gy/2) * _ptex->sprite_height),
+  ptex(_ptex), points(gx * gy)
 {
     // set up blank list of entities
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
@@ -296,7 +342,9 @@ UIGrid::UIGrid(int gx, int gy, IndexTexture* _itex, sf::Vector2f _xy, sf::Vector
     // create renderTexture with maximum theoretical size; sprite can resize to show whatever amount needs to be rendered
     renderTexture.create(1920, 1080); // TODO - renderTexture should be window size; above 1080p this will cause rendering errors
     
-    sprite.setTexture(_itex->texture);
+    //sprite.setTexture(_itex->texture);
+    sprite = ptex->sprite(0);
+
     output.setTextureRect(
          sf::IntRect(0, 0,
          box.getSize().x, box.getSize().y));
@@ -310,11 +358,14 @@ void UIGrid::update()
 {
 }
 
+/*
 void UIGrid::setSprite(int ti)
 {
-        int tx = ti % itex->grid_width, ty = ti / itex->grid_width;
-            sprite.setTextureRect(sf::IntRect(tx * itex->grid_size, ty * itex->grid_size, itex->grid_size, itex->grid_size));
+    //int tx = ti % itex->grid_width, ty = ti / itex->grid_width;
+    //    sprite.setTextureRect(sf::IntRect(tx * itex->grid_size, ty * itex->grid_size, itex->grid_size, itex->grid_size));
+    sprite = ptex->sprite(ti);
 }
+*/
 
 void UIGrid::render(sf::Vector2f)
 {
@@ -325,20 +376,20 @@ void UIGrid::render(sf::Vector2f)
          box.getSize().x, box.getSize().y));
     renderTexture.clear(sf::Color(8, 8, 8, 255)); // TODO - UIGrid needs a "background color" field
     // sprites that are visible according to zoom, center_x, center_y, and box width
-    float center_x_sq = center_x / itex->grid_size;
-    float center_y_sq = center_y / itex->grid_size;
+    float center_x_sq = center_x / ptex->sprite_width;
+    float center_y_sq = center_y / ptex->sprite_height;
 
-    float width_sq = box.getSize().x / (itex->grid_size * zoom);
-    float height_sq = box.getSize().y / (itex->grid_size * zoom);
+    float width_sq = box.getSize().x / (ptex->sprite_width * zoom);
+    float height_sq = box.getSize().y / (ptex->sprite_height * zoom);
     float left_edge = center_x_sq - (width_sq / 2.0);
     float top_edge = center_y_sq - (height_sq / 2.0);
 
     int left_spritepixels = center_x - (box.getSize().x / 2.0 / zoom);
     int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
 
-    sprite.setScale(sf::Vector2f(zoom, zoom));
+    //sprite.setScale(sf::Vector2f(zoom, zoom));
     sf::RectangleShape r; // for colors and overlays
-    r.setSize(sf::Vector2f(itex->grid_size * zoom, itex->grid_size * zoom));
+    r.setSize(sf::Vector2f(ptex->sprite_width * zoom, ptex->sprite_height * zoom));
     r.setOutlineThickness(0);
 
     int x_limit = left_edge + width_sq + 2;
@@ -358,12 +409,12 @@ void UIGrid::render(sf::Vector2f)
             y+=1)
         {
             auto pixel_pos = sf::Vector2f(
-                    (x*itex->grid_size - left_spritepixels) * zoom,
-                    (y*itex->grid_size - top_spritepixels) * zoom );
+                    (x*ptex->sprite_width - left_spritepixels) * zoom,
+                    (y*ptex->sprite_height - top_spritepixels) * zoom );
 
             auto gridpoint = at(std::floor(x), std::floor(y));
 
-            sprite.setPosition(pixel_pos);
+            //sprite.setPosition(pixel_pos);
 
             r.setPosition(pixel_pos);
             r.setFillColor(gridpoint.color);
@@ -373,7 +424,7 @@ void UIGrid::render(sf::Vector2f)
             // if discovered but not visible, set opacity to 90%
             // if not discovered... just don't draw it?
             if (gridpoint.tilesprite != -1) {
-                setSprite(gridpoint.tilesprite);
+                sprite = ptex->sprite(gridpoint.tilesprite, pixel_pos, sf::Vector2f(zoom, zoom)); //setSprite(gridpoint.tilesprite);;
                 renderTexture.draw(sprite);
             }
         }
@@ -386,10 +437,10 @@ void UIGrid::render(sf::Vector2f)
         //auto drawent = e->cGrid->indexsprite.drawable();
         auto& drawent = e->sprite;
         //drawent.setScale(zoom, zoom);
-        drawent.setScale(zoom);
+        drawent.setScale(sf::Vector2f(zoom, zoom));
         auto pixel_pos = sf::Vector2f(
-            (e->position.x*itex->grid_size - left_spritepixels) * zoom,
-            (e->position.y*itex->grid_size - top_spritepixels) * zoom );
+            (e->position.x*ptex->sprite_width - left_spritepixels) * zoom,
+            (e->position.y*ptex->sprite_height - top_spritepixels) * zoom );
         //drawent.setPosition(pixel_pos);
         //renderTexture.draw(drawent);
         drawent.render(pixel_pos, renderTexture);
@@ -468,4 +519,9 @@ UIGridPoint& UIGrid::at(int x, int y)
 PyObjectsEnum UIGrid::derived_type()
 {
     return PyObjectsEnum::UIGRID;
+}
+
+std::shared_ptr<PyTexture> UIGrid::getTexture()
+{
+    return ptex;
 }
