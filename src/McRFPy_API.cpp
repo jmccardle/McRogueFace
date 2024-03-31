@@ -56,7 +56,7 @@ PyObject* PyInit_mcrfpy()
     using namespace mcrfpydef;
     PyTypeObject* pytypes[] = {
         /*SFML exposed types*/
-        &PyColorType, &PyFontType, &PyTextureType,
+        &PyColorType, /*&PyLinkedColorType,*/ &PyFontType, &PyTextureType,
 
         /*UI widgets*/
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,

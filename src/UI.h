@@ -5,8 +5,13 @@
 #include "IndexTexture.h"
 #include "Resources.h"
 #include <list>
+
+#define ui_h
+
 #include "PyCallable.h"
 #include "PyTexture.h"
+#include "PyColor.h"
+//#include "PyLinkedColor.h"
 
 enum PyObjectsEnum : int
 {
@@ -46,10 +51,12 @@ typedef struct {
 } PyColorObject;
 */
 
+/* // Moved to PyColor.h
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<sf::Color> data;
 } PyColorObject;
+*/
 
 class UIFrame: public UIDrawable
 {
@@ -444,89 +451,89 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
      */
 
 
-    static PyObject* PyColor_get_member(PyColorObject* self, void* closure)
-    {
-        auto member_ptr = reinterpret_cast<long>(closure);
-        if (member_ptr == 0)
-            return PyLong_FromLong(self->data->r);
-        else if (member_ptr == 1)
-            return PyLong_FromLong(self->data->g);
-        else if (member_ptr == 2)
-            return PyLong_FromLong(self->data->b);
-        else if (member_ptr == 3)
-            return PyLong_FromLong(self->data->a);
-        else
-        {
-            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
-            return nullptr;
-        }
-    }
-    
-    static int PyColor_set_member(PyColorObject* self, PyObject* value, void* closure)
-    {
-        if (PyLong_Check(value))
-        {
-            long int_val = PyLong_AsLong(value);
-            if (int_val < 0)
-                int_val = 0;
-            else if (int_val > 255)
-                int_val = 255;
-            auto member_ptr = reinterpret_cast<long>(closure);
-            if (member_ptr == 0)
-                self->data->r = static_cast<sf::Uint8>(int_val);
-            else if (member_ptr == 1)
-                self->data->g = static_cast<sf::Uint8>(int_val);
-            else if (member_ptr == 2)
-                self->data->b = static_cast<sf::Uint8>(int_val);
-            else if (member_ptr == 3)
-                self->data->a = static_cast<sf::Uint8>(int_val);
-        }
-        else
-        {
-            PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
-            return -1;
-        }
-        return 0;
-    }
-    
-    static PyGetSetDef PyColor_getsetters[] = {
-        {"r", (getter)PyColor_get_member, (setter)PyColor_set_member, "Red component",   (void*)0},
-        {"g", (getter)PyColor_get_member, (setter)PyColor_set_member, "Green component", (void*)1},
-        {"b", (getter)PyColor_get_member, (setter)PyColor_set_member, "Blue component",  (void*)2},
-        {"a", (getter)PyColor_get_member, (setter)PyColor_set_member, "Alpha component", (void*)3},
-        {NULL}
-    };
-
-    
-     static PyTypeObject PyColorType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "mcrfpy.Color",
-        .tp_basicsize = sizeof(PyColorObject),
-        .tp_itemsize = 0,
-        .tp_dealloc = (destructor)[](PyObject* self)
-        {
-            PyColorObject* obj = (PyColorObject*)self;
-            obj->data.reset(); 
-            Py_TYPE(self)->tp_free(self); 
-        },
-        //.tp_repr = (reprfunc)PyUIFrame_repr,
-        //.tp_hash = NULL,
-        //.tp_iter
-        //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Color object (RGBA)"),
-        //.tp_methods = PyUIFrame_methods,
-        //.tp_members = PyColor_members,
-        .tp_getset = PyColor_getsetters,
-        //.tp_base = NULL,
-        //.tp_init = (initproc)PyUIFrame_init,
-        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
-        { 
-            PyColorObject* self = (PyColorObject*)type->tp_alloc(type, 0);
-            if (self) self->data = std::make_shared<sf::Color>();
-            return (PyObject*)self;
-        }
-    };
+//    static PyObject* PyColor_get_member(PyColorObject* self, void* closure)
+//    {
+//        auto member_ptr = reinterpret_cast<long>(closure);
+//        if (member_ptr == 0)
+//            return PyLong_FromLong(self->data->r);
+//        else if (member_ptr == 1)
+//            return PyLong_FromLong(self->data->g);
+//        else if (member_ptr == 2)
+//            return PyLong_FromLong(self->data->b);
+//        else if (member_ptr == 3)
+//            return PyLong_FromLong(self->data->a);
+//        else
+//        {
+//            PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
+//            return nullptr;
+//        }
+//    }
+//    
+//    static int PyColor_set_member(PyColorObject* self, PyObject* value, void* closure)
+//    {
+//        if (PyLong_Check(value))
+//        {
+//            long int_val = PyLong_AsLong(value);
+//            if (int_val < 0)
+//                int_val = 0;
+//            else if (int_val > 255)
+//                int_val = 255;
+//            auto member_ptr = reinterpret_cast<long>(closure);
+//            if (member_ptr == 0)
+//                self->data->r = static_cast<sf::Uint8>(int_val);
+//            else if (member_ptr == 1)
+//                self->data->g = static_cast<sf::Uint8>(int_val);
+//            else if (member_ptr == 2)
+//                self->data->b = static_cast<sf::Uint8>(int_val);
+//            else if (member_ptr == 3)
+//                self->data->a = static_cast<sf::Uint8>(int_val);
+//        }
+//        else
+//        {
+//            PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
+//            return -1;
+//        }
+//        return 0;
+//    }
+//    
+//    static PyGetSetDef PyColor_getsetters[] = {
+//        {"r", (getter)PyColor_get_member, (setter)PyColor_set_member, "Red component",   (void*)0},
+//        {"g", (getter)PyColor_get_member, (setter)PyColor_set_member, "Green component", (void*)1},
+//        {"b", (getter)PyColor_get_member, (setter)PyColor_set_member, "Blue component",  (void*)2},
+//        {"a", (getter)PyColor_get_member, (setter)PyColor_set_member, "Alpha component", (void*)3},
+//        {NULL}
+//    };
+//
+//    
+//     static PyTypeObject PyColorType = {
+//        //PyVarObject_HEAD_INIT(NULL, 0)
+//        .tp_name = "mcrfpy.Color",
+//        .tp_basicsize = sizeof(PyColorObject),
+//        .tp_itemsize = 0,
+//        .tp_dealloc = (destructor)[](PyObject* self)
+//        {
+//            PyColorObject* obj = (PyColorObject*)self;
+//            obj->data.reset(); 
+//            Py_TYPE(self)->tp_free(self); 
+//        },
+//        //.tp_repr = (reprfunc)PyUIFrame_repr,
+//        //.tp_hash = NULL,
+//        //.tp_iter
+//        //.tp_iternext
+//        .tp_flags = Py_TPFLAGS_DEFAULT,
+//        .tp_doc = PyDoc_STR("SFML Color object (RGBA)"),
+//        //.tp_methods = PyUIFrame_methods,
+//        //.tp_members = PyColor_members,
+//        .tp_getset = PyColor_getsetters,
+//        //.tp_base = NULL,
+//        //.tp_init = (initproc)PyUIFrame_init,
+//        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+//        { 
+//            PyColorObject* self = (PyColorObject*)type->tp_alloc(type, 0);
+//            if (self) self->data = std::make_shared<sf::Color>();
+//            return (PyObject*)self;
+//        }
+//    };
 
     /*
      *
@@ -591,32 +598,50 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         }
 
         // TODO: manually calling tp_alloc to create a PyColorObject seems like an antipattern
-        PyTypeObject* colorType = &PyColorType;
-        PyObject* pyColor = colorType->tp_alloc(colorType, 0);
+        /*
+        PyTypeObject* colorType = &PyLinkedColorType;
+        PyObject* pyColor = colorType->tp_alloc(colorLinkedType, 0);
         if (pyColor == NULL)
         {
-            std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
+            std::cout << "failure to allocate mcrfpy.LinkedColor / PyLinkedColorType" << std::endl;
             return NULL;
         }
-        PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
+        PyColorObject* pyColorObj = reinterpret_cast<PyLinkedColorObject*>(pyColor);
+        */
 
         // fetch correct member data
         sf::Color color;
+        //sf::Color (*cgetter)();
+        //void (*csetter)(sf::Color);
+        //std::function<void(sf::Color)> csetter;
+        //std::function<sf::Color()> cgetter;
         if (member_ptr == 0)
         {
             color = self->data->text.getFillColor();
             //return Py_BuildValue("(iii)", color.r, color.g, color.b);
+            //csetter = &self->data->text.setFillColor;
+            //cgetter = &self->data->text.getFillColor;
+            //csetter = [s = self->data](sf::Color c){s->text.setFillColor(c);};
+            //cgetter = [s = self->data](){return s->text.getFillColor();};
         }
         else if (member_ptr == 1)
         {
             color = self->data->text.getOutlineColor();
             //return Py_BuildValue("(iii)", color.r, color.g, color.b);
+            //csetter = &self->data->text.setOutlineColor;
+            //cgetter = &self->data->text.getOutlineColor;
+            //csetter = [s = self->data](sf::Color c){s->text.setOutlineColor(c);};
+            //cgetter = [s = self->data](){return s->text.getOutlineColor();};
         }
 
         // initialize new mcrfpy.Color instance
-        pyColorObj->data = std::make_shared<sf::Color>(color);
+        //pyColorObj->data = std::make_shared<sf::Color>(color);
+        //PyLinkedColor::fromPy(pyColorObj).set(color);
+        //auto linkedcolor = PyLinkedColor(csetter, cgetter, self->data, member_ptr);
+        //linkedcolor.set(color); // don't need to set a linked color!
         
-        return pyColor;
+        //return pyColor;
+        return PyColor(color).pyObject();
     }
 
     static int PyUICaption_set_color_member(PyUICaptionObject* self, PyObject* value, void* closure)
@@ -627,11 +652,20 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         if (PyObject_IsInstance(value, (PyObject*)&PyColorType))
         {
             // get value from mcrfpy.Color instance
+            /*
             PyColorObject* color = reinterpret_cast<PyColorObject*>(value);
             r = color->data->r;
             g = color->data->g;
             b = color->data->b;
             a = color->data->a;
+            */
+            //std::cout << "Build LinkedColor" << std::endl;
+            //auto lc  = PyLinkedColor::fromPy(value);
+            auto c = ((PyColorObject*)value)->data;
+            //std::cout << "Fetch value" << std::endl;
+            //auto c = lc.get();
+            r = c.r; g = c.g; b = c.b; a = c.a;
+            std::cout << "got " << int(r) << ", " << int(g) << ", " << int(b) << ", " << int(a) << std::endl;
         }
         else if (!PyTuple_Check(value) || PyTuple_Size(value) < 3 || PyTuple_Size(value) > 4)
         {
@@ -898,9 +932,11 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         }
         
         // initialize new mcrfpy.Color instance
-        pyColorObj->data = std::make_shared<sf::Color>(color);
+        //pyColorObj->data = std::make_shared<sf::Color>(color);
+        //PyColor::fromPy(pyColorObj).set(color);
 
-        return pyColor;
+        // TODO - supposed to return Linked
+        return PyColor(color).pyObject();
     }
 
     static int PyUIFrame_set_color_member(PyUIFrameObject* self, PyObject* value, void* closure)
@@ -911,12 +947,16 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         if (PyObject_IsInstance(value, (PyObject*)&PyColorType))
         {
             // get value from mcrfpy.Color instance
+            /*
             PyColorObject* color = reinterpret_cast<PyColorObject*>(value);
             r = color->data->r;
             g = color->data->g;
             b = color->data->b;
             a = color->data->a;
             std::cout << "using color: " << r << " " << g << " " << b << " " << a << std::endl;
+            */
+            sf::Color c = ((PyColorObject*)value)->data;
+            r = c.r; g = c.g; b = c.b; a = c.a;
         }
         else if (!PyTuple_Check(value) || PyTuple_Size(value) < 3 || PyTuple_Size(value) > 4)
         {
