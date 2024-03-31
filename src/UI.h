@@ -12,6 +12,7 @@
 #include "PyTexture.h"
 #include "PyColor.h"
 //#include "PyLinkedColor.h"
+#include "PyVector.h"
 
 enum PyObjectsEnum : int
 {
@@ -587,6 +588,17 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         return 0;
     }
 
+    static PyObject* PyUICaption_get_vec_member(PyUICaptionObject* self, void* closure)
+    {
+        return PyVector(self->data->text.getPosition()).pyObject();
+    }
+
+    static int PyUICaption_set_vec_member(PyUICaptionObject* self, PyObject* value, void* closure)
+    {
+        self->data->text.setPosition(PyVector::fromPy(value));
+        return 0;
+    }
+
     static PyObject* PyUICaption_get_color_member(PyUICaptionObject* self, void* closure)
     {
         // validate closure (should be impossible to be wrong, but it's thorough)
@@ -730,6 +742,7 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
     static PyGetSetDef PyUICaption_getsetters[] = {
         {"x", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "X coordinate of top-left corner",   (void*)0},
         {"y", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "Y coordinate of top-left corner",   (void*)1},
+        {"pos", (getter)PyUICaption_get_vec_member, (setter)PyUICaption_set_vec_member, "(x, y) vector", (void*)0},
         //{"w", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "width of the rectangle",   (void*)2},
         //{"h", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "height of the rectangle",   (void*)3},
         {"outline", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "Thickness of the border",   (void*)4},

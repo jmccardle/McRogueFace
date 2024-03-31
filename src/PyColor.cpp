@@ -65,77 +65,62 @@ PyObject* PyColor::repr(PyObject* obj)
 }
 
 
-int PyColor::init(PyColorObject* self, PyObject* args, PyObject* kwds)
-{
-    using namespace mcrfpydef;
+int PyColor::init(PyColorObject* self, PyObject* args, PyObject* kwds) {
+    //using namespace mcrfpydef;
     static const char* keywords[] = { "r", "g", "b", "a", nullptr };
     PyObject* leader;
     int r = -1, g = -1, b = -1, a = 255;
-    if (!PyArg_ParseTupleAndKeywords, args, kwds, "O|iii", leader, &g, &b, &a)
-    {
-        PyErr_SetString(PyExc_TypeError, "mcrfpy.Color requires a color object, 3-tuple, 4-tuple, color name, or integer values within 0-255 (r, g, b, optionally a)");
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|iii", const_cast<char**>(keywords), &leader, &g, &b, &a)) {
+        PyErr_SetString(PyExc_TypeError, "mcrfpy.Color requires a 3-tuple, 4-tuple, color name, or integer values within 0-255 (r, g, b, optionally a)");
         return -1;
     }
 
-    // if the "r" arg is already a color, yoink that color value
-    if (PyObject_IsInstance(leader, (PyObject*)&PyColorType))
-    {
-        self->data = ((PyColorObject*)leader)->data;
-        return 0;
-    }
-    // else if the "r" arg is a 3-tuple, initialize to (r, g, b, 255)
-    //     (if the "r" arg is a 4-tuple, initialize to (r, g, b, a))
-    else if (PyTuple_Check(leader))
-    {
-        if (PyTuple_Size(leader) < 3 && PyTuple_Size(leader) > 4)
-        {
-            PyErr_SetString(PyExc_TypeError, "Invalid tuple length: mcrfpy.Color requires a color object, 3-tuple, 4-tuple, color name, or integer values within 0-255 (r, g, b, optionally a)");
+    //std::cout << "Arg parsing succeeded. Values: " << r << " " << g << " " << b << " " << a <<std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(leader)) << std::endl;
+    // Tuple cases
+    if (PyTuple_Check(leader)) {
+        Py_ssize_t tupleSize = PyTuple_Size(leader);
+        if (tupleSize < 3 || tupleSize > 4) {
+            PyErr_SetString(PyExc_TypeError, "Invalid tuple length: mcrfpy.Color requires a 3-tuple, 4-tuple, color name, or integer values within 0-255 (r, g, b, optionally a)");
             return -1;
         }
         r = PyLong_AsLong(PyTuple_GetItem(leader, 0));
         g = PyLong_AsLong(PyTuple_GetItem(leader, 1));
         b = PyLong_AsLong(PyTuple_GetItem(leader, 2));
-        //a = 255; //default value
-
-        if (PyTuple_Size(leader) == 4)
-        {
+        if (tupleSize == 4) {
             a = PyLong_AsLong(PyTuple_GetItem(leader, 3));
         }
+    }
+    // Color name (not implemented yet)
+    else if (PyUnicode_Check(leader)) {
+        PyErr_SetString(PyExc_NotImplementedError, "Color names aren't ready yet");
+        return -1;
+    }
+    // Check if the leader is actually an integer for the r value
+    else if (PyLong_Check(leader)) {
+        r = PyLong_AsLong(leader);
+        // Additional validation not shown; g, b are required to be parsed
+    } else {
+        PyErr_SetString(PyExc_TypeError, "mcrfpy.Color requires a 3-tuple, 4-tuple, color name, or integer values within 0-255 (r, g, b, optionally a)");
+        return -1;
+    }
 
-        // value validation
-        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
-        {
-            PyErr_SetString(PyExc_ValueError, "Color values must be between 0 and 255.");
-            return -1;
-        }
-        self->data = sf::Color(r, g, b, a);
-    }
-    // else if the "r" arg is a string, initialize to {color lookup function value}
-    else if (PyUnicode_Check(leader))
-    {
-        PyErr_SetString(Py_NotImplemented, "Color names aren't ready yet");
+    // Validate color values
+    if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
+        PyErr_SetString(PyExc_ValueError, "Color values must be between 0 and 255.");
         return -1;
     }
-    // else - 
-    else if (!PyLong_Check(leader))
-    {
-        PyErr_SetString(PyExc_TypeError, "mcrfpy.Color requires a color object, 3-tuple, 4-tuple, color name, or integer values within 0-255 (r, g, b, optionally a)");
-        return -1;
-    }
-    r = PyLong_AsLong(leader);
-    //   assert r, g, b are present and ints in range (0, 255) - if not enough ints were provided to the args/kwds parsed by init, g and/or b will still hold -1.
-    if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
-    {
-        PyErr_SetString(PyExc_ValueError, "R, G, B values are required, A value is optional; Color values must be between 0 and 255.");
-        return -1;
-    }
+
     self->data = sf::Color(r, g, b, a);
     return 0;
 }
 
 PyObject* PyColor::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
-    return (PyObject*)type->tp_alloc(type, 0);
+    auto obj = (PyObject*)type->tp_alloc(type, 0);
+    //Py_INCREF(obj);
+    return obj;
 }
 
 PyObject* PyColor::get_member(PyObject* obj, void* closure)
