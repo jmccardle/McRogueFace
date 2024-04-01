@@ -13,6 +13,7 @@
 #include "PyColor.h"
 //#include "PyLinkedColor.h"
 #include "PyVector.h"
+#include "PyFont.h"
 
 enum PyObjectsEnum : int
 {
@@ -409,7 +410,7 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
      * Begin PyFontType defs
      *
      */
-
+    /*
     typedef struct {
         PyObject_HEAD
         std::shared_ptr<sf::Font> data;
@@ -444,6 +445,7 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
             return (PyObject*)self;
         }
     };
+    */
 
     /*
      *
@@ -792,13 +794,14 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
         //
         // Set Font
         //
+        std::cout << PyUnicode_AsUTF8(PyObject_Repr(font)) << std::endl;
         if (font != NULL && !PyObject_IsInstance(font, (PyObject*)&PyFontType)){
             PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance");
             return -1;
         } else if (font != NULL)
         {
             auto font_obj = (PyFontObject*)font;
-            self->data->text.setFont(*font_obj->data);
+            self->data->text.setFont(font_obj->data->font);
             self->font = font;
             Py_INCREF(font);
         } else
