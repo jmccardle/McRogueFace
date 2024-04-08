@@ -9,6 +9,11 @@ std::vector<sf::SoundBuffer> McRFPy_API::soundbuffers;
 sf::Music McRFPy_API::music;
 sf::Sound McRFPy_API::sfx;
 
+std::shared_ptr<PyFont> McRFPy_API::default_font;
+std::shared_ptr<PyTexture> McRFPy_API::default_texture;
+PyObject* McRFPy_API::mcrf_module;
+
+
 static PyMethodDef mcrfpyMethods[] = {
     {"registerPyAction", McRFPy_API::_registerPyAction, METH_VARARGS,
         "Register a callable Python object to correspond to an action string. (actionstr, callable)"},
@@ -39,8 +44,15 @@ static PyMethodDef mcrfpyMethods[] = {
 };
 
 static PyModuleDef mcrfpyModule = {
-    PyModuleDef_HEAD_INIT, "mcrfpy", NULL, -1, mcrfpyMethods,
-    NULL, NULL, NULL, NULL
+    PyModuleDef_HEAD_INIT, /* m_base - Always initialize this member to PyModuleDef_HEAD_INIT. */
+    "mcrfpy",              /* m_name */
+    NULL,                  /* m_doc - Docstring for the module; usually a docstring variable created with PyDoc_STRVAR is used. */
+    -1,                    /* m_size - Setting m_size to -1 means that the module does not support sub-interpreters, because it has global state. */
+    mcrfpyMethods,         /* m_methods */
+    NULL,                  /* m_slots - An array of slot definitions ...  When using single-phase initialization, m_slots must be NULL. */
+    NULL,                  /* traverseproc m_traverse - A traversal function to call during GC traversal of the module object */
+    NULL,                  /* inquiry m_clear - A clear function to call during GC clearing of the module object */
+    NULL                   /* freefunc m_free - A function to call during deallocation of the module object */
 };
 
 // Module initializer fn, passed to PyImport_AppendInittab
@@ -72,11 +84,19 @@ PyObject* PyInit_mcrfpy()
     auto t = pytypes[i];
     while (t != nullptr)
     {
-        PyType_Ready(t);
+        /*std::cout << */ PyType_Ready(t); /*<< std::endl; */
         PyModule_AddType(m, t);
         t = pytypes[i++];
     }
 
+    // Add default_font and default_texture to module
+    McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
+    McRFPy_API::default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
+    //PyModule_AddObject(m, "default_font", McRFPy_API::default_font->pyObject());
+    //PyModule_AddObject(m, "default_texture", McRFPy_API::default_texture->pyObject());
+    PyModule_AddObject(m, "default_font", Py_None);
+    PyModule_AddObject(m, "default_texture", Py_None);
+    //McRFPy_API::mcrf_module = m;
     return m;
 }
 
@@ -128,9 +148,13 @@ PyStatus init_python(const char *program_name)
 #endif
 
     status = Py_InitializeFromConfig(&config);
+
+    PyConfig_Clear(&config);
+
     return status;
 }
 
+/*
 void McRFPy_API::setSpriteTexture(int ti)
 {
     int tx = ti % texture_width, ty = ti / texture_width;
@@ -139,6 +163,7 @@ void McRFPy_API::setSpriteTexture(int ti)
                 ty * texture_size,
                 texture_size, texture_size));
 }
+*/
 
 // functionality
 //void McRFPy_API::
@@ -154,6 +179,15 @@ void McRFPy_API::api_init() {
     //texture_size = 16, texture_width = 12, texture_height= 11;
     //texture_sprite_count = texture_width * texture_height;
     //texture.setSmooth(false);
+
+    // Add default_font and default_texture to module
+    McRFPy_API::mcrf_module = PyImport_ImportModule("mcrfpy");
+    std::cout << PyUnicode_AsUTF8(PyObject_Repr(McRFPy_API::mcrf_module)) << std::endl;
+
+    //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
+    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
+    //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
+    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
 
     //sprite.setTexture(texture);
     //sprite.setScale(sf::Vector2f(4.0f, 4.0f));

@@ -3,6 +3,9 @@
 #include "Python.h"
 #include <list>
 
+#include "PyFont.h"
+#include "PyTexture.h"
+
 class GameEngine; // forward declared (circular members)
 
 class McRFPy_API
@@ -14,10 +17,14 @@ private:
 
     McRFPy_API();
 
+
 public:
-    inline static sf::Sprite sprite;
-    inline static sf::Texture texture;
-    static void setSpriteTexture(int);
+    static PyObject* mcrf_module;
+    static std::shared_ptr<PyFont> default_font;
+    static std::shared_ptr<PyTexture> default_texture;
+    //inline static sf::Sprite sprite;
+    //inline static sf::Texture texture;
+    //static void setSpriteTexture(int);
     inline static GameEngine* game;
     static void api_init();
     static void api_shutdown();

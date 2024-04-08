@@ -1,5 +1,5 @@
 #include "PyTexture.h"
-
+#include "McRFPy_API.h"
 
 PyTexture::PyTexture(std::string filename, int sprite_w, int sprite_h)
 : source(filename), sprite_width(sprite_w), sprite_height(sprite_h)
@@ -28,9 +28,36 @@ sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
 
 PyObject* PyTexture::pyObject()
 {
-    PyObject* obj = PyType_GenericAlloc(&mcrfpydef::PyTextureType, 0);
+    // method 1: works but with type weirdness
+    //PyObject* obj = PyType_GenericAlloc(&mcrfpydef::PyTextureType, 0);
+    //Py_SET_TYPE(obj, &mcrfpydef::PyTextureType);
+    
+    // method 2: does not work (segfault on use of the mcrfpy.Texture object)
+    //PyObject* obj = PyTexture::pynew(&mcrfpydef::PyTextureType, Py_None, Py_None);
+
+    // method 3: does not work (segfault on use of the mcrfpy.Texture object)
+    std::cout << "Find type" << std::endl;
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture");
+        //auto type = obj->ob_type;
+        //auto type = &mcrfpydef::PyTextureType;
+        //std::cout << "assigned value 0x" << std::hex << reinterpret_cast<long>(type) << std::endl;
+        //std::cout << "Found PyTextureType: " << PyUnicode_AsUTF8(PyObject_Repr((PyObject*)type)) << std::endl;
+        //std::cout << "PyTextureType metatype: " << PyUnicode_AsUTF8(PyObject_Repr((PyObject_Type((PyObject*)type)))) << std::endl;
+        //std::cout << "tp_alloc: 0x" << std::hex << reinterpret_cast <long>(type->tp_alloc) << std::endl <<
+        //             "tp_new: 0x" << std::hex << reinterpret_cast<long>(type->tp_new) << std::endl;
+        //PyObject* obj = ((PyTypeObject*)type)->tp_new((PyTypeObject*)type, Py_None, Py_None);
+        PyObject* obj = PyTexture::pynew(type, Py_None, Py_None);
+        //Py_SET_TYPE(obj, type);
+
+    // method 4: call the type object?
+
+    std::cout << "Instantiated" << std::endl;
+    //Py_SET_TYPE(obj, &mcrfpydef::PyTextureType);
+
+    //PyObject_CallFunction(&mcrfpydef::PyTextureType, 
     try {
         ((PyTextureObject*)obj)->data = shared_from_this();
+        std::cout << "Sideloaded texture: " << PyUnicode_AsUTF8(PyObject_Repr(obj)) << std::endl;
     }
     catch (std::bad_weak_ptr& e)
     {
@@ -38,6 +65,22 @@ PyObject* PyTexture::pyObject()
     }
     // TODO - shared_from_this will raise an exception if the object does not have a shared pointer. Constructor should be made private; write a factory function
     return obj;
+}
+
+PyObject* PyTexture::repr(PyObject* obj)
+{
+    PyTextureObject* self = (PyTextureObject*)obj;
+    std::ostringstream ss;
+    if (!self->data)
+    {
+        ss << "<Texture [invalid internal object]>";
+        std::string repr_str = ss.str();
+        return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+    }
+    auto& ptex = *(self->data);
+    ss << "<Texture " << ptex.sheet_height << " rows, " << ptex.sheet_width << " columns; " << ptex.sprite_width << "x" << ptex.sprite_height << "px sprites. source='" << ptex.source << "'>";
+    std::string repr_str = ss.str();
+    return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
 }
 
 Py_hash_t PyTexture::hash(PyObject* obj)

@@ -2,6 +2,10 @@ import mcrfpy
 font = mcrfpy.Font("assets/JetbrainsMono.ttf")
 texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 
+print("[game.py] Default texture:")
+print(mcrfpy.default_texture)
+print(type(mcrfpy.default_texture))
+
 # build test widgets
 
 mcrfpy.createScene("pytest")

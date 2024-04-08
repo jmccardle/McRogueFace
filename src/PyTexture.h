@@ -21,6 +21,7 @@ public:
     sf::Sprite sprite(int index, sf::Vector2f pos = sf::Vector2f(0, 0), sf::Vector2f s = sf::Vector2f(1.0, 1.0));
 
     PyObject* pyObject();
+    static PyObject* repr(PyObject*);
     static Py_hash_t hash(PyObject*);
     static int init(PyTextureObject*, PyObject*, PyObject*);
     static PyObject* pynew(PyTypeObject* type, PyObject* args=NULL, PyObject* kwds=NULL);
@@ -31,10 +32,12 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.Texture",
         .tp_basicsize = sizeof(PyTextureObject),
         .tp_itemsize = 0,
+        .tp_repr = PyTexture::repr,
         .tp_hash = PyTexture::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("SFML Texture Object"),
+        //.tp_base = &PyBaseObject_Type,
         .tp_init = (initproc)PyTexture::init,
-        .tp_new = PyTexture::pynew,
+        .tp_new = PyType_GenericNew, //PyTexture::pynew,
     };
 }
