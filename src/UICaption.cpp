@@ -1,4 +1,5 @@
 #include "UICaption.h"
+#include "GameEngine.h"
 
 UIDrawable* UICaption::click_at(sf::Vector2f point)
 {

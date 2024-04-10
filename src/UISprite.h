@@ -42,10 +42,10 @@ public:
     PyObjectsEnum derived_type() override final;
 };
 
-typedef struct {
-    PyObject_HEAD
-    std::shared_ptr<UISprite> data;
-} PyUISpriteObject;
+//typedef struct {
+//    PyObject_HEAD
+//    std::shared_ptr<UISprite> data;
+//} PyUISpriteObject;
 
 namespace mcrfpydef {
     //TODO: add this method to class scope; move implementation to .cpp file
@@ -143,7 +143,7 @@ namespace mcrfpydef {
         {"scale", (getter)PyUISprite_get_float_member, (setter)PyUISprite_set_float_member, "Size factor",                   (void*)2},
         {"sprite_number", (getter)PyUISprite_get_int_member, (setter)PyUISprite_set_int_member, "Which sprite on the texture is shown", NULL},
         {"texture", (getter)PyUISprite_get_texture, (setter)PyUISprite_set_texture,     "Texture object",                    NULL},
-        {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UISPRITE},
+        {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UISPRITE},
         {NULL}
     };
     

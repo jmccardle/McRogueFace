@@ -12,6 +12,7 @@
 #include "PyVector.h"
 #include "PyFont.h"
 #include "UIDrawable.h"
+#include "UIBase.h"
 
 class UICaption: public UIDrawable
 {
@@ -22,11 +23,12 @@ public:
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
 };
 
-typedef struct {
-    PyObject_HEAD
-    std::shared_ptr<UICaption> data;
-    PyObject* font;
-} PyUICaptionObject;
+//class UICaption;
+//typedef struct {
+//    PyObject_HEAD
+//    std::shared_ptr<UICaption> data;
+//    PyObject* font;
+//} PyUICaptionObject;
 
 namespace mcrfpydef {
     //TODO: add this method to class scope; move implementation to .cpp file
@@ -205,7 +207,7 @@ namespace mcrfpydef {
         //{"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
         {"text", (getter)PyUICaption_get_text, (setter)PyUICaption_set_text, "The text displayed", NULL},
         {"size", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "Text size (integer) in points", (void*)5},
-        {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UICAPTION},
+        {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UICAPTION},
         {NULL}
     };
 

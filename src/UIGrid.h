@@ -15,6 +15,7 @@
 #include "UIGridPoint.h"
 #include "UIEntity.h"
 #include "UIDrawable.h"
+#include "UIBase.h"
 
 class UIGrid: public UIDrawable
 {
@@ -43,11 +44,11 @@ public:
     std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> entities;
 };
 
-typedef struct {
-    PyObject_HEAD
-    std::shared_ptr<UIGrid> data;
-    //PyObject* texture;
-} PyUIGridObject;
+//typedef struct {
+//    PyObject_HEAD
+//    std::shared_ptr<UIGrid> data;
+//    //PyObject* texture;
+//} PyUIGridObject;
 
 namespace mcrfpydef {
 //TODO: add this method to class scope; move implementation to .cpp file
@@ -257,7 +258,7 @@ static PyGetSetDef PyUIGrid_getsetters[] = {
     {"center_y", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "center of the view Y-coordinate", (void*)5},
     {"zoom", (getter)PyUIGrid_get_float_member, (setter)PyUIGrid_set_float_member, "zoom factor for displaying the Grid", (void*)6},
 
-    {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIGRID},
+    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIGRID},
 
     {"texture", (getter)PyUIGrid_get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
     {NULL}  /* Sentinel */

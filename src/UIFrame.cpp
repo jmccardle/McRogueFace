@@ -54,6 +54,16 @@ void UIFrame::render(sf::Vector2f offset)
     }
 }
 
+PyObject* PyUIFrame::get_children(PyUIFrameObject* self, void* closure)
+{
+    // create PyUICollection instance pointing to self->data->children
+    PyUICollectionObject* o = (PyUICollectionObject*)PyUICollectionType.tp_alloc(&PyUICollectionType, 0);
+    if (o)
+        o->data = self->data->children;
+    return (PyObject*)o;
+}
+
+
 namespace mcrfpydef {
 
     // TODO: move to class scope; but this should at least get us compiling

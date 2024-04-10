@@ -12,6 +12,8 @@
 #include "PyVector.h"
 #include "PyFont.h"
 
+#include "Resources.h"
+
 class UIFrame; class UICaption; class UISprite; class UIEntity; class UIGrid;
 
 enum PyObjectsEnum : int
@@ -36,6 +38,9 @@ public:
     void click_unregister();
 
     UIDrawable();
+
+    static PyObject* get_click(PyObject* self, void* closure);
+    static int set_click(PyObject* self, PyObject* value, void* closure);
 };
 
 typedef struct {
@@ -99,7 +104,8 @@ switch (target->derived_type())                         \
 // end macro definition
 
 //TODO: add this method to class scope; move implementation to .cpp file
-static PyObject* PyUIDrawable_get_click(PyUIGridObject* self, void* closure) {
+/*
+static PyObject* PyUIDrawable_get_click(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure)); // trust me bro, it's an Enum
     PyObject* ptr;
 
@@ -125,10 +131,11 @@ static PyObject* PyUIDrawable_get_click(PyUIGridObject* self, void* closure) {
         return ptr;
     else
         return Py_None;
-}
+}*/
 
 //TODO: add this method to class scope; move implementation to .cpp file
-static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* closure) {
+/*
+static int PyUIDrawable_set_click(PyObject* self, PyObject* value, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure)); // trust me bro, it's an Enum
     UIDrawable* target;
     switch (objtype)
@@ -158,5 +165,5 @@ static int PyUIDrawable_set_click(PyUIGridObject* self, PyObject* value, void* c
 	}
     return 0;
 }
-
+*/
 }

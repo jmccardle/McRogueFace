@@ -14,8 +14,14 @@
 
 #include "UIGridPoint.h"
 #include "UIDrawable.h"
-
+#include "UIBase.h"
 class UIGrid;
+
+//class UIEntity;
+//typedef struct {
+//    PyObject_HEAD
+//    std::shared_ptr<UIEntity> data;
+//} PyUIEntityObject;
 
 // TODO: make UIEntity a drawable
 class UIEntity//: public UIDrawable
@@ -31,13 +37,9 @@ public:
     UIEntity();
     UIEntity(UIGrid&);
     
+    static PyObject* at(PyUIEntityObject* self, PyObject* o);
+    static int init(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
 };
-
-typedef struct {
-    PyObject_HEAD
-    std::shared_ptr<UIEntity> data;
-    //PyObject* texture;
-} PyUIEntityObject;
 
 namespace mcrfpydef {
 //TODO: add this method to class scope; move implementation to .cpp file; reconsider for moving to "UIBase.h/.cpp"
@@ -124,6 +126,7 @@ static int PyUIEntity_set_spritenumber(PyUIEntityObject* self, PyObject* value, 
 }
 
 //TODO: add this method to class scope; move implementation to .cpp file
+/*
 static PyObject* PyUIEntity_at(PyUIEntityObject* self, PyObject* o)
 {
     int x, y;
@@ -144,10 +147,11 @@ static PyObject* PyUIEntity_at(PyUIEntityObject* self, PyObject* o)
     obj->entity = self->data;
     return (PyObject*)obj;
 }
+*/
 
 //TODO: add this static array to class scope; move implementation to .cpp file
 static PyMethodDef PyUIEntity_methods[] = {
-    {"at", (PyCFunction)PyUIEntity_at, METH_O},
+    {"at", (PyCFunction)UIEntity::at, METH_O},
     {NULL, NULL, 0, NULL}
 };
 
@@ -161,7 +165,7 @@ static PyGetSetDef PyUIEntity_getsetters[] = {
 };
 
 //TODO: add this method to class scope; forward declaration not required after .h/.cpp split
-static int PyUIEntity_init(PyUIEntityObject*, PyObject*, PyObject*); // forward declare
+//static int PyUIEntity_init(PyUIEntityObject*, PyObject*, PyObject*); // forward declare
 
 
 // Define the PyTypeObject for UIEntity
@@ -175,7 +179,7 @@ static PyTypeObject PyUIEntityType = {
     .tp_doc = "UIEntity objects",
     .tp_methods = PyUIEntity_methods,
     .tp_getset = PyUIEntity_getsetters,
-    .tp_init = (initproc)PyUIEntity_init,
+    .tp_init = (initproc)UIEntity::init,
     .tp_new = PyType_GenericNew,
 };
 }

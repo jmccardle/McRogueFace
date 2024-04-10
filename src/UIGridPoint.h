@@ -29,6 +29,8 @@ public:
     bool visible, discovered;
 };
 
+class UIGrid;
+
 typedef struct {
     PyObject_HEAD
     UIGridPoint* data;

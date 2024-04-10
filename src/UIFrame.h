@@ -10,6 +10,14 @@
 #include "PyColor.h"
 #include "PyVector.h"
 #include "UIDrawable.h"
+#include "UIBase.h"
+
+//class UIFrame;
+//
+//typedef struct {
+//    PyObject_HEAD
+//    std::shared_ptr<UIFrame> data;
+//} PyUIFrameObject;
 
 class UIFrame: public UIDrawable
 {
@@ -24,12 +32,9 @@ public:
     void move(sf::Vector2f);
     PyObjectsEnum derived_type() override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
-};
 
-typedef struct {
-    PyObject_HEAD
-    std::shared_ptr<UIFrame> data;
-} PyUIFrameObject;
+    static PyObject* get_children(PyUIFrameObject* self, void* closure);
+};
 
 namespace mcrfpydef {
     //TODO: add this method to class scope; move implementation to .cpp file
@@ -173,7 +178,7 @@ namespace mcrfpydef {
     }
 
     //TODO: add this method to class scope; move implementation to .cpp file
-    static PyObject* PyUIFrame_get_children(PyUIFrameObject*, void*); // forward declaration until UICollection is defined
+    //static PyObject* PyUIFrame_get_children(PyUIFrameObject*, void*); // forward declaration until UICollection is defined
     // implementation after the PyUICollectionType definition
 
     //TODO: add this static array to class scope; move implementation to .cpp file
@@ -185,8 +190,8 @@ namespace mcrfpydef {
         {"outline", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "Thickness of the border",   (void*)4},
         {"fill_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Fill color of the rectangle", (void*)0},
         {"outline_color", (getter)PyUIFrame_get_color_member, (setter)PyUIFrame_set_color_member, "Outline color of the rectangle", (void*)1},
-        {"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
-        {"click", (getter)PyUIDrawable_get_click, (setter)PyUIDrawable_set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIFRAME},
+        {"children", (getter)UIFrame::get_children, NULL, "UICollection of objects on top of this one", NULL},
+        {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIFRAME},
         {NULL}
     };
     
