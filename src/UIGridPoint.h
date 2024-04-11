@@ -30,6 +30,7 @@ public:
 };
 
 class UIGrid;
+class UIEntity;
 
 typedef struct {
     PyObject_HEAD

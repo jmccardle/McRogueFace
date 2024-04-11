@@ -1,4 +1,5 @@
 #include "UIGrid.h"
+#include "GameEngine.h"
 
 UIGrid::UIGrid() {}
 
@@ -187,4 +188,13 @@ PyObjectsEnum UIGrid::derived_type()
 std::shared_ptr<PyTexture> UIGrid::getTexture()
 {
     return ptex;
+}
+
+UIDrawable* UIGrid::click_at(sf::Vector2f point)
+{
+    if (click_callable)
+    {
+        if(box.getGlobalBounds().contains(point)) return this;
+    }
+    return NULL;
 }

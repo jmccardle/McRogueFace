@@ -15,6 +15,8 @@
 #include "UIGridPoint.h"
 #include "UIDrawable.h"
 #include "UIBase.h"
+#include "UISprite.h"
+
 class UIGrid;
 
 //class UIEntity;

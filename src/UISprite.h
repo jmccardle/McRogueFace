@@ -12,6 +12,7 @@
 #include "PyVector.h"
 #include "PyFont.h"
 #include "UIDrawable.h"
+#include "UIBase.h"
 
 class UISprite: public UIDrawable
 {

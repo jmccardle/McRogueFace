@@ -1,4 +1,5 @@
 #include "UISprite.h"
+#include "GameEngine.h"
 
 UIDrawable* UISprite::click_at(sf::Vector2f point)
 {

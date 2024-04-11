@@ -75,4 +75,7 @@ int UIDrawable::set_click(PyObject* self, PyObject* value, void* closure) {
     return 0;
 }
 
-
+void UIDrawable::click_register(PyObject* callable)
+{
+    click_callable = std::make_unique<PyClickCallable>(callable);
+}

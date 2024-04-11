@@ -19,19 +19,25 @@ class UICaption: public UIDrawable
 public:
     sf::Text text;
     void render(sf::Vector2f) override final;
-    PyObjectsEnum derived_type() override final; // { return PyObjectsEnum::UICaption;  };
+    PyObjectsEnum derived_type() override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
-};
 
-//class UICaption;
-//typedef struct {
-//    PyObject_HEAD
-//    std::shared_ptr<UICaption> data;
-//    PyObject* font;
-//} PyUICaptionObject;
+    static PyObject* get_float_member(PyUICaptionObject* self, void* closure);
+    static int set_float_member(PyUICaptionObject* self, PyObject* value, void* closure);
+    static PyObject* get_vec_member(PyUICaptionObject* self, void* closure);
+    static int set_vec_member(PyUICaptionObject* self, PyObject* value, void* closure);
+    static PyObject* get_color_member(PyUICaptionObject* self, void* closure);
+    static int set_color_member(PyUICaptionObject* self, PyObject* value, void* closure);
+    static PyObject* get_text(PyUICaptionObject* self, void* closure);
+    static int set_text(PyUICaptionObject* self, PyObject* value, void* closure);
+    static PyGetSetDef getsetters[];
+    static PyObject* repr(PyUICaptionObject* self);
+    static int init(PyUICaptionObject* self, PyObject* args, PyObject* kwds);
+};
 
 namespace mcrfpydef {
     //TODO: add this method to class scope; move implementation to .cpp file
+    /*
     static PyObject* PyUICaption_get_float_member(PyUICaptionObject* self, void* closure)
     {
         auto member_ptr = reinterpret_cast<long>(closure);
@@ -49,8 +55,10 @@ namespace mcrfpydef {
             return nullptr;
         }
     }
+    */
 
     //TODO: add this method to class scope; move implementation to .cpp file
+    /*
     static int PyUICaption_set_float_member(PyUICaptionObject* self, PyObject* value, void* closure)
     {
         float val;
@@ -78,8 +86,10 @@ namespace mcrfpydef {
             self->data->text.setCharacterSize(val);
         return 0;
     }
+    */
 
     //TODO: add this method to class scope; move implementation to .cpp file
+    /*
     static PyObject* PyUICaption_get_vec_member(PyUICaptionObject* self, void* closure)
     {
         return PyVector(self->data->text.getPosition()).pyObject();
@@ -91,8 +101,10 @@ namespace mcrfpydef {
         self->data->text.setPosition(PyVector::fromPy(value));
         return 0;
     }
+    */
 
     //TODO: add this method to class scope; move implementation to .cpp file
+    /*
     static PyObject* PyUICaption_get_color_member(PyUICaptionObject* self, void* closure)
     {
         // validate closure (should be impossible to be wrong, but it's thorough)
@@ -118,8 +130,10 @@ namespace mcrfpydef {
 
         return PyColor(color).pyObject();
     }
+    */
 
     //TODO: add this method to class scope; move implementation to .cpp file
+    /*
     static int PyUICaption_set_color_member(PyUICaptionObject* self, PyObject* value, void* closure)
     {
         auto member_ptr = reinterpret_cast<long>(closure);
@@ -173,8 +187,10 @@ namespace mcrfpydef {
 
         return 0;
     }
+    */
 
     //TODO: add this method to class scope; move implementation to .cpp file
+    /*
     static PyObject* PyUICaption_get_text(PyUICaptionObject* self, void* closure)
     {
         Resources::caption_buffer = self->data->text.getString();
@@ -193,8 +209,10 @@ namespace mcrfpydef {
         self->data->text.setString(Resources::caption_buffer);
         return 0;
     }
+    */
 
     //TODO: add this static array to class scope; move implementation to .cpp file
+    /*
     static PyGetSetDef PyUICaption_getsetters[] = {
         {"x", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "X coordinate of top-left corner",   (void*)0},
         {"y", (getter)PyUICaption_get_float_member, (setter)PyUICaption_set_float_member, "Y coordinate of top-left corner",   (void*)1},
@@ -210,8 +228,10 @@ namespace mcrfpydef {
         {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UICAPTION},
         {NULL}
     };
+    */
 
     //TODO: add this method to class scope; move implementation to .cpp file
+    /*
     static PyObject* PyUICaption_repr(PyUICaptionObject* self)
     {
         std::ostringstream ss;
@@ -230,8 +250,10 @@ namespace mcrfpydef {
         std::string repr_str = ss.str();
         return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
     }
+    */
 
     //TODO: add this method to class scope; move implementation to .cpp file
+    /*
     static int PyUICaption_init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     {
         //std::cout << "Init called\n";
@@ -271,21 +293,24 @@ namespace mcrfpydef {
 
         return 0;
     }
+    */
 
     static PyTypeObject PyUICaptionType = {
         //PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.Caption",
         .tp_basicsize = sizeof(PyUICaptionObject),
         .tp_itemsize = 0,
+        // TODO - move tp_dealloc to .cpp file as static function (UICaption::dealloc)
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUICaptionObject* obj = (PyUICaptionObject*)self;
+            // TODO - reevaluate with PyFont usage; UICaption does not own the font
             // release reference to font object
             if (obj->font) Py_DECREF(obj->font);
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
-        .tp_repr = (reprfunc)PyUICaption_repr,
+        .tp_repr = (reprfunc)UICaption::repr,
         //.tp_hash = NULL,
         //.tp_iter
         //.tp_iternext
@@ -293,9 +318,10 @@ namespace mcrfpydef {
         .tp_doc = PyDoc_STR("docstring"),
         //.tp_methods = PyUIFrame_methods,
         //.tp_members = PyUIFrame_members,
-        .tp_getset = PyUICaption_getsetters,
+        .tp_getset = UICaption::getsetters,
         //.tp_base = NULL,
-        .tp_init = (initproc)PyUICaption_init,
+        .tp_init = (initproc)UICaption::init,
+        // TODO - move tp_new to .cpp file as a static function (UICaption::new)
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
             PyUICaptionObject* self = (PyUICaptionObject*)type->tp_alloc(type, 0);

@@ -1,5 +1,6 @@
 #include "UIFrame.h"
 #include "UICollection.h"
+#include "GameEngine.h"
 
 UIDrawable* UIFrame::click_at(sf::Vector2f point)
 {
@@ -54,10 +55,10 @@ void UIFrame::render(sf::Vector2f offset)
     }
 }
 
-PyObject* PyUIFrame::get_children(PyUIFrameObject* self, void* closure)
+PyObject* UIFrame::get_children(PyUIFrameObject* self, void* closure)
 {
     // create PyUICollection instance pointing to self->data->children
-    PyUICollectionObject* o = (PyUICollectionObject*)PyUICollectionType.tp_alloc(&PyUICollectionType, 0);
+    PyUICollectionObject* o = (PyUICollectionObject*)mcrfpydef::PyUICollectionType.tp_alloc(&mcrfpydef::PyUICollectionType, 0);
     if (o)
         o->data = self->data->children;
     return (PyObject*)o;

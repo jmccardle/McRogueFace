@@ -1,4 +1,5 @@
 #include "UIEntity.h"
+#include "UIGrid.h"
 
 UIEntity::UIEntity() {} // this will not work lol. TODO remove default constructor by finding the shared pointer inits that use it
 
@@ -19,7 +20,7 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* o) {
         return NULL;
     }
     
-    PyUIGridPointStateObject* obj = (PyUIGridPointStateObject*)((&PyUIGridPointStateType)->tp_alloc(&PyUIGridPointStateType, 0));
+    PyUIGridPointStateObject* obj = (PyUIGridPointStateObject*)((&mcrfpydef::PyUIGridPointStateType)->tp_alloc(&mcrfpydef::PyUIGridPointStateType, 0));
     //auto target = std::static_pointer_cast<UIEntity>(target);
     obj->data = &(self->data->gridstate[y + self->data->grid->grid_x * x]);
     obj->grid = self->data->grid;
@@ -28,7 +29,7 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* o) {
 
 }
 
-int PyUIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
+int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     static const char* keywords[] = { "x", "y", "texture", "sprite_index", "grid", nullptr };
     float x = 0.0f, y = 0.0f, scale = 1.0f;
     int sprite_index = -1;
@@ -57,7 +58,7 @@ int PyUIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         // default tex?
     }*/
 
-    if (grid != NULL && !PyObject_IsInstance(grid, (PyObject*)&PyUIGridType)) {
+    if (grid != NULL && !PyObject_IsInstance(grid, (PyObject*)&mcrfpydef::PyUIGridType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
