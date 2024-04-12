@@ -13,7 +13,7 @@
 #include "PyFont.h"
 
 #include "Resources.h"
-
+#include "UIBase.h"
 class UIFrame; class UICaption; class UISprite; class UIEntity; class UIGrid;
 
 enum PyObjectsEnum : int

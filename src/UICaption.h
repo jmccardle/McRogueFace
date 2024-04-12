@@ -1,18 +1,7 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
-#include "structmember.h"
-#include "IndexTexture.h"
-#include "Resources.h"
-#include <list>
-
-#include "PyCallable.h"
-#include "PyTexture.h"
-#include "PyColor.h"
-#include "PyVector.h"
-#include "PyFont.h"
 #include "UIDrawable.h"
-#include "UIBase.h"
 
 class UICaption: public UIDrawable
 {

@@ -1,5 +1,8 @@
 #include "UICaption.h"
 #include "GameEngine.h"
+#include "PyColor.h"
+#include "PyVector.h"
+#include "PyFont.h"
 
 UIDrawable* UICaption::click_at(sf::Vector2f point)
 {
