@@ -48,6 +48,13 @@ typedef struct {
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
 } PyUICollectionObject;
 
+typedef struct {
+    PyObject_HEAD
+    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
+    int index;
+    int start_size;
+} PyUICollectionIterObject;
+
 namespace mcrfpydef {
     //PyObject* py_instance(std::shared_ptr<UIDrawable> source);
     // This function segfaults on tp_alloc for an unknown reason, but works inline with mcrfpydef:: methods.

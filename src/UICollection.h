@@ -1,40 +1,47 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
-#include "structmember.h"
-#include "IndexTexture.h"
-#include "Resources.h"
-#include <list>
-
-#include "PyCallable.h"
-#include "PyTexture.h"
-#include "PyColor.h"
-#include "PyVector.h"
-#include "PyFont.h"
 
 #include "UIDrawable.h"
-#include "UICaption.h"
-#include "UIFrame.h"
-#include "UISprite.h"
-#include "UIGrid.h"
+
+class UICollectionIter
+{
+    // really more of a namespace: all the members are public and static. But being consistent with other UI objects
+public:
+    static int init(PyUICollectionIterObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* next(PyUICollectionIterObject* self);
+    static PyObject* repr(PyUICollectionIterObject* self);
+};
+
+class UICollection
+{
+    // asdf
+public:
+    static Py_ssize_t len(PyUICollectionObject* self);
+	static PyObject* getitem(PyUICollectionObject* self, Py_ssize_t index);
+	static PySequenceMethods sqmethods;
+	static PyObject* append(PyUICollectionObject* self, PyObject* o);
+	static PyObject* remove(PyUICollectionObject* self, PyObject* o);
+	static PyMethodDef methods[];
+	static PyObject* repr(PyUICollectionObject* self);
+    static int init(PyUICollectionObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* iter(PyUICollectionObject* self);
+};
 
 namespace mcrfpydef {
 
-    typedef struct {
-        PyObject_HEAD
-        std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
-        int index;
-        int start_size;
-    } PyUICollectionIterObject;
+
 
     //TODO: add this method to class scope; move implementation to .cpp file
+/*
     static int PyUICollectionIter_init(PyUICollectionIterObject* self, PyObject* args, PyObject* kwds)
     {
         PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
         return -1;
     }
-
+*/
     //TODO: add this method to class scope; move implementation to .cpp file
+/*
     static PyObject* PyUICollectionIter_next(PyUICollectionIterObject* self)
     {
         if (self->data->size() != self->start_size)
@@ -60,8 +67,10 @@ namespace mcrfpydef {
         //return py_instance(target);
         return NULL;
     }
+*/
 
     //TODO: add this method to class scope; move implementation to .cpp file
+/*
 	static PyObject* PyUICollectionIter_repr(PyUICollectionIterObject* self)
 	{
 		std::ostringstream ss;
@@ -72,31 +81,34 @@ namespace mcrfpydef {
 		std::string repr_str = ss.str();
 		return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
 	}
+*/
 
     static PyTypeObject PyUICollectionIterType = {
         //PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.UICollectionIter",
         .tp_basicsize = sizeof(PyUICollectionIterObject),
         .tp_itemsize = 0,
+        //TODO - as static method, not inline lambda def, please
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUICollectionIterObject* obj = (PyUICollectionIterObject*)self;
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
-        .tp_repr = (reprfunc)PyUICollectionIter_repr,
+        .tp_repr = (reprfunc)UICollectionIter::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("Iterator for a collection of UI objects"),
-        .tp_iternext = (iternextfunc)PyUICollectionIter_next,
+        .tp_iternext = (iternextfunc)UICollectionIter::next,
         //.tp_getset = PyUICollection_getset,
-        .tp_init = (initproc)PyUICollectionIter_init, // just raise an exception
+        .tp_init = (initproc)UICollectionIter::init, // just raise an exception
+        //TODO - as static method, not inline lambda def, please
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
             PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
             return NULL;
         }
     };
-
+/*
     //TODO: add this method to class scope; move implementation to .cpp file
 	static Py_ssize_t PyUICollection_len(PyUICollectionObject* self) {
 		return self->data->size();
@@ -206,6 +218,7 @@ namespace mcrfpydef {
 	}
 
     //TODO: add this static array to class scope; move implementation to .cpp file
+
 	static PyMethodDef PyUICollection_methods[] = {
 		{"append", (PyCFunction)PyUICollection_append, METH_O},
         //{"extend", (PyCFunction)PyUICollection_extend, METH_O}, // TODO
@@ -248,25 +261,29 @@ namespace mcrfpydef {
         return (PyObject*)iterObj;
     }
 
+*/
+
 	static PyTypeObject PyUICollectionType = {
 		//PyVarObject_/HEAD_INIT(NULL, 0)
 		.tp_name = "mcrfpy.UICollection",
 		.tp_basicsize = sizeof(PyUICollectionObject),
 		.tp_itemsize = 0,
+        //TODO - as static method, not inline lambda def, please
 		.tp_dealloc = (destructor)[](PyObject* self)
 		{
 		    PyUICollectionObject* obj = (PyUICollectionObject*)self;
 		    obj->data.reset();
 		    Py_TYPE(self)->tp_free(self);
 		},
-		.tp_repr = (reprfunc)PyUICollection_repr,
-		.tp_as_sequence = &PyUICollection_sqmethods,
+		.tp_repr = (reprfunc)UICollection::repr,
+		.tp_as_sequence = &UICollection::sqmethods,
 		.tp_flags = Py_TPFLAGS_DEFAULT,
 		.tp_doc = PyDoc_STR("Iterable, indexable collection of UI objects"),
-        .tp_iter = (getiterfunc)PyUICollection_iter,
-		.tp_methods = PyUICollection_methods, // append, remove
+        .tp_iter = (getiterfunc)UICollection::iter,
+		.tp_methods = UICollection::methods, // append, remove
         //.tp_getset = PyUICollection_getset,
-		.tp_init = (initproc)PyUICollection_init, // just raise an exception
+		.tp_init = (initproc)UICollection::init, // just raise an exception
+        //TODO - as static method, not inline lambda def, please
 		.tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
 		{
             // Does PyUICollectionType need __new__ if it's not supposed to be instantiable by the user? 

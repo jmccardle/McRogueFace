@@ -115,7 +115,7 @@ int UICaption::set_color_member(PyUICaptionObject* self, PyObject* value, void* 
     auto member_ptr = reinterpret_cast<long>(closure);
     //TODO: this logic of (PyColor instance OR tuple -> sf::color) should be encapsulated for reuse
     int r, g, b, a;
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType))
+    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color")  /*(PyObject*)&mcrfpydef::PyColorType)*/))
     {
         // get value from mcrfpy.Color instance
         auto c = ((PyColorObject*)value)->data;
@@ -236,7 +236,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     // check types for font, fill_color, outline_color
 
     std::cout << PyUnicode_AsUTF8(PyObject_Repr(font)) << std::endl;
-    if (font != NULL && !PyObject_IsInstance(font, (PyObject*)&PyFontType)){
+    if (font != NULL && !PyObject_IsInstance(font, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Font")/*(PyObject*)&PyFontType)*/)){
         PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance");
         return -1;
     } else if (font != NULL)
