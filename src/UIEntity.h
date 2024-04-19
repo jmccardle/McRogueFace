@@ -25,6 +25,12 @@ class UIGrid;
 //    std::shared_ptr<UIEntity> data;
 //} PyUIEntityObject;
 
+// helper methods with no namespace requirement
+static PyObject* sfVector2f_to_PyObject(sf::Vector2f vector);
+static sf::Vector2f PyObject_to_sfVector2f(PyObject* obj);
+static PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state);
+static PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& vec);
+
 // TODO: make UIEntity a drawable
 class UIEntity//: public UIDrawable
 {
@@ -41,9 +47,18 @@ public:
     
     static PyObject* at(PyUIEntityObject* self, PyObject* o);
     static int init(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
+
+    static PyObject* get_position(PyUIEntityObject* self, void* closure);
+    static int set_position(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_gridstate(PyUIEntityObject* self, void* closure);
+    static PyObject* get_spritenumber(PyUIEntityObject* self, void* closure);
+    static int set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyMethodDef methods[];
+    static PyGetSetDef getsetters[];
 };
 
 namespace mcrfpydef {
+/*
 //TODO: add this method to class scope; move implementation to .cpp file; reconsider for moving to "UIBase.h/.cpp"
 // TODO: sf::Vector2f convenience functions here might benefit from a PyVectorObject much like PyColorObject
 // Utility function to convert sf::Vector2f to PyObject*
@@ -128,7 +143,7 @@ static int PyUIEntity_set_spritenumber(PyUIEntityObject* self, PyObject* value, 
 }
 
 //TODO: add this method to class scope; move implementation to .cpp file
-/*
+
 static PyObject* PyUIEntity_at(PyUIEntityObject* self, PyObject* o)
 {
     int x, y;
@@ -149,7 +164,7 @@ static PyObject* PyUIEntity_at(PyUIEntityObject* self, PyObject* o)
     obj->entity = self->data;
     return (PyObject*)obj;
 }
-*/
+
 
 //TODO: add this static array to class scope; move implementation to .cpp file
 static PyMethodDef PyUIEntity_methods[] = {
@@ -163,13 +178,13 @@ static PyGetSetDef PyUIEntity_getsetters[] = {
     {"position", (getter)PyUIEntity_get_position, (setter)PyUIEntity_set_position, "Entity position", NULL},
     {"gridstate", (getter)PyUIEntity_get_gridstate, NULL, "Grid point states for the entity", NULL},
     {"sprite_number", (getter)PyUIEntity_get_spritenumber, (setter)PyUIEntity_set_spritenumber, "Sprite number (index) on the texture on the display", NULL},
-    {NULL}  /* Sentinel */
+    {NULL}  // Sentinel
 };
 
 //TODO: add this method to class scope; forward declaration not required after .h/.cpp split
 //static int PyUIEntity_init(PyUIEntityObject*, PyObject*, PyObject*); // forward declare
 
-
+*/
 // Define the PyTypeObject for UIEntity
 static PyTypeObject PyUIEntityType = {
     //PyVarObject_HEAD_INIT(NULL, 0)
@@ -179,8 +194,8 @@ static PyTypeObject PyUIEntityType = {
     // Methods omitted for brevity
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_doc = "UIEntity objects",
-    .tp_methods = PyUIEntity_methods,
-    .tp_getset = PyUIEntity_getsetters,
+    .tp_methods = UIEntity::methods,
+    .tp_getset = UIEntity::getsetters,
     .tp_init = (initproc)UIEntity::init,
     .tp_new = PyType_GenericNew,
 };
