@@ -59,7 +59,7 @@ void PyScene::doAction(std::string name, std::string type)
     }
 }
 
-void PyScene::sRender()
+void PyScene::render()
 {
     game->getWindow().clear();
     

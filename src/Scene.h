@@ -31,7 +31,7 @@ public:
     //Scene();
     Scene(GameEngine*);
     virtual void update() = 0;
-    virtual void sRender() = 0;
+    virtual void render() = 0;
     virtual void doAction(std::string, std::string) = 0;
     bool hasAction(std::string);
     bool hasAction(int);

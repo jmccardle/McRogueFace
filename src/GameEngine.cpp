@@ -59,7 +59,7 @@ void GameEngine::run()
         if (!paused)
         {
         }
-        currentScene()->sRender();
+        currentScene()->render();
         currentFrame++;
         frameTime = clock.restart().asSeconds();
         fps = 1 / frameTime;

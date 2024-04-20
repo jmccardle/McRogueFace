@@ -18,5 +18,5 @@ public:
     UITestScene(GameEngine*);
     void update() override final;
     void doAction(std::string, std::string) override final;
-    void sRender() override final;
+    void render() override final;
 };

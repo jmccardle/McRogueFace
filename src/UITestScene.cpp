@@ -154,7 +154,7 @@ void UITestScene::doAction(std::string name, std::string type)
     */
 }
 
-void UITestScene::sRender()
+void UITestScene::render()
 {
     game->getWindow().clear();
     game->getWindow().draw(text);
