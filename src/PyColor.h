@@ -29,6 +29,7 @@ public:
     static int set_member(PyObject*, PyObject*, void*);
     
     static PyGetSetDef getsetters[];
+    static PyColorObject* from_arg(PyObject*);
 };
 
 namespace mcrfpydef {

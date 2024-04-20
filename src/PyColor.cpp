@@ -1,4 +1,5 @@
 #include "PyColor.h"
+#include "McRFPy_API.h"
 
 PyGetSetDef PyColor::getsetters[] = {
     {"r", (getter)PyColor::get_member, (setter)PyColor::set_member, "Red component",   (void*)0},
@@ -133,4 +134,17 @@ int PyColor::set_member(PyObject* obj, PyObject* value, void* closure)
 {
     // TODO
     return 0;
+}
+
+PyColorObject* PyColor::from_arg(PyObject* args)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
+    if (PyObject_IsInstance(args, (PyObject*)type)) return (PyColorObject*)args;
+    auto obj = (PyColorObject*)type->tp_alloc(type, 0);
+    int err = init(obj, args, NULL);
+    if (err) {
+        Py_DECREF(obj);
+        return NULL;
+    }
+    return obj;
 }

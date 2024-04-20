@@ -212,7 +212,7 @@ PyObject* UICaption::repr(PyUICaptionObject* self)
             "text='" << (std::string)text.getString() << "', " <<
             "outline=" << text.getOutlineThickness() << ", " <<
             "fill_color=(" << (int)fc.r << ", " << (int)fc.g << ", " << (int)fc.b << ", " << (int)fc.a <<"), " <<
-            "outlinecolor=(" << (int)oc.r << ", " << (int)oc.g << ", " << (int)oc.b << ", " << (int)oc.a <<"), " <<
+            "outline_color=(" << (int)oc.r << ", " << (int)oc.g << ", " << (int)oc.b << ", " << (int)oc.a <<"), " <<
             ")>";
     }
     std::string repr_str = ss.str();
@@ -222,13 +222,13 @@ PyObject* UICaption::repr(PyUICaptionObject* self)
 int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 {
     using namespace mcrfpydef;
-    static const char* keywords[] = { "x", "y", "text", "font", "fill_color", "outline_color", nullptr };
-    float x = 0.0f, y = 0.0f;
+    static const char* keywords[] = { "x", "y", "text", "font", "fill_color", "outline_color", "outline", nullptr };
+    float x = 0.0f, y = 0.0f, outline = 0.0f;
     char* text;
-    PyObject* font, fill_color, outline_color;
+    PyObject* font=NULL, *fill_color=NULL, *outline_color=NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOO",
-        const_cast<char**>(keywords), &x, &y, &text, &font, &fill_color, &outline_color))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOOf",
+        const_cast<char**>(keywords), &x, &y, &text, &font, &fill_color, &outline_color, &outline))
     {
         return -1;
     }
@@ -253,8 +253,30 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 
     self->data->text.setPosition(sf::Vector2f(x, y));
     self->data->text.setString((std::string)text);
-    self->data->text.setFillColor(sf::Color(0,0,0,255));
-    self->data->text.setOutlineColor(sf::Color(128,128,128,255));
+    self->data->text.setOutlineThickness(outline);
+    if (fill_color) {
+        auto fc = PyColor::from_arg(fill_color);
+        if (!fc) {
+            PyErr_SetString(PyExc_TypeError, "fill_color must be mcrfpy.Color or arguments to mcrfpy.Color.__init__");
+            return -1;
+        }
+        self->data->text.setFillColor(PyColor::fromPy(fc));
+        //Py_DECREF(fc);
+    } else {
+        self->data->text.setFillColor(sf::Color(0,0,0,255));
+    }
+
+    if (outline_color) {
+        auto oc = PyColor::from_arg(outline_color);
+        if (!oc) {
+            PyErr_SetString(PyExc_TypeError, "outline_color must be mcrfpy.Color or arguments to mcrfpy.Color.__init__");
+            return -1;
+        }
+        self->data->text.setOutlineColor(PyColor::fromPy(oc));
+        //Py_DECREF(oc);
+    } else {
+        self->data->text.setOutlineColor(sf::Color(128,128,128,255));
+    }
 
     return 0;
 }
