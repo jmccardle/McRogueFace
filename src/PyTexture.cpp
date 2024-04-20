@@ -28,36 +28,12 @@ sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
 
 PyObject* PyTexture::pyObject()
 {
-    // method 1: works but with type weirdness
-    //PyObject* obj = PyType_GenericAlloc(&mcrfpydef::PyTextureType, 0);
-    //Py_SET_TYPE(obj, &mcrfpydef::PyTextureType);
-    
-    // method 2: does not work (segfault on use of the mcrfpy.Texture object)
-    //PyObject* obj = PyTexture::pynew(&mcrfpydef::PyTextureType, Py_None, Py_None);
-
-    // method 3: does not work (segfault on use of the mcrfpy.Texture object)
     std::cout << "Find type" << std::endl;
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture");
-        //auto type = obj->ob_type;
-        //auto type = &mcrfpydef::PyTextureType;
-        //std::cout << "assigned value 0x" << std::hex << reinterpret_cast<long>(type) << std::endl;
-        //std::cout << "Found PyTextureType: " << PyUnicode_AsUTF8(PyObject_Repr((PyObject*)type)) << std::endl;
-        //std::cout << "PyTextureType metatype: " << PyUnicode_AsUTF8(PyObject_Repr((PyObject_Type((PyObject*)type)))) << std::endl;
-        //std::cout << "tp_alloc: 0x" << std::hex << reinterpret_cast <long>(type->tp_alloc) << std::endl <<
-        //             "tp_new: 0x" << std::hex << reinterpret_cast<long>(type->tp_new) << std::endl;
-        //PyObject* obj = ((PyTypeObject*)type)->tp_new((PyTypeObject*)type, Py_None, Py_None);
-        PyObject* obj = PyTexture::pynew(type, Py_None, Py_None);
-        //Py_SET_TYPE(obj, type);
+    PyObject* obj = PyTexture::pynew(type, Py_None, Py_None);
 
-    // method 4: call the type object?
-
-    std::cout << "Instantiated" << std::endl;
-    //Py_SET_TYPE(obj, &mcrfpydef::PyTextureType);
-
-    //PyObject_CallFunction(&mcrfpydef::PyTextureType, 
     try {
         ((PyTextureObject*)obj)->data = shared_from_this();
-        std::cout << "Sideloaded texture: " << PyUnicode_AsUTF8(PyObject_Repr(obj)) << std::endl;
     }
     catch (std::bad_weak_ptr& e)
     {
