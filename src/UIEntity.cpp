@@ -163,3 +163,15 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"sprite_number", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite number (index) on the texture on the display", NULL},
     {NULL}  /* Sentinel */
 };
+
+PyObject* UIEntity::repr(PyUIEntityObject* self) {
+    std::ostringstream ss;
+    if (!self->data) ss << "<Entity (invalid internal object)>";
+    else {
+        auto ent = self->data;
+        ss << "<Entity (x=" << self->data->position.x << ", y=" << self->data->position.y << ", sprite_number=" << self->data->sprite.getSpriteIndex() <<
+         ")>";
+    }
+    std::string repr_str = ss.str();
+    return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+}

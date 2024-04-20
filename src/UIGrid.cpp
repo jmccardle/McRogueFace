@@ -421,6 +421,37 @@ PyObject* UIGrid::get_children(PyUIGridObject* self, void* closure)
     return (PyObject*)o;
 }
 
+PyObject* UIGrid::repr(PyUIGridObject* self)
+{
+
+//    if (member_ptr == 0) // x
+//        self->data->box.setPosition(val, self->data->box.getPosition().y);
+//    else if (member_ptr == 1) // y
+//        self->data->box.setPosition(self->data->box.getPosition().x, val);
+//    else if (member_ptr == 2) // w
+//        self->data->box.setSize(sf::Vector2f(val, self->data->box.getSize().y));
+//    else if (member_ptr == 3) // h
+//        self->data->box.setSize(sf::Vector2f(self->data->box.getSize().x, val));
+//    else if (member_ptr == 4) // center_x
+//        self->data->center_x = val;
+//    else if (member_ptr == 5) // center_y
+//        self->data->center_y = val;
+//    else if (member_ptr == 6) // zoom
+//        self->data->zoom = val;
+
+    std::ostringstream ss;
+    if (!self->data) ss << "<Grid (invalid internal object)>";
+    else {
+        auto grid = self->data;
+        auto box = grid->box;
+        ss << "<Grid (x=" << box.getPosition().x << ", y=" << box.getPosition().y << ", w=" << box.getSize().x << ", h=" << box.getSize().y << ", " <<
+            "center=(" << grid->center_x << ", " << grid->center_y << "), zoom=" << grid->zoom <<
+            ")>";
+    }
+    std::string repr_str = ss.str();
+    return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+}
+
 /* // TODO standard pointer would need deleted, but I opted for a shared pointer. tp_dealloc currently not even defined in the PyTypeObject
 void PyUIGrid_dealloc(PyUIGridObject* self) {
     delete self->data; // Clean up the allocated UIGrid object

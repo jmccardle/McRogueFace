@@ -49,6 +49,7 @@ public:
     static int set_bool_member(PyUIGridPointObject* self, PyObject* value, void* closure);
     static PyObject* get_bool_member(PyUIGridPointObject* self, void* closure);
     static int set_color(PyUIGridPointObject* self, PyObject* value, void* closure);
+    static PyObject* repr(PyUIGridPointObject* self);
 };
 
 // UIGridPointState - entity-specific info for each cell
@@ -60,6 +61,7 @@ public:
     static PyObject* get_bool_member(PyUIGridPointStateObject* self, void* closure);
     static int set_bool_member(PyUIGridPointStateObject* self, PyObject* value, void* closure);
     static PyGetSetDef getsetters[];
+    static PyObject* repr(PyUIGridPointStateObject* self);
 };
 
 namespace mcrfpydef {
@@ -68,7 +70,7 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.GridPoint",
         .tp_basicsize = sizeof(PyUIGridPointObject),
         .tp_itemsize = 0,
-        // Methods omitted for brevity
+        .tp_repr = (reprfunc)UIGridPoint::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = "UIGridPoint object",
         .tp_getset = UIGridPoint::getsetters,
@@ -81,7 +83,7 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.GridPointState",
         .tp_basicsize = sizeof(PyUIGridPointStateObject),
         .tp_itemsize = 0,
-        // Methods omitted for brevity
+        .tp_repr = (reprfunc)UIGridPointState::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = "UIGridPointState object", // TODO: Add PyUIGridPointState tp_init
         .tp_getset = UIGridPointState::getsetters,

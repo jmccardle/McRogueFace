@@ -58,6 +58,7 @@ public:
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyObject* get_children(PyUIGridObject* self, void* closure);
+    static PyObject* repr(PyUIGridObject* self);
     
 };
 
@@ -109,7 +110,7 @@ namespace mcrfpydef {
         //    Py_TYPE(self)->tp_free(self);
         //},
         //TODO - PyUIGrid REPR def:
-        // .tp_repr = (reprfunc)UIGrid::repr,
+        .tp_repr = (reprfunc)UIGrid::repr,
         //.tp_hash = NULL,
         //.tp_iter
         //.tp_iternext

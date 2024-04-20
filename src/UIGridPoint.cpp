@@ -98,6 +98,19 @@ PyGetSetDef UIGridPoint::getsetters[] = {
     {NULL}  /* Sentinel */
 };
 
+PyObject* UIGridPoint::repr(PyUIGridPointObject* self) {
+    std::ostringstream ss;
+    if (!self->data) ss << "<GridPoint (invalid internal object)>";
+    else {
+        auto gp = self->data;
+        ss << "<GridPoint (walkable=" << (gp->walkable ? "True" : "False") << ", transparent=" << (gp->transparent ? "True" : "False") << 
+              ", tilesprite=" << gp->tilesprite << ", tile_overlay=" << gp->tile_overlay << ", uisprite=" << gp->uisprite <<
+        ")>";
+    }
+    std::string repr_str = ss.str();
+    return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+}
+
 PyObject* UIGridPointState::get_bool_member(PyUIGridPointStateObject* self, void* closure) {
     if (reinterpret_cast<long>(closure) == 0) { // visible
         return PyBool_FromLong(self->data->visible);
@@ -132,3 +145,14 @@ PyGetSetDef UIGridPointState::getsetters[] = {
     {NULL}  /* Sentinel */
 };
 
+PyObject* UIGridPointState::repr(PyUIGridPointStateObject* self) {
+    std::ostringstream ss;
+    if (!self->data) ss << "<GridPointState (invalid internal object)>";
+    else {
+        auto gps = self->data;
+        ss << "<GridPointState (visible=" << (gps->visible ? "True" : "False") << ", discovered=" << (gps->discovered ? "True" : "False") << 
+        ")>";
+    }
+    std::string repr_str = ss.str();
+    return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+}

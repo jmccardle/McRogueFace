@@ -225,7 +225,7 @@ PyObject* UIFrame::repr(PyUIFrameObject* self)
         auto box = self->data->box;
         auto fc = box.getFillColor();
         auto oc = box.getOutlineColor();
-        ss << "<Frame (x=" << box.getPosition().x << ", y=" << box.getPosition().y << ", x=" << 
+        ss << "<Frame (x=" << box.getPosition().x << ", y=" << box.getPosition().y << ", w=" << 
             box.getSize().x << ", w=" << box.getSize().y << ", " <<
             "outline=" << box.getOutlineThickness() << ", " << 
             "fill_color=(" << (int)fc.r << ", " << (int)fc.g << ", " << (int)fc.b << ", " << (int)fc.a <<"), " <<

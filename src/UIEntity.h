@@ -55,6 +55,7 @@ public:
     static int set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
+    static PyObject* repr(PyUIEntityObject* self);
 };
 
 namespace mcrfpydef {
@@ -63,7 +64,7 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.Entity",
         .tp_basicsize = sizeof(PyUIEntityObject),
         .tp_itemsize = 0,
-        // Methods omitted for brevity
+        .tp_repr = (reprfunc)UIEntity::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = "UIEntity objects",
         .tp_methods = UIEntity::methods,
