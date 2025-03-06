@@ -40,7 +40,8 @@ public:
     std::vector<UIGridPointState> gridstate;
     UISprite sprite;
     sf::Vector2f position; //(x,y) in grid coordinates; float for animation
-    void render(sf::Vector2f); //override final;
+    sf::Vector2i collision_pos; //(x, y) in grid coordinates: int for collision
+    //void render(sf::Vector2f); //override final;
 
     UIEntity();
     UIEntity(UIGrid&);
@@ -65,7 +66,7 @@ namespace mcrfpydef {
         .tp_basicsize = sizeof(PyUIEntityObject),
         .tp_itemsize = 0,
         .tp_repr = (reprfunc)UIEntity::repr,
-        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_doc = "UIEntity objects",
         .tp_methods = UIEntity::methods,
         .tp_getset = UIEntity::getsetters,

@@ -44,14 +44,15 @@ PyObjectsEnum UIFrame::derived_type()
     return PyObjectsEnum::UIFRAME;
 }
 
-void UIFrame::render(sf::Vector2f offset)
+void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
     box.move(offset);
-    Resources::game->getWindow().draw(box);
+    //Resources::game->getWindow().draw(box);
+    target.draw(box);
     box.move(-offset);
 
     for (auto drawable : *children) {
-        drawable->render(offset + box.getPosition());
+        drawable->render(offset + box.getPosition(), target);
     }
 }
 

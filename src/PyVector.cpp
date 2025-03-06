@@ -109,3 +109,16 @@ int PyVector::set_member(PyObject* obj, PyObject* value, void* closure)
     // TODO
     return 0;
 }
+
+PyVectorObject* PyVector::from_arg(PyObject* args)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (PyObject_IsInstance(args, (PyObject*)type)) return (PyVectorObject*)args;
+    auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
+    int err = init(obj, args, NULL);
+    if (err) {
+        Py_DECREF(obj);
+        return NULL;
+    }
+    return obj;
+}

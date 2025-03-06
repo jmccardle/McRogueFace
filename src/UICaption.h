@@ -7,7 +7,7 @@ class UICaption: public UIDrawable
 {
 public:
     sf::Text text;
-    void render(sf::Vector2f) override final;
+    void render(sf::Vector2f, sf::RenderTarget&) override final;
     PyObjectsEnum derived_type() override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
 

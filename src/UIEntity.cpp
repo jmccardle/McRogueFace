@@ -34,15 +34,27 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* o) {
 }
 
 int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
-    static const char* keywords[] = { "x", "y", "texture", "sprite_index", "grid", nullptr };
-    float x = 0.0f, y = 0.0f, scale = 1.0f;
+    //static const char* keywords[] = { "x", "y", "texture", "sprite_index", "grid", nullptr };
+    //float x = 0.0f, y = 0.0f, scale = 1.0f;
+    static const char* keywords[] = { "pos", "texture", "sprite_index", "grid", nullptr };
+    PyObject* pos;
+    float scale = 1.0f;
     int sprite_index = -1;
     PyObject* texture = NULL;
     PyObject* grid = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ffOi|O",
-        const_cast<char**>(keywords), &x, &y, &texture, &sprite_index, &grid))
+    //if (!PyArg_ParseTupleAndKeywords(args, kwds, "ffOi|O",
+    //    const_cast<char**>(keywords), &x, &y, &texture, &sprite_index, &grid))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOi|O",
+        const_cast<char**>(keywords), &pos, &texture, &sprite_index, &grid))
     {
+        return -1;
+    }
+
+    PyVectorObject* pos_result = PyVector::from_arg(pos);
+    if (!pos_result)
+    {
+        PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
         return -1;
     }
 
@@ -75,7 +87,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
     // TODO - PyTextureObjects and IndexTextures are a little bit of a mess with shared/unshared pointers
     self->data->sprite = UISprite(pytexture->data, sprite_index, sf::Vector2f(0,0), 1.0);
-    self->data->position = sf::Vector2f(x, y);
+    self->data->position = pos_result->data;
     if (grid != NULL) {
         PyUIGridObject* pygrid = (PyUIGridObject*)grid;
         self->data->grid = pygrid->data;
@@ -95,12 +107,24 @@ PyObject* sfVector2f_to_PyObject(sf::Vector2f vector) {
     return Py_BuildValue("(ff)", vector.x, vector.y);
 }
 
+PyObject* sfVector2i_to_PyObject(sf::Vector2i vector) {
+    return Py_BuildValue("(ii)", vector.x, vector.y);
+}
+
 sf::Vector2f PyObject_to_sfVector2f(PyObject* obj) {
     float x, y;
     if (!PyArg_ParseTuple(obj, "ff", &x, &y)) {
         return sf::Vector2f(); // TODO / reconsider this default: Return default vector on parse error
     }
     return sf::Vector2f(x, y);
+}
+
+sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
+    int x, y;
+    if (!PyArg_ParseTuple(obj, "ii", &x, &y)) {
+        return sf::Vector2i(); // TODO / reconsider this default: Return default vector on parse error
+    }
+    return sf::Vector2i(x, y);
 }
 
 // TODO - deprecate / remove this helper
@@ -125,11 +149,19 @@ PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& 
 }
 
 PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
-    return sfVector2f_to_PyObject(self->data->position);
+    if (reinterpret_cast<long>(closure) == 0) {
+        return sfVector2f_to_PyObject(self->data->position);
+    } else {
+        return sfVector2i_to_PyObject(self->data->collision_pos);
+    }
 }
 
 int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closure) {
-    self->data->position = PyObject_to_sfVector2f(value);
+    if (reinterpret_cast<long>(closure) == 0) {
+        self->data->position = PyObject_to_sfVector2f(value);
+    } else {
+        self->data->collision_pos = PyObject_to_sfVector2i(value);
+    }
     return 0;
 }
 
@@ -158,7 +190,8 @@ PyMethodDef UIEntity::methods[] = {
 };
 
 PyGetSetDef UIEntity::getsetters[] = {
-    {"position", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position", NULL},
+    {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position (graphically)", (void*)0},
+    {"pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position (integer grid coordinates)", (void*)1},
     {"gridstate", (getter)UIEntity::get_gridstate, NULL, "Grid point states for the entity", NULL},
     {"sprite_number", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite number (index) on the texture on the display", NULL},
     {NULL}  /* Sentinel */

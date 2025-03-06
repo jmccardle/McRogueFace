@@ -1,60 +1,109 @@
 import mcrfpy
+#t = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16) # 12, 11)
+#t = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16) # 12, 11)
 font = mcrfpy.Font("assets/JetbrainsMono.ttf")
-texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 
-print("[game.py] Default texture:")
-print(mcrfpy.default_texture)
-print(type(mcrfpy.default_texture))
+frame_color = (64, 64, 128)
 
-# build test widgets
+import random
+import cos_entities as ce
+import cos_level as cl
+#import cos_tiles as ct
 
-mcrfpy.createScene("pytest")
-mcrfpy.setScene("pytest")
-ui = mcrfpy.sceneUI("pytest")
+class Crypt:
+    def __init__(self):
+        mcrfpy.createScene("play")
+        self.ui = mcrfpy.sceneUI("play")
+        mcrfpy.setScene("play")
+        mcrfpy.keypressScene(self.cos_keys)
 
-# Frame
-f = mcrfpy.Frame(25, 19, 462, 346, fill_color=(255, 92, 92))
-print("Frame alive")
-# fill (LinkedColor / Color):    f.fill_color
-# outline (LinkedColor / Color): f.outline_color
-# pos (LinkedVector / Vector):   f.pos
-# size (LinkedVector / Vector):  f.size
+        entity_frame = mcrfpy.Frame(815, 10, 194, 595, fill_color = frame_color)
+        inventory_frame = mcrfpy.Frame(10, 610, 800, 143, fill_color = frame_color)
+        stats_frame = mcrfpy.Frame(815, 610, 194, 143, fill_color = frame_color)
 
-# Caption
-print("Caption attempt w/ fill_color:")
-#c = mcrfpy.Caption(512+25, 19, "Hi.", font)
-#c = mcrfpy.Caption(512+25, 19, "Hi.", font, fill_color=(255, 128, 128))
-c = mcrfpy.Caption(512+25, 19, "Hi.", font, fill_color=mcrfpy.Color(255, 128, 128), outline_color=(128, 255, 128))
-print("Caption alive")
-# fill (LinkedColor / Color):    c.fill_color
-#color_val = c.fill_color
-print(c.fill_color)
-#print("Set a fill color")
-#c.fill_color = (255, 255, 255)
-print("Lol, did it segfault?")
-# outline (LinkedColor / Color): c.outline_color
-# font (Font):                   c.font
-# pos (LinkedVector / Vector):   c.pos
+        #self.level = cl.Level(30, 23)
+        self.entities = []
+        self.depth=1
+        self.create_level(self.depth)
+        #self.grid = mcrfpy.Grid(20, 15, t, (10, 10), (1014, 758))
+        self.player = ce.PlayerEntity(game=self)
+        self.swap_level(self.level, self.spawn_point)
 
-# Sprite
-s = mcrfpy.Sprite(25, 384+19, texture, 86, 9.0)
-# pos (LinkedVector / Vector):   s.pos
-# texture (Texture):             s.texture
+        # Test Entities
+        #ce.BoulderEntity(9, 7, game=self)
+        #ce.BoulderEntity(9, 8, game=self)
+        #ce.ExitEntity(12, 6, 14, 4, game=self)
+        # scene setup
 
-# Grid
-g = mcrfpy.Grid(10, 10, texture, 512+25, 384+19, 462, 346)
-# texture (Texture):             g.texture
-# pos (LinkedVector / Vector):   g.pos
-# size (LinkedVector / Vector):  g.size
 
-for _x in range(10):
-    for _y in range(10):
-        g.at((_x, _y)).color = (255 - _x*25, 255 - _y*25, 255)
-g.zoom = 2.0
+        [self.ui.append(e) for e in (self.grid,)] # entity_frame, inventory_frame, stats_frame)]
 
-[ui.append(d) for d in (f, c, s, g)]
+        self.possibilities = None # track WFC possibilities between rounds
 
-print("built!")
+    def add_entity(self, e:ce.COSEntity):
+        self.entities.append(e)
+        self.entities.sort(key = lambda e: e.draw_order, reverse=False)
+        # hack / workaround for grid.entities not interable
+        while len(self.grid.entities): # while there are entities on the grid,
+            self.grid.entities.remove(0) # remove the 1st ("0th")
+        for e in self.entities:
+            self.grid.entities.append(e._entity)
 
-# tests
+    def create_level(self, depth):
+        #if depth < 3:
+        #    features = None
+        self.level = cl.Level(30, 23)
+        self.grid = self.level.grid
+        coords = self.level.generate()
+        self.entities = []
+        for k, v in coords.items():
+            if k == "spawn":
+                self.spawn_point = v
+            elif k == "boulder":
+                ce.BoulderEntity(v[0], v[1], game=self)
+            elif k == "button":
+                pass
+            elif k == "exit":
+                ce.ExitEntity(v[0], v[1], coords["button"][0], coords["button"][1], game=self)
 
+    def cos_keys(self, key, state):
+        d = None
+        if state == "end": return
+        elif key == "W": d = (0, -1)
+        elif key == "A": d = (-1, 0)
+        elif key == "S": d = (0, 1)
+        elif key == "D": d = (1, 0)
+        elif key == "M": self.level.generate()
+        elif key == "R":
+            self.level.reset()
+            self.possibilities = None
+        elif key == "T":
+            self.level.split()
+            self.possibilities = None
+        elif key == "Y": self.level.split(single=True)
+        elif key == "U": self.level.highlight(+1)
+        elif key == "I": self.level.highlight(-1)
+        elif key == "O":
+            self.level.wall_rooms()
+            self.possibilities = None
+        #elif key == "P": ct.format_tiles(self.grid)
+        elif key == "P":
+            self.possibilities = ct.wfc_pass(self.grid, self.possibilities)
+        if d: self.player.try_move(*d)
+
+    def swap_level(self, new_level, spawn_point):
+        self.level = new_level
+        self.grid = self.level.grid
+        self.grid.zoom = 2.0
+        # TODO, make an entity mover function
+        self.add_entity(self.player)
+        self.player.grid = self.grid
+        self.player.draw_pos = spawn_point
+        self.grid.entities.append(self.player._entity)
+        try:
+            self.ui.remove(0)
+        except:
+            pass
+        self.ui.append(self.grid)
+
+crypt = Crypt()

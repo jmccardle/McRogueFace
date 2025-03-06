@@ -28,7 +28,7 @@ public:
     sf::RectangleShape box;
     float outline;
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
-    void render(sf::Vector2f) override final;
+    void render(sf::Vector2f, sf::RenderTarget&) override final;
     void move(sf::Vector2f);
     PyObjectsEnum derived_type() override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;

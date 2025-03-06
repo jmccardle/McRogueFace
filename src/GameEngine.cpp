@@ -9,10 +9,10 @@ GameEngine::GameEngine()
 {
     Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
     Resources::game = this;
-    window_title = "McRogueFace - 7DRL 2024 Engine Demo";
+    window_title = "Crypt of Sokoban - 7DRL 2025, McRogueface Engine";
     window.create(sf::VideoMode(1024, 768), window_title, sf::Style::Titlebar | sf::Style::Close);
     visible = window.getDefaultView();
-    window.setFramerateLimit(30);
+    window.setFramerateLimit(60);
     scene = "uitest";
     scenes["uitest"] = new UITestScene(this);
     
@@ -63,7 +63,10 @@ void GameEngine::run()
         currentFrame++;
         frameTime = clock.restart().asSeconds();
         fps = 1 / frameTime;
-        window.setTitle(window_title + " " + std::to_string(fps) + " FPS");
+        int whole_fps = (int)fps;
+        int tenth_fps = int(fps * 100) % 10;
+        //window.setTitle(window_title + " " + std::to_string(fps) + " FPS");
+        window.setTitle(window_title + " " + std::to_string(whole_fps) + "." + std::to_string(tenth_fps) + " FPS");
     }
 }
 

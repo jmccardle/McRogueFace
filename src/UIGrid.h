@@ -26,7 +26,7 @@ public:
     //UIGrid(int, int, IndexTexture*, float, float, float, float);
     UIGrid(int, int, std::shared_ptr<PyTexture>, sf::Vector2f, sf::Vector2f);
     void update();
-    void render(sf::Vector2f) override final;
+    void render(sf::Vector2f, sf::RenderTarget&) override final;
     UIGridPoint& at(int, int);
     PyObjectsEnum derived_type() override final;
     //void setSprite(int);

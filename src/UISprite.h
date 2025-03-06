@@ -25,10 +25,10 @@ public:
     UISprite();
     UISprite(std::shared_ptr<PyTexture>, int, sf::Vector2f, float);
     void update();
-    void render(sf::Vector2f) override final;
+    void render(sf::Vector2f, sf::RenderTarget&) override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
     
-    void render(sf::Vector2f, sf::RenderTexture&);
+    //void render(sf::Vector2f, sf::RenderTexture&);
 
     void setPosition(sf::Vector2f);
     sf::Vector2f getPosition();

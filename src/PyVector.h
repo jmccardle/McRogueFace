@@ -1,6 +1,7 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
+#include "McRFPy_API.h"
 
 typedef struct {
     PyObject_HEAD
@@ -22,6 +23,7 @@ public:
     static PyObject* pynew(PyTypeObject* type, PyObject* args=NULL, PyObject* kwds=NULL);
     static PyObject* get_member(PyObject*, void*);
     static int set_member(PyObject*, PyObject*, void*);
+    static PyVectorObject* from_arg(PyObject*);
     
     static PyGetSetDef getsetters[];
 };

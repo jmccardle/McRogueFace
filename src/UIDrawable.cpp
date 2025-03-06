@@ -3,6 +3,7 @@
 #include "UICaption.h"
 #include "UISprite.h"
 #include "UIGrid.h"
+#include "GameEngine.h"
 
 UIDrawable::UIDrawable() { click_callable = NULL;  }
 
@@ -13,7 +14,7 @@ void UIDrawable::click_unregister()
 
 void UIDrawable::render()
 {
-    render(sf::Vector2f());
+    render(sf::Vector2f(), Resources::game->getWindow());
 }
 
 PyObject* UIDrawable::get_click(PyObject* self, void* closure) {

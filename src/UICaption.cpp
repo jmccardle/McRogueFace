@@ -13,10 +13,11 @@ UIDrawable* UICaption::click_at(sf::Vector2f point)
     return NULL;
 }
 
-void UICaption::render(sf::Vector2f offset)
+void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
     text.move(offset);
-    Resources::game->getWindow().draw(text);
+    //Resources::game->getWindow().draw(text);
+    target.draw(text);
     text.move(-offset);
 }
 
@@ -222,17 +223,30 @@ PyObject* UICaption::repr(PyUICaptionObject* self)
 int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 {
     using namespace mcrfpydef;
-    static const char* keywords[] = { "x", "y", "text", "font", "fill_color", "outline_color", "outline", nullptr };
-    float x = 0.0f, y = 0.0f, outline = 0.0f;
+    // Constructor switch to Vector position
+    //static const char* keywords[] = { "x", "y", "text", "font", "fill_color", "outline_color", "outline", nullptr };
+    //float x = 0.0f, y = 0.0f, outline = 0.0f;
+    static const char* keywords[] = { "pos", "text", "font", "fill_color", "outline_color", "outline", nullptr };
+    PyObject* pos;
+    float outline = 0.0f;
     char* text;
     PyObject* font=NULL, *fill_color=NULL, *outline_color=NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOOf",
-        const_cast<char**>(keywords), &x, &y, &text, &font, &fill_color, &outline_color, &outline))
+    //if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOOf",
+    //    const_cast<char**>(keywords), &x, &y, &text, &font, &fill_color, &outline_color, &outline))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|zOOOf",
+        const_cast<char**>(keywords), &pos, &text, &font, &fill_color, &outline_color, &outline))
     {
         return -1;
     }
-
+    
+    PyVectorObject* pos_result = PyVector::from_arg(pos);
+    if (!pos_result)
+    {
+        PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
+        return -1;
+    }
+    self->data->text.setPosition(pos_result->data);
     // check types for font, fill_color, outline_color
 
     std::cout << PyUnicode_AsUTF8(PyObject_Repr(font)) << std::endl;
@@ -251,7 +265,6 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         //self->data->text.setFont(Resources::game->getFont());
     }
 
-    self->data->text.setPosition(sf::Vector2f(x, y));
     self->data->text.setString((std::string)text);
     self->data->text.setOutlineThickness(outline);
     if (fill_color) {

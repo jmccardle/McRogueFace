@@ -32,9 +32,9 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
 void UIGrid::update() {}
 
 
-void UIGrid::render(sf::Vector2f)
+void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
-    output.setPosition(box.getPosition()); // output sprite can move; update position when drawing
+    output.setPosition(box.getPosition() + offset); // output sprite can move; update position when drawing
     // output size can change; update size when drawing
     output.setTextureRect(
          sf::IntRect(0, 0,
@@ -172,7 +172,8 @@ void UIGrid::render(sf::Vector2f)
 
     // render to window
     renderTexture.display();
-    Resources::game->getWindow().draw(output);
+    //Resources::game->getWindow().draw(output);
+    target.draw(output);
 
 }
 
@@ -204,10 +205,26 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
 int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     int grid_x, grid_y;
     PyObject* textureObj;
-    float box_x, box_y, box_w, box_h;
+    //float box_x, box_y, box_w, box_h;
+    PyObject* pos, *size;
 
-    if (!PyArg_ParseTuple(args, "iiOffff", &grid_x, &grid_y, &textureObj, &box_x, &box_y, &box_w, &box_h)) {
+    //if (!PyArg_ParseTuple(args, "iiOffff", &grid_x, &grid_y, &textureObj, &box_x, &box_y, &box_w, &box_h)) {
+    if (!PyArg_ParseTuple(args, "iiOOO", &grid_x, &grid_y, &textureObj, &pos, &size)) {
         return -1; // If parsing fails, return an error
+    }
+
+    PyVectorObject* pos_result = PyVector::from_arg(pos);
+    if (!pos_result)
+    {
+        PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
+        return -1;
+    }
+
+    PyVectorObject* size_result = PyVector::from_arg(size);
+    if (!size_result)
+    {
+        PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
+        return -1;
     }
 
     // Convert PyObject texture to IndexTexture*
@@ -224,8 +241,9 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     
     // Initialize UIGrid
     //self->data = new UIGrid(grid_x, grid_y, texture, sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
-    self->data = std::make_shared<UIGrid>(grid_x, grid_y, pyTexture->data, 
-            sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
+    //self->data = std::make_shared<UIGrid>(grid_x, grid_y, pyTexture->data, 
+    //        sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
+    self->data = std::make_shared<UIGrid>(grid_x, grid_y, pyTexture->data, pos_result->data, size_result->data);
     return 0; // Success
 }
 
@@ -423,22 +441,6 @@ PyObject* UIGrid::get_children(PyUIGridObject* self, void* closure)
 
 PyObject* UIGrid::repr(PyUIGridObject* self)
 {
-
-//    if (member_ptr == 0) // x
-//        self->data->box.setPosition(val, self->data->box.getPosition().y);
-//    else if (member_ptr == 1) // y
-//        self->data->box.setPosition(self->data->box.getPosition().x, val);
-//    else if (member_ptr == 2) // w
-//        self->data->box.setSize(sf::Vector2f(val, self->data->box.getSize().y));
-//    else if (member_ptr == 3) // h
-//        self->data->box.setSize(sf::Vector2f(self->data->box.getSize().x, val));
-//    else if (member_ptr == 4) // center_x
-//        self->data->center_x = val;
-//    else if (member_ptr == 5) // center_y
-//        self->data->center_y = val;
-//    else if (member_ptr == 6) // zoom
-//        self->data->zoom = val;
-
     std::ostringstream ss;
     if (!self->data) ss << "<Grid (invalid internal object)>";
     else {

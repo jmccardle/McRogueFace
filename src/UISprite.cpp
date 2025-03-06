@@ -18,14 +18,16 @@ UISprite::UISprite(std::shared_ptr<PyTexture> _ptex, int _sprite_index, sf::Vect
     sprite = ptex->sprite(sprite_index, _pos, sf::Vector2f(_scale, _scale));
 }
 
+/*
 void UISprite::render(sf::Vector2f offset)
 {
     sprite.move(offset);
     Resources::game->getWindow().draw(sprite);
     sprite.move(-offset);
 }
+*/
 
-void UISprite::render(sf::Vector2f offset, sf::RenderTexture& target)
+void UISprite::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
     sprite.move(offset);
     target.draw(sprite);

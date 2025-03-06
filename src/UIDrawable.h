@@ -28,7 +28,8 @@ class UIDrawable
 {
 public:
     void render();
-    virtual void render(sf::Vector2f) = 0;
+    //virtual void render(sf::Vector2f) = 0;
+    virtual void render(sf::Vector2f, sf::RenderTarget&) = 0;
     virtual PyObjectsEnum derived_type() = 0;
 
     // Mouse input handling - callable object, methods to find event's destination
