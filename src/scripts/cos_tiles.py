@@ -129,7 +129,7 @@ def wfc_pass(grid, possibilities=None):
         for v in possibilities.values():
             if len(v) in counts: counts[len(v)] += 1
             else: counts[len(v)] = 1
-        print(counts)
+        #print(counts)
         return possibilities
     elif len(possibilities) == 0:
         print("We're done!")

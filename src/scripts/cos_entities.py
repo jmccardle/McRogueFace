@@ -1,4 +1,5 @@
 import mcrfpy
+import random
 #t = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 t = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
 #def iterable_entities(grid):
@@ -37,7 +38,7 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
         self._entity.sprite_number = value
 
     def __repr__(self):
-        return f"<COSEntity ({self.draw_pos}) on {self.grid}>"
+        return f"<{self.__class__.__name__} ({self.draw_pos})>"
 
     def die(self):
         # ugly workaround! grid.entities isn't really iterable (segfaults)
@@ -69,7 +70,9 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
         for e in self.game.entities:
             if e is self: continue
             if e.draw_pos == (tx, ty): e.ev_enter(self)
-        
+
+    def act(self):
+        pass
 
     def ev_enter(self, other):
         pass
@@ -106,11 +109,92 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
         #self.draw_pos = (tx, ty)
         self.do_move(tx, ty)
 
+class Equippable:
+    def __init__(self, hands = 0, hp_healing = 0, damage = 0, defense = 0, zap_damage = 1, zap_cooldown = 10, sprite = 129):
+        self.hands = hands
+        self.hp_healing = hp_healing
+        self.damage = damage
+        self.defense = defense
+        self.zap_damage = zap_damage
+        self.zap_cooldown = zap_cooldown
+        self.zap_cooldown_remaining = 0
+        self.sprite = self.sprite
+        self.quality = 0
+
+    def tick(self):
+        if self.zap_cooldown_remaining:
+            self.zap_cooldown_remaining -= 1
+            if self.zap_cooldown_remaining < 0: self.zap_cooldown_remaining = 0
+
+    def __repr__(self):
+        cooldown_str = f'({self.zap_cooldown_remaining} rounds until ready)'
+        return f"<Equippable hands={self.hands}, hp_healing={self.hp_healing}, damage={self.damage}, defense={self.defense}, zap_damage={self.zap_damage}, zap_cooldown={self.zap_cooldown}{cooldown_str if self.zap_cooldown_remaining else ''}, sprite={self.sprite}>"
+
+    def classify(self):
+        categories = []
+        if self.hands==0:
+            categories.append("consumable")
+        elif self.damage > 0:
+            categories.append(f"{self.hands}-handed weapon")
+        elif self.defense > 0:
+            categories.append(f"defense")
+        elif self.zap_damage > 0:
+            categories.append("{self.hands}-handed magic weapon")
+        if len(categories) == 0:
+            return "unclassifiable"
+        elif len(categories) == 1:
+            return categories[0]
+        else:
+            return "Erratic: " + ', '.join(categories)
+
+    #def compare(self, other):
+    #    my_class = self.classify()
+    #    o_class = other.classify()
+    #    if my_class == "unclassifiable" or o_class == "unclassifiable":
+    #        return None
+    #    if my_class == "consumable":
+    #        return other.hp_healing - self.hp_healing
+
+
 class PlayerEntity(COSEntity):
     def __init__(self, *, game):
         #print(f"spawn at origin")
         self.draw_order = 10
         super().__init__(game.grid, 0, 0, sprite_num=84, game=game)
+        self.hp = 10
+        self.max_hp = 10
+        self.base_damage = 1
+        self.base_defense = 0
+        self.luck = 0
+        self.archetype = None
+        self.equipped = []
+        self.inventory = []
+
+    def tick(self):
+        for i in self.equipped:
+            i.tick()
+
+    def calc_damage(self):
+        dmg = self.base_damage
+        for i in self.equipped:
+            dmg += i.damage
+        return dmg
+
+    def calc_defense(self):
+        defense = self.base_defense
+        for i in self.equipped:
+            defense += i.damage
+        return defense
+
+    def do_zap(self):
+        pass
+
+    def bump(self, other, dx, dy, test=False):
+        if type(other) == BoulderEntity:
+            print("Boulder hit w/ knockback!")
+            return self.game.pull_boulder_move((-dx, -dy), other)
+        print(f"oof, ouch, {other} bumped the player - {other.base_damage} damage from {other}")
+        self.hp = max(self.hp - max(other.base_damage - self.calc_defense(), 0), 0)
 
     def respawn(self, avoid=None):
         # find spawn point
@@ -142,6 +226,8 @@ class BoulderEntity(COSEntity):
         if type(other) == BoulderEntity:
             #print("Boulders can't push boulders")
             return False
+        elif type(other) == EnemyEntity:
+            if not other.can_push: return False
         #tx, ty = int(self.e.position[0] + dx), int(self.e.position[1] + dy)
         tx, ty = int(self.draw_pos[0] + dx), int(self.draw_pos[1] + dy)
         # Is the boulder blocked the same direction as the bumper? If not, let's both move
@@ -155,7 +241,7 @@ class BoulderEntity(COSEntity):
 class ButtonEntity(COSEntity):
     def __init__(self, x, y, exit_entity, *, game):
         self.draw_order = 1
-        super().__init__(game.grid, x, y, 42, game=game)
+        super().__init__(game.grid, x, y, 250, game=game)
         self.exit = exit_entity
 
     def ev_enter(self, other):
@@ -171,7 +257,8 @@ class ButtonEntity(COSEntity):
         #    self.exit.unlock()
         # TODO: unlock, and then lock again, when player steps on/off
         if not test:
-            other._relative_move(dx, dy)
+            pos = int(self.draw_pos[0]), int(self.draw_pos[1])
+            other.do_move(*pos)
         return True
 
 class ExitEntity(COSEntity):
@@ -199,5 +286,108 @@ class ExitEntity(COSEntity):
                 other._relative_move(dx, dy)
             #TODO - player go down a level logic
             if type(other) == PlayerEntity:
-                self.game.create_level(self.game.depth + 1)
+                self.game.depth += 1
+                print(f"welcome to level {self.game.depth}")
+                self.game.create_level(self.game.depth)
                 self.game.swap_level(self.game.level, self.game.spawn_point)
+
+class EnemyEntity(COSEntity):
+    def __init__(self, x, y, hp=2, base_damage=1, base_defense=0, sprite=123, can_push=False, crushable=True, sight=8, move_cooldown=1, *, game):
+        self.draw_order = 7
+        super().__init__(game.grid, x, y, sprite, game=game)
+        self.hp = hp
+        self.base_damage = base_damage
+        self.base_defense = base_defense
+        self.base_sprite = sprite
+        self.can_push = can_push
+        self.crushable = crushable
+        self.sight = sight
+        self.move_cooldown = move_cooldown
+        self.moved_last = 0
+
+    def bump(self, other, dx, dy, test=False):
+        if self.hp == 0:
+            if not test:
+                old_pos = int(self.draw_pos[0]), int(self.draw_pos[1])
+                other.do_move(*old_pos)
+            return True
+        if type(other) == PlayerEntity:
+            # TODO - get damage from player, take damage, decide to die or not
+            d = other.calc_damage()
+            self.hp -= d
+            self.hp = max(self.hp, 0)
+            if self.hp == 0:
+                self._entity.sprite_number = self.base_sprite + 246
+                self.draw_order = 1
+            print(f"Player hit for {d}. HP = {self.hp}")
+            #self.hp = 0
+            return False
+        elif type(other) == BoulderEntity:
+            if not self.crushable and self.hp > 0:
+                print("Uncrushable!")
+                return False
+            if self.hp > 0:
+                print("Ouch, my entire body!!")
+            self._entity.sprite_number = self.base_sprite + 246
+            self.hp = 0
+            old_pos = int(self.draw_pos[0]), int(self.draw_pos[1])
+            if not test:
+                other.do_move(*old_pos)
+            return True
+
+    def act(self):
+        if self.hp > 0:
+            # if player nearby: attack
+            x, y = self.draw_pos
+            px, py = self.game.player.draw_pos
+            for d in ((1, 0), (0, 1), (-1, 0), (1, 0)):
+                if int(x + d[0]) == int(px) and int(y + d[1]) == int(py):
+                    self.try_move(*d)
+                    return
+
+            # slow movement (doesn't affect ability to attack)
+            if self.moved_last < 0:
+                self.moved_last -= 1
+                return
+            else:
+                self.moved_last = self.move_cooldown
+
+            # if player is not nearby, wander
+            if abs(x - px) + abs(y - py) > self.sight:
+                d = random.choice(((1, 0), (0, 1), (-1, 0), (1, 0)))
+                self.try_move(*d)
+
+            # if can_push and player in a line: KICK
+            if self.can_push:
+                if int(x) == int(px):
+                    pass # vertical kick
+                elif int(y) == int(py):
+                    pass # horizontal kick
+
+            # else, nearby pursue
+            towards = []
+            dist = lambda dx, dy: abs(px - (x + dx)) + abs(py - (y + dy))
+            current_dist = dist(0, 0)
+            for d in ((1, 0), (0, 1), (-1, 0), (1, 0)):
+                if dist(*d) <= current_dist + 0.75: towards.append(d)
+            print(current_dist, towards)
+            target_dir = random.choice(towards)
+            self.try_move(*target_dir)
+
+
+class TreasureEntity(COSEntity):
+    def __init__(self, x, y, treasure_table=None, *, game):
+        self.draw_order = 6
+        super().__init__(game.grid, x, y, 89, game=game)
+        self.popped = False
+
+    def bump(self, other, dx, dy, test=False):
+        if type(other) != PlayerEntity:
+            return False
+        if self.popped:
+            print("It's already open.")
+            return
+        print("Take me, I'm yours!")
+        self._entity.sprite_number = 91
+        self.popped = True
+

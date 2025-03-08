@@ -249,7 +249,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     self->data->text.setPosition(pos_result->data);
     // check types for font, fill_color, outline_color
 
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(font)) << std::endl;
+    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(font)) << std::endl;
     if (font != NULL && !PyObject_IsInstance(font, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Font")/*(PyObject*)&PyFontType)*/)){
         PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance");
         return -1;

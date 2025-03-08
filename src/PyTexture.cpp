@@ -28,7 +28,6 @@ sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
 
 PyObject* PyTexture::pyObject()
 {
-    std::cout << "Find type" << std::endl;
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture");
     PyObject* obj = PyTexture::pynew(type, Py_None, Py_None);
 
