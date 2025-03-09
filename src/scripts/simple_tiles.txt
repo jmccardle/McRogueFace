@@ -1,0 +1,144 @@
+145# open space
+???
+?_?
+???
+
+184:0.03# open space variant
+???
+?_?
+???
+
+146# lone wall / pillar
+___
+_X_
+___
+
+132# top left corner
+?_?
+_XX
+?X?
+
+133# plain horizontal wall
+???
+XXX
+?_?
+
+182:0.04# plain horizontal wall variant
+???
+XXX
+?_?
+
+183:0.04# plain horizontal wall variant
+???
+XXX
+?_?
+
+157:0.01# plain horizontal wall variant
+???
+XXX
+?_?
+
+135# top right corner
+?_?
+XX_
+?X?
+
+144@N132@s144@n144@n192@s192@S156@n171@s169@n180# Left side wall. Space on both sides rule may make the dungeon less robust (no double-walls allowed)
+?X?
+?X_
+?X?
+
+147@N135@s147@n147@n193@s193@S159@n170@s168@n181# Right side wall
+?X?
+_X?
+?X?
+
+156# bottom left corner
+?X?
+_XX
+?_?
+
+159# bottom right corner
+?X?
+XX_
+?_?
+
+192@n144@s144@s169# vertical T, left wall
+?X?
+?XX
+?X?
+
+193@n147@s147@s168# vertical T, right wall
+?X?
+XX?
+?X?
+
+180@s144@s144@s169# horizontal T, left wall
+???
+XXX
+?X?
+
+181@s147@s147@s168# horizontal T, right wall
+???
+XXX
+?X?
+
+195@W133@W182@W183@W157# wall for edge of a gap
+??_
+XX_
+?__
+
+195
+?__
+XX_
+?__
+
+194@E133@E182@E183@E157# wall for edge of a gap (R)
+_??
+_XX
+__?
+
+194
+__?
+_XX
+__?
+
+195@W133@W182@W183@W157# wall for edge of a gap
+?__
+XX_
+??_
+
+194@E133@E182@E183@E157# wall for edge of a gap (R)
+__?
+_XX
+_??
+
+195@W133@W182@W183@W157# wall for edge of a gap
+??_
+XX_
+?__
+
+194@E133@E182@E183@E157# wall for edge of a gap (R)
+_??
+_XX
+__?
+
+168@n147@n170@n135@n181@n193# right vertical wall, gap below
+?X?
+_X_
+?_?
+
+169@n144@n171@n132@n192@n180# left vertical wall, gap below
+?X?
+_X_
+?_?
+
+170@s147@s168@s133@s182@s183@s157@s193@s181# right vertical wall, gap above
+?_?
+_X_
+?X?
+
+171@s144@s169@s133@s182@s183@s157@s171@s180# left vertical wall, gap above
+?_?
+_X_
+?X?
