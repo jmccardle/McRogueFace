@@ -11,7 +11,8 @@ PyScene::PyScene(GameEngine* g) : Scene(g)
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_DEL, "wheel_up");
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NEG + ActionCode::WHEEL_DEL, "wheel_down");
 
-    registerAction(ActionCode::KEY + sf::Keyboard::Grave, "debug_menu");
+    // console (` / ~ key) - don't hard code.
+    //registerAction(ActionCode::KEY + sf::Keyboard::Grave, "debug_menu");
 }
 
 void PyScene::update()
