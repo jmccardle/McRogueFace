@@ -105,7 +105,7 @@ class Level:
         self.height = height
         #self.graph = [(0, 0, width, height)]
         self.graph = RoomGraph( (0, 0, width, height) )
-        self.grid = mcrfpy.Grid(width, height, t, (10, 10), (1014, 758))
+        self.grid = mcrfpy.Grid(width, height, t, (10, 5), (1014, 700))
         self.highlighted = -1 #debug view feature
         self.walled_rooms = [] # for tracking "hallway rooms" vs "walled rooms"
 
@@ -236,18 +236,25 @@ class Level:
             for f in room_plan:
                 #feature_coords.append((f, room_coord(room, margin=4 if f in ("boulder",) else 1)))
                 # boulders are breaking my brain. If I can't get boulders away from walls with margin, I'm just going to dig them out.
-                if f == "boulder":
-                    x, y = room_coord(room, margin=0)
-                    if x < 2: x += 1
-                    if y < 2: y += 1
-                    if x > self.grid.grid_size[0] - 2: x -= 1
-                    if y > self.grid.grid_size[1] - 2: y -= 1
-                    for _x in (1, 0, -1):
-                        for _y in (1, 0, -1):
-                            self.grid.at((x + _x, y + _y)).walkable = True
-                    feature_coords.append((f, (x, y)))
-                else:
-                    feature_coords.append((f, room_coord(room, margin=0)))
+                #if f == "boulder":
+                #    x, y = room_coord(room, margin=0)
+                #    if x < 2: x += 1
+                #    if y < 2: y += 1
+                #    if x > self.grid.grid_size[0] - 2: x -= 1
+                #    if y > self.grid.grid_size[1] - 2: y -= 1
+                #    for _x in (1, 0, -1):
+                #        for _y in (1, 0, -1):
+                #            self.grid.at((x + _x, y + _y)).walkable = True
+                #    feature_coords.append((f, (x, y)))
+                #else:
+                #    feature_coords.append((f, room_coord(room, margin=0)))
+                fcoord = None
+                while not fcoord:
+                    fc = room_coord(room, margin=0)
+                    if not self.grid.at(fc).walkable: continue
+                    if fc in [_i[1] for _i in feature_coords]: continue
+                    fcoord = fc
+                feature_coords.append((f, fcoord))
                 print(feature_coords[-1])
 
             ## Hallway generation

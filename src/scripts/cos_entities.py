@@ -1,5 +1,6 @@
 import mcrfpy
 import random
+from cos_itemdata import itemdata
 #t = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 t = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
 #def iterable_entities(grid):
@@ -110,7 +111,7 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
         self.do_move(tx, ty)
 
 class Equippable:
-    def __init__(self, hands = 0, hp_healing = 0, damage = 0, defense = 0, zap_damage = 1, zap_cooldown = 10, sprite = 129):
+    def __init__(self, hands = 0, hp_healing = 0, damage = 0, defense = 0, zap_damage = 1, zap_cooldown = 10, sprite = 129, boost=None, text="", text_color=(255, 255, 255), value=0):
         self.hands = hands
         self.hp_healing = hp_healing
         self.damage = damage
@@ -118,8 +119,12 @@ class Equippable:
         self.zap_damage = zap_damage
         self.zap_cooldown = zap_cooldown
         self.zap_cooldown_remaining = 0
-        self.sprite = self.sprite
+        self.sprite = sprite
         self.quality = 0
+        self.text = text
+        self.text_color = text_color
+        self.boost = boost
+        self.value = value
 
     def tick(self):
         if self.zap_cooldown_remaining:
@@ -128,7 +133,7 @@ class Equippable:
 
     def __repr__(self):
         cooldown_str = f'({self.zap_cooldown_remaining} rounds until ready)'
-        return f"<Equippable hands={self.hands}, hp_healing={self.hp_healing}, damage={self.damage}, defense={self.defense}, zap_damage={self.zap_damage}, zap_cooldown={self.zap_cooldown}{cooldown_str if self.zap_cooldown_remaining else ''}, sprite={self.sprite}>"
+        return f"<Equippable text={self.text}, hands={self.hands}, hp_healing={self.hp_healing}, damage={self.damage}, defense={self.defense}, zap_damage={self.zap_damage}, zap_cooldown={self.zap_cooldown}{cooldown_str if self.zap_cooldown_remaining else ''}, sprite={self.sprite}>"
 
     def classify(self):
         categories = []
@@ -146,6 +151,54 @@ class Equippable:
             return categories[0]
         else:
             return "Erratic: " + ', '.join(categories)
+
+    def consume(self, consumer):
+        if self.boost == "green_pot":
+            consumer.base_damage += self.value
+        elif self.boost == "blue_pot":
+            b = self.value
+            while b: #split bonus between damage and faster cooldown
+                bonus = random.choice(["damage", "cooldown", "range"])
+                if bonus == "damage":
+                    consumer.base_zap_damage += 1
+                elif bonus == "cooldown":
+                    consumer.base_zap_cooldown += 1
+                else:
+                    consumer.base_zap_range += 1
+                b -= 1
+        elif self.boost == "grey_pot":
+            consumer.base_defense += self.value
+        elif self.boost == "sm_grey_pot":
+            consumer.luck += self.value
+        elif self.hp_healing:
+            consumer.hp += self.hp_healing
+            if consumer.hp > consumer.max_hp: consumer.hp = consumer.max_hp
+
+    def do_zap(self, caster, entities):
+        if self.zap_damage == 0:
+            print("This item can't zap.")
+            return False
+        if self.zap_cooldown_remaining != 0:
+            print("zap is cooling down.")
+            return False
+        fx, fy = caster.draw_pos
+        x, y = int(fx), int (fy)
+        dist = lambda tx, ty: abs(int(tx) - x) + abs(int(ty) - y)
+        targets = []
+        for e in entities:
+            if type(e) != EnemyEntity: continue
+            if dist(*e.draw_pos) > caster.base_zap_range:
+                continue
+            if e.hp <= 0: continue
+            targets.append(e)
+        if not targets:
+            print("No targets found in range.")
+            return False
+        target = random.choice(targets)
+        print(f"Zap! {target}")
+        target.get_zapped(self.zap_damage)
+        self.zap_cooldown_remaining = self.zap_cooldown
+        return True
 
     #def compare(self, other):
     #    my_class = self.classify()
@@ -169,6 +222,9 @@ class PlayerEntity(COSEntity):
         self.archetype = None
         self.equipped = []
         self.inventory = []
+        self.base_zap_damage = 0
+        self.base_zap_cooldown = 0
+        self.base_zap_range = 4
 
     def tick(self):
         for i in self.equipped:
@@ -183,18 +239,47 @@ class PlayerEntity(COSEntity):
     def calc_defense(self):
         defense = self.base_defense
         for i in self.equipped:
-            defense += i.damage
+            defense += i.defense
         return defense
 
     def do_zap(self):
-        pass
+        for i in self.equipped:
+            if i.zap_damage and i.zap_cooldown_remaining == 0:
+                if i.do_zap(self, self.game.entities):
+                    break
+        else:
+            print("Couldn't zap")
 
     def bump(self, other, dx, dy, test=False):
         if type(other) == BoulderEntity:
             print("Boulder hit w/ knockback!")
             return self.game.pull_boulder_move((-dx, -dy), other)
-        print(f"oof, ouch, {other} bumped the player - {other.base_damage} damage from {other}")
+        #print(f"oof, ouch, {other} bumped the player - {other.base_damage} damage from {other}")
         self.hp = max(self.hp - max(other.base_damage - self.calc_defense(), 0), 0)
+
+    def receive(self, equip):
+        print(equip)
+        if (equip.hands == 0):
+            if len([i for i in self.inventory if i is not None]) < 3:
+                if None in self.inventory:
+                    self.inventory[self.inventory.index(None)] = equip
+                else:
+                    self.inventory.append(equip)
+                return
+            else:
+                print("something something, consumable GUI")
+        elif (equip.hands == 1):
+            if len(self.equipped) < 2:
+                self.equipped.append(equip)
+                return
+            else:
+                print("Something something, 1h GUI")
+        else: # equip.hands == 2:
+            if len(self.equipped) == 0:
+                self.equipped.append(equip)
+                return
+            else:
+                print("Something something, 2h GUI")
 
     def respawn(self, avoid=None):
         # find spawn point
@@ -287,7 +372,7 @@ class ExitEntity(COSEntity):
             #TODO - player go down a level logic
             if type(other) == PlayerEntity:
                 self.game.depth += 1
-                print(f"welcome to level {self.game.depth}")
+                #print(f"welcome to level {self.game.depth}")
                 self.game.create_level(self.game.depth)
                 self.game.swap_level(self.game.level, self.game.spawn_point)
 
@@ -346,10 +431,12 @@ class EnemyEntity(COSEntity):
                     return
 
             # slow movement (doesn't affect ability to attack)
-            if self.moved_last < 0:
+            if self.moved_last > 0:
                 self.moved_last -= 1
+                #print(f"Deducting move cooldown, now {self.moved_last} / {self.move_cooldown}")
                 return
             else:
+                #print(f"Restaring move cooldown - {self.move_cooldown}")
                 self.moved_last = self.move_cooldown
 
             # if player is not nearby, wander
@@ -359,20 +446,38 @@ class EnemyEntity(COSEntity):
 
             # if can_push and player in a line: KICK
             if self.can_push:
-                if int(x) == int(px):
-                    pass # vertical kick
-                elif int(y) == int(py):
-                    pass # horizontal kick
+                if int(x) == int(px):# vertical kick
+                    self.try_move(0, 1 if y < py else -1)
+                elif int(y) == int(py):# horizontal kick
+                    self.try_move(1 if x < px else -1, 0)
 
             # else, nearby pursue
             towards = []
             dist = lambda dx, dy: abs(px - (x + dx)) + abs(py - (y + dy))
-            current_dist = dist(0, 0)
-            for d in ((1, 0), (0, 1), (-1, 0), (1, 0)):
-                if dist(*d) <= current_dist + 0.75: towards.append(d)
-            print(current_dist, towards)
-            target_dir = random.choice(towards)
+            #current_dist = dist(0, 0)
+            #for d in ((1, 0), (0, 1), (-1, 0), (1, 0)):
+            #    if dist(*d) <= current_dist + 0.75: towards.append(d)
+            #print(current_dist, towards)
+            if px >= x:
+                towards.append((1, 0))
+            if px <= x:
+                towards.append((-1, 0))
+            if py >= y:
+                towards.append((0, 1))
+            if py <= y:
+                towards.append((0, -1))
+            towards = [p for p in towards if self.game.grid.at((int(x + p[0]), int(y + p[1]))).walkable]
+            towards.sort(key = lambda p: dist(*p))
+            target_dir = towards[0]
             self.try_move(*target_dir)
+
+    def get_zapped(self, d):
+        self.hp -= d
+        self.hp = max(self.hp, 0)
+        if self.hp == 0:
+            self._entity.sprite_number = self.base_sprite + 246
+            self.draw_order = 1
+        print(f"Player zapped for {d}. HP = {self.hp}")
 
 
 class TreasureEntity(COSEntity):
@@ -380,14 +485,55 @@ class TreasureEntity(COSEntity):
         self.draw_order = 6
         super().__init__(game.grid, x, y, 89, game=game)
         self.popped = False
+        self.treasure_table = treasure_table
+
+    def generate(self):
+        items = list(self.treasure_table.keys())
+        weights = [self.treasure_table[k] for k in items]
+        item = random.choices(items, weights=weights)[0]
+        bonus_stats_max = (self.game.depth + (self.game.player.luck*2)) * 0.66
+        bonus_stats = random.randint(0, int(bonus_stats_max))
+        bonus_colors = {1: (192, 255, 192), 2: (128, 128, 192), 3: (255, 192, 255),
+                        4: (255, 192, 192), 5: (255, 0, 0)}
+
+        data = itemdata[item]
+        if item in ("sword", "sword2", "sword3", "axe", "axe2", "axe3"):
+            equip = Equippable(hands=data.handedness, sprite=data.sprite, damage=data.base_value+bonus_stats, text=data.base_name)
+        elif item in ("buckler", "shield"):
+            equip = Equippable(hands=data.handedness, sprite=data.sprite, defense=data.base_value+bonus_stats, text=data.base_name)
+        elif item in ("wand", "staff", "staff2"):
+            equip = Equippable(hands=data.handedness, sprite=data.sprite, zap_damage=data.base_value[0], zap_cooldown=data.base_value[1], text=data.base_name)
+            if bonus_stats:
+                b = bonus_stats
+                while b: # split bonus between damage and faster cooldown
+                    if equip.zap_cooldown == 2 or random.random() > 0.66:
+                        equip.zap_damage += 1
+                    else:
+                        equip.zap_cooldown -= 1
+                    b -= 1
+        elif item == "red_pot":
+            equip = Equippable(hands=data.handedness, sprite=data.sprite, hp_healing=data.base_value+bonus_stats, text=data.base_name)
+        elif item in ("blue_pot", "green_pot", "grey_pot", "sm_grey_pot"):
+            print(f"Permanent stat boost ({item})")
+            equip = Equippable(hands=data.handedness, sprite=data.sprite, text=data.base_name, boost=item, value=data.base_value + bonus_stats)
+        else:
+            print(f"Unfound item: {item}")
+            equip = Equippable()
+
+        if bonus_stats:
+            equip.text = equip.text + f" (+{bonus_stats})"
+            equip.text_color = bonus_colors[bonus_stats if bonus_stats <=5 else 5]
+        return equip
 
     def bump(self, other, dx, dy, test=False):
         if type(other) != PlayerEntity:
             return False
         if self.popped:
             print("It's already open.")
-            return
+            return True
         print("Take me, I'm yours!")
         self._entity.sprite_number = 91
         self.popped = True
-
+        #print(self.treasure_table)
+        other.receive(self.generate())
+        return False

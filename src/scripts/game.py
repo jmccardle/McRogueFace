@@ -1,4 +1,6 @@
 import mcrfpy
+import code
+
 #t = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16) # 12, 11)
 t = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16) # 12, 11)
 btn_tex = mcrfpy.Texture("assets/48px_ui_icons-KenneyNL.png", 48, 48)
@@ -9,6 +11,7 @@ frame_color = (64, 64, 128)
 import random
 import cos_entities as ce
 import cos_level as cl
+from cos_itemdata import itemdata
 #import cos_tiles as ct
 
 class Resources:
@@ -53,7 +56,8 @@ class Crypt:
 
         self.level_plan = {
                 1: [("spawn", "button", "boulder"), ("exit")],
-                2: [("spawn", "button", "boulder"), ("rat"), ("exit")],
+                2: [("spawn", "button", "treasure", "treasure", "treasure", "rat", "rat", "boulder"), ("exit")],
+                #2: [("spawn", "button", "boulder"), ("rat"), ("exit")],
                 3: [("spawn", "button", "boulder"), ("rat"), ("exit")],
                 4: [("spawn", "button", "rat"), ("boulder", "rat", "treasure"), ("exit")],
                 5: [("spawn", "button", "rat"), ("boulder", "rat"), ("exit")],
@@ -99,6 +103,7 @@ class Crypt:
                 mcrfpy.Caption((25, 130 + 95 * i), "x", font, fill_color=(255, 255, 255)) for i in range(5)
                 ]
         for i in self.inv_captions:
+            i.size = 16
             self.sidebar.children.append(i)
 
         liminal_void = mcrfpy.Grid(1, 1, t, (0, 0), (16, 16))
@@ -177,7 +182,11 @@ class Crypt:
             self.inv_sprites[i].sprite_number = item.sprite
             if i > 1:
                 self.key_captions[i - 2].sprite_number = 384 + (i - 2)
-            self.inv_captions[i].text = "Blah"
+            if item.zap_cooldown_remaining:
+                self.inv_captions[i].text = f"[{item.zap_cooldown_remaining}] {item.text})"
+            else:
+                self.inv_captions[i].text = item.text
+            self.inv_captions[i].fill_color = item.text_color
 
     def lv_planner(self, target_level):
         """Plan room sequence in levels > 9"""
@@ -210,47 +219,27 @@ class Crypt:
 
     def treasure_planner(self, treasure_level):
         """Plan treasure contents at all levels"""
-        item_minlv = {
-            "buckler": 1,
-            "shield": 2,
-            "sword": 1,
-            "sword2": 2,
-            "sword3": 5,
-            "axe": 1,
-            "axe2": 2,
-            "axe3": 5,
-            "wand": 1,
-            "staff": 2,
-            "staff2": 5,
-            "red_pot": 3,
-            "blue_pot": 6,
-            "green_pot": 6,
-            "grey_pot": 6,
-            "sm_grey_pot": 1
-            }
-        base_wts = {
-            ("buckler", "shield"): 0.25, # defensive items
-            ("sword", "sword2", "axe", "axe2"): 0.4, #1h weapons
-            ("sword3", "axe3"): 0.25, #2h weapons
-            ("wand", "staff", "staff2"): 0.15, #magic weapons
-            ("red_pot",): 0.25, #health
-            ("blue_pot", "green_pot", "grey_pot", "sm_grey_pot"): 0.2 #stat upgrade potions
-            }
-
+        
         # find item name in base_wts key (base weight of the category)
-        base_weight = lambda s: base_wts[list([t for t in base_wts.keys() if s in t])[0]]
-        weights = {d[0]: base_weight(d[0]) for d in item_minlv.items() if treasure_level > d[1]}
-        if self.player.archetype is None:
-            prefs = []
-        elif self.player.archetype == "viking":
-            prefs = ["axe2", "axe3", "green_pot"]
-        elif self.player.archetype == "knight":
-            prefs = ["sword2", "shield", "grey_pot"]
-        elif self.player.archetype == "wizard":
-            prefs = ["staff", "staff2", "blue_pot"]
-        for i in prefs:
-            if i in weights: weights[i] *= 3
-
+        #base_weight = lambda s: base_wts[list([t for t in base_wts.keys() if s in t])[0]]
+        #weights = {d[0]: base_weight(d[0]) for d in item_minlv.items() if treasure_level > d[1]}
+        #if self.player.archetype is None:
+        #    prefs = []
+        #elif self.player.archetype == "viking":
+        #    prefs = ["axe2", "axe3", "green_pot"]
+        #elif self.player.archetype == "knight":
+        #    prefs = ["sword2", "shield", "grey_pot"]
+        #elif self.player.archetype == "wizard":
+        #    prefs = ["staff", "staff2", "blue_pot"]
+        #for i in prefs:
+        #    if i in weights: weights[i] *= 3
+        weights = {}
+        for item in itemdata:
+            data = itemdata[item]
+            if data.min_lv > treasure_level or treasure_level > data.max_lv: continue
+            weights[item] = data.base_wt
+            if self.player.archetype is not None and data.affinity == self.player.archetype:
+                weights[item] *= 3
         return weights
 
     def start(self):
@@ -317,10 +306,37 @@ class Crypt:
     def cos_keys(self, key, state):
         d = None
         if state == "end": return
+        elif key == "Grave":
+            code.InteractiveConsole(locals=globals()).interact()
+            return
+        elif key == "Z":
+            self.player.do_zap()
+            self.enemy_turn()
+            return
         elif key == "W": d = (0, -1)
         elif key == "A": d = (-1, 0)
         elif key == "S": d = (0, 1)
         elif key == "D": d = (1, 0)
+        elif key == "Num1":
+            if len(self.player.inventory) > 0:
+                self.player.inventory[0].consume(self.player)
+                self.player.inventory[0] = None
+                self.enemy_turn()
+            else:
+                print("No item")
+        elif key == "Num2":
+            if len(self.player.inventory) > 1:
+                self.player.inventory[1].consume(self.player)
+                self.player.inventory[1] = None
+            else:
+                print("No item")
+        elif key == "Num3":
+            if len(self.player.inventory) > 2:
+                self.player.inventory[2].consume(self.player)
+                self.player.inventory[2] = None
+            else:
+                print("No item")
+
         #elif key == "M": self.level.generate()
         #elif key == "R":
         #    self.level.reset()
@@ -345,8 +361,8 @@ class Crypt:
             self.enemy_turn()
         elif key == "X":
             self.pull_boulder_search()
-        #else:
-        #    print(key)
+        else:
+            print(key)
         if d:
             self.entities.sort(key = lambda e: e.draw_order, reverse=False)
             self.player.try_move(*d)
@@ -356,7 +372,12 @@ class Crypt:
         self.entities.sort(key = lambda e: e.draw_order, reverse=False)
         for e in self.entities:
             e.act()
+        # end of enemy turn = player turn
+        for i in self.player.equipped:
+            i.tick()
         self.gui_update()
+
+
 
     def pull_boulder_search(self):
         for dx, dy in ( (0, -1), (-1, 0), (1, 0), (0, 1) ):
@@ -405,9 +426,9 @@ class SweetButton:
                  pos:"Tuple[int, int]",
                  caption:str, font=font, font_size=24, font_color=(255,255,255), font_outline_color=(0, 0, 0), font_outline_width=2,
                  shadow_offset = 8, box_width=200, box_height = 80, shadow_color=(64, 64, 86), box_color=(96, 96, 160), 
-                 icon=4, icon_scale=1.75, click=lambda *args: None):
+                 icon=4, icon_scale=1.75, shadow=True, click=lambda *args: None):
         self.ui = ui
-        self.shadow_box = mcrfpy.Frame
+        #self.shadow_box = mcrfpy.Frame
         x, y = pos
 
         # box w/ drop shadow 
@@ -416,7 +437,8 @@ class SweetButton:
         self.base_frame.click = self.do_click
 
         # drop shadow won't need configured, append directly
-        self.base_frame.children.append(mcrfpy.Frame(0, 0, box_width, box_height, fill_color = shadow_color))
+        if shadow:
+            self.base_frame.children.append(mcrfpy.Frame(0, 0, box_width, box_height, fill_color = shadow_color))
 
         # main button is where the content lives
         self.main_button = mcrfpy.Frame(shadow_offset, shadow_offset, box_width, box_height, fill_color = box_color)
@@ -472,8 +494,56 @@ class MainMenu:
 
         components = []
         # demo grid
-        #components.append(
-        #        )
+        self.demo = cl.Level(20, 20)
+        self.grid = self.demo.grid
+        self.grid.zoom = 1.75
+        coords = self.demo.generate(
+                [("boulder", "boulder", "rat", "cyclops", "boulder"), ("spawn"), ("rat", "big rat"), ("button", "boulder", "exit")]
+                )
+        self.entities = []
+        self.add_entity = lambda e: self.entities.append(e)
+        #self.create_level = lambda *args: None
+        buttons = []
+        #self.depth = 20
+        for k, v in sorted(coords, key=lambda i: i[0]): # "button" before "exit"; "button", "button", "door", "exit" -> alphabetical is correct sequence
+            if k == "spawn":
+                self.player = ce.PlayerEntity(game=self)
+                self.player.draw_pos = v
+                #if self.player:
+                #    self.add_entity(self.player)
+                #    #self.player.draw_pos = v
+                #    self.spawn_point = v
+            elif k == "boulder":
+                ce.BoulderEntity(v[0], v[1], game=self)
+            elif k == "treasure":
+                ce.TreasureEntity(v[0], v[1], treasure_table = {}, game=self)
+            elif k == "button":
+                buttons.append(v)
+            elif k == "exit":
+                btn = buttons.pop(0)
+                ce.ExitEntity(v[0], v[1], btn[0], btn[1], game=self)
+            elif k == "rat":
+                ce.EnemyEntity(*v, game=self)
+            elif k == "big rat":
+                ce.EnemyEntity(*v, game=self, base_damage=2, hp=4, sprite=124)
+            elif k == "cyclops":
+                ce.EnemyEntity(*v, game=self, base_damage=3, hp=8, sprite=109, base_defense=2, can_push=True, move_cooldown=0)
+        #self.demo = cl.Level(20, 20)
+        #self.create_level(self.depth)
+        for e in self.entities:
+            self.grid.entities.append(e._entity)
+        def just_wiggle(*args):
+            try:
+                self.player.try_move(*random.choice(((1, 0),(-1, 0),(0, 1),(0, -1))))
+                for e in self.entities:
+                    e.act()
+            except:
+                pass
+        mcrfpy.setTimer("demo_motion", just_wiggle, 100)
+        components.append(
+                self.demo.grid
+                )
+
 
         # title text
         drop_shadow = mcrfpy.Caption((150, 10), "Crypt Of Sokoban", font, fill_color=(96, 96, 96), outline_color=(192, 0, 0))
@@ -499,7 +569,7 @@ class MainMenu:
 
         # button - PLAY
         #playbtn = mcrfpy.Frame(284, 548, 456, 120, fill_color = 
-        play_btn = SweetButton(self.ui, (284, 548), "PLAY", box_width=456, box_height=110, icon=1, icon_scale=2.0, click=self.play)
+        play_btn = SweetButton(self.ui, (20, 248), "PLAY", box_width=200, box_height=110, icon=1, icon_scale=2.0, click=self.play)
         components.append(play_btn.base_frame)
 
         # button - config menu pane
@@ -514,15 +584,16 @@ class MainMenu:
 
         # button - music toggle
         music_btn = SweetButton(self.ui, (10+256*2, 678), "Music\nON", icon=12, click=self.music_toggle)
-        self.music_enabled = True
-        self.music_volume = 40
+        resources.music_enabled = True
+        resources.music_volume = 40
         components.append(music_btn.base_frame)
 
         # button - sfx toggle
         sfx_btn = SweetButton(self.ui, (10+256*3, 678), "SFX\nON", icon=0, click=self.sfx_toggle)
-        self.sfx_enabled = True
-        self.sfx_volume = 40
+        resources.sfx_enabled = True
+        resources.sfx_volume = 40
         components.append(sfx_btn.base_frame)
+
 
         [self.ui.append(e) for e in components]
 
@@ -577,9 +648,9 @@ class MainMenu:
 
     def music_toggle(self, sweet_btn, args):
         if args[3] == "end": return
-        self.music_enabled = not self.music_enabled
-        print(f"music: {self.music_enabled}")
-        if self.music_enabled:
+        resources.music_enabled = not resources.music_enabled
+        print(f"music: {resources.music_enabled}")
+        if resources.music_enabled:
             mcrfpy.setMusicVolume(self.music_volume)
             sweet_btn.text = "Music is ON"
             sweet_btn.sprite_number = 12
@@ -591,9 +662,9 @@ class MainMenu:
 
     def sfx_toggle(self, sweet_btn, args):
         if args[3] == "end": return
-        self.sfx_enabled = not self.sfx_enabled
-        print(f"sfx: {self.sfx_enabled}")
-        if self.sfx_enabled:
+        resources.sfx_enabled = not resources.sfx_enabled
+        #print(f"sfx: {resources.sfx_enabled}")
+        if resources.sfx_enabled:
             mcrfpy.setSoundVolume(self.sfx_volume)
             sweet_btn.text = "SFX are ON"
             sweet_btn.sprite_number = 0
