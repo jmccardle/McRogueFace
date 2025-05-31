@@ -5,8 +5,75 @@
 #include "UISprite.h"
 #include "UIGrid.h"
 #include "McRFPy_API.h"
+#include "PyObjectUtils.h"
 
 using namespace mcrfpydef;
+
+// Local helper function to convert UIDrawable to appropriate Python object
+static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
+    if (!drawable) {
+        Py_RETURN_NONE;
+    }
+    
+    PyTypeObject* type = nullptr;
+    PyObject* obj = nullptr;
+    
+    switch (drawable->derived_type()) {
+        case PyObjectsEnum::UIFRAME:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+            if (!type) return nullptr;
+            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICAPTION:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
+            if (!type) return nullptr;
+            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICaption>(drawable);
+                pyObj->font = nullptr;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UISPRITE:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
+            if (!type) return nullptr;
+            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UISprite>(drawable);
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIGRID:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+            if (!type) return nullptr;
+            auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        default:
+            PyErr_SetString(PyExc_TypeError, "Unknown UIDrawable derived type");
+            return nullptr;
+    }
+    
+    if (type) {
+        Py_DECREF(type);
+    }
+    return obj;
+}
 
 int UICollectionIter::init(PyUICollectionIterObject* self, PyObject* args, PyObject* kwds)
 {
@@ -16,6 +83,12 @@ int UICollectionIter::init(PyUICollectionIterObject* self, PyObject* args, PyObj
 
 PyObject* UICollectionIter::next(PyUICollectionIterObject* self)
 {
+    // Check if self and self->data are valid
+    if (!self || !self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Iterator object or data is null");
+        return NULL;
+    }
+    
     if (self->data->size() != self->start_size)
     {
         PyErr_SetString(PyExc_RuntimeError, "collection changed size during iteration");
@@ -35,9 +108,8 @@ PyObject* UICollectionIter::next(PyUICollectionIterObject* self)
         return NULL;
     }
     auto target = (*vec)[self->index-1];
-    // TODO build PyObject* of the correct UIDrawable subclass to return
-    //return py_instance(target);
-    return NULL;
+    // Return the proper Python object for this UIDrawable
+    return convertDrawableToPython(target);
 }
 
 PyObject* UICollectionIter::repr(PyUICollectionIterObject* self)
@@ -71,8 +143,7 @@ PyObject* UICollection::getitem(PyUICollectionObject* self, Py_ssize_t index) {
         return NULL;
     }
     auto target = (*vec)[index];
-    RET_PY_INSTANCE(target);
-return NULL;
+    return convertDrawableToPython(target);
 
 
 }
@@ -189,9 +260,18 @@ int UICollection::init(PyUICollectionObject* self, PyObject* args, PyObject* kwd
 
 PyObject* UICollection::iter(PyUICollectionObject* self)
 {
-    PyUICollectionIterObject* iterObj;
-    iterObj = (PyUICollectionIterObject*)PyUICollectionIterType.tp_alloc(&PyUICollectionIterType, 0);
+    // Get the iterator type from the module to ensure we have the registered version
+    PyTypeObject* iterType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollectionIter");
+    if (!iterType) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not find UICollectionIter type in module");
+        return NULL;
+    }
+    
+    // Allocate new iterator instance
+    PyUICollectionIterObject* iterObj = (PyUICollectionIterObject*)iterType->tp_alloc(iterType, 0);
+    
     if (iterObj == NULL) {
+        Py_DECREF(iterType);
         return NULL;  // Failed to allocate memory for the iterator object
     }
 
@@ -199,5 +279,6 @@ PyObject* UICollection::iter(PyUICollectionObject* self)
     iterObj->index = 0;
     iterObj->start_size = self->data->size();
 
+    Py_DECREF(iterType);
     return (PyObject*)iterObj;
 }

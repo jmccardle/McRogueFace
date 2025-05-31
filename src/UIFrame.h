@@ -46,7 +46,7 @@ public:
 
 namespace mcrfpydef {
     static PyTypeObject PyUIFrameType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Frame",
         .tp_basicsize = sizeof(PyUIFrameObject),
         .tp_itemsize = 0,

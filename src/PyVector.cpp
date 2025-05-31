@@ -1,4 +1,5 @@
 #include "PyVector.h"
+#include "PyObjectUtils.h"
 
 PyGetSetDef PyVector::getsetters[] = {
     {"x", (getter)PyVector::get_member, (setter)PyVector::set_member, "X/horizontal component",   (void*)0},
@@ -11,11 +12,16 @@ PyVector::PyVector(sf::Vector2f target)
 
 PyObject* PyVector::pyObject()
 {
-    PyObject* obj = PyType_GenericAlloc(&mcrfpydef::PyVectorType, 0);
-    Py_INCREF(obj);
-    PyVectorObject* self = (PyVectorObject*)obj;
-    self->data = data;
-    return obj;
+    PyTypeObject* type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!type) return nullptr;
+    
+    PyVectorObject* obj = (PyVectorObject*)type->tp_alloc(type, 0);
+    Py_DECREF(type);
+    
+    if (obj) {
+        obj->data = data;
+    }
+    return (PyObject*)obj;
 }
 
 sf::Vector2f PyVector::fromPy(PyObject* obj)

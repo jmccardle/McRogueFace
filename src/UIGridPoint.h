@@ -66,7 +66,7 @@ public:
 
 namespace mcrfpydef {
     static PyTypeObject PyUIGridPointType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.GridPoint",
         .tp_basicsize = sizeof(PyUIGridPointObject),
         .tp_itemsize = 0,
@@ -79,7 +79,7 @@ namespace mcrfpydef {
     };
 
     static PyTypeObject PyUIGridPointStateType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.GridPointState",
         .tp_basicsize = sizeof(PyUIGridPointStateObject),
         .tp_itemsize = 0,

@@ -46,7 +46,7 @@ endif()
 
 # Add the directory where the linker should look for the libraries
 #link_directories(${CMAKE_SOURCE_DIR}/deps_linux)
-link_directories(${CMAKE_SOURCE_DIR}/lib)
+link_directories(${CMAKE_SOURCE_DIR}/__lib)
 
 # Define the executable target before linking libraries
 add_executable(mcrogueface ${SOURCES})
@@ -67,9 +67,9 @@ add_custom_command(TARGET mcrogueface POST_BUILD
 # Copy Python standard library to build directory
 add_custom_command(TARGET mcrogueface POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/lib $<TARGET_FILE_DIR:mcrogueface>/lib)
+    ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
 
 # rpath for including shared libraries
 set_target_properties(mcrogueface PROPERTIES
-                      INSTALL_RPATH "./lib")
+                      INSTALL_RPATH "$ORIGIN/./lib")
 

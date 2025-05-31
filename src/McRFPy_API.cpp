@@ -84,9 +84,15 @@ PyObject* PyInit_mcrfpy()
     auto t = pytypes[i];
     while (t != nullptr)
     {
-        /*std::cout << */ PyType_Ready(t); /*<< std::endl; */
+        std::cout << "Registering type: " << t->tp_name << std::endl;
+        if (PyType_Ready(t) < 0) {
+            std::cout << "ERROR: PyType_Ready failed for " << t->tp_name << std::endl;
+            return NULL;
+        }
+        std::cout << "  tp_alloc after PyType_Ready: " << (void*)t->tp_alloc << std::endl;
         PyModule_AddType(m, t);
-        t = pytypes[i++];
+        i++;
+        t = pytypes[i];
     }
 
     // Add default_font and default_texture to module

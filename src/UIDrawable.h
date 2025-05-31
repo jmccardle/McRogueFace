@@ -57,59 +57,9 @@ typedef struct {
 } PyUICollectionIterObject;
 
 namespace mcrfpydef {
-    //PyObject* py_instance(std::shared_ptr<UIDrawable> source);
-    // This function segfaults on tp_alloc for an unknown reason, but works inline with mcrfpydef:: methods.
-
-#define RET_PY_INSTANCE(target) {                       \
-switch (target->derived_type())                         \
-{                                                       \
-    case PyObjectsEnum::UIFRAME:                        \
-    {                                                   \
-        PyUIFrameObject* o = (PyUIFrameObject*)((&PyUIFrameType)->tp_alloc(&PyUIFrameType, 0)); \
-        if (o)                                          \
-        {                                               \
-            auto p = std::static_pointer_cast<UIFrame>(target); \
-            o->data = p;                                \
-            auto utarget = o->data;                     \
-        }                                               \
-        return (PyObject*)o;                            \
-    }                                                   \
-    case PyObjectsEnum::UICAPTION:                        \
-    {                                                   \
-        PyUICaptionObject* o = (PyUICaptionObject*)((&PyUICaptionType)->tp_alloc(&PyUICaptionType, 0)); \
-        if (o)                                          \
-        {                                               \
-            auto p = std::static_pointer_cast<UICaption>(target); \
-            o->data = p;                                \
-            auto utarget = o->data;                     \
-        }                                               \
-        return (PyObject*)o;                            \
-    }                                                   \
-    case PyObjectsEnum::UISPRITE:                        \
-    {                                                   \
-        PyUISpriteObject* o = (PyUISpriteObject*)((&PyUISpriteType)->tp_alloc(&PyUISpriteType, 0)); \
-        if (o)                                          \
-        {                                               \
-            auto p = std::static_pointer_cast<UISprite>(target); \
-            o->data = p;                                \
-            auto utarget = o->data;                     \
-        }                                               \
-        return (PyObject*)o;                            \
-    }                                                   \
-    case PyObjectsEnum::UIGRID:                        \
-    {                                                   \
-        PyUIGridObject* o = (PyUIGridObject*)((&PyUIGridType)->tp_alloc(&PyUIGridType, 0)); \
-        if (o)                                          \
-        {                                               \
-            auto p = std::static_pointer_cast<UIGrid>(target); \
-            o->data = p;                                \
-            auto utarget = o->data;                     \
-        }                                               \
-        return (PyObject*)o;                            \
-    }                                                   \
-}                                                       \
-}
-// end macro definition
+    // DEPRECATED: RET_PY_INSTANCE macro has been replaced with template functions in PyObjectUtils.h
+    // The macro was difficult to debug and used static type references that could cause initialization order issues.
+    // Use PyObjectUtils::convertDrawableToPython() or PyObjectUtils::createPyObject<T>() instead.
 
 //TODO: add this method to class scope; move implementation to .cpp file
 /*

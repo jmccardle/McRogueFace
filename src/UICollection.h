@@ -30,7 +30,7 @@ public:
 
 namespace mcrfpydef {
     static PyTypeObject PyUICollectionIterType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.UICollectionIter",
         .tp_basicsize = sizeof(PyUICollectionIterObject),
         .tp_itemsize = 0,
@@ -44,9 +44,11 @@ namespace mcrfpydef {
         .tp_repr = (reprfunc)UICollectionIter::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("Iterator for a collection of UI objects"),
+        .tp_iter = PyObject_SelfIter,
         .tp_iternext = (iternextfunc)UICollectionIter::next,
         //.tp_getset = PyUICollection_getset,
         .tp_init = (initproc)UICollectionIter::init, // just raise an exception
+        .tp_alloc = PyType_GenericAlloc,
         //TODO - as static method, not inline lambda def, please
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
@@ -56,7 +58,7 @@ namespace mcrfpydef {
     };
 
 	static PyTypeObject PyUICollectionType = {
-		//PyVarObject_/HEAD_INIT(NULL, 0)
+		.ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
 		.tp_name = "mcrfpy.UICollection",
 		.tp_basicsize = sizeof(PyUICollectionObject),
 		.tp_itemsize = 0,

@@ -27,6 +27,7 @@ public:
 
 namespace mcrfpydef {
     static PyTypeObject PyUICaptionType = {
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Caption",
         .tp_basicsize = sizeof(PyUICaptionObject),
         .tp_itemsize = 0,

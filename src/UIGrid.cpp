@@ -487,14 +487,17 @@ PyObject* UIEntityCollectionIter::next(PyUIEntityCollectionIterObject* self)
         PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
         return NULL;
     }
-    // Advance list iterator since Entities are not stored in a vector (if this code even worked)
-    // vectors only: //auto target = (*vec)[self->index-1];
-    //auto l_front = (*vec).begin();
-    //std::advance(l_front, self->index-1);
-
-    // TODO build PyObject* of the correct UIDrawable subclass to return
-    //return py_instance(target);
-    return NULL;
+    // Advance list iterator since Entities are stored in a list, not a vector
+    auto l_begin = (*vec).begin();
+    std::advance(l_begin, self->index-1);
+    auto target = *l_begin;
+    
+    // Create and return a Python Entity object
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+    auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
+    auto p = std::static_pointer_cast<UIEntity>(target);
+    o->data = p;
+    return (PyObject*)o;
 }
 
 PyObject* UIEntityCollectionIter::repr(PyUIEntityCollectionIterObject* self)
@@ -625,11 +628,18 @@ int UIEntityCollection::init(PyUIEntityCollectionObject* self, PyObject* args, P
 
 PyObject* UIEntityCollection::iter(PyUIEntityCollectionObject* self)
 {
-    //PyUIEntityCollectionIterObject* iterObj;
-    //iterObj = (PyUIEntityCollectionIterObject*)PyUIEntityCollectionIterType.tp_alloc(&PyUIEntityCollectionIterType, 0);
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "EntityCollectionIter");
-    auto iterObj = (PyUIEntityCollectionIterObject*)type->tp_alloc(type, 0);
+    // Get the iterator type from the module to ensure we have the registered version
+    PyTypeObject* iterType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UIEntityCollectionIter");
+    if (!iterType) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not find UIEntityCollectionIter type in module");
+        return NULL;
+    }
+    
+    // Allocate new iterator instance
+    PyUIEntityCollectionIterObject* iterObj = (PyUIEntityCollectionIterObject*)iterType->tp_alloc(iterType, 0);
+    
     if (iterObj == NULL) {
+        Py_DECREF(iterType);
         return NULL;  // Failed to allocate memory for the iterator object
     }
 
@@ -637,5 +647,6 @@ PyObject* UIEntityCollection::iter(PyUIEntityCollectionObject* self)
     iterObj->index = 0;
     iterObj->start_size = self->data->size();
 
+    Py_DECREF(iterType);
     return (PyObject*)iterObj;
 }

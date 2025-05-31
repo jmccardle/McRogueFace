@@ -99,7 +99,7 @@ public:
 
 namespace mcrfpydef {
     static PyTypeObject PyUIGridType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Grid",
         .tp_basicsize = sizeof(PyUIGridObject),
         .tp_itemsize = 0,
@@ -130,8 +130,8 @@ namespace mcrfpydef {
     };
 
     static PyTypeObject PyUIEntityCollectionIterType = {
-        //PyVarObject_HEAD_INIT(NULL, 0)
-        .tp_name = "mcrfpy.UICollectionIter",
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .tp_name = "mcrfpy.UIEntityCollectionIter",
         .tp_basicsize = sizeof(PyUIEntityCollectionIterObject),
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self)
@@ -143,9 +143,11 @@ namespace mcrfpydef {
         .tp_repr = (reprfunc)UIEntityCollectionIter::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("Iterator for a collection of UI objects"),
+        .tp_iter = PyObject_SelfIter,
         .tp_iternext = (iternextfunc)UIEntityCollectionIter::next,
         //.tp_getset = UIEntityCollection::getset,
         .tp_init = (initproc)UIEntityCollectionIter::init, // just raise an exception
+        .tp_alloc = PyType_GenericAlloc,
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
             PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");
@@ -154,7 +156,7 @@ namespace mcrfpydef {
     };
 
     static PyTypeObject PyUIEntityCollectionType = {
-        //PyVarObject_/HEAD_INIT(NULL, 0)
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.EntityCollection",
         .tp_basicsize = sizeof(PyUIEntityCollectionObject),
         .tp_itemsize = 0,

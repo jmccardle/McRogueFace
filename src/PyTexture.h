@@ -29,6 +29,7 @@ public:
 
 namespace mcrfpydef {
     static PyTypeObject PyTextureType = {
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Texture",
         .tp_basicsize = sizeof(PyTextureObject),
         .tp_itemsize = 0,

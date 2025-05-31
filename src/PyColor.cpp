@@ -1,5 +1,7 @@
 #include "PyColor.h"
 #include "McRFPy_API.h"
+#include "PyObjectUtils.h"
+#include "PyRAII.h"
 
 PyGetSetDef PyColor::getsetters[] = {
     {"r", (getter)PyColor::get_member, (setter)PyColor::set_member, "Red component",   (void*)0},
@@ -14,11 +16,16 @@ PyColor::PyColor(sf::Color target)
 
 PyObject* PyColor::pyObject()
 {
-    PyObject* obj = PyType_GenericAlloc(&mcrfpydef::PyColorType, 0);
-    Py_INCREF(obj);
-    PyColorObject* self = (PyColorObject*)obj;
-    self->data = data;
-    return obj;
+    PyTypeObject* type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
+    if (!type) return nullptr;
+    
+    PyColorObject* obj = (PyColorObject*)type->tp_alloc(type, 0);
+    Py_DECREF(type);
+    
+    if (obj) {
+        obj->data = data;
+    }
+    return (PyObject*)obj;
 }
 
 sf::Color PyColor::fromPy(PyObject* obj)
@@ -138,13 +145,30 @@ int PyColor::set_member(PyObject* obj, PyObject* value, void* closure)
 
 PyColorObject* PyColor::from_arg(PyObject* args)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
-    if (PyObject_IsInstance(args, (PyObject*)type)) return (PyColorObject*)args;
-    auto obj = (PyColorObject*)type->tp_alloc(type, 0);
-    int err = init(obj, args, NULL);
-    if (err) {
-        Py_DECREF(obj);
+    // Use RAII for type reference management
+    PyRAII::PyTypeRef type("Color", McRFPy_API::mcrf_module);
+    if (!type) {
         return NULL;
     }
-    return obj;
+    
+    // Check if args is already a Color instance
+    if (PyObject_IsInstance(args, (PyObject*)type.get())) {
+        return (PyColorObject*)args;
+    }
+    
+    // Create new Color object using RAII
+    PyRAII::PyObjectRef obj(type->tp_alloc(type.get(), 0), true);
+    if (!obj) {
+        return NULL;
+    }
+    
+    // Initialize the object
+    int err = init((PyColorObject*)obj.get(), args, NULL);
+    if (err) {
+        // obj will be automatically cleaned up when it goes out of scope
+        return NULL;
+    }
+    
+    // Release ownership and return
+    return (PyColorObject*)obj.release();
 }

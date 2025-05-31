@@ -1,6 +1,7 @@
 #include "UIEntity.h"
 #include "UIGrid.h"
 #include "McRFPy_API.h"
+#include "PyObjectUtils.h"
 
 UIEntity::UIEntity() {} // this will not work lol. TODO remove default constructor by finding the shared pointer inits that use it
 
@@ -129,7 +130,9 @@ sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
 
 // TODO - deprecate / remove this helper
 PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state) {
-    return PyObject_New(PyObject, (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPointState"));
+    // This function is incomplete - it creates an empty object without setting state data
+    // Should use PyObjectUtils::createGridPointState() instead
+    return PyObjectUtils::createPyObjectGeneric("GridPointState");
 }
 
 PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& vec) {

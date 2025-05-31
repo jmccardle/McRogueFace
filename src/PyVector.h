@@ -30,6 +30,7 @@ public:
 
 namespace mcrfpydef {
     static PyTypeObject PyVectorType = {
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Vector",
         .tp_basicsize = sizeof(PyVectorObject),
         .tp_itemsize = 0,
