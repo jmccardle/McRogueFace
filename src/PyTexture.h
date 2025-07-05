@@ -26,6 +26,16 @@ public:
     static Py_hash_t hash(PyObject*);
     static int init(PyTextureObject*, PyObject*, PyObject*);
     static PyObject* pynew(PyTypeObject* type, PyObject* args=NULL, PyObject* kwds=NULL);
+    
+    // Getters for properties
+    static PyObject* get_sprite_width(PyTextureObject* self, void* closure);
+    static PyObject* get_sprite_height(PyTextureObject* self, void* closure);
+    static PyObject* get_sheet_width(PyTextureObject* self, void* closure);
+    static PyObject* get_sheet_height(PyTextureObject* self, void* closure);
+    static PyObject* get_sprite_count(PyTextureObject* self, void* closure);
+    static PyObject* get_source(PyTextureObject* self, void* closure);
+    
+    static PyGetSetDef getsetters[];
 };
 
 namespace mcrfpydef {
@@ -38,6 +48,7 @@ namespace mcrfpydef {
         .tp_hash = PyTexture::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("SFML Texture Object"),
+        .tp_getset = PyTexture::getsetters,
         //.tp_base = &PyBaseObject_Type,
         .tp_init = (initproc)PyTexture::init,
         .tp_new = PyType_GenericNew, //PyTexture::pynew,

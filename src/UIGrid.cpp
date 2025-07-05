@@ -347,6 +347,18 @@ int UIGrid::set_size(PyUIGridObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->box.setSize(sf::Vector2f(w, h));
+    
+    // Recreate renderTexture with new size to avoid rendering issues
+    // Add some padding to handle zoom and ensure we don't cut off content
+    unsigned int tex_width = static_cast<unsigned int>(w * 1.5f);
+    unsigned int tex_height = static_cast<unsigned int>(h * 1.5f);
+    
+    // Clamp to reasonable maximum to avoid GPU memory issues
+    tex_width = std::min(tex_width, 4096u);
+    tex_height = std::min(tex_height, 4096u);
+    
+    self->data->renderTexture.create(tex_width, tex_height);
+    
     return 0;
 }
 
@@ -411,9 +423,25 @@ int UIGrid::set_float_member(PyUIGridObject* self, PyObject* value, void* closur
     else if (member_ptr == 1) // y
         self->data->box.setPosition(self->data->box.getPosition().x, val);
     else if (member_ptr == 2) // w
+    {
         self->data->box.setSize(sf::Vector2f(val, self->data->box.getSize().y));
+        // Recreate renderTexture when width changes
+        unsigned int tex_width = static_cast<unsigned int>(val * 1.5f);
+        unsigned int tex_height = static_cast<unsigned int>(self->data->box.getSize().y * 1.5f);
+        tex_width = std::min(tex_width, 4096u);
+        tex_height = std::min(tex_height, 4096u);
+        self->data->renderTexture.create(tex_width, tex_height);
+    }
     else if (member_ptr == 3) // h
+    {
         self->data->box.setSize(sf::Vector2f(self->data->box.getSize().x, val));
+        // Recreate renderTexture when height changes
+        unsigned int tex_width = static_cast<unsigned int>(self->data->box.getSize().x * 1.5f);
+        unsigned int tex_height = static_cast<unsigned int>(val * 1.5f);
+        tex_width = std::min(tex_width, 4096u);
+        tex_height = std::min(tex_height, 4096u);
+        self->data->renderTexture.create(tex_width, tex_height);
+    }
     else if (member_ptr == 4) // center_x
         self->data->center_x = val;
     else if (member_ptr == 5) // center_y
@@ -473,7 +501,7 @@ PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* o)
 }
 
 PyMethodDef UIGrid::methods[] = {
-    {"at", (PyCFunction)UIGrid::py_at, METH_O},
+    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS},
     {NULL, NULL, 0, NULL}
 };
 
@@ -571,7 +599,13 @@ PyObject* UIEntityCollectionIter::next(PyUIEntityCollectionIterObject* self)
     std::advance(l_begin, self->index-1);
     auto target = *l_begin;
     
-    // Create and return a Python Entity object
+    // Return the stored Python object if it exists (preserves derived types)
+    if (target->self != nullptr) {
+        Py_INCREF(target->self);
+        return target->self;
+    }
+    
+    // Otherwise create and return a new Python Entity object
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
     auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
     auto p = std::static_pointer_cast<UIEntity>(target);
@@ -612,17 +646,198 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
     auto l_begin = (*vec).begin();
     std::advance(l_begin, index);
     auto target = *l_begin; //auto target = (*vec)[index];
-    //RET_PY_INSTANCE(target);
-    // construct and return an entity object that points directly into the UIGrid's entity vector
-    //PyUIEntityObject* o = (PyUIEntityObject*)((&PyUIEntityType)->tp_alloc(&PyUIEntityType, 0));
+    
+    // If the entity has a stored Python object reference, return that to preserve derived class
+    if (target->self != nullptr) {
+        Py_INCREF(target->self);
+        return target->self;
+    }
+    
+    // Otherwise, create a new base Entity object
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
     auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
     auto p = std::static_pointer_cast<UIEntity>(target);
     o->data = p;
     return (PyObject*)o;
-return NULL;
+}
 
+int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t index, PyObject* value) {
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+        return -1;
+    }
+    
+    // Handle negative indexing
+    while (index < 0) index += list->size();
+    
+    // Bounds check
+    if (index >= list->size()) {
+        PyErr_SetString(PyExc_IndexError, "EntityCollection assignment index out of range");
+        return -1;
+    }
+    
+    // Get iterator to the target position
+    auto it = list->begin();
+    std::advance(it, index);
+    
+    // Handle deletion
+    if (value == NULL) {
+        // Clear grid reference from the entity being removed
+        (*it)->grid = nullptr;
+        list->erase(it);
+        return 0;
+    }
+    
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+        PyErr_SetString(PyExc_TypeError, "EntityCollection can only contain Entity objects");
+        return -1;
+    }
+    
+    // Get the C++ object from the Python object
+    PyUIEntityObject* entity = (PyUIEntityObject*)value;
+    if (!entity->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
+        return -1;
+    }
+    
+    // Clear grid reference from the old entity
+    (*it)->grid = nullptr;
+    
+    // Replace the element and set grid reference
+    *it = entity->data;
+    entity->data->grid = self->grid;
+    
+    return 0;
+}
 
+int UIEntityCollection::contains(PyUIEntityCollectionObject* self, PyObject* value) {
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+        return -1;
+    }
+    
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+        // Not an Entity, so it can't be in the collection
+        return 0;
+    }
+    
+    // Get the C++ object from the Python object
+    PyUIEntityObject* entity = (PyUIEntityObject*)value;
+    if (!entity->data) {
+        return 0;
+    }
+    
+    // Search for the object by comparing C++ pointers
+    for (const auto& ent : *list) {
+        if (ent.get() == entity->data.get()) {
+            return 1;  // Found
+        }
+    }
+    
+    return 0;  // Not found
+}
+
+PyObject* UIEntityCollection::concat(PyUIEntityCollectionObject* self, PyObject* other) {
+    // Create a new Python list containing elements from both collections
+    if (!PySequence_Check(other)) {
+        PyErr_SetString(PyExc_TypeError, "can only concatenate sequence to EntityCollection");
+        return NULL;
+    }
+    
+    Py_ssize_t self_len = self->data->size();
+    Py_ssize_t other_len = PySequence_Length(other);
+    if (other_len == -1) {
+        return NULL;  // Error already set
+    }
+    
+    PyObject* result_list = PyList_New(self_len + other_len);
+    if (!result_list) {
+        return NULL;
+    }
+    
+    // Add all elements from self
+    Py_ssize_t idx = 0;
+    for (const auto& entity : *self->data) {
+        auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+        auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
+        if (obj) {
+            obj->data = entity;
+            PyList_SET_ITEM(result_list, idx, (PyObject*)obj);  // Steals reference
+        } else {
+            Py_DECREF(result_list);
+            Py_DECREF(type);
+            return NULL;
+        }
+        Py_DECREF(type);
+        idx++;
+    }
+    
+    // Add all elements from other
+    for (Py_ssize_t i = 0; i < other_len; i++) {
+        PyObject* item = PySequence_GetItem(other, i);
+        if (!item) {
+            Py_DECREF(result_list);
+            return NULL;
+        }
+        PyList_SET_ITEM(result_list, self_len + i, item);  // Steals reference
+    }
+    
+    return result_list;
+}
+
+PyObject* UIEntityCollection::inplace_concat(PyUIEntityCollectionObject* self, PyObject* other) {
+    if (!PySequence_Check(other)) {
+        PyErr_SetString(PyExc_TypeError, "can only concatenate sequence to EntityCollection");
+        return NULL;
+    }
+    
+    // First, validate ALL items in the sequence before modifying anything
+    Py_ssize_t other_len = PySequence_Length(other);
+    if (other_len == -1) {
+        return NULL;  // Error already set
+    }
+    
+    // Validate all items first
+    for (Py_ssize_t i = 0; i < other_len; i++) {
+        PyObject* item = PySequence_GetItem(other, i);
+        if (!item) {
+            return NULL;
+        }
+        
+        // Type check
+        if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+            Py_DECREF(item);
+            PyErr_Format(PyExc_TypeError, 
+                "EntityCollection can only contain Entity objects; "
+                "got %s at index %zd", Py_TYPE(item)->tp_name, i);
+            return NULL;
+        }
+        Py_DECREF(item);
+    }
+    
+    // All items validated, now we can safely add them
+    for (Py_ssize_t i = 0; i < other_len; i++) {
+        PyObject* item = PySequence_GetItem(other, i);
+        if (!item) {
+            return NULL;  // Shouldn't happen, but be safe
+        }
+        
+        // Use the existing append method which handles grid references
+        PyObject* result = append(self, item);
+        Py_DECREF(item);
+        
+        if (!result) {
+            return NULL;  // append() failed
+        }
+        Py_DECREF(result);  // append returns Py_None
+    }
+    
+    Py_INCREF(self);
+    return (PyObject*)self;
 }
 
 int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t index, PyObject* value) {

@@ -615,6 +615,88 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
     return Py_None;
 }
 
+PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
+{
+    // Accept any iterable of UIDrawable objects
+    PyObject* iterator = PyObject_GetIter(iterable);
+    if (iterator == NULL) {
+        PyErr_SetString(PyExc_TypeError, "UICollection.extend requires an iterable");
+        return NULL;
+    }
+    
+    // Ensure module is initialized
+    if (!McRFPy_API::mcrf_module) {
+        Py_DECREF(iterator);
+        PyErr_SetString(PyExc_RuntimeError, "mcrfpy module not initialized");
+        return NULL;
+    }
+    
+    // Get current highest z_index
+    int current_z_index = 0;
+    if (!self->data->empty()) {
+        current_z_index = self->data->back()->z_index;
+    }
+    
+    PyObject* item;
+    while ((item = PyIter_Next(iterator)) != NULL) {
+        // Check if item is a UIDrawable subclass
+        if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")))
+        {
+            Py_DECREF(item);
+            Py_DECREF(iterator);
+            PyErr_SetString(PyExc_TypeError, "All items must be Frame, Caption, Sprite, or Grid objects");
+            return NULL;
+        }
+        
+        // Increment z_index for each new element
+        if (current_z_index <= INT_MAX - 10) {
+            current_z_index += 10;
+        } else {
+            current_z_index = INT_MAX;
+        }
+        
+        // Add the item based on its type
+        if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
+            PyUIFrameObject* frame = (PyUIFrameObject*)item;
+            frame->data->z_index = current_z_index;
+            self->data->push_back(frame->data);
+        }
+        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
+            PyUICaptionObject* caption = (PyUICaptionObject*)item;
+            caption->data->z_index = current_z_index;
+            self->data->push_back(caption->data);
+        }
+        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
+            PyUISpriteObject* sprite = (PyUISpriteObject*)item;
+            sprite->data->z_index = current_z_index;
+            self->data->push_back(sprite->data);
+        }
+        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
+            PyUIGridObject* grid = (PyUIGridObject*)item;
+            grid->data->z_index = current_z_index;
+            self->data->push_back(grid->data);
+        }
+        
+        Py_DECREF(item);
+    }
+    
+    Py_DECREF(iterator);
+    
+    // Check if iteration ended due to an error
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+    
+    // Mark scene as needing resort after adding elements
+    McRFPy_API::markSceneNeedsSort();
+    
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 PyObject* UICollection::remove(PyUICollectionObject* self, PyObject* o)
 {
 	if (!PyLong_Check(o))
@@ -734,7 +816,7 @@ PyObject* UICollection::count(PyUICollectionObject* self, PyObject* value) {
 
 PyMethodDef UICollection::methods[] = {
 	{"append", (PyCFunction)UICollection::append, METH_O},
-    //{"extend", (PyCFunction)PyUICollection_extend, METH_O}, // TODO
+	{"extend", (PyCFunction)UICollection::extend, METH_O},
 	{"remove", (PyCFunction)UICollection::remove, METH_O},
 	{"index", (PyCFunction)UICollection::index_method, METH_O},
 	{"count", (PyCFunction)UICollection::count, METH_O},
@@ -746,7 +828,47 @@ PyObject* UICollection::repr(PyUICollectionObject* self)
 	std::ostringstream ss;
 	if (!self->data) ss << "<UICollection (invalid internal object)>";
 	else {
-	    ss << "<UICollection (" << self->data->size() << " child objects)>";
+	    ss << "<UICollection (" << self->data->size() << " objects: ";
+	    
+	    // Count each type
+	    int frame_count = 0, caption_count = 0, sprite_count = 0, grid_count = 0, other_count = 0;
+	    for (auto& item : *self->data) {
+	        switch(item->derived_type()) {
+	            case PyObjectsEnum::UIFRAME: frame_count++; break;
+	            case PyObjectsEnum::UICAPTION: caption_count++; break;
+	            case PyObjectsEnum::UISPRITE: sprite_count++; break;
+	            case PyObjectsEnum::UIGRID: grid_count++; break;
+	            default: other_count++; break;
+	        }
+	    }
+	    
+	    // Build type summary
+	    bool first = true;
+	    if (frame_count > 0) {
+	        ss << frame_count << " Frame" << (frame_count > 1 ? "s" : "");
+	        first = false;
+	    }
+	    if (caption_count > 0) {
+	        if (!first) ss << ", ";
+	        ss << caption_count << " Caption" << (caption_count > 1 ? "s" : "");
+	        first = false;
+	    }
+	    if (sprite_count > 0) {
+	        if (!first) ss << ", ";
+	        ss << sprite_count << " Sprite" << (sprite_count > 1 ? "s" : "");
+	        first = false;
+	    }
+	    if (grid_count > 0) {
+	        if (!first) ss << ", ";
+	        ss << grid_count << " Grid" << (grid_count > 1 ? "s" : "");
+	        first = false;
+	    }
+	    if (other_count > 0) {
+	        if (!first) ss << ", ";
+	        ss << other_count << " UIDrawable" << (other_count > 1 ? "s" : "");
+	    }
+	    
+	    ss << ")>";
 	}
 	std::string repr_str = ss.str();
 	return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");

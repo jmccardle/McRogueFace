@@ -90,8 +90,8 @@ void Animation::startEntity(UIEntity* target) {
             }
         }
         else if constexpr (std::is_same_v<T, int>) {
-            // For entities, we might need to handle sprite_number differently
-            if (targetProperty == "sprite_number") {
+            // For entities, we might need to handle sprite_index differently
+            if (targetProperty == "sprite_index" || targetProperty == "sprite_number") {
                 startValue = target->sprite.getSpriteIndex();
             }
         }

@@ -61,3 +61,19 @@ PyObject* PyFont::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
     return (PyObject*)type->tp_alloc(type, 0);
 }
+
+PyObject* PyFont::get_family(PyFontObject* self, void* closure)
+{
+    return PyUnicode_FromString(self->data->font.getInfo().family.c_str());
+}
+
+PyObject* PyFont::get_source(PyFontObject* self, void* closure)
+{
+    return PyUnicode_FromString(self->data->source.c_str());
+}
+
+PyGetSetDef PyFont::getsetters[] = {
+    {"family", (getter)PyFont::get_family, NULL, "Font family name", NULL},
+    {"source", (getter)PyFont::get_source, NULL, "Source filename of the font", NULL},
+    {NULL}  // Sentinel
+};

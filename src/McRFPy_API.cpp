@@ -313,12 +313,27 @@ void McRFPy_API::api_init(const McRogueFaceConfig& config, int argc, char** argv
 
 void McRFPy_API::executeScript(std::string filename)
 {
-    FILE* PScriptFile = fopen(filename.c_str(), "r");
+    std::filesystem::path script_path(filename);
+    
+    // If the path is relative and the file doesn't exist, try resolving it relative to the executable
+    if (script_path.is_relative() && !std::filesystem::exists(script_path)) {
+        // Get the directory where the executable is located using platform-specific function
+        std::wstring exe_dir_w = executable_path();
+        std::filesystem::path exe_dir(exe_dir_w);
+        
+        // Try the script path relative to the executable directory
+        std::filesystem::path resolved_path = exe_dir / script_path;
+        if (std::filesystem::exists(resolved_path)) {
+            script_path = resolved_path;
+        }
+    }
+    
+    FILE* PScriptFile = fopen(script_path.string().c_str(), "r");
     if(PScriptFile) {
-        std::cout << "Before PyRun_SimpleFile" << std::endl;
-        PyRun_SimpleFile(PScriptFile, filename.c_str());
-        std::cout << "After PyRun_SimpleFile" << std::endl;
+        PyRun_SimpleFile(PScriptFile, script_path.string().c_str());
         fclose(PScriptFile);
+    } else {
+        std::cout << "Failed to open script: " << script_path.string() << std::endl;
     }
 }
 

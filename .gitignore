@@ -10,3 +10,20 @@ build
 lib
 obj
 
+.cache/
+7DRL2025 Release/
+CMakeFiles/
+Makefile
+*.md
+*.zip
+__lib/
+_oldscripts/
+assets/
+cellular_automata_fire/
+*.txt
+deps/
+fetch_issues_txt.py
+forest_fire_CA.py
+mcrogueface.github.io
+scripts/
+test_*

@@ -133,13 +133,58 @@ PyObject* PyColor::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 
 PyObject* PyColor::get_member(PyObject* obj, void* closure)
 {
-    // TODO
-    return Py_None;
+    PyColorObject* self = (PyColorObject*)obj;
+    long member = (long)closure;
+    
+    switch (member) {
+        case 0: // r
+            return PyLong_FromLong(self->data.r);
+        case 1: // g
+            return PyLong_FromLong(self->data.g);
+        case 2: // b
+            return PyLong_FromLong(self->data.b);
+        case 3: // a
+            return PyLong_FromLong(self->data.a);
+        default:
+            PyErr_SetString(PyExc_AttributeError, "Invalid color member");
+            return NULL;
+    }
 }
 
 int PyColor::set_member(PyObject* obj, PyObject* value, void* closure)
 {
-    // TODO
+    PyColorObject* self = (PyColorObject*)obj;
+    long member = (long)closure;
+    
+    if (!PyLong_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "Color values must be integers");
+        return -1;
+    }
+    
+    long val = PyLong_AsLong(value);
+    if (val < 0 || val > 255) {
+        PyErr_SetString(PyExc_ValueError, "Color values must be between 0 and 255");
+        return -1;
+    }
+    
+    switch (member) {
+        case 0: // r
+            self->data.r = static_cast<sf::Uint8>(val);
+            break;
+        case 1: // g
+            self->data.g = static_cast<sf::Uint8>(val);
+            break;
+        case 2: // b
+            self->data.b = static_cast<sf::Uint8>(val);
+            break;
+        case 3: // a
+            self->data.a = static_cast<sf::Uint8>(val);
+            break;
+        default:
+            PyErr_SetString(PyExc_AttributeError, "Invalid color member");
+            return -1;
+    }
+    
     return 0;
 }
 

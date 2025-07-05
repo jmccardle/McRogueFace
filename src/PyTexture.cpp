@@ -79,3 +79,43 @@ PyObject* PyTexture::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
     return (PyObject*)type->tp_alloc(type, 0);
 }
+
+PyObject* PyTexture::get_sprite_width(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->sprite_width);
+}
+
+PyObject* PyTexture::get_sprite_height(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->sprite_height);
+}
+
+PyObject* PyTexture::get_sheet_width(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->sheet_width);
+}
+
+PyObject* PyTexture::get_sheet_height(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->sheet_height);
+}
+
+PyObject* PyTexture::get_sprite_count(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->getSpriteCount());
+}
+
+PyObject* PyTexture::get_source(PyTextureObject* self, void* closure)
+{
+    return PyUnicode_FromString(self->data->source.c_str());
+}
+
+PyGetSetDef PyTexture::getsetters[] = {
+    {"sprite_width", (getter)PyTexture::get_sprite_width, NULL, "Width of each sprite in pixels", NULL},
+    {"sprite_height", (getter)PyTexture::get_sprite_height, NULL, "Height of each sprite in pixels", NULL},
+    {"sheet_width", (getter)PyTexture::get_sheet_width, NULL, "Number of sprite columns in the texture", NULL},
+    {"sheet_height", (getter)PyTexture::get_sheet_height, NULL, "Number of sprite rows in the texture", NULL},
+    {"sprite_count", (getter)PyTexture::get_sprite_count, NULL, "Total number of sprites in the texture", NULL},
+    {"source", (getter)PyTexture::get_source, NULL, "Source filename of the texture", NULL},
+    {NULL}  // Sentinel
+};

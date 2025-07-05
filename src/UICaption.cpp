@@ -197,7 +197,7 @@ PyGetSetDef UICaption::getsetters[] = {
     {"outline_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member, "Outline color of the text", (void*)1},
     //{"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
     {"text", (getter)UICaption::get_text, (setter)UICaption::set_text, "The text displayed", NULL},
-    {"size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Text size (integer) in points", (void*)5},
+    {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Font size (integer) in points", (void*)5},
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UICAPTION},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UICAPTION},
     {NULL}
@@ -314,7 +314,7 @@ bool UICaption::setProperty(const std::string& name, float value) {
         text.setPosition(sf::Vector2f(text.getPosition().x, value));
         return true;
     }
-    else if (name == "size") {
+    else if (name == "font_size" || name == "size") { // Support both for backward compatibility
         text.setCharacterSize(static_cast<unsigned int>(value));
         return true;
     }
@@ -406,7 +406,7 @@ bool UICaption::getProperty(const std::string& name, float& value) const {
         value = text.getPosition().y;
         return true;
     }
-    else if (name == "size") {
+    else if (name == "font_size" || name == "size") { // Support both for backward compatibility
         value = static_cast<float>(text.getCharacterSize());
         return true;
     }

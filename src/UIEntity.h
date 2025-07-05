@@ -35,7 +35,7 @@ static PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointS
 class UIEntity//: public UIDrawable
 {
 public:
-    //PyObject* self;
+    PyObject* self = nullptr;  // Reference to the Python object (if created from Python)
     std::shared_ptr<UIGrid> grid;
     std::vector<UIGridPointState> gridstate;
     UISprite sprite;

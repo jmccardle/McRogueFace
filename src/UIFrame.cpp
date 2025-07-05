@@ -1,6 +1,7 @@
 #include "UIFrame.h"
 #include "UICollection.h"
 #include "GameEngine.h"
+#include "PyVector.h"
 
 UIDrawable* UIFrame::click_at(sf::Vector2f point)
 {
@@ -214,6 +215,28 @@ int UIFrame::set_color_member(PyUIFrameObject* self, PyObject* value, void* clos
     return 0;
 }
 
+PyObject* UIFrame::get_pos(PyUIFrameObject* self, void* closure)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
+    if (obj) {
+        auto pos = self->data->box.getPosition();
+        obj->data = sf::Vector2f(pos.x, pos.y);
+    }
+    return (PyObject*)obj;
+}
+
+int UIFrame::set_pos(PyUIFrameObject* self, PyObject* value, void* closure)
+{
+    PyVectorObject* vec = PyVector::from_arg(value);
+    if (!vec) {
+        PyErr_SetString(PyExc_TypeError, "pos must be a Vector or convertible to Vector");
+        return -1;
+    }
+    self->data->box.setPosition(vec->data);
+    return 0;
+}
+
 PyGetSetDef UIFrame::getsetters[] = {
     {"x", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "X coordinate of top-left corner",   (void*)0},
     {"y", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "Y coordinate of top-left corner",   (void*)1},
@@ -225,6 +248,7 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"children", (getter)UIFrame::get_children, NULL, "UICollection of objects on top of this one", NULL},
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIFRAME},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UIFRAME},
+    {"pos", (getter)UIFrame::get_pos, (setter)UIFrame::set_pos, "Position as a Vector", NULL},
     {NULL}
 };
 
@@ -256,9 +280,29 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     PyObject* fill_color = 0;
     PyObject* outline_color = 0;
 
+    // First try to parse as (x, y, w, h, ...)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "ffff|OOf", const_cast<char**>(keywords), &x, &y, &w, &h, &fill_color, &outline_color, &outline))
     {
-        return -1;
+        PyErr_Clear();  // Clear the error
+        
+        // Try to parse as ((x,y), w, h, ...) or (Vector, w, h, ...)
+        PyObject* pos_obj = nullptr;
+        const char* alt_keywords[] = { "pos", "w", "h", "fill_color", "outline_color", "outline", nullptr };
+        
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off|OOf", const_cast<char**>(alt_keywords), 
+                                          &pos_obj, &w, &h, &fill_color, &outline_color, &outline))
+        {
+            return -1;
+        }
+        
+        // Convert position argument to x, y
+        PyVectorObject* vec = PyVector::from_arg(pos_obj);
+        if (!vec) {
+            PyErr_SetString(PyExc_TypeError, "First argument must be a tuple (x, y) or Vector when not providing x, y separately");
+            return -1;
+        }
+        x = vec->data.x;
+        y = vec->data.y;
     }
 
     self->data->box.setPosition(sf::Vector2f(x, y));

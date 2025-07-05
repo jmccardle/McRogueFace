@@ -40,6 +40,8 @@ public:
     static int set_float_member(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyObject* get_color_member(PyUIFrameObject* self, void* closure);
     static int set_color_member(PyUIFrameObject* self, PyObject* value, void* closure);
+    static PyObject* get_pos(PyUIFrameObject* self, void* closure);
+    static int set_pos(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIFrameObject* self);
     static int init(PyUIFrameObject* self, PyObject* args, PyObject* kwds);

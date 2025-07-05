@@ -75,7 +75,7 @@ namespace mcrfpydef {
         .tp_doc = "UIGridPoint object",
         .tp_getset = UIGridPoint::getsetters,
         //.tp_init = (initproc)PyUIGridPoint_init, // TODO Define the init function
-        .tp_new = PyType_GenericNew,
+        .tp_new = NULL, // Prevent instantiation from Python - Issue #12
     };
 
     static PyTypeObject PyUIGridPointStateType = {
@@ -87,6 +87,6 @@ namespace mcrfpydef {
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = "UIGridPointState object", // TODO: Add PyUIGridPointState tp_init
         .tp_getset = UIGridPointState::getsetters,
-        .tp_new = PyType_GenericNew,
+        .tp_new = NULL, // Prevent instantiation from Python - Issue #12
     };
 }

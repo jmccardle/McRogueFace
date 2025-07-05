@@ -21,6 +21,12 @@ public:
     static Py_hash_t hash(PyObject*);
     static int init(PyFontObject*, PyObject*, PyObject*);
     static PyObject* pynew(PyTypeObject* type, PyObject* args=NULL, PyObject* kwds=NULL);
+    
+    // Getters for properties
+    static PyObject* get_family(PyFontObject* self, void* closure);
+    static PyObject* get_source(PyFontObject* self, void* closure);
+    
+    static PyGetSetDef getsetters[];
 };
 
 namespace mcrfpydef {
@@ -33,6 +39,7 @@ namespace mcrfpydef {
         //.tp_hash = PyFont::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("SFML Font Object"),
+        .tp_getset = PyFont::getsetters,
         //.tp_base = &PyBaseObject_Type,
         .tp_init = (initproc)PyFont::init,
         .tp_new = PyType_GenericNew, //PyFont::pynew,

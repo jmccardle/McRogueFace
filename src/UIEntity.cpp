@@ -119,6 +119,10 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     else
         self->data = std::make_shared<UIEntity>(*((PyUIGridObject*)grid)->data);
 
+    // Store reference to Python object
+    self->data->self = (PyObject*)self;
+    Py_INCREF(self);
+
     // TODO - PyTextureObjects and IndexTextures are a little bit of a mess with shared/unshared pointers
     self->data->sprite = UISprite(texture_ptr, sprite_index, sf::Vector2f(0,0), 1.0);
     self->data->position = pos_result->data;
@@ -250,7 +254,8 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position (graphically)", (void*)0},
     {"pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position (integer grid coordinates)", (void*)1},
     {"gridstate", (getter)UIEntity::get_gridstate, NULL, "Grid point states for the entity", NULL},
-    {"sprite_number", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite number (index) on the texture on the display", NULL},
+    {"sprite_index", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index on the texture on the display", NULL},
+    {"sprite_number", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index on the texture on the display (deprecated: use sprite_index)", NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -259,7 +264,7 @@ PyObject* UIEntity::repr(PyUIEntityObject* self) {
     if (!self->data) ss << "<Entity (invalid internal object)>";
     else {
         auto ent = self->data;
-        ss << "<Entity (x=" << self->data->position.x << ", y=" << self->data->position.y << ", sprite_number=" << self->data->sprite.getSpriteIndex() <<
+        ss << "<Entity (x=" << self->data->position.x << ", y=" << self->data->position.y << ", sprite_index=" << self->data->sprite.getSpriteIndex() <<
          ")>";
     }
     std::string repr_str = ss.str();
@@ -291,7 +296,7 @@ bool UIEntity::setProperty(const std::string& name, float value) {
 }
 
 bool UIEntity::setProperty(const std::string& name, int value) {
-    if (name == "sprite_number") {
+    if (name == "sprite_index" || name == "sprite_number") {
         sprite.setSpriteIndex(value);
         return true;
     }

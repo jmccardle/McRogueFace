@@ -28,6 +28,7 @@ public:
 	static PyObject* subscript(PyUICollectionObject* self, PyObject* key);
 	static int ass_subscript(PyUICollectionObject* self, PyObject* key, PyObject* value);
 	static PyObject* append(PyUICollectionObject* self, PyObject* o);
+	static PyObject* extend(PyUICollectionObject* self, PyObject* iterable);
 	static PyObject* remove(PyUICollectionObject* self, PyObject* o);
 	static PyObject* index_method(PyUICollectionObject* self, PyObject* value);
 	static PyObject* count(PyUICollectionObject* self, PyObject* value);
