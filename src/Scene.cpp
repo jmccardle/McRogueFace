@@ -30,16 +30,6 @@ std::string Scene::action(int code)
     return actions[code];
 }
 
-bool Scene::registerActionInjected(int code, std::string name)
-{
-    std::cout << "Inject registered action - default implementation\n";
-    return false;
-}
-
-bool Scene::unregisterActionInjected(int code, std::string name)
-{
-    return false;
-}
 
 void Scene::key_register(PyObject* callable)
 {

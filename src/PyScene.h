@@ -14,4 +14,7 @@ public:
     void render() override final;
 
     void do_mouse_input(std::string, std::string);
+    
+    // Dirty flag for z_index sorting optimization
+    bool ui_elements_need_sort = true;
 };

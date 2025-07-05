@@ -106,13 +106,37 @@ PyObject* PyVector::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 
 PyObject* PyVector::get_member(PyObject* obj, void* closure)
 {
-    // TODO
-    return Py_None;
+    PyVectorObject* self = (PyVectorObject*)obj;
+    if (reinterpret_cast<long>(closure) == 0) {
+        // x
+        return PyFloat_FromDouble(self->data.x);
+    } else {
+        // y
+        return PyFloat_FromDouble(self->data.y);
+    }
 }
 
 int PyVector::set_member(PyObject* obj, PyObject* value, void* closure)
 {
-    // TODO
+    PyVectorObject* self = (PyVectorObject*)obj;
+    float val;
+    
+    if (PyFloat_Check(value)) {
+        val = PyFloat_AsDouble(value);
+    } else if (PyLong_Check(value)) {
+        val = PyLong_AsDouble(value);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Vector members must be numeric");
+        return -1;
+    }
+    
+    if (reinterpret_cast<long>(closure) == 0) {
+        // x
+        self->data.x = val;
+    } else {
+        // y
+        self->data.y = val;
+    }
     return 0;
 }
 
@@ -120,11 +144,31 @@ PyVectorObject* PyVector::from_arg(PyObject* args)
 {
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
     if (PyObject_IsInstance(args, (PyObject*)type)) return (PyVectorObject*)args;
+    
     auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
-    int err = init(obj, args, NULL);
-    if (err) {
-        Py_DECREF(obj);
-        return NULL;
+    
+    // Handle different input types
+    if (PyTuple_Check(args)) {
+        // It's already a tuple, pass it directly to init
+        int err = init(obj, args, NULL);
+        if (err) {
+            Py_DECREF(obj);
+            return NULL;
+        }
+    } else {
+        // Wrap single argument in a tuple for init
+        PyObject* tuple = PyTuple_Pack(1, args);
+        if (!tuple) {
+            Py_DECREF(obj);
+            return NULL;
+        }
+        int err = init(obj, tuple, NULL);
+        Py_DECREF(tuple);
+        if (err) {
+            Py_DECREF(obj);
+            return NULL;
+        }
     }
+    
     return obj;
 }

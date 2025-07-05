@@ -51,6 +51,15 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
     target.draw(box);
     box.move(-offset);
 
+    // Sort children by z_index if needed
+    if (children_need_sort && !children->empty()) {
+        std::sort(children->begin(), children->end(),
+            [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
+                return a->z_index < b->z_index;
+            });
+        children_need_sort = false;
+    }
+
     for (auto drawable : *children) {
         drawable->render(offset + box.getPosition(), target);
     }
@@ -215,6 +224,7 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"outline_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member, "Outline color of the rectangle", (void*)1},
     {"children", (getter)UIFrame::get_children, NULL, "UICollection of objects on top of this one", NULL},
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIFRAME},
+    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UIFRAME},
     {NULL}
 };
 
@@ -263,4 +273,153 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     else self->data->box.setOutlineColor(sf::Color(128,128,128,255));
     if (err_val) return err_val;
     return 0;
+}
+
+// Animation property system implementation
+bool UIFrame::setProperty(const std::string& name, float value) {
+    if (name == "x") {
+        box.setPosition(sf::Vector2f(value, box.getPosition().y));
+        return true;
+    } else if (name == "y") {
+        box.setPosition(sf::Vector2f(box.getPosition().x, value));
+        return true;
+    } else if (name == "w") {
+        box.setSize(sf::Vector2f(value, box.getSize().y));
+        return true;
+    } else if (name == "h") {
+        box.setSize(sf::Vector2f(box.getSize().x, value));
+        return true;
+    } else if (name == "outline") {
+        box.setOutlineThickness(value);
+        return true;
+    } else if (name == "fill_color.r") {
+        auto color = box.getFillColor();
+        color.r = std::clamp(static_cast<int>(value), 0, 255);
+        box.setFillColor(color);
+        return true;
+    } else if (name == "fill_color.g") {
+        auto color = box.getFillColor();
+        color.g = std::clamp(static_cast<int>(value), 0, 255);
+        box.setFillColor(color);
+        return true;
+    } else if (name == "fill_color.b") {
+        auto color = box.getFillColor();
+        color.b = std::clamp(static_cast<int>(value), 0, 255);
+        box.setFillColor(color);
+        return true;
+    } else if (name == "fill_color.a") {
+        auto color = box.getFillColor();
+        color.a = std::clamp(static_cast<int>(value), 0, 255);
+        box.setFillColor(color);
+        return true;
+    } else if (name == "outline_color.r") {
+        auto color = box.getOutlineColor();
+        color.r = std::clamp(static_cast<int>(value), 0, 255);
+        box.setOutlineColor(color);
+        return true;
+    } else if (name == "outline_color.g") {
+        auto color = box.getOutlineColor();
+        color.g = std::clamp(static_cast<int>(value), 0, 255);
+        box.setOutlineColor(color);
+        return true;
+    } else if (name == "outline_color.b") {
+        auto color = box.getOutlineColor();
+        color.b = std::clamp(static_cast<int>(value), 0, 255);
+        box.setOutlineColor(color);
+        return true;
+    } else if (name == "outline_color.a") {
+        auto color = box.getOutlineColor();
+        color.a = std::clamp(static_cast<int>(value), 0, 255);
+        box.setOutlineColor(color);
+        return true;
+    }
+    return false;
+}
+
+bool UIFrame::setProperty(const std::string& name, const sf::Color& value) {
+    if (name == "fill_color") {
+        box.setFillColor(value);
+        return true;
+    } else if (name == "outline_color") {
+        box.setOutlineColor(value);
+        return true;
+    }
+    return false;
+}
+
+bool UIFrame::setProperty(const std::string& name, const sf::Vector2f& value) {
+    if (name == "position") {
+        box.setPosition(value);
+        return true;
+    } else if (name == "size") {
+        box.setSize(value);
+        return true;
+    }
+    return false;
+}
+
+bool UIFrame::getProperty(const std::string& name, float& value) const {
+    if (name == "x") {
+        value = box.getPosition().x;
+        return true;
+    } else if (name == "y") {
+        value = box.getPosition().y;
+        return true;
+    } else if (name == "w") {
+        value = box.getSize().x;
+        return true;
+    } else if (name == "h") {
+        value = box.getSize().y;
+        return true;
+    } else if (name == "outline") {
+        value = box.getOutlineThickness();
+        return true;
+    } else if (name == "fill_color.r") {
+        value = box.getFillColor().r;
+        return true;
+    } else if (name == "fill_color.g") {
+        value = box.getFillColor().g;
+        return true;
+    } else if (name == "fill_color.b") {
+        value = box.getFillColor().b;
+        return true;
+    } else if (name == "fill_color.a") {
+        value = box.getFillColor().a;
+        return true;
+    } else if (name == "outline_color.r") {
+        value = box.getOutlineColor().r;
+        return true;
+    } else if (name == "outline_color.g") {
+        value = box.getOutlineColor().g;
+        return true;
+    } else if (name == "outline_color.b") {
+        value = box.getOutlineColor().b;
+        return true;
+    } else if (name == "outline_color.a") {
+        value = box.getOutlineColor().a;
+        return true;
+    }
+    return false;
+}
+
+bool UIFrame::getProperty(const std::string& name, sf::Color& value) const {
+    if (name == "fill_color") {
+        value = box.getFillColor();
+        return true;
+    } else if (name == "outline_color") {
+        value = box.getOutlineColor();
+        return true;
+    }
+    return false;
+}
+
+bool UIFrame::getProperty(const std::string& name, sf::Vector2f& value) const {
+    if (name == "position") {
+        value = box.getPosition();
+        return true;
+    } else if (name == "size") {
+        value = box.getSize();
+        return true;
+    }
+    return false;
 }

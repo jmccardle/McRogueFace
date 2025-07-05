@@ -1,10 +1,14 @@
 #include "McRFPy_API.h"
+#include "McRFPy_Automation.h"
 #include "platform.h"
+#include "PyAnimation.h"
 #include "GameEngine.h"
 #include "UI.h"
 #include "Resources.h"
+#include "PyScene.h"
+#include <filesystem>
+#include <cstring>
 
-std::map<std::string, PyObject*> McRFPy_API::callbacks;
 std::vector<sf::SoundBuffer> McRFPy_API::soundbuffers;
 sf::Music McRFPy_API::music;
 sf::Sound McRFPy_API::sfx;
@@ -15,11 +19,6 @@ PyObject* McRFPy_API::mcrf_module;
 
 
 static PyMethodDef mcrfpyMethods[] = {
-    {"registerPyAction", McRFPy_API::_registerPyAction, METH_VARARGS,
-        "Register a callable Python object to correspond to an action string. (actionstr, callable)"},
-        
-    {"registerInputAction", McRFPy_API::_registerInputAction, METH_VARARGS,
-        "Register a SFML input code to correspond to an action string. (input_code, actionstr)"},
 
     {"createSoundBuffer", McRFPy_API::_createSoundBuffer, METH_VARARGS, "(filename)"},
 	{"loadMusic", McRFPy_API::_loadMusic, METH_VARARGS, "(filename)"},
@@ -79,17 +78,20 @@ PyObject* PyInit_mcrfpy()
         /*collections & iterators*/
         &PyUICollectionType, &PyUICollectionIterType,
         &PyUIEntityCollectionType, &PyUIEntityCollectionIterType,
+        
+        /*animation*/
+        &PyAnimationType,
         nullptr};
     int i = 0;
     auto t = pytypes[i];
     while (t != nullptr)
     {
-        std::cout << "Registering type: " << t->tp_name << std::endl;
+        //std::cout << "Registering type: " << t->tp_name << std::endl;
         if (PyType_Ready(t) < 0) {
             std::cout << "ERROR: PyType_Ready failed for " << t->tp_name << std::endl;
             return NULL;
         }
-        std::cout << "  tp_alloc after PyType_Ready: " << (void*)t->tp_alloc << std::endl;
+        //std::cout << "  tp_alloc after PyType_Ready: " << (void*)t->tp_alloc << std::endl;
         PyModule_AddType(m, t);
         i++;
         t = pytypes[i];
@@ -102,6 +104,17 @@ PyObject* PyInit_mcrfpy()
     //PyModule_AddObject(m, "default_texture", McRFPy_API::default_texture->pyObject());
     PyModule_AddObject(m, "default_font", Py_None);
     PyModule_AddObject(m, "default_texture", Py_None);
+    
+    // Add automation submodule
+    PyObject* automation_module = McRFPy_Automation::init_automation_module();
+    if (automation_module != NULL) {
+        PyModule_AddObject(m, "automation", automation_module);
+        
+        // Also add to sys.modules for proper import behavior
+        PyObject* sys_modules = PyImport_GetModuleDict();
+        PyDict_SetItemString(sys_modules, "mcrfpy.automation", automation_module);
+    }
+    
     //McRFPy_API::mcrf_module = m;
     return m;
 }
@@ -160,6 +173,75 @@ PyStatus init_python(const char *program_name)
     return status;
 }
 
+PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config, int argc, char** argv)
+{
+    // If Python is already initialized, just return success
+    if (Py_IsInitialized()) {
+        return PyStatus_Ok();
+    }
+    
+    PyStatus status;
+    PyConfig pyconfig;
+    PyConfig_InitIsolatedConfig(&pyconfig);
+    
+    // CRITICAL: Pass actual command line arguments to Python
+    status = PyConfig_SetBytesArgv(&pyconfig, argc, argv);
+    if (PyStatus_Exception(status)) {
+        return status;
+    }
+    
+    // Check if we're in a virtual environment
+    auto exe_path = std::filesystem::path(argv[0]);
+    auto exe_dir = exe_path.parent_path();
+    auto venv_root = exe_dir.parent_path();
+    
+    if (std::filesystem::exists(venv_root / "pyvenv.cfg")) {
+        // We're running from within a venv!
+        // Add venv's site-packages to module search paths
+        auto site_packages = venv_root / "lib" / "python3.12" / "site-packages";
+        PyWideStringList_Append(&pyconfig.module_search_paths,
+                               site_packages.wstring().c_str());
+        pyconfig.module_search_paths_set = 1;
+    }
+    
+    // Set Python home to our bundled Python
+    auto python_home = executable_path() + L"/lib/Python";
+    PyConfig_SetString(&pyconfig, &pyconfig.home, python_home.c_str());
+    
+    // Set up module search paths
+#if __PLATFORM_SET_PYTHON_SEARCH_PATHS == 1
+    if (!pyconfig.module_search_paths_set) {
+        pyconfig.module_search_paths_set = 1;
+    }
+    
+    // search paths for python libs/modules/scripts
+    const wchar_t* str_arr[] = {
+        L"/scripts",
+        L"/lib/Python/lib.linux-x86_64-3.12",
+        L"/lib/Python",
+        L"/lib/Python/Lib",
+        L"/venv/lib/python3.12/site-packages"
+    };
+    
+    for(auto s : str_arr) {
+        status = PyWideStringList_Append(&pyconfig.module_search_paths, (executable_path() + s).c_str());
+        if (PyStatus_Exception(status)) {
+            continue;
+        }
+    }
+#endif
+    
+    // Register mcrfpy module before initialization
+    if (!Py_IsInitialized()) {
+        PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
+    }
+    
+    status = Py_InitializeFromConfig(&pyconfig);
+    PyConfig_Clear(&pyconfig);
+    
+    return status;
+}
+
 /*
 void McRFPy_API::setSpriteTexture(int ti)
 {
@@ -177,9 +259,11 @@ void McRFPy_API::setSpriteTexture(int ti)
 void McRFPy_API::api_init() {
 
     // build API exposure before python initialization
-    PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
-    // use full path version of argv[0] from OS to init python
-    init_python(narrow_string(executable_filename()).c_str());
+    if (!Py_IsInitialized()) {
+        PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
+        // use full path version of argv[0] from OS to init python
+        init_python(narrow_string(executable_filename()).c_str());
+    }
 
     //texture.loadFromFile("./assets/kenney_tinydungeon.png");
     //texture_size = 16, texture_width = 12, texture_height= 11;
@@ -200,11 +284,40 @@ void McRFPy_API::api_init() {
     //setSpriteTexture(0);
 }
 
+void McRFPy_API::api_init(const McRogueFaceConfig& config, int argc, char** argv) {
+    // Initialize Python with proper argv - this is CRITICAL
+    PyStatus status = init_python_with_config(config, argc, argv);
+    if (PyStatus_Exception(status)) {
+        Py_ExitStatusException(status);
+    }
+    
+    McRFPy_API::mcrf_module = PyImport_ImportModule("mcrfpy");
+    
+    // For -m module execution, let Python handle it
+    if (!config.python_module.empty() && config.python_module != "venv") {
+        // Py_RunMain() will handle -m execution
+        return;
+    }
+    
+    // Execute based on mode - this is handled in main.cpp now
+    // The actual execution logic is in run_python_interpreter()
+    
+    // Set up default resources only if in game mode
+    if (!config.python_mode) {
+        //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
+        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
+        //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
+        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
+    }
+}
+
 void McRFPy_API::executeScript(std::string filename)
 {
     FILE* PScriptFile = fopen(filename.c_str(), "r");
     if(PScriptFile) {
+        std::cout << "Before PyRun_SimpleFile" << std::endl;
         PyRun_SimpleFile(PScriptFile, filename.c_str());
+        std::cout << "After PyRun_SimpleFile" << std::endl;
         fclose(PScriptFile);
     }
 }
@@ -230,63 +343,7 @@ void McRFPy_API::REPL_device(FILE * fp, const char *filename)
 }
 
 // python connection
-PyObject* McRFPy_API::_registerPyAction(PyObject *self, PyObject *args)
-{
-    PyObject* callable;
-    const char * actionstr;
-    if (!PyArg_ParseTuple(args, "sO", &actionstr, &callable)) return NULL;
-    //TODO: if the string already exists in the callbacks map, 
-    //  decrease our reference count so it can potentially be garbage collected
-    callbacks[std::string(actionstr)] = callable;
-    Py_INCREF(callable);
 
-    // return None correctly
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-PyObject* McRFPy_API::_registerInputAction(PyObject *self, PyObject *args)
-{
-    int action_code;
-    const char * actionstr;
-    if (!PyArg_ParseTuple(args, "iz", &action_code, &actionstr)) return NULL;
-    
-    bool success;
-    
-    if (actionstr == NULL) { // Action provided is None, i.e. unregister
-        std::cout << "Unregistering\n";
-        success = game->currentScene()->unregisterActionInjected(action_code, std::string(actionstr) + "_py");
-    } else {
-        std::cout << "Registering " << actionstr << "_py to " << action_code << "\n";
-        success = game->currentScene()->registerActionInjected(action_code, std::string(actionstr) + "_py");
-    }
-    
-    success ? Py_INCREF(Py_True) : Py_INCREF(Py_False);
-    return success ? Py_True : Py_False;
-    
-}
-
-void McRFPy_API::doAction(std::string actionstr) {
-    // hard coded actions that require no registration
-    //std::cout << "Calling Python Action: " << actionstr;
-    if (!actionstr.compare("startrepl")) return McRFPy_API::REPL();
-    if (callbacks.find(actionstr) == callbacks.end()) 
-    {
-        //std::cout << " (not found)" << std::endl;
-        return;
-    }
-    //std::cout << " (" << PyUnicode_AsUTF8(PyObject_Repr(callbacks[actionstr])) << ")" << std::endl;
-    PyObject* retval = PyObject_Call(callbacks[actionstr], PyTuple_New(0), NULL);
-    if (!retval)
-    {
-        std::cout << "doAction has raised an exception. It's going to STDERR and being dropped:" << std::endl;
-        PyErr_Print();
-        PyErr_Clear();
-    } else if (retval != Py_None)
-    {
-        std::cout << "doAction returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
-    }
-}
 
 /*
 PyObject* McRFPy_API::_refreshFov(PyObject* self, PyObject* args) {
@@ -359,73 +416,10 @@ PyObject* McRFPy_API::_getSoundVolume(PyObject* self, PyObject* args) {
 	return Py_BuildValue("f", McRFPy_API::sfx.getVolume());
 }
 
+// Removed deprecated player_input, computerTurn, playerTurn functions
+// These were part of the old turn-based system that is no longer used
+
 /*
-void McRFPy_API::player_input(int dx, int dy) {
-	//std::cout << "# entities tagged 'player': " << McRFPy_API::entities.getEntities("player").size() << std::endl;
-	auto player_entity = McRFPy_API::entities.getEntities("player")[0];
-	auto grid = player_entity->cGrid->grid;
-	//std::cout << "Grid pointed to: " << (long)player_entity->cGrid->grid << std::endl;
-	if (McRFPy_API::input_mode.compare("playerturn") != 0) {
-		// no input accepted while computer moving
-		//std::cout << "Can't move while it's not player's turn." << std::endl;
-		return;
-	}
-	// TODO: selection cursor via keyboard
-	// else if (!input_mode.compare("selectpoint") {}
-	// else if (!input_mode.compare("selectentity") {}
-	
-	// grid bounds check
-	if (player_entity->cGrid->x + dx < 0 ||
-	    player_entity->cGrid->y + dy < 0 ||
-	    player_entity->cGrid->x + dx > grid->grid_x - 1 ||
-	    player_entity->cGrid->y + dy > grid->grid_y - 1) {
-	    //std::cout << "(" << player_entity->cGrid->x << ", " << player_entity->cGrid->y <<
-	    //  ") + (" << dx << ", " << dy << ") is OOB." << std::endl;
-	    return;
-	}
-	//std::cout << PyUnicode_AsUTF8(PyObject_Repr(player_entity->cBehavior->object)) << std::endl;
-	PyObject* move_fn = PyObject_GetAttrString(player_entity->cBehavior->object, "move");
-	//std::cout << PyUnicode_AsUTF8(PyObject_Repr(move_fn)) << std::endl;
-	if (move_fn) {
-		//std::cout << "Calling `move`" << std::endl;
-		PyObject* move_args = Py_BuildValue("(ii)", dx, dy);
-		PyObject_CallObject((PyObject*) move_fn, move_args);
-	} else {
-		//std::cout << "player_input called on entity with no `move` method" << std::endl;
-	}
-}
-
-
-void McRFPy_API::computerTurn() {
-	McRFPy_API::input_mode = "computerturnrunning";
-	for (auto e : McRFPy_API::grids[McRFPy_API::active_grid]->entities) {
-		if (e->cBehavior) {
-			PyObject_Call(PyObject_GetAttrString(e->cBehavior->object, "ai_act"), PyTuple_New(0), NULL);
-		}
-	}
-}
-
-void McRFPy_API::playerTurn() {
-	McRFPy_API::input_mode = "playerturn";
-	for (auto e : McRFPy_API::entities.getEntities("player")) {
-		if (e->cBehavior) {
-			PyObject_Call(PyObject_GetAttrString(e->cBehavior->object, "player_act"), PyTuple_New(0), NULL);
-		}
-	}
-}
-
-void McRFPy_API::camFollow() {
-	if (!McRFPy_API::do_camfollow) return;
-	auto& ag = McRFPy_API::grids[McRFPy_API::active_grid];
-	for (auto e : McRFPy_API::entities.getEntities("player")) {
-		//std::cout << "grid center: " << ag->center_x << ", " << ag->center_y << std::endl <<
-		//             "player grid pos: " << e->cGrid->x << ", " << e->cGrid->y << std::endl <<
-		//             "player sprite pos: " << e->cGrid->indexsprite.x << ", " << e->cGrid->indexsprite.y << std::endl;
-		ag->center_x = e->cGrid->indexsprite.x * ag->grid_size + ag->grid_size * 0.5;
-		ag->center_y = e->cGrid->indexsprite.y * ag->grid_size + ag->grid_size * 0.5;
-	}
-}
-
 PyObject* McRFPy_API::_camFollow(PyObject* self, PyObject* args) {
 	PyObject* set_camfollow = NULL;
 	//std::cout << "camFollow Parse Args" << std::endl;
@@ -489,6 +483,13 @@ PyObject* McRFPy_API::_createScene(PyObject* self, PyObject* args) {
 PyObject* McRFPy_API::_keypressScene(PyObject* self, PyObject* args) {
     PyObject* callable;
 	if (!PyArg_ParseTuple(args, "O", &callable)) return NULL;
+    
+    // Validate that the argument is callable
+    if (!PyCallable_Check(callable)) {
+        PyErr_SetString(PyExc_TypeError, "keypressScene() argument must be callable");
+        return NULL;
+    }
+    
     /*
     if (game->currentScene()->key_callable != NULL and game->currentScene()->key_callable != Py_None)
     {
@@ -499,6 +500,7 @@ PyObject* McRFPy_API::_keypressScene(PyObject* self, PyObject* args) {
     Py_INCREF(Py_None);
     */
     game->currentScene()->key_callable = std::make_unique<PyKeyCallable>(callable);
+    Py_INCREF(Py_None);
     return Py_None;		
 }
 
@@ -537,4 +539,16 @@ PyObject* McRFPy_API::_setScale(PyObject* self, PyObject* args) {
     game->setWindowScale(multiplier);
     Py_INCREF(Py_None);
     return Py_None;
+}
+
+void McRFPy_API::markSceneNeedsSort() {
+    // Mark the current scene as needing a z_index sort
+    auto scene = game->currentScene();
+    if (scene && scene->ui_elements) {
+        // Cast to PyScene to access ui_elements_need_sort
+        PyScene* pyscene = dynamic_cast<PyScene*>(scene);
+        if (pyscene) {
+            pyscene->ui_elements_need_sort = true;
+        }
+    }
 }

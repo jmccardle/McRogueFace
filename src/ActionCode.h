@@ -11,10 +11,10 @@ public:
     const static int WHEEL_NUM = 4;
     const static int WHEEL_NEG = 2;
     const static int WHEEL_DEL = 1;
-    static int keycode(sf::Keyboard::Key& k) { return KEY + (int)k; }
-    static int keycode(sf::Mouse::Button& b) { return MOUSEBUTTON + (int)b; }
+    static int keycode(const sf::Keyboard::Key& k) { return KEY + (int)k; }
+    static int keycode(const sf::Mouse::Button& b) { return MOUSEBUTTON + (int)b; }
     //static int keycode(sf::Mouse::Wheel& w, float d) { return MOUSEWHEEL + (((int)w)<<12) + int(d*16) + 512; }
-    static int keycode(sf::Mouse::Wheel& w, float d) {
+    static int keycode(const sf::Mouse::Wheel& w, float d) {
         int neg = 0;
         if (d < 0) { neg = 1; }
         return MOUSEWHEEL + (w * WHEEL_NUM) + (neg * WHEEL_NEG) + 1;
@@ -32,7 +32,7 @@ public:
         return (a & WHEEL_DEL) * factor;
     }
 
-    static std::string key_str(sf::Keyboard::Key& keycode)
+    static std::string key_str(const sf::Keyboard::Key& keycode)
     {
         switch(keycode)
         {

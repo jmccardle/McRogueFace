@@ -28,6 +28,7 @@ public:
     sf::RectangleShape box;
     float outline;
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
+    bool children_need_sort = true;  // Dirty flag for z_index sorting optimization
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     void move(sf::Vector2f);
     PyObjectsEnum derived_type() override final;
@@ -42,6 +43,15 @@ public:
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIFrameObject* self);
     static int init(PyUIFrameObject* self, PyObject* args, PyObject* kwds);
+    
+    // Animation property system
+    bool setProperty(const std::string& name, float value) override;
+    bool setProperty(const std::string& name, const sf::Color& value) override;
+    bool setProperty(const std::string& name, const sf::Vector2f& value) override;
+    
+    bool getProperty(const std::string& name, float& value) const override;
+    bool getProperty(const std::string& name, sf::Color& value) const override;
+    bool getProperty(const std::string& name, sf::Vector2f& value) const override;
 };
 
 namespace mcrfpydef {

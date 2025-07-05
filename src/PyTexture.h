@@ -19,6 +19,7 @@ public:
     int sprite_width, sprite_height; // just use them read only, OK?
     PyTexture(std::string filename, int sprite_w, int sprite_h);
     sf::Sprite sprite(int index, sf::Vector2f pos = sf::Vector2f(0, 0), sf::Vector2f s = sf::Vector2f(1.0, 1.0));
+    int getSpriteCount() const { return sheet_width * sheet_height; }
 
     PyObject* pyObject();
     static PyObject* repr(PyObject*);

@@ -156,8 +156,8 @@ void UITestScene::doAction(std::string name, std::string type)
 
 void UITestScene::render()
 {
-    game->getWindow().clear();
-    game->getWindow().draw(text);
+    game->getRenderTarget().clear();
+    game->getRenderTarget().draw(text);
     
     // draw all UI elements
     //for (auto e: ui_elements)
@@ -175,7 +175,7 @@ void UITestScene::render()
     
     //e1.render(sf::Vector2f(-100, -100));
     
-    game->getWindow().display();
+    // Display is handled by GameEngine
     
     //McRFPy_API::REPL();
 }

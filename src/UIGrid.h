@@ -21,6 +21,9 @@ class UIGrid: public UIDrawable
 {
 private:
     std::shared_ptr<PyTexture> ptex;
+    // Default cell dimensions when no texture is provided
+    static constexpr int DEFAULT_CELL_WIDTH = 16;
+    static constexpr int DEFAULT_CELL_HEIGHT = 16;
 public:
     UIGrid();
     //UIGrid(int, int, IndexTexture*, float, float, float, float);
@@ -42,9 +45,17 @@ public:
     sf::RenderTexture renderTexture;
     std::vector<UIGridPoint> points;
     std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> entities;
+    
+    // Property system for animations
+    bool setProperty(const std::string& name, float value) override;
+    bool setProperty(const std::string& name, const sf::Vector2f& value) override;
+    bool getProperty(const std::string& name, float& value) const override;
+    bool getProperty(const std::string& name, sf::Vector2f& value) const override;
 
     static int init(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* get_grid_size(PyUIGridObject* self, void* closure);
+    static PyObject* get_grid_x(PyUIGridObject* self, void* closure);
+    static PyObject* get_grid_y(PyUIGridObject* self, void* closure);
     static PyObject* get_position(PyUIGridObject* self, void* closure);
     static int set_position(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_size(PyUIGridObject* self, void* closure);
@@ -71,14 +82,24 @@ typedef struct {
 class UIEntityCollection {
 public:
     static PySequenceMethods sqmethods;
+    static PyMappingMethods mpmethods;
     static PyObject* append(PyUIEntityCollectionObject* self, PyObject* o);
+    static PyObject* extend(PyUIEntityCollectionObject* self, PyObject* o);
     static PyObject* remove(PyUIEntityCollectionObject* self, PyObject* o);
+    static PyObject* index_method(PyUIEntityCollectionObject* self, PyObject* value);
+    static PyObject* count(PyUIEntityCollectionObject* self, PyObject* value);
     static PyMethodDef methods[];
     static PyObject* repr(PyUIEntityCollectionObject* self);
     static int init(PyUIEntityCollectionObject* self, PyObject* args, PyObject* kwds);
     static PyObject* iter(PyUIEntityCollectionObject* self);
     static Py_ssize_t len(PyUIEntityCollectionObject* self);
     static PyObject* getitem(PyUIEntityCollectionObject* self, Py_ssize_t index);
+    static int setitem(PyUIEntityCollectionObject* self, Py_ssize_t index, PyObject* value);
+    static int contains(PyUIEntityCollectionObject* self, PyObject* value);
+    static PyObject* concat(PyUIEntityCollectionObject* self, PyObject* other);
+    static PyObject* inplace_concat(PyUIEntityCollectionObject* self, PyObject* other);
+    static PyObject* subscript(PyUIEntityCollectionObject* self, PyObject* key);
+    static int ass_subscript(PyUIEntityCollectionObject* self, PyObject* key, PyObject* value);
 };
 
 typedef struct {
@@ -168,6 +189,7 @@ namespace mcrfpydef {
         },
         .tp_repr = (reprfunc)UIEntityCollection::repr,
         .tp_as_sequence = &UIEntityCollection::sqmethods,
+        .tp_as_mapping = &UIEntityCollection::mpmethods,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("Iterable, indexable collection of Entities"),
         .tp_iter = (getiterfunc)UIEntityCollection::iter,

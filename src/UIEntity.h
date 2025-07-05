@@ -46,7 +46,13 @@ public:
     UIEntity();
     UIEntity(UIGrid&);
     
+    // Property system for animations
+    bool setProperty(const std::string& name, float value);
+    bool setProperty(const std::string& name, int value);
+    bool getProperty(const std::string& name, float& value) const;
+    
     static PyObject* at(PyUIEntityObject* self, PyObject* o);
+    static PyObject* index(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
     static int init(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
 
     static PyObject* get_position(PyUIEntityObject* self, void* closure);

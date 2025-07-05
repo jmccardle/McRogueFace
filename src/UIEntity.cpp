@@ -2,6 +2,8 @@
 #include "UIGrid.h"
 #include "McRFPy_API.h"
 #include "PyObjectUtils.h"
+#include "PyVector.h"
+
 
 UIEntity::UIEntity() {} // this will not work lol. TODO remove default constructor by finding the shared pointer inits that use it
 
@@ -34,6 +36,33 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* o) {
 
 }
 
+PyObject* UIEntity::index(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored)) {
+    // Check if entity has an associated grid
+    if (!self->data || !self->data->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "Entity is not associated with a grid");
+        return NULL;
+    }
+    
+    // Get the grid's entity collection
+    auto entities = self->data->grid->entities;
+    if (!entities) {
+        PyErr_SetString(PyExc_RuntimeError, "Grid has no entity collection");
+        return NULL;
+    }
+    
+    // Find this entity in the collection
+    int index = 0;
+    for (auto it = entities->begin(); it != entities->end(); ++it, ++index) {
+        if (it->get() == self->data.get()) {
+            return PyLong_FromLong(index);
+        }
+    }
+    
+    // Entity not found in its grid's collection
+    PyErr_SetString(PyExc_ValueError, "Entity not found in its grid's entity collection");
+    return NULL;
+}
+
 int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     //static const char* keywords[] = { "x", "y", "texture", "sprite_index", "grid", nullptr };
     //float x = 0.0f, y = 0.0f, scale = 1.0f;
@@ -46,7 +75,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
     //if (!PyArg_ParseTupleAndKeywords(args, kwds, "ffOi|O",
     //    const_cast<char**>(keywords), &x, &y, &texture, &sprite_index, &grid))
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOi|O",
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OiO",
         const_cast<char**>(keywords), &pos, &texture, &sprite_index, &grid))
     {
         return -1;
@@ -61,33 +90,37 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
     // check types for texture
     //
-    // Set Texture
+    // Set Texture - allow None or use default
     //
-    if (texture != NULL && !PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))){
-        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
+    std::shared_ptr<PyTexture> texture_ptr = nullptr;
+    if (texture != NULL && texture != Py_None && !PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))){
+        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
         return -1;
-    } /*else if (texture != NULL) // this section needs to go; texture isn't optional and isn't managed by the UI objects anymore
-    {
-        self->texture = texture;
-        Py_INCREF(texture);
-    } else
-    {
-        // default tex?
-    }*/
+    } else if (texture != NULL && texture != Py_None) {
+        auto pytexture = (PyTextureObject*)texture;
+        texture_ptr = pytexture->data;
+    } else {
+        // Use default texture when None or not provided
+        texture_ptr = McRFPy_API::default_texture;
+    }
+    
+    if (!texture_ptr) {
+        PyErr_SetString(PyExc_RuntimeError, "No texture provided and no default texture available");
+        return -1;
+    }
 
     if (grid != NULL && !PyObject_IsInstance(grid, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
 
-    auto pytexture = (PyTextureObject*)texture;
     if (grid == NULL)
         self->data = std::make_shared<UIEntity>();
     else
         self->data = std::make_shared<UIEntity>(*((PyUIGridObject*)grid)->data);
 
     // TODO - PyTextureObjects and IndexTextures are a little bit of a mess with shared/unshared pointers
-    self->data->sprite = UISprite(pytexture->data, sprite_index, sf::Vector2f(0,0), 1.0);
+    self->data->sprite = UISprite(texture_ptr, sprite_index, sf::Vector2f(0,0), 1.0);
     self->data->position = pos_result->data;
     if (grid != NULL) {
         PyUIGridObject* pygrid = (PyUIGridObject*)grid;
@@ -104,28 +137,40 @@ PyObject* UIEntity::get_spritenumber(PyUIEntityObject* self, void* closure) {
     return PyLong_FromDouble(self->data->sprite.getSpriteIndex());
 }
 
-PyObject* sfVector2f_to_PyObject(sf::Vector2f vector) {
-    return Py_BuildValue("(ff)", vector.x, vector.y);
+PyObject* sfVector2f_to_PyObject(sf::Vector2f vec) {
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
+    if (obj) {
+        obj->data = vec;
+    }
+    return (PyObject*)obj;
 }
 
-PyObject* sfVector2i_to_PyObject(sf::Vector2i vector) {
-    return Py_BuildValue("(ii)", vector.x, vector.y);
+PyObject* sfVector2i_to_PyObject(sf::Vector2i vec) {
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
+    if (obj) {
+        obj->data = sf::Vector2f(static_cast<float>(vec.x), static_cast<float>(vec.y));
+    }
+    return (PyObject*)obj;
 }
 
 sf::Vector2f PyObject_to_sfVector2f(PyObject* obj) {
-    float x, y;
-    if (!PyArg_ParseTuple(obj, "ff", &x, &y)) {
-        return sf::Vector2f(); // TODO / reconsider this default: Return default vector on parse error
+    PyVectorObject* vec = PyVector::from_arg(obj);
+    if (!vec) {
+        // PyVector::from_arg already set the error
+        return sf::Vector2f(0, 0);
     }
-    return sf::Vector2f(x, y);
+    return vec->data;
 }
 
 sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
-    int x, y;
-    if (!PyArg_ParseTuple(obj, "ii", &x, &y)) {
-        return sf::Vector2i(); // TODO / reconsider this default: Return default vector on parse error
+    PyVectorObject* vec = PyVector::from_arg(obj);
+    if (!vec) {
+        // PyVector::from_arg already set the error
+        return sf::Vector2i(0, 0);
     }
-    return sf::Vector2i(x, y);
+    return sf::Vector2i(static_cast<int>(vec->data.x), static_cast<int>(vec->data.y));
 }
 
 // TODO - deprecate / remove this helper
@@ -161,9 +206,17 @@ PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
 
 int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closure) {
     if (reinterpret_cast<long>(closure) == 0) {
-        self->data->position = PyObject_to_sfVector2f(value);
+        sf::Vector2f vec = PyObject_to_sfVector2f(value);
+        if (PyErr_Occurred()) {
+            return -1;  // Error already set by PyObject_to_sfVector2f
+        }
+        self->data->position = vec;
     } else {
-        self->data->collision_pos = PyObject_to_sfVector2i(value);
+        sf::Vector2i vec = PyObject_to_sfVector2i(value);
+        if (PyErr_Occurred()) {
+            return -1;  // Error already set by PyObject_to_sfVector2i
+        }
+        self->data->collision_pos = vec;
     }
     return 0;
 }
@@ -189,6 +242,7 @@ int UIEntity::set_spritenumber(PyUIEntityObject* self, PyObject* value, void* cl
 
 PyMethodDef UIEntity::methods[] = {
     {"at", (PyCFunction)UIEntity::at, METH_O},
+    {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -210,4 +264,52 @@ PyObject* UIEntity::repr(PyUIEntityObject* self) {
     }
     std::string repr_str = ss.str();
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+}
+
+// Property system implementation for animations
+bool UIEntity::setProperty(const std::string& name, float value) {
+    if (name == "x") {
+        position.x = value;
+        collision_pos.x = static_cast<int>(value);
+        // Update sprite position based on grid position
+        // Note: This is a simplified version - actual grid-to-pixel conversion depends on grid properties
+        sprite.setPosition(sf::Vector2f(position.x, position.y));
+        return true;
+    }
+    else if (name == "y") {
+        position.y = value;
+        collision_pos.y = static_cast<int>(value);
+        // Update sprite position based on grid position
+        sprite.setPosition(sf::Vector2f(position.x, position.y));
+        return true;
+    }
+    else if (name == "sprite_scale") {
+        sprite.setScale(sf::Vector2f(value, value));
+        return true;
+    }
+    return false;
+}
+
+bool UIEntity::setProperty(const std::string& name, int value) {
+    if (name == "sprite_number") {
+        sprite.setSpriteIndex(value);
+        return true;
+    }
+    return false;
+}
+
+bool UIEntity::getProperty(const std::string& name, float& value) const {
+    if (name == "x") {
+        value = position.x;
+        return true;
+    }
+    else if (name == "y") {
+        value = position.y;
+        return true;
+    }
+    else if (name == "sprite_scale") {
+        value = sprite.getScale().x;  // Assuming uniform scale
+        return true;
+    }
+    return false;
 }

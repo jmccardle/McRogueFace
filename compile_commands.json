@@ -1,0 +1,112 @@
+[
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/GameEngine.cpp.o -c /home/john/Development/McRogueFace/src/GameEngine.cpp",
+  "file": "/home/john/Development/McRogueFace/src/GameEngine.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/IndexTexture.cpp.o -c /home/john/Development/McRogueFace/src/IndexTexture.cpp",
+  "file": "/home/john/Development/McRogueFace/src/IndexTexture.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/McRFPy_API.cpp.o -c /home/john/Development/McRogueFace/src/McRFPy_API.cpp",
+  "file": "/home/john/Development/McRogueFace/src/McRFPy_API.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/PyCallable.cpp.o -c /home/john/Development/McRogueFace/src/PyCallable.cpp",
+  "file": "/home/john/Development/McRogueFace/src/PyCallable.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/PyColor.cpp.o -c /home/john/Development/McRogueFace/src/PyColor.cpp",
+  "file": "/home/john/Development/McRogueFace/src/PyColor.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/PyFont.cpp.o -c /home/john/Development/McRogueFace/src/PyFont.cpp",
+  "file": "/home/john/Development/McRogueFace/src/PyFont.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/PyScene.cpp.o -c /home/john/Development/McRogueFace/src/PyScene.cpp",
+  "file": "/home/john/Development/McRogueFace/src/PyScene.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/PyTexture.cpp.o -c /home/john/Development/McRogueFace/src/PyTexture.cpp",
+  "file": "/home/john/Development/McRogueFace/src/PyTexture.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/PyVector.cpp.o -c /home/john/Development/McRogueFace/src/PyVector.cpp",
+  "file": "/home/john/Development/McRogueFace/src/PyVector.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/Resources.cpp.o -c /home/john/Development/McRogueFace/src/Resources.cpp",
+  "file": "/home/john/Development/McRogueFace/src/Resources.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/Scene.cpp.o -c /home/john/Development/McRogueFace/src/Scene.cpp",
+  "file": "/home/john/Development/McRogueFace/src/Scene.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/Timer.cpp.o -c /home/john/Development/McRogueFace/src/Timer.cpp",
+  "file": "/home/john/Development/McRogueFace/src/Timer.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UICaption.cpp.o -c /home/john/Development/McRogueFace/src/UICaption.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UICaption.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UICollection.cpp.o -c /home/john/Development/McRogueFace/src/UICollection.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UICollection.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UIDrawable.cpp.o -c /home/john/Development/McRogueFace/src/UIDrawable.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UIDrawable.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UIEntity.cpp.o -c /home/john/Development/McRogueFace/src/UIEntity.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UIEntity.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UIFrame.cpp.o -c /home/john/Development/McRogueFace/src/UIFrame.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UIFrame.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UIGrid.cpp.o -c /home/john/Development/McRogueFace/src/UIGrid.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UIGrid.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UIGridPoint.cpp.o -c /home/john/Development/McRogueFace/src/UIGridPoint.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UIGridPoint.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UISprite.cpp.o -c /home/john/Development/McRogueFace/src/UISprite.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UISprite.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/UITestScene.cpp.o -c /home/john/Development/McRogueFace/src/UITestScene.cpp",
+  "file": "/home/john/Development/McRogueFace/src/UITestScene.cpp"
+},
+{
+  "directory": "/home/john/Development/McRogueFace/build",
+  "command": "/usr/bin/c++  -I/home/john/Development/McRogueFace/deps -I/home/john/Development/McRogueFace/deps/libtcod -I/home/john/Development/McRogueFace/deps/cpython -I/home/john/Development/McRogueFace/deps/Python -I/home/john/Development/McRogueFace/deps/platform/linux -g -std=gnu++2a -o CMakeFiles/mcrogueface.dir/src/main.cpp.o -c /home/john/Development/McRogueFace/src/main.cpp",
+  "file": "/home/john/Development/McRogueFace/src/main.cpp"
+}
+]

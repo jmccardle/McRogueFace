@@ -33,7 +33,7 @@ public:
     void setPosition(sf::Vector2f);
     sf::Vector2f getPosition();
     void setScale(sf::Vector2f);
-    sf::Vector2f getScale();
+    sf::Vector2f getScale() const;
     void setSpriteIndex(int);
     int getSpriteIndex();
 
@@ -41,6 +41,12 @@ public:
     std::shared_ptr<PyTexture> getTexture();
 
     PyObjectsEnum derived_type() override final;
+    
+    // Property system for animations
+    bool setProperty(const std::string& name, float value) override;
+    bool setProperty(const std::string& name, int value) override;
+    bool getProperty(const std::string& name, float& value) const override;
+    bool getProperty(const std::string& name, int& value) const override;
 
 
     static PyObject* get_float_member(PyUISpriteObject* self, void* closure);

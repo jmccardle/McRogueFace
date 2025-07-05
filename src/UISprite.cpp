@@ -58,7 +58,7 @@ void UISprite::setSpriteIndex(int _sprite_index)
     sprite = ptex->sprite(sprite_index, sprite.getPosition(), sprite.getScale());
 }
 
-sf::Vector2f UISprite::getScale()
+sf::Vector2f UISprite::getScale() const
 {
     return sprite.getScale();
 }
@@ -151,6 +151,20 @@ int UISprite::set_int_member(PyUISpriteObject* self, PyObject* value, void* clos
         PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
         return -1;
     }
+    
+    // Validate sprite index is within texture bounds
+    auto texture = self->data->getTexture();
+    if (texture) {
+        int sprite_count = texture->getSpriteCount();
+        
+        if (val < 0 || val >= sprite_count) {
+            PyErr_Format(PyExc_ValueError, 
+                "Sprite index %d out of range. Texture has %d sprites (0-%d)", 
+                val, sprite_count, sprite_count - 1);
+            return -1;
+        }
+    }
+    
     self->data->setSpriteIndex(val);
     return 0;
 }
@@ -162,7 +176,23 @@ PyObject* UISprite::get_texture(PyUISpriteObject* self, void* closure)
 
 int UISprite::set_texture(PyUISpriteObject* self, PyObject* value, void* closure)
 {
-    return -1;
+    // Check if value is a Texture instance
+    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
+        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
+        return -1;
+    }
+    
+    // Get the texture from the Python object
+    auto pytexture = (PyTextureObject*)value;
+    if (!pytexture->data) {
+        PyErr_SetString(PyExc_ValueError, "Invalid texture object");
+        return -1;
+    }
+    
+    // Update the sprite's texture
+    self->data->setTexture(pytexture->data);
+    
+    return 0;
 }
 
 PyGetSetDef UISprite::getsetters[] = {
@@ -172,6 +202,7 @@ PyGetSetDef UISprite::getsetters[] = {
     {"sprite_number", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Which sprite on the texture is shown", NULL},
     {"texture", (getter)UISprite::get_texture, (setter)UISprite::set_texture,     "Texture object",                    NULL},
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UISPRITE},
+    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UISPRITE},
     {NULL}
 };
 
@@ -194,8 +225,8 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     //std::cout << "Init called\n";
     static const char* keywords[] = { "x", "y", "texture", "sprite_index", "scale", nullptr };
     float x = 0.0f, y = 0.0f, scale = 1.0f;
-    int sprite_index;
-    PyObject* texture;
+    int sprite_index = 0;
+    PyObject* texture = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffOif",
         const_cast<char**>(keywords), &x, &y, &texture, &sprite_index, &scale))
@@ -203,15 +234,107 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
 
-    // check types for texture
-    //if (texture != NULL && !PyObject_IsInstance(texture, (PyObject*)&PyTextureType)){
-    if (texture != NULL && !PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))){
-        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
+    // Handle texture - allow None or use default
+    std::shared_ptr<PyTexture> texture_ptr = nullptr;
+    if (texture != NULL && texture != Py_None && !PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))){
+        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
+        return -1;
+    } else if (texture != NULL && texture != Py_None) {
+        auto pytexture = (PyTextureObject*)texture;
+        texture_ptr = pytexture->data;
+    } else {
+        // Use default texture when None or not provided
+        texture_ptr = McRFPy_API::default_texture;
+    }
+    
+    if (!texture_ptr) {
+        PyErr_SetString(PyExc_RuntimeError, "No texture provided and no default texture available");
         return -1;
     }
-    auto pytexture = (PyTextureObject*)texture;
-    self->data = std::make_shared<UISprite>(pytexture->data, sprite_index, sf::Vector2f(x, y), scale);
+    
+    self->data = std::make_shared<UISprite>(texture_ptr, sprite_index, sf::Vector2f(x, y), scale);
     self->data->setPosition(sf::Vector2f(x, y));
 
     return 0;
+}
+
+// Property system implementation for animations
+bool UISprite::setProperty(const std::string& name, float value) {
+    if (name == "x") {
+        sprite.setPosition(sf::Vector2f(value, sprite.getPosition().y));
+        return true;
+    }
+    else if (name == "y") {
+        sprite.setPosition(sf::Vector2f(sprite.getPosition().x, value));
+        return true;
+    }
+    else if (name == "scale") {
+        sprite.setScale(sf::Vector2f(value, value));
+        return true;
+    }
+    else if (name == "scale_x") {
+        sprite.setScale(sf::Vector2f(value, sprite.getScale().y));
+        return true;
+    }
+    else if (name == "scale_y") {
+        sprite.setScale(sf::Vector2f(sprite.getScale().x, value));
+        return true;
+    }
+    else if (name == "z_index") {
+        z_index = static_cast<int>(value);
+        return true;
+    }
+    return false;
+}
+
+bool UISprite::setProperty(const std::string& name, int value) {
+    if (name == "sprite_number") {
+        setSpriteIndex(value);
+        return true;
+    }
+    else if (name == "z_index") {
+        z_index = value;
+        return true;
+    }
+    return false;
+}
+
+bool UISprite::getProperty(const std::string& name, float& value) const {
+    if (name == "x") {
+        value = sprite.getPosition().x;
+        return true;
+    }
+    else if (name == "y") {
+        value = sprite.getPosition().y;
+        return true;
+    }
+    else if (name == "scale") {
+        value = sprite.getScale().x;  // Assuming uniform scale
+        return true;
+    }
+    else if (name == "scale_x") {
+        value = sprite.getScale().x;
+        return true;
+    }
+    else if (name == "scale_y") {
+        value = sprite.getScale().y;
+        return true;
+    }
+    else if (name == "z_index") {
+        value = static_cast<float>(z_index);
+        return true;
+    }
+    return false;
+}
+
+bool UISprite::getProperty(const std::string& name, int& value) const {
+    if (name == "sprite_number") {
+        value = sprite_index;
+        return true;
+    }
+    else if (name == "z_index") {
+        value = z_index;
+        return true;
+    }
+    return false;
 }

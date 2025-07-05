@@ -5,6 +5,7 @@
 
 #include "PyFont.h"
 #include "PyTexture.h"
+#include "McRogueFaceConfig.h"
 
 class GameEngine; // forward declared (circular members)
 
@@ -27,6 +28,8 @@ public:
     //static void setSpriteTexture(int);
     inline static GameEngine* game;
     static void api_init();
+    static void api_init(const McRogueFaceConfig& config, int argc, char** argv);
+    static PyStatus init_python_with_config(const McRogueFaceConfig& config, int argc, char** argv);
     static void api_shutdown();
     // Python API functionality - use mcrfpy.* in scripts
     //static PyObject* _drawSprite(PyObject*, PyObject*);
@@ -37,9 +40,6 @@ public:
     static sf::Music music;
     static sf::Sound sfx;
     
-    static std::map<std::string, PyObject*> callbacks;
-    static PyObject* _registerPyAction(PyObject*, PyObject*);
-    static PyObject* _registerInputAction(PyObject*, PyObject*);
     
     static PyObject* _createSoundBuffer(PyObject*, PyObject*);
     static PyObject* _loadMusic(PyObject*, PyObject*);
@@ -66,12 +66,11 @@ public:
 
     // accept keyboard input from scene
     static sf::Vector2i cursor_position;
-    static void player_input(int, int);
-    static void computerTurn();
-    static void playerTurn();
     
-    static void doAction(std::string);
 
     static void executeScript(std::string);
     static void executePyString(std::string);
+    
+    // Helper to mark scenes as needing z_index resort
+    static void markSceneNeedsSort();
 };

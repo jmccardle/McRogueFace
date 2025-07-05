@@ -42,6 +42,27 @@ public:
 
     static PyObject* get_click(PyObject* self, void* closure);
     static int set_click(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_int(PyObject* self, void* closure);
+    static int set_int(PyObject* self, PyObject* value, void* closure);
+    
+    // Z-order for rendering (lower values rendered first, higher values on top)
+    int z_index = 0;
+    
+    // Notification for z_index changes
+    void notifyZIndexChanged();
+    
+    // Animation support
+    virtual bool setProperty(const std::string& name, float value) { return false; }
+    virtual bool setProperty(const std::string& name, int value) { return false; }
+    virtual bool setProperty(const std::string& name, const sf::Color& value) { return false; }
+    virtual bool setProperty(const std::string& name, const sf::Vector2f& value) { return false; }
+    virtual bool setProperty(const std::string& name, const std::string& value) { return false; }
+    
+    virtual bool getProperty(const std::string& name, float& value) const { return false; }
+    virtual bool getProperty(const std::string& name, int& value) const { return false; }
+    virtual bool getProperty(const std::string& name, sf::Color& value) const { return false; }
+    virtual bool getProperty(const std::string& name, sf::Vector2f& value) const { return false; }
+    virtual bool getProperty(const std::string& name, std::string& value) const { return false; }
 };
 
 typedef struct {

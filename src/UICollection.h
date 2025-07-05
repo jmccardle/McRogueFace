@@ -19,9 +19,18 @@ class UICollection
 public:
     static Py_ssize_t len(PyUICollectionObject* self);
 	static PyObject* getitem(PyUICollectionObject* self, Py_ssize_t index);
+	static int setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject* value);
+	static int contains(PyUICollectionObject* self, PyObject* value);
+	static PyObject* concat(PyUICollectionObject* self, PyObject* other);
+	static PyObject* inplace_concat(PyUICollectionObject* self, PyObject* other);
 	static PySequenceMethods sqmethods;
+	static PyMappingMethods mpmethods;
+	static PyObject* subscript(PyUICollectionObject* self, PyObject* key);
+	static int ass_subscript(PyUICollectionObject* self, PyObject* key, PyObject* value);
 	static PyObject* append(PyUICollectionObject* self, PyObject* o);
 	static PyObject* remove(PyUICollectionObject* self, PyObject* o);
+	static PyObject* index_method(PyUICollectionObject* self, PyObject* value);
+	static PyObject* count(PyUICollectionObject* self, PyObject* value);
 	static PyMethodDef methods[];
 	static PyObject* repr(PyUICollectionObject* self);
     static int init(PyUICollectionObject* self, PyObject* args, PyObject* kwds);
@@ -71,6 +80,7 @@ namespace mcrfpydef {
 		},
 		.tp_repr = (reprfunc)UICollection::repr,
 		.tp_as_sequence = &UICollection::sqmethods,
+		.tp_as_mapping = &UICollection::mpmethods,
 		.tp_flags = Py_TPFLAGS_DEFAULT,
 		.tp_doc = PyDoc_STR("Iterable, indexable collection of UI objects"),
         .tp_iter = (getiterfunc)UICollection::iter,

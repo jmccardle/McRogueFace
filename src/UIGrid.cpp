@@ -1,14 +1,21 @@
 #include "UIGrid.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
+#include <algorithm>
 
 UIGrid::UIGrid() {}
 
 UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _xy, sf::Vector2f _wh)
 : grid_x(gx), grid_y(gy),
-  zoom(1.0f), center_x((gx/2) * _ptex->sprite_width), center_y((gy/2) * _ptex->sprite_height),
+  zoom(1.0f), 
   ptex(_ptex), points(gx * gy)
 {
+    // Use texture dimensions if available, otherwise use defaults
+    int cell_width = _ptex ? _ptex->sprite_width : DEFAULT_CELL_WIDTH;
+    int cell_height = _ptex ? _ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    
+    center_x = (gx/2) * cell_width;
+    center_y = (gy/2) * cell_height;
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
 
     box.setSize(_wh);
@@ -18,7 +25,10 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
     // create renderTexture with maximum theoretical size; sprite can resize to show whatever amount needs to be rendered
     renderTexture.create(1920, 1080); // TODO - renderTexture should be window size; above 1080p this will cause rendering errors
     
-    sprite = ptex->sprite(0);
+    // Only initialize sprite if texture is available
+    if (ptex) {
+        sprite = ptex->sprite(0);
+    }
 
     output.setTextureRect(
          sf::IntRect(0, 0,
@@ -40,12 +50,17 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
          sf::IntRect(0, 0,
          box.getSize().x, box.getSize().y));
     renderTexture.clear(sf::Color(8, 8, 8, 255)); // TODO - UIGrid needs a "background color" field
+    
+    // Get cell dimensions - use texture if available, otherwise defaults
+    int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
+    int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    
     // sprites that are visible according to zoom, center_x, center_y, and box width
-    float center_x_sq = center_x / ptex->sprite_width;
-    float center_y_sq = center_y / ptex->sprite_height;
+    float center_x_sq = center_x / cell_width;
+    float center_y_sq = center_y / cell_height;
 
-    float width_sq = box.getSize().x / (ptex->sprite_width * zoom);
-    float height_sq = box.getSize().y / (ptex->sprite_height * zoom);
+    float width_sq = box.getSize().x / (cell_width * zoom);
+    float height_sq = box.getSize().y / (cell_height * zoom);
     float left_edge = center_x_sq - (width_sq / 2.0);
     float top_edge = center_y_sq - (height_sq / 2.0);
 
@@ -54,7 +69,7 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     //sprite.setScale(sf::Vector2f(zoom, zoom));
     sf::RectangleShape r; // for colors and overlays
-    r.setSize(sf::Vector2f(ptex->sprite_width * zoom, ptex->sprite_height * zoom));
+    r.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
     r.setOutlineThickness(0);
 
     int x_limit = left_edge + width_sq + 2;
@@ -74,8 +89,8 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
             y+=1)
         {
             auto pixel_pos = sf::Vector2f(
-                    (x*ptex->sprite_width - left_spritepixels) * zoom,
-                    (y*ptex->sprite_height - top_spritepixels) * zoom );
+                    (x*cell_width - left_spritepixels) * zoom,
+                    (y*cell_height - top_spritepixels) * zoom );
 
             auto gridpoint = at(std::floor(x), std::floor(y));
 
@@ -85,10 +100,10 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
             r.setFillColor(gridpoint.color);
             renderTexture.draw(r);
 
-            // tilesprite
+            // tilesprite - only draw if texture is available
             // if discovered but not visible, set opacity to 90%
             // if not discovered... just don't draw it?
-            if (gridpoint.tilesprite != -1) {
+            if (ptex && gridpoint.tilesprite != -1) {
                 sprite = ptex->sprite(gridpoint.tilesprite, pixel_pos, sf::Vector2f(zoom, zoom)); //setSprite(gridpoint.tilesprite);;
                 renderTexture.draw(sprite);
             }
@@ -104,8 +119,8 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
         //drawent.setScale(zoom, zoom);
         drawent.setScale(sf::Vector2f(zoom, zoom));
         auto pixel_pos = sf::Vector2f(
-            (e->position.x*ptex->sprite_width - left_spritepixels) * zoom,
-            (e->position.y*ptex->sprite_height - top_spritepixels) * zoom );
+            (e->position.x*cell_width - left_spritepixels) * zoom,
+            (e->position.y*cell_height - top_spritepixels) * zoom );
         //drawent.setPosition(pixel_pos);
         //renderTexture.draw(drawent);
         drawent.render(pixel_pos, renderTexture);
@@ -204,51 +219,105 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
 
 int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     int grid_x, grid_y;
-    PyObject* textureObj;
+    PyObject* textureObj = Py_None;
     //float box_x, box_y, box_w, box_h;
-    PyObject* pos, *size;
+    PyObject* pos = NULL;
+    PyObject* size = NULL;
 
     //if (!PyArg_ParseTuple(args, "iiOffff", &grid_x, &grid_y, &textureObj, &box_x, &box_y, &box_w, &box_h)) {
-    if (!PyArg_ParseTuple(args, "iiOOO", &grid_x, &grid_y, &textureObj, &pos, &size)) {
+    if (!PyArg_ParseTuple(args, "ii|OOO", &grid_x, &grid_y, &textureObj, &pos, &size)) {
         return -1; // If parsing fails, return an error
     }
 
-    PyVectorObject* pos_result = PyVector::from_arg(pos);
-    if (!pos_result)
-    {
-        PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
-        return -1;
+    // Default position and size if not provided
+    PyVectorObject* pos_result = NULL;
+    PyVectorObject* size_result = NULL;
+    
+    if (pos) {
+        pos_result = PyVector::from_arg(pos);
+        if (!pos_result)
+        {
+            PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
+            return -1;
+        }
+    } else {
+        // Default position (0, 0)
+        PyObject* vector_class = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+        if (vector_class) {
+            PyObject* pos_obj = PyObject_CallFunction(vector_class, "ff", 0.0f, 0.0f);
+            Py_DECREF(vector_class);
+            if (pos_obj) {
+                pos_result = (PyVectorObject*)pos_obj;
+            }
+        }
+        if (!pos_result) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to create default position vector");
+            return -1;
+        }
     }
 
-    PyVectorObject* size_result = PyVector::from_arg(size);
-    if (!size_result)
-    {
-        PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
-        return -1;
+    if (size) {
+        size_result = PyVector::from_arg(size);
+        if (!size_result)
+        {
+            PyErr_SetString(PyExc_TypeError, "size must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
+            return -1;
+        }
+    } else {
+        // Default size based on grid dimensions
+        float default_w = grid_x * 16.0f;  // Assuming 16 pixel tiles
+        float default_h = grid_y * 16.0f;
+        PyObject* vector_class = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+        if (vector_class) {
+            PyObject* size_obj = PyObject_CallFunction(vector_class, "ff", default_w, default_h);
+            Py_DECREF(vector_class);
+            if (size_obj) {
+                size_result = (PyVectorObject*)size_obj;
+            }
+        }
+        if (!size_result) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to create default size vector");
+            return -1;
+        }
     }
 
     // Convert PyObject texture to IndexTexture*
     // This requires the texture object to have been initialized similar to UISprite's texture handling
-
-    //if (!PyObject_IsInstance(textureObj, (PyObject*)&PyTextureType)) {
-    if (!PyObject_IsInstance(textureObj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
-        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
-        return -1;
-    }
-    PyTextureObject* pyTexture = reinterpret_cast<PyTextureObject*>(textureObj);
-    // TODO (7DRL day 2, item 4.) use shared_ptr / PyTextureObject on UIGrid
-    //IndexTexture* texture = pyTexture->data.get();
     
-    // Initialize UIGrid
+    std::shared_ptr<PyTexture> texture_ptr = nullptr;
+    
+    // Allow None for texture - use default texture in that case
+    if (textureObj != Py_None) {
+        //if (!PyObject_IsInstance(textureObj, (PyObject*)&PyTextureType)) {
+        if (!PyObject_IsInstance(textureObj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
+            PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
+            return -1;
+        }
+        PyTextureObject* pyTexture = reinterpret_cast<PyTextureObject*>(textureObj);
+        texture_ptr = pyTexture->data;
+    } else {
+        // Use default texture when None is provided
+        texture_ptr = McRFPy_API::default_texture;
+    }
+    
+    // Initialize UIGrid - texture_ptr will be nullptr if texture was None
     //self->data = new UIGrid(grid_x, grid_y, texture, sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
     //self->data = std::make_shared<UIGrid>(grid_x, grid_y, pyTexture->data, 
     //        sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
-    self->data = std::make_shared<UIGrid>(grid_x, grid_y, pyTexture->data, pos_result->data, size_result->data);
+    self->data = std::make_shared<UIGrid>(grid_x, grid_y, texture_ptr, pos_result->data, size_result->data);
     return 0; // Success
 }
 
 PyObject* UIGrid::get_grid_size(PyUIGridObject* self, void* closure) {
     return Py_BuildValue("(ii)", self->data->grid_x, self->data->grid_y);
+}
+
+PyObject* UIGrid::get_grid_x(PyUIGridObject* self, void* closure) {
+    return PyLong_FromLong(self->data->grid_x);
+}
+
+PyObject* UIGrid::get_grid_y(PyUIGridObject* self, void* closure) {
+    return PyLong_FromLong(self->data->grid_y);
 }
 
 PyObject* UIGrid::get_position(PyUIGridObject* self, void* closure) {
@@ -365,9 +434,16 @@ PyObject* UIGrid::get_texture(PyUIGridObject* self, void* closure) {
         //return self->data->getTexture()->pyObject();
         // PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPointState")
         //PyTextureObject* obj = (PyTextureObject*)((&PyTextureType)->tp_alloc(&PyTextureType, 0));
+        
+        // Return None if no texture
+        auto texture = self->data->getTexture();
+        if (!texture) {
+            Py_RETURN_NONE;
+        }
+        
         auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture");
         auto obj = (PyTextureObject*)type->tp_alloc(type, 0);
-        obj->data = self->data->getTexture();
+        obj->data = texture;
         return (PyObject*)obj;
 }
 
@@ -379,7 +455,7 @@ PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* o)
         return NULL;
     }
     if (x < 0 || x >= self->data->grid_x) {
-        PyErr_SetString(PyExc_ValueError, "x value out of range (0, Grid.grid_y)");
+        PyErr_SetString(PyExc_ValueError, "x value out of range (0, Grid.grid_x)");
         return NULL;
     }
     if (y < 0 || y >= self->data->grid_y) {
@@ -406,6 +482,8 @@ PyGetSetDef UIGrid::getsetters[] = {
 
     // TODO - refactor into get_vector_member with field identifier values `(void*)n`
     {"grid_size", (getter)UIGrid::get_grid_size, NULL, "Grid dimensions (grid_x, grid_y)", NULL},
+    {"grid_x", (getter)UIGrid::get_grid_x, NULL, "Grid x dimension", NULL},
+    {"grid_y", (getter)UIGrid::get_grid_y, NULL, "Grid y dimension", NULL},
     {"position", (getter)UIGrid::get_position, (setter)UIGrid::set_position, "Position of the grid (x, y)", NULL},
     {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size, "Size of the grid (width, height)", NULL},
     {"center", (getter)UIGrid::get_center, (setter)UIGrid::set_center, "Grid coordinate at the center of the Grid's view (pan)", NULL},
@@ -423,6 +501,7 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIGRID},
 
     {"texture", (getter)UIGrid::get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
+    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UIGRID},
     {NULL}  /* Sentinel */
 };
 
@@ -546,15 +625,196 @@ return NULL;
 
 }
 
+int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t index, PyObject* value) {
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+        return -1;
+    }
+    
+    // Handle negative indexing
+    while (index < 0) index += list->size();
+    
+    // Bounds check
+    if (index >= list->size()) {
+        PyErr_SetString(PyExc_IndexError, "EntityCollection assignment index out of range");
+        return -1;
+    }
+    
+    // Get iterator to the target position
+    auto it = list->begin();
+    std::advance(it, index);
+    
+    // Handle deletion
+    if (value == NULL) {
+        // Clear grid reference from the entity being removed
+        (*it)->grid = nullptr;
+        list->erase(it);
+        return 0;
+    }
+    
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+        PyErr_SetString(PyExc_TypeError, "EntityCollection can only contain Entity objects");
+        return -1;
+    }
+    
+    // Get the C++ object from the Python object
+    PyUIEntityObject* entity = (PyUIEntityObject*)value;
+    if (!entity->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
+        return -1;
+    }
+    
+    // Clear grid reference from the old entity
+    (*it)->grid = nullptr;
+    
+    // Replace the element and set grid reference
+    *it = entity->data;
+    entity->data->grid = self->grid;
+    
+    return 0;
+}
+
+int UIEntityCollection::contains(PyUIEntityCollectionObject* self, PyObject* value) {
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+        return -1;
+    }
+    
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+        // Not an Entity, so it can't be in the collection
+        return 0;
+    }
+    
+    // Get the C++ object from the Python object
+    PyUIEntityObject* entity = (PyUIEntityObject*)value;
+    if (!entity->data) {
+        return 0;
+    }
+    
+    // Search for the object by comparing C++ pointers
+    for (const auto& ent : *list) {
+        if (ent.get() == entity->data.get()) {
+            return 1;  // Found
+        }
+    }
+    
+    return 0;  // Not found
+}
+
+PyObject* UIEntityCollection::concat(PyUIEntityCollectionObject* self, PyObject* other) {
+    // Create a new Python list containing elements from both collections
+    if (!PySequence_Check(other)) {
+        PyErr_SetString(PyExc_TypeError, "can only concatenate sequence to EntityCollection");
+        return NULL;
+    }
+    
+    Py_ssize_t self_len = self->data->size();
+    Py_ssize_t other_len = PySequence_Length(other);
+    if (other_len == -1) {
+        return NULL;  // Error already set
+    }
+    
+    PyObject* result_list = PyList_New(self_len + other_len);
+    if (!result_list) {
+        return NULL;
+    }
+    
+    // Add all elements from self
+    Py_ssize_t idx = 0;
+    for (const auto& entity : *self->data) {
+        auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+        auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
+        if (obj) {
+            obj->data = entity;
+            PyList_SET_ITEM(result_list, idx, (PyObject*)obj);  // Steals reference
+        } else {
+            Py_DECREF(result_list);
+            Py_DECREF(type);
+            return NULL;
+        }
+        Py_DECREF(type);
+        idx++;
+    }
+    
+    // Add all elements from other
+    for (Py_ssize_t i = 0; i < other_len; i++) {
+        PyObject* item = PySequence_GetItem(other, i);
+        if (!item) {
+            Py_DECREF(result_list);
+            return NULL;
+        }
+        PyList_SET_ITEM(result_list, self_len + i, item);  // Steals reference
+    }
+    
+    return result_list;
+}
+
+PyObject* UIEntityCollection::inplace_concat(PyUIEntityCollectionObject* self, PyObject* other) {
+    if (!PySequence_Check(other)) {
+        PyErr_SetString(PyExc_TypeError, "can only concatenate sequence to EntityCollection");
+        return NULL;
+    }
+    
+    // First, validate ALL items in the sequence before modifying anything
+    Py_ssize_t other_len = PySequence_Length(other);
+    if (other_len == -1) {
+        return NULL;  // Error already set
+    }
+    
+    // Validate all items first
+    for (Py_ssize_t i = 0; i < other_len; i++) {
+        PyObject* item = PySequence_GetItem(other, i);
+        if (!item) {
+            return NULL;
+        }
+        
+        // Type check
+        if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+            Py_DECREF(item);
+            PyErr_Format(PyExc_TypeError, 
+                "EntityCollection can only contain Entity objects; "
+                "got %s at index %zd", Py_TYPE(item)->tp_name, i);
+            return NULL;
+        }
+        Py_DECREF(item);
+    }
+    
+    // All items validated, now we can safely add them
+    for (Py_ssize_t i = 0; i < other_len; i++) {
+        PyObject* item = PySequence_GetItem(other, i);
+        if (!item) {
+            return NULL;  // Shouldn't happen, but be safe
+        }
+        
+        // Use the existing append method which handles grid references
+        PyObject* result = append(self, item);
+        Py_DECREF(item);
+        
+        if (!result) {
+            return NULL;  // append() failed
+        }
+        Py_DECREF(result);  // append returns Py_None
+    }
+    
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
 PySequenceMethods UIEntityCollection::sqmethods = {
     .sq_length = (lenfunc)UIEntityCollection::len,
+    .sq_concat = (binaryfunc)UIEntityCollection::concat,
+    .sq_repeat = NULL,
     .sq_item = (ssizeargfunc)UIEntityCollection::getitem,
-    //.sq_item_by_index = UIEntityCollection::getitem
-    //.sq_slice - return a subset of the iterable
-    //.sq_ass_item - called when `o[x] = y` is executed (x is any object type)
-    //.sq_ass_slice - cool; no thanks, for now
-    //.sq_contains - called when `x in o` is executed
-    //.sq_ass_item_by_index - called when `o[x] = y` is executed (x is explictly an integer)
+    .was_sq_slice = NULL,
+    .sq_ass_item = (ssizeobjargproc)UIEntityCollection::setitem,
+    .was_sq_ass_slice = NULL,
+    .sq_contains = (objobjproc)UIEntityCollection::contains,
+    .sq_inplace_concat = (binaryfunc)UIEntityCollection::inplace_concat,
+    .sq_inplace_repeat = NULL
 };
 
 PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject* o)
@@ -581,31 +841,340 @@ PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject*
 {
     if (!PyLong_Check(o))
     {
-        PyErr_SetString(PyExc_TypeError, "UICollection.remove requires an integer index to remove");
+        PyErr_SetString(PyExc_TypeError, "EntityCollection.remove requires an integer index to remove");
         return NULL;
     }
     long index = PyLong_AsLong(o);
+    
+    // Handle negative indexing
+    while (index < 0) index += self->data->size();
+    
     if (index >= self->data->size())
     {
         PyErr_SetString(PyExc_ValueError, "Index out of range");
         return NULL;
     }
-    else if (index < 0)
-    {
-        PyErr_SetString(PyExc_NotImplementedError, "reverse indexing is not implemented.");
-        return NULL;
-    }
 
+    // Get iterator to the entity to remove
+    auto it = self->data->begin();
+    std::advance(it, index);
+    
+    // Clear grid reference before removing
+    (*it)->grid = nullptr;
+    
     // release the shared pointer at correct part of the list
-    self->data->erase(std::next(self->data->begin(), index));
+    self->data->erase(it);
     Py_INCREF(Py_None);
     return Py_None;
 }
 
+PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject* o)
+{
+    // Accept any iterable of Entity objects
+    PyObject* iterator = PyObject_GetIter(o);
+    if (iterator == NULL) {
+        PyErr_SetString(PyExc_TypeError, "UIEntityCollection.extend requires an iterable");
+        return NULL;
+    }
+    
+    PyObject* item;
+    while ((item = PyIter_Next(iterator)) != NULL) {
+        // Check if item is an Entity
+        if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+            Py_DECREF(item);
+            Py_DECREF(iterator);
+            PyErr_SetString(PyExc_TypeError, "All items in iterable must be Entity objects");
+            return NULL;
+        }
+        
+        // Add the entity to the collection
+        PyUIEntityObject* entity = (PyUIEntityObject*)item;
+        self->data->push_back(entity->data);
+        entity->data->grid = self->grid;
+        
+        Py_DECREF(item);
+    }
+    
+    Py_DECREF(iterator);
+    
+    // Check if iteration ended due to an error
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+    
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+PyObject* UIEntityCollection::index_method(PyUIEntityCollectionObject* self, PyObject* value) {
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+        return NULL;
+    }
+    
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+        PyErr_SetString(PyExc_TypeError, "EntityCollection.index requires an Entity object");
+        return NULL;
+    }
+    
+    // Get the C++ object from the Python object
+    PyUIEntityObject* entity = (PyUIEntityObject*)value;
+    if (!entity->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
+        return NULL;
+    }
+    
+    // Search for the object
+    Py_ssize_t idx = 0;
+    for (const auto& ent : *list) {
+        if (ent.get() == entity->data.get()) {
+            return PyLong_FromSsize_t(idx);
+        }
+        idx++;
+    }
+    
+    PyErr_SetString(PyExc_ValueError, "Entity not in EntityCollection");
+    return NULL;
+}
+
+PyObject* UIEntityCollection::count(PyUIEntityCollectionObject* self, PyObject* value) {
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
+        return NULL;
+    }
+    
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+        // Not an Entity, so count is 0
+        return PyLong_FromLong(0);
+    }
+    
+    // Get the C++ object from the Python object
+    PyUIEntityObject* entity = (PyUIEntityObject*)value;
+    if (!entity->data) {
+        return PyLong_FromLong(0);
+    }
+    
+    // Count occurrences
+    Py_ssize_t count = 0;
+    for (const auto& ent : *list) {
+        if (ent.get() == entity->data.get()) {
+            count++;
+        }
+    }
+    
+    return PyLong_FromSsize_t(count);
+}
+
+PyObject* UIEntityCollection::subscript(PyUIEntityCollectionObject* self, PyObject* key) {
+    if (PyLong_Check(key)) {
+        // Single index - delegate to sq_item
+        Py_ssize_t index = PyLong_AsSsize_t(key);
+        if (index == -1 && PyErr_Occurred()) {
+            return NULL;
+        }
+        return getitem(self, index);
+    } else if (PySlice_Check(key)) {
+        // Handle slice
+        Py_ssize_t start, stop, step, slicelength;
+        
+        if (PySlice_GetIndicesEx(key, self->data->size(), &start, &stop, &step, &slicelength) < 0) {
+            return NULL;
+        }
+        
+        PyObject* result_list = PyList_New(slicelength);
+        if (!result_list) {
+            return NULL;
+        }
+        
+        // Iterate through the list with slice parameters
+        auto it = self->data->begin();
+        for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
+            auto cur_it = it;
+            std::advance(cur_it, cur);
+            
+            auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+            auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
+            if (obj) {
+                obj->data = *cur_it;
+                PyList_SET_ITEM(result_list, i, (PyObject*)obj);  // Steals reference
+            } else {
+                Py_DECREF(result_list);
+                Py_DECREF(type);
+                return NULL;
+            }
+            Py_DECREF(type);
+        }
+        
+        return result_list;
+    } else {
+        PyErr_Format(PyExc_TypeError, "EntityCollection indices must be integers or slices, not %.200s",
+                     Py_TYPE(key)->tp_name);
+        return NULL;
+    }
+}
+
+int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject* key, PyObject* value) {
+    if (PyLong_Check(key)) {
+        // Single index - delegate to sq_ass_item
+        Py_ssize_t index = PyLong_AsSsize_t(key);
+        if (index == -1 && PyErr_Occurred()) {
+            return -1;
+        }
+        return setitem(self, index, value);
+    } else if (PySlice_Check(key)) {
+        // Handle slice assignment/deletion
+        Py_ssize_t start, stop, step, slicelength;
+        
+        if (PySlice_GetIndicesEx(key, self->data->size(), &start, &stop, &step, &slicelength) < 0) {
+            return -1;
+        }
+        
+        if (value == NULL) {
+            // Deletion
+            if (step != 1) {
+                // For non-contiguous slices, delete from highest to lowest to maintain indices
+                std::vector<Py_ssize_t> indices;
+                for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
+                    indices.push_back(cur);
+                }
+                // Sort in descending order
+                std::sort(indices.begin(), indices.end(), std::greater<Py_ssize_t>());
+                
+                // Delete each index
+                for (Py_ssize_t idx : indices) {
+                    auto it = self->data->begin();
+                    std::advance(it, idx);
+                    (*it)->grid = nullptr;  // Clear grid reference
+                    self->data->erase(it);
+                }
+            } else {
+                // Contiguous slice - delete range
+                auto it_start = self->data->begin();
+                auto it_stop = self->data->begin();
+                std::advance(it_start, start);
+                std::advance(it_stop, stop);
+                
+                // Clear grid references
+                for (auto it = it_start; it != it_stop; ++it) {
+                    (*it)->grid = nullptr;
+                }
+                
+                self->data->erase(it_start, it_stop);
+            }
+            return 0;
+        } else {
+            // Assignment
+            if (!PySequence_Check(value)) {
+                PyErr_SetString(PyExc_TypeError, "can only assign sequence to slice");
+                return -1;
+            }
+            
+            Py_ssize_t value_len = PySequence_Length(value);
+            if (value_len == -1) {
+                return -1;
+            }
+            
+            // Validate all items first
+            std::vector<std::shared_ptr<UIEntity>> new_items;
+            for (Py_ssize_t i = 0; i < value_len; i++) {
+                PyObject* item = PySequence_GetItem(value, i);
+                if (!item) {
+                    return -1;
+                }
+                
+                // Type check
+                if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+                    Py_DECREF(item);
+                    PyErr_Format(PyExc_TypeError, 
+                        "EntityCollection can only contain Entity objects; "
+                        "got %s at index %zd", Py_TYPE(item)->tp_name, i);
+                    return -1;
+                }
+                
+                PyUIEntityObject* entity = (PyUIEntityObject*)item;
+                Py_DECREF(item);
+                new_items.push_back(entity->data);
+            }
+            
+            // Now perform the assignment
+            if (step == 1) {
+                // Contiguous slice
+                if (slicelength != value_len) {
+                    // Need to resize - remove old items and insert new ones
+                    auto it_start = self->data->begin();
+                    auto it_stop = self->data->begin();
+                    std::advance(it_start, start);
+                    std::advance(it_stop, stop);
+                    
+                    // Clear grid references from old items
+                    for (auto it = it_start; it != it_stop; ++it) {
+                        (*it)->grid = nullptr;
+                    }
+                    
+                    // Erase old range
+                    it_start = self->data->erase(it_start, it_stop);
+                    
+                    // Insert new items
+                    for (const auto& entity : new_items) {
+                        entity->grid = self->grid;
+                        it_start = self->data->insert(it_start, entity);
+                        ++it_start;
+                    }
+                } else {
+                    // Same size, just replace
+                    auto it = self->data->begin();
+                    std::advance(it, start);
+                    for (const auto& entity : new_items) {
+                        (*it)->grid = nullptr;  // Clear old grid ref
+                        *it = entity;
+                        entity->grid = self->grid;  // Set new grid ref
+                        ++it;
+                    }
+                }
+            } else {
+                // Extended slice
+                if (slicelength != value_len) {
+                    PyErr_Format(PyExc_ValueError,
+                        "attempt to assign sequence of size %zd to extended slice of size %zd",
+                        value_len, slicelength);
+                    return -1;
+                }
+                
+                auto list_it = self->data->begin();
+                for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
+                    auto cur_it = list_it;
+                    std::advance(cur_it, cur);
+                    (*cur_it)->grid = nullptr;  // Clear old grid ref
+                    *cur_it = new_items[i];
+                    new_items[i]->grid = self->grid;  // Set new grid ref
+                }
+            }
+            
+            return 0;
+        }
+    } else {
+        PyErr_Format(PyExc_TypeError, "EntityCollection indices must be integers or slices, not %.200s",
+                     Py_TYPE(key)->tp_name);
+        return -1;
+    }
+}
+
+PyMappingMethods UIEntityCollection::mpmethods = {
+    .mp_length = (lenfunc)UIEntityCollection::len,
+    .mp_subscript = (binaryfunc)UIEntityCollection::subscript,
+    .mp_ass_subscript = (objobjargproc)UIEntityCollection::ass_subscript
+};
+
 PyMethodDef UIEntityCollection::methods[] = {
     {"append", (PyCFunction)UIEntityCollection::append, METH_O},
-    //{"extend", (PyCFunction)UIEntityCollection::extend, METH_O}, // TODO
+    {"extend", (PyCFunction)UIEntityCollection::extend, METH_O},
     {"remove", (PyCFunction)UIEntityCollection::remove, METH_O},
+    {"index", (PyCFunction)UIEntityCollection::index_method, METH_O},
+    {"count", (PyCFunction)UIEntityCollection::count, METH_O},
     {NULL, NULL, 0, NULL}
 };
 
@@ -649,4 +1218,116 @@ PyObject* UIEntityCollection::iter(PyUIEntityCollectionObject* self)
 
     Py_DECREF(iterType);
     return (PyObject*)iterObj;
+}
+
+// Property system implementation for animations
+bool UIGrid::setProperty(const std::string& name, float value) {
+    if (name == "x") {
+        box.setPosition(sf::Vector2f(value, box.getPosition().y));
+        output.setPosition(box.getPosition());
+        return true;
+    }
+    else if (name == "y") {
+        box.setPosition(sf::Vector2f(box.getPosition().x, value));
+        output.setPosition(box.getPosition());
+        return true;
+    }
+    else if (name == "w" || name == "width") {
+        box.setSize(sf::Vector2f(value, box.getSize().y));
+        output.setTextureRect(sf::IntRect(0, 0, box.getSize().x, box.getSize().y));
+        return true;
+    }
+    else if (name == "h" || name == "height") {
+        box.setSize(sf::Vector2f(box.getSize().x, value));
+        output.setTextureRect(sf::IntRect(0, 0, box.getSize().x, box.getSize().y));
+        return true;
+    }
+    else if (name == "center_x") {
+        center_x = value;
+        return true;
+    }
+    else if (name == "center_y") {
+        center_y = value;
+        return true;
+    }
+    else if (name == "zoom") {
+        zoom = value;
+        return true;
+    }
+    else if (name == "z_index") {
+        z_index = static_cast<int>(value);
+        return true;
+    }
+    return false;
+}
+
+bool UIGrid::setProperty(const std::string& name, const sf::Vector2f& value) {
+    if (name == "position") {
+        box.setPosition(value);
+        output.setPosition(box.getPosition());
+        return true;
+    }
+    else if (name == "size") {
+        box.setSize(value);
+        output.setTextureRect(sf::IntRect(0, 0, box.getSize().x, box.getSize().y));
+        return true;
+    }
+    else if (name == "center") {
+        center_x = value.x;
+        center_y = value.y;
+        return true;
+    }
+    return false;
+}
+
+bool UIGrid::getProperty(const std::string& name, float& value) const {
+    if (name == "x") {
+        value = box.getPosition().x;
+        return true;
+    }
+    else if (name == "y") {
+        value = box.getPosition().y;
+        return true;
+    }
+    else if (name == "w" || name == "width") {
+        value = box.getSize().x;
+        return true;
+    }
+    else if (name == "h" || name == "height") {
+        value = box.getSize().y;
+        return true;
+    }
+    else if (name == "center_x") {
+        value = center_x;
+        return true;
+    }
+    else if (name == "center_y") {
+        value = center_y;
+        return true;
+    }
+    else if (name == "zoom") {
+        value = zoom;
+        return true;
+    }
+    else if (name == "z_index") {
+        value = static_cast<float>(z_index);
+        return true;
+    }
+    return false;
+}
+
+bool UIGrid::getProperty(const std::string& name, sf::Vector2f& value) const {
+    if (name == "position") {
+        value = box.getPosition();
+        return true;
+    }
+    else if (name == "size") {
+        value = box.getSize();
+        return true;
+    }
+    else if (name == "center") {
+        value = sf::Vector2f(center_x, center_y);
+        return true;
+    }
+    return false;
 }

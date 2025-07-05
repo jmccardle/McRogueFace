@@ -10,6 +10,15 @@ public:
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     PyObjectsEnum derived_type() override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
+    
+    // Property system for animations
+    bool setProperty(const std::string& name, float value) override;
+    bool setProperty(const std::string& name, const sf::Color& value) override;
+    bool setProperty(const std::string& name, const std::string& value) override;
+    
+    bool getProperty(const std::string& name, float& value) const override;
+    bool getProperty(const std::string& name, sf::Color& value) const override;
+    bool getProperty(const std::string& name, std::string& value) const override;
 
     static PyObject* get_float_member(PyUICaptionObject* self, void* closure);
     static int set_float_member(PyUICaptionObject* self, PyObject* value, void* closure);

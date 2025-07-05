@@ -2,6 +2,7 @@
 #include "ActionCode.h"
 #include "Resources.h"
 #include "PyCallable.h"
+#include <algorithm>
 
 PyScene::PyScene(GameEngine* g) : Scene(g)
 {
@@ -21,6 +22,11 @@ void PyScene::update()
 
 void PyScene::do_mouse_input(std::string button, std::string type)
 {
+    // In headless mode, mouse input is not available
+    if (game->isHeadless()) {
+        return;
+    }
+    
     auto unscaledmousepos = sf::Mouse::getPosition(game->getWindow());
     auto mousepos = game->getWindow().mapPixelToCoords(unscaledmousepos);
     UIDrawable* target;
@@ -49,10 +55,7 @@ void PyScene::do_mouse_input(std::string button, std::string type)
 
 void PyScene::doAction(std::string name, std::string type)
 {
-    if (ACTIONPY) {
-        McRFPy_API::doAction(name.substr(0, name.size() - 3));
-    }
-    else if (name.compare("left") == 0 || name.compare("rclick") == 0 || name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0) {
+    if (name.compare("left") == 0 || name.compare("rclick") == 0 || name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0) {
         do_mouse_input(name, type);
     }
     else if ACTIONONCE("debug_menu") {
@@ -62,14 +65,23 @@ void PyScene::doAction(std::string name, std::string type)
 
 void PyScene::render()
 {
-    game->getWindow().clear();
+    game->getRenderTarget().clear();
     
-    auto vec = *ui_elements;
-    for (auto e: vec)
+    // Only sort if z_index values have changed
+    if (ui_elements_need_sort) {
+        std::sort(ui_elements->begin(), ui_elements->end(), 
+            [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
+                return a->z_index < b->z_index;
+            });
+        ui_elements_need_sort = false;
+    }
+    
+    // Render in sorted order (no need to copy anymore)
+    for (auto e: *ui_elements)
     {
         if (e)
             e->render();
     }
     
-    game->getWindow().display();
+    // Display is handled by GameEngine
 }

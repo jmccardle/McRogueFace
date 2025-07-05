@@ -3,6 +3,7 @@
 #include "PyColor.h"
 #include "PyVector.h"
 #include "PyFont.h"
+#include <algorithm>
 
 UIDrawable* UICaption::click_at(sf::Vector2f point)
 {
@@ -198,6 +199,7 @@ PyGetSetDef UICaption::getsetters[] = {
     {"text", (getter)UICaption::get_text, (setter)UICaption::set_text, "The text displayed", NULL},
     {"size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Text size (integer) in points", (void*)5},
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UICAPTION},
+    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UICAPTION},
     {NULL}
 };
 
@@ -234,7 +236,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 
     //if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOOf",
     //    const_cast<char**>(keywords), &x, &y, &text, &font, &fill_color, &outline_color, &outline))
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|zOOOf",
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oz|OOOf",
         const_cast<char**>(keywords), &pos, &text, &font, &fill_color, &outline_color, &outline))
     {
         return -1;
@@ -250,10 +252,10 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     // check types for font, fill_color, outline_color
 
     //std::cout << PyUnicode_AsUTF8(PyObject_Repr(font)) << std::endl;
-    if (font != NULL && !PyObject_IsInstance(font, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Font")/*(PyObject*)&PyFontType)*/)){
-        PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance");
+    if (font != NULL && font != Py_None && !PyObject_IsInstance(font, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Font")/*(PyObject*)&PyFontType)*/)){
+        PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance or None");
         return -1;
-    } else if (font != NULL)
+    } else if (font != NULL && font != Py_None)
     {
         auto font_obj = (PyFontObject*)font;
         self->data->text.setFont(font_obj->data->font);
@@ -261,8 +263,16 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         Py_INCREF(font);
     } else
     {
-        // default font
-        //self->data->text.setFont(Resources::game->getFont());
+        // Use default font when None or not provided
+        if (McRFPy_API::default_font) {
+            self->data->text.setFont(McRFPy_API::default_font->font);
+            // Store reference to default font
+            PyObject* default_font_obj = PyObject_GetAttrString(McRFPy_API::mcrf_module, "default_font");
+            if (default_font_obj) {
+                self->font = default_font_obj;
+                // Don't need to DECREF since we're storing it
+            }
+        }
     }
 
     self->data->text.setString((std::string)text);
@@ -292,5 +302,174 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     }
 
     return 0;
+}
+
+// Property system implementation for animations
+bool UICaption::setProperty(const std::string& name, float value) {
+    if (name == "x") {
+        text.setPosition(sf::Vector2f(value, text.getPosition().y));
+        return true;
+    }
+    else if (name == "y") {
+        text.setPosition(sf::Vector2f(text.getPosition().x, value));
+        return true;
+    }
+    else if (name == "size") {
+        text.setCharacterSize(static_cast<unsigned int>(value));
+        return true;
+    }
+    else if (name == "outline") {
+        text.setOutlineThickness(value);
+        return true;
+    }
+    else if (name == "fill_color.r") {
+        auto color = text.getFillColor();
+        color.r = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        text.setFillColor(color);
+        return true;
+    }
+    else if (name == "fill_color.g") {
+        auto color = text.getFillColor();
+        color.g = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        text.setFillColor(color);
+        return true;
+    }
+    else if (name == "fill_color.b") {
+        auto color = text.getFillColor();
+        color.b = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        text.setFillColor(color);
+        return true;
+    }
+    else if (name == "fill_color.a") {
+        auto color = text.getFillColor();
+        color.a = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        text.setFillColor(color);
+        return true;
+    }
+    else if (name == "outline_color.r") {
+        auto color = text.getOutlineColor();
+        color.r = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        text.setOutlineColor(color);
+        return true;
+    }
+    else if (name == "outline_color.g") {
+        auto color = text.getOutlineColor();
+        color.g = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        text.setOutlineColor(color);
+        return true;
+    }
+    else if (name == "outline_color.b") {
+        auto color = text.getOutlineColor();
+        color.b = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        text.setOutlineColor(color);
+        return true;
+    }
+    else if (name == "outline_color.a") {
+        auto color = text.getOutlineColor();
+        color.a = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        text.setOutlineColor(color);
+        return true;
+    }
+    else if (name == "z_index") {
+        z_index = static_cast<int>(value);
+        return true;
+    }
+    return false;
+}
+
+bool UICaption::setProperty(const std::string& name, const sf::Color& value) {
+    if (name == "fill_color") {
+        text.setFillColor(value);
+        return true;
+    }
+    else if (name == "outline_color") {
+        text.setOutlineColor(value);
+        return true;
+    }
+    return false;
+}
+
+bool UICaption::setProperty(const std::string& name, const std::string& value) {
+    if (name == "text") {
+        text.setString(value);
+        return true;
+    }
+    return false;
+}
+
+bool UICaption::getProperty(const std::string& name, float& value) const {
+    if (name == "x") {
+        value = text.getPosition().x;
+        return true;
+    }
+    else if (name == "y") {
+        value = text.getPosition().y;
+        return true;
+    }
+    else if (name == "size") {
+        value = static_cast<float>(text.getCharacterSize());
+        return true;
+    }
+    else if (name == "outline") {
+        value = text.getOutlineThickness();
+        return true;
+    }
+    else if (name == "fill_color.r") {
+        value = text.getFillColor().r;
+        return true;
+    }
+    else if (name == "fill_color.g") {
+        value = text.getFillColor().g;
+        return true;
+    }
+    else if (name == "fill_color.b") {
+        value = text.getFillColor().b;
+        return true;
+    }
+    else if (name == "fill_color.a") {
+        value = text.getFillColor().a;
+        return true;
+    }
+    else if (name == "outline_color.r") {
+        value = text.getOutlineColor().r;
+        return true;
+    }
+    else if (name == "outline_color.g") {
+        value = text.getOutlineColor().g;
+        return true;
+    }
+    else if (name == "outline_color.b") {
+        value = text.getOutlineColor().b;
+        return true;
+    }
+    else if (name == "outline_color.a") {
+        value = text.getOutlineColor().a;
+        return true;
+    }
+    else if (name == "z_index") {
+        value = static_cast<float>(z_index);
+        return true;
+    }
+    return false;
+}
+
+bool UICaption::getProperty(const std::string& name, sf::Color& value) const {
+    if (name == "fill_color") {
+        value = text.getFillColor();
+        return true;
+    }
+    else if (name == "outline_color") {
+        value = text.getOutlineColor();
+        return true;
+    }
+    return false;
+}
+
+bool UICaption::getProperty(const std::string& name, std::string& value) const {
+    if (name == "text") {
+        value = text.getString();
+        return true;
+    }
+    return false;
 }
 
