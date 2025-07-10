@@ -50,6 +50,13 @@ link_directories(${CMAKE_SOURCE_DIR}/__lib)
 # Define the executable target before linking libraries
 add_executable(mcrogueface ${SOURCES})
 
+# On Windows, set subsystem to WINDOWS to hide console
+if(WIN32)
+    set_target_properties(mcrogueface PROPERTIES
+        WIN32_EXECUTABLE TRUE
+        LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+endif()
+
 # Now the linker will find the libraries in the specified directory
 target_link_libraries(mcrogueface ${LINK_LIBS})
 
@@ -68,7 +75,26 @@ add_custom_command(TARGET mcrogueface POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
 
-# rpath for including shared libraries
-set_target_properties(mcrogueface PROPERTIES
-                      INSTALL_RPATH "$ORIGIN/./lib")
+# On Windows, copy DLLs to executable directory
+if(WIN32)
+    # Copy all DLL files from lib to the executable directory
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E echo "Copied DLLs to executable directory")
+        
+    # Alternative: Copy specific DLLs if you want more control
+    # file(GLOB DLLS "${CMAKE_SOURCE_DIR}/__lib/*.dll")
+    # foreach(DLL ${DLLS})
+    #     add_custom_command(TARGET mcrogueface POST_BUILD
+    #         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #         ${DLL} $<TARGET_FILE_DIR:mcrogueface>)
+    # endforeach()
+endif()
+
+# rpath for including shared libraries (Linux/Unix only)
+if(NOT WIN32)
+    set_target_properties(mcrogueface PROPERTIES
+                          INSTALL_RPATH "$ORIGIN/./lib")
+endif()
 
