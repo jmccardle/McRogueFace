@@ -22,10 +22,6 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 
 # Create a list of libraries to link against
 set(LINK_LIBS 
-    m 
-    dl 
-    util 
-    pthread 
     python3.12 
     sfml-graphics 
     sfml-window 
@@ -41,6 +37,8 @@ if(WIN32)
     # list(APPEND LINK_LIBS additional_windows_libs)
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
 else()
+    # Unix/Linux specific libraries
+    list(APPEND LINK_LIBS m dl util pthread)
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
 endif()
 
