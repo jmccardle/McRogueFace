@@ -967,7 +967,7 @@ int UIGrid::set_perspective(PyUIGridObject* self, PyObject* value, void* closure
 // Python API implementations for TCOD functionality
 PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    static char* kwlist[] = {"x", "y", "radius", "light_walls", "algorithm", NULL};
+    static const char* kwlist[] = {"x", "y", "radius", "light_walls", "algorithm", NULL};
     int x, y, radius = 0;
     int light_walls = 1;
     int algorithm = FOV_BASIC;
@@ -994,7 +994,7 @@ PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args)
 
 PyObject* UIGrid::py_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    static char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
+    static const char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
     int x1, y1, x2, y2;
     float diagonal_cost = 1.41f;
     
@@ -1022,7 +1022,7 @@ PyObject* UIGrid::py_find_path(PyUIGridObject* self, PyObject* args, PyObject* k
 
 PyObject* UIGrid::py_compute_dijkstra(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    static char* kwlist[] = {"root_x", "root_y", "diagonal_cost", NULL};
+    static const char* kwlist[] = {"root_x", "root_y", "diagonal_cost", NULL};
     int root_x, root_y;
     float diagonal_cost = 1.41f;
     
@@ -1073,7 +1073,7 @@ PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, Py
     int x1, y1, x2, y2;
     float diagonal_cost = 1.41f;
     
-    static char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
+    static const char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
     
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", kwlist, 
                                      &x1, &y1, &x2, &y2, &diagonal_cost)) {

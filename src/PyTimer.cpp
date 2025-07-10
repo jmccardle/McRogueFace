@@ -30,7 +30,7 @@ PyObject* PyTimer::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds) {
 }
 
 int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
-    static char* kwlist[] = {"name", "callback", "interval", NULL};
+    static const char* kwlist[] = {"name", "callback", "interval", NULL};
     const char* name = nullptr;
     PyObject* callback = nullptr;
     int interval = 0;
