@@ -972,7 +972,7 @@ PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject*
     int light_walls = 1;
     int algorithm = FOV_BASIC;
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii|ipi", kwlist, 
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii|ipi", const_cast<char**>(kwlist), 
                                      &x, &y, &radius, &light_walls, &algorithm)) {
         return NULL;
     }
@@ -998,7 +998,7 @@ PyObject* UIGrid::py_find_path(PyUIGridObject* self, PyObject* args, PyObject* k
     int x1, y1, x2, y2;
     float diagonal_cost = 1.41f;
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", kwlist, 
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", const_cast<char**>(kwlist), 
                                      &x1, &y1, &x2, &y2, &diagonal_cost)) {
         return NULL;
     }
@@ -1026,7 +1026,7 @@ PyObject* UIGrid::py_compute_dijkstra(PyUIGridObject* self, PyObject* args, PyOb
     int root_x, root_y;
     float diagonal_cost = 1.41f;
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii|f", kwlist, 
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii|f", const_cast<char**>(kwlist), 
                                      &root_x, &root_y, &diagonal_cost)) {
         return NULL;
     }
@@ -1075,7 +1075,7 @@ PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, Py
     
     static const char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", kwlist, 
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", const_cast<char**>(kwlist), 
                                      &x1, &y1, &x2, &y2, &diagonal_cost)) {
         return NULL;
     }
@@ -1096,19 +1096,77 @@ PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, Py
 PyMethodDef UIGrid::methods[] = {
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
-     "Compute field of view from a position. Args: x, y, radius=0, light_walls=True, algorithm=FOV_BASIC"},
+     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
+     "Compute field of view from a position.\n\n"
+     "Args:\n"
+     "    x: X coordinate of the viewer\n"
+     "    y: Y coordinate of the viewer\n"
+     "    radius: Maximum view distance (0 = unlimited)\n"
+     "    light_walls: Whether walls are lit when visible\n"
+     "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
+     "Updates the internal FOV state. Use is_in_fov() to check visibility after calling this.\n"
+     "When perspective is set, this also updates visibility overlays automatically."},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
-     "Check if a cell is in the field of view. Args: x, y"},
+     "is_in_fov(x: int, y: int) -> bool\n\n"
+     "Check if a cell is in the field of view.\n\n"
+     "Args:\n"
+     "    x: X coordinate to check\n"
+     "    y: Y coordinate to check\n\n"
+     "Returns:\n"
+     "    True if the cell is visible, False otherwise\n\n"
+     "Must call compute_fov() first to calculate visibility."},
     {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS, 
-     "Find A* path between two points. Args: x1, y1, x2, y2, diagonal_cost=1.41"},
+     "find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+     "Find A* path between two points.\n\n"
+     "Args:\n"
+     "    x1: Starting X coordinate\n"
+     "    y1: Starting Y coordinate\n"
+     "    x2: Target X coordinate\n"
+     "    y2: Target Y coordinate\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "Returns:\n"
+     "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
+     "Uses A* algorithm with walkability from grid cells."},
     {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS, 
-     "Compute Dijkstra map from root position. Args: root_x, root_y, diagonal_cost=1.41"},
+     "compute_dijkstra(root_x: int, root_y: int, diagonal_cost: float = 1.41) -> None\n\n"
+     "Compute Dijkstra map from root position.\n\n"
+     "Args:\n"
+     "    root_x: X coordinate of the root/target\n"
+     "    root_y: Y coordinate of the root/target\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "Precomputes distances from all reachable cells to the root.\n"
+     "Use get_dijkstra_distance() and get_dijkstra_path() to query results.\n"
+     "Useful for multiple entities pathfinding to the same target."},
     {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS,
-     "Get distance from Dijkstra root to position. Args: x, y. Returns float or None if invalid."},
+     "get_dijkstra_distance(x: int, y: int) -> Optional[float]\n\n"
+     "Get distance from Dijkstra root to position.\n\n"
+     "Args:\n"
+     "    x: X coordinate to query\n"
+     "    y: Y coordinate to query\n\n"
+     "Returns:\n"
+     "    Distance as float, or None if position is unreachable or invalid\n\n"
+     "Must call compute_dijkstra() first."},
     {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS,
-     "Get path from position to Dijkstra root. Args: x, y. Returns list of (x,y) tuples."},
+     "get_dijkstra_path(x: int, y: int) -> List[Tuple[int, int]]\n\n"
+     "Get path from position to Dijkstra root.\n\n"
+     "Args:\n"
+     "    x: Starting X coordinate\n"
+     "    y: Starting Y coordinate\n\n"
+     "Returns:\n"
+     "    List of (x, y) tuples representing path to root, empty if unreachable\n\n"
+     "Must call compute_dijkstra() first. Path includes start but not root position."},
     {"compute_astar_path", (PyCFunction)UIGrid::py_compute_astar_path, METH_VARARGS | METH_KEYWORDS,
-     "Compute A* path between two points. Args: x1, y1, x2, y2, diagonal_cost=1.41. Returns list of (x,y) tuples. Note: diagonal_cost is currently ignored (uses default 1.41)."},
+     "compute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+     "Compute A* path between two points.\n\n"
+     "Args:\n"
+     "    x1: Starting X coordinate\n"
+     "    y1: Starting Y coordinate\n"
+     "    x2: Target X coordinate\n"
+     "    y2: Target Y coordinate\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "Returns:\n"
+     "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
+     "Alternative A* implementation. Prefer find_path() for consistency."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -1120,19 +1178,77 @@ PyMethodDef UIGrid_all_methods[] = {
     UIDRAWABLE_METHODS,
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
-     "Compute field of view from a position. Args: x, y, radius=0, light_walls=True, algorithm=FOV_BASIC"},
+     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
+     "Compute field of view from a position.\n\n"
+     "Args:\n"
+     "    x: X coordinate of the viewer\n"
+     "    y: Y coordinate of the viewer\n"
+     "    radius: Maximum view distance (0 = unlimited)\n"
+     "    light_walls: Whether walls are lit when visible\n"
+     "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
+     "Updates the internal FOV state. Use is_in_fov() to check visibility after calling this.\n"
+     "When perspective is set, this also updates visibility overlays automatically."},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
-     "Check if a cell is in the field of view. Args: x, y"},
+     "is_in_fov(x: int, y: int) -> bool\n\n"
+     "Check if a cell is in the field of view.\n\n"
+     "Args:\n"
+     "    x: X coordinate to check\n"
+     "    y: Y coordinate to check\n\n"
+     "Returns:\n"
+     "    True if the cell is visible, False otherwise\n\n"
+     "Must call compute_fov() first to calculate visibility."},
     {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS, 
-     "Find A* path between two points. Args: x1, y1, x2, y2, diagonal_cost=1.41"},
+     "find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+     "Find A* path between two points.\n\n"
+     "Args:\n"
+     "    x1: Starting X coordinate\n"
+     "    y1: Starting Y coordinate\n"
+     "    x2: Target X coordinate\n"
+     "    y2: Target Y coordinate\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "Returns:\n"
+     "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
+     "Uses A* algorithm with walkability from grid cells."},
     {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS, 
-     "Compute Dijkstra map from root position. Args: root_x, root_y, diagonal_cost=1.41"},
+     "compute_dijkstra(root_x: int, root_y: int, diagonal_cost: float = 1.41) -> None\n\n"
+     "Compute Dijkstra map from root position.\n\n"
+     "Args:\n"
+     "    root_x: X coordinate of the root/target\n"
+     "    root_y: Y coordinate of the root/target\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "Precomputes distances from all reachable cells to the root.\n"
+     "Use get_dijkstra_distance() and get_dijkstra_path() to query results.\n"
+     "Useful for multiple entities pathfinding to the same target."},
     {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS,
-     "Get distance from Dijkstra root to position. Args: x, y. Returns float or None if invalid."},
+     "get_dijkstra_distance(x: int, y: int) -> Optional[float]\n\n"
+     "Get distance from Dijkstra root to position.\n\n"
+     "Args:\n"
+     "    x: X coordinate to query\n"
+     "    y: Y coordinate to query\n\n"
+     "Returns:\n"
+     "    Distance as float, or None if position is unreachable or invalid\n\n"
+     "Must call compute_dijkstra() first."},
     {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS,
-     "Get path from position to Dijkstra root. Args: x, y. Returns list of (x,y) tuples."},
+     "get_dijkstra_path(x: int, y: int) -> List[Tuple[int, int]]\n\n"
+     "Get path from position to Dijkstra root.\n\n"
+     "Args:\n"
+     "    x: Starting X coordinate\n"
+     "    y: Starting Y coordinate\n\n"
+     "Returns:\n"
+     "    List of (x, y) tuples representing path to root, empty if unreachable\n\n"
+     "Must call compute_dijkstra() first. Path includes start but not root position."},
     {"compute_astar_path", (PyCFunction)UIGrid::py_compute_astar_path, METH_VARARGS | METH_KEYWORDS,
-     "Compute A* path between two points. Args: x1, y1, x2, y2, diagonal_cost=1.41. Returns list of (x,y) tuples. Note: diagonal_cost is currently ignored (uses default 1.41)."},
+     "compute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+     "Compute A* path between two points.\n\n"
+     "Args:\n"
+     "    x1: Starting X coordinate\n"
+     "    y1: Starting Y coordinate\n"
+     "    x2: Target X coordinate\n"
+     "    y2: Target Y coordinate\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "Returns:\n"
+     "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
+     "Alternative A* implementation. Prefer find_path() for consistency."},
     {NULL}  // Sentinel
 };
 
@@ -1161,7 +1277,10 @@ PyGetSetDef UIGrid::getsetters[] = {
 
     {"texture", (getter)UIGrid::get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
     {"fill_color", (getter)UIGrid::get_fill_color, (setter)UIGrid::set_fill_color, "Background fill color of the grid", NULL},
-    {"perspective", (getter)UIGrid::get_perspective, (setter)UIGrid::set_perspective, "Entity perspective index (-1 for omniscient view)", NULL},
+    {"perspective", (getter)UIGrid::get_perspective, (setter)UIGrid::set_perspective, 
+     "Entity perspective index for FOV rendering (-1 for omniscient view, 0+ for entity index). "
+     "When set to an entity index, only cells visible to that entity are rendered normally; "
+     "explored but not visible cells are darkened, and unexplored cells are black.", NULL},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UIGRID},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIGRID},
     UIDRAWABLE_GETSETTERS,

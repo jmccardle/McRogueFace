@@ -508,8 +508,22 @@ PyMethodDef UIEntity::methods[] = {
     {"at", (PyCFunction)UIEntity::at, METH_O},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
-    {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS, "Find path from entity to target position using Dijkstra pathfinding"},
-    {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS, "Update entity's visibility state based on current FOV"},
+    {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS, 
+     "path_to(x: int, y: int) -> bool\n\n"
+     "Find and follow path to target position using A* pathfinding.\n\n"
+     "Args:\n"
+     "    x: Target X coordinate\n"
+     "    y: Target Y coordinate\n\n"
+     "Returns:\n"
+     "    True if a path was found and the entity started moving, False otherwise\n\n"
+     "The entity will automatically move along the path over multiple frames.\n"
+     "Call this again to change the target or repath."},
+    {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS, 
+     "update_visibility() -> None\n\n"
+     "Update entity's visibility state based on current FOV.\n\n"
+     "Recomputes which cells are visible from the entity's position and updates\n"
+     "the entity's gridstate to track explored areas. This is called automatically\n"
+     "when the entity moves if it has a grid with perspective set."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -522,8 +536,22 @@ PyMethodDef UIEntity_all_methods[] = {
     {"at", (PyCFunction)UIEntity::at, METH_O},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
-    {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS, "Find path from entity to target position using Dijkstra pathfinding"},
-    {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS, "Update entity's visibility state based on current FOV"},
+    {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS, 
+     "path_to(x: int, y: int) -> bool\n\n"
+     "Find and follow path to target position using A* pathfinding.\n\n"
+     "Args:\n"
+     "    x: Target X coordinate\n"
+     "    y: Target Y coordinate\n\n"
+     "Returns:\n"
+     "    True if a path was found and the entity started moving, False otherwise\n\n"
+     "The entity will automatically move along the path over multiple frames.\n"
+     "Call this again to change the target or repath."},
+    {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS, 
+     "update_visibility() -> None\n\n"
+     "Update entity's visibility state based on current FOV.\n\n"
+     "Recomputes which cells are visible from the entity's position and updates\n"
+     "the entity's gridstate to track explored areas. This is called automatically\n"
+     "when the entity moves if it has a grid with perspective set."},
     {NULL}  // Sentinel
 };
 

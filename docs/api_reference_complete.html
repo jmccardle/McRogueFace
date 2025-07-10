@@ -183,7 +183,7 @@
     <div class="container">
 
 <h1>McRogueFace API Reference - Complete Documentation</h1>
-<p><em>Generated on 2025-07-08 11:53:54</em></p>
+<p><em>Generated on 2025-07-10 01:04:50</em></p>
 <div class="toc">
 <h2>Table of Contents</h2>
 <ul>
@@ -632,13 +632,6 @@ mcrfpy.setScale(2.0)  # Double the window size
 </div>
 <h4>Methods:</h4>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">get_current_value()</code></h5>
-<p>Get the current interpolated value of the animation.</p>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> float: Current animation value between start and end
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">update(delta_time)</code></h5>
 <p>Update the animation by the given time delta.</p>
 <div style="margin-left: 20px;">
@@ -660,6 +653,13 @@ The UI element to animate
 </div>
 <div style="margin-left: 20px; color: #856404;">
 <strong>Note:</strong> The target must have the property specified in the animation constructor.
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">get_current_value()</code></h5>
+<p>Get the current interpolated value of the animation.</p>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> float: Current animation value between start and end
 </div>
 </div>
 </div>
@@ -701,23 +701,6 @@ Attributes:
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">resize(width, height)</code></h5>
-<p>Resize the element to new dimensions.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">width</span> 
-<span class="arg-type">(float)</span>: 
-New width in pixels
-</div>
-<div style="margin-left: 20px;">
-<span class="arg-name">height</span> 
-<span class="arg-type">(float)</span>: 
-New height in pixels
-</div>
-<div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">move(dx, dy)</code></h5>
 <p>Move the element by a relative offset.</p>
 <div style="margin-left: 20px;">
@@ -734,11 +717,46 @@ Vertical offset in pixels
 <strong>Note:</strong> This modifies the x and y position properties by the given amounts.
 </div>
 </div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">resize(width, height)</code></h5>
+<p>Resize the element to new dimensions.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">width</span> 
+<span class="arg-type">(float)</span>: 
+New width in pixels
+</div>
+<div style="margin-left: 20px;">
+<span class="arg-name">height</span> 
+<span class="arg-type">(float)</span>: 
+New height in pixels
+</div>
+<div style="margin-left: 20px; color: #856404;">
+<strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
+</div>
+</div>
 </div>
 <div class="method-section">
 <h3><span class="class-name">Color</span></h3>
 <p>SFML Color Object</p>
 <h4>Methods:</h4>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">from_hex(hex_string)</code></h5>
+<p>Create a Color from a hexadecimal color string.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">hex_string</span> 
+<span class="arg-type">(str)</span>: 
+Hex color string (e.g., &quot;#FF0000&quot; or &quot;FF0000&quot;)
+</div>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> Color: New Color object from hex string
+</div>
+<div style="margin-left: 20px;">
+<strong>Example:</strong>
+<pre><code>
+red = Color.from_hex(&quot;#FF0000&quot;)
+</code></pre>
+</div>
+</div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">lerp(other, t)</code></h5>
 <p>Linearly interpolate between this color and another.</p>
@@ -775,24 +793,6 @@ hex_str = color.to_hex()  # Returns &quot;#FF0000&quot;
 </code></pre>
 </div>
 </div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">from_hex(hex_string)</code></h5>
-<p>Create a Color from a hexadecimal color string.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">hex_string</span> 
-<span class="arg-type">(str)</span>: 
-Hex color string (e.g., &quot;#FF0000&quot; or &quot;FF0000&quot;)
-</div>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> Color: New Color object from hex string
-</div>
-<div style="margin-left: 20px;">
-<strong>Example:</strong>
-<pre><code>
-red = Color.from_hex(&quot;#FF0000&quot;)
-</code></pre>
-</div>
-</div>
 </div>
 <div class="method-section">
 <h3><span class="class-name">Drawable</span></h3>
@@ -806,6 +806,23 @@ red = Color.from_hex(&quot;#FF0000&quot;)
 </div>
 <div style="margin-left: 20px; color: #856404;">
 <strong>Note:</strong> The bounds are in screen coordinates and account for current position and size.
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">move(dx, dy)</code></h5>
+<p>Move the element by a relative offset.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">dx</span> 
+<span class="arg-type">(float)</span>: 
+Horizontal offset in pixels
+</div>
+<div style="margin-left: 20px;">
+<span class="arg-name">dy</span> 
+<span class="arg-type">(float)</span>: 
+Vertical offset in pixels
+</div>
+<div style="margin-left: 20px; color: #856404;">
+<strong>Note:</strong> This modifies the x and y position properties by the given amounts.
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -825,39 +842,12 @@ New height in pixels
 <strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
 </div>
 </div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">move(dx, dy)</code></h5>
-<p>Move the element by a relative offset.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">dx</span> 
-<span class="arg-type">(float)</span>: 
-Horizontal offset in pixels
-</div>
-<div style="margin-left: 20px;">
-<span class="arg-name">dy</span> 
-<span class="arg-type">(float)</span>: 
-Vertical offset in pixels
-</div>
-<div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> This modifies the x and y position properties by the given amounts.
-</div>
-</div>
 </div>
 <div class="method-section">
 <h3><span class="class-name">Entity</span></h3>
 <p>UIEntity objects</p>
 <h4>Methods:</h4>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">get_bounds()</code></h5>
-<p>Get the bounding rectangle of this drawable element.</p>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> tuple: (x, y, width, height) representing the element&#x27;s bounds
-</div>
-<div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> The bounds are in screen coordinates and account for current position and size.
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">move(dx, dy)</code></h5>
 <p>Move the element by a relative offset.</p>
 <div style="margin-left: 20px;">
@@ -873,6 +863,36 @@ Vertical offset in pixels
 <div style="margin-left: 20px; color: #856404;">
 <strong>Note:</strong> This modifies the x and y position properties by the given amounts.
 </div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">resize(width, height)</code></h5>
+<p>Resize the element to new dimensions.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">width</span> 
+<span class="arg-type">(float)</span>: 
+New width in pixels
+</div>
+<div style="margin-left: 20px;">
+<span class="arg-name">height</span> 
+<span class="arg-type">(float)</span>: 
+New height in pixels
+</div>
+<div style="margin-left: 20px; color: #856404;">
+<strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
+</div>
+</div>
+<div class="arg-item">
+<span class="method">update_visibility(...)</span>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">index()</code></h5>
+<p>Get the index of this entity in its parent grid&#x27;s entity list.</p>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> int: Index position, or -1 if not in a grid
+</div>
+</div>
+<div class="arg-item">
+<span class="method">path_to(...)</span>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">at(x, y)</code></h5>
@@ -892,27 +912,13 @@ Grid y coordinate to check
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">resize(width, height)</code></h5>
-<p>Resize the element to new dimensions.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">width</span> 
-<span class="arg-type">(float)</span>: 
-New width in pixels
-</div>
-<div style="margin-left: 20px;">
-<span class="arg-name">height</span> 
-<span class="arg-type">(float)</span>: 
-New height in pixels
+<h5><code class="method">get_bounds()</code></h5>
+<p>Get the bounding rectangle of this drawable element.</p>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> tuple: (x, y, width, height) representing the element&#x27;s bounds
 </div>
 <div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">index()</code></h5>
-<p>Get the index of this entity in its parent grid&#x27;s entity list.</p>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> int: Index position, or -1 if not in a grid
+<strong>Note:</strong> The bounds are in screen coordinates and account for current position and size.
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -937,21 +943,15 @@ The entity to remove
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">extend(iterable)</code></h5>
-<p>Add all entities from an iterable to the collection.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">iterable</span> 
-<span class="arg-type">(Iterable[Entity])</span>: 
-Entities to add
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">append(entity)</code></h5>
-<p>Add an entity to the end of the collection.</p>
+<h5><code class="method">count(entity)</code></h5>
+<p>Count the number of occurrences of an entity in the collection.</p>
 <div style="margin-left: 20px;">
 <span class="arg-name">entity</span> 
 <span class="arg-type">(Entity)</span>: 
-The entity to add
+The entity to count
+</div>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> int: Number of times entity appears in collection
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -967,15 +967,21 @@ The entity to find
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">count(entity)</code></h5>
-<p>Count the number of occurrences of an entity in the collection.</p>
+<h5><code class="method">extend(iterable)</code></h5>
+<p>Add all entities from an iterable to the collection.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">iterable</span> 
+<span class="arg-type">(Iterable[Entity])</span>: 
+Entities to add
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">append(entity)</code></h5>
+<p>Add an entity to the end of the collection.</p>
 <div style="margin-left: 20px;">
 <span class="arg-name">entity</span> 
 <span class="arg-type">(Entity)</span>: 
-The entity to count
-</div>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> int: Number of times entity appears in collection
+The entity to add
 </div>
 </div>
 </div>
@@ -1022,23 +1028,6 @@ Attributes:
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">resize(width, height)</code></h5>
-<p>Resize the element to new dimensions.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">width</span> 
-<span class="arg-type">(float)</span>: 
-New width in pixels
-</div>
-<div style="margin-left: 20px;">
-<span class="arg-name">height</span> 
-<span class="arg-type">(float)</span>: 
-New height in pixels
-</div>
-<div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">move(dx, dy)</code></h5>
 <p>Move the element by a relative offset.</p>
 <div style="margin-left: 20px;">
@@ -1053,6 +1042,23 @@ Vertical offset in pixels
 </div>
 <div style="margin-left: 20px; color: #856404;">
 <strong>Note:</strong> This modifies the x and y position properties by the given amounts.
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">resize(width, height)</code></h5>
+<p>Resize the element to new dimensions.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">width</span> 
+<span class="arg-type">(float)</span>: 
+New width in pixels
+</div>
+<div style="margin-left: 20px;">
+<span class="arg-name">height</span> 
+<span class="arg-type">(float)</span>: 
+New height in pixels
+</div>
+<div style="margin-left: 20px; color: #856404;">
+<strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
 </div>
 </div>
 </div>
@@ -1086,31 +1092,24 @@ Attributes:
     z_index (int): Rendering order</p>
 <h4>Methods:</h4>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">get_bounds()</code></h5>
-<p>Get the bounding rectangle of this drawable element.</p>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> tuple: (x, y, width, height) representing the element&#x27;s bounds
+<h5><code class="method">move(dx, dy)</code></h5>
+<p>Move the element by a relative offset.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">dx</span> 
+<span class="arg-type">(float)</span>: 
+Horizontal offset in pixels
+</div>
+<div style="margin-left: 20px;">
+<span class="arg-name">dy</span> 
+<span class="arg-type">(float)</span>: 
+Vertical offset in pixels
 </div>
 <div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> The bounds are in screen coordinates and account for current position and size.
+<strong>Note:</strong> This modifies the x and y position properties by the given amounts.
 </div>
 </div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">at(x, y)</code></h5>
-<p>Get the GridPoint at the specified grid coordinates.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">x</span> 
-<span class="arg-type">(int)</span>: 
-Grid x coordinate
-</div>
-<div style="margin-left: 20px;">
-<span class="arg-name">y</span> 
-<span class="arg-type">(int)</span>: 
-Grid y coordinate
-</div>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> GridPoint or None: The grid point at (x, y), or None if out of bounds
-</div>
+<div class="arg-item">
+<span class="method">compute_fov(...)</span>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">resize(width, height)</code></h5>
@@ -1129,21 +1128,49 @@ New height in pixels
 <strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
 </div>
 </div>
+<div class="arg-item">
+<span class="method">compute_dijkstra(...)</span>
+</div>
+<div class="arg-item">
+<span class="method">get_dijkstra_path(...)</span>
+</div>
+<div class="arg-item">
+<span class="method">is_in_fov(...)</span>
+</div>
+<div class="arg-item">
+<span class="method">find_path(...)</span>
+</div>
+<div class="arg-item">
+<span class="method">compute_astar_path(...)</span>
+</div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">move(dx, dy)</code></h5>
-<p>Move the element by a relative offset.</p>
+<h5><code class="method">at(x, y)</code></h5>
+<p>Get the GridPoint at the specified grid coordinates.</p>
 <div style="margin-left: 20px;">
-<span class="arg-name">dx</span> 
-<span class="arg-type">(float)</span>: 
-Horizontal offset in pixels
+<span class="arg-name">x</span> 
+<span class="arg-type">(int)</span>: 
+Grid x coordinate
 </div>
 <div style="margin-left: 20px;">
-<span class="arg-name">dy</span> 
-<span class="arg-type">(float)</span>: 
-Vertical offset in pixels
+<span class="arg-name">y</span> 
+<span class="arg-type">(int)</span>: 
+Grid y coordinate
+</div>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> GridPoint or None: The grid point at (x, y), or None if out of bounds
+</div>
+</div>
+<div class="arg-item">
+<span class="method">get_dijkstra_distance(...)</span>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">get_bounds()</code></h5>
+<p>Get the bounding rectangle of this drawable element.</p>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> tuple: (x, y, width, height) representing the element&#x27;s bounds
 </div>
 <div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> This modifies the x and y position properties by the given amounts.
+<strong>Note:</strong> The bounds are in screen coordinates and account for current position and size.
 </div>
 </div>
 </div>
@@ -1273,23 +1300,6 @@ Attributes:
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">resize(width, height)</code></h5>
-<p>Resize the element to new dimensions.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">width</span> 
-<span class="arg-type">(float)</span>: 
-New width in pixels
-</div>
-<div style="margin-left: 20px;">
-<span class="arg-name">height</span> 
-<span class="arg-type">(float)</span>: 
-New height in pixels
-</div>
-<div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">move(dx, dy)</code></h5>
 <p>Move the element by a relative offset.</p>
 <div style="margin-left: 20px;">
@@ -1304,6 +1314,23 @@ Vertical offset in pixels
 </div>
 <div style="margin-left: 20px; color: #856404;">
 <strong>Note:</strong> This modifies the x and y position properties by the given amounts.
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">resize(width, height)</code></h5>
+<p>Resize the element to new dimensions.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">width</span> 
+<span class="arg-type">(float)</span>: 
+New width in pixels
+</div>
+<div style="margin-left: 20px;">
+<span class="arg-name">height</span> 
+<span class="arg-type">(float)</span>: 
+New height in pixels
+</div>
+<div style="margin-left: 20px; color: #856404;">
+<strong>Note:</strong> For Caption and Sprite, this may not change actual size if determined by content.
 </div>
 </div>
 </div>
@@ -1323,6 +1350,13 @@ Vertical offset in pixels
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">restart()</code></h5>
+<p>Restart the timer from the beginning.</p>
+<div style="margin-left: 20px; color: #856404;">
+<strong>Note:</strong> Resets the timer&#x27;s internal clock to zero.
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">pause()</code></h5>
 <p>Pause the timer, stopping its callback execution.</p>
 <div style="margin-left: 20px; color: #856404;">
@@ -1334,13 +1368,6 @@ Vertical offset in pixels
 <p>Cancel the timer and remove it from the system.</p>
 <div style="margin-left: 20px; color: #856404;">
 <strong>Note:</strong> After cancelling, the timer object cannot be reused.
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">restart()</code></h5>
-<p>Restart the timer from the beginning.</p>
-<div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> Resets the timer&#x27;s internal clock to zero.
 </div>
 </div>
 </div>
@@ -1355,6 +1382,30 @@ Vertical offset in pixels
 <span class="arg-name">drawable</span> 
 <span class="arg-type">(UIDrawable)</span>: 
 The drawable to remove
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">count(drawable)</code></h5>
+<p>Count the number of occurrences of a drawable in the collection.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">drawable</span> 
+<span class="arg-type">(UIDrawable)</span>: 
+The drawable to count
+</div>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> int: Number of times drawable appears in collection
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">index(drawable)</code></h5>
+<p>Find the index of the first occurrence of a drawable.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">drawable</span> 
+<span class="arg-type">(UIDrawable)</span>: 
+The drawable to find
+</div>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> int: Index of drawable in collection
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1375,30 +1426,6 @@ Drawables to add
 The drawable element to add
 </div>
 </div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">index(drawable)</code></h5>
-<p>Find the index of the first occurrence of a drawable.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">drawable</span> 
-<span class="arg-type">(UIDrawable)</span>: 
-The drawable to find
-</div>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> int: Index of drawable in collection
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">count(drawable)</code></h5>
-<p>Count the number of occurrences of a drawable in the collection.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">drawable</span> 
-<span class="arg-type">(UIDrawable)</span>: 
-The drawable to count
-</div>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> int: Number of times drawable appears in collection
-</div>
-</div>
 </div>
 <div class="method-section">
 <h3><span class="class-name">UICollectionIter</span></h3>
@@ -1413,28 +1440,10 @@ The drawable to count
 <p>SFML Vector Object</p>
 <h4>Methods:</h4>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">magnitude()</code></h5>
-<p>Calculate the length/magnitude of this vector.</p>
+<h5><code class="method">copy()</code></h5>
+<p>Create a copy of this vector.</p>
 <div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> float: The magnitude of the vector
-</div>
-<div style="margin-left: 20px;">
-<strong>Example:</strong>
-<pre><code>
-length = vector.magnitude()
-</code></pre>
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">distance_to(other)</code></h5>
-<p>Calculate the distance to another vector.</p>
-<div style="margin-left: 20px;">
-<span class="arg-name">other</span> 
-<span class="arg-type">(Vector)</span>: 
-The other vector
-</div>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> float: Distance between the two vectors
+<strong>Returns:</strong> Vector: New Vector object with same x and y values
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1457,6 +1466,19 @@ The other vector
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">magnitude()</code></h5>
+<p>Calculate the length/magnitude of this vector.</p>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> float: The magnitude of the vector
+</div>
+<div style="margin-left: 20px;">
+<strong>Example:</strong>
+<pre><code>
+length = vector.magnitude()
+</code></pre>
+</div>
+</div>
+<div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">normalize()</code></h5>
 <p>Return a unit vector in the same direction.</p>
 <div style="margin-left: 20px; color: #28a745;">
@@ -1474,10 +1496,15 @@ The other vector
 </div>
 </div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">copy()</code></h5>
-<p>Create a copy of this vector.</p>
+<h5><code class="method">distance_to(other)</code></h5>
+<p>Calculate the distance to another vector.</p>
+<div style="margin-left: 20px;">
+<span class="arg-name">other</span> 
+<span class="arg-type">(Vector)</span>: 
+The other vector
+</div>
 <div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> Vector: New Vector object with same x and y values
+<strong>Returns:</strong> float: Distance between the two vectors
 </div>
 </div>
 </div>
@@ -1485,6 +1512,16 @@ The other vector
 <h3><span class="class-name">Window</span></h3>
 <p>Window singleton for accessing and modifying the game window properties</p>
 <h4>Methods:</h4>
+<div style="margin-left: 20px; margin-bottom: 15px;">
+<h5><code class="method">get()</code></h5>
+<p>Get the Window singleton instance.</p>
+<div style="margin-left: 20px; color: #28a745;">
+<strong>Returns:</strong> Window: The singleton window object
+</div>
+<div style="margin-left: 20px; color: #856404;">
+<strong>Note:</strong> This is a static method that returns the same instance every time.
+</div>
+</div>
 <div style="margin-left: 20px; margin-bottom: 15px;">
 <h5><code class="method">screenshot(filename)</code></h5>
 <p>Take a screenshot and save it to a file.</p>
@@ -1502,16 +1539,6 @@ Path where to save the screenshot
 <p>Center the window on the screen.</p>
 <div style="margin-left: 20px; color: #856404;">
 <strong>Note:</strong> Only works if the window is not fullscreen.
-</div>
-</div>
-<div style="margin-left: 20px; margin-bottom: 15px;">
-<h5><code class="method">get()</code></h5>
-<p>Get the Window singleton instance.</p>
-<div style="margin-left: 20px; color: #28a745;">
-<strong>Returns:</strong> Window: The singleton window object
-</div>
-<div style="margin-left: 20px; color: #856404;">
-<strong>Note:</strong> This is a static method that returns the same instance every time.
 </div>
 </div>
 </div>

@@ -35,7 +35,7 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
     PyObject* callback = nullptr;
     int interval = 0;
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOi", kwlist, 
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOi", const_cast<char**>(kwlist), 
                                      &name, &callback, &interval)) {
         return -1;
     }
