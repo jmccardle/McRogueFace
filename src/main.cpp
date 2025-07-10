@@ -41,6 +41,9 @@ int run_game_engine(const McRogueFaceConfig& config)
 {
     GameEngine g(config);
     g.run();
+    if (Py_IsInitialized()) {
+        McRFPy_API::api_shutdown();
+    }
     return 0;
 }
 
@@ -102,7 +105,7 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
             // Continue to interactive mode below
         } else {
             int result = PyRun_SimpleString(config.python_command.c_str());
-            Py_Finalize();
+            McRFPy_API::api_shutdown();
             delete engine;
             return result;
         }
@@ -121,7 +124,7 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
         run_module_code += "runpy.run_module('" + config.python_module + "', run_name='__main__', alter_sys=True)\n";
         
         int result = PyRun_SimpleString(run_module_code.c_str());
-        Py_Finalize();
+        McRFPy_API::api_shutdown();
         delete engine;
         return result;
     }
@@ -179,7 +182,7 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
         // Run the game engine after script execution
         engine->run();
         
-        Py_Finalize();
+        McRFPy_API::api_shutdown();
         delete engine;
         return result;
     }
@@ -187,14 +190,14 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
         // Interactive Python interpreter (only if explicitly requested with -i)
         Py_InspectFlag = 1;
         PyRun_InteractiveLoop(stdin, "<stdin>");
-        Py_Finalize();
+        McRFPy_API::api_shutdown();
         delete engine;
         return 0;
     }
     else if (!config.exec_scripts.empty()) {
         // With --exec, run the game engine after scripts execute
         engine->run();
-        Py_Finalize();
+        McRFPy_API::api_shutdown();
         delete engine;
         return 0;
     }

@@ -44,12 +44,38 @@ public:
     static int set_click(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_int(PyObject* self, void* closure);
     static int set_int(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_name(PyObject* self, void* closure);
+    static int set_name(PyObject* self, PyObject* value, void* closure);
+    
+    // Common position getters/setters for Python API
+    static PyObject* get_float_member(PyObject* self, void* closure);
+    static int set_float_member(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_pos(PyObject* self, void* closure);
+    static int set_pos(PyObject* self, PyObject* value, void* closure);
     
     // Z-order for rendering (lower values rendered first, higher values on top)
     int z_index = 0;
     
     // Notification for z_index changes
     void notifyZIndexChanged();
+    
+    // Name for finding elements
+    std::string name;
+    
+    // Position in pixel coordinates (moved from derived classes)
+    sf::Vector2f position;
+    
+    // New properties for Phase 1
+    bool visible = true;      // #87 - visibility flag
+    float opacity = 1.0f;     // #88 - opacity (0.0 = transparent, 1.0 = opaque)
+    
+    // New virtual methods for Phase 1
+    virtual sf::FloatRect get_bounds() const = 0;  // #89 - get bounding box
+    virtual void move(float dx, float dy) = 0;     // #98 - move by offset
+    virtual void resize(float w, float h) = 0;     // #98 - resize to dimensions
+    
+    // Called when position changes to allow derived classes to sync
+    virtual void onPositionChanged() {}
     
     // Animation support
     virtual bool setProperty(const std::string& name, float value) { return false; }
@@ -63,6 +89,21 @@ public:
     virtual bool getProperty(const std::string& name, sf::Color& value) const { return false; }
     virtual bool getProperty(const std::string& name, sf::Vector2f& value) const { return false; }
     virtual bool getProperty(const std::string& name, std::string& value) const { return false; }
+    
+protected:
+    // RenderTexture support (opt-in)
+    std::unique_ptr<sf::RenderTexture> render_texture;
+    sf::Sprite render_sprite;
+    bool use_render_texture = false;
+    bool render_dirty = true;
+    
+    // Enable RenderTexture for this drawable
+    void enableRenderTexture(unsigned int width, unsigned int height);
+    void updateRenderTexture();
+    
+public:
+    // Mark this drawable as needing redraw
+    void markDirty() { render_dirty = true; }
 };
 
 typedef struct {

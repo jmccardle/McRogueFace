@@ -5,6 +5,7 @@
 #include "UITestScene.h"
 #include "Resources.h"
 #include "Animation.h"
+#include <cmath>
 
 GameEngine::GameEngine() : GameEngine(McRogueFaceConfig{})
 {
@@ -26,12 +27,18 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         render_target = &headless_renderer->getRenderTarget();
     } else {
         window = std::make_unique<sf::RenderWindow>();
-        window->create(sf::VideoMode(1024, 768), window_title, sf::Style::Titlebar | sf::Style::Close);
+        window->create(sf::VideoMode(1024, 768), window_title, sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
         window->setFramerateLimit(60);
         render_target = window.get();
     }
     
     visible = render_target->getDefaultView();
+    
+    // Initialize the game view
+    gameView.setSize(static_cast<float>(gameResolution.x), static_cast<float>(gameResolution.y));
+    // Use integer center coordinates for pixel-perfect rendering
+    gameView.setCenter(std::floor(gameResolution.x / 2.0f), std::floor(gameResolution.y / 2.0f));
+    updateViewport();
     scene = "uitest";
     scenes["uitest"] = new UITestScene(this);
     
@@ -73,19 +80,81 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
 
 GameEngine::~GameEngine()
 {
+    cleanup();
     for (auto& [name, scene] : scenes) {
         delete scene;
+    }
+}
+
+void GameEngine::cleanup()
+{
+    if (cleaned_up) return;
+    cleaned_up = true;
+    
+    // Clear Python references before destroying C++ objects
+    // Clear all timers (they hold Python callables)
+    timers.clear();
+    
+    // Clear McRFPy_API's reference to this game engine
+    if (McRFPy_API::game == this) {
+        McRFPy_API::game = nullptr;
+    }
+    
+    // Force close the window if it's still open
+    if (window && window->isOpen()) {
+        window->close();
     }
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }
 void GameEngine::changeScene(std::string s)
 {
-    /*std::cout << "Current scene is now '" << s << "'\n";*/
-    if (scenes.find(s) != scenes.end())
-        scene = s;
+    changeScene(s, TransitionType::None, 0.0f);
+}
+
+void GameEngine::changeScene(std::string sceneName, TransitionType transitionType, float duration)
+{
+    if (scenes.find(sceneName) == scenes.end())
+    {
+        std::cout << "Attempted to change to a scene that doesn't exist (`" << sceneName << "`)" << std::endl;
+        return;
+    }
+    
+    if (transitionType == TransitionType::None || duration <= 0.0f)
+    {
+        // Immediate scene change
+        std::string old_scene = scene;
+        scene = sceneName;
+        
+        // Trigger Python scene lifecycle events
+        McRFPy_API::triggerSceneChange(old_scene, sceneName);
+    }
     else
-        std::cout << "Attempted to change to a scene that doesn't exist (`" << s << "`)" << std::endl;
+    {
+        // Start transition
+        transition.start(transitionType, scene, sceneName, duration);
+        
+        // Render current scene to texture
+        sf::RenderTarget* original_target = render_target;
+        render_target = transition.oldSceneTexture.get();
+        transition.oldSceneTexture->clear();
+        currentScene()->render();
+        transition.oldSceneTexture->display();
+        
+        // Change to new scene
+        std::string old_scene = scene;
+        scene = sceneName;
+        
+        // Render new scene to texture
+        render_target = transition.newSceneTexture.get();
+        transition.newSceneTexture->clear();
+        currentScene()->render();
+        transition.newSceneTexture->display();
+        
+        // Restore original render target and scene
+        render_target = original_target;
+        scene = old_scene;
+    }
 }
 void GameEngine::quit() { running = false; }
 void GameEngine::setPause(bool p) { paused = p; }
@@ -106,9 +175,9 @@ void GameEngine::createScene(std::string s) { scenes[s] = new PyScene(this); }
 void GameEngine::setWindowScale(float multiplier)
 {
     if (!headless && window) {
-        window->setSize(sf::Vector2u(1024 * multiplier, 768 * multiplier)); // 7DRL 2024: window scaling
+        window->setSize(sf::Vector2u(gameResolution.x * multiplier, gameResolution.y * multiplier));
+        updateViewport();
     }
-    //window.create(sf::VideoMode(1024 * multiplier, 768 * multiplier), window_title, sf::Style::Titlebar | sf::Style::Close);
 }
 
 void GameEngine::run()
@@ -119,8 +188,14 @@ void GameEngine::run()
     clock.restart();
     while (running)
     {
+        // Reset per-frame metrics
+        metrics.resetPerFrame();
+        
         currentScene()->update();
         testTimers();
+        
+        // Update Python scenes
+        McRFPy_API::updatePythonScenes(frameTime);
         
         // Update animations (only if frameTime is valid)
         if (frameTime > 0.0f && frameTime < 1.0f) {
@@ -133,7 +208,33 @@ void GameEngine::run()
         if (!paused)
         {
         }
-        currentScene()->render();
+        
+        // Handle scene transitions
+        if (transition.type != TransitionType::None)
+        {
+            transition.update(frameTime);
+            
+            if (transition.isComplete())
+            {
+                // Transition complete - finalize scene change
+                scene = transition.toScene;
+                transition.type = TransitionType::None;
+                
+                // Trigger Python scene lifecycle events
+                McRFPy_API::triggerSceneChange(transition.fromScene, transition.toScene);
+            }
+            else
+            {
+                // Render transition
+                render_target->clear();
+                transition.render(*render_target);
+            }
+        }
+        else
+        {
+            // Normal scene rendering
+            currentScene()->render();
+        }
         
         // Display the frame
         if (headless) {
@@ -150,8 +251,12 @@ void GameEngine::run()
         currentFrame++;
         frameTime = clock.restart().asSeconds();
         fps = 1 / frameTime;
-        int whole_fps = (int)fps;
-        int tenth_fps = int(fps * 100) % 10;
+        
+        // Update profiling metrics
+        metrics.updateFrameTime(frameTime * 1000.0f); // Convert to milliseconds
+        
+        int whole_fps = metrics.fps;
+        int tenth_fps = (metrics.fps * 10) % 10;
         
         if (!headless && window) {
             window->setTitle(window_title + " " + std::to_string(whole_fps) + "." + std::to_string(tenth_fps) + " FPS");
@@ -162,6 +267,18 @@ void GameEngine::run()
             running = false;
         }
     }
+    
+    // Clean up before exiting the run loop
+    cleanup();
+}
+
+std::shared_ptr<PyTimerCallable> GameEngine::getTimer(const std::string& name)
+{
+    auto it = timers.find(name);
+    if (it != timers.end()) {
+        return it->second;
+    }
+    return nullptr;
 }
 
 void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
@@ -208,9 +325,13 @@ void GameEngine::processEvent(const sf::Event& event)
     int actionCode = 0;
 
     if (event.type == sf::Event::Closed) { running = false; return; }
-    // TODO: add resize event to Scene to react; call it after constructor too, maybe
+    // Handle window resize events
     else if (event.type == sf::Event::Resized) {
-        return; // 7DRL short circuit. Resizing manually disabled
+        // Update the viewport to handle the new window size
+        updateViewport();
+        
+        // Notify Python scenes about the resize
+        McRFPy_API::triggerResize(event.size.width, event.size.height);
     }
 
     else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::MouseButtonPressed || event.type == sf::Event::MouseWheelScrolled) actionType = "start";
@@ -269,4 +390,124 @@ std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> GameEngine::scene_ui(s
     */
     if (scenes.count(target) == 0) return NULL;
     return scenes[target]->ui_elements;
+}
+
+void GameEngine::setWindowTitle(const std::string& title)
+{
+    window_title = title;
+    if (!headless && window) {
+        window->setTitle(title);
+    }
+}
+
+void GameEngine::setVSync(bool enabled)
+{
+    vsync_enabled = enabled;
+    if (!headless && window) {
+        window->setVerticalSyncEnabled(enabled);
+    }
+}
+
+void GameEngine::setFramerateLimit(unsigned int limit)
+{
+    framerate_limit = limit;
+    if (!headless && window) {
+        window->setFramerateLimit(limit);
+    }
+}
+
+void GameEngine::setGameResolution(unsigned int width, unsigned int height) {
+    gameResolution = sf::Vector2u(width, height);
+    gameView.setSize(static_cast<float>(width), static_cast<float>(height));
+    // Use integer center coordinates for pixel-perfect rendering
+    gameView.setCenter(std::floor(width / 2.0f), std::floor(height / 2.0f));
+    updateViewport();
+}
+
+void GameEngine::setViewportMode(ViewportMode mode) {
+    viewportMode = mode;
+    updateViewport();
+}
+
+std::string GameEngine::getViewportModeString() const {
+    switch (viewportMode) {
+        case ViewportMode::Center:  return "center";
+        case ViewportMode::Stretch: return "stretch";
+        case ViewportMode::Fit:     return "fit";
+    }
+    return "unknown";
+}
+
+void GameEngine::updateViewport() {
+    if (!render_target) return;
+    
+    auto windowSize = render_target->getSize();
+    
+    switch (viewportMode) {
+        case ViewportMode::Center: {
+            // 1:1 pixels, centered in window
+            float viewportWidth = std::min(static_cast<float>(gameResolution.x), static_cast<float>(windowSize.x));
+            float viewportHeight = std::min(static_cast<float>(gameResolution.y), static_cast<float>(windowSize.y));
+            
+            // Floor offsets to ensure integer pixel alignment
+            float offsetX = std::floor((windowSize.x - viewportWidth) / 2.0f);
+            float offsetY = std::floor((windowSize.y - viewportHeight) / 2.0f);
+            
+            gameView.setViewport(sf::FloatRect(
+                offsetX / windowSize.x,
+                offsetY / windowSize.y,
+                viewportWidth / windowSize.x,
+                viewportHeight / windowSize.y
+            ));
+            break;
+        }
+        
+        case ViewportMode::Stretch: {
+            // Fill entire window, ignore aspect ratio
+            gameView.setViewport(sf::FloatRect(0, 0, 1, 1));
+            break;
+        }
+        
+        case ViewportMode::Fit: {
+            // Maintain aspect ratio with black bars
+            float windowAspect = static_cast<float>(windowSize.x) / windowSize.y;
+            float gameAspect = static_cast<float>(gameResolution.x) / gameResolution.y;
+            
+            float viewportWidth, viewportHeight;
+            float offsetX = 0, offsetY = 0;
+            
+            if (windowAspect > gameAspect) {
+                // Window is wider - black bars on sides
+                // Calculate viewport size in pixels and floor for pixel-perfect scaling
+                float pixelHeight = static_cast<float>(windowSize.y);
+                float pixelWidth = std::floor(pixelHeight * gameAspect);
+                
+                viewportHeight = 1.0f;
+                viewportWidth = pixelWidth / windowSize.x;
+                offsetX = (1.0f - viewportWidth) / 2.0f;
+            } else {
+                // Window is taller - black bars on top/bottom
+                // Calculate viewport size in pixels and floor for pixel-perfect scaling
+                float pixelWidth = static_cast<float>(windowSize.x);
+                float pixelHeight = std::floor(pixelWidth / gameAspect);
+                
+                viewportWidth = 1.0f;
+                viewportHeight = pixelHeight / windowSize.y;
+                offsetY = (1.0f - viewportHeight) / 2.0f;
+            }
+            
+            gameView.setViewport(sf::FloatRect(offsetX, offsetY, viewportWidth, viewportHeight));
+            break;
+        }
+    }
+    
+    // Apply the view
+    render_target->setView(gameView);
+}
+
+sf::Vector2f GameEngine::windowToGameCoords(const sf::Vector2f& windowPos) const {
+    if (!render_target) return windowPos;
+    
+    // Convert window coordinates to game coordinates using the view
+    return render_target->mapPixelToCoords(sf::Vector2i(windowPos), gameView);
 }

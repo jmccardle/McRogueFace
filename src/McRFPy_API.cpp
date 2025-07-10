@@ -1,17 +1,23 @@
 #include "McRFPy_API.h"
 #include "McRFPy_Automation.h"
+#include "McRFPy_Libtcod.h"
 #include "platform.h"
 #include "PyAnimation.h"
+#include "PyDrawable.h"
+#include "PyTimer.h"
+#include "PyWindow.h"
+#include "PySceneObject.h"
 #include "GameEngine.h"
 #include "UI.h"
 #include "Resources.h"
 #include "PyScene.h"
 #include <filesystem>
 #include <cstring>
+#include <libtcod.h>
 
-std::vector<sf::SoundBuffer> McRFPy_API::soundbuffers;
-sf::Music McRFPy_API::music;
-sf::Sound McRFPy_API::sfx;
+std::vector<sf::SoundBuffer>* McRFPy_API::soundbuffers = nullptr;
+sf::Music* McRFPy_API::music = nullptr;
+sf::Sound* McRFPy_API::sfx = nullptr;
 
 std::shared_ptr<PyFont> McRFPy_API::default_font;
 std::shared_ptr<PyTexture> McRFPy_API::default_texture;
@@ -20,32 +26,189 @@ PyObject* McRFPy_API::mcrf_module;
 
 static PyMethodDef mcrfpyMethods[] = {
 
-    {"createSoundBuffer", McRFPy_API::_createSoundBuffer, METH_VARARGS, "(filename)"},
-	{"loadMusic", McRFPy_API::_loadMusic, METH_VARARGS, "(filename)"},
-	{"setMusicVolume", McRFPy_API::_setMusicVolume, METH_VARARGS, "(int)"},
-	{"setSoundVolume", McRFPy_API::_setSoundVolume, METH_VARARGS, "(int)"},
-	{"playSound", McRFPy_API::_playSound, METH_VARARGS, "(int)"},
-	{"getMusicVolume", McRFPy_API::_getMusicVolume, METH_VARARGS, ""},
-	{"getSoundVolume", McRFPy_API::_getSoundVolume, METH_VARARGS, ""},
+    {"createSoundBuffer", McRFPy_API::_createSoundBuffer, METH_VARARGS,
+     "createSoundBuffer(filename: str) -> int\n\n"
+     "Load a sound effect from a file and return its buffer ID.\n\n"
+     "Args:\n"
+     "    filename: Path to the sound file (WAV, OGG, FLAC)\n\n"
+     "Returns:\n"
+     "    int: Buffer ID for use with playSound()\n\n"
+     "Raises:\n"
+     "    RuntimeError: If the file cannot be loaded"},
+	{"loadMusic", McRFPy_API::_loadMusic, METH_VARARGS,
+	 "loadMusic(filename: str) -> None\n\n"
+	 "Load and immediately play background music from a file.\n\n"
+	 "Args:\n"
+	 "    filename: Path to the music file (WAV, OGG, FLAC)\n\n"
+	 "Note:\n"
+	 "    Only one music track can play at a time. Loading new music stops the current track."},
+	{"setMusicVolume", McRFPy_API::_setMusicVolume, METH_VARARGS,
+	 "setMusicVolume(volume: int) -> None\n\n"
+	 "Set the global music volume.\n\n"
+	 "Args:\n"
+	 "    volume: Volume level from 0 (silent) to 100 (full volume)"},
+	{"setSoundVolume", McRFPy_API::_setSoundVolume, METH_VARARGS,
+	 "setSoundVolume(volume: int) -> None\n\n"
+	 "Set the global sound effects volume.\n\n"
+	 "Args:\n"
+	 "    volume: Volume level from 0 (silent) to 100 (full volume)"},
+	{"playSound", McRFPy_API::_playSound, METH_VARARGS,
+	 "playSound(buffer_id: int) -> None\n\n"
+	 "Play a sound effect using a previously loaded buffer.\n\n"
+	 "Args:\n"
+	 "    buffer_id: Sound buffer ID returned by createSoundBuffer()\n\n"
+	 "Raises:\n"
+	 "    RuntimeError: If the buffer ID is invalid"},
+	{"getMusicVolume", McRFPy_API::_getMusicVolume, METH_NOARGS,
+	 "getMusicVolume() -> int\n\n"
+	 "Get the current music volume level.\n\n"
+	 "Returns:\n"
+	 "    int: Current volume (0-100)"},
+	{"getSoundVolume", McRFPy_API::_getSoundVolume, METH_NOARGS,
+	 "getSoundVolume() -> int\n\n"
+	 "Get the current sound effects volume level.\n\n"
+	 "Returns:\n"
+	 "    int: Current volume (0-100)"},
 
-    {"sceneUI", McRFPy_API::_sceneUI, METH_VARARGS, "sceneUI(scene) - Returns a list of UI elements"},
+    {"sceneUI", McRFPy_API::_sceneUI, METH_VARARGS,
+     "sceneUI(scene: str = None) -> list\n\n"
+     "Get all UI elements for a scene.\n\n"
+     "Args:\n"
+     "    scene: Scene name. If None, uses current scene\n\n"
+     "Returns:\n"
+     "    list: All UI elements (Frame, Caption, Sprite, Grid) in the scene\n\n"
+     "Raises:\n"
+     "    KeyError: If the specified scene doesn't exist"},
 
-    {"currentScene", McRFPy_API::_currentScene, METH_VARARGS, "currentScene() - Current scene's name. Returns a string"},
-    {"setScene", McRFPy_API::_setScene, METH_VARARGS, "setScene(scene) - transition to a different scene"},
-    {"createScene", McRFPy_API::_createScene, METH_VARARGS, "createScene(scene) - create a new blank scene with given name"},
-    {"keypressScene", McRFPy_API::_keypressScene, METH_VARARGS, "keypressScene(callable) - assign a callable object to the current scene receive keypress events"},
+    {"currentScene", McRFPy_API::_currentScene, METH_NOARGS,
+     "currentScene() -> str\n\n"
+     "Get the name of the currently active scene.\n\n"
+     "Returns:\n"
+     "    str: Name of the current scene"},
+    {"setScene", McRFPy_API::_setScene, METH_VARARGS,
+     "setScene(scene: str, transition: str = None, duration: float = 0.0) -> None\n\n"
+     "Switch to a different scene with optional transition effect.\n\n"
+     "Args:\n"
+     "    scene: Name of the scene to switch to\n"
+     "    transition: Transition type ('fade', 'slide_left', 'slide_right', 'slide_up', 'slide_down')\n"
+     "    duration: Transition duration in seconds (default: 0.0 for instant)\n\n"
+     "Raises:\n"
+     "    KeyError: If the scene doesn't exist\n"
+     "    ValueError: If the transition type is invalid"},
+    {"createScene", McRFPy_API::_createScene, METH_VARARGS,
+     "createScene(name: str) -> None\n\n"
+     "Create a new empty scene.\n\n"
+     "Args:\n"
+     "    name: Unique name for the new scene\n\n"
+     "Raises:\n"
+     "    ValueError: If a scene with this name already exists\n\n"
+     "Note:\n"
+     "    The scene is created but not made active. Use setScene() to switch to it."},
+    {"keypressScene", McRFPy_API::_keypressScene, METH_VARARGS,
+     "keypressScene(handler: callable) -> None\n\n"
+     "Set the keyboard event handler for the current scene.\n\n"
+     "Args:\n"
+     "    handler: Callable that receives (key_name: str, is_pressed: bool)\n\n"
+     "Example:\n"
+     "    def on_key(key, pressed):\n"
+     "        if key == 'A' and pressed:\n"
+     "            print('A key pressed')\n"
+     "    mcrfpy.keypressScene(on_key)"},
 
-    {"setTimer", McRFPy_API::_setTimer, METH_VARARGS, "setTimer(name:str, callable:object, interval:int) - callable will be called with args (runtime:float) every `interval` milliseconds"},
-    {"delTimer", McRFPy_API::_delTimer, METH_VARARGS, "delTimer(name:str) - stop calling the timer labelled with `name`"},
-    {"exit", McRFPy_API::_exit, METH_VARARGS, "exit() - close down the game engine"},
-    {"setScale", McRFPy_API::_setScale, METH_VARARGS, "setScale(multiplier:float) - resize the window (still 1024x768, but bigger)"},
+    {"setTimer", McRFPy_API::_setTimer, METH_VARARGS,
+     "setTimer(name: str, handler: callable, interval: int) -> None\n\n"
+     "Create or update a recurring timer.\n\n"
+     "Args:\n"
+     "    name: Unique identifier for the timer\n"
+     "    handler: Function called with (runtime: float) parameter\n"
+     "    interval: Time between calls in milliseconds\n\n"
+     "Note:\n"
+     "    If a timer with this name exists, it will be replaced.\n"
+     "    The handler receives the total runtime in seconds as its argument."},
+    {"delTimer", McRFPy_API::_delTimer, METH_VARARGS,
+     "delTimer(name: str) -> None\n\n"
+     "Stop and remove a timer.\n\n"
+     "Args:\n"
+     "    name: Timer identifier to remove\n\n"
+     "Note:\n"
+     "    No error is raised if the timer doesn't exist."}, 
+    {"exit", McRFPy_API::_exit, METH_NOARGS,
+     "exit() -> None\n\n"
+     "Cleanly shut down the game engine and exit the application.\n\n"
+     "Note:\n"
+     "    This immediately closes the window and terminates the program."},
+    {"setScale", McRFPy_API::_setScale, METH_VARARGS,
+     "setScale(multiplier: float) -> None\n\n"
+     "Scale the game window size.\n\n"
+     "Args:\n"
+     "    multiplier: Scale factor (e.g., 2.0 for double size)\n\n"
+     "Note:\n"
+     "    The internal resolution remains 1024x768, but the window is scaled.\n"
+     "    This is deprecated - use Window.resolution instead."},
+    
+    {"find", McRFPy_API::_find, METH_VARARGS,
+     "find(name: str, scene: str = None) -> UIDrawable | None\n\n"
+     "Find the first UI element with the specified name.\n\n"
+     "Args:\n"
+     "    name: Exact name to search for\n"
+     "    scene: Scene to search in (default: current scene)\n\n"
+     "Returns:\n"
+     "    Frame, Caption, Sprite, Grid, or Entity if found; None otherwise\n\n"
+     "Note:\n"
+     "    Searches scene UI elements and entities within grids."},
+    {"findAll", McRFPy_API::_findAll, METH_VARARGS,
+     "findAll(pattern: str, scene: str = None) -> list\n\n"
+     "Find all UI elements matching a name pattern.\n\n"
+     "Args:\n"
+     "    pattern: Name pattern with optional wildcards (* matches any characters)\n"
+     "    scene: Scene to search in (default: current scene)\n\n"
+     "Returns:\n"
+     "    list: All matching UI elements and entities\n\n"
+     "Example:\n"
+     "    findAll('enemy*')  # Find all elements starting with 'enemy'\n"
+     "    findAll('*_button')  # Find all elements ending with '_button'"},
+    
+    {"getMetrics", McRFPy_API::_getMetrics, METH_NOARGS,
+     "getMetrics() -> dict\n\n"
+     "Get current performance metrics.\n\n"
+     "Returns:\n"
+     "    dict: Performance data with keys:\n"
+     "        - frame_time: Last frame duration in seconds\n"
+     "        - avg_frame_time: Average frame time\n"
+     "        - fps: Frames per second\n"
+     "        - draw_calls: Number of draw calls\n"
+     "        - ui_elements: Total UI element count\n"
+     "        - visible_elements: Visible element count\n"
+     "        - current_frame: Frame counter\n"
+     "        - runtime: Total runtime in seconds"},
+    
     {NULL, NULL, 0, NULL}
 };
 
 static PyModuleDef mcrfpyModule = {
     PyModuleDef_HEAD_INIT, /* m_base - Always initialize this member to PyModuleDef_HEAD_INIT. */
     "mcrfpy",              /* m_name */
-    NULL,                  /* m_doc - Docstring for the module; usually a docstring variable created with PyDoc_STRVAR is used. */
+    PyDoc_STR("McRogueFace Python API\\n\\n"
+              "Core game engine interface for creating roguelike games with Python.\\n\\n"
+              "This module provides:\\n"
+              "- Scene management (createScene, setScene, currentScene)\\n"
+              "- UI components (Frame, Caption, Sprite, Grid)\\n"
+              "- Entity system for game objects\\n"
+              "- Audio playback (sound effects and music)\\n"
+              "- Timer system for scheduled events\\n"
+              "- Input handling\\n"
+              "- Performance metrics\\n\\n"
+              "Example:\\n"
+              "    import mcrfpy\\n"
+              "    \\n"
+              "    # Create a new scene\\n"
+              "    mcrfpy.createScene('game')\\n"
+              "    mcrfpy.setScene('game')\\n"
+              "    \\n"
+              "    # Add UI elements\\n"
+              "    frame = mcrfpy.Frame(10, 10, 200, 100)\\n"
+              "    caption = mcrfpy.Caption('Hello World', 50, 50)\\n"
+              "    mcrfpy.sceneUI().extend([frame, caption])\\n"),
     -1,                    /* m_size - Setting m_size to -1 means that the module does not support sub-interpreters, because it has global state. */
     mcrfpyMethods,         /* m_methods */
     NULL,                  /* m_slots - An array of slot definitions ...  When using single-phase initialization, m_slots must be NULL. */
@@ -69,6 +232,9 @@ PyObject* PyInit_mcrfpy()
         /*SFML exposed types*/
         &PyColorType, /*&PyLinkedColorType,*/ &PyFontType, &PyTextureType, &PyVectorType,
 
+        /*Base classes*/
+        &PyDrawableType,
+
         /*UI widgets*/
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,
 
@@ -81,7 +247,26 @@ PyObject* PyInit_mcrfpy()
         
         /*animation*/
         &PyAnimationType,
+        
+        /*timer*/
+        &PyTimerType,
+        
+        /*window singleton*/
+        &PyWindowType,
+        
+        /*scene class*/
+        &PySceneType,
+        
         nullptr};
+    
+    // Set up PyWindowType methods and getsetters before PyType_Ready
+    PyWindowType.tp_methods = PyWindow::methods;
+    PyWindowType.tp_getset = PyWindow::getsetters;
+    
+    // Set up PySceneType methods and getsetters
+    PySceneType.tp_methods = PySceneClass::methods;
+    PySceneType.tp_getset = PySceneClass::getsetters;
+    
     int i = 0;
     auto t = pytypes[i];
     while (t != nullptr)
@@ -100,10 +285,24 @@ PyObject* PyInit_mcrfpy()
     // Add default_font and default_texture to module
     McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
     McRFPy_API::default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
-    //PyModule_AddObject(m, "default_font", McRFPy_API::default_font->pyObject());
-    //PyModule_AddObject(m, "default_texture", McRFPy_API::default_texture->pyObject());
+    // These will be set later when the window is created
     PyModule_AddObject(m, "default_font", Py_None);
     PyModule_AddObject(m, "default_texture", Py_None);
+    
+    // Add TCOD FOV algorithm constants
+    PyModule_AddIntConstant(m, "FOV_BASIC", FOV_BASIC);
+    PyModule_AddIntConstant(m, "FOV_DIAMOND", FOV_DIAMOND);
+    PyModule_AddIntConstant(m, "FOV_SHADOW", FOV_SHADOW);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_0", FOV_PERMISSIVE_0);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_1", FOV_PERMISSIVE_1);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_2", FOV_PERMISSIVE_2);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_3", FOV_PERMISSIVE_3);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_4", FOV_PERMISSIVE_4);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_5", FOV_PERMISSIVE_5);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_6", FOV_PERMISSIVE_6);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_7", FOV_PERMISSIVE_7);
+    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_8", FOV_PERMISSIVE_8);
+    PyModule_AddIntConstant(m, "FOV_RESTRICTIVE", FOV_RESTRICTIVE);
     
     // Add automation submodule
     PyObject* automation_module = McRFPy_Automation::init_automation_module();
@@ -113,6 +312,16 @@ PyObject* PyInit_mcrfpy()
         // Also add to sys.modules for proper import behavior
         PyObject* sys_modules = PyImport_GetModuleDict();
         PyDict_SetItemString(sys_modules, "mcrfpy.automation", automation_module);
+    }
+    
+    // Add libtcod submodule
+    PyObject* libtcod_module = McRFPy_Libtcod::init_libtcod_module();
+    if (libtcod_module != NULL) {
+        PyModule_AddObject(m, "libtcod", libtcod_module);
+        
+        // Also add to sys.modules for proper import behavior
+        PyObject* sys_modules = PyImport_GetModuleDict();
+        PyDict_SetItemString(sys_modules, "mcrfpy.libtcod", libtcod_module);
     }
     
     //McRFPy_API::mcrf_module = m;
@@ -137,6 +346,11 @@ PyStatus init_python(const char *program_name)
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
 	config.dev_mode = 0;
+    
+    // Configure UTF-8 for stdio
+    PyConfig_SetString(&config, &config.stdio_encoding, L"UTF-8");
+    PyConfig_SetString(&config, &config.stdio_errors, L"surrogateescape");
+    config.configure_c_stdio = 1;
 
 	PyConfig_SetBytesString(&config, &config.home, 
         narrow_string(executable_path() + L"/lib/Python").c_str());
@@ -183,6 +397,11 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config, in
     PyStatus status;
     PyConfig pyconfig;
     PyConfig_InitIsolatedConfig(&pyconfig);
+    
+    // Configure UTF-8 for stdio
+    PyConfig_SetString(&pyconfig, &pyconfig.stdio_encoding, L"UTF-8");
+    PyConfig_SetString(&pyconfig, &pyconfig.stdio_errors, L"surrogateescape");
+    pyconfig.configure_c_stdio = 1;
     
     // CRITICAL: Pass actual command line arguments to Python
     status = PyConfig_SetBytesArgv(&pyconfig, argc, argv);
@@ -339,6 +558,23 @@ void McRFPy_API::executeScript(std::string filename)
 
 void McRFPy_API::api_shutdown()
 {
+    // Clean up audio resources in correct order
+    if (sfx) {
+        sfx->stop();
+        delete sfx;
+        sfx = nullptr;
+    }
+    if (music) {
+        music->stop();
+        delete music;
+        music = nullptr;
+    }
+    if (soundbuffers) {
+        soundbuffers->clear();
+        delete soundbuffers;
+        soundbuffers = nullptr;
+    }
+    
     Py_Finalize();
 }
 
@@ -373,25 +609,29 @@ PyObject* McRFPy_API::_refreshFov(PyObject* self, PyObject* args) {
 PyObject* McRFPy_API::_createSoundBuffer(PyObject* self, PyObject* args) {
 	const char *fn_cstr;
 	if (!PyArg_ParseTuple(args, "s", &fn_cstr)) return NULL;
+	// Initialize soundbuffers if needed
+	if (!McRFPy_API::soundbuffers) {
+		McRFPy_API::soundbuffers = new std::vector<sf::SoundBuffer>();
+	}
 	auto b = sf::SoundBuffer();
 	b.loadFromFile(fn_cstr);
-	McRFPy_API::soundbuffers.push_back(b);
+	McRFPy_API::soundbuffers->push_back(b);
     Py_INCREF(Py_None);
     return Py_None;
 }
 
 PyObject* McRFPy_API::_loadMusic(PyObject* self, PyObject* args) {
 	const char *fn_cstr;
-	PyObject* loop_obj;
+	PyObject* loop_obj = Py_False;
 	if (!PyArg_ParseTuple(args, "s|O", &fn_cstr, &loop_obj)) return NULL;
-	McRFPy_API::music.stop();
-	// get params for sf::Music initialization
-	//sf::InputSoundFile file;
-	//file.openFromFile(fn_cstr);
-	McRFPy_API::music.openFromFile(fn_cstr);
-	McRFPy_API::music.setLoop(PyObject_IsTrue(loop_obj));
-	//McRFPy_API::music.initialize(file.getChannelCount(), file.getSampleRate());
-	McRFPy_API::music.play();
+	// Initialize music if needed
+	if (!McRFPy_API::music) {
+		McRFPy_API::music = new sf::Music();
+	}
+	McRFPy_API::music->stop();
+	McRFPy_API::music->openFromFile(fn_cstr);
+	McRFPy_API::music->setLoop(PyObject_IsTrue(loop_obj));
+	McRFPy_API::music->play();
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -399,7 +639,10 @@ PyObject* McRFPy_API::_loadMusic(PyObject* self, PyObject* args) {
 PyObject* McRFPy_API::_setMusicVolume(PyObject* self, PyObject* args) {
 	int vol;
 	if (!PyArg_ParseTuple(args, "i", &vol)) return NULL;
-	McRFPy_API::music.setVolume(vol);
+	if (!McRFPy_API::music) {
+		McRFPy_API::music = new sf::Music();
+	}
+	McRFPy_API::music->setVolume(vol);
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -407,7 +650,10 @@ PyObject* McRFPy_API::_setMusicVolume(PyObject* self, PyObject* args) {
 PyObject* McRFPy_API::_setSoundVolume(PyObject* self, PyObject* args) {
 	float vol;
 	if (!PyArg_ParseTuple(args, "f", &vol)) return NULL;
-	McRFPy_API::sfx.setVolume(vol);
+	if (!McRFPy_API::sfx) {
+		McRFPy_API::sfx = new sf::Sound();
+	}
+	McRFPy_API::sfx->setVolume(vol);
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -415,20 +661,29 @@ PyObject* McRFPy_API::_setSoundVolume(PyObject* self, PyObject* args) {
 PyObject* McRFPy_API::_playSound(PyObject* self, PyObject* args) {
 	float index;
 	if (!PyArg_ParseTuple(args, "f", &index)) return NULL;
-	if (index >= McRFPy_API::soundbuffers.size()) return NULL;
-	McRFPy_API::sfx.stop();
-	McRFPy_API::sfx.setBuffer(McRFPy_API::soundbuffers[index]);
-	McRFPy_API::sfx.play();
+	if (!McRFPy_API::soundbuffers || index >= McRFPy_API::soundbuffers->size()) return NULL;
+	if (!McRFPy_API::sfx) {
+		McRFPy_API::sfx = new sf::Sound();
+	}
+	McRFPy_API::sfx->stop();
+	McRFPy_API::sfx->setBuffer((*McRFPy_API::soundbuffers)[index]);
+	McRFPy_API::sfx->play();
     Py_INCREF(Py_None);
     return Py_None;
 }
 
 PyObject* McRFPy_API::_getMusicVolume(PyObject* self, PyObject* args) {
-	return Py_BuildValue("f", McRFPy_API::music.getVolume());
+	if (!McRFPy_API::music) {
+		return Py_BuildValue("f", 0.0f);
+	}
+	return Py_BuildValue("f", McRFPy_API::music->getVolume());
 }
 
 PyObject* McRFPy_API::_getSoundVolume(PyObject* self, PyObject* args) {
-	return Py_BuildValue("f", McRFPy_API::sfx.getVolume());
+	if (!McRFPy_API::sfx) {
+		return Py_BuildValue("f", 0.0f);
+	}
+	return Py_BuildValue("f", McRFPy_API::sfx->getVolume());
 }
 
 // Removed deprecated player_input, computerTurn, playerTurn functions
@@ -481,8 +736,24 @@ PyObject* McRFPy_API::_currentScene(PyObject* self, PyObject* args) {
 
 PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
 	const char* newscene;
-	if (!PyArg_ParseTuple(args, "s", &newscene)) return NULL;
-	game->changeScene(newscene);
+	const char* transition_str = nullptr;
+	float duration = 0.0f;
+	
+	// Parse arguments: scene name, optional transition type, optional duration
+	if (!PyArg_ParseTuple(args, "s|sf", &newscene, &transition_str, &duration)) return NULL;
+	
+	// Map transition string to enum
+	TransitionType transition_type = TransitionType::None;
+	if (transition_str) {
+		std::string trans(transition_str);
+		if (trans == "fade") transition_type = TransitionType::Fade;
+		else if (trans == "slide_left") transition_type = TransitionType::SlideLeft;
+		else if (trans == "slide_right") transition_type = TransitionType::SlideRight;
+		else if (trans == "slide_up") transition_type = TransitionType::SlideUp;
+		else if (trans == "slide_down") transition_type = TransitionType::SlideDown;
+	}
+	
+	game->changeScene(newscene, transition_type, duration);
     Py_INCREF(Py_None);
     return Py_None;		
 }
@@ -566,4 +837,284 @@ void McRFPy_API::markSceneNeedsSort() {
             pyscene->ui_elements_need_sort = true;
         }
     }
+}
+
+// Helper function to check if a name matches a pattern with wildcards
+static bool name_matches_pattern(const std::string& name, const std::string& pattern) {
+    if (pattern.find('*') == std::string::npos) {
+        // No wildcards, exact match
+        return name == pattern;
+    }
+    
+    // Simple wildcard matching - * matches any sequence
+    size_t name_pos = 0;
+    size_t pattern_pos = 0;
+    
+    while (pattern_pos < pattern.length() && name_pos < name.length()) {
+        if (pattern[pattern_pos] == '*') {
+            // Skip consecutive stars
+            while (pattern_pos < pattern.length() && pattern[pattern_pos] == '*') {
+                pattern_pos++;
+            }
+            if (pattern_pos == pattern.length()) {
+                // Pattern ends with *, matches rest of name
+                return true;
+            }
+            
+            // Find next non-star character in pattern
+            char next_char = pattern[pattern_pos];
+            while (name_pos < name.length() && name[name_pos] != next_char) {
+                name_pos++;
+            }
+        } else if (pattern[pattern_pos] == name[name_pos]) {
+            pattern_pos++;
+            name_pos++;
+        } else {
+            return false;
+        }
+    }
+    
+    // Skip trailing stars in pattern
+    while (pattern_pos < pattern.length() && pattern[pattern_pos] == '*') {
+        pattern_pos++;
+    }
+    
+    return pattern_pos == pattern.length() && name_pos == name.length();
+}
+
+// Helper to recursively search a collection for named elements
+static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collection, const std::string& pattern, 
+                             bool find_all, PyObject* results) {
+    if (!collection) return;
+    
+    for (auto& drawable : *collection) {
+        if (!drawable) continue;
+        
+        // Check this element's name
+        if (name_matches_pattern(drawable->name, pattern)) {
+            // Convert to Python object using RET_PY_INSTANCE logic
+            PyObject* py_obj = nullptr;
+            
+            switch (drawable->derived_type()) {
+                case PyObjectsEnum::UIFRAME: {
+                    auto frame = std::static_pointer_cast<UIFrame>(drawable);
+                    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+                    auto o = (PyUIFrameObject*)type->tp_alloc(type, 0);
+                    if (o) {
+                        o->data = frame;
+                        py_obj = (PyObject*)o;
+                    }
+                    break;
+                }
+                case PyObjectsEnum::UICAPTION: {
+                    auto caption = std::static_pointer_cast<UICaption>(drawable);
+                    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
+                    auto o = (PyUICaptionObject*)type->tp_alloc(type, 0);
+                    if (o) {
+                        o->data = caption;
+                        py_obj = (PyObject*)o;
+                    }
+                    break;
+                }
+                case PyObjectsEnum::UISPRITE: {
+                    auto sprite = std::static_pointer_cast<UISprite>(drawable);
+                    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
+                    auto o = (PyUISpriteObject*)type->tp_alloc(type, 0);
+                    if (o) {
+                        o->data = sprite;
+                        py_obj = (PyObject*)o;
+                    }
+                    break;
+                }
+                case PyObjectsEnum::UIGRID: {
+                    auto grid = std::static_pointer_cast<UIGrid>(drawable);
+                    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+                    auto o = (PyUIGridObject*)type->tp_alloc(type, 0);
+                    if (o) {
+                        o->data = grid;
+                        py_obj = (PyObject*)o;
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+            
+            if (py_obj) {
+                if (find_all) {
+                    PyList_Append(results, py_obj);
+                    Py_DECREF(py_obj);
+                } else {
+                    // For find (not findAll), we store in results and return early
+                    PyList_Append(results, py_obj);
+                    Py_DECREF(py_obj);
+                    return;
+                }
+            }
+        }
+        
+        // Recursively search in Frame children
+        if (drawable->derived_type() == PyObjectsEnum::UIFRAME) {
+            auto frame = std::static_pointer_cast<UIFrame>(drawable);
+            find_in_collection(frame->children.get(), pattern, find_all, results);
+            if (!find_all && PyList_Size(results) > 0) {
+                return;  // Found one, stop searching
+            }
+        }
+    }
+}
+
+// Also search Grid entities
+static void find_in_grid_entities(UIGrid* grid, const std::string& pattern, 
+                                bool find_all, PyObject* results) {
+    if (!grid || !grid->entities) return;
+    
+    for (auto& entity : *grid->entities) {
+        if (!entity) continue;
+        
+        // Entities delegate name to their sprite
+        if (name_matches_pattern(entity->sprite.name, pattern)) {
+            auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+            auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
+            if (o) {
+                o->data = entity;
+                PyObject* py_obj = (PyObject*)o;
+                
+                if (find_all) {
+                    PyList_Append(results, py_obj);
+                    Py_DECREF(py_obj);
+                } else {
+                    PyList_Append(results, py_obj);
+                    Py_DECREF(py_obj);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+PyObject* McRFPy_API::_find(PyObject* self, PyObject* args) {
+    const char* name;
+    const char* scene_name = nullptr;
+    
+    if (!PyArg_ParseTuple(args, "s|s", &name, &scene_name)) {
+        return NULL;
+    }
+    
+    PyObject* results = PyList_New(0);
+    
+    // Get the UI elements to search
+    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> ui_elements;
+    if (scene_name) {
+        // Search specific scene
+        ui_elements = game->scene_ui(scene_name);
+        if (!ui_elements) {
+            PyErr_Format(PyExc_ValueError, "Scene '%s' not found", scene_name);
+            Py_DECREF(results);
+            return NULL;
+        }
+    } else {
+        // Search current scene
+        Scene* current = game->currentScene();
+        if (!current) {
+            PyErr_SetString(PyExc_RuntimeError, "No current scene");
+            Py_DECREF(results);
+            return NULL;
+        }
+        ui_elements = current->ui_elements;
+    }
+    
+    // Search the scene's UI elements
+    find_in_collection(ui_elements.get(), name, false, results);
+    
+    // Also search all grids in the scene for entities
+    if (PyList_Size(results) == 0 && ui_elements) {
+        for (auto& drawable : *ui_elements) {
+            if (drawable && drawable->derived_type() == PyObjectsEnum::UIGRID) {
+                auto grid = std::static_pointer_cast<UIGrid>(drawable);
+                find_in_grid_entities(grid.get(), name, false, results);
+                if (PyList_Size(results) > 0) break;
+            }
+        }
+    }
+    
+    // Return the first result or None
+    if (PyList_Size(results) > 0) {
+        PyObject* result = PyList_GetItem(results, 0);
+        Py_INCREF(result);
+        Py_DECREF(results);
+        return result;
+    }
+    
+    Py_DECREF(results);
+    Py_RETURN_NONE;
+}
+
+PyObject* McRFPy_API::_findAll(PyObject* self, PyObject* args) {
+    const char* pattern;
+    const char* scene_name = nullptr;
+    
+    if (!PyArg_ParseTuple(args, "s|s", &pattern, &scene_name)) {
+        return NULL;
+    }
+    
+    PyObject* results = PyList_New(0);
+    
+    // Get the UI elements to search
+    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> ui_elements;
+    if (scene_name) {
+        // Search specific scene
+        ui_elements = game->scene_ui(scene_name);
+        if (!ui_elements) {
+            PyErr_Format(PyExc_ValueError, "Scene '%s' not found", scene_name);
+            Py_DECREF(results);
+            return NULL;
+        }
+    } else {
+        // Search current scene
+        Scene* current = game->currentScene();
+        if (!current) {
+            PyErr_SetString(PyExc_RuntimeError, "No current scene");
+            Py_DECREF(results);
+            return NULL;
+        }
+        ui_elements = current->ui_elements;
+    }
+    
+    // Search the scene's UI elements
+    find_in_collection(ui_elements.get(), pattern, true, results);
+    
+    // Also search all grids in the scene for entities
+    if (ui_elements) {
+        for (auto& drawable : *ui_elements) {
+            if (drawable && drawable->derived_type() == PyObjectsEnum::UIGRID) {
+                auto grid = std::static_pointer_cast<UIGrid>(drawable);
+                find_in_grid_entities(grid.get(), pattern, true, results);
+            }
+        }
+    }
+    
+    return results;
+}
+
+PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
+    // Create a dictionary with metrics
+    PyObject* dict = PyDict_New();
+    if (!dict) return NULL;
+    
+    // Add frame time metrics
+    PyDict_SetItemString(dict, "frame_time", PyFloat_FromDouble(game->metrics.frameTime));
+    PyDict_SetItemString(dict, "avg_frame_time", PyFloat_FromDouble(game->metrics.avgFrameTime));
+    PyDict_SetItemString(dict, "fps", PyLong_FromLong(game->metrics.fps));
+    
+    // Add draw call metrics
+    PyDict_SetItemString(dict, "draw_calls", PyLong_FromLong(game->metrics.drawCalls));
+    PyDict_SetItemString(dict, "ui_elements", PyLong_FromLong(game->metrics.uiElements));
+    PyDict_SetItemString(dict, "visible_elements", PyLong_FromLong(game->metrics.visibleElements));
+    
+    // Add general metrics
+    PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));
+    PyDict_SetItemString(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds()));
+    
+    return dict;
 }

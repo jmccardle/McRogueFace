@@ -16,21 +16,24 @@ PyObject* PyCallable::call(PyObject* args, PyObject* kwargs)
     return PyObject_Call(target, args, kwargs);
 }
 
-bool PyCallable::isNone()
+bool PyCallable::isNone() const
 {
     return (target == Py_None || target == NULL);
 }
 
 PyTimerCallable::PyTimerCallable(PyObject* _target, int _interval, int now)
-: PyCallable(_target), interval(_interval), last_ran(now)
+: PyCallable(_target), interval(_interval), last_ran(now), 
+  paused(false), pause_start_time(0), total_paused_time(0)
 {}
 
 PyTimerCallable::PyTimerCallable()
-: PyCallable(Py_None), interval(0), last_ran(0)
+: PyCallable(Py_None), interval(0), last_ran(0),
+  paused(false), pause_start_time(0), total_paused_time(0)
 {}
 
 bool PyTimerCallable::hasElapsed(int now)
 {
+    if (paused) return false;
     return now >= last_ran + interval;
 }
 
@@ -58,6 +61,62 @@ bool PyTimerCallable::test(int now)
         return true;
     }
     return false;
+}
+
+void PyTimerCallable::pause(int current_time)
+{
+    if (!paused) {
+        paused = true;
+        pause_start_time = current_time;
+    }
+}
+
+void PyTimerCallable::resume(int current_time)
+{
+    if (paused) {
+        paused = false;
+        int paused_duration = current_time - pause_start_time;
+        total_paused_time += paused_duration;
+        // Adjust last_ran to account for the pause
+        last_ran += paused_duration;
+    }
+}
+
+void PyTimerCallable::restart(int current_time)
+{
+    last_ran = current_time;
+    paused = false;
+    pause_start_time = 0;
+    total_paused_time = 0;
+}
+
+void PyTimerCallable::cancel()
+{
+    // Cancel by setting target to None
+    if (target && target != Py_None) {
+        Py_DECREF(target);
+    }
+    target = Py_None;
+    Py_INCREF(Py_None);
+}
+
+int PyTimerCallable::getRemaining(int current_time) const
+{
+    if (paused) {
+        // When paused, calculate time remaining from when it was paused
+        int elapsed_when_paused = pause_start_time - last_ran;
+        return interval - elapsed_when_paused;
+    }
+    int elapsed = current_time - last_ran;
+    return interval - elapsed;
+}
+
+void PyTimerCallable::setCallback(PyObject* new_callback)
+{
+    if (target && target != Py_None) {
+        Py_DECREF(target);
+    }
+    target = Py_XNewRef(new_callback);
 }
 
 PyClickCallable::PyClickCallable(PyObject* _target)

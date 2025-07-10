@@ -1,6 +1,8 @@
 #include "UISprite.h"
 #include "GameEngine.h"
 #include "PyVector.h"
+#include "PyArgHelpers.h"
+// UIDrawable methods now in UIBase.h
 
 UIDrawable* UISprite::click_at(sf::Vector2f point)
 {
@@ -11,12 +13,20 @@ UIDrawable* UISprite::click_at(sf::Vector2f point)
     return NULL;
 }
 
-UISprite::UISprite() {}
+UISprite::UISprite() 
+: sprite_index(0), ptex(nullptr)
+{
+    // Initialize sprite to safe defaults
+    position = sf::Vector2f(0.0f, 0.0f);  // Set base class position
+    sprite.setPosition(position);         // Sync sprite position
+    sprite.setScale(1.0f, 1.0f);
+}
 
 UISprite::UISprite(std::shared_ptr<PyTexture> _ptex, int _sprite_index, sf::Vector2f _pos, float _scale)
 : ptex(_ptex), sprite_index(_sprite_index)
 {
-    sprite = ptex->sprite(sprite_index, _pos, sf::Vector2f(_scale, _scale));
+    position = _pos;  // Set base class position
+    sprite = ptex->sprite(sprite_index, position, sf::Vector2f(_scale, _scale));
 }
 
 /*
@@ -30,14 +40,27 @@ void UISprite::render(sf::Vector2f offset)
 
 void UISprite::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
+    // Check visibility
+    if (!visible) return;
+    
+    // Apply opacity
+    auto color = sprite.getColor();
+    color.a = static_cast<sf::Uint8>(255 * opacity);
+    sprite.setColor(color);
+    
     sprite.move(offset);
     target.draw(sprite);
     sprite.move(-offset);
+    
+    // Restore original alpha
+    color.a = 255;
+    sprite.setColor(color);
 }
 
 void UISprite::setPosition(sf::Vector2f pos)
 {
-    sprite.setPosition(pos);
+    position = pos;  // Update base class position
+    sprite.setPosition(position);  // Sync sprite position
 }
 
 void UISprite::setScale(sf::Vector2f s)
@@ -50,13 +73,13 @@ void UISprite::setTexture(std::shared_ptr<PyTexture> _ptex, int _sprite_index)
     ptex = _ptex;
     if (_sprite_index != -1) // if you are changing textures, there's a good chance you need a new index too
         sprite_index = _sprite_index;
-    sprite = ptex->sprite(sprite_index, sprite.getPosition(), sprite.getScale());
+    sprite = ptex->sprite(sprite_index, position, sprite.getScale());  // Use base class position
 }
 
 void UISprite::setSpriteIndex(int _sprite_index)
 {
     sprite_index = _sprite_index;
-    sprite = ptex->sprite(sprite_index, sprite.getPosition(), sprite.getScale());
+    sprite = ptex->sprite(sprite_index, position, sprite.getScale());  // Use base class position
 }
 
 sf::Vector2f UISprite::getScale() const
@@ -66,7 +89,7 @@ sf::Vector2f UISprite::getScale() const
 
 sf::Vector2f UISprite::getPosition()
 {
-    return sprite.getPosition();
+    return position;  // Return base class position
 }
 
 std::shared_ptr<PyTexture> UISprite::getTexture()
@@ -82,6 +105,42 @@ int UISprite::getSpriteIndex()
 PyObjectsEnum UISprite::derived_type()
 {
     return PyObjectsEnum::UISPRITE;
+}
+
+// Phase 1 implementations
+sf::FloatRect UISprite::get_bounds() const
+{
+    return sprite.getGlobalBounds();
+}
+
+void UISprite::move(float dx, float dy)
+{
+    position.x += dx;
+    position.y += dy;
+    sprite.setPosition(position);  // Keep sprite in sync
+}
+
+void UISprite::resize(float w, float h)
+{
+    // Calculate scale factors to achieve target size while preserving aspect ratio
+    auto bounds = sprite.getLocalBounds();
+    if (bounds.width > 0 && bounds.height > 0) {
+        float scaleX = w / bounds.width;
+        float scaleY = h / bounds.height;
+        
+        // Use the smaller scale factor to maintain aspect ratio
+        // This ensures the sprite fits within the given bounds
+        float scale = std::min(scaleX, scaleY);
+        
+        // Apply uniform scaling to preserve aspect ratio
+        sprite.setScale(scale, scale);
+    }
+}
+
+void UISprite::onPositionChanged()
+{
+    // Sync sprite position with base class position
+    sprite.setPosition(position);
 }
 
 PyObject* UISprite::get_float_member(PyUISpriteObject* self, void* closure)
@@ -118,7 +177,7 @@ int UISprite::set_float_member(PyUISpriteObject* self, PyObject* value, void* cl
     }
     else
     {
-        PyErr_SetString(PyExc_TypeError, "Value must be a floating point number.");
+        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
         return -1;
     }
     if (member_ptr == 0) //x
@@ -157,7 +216,7 @@ int UISprite::set_int_member(PyUISpriteObject* self, PyObject* value, void* clos
     }
     else
     {
-        PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
+        PyErr_SetString(PyExc_TypeError, "sprite_index must be an integer");
         return -1;
     }
     
@@ -226,18 +285,29 @@ int UISprite::set_pos(PyUISpriteObject* self, PyObject* value, void* closure)
     return 0;
 }
 
+// Define the PyObjectType alias for the macros
+typedef PyUISpriteObject PyObjectType;
+
+// Method definitions
+PyMethodDef UISprite_methods[] = {
+    UIDRAWABLE_METHODS,
+    {NULL}  // Sentinel
+};
+
 PyGetSetDef UISprite::getsetters[] = {
-    {"x", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "X coordinate of top-left corner",   (void*)0},
-    {"y", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Y coordinate of top-left corner",   (void*)1},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "X coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UISPRITE << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "Y coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UISPRITE << 8 | 1)},
     {"scale", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Uniform size factor",                   (void*)2},
     {"scale_x", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Horizontal scale factor",         (void*)3},
     {"scale_y", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Vertical scale factor",           (void*)4},
     {"sprite_index", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Which sprite on the texture is shown", NULL},
-    {"sprite_number", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Which sprite on the texture is shown (deprecated: use sprite_index)", NULL},
+    {"sprite_number", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Sprite index (DEPRECATED: use sprite_index instead)", NULL},
     {"texture", (getter)UISprite::get_texture, (setter)UISprite::set_texture,     "Texture object",                    NULL},
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UISPRITE},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UISPRITE},
-    {"pos", (getter)UISprite::get_pos, (setter)UISprite::set_pos, "Position as a Vector", NULL},
+    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UISPRITE},
+    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UISPRITE},
+    UIDRAWABLE_GETSETTERS,
     {NULL}
 };
 
@@ -257,37 +327,74 @@ PyObject* UISprite::repr(PyUISpriteObject* self)
 
 int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
 {
-    //std::cout << "Init called\n";
-    static const char* keywords[] = { "x", "y", "texture", "sprite_index", "scale", nullptr };
+    // Try parsing with PyArgHelpers
+    int arg_idx = 0;
+    auto pos_result = PyArgHelpers::parsePosition(args, kwds, &arg_idx);
+    
+    // Default values
     float x = 0.0f, y = 0.0f, scale = 1.0f;
     int sprite_index = 0;
-    PyObject* texture = NULL;
-
-    // First try to parse as (x, y, texture, ...)
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffOif",
-        const_cast<char**>(keywords), &x, &y, &texture, &sprite_index, &scale))
-    {
-        PyErr_Clear();  // Clear the error
+    PyObject* texture = nullptr;
+    PyObject* click_handler = nullptr;
+    
+    // Case 1: Got position from helpers (tuple format)
+    if (pos_result.valid) {
+        x = pos_result.x;
+        y = pos_result.y;
         
-        // Try to parse as ((x,y), texture, ...) or (Vector, texture, ...)
+        // Parse remaining arguments
+        static const char* remaining_keywords[] = { 
+            "texture", "sprite_index", "scale", "click", nullptr 
+        };
+        
+        // Create new tuple with remaining args
+        Py_ssize_t total_args = PyTuple_Size(args);
+        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
+        
+        if (!PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|OifO", 
+                                         const_cast<char**>(remaining_keywords),
+                                         &texture, &sprite_index, &scale, &click_handler)) {
+            Py_DECREF(remaining_args);
+            if (pos_result.error) PyErr_SetString(PyExc_TypeError, pos_result.error);
+            return -1;
+        }
+        Py_DECREF(remaining_args);
+    }
+    // Case 2: Traditional format
+    else {
+        PyErr_Clear();  // Clear any errors from helpers
+        
+        static const char* keywords[] = { 
+            "x", "y", "texture", "sprite_index", "scale", "click", "pos", nullptr 
+        };
         PyObject* pos_obj = nullptr;
-        const char* alt_keywords[] = { "pos", "texture", "sprite_index", "scale", nullptr };
         
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOif", const_cast<char**>(alt_keywords), 
-                                          &pos_obj, &texture, &sprite_index, &scale))
-        {
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffOifOO", 
+                                         const_cast<char**>(keywords), 
+                                         &x, &y, &texture, &sprite_index, &scale, 
+                                         &click_handler, &pos_obj)) {
             return -1;
         }
         
-        // Convert position argument to x, y
-        if (pos_obj) {
-            PyVectorObject* vec = PyVector::from_arg(pos_obj);
-            if (!vec) {
-                PyErr_SetString(PyExc_TypeError, "First argument must be a tuple (x, y) or Vector when not providing x, y separately");
+        // Handle pos keyword override
+        if (pos_obj && pos_obj != Py_None) {
+            if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
+                PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
+                PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
+                if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
+                    (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
+                    x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
+                    y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
+                }
+            } else if (PyObject_TypeCheck(pos_obj, (PyTypeObject*)PyObject_GetAttrString(
+                       PyImport_ImportModule("mcrfpy"), "Vector"))) {
+                PyVectorObject* vec = (PyVectorObject*)pos_obj;
+                x = vec->data.x;
+                y = vec->data.y;
+            } else {
+                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
                 return -1;
             }
-            x = vec->data.x;
-            y = vec->data.y;
         }
     }
 
@@ -310,7 +417,15 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     }
     
     self->data = std::make_shared<UISprite>(texture_ptr, sprite_index, sf::Vector2f(x, y), scale);
-    self->data->setPosition(sf::Vector2f(x, y));
+
+    // Process click handler if provided
+    if (click_handler && click_handler != Py_None) {
+        if (!PyCallable_Check(click_handler)) {
+            PyErr_SetString(PyExc_TypeError, "click must be callable");
+            return -1;
+        }
+        self->data->click_register(click_handler);
+    }
 
     return 0;
 }
@@ -318,11 +433,13 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
 // Property system implementation for animations
 bool UISprite::setProperty(const std::string& name, float value) {
     if (name == "x") {
-        sprite.setPosition(sf::Vector2f(value, sprite.getPosition().y));
+        position.x = value;
+        sprite.setPosition(position);  // Keep sprite in sync
         return true;
     }
     else if (name == "y") {
-        sprite.setPosition(sf::Vector2f(sprite.getPosition().x, value));
+        position.y = value;
+        sprite.setPosition(position);  // Keep sprite in sync
         return true;
     }
     else if (name == "scale") {
@@ -358,11 +475,11 @@ bool UISprite::setProperty(const std::string& name, int value) {
 
 bool UISprite::getProperty(const std::string& name, float& value) const {
     if (name == "x") {
-        value = sprite.getPosition().x;
+        value = position.x;
         return true;
     }
     else if (name == "y") {
-        value = sprite.getPosition().y;
+        value = position.y;
         return true;
     }
     else if (name == "scale") {

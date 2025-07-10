@@ -2,14 +2,22 @@
 #include "Common.h"
 #include "Python.h"
 #include "UIDrawable.h"
+#include "PyDrawable.h"
 
 class UICaption: public UIDrawable
 {
 public:
     sf::Text text;
+    UICaption(); // Default constructor with safe initialization
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     PyObjectsEnum derived_type() override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
+    
+    // Phase 1 virtual method implementations
+    sf::FloatRect get_bounds() const override;
+    void move(float dx, float dy) override;
+    void resize(float w, float h) override;
+    void onPositionChanged() override;
     
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
@@ -34,6 +42,8 @@ public:
 
 };
 
+extern PyMethodDef UICaption_methods[];
+
 namespace mcrfpydef {
     static PyTypeObject PyUICaptionType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
@@ -55,11 +65,31 @@ namespace mcrfpydef {
         //.tp_iter
         //.tp_iternext
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("docstring"),
-        //.tp_methods = PyUIFrame_methods,
+        .tp_doc = PyDoc_STR("Caption(text='', x=0, y=0, font=None, fill_color=None, outline_color=None, outline=0, click=None)\n\n"
+                            "A text display UI element with customizable font and styling.\n\n"
+                            "Args:\n"
+                            "    text (str): The text content to display. Default: ''\n"
+                            "    x (float): X position in pixels. Default: 0\n"
+                            "    y (float): Y position in pixels. Default: 0\n"
+                            "    font (Font): Font object for text rendering. Default: engine default font\n"
+                            "    fill_color (Color): Text fill color. Default: (255, 255, 255, 255)\n"
+                            "    outline_color (Color): Text outline color. Default: (0, 0, 0, 255)\n"
+                            "    outline (float): Text outline thickness. Default: 0\n"
+                            "    click (callable): Click event handler. Default: None\n\n"
+                            "Attributes:\n"
+                            "    text (str): The displayed text content\n"
+                            "    x, y (float): Position in pixels\n"
+                            "    font (Font): Font used for rendering\n"
+                            "    fill_color, outline_color (Color): Text appearance\n"
+                            "    outline (float): Outline thickness\n"
+                            "    click (callable): Click event handler\n"
+                            "    visible (bool): Visibility state\n"
+                            "    z_index (int): Rendering order\n"
+                            "    w, h (float): Read-only computed size based on text and font"),
+        .tp_methods = UICaption_methods,
         //.tp_members = PyUIFrame_members,
         .tp_getset = UICaption::getsetters,
-        //.tp_base = NULL,
+        .tp_base = &mcrfpydef::PyDrawableType,
         .tp_init = (initproc)UICaption::init,
         // TODO - move tp_new to .cpp file as a static function (UICaption::new)
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*

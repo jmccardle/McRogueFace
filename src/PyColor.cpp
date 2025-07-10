@@ -2,12 +2,21 @@
 #include "McRFPy_API.h"
 #include "PyObjectUtils.h"
 #include "PyRAII.h"
+#include <string>
+#include <cstdio>
 
 PyGetSetDef PyColor::getsetters[] = {
     {"r", (getter)PyColor::get_member, (setter)PyColor::set_member, "Red component",   (void*)0},
     {"g", (getter)PyColor::get_member, (setter)PyColor::set_member, "Green component", (void*)1},
     {"b", (getter)PyColor::get_member, (setter)PyColor::set_member, "Blue component",  (void*)2},
     {"a", (getter)PyColor::get_member, (setter)PyColor::set_member, "Alpha component", (void*)3},
+    {NULL}
+};
+
+PyMethodDef PyColor::methods[] = {
+    {"from_hex", (PyCFunction)PyColor::from_hex, METH_VARARGS | METH_CLASS, "Create Color from hex string (e.g., '#FF0000' or 'FF0000')"},
+    {"to_hex", (PyCFunction)PyColor::to_hex, METH_NOARGS, "Convert Color to hex string"},
+    {"lerp", (PyCFunction)PyColor::lerp, METH_VARARGS, "Linearly interpolate between this color and another"},
     {NULL}
 };
 
@@ -216,4 +225,106 @@ PyColorObject* PyColor::from_arg(PyObject* args)
     
     // Release ownership and return
     return (PyColorObject*)obj.release();
+}
+
+// Color helper method implementations
+PyObject* PyColor::from_hex(PyObject* cls, PyObject* args)
+{
+    const char* hex_str;
+    if (!PyArg_ParseTuple(args, "s", &hex_str)) {
+        return NULL;
+    }
+    
+    std::string hex(hex_str);
+    
+    // Remove # if present
+    if (hex.length() > 0 && hex[0] == '#') {
+        hex = hex.substr(1);
+    }
+    
+    // Validate hex string
+    if (hex.length() != 6 && hex.length() != 8) {
+        PyErr_SetString(PyExc_ValueError, "Hex string must be 6 or 8 characters (RGB or RGBA)");
+        return NULL;
+    }
+    
+    // Parse hex values
+    try {
+        unsigned int r = std::stoul(hex.substr(0, 2), nullptr, 16);
+        unsigned int g = std::stoul(hex.substr(2, 2), nullptr, 16);
+        unsigned int b = std::stoul(hex.substr(4, 2), nullptr, 16);
+        unsigned int a = 255;
+        
+        if (hex.length() == 8) {
+            a = std::stoul(hex.substr(6, 2), nullptr, 16);
+        }
+        
+        // Create new Color object
+        PyTypeObject* type = (PyTypeObject*)cls;
+        PyColorObject* color = (PyColorObject*)type->tp_alloc(type, 0);
+        if (color) {
+            color->data = sf::Color(r, g, b, a);
+        }
+        return (PyObject*)color;
+        
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_ValueError, "Invalid hex string");
+        return NULL;
+    }
+}
+
+PyObject* PyColor::to_hex(PyColorObject* self, PyObject* Py_UNUSED(ignored))
+{
+    char hex[10];  // #RRGGBBAA + null terminator
+    
+    // Include alpha only if not fully opaque
+    if (self->data.a < 255) {
+        snprintf(hex, sizeof(hex), "#%02X%02X%02X%02X", 
+                 self->data.r, self->data.g, self->data.b, self->data.a);
+    } else {
+        snprintf(hex, sizeof(hex), "#%02X%02X%02X", 
+                 self->data.r, self->data.g, self->data.b);
+    }
+    
+    return PyUnicode_FromString(hex);
+}
+
+PyObject* PyColor::lerp(PyColorObject* self, PyObject* args)
+{
+    PyObject* other_obj;
+    float t;
+    
+    if (!PyArg_ParseTuple(args, "Of", &other_obj, &t)) {
+        return NULL;
+    }
+    
+    // Validate other color
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
+    if (!PyObject_IsInstance(other_obj, (PyObject*)type)) {
+        Py_DECREF(type);
+        PyErr_SetString(PyExc_TypeError, "First argument must be a Color");
+        return NULL;
+    }
+    
+    PyColorObject* other = (PyColorObject*)other_obj;
+    
+    // Clamp t to [0, 1]
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+    
+    // Perform linear interpolation
+    sf::Uint8 r = static_cast<sf::Uint8>(self->data.r + (other->data.r - self->data.r) * t);
+    sf::Uint8 g = static_cast<sf::Uint8>(self->data.g + (other->data.g - self->data.g) * t);
+    sf::Uint8 b = static_cast<sf::Uint8>(self->data.b + (other->data.b - self->data.b) * t);
+    sf::Uint8 a = static_cast<sf::Uint8>(self->data.a + (other->data.a - self->data.a) * t);
+    
+    // Create new Color object
+    PyColorObject* result = (PyColorObject*)type->tp_alloc(type, 0);
+    Py_DECREF(type);
+    
+    if (result) {
+        result->data = sf::Color(r, g, b, a);
+    }
+    
+    return (PyObject*)result;
 }

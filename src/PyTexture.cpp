@@ -2,10 +2,15 @@
 #include "McRFPy_API.h"
 
 PyTexture::PyTexture(std::string filename, int sprite_w, int sprite_h)
-: source(filename), sprite_width(sprite_w), sprite_height(sprite_h)
+: source(filename), sprite_width(sprite_w), sprite_height(sprite_h), sheet_width(0), sheet_height(0)
 {
     texture = sf::Texture();
-    texture.loadFromFile(source);
+    if (!texture.loadFromFile(source)) {
+        // Failed to load texture - leave sheet dimensions as 0
+        // This will be checked in init()
+        return;
+    }
+    texture.setSmooth(false);  // Disable smoothing for pixel art
     auto size = texture.getSize();
     sheet_width = (size.x / sprite_width);
     sheet_height = (size.y / sprite_height);
@@ -18,6 +23,12 @@ PyTexture::PyTexture(std::string filename, int sprite_w, int sprite_h)
 
 sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
 {
+    // Protect against division by zero if texture failed to load
+    if (sheet_width == 0 || sheet_height == 0) {
+        // Return an empty sprite
+        return sf::Sprite();
+    }
+    
     int tx = index % sheet_width, ty = index / sheet_width;
     auto ir = sf::IntRect(tx * sprite_width, ty * sprite_height, sprite_width, sprite_height);
     auto sprite = sf::Sprite(texture, ir);
@@ -71,7 +82,16 @@ int PyTexture::init(PyTextureObject* self, PyObject* args, PyObject* kwds)
     int sprite_width, sprite_height;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "sii", const_cast<char**>(keywords), &filename, &sprite_width, &sprite_height))
         return -1;
+    
+    // Create the texture object
     self->data = std::make_shared<PyTexture>(filename, sprite_width, sprite_height);
+    
+    // Check if the texture failed to load (sheet dimensions will be 0)
+    if (self->data->sheet_width == 0 || self->data->sheet_height == 0) {
+        PyErr_Format(PyExc_IOError, "Failed to load texture from file: %s", filename);
+        return -1;
+    }
+    
     return 0;
 }
 

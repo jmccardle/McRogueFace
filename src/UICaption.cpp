@@ -3,7 +3,21 @@
 #include "PyColor.h"
 #include "PyVector.h"
 #include "PyFont.h"
+#include "PyArgHelpers.h"
+// UIDrawable methods now in UIBase.h
 #include <algorithm>
+
+UICaption::UICaption()
+{
+    // Initialize text with safe defaults
+    text.setString("");
+    position = sf::Vector2f(0.0f, 0.0f);  // Set base class position
+    text.setPosition(position);           // Sync text position
+    text.setCharacterSize(12);
+    text.setFillColor(sf::Color::White);
+    text.setOutlineColor(sf::Color::Black);
+    text.setOutlineThickness(0.0f);
+}
 
 UIDrawable* UICaption::click_at(sf::Vector2f point)
 {
@@ -16,15 +30,68 @@ UIDrawable* UICaption::click_at(sf::Vector2f point)
 
 void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
+    // Check visibility
+    if (!visible) return;
+    
+    // Apply opacity
+    auto color = text.getFillColor();
+    color.a = static_cast<sf::Uint8>(255 * opacity);
+    text.setFillColor(color);
+    
     text.move(offset);
     //Resources::game->getWindow().draw(text);
     target.draw(text);
     text.move(-offset);
+    
+    // Restore original alpha
+    color.a = 255;
+    text.setFillColor(color);
 }
 
 PyObjectsEnum UICaption::derived_type()
 {
     return PyObjectsEnum::UICAPTION;
+}
+
+// Phase 1 implementations
+sf::FloatRect UICaption::get_bounds() const
+{
+    return text.getGlobalBounds();
+}
+
+void UICaption::move(float dx, float dy)
+{
+    position.x += dx;
+    position.y += dy;
+    text.setPosition(position);  // Keep text in sync
+}
+
+void UICaption::resize(float w, float h)
+{
+    // Implement multiline text support by setting bounds
+    // Width constraint enables automatic word wrapping in SFML
+    if (w > 0) {
+        // Store the requested width for word wrapping
+        // Note: SFML doesn't have direct width constraint, but we can
+        // implement basic word wrapping by inserting newlines
+        
+        // For now, we'll store the constraint for future use
+        // A full implementation would need to:
+        // 1. Split text into words
+        // 2. Measure each word's width
+        // 3. Insert newlines where needed
+        // This is a placeholder that at least acknowledges the resize request
+        
+        // TODO: Implement proper word wrapping algorithm
+        // For now, just mark that resize was called
+        markDirty();
+    }
+}
+
+void UICaption::onPositionChanged()
+{
+    // Sync text position with base class position
+    text.setPosition(position);
 }
 
 PyObject* UICaption::get_float_member(PyUICaptionObject* self, void* closure)
@@ -59,7 +126,7 @@ int UICaption::set_float_member(PyUICaptionObject* self, PyObject* value, void* 
     }
     else
     {
-        PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
+        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
         return -1;
     }
     if (member_ptr == 0) //x
@@ -122,7 +189,6 @@ int UICaption::set_color_member(PyUICaptionObject* self, PyObject* value, void* 
         // get value from mcrfpy.Color instance
         auto c = ((PyColorObject*)value)->data;
         r = c.r; g = c.g; b = c.b; a = c.a;
-        std::cout << "got " << int(r) << ", " << int(g) << ", " << int(b) << ", " << int(a) << std::endl;
     }
     else if (!PyTuple_Check(value) || PyTuple_Size(value) < 3 || PyTuple_Size(value) > 4)
     {
@@ -167,6 +233,15 @@ int UICaption::set_color_member(PyUICaptionObject* self, PyObject* value, void* 
 }
 
 
+// Define the PyObjectType alias for the macros
+typedef PyUICaptionObject PyObjectType;
+
+// Method definitions
+PyMethodDef UICaption_methods[] = {
+    UIDRAWABLE_METHODS,
+    {NULL}  // Sentinel
+};
+
 //TODO: evaluate use of Resources::caption_buffer... can't I do this with a std::string?
 PyObject* UICaption::get_text(PyUICaptionObject* self, void* closure)
 {
@@ -187,9 +262,9 @@ int UICaption::set_text(PyUICaptionObject* self, PyObject* value, void* closure)
 }
 
 PyGetSetDef UICaption::getsetters[] = {
-    {"x", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "X coordinate of top-left corner",   (void*)0},
-    {"y", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Y coordinate of top-left corner",   (void*)1},
-    {"pos", (getter)UICaption::get_vec_member, (setter)UICaption::set_vec_member, "(x, y) vector", (void*)0},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "X coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "Y coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 1)},
+    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "(x, y) vector", (void*)PyObjectsEnum::UICAPTION},
     //{"w", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "width of the rectangle",   (void*)2},
     //{"h", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "height of the rectangle",   (void*)3},
     {"outline", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Thickness of the border",   (void*)4},
@@ -200,6 +275,8 @@ PyGetSetDef UICaption::getsetters[] = {
     {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Font size (integer) in points", (void*)5},
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UICAPTION},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UICAPTION},
+    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UICAPTION},
+    UIDRAWABLE_GETSETTERS,
     {NULL}
 };
 
@@ -225,30 +302,126 @@ PyObject* UICaption::repr(PyUICaptionObject* self)
 int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 {
     using namespace mcrfpydef;
-    // Constructor switch to Vector position
-    //static const char* keywords[] = { "x", "y", "text", "font", "fill_color", "outline_color", "outline", nullptr };
-    //float x = 0.0f, y = 0.0f, outline = 0.0f;
-    static const char* keywords[] = { "pos", "text", "font", "fill_color", "outline_color", "outline", nullptr };
-    PyObject* pos;
-    float outline = 0.0f;
-    char* text;
-    PyObject* font=NULL, *fill_color=NULL, *outline_color=NULL;
-
-    //if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOOf",
-    //    const_cast<char**>(keywords), &x, &y, &text, &font, &fill_color, &outline_color, &outline))
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oz|OOOf",
-        const_cast<char**>(keywords), &pos, &text, &font, &fill_color, &outline_color, &outline))
-    {
-        return -1;
+    
+    // Try parsing with PyArgHelpers
+    int arg_idx = 0;
+    auto pos_result = PyArgHelpers::parsePosition(args, kwds, &arg_idx);
+    
+    // Default values
+    float x = 0.0f, y = 0.0f, outline = 0.0f;
+    char* text = nullptr;
+    PyObject* font = nullptr;
+    PyObject* fill_color = nullptr;
+    PyObject* outline_color = nullptr;
+    PyObject* click_handler = nullptr;
+    
+    // Case 1: Got position from helpers (tuple format)
+    if (pos_result.valid) {
+        x = pos_result.x;
+        y = pos_result.y;
+        
+        // Parse remaining arguments
+        static const char* remaining_keywords[] = { 
+            "text", "font", "fill_color", "outline_color", "outline", "click", nullptr 
+        };
+        
+        // Create new tuple with remaining args
+        Py_ssize_t total_args = PyTuple_Size(args);
+        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
+        
+        if (!PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|zOOOfO", 
+                                         const_cast<char**>(remaining_keywords),
+                                         &text, &font, &fill_color, &outline_color, 
+                                         &outline, &click_handler)) {
+            Py_DECREF(remaining_args);
+            if (pos_result.error) PyErr_SetString(PyExc_TypeError, pos_result.error);
+            return -1;
+        }
+        Py_DECREF(remaining_args);
+    }
+    // Case 2: Traditional format
+    else {
+        PyErr_Clear();  // Clear any errors from helpers
+        
+        // First check if this is the old (text, x, y, ...) format
+        PyObject* first_arg = args && PyTuple_Size(args) > 0 ? PyTuple_GetItem(args, 0) : nullptr;
+        bool text_first = first_arg && PyUnicode_Check(first_arg);
+        
+        if (text_first) {
+            // Pattern: (text, x, y, ...)
+            static const char* text_first_keywords[] = { 
+                "text", "x", "y", "font", "fill_color", "outline_color", 
+                "outline", "click", "pos", nullptr 
+            };
+            PyObject* pos_obj = nullptr;
+            
+            if (!PyArg_ParseTupleAndKeywords(args, kwds, "|zffOOOfOO", 
+                                             const_cast<char**>(text_first_keywords), 
+                                             &text, &x, &y, &font, &fill_color, &outline_color, 
+                                             &outline, &click_handler, &pos_obj)) {
+                return -1;
+            }
+            
+            // Handle pos keyword override
+            if (pos_obj && pos_obj != Py_None) {
+                if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
+                    PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
+                    PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
+                    if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
+                        (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
+                        x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
+                        y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
+                    }
+                } else if (PyObject_TypeCheck(pos_obj, (PyTypeObject*)PyObject_GetAttrString(
+                           PyImport_ImportModule("mcrfpy"), "Vector"))) {
+                    PyVectorObject* vec = (PyVectorObject*)pos_obj;
+                    x = vec->data.x;
+                    y = vec->data.y;
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
+                    return -1;
+                }
+            }
+        } else {
+            // Pattern: (x, y, text, ...)
+            static const char* xy_keywords[] = { 
+                "x", "y", "text", "font", "fill_color", "outline_color", 
+                "outline", "click", "pos", nullptr 
+            };
+            PyObject* pos_obj = nullptr;
+            
+            if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOOfOO", 
+                                             const_cast<char**>(xy_keywords), 
+                                             &x, &y, &text, &font, &fill_color, &outline_color, 
+                                             &outline, &click_handler, &pos_obj)) {
+                return -1;
+            }
+            
+            // Handle pos keyword override
+            if (pos_obj && pos_obj != Py_None) {
+                if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
+                    PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
+                    PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
+                    if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
+                        (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
+                        x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
+                        y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
+                    }
+                } else if (PyObject_TypeCheck(pos_obj, (PyTypeObject*)PyObject_GetAttrString(
+                           PyImport_ImportModule("mcrfpy"), "Vector"))) {
+                    PyVectorObject* vec = (PyVectorObject*)pos_obj;
+                    x = vec->data.x;
+                    y = vec->data.y;
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
+                    return -1;
+                }
+            }
+        }
     }
     
-    PyVectorObject* pos_result = PyVector::from_arg(pos);
-    if (!pos_result)
-    {
-        PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
-        return -1;
-    }
-    self->data->text.setPosition(pos_result->data);
+    self->data->position = sf::Vector2f(x, y);  // Set base class position
+    self->data->text.setPosition(self->data->position);  // Sync text position
     // check types for font, fill_color, outline_color
 
     //std::cout << PyUnicode_AsUTF8(PyObject_Repr(font)) << std::endl;
@@ -275,7 +448,12 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         }
     }
 
-    self->data->text.setString((std::string)text);
+    // Handle text - default to empty string if not provided
+    if (text && text != NULL) {
+        self->data->text.setString((std::string)text);
+    } else {
+        self->data->text.setString("");
+    }
     self->data->text.setOutlineThickness(outline);
     if (fill_color) {
         auto fc = PyColor::from_arg(fill_color);
@@ -301,17 +479,28 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         self->data->text.setOutlineColor(sf::Color(128,128,128,255));
     }
 
+    // Process click handler if provided
+    if (click_handler && click_handler != Py_None) {
+        if (!PyCallable_Check(click_handler)) {
+            PyErr_SetString(PyExc_TypeError, "click must be callable");
+            return -1;
+        }
+        self->data->click_register(click_handler);
+    }
+
     return 0;
 }
 
 // Property system implementation for animations
 bool UICaption::setProperty(const std::string& name, float value) {
     if (name == "x") {
-        text.setPosition(sf::Vector2f(value, text.getPosition().y));
+        position.x = value;
+        text.setPosition(position);  // Keep text in sync
         return true;
     }
     else if (name == "y") {
-        text.setPosition(sf::Vector2f(text.getPosition().x, value));
+        position.y = value;
+        text.setPosition(position);  // Keep text in sync
         return true;
     }
     else if (name == "font_size" || name == "size") { // Support both for backward compatibility
@@ -399,11 +588,11 @@ bool UICaption::setProperty(const std::string& name, const std::string& value) {
 
 bool UICaption::getProperty(const std::string& name, float& value) const {
     if (name == "x") {
-        value = text.getPosition().x;
+        value = position.x;
         return true;
     }
     else if (name == "y") {
-        value = text.getPosition().y;
+        value = position.y;
         return true;
     }
     else if (name == "font_size" || name == "size") { // Support both for backward compatibility

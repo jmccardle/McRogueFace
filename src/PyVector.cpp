@@ -1,11 +1,64 @@
 #include "PyVector.h"
 #include "PyObjectUtils.h"
+#include <cmath>
 
 PyGetSetDef PyVector::getsetters[] = {
     {"x", (getter)PyVector::get_member, (setter)PyVector::set_member, "X/horizontal component",   (void*)0},
     {"y", (getter)PyVector::get_member, (setter)PyVector::set_member, "Y/vertical component",     (void*)1},
     {NULL}
 };
+
+PyMethodDef PyVector::methods[] = {
+    {"magnitude", (PyCFunction)PyVector::magnitude, METH_NOARGS, "Return the length of the vector"},
+    {"magnitude_squared", (PyCFunction)PyVector::magnitude_squared, METH_NOARGS, "Return the squared length of the vector"},
+    {"normalize", (PyCFunction)PyVector::normalize, METH_NOARGS, "Return a unit vector in the same direction"},
+    {"dot", (PyCFunction)PyVector::dot, METH_O, "Return the dot product with another vector"},
+    {"distance_to", (PyCFunction)PyVector::distance_to, METH_O, "Return the distance to another vector"},
+    {"angle", (PyCFunction)PyVector::angle, METH_NOARGS, "Return the angle in radians from the positive X axis"},
+    {"copy", (PyCFunction)PyVector::copy, METH_NOARGS, "Return a copy of this vector"},
+    {NULL}
+};
+
+namespace mcrfpydef {
+    PyNumberMethods PyVector_as_number = {
+        .nb_add = PyVector::add,
+        .nb_subtract = PyVector::subtract,
+        .nb_multiply = PyVector::multiply,
+        .nb_remainder = 0,
+        .nb_divmod = 0,
+        .nb_power = 0,
+        .nb_negative = PyVector::negative,
+        .nb_positive = 0,
+        .nb_absolute = PyVector::absolute,
+        .nb_bool = PyVector::bool_check,
+        .nb_invert = 0,
+        .nb_lshift = 0,
+        .nb_rshift = 0,
+        .nb_and = 0,
+        .nb_xor = 0,
+        .nb_or = 0,
+        .nb_int = 0,
+        .nb_reserved = 0,
+        .nb_float = 0,
+        .nb_inplace_add = 0,
+        .nb_inplace_subtract = 0,
+        .nb_inplace_multiply = 0,
+        .nb_inplace_remainder = 0,
+        .nb_inplace_power = 0,
+        .nb_inplace_lshift = 0,
+        .nb_inplace_rshift = 0,
+        .nb_inplace_and = 0,
+        .nb_inplace_xor = 0,
+        .nb_inplace_or = 0,
+        .nb_floor_divide = 0,
+        .nb_true_divide = PyVector::divide,
+        .nb_inplace_floor_divide = 0,
+        .nb_inplace_true_divide = 0,
+        .nb_index = 0,
+        .nb_matrix_multiply = 0,
+        .nb_inplace_matrix_multiply = 0
+    };
+}
 
 PyVector::PyVector(sf::Vector2f target)
 :data(target) {}
@@ -171,4 +224,242 @@ PyVectorObject* PyVector::from_arg(PyObject* args)
     }
     
     return obj;
+}
+
+// Arithmetic operations
+PyObject* PyVector::add(PyObject* left, PyObject* right)
+{
+    // Check if both operands are vectors
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    
+    PyVectorObject* vec1 = nullptr;
+    PyVectorObject* vec2 = nullptr;
+    
+    if (PyObject_IsInstance(left, (PyObject*)type) && PyObject_IsInstance(right, (PyObject*)type)) {
+        vec1 = (PyVectorObject*)left;
+        vec2 = (PyVectorObject*)right;
+    } else {
+        Py_INCREF(Py_NotImplemented);
+        return Py_NotImplemented;
+    }
+    
+    auto result = (PyVectorObject*)type->tp_alloc(type, 0);
+    if (result) {
+        result->data = sf::Vector2f(vec1->data.x + vec2->data.x, vec1->data.y + vec2->data.y);
+    }
+    return (PyObject*)result;
+}
+
+PyObject* PyVector::subtract(PyObject* left, PyObject* right)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    
+    PyVectorObject* vec1 = nullptr;
+    PyVectorObject* vec2 = nullptr;
+    
+    if (PyObject_IsInstance(left, (PyObject*)type) && PyObject_IsInstance(right, (PyObject*)type)) {
+        vec1 = (PyVectorObject*)left;
+        vec2 = (PyVectorObject*)right;
+    } else {
+        Py_INCREF(Py_NotImplemented);
+        return Py_NotImplemented;
+    }
+    
+    auto result = (PyVectorObject*)type->tp_alloc(type, 0);
+    if (result) {
+        result->data = sf::Vector2f(vec1->data.x - vec2->data.x, vec1->data.y - vec2->data.y);
+    }
+    return (PyObject*)result;
+}
+
+PyObject* PyVector::multiply(PyObject* left, PyObject* right)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    
+    PyVectorObject* vec = nullptr;
+    double scalar = 0.0;
+    
+    // Check for Vector * scalar
+    if (PyObject_IsInstance(left, (PyObject*)type) && (PyFloat_Check(right) || PyLong_Check(right))) {
+        vec = (PyVectorObject*)left;
+        scalar = PyFloat_AsDouble(right);
+    }
+    // Check for scalar * Vector
+    else if ((PyFloat_Check(left) || PyLong_Check(left)) && PyObject_IsInstance(right, (PyObject*)type)) {
+        scalar = PyFloat_AsDouble(left);
+        vec = (PyVectorObject*)right;
+    }
+    else {
+        Py_INCREF(Py_NotImplemented);
+        return Py_NotImplemented;
+    }
+    
+    auto result = (PyVectorObject*)type->tp_alloc(type, 0);
+    if (result) {
+        result->data = sf::Vector2f(vec->data.x * scalar, vec->data.y * scalar);
+    }
+    return (PyObject*)result;
+}
+
+PyObject* PyVector::divide(PyObject* left, PyObject* right)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    
+    // Only support Vector / scalar
+    if (!PyObject_IsInstance(left, (PyObject*)type) || (!PyFloat_Check(right) && !PyLong_Check(right))) {
+        Py_INCREF(Py_NotImplemented);
+        return Py_NotImplemented;
+    }
+    
+    PyVectorObject* vec = (PyVectorObject*)left;
+    double scalar = PyFloat_AsDouble(right);
+    
+    if (scalar == 0.0) {
+        PyErr_SetString(PyExc_ZeroDivisionError, "Vector division by zero");
+        return NULL;
+    }
+    
+    auto result = (PyVectorObject*)type->tp_alloc(type, 0);
+    if (result) {
+        result->data = sf::Vector2f(vec->data.x / scalar, vec->data.y / scalar);
+    }
+    return (PyObject*)result;
+}
+
+PyObject* PyVector::negative(PyObject* self)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    PyVectorObject* vec = (PyVectorObject*)self;
+    
+    auto result = (PyVectorObject*)type->tp_alloc(type, 0);
+    if (result) {
+        result->data = sf::Vector2f(-vec->data.x, -vec->data.y);
+    }
+    return (PyObject*)result;
+}
+
+PyObject* PyVector::absolute(PyObject* self)
+{
+    PyVectorObject* vec = (PyVectorObject*)self;
+    return PyFloat_FromDouble(std::sqrt(vec->data.x * vec->data.x + vec->data.y * vec->data.y));
+}
+
+int PyVector::bool_check(PyObject* self)
+{
+    PyVectorObject* vec = (PyVectorObject*)self;
+    return (vec->data.x != 0.0f || vec->data.y != 0.0f) ? 1 : 0;
+}
+
+PyObject* PyVector::richcompare(PyObject* left, PyObject* right, int op)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    
+    if (!PyObject_IsInstance(left, (PyObject*)type) || !PyObject_IsInstance(right, (PyObject*)type)) {
+        Py_INCREF(Py_NotImplemented);
+        return Py_NotImplemented;
+    }
+    
+    PyVectorObject* vec1 = (PyVectorObject*)left;
+    PyVectorObject* vec2 = (PyVectorObject*)right;
+    
+    bool result = false;
+    
+    switch (op) {
+        case Py_EQ:
+            result = (vec1->data.x == vec2->data.x && vec1->data.y == vec2->data.y);
+            break;
+        case Py_NE:
+            result = (vec1->data.x != vec2->data.x || vec1->data.y != vec2->data.y);
+            break;
+        default:
+            Py_INCREF(Py_NotImplemented);
+            return Py_NotImplemented;
+    }
+    
+    if (result)
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
+// Vector-specific methods
+PyObject* PyVector::magnitude(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
+{
+    float mag = std::sqrt(self->data.x * self->data.x + self->data.y * self->data.y);
+    return PyFloat_FromDouble(mag);
+}
+
+PyObject* PyVector::magnitude_squared(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
+{
+    float mag_sq = self->data.x * self->data.x + self->data.y * self->data.y;
+    return PyFloat_FromDouble(mag_sq);
+}
+
+PyObject* PyVector::normalize(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
+{
+    float mag = std::sqrt(self->data.x * self->data.x + self->data.y * self->data.y);
+    
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto result = (PyVectorObject*)type->tp_alloc(type, 0);
+    
+    if (result) {
+        if (mag > 0.0f) {
+            result->data = sf::Vector2f(self->data.x / mag, self->data.y / mag);
+        } else {
+            // Zero vector remains zero
+            result->data = sf::Vector2f(0.0f, 0.0f);
+        }
+    }
+    
+    return (PyObject*)result;
+}
+
+PyObject* PyVector::dot(PyVectorObject* self, PyObject* other)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    
+    if (!PyObject_IsInstance(other, (PyObject*)type)) {
+        PyErr_SetString(PyExc_TypeError, "Argument must be a Vector");
+        return NULL;
+    }
+    
+    PyVectorObject* vec2 = (PyVectorObject*)other;
+    float dot_product = self->data.x * vec2->data.x + self->data.y * vec2->data.y;
+    
+    return PyFloat_FromDouble(dot_product);
+}
+
+PyObject* PyVector::distance_to(PyVectorObject* self, PyObject* other)
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    
+    if (!PyObject_IsInstance(other, (PyObject*)type)) {
+        PyErr_SetString(PyExc_TypeError, "Argument must be a Vector");
+        return NULL;
+    }
+    
+    PyVectorObject* vec2 = (PyVectorObject*)other;
+    float dx = self->data.x - vec2->data.x;
+    float dy = self->data.y - vec2->data.y;
+    float distance = std::sqrt(dx * dx + dy * dy);
+    
+    return PyFloat_FromDouble(distance);
+}
+
+PyObject* PyVector::angle(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
+{
+    float angle_rad = std::atan2(self->data.y, self->data.x);
+    return PyFloat_FromDouble(angle_rad);
+}
+
+PyObject* PyVector::copy(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto result = (PyVectorObject*)type->tp_alloc(type, 0);
+    
+    if (result) {
+        result->data = self->data;
+    }
+    
+    return (PyObject*)result;
 }

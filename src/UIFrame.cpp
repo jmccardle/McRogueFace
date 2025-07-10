@@ -2,35 +2,56 @@
 #include "UICollection.h"
 #include "GameEngine.h"
 #include "PyVector.h"
+#include "UICaption.h"
+#include "UISprite.h"
+#include "UIGrid.h"
+#include "McRFPy_API.h"
+#include "PyArgHelpers.h"
+// UIDrawable methods now in UIBase.h
 
 UIDrawable* UIFrame::click_at(sf::Vector2f point)
 {
-    for (auto e: *children)
-    {
-        auto p = e->click_at(point + box.getPosition());
-        if (p)
-            return p;
+    // Check bounds first (optimization)
+    float x = position.x, y = position.y, w = box.getSize().x, h = box.getSize().y;
+    if (point.x < x || point.y < y || point.x >= x+w || point.y >= y+h) {
+        return nullptr;
     }
-    if (click_callable)
-    {
-        float x = box.getPosition().x, y = box.getPosition().y, w = box.getSize().x, h = box.getSize().y;
-        if (point.x > x && point.y > y && point.x < x+w && point.y < y+h) return this;
+    
+    // Transform to local coordinates for children
+    sf::Vector2f localPoint = point - position;
+    
+    // Check children in reverse order (top to bottom, highest z-index first)
+    for (auto it = children->rbegin(); it != children->rend(); ++it) {
+        auto& child = *it;
+        if (!child->visible) continue;
+        
+        if (auto target = child->click_at(localPoint)) {
+            return target;
+        }
     }
-    return NULL;
+    
+    // No child handled it, check if we have a handler
+    if (click_callable) {
+        return this;
+    }
+    
+    return nullptr;
 }
 
 UIFrame::UIFrame()
 : outline(0)
 {
     children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
-    box.setPosition(0, 0);
+    position = sf::Vector2f(0, 0);  // Set base class position
+    box.setPosition(position);      // Sync box position
     box.setSize(sf::Vector2f(0, 0));
 }
 
 UIFrame::UIFrame(float _x, float _y, float _w, float _h)
 : outline(0)
 {
-    box.setPosition(_x, _y);
+    position = sf::Vector2f(_x, _y);  // Set base class position
+    box.setPosition(position);        // Sync box position
     box.setSize(sf::Vector2f(_w, _h));
     children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
 }
@@ -45,24 +66,102 @@ PyObjectsEnum UIFrame::derived_type()
     return PyObjectsEnum::UIFRAME;
 }
 
+// Phase 1 implementations
+sf::FloatRect UIFrame::get_bounds() const
+{
+    auto size = box.getSize();
+    return sf::FloatRect(position.x, position.y, size.x, size.y);
+}
+
+void UIFrame::move(float dx, float dy)
+{
+    position.x += dx;
+    position.y += dy;
+    box.setPosition(position);  // Keep box in sync
+}
+
+void UIFrame::resize(float w, float h)
+{
+    box.setSize(sf::Vector2f(w, h));
+}
+
+void UIFrame::onPositionChanged()
+{
+    // Sync box position with base class position
+    box.setPosition(position);
+}
+
 void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
-    box.move(offset);
-    //Resources::game->getWindow().draw(box);
-    target.draw(box);
-    box.move(-offset);
+    // Check visibility
+    if (!visible) return;
+    
+    // TODO: Apply opacity when SFML supports it on shapes
+    
+    // Check if we need to use RenderTexture for clipping
+    if (clip_children && !children->empty()) {
+        // Enable RenderTexture if not already enabled
+        if (!use_render_texture) {
+            auto size = box.getSize();
+            enableRenderTexture(static_cast<unsigned int>(size.x), 
+                              static_cast<unsigned int>(size.y));
+        }
+        
+        // Update RenderTexture if dirty
+        if (use_render_texture && render_dirty) {
+            // Clear the RenderTexture
+            render_texture->clear(sf::Color::Transparent);
+            
+            // Draw the frame box to RenderTexture
+            box.setPosition(0, 0);  // Render at origin in texture
+            render_texture->draw(box);
+            
+            // Sort children by z_index if needed
+            if (children_need_sort && !children->empty()) {
+                std::sort(children->begin(), children->end(),
+                    [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
+                        return a->z_index < b->z_index;
+                    });
+                children_need_sort = false;
+            }
+            
+            // Render children to RenderTexture at local coordinates
+            for (auto drawable : *children) {
+                drawable->render(sf::Vector2f(0, 0), *render_texture);
+            }
+            
+            // Finalize the RenderTexture
+            render_texture->display();
+            
+            // Update sprite
+            render_sprite.setTexture(render_texture->getTexture());
+            
+            render_dirty = false;
+        }
+        
+        // Draw the RenderTexture sprite
+        if (use_render_texture) {
+            render_sprite.setPosition(offset + box.getPosition());
+            target.draw(render_sprite);
+        }
+    } else {
+        // Standard rendering without clipping
+        box.move(offset);
+        target.draw(box);
+        box.move(-offset);
 
-    // Sort children by z_index if needed
-    if (children_need_sort && !children->empty()) {
-        std::sort(children->begin(), children->end(),
-            [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
-                return a->z_index < b->z_index;
-            });
-        children_need_sort = false;
-    }
+        // Sort children by z_index if needed
+        if (children_need_sort && !children->empty()) {
+            std::sort(children->begin(), children->end(),
+                [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
+                    return a->z_index < b->z_index;
+                });
+            children_need_sort = false;
+        }
 
-    for (auto drawable : *children) {
-        drawable->render(offset + box.getPosition(), target);
+        for (auto drawable : *children) {
+            drawable->render(offset + box.getPosition(), target);
+        }
     }
 }
 
@@ -112,19 +211,39 @@ int UIFrame::set_float_member(PyUIFrameObject* self, PyObject* value, void* clos
     }
     else
     {
-        PyErr_SetString(PyExc_TypeError, "Value must be an integer.");
+        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
         return -1;
     }
-    if (member_ptr == 0) //x
+    if (member_ptr == 0) { //x
         self->data->box.setPosition(val, self->data->box.getPosition().y);
-    else if (member_ptr == 1) //y
+        self->data->markDirty();
+    }
+    else if (member_ptr == 1) { //y
         self->data->box.setPosition(self->data->box.getPosition().x, val);
-    else if (member_ptr == 2) //w
+        self->data->markDirty();
+    }
+    else if (member_ptr == 2) { //w
         self->data->box.setSize(sf::Vector2f(val, self->data->box.getSize().y));
-    else if (member_ptr == 3) //h
+        if (self->data->use_render_texture) {
+            // Need to recreate RenderTexture with new size
+            self->data->enableRenderTexture(static_cast<unsigned int>(self->data->box.getSize().x), 
+                                           static_cast<unsigned int>(self->data->box.getSize().y));
+        }
+        self->data->markDirty();
+    }
+    else if (member_ptr == 3) { //h
         self->data->box.setSize(sf::Vector2f(self->data->box.getSize().x, val));
-    else if (member_ptr == 4) //outline
+        if (self->data->use_render_texture) {
+            // Need to recreate RenderTexture with new size
+            self->data->enableRenderTexture(static_cast<unsigned int>(self->data->box.getSize().x), 
+                                           static_cast<unsigned int>(self->data->box.getSize().y));
+        }
+        self->data->markDirty();
+    }
+    else if (member_ptr == 4) { //outline
         self->data->box.setOutlineThickness(val);
+        self->data->markDirty();
+    }
     return 0;
 }
 
@@ -201,10 +320,12 @@ int UIFrame::set_color_member(PyUIFrameObject* self, PyObject* value, void* clos
     if (member_ptr == 0)
     {
         self->data->box.setFillColor(sf::Color(r, g, b, a));
+        self->data->markDirty();
     }
     else if (member_ptr == 1)
     {
         self->data->box.setOutlineColor(sf::Color(r, g, b, a));
+        self->data->markDirty();
     }
     else
     {
@@ -234,21 +355,55 @@ int UIFrame::set_pos(PyUIFrameObject* self, PyObject* value, void* closure)
         return -1;
     }
     self->data->box.setPosition(vec->data);
+    self->data->markDirty();
     return 0;
 }
 
+PyObject* UIFrame::get_clip_children(PyUIFrameObject* self, void* closure)
+{
+    return PyBool_FromLong(self->data->clip_children);
+}
+
+int UIFrame::set_clip_children(PyUIFrameObject* self, PyObject* value, void* closure)
+{
+    if (!PyBool_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "clip_children must be a boolean");
+        return -1;
+    }
+    
+    bool new_clip = PyObject_IsTrue(value);
+    if (new_clip != self->data->clip_children) {
+        self->data->clip_children = new_clip;
+        self->data->markDirty();  // Mark as needing redraw
+    }
+    
+    return 0;
+}
+
+// Define the PyObjectType alias for the macros
+typedef PyUIFrameObject PyObjectType;
+
+// Method definitions
+PyMethodDef UIFrame_methods[] = {
+    UIDRAWABLE_METHODS,
+    {NULL}  // Sentinel
+};
+
 PyGetSetDef UIFrame::getsetters[] = {
-    {"x", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "X coordinate of top-left corner",   (void*)0},
-    {"y", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "Y coordinate of top-left corner",   (void*)1},
-    {"w", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "width of the rectangle",   (void*)2},
-    {"h", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "height of the rectangle",   (void*)3},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "X coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "Y coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 1)},
+    {"w", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "width of the rectangle", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 2)},
+    {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "height of the rectangle", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 3)},
     {"outline", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "Thickness of the border",   (void*)4},
     {"fill_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member, "Fill color of the rectangle", (void*)0},
     {"outline_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member, "Outline color of the rectangle", (void*)1},
     {"children", (getter)UIFrame::get_children, NULL, "UICollection of objects on top of this one", NULL},
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIFRAME},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UIFRAME},
-    {"pos", (getter)UIFrame::get_pos, (setter)UIFrame::set_pos, "Position as a Vector", NULL},
+    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIFRAME},
+    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UIFRAME},
+    {"clip_children", (getter)UIFrame::get_clip_children, (setter)UIFrame::set_clip_children, "Whether to clip children to frame bounds", NULL},
+    UIDRAWABLE_GETSETTERS,
     {NULL}
 };
 
@@ -274,38 +429,108 @@ PyObject* UIFrame::repr(PyUIFrameObject* self)
 
 int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
 {
-    //std::cout << "Init called\n";
-    const char* keywords[] = { "x", "y", "w", "h", "fill_color", "outline_color", "outline", nullptr }; 
-    float x = 0.0f, y = 0.0f, w = 0.0f, h=0.0f, outline=0.0f;
-    PyObject* fill_color = 0;
-    PyObject* outline_color = 0;
-
-    // First try to parse as (x, y, w, h, ...)
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ffff|OOf", const_cast<char**>(keywords), &x, &y, &w, &h, &fill_color, &outline_color, &outline))
-    {
-        PyErr_Clear();  // Clear the error
+    // Initialize children first
+    self->data->children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
+    
+    // Try parsing with PyArgHelpers
+    int arg_idx = 0;
+    auto pos_result = PyArgHelpers::parsePosition(args, kwds, &arg_idx);
+    auto size_result = PyArgHelpers::parseSize(args, kwds, &arg_idx);
+    
+    // Default values
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f, outline = 0.0f;
+    PyObject* fill_color = nullptr;
+    PyObject* outline_color = nullptr;
+    PyObject* children_arg = nullptr;
+    PyObject* click_handler = nullptr;
+    
+    // Case 1: Got position and size from helpers (tuple format)
+    if (pos_result.valid && size_result.valid) {
+        x = pos_result.x;
+        y = pos_result.y;
+        w = size_result.w;
+        h = size_result.h;
         
-        // Try to parse as ((x,y), w, h, ...) or (Vector, w, h, ...)
+        // Parse remaining arguments
+        static const char* remaining_keywords[] = { 
+            "fill_color", "outline_color", "outline", "children", "click", nullptr 
+        };
+        
+        // Create new tuple with remaining args
+        Py_ssize_t total_args = PyTuple_Size(args);
+        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
+        
+        if (!PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|OOfOO", 
+                                         const_cast<char**>(remaining_keywords),
+                                         &fill_color, &outline_color, &outline, 
+                                         &children_arg, &click_handler)) {
+            Py_DECREF(remaining_args);
+            if (pos_result.error) PyErr_SetString(PyExc_TypeError, pos_result.error);
+            else if (size_result.error) PyErr_SetString(PyExc_TypeError, size_result.error);
+            return -1;
+        }
+        Py_DECREF(remaining_args);
+    }
+    // Case 2: Traditional format (x, y, w, h, ...)
+    else {
+        PyErr_Clear();  // Clear any errors from helpers
+        
+        static const char* keywords[] = { 
+            "x", "y", "w", "h", "fill_color", "outline_color", "outline", 
+            "children", "click", "pos", "size", nullptr 
+        };
+        
         PyObject* pos_obj = nullptr;
-        const char* alt_keywords[] = { "pos", "w", "h", "fill_color", "outline_color", "outline", nullptr };
+        PyObject* size_obj = nullptr;
         
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off|OOf", const_cast<char**>(alt_keywords), 
-                                          &pos_obj, &w, &h, &fill_color, &outline_color, &outline))
-        {
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffffOOfOOOO", 
+                                         const_cast<char**>(keywords), 
+                                         &x, &y, &w, &h, &fill_color, &outline_color, 
+                                         &outline, &children_arg, &click_handler, 
+                                         &pos_obj, &size_obj)) {
             return -1;
         }
         
-        // Convert position argument to x, y
-        PyVectorObject* vec = PyVector::from_arg(pos_obj);
-        if (!vec) {
-            PyErr_SetString(PyExc_TypeError, "First argument must be a tuple (x, y) or Vector when not providing x, y separately");
-            return -1;
+        // Handle pos keyword override
+        if (pos_obj && pos_obj != Py_None) {
+            if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
+                PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
+                PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
+                if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
+                    (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
+                    x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
+                    y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
+                }
+            } else if (PyObject_TypeCheck(pos_obj, (PyTypeObject*)PyObject_GetAttrString(
+                       PyImport_ImportModule("mcrfpy"), "Vector"))) {
+                PyVectorObject* vec = (PyVectorObject*)pos_obj;
+                x = vec->data.x;
+                y = vec->data.y;
+            } else {
+                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
+                return -1;
+            }
         }
-        x = vec->data.x;
-        y = vec->data.y;
+        
+        // Handle size keyword override
+        if (size_obj && size_obj != Py_None) {
+            if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
+                PyObject* w_val = PyTuple_GetItem(size_obj, 0);
+                PyObject* h_val = PyTuple_GetItem(size_obj, 1);
+                if ((PyFloat_Check(w_val) || PyLong_Check(w_val)) &&
+                    (PyFloat_Check(h_val) || PyLong_Check(h_val))) {
+                    w = PyFloat_Check(w_val) ? PyFloat_AsDouble(w_val) : PyLong_AsLong(w_val);
+                    h = PyFloat_Check(h_val) ? PyFloat_AsDouble(h_val) : PyLong_AsLong(h_val);
+                }
+            } else {
+                PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h)");
+                return -1;
+            }
+        }
     }
 
-    self->data->box.setPosition(sf::Vector2f(x, y));
+    self->data->position = sf::Vector2f(x, y);  // Set base class position
+    self->data->box.setPosition(self->data->position);  // Sync box position
     self->data->box.setSize(sf::Vector2f(w, h));
     self->data->box.setOutlineThickness(outline);
     // getsetter abuse because I haven't standardized Color object parsing (TODO)
@@ -316,65 +541,154 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     if (outline_color && outline_color != Py_None) err_val = UIFrame::set_color_member(self, outline_color, (void*)1);
     else self->data->box.setOutlineColor(sf::Color(128,128,128,255));
     if (err_val) return err_val;
+    
+    // Process children argument if provided
+    if (children_arg && children_arg != Py_None) {
+        if (!PySequence_Check(children_arg)) {
+            PyErr_SetString(PyExc_TypeError, "children must be a sequence");
+            return -1;
+        }
+        
+        Py_ssize_t len = PySequence_Length(children_arg);
+        for (Py_ssize_t i = 0; i < len; i++) {
+            PyObject* child = PySequence_GetItem(children_arg, i);
+            if (!child) return -1;
+            
+            // Check if it's a UIDrawable (Frame, Caption, Sprite, or Grid)
+            PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+            PyObject* caption_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
+            PyObject* sprite_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
+            PyObject* grid_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+            
+            if (!PyObject_IsInstance(child, frame_type) &&
+                !PyObject_IsInstance(child, caption_type) &&
+                !PyObject_IsInstance(child, sprite_type) &&
+                !PyObject_IsInstance(child, grid_type)) {
+                Py_DECREF(child);
+                PyErr_SetString(PyExc_TypeError, "children must contain only Frame, Caption, Sprite, or Grid objects");
+                return -1;
+            }
+            
+            // Get the shared_ptr and add to children
+            std::shared_ptr<UIDrawable> drawable = nullptr;
+            if (PyObject_IsInstance(child, frame_type)) {
+                drawable = ((PyUIFrameObject*)child)->data;
+            } else if (PyObject_IsInstance(child, caption_type)) {
+                drawable = ((PyUICaptionObject*)child)->data;
+            } else if (PyObject_IsInstance(child, sprite_type)) {
+                drawable = ((PyUISpriteObject*)child)->data;
+            } else if (PyObject_IsInstance(child, grid_type)) {
+                drawable = ((PyUIGridObject*)child)->data;
+            }
+            
+            // Clean up type references
+            Py_DECREF(frame_type);
+            Py_DECREF(caption_type);
+            Py_DECREF(sprite_type);
+            Py_DECREF(grid_type);
+            
+            if (drawable) {
+                self->data->children->push_back(drawable);
+                self->data->children_need_sort = true;
+            }
+            
+            Py_DECREF(child);
+        }
+    }
+    
+    // Process click handler if provided
+    if (click_handler && click_handler != Py_None) {
+        if (!PyCallable_Check(click_handler)) {
+            PyErr_SetString(PyExc_TypeError, "click must be callable");
+            return -1;
+        }
+        self->data->click_register(click_handler);
+    }
+    
     return 0;
 }
 
 // Animation property system implementation
 bool UIFrame::setProperty(const std::string& name, float value) {
     if (name == "x") {
-        box.setPosition(sf::Vector2f(value, box.getPosition().y));
+        position.x = value;
+        box.setPosition(position);  // Keep box in sync
+        markDirty();
         return true;
     } else if (name == "y") {
-        box.setPosition(sf::Vector2f(box.getPosition().x, value));
+        position.y = value;
+        box.setPosition(position);  // Keep box in sync
+        markDirty();
         return true;
     } else if (name == "w") {
         box.setSize(sf::Vector2f(value, box.getSize().y));
+        if (use_render_texture) {
+            // Need to recreate RenderTexture with new size
+            enableRenderTexture(static_cast<unsigned int>(box.getSize().x), 
+                              static_cast<unsigned int>(box.getSize().y));
+        }
+        markDirty();
         return true;
     } else if (name == "h") {
         box.setSize(sf::Vector2f(box.getSize().x, value));
+        if (use_render_texture) {
+            // Need to recreate RenderTexture with new size
+            enableRenderTexture(static_cast<unsigned int>(box.getSize().x), 
+                              static_cast<unsigned int>(box.getSize().y));
+        }
+        markDirty();
         return true;
     } else if (name == "outline") {
         box.setOutlineThickness(value);
+        markDirty();
         return true;
     } else if (name == "fill_color.r") {
         auto color = box.getFillColor();
         color.r = std::clamp(static_cast<int>(value), 0, 255);
         box.setFillColor(color);
+        markDirty();
         return true;
     } else if (name == "fill_color.g") {
         auto color = box.getFillColor();
         color.g = std::clamp(static_cast<int>(value), 0, 255);
         box.setFillColor(color);
+        markDirty();
         return true;
     } else if (name == "fill_color.b") {
         auto color = box.getFillColor();
         color.b = std::clamp(static_cast<int>(value), 0, 255);
         box.setFillColor(color);
+        markDirty();
         return true;
     } else if (name == "fill_color.a") {
         auto color = box.getFillColor();
         color.a = std::clamp(static_cast<int>(value), 0, 255);
         box.setFillColor(color);
+        markDirty();
         return true;
     } else if (name == "outline_color.r") {
         auto color = box.getOutlineColor();
         color.r = std::clamp(static_cast<int>(value), 0, 255);
         box.setOutlineColor(color);
+        markDirty();
         return true;
     } else if (name == "outline_color.g") {
         auto color = box.getOutlineColor();
         color.g = std::clamp(static_cast<int>(value), 0, 255);
         box.setOutlineColor(color);
+        markDirty();
         return true;
     } else if (name == "outline_color.b") {
         auto color = box.getOutlineColor();
         color.b = std::clamp(static_cast<int>(value), 0, 255);
         box.setOutlineColor(color);
+        markDirty();
         return true;
     } else if (name == "outline_color.a") {
         auto color = box.getOutlineColor();
         color.a = std::clamp(static_cast<int>(value), 0, 255);
         box.setOutlineColor(color);
+        markDirty();
         return true;
     }
     return false;
@@ -383,9 +697,11 @@ bool UIFrame::setProperty(const std::string& name, float value) {
 bool UIFrame::setProperty(const std::string& name, const sf::Color& value) {
     if (name == "fill_color") {
         box.setFillColor(value);
+        markDirty();
         return true;
     } else if (name == "outline_color") {
         box.setOutlineColor(value);
+        markDirty();
         return true;
     }
     return false;
@@ -393,10 +709,18 @@ bool UIFrame::setProperty(const std::string& name, const sf::Color& value) {
 
 bool UIFrame::setProperty(const std::string& name, const sf::Vector2f& value) {
     if (name == "position") {
-        box.setPosition(value);
+        position = value;
+        box.setPosition(position);  // Keep box in sync
+        markDirty();
         return true;
     } else if (name == "size") {
         box.setSize(value);
+        if (use_render_texture) {
+            // Need to recreate RenderTexture with new size
+            enableRenderTexture(static_cast<unsigned int>(value.x), 
+                              static_cast<unsigned int>(value.y));
+        }
+        markDirty();
         return true;
     }
     return false;
@@ -404,10 +728,10 @@ bool UIFrame::setProperty(const std::string& name, const sf::Vector2f& value) {
 
 bool UIFrame::getProperty(const std::string& name, float& value) const {
     if (name == "x") {
-        value = box.getPosition().x;
+        value = position.x;
         return true;
     } else if (name == "y") {
-        value = box.getPosition().y;
+        value = position.y;
         return true;
     } else if (name == "w") {
         value = box.getSize().x;
@@ -459,7 +783,7 @@ bool UIFrame::getProperty(const std::string& name, sf::Color& value) const {
 
 bool UIFrame::getProperty(const std::string& name, sf::Vector2f& value) const {
     if (name == "position") {
-        value = box.getPosition();
+        value = position;
         return true;
     } else if (name == "size") {
         value = box.getSize();

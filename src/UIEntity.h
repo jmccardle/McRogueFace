@@ -8,6 +8,7 @@
 
 #include "PyCallable.h"
 #include "PyTexture.h"
+#include "PyDrawable.h"
 #include "PyColor.h"
 #include "PyVector.h"
 #include "PyFont.h"
@@ -26,10 +27,10 @@ class UIGrid;
 //} PyUIEntityObject;
 
 // helper methods with no namespace requirement
-static PyObject* sfVector2f_to_PyObject(sf::Vector2f vector);
-static sf::Vector2f PyObject_to_sfVector2f(PyObject* obj);
-static PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state);
-static PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& vec);
+PyObject* sfVector2f_to_PyObject(sf::Vector2f vector);
+sf::Vector2f PyObject_to_sfVector2f(PyObject* obj);
+PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state);
+PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& vec);
 
 // TODO: make UIEntity a drawable
 class UIEntity//: public UIDrawable
@@ -40,19 +41,28 @@ public:
     std::vector<UIGridPointState> gridstate;
     UISprite sprite;
     sf::Vector2f position; //(x,y) in grid coordinates; float for animation
-    sf::Vector2i collision_pos; //(x, y) in grid coordinates: int for collision
     //void render(sf::Vector2f); //override final;
 
     UIEntity();
-    UIEntity(UIGrid&);
+    
+    // Visibility methods
+    void updateVisibility();  // Update gridstate from current FOV
     
     // Property system for animations
     bool setProperty(const std::string& name, float value);
     bool setProperty(const std::string& name, int value);
     bool getProperty(const std::string& name, float& value) const;
     
+    // Methods that delegate to sprite
+    sf::FloatRect get_bounds() const { return sprite.get_bounds(); }
+    void move(float dx, float dy) { sprite.move(dx, dy); position.x += dx; position.y += dy; }
+    void resize(float w, float h) { /* Entities don't support direct resizing */ }
+    
     static PyObject* at(PyUIEntityObject* self, PyObject* o);
     static PyObject* index(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
+    static PyObject* die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
+    static PyObject* path_to(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* update_visibility(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
     static int init(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
 
     static PyObject* get_position(PyUIEntityObject* self, void* closure);
@@ -60,10 +70,15 @@ public:
     static PyObject* get_gridstate(PyUIEntityObject* self, void* closure);
     static PyObject* get_spritenumber(PyUIEntityObject* self, void* closure);
     static int set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_float_member(PyUIEntityObject* self, void* closure);
+    static int set_float_member(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIEntityObject* self);
 };
+
+// Forward declaration of methods array
+extern PyMethodDef UIEntity_all_methods[];
 
 namespace mcrfpydef {
     static PyTypeObject PyUIEntityType = {
@@ -74,8 +89,9 @@ namespace mcrfpydef {
         .tp_repr = (reprfunc)UIEntity::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_doc = "UIEntity objects",
-        .tp_methods = UIEntity::methods,
+        .tp_methods = UIEntity_all_methods,
         .tp_getset = UIEntity::getsetters,
+        .tp_base = &mcrfpydef::PyDrawableType,
         .tp_init = (initproc)UIEntity::init,
         .tp_new = PyType_GenericNew,
     };

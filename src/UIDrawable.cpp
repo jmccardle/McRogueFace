@@ -6,7 +6,7 @@
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 
-UIDrawable::UIDrawable() { click_callable = NULL;  }
+UIDrawable::UIDrawable() : position(0.0f, 0.0f) { click_callable = NULL;  }
 
 void UIDrawable::click_unregister()
 {
@@ -25,16 +25,28 @@ PyObject* UIDrawable::get_click(PyObject* self, void* closure) {
     switch (objtype)
     {
         case PyObjectsEnum::UIFRAME:
-            ptr = ((PyUIFrameObject*)self)->data->click_callable->borrow();
+            if (((PyUIFrameObject*)self)->data->click_callable)
+                ptr = ((PyUIFrameObject*)self)->data->click_callable->borrow();
+            else
+                ptr = NULL;
             break;
         case PyObjectsEnum::UICAPTION:
-            ptr = ((PyUICaptionObject*)self)->data->click_callable->borrow();
+            if (((PyUICaptionObject*)self)->data->click_callable)
+                ptr = ((PyUICaptionObject*)self)->data->click_callable->borrow();
+            else
+                ptr = NULL;
             break;
         case PyObjectsEnum::UISPRITE:
-            ptr = ((PyUISpriteObject*)self)->data->click_callable->borrow();
+            if (((PyUISpriteObject*)self)->data->click_callable)
+                ptr = ((PyUISpriteObject*)self)->data->click_callable->borrow();
+            else
+                ptr = NULL;
             break;
         case PyObjectsEnum::UIGRID:
-            ptr = ((PyUIGridObject*)self)->data->click_callable->borrow();
+            if (((PyUIGridObject*)self)->data->click_callable)
+                ptr = ((PyUIGridObject*)self)->data->click_callable->borrow();
+            else
+                ptr = NULL;
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _get_click");
@@ -162,4 +174,308 @@ void UIDrawable::notifyZIndexChanged() {
     // TODO: In the future, we could add parent tracking to handle Frame children
     // For now, Frame children will need manual sorting or collection modification
     // to trigger a resort
+}
+
+PyObject* UIDrawable::get_name(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+    
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return NULL;
+    }
+    
+    return PyUnicode_FromString(drawable->name.c_str());
+}
+
+int UIDrawable::set_name(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+    
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return -1;
+    }
+    
+    if (value == NULL || value == Py_None) {
+        drawable->name = "";
+        return 0;
+    }
+    
+    if (!PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "name must be a string");
+        return -1;
+    }
+    
+    const char* name_str = PyUnicode_AsUTF8(value);
+    if (!name_str) {
+        return -1;
+    }
+    
+    drawable->name = name_str;
+    return 0;
+}
+
+void UIDrawable::enableRenderTexture(unsigned int width, unsigned int height) {
+    // Create or recreate RenderTexture if size changed
+    if (!render_texture || render_texture->getSize().x != width || render_texture->getSize().y != height) {
+        render_texture = std::make_unique<sf::RenderTexture>();
+        if (!render_texture->create(width, height)) {
+            render_texture.reset();
+            use_render_texture = false;
+            return;
+        }
+        render_sprite.setTexture(render_texture->getTexture());
+    }
+    
+    use_render_texture = true;
+    render_dirty = true;
+}
+
+void UIDrawable::updateRenderTexture() {
+    if (!use_render_texture || !render_texture) {
+        return;
+    }
+    
+    // Clear the RenderTexture
+    render_texture->clear(sf::Color::Transparent);
+    
+    // Render content to RenderTexture
+    // This will be overridden by derived classes
+    // For now, just display the texture
+    render_texture->display();
+    
+    // Update the sprite
+    render_sprite.setTexture(render_texture->getTexture());
+}
+
+PyObject* UIDrawable::get_float_member(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure) >> 8);
+    int member = reinterpret_cast<intptr_t>(closure) & 0xFF;
+    UIDrawable* drawable = nullptr;
+    
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return NULL;
+    }
+    
+    switch (member) {
+        case 0: // x
+            return PyFloat_FromDouble(drawable->position.x);
+        case 1: // y
+            return PyFloat_FromDouble(drawable->position.y);
+        case 2: // w (width) - delegate to get_bounds
+            return PyFloat_FromDouble(drawable->get_bounds().width);
+        case 3: // h (height) - delegate to get_bounds
+            return PyFloat_FromDouble(drawable->get_bounds().height);
+        default:
+            PyErr_SetString(PyExc_AttributeError, "Invalid float member");
+            return NULL;
+    }
+}
+
+int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure) >> 8);
+    int member = reinterpret_cast<intptr_t>(closure) & 0xFF;
+    UIDrawable* drawable = nullptr;
+    
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return -1;
+    }
+    
+    float val = 0.0f;
+    if (PyFloat_Check(value)) {
+        val = PyFloat_AsDouble(value);
+    } else if (PyLong_Check(value)) {
+        val = static_cast<float>(PyLong_AsLong(value));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
+        return -1;
+    }
+    
+    switch (member) {
+        case 0: // x
+            drawable->position.x = val;
+            drawable->onPositionChanged();
+            break;
+        case 1: // y
+            drawable->position.y = val;
+            drawable->onPositionChanged();
+            break;
+        case 2: // w
+        case 3: // h
+            {
+                sf::FloatRect bounds = drawable->get_bounds();
+                if (member == 2) {
+                    drawable->resize(val, bounds.height);
+                } else {
+                    drawable->resize(bounds.width, val);
+                }
+            }
+            break;
+        default:
+            PyErr_SetString(PyExc_AttributeError, "Invalid float member");
+            return -1;
+    }
+    
+    return 0;
+}
+
+PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+    
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return NULL;
+    }
+    
+    // Create a Python Vector object from position
+    PyObject* module = PyImport_ImportModule("mcrfpy");
+    if (!module) return NULL;
+    
+    PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
+    Py_DECREF(module);
+    if (!vector_type) return NULL;
+    
+    PyObject* args = Py_BuildValue("(ff)", drawable->position.x, drawable->position.y);
+    PyObject* result = PyObject_CallObject(vector_type, args);
+    Py_DECREF(vector_type);
+    Py_DECREF(args);
+    
+    return result;
+}
+
+int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+    
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return -1;
+    }
+    
+    // Accept tuple or Vector
+    float x, y;
+    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
+        PyObject* x_obj = PyTuple_GetItem(value, 0);
+        PyObject* y_obj = PyTuple_GetItem(value, 1);
+        
+        if (PyFloat_Check(x_obj) || PyLong_Check(x_obj)) {
+            x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : static_cast<float>(PyLong_AsLong(x_obj));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "Position x must be a number");
+            return -1;
+        }
+        
+        if (PyFloat_Check(y_obj) || PyLong_Check(y_obj)) {
+            y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : static_cast<float>(PyLong_AsLong(y_obj));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "Position y must be a number");
+            return -1;
+        }
+    } else {
+        // Try to get as Vector
+        PyObject* module = PyImport_ImportModule("mcrfpy");
+        if (!module) return -1;
+        
+        PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
+        Py_DECREF(module);
+        if (!vector_type) return -1;
+        
+        int is_vector = PyObject_IsInstance(value, vector_type);
+        Py_DECREF(vector_type);
+        
+        if (is_vector) {
+            PyVectorObject* vec = (PyVectorObject*)value;
+            x = vec->data.x;
+            y = vec->data.y;
+        } else {
+            PyErr_SetString(PyExc_TypeError, "Position must be a tuple (x, y) or Vector");
+            return -1;
+        }
+    }
+    
+    drawable->position = sf::Vector2f(x, y);
+    drawable->onPositionChanged();
+    return 0;
 }

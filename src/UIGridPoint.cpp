@@ -1,19 +1,51 @@
 #include "UIGridPoint.h"
+#include "UIGrid.h"
 
 UIGridPoint::UIGridPoint()
 : color(1.0f, 1.0f, 1.0f), color_overlay(0.0f, 0.0f, 0.0f), walkable(false), transparent(false),
- tilesprite(-1), tile_overlay(-1), uisprite(-1)
+ tilesprite(-1), tile_overlay(-1), uisprite(-1), grid_x(-1), grid_y(-1), parent_grid(nullptr)
 {}
 
 // Utility function to convert sf::Color to PyObject*
 PyObject* sfColor_to_PyObject(sf::Color color) {
+    // For now, keep returning tuples to avoid breaking existing code
     return Py_BuildValue("(iiii)", color.r, color.g, color.b, color.a);
 }
 
 // Utility function to convert PyObject* to sf::Color
 sf::Color PyObject_to_sfColor(PyObject* obj) {
+    // Get the mcrfpy module and Color type
+    PyObject* module = PyImport_ImportModule("mcrfpy");
+    if (!module) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to import mcrfpy module");
+        return sf::Color();
+    }
+    
+    PyObject* color_type = PyObject_GetAttrString(module, "Color");
+    Py_DECREF(module);
+    
+    if (!color_type) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get Color type from mcrfpy module");
+        return sf::Color();
+    }
+    
+    // Check if it's a mcrfpy.Color object
+    int is_color = PyObject_IsInstance(obj, color_type);
+    Py_DECREF(color_type);
+    
+    if (is_color == 1) {
+        PyColorObject* color_obj = (PyColorObject*)obj;
+        return color_obj->data;
+    } else if (is_color == -1) {
+        // Error occurred in PyObject_IsInstance
+        return sf::Color();
+    }
+    
+    // Otherwise try to parse as tuple
     int r, g, b, a = 255; // Default alpha to fully opaque if not specified
     if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
+        PyErr_Clear(); // Clear the error from failed tuple parsing
+        PyErr_SetString(PyExc_TypeError, "color must be a Color object or a tuple of (r, g, b[, a])");
         return sf::Color(); // Return default color on parse error
     }
     return sf::Color(r, g, b, a);
@@ -29,6 +61,11 @@ PyObject* UIGridPoint::get_color(PyUIGridPointObject* self, void* closure) {
 
 int UIGridPoint::set_color(PyUIGridPointObject* self, PyObject* value, void* closure) {
     sf::Color color = PyObject_to_sfColor(value);
+    // Check if an error occurred during conversion
+    if (PyErr_Occurred()) {
+        return -1;
+    }
+    
     if (reinterpret_cast<long>(closure) == 0) { // color
         self->data->color = color;
     } else { // color_overlay
@@ -62,6 +99,12 @@ int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, voi
         PyErr_SetString(PyExc_ValueError, "Expected a boolean value");
         return -1;
     }
+    
+    // Sync with TCOD map if parent grid exists
+    if (self->data->parent_grid && self->data->grid_x >= 0 && self->data->grid_y >= 0) {
+        self->data->parent_grid->syncTCODMapCell(self->data->grid_x, self->data->grid_y);
+    }
+    
     return 0;
 }
 

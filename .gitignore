@@ -9,6 +9,7 @@ obj
 build
 lib
 obj
+__pycache__
 
 .cache/
 7DRL2025 Release/
@@ -27,3 +28,5 @@ forest_fire_CA.py
 mcrogueface.github.io
 scripts/
 test_*
+
+tcod_reference

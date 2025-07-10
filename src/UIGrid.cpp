@@ -1,14 +1,42 @@
 #include "UIGrid.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
+#include "PyArgHelpers.h"
 #include <algorithm>
+// UIDrawable methods now in UIBase.h
 
-UIGrid::UIGrid() {}
+UIGrid::UIGrid() 
+: grid_x(0), grid_y(0), zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
+  fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
+  perspective(-1)  // Default to omniscient view
+{
+    // Initialize entities list
+    entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
+    
+    // Initialize box with safe defaults
+    box.setSize(sf::Vector2f(0, 0));
+    position = sf::Vector2f(0, 0);  // Set base class position
+    box.setPosition(position);      // Sync box position
+    box.setFillColor(sf::Color(0, 0, 0, 0));
+    
+    // Initialize render texture (small default size)
+    renderTexture.create(1, 1);
+    
+    // Initialize output sprite
+    output.setTextureRect(sf::IntRect(0, 0, 0, 0));
+    output.setPosition(0, 0);
+    output.setTexture(renderTexture.getTexture());
+    
+    // Points vector starts empty (grid_x * grid_y = 0)
+    // TCOD map will be created when grid is resized
+}
 
 UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _xy, sf::Vector2f _wh)
 : grid_x(gx), grid_y(gy),
   zoom(1.0f), 
-  ptex(_ptex), points(gx * gy)
+  ptex(_ptex), points(gx * gy),
+  fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
+  perspective(-1)  // Default to omniscient view
 {
     // Use texture dimensions if available, otherwise use defaults
     int cell_width = _ptex ? _ptex->sprite_width : DEFAULT_CELL_WIDTH;
@@ -19,7 +47,8 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
 
     box.setSize(_wh);
-    box.setPosition(_xy); 
+    position = _xy;               // Set base class position
+    box.setPosition(position);    // Sync box position 
 
     box.setFillColor(sf::Color(0,0,0,0));
     // create renderTexture with maximum theoretical size; sprite can resize to show whatever amount needs to be rendered
@@ -37,6 +66,27 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
      // textures are upside-down inside renderTexture
      output.setTexture(renderTexture.getTexture());
 
+    // Create TCOD map
+    tcod_map = new TCODMap(gx, gy);
+    
+    // Create TCOD dijkstra pathfinder
+    tcod_dijkstra = new TCODDijkstra(tcod_map);
+    
+    // Create TCOD A* pathfinder
+    tcod_path = new TCODPath(tcod_map);
+    
+    // Initialize grid points with parent reference
+    for (int y = 0; y < gy; y++) {
+        for (int x = 0; x < gx; x++) {
+            int idx = y * gx + x;
+            points[idx].grid_x = x;
+            points[idx].grid_y = y;
+            points[idx].parent_grid = this;
+        }
+    }
+    
+    // Initial sync of TCOD map
+    syncTCODMap();
 }
 
 void UIGrid::update() {}
@@ -44,12 +94,17 @@ void UIGrid::update() {}
 
 void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
+    // Check visibility
+    if (!visible) return;
+    
+    // TODO: Apply opacity to output sprite
+    
     output.setPosition(box.getPosition() + offset); // output sprite can move; update position when drawing
     // output size can change; update size when drawing
     output.setTextureRect(
          sf::IntRect(0, 0,
          box.getSize().x, box.getSize().y));
-    renderTexture.clear(sf::Color(8, 8, 8, 255)); // TODO - UIGrid needs a "background color" field
+    renderTexture.clear(fill_color);
     
     // Get cell dimensions - use texture if available, otherwise defaults
     int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
@@ -113,7 +168,13 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     // middle layer - entities
     // disabling entity rendering until I can render their UISprite inside the rendertexture (not directly to window)
     for (auto e : *entities) {
-        // TODO skip out-of-bounds entities (grid square not visible at all, check for partially on visible grid squares / floating point grid position)
+        // Skip out-of-bounds entities for performance
+        // Check if entity is within visible bounds (with 1 cell margin for partially visible entities)
+        if (e->position.x < left_edge - 1 || e->position.x >= left_edge + width_sq + 1 ||
+            e->position.y < top_edge - 1 || e->position.y >= top_edge + height_sq + 1) {
+            continue; // Skip this entity as it's not visible
+        }
+        
         //auto drawent = e->cGrid->indexsprite.drawable();
         auto& drawent = e->sprite;
         //drawent.setScale(zoom, zoom);
@@ -127,43 +188,55 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     }
     
 
-    // top layer - opacity for discovered / visible status (debug, basically)
-    /* // Disabled until I attach a "perspective"
-    for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
-        x < x_limit; //x < view_width; 
-        x+=1)
-    {
-        //for (float y = (top_edge >= 0 ? top_edge : 0); 
-        for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
-            y < y_limit; //y < view_height;
-            y+=1)
+    // top layer - opacity for discovered / visible status based on perspective
+    // Only render visibility overlay if perspective is set (not omniscient)
+    if (perspective >= 0 && perspective < static_cast<int>(entities->size())) {
+        // Get the entity whose perspective we're using
+        auto it = entities->begin();
+        std::advance(it, perspective);
+        auto& entity = *it;
+        
+        // Create rectangle for overlays
+        sf::RectangleShape overlay;
+        overlay.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
+        
+        for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
+            x < x_limit;
+            x+=1)
         {
+            for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
+                y < y_limit;
+                y+=1)
+            {
+                // Skip out-of-bounds cells
+                if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
+                
+                auto pixel_pos = sf::Vector2f(
+                        (x*cell_width - left_spritepixels) * zoom,
+                        (y*cell_height - top_spritepixels) * zoom );
 
-            auto pixel_pos = sf::Vector2f(
-                    (x*itex->grid_size - left_spritepixels) * zoom,
-                    (y*itex->grid_size - top_spritepixels) * zoom );
-
-            auto gridpoint = at(std::floor(x), std::floor(y));
-
-            sprite.setPosition(pixel_pos);
-
-            r.setPosition(pixel_pos);
-
-            // visible & discovered layers for testing purposes
-            if (!gridpoint.discovered) {
-                r.setFillColor(sf::Color(16, 16, 20, 192)); // 255 opacity for actual blackout
-                renderTexture.draw(r);
-            } else if (!gridpoint.visible) {
-                r.setFillColor(sf::Color(32, 32, 40, 128));
-                renderTexture.draw(r);
+                // Get visibility state from entity's perspective
+                int idx = y * grid_x + x;
+                if (idx >= 0 && idx < static_cast<int>(entity->gridstate.size())) {
+                    const auto& state = entity->gridstate[idx];
+                    
+                    overlay.setPosition(pixel_pos);
+                    
+                    // Three overlay colors as specified:
+                    if (!state.discovered) {
+                        // Never seen - black
+                        overlay.setFillColor(sf::Color(0, 0, 0, 255));
+                        renderTexture.draw(overlay);
+                    } else if (!state.visible) {
+                        // Discovered but not currently visible - dark gray
+                        overlay.setFillColor(sf::Color(32, 32, 40, 192));
+                        renderTexture.draw(overlay);
+                    }
+                    // If visible and discovered, no overlay (fully visible)
+                }
             }
-
-            // overlay
-
-            // uisprite
         }
     }
-    */
 
     // grid lines for testing & validation
     /*
@@ -197,9 +270,185 @@ UIGridPoint& UIGrid::at(int x, int y)
     return points[y * grid_x + x];
 }
 
+UIGrid::~UIGrid()
+{
+    if (tcod_path) {
+        delete tcod_path;
+        tcod_path = nullptr;
+    }
+    if (tcod_dijkstra) {
+        delete tcod_dijkstra;
+        tcod_dijkstra = nullptr;
+    }
+    if (tcod_map) {
+        delete tcod_map;
+        tcod_map = nullptr;
+    }
+}
+
 PyObjectsEnum UIGrid::derived_type()
 {
     return PyObjectsEnum::UIGRID;
+}
+
+// TCOD integration methods
+void UIGrid::syncTCODMap()
+{
+    if (!tcod_map) return;
+    
+    for (int y = 0; y < grid_y; y++) {
+        for (int x = 0; x < grid_x; x++) {
+            const UIGridPoint& point = at(x, y);
+            tcod_map->setProperties(x, y, point.transparent, point.walkable);
+        }
+    }
+}
+
+void UIGrid::syncTCODMapCell(int x, int y)
+{
+    if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return;
+    
+    const UIGridPoint& point = at(x, y);
+    tcod_map->setProperties(x, y, point.transparent, point.walkable);
+}
+
+void UIGrid::computeFOV(int x, int y, int radius, bool light_walls, TCOD_fov_algorithm_t algo)
+{
+    if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return;
+    
+    tcod_map->computeFov(x, y, radius, light_walls, algo);
+}
+
+bool UIGrid::isInFOV(int x, int y) const
+{
+    if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return false;
+    
+    return tcod_map->isInFov(x, y);
+}
+
+std::vector<std::pair<int, int>> UIGrid::findPath(int x1, int y1, int x2, int y2, float diagonalCost)
+{
+    std::vector<std::pair<int, int>> path;
+    
+    if (!tcod_map || x1 < 0 || x1 >= grid_x || y1 < 0 || y1 >= grid_y ||
+        x2 < 0 || x2 >= grid_x || y2 < 0 || y2 >= grid_y) {
+        return path;
+    }
+    
+    TCODPath tcod_path(tcod_map, diagonalCost);
+    if (tcod_path.compute(x1, y1, x2, y2)) {
+        for (int i = 0; i < tcod_path.size(); i++) {
+            int x, y;
+            tcod_path.get(i, &x, &y);
+            path.push_back(std::make_pair(x, y));
+        }
+    }
+    
+    return path;
+}
+
+void UIGrid::computeDijkstra(int rootX, int rootY, float diagonalCost)
+{
+    if (!tcod_map || !tcod_dijkstra || rootX < 0 || rootX >= grid_x || rootY < 0 || rootY >= grid_y) return;
+    
+    // Compute the Dijkstra map from the root position
+    tcod_dijkstra->compute(rootX, rootY);
+}
+
+float UIGrid::getDijkstraDistance(int x, int y) const
+{
+    if (!tcod_dijkstra || x < 0 || x >= grid_x || y < 0 || y >= grid_y) {
+        return -1.0f;  // Invalid position
+    }
+    
+    return tcod_dijkstra->getDistance(x, y);
+}
+
+std::vector<std::pair<int, int>> UIGrid::getDijkstraPath(int x, int y) const
+{
+    std::vector<std::pair<int, int>> path;
+    
+    if (!tcod_dijkstra || x < 0 || x >= grid_x || y < 0 || y >= grid_y) {
+        return path;  // Empty path for invalid position
+    }
+    
+    // Set the destination
+    if (tcod_dijkstra->setPath(x, y)) {
+        // Walk the path and collect points
+        int px, py;
+        while (tcod_dijkstra->walk(&px, &py)) {
+            path.push_back(std::make_pair(px, py));
+        }
+    }
+    
+    return path;
+}
+
+// A* pathfinding implementation
+std::vector<std::pair<int, int>> UIGrid::computeAStarPath(int x1, int y1, int x2, int y2, float diagonalCost)
+{
+    std::vector<std::pair<int, int>> path;
+    
+    // Validate inputs
+    if (!tcod_map || !tcod_path || 
+        x1 < 0 || x1 >= grid_x || y1 < 0 || y1 >= grid_y ||
+        x2 < 0 || x2 >= grid_x || y2 < 0 || y2 >= grid_y) {
+        return path; // Return empty path
+    }
+    
+    // Set diagonal cost (TCODPath doesn't take it as parameter to compute)
+    // Instead, diagonal cost is set during TCODPath construction
+    // For now, we'll use the default diagonal cost from the constructor
+    
+    // Compute the path
+    bool success = tcod_path->compute(x1, y1, x2, y2);
+    
+    if (success) {
+        // Get the computed path
+        int pathSize = tcod_path->size();
+        path.reserve(pathSize);
+        
+        // TCOD path includes the starting position, so we start from index 0
+        for (int i = 0; i < pathSize; i++) {
+            int px, py;
+            tcod_path->get(i, &px, &py);
+            path.push_back(std::make_pair(px, py));
+        }
+    }
+    
+    return path;
+}
+
+// Phase 1 implementations
+sf::FloatRect UIGrid::get_bounds() const
+{
+    auto size = box.getSize();
+    return sf::FloatRect(position.x, position.y, size.x, size.y);
+}
+
+void UIGrid::move(float dx, float dy)
+{
+    position.x += dx;
+    position.y += dy;
+    box.setPosition(position);  // Keep box in sync
+    output.setPosition(position);  // Keep output sprite in sync too
+}
+
+void UIGrid::resize(float w, float h)
+{
+    box.setSize(sf::Vector2f(w, h));
+    // Recreate render texture with new size
+    if (w > 0 && h > 0) {
+        renderTexture.create(static_cast<unsigned int>(w), static_cast<unsigned int>(h));
+        output.setTexture(renderTexture.getTexture());
+    }
+}
+
+void UIGrid::onPositionChanged()
+{
+    // Sync box and output sprite positions with base class position
+    box.setPosition(position);
+    output.setPosition(position);
 }
 
 std::shared_ptr<PyTexture> UIGrid::getTexture()
@@ -209,86 +458,216 @@ std::shared_ptr<PyTexture> UIGrid::getTexture()
 
 UIDrawable* UIGrid::click_at(sf::Vector2f point)
 {
-    if (click_callable)
-    {
-        if(box.getGlobalBounds().contains(point)) return this;
+    // Check grid bounds first
+    if (!box.getGlobalBounds().contains(point)) {
+        return nullptr;
     }
-    return NULL;
+    
+    // Transform to local coordinates
+    sf::Vector2f localPoint = point - box.getPosition();
+    
+    // Get cell dimensions
+    int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
+    int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    
+    // Calculate visible area parameters (from render function)
+    float center_x_sq = center_x / cell_width;
+    float center_y_sq = center_y / cell_height;
+    float width_sq = box.getSize().x / (cell_width * zoom);
+    float height_sq = box.getSize().y / (cell_height * zoom);
+    
+    int left_spritepixels = center_x - (box.getSize().x / 2.0 / zoom);
+    int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
+    
+    // Convert click position to grid coordinates
+    float grid_x = (localPoint.x / zoom + left_spritepixels) / cell_width;
+    float grid_y = (localPoint.y / zoom + top_spritepixels) / cell_height;
+    
+    // Check entities in reverse order (assuming they should be checked top to bottom)
+    // Note: entities list is not sorted by z-index currently, but we iterate in reverse
+    // to match the render order assumption
+    if (entities) {
+        for (auto it = entities->rbegin(); it != entities->rend(); ++it) {
+            auto& entity = *it;
+            if (!entity || !entity->sprite.visible) continue;
+            
+            // Check if click is within entity's grid cell
+            // Entities occupy a 1x1 grid cell centered on their position
+            float dx = grid_x - entity->position.x;
+            float dy = grid_y - entity->position.y;
+            
+            if (dx >= -0.5f && dx < 0.5f && dy >= -0.5f && dy < 0.5f) {
+                // Click is within the entity's cell
+                // Check if entity sprite has a click handler
+                // For now, we return the entity's sprite as the click target
+                // Note: UIEntity doesn't derive from UIDrawable, so we check its sprite
+                if (entity->sprite.click_callable) {
+                    return &entity->sprite;
+                }
+            }
+        }
+    }
+    
+    // No entity handled it, check if grid itself has handler
+    if (click_callable) {
+        return this;
+    }
+    
+    return nullptr;
 }
 
 
 int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
-    int grid_x, grid_y;
-    PyObject* textureObj = Py_None;
-    //float box_x, box_y, box_w, box_h;
-    PyObject* pos = NULL;
-    PyObject* size = NULL;
-
-    //if (!PyArg_ParseTuple(args, "iiOffff", &grid_x, &grid_y, &textureObj, &box_x, &box_y, &box_w, &box_h)) {
-    if (!PyArg_ParseTuple(args, "ii|OOO", &grid_x, &grid_y, &textureObj, &pos, &size)) {
-        return -1; // If parsing fails, return an error
-    }
-
-    // Default position and size if not provided
-    PyVectorObject* pos_result = NULL;
-    PyVectorObject* size_result = NULL;
+    // Default values
+    int grid_x = 0, grid_y = 0;
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    PyObject* textureObj = nullptr;
     
-    if (pos) {
-        pos_result = PyVector::from_arg(pos);
-        if (!pos_result)
-        {
-            PyErr_SetString(PyExc_TypeError, "pos must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
+    // Check if first argument is a tuple (for tuple-based initialization)
+    bool has_tuple_first_arg = false;
+    if (args && PyTuple_Size(args) > 0) {
+        PyObject* first_arg = PyTuple_GetItem(args, 0);
+        if (PyTuple_Check(first_arg)) {
+            has_tuple_first_arg = true;
+        }
+    }
+    
+    // Try tuple-based parsing if we have a tuple as first argument
+    if (has_tuple_first_arg) {
+        int arg_idx = 0;
+        auto grid_size_result = PyArgHelpers::parseGridSize(args, kwds, &arg_idx);
+        
+        // If grid size parsing failed with an error, report it
+        if (!grid_size_result.valid) {
+            if (grid_size_result.error) {
+                PyErr_SetString(PyExc_TypeError, grid_size_result.error);
+            } else {
+                PyErr_SetString(PyExc_TypeError, "Invalid grid size tuple");
+            }
             return -1;
         }
-    } else {
-        // Default position (0, 0)
-        PyObject* vector_class = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-        if (vector_class) {
-            PyObject* pos_obj = PyObject_CallFunction(vector_class, "ff", 0.0f, 0.0f);
-            Py_DECREF(vector_class);
-            if (pos_obj) {
-                pos_result = (PyVectorObject*)pos_obj;
+        
+        // We got a valid grid size
+        grid_x = grid_size_result.grid_w;
+        grid_y = grid_size_result.grid_h;
+        
+        // Try to parse position and size
+        auto pos_result = PyArgHelpers::parsePosition(args, kwds, &arg_idx);
+        if (pos_result.valid) {
+            x = pos_result.x;
+            y = pos_result.y;
+        }
+        
+        auto size_result = PyArgHelpers::parseSize(args, kwds, &arg_idx);
+        if (size_result.valid) {
+            w = size_result.w;
+            h = size_result.h;
+        } else {
+            // Default size based on grid dimensions
+            w = grid_x * 16.0f;
+            h = grid_y * 16.0f;
+        }
+        
+        // Parse remaining arguments (texture)
+        static const char* remaining_keywords[] = { "texture", nullptr };
+        Py_ssize_t total_args = PyTuple_Size(args);
+        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
+        
+        PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|O", 
+                                    const_cast<char**>(remaining_keywords),
+                                    &textureObj);
+        Py_DECREF(remaining_args);
+    }
+    // Traditional format parsing
+    else {
+        static const char* keywords[] = {
+            "grid_x", "grid_y", "texture", "pos", "size", "grid_size", nullptr
+        };
+        PyObject* pos_obj = nullptr;
+        PyObject* size_obj = nullptr;
+        PyObject* grid_size_obj = nullptr;
+        
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiOOOO", 
+                                         const_cast<char**>(keywords), 
+                                         &grid_x, &grid_y, &textureObj, 
+                                         &pos_obj, &size_obj, &grid_size_obj)) {
+            return -1;
+        }
+        
+        // Handle grid_size override
+        if (grid_size_obj && grid_size_obj != Py_None) {
+            if (PyTuple_Check(grid_size_obj) && PyTuple_Size(grid_size_obj) == 2) {
+                PyObject* x_obj = PyTuple_GetItem(grid_size_obj, 0);
+                PyObject* y_obj = PyTuple_GetItem(grid_size_obj, 1);
+                if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
+                    grid_x = PyLong_AsLong(x_obj);
+                    grid_y = PyLong_AsLong(y_obj);
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "grid_size must contain integers");
+                    return -1;
+                }
+            } else {
+                PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple of two integers");
+                return -1;
             }
         }
-        if (!pos_result) {
-            PyErr_SetString(PyExc_RuntimeError, "Failed to create default position vector");
-            return -1;
-        }
-    }
-
-    if (size) {
-        size_result = PyVector::from_arg(size);
-        if (!size_result)
-        {
-            PyErr_SetString(PyExc_TypeError, "size must be a mcrfpy.Vector instance or arguments to mcrfpy.Vector.__init__");
-            return -1;
-        }
-    } else {
-        // Default size based on grid dimensions
-        float default_w = grid_x * 16.0f;  // Assuming 16 pixel tiles
-        float default_h = grid_y * 16.0f;
-        PyObject* vector_class = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-        if (vector_class) {
-            PyObject* size_obj = PyObject_CallFunction(vector_class, "ff", default_w, default_h);
-            Py_DECREF(vector_class);
-            if (size_obj) {
-                size_result = (PyVectorObject*)size_obj;
+        
+        // Handle position
+        if (pos_obj && pos_obj != Py_None) {
+            if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
+                PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
+                PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
+                if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
+                    (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
+                    x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
+                    y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "pos must contain numbers");
+                    return -1;
+                }
+            } else {
+                PyErr_SetString(PyExc_TypeError, "pos must be a tuple of two numbers");
+                return -1;
             }
         }
-        if (!size_result) {
-            PyErr_SetString(PyExc_RuntimeError, "Failed to create default size vector");
-            return -1;
+        
+        // Handle size
+        if (size_obj && size_obj != Py_None) {
+            if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
+                PyObject* w_val = PyTuple_GetItem(size_obj, 0);
+                PyObject* h_val = PyTuple_GetItem(size_obj, 1);
+                if ((PyFloat_Check(w_val) || PyLong_Check(w_val)) &&
+                    (PyFloat_Check(h_val) || PyLong_Check(h_val))) {
+                    w = PyFloat_Check(w_val) ? PyFloat_AsDouble(w_val) : PyLong_AsLong(w_val);
+                    h = PyFloat_Check(h_val) ? PyFloat_AsDouble(h_val) : PyLong_AsLong(h_val);
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "size must contain numbers");
+                    return -1;
+                }
+            } else {
+                PyErr_SetString(PyExc_TypeError, "size must be a tuple of two numbers");
+                return -1;
+            }
+        } else {
+            // Default size based on grid
+            w = grid_x * 16.0f;
+            h = grid_y * 16.0f;
         }
     }
-
-    // Convert PyObject texture to IndexTexture*
-    // This requires the texture object to have been initialized similar to UISprite's texture handling
     
+    // Validate grid dimensions
+    if (grid_x <= 0 || grid_y <= 0) {
+        PyErr_SetString(PyExc_ValueError, "Grid dimensions must be positive integers");
+        return -1;
+    }
+
+    // At this point we have x, y, w, h values from either parsing method
+
+    // Convert PyObject texture to shared_ptr<PyTexture>
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
     
-    // Allow None for texture - use default texture in that case
-    if (textureObj != Py_None) {
-        //if (!PyObject_IsInstance(textureObj, (PyObject*)&PyTextureType)) {
+    // Allow None or NULL for texture - use default texture in that case
+    if (textureObj && textureObj != Py_None) {
         if (!PyObject_IsInstance(textureObj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
             return -1;
@@ -296,15 +675,18 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         PyTextureObject* pyTexture = reinterpret_cast<PyTextureObject*>(textureObj);
         texture_ptr = pyTexture->data;
     } else {
-        // Use default texture when None is provided
+        // Use default texture when None is provided or texture not specified
         texture_ptr = McRFPy_API::default_texture;
     }
     
-    // Initialize UIGrid - texture_ptr will be nullptr if texture was None
-    //self->data = new UIGrid(grid_x, grid_y, texture, sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
-    //self->data = std::make_shared<UIGrid>(grid_x, grid_y, pyTexture->data, 
-    //        sf::Vector2f(box_x, box_y), sf::Vector2f(box_w, box_h));
-    self->data = std::make_shared<UIGrid>(grid_x, grid_y, texture_ptr, pos_result->data, size_result->data);
+    // Adjust size based on texture if available and size not explicitly set
+    if (texture_ptr && w == grid_x * 16.0f && h == grid_y * 16.0f) {
+        w = grid_x * texture_ptr->sprite_width;
+        h = grid_y * texture_ptr->sprite_height;
+    }
+    
+    self->data = std::make_shared<UIGrid>(grid_x, grid_y, texture_ptr, 
+                                          sf::Vector2f(x, y), sf::Vector2f(w, h));
     return 0; // Success
 }
 
@@ -321,8 +703,7 @@ PyObject* UIGrid::get_grid_y(PyUIGridObject* self, void* closure) {
 }
 
 PyObject* UIGrid::get_position(PyUIGridObject* self, void* closure) {
-    auto& box = self->data->box;
-    return Py_BuildValue("(ff)", box.getPosition().x, box.getPosition().y);
+    return Py_BuildValue("(ff)", self->data->position.x, self->data->position.y);
 }
 
 int UIGrid::set_position(PyUIGridObject* self, PyObject* value, void* closure) {
@@ -331,7 +712,9 @@ int UIGrid::set_position(PyUIGridObject* self, PyObject* value, void* closure) {
         PyErr_SetString(PyExc_ValueError, "Position must be a tuple of two floats");
         return -1;
     }
-    self->data->box.setPosition(x, y);
+    self->data->position = sf::Vector2f(x, y);  // Update base class position
+    self->data->box.setPosition(self->data->position);  // Sync box position
+    self->data->output.setPosition(self->data->position);  // Sync output sprite position
     return 0;
 }
 
@@ -415,7 +798,7 @@ int UIGrid::set_float_member(PyUIGridObject* self, PyObject* value, void* closur
     }
     else
     {
-        PyErr_SetString(PyExc_TypeError, "Value must be a floating point number.");
+        PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
         return -1;
     }
     if (member_ptr == 0) // x
@@ -475,19 +858,45 @@ PyObject* UIGrid::get_texture(PyUIGridObject* self, void* closure) {
         return (PyObject*)obj;
 }
 
-PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* o)
+PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    int x, y;
-    if (!PyArg_ParseTuple(o, "ii", &x, &y)) {
-        PyErr_SetString(PyExc_TypeError, "UIGrid.at requires two integer arguments: (x, y)");
-        return NULL;
+    static const char* keywords[] = {"x", "y", nullptr};
+    int x = 0, y = 0;
+    
+    // First try to parse as two integers
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii", const_cast<char**>(keywords), &x, &y)) {
+        PyErr_Clear();
+        
+        // Try to parse as a single tuple argument
+        PyObject* pos_tuple = nullptr;
+        if (PyArg_ParseTuple(args, "O", &pos_tuple)) {
+            if (PyTuple_Check(pos_tuple) && PyTuple_Size(pos_tuple) == 2) {
+                PyObject* x_obj = PyTuple_GetItem(pos_tuple, 0);
+                PyObject* y_obj = PyTuple_GetItem(pos_tuple, 1);
+                if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
+                    x = PyLong_AsLong(x_obj);
+                    y = PyLong_AsLong(y_obj);
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "Grid indices must be integers");
+                    return NULL;
+                }
+            } else {
+                PyErr_SetString(PyExc_TypeError, "at() takes two integers or a tuple of two integers");
+                return NULL;
+            }
+        } else {
+            PyErr_SetString(PyExc_TypeError, "at() takes two integers or a tuple of two integers");
+            return NULL;
+        }
     }
+    
+    // Range validation
     if (x < 0 || x >= self->data->grid_x) {
-        PyErr_SetString(PyExc_ValueError, "x value out of range (0, Grid.grid_x)");
+        PyErr_Format(PyExc_IndexError, "x index %d is out of range [0, %d)", x, self->data->grid_x);
         return NULL;
     }
     if (y < 0 || y >= self->data->grid_y) {
-        PyErr_SetString(PyExc_ValueError, "y value out of range (0, Grid.grid_y)");
+        PyErr_Format(PyExc_IndexError, "y index %d is out of range [0, %d)", y, self->data->grid_y);
         return NULL;
     }
 
@@ -500,11 +909,232 @@ PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* o)
     return (PyObject*)obj;
 }
 
+PyObject* UIGrid::get_fill_color(PyUIGridObject* self, void* closure)
+{
+    auto& color = self->data->fill_color;
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
+    PyObject* args = Py_BuildValue("(iiii)", color.r, color.g, color.b, color.a);
+    PyObject* obj = PyObject_CallObject((PyObject*)type, args);
+    Py_DECREF(args);
+    Py_DECREF(type);
+    return obj;
+}
+
+int UIGrid::set_fill_color(PyUIGridObject* self, PyObject* value, void* closure)
+{
+    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color"))) {
+        PyErr_SetString(PyExc_TypeError, "fill_color must be a Color object");
+        return -1;
+    }
+    
+    PyColorObject* color = (PyColorObject*)value;
+    self->data->fill_color = color->data;
+    return 0;
+}
+
+PyObject* UIGrid::get_perspective(PyUIGridObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->perspective);
+}
+
+int UIGrid::set_perspective(PyUIGridObject* self, PyObject* value, void* closure)
+{
+    long perspective = PyLong_AsLong(value);
+    if (PyErr_Occurred()) {
+        return -1;
+    }
+    
+    // Validate perspective (-1 for omniscient, or valid entity index)
+    if (perspective < -1) {
+        PyErr_SetString(PyExc_ValueError, "perspective must be -1 (omniscient) or a valid entity index");
+        return -1;
+    }
+    
+    // Check if entity index is valid (if not omniscient)
+    if (perspective >= 0 && self->data->entities) {
+        int entity_count = self->data->entities->size();
+        if (perspective >= entity_count) {
+            PyErr_Format(PyExc_IndexError, "perspective index %ld out of range (grid has %d entities)", 
+                         perspective, entity_count);
+            return -1;
+        }
+    }
+    
+    self->data->perspective = perspective;
+    return 0;
+}
+
+// Python API implementations for TCOD functionality
+PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+{
+    static char* kwlist[] = {"x", "y", "radius", "light_walls", "algorithm", NULL};
+    int x, y, radius = 0;
+    int light_walls = 1;
+    int algorithm = FOV_BASIC;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii|ipi", kwlist, 
+                                     &x, &y, &radius, &light_walls, &algorithm)) {
+        return NULL;
+    }
+    
+    self->data->computeFOV(x, y, radius, light_walls, (TCOD_fov_algorithm_t)algorithm);
+    Py_RETURN_NONE;
+}
+
+PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args)
+{
+    int x, y;
+    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+        return NULL;
+    }
+    
+    bool in_fov = self->data->isInFOV(x, y);
+    return PyBool_FromLong(in_fov);
+}
+
+PyObject* UIGrid::py_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+{
+    static char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
+    int x1, y1, x2, y2;
+    float diagonal_cost = 1.41f;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", kwlist, 
+                                     &x1, &y1, &x2, &y2, &diagonal_cost)) {
+        return NULL;
+    }
+    
+    std::vector<std::pair<int, int>> path = self->data->findPath(x1, y1, x2, y2, diagonal_cost);
+    
+    PyObject* path_list = PyList_New(path.size());
+    if (!path_list) return NULL;
+    
+    for (size_t i = 0; i < path.size(); i++) {
+        PyObject* coord = Py_BuildValue("(ii)", path[i].first, path[i].second);
+        if (!coord) {
+            Py_DECREF(path_list);
+            return NULL;
+        }
+        PyList_SET_ITEM(path_list, i, coord);
+    }
+    
+    return path_list;
+}
+
+PyObject* UIGrid::py_compute_dijkstra(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+{
+    static char* kwlist[] = {"root_x", "root_y", "diagonal_cost", NULL};
+    int root_x, root_y;
+    float diagonal_cost = 1.41f;
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii|f", kwlist, 
+                                     &root_x, &root_y, &diagonal_cost)) {
+        return NULL;
+    }
+    
+    self->data->computeDijkstra(root_x, root_y, diagonal_cost);
+    Py_RETURN_NONE;
+}
+
+PyObject* UIGrid::py_get_dijkstra_distance(PyUIGridObject* self, PyObject* args)
+{
+    int x, y;
+    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+        return NULL;
+    }
+    
+    float distance = self->data->getDijkstraDistance(x, y);
+    if (distance < 0) {
+        Py_RETURN_NONE;  // Invalid position
+    }
+    
+    return PyFloat_FromDouble(distance);
+}
+
+PyObject* UIGrid::py_get_dijkstra_path(PyUIGridObject* self, PyObject* args)
+{
+    int x, y;
+    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+        return NULL;
+    }
+    
+    std::vector<std::pair<int, int>> path = self->data->getDijkstraPath(x, y);
+    
+    PyObject* path_list = PyList_New(path.size());
+    for (size_t i = 0; i < path.size(); i++) {
+        PyObject* pos = Py_BuildValue("(ii)", path[i].first, path[i].second);
+        PyList_SetItem(path_list, i, pos);  // Steals reference
+    }
+    
+    return path_list;
+}
+
+PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+{
+    int x1, y1, x2, y2;
+    float diagonal_cost = 1.41f;
+    
+    static char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
+    
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", kwlist, 
+                                     &x1, &y1, &x2, &y2, &diagonal_cost)) {
+        return NULL;
+    }
+    
+    // Compute A* path
+    std::vector<std::pair<int, int>> path = self->data->computeAStarPath(x1, y1, x2, y2, diagonal_cost);
+    
+    // Convert to Python list
+    PyObject* path_list = PyList_New(path.size());
+    for (size_t i = 0; i < path.size(); i++) {
+        PyObject* pos = Py_BuildValue("(ii)", path[i].first, path[i].second);
+        PyList_SetItem(path_list, i, pos);  // Steals reference
+    }
+    
+    return path_list;
+}
+
 PyMethodDef UIGrid::methods[] = {
-    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS},
+    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
+    {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
+     "Compute field of view from a position. Args: x, y, radius=0, light_walls=True, algorithm=FOV_BASIC"},
+    {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
+     "Check if a cell is in the field of view. Args: x, y"},
+    {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS, 
+     "Find A* path between two points. Args: x1, y1, x2, y2, diagonal_cost=1.41"},
+    {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS, 
+     "Compute Dijkstra map from root position. Args: root_x, root_y, diagonal_cost=1.41"},
+    {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS,
+     "Get distance from Dijkstra root to position. Args: x, y. Returns float or None if invalid."},
+    {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS,
+     "Get path from position to Dijkstra root. Args: x, y. Returns list of (x,y) tuples."},
+    {"compute_astar_path", (PyCFunction)UIGrid::py_compute_astar_path, METH_VARARGS | METH_KEYWORDS,
+     "Compute A* path between two points. Args: x1, y1, x2, y2, diagonal_cost=1.41. Returns list of (x,y) tuples. Note: diagonal_cost is currently ignored (uses default 1.41)."},
     {NULL, NULL, 0, NULL}
 };
 
+// Define the PyObjectType alias for the macros
+typedef PyUIGridObject PyObjectType;
+
+// Combined methods array
+PyMethodDef UIGrid_all_methods[] = {
+    UIDRAWABLE_METHODS,
+    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
+    {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
+     "Compute field of view from a position. Args: x, y, radius=0, light_walls=True, algorithm=FOV_BASIC"},
+    {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
+     "Check if a cell is in the field of view. Args: x, y"},
+    {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS, 
+     "Find A* path between two points. Args: x1, y1, x2, y2, diagonal_cost=1.41"},
+    {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS, 
+     "Compute Dijkstra map from root position. Args: root_x, root_y, diagonal_cost=1.41"},
+    {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS,
+     "Get distance from Dijkstra root to position. Args: x, y. Returns float or None if invalid."},
+    {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS,
+     "Get path from position to Dijkstra root. Args: x, y. Returns list of (x,y) tuples."},
+    {"compute_astar_path", (PyCFunction)UIGrid::py_compute_astar_path, METH_VARARGS | METH_KEYWORDS,
+     "Compute A* path between two points. Args: x1, y1, x2, y2, diagonal_cost=1.41. Returns list of (x,y) tuples. Note: diagonal_cost is currently ignored (uses default 1.41)."},
+    {NULL}  // Sentinel
+};
 
 PyGetSetDef UIGrid::getsetters[] = {
 
@@ -513,15 +1143,16 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"grid_x", (getter)UIGrid::get_grid_x, NULL, "Grid x dimension", NULL},
     {"grid_y", (getter)UIGrid::get_grid_y, NULL, "Grid y dimension", NULL},
     {"position", (getter)UIGrid::get_position, (setter)UIGrid::set_position, "Position of the grid (x, y)", NULL},
+    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position of the grid as Vector", (void*)PyObjectsEnum::UIGRID},
     {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size, "Size of the grid (width, height)", NULL},
     {"center", (getter)UIGrid::get_center, (setter)UIGrid::set_center, "Grid coordinate at the center of the Grid's view (pan)", NULL},
 
     {"entities", (getter)UIGrid::get_children, NULL, "EntityCollection of entities on this grid", NULL},
 
-    {"x", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "top-left corner X-coordinate", (void*)0},
-    {"y", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "top-left corner Y-coordinate", (void*)1},
-    {"w", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "visible widget width", (void*)2},
-    {"h", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "visible widget height", (void*)3},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "top-left corner X-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "top-left corner Y-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 1)},
+    {"w", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "visible widget width", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 2)},
+    {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "visible widget height", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 3)},
     {"center_x", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "center of the view X-coordinate", (void*)4},
     {"center_y", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "center of the view Y-coordinate", (void*)5},
     {"zoom", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "zoom factor for displaying the Grid", (void*)6},
@@ -529,7 +1160,11 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIGRID},
 
     {"texture", (getter)UIGrid::get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
+    {"fill_color", (getter)UIGrid::get_fill_color, (setter)UIGrid::set_fill_color, "Background fill color of the grid", NULL},
+    {"perspective", (getter)UIGrid::get_perspective, (setter)UIGrid::set_perspective, "Entity perspective index (-1 for omniscient view)", NULL},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UIGRID},
+    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIGRID},
+    UIDRAWABLE_GETSETTERS,
     {NULL}  /* Sentinel */
 };
 
@@ -840,184 +1475,6 @@ PyObject* UIEntityCollection::inplace_concat(PyUIEntityCollectionObject* self, P
     return (PyObject*)self;
 }
 
-int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t index, PyObject* value) {
-    auto list = self->data.get();
-    if (!list) {
-        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
-        return -1;
-    }
-    
-    // Handle negative indexing
-    while (index < 0) index += list->size();
-    
-    // Bounds check
-    if (index >= list->size()) {
-        PyErr_SetString(PyExc_IndexError, "EntityCollection assignment index out of range");
-        return -1;
-    }
-    
-    // Get iterator to the target position
-    auto it = list->begin();
-    std::advance(it, index);
-    
-    // Handle deletion
-    if (value == NULL) {
-        // Clear grid reference from the entity being removed
-        (*it)->grid = nullptr;
-        list->erase(it);
-        return 0;
-    }
-    
-    // Type checking - must be an Entity
-    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
-        PyErr_SetString(PyExc_TypeError, "EntityCollection can only contain Entity objects");
-        return -1;
-    }
-    
-    // Get the C++ object from the Python object
-    PyUIEntityObject* entity = (PyUIEntityObject*)value;
-    if (!entity->data) {
-        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
-        return -1;
-    }
-    
-    // Clear grid reference from the old entity
-    (*it)->grid = nullptr;
-    
-    // Replace the element and set grid reference
-    *it = entity->data;
-    entity->data->grid = self->grid;
-    
-    return 0;
-}
-
-int UIEntityCollection::contains(PyUIEntityCollectionObject* self, PyObject* value) {
-    auto list = self->data.get();
-    if (!list) {
-        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
-        return -1;
-    }
-    
-    // Type checking - must be an Entity
-    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
-        // Not an Entity, so it can't be in the collection
-        return 0;
-    }
-    
-    // Get the C++ object from the Python object
-    PyUIEntityObject* entity = (PyUIEntityObject*)value;
-    if (!entity->data) {
-        return 0;
-    }
-    
-    // Search for the object by comparing C++ pointers
-    for (const auto& ent : *list) {
-        if (ent.get() == entity->data.get()) {
-            return 1;  // Found
-        }
-    }
-    
-    return 0;  // Not found
-}
-
-PyObject* UIEntityCollection::concat(PyUIEntityCollectionObject* self, PyObject* other) {
-    // Create a new Python list containing elements from both collections
-    if (!PySequence_Check(other)) {
-        PyErr_SetString(PyExc_TypeError, "can only concatenate sequence to EntityCollection");
-        return NULL;
-    }
-    
-    Py_ssize_t self_len = self->data->size();
-    Py_ssize_t other_len = PySequence_Length(other);
-    if (other_len == -1) {
-        return NULL;  // Error already set
-    }
-    
-    PyObject* result_list = PyList_New(self_len + other_len);
-    if (!result_list) {
-        return NULL;
-    }
-    
-    // Add all elements from self
-    Py_ssize_t idx = 0;
-    for (const auto& entity : *self->data) {
-        auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-        auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
-        if (obj) {
-            obj->data = entity;
-            PyList_SET_ITEM(result_list, idx, (PyObject*)obj);  // Steals reference
-        } else {
-            Py_DECREF(result_list);
-            Py_DECREF(type);
-            return NULL;
-        }
-        Py_DECREF(type);
-        idx++;
-    }
-    
-    // Add all elements from other
-    for (Py_ssize_t i = 0; i < other_len; i++) {
-        PyObject* item = PySequence_GetItem(other, i);
-        if (!item) {
-            Py_DECREF(result_list);
-            return NULL;
-        }
-        PyList_SET_ITEM(result_list, self_len + i, item);  // Steals reference
-    }
-    
-    return result_list;
-}
-
-PyObject* UIEntityCollection::inplace_concat(PyUIEntityCollectionObject* self, PyObject* other) {
-    if (!PySequence_Check(other)) {
-        PyErr_SetString(PyExc_TypeError, "can only concatenate sequence to EntityCollection");
-        return NULL;
-    }
-    
-    // First, validate ALL items in the sequence before modifying anything
-    Py_ssize_t other_len = PySequence_Length(other);
-    if (other_len == -1) {
-        return NULL;  // Error already set
-    }
-    
-    // Validate all items first
-    for (Py_ssize_t i = 0; i < other_len; i++) {
-        PyObject* item = PySequence_GetItem(other, i);
-        if (!item) {
-            return NULL;
-        }
-        
-        // Type check
-        if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
-            Py_DECREF(item);
-            PyErr_Format(PyExc_TypeError, 
-                "EntityCollection can only contain Entity objects; "
-                "got %s at index %zd", Py_TYPE(item)->tp_name, i);
-            return NULL;
-        }
-        Py_DECREF(item);
-    }
-    
-    // All items validated, now we can safely add them
-    for (Py_ssize_t i = 0; i < other_len; i++) {
-        PyObject* item = PySequence_GetItem(other, i);
-        if (!item) {
-            return NULL;  // Shouldn't happen, but be safe
-        }
-        
-        // Use the existing append method which handles grid references
-        PyObject* result = append(self, item);
-        Py_DECREF(item);
-        
-        if (!result) {
-            return NULL;  // append() failed
-        }
-        Py_DECREF(result);  // append returns Py_None
-    }
-    
-    Py_INCREF(self);
-    return (PyObject*)self;
-}
 
 PySequenceMethods UIEntityCollection::sqmethods = {
     .sq_length = (lenfunc)UIEntityCollection::len,
@@ -1047,6 +1504,16 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
     PyUIEntityObject* entity = (PyUIEntityObject*)o;
     self->data->push_back(entity->data);
     entity->data->grid = self->grid;
+    
+    // Initialize gridstate if not already done
+    if (entity->data->gridstate.size() == 0 && self->grid) {
+        entity->data->gridstate.resize(self->grid->grid_x * self->grid->grid_y);
+        // Initialize all cells as not visible/discovered
+        for (auto& state : entity->data->gridstate) {
+            state.visible = false;
+            state.discovered = false;
+        }
+    }
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -1438,13 +1905,15 @@ PyObject* UIEntityCollection::iter(PyUIEntityCollectionObject* self)
 // Property system implementation for animations
 bool UIGrid::setProperty(const std::string& name, float value) {
     if (name == "x") {
-        box.setPosition(sf::Vector2f(value, box.getPosition().y));
-        output.setPosition(box.getPosition());
+        position.x = value;
+        box.setPosition(position);
+        output.setPosition(position);
         return true;
     }
     else if (name == "y") {
-        box.setPosition(sf::Vector2f(box.getPosition().x, value));
-        output.setPosition(box.getPosition());
+        position.y = value;
+        box.setPosition(position);
+        output.setPosition(position);
         return true;
     }
     else if (name == "w" || name == "width") {
@@ -1473,13 +1942,30 @@ bool UIGrid::setProperty(const std::string& name, float value) {
         z_index = static_cast<int>(value);
         return true;
     }
+    else if (name == "fill_color.r") {
+        fill_color.r = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, value)));
+        return true;
+    }
+    else if (name == "fill_color.g") {
+        fill_color.g = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, value)));
+        return true;
+    }
+    else if (name == "fill_color.b") {
+        fill_color.b = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, value)));
+        return true;
+    }
+    else if (name == "fill_color.a") {
+        fill_color.a = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, value)));
+        return true;
+    }
     return false;
 }
 
 bool UIGrid::setProperty(const std::string& name, const sf::Vector2f& value) {
     if (name == "position") {
-        box.setPosition(value);
-        output.setPosition(box.getPosition());
+        position = value;
+        box.setPosition(position);
+        output.setPosition(position);
         return true;
     }
     else if (name == "size") {
@@ -1497,11 +1983,11 @@ bool UIGrid::setProperty(const std::string& name, const sf::Vector2f& value) {
 
 bool UIGrid::getProperty(const std::string& name, float& value) const {
     if (name == "x") {
-        value = box.getPosition().x;
+        value = position.x;
         return true;
     }
     else if (name == "y") {
-        value = box.getPosition().y;
+        value = position.y;
         return true;
     }
     else if (name == "w" || name == "width") {
@@ -1528,12 +2014,28 @@ bool UIGrid::getProperty(const std::string& name, float& value) const {
         value = static_cast<float>(z_index);
         return true;
     }
+    else if (name == "fill_color.r") {
+        value = static_cast<float>(fill_color.r);
+        return true;
+    }
+    else if (name == "fill_color.g") {
+        value = static_cast<float>(fill_color.g);
+        return true;
+    }
+    else if (name == "fill_color.b") {
+        value = static_cast<float>(fill_color.b);
+        return true;
+    }
+    else if (name == "fill_color.a") {
+        value = static_cast<float>(fill_color.a);
+        return true;
+    }
     return false;
 }
 
 bool UIGrid::getProperty(const std::string& name, sf::Vector2f& value) const {
     if (name == "position") {
-        value = box.getPosition();
+        value = position;
         return true;
     }
     else if (name == "size") {

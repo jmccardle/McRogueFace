@@ -40,6 +40,8 @@ public:
     sf::Color color, color_overlay;
     bool walkable, transparent;
     int tilesprite, tile_overlay, uisprite;
+    int grid_x, grid_y;  // Position in parent grid
+    UIGrid* parent_grid;  // Parent grid reference for TCOD sync
     UIGridPoint();
 
     static int set_int_member(PyUIGridPointObject* self, PyObject* value, void* closure);

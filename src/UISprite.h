@@ -8,6 +8,7 @@
 
 #include "PyCallable.h"
 #include "PyTexture.h"
+#include "PyDrawable.h"
 #include "PyColor.h"
 #include "PyVector.h"
 #include "PyFont.h"
@@ -42,6 +43,12 @@ public:
 
     PyObjectsEnum derived_type() override final;
     
+    // Phase 1 virtual method implementations
+    sf::FloatRect get_bounds() const override;
+    void move(float dx, float dy) override;
+    void resize(float w, float h) override;
+    void onPositionChanged() override;
+    
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
     bool setProperty(const std::string& name, int value) override;
@@ -63,6 +70,9 @@ public:
     
 };
 
+// Forward declaration of methods array
+extern PyMethodDef UISprite_methods[];
+
 namespace mcrfpydef {
     static PyTypeObject PyUISpriteType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
@@ -82,11 +92,28 @@ namespace mcrfpydef {
         //.tp_iter
         //.tp_iternext
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("docstring"),
-        //.tp_methods = PyUIFrame_methods,
+        .tp_doc = PyDoc_STR("Sprite(x=0, y=0, texture=None, sprite_index=0, scale=1.0, click=None)\n\n"
+                            "A sprite UI element that displays a texture or portion of a texture atlas.\n\n"
+                            "Args:\n"
+                            "    x (float): X position in pixels. Default: 0\n"
+                            "    y (float): Y position in pixels. Default: 0\n"
+                            "    texture (Texture): Texture object to display. Default: None\n"
+                            "    sprite_index (int): Index into texture atlas (if applicable). Default: 0\n"
+                            "    scale (float): Sprite scaling factor. Default: 1.0\n"
+                            "    click (callable): Click event handler. Default: None\n\n"
+                            "Attributes:\n"
+                            "    x, y (float): Position in pixels\n"
+                            "    texture (Texture): The texture being displayed\n"
+                            "    sprite_index (int): Current sprite index in texture atlas\n"
+                            "    scale (float): Scale multiplier\n"
+                            "    click (callable): Click event handler\n"
+                            "    visible (bool): Visibility state\n"
+                            "    z_index (int): Rendering order\n"
+                            "    w, h (float): Read-only computed size based on texture and scale"),
+        .tp_methods = UISprite_methods,
         //.tp_members = PyUIFrame_members,
         .tp_getset = UISprite::getsetters,
-        //.tp_base = NULL,
+        .tp_base = &mcrfpydef::PyDrawableType,
         .tp_init = (initproc)UISprite::init,
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {

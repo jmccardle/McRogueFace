@@ -28,27 +28,21 @@ void PyScene::do_mouse_input(std::string button, std::string type)
     }
     
     auto unscaledmousepos = sf::Mouse::getPosition(game->getWindow());
-    auto mousepos = game->getWindow().mapPixelToCoords(unscaledmousepos);
-    UIDrawable* target;
-    for (auto d: *ui_elements)
-    {
-        target = d->click_at(sf::Vector2f(mousepos));
-        if (target)
-        {
-            /*
-            PyObject* args = Py_BuildValue("(iiss)", (int)mousepos.x, (int)mousepos.y, button.c_str(), type.c_str());
-            PyObject* retval = PyObject_Call(target->click_callable, args, NULL);
-            if (!retval)
-            {   
-                std::cout << "click_callable has raised an exception. It's going to STDERR and being dropped:" << std::endl;
-                PyErr_Print();
-                PyErr_Clear();
-            } else if (retval != Py_None)
-            {   
-                std::cout << "click_callable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
-            }
-            */
+    // Convert window coordinates to game coordinates using the viewport
+    auto mousepos = game->windowToGameCoords(sf::Vector2f(unscaledmousepos));
+    
+    // Create a sorted copy by z-index (highest first)
+    std::vector<std::shared_ptr<UIDrawable>> sorted_elements(*ui_elements);
+    std::sort(sorted_elements.begin(), sorted_elements.end(),
+        [](const auto& a, const auto& b) { return a->z_index > b->z_index; });
+    
+    // Check elements in z-order (top to bottom)
+    for (const auto& element : sorted_elements) {
+        if (!element->visible) continue;
+        
+        if (auto target = element->click_at(sf::Vector2f(mousepos))) {
             target->click_callable->call(mousepos, button, type);
+            return; // Stop after first handler
         }
     }
 }
@@ -79,8 +73,16 @@ void PyScene::render()
     // Render in sorted order (no need to copy anymore)
     for (auto e: *ui_elements)
     {
-        if (e)
+        if (e) {
+            // Track metrics
+            game->metrics.uiElements++;
+            if (e->visible) {
+                game->metrics.visibleElements++;
+                // Count this as a draw call (each visible element = 1+ draw calls)
+                game->metrics.drawCalls++;
+            }
             e->render();
+        }
     }
     
     // Display is handled by GameEngine

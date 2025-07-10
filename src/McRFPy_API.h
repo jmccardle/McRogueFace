@@ -36,9 +36,9 @@ public:
     static void REPL_device(FILE * fp, const char *filename);
     static void REPL();
 
-    static std::vector<sf::SoundBuffer> soundbuffers;
-    static sf::Music music;
-    static sf::Sound sfx;
+    static std::vector<sf::SoundBuffer>* soundbuffers;
+    static sf::Music* music;
+    static sf::Sound* sfx;
     
     
     static PyObject* _createSoundBuffer(PyObject*, PyObject*);
@@ -73,4 +73,16 @@ public:
     
     // Helper to mark scenes as needing z_index resort
     static void markSceneNeedsSort();
+    
+    // Name-based finding methods
+    static PyObject* _find(PyObject*, PyObject*);
+    static PyObject* _findAll(PyObject*, PyObject*);
+    
+    // Profiling/metrics
+    static PyObject* _getMetrics(PyObject*, PyObject*);
+    
+    // Scene lifecycle management for Python Scene objects
+    static void triggerSceneChange(const std::string& from_scene, const std::string& to_scene);
+    static void updatePythonScenes(float dt);
+    static void triggerResize(int width, int height);
 };
