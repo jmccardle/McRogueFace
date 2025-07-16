@@ -39,6 +39,15 @@ public:
     void click_unregister();
 
     UIDrawable();
+    virtual ~UIDrawable();
+    
+    // Copy constructor and assignment operator
+    UIDrawable(const UIDrawable& other);
+    UIDrawable& operator=(const UIDrawable& other);
+    
+    // Move constructor and assignment operator
+    UIDrawable(UIDrawable&& other) noexcept;
+    UIDrawable& operator=(UIDrawable&& other) noexcept;
 
     static PyObject* get_click(PyObject* self, void* closure);
     static int set_click(PyObject* self, PyObject* value, void* closure);
@@ -89,6 +98,9 @@ public:
     virtual bool getProperty(const std::string& name, sf::Color& value) const { return false; }
     virtual bool getProperty(const std::string& name, sf::Vector2f& value) const { return false; }
     virtual bool getProperty(const std::string& name, std::string& value) const { return false; }
+    
+    // Python object cache support
+    uint64_t serial_number = 0;
     
 protected:
     // RenderTexture support (opt-in)

@@ -6,6 +6,7 @@
 #include "UIGrid.h"
 #include "McRFPy_API.h"
 #include "PyObjectUtils.h"
+#include "PythonObjectCache.h"
 #include <climits>
 #include <algorithm>
 
@@ -15,6 +16,14 @@ using namespace mcrfpydef;
 static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
     if (!drawable) {
         Py_RETURN_NONE;
+    }
+    
+    // Check cache first
+    if (drawable->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+        if (cached) {
+            return cached;  // Already INCREF'd by lookup
+        }
     }
     
     PyTypeObject* type = nullptr;
@@ -28,6 +37,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
+                pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;
             break;
@@ -40,6 +50,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UICaption>(drawable);
                 pyObj->font = nullptr;
+                pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;
             break;
@@ -51,6 +62,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UISprite>(drawable);
+                pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;
             break;
@@ -62,6 +74,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
+                pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;
             break;

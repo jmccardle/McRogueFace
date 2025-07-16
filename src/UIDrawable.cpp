@@ -5,8 +5,112 @@
 #include "UIGrid.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
+#include "PythonObjectCache.h"
 
 UIDrawable::UIDrawable() : position(0.0f, 0.0f) { click_callable = NULL;  }
+
+UIDrawable::UIDrawable(const UIDrawable& other) 
+    : z_index(other.z_index),
+      name(other.name),
+      position(other.position),
+      visible(other.visible),
+      opacity(other.opacity),
+      serial_number(0),  // Don't copy serial number
+      use_render_texture(other.use_render_texture),
+      render_dirty(true)  // Force redraw after copy
+{
+    // Deep copy click_callable if it exists
+    if (other.click_callable) {
+        click_callable = std::make_unique<PyClickCallable>(*other.click_callable);
+    }
+    
+    // Deep copy render texture if needed
+    if (other.render_texture && other.use_render_texture) {
+        auto size = other.render_texture->getSize();
+        enableRenderTexture(size.x, size.y);
+    }
+}
+
+UIDrawable& UIDrawable::operator=(const UIDrawable& other) {
+    if (this != &other) {
+        // Copy basic members
+        z_index = other.z_index;
+        name = other.name;
+        position = other.position;
+        visible = other.visible;
+        opacity = other.opacity;
+        use_render_texture = other.use_render_texture;
+        render_dirty = true;  // Force redraw after copy
+        
+        // Deep copy click_callable
+        if (other.click_callable) {
+            click_callable = std::make_unique<PyClickCallable>(*other.click_callable);
+        } else {
+            click_callable.reset();
+        }
+        
+        // Deep copy render texture if needed
+        if (other.render_texture && other.use_render_texture) {
+            auto size = other.render_texture->getSize();
+            enableRenderTexture(size.x, size.y);
+        } else {
+            render_texture.reset();
+            use_render_texture = false;
+        }
+    }
+    return *this;
+}
+
+UIDrawable::UIDrawable(UIDrawable&& other) noexcept
+    : z_index(other.z_index),
+      name(std::move(other.name)),
+      position(other.position),
+      visible(other.visible),
+      opacity(other.opacity),
+      serial_number(other.serial_number),
+      click_callable(std::move(other.click_callable)),
+      render_texture(std::move(other.render_texture)),
+      render_sprite(std::move(other.render_sprite)),
+      use_render_texture(other.use_render_texture),
+      render_dirty(other.render_dirty)
+{
+    // Clear the moved-from object's serial number to avoid cache issues
+    other.serial_number = 0;
+}
+
+UIDrawable& UIDrawable::operator=(UIDrawable&& other) noexcept {
+    if (this != &other) {
+        // Clear our own cache entry if we have one
+        if (serial_number != 0) {
+            PythonObjectCache::getInstance().remove(serial_number);
+        }
+        
+        // Move basic members
+        z_index = other.z_index;
+        name = std::move(other.name);
+        position = other.position;
+        visible = other.visible;
+        opacity = other.opacity;
+        serial_number = other.serial_number;
+        use_render_texture = other.use_render_texture;
+        render_dirty = other.render_dirty;
+        
+        // Move unique_ptr members
+        click_callable = std::move(other.click_callable);
+        render_texture = std::move(other.render_texture);
+        render_sprite = std::move(other.render_sprite);
+        
+        // Clear the moved-from object's serial number
+        other.serial_number = 0;
+    }
+    return *this;
+}
+
+UIDrawable::~UIDrawable() {
+    if (serial_number != 0) {
+        PythonObjectCache::getInstance().remove(serial_number);
+    }
+}
 
 void UIDrawable::click_unregister()
 {

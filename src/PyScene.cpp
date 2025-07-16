@@ -31,13 +31,18 @@ void PyScene::do_mouse_input(std::string button, std::string type)
     // Convert window coordinates to game coordinates using the viewport
     auto mousepos = game->windowToGameCoords(sf::Vector2f(unscaledmousepos));
     
-    // Create a sorted copy by z-index (highest first)
-    std::vector<std::shared_ptr<UIDrawable>> sorted_elements(*ui_elements);
-    std::sort(sorted_elements.begin(), sorted_elements.end(),
-        [](const auto& a, const auto& b) { return a->z_index > b->z_index; });
+    // Only sort if z_index values have changed
+    if (ui_elements_need_sort) {
+        // Sort in ascending order (same as render)
+        std::sort(ui_elements->begin(), ui_elements->end(),
+            [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
+        ui_elements_need_sort = false;
+    }
     
-    // Check elements in z-order (top to bottom)
-    for (const auto& element : sorted_elements) {
+    // Check elements in reverse z-order (highest z_index first, top to bottom)
+    // Use reverse iterators to go from end to beginning
+    for (auto it = ui_elements->rbegin(); it != ui_elements->rend(); ++it) {
+        const auto& element = *it;
         if (!element->visible) continue;
         
         if (auto target = element->click_at(sf::Vector2f(mousepos))) {

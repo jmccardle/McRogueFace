@@ -25,6 +25,14 @@ protected:
 public:
     UISprite();
     UISprite(std::shared_ptr<PyTexture>, int, sf::Vector2f, float);
+    
+    // Copy constructor and assignment operator
+    UISprite(const UISprite& other);
+    UISprite& operator=(const UISprite& other);
+    
+    // Move constructor and assignment operator  
+    UISprite(UISprite&& other) noexcept;
+    UISprite& operator=(UISprite&& other) noexcept;
     void update();
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
@@ -82,6 +90,10 @@ namespace mcrfpydef {
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUISpriteObject* obj = (PyUISpriteObject*)self;
+            // Clear weak references
+            if (obj->weakreflist != NULL) {
+                PyObject_ClearWeakRefs(self);
+            }
             // release reference to font object
             //if (obj->texture) Py_DECREF(obj->texture);
             obj->data.reset();
@@ -91,24 +103,36 @@ namespace mcrfpydef {
         //.tp_hash = NULL,
         //.tp_iter
         //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("Sprite(x=0, y=0, texture=None, sprite_index=0, scale=1.0, click=None)\n\n"
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_doc = PyDoc_STR("Sprite(pos=None, texture=None, sprite_index=0, **kwargs)\n\n"
                             "A sprite UI element that displays a texture or portion of a texture atlas.\n\n"
                             "Args:\n"
-                            "    x (float): X position in pixels. Default: 0\n"
-                            "    y (float): Y position in pixels. Default: 0\n"
-                            "    texture (Texture): Texture object to display. Default: None\n"
-                            "    sprite_index (int): Index into texture atlas (if applicable). Default: 0\n"
-                            "    scale (float): Sprite scaling factor. Default: 1.0\n"
-                            "    click (callable): Click event handler. Default: None\n\n"
+                            "    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)\n"
+                            "    texture (Texture, optional): Texture object to display. Default: default texture\n"
+                            "    sprite_index (int, optional): Index into texture atlas. Default: 0\n\n"
+                            "Keyword Args:\n"
+                            "    scale (float): Uniform scale factor. Default: 1.0\n"
+                            "    scale_x (float): Horizontal scale factor. Default: 1.0\n"
+                            "    scale_y (float): Vertical scale factor. Default: 1.0\n"
+                            "    click (callable): Click event handler. Default: None\n"
+                            "    visible (bool): Visibility state. Default: True\n"
+                            "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
+                            "    z_index (int): Rendering order. Default: 0\n"
+                            "    name (str): Element name for finding. Default: None\n"
+                            "    x (float): X position override. Default: 0\n"
+                            "    y (float): Y position override. Default: 0\n\n"
                             "Attributes:\n"
                             "    x, y (float): Position in pixels\n"
+                            "    pos (Vector): Position as a Vector object\n"
                             "    texture (Texture): The texture being displayed\n"
                             "    sprite_index (int): Current sprite index in texture atlas\n"
-                            "    scale (float): Scale multiplier\n"
+                            "    scale (float): Uniform scale factor\n"
+                            "    scale_x, scale_y (float): Individual scale factors\n"
                             "    click (callable): Click event handler\n"
                             "    visible (bool): Visibility state\n"
+                            "    opacity (float): Opacity value\n"
                             "    z_index (int): Rendering order\n"
+                            "    name (str): Element name\n"
                             "    w, h (float): Read-only computed size based on texture and scale"),
         .tp_methods = UISprite_methods,
         //.tp_members = PyUIFrame_members,
@@ -118,7 +142,10 @@ namespace mcrfpydef {
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
             PyUISpriteObject* self = (PyUISpriteObject*)type->tp_alloc(type, 0);
-            //if (self) self->data = std::make_shared<UICaption>();
+            if (self) {
+                self->data = std::make_shared<UISprite>();
+                self->weakreflist = nullptr;
+            }
             return (PyObject*)self;
         }
     }; 

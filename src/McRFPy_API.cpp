@@ -267,6 +267,14 @@ PyObject* PyInit_mcrfpy()
     PySceneType.tp_methods = PySceneClass::methods;
     PySceneType.tp_getset = PySceneClass::getsetters;
     
+    // Set up weakref support for all types that need it
+    PyTimerType.tp_weaklistoffset = offsetof(PyTimerObject, weakreflist);
+    PyUIFrameType.tp_weaklistoffset = offsetof(PyUIFrameObject, weakreflist);
+    PyUICaptionType.tp_weaklistoffset = offsetof(PyUICaptionObject, weakreflist);
+    PyUISpriteType.tp_weaklistoffset = offsetof(PyUISpriteObject, weakreflist);
+    PyUIGridType.tp_weaklistoffset = offsetof(PyUIGridObject, weakreflist);
+    PyUIEntityType.tp_weaklistoffset = offsetof(PyUIEntityObject, weakreflist);
+    
     int i = 0;
     auto t = pytypes[i];
     while (t != nullptr)

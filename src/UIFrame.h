@@ -78,6 +78,10 @@ namespace mcrfpydef {
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUIFrameObject* obj = (PyUIFrameObject*)self;
+            // Clear weak references
+            if (obj->weakreflist != NULL) {
+                PyObject_ClearWeakRefs(self);
+            }
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
@@ -85,28 +89,39 @@ namespace mcrfpydef {
         //.tp_hash = NULL,
         //.tp_iter
         //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("Frame(x=0, y=0, w=0, h=0, fill_color=None, outline_color=None, outline=0, click=None, children=None)\n\n"
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_doc = PyDoc_STR("Frame(pos=None, size=None, **kwargs)\n\n"
                             "A rectangular frame UI element that can contain other drawable elements.\n\n"
                             "Args:\n"
-                            "    x (float): X position in pixels. Default: 0\n"
-                            "    y (float): Y position in pixels. Default: 0\n"
-                            "    w (float): Width in pixels. Default: 0\n"
-                            "    h (float): Height in pixels. Default: 0\n"
+                            "    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)\n"
+                            "    size (tuple, optional): Size as (width, height) tuple. Default: (0, 0)\n\n"
+                            "Keyword Args:\n"
                             "    fill_color (Color): Background fill color. Default: (0, 0, 0, 128)\n"
                             "    outline_color (Color): Border outline color. Default: (255, 255, 255, 255)\n"
                             "    outline (float): Border outline thickness. Default: 0\n"
                             "    click (callable): Click event handler. Default: None\n"
-                            "    children (list): Initial list of child drawable elements. Default: None\n\n"
+                            "    children (list): Initial list of child drawable elements. Default: None\n"
+                            "    visible (bool): Visibility state. Default: True\n"
+                            "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
+                            "    z_index (int): Rendering order. Default: 0\n"
+                            "    name (str): Element name for finding. Default: None\n"
+                            "    x (float): X position override. Default: 0\n"
+                            "    y (float): Y position override. Default: 0\n"
+                            "    w (float): Width override. Default: 0\n"
+                            "    h (float): Height override. Default: 0\n"
+                            "    clip_children (bool): Whether to clip children to frame bounds. Default: False\n\n"
                             "Attributes:\n"
                             "    x, y (float): Position in pixels\n"
                             "    w, h (float): Size in pixels\n"
+                            "    pos (Vector): Position as a Vector object\n"
                             "    fill_color, outline_color (Color): Visual appearance\n"
                             "    outline (float): Border thickness\n"
                             "    click (callable): Click event handler\n"
                             "    children (list): Collection of child drawable elements\n"
                             "    visible (bool): Visibility state\n"
+                            "    opacity (float): Opacity value\n"
                             "    z_index (int): Rendering order\n"
+                            "    name (str): Element name\n"
                             "    clip_children (bool): Whether to clip children to frame bounds"),
         .tp_methods = UIFrame_methods,
         //.tp_members = PyUIFrame_members,
@@ -116,7 +131,10 @@ namespace mcrfpydef {
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
             PyUIFrameObject* self = (PyUIFrameObject*)type->tp_alloc(type, 0);
-            if (self) self->data = std::make_shared<UIFrame>();
+            if (self) {
+                self->data = std::make_shared<UIFrame>();
+                self->weakreflist = nullptr;
+            }
             return (PyObject*)self;
         }
     };

@@ -54,6 +54,10 @@ namespace mcrfpydef {
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUICaptionObject* obj = (PyUICaptionObject*)self;
+            // Clear weak references
+            if (obj->weakreflist != NULL) {
+                PyObject_ClearWeakRefs(self);
+            }
             // TODO - reevaluate with PyFont usage; UICaption does not own the font
             // release reference to font object
             if (obj->font) Py_DECREF(obj->font);
@@ -64,27 +68,38 @@ namespace mcrfpydef {
         //.tp_hash = NULL,
         //.tp_iter
         //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("Caption(text='', x=0, y=0, font=None, fill_color=None, outline_color=None, outline=0, click=None)\n\n"
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_doc = PyDoc_STR("Caption(pos=None, font=None, text='', **kwargs)\n\n"
                             "A text display UI element with customizable font and styling.\n\n"
                             "Args:\n"
-                            "    text (str): The text content to display. Default: ''\n"
-                            "    x (float): X position in pixels. Default: 0\n"
-                            "    y (float): Y position in pixels. Default: 0\n"
-                            "    font (Font): Font object for text rendering. Default: engine default font\n"
+                            "    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)\n"
+                            "    font (Font, optional): Font object for text rendering. Default: engine default font\n"
+                            "    text (str, optional): The text content to display. Default: ''\n\n"
+                            "Keyword Args:\n"
                             "    fill_color (Color): Text fill color. Default: (255, 255, 255, 255)\n"
                             "    outline_color (Color): Text outline color. Default: (0, 0, 0, 255)\n"
                             "    outline (float): Text outline thickness. Default: 0\n"
-                            "    click (callable): Click event handler. Default: None\n\n"
+                            "    font_size (float): Font size in points. Default: 16\n"
+                            "    click (callable): Click event handler. Default: None\n"
+                            "    visible (bool): Visibility state. Default: True\n"
+                            "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
+                            "    z_index (int): Rendering order. Default: 0\n"
+                            "    name (str): Element name for finding. Default: None\n"
+                            "    x (float): X position override. Default: 0\n"
+                            "    y (float): Y position override. Default: 0\n\n"
                             "Attributes:\n"
                             "    text (str): The displayed text content\n"
                             "    x, y (float): Position in pixels\n"
+                            "    pos (Vector): Position as a Vector object\n"
                             "    font (Font): Font used for rendering\n"
+                            "    font_size (float): Font size in points\n"
                             "    fill_color, outline_color (Color): Text appearance\n"
                             "    outline (float): Outline thickness\n"
                             "    click (callable): Click event handler\n"
                             "    visible (bool): Visibility state\n"
+                            "    opacity (float): Opacity value\n"
                             "    z_index (int): Rendering order\n"
+                            "    name (str): Element name\n"
                             "    w, h (float): Read-only computed size based on text and font"),
         .tp_methods = UICaption_methods,
         //.tp_members = PyUIFrame_members,
@@ -95,7 +110,11 @@ namespace mcrfpydef {
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
             PyUICaptionObject* self = (PyUICaptionObject*)type->tp_alloc(type, 0);
-            if (self) self->data = std::make_shared<UICaption>();
+            if (self) {
+                self->data = std::make_shared<UICaption>();
+                self->font = nullptr;
+                self->weakreflist = nullptr;
+            }
             return (PyObject*)self;
         }
     };

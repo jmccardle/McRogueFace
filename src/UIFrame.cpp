@@ -6,7 +6,7 @@
 #include "UISprite.h"
 #include "UIGrid.h"
 #include "McRFPy_API.h"
-#include "PyArgHelpers.h"
+#include "PythonObjectCache.h"
 // UIDrawable methods now in UIBase.h
 
 UIDrawable* UIFrame::click_at(sf::Vector2f point)
@@ -432,67 +432,50 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     // Initialize children first
     self->data->children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
     
-    // Try parsing with PyArgHelpers
-    int arg_idx = 0;
-    auto pos_result = PyArgHelpers::parsePosition(args, kwds, &arg_idx);
-    auto size_result = PyArgHelpers::parseSize(args, kwds, &arg_idx);
+    // Initialize weak reference list
+    self->weakreflist = NULL;
     
-    // Default values
-    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f, outline = 0.0f;
+    // Define all parameters with defaults
+    PyObject* pos_obj = nullptr;
+    PyObject* size_obj = nullptr;
     PyObject* fill_color = nullptr;
     PyObject* outline_color = nullptr;
+    float outline = 0.0f;
     PyObject* children_arg = nullptr;
     PyObject* click_handler = nullptr;
+    int visible = 1;
+    float opacity = 1.0f;
+    int z_index = 0;
+    const char* name = nullptr;
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    int clip_children = 0;
     
-    // Case 1: Got position and size from helpers (tuple format)
-    if (pos_result.valid && size_result.valid) {
-        x = pos_result.x;
-        y = pos_result.y;
-        w = size_result.w;
-        h = size_result.h;
-        
-        // Parse remaining arguments
-        static const char* remaining_keywords[] = { 
-            "fill_color", "outline_color", "outline", "children", "click", nullptr 
-        };
-        
-        // Create new tuple with remaining args
-        Py_ssize_t total_args = PyTuple_Size(args);
-        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
-        
-        if (!PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|OOfOO", 
-                                         const_cast<char**>(remaining_keywords),
-                                         &fill_color, &outline_color, &outline, 
-                                         &children_arg, &click_handler)) {
-            Py_DECREF(remaining_args);
-            if (pos_result.error) PyErr_SetString(PyExc_TypeError, pos_result.error);
-            else if (size_result.error) PyErr_SetString(PyExc_TypeError, size_result.error);
-            return -1;
-        }
-        Py_DECREF(remaining_args);
+    // Keywords list matches the new spec: positional args first, then all keyword args
+    static const char* kwlist[] = {
+        "pos", "size",  // Positional args (as per spec)
+        // Keyword-only args
+        "fill_color", "outline_color", "outline", "children", "click",
+        "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "clip_children",
+        nullptr
+    };
+    
+    // Parse arguments with | for optional positional args
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOfOOifizffffi", const_cast<char**>(kwlist),
+                                     &pos_obj, &size_obj,  // Positional
+                                     &fill_color, &outline_color, &outline, &children_arg, &click_handler,
+                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &clip_children)) {
+        return -1;
     }
-    // Case 2: Traditional format (x, y, w, h, ...)
-    else {
-        PyErr_Clear();  // Clear any errors from helpers
-        
-        static const char* keywords[] = { 
-            "x", "y", "w", "h", "fill_color", "outline_color", "outline", 
-            "children", "click", "pos", "size", nullptr 
-        };
-        
-        PyObject* pos_obj = nullptr;
-        PyObject* size_obj = nullptr;
-        
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffffOOfOOOO", 
-                                         const_cast<char**>(keywords), 
-                                         &x, &y, &w, &h, &fill_color, &outline_color, 
-                                         &outline, &children_arg, &click_handler, 
-                                         &pos_obj, &size_obj)) {
-            return -1;
-        }
-        
-        // Handle pos keyword override
-        if (pos_obj && pos_obj != Py_None) {
+    
+    // Handle position argument (can be tuple, Vector, or use x/y keywords)
+    if (pos_obj) {
+        PyVectorObject* vec = PyVector::from_arg(pos_obj);
+        if (vec) {
+            x = vec->data.x;
+            y = vec->data.y;
+            Py_DECREF(vec);
+        } else {
+            PyErr_Clear();
             if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
                 PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
                 PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
@@ -500,47 +483,87 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
                     (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
                     x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
                     y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "pos tuple must contain numbers");
+                    return -1;
                 }
-            } else if (PyObject_TypeCheck(pos_obj, (PyTypeObject*)PyObject_GetAttrString(
-                       PyImport_ImportModule("mcrfpy"), "Vector"))) {
-                PyVectorObject* vec = (PyVectorObject*)pos_obj;
-                x = vec->data.x;
-                y = vec->data.y;
             } else {
                 PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
                 return -1;
             }
         }
-        
-        // Handle size keyword override
-        if (size_obj && size_obj != Py_None) {
-            if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
-                PyObject* w_val = PyTuple_GetItem(size_obj, 0);
-                PyObject* h_val = PyTuple_GetItem(size_obj, 1);
-                if ((PyFloat_Check(w_val) || PyLong_Check(w_val)) &&
-                    (PyFloat_Check(h_val) || PyLong_Check(h_val))) {
-                    w = PyFloat_Check(w_val) ? PyFloat_AsDouble(w_val) : PyLong_AsLong(w_val);
-                    h = PyFloat_Check(h_val) ? PyFloat_AsDouble(h_val) : PyLong_AsLong(h_val);
-                }
+    }
+    // If no pos_obj but x/y keywords were provided, they're already in x, y variables
+    
+    // Handle size argument (can be tuple or use w/h keywords)
+    if (size_obj) {
+        if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
+            PyObject* w_val = PyTuple_GetItem(size_obj, 0);
+            PyObject* h_val = PyTuple_GetItem(size_obj, 1);
+            if ((PyFloat_Check(w_val) || PyLong_Check(w_val)) &&
+                (PyFloat_Check(h_val) || PyLong_Check(h_val))) {
+                w = PyFloat_Check(w_val) ? PyFloat_AsDouble(w_val) : PyLong_AsLong(w_val);
+                h = PyFloat_Check(h_val) ? PyFloat_AsDouble(h_val) : PyLong_AsLong(h_val);
             } else {
-                PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h)");
+                PyErr_SetString(PyExc_TypeError, "size tuple must contain numbers");
                 return -1;
             }
+        } else {
+            PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h)");
+            return -1;
         }
     }
+    // If no size_obj but w/h keywords were provided, they're already in w, h variables
 
-    self->data->position = sf::Vector2f(x, y);  // Set base class position
-    self->data->box.setPosition(self->data->position);  // Sync box position
+    // Set the position and size
+    self->data->position = sf::Vector2f(x, y);
+    self->data->box.setPosition(self->data->position);
     self->data->box.setSize(sf::Vector2f(w, h));
     self->data->box.setOutlineThickness(outline);
-    // getsetter abuse because I haven't standardized Color object parsing (TODO)
-    int err_val = 0;
-    if (fill_color && fill_color != Py_None) err_val = UIFrame::set_color_member(self, fill_color, (void*)0);
-    else self->data->box.setFillColor(sf::Color(0,0,0,255));
-    if (err_val) return err_val;
-    if (outline_color && outline_color != Py_None) err_val = UIFrame::set_color_member(self, outline_color, (void*)1);
-    else self->data->box.setOutlineColor(sf::Color(128,128,128,255));
-    if (err_val) return err_val;
+    
+    // Handle fill_color
+    if (fill_color && fill_color != Py_None) {
+        PyColorObject* color_obj = PyColor::from_arg(fill_color);
+        if (!color_obj) {
+            PyErr_SetString(PyExc_TypeError, "fill_color must be a Color or color tuple");
+            return -1;
+        }
+        self->data->box.setFillColor(color_obj->data);
+        Py_DECREF(color_obj);
+    } else {
+        self->data->box.setFillColor(sf::Color(0, 0, 0, 128));  // Default: semi-transparent black
+    }
+    
+    // Handle outline_color
+    if (outline_color && outline_color != Py_None) {
+        PyColorObject* color_obj = PyColor::from_arg(outline_color);
+        if (!color_obj) {
+            PyErr_SetString(PyExc_TypeError, "outline_color must be a Color or color tuple");
+            return -1;
+        }
+        self->data->box.setOutlineColor(color_obj->data);
+        Py_DECREF(color_obj);
+    } else {
+        self->data->box.setOutlineColor(sf::Color(255, 255, 255, 255));  // Default: white
+    }
+    
+    // Set other properties
+    self->data->visible = visible;
+    self->data->opacity = opacity;
+    self->data->z_index = z_index;
+    self->data->clip_children = clip_children;
+    if (name) {
+        self->data->name = std::string(name);
+    }
+    
+    // Handle click handler
+    if (click_handler && click_handler != Py_None) {
+        if (!PyCallable_Check(click_handler)) {
+            PyErr_SetString(PyExc_TypeError, "click must be callable");
+            return -1;
+        }
+        self->data->click_register(click_handler);
+    }
     
     // Process children argument if provided
     if (children_arg && children_arg != Py_None) {
@@ -603,6 +626,16 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
             return -1;
         }
         self->data->click_register(click_handler);
+    }
+    
+    // Register in Python object cache
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);  // Cache owns the reference now
+        }
     }
     
     return 0;

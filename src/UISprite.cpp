@@ -1,7 +1,7 @@
 #include "UISprite.h"
 #include "GameEngine.h"
 #include "PyVector.h"
-#include "PyArgHelpers.h"
+#include "PythonObjectCache.h"
 // UIDrawable methods now in UIBase.h
 
 UIDrawable* UISprite::click_at(sf::Vector2f point)
@@ -27,6 +27,42 @@ UISprite::UISprite(std::shared_ptr<PyTexture> _ptex, int _sprite_index, sf::Vect
 {
     position = _pos;  // Set base class position
     sprite = ptex->sprite(sprite_index, position, sf::Vector2f(_scale, _scale));
+}
+
+UISprite::UISprite(const UISprite& other) 
+    : UIDrawable(other),
+      sprite_index(other.sprite_index),
+      sprite(other.sprite),
+      ptex(other.ptex)
+{
+}
+
+UISprite& UISprite::operator=(const UISprite& other) {
+    if (this != &other) {
+        UIDrawable::operator=(other);
+        sprite_index = other.sprite_index;
+        sprite = other.sprite;
+        ptex = other.ptex;
+    }
+    return *this;
+}
+
+UISprite::UISprite(UISprite&& other) noexcept
+    : UIDrawable(std::move(other)),
+      sprite_index(other.sprite_index),
+      sprite(std::move(other.sprite)),
+      ptex(std::move(other.ptex))
+{
+}
+
+UISprite& UISprite::operator=(UISprite&& other) noexcept {
+    if (this != &other) {
+        UIDrawable::operator=(std::move(other));
+        sprite_index = other.sprite_index;
+        sprite = std::move(other.sprite);
+        ptex = std::move(other.ptex);
+    }
+    return *this;
 }
 
 /*
@@ -327,57 +363,46 @@ PyObject* UISprite::repr(PyUISpriteObject* self)
 
 int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
 {
-    // Try parsing with PyArgHelpers
-    int arg_idx = 0;
-    auto pos_result = PyArgHelpers::parsePosition(args, kwds, &arg_idx);
-    
-    // Default values
-    float x = 0.0f, y = 0.0f, scale = 1.0f;
-    int sprite_index = 0;
+    // Define all parameters with defaults
+    PyObject* pos_obj = nullptr;
     PyObject* texture = nullptr;
+    int sprite_index = 0;
+    float scale = 1.0f;
+    float scale_x = 1.0f;
+    float scale_y = 1.0f;
     PyObject* click_handler = nullptr;
+    int visible = 1;
+    float opacity = 1.0f;
+    int z_index = 0;
+    const char* name = nullptr;
+    float x = 0.0f, y = 0.0f;
     
-    // Case 1: Got position from helpers (tuple format)
-    if (pos_result.valid) {
-        x = pos_result.x;
-        y = pos_result.y;
-        
-        // Parse remaining arguments
-        static const char* remaining_keywords[] = { 
-            "texture", "sprite_index", "scale", "click", nullptr 
-        };
-        
-        // Create new tuple with remaining args
-        Py_ssize_t total_args = PyTuple_Size(args);
-        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
-        
-        if (!PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|OifO", 
-                                         const_cast<char**>(remaining_keywords),
-                                         &texture, &sprite_index, &scale, &click_handler)) {
-            Py_DECREF(remaining_args);
-            if (pos_result.error) PyErr_SetString(PyExc_TypeError, pos_result.error);
-            return -1;
-        }
-        Py_DECREF(remaining_args);
+    // Keywords list matches the new spec: positional args first, then all keyword args
+    static const char* kwlist[] = {
+        "pos", "texture", "sprite_index",  // Positional args (as per spec)
+        // Keyword-only args
+        "scale", "scale_x", "scale_y", "click",
+        "visible", "opacity", "z_index", "name", "x", "y",
+        nullptr
+    };
+    
+    // Parse arguments with | for optional positional args
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOifffOifizff", const_cast<char**>(kwlist),
+                                     &pos_obj, &texture, &sprite_index,  // Positional
+                                     &scale, &scale_x, &scale_y, &click_handler,
+                                     &visible, &opacity, &z_index, &name, &x, &y)) {
+        return -1;
     }
-    // Case 2: Traditional format
-    else {
-        PyErr_Clear();  // Clear any errors from helpers
-        
-        static const char* keywords[] = { 
-            "x", "y", "texture", "sprite_index", "scale", "click", "pos", nullptr 
-        };
-        PyObject* pos_obj = nullptr;
-        
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffOifOO", 
-                                         const_cast<char**>(keywords), 
-                                         &x, &y, &texture, &sprite_index, &scale, 
-                                         &click_handler, &pos_obj)) {
-            return -1;
-        }
-        
-        // Handle pos keyword override
-        if (pos_obj && pos_obj != Py_None) {
+    
+    // Handle position argument (can be tuple, Vector, or use x/y keywords)
+    if (pos_obj) {
+        PyVectorObject* vec = PyVector::from_arg(pos_obj);
+        if (vec) {
+            x = vec->data.x;
+            y = vec->data.y;
+            Py_DECREF(vec);
+        } else {
+            PyErr_Clear();
             if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
                 PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
                 PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
@@ -385,12 +410,10 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
                     (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
                     x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
                     y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "pos tuple must contain numbers");
+                    return -1;
                 }
-            } else if (PyObject_TypeCheck(pos_obj, (PyTypeObject*)PyObject_GetAttrString(
-                       PyImport_ImportModule("mcrfpy"), "Vector"))) {
-                PyVectorObject* vec = (PyVectorObject*)pos_obj;
-                x = vec->data.x;
-                y = vec->data.y;
             } else {
                 PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
                 return -1;
@@ -400,10 +423,11 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
 
     // Handle texture - allow None or use default
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
-    if (texture != NULL && texture != Py_None && !PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))){
-        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
-        return -1;
-    } else if (texture != NULL && texture != Py_None) {
+    if (texture && texture != Py_None) {
+        if (!PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
+            PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
+            return -1;
+        }
         auto pytexture = (PyTextureObject*)texture;
         texture_ptr = pytexture->data;
     } else {
@@ -416,15 +440,46 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
     
+    // Create the sprite
     self->data = std::make_shared<UISprite>(texture_ptr, sprite_index, sf::Vector2f(x, y), scale);
+    
+    // Set scale properties
+    if (scale_x != 1.0f || scale_y != 1.0f) {
+        // If scale_x or scale_y were explicitly set, use them
+        self->data->setScale(sf::Vector2f(scale_x, scale_y));
+    } else if (scale != 1.0f) {
+        // Otherwise use uniform scale
+        self->data->setScale(sf::Vector2f(scale, scale));
+    }
+    
+    // Set other properties
+    self->data->visible = visible;
+    self->data->opacity = opacity;
+    self->data->z_index = z_index;
+    if (name) {
+        self->data->name = std::string(name);
+    }
 
-    // Process click handler if provided
+    // Handle click handler
     if (click_handler && click_handler != Py_None) {
         if (!PyCallable_Check(click_handler)) {
             PyErr_SetString(PyExc_TypeError, "click must be callable");
             return -1;
         }
         self->data->click_register(click_handler);
+    }
+
+    // Initialize weak reference list
+    self->weakreflist = NULL;
+    
+    // Register in Python object cache
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);  // Cache owns the reference now
+        }
     }
 
     return 0;

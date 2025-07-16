@@ -1,7 +1,7 @@
 #include "UIGrid.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
-#include "PyArgHelpers.h"
+#include "PythonObjectCache.h"
 #include <algorithm>
 // UIDrawable methods now in UIBase.h
 
@@ -518,102 +518,49 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
 
 
 int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
-    // Default values
-    int grid_x = 0, grid_y = 0;
-    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    // Define all parameters with defaults
+    PyObject* pos_obj = nullptr;
+    PyObject* size_obj = nullptr;
+    PyObject* grid_size_obj = nullptr;
     PyObject* textureObj = nullptr;
+    PyObject* fill_color = nullptr;
+    PyObject* click_handler = nullptr;
+    float center_x = 0.0f, center_y = 0.0f;
+    float zoom = 1.0f;
+    int perspective = -1; // perspective is a difficult __init__ arg; needs an entity in collection to work
+    int visible = 1;
+    float opacity = 1.0f;
+    int z_index = 0;
+    const char* name = nullptr;
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    int grid_x = 2, grid_y = 2;  // Default to 2x2 grid
     
-    // Check if first argument is a tuple (for tuple-based initialization)
-    bool has_tuple_first_arg = false;
-    if (args && PyTuple_Size(args) > 0) {
-        PyObject* first_arg = PyTuple_GetItem(args, 0);
-        if (PyTuple_Check(first_arg)) {
-            has_tuple_first_arg = true;
-        }
+    // Keywords list matches the new spec: positional args first, then all keyword args
+    static const char* kwlist[] = {
+        "pos", "size", "grid_size", "texture",  // Positional args (as per spec)
+        // Keyword-only args
+        "fill_color", "click", "center_x", "center_y", "zoom", "perspective",
+        "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "grid_x", "grid_y",
+        nullptr
+    };
+    
+    // Parse arguments with | for optional positional args
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOfffiifizffffii", const_cast<char**>(kwlist),
+                                     &pos_obj, &size_obj, &grid_size_obj, &textureObj,  // Positional
+                                     &fill_color, &click_handler, &center_x, &center_y, &zoom, &perspective,
+                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &grid_x, &grid_y)) {
+        return -1;
     }
     
-    // Try tuple-based parsing if we have a tuple as first argument
-    if (has_tuple_first_arg) {
-        int arg_idx = 0;
-        auto grid_size_result = PyArgHelpers::parseGridSize(args, kwds, &arg_idx);
-        
-        // If grid size parsing failed with an error, report it
-        if (!grid_size_result.valid) {
-            if (grid_size_result.error) {
-                PyErr_SetString(PyExc_TypeError, grid_size_result.error);
-            } else {
-                PyErr_SetString(PyExc_TypeError, "Invalid grid size tuple");
-            }
-            return -1;
-        }
-        
-        // We got a valid grid size
-        grid_x = grid_size_result.grid_w;
-        grid_y = grid_size_result.grid_h;
-        
-        // Try to parse position and size
-        auto pos_result = PyArgHelpers::parsePosition(args, kwds, &arg_idx);
-        if (pos_result.valid) {
-            x = pos_result.x;
-            y = pos_result.y;
-        }
-        
-        auto size_result = PyArgHelpers::parseSize(args, kwds, &arg_idx);
-        if (size_result.valid) {
-            w = size_result.w;
-            h = size_result.h;
+    // Handle position argument (can be tuple, Vector, or use x/y keywords)
+    if (pos_obj) {
+        PyVectorObject* vec = PyVector::from_arg(pos_obj);
+        if (vec) {
+            x = vec->data.x;
+            y = vec->data.y;
+            Py_DECREF(vec);
         } else {
-            // Default size based on grid dimensions
-            w = grid_x * 16.0f;
-            h = grid_y * 16.0f;
-        }
-        
-        // Parse remaining arguments (texture)
-        static const char* remaining_keywords[] = { "texture", nullptr };
-        Py_ssize_t total_args = PyTuple_Size(args);
-        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
-        
-        PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|O", 
-                                    const_cast<char**>(remaining_keywords),
-                                    &textureObj);
-        Py_DECREF(remaining_args);
-    }
-    // Traditional format parsing
-    else {
-        static const char* keywords[] = {
-            "grid_x", "grid_y", "texture", "pos", "size", "grid_size", nullptr
-        };
-        PyObject* pos_obj = nullptr;
-        PyObject* size_obj = nullptr;
-        PyObject* grid_size_obj = nullptr;
-        
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiOOOO", 
-                                         const_cast<char**>(keywords), 
-                                         &grid_x, &grid_y, &textureObj, 
-                                         &pos_obj, &size_obj, &grid_size_obj)) {
-            return -1;
-        }
-        
-        // Handle grid_size override
-        if (grid_size_obj && grid_size_obj != Py_None) {
-            if (PyTuple_Check(grid_size_obj) && PyTuple_Size(grid_size_obj) == 2) {
-                PyObject* x_obj = PyTuple_GetItem(grid_size_obj, 0);
-                PyObject* y_obj = PyTuple_GetItem(grid_size_obj, 1);
-                if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
-                    grid_x = PyLong_AsLong(x_obj);
-                    grid_y = PyLong_AsLong(y_obj);
-                } else {
-                    PyErr_SetString(PyExc_TypeError, "grid_size must contain integers");
-                    return -1;
-                }
-            } else {
-                PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple of two integers");
-                return -1;
-            }
-        }
-        
-        // Handle position
-        if (pos_obj && pos_obj != Py_None) {
+            PyErr_Clear();
             if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
                 PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
                 PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
@@ -622,36 +569,50 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
                     x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
                     y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
                 } else {
-                    PyErr_SetString(PyExc_TypeError, "pos must contain numbers");
+                    PyErr_SetString(PyExc_TypeError, "pos tuple must contain numbers");
                     return -1;
                 }
             } else {
-                PyErr_SetString(PyExc_TypeError, "pos must be a tuple of two numbers");
+                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
                 return -1;
             }
         }
-        
-        // Handle size
-        if (size_obj && size_obj != Py_None) {
-            if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
-                PyObject* w_val = PyTuple_GetItem(size_obj, 0);
-                PyObject* h_val = PyTuple_GetItem(size_obj, 1);
-                if ((PyFloat_Check(w_val) || PyLong_Check(w_val)) &&
-                    (PyFloat_Check(h_val) || PyLong_Check(h_val))) {
-                    w = PyFloat_Check(w_val) ? PyFloat_AsDouble(w_val) : PyLong_AsLong(w_val);
-                    h = PyFloat_Check(h_val) ? PyFloat_AsDouble(h_val) : PyLong_AsLong(h_val);
-                } else {
-                    PyErr_SetString(PyExc_TypeError, "size must contain numbers");
-                    return -1;
-                }
+    }
+    
+    // Handle size argument (can be tuple or use w/h keywords)
+    if (size_obj) {
+        if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
+            PyObject* w_val = PyTuple_GetItem(size_obj, 0);
+            PyObject* h_val = PyTuple_GetItem(size_obj, 1);
+            if ((PyFloat_Check(w_val) || PyLong_Check(w_val)) &&
+                (PyFloat_Check(h_val) || PyLong_Check(h_val))) {
+                w = PyFloat_Check(w_val) ? PyFloat_AsDouble(w_val) : PyLong_AsLong(w_val);
+                h = PyFloat_Check(h_val) ? PyFloat_AsDouble(h_val) : PyLong_AsLong(h_val);
             } else {
-                PyErr_SetString(PyExc_TypeError, "size must be a tuple of two numbers");
+                PyErr_SetString(PyExc_TypeError, "size tuple must contain numbers");
                 return -1;
             }
         } else {
-            // Default size based on grid
-            w = grid_x * 16.0f;
-            h = grid_y * 16.0f;
+            PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h)");
+            return -1;
+        }
+    }
+    
+    // Handle grid_size argument (can be tuple or use grid_x/grid_y keywords)
+    if (grid_size_obj) {
+        if (PyTuple_Check(grid_size_obj) && PyTuple_Size(grid_size_obj) == 2) {
+            PyObject* gx_val = PyTuple_GetItem(grid_size_obj, 0);
+            PyObject* gy_val = PyTuple_GetItem(grid_size_obj, 1);
+            if (PyLong_Check(gx_val) && PyLong_Check(gy_val)) {
+                grid_x = PyLong_AsLong(gx_val);
+                grid_y = PyLong_AsLong(gy_val);
+            } else {
+                PyErr_SetString(PyExc_TypeError, "grid_size tuple must contain integers");
+                return -1;
+            }
+        } else {
+            PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple (grid_x, grid_y)");
+            return -1;
         }
     }
     
@@ -661,12 +622,8 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         return -1;
     }
 
-    // At this point we have x, y, w, h values from either parsing method
-
-    // Convert PyObject texture to shared_ptr<PyTexture>
+    // Handle texture argument
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
-    
-    // Allow None or NULL for texture - use default texture in that case
     if (textureObj && textureObj != Py_None) {
         if (!PyObject_IsInstance(textureObj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
@@ -679,14 +636,64 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         texture_ptr = McRFPy_API::default_texture;
     }
     
-    // Adjust size based on texture if available and size not explicitly set
-    if (texture_ptr && w == grid_x * 16.0f && h == grid_y * 16.0f) {
+    // If size wasn't specified, calculate based on grid dimensions and texture
+    if (!size_obj && texture_ptr) {
         w = grid_x * texture_ptr->sprite_width;
         h = grid_y * texture_ptr->sprite_height;
+    } else if (!size_obj) {
+        w = grid_x * 16.0f;  // Default tile size
+        h = grid_y * 16.0f;
     }
     
+    // Create the grid
     self->data = std::make_shared<UIGrid>(grid_x, grid_y, texture_ptr, 
                                           sf::Vector2f(x, y), sf::Vector2f(w, h));
+    
+    // Set additional properties
+    self->data->center_x = center_x;
+    self->data->center_y = center_y;
+    self->data->zoom = zoom;
+    self->data->perspective = perspective;
+    self->data->visible = visible;
+    self->data->opacity = opacity;
+    self->data->z_index = z_index;
+    if (name) {
+        self->data->name = std::string(name);
+    }
+    
+    // Handle fill_color
+    if (fill_color && fill_color != Py_None) {
+        PyColorObject* color_obj = PyColor::from_arg(fill_color);
+        if (!color_obj) {
+            PyErr_SetString(PyExc_TypeError, "fill_color must be a Color or color tuple");
+            return -1;
+        }
+        self->data->box.setFillColor(color_obj->data);
+        Py_DECREF(color_obj);
+    }
+    
+    // Handle click handler
+    if (click_handler && click_handler != Py_None) {
+        if (!PyCallable_Check(click_handler)) {
+            PyErr_SetString(PyExc_TypeError, "click must be callable");
+            return -1;
+        }
+        self->data->click_register(click_handler);
+    }
+    
+    // Initialize weak reference list
+    self->weakreflist = NULL;
+    
+    // Register in Python object cache
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);  // Cache owns the reference now
+        }
+    }
+    
     return 0; // Success
 }
 
@@ -1401,7 +1408,15 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
     std::advance(l_begin, index);
     auto target = *l_begin; //auto target = (*vec)[index];
     
-    // If the entity has a stored Python object reference, return that to preserve derived class
+    // Check cache first to preserve derived class
+    if (target->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(target->serial_number);
+        if (cached) {
+            return cached;  // Already INCREF'd by lookup
+        }
+    }
+    
+    // Legacy: If the entity has a stored Python object reference, return that to preserve derived class
     if (target->self != nullptr) {
         Py_INCREF(target->self);
         return target->self;

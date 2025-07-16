@@ -6,12 +6,14 @@ class UIEntity;
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIEntity> data;
+    PyObject* weakreflist;  // Weak reference support
 } PyUIEntityObject;
 
 class UIFrame;
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIFrame> data;
+    PyObject* weakreflist;  // Weak reference support
 } PyUIFrameObject;
 
 class UICaption;
@@ -19,18 +21,21 @@ typedef struct {
     PyObject_HEAD
     std::shared_ptr<UICaption> data;
     PyObject* font;
+    PyObject* weakreflist;  // Weak reference support
 } PyUICaptionObject;
 
 class UIGrid;
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIGrid> data;
+    PyObject* weakreflist;  // Weak reference support
 } PyUIGridObject;
 
 class UISprite;
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UISprite> data;
+    PyObject* weakreflist;  // Weak reference support
 } PyUISpriteObject;
 
 // Common Python method implementations for UIDrawable-derived classes

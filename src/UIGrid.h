@@ -172,41 +172,65 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.Grid",
         .tp_basicsize = sizeof(PyUIGridObject),
         .tp_itemsize = 0,
-        //.tp_dealloc = (destructor)[](PyObject* self)
-        //{
-        //    PyUIGridObject* obj = (PyUIGridObject*)self;
-        //    obj->data.reset();
-        //    Py_TYPE(self)->tp_free(self);
-        //},
+        .tp_dealloc = (destructor)[](PyObject* self)
+        {
+            PyUIGridObject* obj = (PyUIGridObject*)self;
+            // Clear weak references
+            if (obj->weakreflist != NULL) {
+                PyObject_ClearWeakRefs(self);
+            }
+            obj->data.reset();
+            Py_TYPE(self)->tp_free(self);
+        },
         //TODO - PyUIGrid REPR def:
         .tp_repr = (reprfunc)UIGrid::repr,
         //.tp_hash = NULL,
         //.tp_iter
         //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("Grid(x=0, y=0, grid_size=(20, 20), texture=None, tile_width=16, tile_height=16, scale=1.0, click=None)\n\n"
-                            "A grid-based tilemap UI element for rendering tile-based levels and game worlds.\n\n"
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_doc = PyDoc_STR("Grid(pos=None, size=None, grid_size=None, texture=None, **kwargs)\n\n"
+                            "A grid-based UI element for tile-based rendering and entity management.\n\n"
                             "Args:\n"
-                            "    x (float): X position in pixels. Default: 0\n"
-                            "    y (float): Y position in pixels. Default: 0\n"
-                            "    grid_size (tuple): Grid dimensions as (width, height) in tiles. Default: (20, 20)\n"
-                            "    texture (Texture): Texture atlas containing tile sprites. Default: None\n"
-                            "    tile_width (int): Width of each tile in pixels. Default: 16\n"
-                            "    tile_height (int): Height of each tile in pixels. Default: 16\n"
-                            "    scale (float): Grid scaling factor. Default: 1.0\n"
-                            "    click (callable): Click event handler. Default: None\n\n"
+                            "    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)\n"
+                            "    size (tuple, optional): Size as (width, height) tuple. Default: auto-calculated from grid_size\n"
+                            "    grid_size (tuple, optional): Grid dimensions as (grid_x, grid_y) tuple. Default: (2, 2)\n"
+                            "    texture (Texture, optional): Texture containing tile sprites. Default: default texture\n\n"
+                            "Keyword Args:\n"
+                            "    fill_color (Color): Background fill color. Default: None\n"
+                            "    click (callable): Click event handler. Default: None\n"
+                            "    center_x (float): X coordinate of center point. Default: 0\n"
+                            "    center_y (float): Y coordinate of center point. Default: 0\n"
+                            "    zoom (float): Zoom level for rendering. Default: 1.0\n"
+                            "    perspective (int): Entity perspective index (-1 for omniscient). Default: -1\n"
+                            "    visible (bool): Visibility state. Default: True\n"
+                            "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
+                            "    z_index (int): Rendering order. Default: 0\n"
+                            "    name (str): Element name for finding. Default: None\n"
+                            "    x (float): X position override. Default: 0\n"
+                            "    y (float): Y position override. Default: 0\n"
+                            "    w (float): Width override. Default: auto-calculated\n"
+                            "    h (float): Height override. Default: auto-calculated\n"
+                            "    grid_x (int): Grid width override. Default: 2\n"
+                            "    grid_y (int): Grid height override. Default: 2\n\n"
                             "Attributes:\n"
                             "    x, y (float): Position in pixels\n"
+                            "    w, h (float): Size in pixels\n"
+                            "    pos (Vector): Position as a Vector object\n"
+                            "    size (tuple): Size as (width, height) tuple\n"
+                            "    center (tuple): Center point as (x, y) tuple\n"
+                            "    center_x, center_y (float): Center point coordinates\n"
+                            "    zoom (float): Zoom level for rendering\n"
                             "    grid_size (tuple): Grid dimensions (width, height) in tiles\n"
-                            "    tile_width, tile_height (int): Tile dimensions in pixels\n"
+                            "    grid_x, grid_y (int): Grid dimensions\n"
                             "    texture (Texture): Tile texture atlas\n"
-                            "    scale (float): Scale multiplier\n"
-                            "    points (list): 2D array of GridPoint objects for tile data\n"
-                            "    entities (list): Collection of Entity objects in the grid\n"
-                            "    background_color (Color): Grid background color\n"
+                            "    fill_color (Color): Background color\n"
+                            "    entities (EntityCollection): Collection of entities in the grid\n"
+                            "    perspective (int): Entity perspective index\n"
                             "    click (callable): Click event handler\n"
                             "    visible (bool): Visibility state\n"
-                            "    z_index (int): Rendering order"),
+                            "    opacity (float): Opacity value\n"
+                            "    z_index (int): Rendering order\n"
+                            "    name (str): Element name"),
         .tp_methods = UIGrid_all_methods,
         //.tp_members = UIGrid::members,
         .tp_getset = UIGrid::getsetters,

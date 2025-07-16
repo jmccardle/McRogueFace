@@ -1,7 +1,8 @@
 #include "PyTimer.h"
-#include "PyCallable.h"
+#include "Timer.h"
 #include "GameEngine.h"
 #include "Resources.h"
+#include "PythonObjectCache.h"
 #include <sstream>
 
 PyObject* PyTimer::repr(PyObject* self) {
@@ -11,7 +12,22 @@ PyObject* PyTimer::repr(PyObject* self) {
     
     if (timer->data) {
         oss << "interval=" << timer->data->getInterval() << "ms ";
-        oss << (timer->data->isPaused() ? "paused" : "active");
+        if (timer->data->isOnce()) {
+            oss << "once=True ";
+        }
+        if (timer->data->isPaused()) {
+            oss << "paused";
+            // Get current time to show remaining
+            int current_time = 0;
+            if (Resources::game) {
+                current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+            }
+            oss << " (remaining=" << timer->data->getRemaining(current_time) << "ms)";
+        } else if (timer->data->isActive()) {
+            oss << "active";
+        } else {
+            oss << "cancelled";
+        }
     } else {
         oss << "uninitialized";
     }
@@ -25,18 +41,20 @@ PyObject* PyTimer::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     if (self) {
         new(&self->name) std::string();  // Placement new for std::string
         self->data = nullptr;
+        self->weakreflist = nullptr;  // Initialize weakref list
     }
     return (PyObject*)self;
 }
 
 int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"name", "callback", "interval", NULL};
+    static const char* kwlist[] = {"name", "callback", "interval", "once", NULL};
     const char* name = nullptr;
     PyObject* callback = nullptr;
     int interval = 0;
+    int once = 0;  // Use int for bool parameter
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOi", const_cast<char**>(kwlist), 
-                                     &name, &callback, &interval)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOi|p", const_cast<char**>(kwlist), 
+                                     &name, &callback, &interval, &once)) {
         return -1;
     }
     
@@ -58,8 +76,18 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
         current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
     }
     
-    // Create the timer callable
-    self->data = std::make_shared<PyTimerCallable>(callback, interval, current_time);
+    // Create the timer
+    self->data = std::make_shared<Timer>(callback, interval, current_time, (bool)once);
+    
+    // Register in Python object cache
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);  // Cache owns the reference now
+        }
+    }
     
     // Register with game engine
     if (Resources::game) {
@@ -70,6 +98,11 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
 }
 
 void PyTimer::dealloc(PyTimerObject* self) {
+    // Clear weakrefs first
+    if (self->weakreflist != nullptr) {
+        PyObject_ClearWeakRefs((PyObject*)self);
+    }
+    
     // Remove from game engine if still registered
     if (Resources::game && !self->name.empty()) {
         auto it = Resources::game->timers.find(self->name);
@@ -244,7 +277,37 @@ int PyTimer::set_callback(PyTimerObject* self, PyObject* value, void* closure) {
     return 0;
 }
 
+PyObject* PyTimer::get_once(PyTimerObject* self, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Timer not initialized");
+        return nullptr;
+    }
+    
+    return PyBool_FromLong(self->data->isOnce());
+}
+
+int PyTimer::set_once(PyTimerObject* self, PyObject* value, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Timer not initialized");
+        return -1;
+    }
+    
+    if (!PyBool_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "once must be a boolean");
+        return -1;
+    }
+    
+    self->data->setOnce(PyObject_IsTrue(value));
+    return 0;
+}
+
+PyObject* PyTimer::get_name(PyTimerObject* self, void* closure) {
+    return PyUnicode_FromString(self->name.c_str());
+}
+
 PyGetSetDef PyTimer::getsetters[] = {
+    {"name", (getter)PyTimer::get_name, NULL,
+     "Timer name (read-only)", NULL},
     {"interval", (getter)PyTimer::get_interval, (setter)PyTimer::set_interval,
      "Timer interval in milliseconds", NULL},
     {"remaining", (getter)PyTimer::get_remaining, NULL,
@@ -255,17 +318,27 @@ PyGetSetDef PyTimer::getsetters[] = {
      "Whether the timer is active and not paused", NULL},
     {"callback", (getter)PyTimer::get_callback, (setter)PyTimer::set_callback,
      "The callback function to be called", NULL},
+    {"once", (getter)PyTimer::get_once, (setter)PyTimer::set_once,
+     "Whether the timer stops after firing once", NULL},
     {NULL}
 };
 
 PyMethodDef PyTimer::methods[] = {
     {"pause", (PyCFunction)PyTimer::pause, METH_NOARGS,
-     "Pause the timer"},
+     "pause() -> None\n\n"
+     "Pause the timer, preserving the time remaining until next trigger.\n"
+     "The timer can be resumed later with resume()."},
     {"resume", (PyCFunction)PyTimer::resume, METH_NOARGS,
-     "Resume a paused timer"},
+     "resume() -> None\n\n"
+     "Resume a paused timer from where it left off.\n"
+     "Has no effect if the timer is not paused."},
     {"cancel", (PyCFunction)PyTimer::cancel, METH_NOARGS,
-     "Cancel the timer and remove it from the system"},
+     "cancel() -> None\n\n"
+     "Cancel the timer and remove it from the timer system.\n"
+     "The timer will no longer fire and cannot be restarted."},
     {"restart", (PyCFunction)PyTimer::restart, METH_NOARGS,
-     "Restart the timer from the current time"},
+     "restart() -> None\n\n"
+     "Restart the timer from the beginning.\n"
+     "Resets the timer to fire after a full interval from now."},
     {NULL}
 };

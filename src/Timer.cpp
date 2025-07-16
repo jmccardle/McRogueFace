@@ -1,31 +1,140 @@
 #include "Timer.h"
+#include "PythonObjectCache.h"
+#include "PyCallable.h"
 
-Timer::Timer(PyObject* _target, int _interval, int now)
-: target(_target), interval(_interval), last_ran(now)
+Timer::Timer(PyObject* _target, int _interval, int now, bool _once)
+: callback(std::make_shared<PyCallable>(_target)), interval(_interval), last_ran(now),
+  paused(false), pause_start_time(0), total_paused_time(0), once(_once)
 {}
 
 Timer::Timer()
-: target(Py_None), interval(0), last_ran(0)
+: callback(std::make_shared<PyCallable>(Py_None)), interval(0), last_ran(0),
+  paused(false), pause_start_time(0), total_paused_time(0), once(false)
 {}
+
+Timer::~Timer() {
+    if (serial_number != 0) {
+        PythonObjectCache::getInstance().remove(serial_number);
+    }
+}
+
+bool Timer::hasElapsed(int now) const
+{
+    if (paused) return false;
+    return now >= last_ran + interval;
+}
 
 bool Timer::test(int now)
 {
-    if (!target || target == Py_None) return false;
-    if (now > last_ran + interval)
+    if (!callback || callback->isNone()) return false;
+    
+    if (hasElapsed(now))
     {
         last_ran = now;
-        PyObject* args = Py_BuildValue("(i)", now);
-        PyObject* retval = PyObject_Call(target, args, NULL);
+        
+        // Get the PyTimer wrapper from cache to pass to callback
+        PyObject* timer_obj = nullptr;
+        if (serial_number != 0) {
+            timer_obj = PythonObjectCache::getInstance().lookup(serial_number);
+        }
+        
+        // Build args: (timer, runtime) or just (runtime) if no wrapper found
+        PyObject* args;
+        if (timer_obj) {
+            args = Py_BuildValue("(Oi)", timer_obj, now);
+        } else {
+            // Fallback to old behavior if no wrapper found
+            args = Py_BuildValue("(i)", now);
+        }
+        
+        PyObject* retval = callback->call(args, NULL);
+        Py_DECREF(args);
+        
         if (!retval)
         {   
-            std::cout << "timer has raised an exception. It's going to STDERR and being dropped:" << std::endl;
+            std::cout << "Timer callback has raised an exception. It's going to STDERR and being dropped:" << std::endl;
             PyErr_Print();
             PyErr_Clear();
         } else if (retval != Py_None)
         {   
-            std::cout << "timer returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
+            std::cout << "Timer returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
+            Py_DECREF(retval);
         }
+        
+        // Handle one-shot timers
+        if (once) {
+            cancel();
+        }
+        
         return true;
     }
     return false;
+}
+
+void Timer::pause(int current_time)
+{
+    if (!paused) {
+        paused = true;
+        pause_start_time = current_time;
+    }
+}
+
+void Timer::resume(int current_time)
+{
+    if (paused) {
+        paused = false;
+        int paused_duration = current_time - pause_start_time;
+        total_paused_time += paused_duration;
+        // Adjust last_ran to account for the pause
+        last_ran += paused_duration;
+    }
+}
+
+void Timer::restart(int current_time)
+{
+    last_ran = current_time;
+    paused = false;
+    pause_start_time = 0;
+    total_paused_time = 0;
+}
+
+void Timer::cancel()
+{
+    // Cancel by setting callback to None
+    callback = std::make_shared<PyCallable>(Py_None);
+}
+
+bool Timer::isActive() const
+{
+    return callback && !callback->isNone() && !paused;
+}
+
+int Timer::getRemaining(int current_time) const
+{
+    if (paused) {
+        // When paused, calculate time remaining from when it was paused
+        int elapsed_when_paused = pause_start_time - last_ran;
+        return interval - elapsed_when_paused;
+    }
+    int elapsed = current_time - last_ran;
+    return interval - elapsed;
+}
+
+int Timer::getElapsed(int current_time) const
+{
+    if (paused) {
+        return pause_start_time - last_ran;
+    }
+    return current_time - last_ran;
+}
+
+PyObject* Timer::getCallback()
+{
+    if (!callback) return Py_None;
+    return callback->borrow();
+}
+
+void Timer::setCallback(PyObject* new_callback)
+{
+    callback = std::make_shared<PyCallable>(new_callback);
 }

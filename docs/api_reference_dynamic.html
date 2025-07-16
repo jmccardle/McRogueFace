@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>McRogueFace API Reference</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3, h4, h5 {
+            color: #2c3e50;
+        }
+        .toc {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 20px;
+        }
+        .toc > ul {
+            padding-left: 0;
+        }
+        .toc a {
+            text-decoration: none;
+            color: #3498db;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .method-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+        }
+        .function-signature {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .class-name {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .method-name {
+            color: #3498db;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        .property-name {
+            color: #27ae60;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        .arg-name {
+            color: #8b4513;
+            font-weight: bold;
+        }
+        .arg-type {
+            color: #666;
+            font-style: italic;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .deprecated {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .returns {
+            color: #28a745;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>McRogueFace API Reference</h1>
+        <p><em>Generated on 2025-07-15 21:28:24</em></p>
+        <p><em>This documentation was dynamically generated from the compiled module.</em></p>
+        
+        <div class="toc">
+            <h2>Table of Contents</h2>
+            <ul>
+                <li><a href="#functions">Functions</a></li>
+                <li><a href="#classes">Classes</a>
+                    <ul>
+                        <li><a href="#Animation">Animation</a></li>
+                        <li><a href="#Caption">Caption</a></li>
+                        <li><a href="#Color">Color</a></li>
+                        <li><a href="#Drawable">Drawable</a></li>
+                        <li><a href="#Entity">Entity</a></li>
+                        <li><a href="#EntityCollection">EntityCollection</a></li>
+                        <li><a href="#Font">Font</a></li>
+                        <li><a href="#Frame">Frame</a></li>
+                        <li><a href="#Grid">Grid</a></li>
+                        <li><a href="#GridPoint">GridPoint</a></li>
+                        <li><a href="#GridPointState">GridPointState</a></li>
+                        <li><a href="#Scene">Scene</a></li>
+                        <li><a href="#Sprite">Sprite</a></li>
+                        <li><a href="#Texture">Texture</a></li>
+                        <li><a href="#Timer">Timer</a></li>
+                        <li><a href="#UICollection">UICollection</a></li>
+                        <li><a href="#UICollectionIter">UICollectionIter</a></li>
+                        <li><a href="#UIEntityCollectionIter">UIEntityCollectionIter</a></li>
+                        <li><a href="#Vector">Vector</a></li>
+                        <li><a href="#Window">Window</a></li>
+                    </ul>
+                </li>
+                <li><a href="#constants">Constants</a></li>
+            </ul>
+        </div>
+        
+        <h2 id="functions">Functions</h2>
+
+        <div class="method-section">
+            <h3><code class="function-signature">createScenecreateScene(name: str) -> None</code></h3>
+            <p>Create a new empty scene.
+
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>name</span>: Unique name for the new scene</li>
+                <li><span class='arg-name'>ValueError</span>: If a scene with this name already exists</li>
+            </ul>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">createSoundBuffercreateSoundBuffer(filename: str) -> int</code></h3>
+            <p>Load a sound effect from a file and return its buffer ID.</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>filename</span>: Path to the sound file (WAV, OGG, FLAC)</li>
+            </ul>
+            <p><span class='returns'>Returns:</span>  int: Buffer ID for use with playSound() RuntimeError: If the file cannot be loaded</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">currentScenecurrentScene() -> str</code></h3>
+            <p>Get the name of the currently active scene.</p>
+            <p><span class='returns'>Returns:</span>  str: Name of the current scene</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">delTimerdelTimer(name: str) -> None</code></h3>
+            <p>Stop and remove a timer.
+
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>name</span>: Timer identifier to remove</li>
+            </ul>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">exitexit() -> None</code></h3>
+            <p>Cleanly shut down the game engine and exit the application.
+
+
+Note:</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">findfind(name: str, scene: str = None) -> UIDrawable | None</code></h3>
+            <p>Find the first UI element with the specified name.
+
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>name</span>: Exact name to search for</li>
+                <li><span class='arg-name'>scene</span>: Scene to search in (default: current scene)</li>
+            </ul>
+            <p><span class='returns'>Returns:</span>  Frame, Caption, Sprite, Grid, or Entity if found; None otherwise Searches scene UI elements and entities within grids.</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">findAllfindAll(pattern: str, scene: str = None) -> list</code></h3>
+            <p>Find all UI elements matching a name pattern.</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>pattern</span>: Name pattern with optional wildcards (* matches any characters)</li>
+                <li><span class='arg-name'>scene</span>: Scene to search in (default: current scene)</li>
+            </ul>
+            <p><span class='returns'>Returns:</span>  list: All matching UI elements and entities</p>
+            <h4>Example:</h4>
+            <pre><code>findAll(&#x27;enemy*&#x27;)  # Find all elements starting with &#x27;enemy&#x27;
+    findAll(&#x27;*_button&#x27;)  # Find all elements ending with &#x27;_button&#x27;</code></pre>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">getMetricsgetMetrics() -> dict</code></h3>
+            <p>Get current performance metrics.</p>
+            <p><span class='returns'>Returns:</span>  dict: Performance data with keys: - frame_time: Last frame duration in seconds - avg_frame_time: Average frame time - fps: Frames per second - draw_calls: Number of draw calls - ui_elements: Total UI element count - visible_elements: Visible element count - current_frame: Frame counter - runtime: Total runtime in seconds</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">getMusicVolumegetMusicVolume() -> int</code></h3>
+            <p>Get the current music volume level.</p>
+            <p><span class='returns'>Returns:</span>  int: Current volume (0-100)</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">getSoundVolumegetSoundVolume() -> int</code></h3>
+            <p>Get the current sound effects volume level.</p>
+            <p><span class='returns'>Returns:</span>  int: Current volume (0-100)</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">keypressScenekeypressScene(handler: callable) -> None</code></h3>
+            <p>Set the keyboard event handler for the current scene.</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>handler</span>: Callable that receives (key_name: str, is_pressed: bool)</li>
+            </ul>
+            <h4>Example:</h4>
+            <pre><code>def on_key(key, pressed):
+        if key == &#x27;A&#x27; and pressed:
+            print(&#x27;A key pressed&#x27;)
+    mcrfpy.keypressScene(on_key)</code></pre>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">loadMusicloadMusic(filename: str) -> None</code></h3>
+            <p>Load and immediately play background music from a file.
+
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>filename</span>: Path to the music file (WAV, OGG, FLAC)</li>
+            </ul>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">playSoundplaySound(buffer_id: int) -> None</code></h3>
+            <p>Play a sound effect using a previously loaded buffer.</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>buffer_id</span>: Sound buffer ID returned by createSoundBuffer()</li>
+                <li><span class='arg-name'>RuntimeError</span>: If the buffer ID is invalid</li>
+            </ul>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">sceneUIsceneUI(scene: str = None) -> list</code></h3>
+            <p>Get all UI elements for a scene.</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>scene</span>: Scene name. If None, uses current scene</li>
+            </ul>
+            <p><span class='returns'>Returns:</span>  list: All UI elements (Frame, Caption, Sprite, Grid) in the scene KeyError: If the specified scene doesn&#x27;t exist</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">setMusicVolumesetMusicVolume(volume: int) -> None</code></h3>
+            <p>Set the global music volume.</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>volume</span>: Volume level from 0 (silent) to 100 (full volume)</li>
+            </ul>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">setScalesetScale(multiplier: float) -> None</code></h3>
+            <p>Scale the game window size.
+
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>multiplier</span>: Scale factor (e.g., 2.0 for double size)</li>
+            </ul>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">setScenesetScene(scene: str, transition: str = None, duration: float = 0.0) -> None</code></h3>
+            <p>Switch to a different scene with optional transition effect.</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>scene</span>: Name of the scene to switch to</li>
+                <li><span class='arg-name'>transition</span>: Transition type (&#x27;fade&#x27;, &#x27;slide_left&#x27;, &#x27;slide_right&#x27;, &#x27;slide_up&#x27;, &#x27;slide_down&#x27;)</li>
+                <li><span class='arg-name'>duration</span>: Transition duration in seconds (default: 0.0 for instant)</li>
+                <li><span class='arg-name'>KeyError</span>: If the scene doesn&#x27;t exist</li>
+                <li><span class='arg-name'>ValueError</span>: If the transition type is invalid</li>
+            </ul>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">setSoundVolumesetSoundVolume(volume: int) -> None</code></h3>
+            <p>Set the global sound effects volume.</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>volume</span>: Volume level from 0 (silent) to 100 (full volume)</li>
+            </ul>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">setTimersetTimer(name: str, handler: callable, interval: int) -> None</code></h3>
+            <p>Create or update a recurring timer.
+
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>name</span>: Unique identifier for the timer</li>
+                <li><span class='arg-name'>handler</span>: Function called with (runtime: float) parameter</li>
+                <li><span class='arg-name'>interval</span>: Time between calls in milliseconds</li>
+            </ul>
+        </div>
+
+        <h2 id='classes'>Classes</h2>
+
+        <div class="method-section">
+            <h3 id="Animation"><span class="class-name">Animation</span></h3>
+            <p>Animation object for animating UI properties</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">completecomplete() -> None</code></h5>
+                <p>Complete the animation immediately by jumping to the final value.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_current_value(...)</code></h5>
+                <p>Get the current interpolated value</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">hasValidTargethasValidTarget() -> bool</code></h5>
+                <p>Check if the animation still has a valid target.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  True if the target still exists, False if it was destroyed.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">startstart(target) -> None</code></h5>
+                <p>Start the animation on a target UI element.
+
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>target</span>: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">updateUpdate the animation by deltaTime (returns True if still running)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Caption"><span class="class-name">Caption</span></h3>
+            <p><em>Inherits from: Drawable</em></p>
+            <p>Caption(pos=None, font=None, text=&#x27;&#x27;, **kwargs)
+
+A text display UI element with customizable font and styling.
+
+Args:
+    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)
+    font (Font, optional): Font object for text rendering. Default: engine default font
+    text (str, optional): The text content to display. Default: &#x27;&#x27;
+
+Keyword Args:
+    fill_color (Color): Text fill color. Default: (255, 255, 255, 255)
+    outline_color (Color): Text outline color. Default: (0, 0, 0, 255)
+    outline (float): Text outline thickness. Default: 0
+    font_size (float): Font size in points. Default: 16
+    click (callable): Click event handler. Default: None
+    visible (bool): Visibility state. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    z_index (int): Rendering order. Default: 0
+    name (str): Element name for finding. Default: None
+    x (float): X position override. Default: 0
+    y (float): Y position override. Default: 0
+
+Attributes:
+    text (str): The displayed text content
+    x, y (float): Position in pixels
+    pos (Vector): Position as a Vector object
+    font (Font): Font used for rendering
+    font_size (float): Font size in points
+    fill_color, outline_color (Color): Text appearance
+    outline (float): Outline thickness
+    click (callable): Click event handler
+    visible (bool): Visibility state
+    opacity (float): Opacity value
+    z_index (int): Rendering order
+    name (str): Element name
+    w, h (float): Read-only computed size based on text and font</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_boundsGet bounding box as (x, y, width, height)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">moveMove by relative offset (dx, dy)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resizeResize to new dimensions (width, height)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Color"><span class="class-name">Color</span></h3>
+            <p>SFML Color Object</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">from_hexCreate Color from hex string (e.g., '#FF0000' or 'FF0000')</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">lerp(...)</code></h5>
+                <p>Linearly interpolate between this color and another</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">to_hex(...)</code></h5>
+                <p>Convert Color to hex string</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Drawable"><span class="class-name">Drawable</span></h3>
+            <p>Base class for all drawable UI elements</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_boundsGet bounding box as (x, y, width, height)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">moveMove by relative offset (dx, dy)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resizeResize to new dimensions (width, height)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Entity"><span class="class-name">Entity</span></h3>
+            <p>Entity(grid_pos=None, texture=None, sprite_index=0, **kwargs)
+
+A game entity that exists on a grid with sprite rendering.
+
+Args:
+    grid_pos (tuple, optional): Grid position as (x, y) tuple. Default: (0, 0)
+    texture (Texture, optional): Texture object for sprite. Default: default texture
+    sprite_index (int, optional): Index into texture atlas. Default: 0
+
+Keyword Args:
+    grid (Grid): Grid to attach entity to. Default: None
+    visible (bool): Visibility state. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    name (str): Element name for finding. Default: None
+    x (float): X grid position override. Default: 0
+    y (float): Y grid position override. Default: 0
+
+Attributes:
+    pos (tuple): Grid position as (x, y) tuple
+    x, y (float): Grid position coordinates
+    draw_pos (tuple): Pixel position for rendering
+    gridstate (GridPointState): Visibility state for grid points
+    sprite_index (int): Current sprite index
+    visible (bool): Visibility state
+    opacity (float): Opacity value
+    name (str): Element name</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">at(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">die(...)</code></h5>
+                <p>Remove this entity from its grid</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_boundsGet bounding box as (x, y, width, height)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">index(...)</code></h5>
+                <p>Return the index of this entity in its grid&#x27;s entity collection</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">moveMove by relative offset (dx, dy)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">path_topath_to(x: int, y: int) -> bool</code></h5>
+                <p>Find and follow path to target position using A* pathfinding.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>x</span>: Target X coordinate</div>
+                    <div><span class='arg-name'>y</span>: Target Y coordinate</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  True if a path was found and the entity started moving, False otherwise</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resizeResize to new dimensions (width, height)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">update_visibilityupdate_visibility() -> None</code></h5>
+                <p>Update entity&#x27;s visibility state based on current FOV.
+
+Recomputes which cells are visible from the entity&#x27;s position and updates
+the entity&#x27;s gridstate to track explored areas. This is called automatically
+when the entity moves if it has a grid with perspective set.</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="EntityCollection"><span class="class-name">EntityCollection</span></h3>
+            <p>Iterable, indexable collection of Entities</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">append(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">count(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">extend(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">index(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">remove(...)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Font"><span class="class-name">Font</span></h3>
+            <p>SFML Font Object</p>
+            <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Frame"><span class="class-name">Frame</span></h3>
+            <p><em>Inherits from: Drawable</em></p>
+            <p>Frame(pos=None, size=None, **kwargs)
+
+A rectangular frame UI element that can contain other drawable elements.
+
+Args:
+    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)
+    size (tuple, optional): Size as (width, height) tuple. Default: (0, 0)
+
+Keyword Args:
+    fill_color (Color): Background fill color. Default: (0, 0, 0, 128)
+    outline_color (Color): Border outline color. Default: (255, 255, 255, 255)
+    outline (float): Border outline thickness. Default: 0
+    click (callable): Click event handler. Default: None
+    children (list): Initial list of child drawable elements. Default: None
+    visible (bool): Visibility state. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    z_index (int): Rendering order. Default: 0
+    name (str): Element name for finding. Default: None
+    x (float): X position override. Default: 0
+    y (float): Y position override. Default: 0
+    w (float): Width override. Default: 0
+    h (float): Height override. Default: 0
+    clip_children (bool): Whether to clip children to frame bounds. Default: False
+
+Attributes:
+    x, y (float): Position in pixels
+    w, h (float): Size in pixels
+    pos (Vector): Position as a Vector object
+    fill_color, outline_color (Color): Visual appearance
+    outline (float): Border thickness
+    click (callable): Click event handler
+    children (list): Collection of child drawable elements
+    visible (bool): Visibility state
+    opacity (float): Opacity value
+    z_index (int): Rendering order
+    name (str): Element name
+    clip_children (bool): Whether to clip children to frame bounds</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_boundsGet bounding box as (x, y, width, height)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">moveMove by relative offset (dx, dy)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resizeResize to new dimensions (width, height)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Grid"><span class="class-name">Grid</span></h3>
+            <p><em>Inherits from: Drawable</em></p>
+            <p>Grid(pos=None, size=None, grid_size=None, texture=None, **kwargs)
+
+A grid-based UI element for tile-based rendering and entity management.
+
+Args:
+    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)
+    size (tuple, optional): Size as (width, height) tuple. Default: auto-calculated from grid_size
+    grid_size (tuple, optional): Grid dimensions as (grid_x, grid_y) tuple. Default: (2, 2)
+    texture (Texture, optional): Texture containing tile sprites. Default: default texture
+
+Keyword Args:
+    fill_color (Color): Background fill color. Default: None
+    click (callable): Click event handler. Default: None
+    center_x (float): X coordinate of center point. Default: 0
+    center_y (float): Y coordinate of center point. Default: 0
+    zoom (float): Zoom level for rendering. Default: 1.0
+    perspective (int): Entity perspective index (-1 for omniscient). Default: -1
+    visible (bool): Visibility state. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    z_index (int): Rendering order. Default: 0
+    name (str): Element name for finding. Default: None
+    x (float): X position override. Default: 0
+    y (float): Y position override. Default: 0
+    w (float): Width override. Default: auto-calculated
+    h (float): Height override. Default: auto-calculated
+    grid_x (int): Grid width override. Default: 2
+    grid_y (int): Grid height override. Default: 2
+
+Attributes:
+    x, y (float): Position in pixels
+    w, h (float): Size in pixels
+    pos (Vector): Position as a Vector object
+    size (tuple): Size as (width, height) tuple
+    center (tuple): Center point as (x, y) tuple
+    center_x, center_y (float): Center point coordinates
+    zoom (float): Zoom level for rendering
+    grid_size (tuple): Grid dimensions (width, height) in tiles
+    grid_x, grid_y (int): Grid dimensions
+    texture (Texture): Tile texture atlas
+    fill_color (Color): Background color
+    entities (EntityCollection): Collection of entities in the grid
+    perspective (int): Entity perspective index
+    click (callable): Click event handler
+    visible (bool): Visibility state
+    opacity (float): Opacity value
+    z_index (int): Rendering order
+    name (str): Element name</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">at(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">compute_astar_pathcompute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]</code></h5>
+                <p>Compute A* path between two points.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>x1</span>: Starting X coordinate</div>
+                    <div><span class='arg-name'>y1</span>: Starting Y coordinate</div>
+                    <div><span class='arg-name'>x2</span>: Target X coordinate</div>
+                    <div><span class='arg-name'>y2</span>: Target Y coordinate</div>
+                    <div><span class='arg-name'>diagonal_cost</span>: Cost of diagonal movement (default: 1.41)</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  List of (x, y) tuples representing the path, empty list if no path exists</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">compute_dijkstracompute_dijkstra(root_x: int, root_y: int, diagonal_cost: float = 1.41) -> None</code></h5>
+                <p>Compute Dijkstra map from root position.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>root_x</span>: X coordinate of the root/target</div>
+                    <div><span class='arg-name'>root_y</span>: Y coordinate of the root/target</div>
+                    <div><span class='arg-name'>diagonal_cost</span>: Cost of diagonal movement (default: 1.41)</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">compute_fovcompute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None</code></h5>
+                <p>Compute field of view from a position.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>x</span>: X coordinate of the viewer</div>
+                    <div><span class='arg-name'>y</span>: Y coordinate of the viewer</div>
+                    <div><span class='arg-name'>radius</span>: Maximum view distance (0 = unlimited)</div>
+                    <div><span class='arg-name'>light_walls</span>: Whether walls are lit when visible</div>
+                    <div><span class='arg-name'>algorithm</span>: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">find_pathfind_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]</code></h5>
+                <p>Find A* path between two points.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>x1</span>: Starting X coordinate</div>
+                    <div><span class='arg-name'>y1</span>: Starting Y coordinate</div>
+                    <div><span class='arg-name'>x2</span>: Target X coordinate</div>
+                    <div><span class='arg-name'>y2</span>: Target Y coordinate</div>
+                    <div><span class='arg-name'>diagonal_cost</span>: Cost of diagonal movement (default: 1.41)</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  List of (x, y) tuples representing the path, empty list if no path exists</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_boundsGet bounding box as (x, y, width, height)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_dijkstra_distanceget_dijkstra_distance(x: int, y: int) -> Optional[float]</code></h5>
+                <p>Get distance from Dijkstra root to position.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>x</span>: X coordinate to query</div>
+                    <div><span class='arg-name'>y</span>: Y coordinate to query</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Distance as float, or None if position is unreachable or invalid</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_dijkstra_pathget_dijkstra_path(x: int, y: int) -> List[Tuple[int, int]]</code></h5>
+                <p>Get path from position to Dijkstra root.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>x</span>: Starting X coordinate</div>
+                    <div><span class='arg-name'>y</span>: Starting Y coordinate</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  List of (x, y) tuples representing path to root, empty if unreachable</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">is_in_fovis_in_fov(x: int, y: int) -> bool</code></h5>
+                <p>Check if a cell is in the field of view.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>x</span>: X coordinate to check</div>
+                    <div><span class='arg-name'>y</span>: Y coordinate to check</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  True if the cell is visible, False otherwise</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">moveMove by relative offset (dx, dy)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resizeResize to new dimensions (width, height)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="GridPoint"><span class="class-name">GridPoint</span></h3>
+            <p>UIGridPoint object</p>
+            <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
+            <h3 id="GridPointState"><span class="class-name">GridPointState</span></h3>
+            <p>UIGridPointState object</p>
+            <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Scene"><span class="class-name">Scene</span></h3>
+            <p>Base class for object-oriented scenes</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">activate(...)</code></h5>
+                <p>Make this the active scene</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_ui(...)</code></h5>
+                <p>Get the UI element collection for this scene</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">register_keyboardRegister a keyboard handler function (alternative to overriding on_keypress)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Sprite"><span class="class-name">Sprite</span></h3>
+            <p><em>Inherits from: Drawable</em></p>
+            <p>Sprite(pos=None, texture=None, sprite_index=0, **kwargs)
+
+A sprite UI element that displays a texture or portion of a texture atlas.
+
+Args:
+    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)
+    texture (Texture, optional): Texture object to display. Default: default texture
+    sprite_index (int, optional): Index into texture atlas. Default: 0
+
+Keyword Args:
+    scale (float): Uniform scale factor. Default: 1.0
+    scale_x (float): Horizontal scale factor. Default: 1.0
+    scale_y (float): Vertical scale factor. Default: 1.0
+    click (callable): Click event handler. Default: None
+    visible (bool): Visibility state. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    z_index (int): Rendering order. Default: 0
+    name (str): Element name for finding. Default: None
+    x (float): X position override. Default: 0
+    y (float): Y position override. Default: 0
+
+Attributes:
+    x, y (float): Position in pixels
+    pos (Vector): Position as a Vector object
+    texture (Texture): The texture being displayed
+    sprite_index (int): Current sprite index in texture atlas
+    scale (float): Uniform scale factor
+    scale_x, scale_y (float): Individual scale factors
+    click (callable): Click event handler
+    visible (bool): Visibility state
+    opacity (float): Opacity value
+    z_index (int): Rendering order
+    name (str): Element name
+    w, h (float): Read-only computed size based on texture and scale</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_boundsGet bounding box as (x, y, width, height)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">moveMove by relative offset (dx, dy)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resizeResize to new dimensions (width, height)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Texture"><span class="class-name">Texture</span></h3>
+            <p>SFML Texture Object</p>
+            <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Timer"><span class="class-name">Timer</span></h3>
+            <p>Timer(name, callback, interval, once=False)
+
+Create a timer that calls a function at regular intervals.
+
+Args:
+    name (str): Unique identifier for the timer
+    callback (callable): Function to call - receives (timer, runtime) args
+    interval (int): Time between calls in milliseconds
+    once (bool): If True, timer stops after first call. Default: False
+
+Attributes:
+    interval (int): Time between calls in milliseconds
+    remaining (int): Time until next call in milliseconds (read-only)
+    paused (bool): Whether timer is paused (read-only)
+    active (bool): Whether timer is active and not paused (read-only)
+    callback (callable): The callback function
+    once (bool): Whether timer stops after firing once
+
+Methods:
+    pause(): Pause the timer, preserving time remaining
+    resume(): Resume a paused timer
+    cancel(): Stop and remove the timer
+    restart(): Reset timer to start from beginning
+
+Example:
+    def on_timer(timer, runtime):
+        print(f&#x27;Timer {timer} fired at {runtime}ms&#x27;)
+        if runtime &gt; 5000:
+            timer.cancel()
+    
+    timer = mcrfpy.Timer(&#x27;my_timer&#x27;, on_timer, 1000)
+    timer.pause()  # Pause timer
+    timer.resume() # Resume timer
+    timer.once = True  # Make it one-shot</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">cancelcancel() -> None</code></h5>
+                <p>Cancel the timer and remove it from the timer system.
+The timer will no longer fire and cannot be restarted.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">pausepause() -> None</code></h5>
+                <p>Pause the timer, preserving the time remaining until next trigger.
+The timer can be resumed later with resume().</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">restartrestart() -> None</code></h5>
+                <p>Restart the timer from the beginning.
+Resets the timer to fire after a full interval from now.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resumeresume() -> None</code></h5>
+                <p>Resume a paused timer from where it left off.
+Has no effect if the timer is not paused.</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="UICollection"><span class="class-name">UICollection</span></h3>
+            <p>Iterable, indexable collection of UI objects</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">append(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">count(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">extend(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">index(...)</code></h5>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">remove(...)</code></h5>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="UICollectionIter"><span class="class-name">UICollectionIter</span></h3>
+            <p>Iterator for a collection of UI objects</p>
+            <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
+            <h3 id="UIEntityCollectionIter"><span class="class-name">UIEntityCollectionIter</span></h3>
+            <p>Iterator for a collection of UI objects</p>
+            <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Vector"><span class="class-name">Vector</span></h3>
+            <p>SFML Vector Object</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">angle(...)</code></h5>
+                <p>Return the angle in radians from the positive X axis</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">copy(...)</code></h5>
+                <p>Return a copy of this vector</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">distance_to(...)</code></h5>
+                <p>Return the distance to another vector</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">dot(...)</code></h5>
+                <p>Return the dot product with another vector</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">magnitude(...)</code></h5>
+                <p>Return the length of the vector</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">magnitude_squared(...)</code></h5>
+                <p>Return the squared length of the vector</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">normalize(...)</code></h5>
+                <p>Return a unit vector in the same direction</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Window"><span class="class-name">Window</span></h3>
+            <p>Window singleton for accessing and modifying the game window properties</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">center(...)</code></h5>
+                <p>Center the window on the screen</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get(...)</code></h5>
+                <p>Get the Window singleton instance</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">screenshot(...)</code></h5>
+                <p>Take a screenshot. Pass filename to save to file, or get raw bytes if no filename.</p>
+            </div>
+        </div>
+
+        <h2 id='constants'>Constants</h2>
+        <ul>
+            <li><code>FOV_BASIC</code> (int): 0</li>
+            <li><code>FOV_DIAMOND</code> (int): 1</li>
+            <li><code>FOV_PERMISSIVE_0</code> (int): 3</li>
+            <li><code>FOV_PERMISSIVE_1</code> (int): 4</li>
+            <li><code>FOV_PERMISSIVE_2</code> (int): 5</li>
+            <li><code>FOV_PERMISSIVE_3</code> (int): 6</li>
+            <li><code>FOV_PERMISSIVE_4</code> (int): 7</li>
+            <li><code>FOV_PERMISSIVE_5</code> (int): 8</li>
+            <li><code>FOV_PERMISSIVE_6</code> (int): 9</li>
+            <li><code>FOV_PERMISSIVE_7</code> (int): 10</li>
+            <li><code>FOV_PERMISSIVE_8</code> (int): 11</li>
+            <li><code>FOV_RESTRICTIVE</code> (int): 12</li>
+            <li><code>FOV_SHADOW</code> (int): 2</li>
+        </ul>
+
+    </div>
+</body>
+</html>

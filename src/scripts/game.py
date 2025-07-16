@@ -87,7 +87,7 @@ class Crypt:
 
         # Side Bar (inventory, level info) config
         self.level_caption = mcrfpy.Caption((5,5), "Level: 1", font, fill_color=(255, 255, 255))
-        self.level_caption.size = 26 
+        self.level_caption.font_size = 26 
         self.level_caption.outline = 3
         self.level_caption.outline_color = (0, 0, 0)
         self.sidebar.children.append(self.level_caption)
@@ -103,7 +103,7 @@ class Crypt:
                 mcrfpy.Caption((25, 130 + 95 * i), "x", font, fill_color=(255, 255, 255)) for i in range(5)
                 ]
         for i in self.inv_captions:
-            i.size = 16
+            i.font_size = 16
             self.sidebar.children.append(i)
 
         liminal_void = mcrfpy.Grid(1, 1, t, (0, 0), (16, 16))
@@ -382,7 +382,7 @@ class Crypt:
     def pull_boulder_search(self):
         for dx, dy in ( (0, -1), (-1, 0), (1, 0), (0, 1) ):
             for e in self.entities:
-                if e.draw_pos != (self.player.draw_pos[0] + dx, self.player.draw_pos[1] + dy): continue
+                if e.draw_pos.x != self.player.draw_pos.x + dx or e.draw_pos.y != self.player.draw_pos.y + dy: continue
                 if type(e) == ce.BoulderEntity:
                     self.pull_boulder_move((dx, dy), e)
                     return self.enemy_turn()
@@ -395,7 +395,7 @@ class Crypt:
         if self.player.try_move(-p[0], -p[1], test=True):
             old_pos = self.player.draw_pos
             self.player.try_move(-p[0], -p[1])
-            target_boulder.do_move(*old_pos)
+            target_boulder.do_move(old_pos.x, old_pos.y)
 
     def swap_level(self, new_level, spawn_point):
         self.level = new_level
@@ -451,7 +451,7 @@ class SweetButton:
 
         # main button caption
         self.caption = mcrfpy.Caption((40, 3), caption, font, fill_color=font_color)
-        self.caption.size = font_size
+        self.caption.font_size = font_size
         self.caption.outline_color=font_outline_color
         self.caption.outline=font_outline_width
         self.main_button.children.append(self.caption)
@@ -548,20 +548,20 @@ class MainMenu:
         # title text
         drop_shadow = mcrfpy.Caption((150, 10), "Crypt Of Sokoban", font, fill_color=(96, 96, 96), outline_color=(192, 0, 0))
         drop_shadow.outline = 3
-        drop_shadow.size = 64
+        drop_shadow.font_size = 64
         components.append(
                 drop_shadow
             )
 
         title_txt = mcrfpy.Caption((158, 18), "Crypt Of Sokoban", font, fill_color=(255, 255, 255))
-        title_txt.size = 64
+        title_txt.font_size = 64
         components.append(
                 title_txt
             )
 
         # toast: text over the demo grid that fades out on a timer
         self.toast = mcrfpy.Caption((150, 400), "", font, fill_color=(0, 0, 0))
-        self.toast.size = 28
+        self.toast.font_size = 28
         self.toast.outline = 2
         self.toast.outline_color = (255, 255, 255)
         self.toast_event = None
@@ -626,6 +626,7 @@ class MainMenu:
     def play(self, sweet_btn, args):
         #if args[3] == "start": return # DRAMATIC on release action!
         if args[3] == "end": return
+        mcrfpy.delTimer("demo_motion")  # Clean up the demo timer
         self.crypt = Crypt()
         #mcrfpy.setScene("play")
         self.crypt.start()

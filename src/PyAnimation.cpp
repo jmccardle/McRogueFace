@@ -18,17 +18,29 @@ PyObject* PyAnimation::create(PyTypeObject* type, PyObject* args, PyObject* kwds
 }
 
 int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
-    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", nullptr};
+    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "callback", nullptr};
     
     const char* property_name;
     PyObject* target_value;
     float duration;
     const char* easing_name = "linear";
     int delta = 0;
+    PyObject* callback = nullptr;
     
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|sp", const_cast<char**>(keywords),
-                                      &property_name, &target_value, &duration, &easing_name, &delta)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|spO", const_cast<char**>(keywords),
+                                      &property_name, &target_value, &duration, &easing_name, &delta, &callback)) {
         return -1;
+    }
+    
+    // Validate callback is callable if provided
+    if (callback && callback != Py_None && !PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "callback must be callable");
+        return -1;
+    }
+    
+    // Convert None to nullptr for C++
+    if (callback == Py_None) {
+        callback = nullptr;
     }
     
     // Convert Python target value to AnimationValue
@@ -90,7 +102,7 @@ int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
     EasingFunction easingFunc = EasingFunctions::getByName(easing_name);
     
     // Create the Animation
-    self->data = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0);
+    self->data = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, callback);
     
     return 0;
 }
@@ -126,49 +138,49 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args) {
         return NULL;
     }
     
-    // Get the UIDrawable from the Python object
-    UIDrawable* drawable = nullptr;
-    
     // Check type by comparing type names
     const char* type_name = Py_TYPE(target_obj)->tp_name;
     
     if (strcmp(type_name, "mcrfpy.Frame") == 0) {
         PyUIFrameObject* frame = (PyUIFrameObject*)target_obj;
-        drawable = frame->data.get();
+        if (frame->data) {
+            self->data->start(frame->data);
+            AnimationManager::getInstance().addAnimation(self->data);
+        }
     }
     else if (strcmp(type_name, "mcrfpy.Caption") == 0) {
         PyUICaptionObject* caption = (PyUICaptionObject*)target_obj;
-        drawable = caption->data.get();
+        if (caption->data) {
+            self->data->start(caption->data);
+            AnimationManager::getInstance().addAnimation(self->data);
+        }
     }
     else if (strcmp(type_name, "mcrfpy.Sprite") == 0) {
         PyUISpriteObject* sprite = (PyUISpriteObject*)target_obj;
-        drawable = sprite->data.get();
+        if (sprite->data) {
+            self->data->start(sprite->data);
+            AnimationManager::getInstance().addAnimation(self->data);
+        }
     }
     else if (strcmp(type_name, "mcrfpy.Grid") == 0) {
         PyUIGridObject* grid = (PyUIGridObject*)target_obj;
-        drawable = grid->data.get();
+        if (grid->data) {
+            self->data->start(grid->data);
+            AnimationManager::getInstance().addAnimation(self->data);
+        }
     }
     else if (strcmp(type_name, "mcrfpy.Entity") == 0) {
         // Special handling for Entity since it doesn't inherit from UIDrawable
         PyUIEntityObject* entity = (PyUIEntityObject*)target_obj;
-        // Start the animation directly on the entity
-        self->data->startEntity(entity->data.get());
-        
-        // Add to AnimationManager
-        AnimationManager::getInstance().addAnimation(self->data);
-        
-        Py_RETURN_NONE;
+        if (entity->data) {
+            self->data->startEntity(entity->data);
+            AnimationManager::getInstance().addAnimation(self->data);
+        }
     }
     else {
         PyErr_SetString(PyExc_TypeError, "Target must be a Frame, Caption, Sprite, Grid, or Entity");
         return NULL;
     }
-    
-    // Start the animation
-    self->data->start(drawable);
-    
-    // Add to AnimationManager
-    AnimationManager::getInstance().addAnimation(self->data);
     
     Py_RETURN_NONE;
 }
@@ -214,6 +226,20 @@ PyObject* PyAnimation::get_current_value(PyAnimationObject* self, PyObject* args
     }, value);
 }
 
+PyObject* PyAnimation::complete(PyAnimationObject* self, PyObject* args) {
+    if (self->data) {
+        self->data->complete();
+    }
+    Py_RETURN_NONE;
+}
+
+PyObject* PyAnimation::has_valid_target(PyAnimationObject* self, PyObject* args) {
+    if (self->data && self->data->hasValidTarget()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
 PyGetSetDef PyAnimation::getsetters[] = {
     {"property", (getter)get_property, NULL, "Target property name", NULL},
     {"duration", (getter)get_duration, NULL, "Animation duration in seconds", NULL},
@@ -225,10 +251,23 @@ PyGetSetDef PyAnimation::getsetters[] = {
 
 PyMethodDef PyAnimation::methods[] = {
     {"start", (PyCFunction)start, METH_VARARGS,
-     "Start the animation on a target UIDrawable"},
+     "start(target) -> None\n\n"
+     "Start the animation on a target UI element.\n\n"
+     "Args:\n"
+     "    target: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)\n\n"
+     "Note:\n"
+     "    The animation will automatically stop if the target is destroyed."},
     {"update", (PyCFunction)update, METH_VARARGS,
      "Update the animation by deltaTime (returns True if still running)"},
     {"get_current_value", (PyCFunction)get_current_value, METH_NOARGS,
      "Get the current interpolated value"},
+    {"complete", (PyCFunction)complete, METH_NOARGS,
+     "complete() -> None\n\n"
+     "Complete the animation immediately by jumping to the final value."},
+    {"hasValidTarget", (PyCFunction)has_valid_target, METH_NOARGS,
+     "hasValidTarget() -> bool\n\n"
+     "Check if the animation still has a valid target.\n\n"
+     "Returns:\n"
+     "    True if the target still exists, False if it was destroyed."},
     {NULL}
 };

@@ -5,6 +5,7 @@
 #include "UITestScene.h"
 #include "Resources.h"
 #include "Animation.h"
+#include "Timer.h"
 #include <cmath>
 
 GameEngine::GameEngine() : GameEngine(McRogueFaceConfig{})
@@ -16,7 +17,7 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
 {
     Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
     Resources::game = this;
-    window_title = "Crypt of Sokoban - 7DRL 2025, McRogueface Engine";
+    window_title = "McRogueFace Engine";
     
     // Initialize rendering based on headless mode
     if (headless) {
@@ -90,6 +91,9 @@ void GameEngine::cleanup()
 {
     if (cleaned_up) return;
     cleaned_up = true;
+    
+    // Clear all animations first (RAII handles invalidation)
+    AnimationManager::getInstance().clear();
     
     // Clear Python references before destroying C++ objects
     // Clear all timers (they hold Python callables)
@@ -182,7 +186,7 @@ void GameEngine::setWindowScale(float multiplier)
 
 void GameEngine::run()
 {
-    std::cout << "GameEngine::run() starting main loop..." << std::endl;
+    //std::cout << "GameEngine::run() starting main loop..." << std::endl;
     float fps = 0.0;
     frameTime = 0.016f; // Initialize to ~60 FPS
     clock.restart();
@@ -259,7 +263,7 @@ void GameEngine::run()
         int tenth_fps = (metrics.fps * 10) % 10;
         
         if (!headless && window) {
-            window->setTitle(window_title + " " + std::to_string(whole_fps) + "." + std::to_string(tenth_fps) + " FPS");
+            window->setTitle(window_title);
         }
         
         // In windowed mode, check if window was closed
@@ -272,7 +276,7 @@ void GameEngine::run()
     cleanup();
 }
 
-std::shared_ptr<PyTimerCallable> GameEngine::getTimer(const std::string& name)
+std::shared_ptr<Timer> GameEngine::getTimer(const std::string& name)
 {
     auto it = timers.find(name);
     if (it != timers.end()) {
@@ -290,7 +294,7 @@ void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
         {
             // Delete: Overwrite existing timer with one that calls None. This will be deleted in the next timer check
             // see gitea issue #4: this allows for a timer to be deleted during its own call to itself
-            timers[name] = std::make_shared<PyTimerCallable>(Py_None, 1000, runtime.getElapsedTime().asMilliseconds());
+            timers[name] = std::make_shared<Timer>(Py_None, 1000, runtime.getElapsedTime().asMilliseconds());
             return;
         }
     }
@@ -299,7 +303,7 @@ void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
         std::cout << "Refusing to initialize timer to None. It's not an error, it's just pointless." << std::endl;
         return;
     }
-    timers[name] = std::make_shared<PyTimerCallable>(target, interval, runtime.getElapsedTime().asMilliseconds());
+    timers[name] = std::make_shared<Timer>(target, interval, runtime.getElapsedTime().asMilliseconds());
 }
 
 void GameEngine::testTimers()
@@ -310,7 +314,8 @@ void GameEngine::testTimers()
     {
         it->second->test(now);
         
-        if (it->second->isNone())
+        // Remove timers that have been cancelled or are one-shot and fired
+        if (!it->second->getCallback() || it->second->getCallback() == Py_None)
         {
             it = timers.erase(it);
         }

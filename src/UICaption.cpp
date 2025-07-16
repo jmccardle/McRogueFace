@@ -3,7 +3,7 @@
 #include "PyColor.h"
 #include "PyVector.h"
 #include "PyFont.h"
-#include "PyArgHelpers.h"
+#include "PythonObjectCache.h"
 // UIDrawable methods now in UIBase.h
 #include <algorithm>
 
@@ -303,183 +303,135 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 {
     using namespace mcrfpydef;
     
-    // Try parsing with PyArgHelpers
-    int arg_idx = 0;
-    auto pos_result = PyArgHelpers::parsePosition(args, kwds, &arg_idx);
-    
-    // Default values
-    float x = 0.0f, y = 0.0f, outline = 0.0f;
-    char* text = nullptr;
+    // Define all parameters with defaults
+    PyObject* pos_obj = nullptr;
     PyObject* font = nullptr;
+    const char* text = "";
     PyObject* fill_color = nullptr;
     PyObject* outline_color = nullptr;
+    float outline = 0.0f;
+    float font_size = 16.0f;
     PyObject* click_handler = nullptr;
+    int visible = 1;
+    float opacity = 1.0f;
+    int z_index = 0;
+    const char* name = nullptr;
+    float x = 0.0f, y = 0.0f;
     
-    // Case 1: Got position from helpers (tuple format)
-    if (pos_result.valid) {
-        x = pos_result.x;
-        y = pos_result.y;
-        
-        // Parse remaining arguments
-        static const char* remaining_keywords[] = { 
-            "text", "font", "fill_color", "outline_color", "outline", "click", nullptr 
-        };
-        
-        // Create new tuple with remaining args
-        Py_ssize_t total_args = PyTuple_Size(args);
-        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
-        
-        if (!PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|zOOOfO", 
-                                         const_cast<char**>(remaining_keywords),
-                                         &text, &font, &fill_color, &outline_color, 
-                                         &outline, &click_handler)) {
-            Py_DECREF(remaining_args);
-            if (pos_result.error) PyErr_SetString(PyExc_TypeError, pos_result.error);
+    // Keywords list matches the new spec: positional args first, then all keyword args
+    static const char* kwlist[] = {
+        "pos", "font", "text",  // Positional args (as per spec)
+        // Keyword-only args
+        "fill_color", "outline_color", "outline", "font_size", "click",
+        "visible", "opacity", "z_index", "name", "x", "y",
+        nullptr
+    };
+    
+    // Parse arguments with | for optional positional args
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOzOOffOifizff", const_cast<char**>(kwlist),
+                                     &pos_obj, &font, &text,  // Positional
+                                     &fill_color, &outline_color, &outline, &font_size, &click_handler,
+                                     &visible, &opacity, &z_index, &name, &x, &y)) {
+        return -1;
+    }
+    
+    // Handle position argument (can be tuple, Vector, or use x/y keywords)
+    if (pos_obj) {
+        PyVectorObject* vec = PyVector::from_arg(pos_obj);
+        if (vec) {
+            x = vec->data.x;
+            y = vec->data.y;
+            Py_DECREF(vec);
+        } else {
+            PyErr_Clear();
+            if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
+                PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
+                PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
+                if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
+                    (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
+                    x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
+                    y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
+                } else {
+                    PyErr_SetString(PyExc_TypeError, "pos tuple must contain numbers");
+                    return -1;
+                }
+            } else {
+                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
+                return -1;
+            }
+        }
+    }
+    
+    // Handle font argument
+    std::shared_ptr<PyFont> pyfont = nullptr;
+    if (font && font != Py_None) {
+        if (!PyObject_IsInstance(font, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Font"))) {
+            PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance");
             return -1;
         }
-        Py_DECREF(remaining_args);
-    }
-    // Case 2: Traditional format
-    else {
-        PyErr_Clear();  // Clear any errors from helpers
-        
-        // First check if this is the old (text, x, y, ...) format
-        PyObject* first_arg = args && PyTuple_Size(args) > 0 ? PyTuple_GetItem(args, 0) : nullptr;
-        bool text_first = first_arg && PyUnicode_Check(first_arg);
-        
-        if (text_first) {
-            // Pattern: (text, x, y, ...)
-            static const char* text_first_keywords[] = { 
-                "text", "x", "y", "font", "fill_color", "outline_color", 
-                "outline", "click", "pos", nullptr 
-            };
-            PyObject* pos_obj = nullptr;
-            
-            if (!PyArg_ParseTupleAndKeywords(args, kwds, "|zffOOOfOO", 
-                                             const_cast<char**>(text_first_keywords), 
-                                             &text, &x, &y, &font, &fill_color, &outline_color, 
-                                             &outline, &click_handler, &pos_obj)) {
-                return -1;
-            }
-            
-            // Handle pos keyword override
-            if (pos_obj && pos_obj != Py_None) {
-                if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-                    PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
-                    PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
-                    if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
-                        (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
-                        x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
-                        y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
-                    }
-                } else if (PyObject_TypeCheck(pos_obj, (PyTypeObject*)PyObject_GetAttrString(
-                           PyImport_ImportModule("mcrfpy"), "Vector"))) {
-                    PyVectorObject* vec = (PyVectorObject*)pos_obj;
-                    x = vec->data.x;
-                    y = vec->data.y;
-                } else {
-                    PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
-                    return -1;
-                }
-            }
-        } else {
-            // Pattern: (x, y, text, ...)
-            static const char* xy_keywords[] = { 
-                "x", "y", "text", "font", "fill_color", "outline_color", 
-                "outline", "click", "pos", nullptr 
-            };
-            PyObject* pos_obj = nullptr;
-            
-            if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffzOOOfOO", 
-                                             const_cast<char**>(xy_keywords), 
-                                             &x, &y, &text, &font, &fill_color, &outline_color, 
-                                             &outline, &click_handler, &pos_obj)) {
-                return -1;
-            }
-            
-            // Handle pos keyword override
-            if (pos_obj && pos_obj != Py_None) {
-                if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-                    PyObject* x_val = PyTuple_GetItem(pos_obj, 0);
-                    PyObject* y_val = PyTuple_GetItem(pos_obj, 1);
-                    if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
-                        (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
-                        x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
-                        y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
-                    }
-                } else if (PyObject_TypeCheck(pos_obj, (PyTypeObject*)PyObject_GetAttrString(
-                           PyImport_ImportModule("mcrfpy"), "Vector"))) {
-                    PyVectorObject* vec = (PyVectorObject*)pos_obj;
-                    x = vec->data.x;
-                    y = vec->data.y;
-                } else {
-                    PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
-                    return -1;
-                }
-            }
-        }
+        auto obj = (PyFontObject*)font;
+        pyfont = obj->data;
     }
     
-    self->data->position = sf::Vector2f(x, y);  // Set base class position
-    self->data->text.setPosition(self->data->position);  // Sync text position
-    // check types for font, fill_color, outline_color
-
-    //std::cout << PyUnicode_AsUTF8(PyObject_Repr(font)) << std::endl;
-    if (font != NULL && font != Py_None && !PyObject_IsInstance(font, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Font")/*(PyObject*)&PyFontType)*/)){
-        PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance or None");
-        return -1;
-    } else if (font != NULL && font != Py_None)
-    {
-        auto font_obj = (PyFontObject*)font;
-        self->data->text.setFont(font_obj->data->font);
-        self->font = font;
-        Py_INCREF(font);
-    } else
-    {
+    // Create the caption
+    self->data = std::make_shared<UICaption>();
+    self->data->position = sf::Vector2f(x, y);
+    self->data->text.setPosition(self->data->position);
+    self->data->text.setOutlineThickness(outline);
+    
+    // Set the font
+    if (pyfont) {
+        self->data->text.setFont(pyfont->font);
+    } else {
         // Use default font when None or not provided
         if (McRFPy_API::default_font) {
             self->data->text.setFont(McRFPy_API::default_font->font);
-            // Store reference to default font
-            PyObject* default_font_obj = PyObject_GetAttrString(McRFPy_API::mcrf_module, "default_font");
-            if (default_font_obj) {
-                self->font = default_font_obj;
-                // Don't need to DECREF since we're storing it
-            }
         }
     }
-
-    // Handle text - default to empty string if not provided
-    if (text && text != NULL) {
-        self->data->text.setString((std::string)text);
-    } else {
-        self->data->text.setString("");
+    
+    // Set character size
+    self->data->text.setCharacterSize(static_cast<unsigned int>(font_size));
+    
+    // Set text
+    if (text && strlen(text) > 0) {
+        self->data->text.setString(std::string(text));
     }
-    self->data->text.setOutlineThickness(outline);
-    if (fill_color) {
-        auto fc = PyColor::from_arg(fill_color);
-        if (!fc) {
-            PyErr_SetString(PyExc_TypeError, "fill_color must be mcrfpy.Color or arguments to mcrfpy.Color.__init__");
+    
+    // Handle fill_color
+    if (fill_color && fill_color != Py_None) {
+        PyColorObject* color_obj = PyColor::from_arg(fill_color);
+        if (!color_obj) {
+            PyErr_SetString(PyExc_TypeError, "fill_color must be a Color or color tuple");
             return -1;
         }
-        self->data->text.setFillColor(PyColor::fromPy(fc));
-        //Py_DECREF(fc);
+        self->data->text.setFillColor(color_obj->data);
+        Py_DECREF(color_obj);
     } else {
-        self->data->text.setFillColor(sf::Color(0,0,0,255));
+        self->data->text.setFillColor(sf::Color(255, 255, 255, 255));  // Default: white
     }
-
-    if (outline_color) {
-        auto oc = PyColor::from_arg(outline_color);
-        if (!oc) {
-            PyErr_SetString(PyExc_TypeError, "outline_color must be mcrfpy.Color or arguments to mcrfpy.Color.__init__");
+    
+    // Handle outline_color
+    if (outline_color && outline_color != Py_None) {
+        PyColorObject* color_obj = PyColor::from_arg(outline_color);
+        if (!color_obj) {
+            PyErr_SetString(PyExc_TypeError, "outline_color must be a Color or color tuple");
             return -1;
         }
-        self->data->text.setOutlineColor(PyColor::fromPy(oc));
-        //Py_DECREF(oc);
+        self->data->text.setOutlineColor(color_obj->data);
+        Py_DECREF(color_obj);
     } else {
-        self->data->text.setOutlineColor(sf::Color(128,128,128,255));
+        self->data->text.setOutlineColor(sf::Color(0, 0, 0, 255));  // Default: black
     }
-
-    // Process click handler if provided
+    
+    // Set other properties
+    self->data->visible = visible;
+    self->data->opacity = opacity;
+    self->data->z_index = z_index;
+    if (name) {
+        self->data->name = std::string(name);
+    }
+    
+    // Handle click handler
     if (click_handler && click_handler != Py_None) {
         if (!PyCallable_Check(click_handler)) {
             PyErr_SetString(PyExc_TypeError, "click must be callable");
@@ -487,9 +439,23 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         }
         self->data->click_register(click_handler);
     }
-
+    
+    // Initialize weak reference list
+    self->weakreflist = NULL;
+    
+    // Register in Python object cache
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);  // Cache owns the reference now
+        }
+    }
+    
     return 0;
 }
+
 
 // Property system implementation for animations
 bool UICaption::setProperty(const std::string& name, float value) {

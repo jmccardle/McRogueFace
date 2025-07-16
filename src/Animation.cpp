@@ -1,6 +1,9 @@
 #include "Animation.h"
 #include "UIDrawable.h"
 #include "UIEntity.h"
+#include "PyAnimation.h"
+#include "McRFPy_API.h"
+#include "PythonObjectCache.h"
 #include <cmath>
 #include <algorithm>
 #include <unordered_map>
@@ -9,75 +12,105 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+// Forward declaration of PyAnimation type
+namespace mcrfpydef {
+    extern PyTypeObject PyAnimationType;
+}
+
 // Animation implementation
 Animation::Animation(const std::string& targetProperty, 
                      const AnimationValue& targetValue,
                      float duration,
                      EasingFunction easingFunc,
-                     bool delta)
+                     bool delta,
+                     PyObject* callback)
     : targetProperty(targetProperty)
     , targetValue(targetValue)
     , duration(duration)
     , easingFunc(easingFunc)
     , delta(delta)
+    , pythonCallback(callback)
 {
+    // Increase reference count for Python callback
+    if (pythonCallback) {
+        Py_INCREF(pythonCallback);
+    }
 }
 
-void Animation::start(UIDrawable* target) {
-    currentTarget = target;
+Animation::~Animation() {
+    // Decrease reference count for Python callback if we still own it
+    PyObject* callback = pythonCallback;
+    if (callback) {
+        pythonCallback = nullptr;
+        
+        PyGILState_STATE gstate = PyGILState_Ensure();
+        Py_DECREF(callback);
+        PyGILState_Release(gstate);
+    }
+    
+    // Clean up cache entry
+    if (serial_number != 0) {
+        PythonObjectCache::getInstance().remove(serial_number);
+    }
+}
+
+void Animation::start(std::shared_ptr<UIDrawable> target) {
+    if (!target) return;
+    
+    targetWeak = target;
     elapsed = 0.0f;
+    callbackTriggered = false; // Reset callback state
     
-    // Capture startValue from target based on targetProperty
-    if (!currentTarget) return;
-    
-    // Try to get the current value based on the expected type
-    std::visit([this](const auto& targetVal) {
+    // Capture start value from target
+    std::visit([this, &target](const auto& targetVal) {
         using T = std::decay_t<decltype(targetVal)>;
         
         if constexpr (std::is_same_v<T, float>) {
             float value;
-            if (currentTarget->getProperty(targetProperty, value)) {
+            if (target->getProperty(targetProperty, value)) {
                 startValue = value;
             }
         }
         else if constexpr (std::is_same_v<T, int>) {
             int value;
-            if (currentTarget->getProperty(targetProperty, value)) {
+            if (target->getProperty(targetProperty, value)) {
                 startValue = value;
             }
         }
         else if constexpr (std::is_same_v<T, std::vector<int>>) {
             // For sprite animation, get current sprite index
             int value;
-            if (currentTarget->getProperty(targetProperty, value)) {
+            if (target->getProperty(targetProperty, value)) {
                 startValue = value;
             }
         }
         else if constexpr (std::is_same_v<T, sf::Color>) {
             sf::Color value;
-            if (currentTarget->getProperty(targetProperty, value)) {
+            if (target->getProperty(targetProperty, value)) {
                 startValue = value;
             }
         }
         else if constexpr (std::is_same_v<T, sf::Vector2f>) {
             sf::Vector2f value;
-            if (currentTarget->getProperty(targetProperty, value)) {
+            if (target->getProperty(targetProperty, value)) {
                 startValue = value;
             }
         }
         else if constexpr (std::is_same_v<T, std::string>) {
             std::string value;
-            if (currentTarget->getProperty(targetProperty, value)) {
+            if (target->getProperty(targetProperty, value)) {
                 startValue = value;
             }
         }
     }, targetValue);
 }
 
-void Animation::startEntity(UIEntity* target) {
-    currentEntityTarget = target;
-    currentTarget = nullptr;  // Clear drawable target
+void Animation::startEntity(std::shared_ptr<UIEntity> target) {
+    if (!target) return;
+    
+    entityTargetWeak = target;
     elapsed = 0.0f;
+    callbackTriggered = false; // Reset callback state
     
     // Capture the starting value from the entity
     std::visit([this, target](const auto& val) {
@@ -99,8 +132,49 @@ void Animation::startEntity(UIEntity* target) {
     }, targetValue);
 }
 
+bool Animation::hasValidTarget() const {
+    return !targetWeak.expired() || !entityTargetWeak.expired();
+}
+
+void Animation::clearCallback() {
+    // Safely clear the callback when PyAnimation is being destroyed
+    PyObject* callback = pythonCallback;
+    if (callback) {
+        pythonCallback = nullptr;
+        callbackTriggered = true; // Prevent future triggering
+        
+        PyGILState_STATE gstate = PyGILState_Ensure();
+        Py_DECREF(callback);
+        PyGILState_Release(gstate);
+    }
+}
+
+void Animation::complete() {
+    // Jump to end of animation
+    elapsed = duration;
+    
+    // Apply final value
+    if (auto target = targetWeak.lock()) {
+        AnimationValue finalValue = interpolate(1.0f);
+        applyValue(target.get(), finalValue);
+    }
+    else if (auto entity = entityTargetWeak.lock()) {
+        AnimationValue finalValue = interpolate(1.0f);
+        applyValue(entity.get(), finalValue);
+    }
+}
+
 bool Animation::update(float deltaTime) {
-    if ((!currentTarget && !currentEntityTarget) || isComplete()) {
+    // Try to lock weak_ptr to get shared_ptr
+    std::shared_ptr<UIDrawable> target = targetWeak.lock();
+    std::shared_ptr<UIEntity> entity = entityTargetWeak.lock();
+    
+    // If both are null, target was destroyed
+    if (!target && !entity) {
+        return false;  // Remove this animation
+    }
+    
+    if (isComplete()) {
         return false;
     }
     
@@ -114,39 +188,18 @@ bool Animation::update(float deltaTime) {
     // Get interpolated value
     AnimationValue currentValue = interpolate(easedT);
     
-    // Apply currentValue to target (either drawable or entity)
-    std::visit([this](const auto& value) {
-        using T = std::decay_t<decltype(value)>;
-        
-        if (currentTarget) {
-            // Handle UIDrawable targets
-            if constexpr (std::is_same_v<T, float>) {
-                currentTarget->setProperty(targetProperty, value);
-            }
-            else if constexpr (std::is_same_v<T, int>) {
-                currentTarget->setProperty(targetProperty, value);
-            }
-            else if constexpr (std::is_same_v<T, sf::Color>) {
-                currentTarget->setProperty(targetProperty, value);
-            }
-            else if constexpr (std::is_same_v<T, sf::Vector2f>) {
-                currentTarget->setProperty(targetProperty, value);
-            }
-            else if constexpr (std::is_same_v<T, std::string>) {
-                currentTarget->setProperty(targetProperty, value);
-            }
-        }
-        else if (currentEntityTarget) {
-            // Handle UIEntity targets
-            if constexpr (std::is_same_v<T, float>) {
-                currentEntityTarget->setProperty(targetProperty, value);
-            }
-            else if constexpr (std::is_same_v<T, int>) {
-                currentEntityTarget->setProperty(targetProperty, value);
-            }
-            // Entities don't support other types yet
-        }
-    }, currentValue);
+    // Apply to whichever target is valid
+    if (target) {
+        applyValue(target.get(), currentValue);
+    } else if (entity) {
+        applyValue(entity.get(), currentValue);
+    }
+    
+    // Trigger callback when animation completes
+    // Check pythonCallback again in case it was cleared during update
+    if (isComplete() && !callbackTriggered && pythonCallback) {
+        triggerCallback();
+    }
     
     return !isComplete();
 }
@@ -252,6 +305,77 @@ AnimationValue Animation::interpolate(float t) const {
         
         return target;  // Fallback
     }, targetValue);
+}
+
+void Animation::applyValue(UIDrawable* target, const AnimationValue& value) {
+    if (!target) return;
+    
+    std::visit([this, target](const auto& val) {
+        using T = std::decay_t<decltype(val)>;
+        
+        if constexpr (std::is_same_v<T, float>) {
+            target->setProperty(targetProperty, val);
+        }
+        else if constexpr (std::is_same_v<T, int>) {
+            target->setProperty(targetProperty, val);
+        }
+        else if constexpr (std::is_same_v<T, sf::Color>) {
+            target->setProperty(targetProperty, val);
+        }
+        else if constexpr (std::is_same_v<T, sf::Vector2f>) {
+            target->setProperty(targetProperty, val);
+        }
+        else if constexpr (std::is_same_v<T, std::string>) {
+            target->setProperty(targetProperty, val);
+        }
+    }, value);
+}
+
+void Animation::applyValue(UIEntity* entity, const AnimationValue& value) {
+    if (!entity) return;
+    
+    std::visit([this, entity](const auto& val) {
+        using T = std::decay_t<decltype(val)>;
+        
+        if constexpr (std::is_same_v<T, float>) {
+            entity->setProperty(targetProperty, val);
+        }
+        else if constexpr (std::is_same_v<T, int>) {
+            entity->setProperty(targetProperty, val);
+        }
+        // Entities don't support other types yet
+    }, value);
+}
+
+void Animation::triggerCallback() {
+    if (!pythonCallback) return;
+    
+    // Ensure we only trigger once
+    if (callbackTriggered) return;
+    callbackTriggered = true;
+    
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    
+    // TODO: In future, create PyAnimation wrapper for this animation
+    // For now, pass None for both parameters
+    PyObject* args = PyTuple_New(2);
+    Py_INCREF(Py_None);
+    Py_INCREF(Py_None);
+    PyTuple_SetItem(args, 0, Py_None); // animation parameter
+    PyTuple_SetItem(args, 1, Py_None); // target parameter
+    
+    PyObject* result = PyObject_CallObject(pythonCallback, args);
+    Py_DECREF(args);
+    
+    if (!result) {
+        // Print error but don't crash
+        PyErr_Print();
+        PyErr_Clear(); // Clear the error state
+    } else {
+        Py_DECREF(result);
+    }
+    
+    PyGILState_Release(gstate);
 }
 
 // Easing functions implementation
@@ -502,26 +626,50 @@ AnimationManager& AnimationManager::getInstance() {
 }
 
 void AnimationManager::addAnimation(std::shared_ptr<Animation> animation) {
-    activeAnimations.push_back(animation);
+    if (animation && animation->hasValidTarget()) {
+        if (isUpdating) {
+            // Defer adding during update to avoid iterator invalidation
+            pendingAnimations.push_back(animation);
+        } else {
+            activeAnimations.push_back(animation);
+        }
+    }
 }
 
 void AnimationManager::update(float deltaTime) {
-    for (auto& anim : activeAnimations) {
-        anim->update(deltaTime);
-    }
-    cleanup();
-}
-
-void AnimationManager::cleanup() {
+    // Set flag to defer new animations
+    isUpdating = true;
+    
+    // Remove completed or invalid animations
     activeAnimations.erase(
         std::remove_if(activeAnimations.begin(), activeAnimations.end(),
-            [](const std::shared_ptr<Animation>& anim) {
-                return anim->isComplete();
+            [deltaTime](std::shared_ptr<Animation>& anim) {
+                return !anim || !anim->update(deltaTime);
             }),
         activeAnimations.end()
     );
+    
+    // Clear update flag
+    isUpdating = false;
+    
+    // Add any animations that were created during update
+    if (!pendingAnimations.empty()) {
+        activeAnimations.insert(activeAnimations.end(), 
+                              pendingAnimations.begin(), 
+                              pendingAnimations.end());
+        pendingAnimations.clear();
+    }
 }
 
-void AnimationManager::clear() {
+
+void AnimationManager::clear(bool completeAnimations) {
+    if (completeAnimations) {
+        // Complete all animations before clearing
+        for (auto& anim : activeAnimations) {
+            if (anim) {
+                anim->complete();
+            }
+        }
+    }
     activeAnimations.clear();
 }

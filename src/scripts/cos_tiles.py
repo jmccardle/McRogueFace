@@ -22,12 +22,13 @@ class TileInfo:
     @staticmethod
     def from_grid(grid, xy:tuple):
         values = {}
+        x_max, y_max = grid.grid_size
         for d in deltas:
             tx, ty = d[0] + xy[0], d[1] + xy[1]
-            try:
-                values[d] = grid.at((tx, ty)).walkable
-            except ValueError:
+            if tx < 0 or tx >= x_max or ty < 0 or ty >= y_max:
                 values[d] = True
+            else:
+                values[d] = grid.at((tx, ty)).walkable
         return TileInfo(values)
 
     @staticmethod
@@ -70,10 +71,10 @@ def special_rule_verify(rule, grid, xy, unverified_tiles, pass_unverified=False)
     tx, ty = xy[0] + dxy[0], xy[1] + dxy[1]
     #print(f"Special rule: {cardinal} {allowed_tile} {type(allowed_tile)} -> ({tx}, {ty}) [{grid.at((tx, ty)).tilesprite}]{'*' if (tx, ty) in unverified_tiles else ''}")
     if (tx, ty) in unverified_tiles and cardinal in "nsew": return pass_unverified
-    try:
-        return grid.at((tx, ty)).tilesprite == allowed_tile
-    except ValueError:
+    x_max, y_max = grid.grid_size
+    if tx < 0 or tx >= x_max or ty < 0 or ty >= y_max:
         return False
+    return grid.at((tx, ty)).tilesprite == allowed_tile
 
 import random
 tile_of_last_resort = 431

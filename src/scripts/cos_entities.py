@@ -67,10 +67,10 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
         self.draw_pos = (tx, ty)
         for e in self.game.entities:
             if e is self: continue
-            if e.draw_pos == old_pos: e.ev_exit(self)
+            if e.draw_pos.x == old_pos.x and e.draw_pos.y == old_pos.y: e.ev_exit(self)
         for e in self.game.entities:
             if e is self: continue
-            if e.draw_pos == (tx, ty): e.ev_enter(self)
+            if e.draw_pos.x == tx and e.draw_pos.y == ty: e.ev_enter(self)
 
     def act(self):
         pass
@@ -83,12 +83,12 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
 
     def try_move(self, dx, dy, test=False):
         x_max, y_max = self.grid.grid_size
-        tx, ty = int(self.draw_pos[0] + dx), int(self.draw_pos[1] + dy)
+        tx, ty = int(self.draw_pos.x + dx), int(self.draw_pos.y + dy)
         #for e in iterable_entities(self.grid):
 
         # sorting entities to test against the boulder instead of the button when they overlap.
         for e in sorted(self.game.entities, key = lambda i: i.draw_order, reverse = True):
-            if e.draw_pos == (tx, ty):
+            if e.draw_pos.x == tx and e.draw_pos.y == ty:
                 #print(f"bumping {e}")
                 return e.bump(self, dx, dy)
 
@@ -106,7 +106,7 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
             return False
 
     def _relative_move(self, dx, dy):
-        tx, ty = int(self.draw_pos[0] + dx), int(self.draw_pos[1] + dy)
+        tx, ty = int(self.draw_pos.x + dx), int(self.draw_pos.y + dy)
         #self.draw_pos = (tx, ty)
         self.do_move(tx, ty)
 
@@ -181,7 +181,7 @@ class Equippable:
         if self.zap_cooldown_remaining != 0:
             print("zap is cooling down.")
             return False
-        fx, fy = caster.draw_pos
+        fx, fy = caster.draw_pos.x, caster.draw_pos.y
         x, y = int(fx), int (fy)
         dist = lambda tx, ty: abs(int(tx) - x) + abs(int(ty) - y)
         targets = []
@@ -293,7 +293,7 @@ class PlayerEntity(COSEntity):
         ## TODO - find other entities to avoid spawning on top of
         for spawn in spawn_points:
             for e in avoid or []:
-                if e.draw_pos == spawn: break
+                if e.draw_pos.x == spawn[0] and e.draw_pos.y == spawn[1]: break
             else:
                 break
         self.draw_pos = spawn
@@ -314,9 +314,9 @@ class BoulderEntity(COSEntity):
         elif type(other) == EnemyEntity:
             if not other.can_push: return False
         #tx, ty = int(self.e.position[0] + dx), int(self.e.position[1] + dy)
-        tx, ty = int(self.draw_pos[0] + dx), int(self.draw_pos[1] + dy)
+        tx, ty = int(self.draw_pos.x + dx), int(self.draw_pos.y + dy)
         # Is the boulder blocked the same direction as the bumper? If not, let's both move
-        old_pos = int(self.draw_pos[0]), int(self.draw_pos[1])
+        old_pos = int(self.draw_pos.x), int(self.draw_pos.y)
         if self.try_move(dx, dy, test=test):
             if not test:
                 other.do_move(*old_pos)
@@ -342,7 +342,7 @@ class ButtonEntity(COSEntity):
         #    self.exit.unlock()
         # TODO: unlock, and then lock again, when player steps on/off
         if not test:
-            pos = int(self.draw_pos[0]), int(self.draw_pos[1])
+            pos = int(self.draw_pos.x), int(self.draw_pos.y)
             other.do_move(*pos)
         return True
 
@@ -393,7 +393,7 @@ class EnemyEntity(COSEntity):
     def bump(self, other, dx, dy, test=False):
         if self.hp == 0:
             if not test:
-                old_pos = int(self.draw_pos[0]), int(self.draw_pos[1])
+                old_pos = int(self.draw_pos.x), int(self.draw_pos.y)
                 other.do_move(*old_pos)
             return True
         if type(other) == PlayerEntity:
@@ -415,7 +415,7 @@ class EnemyEntity(COSEntity):
                 print("Ouch, my entire body!!")
             self._entity.sprite_number = self.base_sprite + 246
             self.hp = 0
-            old_pos = int(self.draw_pos[0]), int(self.draw_pos[1])
+            old_pos = int(self.draw_pos.x), int(self.draw_pos.y)
             if not test:
                 other.do_move(*old_pos)
             return True
@@ -423,8 +423,8 @@ class EnemyEntity(COSEntity):
     def act(self):
         if self.hp > 0:
             # if player nearby: attack
-            x, y = self.draw_pos
-            px, py = self.game.player.draw_pos
+            x, y = self.draw_pos.x, self.draw_pos.y
+            px, py = self.game.player.draw_pos.x, self.game.player.draw_pos.y
             for d in ((1, 0), (0, 1), (-1, 0), (1, 0)):
                 if int(x + d[0]) == int(px) and int(y + d[1]) == int(py):
                     self.try_move(*d)

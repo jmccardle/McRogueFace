@@ -4,7 +4,7 @@
 #include <algorithm>
 #include "PyObjectUtils.h"
 #include "PyVector.h"
-#include "PyArgHelpers.h"
+#include "PythonObjectCache.h"
 // UIDrawable methods now in UIBase.h
 #include "UIEntityPyMethods.h"
 
@@ -15,6 +15,12 @@ UIEntity::UIEntity()
 {
     // Initialize sprite with safe defaults (sprite has its own safe constructor now)
     // gridstate vector starts empty - will be lazily initialized when needed
+}
+
+UIEntity::~UIEntity() {
+    if (serial_number != 0) {
+        PythonObjectCache::getInstance().remove(serial_number);
+    }
 }
 
 // Removed UIEntity(UIGrid&) constructor - using lazy initialization instead
@@ -121,81 +127,57 @@ PyObject* UIEntity::index(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored)) 
 }
 
 int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
-    // Try parsing with PyArgHelpers for grid position
-    int arg_idx = 0;
-    auto grid_pos_result = PyArgHelpers::parseGridPosition(args, kwds, &arg_idx);
-    
-    // Default values
-    float grid_x = 0.0f, grid_y = 0.0f;
-    int sprite_index = 0;
+    // Define all parameters with defaults
+    PyObject* grid_pos_obj = nullptr;
     PyObject* texture = nullptr;
+    int sprite_index = 0;
     PyObject* grid_obj = nullptr;
+    int visible = 1;
+    float opacity = 1.0f;
+    const char* name = nullptr;
+    float x = 0.0f, y = 0.0f;
     
-    // Case 1: Got grid position from helpers (tuple format)
-    if (grid_pos_result.valid) {
-        grid_x = grid_pos_result.grid_x;
-        grid_y = grid_pos_result.grid_y;
-        
-        // Parse remaining arguments
-        static const char* remaining_keywords[] = { 
-            "texture", "sprite_index", "grid", nullptr 
-        };
-        
-        // Create new tuple with remaining args
-        Py_ssize_t total_args = PyTuple_Size(args);
-        PyObject* remaining_args = PyTuple_GetSlice(args, arg_idx, total_args);
-        
-        if (!PyArg_ParseTupleAndKeywords(remaining_args, kwds, "|OiO", 
-                                         const_cast<char**>(remaining_keywords),
-                                         &texture, &sprite_index, &grid_obj)) {
-            Py_DECREF(remaining_args);
-            if (grid_pos_result.error) PyErr_SetString(PyExc_TypeError, grid_pos_result.error);
-            return -1;
-        }
-        Py_DECREF(remaining_args);
+    // Keywords list matches the new spec: positional args first, then all keyword args
+    static const char* kwlist[] = {
+        "grid_pos", "texture", "sprite_index",  // Positional args (as per spec)
+        // Keyword-only args
+        "grid", "visible", "opacity", "name", "x", "y",
+        nullptr
+    };
+    
+    // Parse arguments with | for optional positional args
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOiOifzff", const_cast<char**>(kwlist),
+                                     &grid_pos_obj, &texture, &sprite_index,  // Positional
+                                     &grid_obj, &visible, &opacity, &name, &x, &y)) {
+        return -1;
     }
-    // Case 2: Traditional format
-    else {
-        PyErr_Clear();  // Clear any errors from helpers
-        
-        static const char* keywords[] = { 
-            "grid_x", "grid_y", "texture", "sprite_index", "grid", "grid_pos", nullptr 
-        };
-        PyObject* grid_pos_obj = nullptr;
-        
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffOiOO", 
-                                         const_cast<char**>(keywords), 
-                                         &grid_x, &grid_y, &texture, &sprite_index, 
-                                         &grid_obj, &grid_pos_obj)) {
-            return -1;
-        }
-        
-        // Handle grid_pos keyword override
-        if (grid_pos_obj && grid_pos_obj != Py_None) {
-            if (PyTuple_Check(grid_pos_obj) && PyTuple_Size(grid_pos_obj) == 2) {
-                PyObject* x_val = PyTuple_GetItem(grid_pos_obj, 0);
-                PyObject* y_val = PyTuple_GetItem(grid_pos_obj, 1);
-                if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
-                    (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
-                    grid_x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
-                    grid_y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
-                }
+    
+    // Handle grid position argument (can be tuple or use x/y keywords)
+    if (grid_pos_obj) {
+        if (PyTuple_Check(grid_pos_obj) && PyTuple_Size(grid_pos_obj) == 2) {
+            PyObject* x_val = PyTuple_GetItem(grid_pos_obj, 0);
+            PyObject* y_val = PyTuple_GetItem(grid_pos_obj, 1);
+            if ((PyFloat_Check(x_val) || PyLong_Check(x_val)) &&
+                (PyFloat_Check(y_val) || PyLong_Check(y_val))) {
+                x = PyFloat_Check(x_val) ? PyFloat_AsDouble(x_val) : PyLong_AsLong(x_val);
+                y = PyFloat_Check(y_val) ? PyFloat_AsDouble(y_val) : PyLong_AsLong(y_val);
             } else {
-                PyErr_SetString(PyExc_TypeError, "grid_pos must be a tuple (x, y)");
+                PyErr_SetString(PyExc_TypeError, "grid_pos tuple must contain numbers");
                 return -1;
             }
+        } else {
+            PyErr_SetString(PyExc_TypeError, "grid_pos must be a tuple (x, y)");
+            return -1;
         }
     }
 
-    // check types for texture
-    //
-    // Set Texture - allow None or use default
-    //
+    // Handle texture argument
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
-    if (texture != NULL && texture != Py_None && !PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))){
-        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
-        return -1;
-    } else if (texture != NULL && texture != Py_None) {
+    if (texture && texture != Py_None) {
+        if (!PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
+            PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
+            return -1;
+        }
         auto pytexture = (PyTextureObject*)texture;
         texture_ptr = pytexture->data;
     } else {
@@ -203,25 +185,33 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         texture_ptr = McRFPy_API::default_texture;
     }
     
-    // Allow creation without texture for testing purposes
-    // if (!texture_ptr) {
-    //     PyErr_SetString(PyExc_RuntimeError, "No texture provided and no default texture available");
-    //     return -1;
-    // }
-
-    if (grid_obj != NULL && !PyObject_IsInstance(grid_obj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
+    // Handle grid argument
+    if (grid_obj && !PyObject_IsInstance(grid_obj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
 
-    // Always use default constructor for lazy initialization
+    // Create the entity
     self->data = std::make_shared<UIEntity>();
+    
+    // Initialize weak reference list
+    self->weakreflist = NULL;
 
-    // Store reference to Python object
+    // Register in Python object cache  
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);  // Cache owns the reference now
+        }
+    }
+    
+    // Store reference to Python object (legacy - to be removed)
     self->data->self = (PyObject*)self;
     Py_INCREF(self);
 
-    // TODO - PyTextureObjects and IndexTextures are a little bit of a mess with shared/unshared pointers
+    // Set texture and sprite index
     if (texture_ptr) {
         self->data->sprite = UISprite(texture_ptr, sprite_index, sf::Vector2f(0,0), 1.0);
     } else {
@@ -230,12 +220,20 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     }
     
     // Set position using grid coordinates
-    self->data->position = sf::Vector2f(grid_x, grid_y);
+    self->data->position = sf::Vector2f(x, y);
     
-    if (grid_obj != NULL) {
+    // Set other properties (delegate to sprite)
+    self->data->sprite.visible = visible;
+    self->data->sprite.opacity = opacity;
+    if (name) {
+        self->data->sprite.name = std::string(name);
+    }
+    
+    // Handle grid attachment
+    if (grid_obj) {
         PyUIGridObject* pygrid = (PyUIGridObject*)grid_obj;
         self->data->grid = pygrid->data;
-        // todone - on creation of Entity with Grid assignment, also append it to the entity list
+        // Append entity to grid's entity list
         pygrid->data->entities->push_back(self->data);
         
         // Don't initialize gridstate here - lazy initialization to support large numbers of entities

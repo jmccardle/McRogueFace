@@ -6,6 +6,7 @@
 #include <variant>
 #include <vector>
 #include <SFML/Graphics.hpp>
+#include "Python.h"
 
 // Forward declarations
 class UIDrawable;
@@ -36,13 +37,20 @@ public:
               const AnimationValue& targetValue,
               float duration,
               EasingFunction easingFunc = EasingFunctions::linear,
-              bool delta = false);
+              bool delta = false,
+              PyObject* callback = nullptr);
+    
+    // Destructor - cleanup Python callback reference
+    ~Animation();
     
     // Apply this animation to a drawable
-    void start(UIDrawable* target);
+    void start(std::shared_ptr<UIDrawable> target);
     
     // Apply this animation to an entity (special case since Entity doesn't inherit from UIDrawable)
-    void startEntity(UIEntity* target);
+    void startEntity(std::shared_ptr<UIEntity> target);
+    
+    // Complete the animation immediately (jump to final value)
+    void complete();
     
     // Update animation (called each frame)
     // Returns true if animation is still running, false if complete
@@ -50,6 +58,12 @@ public:
     
     // Get current interpolated value
     AnimationValue getCurrentValue() const;
+    
+    // Check if animation has valid target
+    bool hasValidTarget() const;
+    
+    // Clear the callback (called when PyAnimation is deallocated)
+    void clearCallback();
     
     // Animation properties
     std::string getTargetProperty() const { return targetProperty; }
@@ -67,11 +81,27 @@ private:
     EasingFunction easingFunc;     // Easing function to use
     bool delta;                    // If true, targetValue is relative to start
     
-    UIDrawable* currentTarget = nullptr;  // Current target being animated
-    UIEntity* currentEntityTarget = nullptr;  // Current entity target (alternative to drawable)
+    // RAII: Use weak_ptr for safe target tracking
+    std::weak_ptr<UIDrawable> targetWeak;
+    std::weak_ptr<UIEntity> entityTargetWeak;
+    
+    // Callback support
+    PyObject* pythonCallback = nullptr;  // Python callback function (we own a reference)
+    bool callbackTriggered = false;      // Ensure callback only fires once
+    PyObject* pyAnimationWrapper = nullptr; // Weak reference to PyAnimation if created from Python
+    
+    // Python object cache support
+    uint64_t serial_number = 0;
     
     // Helper to interpolate between values
     AnimationValue interpolate(float t) const;
+    
+    // Helper to apply value to target
+    void applyValue(UIDrawable* target, const AnimationValue& value);
+    void applyValue(UIEntity* entity, const AnimationValue& value);
+    
+    // Trigger callback when animation completes
+    void triggerCallback();
 };
 
 // Easing functions library
@@ -134,13 +164,12 @@ public:
     // Update all animations
     void update(float deltaTime);
     
-    // Remove completed animations
-    void cleanup();
-    
-    // Clear all animations
-    void clear();
+    // Clear all animations (optionally completing them first)
+    void clear(bool completeAnimations = false);
     
 private:
     AnimationManager() = default;
     std::vector<std::shared_ptr<Animation>> activeAnimations;
+    std::vector<std::shared_ptr<Animation>> pendingAnimations; // Animations to add after update
+    bool isUpdating = false; // Flag to track if we're in update loop
 };

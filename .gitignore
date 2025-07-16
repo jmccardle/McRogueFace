@@ -30,3 +30,4 @@ scripts/
 test_*
 
 tcod_reference
+.archive

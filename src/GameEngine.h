@@ -58,8 +58,7 @@ private:
 
 public:
     sf::Clock runtime;
-    //std::map<std::string, Timer> timers;
-    std::map<std::string, std::shared_ptr<PyTimerCallable>> timers;
+    std::map<std::string, std::shared_ptr<Timer>> timers;
     std::string scene;
     
     // Profiling metrics
@@ -116,7 +115,7 @@ public:
     float getFrameTime() { return frameTime; }
     sf::View getView() { return visible; }
     void manageTimer(std::string, PyObject*, int);
-    std::shared_ptr<PyTimerCallable> getTimer(const std::string& name);
+    std::shared_ptr<Timer> getTimer(const std::string& name);
     void setWindowScale(float);
     bool isHeadless() const { return headless; }
     void processEvent(const sf::Event& event);

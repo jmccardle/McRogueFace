@@ -1,5 +1,7 @@
 # McRogueFace API Reference
 
+*Generated on 2025-07-15 21:28:42*
+
 ## Overview
 
 McRogueFace Python API
@@ -373,14 +375,6 @@ A rectangular frame UI element that can contain other drawable elements.
 
 #### Methods
 
-#### `get_bounds()`
-
-Get the bounding rectangle of this drawable element.
-
-**Returns:** tuple: (x, y, width, height) representing the element's bounds
-
-**Note:** The bounds are in screen coordinates and account for current position and size.
-
 #### `resize(width, height)`
 
 Resize the element to new dimensions.
@@ -400,6 +394,14 @@ Move the element by a relative offset.
 - `dy` (*float*): Vertical offset in pixels
 
 **Note:** This modifies the x and y position properties by the given amounts.
+
+#### `get_bounds()`
+
+Get the bounding rectangle of this drawable element.
+
+**Returns:** tuple: (x, y, width, height) representing the element's bounds
+
+**Note:** The bounds are in screen coordinates and account for current position and size.
 
 ---
 
@@ -409,14 +411,6 @@ A text display UI element with customizable font and styling.
 
 #### Methods
 
-#### `get_bounds()`
-
-Get the bounding rectangle of this drawable element.
-
-**Returns:** tuple: (x, y, width, height) representing the element's bounds
-
-**Note:** The bounds are in screen coordinates and account for current position and size.
-
 #### `resize(width, height)`
 
 Resize the element to new dimensions.
@@ -436,6 +430,14 @@ Move the element by a relative offset.
 - `dy` (*float*): Vertical offset in pixels
 
 **Note:** This modifies the x and y position properties by the given amounts.
+
+#### `get_bounds()`
+
+Get the bounding rectangle of this drawable element.
+
+**Returns:** tuple: (x, y, width, height) representing the element's bounds
+
+**Note:** The bounds are in screen coordinates and account for current position and size.
 
 ---
 
@@ -445,14 +447,6 @@ A sprite UI element that displays a texture or portion of a texture atlas.
 
 #### Methods
 
-#### `get_bounds()`
-
-Get the bounding rectangle of this drawable element.
-
-**Returns:** tuple: (x, y, width, height) representing the element's bounds
-
-**Note:** The bounds are in screen coordinates and account for current position and size.
-
 #### `resize(width, height)`
 
 Resize the element to new dimensions.
@@ -473,6 +467,14 @@ Move the element by a relative offset.
 
 **Note:** This modifies the x and y position properties by the given amounts.
 
+#### `get_bounds()`
+
+Get the bounding rectangle of this drawable element.
+
+**Returns:** tuple: (x, y, width, height) representing the element's bounds
+
+**Note:** The bounds are in screen coordinates and account for current position and size.
+
 ---
 
 ### class `Grid`
@@ -480,6 +482,16 @@ Move the element by a relative offset.
 A grid-based tilemap UI element for rendering tile-based levels and game worlds.
 
 #### Methods
+
+#### `resize(width, height)`
+
+Resize the element to new dimensions.
+
+**Arguments:**
+- `width` (*float*): New width in pixels
+- `height` (*float*): New height in pixels
+
+**Note:** For Caption and Sprite, this may not change actual size if determined by content.
 
 #### `at(x, y)`
 
@@ -491,24 +503,6 @@ Get the GridPoint at the specified grid coordinates.
 
 **Returns:** GridPoint or None: The grid point at (x, y), or None if out of bounds
 
-#### `get_bounds()`
-
-Get the bounding rectangle of this drawable element.
-
-**Returns:** tuple: (x, y, width, height) representing the element's bounds
-
-**Note:** The bounds are in screen coordinates and account for current position and size.
-
-#### `resize(width, height)`
-
-Resize the element to new dimensions.
-
-**Arguments:**
-- `width` (*float*): New width in pixels
-- `height` (*float*): New height in pixels
-
-**Note:** For Caption and Sprite, this may not change actual size if determined by content.
-
 #### `move(dx, dy)`
 
 Move the element by a relative offset.
@@ -519,6 +513,14 @@ Move the element by a relative offset.
 
 **Note:** This modifies the x and y position properties by the given amounts.
 
+#### `get_bounds()`
+
+Get the bounding rectangle of this drawable element.
+
+**Returns:** tuple: (x, y, width, height) representing the element's bounds
+
+**Note:** The bounds are in screen coordinates and account for current position and size.
+
 ---
 
 ### class `Entity`
@@ -526,12 +528,6 @@ Move the element by a relative offset.
 Game entity that can be placed in a Grid.
 
 #### Methods
-
-#### `die()`
-
-Remove this entity from its parent grid.
-
-**Note:** The entity object remains valid but is no longer rendered or updated.
 
 #### `move(dx, dy)`
 
@@ -561,11 +557,11 @@ Get the bounding rectangle of this drawable element.
 
 **Note:** The bounds are in screen coordinates and account for current position and size.
 
-#### `index()`
+#### `die()`
 
-Get the index of this entity in its parent grid's entity list.
+Remove this entity from its parent grid.
 
-**Returns:** int: Index position, or -1 if not in a grid
+**Note:** The entity object remains valid but is no longer rendered or updated.
 
 #### `resize(width, height)`
 
@@ -577,6 +573,12 @@ Resize the element to new dimensions.
 
 **Note:** For Caption and Sprite, this may not change actual size if determined by content.
 
+#### `index()`
+
+Get the index of this entity in its parent grid's entity list.
+
+**Returns:** int: Index position, or -1 if not in a grid
+
 ---
 
 ### Collections
@@ -587,13 +589,6 @@ Container for Entity objects in a Grid. Supports iteration and indexing.
 
 #### Methods
 
-#### `append(entity)`
-
-Add an entity to the end of the collection.
-
-**Arguments:**
-- `entity` (*Entity*): The entity to add
-
 #### `remove(entity)`
 
 Remove the first occurrence of an entity from the collection.
@@ -602,6 +597,13 @@ Remove the first occurrence of an entity from the collection.
 - `entity` (*Entity*): The entity to remove
 
 **Raises:** ValueError: If entity is not in collection
+
+#### `extend(iterable)`
+
+Add all entities from an iterable to the collection.
+
+**Arguments:**
+- `iterable` (*Iterable[Entity]*): Entities to add
 
 #### `count(entity)`
 
@@ -623,12 +625,12 @@ Find the index of the first occurrence of an entity.
 
 **Raises:** ValueError: If entity is not in collection
 
-#### `extend(iterable)`
+#### `append(entity)`
 
-Add all entities from an iterable to the collection.
+Add an entity to the end of the collection.
 
 **Arguments:**
-- `iterable` (*Iterable[Entity]*): Entities to add
+- `entity` (*Entity*): The entity to add
 
 ---
 
@@ -638,13 +640,6 @@ Container for UI drawable elements. Supports iteration and indexing.
 
 #### Methods
 
-#### `append(drawable)`
-
-Add a drawable element to the end of the collection.
-
-**Arguments:**
-- `drawable` (*UIDrawable*): The drawable element to add
-
 #### `remove(drawable)`
 
 Remove the first occurrence of a drawable from the collection.
@@ -653,6 +648,13 @@ Remove the first occurrence of a drawable from the collection.
 - `drawable` (*UIDrawable*): The drawable to remove
 
 **Raises:** ValueError: If drawable is not in collection
+
+#### `extend(iterable)`
+
+Add all drawables from an iterable to the collection.
+
+**Arguments:**
+- `iterable` (*Iterable[UIDrawable]*): Drawables to add
 
 #### `count(drawable)`
 
@@ -674,12 +676,12 @@ Find the index of the first occurrence of a drawable.
 
 **Raises:** ValueError: If drawable is not in collection
 
-#### `extend(iterable)`
+#### `append(drawable)`
 
-Add all drawables from an iterable to the collection.
+Add a drawable element to the end of the collection.
 
 **Arguments:**
-- `iterable` (*Iterable[UIDrawable]*): Drawables to add
+- `drawable` (*UIDrawable*): The drawable element to add
 
 ---
 
@@ -703,6 +705,17 @@ RGBA color representation.
 
 #### Methods
 
+#### `to_hex()`
+
+Convert this Color to a hexadecimal string.
+
+**Returns:** str: Hex color string in format "#RRGGBB"
+
+**Example:**
+```python
+hex_str = color.to_hex()  # Returns "#FF0000"
+```
+
 #### `from_hex(hex_string)`
 
 Create a Color from a hexadecimal color string.
@@ -715,17 +728,6 @@ Create a Color from a hexadecimal color string.
 **Example:**
 ```python
 red = Color.from_hex("#FF0000")
-```
-
-#### `to_hex()`
-
-Convert this Color to a hexadecimal string.
-
-**Returns:** str: Hex color string in format "#RRGGBB"
-
-**Example:**
-```python
-hex_str = color.to_hex()  # Returns "#FF0000"
 ```
 
 #### `lerp(other, t)`
@@ -757,14 +759,13 @@ Calculate the length/magnitude of this vector.
 
 **Returns:** float: The magnitude of the vector
 
-#### `distance_to(other)`
+#### `normalize()`
 
-Calculate the distance to another vector.
+Return a unit vector in the same direction.
 
-**Arguments:**
-- `other` (*Vector*): The other vector
+**Returns:** Vector: New normalized vector with magnitude 1.0
 
-**Returns:** float: Distance between the two vectors
+**Raises:** ValueError: If vector has zero magnitude
 
 #### `dot(other)`
 
@@ -774,6 +775,21 @@ Calculate the dot product with another vector.
 - `other` (*Vector*): The other vector
 
 **Returns:** float: Dot product of the two vectors
+
+#### `distance_to(other)`
+
+Calculate the distance to another vector.
+
+**Arguments:**
+- `other` (*Vector*): The other vector
+
+**Returns:** float: Distance between the two vectors
+
+#### `copy()`
+
+Create a copy of this vector.
+
+**Returns:** Vector: New Vector object with same x and y values
 
 #### `angle()`
 
@@ -788,20 +804,6 @@ Calculate the squared magnitude of this vector.
 **Returns:** float: The squared magnitude (faster than magnitude())
 
 **Note:** Use this for comparisons to avoid expensive square root calculation.
-
-#### `copy()`
-
-Create a copy of this vector.
-
-**Returns:** Vector: New Vector object with same x and y values
-
-#### `normalize()`
-
-Return a unit vector in the same direction.
-
-**Returns:** Vector: New normalized vector with magnitude 1.0
-
-**Raises:** ValueError: If vector has zero magnitude
 
 ---
 
@@ -834,6 +836,12 @@ Animate UI element properties over time.
 
 #### Methods
 
+#### `get_current_value()`
+
+Get the current interpolated value of the animation.
+
+**Returns:** float: Current animation value between start and end
+
 #### `update(delta_time)`
 
 Update the animation by the given time delta.
@@ -852,12 +860,6 @@ Start the animation on a target UI element.
 
 **Note:** The target must have the property specified in the animation constructor.
 
-#### `get_current_value()`
-
-Get the current interpolated value of the animation.
-
-**Returns:** float: Current animation value between start and end
-
 ---
 
 ### class `Drawable`
@@ -865,14 +867,6 @@ Get the current interpolated value of the animation.
 Base class for all drawable UI elements.
 
 #### Methods
-
-#### `get_bounds()`
-
-Get the bounding rectangle of this drawable element.
-
-**Returns:** tuple: (x, y, width, height) representing the element's bounds
-
-**Note:** The bounds are in screen coordinates and account for current position and size.
 
 #### `resize(width, height)`
 
@@ -893,6 +887,14 @@ Move the element by a relative offset.
 - `dy` (*float*): Vertical offset in pixels
 
 **Note:** This modifies the x and y position properties by the given amounts.
+
+#### `get_bounds()`
+
+Get the bounding rectangle of this drawable element.
+
+**Returns:** tuple: (x, y, width, height) representing the element's bounds
+
+**Note:** The bounds are in screen coordinates and account for current position and size.
 
 ---
 
@@ -945,17 +947,17 @@ def handle_keyboard(key, action):
 scene.register_keyboard(handle_keyboard)
 ```
 
-#### `activate()`
-
-Make this scene the active scene.
-
-**Note:** Equivalent to calling setScene() with this scene's name.
-
 #### `get_ui()`
 
 Get the UI element collection for this scene.
 
 **Returns:** UICollection: Collection of all UI elements in this scene
+
+#### `activate()`
+
+Make this scene the active scene.
+
+**Note:** Equivalent to calling setScene() with this scene's name.
 
 #### `keypress(handler)`
 
@@ -974,18 +976,6 @@ Timer object for scheduled callbacks.
 
 #### Methods
 
-#### `restart()`
-
-Restart the timer from the beginning.
-
-**Note:** Resets the timer's internal clock to zero.
-
-#### `cancel()`
-
-Cancel the timer and remove it from the system.
-
-**Note:** After cancelling, the timer object cannot be reused.
-
 #### `pause()`
 
 Pause the timer, stopping its callback execution.
@@ -998,6 +988,18 @@ Resume a paused timer.
 
 **Note:** Has no effect if timer is not paused.
 
+#### `restart()`
+
+Restart the timer from the beginning.
+
+**Note:** Resets the timer's internal clock to zero.
+
+#### `cancel()`
+
+Cancel the timer and remove it from the system.
+
+**Note:** After cancelling, the timer object cannot be reused.
+
 ---
 
 ### class `Window`
@@ -1005,14 +1007,6 @@ Resume a paused timer.
 Window singleton for accessing and modifying the game window properties.
 
 #### Methods
-
-#### `get()`
-
-Get the Window singleton instance.
-
-**Returns:** Window: The singleton window object
-
-**Note:** This is a static method that returns the same instance every time.
 
 #### `screenshot(filename)`
 
@@ -1022,6 +1016,14 @@ Take a screenshot and save it to a file.
 - `filename` (*str*): Path where to save the screenshot
 
 **Note:** Supports PNG, JPG, and BMP formats based on file extension.
+
+#### `get()`
+
+Get the Window singleton instance.
+
+**Returns:** Window: The singleton window object
+
+**Note:** This is a static method that returns the same instance every time.
 
 #### `center()`
 
