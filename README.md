@@ -64,11 +64,11 @@ For comprehensive documentation, tutorials, and API reference, visit:
 
 The documentation site includes:
 
-- **[Quickstart Guide](https://mcrogueface.github.io/quickstart/)** - Get running in 5 minutes
-- **[McRogueFace Does The Entire Roguelike Tutorial](https://mcrogueface.github.io/tutorials/)** - Step-by-step game building
-- **[Complete API Reference](https://mcrogueface.github.io/api/)** - Every function documented
-- **[Cookbook](https://mcrogueface.github.io/cookbook/)** - Ready-to-use code recipes
-- **[C++ Extension Guide](https://mcrogueface.github.io/extending-cpp/)** - For C++ developers: Add engine features
+- **[Quickstart Guide](https://mcrogueface.github.io/quickstart)** - Get running in 5 minutes
+- **[McRogueFace Does The Entire Roguelike Tutorial](https://mcrogueface.github.io/tutorials)** - Step-by-step game building
+- **[Complete API Reference](https://mcrogueface.github.io/api)** - Every function documented
+- **[Cookbook](https://mcrogueface.github.io/cookbook)** - Ready-to-use code recipes
+- **[C++ Extension Guide](https://mcrogueface.github.io/extending-cpp)** - For C++ developers: Add engine features
 
 ## Build Requirements
 
