@@ -80,8 +80,17 @@ def carve_room(room):
                     point.transparent = True
 
 def carve_hallway(x1, y1, x2, y2):
-    points = mcrfpy.libtcod.line(x1, y1, x2, y2)
-    
+    #points = mcrfpy.libtcod.line(x1, y1, x2, y2)
+    points = []
+    if random.choice([True, False]):
+        # x1,y1 -> x2,y1 -> x2,y2
+        points.extend(mcrfpy.libtcod.line(x1, y1, x2, y1))
+        points.extend(mcrfpy.libtcod.line(x2, y1, x2, y2))
+    else:
+        # x1,y1 -> x1,y2 -> x2,y2
+        points.extend(mcrfpy.libtcod.line(x1, y1, x1, y2))
+        points.extend(mcrfpy.libtcod.line(x1, y2, x2, y2))
+
     for x, y in points:
         if 0 <= x < grid_width and 0 <= y < grid_height:
             point = grid.at(x, y)
@@ -173,8 +182,10 @@ def update_fov():
     """
     if grid.perspective == player:
         grid.compute_fov(int(player.x), int(player.y), radius=8, algorithm=0)
+        player.update_visibility()
     elif enemy and grid.perspective == enemy:
         grid.compute_fov(int(enemy.x), int(enemy.y), radius=6, algorithm=0)
+        enemy.update_visibility()
 
 # Perform initial FOV calculation
 update_fov()

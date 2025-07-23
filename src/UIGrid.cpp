@@ -341,6 +341,7 @@ void UIGrid::computeFOV(int x, int y, int radius, bool light_walls, TCOD_fov_alg
 {
     if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return;
     
+    std::lock_guard<std::mutex> lock(fov_mutex);
     tcod_map->computeFov(x, y, radius, light_walls, algo);
 }
 
@@ -348,6 +349,7 @@ bool UIGrid::isInFOV(int x, int y) const
 {
     if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return false;
     
+    std::lock_guard<std::mutex> lock(fov_mutex);
     return tcod_map->isInFov(x, y);
 }
 
@@ -1054,8 +1056,43 @@ PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject*
         return NULL;
     }
     
+    // Compute FOV
     self->data->computeFOV(x, y, radius, light_walls, (TCOD_fov_algorithm_t)algorithm);
-    Py_RETURN_NONE;
+    
+    // Build list of visible cells as tuples (x, y, visible, discovered)
+    PyObject* result_list = PyList_New(0);
+    if (!result_list) return NULL;
+    
+    // Iterate through grid and collect visible cells
+    for (int gy = 0; gy < self->data->grid_y; gy++) {
+        for (int gx = 0; gx < self->data->grid_x; gx++) {
+            if (self->data->isInFOV(gx, gy)) {
+                // Create tuple (x, y, visible, discovered)
+                PyObject* cell_tuple = PyTuple_New(4);
+                if (!cell_tuple) {
+                    Py_DECREF(result_list);
+                    return NULL;
+                }
+                
+                PyTuple_SET_ITEM(cell_tuple, 0, PyLong_FromLong(gx));
+                PyTuple_SET_ITEM(cell_tuple, 1, PyLong_FromLong(gy));
+                PyTuple_SET_ITEM(cell_tuple, 2, Py_True);  // visible
+                PyTuple_SET_ITEM(cell_tuple, 3, Py_True);  // discovered
+                Py_INCREF(Py_True);  // Need to increment ref count for True
+                Py_INCREF(Py_True);
+                
+                // Append to list
+                if (PyList_Append(result_list, cell_tuple) < 0) {
+                    Py_DECREF(cell_tuple);
+                    Py_DECREF(result_list);
+                    return NULL;
+                }
+                Py_DECREF(cell_tuple);  // List now owns the reference
+            }
+        }
+    }
+    
+    return result_list;
 }
 
 PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args)
@@ -1173,16 +1210,20 @@ PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, Py
 PyMethodDef UIGrid::methods[] = {
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
-     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
-     "Compute field of view from a position.\n\n"
+     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]\n\n"
+     "Compute field of view from a position and return visible cells.\n\n"
      "Args:\n"
      "    x: X coordinate of the viewer\n"
      "    y: Y coordinate of the viewer\n"
      "    radius: Maximum view distance (0 = unlimited)\n"
      "    light_walls: Whether walls are lit when visible\n"
      "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Updates the internal FOV state. Use is_in_fov() to check visibility after calling this.\n"
-     "When perspective is set, this also updates visibility overlays automatically."},
+     "Returns:\n"
+     "    List of tuples (x, y, visible, discovered) for all visible cells:\n"
+     "    - x, y: Grid coordinates\n"
+     "    - visible: True (all returned cells are visible)\n"
+     "    - discovered: True (FOV implies discovery)\n\n"
+     "Also updates the internal FOV state for use with is_in_fov()."},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
      "is_in_fov(x: int, y: int) -> bool\n\n"
      "Check if a cell is in the field of view.\n\n"
@@ -1255,16 +1296,20 @@ PyMethodDef UIGrid_all_methods[] = {
     UIDRAWABLE_METHODS,
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
-     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
-     "Compute field of view from a position.\n\n"
+     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]\n\n"
+     "Compute field of view from a position and return visible cells.\n\n"
      "Args:\n"
      "    x: X coordinate of the viewer\n"
      "    y: Y coordinate of the viewer\n"
      "    radius: Maximum view distance (0 = unlimited)\n"
      "    light_walls: Whether walls are lit when visible\n"
      "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Updates the internal FOV state. Use is_in_fov() to check visibility after calling this.\n"
-     "When perspective is set, this also updates visibility overlays automatically."},
+     "Returns:\n"
+     "    List of tuples (x, y, visible, discovered) for all visible cells:\n"
+     "    - x, y: Grid coordinates\n"
+     "    - visible: True (all returned cells are visible)\n"
+     "    - discovered: True (FOV implies discovery)\n\n"
+     "Also updates the internal FOV state for use with is_in_fov()."},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
      "is_in_fov(x: int, y: int) -> bool\n\n"
      "Check if a cell is in the field of view.\n\n"

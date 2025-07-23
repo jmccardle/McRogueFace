@@ -6,6 +6,7 @@
 #include "Resources.h"
 #include <list>
 #include <libtcod.h>
+#include <mutex>
 
 #include "PyCallable.h"
 #include "PyTexture.h"
@@ -29,6 +30,7 @@ private:
     TCODMap* tcod_map;  // TCOD map for FOV and pathfinding
     TCODDijkstra* tcod_dijkstra;  // Dijkstra pathfinding
     TCODPath* tcod_path;  // A* pathfinding
+    mutable std::mutex fov_mutex;  // Mutex for thread-safe FOV operations
     
 public:
     UIGrid();

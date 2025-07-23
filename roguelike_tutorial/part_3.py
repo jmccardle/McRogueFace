@@ -88,7 +88,21 @@ def carve_hallway(x1, y1, x2, y2):
     Referenced from cos_level.py lines 184-217, improved with libtcod.line()
     """
     # Get all points along the line
-    points = mcrfpy.libtcod.line(x1, y1, x2, y2)
+
+    # Simple solution: works if your characters have diagonal movement
+    #points = mcrfpy.libtcod.line(x1, y1, x2, y2)
+
+    # We don't, so we're going to carve a path with an elbow in it
+    points = []
+    if random.choice([True, False]):
+        # x1,y1 -> x2,y1 -> x2,y2
+        points.extend(mcrfpy.libtcod.line(x1, y1, x2, y1))
+        points.extend(mcrfpy.libtcod.line(x2, y1, x2, y2))
+    else:
+        # x1,y1 -> x1,y2 -> x2,y2
+        points.extend(mcrfpy.libtcod.line(x1, y1, x1, y2))
+        points.extend(mcrfpy.libtcod.line(x1, y2, x2, y2))
+
     
     # Carve out each point
     for x, y in points:
