@@ -243,6 +243,55 @@ class CombatEntity(GameEntity):
             # Random wander
             dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0)])
             return (mx + dx, my + dy)
+    
+    def ai_turn_dijkstra(self):
+        """Decide next move using precomputed Dijkstra map"""
+        mx, my = self.get_position()
+        
+        # Get current distance to player
+        current_dist = grid.get_dijkstra_distance(mx, my)
+        if current_dist is None or current_dist > 20:
+            # Too far or unreachable - random wander
+            dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0)])
+            return (mx + dx, my + dy)
+        
+        # Check all adjacent cells for best move
+        best_moves = []
+        for dx, dy in [(0,1), (0,-1), (1,0), (-1,0)]:
+            nx, ny = mx + dx, my + dy
+            
+            # Skip if out of bounds
+            if nx < 0 or nx >= grid_width or ny < 0 or ny >= grid_height:
+                continue
+                
+            # Skip if not walkable
+            cell = grid.at(nx, ny)
+            if not cell or not cell.walkable:
+                continue
+            
+            # Get distance from this cell
+            dist = grid.get_dijkstra_distance(nx, ny)
+            if dist is not None:
+                best_moves.append((dist, nx, ny))
+        
+        if best_moves:
+            # Sort by distance
+            best_moves.sort()
+            
+            # If multiple moves have the same best distance, pick randomly
+            best_dist = best_moves[0][0]
+            equal_moves = [(nx, ny) for dist, nx, ny in best_moves if dist == best_dist]
+            
+            if len(equal_moves) > 1:
+                # Random choice among equally good moves
+                nx, ny = random.choice(equal_moves)
+            else:
+                _, nx, ny = best_moves[0]
+                
+            return (nx, ny)
+        else:
+            # No valid moves
+            return (mx, my)
 
 # Create a player entity
 player = CombatEntity(
@@ -351,19 +400,29 @@ def process_enemy_turns_and_player_queue():
     """Process all enemy AI decisions and player's queued move simultaneously"""
     global is_player_turn, move_queue
     
+    # Compute Dijkstra map once for all enemies (if using Dijkstra)
+    if USE_DIJKSTRA:
+        px, py = player.get_position()
+        grid.compute_dijkstra(px, py, diagonal_cost=1.41)
+    
     enemies_to_move = []
+    claimed_positions = set()  # Track where enemies plan to move
     
     # Collect all enemy moves
     for i, enemy in enumerate(enemies):
         if enemy.is_dead():
             continue
             
-        # AI decides next move based on player's position
-        target_x, target_y = enemy.ai_turn(player.get_position())
+        # AI decides next move
+        if USE_DIJKSTRA:
+            target_x, target_y = enemy.ai_turn_dijkstra()
+        else:
+            target_x, target_y = enemy.ai_turn(player.get_position())
         
-        # Check if move is valid
-        if can_move_to(target_x, target_y, enemy):
+        # Check if move is valid and not claimed by another enemy
+        if can_move_to(target_x, target_y, enemy) and (target_x, target_y) not in claimed_positions:
             enemies_to_move.append((enemy, target_x, target_y))
+            claimed_positions.add((target_x, target_y))
     
     # Start all enemy animations simultaneously
     any_enemy_moved = False
@@ -568,6 +627,9 @@ def update_turn_display():
     alive_enemies = sum(1 for e in enemies if not e.is_dead())
     debug_caption.text = f"Grid: {grid_width}x{grid_height} | Turn: {turn_text} | Enemies: {alive_enemies}/{len(enemies)}"
 
+# Configuration toggle
+USE_DIJKSTRA = True  # Set to False to use old line-of-sight AI
+
 # Timer to update display
 def update_display(runtime):
     update_turn_display()
@@ -576,7 +638,8 @@ mcrfpy.setTimer("display_update", update_display, 100)
 
 print("Tutorial Part 6 loaded!")
 print("Turn-based movement system active!")
+print(f"Using {'Dijkstra' if USE_DIJKSTRA else 'Line-of-sight'} AI pathfinding")
 print("- Enemies move after the player")
-print("- Enemies pursue when they can see you")
-print("- Enemies wander when they can't")
+print("- Enemies pursue when they can see you" if not USE_DIJKSTRA else "- Enemies use optimal pathfinding")
+print("- Enemies wander when they can't" if not USE_DIJKSTRA else "- All enemies share one pathfinding map")
 print("Use WASD or Arrow keys to move!")
