@@ -166,8 +166,8 @@ if len(rooms) > 1:
     enemy_x, enemy_y = rooms[1].center()
     enemy = mcrfpy.Entity(
         (enemy_x, enemy_y),
-        texture=texture,
-        sprite_index=117  # Enemy sprite
+        texture=hero_texture,
+        sprite_index=0  # Enemy sprite
     )
     grid.entities.append(enemy)
 
