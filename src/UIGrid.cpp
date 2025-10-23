@@ -1772,33 +1772,46 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
 
 PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject* o)
 {
-    if (!PyLong_Check(o))
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity")))
     {
-        PyErr_SetString(PyExc_TypeError, "EntityCollection.remove requires an integer index to remove");
+        PyErr_SetString(PyExc_TypeError, "EntityCollection.remove requires an Entity object");
         return NULL;
     }
-    long index = PyLong_AsLong(o);
     
-    // Handle negative indexing
-    while (index < 0) index += self->data->size();
-    
-    if (index >= self->data->size())
-    {
-        PyErr_SetString(PyExc_ValueError, "Index out of range");
+    // Get the C++ object from the Python object
+    PyUIEntityObject* entity = (PyUIEntityObject*)o;
+    if (!entity->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
         return NULL;
     }
-
-    // Get iterator to the entity to remove
-    auto it = self->data->begin();
-    std::advance(it, index);
     
-    // Clear grid reference before removing
-    (*it)->grid = nullptr;
+    // Get the underlying list
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "The collection store returned a null pointer");
+        return NULL;
+    }
     
-    // release the shared pointer at correct part of the list
-    self->data->erase(it);
-    Py_INCREF(Py_None);
-    return Py_None;
+    // Search for the entity by comparing C++ pointers
+    auto it = list->begin();
+    while (it != list->end()) {
+        if (it->get() == entity->data.get()) {
+            // Found it - clear grid reference before removing
+            (*it)->grid = nullptr;
+            
+            // Remove from the list
+            self->data->erase(it);
+            
+            Py_INCREF(Py_None);
+            return Py_None;
+        }
+        ++it;
+    }
+    
+    // Entity not found - raise ValueError
+    PyErr_SetString(PyExc_ValueError, "Entity not in EntityCollection");
+    return NULL;
 }
 
 PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject* o)
