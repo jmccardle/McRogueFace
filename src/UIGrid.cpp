@@ -2,13 +2,14 @@
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
+#include "UIEntity.h"
 #include <algorithm>
 // UIDrawable methods now in UIBase.h
 
 UIGrid::UIGrid() 
 : grid_x(0), grid_y(0), zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
   fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
-  perspective(-1)  // Default to omniscient view
+  perspective_enabled(false)  // Default to omniscient view
 {
     // Initialize entities list
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
@@ -36,7 +37,7 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
   zoom(1.0f), 
   ptex(_ptex), points(gx * gy),
   fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
-  perspective(-1)  // Default to omniscient view
+  perspective_enabled(false)  // Default to omniscient view
 {
     // Use texture dimensions if available, otherwise use defaults
     int cell_width = _ptex ? _ptex->sprite_width : DEFAULT_CELL_WIDTH;
@@ -189,54 +190,78 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     
 
     // top layer - opacity for discovered / visible status based on perspective
-    // Only render visibility overlay if perspective is set (not omniscient)
-    if (perspective >= 0 && perspective < static_cast<int>(entities->size())) {
-        // Get the entity whose perspective we're using
-        auto it = entities->begin();
-        std::advance(it, perspective);
-        auto& entity = *it;
+    // Only render visibility overlay if perspective is enabled
+    if (perspective_enabled) {
+        auto entity = perspective_entity.lock();
         
         // Create rectangle for overlays
         sf::RectangleShape overlay;
         overlay.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
         
-        for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
-            x < x_limit;
-            x+=1)
-        {
-            for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
-                y < y_limit;
-                y+=1)
+        if (entity) {
+            // Valid entity - use its gridstate for visibility
+            for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
+                x < x_limit;
+                x+=1)
             {
-                // Skip out-of-bounds cells
-                if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
-                
-                auto pixel_pos = sf::Vector2f(
-                        (x*cell_width - left_spritepixels) * zoom,
-                        (y*cell_height - top_spritepixels) * zoom );
+                for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
+                    y < y_limit;
+                    y+=1)
+                {
+                    // Skip out-of-bounds cells
+                    if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
+                    
+                    auto pixel_pos = sf::Vector2f(
+                            (x*cell_width - left_spritepixels) * zoom,
+                            (y*cell_height - top_spritepixels) * zoom );
 
-                // Get visibility state from entity's perspective
-                int idx = y * grid_x + x;
-                if (idx >= 0 && idx < static_cast<int>(entity->gridstate.size())) {
-                    const auto& state = entity->gridstate[idx];
+                    // Get visibility state from entity's perspective
+                    int idx = y * grid_x + x;
+                    if (idx >= 0 && idx < static_cast<int>(entity->gridstate.size())) {
+                        const auto& state = entity->gridstate[idx];
+                        
+                        overlay.setPosition(pixel_pos);
+                        
+                        // Three overlay colors as specified:
+                        if (!state.discovered) {
+                            // Never seen - black
+                            overlay.setFillColor(sf::Color(0, 0, 0, 255));
+                            renderTexture.draw(overlay);
+                        } else if (!state.visible) {
+                            // Discovered but not currently visible - dark gray
+                            overlay.setFillColor(sf::Color(32, 32, 40, 192));
+                            renderTexture.draw(overlay);
+                        }
+                        // If visible and discovered, no overlay (fully visible)
+                    }
+                }
+            }
+        } else {
+            // Invalid/destroyed entity with perspective_enabled = true
+            // Show all cells as undiscovered (black)
+            for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
+                x < x_limit;
+                x+=1)
+            {
+                for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
+                    y < y_limit;
+                    y+=1)
+                {
+                    // Skip out-of-bounds cells
+                    if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
+                    
+                    auto pixel_pos = sf::Vector2f(
+                            (x*cell_width - left_spritepixels) * zoom,
+                            (y*cell_height - top_spritepixels) * zoom );
                     
                     overlay.setPosition(pixel_pos);
-                    
-                    // Three overlay colors as specified:
-                    if (!state.discovered) {
-                        // Never seen - black
-                        overlay.setFillColor(sf::Color(0, 0, 0, 255));
-                        renderTexture.draw(overlay);
-                    } else if (!state.visible) {
-                        // Discovered but not currently visible - dark gray
-                        overlay.setFillColor(sf::Color(32, 32, 40, 192));
-                        renderTexture.draw(overlay);
-                    }
-                    // If visible and discovered, no overlay (fully visible)
+                    overlay.setFillColor(sf::Color(0, 0, 0, 255));
+                    renderTexture.draw(overlay);
                 }
             }
         }
     }
+    // else: omniscient view (no overlays)
 
     // grid lines for testing & validation
     /*
@@ -316,6 +341,7 @@ void UIGrid::computeFOV(int x, int y, int radius, bool light_walls, TCOD_fov_alg
 {
     if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return;
     
+    std::lock_guard<std::mutex> lock(fov_mutex);
     tcod_map->computeFov(x, y, radius, light_walls, algo);
 }
 
@@ -323,6 +349,7 @@ bool UIGrid::isInFOV(int x, int y) const
 {
     if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return false;
     
+    std::lock_guard<std::mutex> lock(fov_mutex);
     return tcod_map->isInFov(x, y);
 }
 
@@ -527,7 +554,7 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     PyObject* click_handler = nullptr;
     float center_x = 0.0f, center_y = 0.0f;
     float zoom = 1.0f;
-    int perspective = -1; // perspective is a difficult __init__ arg; needs an entity in collection to work
+    // perspective is now handled via properties, not init args
     int visible = 1;
     float opacity = 1.0f;
     int z_index = 0;
@@ -539,15 +566,15 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {
         "pos", "size", "grid_size", "texture",  // Positional args (as per spec)
         // Keyword-only args
-        "fill_color", "click", "center_x", "center_y", "zoom", "perspective",
+        "fill_color", "click", "center_x", "center_y", "zoom",
         "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "grid_x", "grid_y",
         nullptr
     };
     
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOfffiifizffffii", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOfffifizffffii", const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj, &grid_size_obj, &textureObj,  // Positional
-                                     &fill_color, &click_handler, &center_x, &center_y, &zoom, &perspective,
+                                     &fill_color, &click_handler, &center_x, &center_y, &zoom,
                                      &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &grid_x, &grid_y)) {
         return -1;
     }
@@ -653,7 +680,8 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     self->data->center_x = center_x;
     self->data->center_y = center_y;
     self->data->zoom = zoom;
-    self->data->perspective = perspective;
+    // perspective is now handled by perspective_entity and perspective_enabled
+    // self->data->perspective = perspective;
     self->data->visible = visible;
     self->data->opacity = opacity;
     self->data->z_index = z_index;
@@ -941,33 +969,77 @@ int UIGrid::set_fill_color(PyUIGridObject* self, PyObject* value, void* closure)
 
 PyObject* UIGrid::get_perspective(PyUIGridObject* self, void* closure)
 {
-    return PyLong_FromLong(self->data->perspective);
+    auto locked = self->data->perspective_entity.lock();
+    if (locked) {
+        // Check cache first to preserve derived class
+        if (locked->serial_number != 0) {
+            PyObject* cached = PythonObjectCache::getInstance().lookup(locked->serial_number);
+            if (cached) {
+                return cached;  // Already INCREF'd by lookup
+            }
+        }
+        
+        // Legacy: If the entity has a stored Python object reference
+        if (locked->self != nullptr) {
+            Py_INCREF(locked->self);
+            return locked->self;
+        }
+        
+        // Otherwise, create a new base Entity object
+        auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+        auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
+        if (o) {
+            o->data = locked;
+            o->weakreflist = NULL;
+            Py_DECREF(type);
+            return (PyObject*)o;
+        }
+        Py_XDECREF(type);
+    }
+    Py_RETURN_NONE;
 }
 
 int UIGrid::set_perspective(PyUIGridObject* self, PyObject* value, void* closure)
 {
-    long perspective = PyLong_AsLong(value);
-    if (PyErr_Occurred()) {
+    if (value == Py_None) {
+        // Clear perspective but keep perspective_enabled unchanged
+        self->data->perspective_entity.reset();
+        return 0;
+    }
+    
+    // Extract UIEntity from PyObject
+    // Get the Entity type from the module
+    auto entity_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+    if (!entity_type) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not get Entity type from mcrfpy module");
         return -1;
     }
     
-    // Validate perspective (-1 for omniscient, or valid entity index)
-    if (perspective < -1) {
-        PyErr_SetString(PyExc_ValueError, "perspective must be -1 (omniscient) or a valid entity index");
+    if (!PyObject_IsInstance(value, entity_type)) {
+        Py_DECREF(entity_type);
+        PyErr_SetString(PyExc_TypeError, "perspective must be a UIEntity or None");
         return -1;
     }
+    Py_DECREF(entity_type);
     
-    // Check if entity index is valid (if not omniscient)
-    if (perspective >= 0 && self->data->entities) {
-        int entity_count = self->data->entities->size();
-        if (perspective >= entity_count) {
-            PyErr_Format(PyExc_IndexError, "perspective index %ld out of range (grid has %d entities)", 
-                         perspective, entity_count);
-            return -1;
-        }
+    PyUIEntityObject* entity_obj = (PyUIEntityObject*)value;
+    self->data->perspective_entity = entity_obj->data;
+    self->data->perspective_enabled = true;  // Enable perspective when entity assigned
+    return 0;
+}
+
+PyObject* UIGrid::get_perspective_enabled(PyUIGridObject* self, void* closure)
+{
+    return PyBool_FromLong(self->data->perspective_enabled);
+}
+
+int UIGrid::set_perspective_enabled(PyUIGridObject* self, PyObject* value, void* closure)
+{
+    int enabled = PyObject_IsTrue(value);
+    if (enabled == -1) {
+        return -1;  // Error occurred
     }
-    
-    self->data->perspective = perspective;
+    self->data->perspective_enabled = enabled;
     return 0;
 }
 
@@ -984,8 +1056,43 @@ PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject*
         return NULL;
     }
     
+    // Compute FOV
     self->data->computeFOV(x, y, radius, light_walls, (TCOD_fov_algorithm_t)algorithm);
-    Py_RETURN_NONE;
+    
+    // Build list of visible cells as tuples (x, y, visible, discovered)
+    PyObject* result_list = PyList_New(0);
+    if (!result_list) return NULL;
+    
+    // Iterate through grid and collect visible cells
+    for (int gy = 0; gy < self->data->grid_y; gy++) {
+        for (int gx = 0; gx < self->data->grid_x; gx++) {
+            if (self->data->isInFOV(gx, gy)) {
+                // Create tuple (x, y, visible, discovered)
+                PyObject* cell_tuple = PyTuple_New(4);
+                if (!cell_tuple) {
+                    Py_DECREF(result_list);
+                    return NULL;
+                }
+                
+                PyTuple_SET_ITEM(cell_tuple, 0, PyLong_FromLong(gx));
+                PyTuple_SET_ITEM(cell_tuple, 1, PyLong_FromLong(gy));
+                PyTuple_SET_ITEM(cell_tuple, 2, Py_True);  // visible
+                PyTuple_SET_ITEM(cell_tuple, 3, Py_True);  // discovered
+                Py_INCREF(Py_True);  // Need to increment ref count for True
+                Py_INCREF(Py_True);
+                
+                // Append to list
+                if (PyList_Append(result_list, cell_tuple) < 0) {
+                    Py_DECREF(cell_tuple);
+                    Py_DECREF(result_list);
+                    return NULL;
+                }
+                Py_DECREF(cell_tuple);  // List now owns the reference
+            }
+        }
+    }
+    
+    return result_list;
 }
 
 PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args)
@@ -1103,16 +1210,20 @@ PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, Py
 PyMethodDef UIGrid::methods[] = {
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
-     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
-     "Compute field of view from a position.\n\n"
+     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]\n\n"
+     "Compute field of view from a position and return visible cells.\n\n"
      "Args:\n"
      "    x: X coordinate of the viewer\n"
      "    y: Y coordinate of the viewer\n"
      "    radius: Maximum view distance (0 = unlimited)\n"
      "    light_walls: Whether walls are lit when visible\n"
      "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Updates the internal FOV state. Use is_in_fov() to check visibility after calling this.\n"
-     "When perspective is set, this also updates visibility overlays automatically."},
+     "Returns:\n"
+     "    List of tuples (x, y, visible, discovered) for all visible cells:\n"
+     "    - x, y: Grid coordinates\n"
+     "    - visible: True (all returned cells are visible)\n"
+     "    - discovered: True (FOV implies discovery)\n\n"
+     "Also updates the internal FOV state for use with is_in_fov()."},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
      "is_in_fov(x: int, y: int) -> bool\n\n"
      "Check if a cell is in the field of view.\n\n"
@@ -1185,16 +1296,20 @@ PyMethodDef UIGrid_all_methods[] = {
     UIDRAWABLE_METHODS,
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
-     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
-     "Compute field of view from a position.\n\n"
+     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]\n\n"
+     "Compute field of view from a position and return visible cells.\n\n"
      "Args:\n"
      "    x: X coordinate of the viewer\n"
      "    y: Y coordinate of the viewer\n"
      "    radius: Maximum view distance (0 = unlimited)\n"
      "    light_walls: Whether walls are lit when visible\n"
      "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Updates the internal FOV state. Use is_in_fov() to check visibility after calling this.\n"
-     "When perspective is set, this also updates visibility overlays automatically."},
+     "Returns:\n"
+     "    List of tuples (x, y, visible, discovered) for all visible cells:\n"
+     "    - x, y: Grid coordinates\n"
+     "    - visible: True (all returned cells are visible)\n"
+     "    - discovered: True (FOV implies discovery)\n\n"
+     "Also updates the internal FOV state for use with is_in_fov()."},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
      "is_in_fov(x: int, y: int) -> bool\n\n"
      "Check if a cell is in the field of view.\n\n"
@@ -1285,9 +1400,11 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"texture", (getter)UIGrid::get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
     {"fill_color", (getter)UIGrid::get_fill_color, (setter)UIGrid::set_fill_color, "Background fill color of the grid", NULL},
     {"perspective", (getter)UIGrid::get_perspective, (setter)UIGrid::set_perspective, 
-     "Entity perspective index for FOV rendering (-1 for omniscient view, 0+ for entity index). "
-     "When set to an entity index, only cells visible to that entity are rendered normally; "
-     "explored but not visible cells are darkened, and unexplored cells are black.", NULL},
+     "Entity whose perspective to use for FOV rendering (None for omniscient view). "
+     "Setting an entity automatically enables perspective mode.", NULL},
+    {"perspective_enabled", (getter)UIGrid::get_perspective_enabled, (setter)UIGrid::set_perspective_enabled,
+     "Whether to use perspective-based FOV rendering. When True with no valid entity, "
+     "all cells appear undiscovered.", NULL},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UIGRID},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIGRID},
     UIDRAWABLE_GETSETTERS,
@@ -1655,33 +1772,46 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
 
 PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject* o)
 {
-    if (!PyLong_Check(o))
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity")))
     {
-        PyErr_SetString(PyExc_TypeError, "EntityCollection.remove requires an integer index to remove");
+        PyErr_SetString(PyExc_TypeError, "EntityCollection.remove requires an Entity object");
         return NULL;
     }
-    long index = PyLong_AsLong(o);
     
-    // Handle negative indexing
-    while (index < 0) index += self->data->size();
-    
-    if (index >= self->data->size())
-    {
-        PyErr_SetString(PyExc_ValueError, "Index out of range");
+    // Get the C++ object from the Python object
+    PyUIEntityObject* entity = (PyUIEntityObject*)o;
+    if (!entity->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
         return NULL;
     }
-
-    // Get iterator to the entity to remove
-    auto it = self->data->begin();
-    std::advance(it, index);
     
-    // Clear grid reference before removing
-    (*it)->grid = nullptr;
+    // Get the underlying list
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "The collection store returned a null pointer");
+        return NULL;
+    }
     
-    // release the shared pointer at correct part of the list
-    self->data->erase(it);
-    Py_INCREF(Py_None);
-    return Py_None;
+    // Search for the entity by comparing C++ pointers
+    auto it = list->begin();
+    while (it != list->end()) {
+        if (it->get() == entity->data.get()) {
+            // Found it - clear grid reference before removing
+            (*it)->grid = nullptr;
+            
+            // Remove from the list
+            self->data->erase(it);
+            
+            Py_INCREF(Py_None);
+            return Py_None;
+        }
+        ++it;
+    }
+    
+    // Entity not found - raise ValueError
+    PyErr_SetString(PyExc_ValueError, "Entity not in EntityCollection");
+    return NULL;
 }
 
 PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject* o)

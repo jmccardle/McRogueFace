@@ -6,6 +6,7 @@
 #include "Resources.h"
 #include <list>
 #include <libtcod.h>
+#include <mutex>
 
 #include "PyCallable.h"
 #include "PyTexture.h"
@@ -29,6 +30,7 @@ private:
     TCODMap* tcod_map;  // TCOD map for FOV and pathfinding
     TCODDijkstra* tcod_dijkstra;  // Dijkstra pathfinding
     TCODPath* tcod_path;  // A* pathfinding
+    mutable std::mutex fov_mutex;  // Mutex for thread-safe FOV operations
     
 public:
     UIGrid();
@@ -77,8 +79,9 @@ public:
     // Background rendering
     sf::Color fill_color;
     
-    // Perspective system - which entity's view to render (-1 = omniscient/default)
-    int perspective;
+    // Perspective system - entity whose view to render
+    std::weak_ptr<UIEntity> perspective_entity;  // Weak reference to perspective entity
+    bool perspective_enabled;                     // Whether to use perspective rendering
     
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
@@ -103,6 +106,8 @@ public:
     static int set_fill_color(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_perspective(PyUIGridObject* self, void* closure);
     static int set_perspective(PyUIGridObject* self, PyObject* value, void* closure);
+    static PyObject* get_perspective_enabled(PyUIGridObject* self, void* closure);
+    static int set_perspective_enabled(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_is_in_fov(PyUIGridObject* self, PyObject* args);
