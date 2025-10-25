@@ -201,6 +201,21 @@ For current status and detailed tasks, see the corresponding Gitea issue labels:
 - **Source Code**: [Gitea Repository](https://gamedev.ffwf.net/gitea/john/McRogueFace)
 - **Documentation**: See `CLAUDE.md` for build instructions and development guide
 - **Tutorial**: See `roguelike_tutorial/` for implementation examples
+- **Workflow**: See "Gitea-First Workflow" section in `CLAUDE.md` for issue management best practices
+
+---
+
+## 🔄 Development Workflow
+
+**Gitea is the Single Source of Truth** for this project. Before starting any work:
+
+1. **Check Gitea Issues** for existing tasks, bugs, or related work
+2. **Create granular issues** for new features or problems
+3. **Update issues** when work affects other systems
+4. **Document discoveries** - if something is undocumented or misleading, create a task to fix it
+5. **Cross-reference commits** with issue numbers (e.g., "Fixes #104")
+
+See the "Gitea-First Workflow" section in `CLAUDE.md` for detailed guidelines on efficient development practices using the Gitea MCP tools.
 
 ---
 
