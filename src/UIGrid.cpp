@@ -3,6 +3,7 @@
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
 #include "UIEntity.h"
+#include "Profiler.h"
 #include <algorithm>
 // UIDrawable methods now in UIBase.h
 
@@ -95,11 +96,14 @@ void UIGrid::update() {}
 
 void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
+    // Profile total grid rendering time
+    ScopedTimer gridTimer(Resources::game->metrics.gridRenderTime);
+
     // Check visibility
     if (!visible) return;
-    
+
     // TODO: Apply opacity to output sprite
-    
+
     output.setPosition(box.getPosition() + offset); // output sprite can move; update position when drawing
     // output size can change; update size when drawing
     output.setTextureRect(
@@ -135,11 +139,12 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     if (y_limit > grid_y) y_limit = grid_y;
 
     // base layer - bottom color, tile sprite ("ground")
+    int cellsRendered = 0;
     for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
-        x < x_limit; //x < view_width; 
+        x < x_limit; //x < view_width;
         x+=1)
     {
-        //for (float y = (top_edge >= 0 ? top_edge : 0); 
+        //for (float y = (top_edge >= 0 ? top_edge : 0);
         for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
             y < y_limit; //y < view_height;
             y+=1)
@@ -163,35 +168,53 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                 sprite = ptex->sprite(gridpoint.tilesprite, pixel_pos, sf::Vector2f(zoom, zoom)); //setSprite(gridpoint.tilesprite);;
                 renderTexture.draw(sprite);
             }
+
+            cellsRendered++;
         }
     }
 
+    // Record how many cells were rendered
+    Resources::game->metrics.gridCellsRendered += cellsRendered;
+
     // middle layer - entities
     // disabling entity rendering until I can render their UISprite inside the rendertexture (not directly to window)
-    for (auto e : *entities) {
-        // Skip out-of-bounds entities for performance
-        // Check if entity is within visible bounds (with 1 cell margin for partially visible entities)
-        if (e->position.x < left_edge - 1 || e->position.x >= left_edge + width_sq + 1 ||
-            e->position.y < top_edge - 1 || e->position.y >= top_edge + height_sq + 1) {
-            continue; // Skip this entity as it's not visible
+    {
+        ScopedTimer entityTimer(Resources::game->metrics.entityRenderTime);
+        int entitiesRendered = 0;
+        int totalEntities = entities->size();
+
+        for (auto e : *entities) {
+            // Skip out-of-bounds entities for performance
+            // Check if entity is within visible bounds (with 1 cell margin for partially visible entities)
+            if (e->position.x < left_edge - 1 || e->position.x >= left_edge + width_sq + 1 ||
+                e->position.y < top_edge - 1 || e->position.y >= top_edge + height_sq + 1) {
+                continue; // Skip this entity as it's not visible
+            }
+
+            //auto drawent = e->cGrid->indexsprite.drawable();
+            auto& drawent = e->sprite;
+            //drawent.setScale(zoom, zoom);
+            drawent.setScale(sf::Vector2f(zoom, zoom));
+            auto pixel_pos = sf::Vector2f(
+                (e->position.x*cell_width - left_spritepixels) * zoom,
+                (e->position.y*cell_height - top_spritepixels) * zoom );
+            //drawent.setPosition(pixel_pos);
+            //renderTexture.draw(drawent);
+            drawent.render(pixel_pos, renderTexture);
+
+            entitiesRendered++;
         }
-        
-        //auto drawent = e->cGrid->indexsprite.drawable();
-        auto& drawent = e->sprite;
-        //drawent.setScale(zoom, zoom);
-        drawent.setScale(sf::Vector2f(zoom, zoom));
-        auto pixel_pos = sf::Vector2f(
-            (e->position.x*cell_width - left_spritepixels) * zoom,
-            (e->position.y*cell_height - top_spritepixels) * zoom );
-        //drawent.setPosition(pixel_pos);
-        //renderTexture.draw(drawent);
-        drawent.render(pixel_pos, renderTexture);
+
+        // Record entity rendering stats
+        Resources::game->metrics.entitiesRendered += entitiesRendered;
+        Resources::game->metrics.totalEntities += totalEntities;
     }
     
 
     // top layer - opacity for discovered / visible status based on perspective
     // Only render visibility overlay if perspective is enabled
     if (perspective_enabled) {
+        ScopedTimer fovTimer(Resources::game->metrics.fovOverlayTime);
         auto entity = perspective_entity.lock();
         
         // Create rectangle for overlays

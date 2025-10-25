@@ -42,8 +42,11 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     updateViewport();
     scene = "uitest";
     scenes["uitest"] = new UITestScene(this);
-    
+
     McRFPy_API::game = this;
+
+    // Initialize profiler overlay
+    profilerOverlay = new ProfilerOverlay(Resources::font);
     
     // Only load game.py if no custom script/command/module/exec is specified
     bool should_load_game = config.script_path.empty() && 
@@ -85,6 +88,7 @@ GameEngine::~GameEngine()
     for (auto& [name, scene] : scenes) {
         delete scene;
     }
+    delete profilerOverlay;
 }
 
 void GameEngine::cleanup()
@@ -199,10 +203,14 @@ void GameEngine::run()
         testTimers();
         
         // Update Python scenes
-        McRFPy_API::updatePythonScenes(frameTime);
+        {
+            ScopedTimer pyTimer(metrics.pythonScriptTime);
+            McRFPy_API::updatePythonScenes(frameTime);
+        }
         
         // Update animations (only if frameTime is valid)
         if (frameTime > 0.0f && frameTime < 1.0f) {
+            ScopedTimer animTimer(metrics.animationTime);
             AnimationManager::getInstance().update(frameTime);
         }
         
@@ -240,6 +248,12 @@ void GameEngine::run()
             currentScene()->render();
         }
         
+        // Update and render profiler overlay (if enabled)
+        if (profilerOverlay && !headless) {
+            profilerOverlay->update(metrics);
+            profilerOverlay->render(*render_target);
+        }
+
         // Display the frame
         if (headless) {
             headless_renderer->display();
@@ -330,6 +344,14 @@ void GameEngine::processEvent(const sf::Event& event)
     int actionCode = 0;
 
     if (event.type == sf::Event::Closed) { running = false; return; }
+
+    // Handle F3 for profiler overlay toggle
+    if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F3) {
+        if (profilerOverlay) {
+            profilerOverlay->toggle();
+        }
+        return;
+    }
     // Handle window resize events
     else if (event.type == sf::Event::Resized) {
         // Update the viewport to handle the new window size
