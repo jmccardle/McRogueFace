@@ -57,18 +57,28 @@ mcrfpy.setScene("intro")
 
 ## Documentation
 
-### 📚 Full Documentation Site
+### 📚 Developer Documentation
 
-For comprehensive documentation, tutorials, and API reference, visit:
-**[https://mcrogueface.github.io](https://mcrogueface.github.io)**
+For comprehensive documentation about systems, architecture, and development workflows:
 
-The documentation site includes:
+**[Project Wiki](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki)**
 
-- **[Quickstart Guide](https://mcrogueface.github.io/quickstart)** - Get running in 5 minutes
-- **[McRogueFace Does The Entire Roguelike Tutorial](https://mcrogueface.github.io/tutorials)** - Step-by-step game building
-- **[Complete API Reference](https://mcrogueface.github.io/api)** - Every function documented
-- **[Cookbook](https://mcrogueface.github.io/cookbook)** - Ready-to-use code recipes
-- **[C++ Extension Guide](https://mcrogueface.github.io/extending-cpp)** - For C++ developers: Add engine features
+Key wiki pages:
+
+- **[Home](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Home)** - Documentation hub with multiple entry points
+- **[Grid System](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Grid-System)** - Three-layer grid architecture
+- **[Python Binding System](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Python-Binding-System)** - C++/Python integration
+- **[Performance and Profiling](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Performance-and-Profiling)** - Optimization tools
+- **[Adding Python Bindings](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Adding-Python-Bindings)** - Step-by-step binding guide
+- **[Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap)** - All 46 open issues organized by system
+
+### 📖 Development Guides
+
+In the repository root:
+
+- **[CLAUDE.md](CLAUDE.md)** - Build instructions, testing guidelines, common tasks
+- **[ROADMAP.md](ROADMAP.md)** - Strategic vision and development phases
+- **[roguelike_tutorial/](roguelike_tutorial/)** - Complete roguelike tutorial implementations
 
 ## Build Requirements
 
@@ -114,7 +124,15 @@ If you are writing a game in Python using McRogueFace, you only need to rename a
 
 PRs will be considered! Please include explicit mention that your contribution is your own work and released under the MIT license in the pull request.
 
-The project has a private roadmap and issue list. Reach out via email or social media if you have bugs or feature requests.
+### Issue Tracking
+
+The project uses [Gitea Issues](https://gamedev.ffwf.net/gitea/john/McRogueFace/issues) for task tracking and bug reports. Issues are organized with labels:
+
+- **System labels** (grid, animation, python-binding, etc.) - identify which codebase area
+- **Priority labels** (tier1-active, tier2-foundation, tier3-future) - development timeline
+- **Type labels** (Major Feature, Minor Feature, Bugfix, etc.) - effort and scope
+
+See the [Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap) on the wiki for organized view of all open tasks.
 
 ## License
 
