@@ -1,5 +1,6 @@
 #include "PyDrawable.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 
 // Click property getter
 static PyObject* PyDrawable_get_click(PyDrawableObject* self, void* closure)
@@ -143,11 +144,30 @@ static PyObject* PyDrawable_resize(PyDrawableObject* self, PyObject* args)
 // Method definitions
 static PyMethodDef PyDrawable_methods[] = {
     {"get_bounds", (PyCFunction)PyDrawable_get_bounds, METH_NOARGS,
-     "Get bounding box as (x, y, width, height)"},
+     MCRF_METHOD(Drawable, get_bounds,
+         MCRF_SIG("()", "tuple"),
+         MCRF_DESC("Get the bounding rectangle of this drawable element."),
+         MCRF_RETURNS("tuple: (x, y, width, height) representing the element's bounds")
+         MCRF_NOTE("The bounds are in screen coordinates and account for current position and size.")
+     )},
     {"move", (PyCFunction)PyDrawable_move, METH_VARARGS,
-     "Move by relative offset (dx, dy)"},
+     MCRF_METHOD(Drawable, move,
+         MCRF_SIG("(dx: float, dy: float)", "None"),
+         MCRF_DESC("Move the element by a relative offset."),
+         MCRF_ARGS_START
+         MCRF_ARG("dx", "Horizontal offset in pixels")
+         MCRF_ARG("dy", "Vertical offset in pixels")
+         MCRF_NOTE("This modifies the x and y position properties by the given amounts.")
+     )},
     {"resize", (PyCFunction)PyDrawable_resize, METH_VARARGS,
-     "Resize to new dimensions (width, height)"},
+     MCRF_METHOD(Drawable, resize,
+         MCRF_SIG("(width: float, height: float)", "None"),
+         MCRF_DESC("Resize the element to new dimensions."),
+         MCRF_ARGS_START
+         MCRF_ARG("width", "New width in pixels")
+         MCRF_ARG("height", "New height in pixels")
+         MCRF_NOTE("For Caption and Sprite, this may not change actual size if determined by content.")
+     )},
     {NULL}  // Sentinel
 };
 

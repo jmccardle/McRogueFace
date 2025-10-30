@@ -1,5 +1,6 @@
 #pragma once
 #include "Python.h"
+#include "McRFPy_Doc.h"
 #include <memory>
 
 class UIEntity;
@@ -78,11 +79,30 @@ static PyObject* UIDrawable_resize(T* self, PyObject* args)
 // Macro to add common UIDrawable methods to a method array
 #define UIDRAWABLE_METHODS \
     {"get_bounds", (PyCFunction)UIDrawable_get_bounds<PyObjectType>, METH_NOARGS, \
-     "Get bounding box as (x, y, width, height)"}, \
+     MCRF_METHOD(Drawable, get_bounds, \
+         MCRF_SIG("()", "tuple"), \
+         MCRF_DESC("Get the bounding rectangle of this drawable element."), \
+         MCRF_RETURNS("tuple: (x, y, width, height) representing the element's bounds") \
+         MCRF_NOTE("The bounds are in screen coordinates and account for current position and size.") \
+     )}, \
     {"move", (PyCFunction)UIDrawable_move<PyObjectType>, METH_VARARGS, \
-     "Move by relative offset (dx, dy)"}, \
+     MCRF_METHOD(Drawable, move, \
+         MCRF_SIG("(dx: float, dy: float)", "None"), \
+         MCRF_DESC("Move the element by a relative offset."), \
+         MCRF_ARGS_START \
+         MCRF_ARG("dx", "Horizontal offset in pixels") \
+         MCRF_ARG("dy", "Vertical offset in pixels") \
+         MCRF_NOTE("This modifies the x and y position properties by the given amounts.") \
+     )}, \
     {"resize", (PyCFunction)UIDrawable_resize<PyObjectType>, METH_VARARGS, \
-     "Resize to new dimensions (width, height)"}
+     MCRF_METHOD(Drawable, resize, \
+         MCRF_SIG("(width: float, height: float)", "None"), \
+         MCRF_DESC("Resize the element to new dimensions."), \
+         MCRF_ARGS_START \
+         MCRF_ARG("width", "New width in pixels") \
+         MCRF_ARG("height", "New height in pixels") \
+         MCRF_NOTE("For Caption and Sprite, this may not change actual size if determined by content.") \
+     )}
 
 // Property getters/setters for visible and opacity
 template<typename T>
