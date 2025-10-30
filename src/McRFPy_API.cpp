@@ -188,27 +188,27 @@ static PyMethodDef mcrfpyMethods[] = {
 static PyModuleDef mcrfpyModule = {
     PyModuleDef_HEAD_INIT, /* m_base - Always initialize this member to PyModuleDef_HEAD_INIT. */
     "mcrfpy",              /* m_name */
-    PyDoc_STR("McRogueFace Python API\\n\\n"
-              "Core game engine interface for creating roguelike games with Python.\\n\\n"
-              "This module provides:\\n"
-              "- Scene management (createScene, setScene, currentScene)\\n"
-              "- UI components (Frame, Caption, Sprite, Grid)\\n"
-              "- Entity system for game objects\\n"
-              "- Audio playback (sound effects and music)\\n"
-              "- Timer system for scheduled events\\n"
-              "- Input handling\\n"
-              "- Performance metrics\\n\\n"
-              "Example:\\n"
-              "    import mcrfpy\\n"
-              "    \\n"
-              "    # Create a new scene\\n"
-              "    mcrfpy.createScene('game')\\n"
-              "    mcrfpy.setScene('game')\\n"
-              "    \\n"
-              "    # Add UI elements\\n"
-              "    frame = mcrfpy.Frame(10, 10, 200, 100)\\n"
-              "    caption = mcrfpy.Caption('Hello World', 50, 50)\\n"
-              "    mcrfpy.sceneUI().extend([frame, caption])\\n"),
+    PyDoc_STR("McRogueFace Python API\n\n"
+              "Core game engine interface for creating roguelike games with Python.\n\n"
+              "This module provides:\n"
+              "- Scene management (createScene, setScene, currentScene)\n"
+              "- UI components (Frame, Caption, Sprite, Grid)\n"
+              "- Entity system for game objects\n"
+              "- Audio playback (sound effects and music)\n"
+              "- Timer system for scheduled events\n"
+              "- Input handling\n"
+              "- Performance metrics\n\n"
+              "Example:\n"
+              "    import mcrfpy\n"
+              "    \n"
+              "    # Create a new scene\n"
+              "    mcrfpy.createScene('game')\n"
+              "    mcrfpy.setScene('game')\n"
+              "    \n"
+              "    # Add UI elements\n"
+              "    frame = mcrfpy.Frame(10, 10, 200, 100)\n"
+              "    caption = mcrfpy.Caption('Hello World', 50, 50)\n"
+              "    mcrfpy.sceneUI().extend([frame, caption])\n"),
     -1,                    /* m_size - Setting m_size to -1 means that the module does not support sub-interpreters, because it has global state. */
     mcrfpyMethods,         /* m_methods */
     NULL,                  /* m_slots - An array of slot definitions ...  When using single-phase initialization, m_slots must be NULL. */
