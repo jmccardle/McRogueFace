@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2025-07-15 21:28:24</em></p>
+        <p><em>Generated on 2025-10-30 11:47:05</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -717,8 +717,8 @@ Attributes:
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">compute_fovcompute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None</code></h5>
-                <p>Compute field of view from a position.</p>
+                <h5><code class="method-name">compute_fovcompute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]</code></h5>
+                <p>Compute field of view from a position and return visible cells.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x</span>: X coordinate of the viewer</div>
                     <div><span class='arg-name'>y</span>: Y coordinate of the viewer</div>
@@ -726,6 +726,7 @@ Attributes:
                     <div><span class='arg-name'>light_walls</span>: Whether walls are lit when visible</div>
                     <div><span class='arg-name'>algorithm</span>: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)</div>
                 </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  List of tuples (x, y, visible, discovered) for all visible cells: - x, y: Grid coordinates - visible: True (all returned cells are visible) - discovered: True (FOV implies discovery)</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -981,38 +982,59 @@ Has no effect if the timer is not paused.</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">angle(...)</code></h5>
-                <p>Return the angle in radians from the positive X axis</p>
+                <h5><code class="method-name">angleangle() -> float</code></h5>
+                <p>Get the angle of this vector in radians.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: Angle in radians from positive x-axis</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">copy(...)</code></h5>
-                <p>Return a copy of this vector</p>
+                <h5><code class="method-name">copycopy() -> Vector</code></h5>
+                <p>Create a copy of this vector.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Vector: New Vector object with same x and y values</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">distance_to(...)</code></h5>
-                <p>Return the distance to another vector</p>
+                <h5><code class="method-name">distance_todistance_to(other: Vector) -> float</code></h5>
+                <p>Calculate the distance to another vector.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>other</span>: The other vector</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: Distance between the two vectors</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">dot(...)</code></h5>
-                <p>Return the dot product with another vector</p>
+                <h5><code class="method-name">dotdot(other: Vector) -> float</code></h5>
+                <p>Calculate the dot product with another vector.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>other</span>: The other vector</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: Dot product of the two vectors</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">magnitude(...)</code></h5>
-                <p>Return the length of the vector</p>
+                <h5><code class="method-name">magnitudemagnitude() -> float</code></h5>
+                <p>Calculate the length/magnitude of this vector.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: The magnitude of the vector</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">magnitude_squared(...)</code></h5>
-                <p>Return the squared length of the vector</p>
+                <h5><code class="method-name">magnitude_squaredmagnitude_squared() -> float</code></h5>
+                <p>Calculate the squared magnitude of this vector.
+
+
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: The squared magnitude (faster than magnitude()) Use this for comparisons to avoid expensive square root calculation.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">normalize(...)</code></h5>
-                <p>Return a unit vector in the same direction</p>
+                <h5><code class="method-name">normalizenormalize() -> Vector</code></h5>
+                <p>Return a unit vector in the same direction.
+
+
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Vector: New normalized vector with magnitude 1.0 For zero vectors (magnitude 0.0), returns a zero vector rather than raising an exception</p>
             </div>
         </div>
 

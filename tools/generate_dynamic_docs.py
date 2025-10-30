@@ -17,6 +17,8 @@ def transform_doc_links(docstring, format='html', base_url=''):
 
     Detects pattern: "See also: TEXT (docs/path.md)"
     Transforms to appropriate format for output type.
+
+    For HTML/web formats, properly escapes content before inserting HTML tags.
     """
     if not docstring:
         return docstring
@@ -27,14 +29,17 @@ def transform_doc_links(docstring, format='html', base_url=''):
         text, ref = match.group(1).strip(), match.group(2).strip()
 
         if format == 'html':
-            # Convert docs/foo.md → foo.html
-            href = ref.replace('docs/', '').replace('.md', '.html')
-            return f'<p class="see-also">See also: <a href="{href}">{text}</a></p>'
+            # Convert docs/foo.md → foo.html and escape for safe HTML
+            href = html.escape(ref.replace('docs/', '').replace('.md', '.html'), quote=True)
+            text_escaped = html.escape(text)
+            return f'<p class="see-also">See also: <a href="{href}">{text_escaped}</a></p>'
 
         elif format == 'web':
-            # Link to hosted docs
+            # Link to hosted docs and escape for safe HTML
             web_path = ref.replace('docs/', '').replace('.md', '')
-            return f'<p class="see-also">See also: <a href="{base_url}/{web_path}">{text}</a></p>'
+            href = html.escape(f"{base_url}/{web_path}", quote=True)
+            text_escaped = html.escape(text)
+            return f'<p class="see-also">See also: <a href="{href}">{text_escaped}</a></p>'
 
         elif format == 'markdown':
             # Markdown link
@@ -44,7 +49,29 @@ def transform_doc_links(docstring, format='html', base_url=''):
             # Keep as plain text for Python docstrings
             return match.group(0)
 
-    return re.sub(link_pattern, replace_link, docstring)
+    # For HTML formats, escape the entire docstring first, then process links
+    if format in ('html', 'web'):
+        # Split by the link pattern, escape non-link parts, then reassemble
+        parts = []
+        last_end = 0
+
+        for match in re.finditer(link_pattern, docstring):
+            # Escape the text before this match
+            if match.start() > last_end:
+                parts.append(html.escape(docstring[last_end:match.start()]))
+
+            # Process the link (replace_link handles escaping internally)
+            parts.append(replace_link(match))
+            last_end = match.end()
+
+        # Escape any remaining text after the last match
+        if last_end < len(docstring):
+            parts.append(html.escape(docstring[last_end:]))
+
+        return ''.join(parts)
+    else:
+        # For non-HTML formats, just do simple replacement
+        return re.sub(link_pattern, replace_link, docstring)
 
 # Must be run with McRogueFace as interpreter
 try:
@@ -339,8 +366,9 @@ def generate_html_docs():
         <div class="method-section">
             <h3><code class="function-signature">{func_name}{parsed['signature'] if parsed['signature'] else '(...)'}</code></h3>
 """
-        description = transform_doc_links(parsed['description'], format='html')
-        html_content += f"            <p>{description}</p>\n"
+        if parsed['description']:
+            description = transform_doc_links(parsed['description'], format='html')
+            html_content += f"            <p>{description}</p>\n"
         
         if parsed['args']:
             html_content += "            <h4>Arguments:</h4>\n            <ul>\n"
