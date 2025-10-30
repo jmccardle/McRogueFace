@@ -1,6 +1,7 @@
 #include "McRFPy_API.h"
 #include "McRFPy_Automation.h"
 #include "McRFPy_Libtcod.h"
+#include "McRFPy_Doc.h"
 #include "platform.h"
 #include "PyAnimation.h"
 #include "PyDrawable.h"
@@ -27,161 +28,174 @@ PyObject* McRFPy_API::mcrf_module;
 static PyMethodDef mcrfpyMethods[] = {
 
     {"createSoundBuffer", McRFPy_API::_createSoundBuffer, METH_VARARGS,
-     "createSoundBuffer(filename: str) -> int\n\n"
-     "Load a sound effect from a file and return its buffer ID.\n\n"
-     "Args:\n"
-     "    filename: Path to the sound file (WAV, OGG, FLAC)\n\n"
-     "Returns:\n"
-     "    int: Buffer ID for use with playSound()\n\n"
-     "Raises:\n"
-     "    RuntimeError: If the file cannot be loaded"},
+     MCRF_FUNCTION(createSoundBuffer,
+         MCRF_SIG("(filename: str)", "int"),
+         MCRF_DESC("Load a sound effect from a file and return its buffer ID."),
+         MCRF_ARGS_START
+         MCRF_ARG("filename", "Path to the sound file (WAV, OGG, FLAC)")
+         MCRF_RETURNS("int: Buffer ID for use with playSound()")
+         MCRF_RAISES("RuntimeError", "If the file cannot be loaded")
+     )},
 	{"loadMusic", McRFPy_API::_loadMusic, METH_VARARGS,
-	 "loadMusic(filename: str) -> None\n\n"
-	 "Load and immediately play background music from a file.\n\n"
-	 "Args:\n"
-	 "    filename: Path to the music file (WAV, OGG, FLAC)\n\n"
-	 "Note:\n"
-	 "    Only one music track can play at a time. Loading new music stops the current track."},
+     MCRF_FUNCTION(loadMusic,
+         MCRF_SIG("(filename: str)", "None"),
+         MCRF_DESC("Load and immediately play background music from a file."),
+         MCRF_ARGS_START
+         MCRF_ARG("filename", "Path to the music file (WAV, OGG, FLAC)")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Only one music track can play at a time. Loading new music stops the current track.")
+     )},
 	{"setMusicVolume", McRFPy_API::_setMusicVolume, METH_VARARGS,
-	 "setMusicVolume(volume: int) -> None\n\n"
-	 "Set the global music volume.\n\n"
-	 "Args:\n"
-	 "    volume: Volume level from 0 (silent) to 100 (full volume)"},
+     MCRF_FUNCTION(setMusicVolume,
+         MCRF_SIG("(volume: int)", "None"),
+         MCRF_DESC("Set the global music volume."),
+         MCRF_ARGS_START
+         MCRF_ARG("volume", "Volume level from 0 (silent) to 100 (full volume)")
+         MCRF_RETURNS("None")
+     )},
 	{"setSoundVolume", McRFPy_API::_setSoundVolume, METH_VARARGS,
-	 "setSoundVolume(volume: int) -> None\n\n"
-	 "Set the global sound effects volume.\n\n"
-	 "Args:\n"
-	 "    volume: Volume level from 0 (silent) to 100 (full volume)"},
+     MCRF_FUNCTION(setSoundVolume,
+         MCRF_SIG("(volume: int)", "None"),
+         MCRF_DESC("Set the global sound effects volume."),
+         MCRF_ARGS_START
+         MCRF_ARG("volume", "Volume level from 0 (silent) to 100 (full volume)")
+         MCRF_RETURNS("None")
+     )},
 	{"playSound", McRFPy_API::_playSound, METH_VARARGS,
-	 "playSound(buffer_id: int) -> None\n\n"
-	 "Play a sound effect using a previously loaded buffer.\n\n"
-	 "Args:\n"
-	 "    buffer_id: Sound buffer ID returned by createSoundBuffer()\n\n"
-	 "Raises:\n"
-	 "    RuntimeError: If the buffer ID is invalid"},
+     MCRF_FUNCTION(playSound,
+         MCRF_SIG("(buffer_id: int)", "None"),
+         MCRF_DESC("Play a sound effect using a previously loaded buffer."),
+         MCRF_ARGS_START
+         MCRF_ARG("buffer_id", "Sound buffer ID returned by createSoundBuffer()")
+         MCRF_RETURNS("None")
+         MCRF_RAISES("RuntimeError", "If the buffer ID is invalid")
+     )},
 	{"getMusicVolume", McRFPy_API::_getMusicVolume, METH_NOARGS,
-	 "getMusicVolume() -> int\n\n"
-	 "Get the current music volume level.\n\n"
-	 "Returns:\n"
-	 "    int: Current volume (0-100)"},
+     MCRF_FUNCTION(getMusicVolume,
+         MCRF_SIG("()", "int"),
+         MCRF_DESC("Get the current music volume level."),
+         MCRF_RETURNS("int: Current volume (0-100)")
+     )},
 	{"getSoundVolume", McRFPy_API::_getSoundVolume, METH_NOARGS,
-	 "getSoundVolume() -> int\n\n"
-	 "Get the current sound effects volume level.\n\n"
-	 "Returns:\n"
-	 "    int: Current volume (0-100)"},
+     MCRF_FUNCTION(getSoundVolume,
+         MCRF_SIG("()", "int"),
+         MCRF_DESC("Get the current sound effects volume level."),
+         MCRF_RETURNS("int: Current volume (0-100)")
+     )},
 
     {"sceneUI", McRFPy_API::_sceneUI, METH_VARARGS,
-     "sceneUI(scene: str = None) -> list\n\n"
-     "Get all UI elements for a scene.\n\n"
-     "Args:\n"
-     "    scene: Scene name. If None, uses current scene\n\n"
-     "Returns:\n"
-     "    list: All UI elements (Frame, Caption, Sprite, Grid) in the scene\n\n"
-     "Raises:\n"
-     "    KeyError: If the specified scene doesn't exist"},
+     MCRF_FUNCTION(sceneUI,
+         MCRF_SIG("(scene: str = None)", "list"),
+         MCRF_DESC("Get all UI elements for a scene."),
+         MCRF_ARGS_START
+         MCRF_ARG("scene", "Scene name. If None, uses current scene")
+         MCRF_RETURNS("list: All UI elements (Frame, Caption, Sprite, Grid) in the scene")
+         MCRF_RAISES("KeyError", "If the specified scene doesn't exist")
+     )},
 
     {"currentScene", McRFPy_API::_currentScene, METH_NOARGS,
-     "currentScene() -> str\n\n"
-     "Get the name of the currently active scene.\n\n"
-     "Returns:\n"
-     "    str: Name of the current scene"},
+     MCRF_FUNCTION(currentScene,
+         MCRF_SIG("()", "str"),
+         MCRF_DESC("Get the name of the currently active scene."),
+         MCRF_RETURNS("str: Name of the current scene")
+     )},
     {"setScene", McRFPy_API::_setScene, METH_VARARGS,
-     "setScene(scene: str, transition: str = None, duration: float = 0.0) -> None\n\n"
-     "Switch to a different scene with optional transition effect.\n\n"
-     "Args:\n"
-     "    scene: Name of the scene to switch to\n"
-     "    transition: Transition type ('fade', 'slide_left', 'slide_right', 'slide_up', 'slide_down')\n"
-     "    duration: Transition duration in seconds (default: 0.0 for instant)\n\n"
-     "Raises:\n"
-     "    KeyError: If the scene doesn't exist\n"
-     "    ValueError: If the transition type is invalid"},
+     MCRF_FUNCTION(setScene,
+         MCRF_SIG("(scene: str, transition: str = None, duration: float = 0.0)", "None"),
+         MCRF_DESC("Switch to a different scene with optional transition effect."),
+         MCRF_ARGS_START
+         MCRF_ARG("scene", "Name of the scene to switch to")
+         MCRF_ARG("transition", "Transition type ('fade', 'slide_left', 'slide_right', 'slide_up', 'slide_down')")
+         MCRF_ARG("duration", "Transition duration in seconds (default: 0.0 for instant)")
+         MCRF_RETURNS("None")
+         MCRF_RAISES("KeyError", "If the scene doesn't exist")
+         MCRF_RAISES("ValueError", "If the transition type is invalid")
+     )},
     {"createScene", McRFPy_API::_createScene, METH_VARARGS,
-     "createScene(name: str) -> None\n\n"
-     "Create a new empty scene.\n\n"
-     "Args:\n"
-     "    name: Unique name for the new scene\n\n"
-     "Raises:\n"
-     "    ValueError: If a scene with this name already exists\n\n"
-     "Note:\n"
-     "    The scene is created but not made active. Use setScene() to switch to it."},
+     MCRF_FUNCTION(createScene,
+         MCRF_SIG("(name: str)", "None"),
+         MCRF_DESC("Create a new empty scene."),
+         MCRF_ARGS_START
+         MCRF_ARG("name", "Unique name for the new scene")
+         MCRF_RETURNS("None")
+         MCRF_RAISES("ValueError", "If a scene with this name already exists")
+         MCRF_NOTE("The scene is created but not made active. Use setScene() to switch to it.")
+     )},
     {"keypressScene", McRFPy_API::_keypressScene, METH_VARARGS,
-     "keypressScene(handler: callable) -> None\n\n"
-     "Set the keyboard event handler for the current scene.\n\n"
-     "Args:\n"
-     "    handler: Callable that receives (key_name: str, is_pressed: bool)\n\n"
-     "Example:\n"
-     "    def on_key(key, pressed):\n"
-     "        if key == 'A' and pressed:\n"
-     "            print('A key pressed')\n"
-     "    mcrfpy.keypressScene(on_key)"},
+     MCRF_FUNCTION(keypressScene,
+         MCRF_SIG("(handler: callable)", "None"),
+         MCRF_DESC("Set the keyboard event handler for the current scene."),
+         MCRF_ARGS_START
+         MCRF_ARG("handler", "Callable that receives (key_name: str, is_pressed: bool)")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Example: def on_key(key, pressed): if key == 'A' and pressed: print('A key pressed') mcrfpy.keypressScene(on_key)")
+     )},
 
     {"setTimer", McRFPy_API::_setTimer, METH_VARARGS,
-     "setTimer(name: str, handler: callable, interval: int) -> None\n\n"
-     "Create or update a recurring timer.\n\n"
-     "Args:\n"
-     "    name: Unique identifier for the timer\n"
-     "    handler: Function called with (runtime: float) parameter\n"
-     "    interval: Time between calls in milliseconds\n\n"
-     "Note:\n"
-     "    If a timer with this name exists, it will be replaced.\n"
-     "    The handler receives the total runtime in seconds as its argument."},
+     MCRF_FUNCTION(setTimer,
+         MCRF_SIG("(name: str, handler: callable, interval: int)", "None"),
+         MCRF_DESC("Create or update a recurring timer."),
+         MCRF_ARGS_START
+         MCRF_ARG("name", "Unique identifier for the timer")
+         MCRF_ARG("handler", "Function called with (runtime: float) parameter")
+         MCRF_ARG("interval", "Time between calls in milliseconds")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("If a timer with this name exists, it will be replaced. The handler receives the total runtime in seconds as its argument.")
+     )},
     {"delTimer", McRFPy_API::_delTimer, METH_VARARGS,
-     "delTimer(name: str) -> None\n\n"
-     "Stop and remove a timer.\n\n"
-     "Args:\n"
-     "    name: Timer identifier to remove\n\n"
-     "Note:\n"
-     "    No error is raised if the timer doesn't exist."}, 
+     MCRF_FUNCTION(delTimer,
+         MCRF_SIG("(name: str)", "None"),
+         MCRF_DESC("Stop and remove a timer."),
+         MCRF_ARGS_START
+         MCRF_ARG("name", "Timer identifier to remove")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("No error is raised if the timer doesn't exist.")
+     )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
-     "exit() -> None\n\n"
-     "Cleanly shut down the game engine and exit the application.\n\n"
-     "Note:\n"
-     "    This immediately closes the window and terminates the program."},
+     MCRF_FUNCTION(exit,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Cleanly shut down the game engine and exit the application."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("This immediately closes the window and terminates the program.")
+     )},
     {"setScale", McRFPy_API::_setScale, METH_VARARGS,
-     "setScale(multiplier: float) -> None\n\n"
-     "Scale the game window size.\n\n"
-     "Args:\n"
-     "    multiplier: Scale factor (e.g., 2.0 for double size)\n\n"
-     "Note:\n"
-     "    The internal resolution remains 1024x768, but the window is scaled.\n"
-     "    This is deprecated - use Window.resolution instead."},
-    
+     MCRF_FUNCTION(setScale,
+         MCRF_SIG("(multiplier: float)", "None"),
+         MCRF_DESC("Scale the game window size."),
+         MCRF_ARGS_START
+         MCRF_ARG("multiplier", "Scale factor (e.g., 2.0 for double size)")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("The internal resolution remains 1024x768, but the window is scaled. This is deprecated - use Window.resolution instead.")
+     )},
+
     {"find", McRFPy_API::_find, METH_VARARGS,
-     "find(name: str, scene: str = None) -> UIDrawable | None\n\n"
-     "Find the first UI element with the specified name.\n\n"
-     "Args:\n"
-     "    name: Exact name to search for\n"
-     "    scene: Scene to search in (default: current scene)\n\n"
-     "Returns:\n"
-     "    Frame, Caption, Sprite, Grid, or Entity if found; None otherwise\n\n"
-     "Note:\n"
-     "    Searches scene UI elements and entities within grids."},
+     MCRF_FUNCTION(find,
+         MCRF_SIG("(name: str, scene: str = None)", "UIDrawable | None"),
+         MCRF_DESC("Find the first UI element with the specified name."),
+         MCRF_ARGS_START
+         MCRF_ARG("name", "Exact name to search for")
+         MCRF_ARG("scene", "Scene to search in (default: current scene)")
+         MCRF_RETURNS("Frame, Caption, Sprite, Grid, or Entity if found; None otherwise")
+         MCRF_NOTE("Searches scene UI elements and entities within grids.")
+     )},
     {"findAll", McRFPy_API::_findAll, METH_VARARGS,
-     "findAll(pattern: str, scene: str = None) -> list\n\n"
-     "Find all UI elements matching a name pattern.\n\n"
-     "Args:\n"
-     "    pattern: Name pattern with optional wildcards (* matches any characters)\n"
-     "    scene: Scene to search in (default: current scene)\n\n"
-     "Returns:\n"
-     "    list: All matching UI elements and entities\n\n"
-     "Example:\n"
-     "    findAll('enemy*')  # Find all elements starting with 'enemy'\n"
-     "    findAll('*_button')  # Find all elements ending with '_button'"},
-    
+     MCRF_FUNCTION(findAll,
+         MCRF_SIG("(pattern: str, scene: str = None)", "list"),
+         MCRF_DESC("Find all UI elements matching a name pattern."),
+         MCRF_ARGS_START
+         MCRF_ARG("pattern", "Name pattern with optional wildcards (* matches any characters)")
+         MCRF_ARG("scene", "Scene to search in (default: current scene)")
+         MCRF_RETURNS("list: All matching UI elements and entities")
+         MCRF_NOTE("Example: findAll('enemy*') finds all elements starting with 'enemy', findAll('*_button') finds all elements ending with '_button'")
+     )},
+
     {"getMetrics", McRFPy_API::_getMetrics, METH_NOARGS,
-     "getMetrics() -> dict\n\n"
-     "Get current performance metrics.\n\n"
-     "Returns:\n"
-     "    dict: Performance data with keys:\n"
-     "        - frame_time: Last frame duration in seconds\n"
-     "        - avg_frame_time: Average frame time\n"
-     "        - fps: Frames per second\n"
-     "        - draw_calls: Number of draw calls\n"
-     "        - ui_elements: Total UI element count\n"
-     "        - visible_elements: Visible element count\n"
-     "        - current_frame: Frame counter\n"
-     "        - runtime: Total runtime in seconds"},
-    
+     MCRF_FUNCTION(getMetrics,
+         MCRF_SIG("()", "dict"),
+         MCRF_DESC("Get current performance metrics."),
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds)")
+     )},
+
     {NULL, NULL, 0, NULL}
 };
 
