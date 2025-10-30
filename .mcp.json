@@ -1,0 +1,9 @@
+{
+    "mcpServers": {
+        "gitea": {
+            "type": "stdio",
+            "command": "/home/john/Development/discord_for_claude/forgejo-mcp.linux.amd64",
+            "args": ["stdio", "--server", "https://gamedev.ffwf.net/gitea/", "--token", "f58ec698a5edee82db4960920b13d3f7d0d58d8e"]
+        }
+    }
+}

@@ -1418,7 +1418,11 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"center_y", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "center of the view Y-coordinate", (void*)5},
     {"zoom", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "zoom factor for displaying the Grid", (void*)6},
 
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UIGRID},
+    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+     MCRF_PROPERTY(click,
+         "Callable executed when object is clicked. "
+         "Function receives (x, y) coordinates of click."
+     ), (void*)PyObjectsEnum::UIGRID},
 
     {"texture", (getter)UIGrid::get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
     {"fill_color", (getter)UIGrid::get_fill_color, (setter)UIGrid::set_fill_color, "Background fill color of the grid", NULL},
@@ -1428,7 +1432,11 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"perspective_enabled", (getter)UIGrid::get_perspective_enabled, (setter)UIGrid::set_perspective_enabled,
      "Whether to use perspective-based FOV rendering. When True with no valid entity, "
      "all cells appear undiscovered.", NULL},
-    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UIGRID},
+    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
+     MCRF_PROPERTY(z_index,
+         "Z-order for rendering (lower values rendered first). "
+         "Automatically triggers scene resort when changed."
+     ), (void*)PyObjectsEnum::UIGRID},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIGRID},
     UIDRAWABLE_GETSETTERS,
     {NULL}  /* Sentinel */

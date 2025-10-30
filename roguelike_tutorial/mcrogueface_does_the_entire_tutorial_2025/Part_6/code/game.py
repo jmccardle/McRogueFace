@@ -373,7 +373,7 @@ class Engine:
         
         self.ui = mcrfpy.sceneUI("game")
         
-        background = mcrfpy.Frame(0, 0, 1024, 768)
+        background = mcrfpy.Frame((0, 0), (1024, 768))
         background.fill_color = mcrfpy.Color(0, 0, 0)
         self.ui.append(background)
         

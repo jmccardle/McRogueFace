@@ -273,8 +273,16 @@ PyGetSetDef UICaption::getsetters[] = {
     //{"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
     {"text", (getter)UICaption::get_text, (setter)UICaption::set_text, "The text displayed", NULL},
     {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Font size (integer) in points", (void*)5},
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UICAPTION},
-    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UICAPTION},
+    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+     MCRF_PROPERTY(click,
+         "Callable executed when object is clicked. "
+         "Function receives (x, y) coordinates of click."
+     ), (void*)PyObjectsEnum::UICAPTION},
+    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
+     MCRF_PROPERTY(z_index,
+         "Z-order for rendering (lower values rendered first). "
+         "Automatically triggers scene resort when changed."
+     ), (void*)PyObjectsEnum::UICAPTION},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UICAPTION},
     UIDRAWABLE_GETSETTERS,
     {NULL}

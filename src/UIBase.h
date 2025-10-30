@@ -152,8 +152,14 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
 // Macro to add common UIDrawable properties to a getsetters array
 #define UIDRAWABLE_GETSETTERS \
     {"visible", (getter)UIDrawable_get_visible<PyObjectType>, (setter)UIDrawable_set_visible<PyObjectType>, \
-     "Visibility flag", NULL}, \
+     MCRF_PROPERTY(visible, \
+         "Whether the object is visible (bool). " \
+         "Invisible objects are not rendered or clickable." \
+     ), NULL}, \
     {"opacity", (getter)UIDrawable_get_opacity<PyObjectType>, (setter)UIDrawable_set_opacity<PyObjectType>, \
-     "Opacity (0.0 = transparent, 1.0 = opaque)", NULL}
+     MCRF_PROPERTY(opacity, \
+         "Opacity level (0.0 = transparent, 1.0 = opaque). " \
+         "Automatically clamped to valid range [0.0, 1.0]." \
+     ), NULL}
 
 // UIEntity specializations are defined in UIEntity.cpp after UIEntity class is complete

@@ -339,8 +339,16 @@ PyGetSetDef UISprite::getsetters[] = {
     {"sprite_index", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Which sprite on the texture is shown", NULL},
     {"sprite_number", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Sprite index (DEPRECATED: use sprite_index instead)", NULL},
     {"texture", (getter)UISprite::get_texture, (setter)UISprite::set_texture,     "Texture object",                    NULL},
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click, "Object called with (x, y, button) when clicked", (void*)PyObjectsEnum::UISPRITE},
-    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int, "Z-order for rendering (lower values rendered first)", (void*)PyObjectsEnum::UISPRITE},
+    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+     MCRF_PROPERTY(click,
+         "Callable executed when object is clicked. "
+         "Function receives (x, y) coordinates of click."
+     ), (void*)PyObjectsEnum::UISPRITE},
+    {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
+     MCRF_PROPERTY(z_index,
+         "Z-order for rendering (lower values rendered first). "
+         "Automatically triggers scene resort when changed."
+     ), (void*)PyObjectsEnum::UISPRITE},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UISPRITE},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UISPRITE},
     UIDRAWABLE_GETSETTERS,
