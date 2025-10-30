@@ -392,67 +392,102 @@ mcrfpy.setTimer("test", run_test, 100)  # 0.1 seconds
 
 ## Documentation Guidelines
 
-### Inline C++ Documentation Format
+### Documentation Macro System
 
-When adding new methods or modifying existing ones in C++ source files, use this documentation format in PyMethodDef arrays:
+**As of 2025-10-30, McRogueFace uses a macro-based documentation system** (`src/McRFPy_Doc.h`) that ensures consistent, complete docstrings across all Python bindings.
+
+#### Include the Header
 
 ```cpp
-{"method_name", (PyCFunction)Class::method, METH_VARARGS | METH_KEYWORDS,
- "method_name(arg1: type, arg2: type = default) -> return_type\n\n"
- "Brief description of what the method does.\n\n"
- "Args:\n"
- "    arg1: Description of first argument\n"
- "    arg2: Description of second argument (default: value)\n\n"
- "Returns:\n"
- "    Description of return value\n\n"
- "Example:\n"
- "    result = obj.method_name(value1, value2)\n\n"
- "Note:\n"
- "    Any important notes or caveats"},
+#include "McRFPy_Doc.h"
 ```
 
-For properties in PyGetSetDef arrays:
+#### Documenting Methods
+
+For methods in PyMethodDef arrays, use `MCRF_METHOD`:
+
+```cpp
+{"method_name", (PyCFunction)Class::method, METH_VARARGS,
+ MCRF_METHOD(ClassName, method_name,
+     MCRF_SIG("(arg1: type, arg2: type)", "return_type"),
+     MCRF_DESC("Brief description of what the method does."),
+     MCRF_ARGS_START
+     MCRF_ARG("arg1", "Description of first argument")
+     MCRF_ARG("arg2", "Description of second argument")
+     MCRF_RETURNS("Description of return value")
+     MCRF_RAISES("ValueError", "Condition that raises this exception")
+     MCRF_NOTE("Important notes or caveats")
+     MCRF_LINK("docs/guide.md", "Related Documentation")
+ )},
+```
+
+#### Documenting Properties
+
+For properties in PyGetSetDef arrays, use `MCRF_PROPERTY`:
+
 ```cpp
 {"property_name", (getter)getter_func, (setter)setter_func,
- "Brief description of the property. "
- "Additional details about valid values, side effects, etc.", NULL},
+ MCRF_PROPERTY(property_name,
+     "Brief description of the property. "
+     "Additional details about valid values, side effects, etc."
+ ), NULL},
 ```
+
+#### Available Macros
+
+- `MCRF_SIG(params, ret)` - Method signature
+- `MCRF_DESC(text)` - Description paragraph
+- `MCRF_ARGS_START` - Begin arguments section
+- `MCRF_ARG(name, desc)` - Individual argument
+- `MCRF_RETURNS(text)` - Return value description
+- `MCRF_RAISES(exception, condition)` - Exception documentation
+- `MCRF_NOTE(text)` - Important notes
+- `MCRF_LINK(path, text)` - Reference to external documentation
+
+#### Documentation Prose Guidelines
+
+**Keep C++ docstrings concise** (1-2 sentences per section). For complex topics, use `MCRF_LINK` to reference external guides:
+
+```cpp
+MCRF_LINK("docs/animation-guide.md", "Animation System Tutorial")
+```
+
+**External documentation** (in `docs/`) can be verbose with examples, tutorials, and design rationale.
 
 ### Regenerating Documentation
 
-After modifying C++ inline documentation:
+After modifying C++ inline documentation with MCRF_* macros:
 
 1. **Rebuild the project**: `make -j$(nproc)`
 
-2. **Generate stub files** (for IDE support):
+2. **Generate documentation** (automatic from compiled module):
    ```bash
-   ./build/mcrogueface --exec generate_stubs.py
-   ```
-
-3. **Generate dynamic documentation** (recommended):
-   ```bash
-   ./build/mcrogueface --exec generate_dynamic_docs.py
+   ./build/mcrogueface --headless --exec tools/generate_dynamic_docs.py
    ```
    This creates:
    - `docs/api_reference_dynamic.html`
    - `docs/API_REFERENCE_DYNAMIC.md`
 
-4. **Update hardcoded documentation** (if still using old system):
-   - `generate_complete_api_docs.py` - Update method dictionaries
-   - `generate_complete_markdown_docs.py` - Update method dictionaries
+3. **Generate stub files** (optional, for IDE support):
+   ```bash
+   ./build/mcrogueface --headless --exec tools/generate_stubs.py
+   ```
+   Creates `.pyi` stub files for type checking and autocompletion
 
 ### Important Notes
 
+- **Single source of truth**: Documentation lives in C++ source files via MCRF_* macros
 - **McRogueFace as Python interpreter**: Documentation scripts MUST be run using McRogueFace itself, not system Python
-- **Use --exec flag**: `./build/mcrogueface --exec script.py` or `--headless --exec` for CI/automation
-- **Dynamic is better**: The new `generate_dynamic_docs.py` extracts documentation directly from compiled module
-- **Keep docstrings consistent**: Follow the format above for automatic parsing
+- **Use --headless --exec**: For non-interactive documentation generation
+- **Link transformation**: `MCRF_LINK` references are transformed to appropriate format (HTML, Markdown, etc.)
+- **No manual dictionaries**: The old hardcoded documentation system has been removed
 
 ### Documentation Pipeline Architecture
 
-1. **C++ Source** → PyMethodDef/PyGetSetDef arrays with docstrings
-2. **Compilation** → Docstrings embedded in compiled module
+1. **C++ Source** → MCRF_* macros in PyMethodDef/PyGetSetDef arrays
+2. **Compilation** → Macros expand to complete docstrings embedded in module
 3. **Introspection** → Scripts use `dir()`, `getattr()`, `__doc__` to extract
-4. **Generation** → HTML/Markdown/Stub files created
+4. **Generation** → HTML/Markdown/Stub files created with transformed links
+5. **No drift**: Impossible for docs and code to disagree - they're the same file!
 
-The documentation is only as good as the C++ inline docstrings!
+The macro system ensures complete, consistent documentation across all Python bindings.
