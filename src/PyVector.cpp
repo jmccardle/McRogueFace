@@ -22,7 +22,7 @@ PyMethodDef PyVector::methods[] = {
          MCRF_SIG("()", "Vector"),
          MCRF_DESC("Return a unit vector in the same direction."),
          MCRF_RETURNS("Vector: New normalized vector with magnitude 1.0")
-         MCRF_RAISES("ValueError", "If vector has zero magnitude")
+         MCRF_NOTE("For zero vectors (magnitude 0.0), returns a zero vector rather than raising an exception")
      )},
     {"dot", (PyCFunction)PyVector::dot, METH_O,
      MCRF_METHOD(Vector, dot,
