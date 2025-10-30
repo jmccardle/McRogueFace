@@ -1,6 +1,7 @@
 #include "PyWindow.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 #include <SFML/Graphics.hpp>
 #include <cstring>
 
@@ -483,32 +484,49 @@ int PyWindow::set_scaling_mode(PyWindowObject* self, PyObject* value, void* clos
 
 // Property definitions
 PyGetSetDef PyWindow::getsetters[] = {
-    {"resolution", (getter)get_resolution, (setter)set_resolution, 
-     "Window resolution as (width, height) tuple", NULL},
+    {"resolution", (getter)get_resolution, (setter)set_resolution,
+     MCRF_PROPERTY(resolution, "Window resolution as (width, height) tuple. Setting this recreates the window."), NULL},
     {"fullscreen", (getter)get_fullscreen, (setter)set_fullscreen,
-     "Window fullscreen state", NULL},
+     MCRF_PROPERTY(fullscreen, "Window fullscreen state (bool). Setting this recreates the window."), NULL},
     {"vsync", (getter)get_vsync, (setter)set_vsync,
-     "Vertical sync enabled state", NULL},
+     MCRF_PROPERTY(vsync, "Vertical sync enabled state (bool). Prevents screen tearing but may limit framerate."), NULL},
     {"title", (getter)get_title, (setter)set_title,
-     "Window title string", NULL},
+     MCRF_PROPERTY(title, "Window title string (str). Displayed in the window title bar."), NULL},
     {"visible", (getter)get_visible, (setter)set_visible,
-     "Window visibility state", NULL},
+     MCRF_PROPERTY(visible, "Window visibility state (bool). Hidden windows still process events."), NULL},
     {"framerate_limit", (getter)get_framerate_limit, (setter)set_framerate_limit,
-     "Frame rate limit (0 for unlimited)", NULL},
+     MCRF_PROPERTY(framerate_limit, "Frame rate limit in FPS (int, 0 for unlimited). Caps maximum frame rate."), NULL},
     {"game_resolution", (getter)get_game_resolution, (setter)set_game_resolution,
-     "Fixed game resolution as (width, height) tuple", NULL},
+     MCRF_PROPERTY(game_resolution, "Fixed game resolution as (width, height) tuple. Enables resolution-independent rendering with scaling."), NULL},
     {"scaling_mode", (getter)get_scaling_mode, (setter)set_scaling_mode,
-     "Viewport scaling mode: 'center', 'stretch', or 'fit'", NULL},
+     MCRF_PROPERTY(scaling_mode, "Viewport scaling mode (str): 'center' (no scaling), 'stretch' (fill window), or 'fit' (maintain aspect ratio)."), NULL},
     {NULL}
 };
 
 // Method definitions
 PyMethodDef PyWindow::methods[] = {
     {"get", (PyCFunction)PyWindow::get, METH_VARARGS | METH_CLASS,
-     "Get the Window singleton instance"},
+     MCRF_METHOD(Window, get,
+         MCRF_SIG("()", "Window"),
+         MCRF_DESC("Get the Window singleton instance."),
+         MCRF_RETURNS("Window: The global window object")
+         MCRF_NOTE("This is a class method. Call as Window.get(). There is only one window instance per application.")
+     )},
     {"center", (PyCFunction)PyWindow::center, METH_NOARGS,
-     "Center the window on the screen"},
+     MCRF_METHOD(Window, center,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Center the window on the screen."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Only works in windowed mode. Has no effect when fullscreen or in headless mode.")
+     )},
     {"screenshot", (PyCFunction)PyWindow::screenshot, METH_VARARGS | METH_KEYWORDS,
-     "Take a screenshot. Pass filename to save to file, or get raw bytes if no filename."},
+     MCRF_METHOD(Window, screenshot,
+         MCRF_SIG("(filename: str = None)", "bytes | None"),
+         MCRF_DESC("Take a screenshot of the current window contents."),
+         MCRF_ARGS_START
+         MCRF_ARG("filename", "Optional path to save screenshot. If omitted, returns raw RGBA bytes.")
+         MCRF_RETURNS("bytes | None: Raw RGBA pixel data if no filename given, otherwise None after saving")
+         MCRF_NOTE("Screenshot is taken at the actual window resolution. Use after render loop update for current frame.")
+     )},
     {NULL}
 };

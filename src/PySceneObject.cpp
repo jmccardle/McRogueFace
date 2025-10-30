@@ -2,6 +2,7 @@
 #include "PyScene.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 #include <iostream>
 
 // Static map to store Python scene objects by name
@@ -213,19 +214,38 @@ void PySceneClass::call_on_resize(PySceneObject* self, int width, int height)
 
 // Properties
 PyGetSetDef PySceneClass::getsetters[] = {
-    {"name", (getter)get_name, NULL, "Scene name", NULL},
-    {"active", (getter)get_active, NULL, "Whether this scene is currently active", NULL},
+    {"name", (getter)get_name, NULL,
+     MCRF_PROPERTY(name, "Scene name (str, read-only). Unique identifier for this scene."), NULL},
+    {"active", (getter)get_active, NULL,
+     MCRF_PROPERTY(active, "Whether this scene is currently active (bool, read-only). Only one scene can be active at a time."), NULL},
     {NULL}
 };
 
 // Methods
 PyMethodDef PySceneClass::methods[] = {
     {"activate", (PyCFunction)activate, METH_NOARGS,
-     "Make this the active scene"},
+     MCRF_METHOD(SceneClass, activate,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Make this the active scene."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Deactivates the current scene and activates this one. Scene transitions and lifecycle callbacks are triggered.")
+     )},
     {"get_ui", (PyCFunction)get_ui, METH_NOARGS,
-     "Get the UI element collection for this scene"},
+     MCRF_METHOD(SceneClass, get_ui,
+         MCRF_SIG("()", "UICollection"),
+         MCRF_DESC("Get the UI element collection for this scene."),
+         MCRF_RETURNS("UICollection: Collection of UI elements (Frames, Captions, Sprites, Grids) in this scene")
+         MCRF_NOTE("Use to add, remove, or iterate over UI elements. Changes are reflected immediately.")
+     )},
     {"register_keyboard", (PyCFunction)register_keyboard, METH_VARARGS,
-     "Register a keyboard handler function (alternative to overriding on_keypress)"},
+     MCRF_METHOD(SceneClass, register_keyboard,
+         MCRF_SIG("(callback: callable)", "None"),
+         MCRF_DESC("Register a keyboard event handler function."),
+         MCRF_ARGS_START
+         MCRF_ARG("callback", "Function that receives (key: str, pressed: bool) when keyboard events occur")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Alternative to overriding on_keypress() method. Handler is called for both key press and release events.")
+     )},
     {NULL}
 };
 

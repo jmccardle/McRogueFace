@@ -1,5 +1,6 @@
 #include "PyAnimation.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 #include "UIDrawable.h"
 #include "UIFrame.h"
 #include "UICaption.h"
@@ -261,33 +262,58 @@ PyObject* PyAnimation::has_valid_target(PyAnimationObject* self, PyObject* args)
 }
 
 PyGetSetDef PyAnimation::getsetters[] = {
-    {"property", (getter)get_property, NULL, "Target property name", NULL},
-    {"duration", (getter)get_duration, NULL, "Animation duration in seconds", NULL},
-    {"elapsed", (getter)get_elapsed, NULL, "Elapsed time in seconds", NULL},
-    {"is_complete", (getter)get_is_complete, NULL, "Whether animation is complete", NULL},
-    {"is_delta", (getter)get_is_delta, NULL, "Whether animation uses delta mode", NULL},
+    {"property", (getter)get_property, NULL,
+     MCRF_PROPERTY(property, "Target property name (str, read-only). The property being animated (e.g., 'pos', 'opacity', 'sprite_index')."), NULL},
+    {"duration", (getter)get_duration, NULL,
+     MCRF_PROPERTY(duration, "Animation duration in seconds (float, read-only). Total time for the animation to complete."), NULL},
+    {"elapsed", (getter)get_elapsed, NULL,
+     MCRF_PROPERTY(elapsed, "Elapsed time in seconds (float, read-only). Time since the animation started."), NULL},
+    {"is_complete", (getter)get_is_complete, NULL,
+     MCRF_PROPERTY(is_complete, "Whether animation is complete (bool, read-only). True when elapsed >= duration or complete() was called."), NULL},
+    {"is_delta", (getter)get_is_delta, NULL,
+     MCRF_PROPERTY(is_delta, "Whether animation uses delta mode (bool, read-only). In delta mode, the target value is added to the starting value."), NULL},
     {NULL}
 };
 
 PyMethodDef PyAnimation::methods[] = {
     {"start", (PyCFunction)start, METH_VARARGS,
-     "start(target) -> None\n\n"
-     "Start the animation on a target UI element.\n\n"
-     "Args:\n"
-     "    target: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)\n\n"
-     "Note:\n"
-     "    The animation will automatically stop if the target is destroyed."},
+     MCRF_METHOD(Animation, start,
+         MCRF_SIG("(target: UIDrawable)", "None"),
+         MCRF_DESC("Start the animation on a target UI element."),
+         MCRF_ARGS_START
+         MCRF_ARG("target", "The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("The animation will automatically stop if the target is destroyed. Call AnimationManager.update(delta_time) each frame to progress animations.")
+     )},
     {"update", (PyCFunction)update, METH_VARARGS,
-     "Update the animation by deltaTime (returns True if still running)"},
+     MCRF_METHOD(Animation, update,
+         MCRF_SIG("(delta_time: float)", "bool"),
+         MCRF_DESC("Update the animation by the given time delta."),
+         MCRF_ARGS_START
+         MCRF_ARG("delta_time", "Time elapsed since last update in seconds")
+         MCRF_RETURNS("bool: True if animation is still running, False if complete")
+         MCRF_NOTE("Typically called by AnimationManager automatically. Manual calls only needed for custom animation control.")
+     )},
     {"get_current_value", (PyCFunction)get_current_value, METH_NOARGS,
-     "Get the current interpolated value"},
+     MCRF_METHOD(Animation, get_current_value,
+         MCRF_SIG("()", "Any"),
+         MCRF_DESC("Get the current interpolated value of the animation."),
+         MCRF_RETURNS("Any: Current value (type depends on property: float, int, Color tuple, Vector tuple, or str)")
+         MCRF_NOTE("Return type matches the target property type. For sprite_index returns int, for pos returns (x, y), for fill_color returns (r, g, b, a).")
+     )},
     {"complete", (PyCFunction)complete, METH_NOARGS,
-     "complete() -> None\n\n"
-     "Complete the animation immediately by jumping to the final value."},
+     MCRF_METHOD(Animation, complete,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Complete the animation immediately by jumping to the final value."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Sets elapsed = duration and applies target value immediately. Completion callback will be called if set.")
+     )},
     {"hasValidTarget", (PyCFunction)has_valid_target, METH_NOARGS,
-     "hasValidTarget() -> bool\n\n"
-     "Check if the animation still has a valid target.\n\n"
-     "Returns:\n"
-     "    True if the target still exists, False if it was destroyed."},
+     MCRF_METHOD(Animation, hasValidTarget,
+         MCRF_SIG("()", "bool"),
+         MCRF_DESC("Check if the animation still has a valid target."),
+         MCRF_RETURNS("bool: True if the target still exists, False if it was destroyed")
+         MCRF_NOTE("Animations automatically clean up when targets are destroyed. Use this to check if manual cleanup is needed.")
+     )},
     {NULL}
 };
