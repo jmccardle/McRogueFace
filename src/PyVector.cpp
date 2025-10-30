@@ -16,7 +16,13 @@ PyMethodDef PyVector::methods[] = {
          MCRF_DESC("Calculate the length/magnitude of this vector."),
          MCRF_RETURNS("float: The magnitude of the vector")
      )},
-    {"magnitude_squared", (PyCFunction)PyVector::magnitude_squared, METH_NOARGS, "Return the squared length of the vector"},
+    {"magnitude_squared", (PyCFunction)PyVector::magnitude_squared, METH_NOARGS,
+     MCRF_METHOD(Vector, magnitude_squared,
+         MCRF_SIG("()", "float"),
+         MCRF_DESC("Calculate the squared magnitude of this vector."),
+         MCRF_RETURNS("float: The squared magnitude (faster than magnitude())")
+         MCRF_NOTE("Use this for comparisons to avoid expensive square root calculation.")
+     )},
     {"normalize", (PyCFunction)PyVector::normalize, METH_NOARGS,
      MCRF_METHOD(Vector, normalize,
          MCRF_SIG("()", "Vector"),
@@ -32,9 +38,26 @@ PyMethodDef PyVector::methods[] = {
          MCRF_ARG("other", "The other vector")
          MCRF_RETURNS("float: Dot product of the two vectors")
      )},
-    {"distance_to", (PyCFunction)PyVector::distance_to, METH_O, "Return the distance to another vector"},
-    {"angle", (PyCFunction)PyVector::angle, METH_NOARGS, "Return the angle in radians from the positive X axis"},
-    {"copy", (PyCFunction)PyVector::copy, METH_NOARGS, "Return a copy of this vector"},
+    {"distance_to", (PyCFunction)PyVector::distance_to, METH_O,
+     MCRF_METHOD(Vector, distance_to,
+         MCRF_SIG("(other: Vector)", "float"),
+         MCRF_DESC("Calculate the distance to another vector."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "The other vector")
+         MCRF_RETURNS("float: Distance between the two vectors")
+     )},
+    {"angle", (PyCFunction)PyVector::angle, METH_NOARGS,
+     MCRF_METHOD(Vector, angle,
+         MCRF_SIG("()", "float"),
+         MCRF_DESC("Get the angle of this vector in radians."),
+         MCRF_RETURNS("float: Angle in radians from positive x-axis")
+     )},
+    {"copy", (PyCFunction)PyVector::copy, METH_NOARGS,
+     MCRF_METHOD(Vector, copy,
+         MCRF_SIG("()", "Vector"),
+         MCRF_DESC("Create a copy of this vector."),
+         MCRF_RETURNS("Vector: New Vector object with same x and y values")
+     )},
     {NULL}
 };
 
