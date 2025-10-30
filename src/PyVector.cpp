@@ -1,5 +1,6 @@
 #include "PyVector.h"
 #include "PyObjectUtils.h"
+#include "McRFPy_Doc.h"
 #include <cmath>
 
 PyGetSetDef PyVector::getsetters[] = {
@@ -9,10 +10,28 @@ PyGetSetDef PyVector::getsetters[] = {
 };
 
 PyMethodDef PyVector::methods[] = {
-    {"magnitude", (PyCFunction)PyVector::magnitude, METH_NOARGS, "Return the length of the vector"},
+    {"magnitude", (PyCFunction)PyVector::magnitude, METH_NOARGS,
+     MCRF_METHOD(Vector, magnitude,
+         MCRF_SIG("()", "float"),
+         MCRF_DESC("Calculate the length/magnitude of this vector."),
+         MCRF_RETURNS("float: The magnitude of the vector")
+     )},
     {"magnitude_squared", (PyCFunction)PyVector::magnitude_squared, METH_NOARGS, "Return the squared length of the vector"},
-    {"normalize", (PyCFunction)PyVector::normalize, METH_NOARGS, "Return a unit vector in the same direction"},
-    {"dot", (PyCFunction)PyVector::dot, METH_O, "Return the dot product with another vector"},
+    {"normalize", (PyCFunction)PyVector::normalize, METH_NOARGS,
+     MCRF_METHOD(Vector, normalize,
+         MCRF_SIG("()", "Vector"),
+         MCRF_DESC("Return a unit vector in the same direction."),
+         MCRF_RETURNS("Vector: New normalized vector with magnitude 1.0")
+         MCRF_RAISES("ValueError", "If vector has zero magnitude")
+     )},
+    {"dot", (PyCFunction)PyVector::dot, METH_O,
+     MCRF_METHOD(Vector, dot,
+         MCRF_SIG("(other: Vector)", "float"),
+         MCRF_DESC("Calculate the dot product with another vector."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "The other vector")
+         MCRF_RETURNS("float: Dot product of the two vectors")
+     )},
     {"distance_to", (PyCFunction)PyVector::distance_to, METH_O, "Return the distance to another vector"},
     {"angle", (PyCFunction)PyVector::angle, METH_NOARGS, "Return the angle in radians from the positive X axis"},
     {"copy", (PyCFunction)PyVector::copy, METH_NOARGS, "Return a copy of this vector"},
