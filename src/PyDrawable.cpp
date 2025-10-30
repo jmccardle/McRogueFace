@@ -99,14 +99,26 @@ static int PyDrawable_set_opacity(PyDrawableObject* self, PyObject* value, void*
 
 // GetSetDef array for properties
 static PyGetSetDef PyDrawable_getsetters[] = {
-    {"click", (getter)PyDrawable_get_click, (setter)PyDrawable_set_click, 
-     "Callable executed when object is clicked", NULL},
+    {"click", (getter)PyDrawable_get_click, (setter)PyDrawable_set_click,
+     MCRF_PROPERTY(click,
+         "Callable executed when object is clicked. "
+         "Function receives (x, y) coordinates of click."
+     ), NULL},
     {"z_index", (getter)PyDrawable_get_z_index, (setter)PyDrawable_set_z_index,
-     "Z-order for rendering (lower values rendered first)", NULL},
+     MCRF_PROPERTY(z_index,
+         "Z-order for rendering (lower values rendered first). "
+         "Automatically triggers scene resort when changed."
+     ), NULL},
     {"visible", (getter)PyDrawable_get_visible, (setter)PyDrawable_set_visible,
-     "Whether the object is visible", NULL},
+     MCRF_PROPERTY(visible,
+         "Whether the object is visible (bool). "
+         "Invisible objects are not rendered or clickable."
+     ), NULL},
     {"opacity", (getter)PyDrawable_get_opacity, (setter)PyDrawable_set_opacity,
-     "Opacity level (0.0 = transparent, 1.0 = opaque)", NULL},
+     MCRF_PROPERTY(opacity,
+         "Opacity level (0.0 = transparent, 1.0 = opaque). "
+         "Automatically clamped to valid range [0.0, 1.0]."
+     ), NULL},
     {NULL}  // Sentinel
 };
 
