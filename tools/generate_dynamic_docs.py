@@ -12,6 +12,40 @@ import html
 import re
 from pathlib import Path
 
+def transform_doc_links(docstring, format='html', base_url=''):
+    """Transform MCRF_LINK patterns based on output format.
+
+    Detects pattern: "See also: TEXT (docs/path.md)"
+    Transforms to appropriate format for output type.
+    """
+    if not docstring:
+        return docstring
+
+    link_pattern = r'See also: ([^(]+) \(([^)]+)\)'
+
+    def replace_link(match):
+        text, ref = match.group(1).strip(), match.group(2).strip()
+
+        if format == 'html':
+            # Convert docs/foo.md → foo.html
+            href = ref.replace('docs/', '').replace('.md', '.html')
+            return f'<p class="see-also">See also: <a href="{href}">{text}</a></p>'
+
+        elif format == 'web':
+            # Link to hosted docs
+            web_path = ref.replace('docs/', '').replace('.md', '')
+            return f'<p class="see-also">See also: <a href="{base_url}/{web_path}">{text}</a></p>'
+
+        elif format == 'markdown':
+            # Markdown link
+            return f'\n**See also:** [{text}]({ref})'
+
+        else:  # 'python' or default
+            # Keep as plain text for Python docstrings
+            return match.group(0)
+
+    return re.sub(link_pattern, replace_link, docstring)
+
 # Must be run with McRogueFace as interpreter
 try:
     import mcrfpy
@@ -304,8 +338,9 @@ def generate_html_docs():
         html_content += f"""
         <div class="method-section">
             <h3><code class="function-signature">{func_name}{parsed['signature'] if parsed['signature'] else '(...)'}</code></h3>
-            <p>{html.escape(parsed['description'])}</p>
 """
+        description = transform_doc_links(parsed['description'], format='html')
+        html_content += f"            <p>{description}</p>\n"
         
         if parsed['args']:
             html_content += "            <h4>Arguments:</h4>\n            <ul>\n"
@@ -361,9 +396,10 @@ def generate_html_docs():
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">{method_name}{parsed['signature'] if parsed['signature'] else '(...)'}</code></h5>
 """
-                
+
                 if parsed['description']:
-                    html_content += f"                <p>{html.escape(parsed['description'])}</p>\n"
+                    description = transform_doc_links(parsed['description'], format='html')
+                    html_content += f"                <p>{description}</p>\n"
                 
                 if parsed['args']:
                     html_content += "                <div style='margin-left: 20px;'>\n"
@@ -429,9 +465,10 @@ def generate_markdown_docs():
         parsed = func_info["parsed"]
         
         md_content += f"### `{func_name}{parsed['signature'] if parsed['signature'] else '(...)'}`\n\n"
-        
+
         if parsed['description']:
-            md_content += f"{parsed['description']}\n\n"
+            description = transform_doc_links(parsed['description'], format='markdown')
+            md_content += f"{description}\n\n"
         
         if parsed['args']:
             md_content += "**Arguments:**\n"
@@ -479,9 +516,10 @@ def generate_markdown_docs():
                 parsed = method_info['parsed']
                 
                 md_content += f"#### `{method_name}{parsed['signature'] if parsed['signature'] else '(...)'}`\n\n"
-                
+
                 if parsed['description']:
-                    md_content += f"{parsed['description']}\n\n"
+                    description = transform_doc_links(parsed['description'], format='markdown')
+                    md_content += f"{description}\n\n"
                 
                 if parsed['args']:
                     md_content += "**Arguments:**\n"
