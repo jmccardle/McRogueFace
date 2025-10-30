@@ -1,5 +1,6 @@
 #include "PyTexture.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 
 PyTexture::PyTexture(std::string filename, int sprite_w, int sprite_h)
 : source(filename), sprite_width(sprite_w), sprite_height(sprite_h), sheet_width(0), sheet_height(0)
@@ -131,11 +132,17 @@ PyObject* PyTexture::get_source(PyTextureObject* self, void* closure)
 }
 
 PyGetSetDef PyTexture::getsetters[] = {
-    {"sprite_width", (getter)PyTexture::get_sprite_width, NULL, "Width of each sprite in pixels", NULL},
-    {"sprite_height", (getter)PyTexture::get_sprite_height, NULL, "Height of each sprite in pixels", NULL},
-    {"sheet_width", (getter)PyTexture::get_sheet_width, NULL, "Number of sprite columns in the texture", NULL},
-    {"sheet_height", (getter)PyTexture::get_sheet_height, NULL, "Number of sprite rows in the texture", NULL},
-    {"sprite_count", (getter)PyTexture::get_sprite_count, NULL, "Total number of sprites in the texture", NULL},
-    {"source", (getter)PyTexture::get_source, NULL, "Source filename of the texture", NULL},
+    {"sprite_width", (getter)PyTexture::get_sprite_width, NULL,
+     MCRF_PROPERTY(sprite_width, "Width of each sprite in pixels (int, read-only). Specified during texture initialization."), NULL},
+    {"sprite_height", (getter)PyTexture::get_sprite_height, NULL,
+     MCRF_PROPERTY(sprite_height, "Height of each sprite in pixels (int, read-only). Specified during texture initialization."), NULL},
+    {"sheet_width", (getter)PyTexture::get_sheet_width, NULL,
+     MCRF_PROPERTY(sheet_width, "Number of sprite columns in the texture sheet (int, read-only). Calculated as texture_width / sprite_width."), NULL},
+    {"sheet_height", (getter)PyTexture::get_sheet_height, NULL,
+     MCRF_PROPERTY(sheet_height, "Number of sprite rows in the texture sheet (int, read-only). Calculated as texture_height / sprite_height."), NULL},
+    {"sprite_count", (getter)PyTexture::get_sprite_count, NULL,
+     MCRF_PROPERTY(sprite_count, "Total number of sprites in the texture sheet (int, read-only). Equals sheet_width * sheet_height."), NULL},
+    {"source", (getter)PyTexture::get_source, NULL,
+     MCRF_PROPERTY(source, "Source filename path (str, read-only). The path used to load this texture."), NULL},
     {NULL}  // Sentinel
 };

@@ -3,6 +3,7 @@
 #include "GameEngine.h"
 #include "Resources.h"
 #include "PythonObjectCache.h"
+#include "McRFPy_Doc.h"
 #include <sstream>
 
 PyObject* PyTimer::repr(PyObject* self) {
@@ -307,38 +308,50 @@ PyObject* PyTimer::get_name(PyTimerObject* self, void* closure) {
 
 PyGetSetDef PyTimer::getsetters[] = {
     {"name", (getter)PyTimer::get_name, NULL,
-     "Timer name (read-only)", NULL},
+     MCRF_PROPERTY(name, "Timer name (str, read-only). Unique identifier for this timer."), NULL},
     {"interval", (getter)PyTimer::get_interval, (setter)PyTimer::set_interval,
-     "Timer interval in milliseconds", NULL},
+     MCRF_PROPERTY(interval, "Timer interval in milliseconds (int). Must be positive. Can be changed while timer is running."), NULL},
     {"remaining", (getter)PyTimer::get_remaining, NULL,
-     "Time remaining until next trigger in milliseconds", NULL},
+     MCRF_PROPERTY(remaining, "Time remaining until next trigger in milliseconds (int, read-only). Preserved when timer is paused."), NULL},
     {"paused", (getter)PyTimer::get_paused, NULL,
-     "Whether the timer is paused", NULL},
+     MCRF_PROPERTY(paused, "Whether the timer is paused (bool, read-only). Paused timers preserve their remaining time."), NULL},
     {"active", (getter)PyTimer::get_active, NULL,
-     "Whether the timer is active and not paused", NULL},
+     MCRF_PROPERTY(active, "Whether the timer is active and not paused (bool, read-only). False if cancelled or paused."), NULL},
     {"callback", (getter)PyTimer::get_callback, (setter)PyTimer::set_callback,
-     "The callback function to be called", NULL},
+     MCRF_PROPERTY(callback, "The callback function to be called when timer fires (callable). Can be changed while timer is running."), NULL},
     {"once", (getter)PyTimer::get_once, (setter)PyTimer::set_once,
-     "Whether the timer stops after firing once", NULL},
+     MCRF_PROPERTY(once, "Whether the timer stops after firing once (bool). If False, timer repeats indefinitely."), NULL},
     {NULL}
 };
 
 PyMethodDef PyTimer::methods[] = {
     {"pause", (PyCFunction)PyTimer::pause, METH_NOARGS,
-     "pause() -> None\n\n"
-     "Pause the timer, preserving the time remaining until next trigger.\n"
-     "The timer can be resumed later with resume()."},
+     MCRF_METHOD(Timer, pause,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Pause the timer, preserving the time remaining until next trigger."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("The timer can be resumed later with resume(). Time spent paused does not count toward the interval.")
+     )},
     {"resume", (PyCFunction)PyTimer::resume, METH_NOARGS,
-     "resume() -> None\n\n"
-     "Resume a paused timer from where it left off.\n"
-     "Has no effect if the timer is not paused."},
+     MCRF_METHOD(Timer, resume,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Resume a paused timer from where it left off."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Has no effect if the timer is not paused. Timer will fire after the remaining time elapses.")
+     )},
     {"cancel", (PyCFunction)PyTimer::cancel, METH_NOARGS,
-     "cancel() -> None\n\n"
-     "Cancel the timer and remove it from the timer system.\n"
-     "The timer will no longer fire and cannot be restarted."},
+     MCRF_METHOD(Timer, cancel,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Cancel the timer and remove it from the timer system."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("The timer will no longer fire and cannot be restarted. The callback will not be called again.")
+     )},
     {"restart", (PyCFunction)PyTimer::restart, METH_NOARGS,
-     "restart() -> None\n\n"
-     "Restart the timer from the beginning.\n"
-     "Resets the timer to fire after a full interval from now."},
+     MCRF_METHOD(Timer, restart,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Restart the timer from the beginning."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Resets the timer to fire after a full interval from now, regardless of remaining time.")
+     )},
     {NULL}
 };

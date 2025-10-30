@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2025-10-30 12:33:46</em></p>
+        <p><em>Generated on 2025-10-30 16:58:07</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -464,17 +464,38 @@ Note:</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">from_hexCreate Color from hex string (e.g., '#FF0000' or 'FF0000')</code></h5>
+                <h5><code class="method-name">from_hexfrom_hex(hex_string: str) -> Color</code></h5>
+                <p>Create a Color from a hexadecimal string.
+
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>hex_string</span>: Hex color string (e.g., &#x27;#FF0000&#x27;, &#x27;FF0000&#x27;, &#x27;#AABBCCDD&#x27; for RGBA)</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Color: New Color object with values from hex string ValueError: If hex string is not 6 or 8 characters (RGB or RGBA) This is a class method. Call as Color.from_hex(&#x27;#FF0000&#x27;)</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">lerp(...)</code></h5>
-                <p>Linearly interpolate between this color and another</p>
+                <h5><code class="method-name">lerplerp(other: Color, t: float) -> Color</code></h5>
+                <p>Linearly interpolate between this color and another.
+
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>other</span>: The target Color to interpolate towards</div>
+                    <div><span class='arg-name'>t</span>: Interpolation factor (0.0 = this color, 1.0 = other color). Automatically clamped to [0.0, 1.0]</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Color: New Color representing the interpolated value All components (r, g, b, a) are interpolated independently</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">to_hex(...)</code></h5>
-                <p>Convert Color to hex string</p>
+                <h5><code class="method-name">to_hexto_hex() -> str</code></h5>
+                <p>Convert this Color to a hexadecimal string.
+
+
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  str: Hex string in format &#x27;#RRGGBB&#x27; or &#x27;#RRGGBBAA&#x27; (if alpha &lt; 255) Alpha component is only included if not fully opaque (&lt; 255)</p>
             </div>
         </div>
 
@@ -1048,25 +1069,41 @@ Example:
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">cancelcancel() -> None</code></h5>
                 <p>Cancel the timer and remove it from the timer system.
-The timer will no longer fire and cannot be restarted.</p>
+
+
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  None The timer will no longer fire and cannot be restarted. The callback will not be called again.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">pausepause() -> None</code></h5>
                 <p>Pause the timer, preserving the time remaining until next trigger.
-The timer can be resumed later with resume().</p>
+
+
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  None The timer can be resumed later with resume(). Time spent paused does not count toward the interval.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">restartrestart() -> None</code></h5>
                 <p>Restart the timer from the beginning.
-Resets the timer to fire after a full interval from now.</p>
+
+
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  None Resets the timer to fire after a full interval from now, regardless of remaining time.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">resumeresume() -> None</code></h5>
                 <p>Resume a paused timer from where it left off.
-Has no effect if the timer is not paused.</p>
+
+
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  None Has no effect if the timer is not paused. Timer will fire after the remaining time elapses.</p>
             </div>
         </div>
 

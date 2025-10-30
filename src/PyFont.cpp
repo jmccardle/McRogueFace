@@ -1,5 +1,6 @@
 #include "PyFont.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 
 
 PyFont::PyFont(std::string filename)
@@ -73,7 +74,9 @@ PyObject* PyFont::get_source(PyFontObject* self, void* closure)
 }
 
 PyGetSetDef PyFont::getsetters[] = {
-    {"family", (getter)PyFont::get_family, NULL, "Font family name", NULL},
-    {"source", (getter)PyFont::get_source, NULL, "Source filename of the font", NULL},
+    {"family", (getter)PyFont::get_family, NULL,
+     MCRF_PROPERTY(family, "Font family name (str, read-only). Retrieved from font metadata."), NULL},
+    {"source", (getter)PyFont::get_source, NULL,
+     MCRF_PROPERTY(source, "Source filename path (str, read-only). The path used to load this font."), NULL},
     {NULL}  // Sentinel
 };

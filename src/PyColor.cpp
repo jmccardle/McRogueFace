@@ -2,21 +2,50 @@
 #include "McRFPy_API.h"
 #include "PyObjectUtils.h"
 #include "PyRAII.h"
+#include "McRFPy_Doc.h"
 #include <string>
 #include <cstdio>
 
 PyGetSetDef PyColor::getsetters[] = {
-    {"r", (getter)PyColor::get_member, (setter)PyColor::set_member, "Red component",   (void*)0},
-    {"g", (getter)PyColor::get_member, (setter)PyColor::set_member, "Green component", (void*)1},
-    {"b", (getter)PyColor::get_member, (setter)PyColor::set_member, "Blue component",  (void*)2},
-    {"a", (getter)PyColor::get_member, (setter)PyColor::set_member, "Alpha component", (void*)3},
+    {"r", (getter)PyColor::get_member, (setter)PyColor::set_member,
+     MCRF_PROPERTY(r, "Red component (0-255). Automatically clamped to valid range."), (void*)0},
+    {"g", (getter)PyColor::get_member, (setter)PyColor::set_member,
+     MCRF_PROPERTY(g, "Green component (0-255). Automatically clamped to valid range."), (void*)1},
+    {"b", (getter)PyColor::get_member, (setter)PyColor::set_member,
+     MCRF_PROPERTY(b, "Blue component (0-255). Automatically clamped to valid range."), (void*)2},
+    {"a", (getter)PyColor::get_member, (setter)PyColor::set_member,
+     MCRF_PROPERTY(a, "Alpha component (0-255, where 0=transparent, 255=opaque). Automatically clamped to valid range."), (void*)3},
     {NULL}
 };
 
 PyMethodDef PyColor::methods[] = {
-    {"from_hex", (PyCFunction)PyColor::from_hex, METH_VARARGS | METH_CLASS, "Create Color from hex string (e.g., '#FF0000' or 'FF0000')"},
-    {"to_hex", (PyCFunction)PyColor::to_hex, METH_NOARGS, "Convert Color to hex string"},
-    {"lerp", (PyCFunction)PyColor::lerp, METH_VARARGS, "Linearly interpolate between this color and another"},
+    {"from_hex", (PyCFunction)PyColor::from_hex, METH_VARARGS | METH_CLASS,
+     MCRF_METHOD(Color, from_hex,
+         MCRF_SIG("(hex_string: str)", "Color"),
+         MCRF_DESC("Create a Color from a hexadecimal string."),
+         MCRF_ARGS_START
+         MCRF_ARG("hex_string", "Hex color string (e.g., '#FF0000', 'FF0000', '#AABBCCDD' for RGBA)")
+         MCRF_RETURNS("Color: New Color object with values from hex string")
+         MCRF_RAISES("ValueError", "If hex string is not 6 or 8 characters (RGB or RGBA)")
+         MCRF_NOTE("This is a class method. Call as Color.from_hex('#FF0000')")
+     )},
+    {"to_hex", (PyCFunction)PyColor::to_hex, METH_NOARGS,
+     MCRF_METHOD(Color, to_hex,
+         MCRF_SIG("()", "str"),
+         MCRF_DESC("Convert this Color to a hexadecimal string."),
+         MCRF_RETURNS("str: Hex string in format '#RRGGBB' or '#RRGGBBAA' (if alpha < 255)")
+         MCRF_NOTE("Alpha component is only included if not fully opaque (< 255)")
+     )},
+    {"lerp", (PyCFunction)PyColor::lerp, METH_VARARGS,
+     MCRF_METHOD(Color, lerp,
+         MCRF_SIG("(other: Color, t: float)", "Color"),
+         MCRF_DESC("Linearly interpolate between this color and another."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "The target Color to interpolate towards")
+         MCRF_ARG("t", "Interpolation factor (0.0 = this color, 1.0 = other color). Automatically clamped to [0.0, 1.0]")
+         MCRF_RETURNS("Color: New Color representing the interpolated value")
+         MCRF_NOTE("All components (r, g, b, a) are interpolated independently")
+     )},
     {NULL}
 };
 
