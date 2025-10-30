@@ -23,5 +23,17 @@ assert "Return a unit vector" in normalize_doc
 assert "Returns:" in normalize_doc
 assert "Note:" in normalize_doc
 
+# Check Vector.x property docstring
+x_doc = mcrfpy.Vector.x.__doc__
+print("x property doc:", x_doc)
+assert "X coordinate of the vector" in x_doc
+assert "float" in x_doc
+
+# Check Vector.y property docstring
+y_doc = mcrfpy.Vector.y.__doc__
+print("y property doc:", y_doc)
+assert "Y coordinate of the vector" in y_doc
+assert "float" in y_doc
+
 print("SUCCESS: All docstrings present and complete")
 sys.exit(0)

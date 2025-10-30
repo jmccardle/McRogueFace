@@ -4,8 +4,10 @@
 #include <cmath>
 
 PyGetSetDef PyVector::getsetters[] = {
-    {"x", (getter)PyVector::get_member, (setter)PyVector::set_member, "X/horizontal component",   (void*)0},
-    {"y", (getter)PyVector::get_member, (setter)PyVector::set_member, "Y/vertical component",     (void*)1},
+    {"x", (getter)PyVector::get_member, (setter)PyVector::set_member,
+     MCRF_PROPERTY(x, "X coordinate of the vector (float)"), (void*)0},
+    {"y", (getter)PyVector::get_member, (setter)PyVector::set_member,
+     MCRF_PROPERTY(y, "Y coordinate of the vector (float)"), (void*)1},
     {NULL}
 };
 
