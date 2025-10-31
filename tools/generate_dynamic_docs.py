@@ -82,67 +82,90 @@ except ImportError:
     sys.exit(1)
 
 def parse_docstring(docstring):
-    """Parse a docstring to extract signature, description, args, and returns."""
+    """Parse a docstring to extract signature, description, args, returns, and raises."""
     if not docstring:
-        return {"signature": "", "description": "", "args": [], "returns": "", "example": ""}
-    
+        return {"signature": "", "description": "", "args": [], "returns": "", "raises": "", "example": ""}
+
     lines = docstring.strip().split('\n')
     result = {
         "signature": "",
         "description": "",
         "args": [],
         "returns": "",
+        "raises": "",
         "example": ""
     }
-    
+
     # First line often contains the signature
     if lines and '(' in lines[0] and ')' in lines[0]:
         result["signature"] = lines[0].strip()
         lines = lines[1:] if len(lines) > 1 else []
-    
+
     # Parse the rest
     current_section = "description"
     description_lines = []
+    returns_lines = []
+    raises_lines = []
     example_lines = []
-    in_example = False
-    
+
     for line in lines:
         line_lower = line.strip().lower()
-        
+
+        # Detect section headers
         if line_lower.startswith("args:") or line_lower.startswith("arguments:"):
             current_section = "args"
             continue
         elif line_lower.startswith("returns:") or line_lower.startswith("return:"):
             current_section = "returns"
-            result["returns"] = line[line.find(':')+1:].strip()
+            # Capture any text on the same line as "Returns:"
+            content_after_colon = line[line.find(':')+1:].strip()
+            if content_after_colon:
+                returns_lines.append(content_after_colon)
+            continue
+        elif line_lower.startswith("raises:") or line_lower.startswith("raise:"):
+            current_section = "raises"
+            # Capture any text on the same line as "Raises:"
+            content_after_colon = line[line.find(':')+1:].strip()
+            if content_after_colon:
+                raises_lines.append(content_after_colon)
             continue
         elif line_lower.startswith("example:") or line_lower.startswith("examples:"):
-            in_example = True
+            current_section = "example"
             continue
         elif line_lower.startswith("note:"):
+            # Notes go into description
             if description_lines:
                 description_lines.append("")
             description_lines.append(line)
             continue
-            
-        if in_example:
-            example_lines.append(line)
-        elif current_section == "description" and not line.startswith("    "):
+
+        # Skip blank lines unless we're in example section
+        if not line.strip() and current_section != "example":
+            continue
+
+        # Add content to appropriate section
+        if current_section == "description":
             description_lines.append(line)
         elif current_section == "args" and line.strip():
-            # Parse argument lines like "    x: X coordinate"
+            # Parse argument lines like "    filename: Path to file"
             match = re.match(r'\s+(\w+):\s*(.+)', line)
             if match:
                 result["args"].append({
                     "name": match.group(1),
                     "description": match.group(2).strip()
                 })
-        elif current_section == "returns" and line.strip() and line.startswith("    "):
-            result["returns"] += " " + line.strip()
-    
+        elif current_section == "returns" and line.strip():
+            returns_lines.append(line.strip())
+        elif current_section == "raises" and line.strip():
+            raises_lines.append(line.strip())
+        elif current_section == "example":
+            example_lines.append(line)
+
     result["description"] = '\n'.join(description_lines).strip()
+    result["returns"] = ' '.join(returns_lines).strip()
+    result["raises"] = ' '.join(raises_lines).strip()
     result["example"] = '\n'.join(example_lines).strip()
-    
+
     return result
 
 def get_all_functions():
@@ -361,27 +384,32 @@ def generate_html_docs():
     for func_name in sorted(functions.keys()):
         func_info = functions[func_name]
         parsed = func_info["parsed"]
-        
+
+        # Use signature if available (already includes name), otherwise use just name
+        heading = parsed['signature'] if parsed['signature'] else f"{func_name}(...)"
         html_content += f"""
         <div class="method-section">
-            <h3><code class="function-signature">{func_name}{parsed['signature'] if parsed['signature'] else '(...)'}</code></h3>
+            <h3><code class="function-signature">{heading}</code></h3>
 """
         if parsed['description']:
             description = transform_doc_links(parsed['description'], format='html')
             html_content += f"            <p>{description}</p>\n"
-        
+
         if parsed['args']:
             html_content += "            <h4>Arguments:</h4>\n            <ul>\n"
             for arg in parsed['args']:
                 html_content += f"                <li><span class='arg-name'>{arg['name']}</span>: {html.escape(arg['description'])}</li>\n"
             html_content += "            </ul>\n"
-        
+
         if parsed['returns']:
             html_content += f"            <p><span class='returns'>Returns:</span> {html.escape(parsed['returns'])}</p>\n"
-        
+
+        if parsed['raises']:
+            html_content += f"            <p><span class='raises'>Raises:</span> {html.escape(parsed['raises'])}</p>\n"
+
         if parsed['example']:
             html_content += f"            <h4>Example:</h4>\n            <pre><code>{html.escape(parsed['example'])}</code></pre>\n"
-        
+
         html_content += "        </div>\n"
     
     # Generate class documentation
@@ -419,25 +447,30 @@ def generate_html_docs():
                 if method_name == '__init__':
                     continue
                 parsed = method_info['parsed']
-                
+
+                # Use signature if available (already includes name), otherwise use just name
+                heading = parsed['signature'] if parsed['signature'] else f"{method_name}(...)"
                 html_content += f"""
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">{method_name}{parsed['signature'] if parsed['signature'] else '(...)'}</code></h5>
+                <h5><code class="method-name">{heading}</code></h5>
 """
 
                 if parsed['description']:
                     description = transform_doc_links(parsed['description'], format='html')
                     html_content += f"                <p>{description}</p>\n"
-                
+
                 if parsed['args']:
                     html_content += "                <div style='margin-left: 20px;'>\n"
                     for arg in parsed['args']:
                         html_content += f"                    <div><span class='arg-name'>{arg['name']}</span>: {html.escape(arg['description'])}</div>\n"
                     html_content += "                </div>\n"
-                
+
                 if parsed['returns']:
                     html_content += f"                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> {html.escape(parsed['returns'])}</p>\n"
-                
+
+                if parsed['raises']:
+                    html_content += f"                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> {html.escape(parsed['raises'])}</p>\n"
+
                 html_content += "            </div>\n"
         
         html_content += "        </div>\n"
@@ -491,22 +524,27 @@ def generate_markdown_docs():
     for func_name in sorted(functions.keys()):
         func_info = functions[func_name]
         parsed = func_info["parsed"]
-        
-        md_content += f"### `{func_name}{parsed['signature'] if parsed['signature'] else '(...)'}`\n\n"
+
+        # Use signature if available (already includes name), otherwise use just name
+        heading = parsed['signature'] if parsed['signature'] else f"{func_name}(...)"
+        md_content += f"### `{heading}`\n\n"
 
         if parsed['description']:
             description = transform_doc_links(parsed['description'], format='markdown')
             md_content += f"{description}\n\n"
-        
+
         if parsed['args']:
             md_content += "**Arguments:**\n"
             for arg in parsed['args']:
                 md_content += f"- `{arg['name']}`: {arg['description']}\n"
             md_content += "\n"
-        
+
         if parsed['returns']:
             md_content += f"**Returns:** {parsed['returns']}\n\n"
-        
+
+        if parsed['raises']:
+            md_content += f"**Raises:** {parsed['raises']}\n\n"
+
         if parsed['example']:
             md_content += f"**Example:**\n```python\n{parsed['example']}\n```\n\n"
     
@@ -542,21 +580,26 @@ def generate_markdown_docs():
                 if method_name == '__init__':
                     continue
                 parsed = method_info['parsed']
-                
-                md_content += f"#### `{method_name}{parsed['signature'] if parsed['signature'] else '(...)'}`\n\n"
+
+                # Use signature if available (already includes name), otherwise use just name
+                heading = parsed['signature'] if parsed['signature'] else f"{method_name}(...)"
+                md_content += f"#### `{heading}`\n\n"
 
                 if parsed['description']:
                     description = transform_doc_links(parsed['description'], format='markdown')
                     md_content += f"{description}\n\n"
-                
+
                 if parsed['args']:
                     md_content += "**Arguments:**\n"
                     for arg in parsed['args']:
                         md_content += f"- `{arg['name']}`: {arg['description']}\n"
                     md_content += "\n"
-                
+
                 if parsed['returns']:
                     md_content += f"**Returns:** {parsed['returns']}\n\n"
+
+                if parsed['raises']:
+                    md_content += f"**Raises:** {parsed['raises']}\n\n"
     
     # Constants
     md_content += "## Constants\n\n"

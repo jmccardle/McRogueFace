@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2025-10-30 16:58:07</em></p>
+        <p><em>Generated on 2025-10-30 21:14:43</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -146,58 +146,58 @@
         <h2 id="functions">Functions</h2>
 
         <div class="method-section">
-            <h3><code class="function-signature">createScenecreateScene(name: str) -> None</code></h3>
+            <h3><code class="function-signature">createScene(name: str) -> None</code></h3>
             <p>Create a new empty scene.
-
 
 Note:</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>name</span>: Unique name for the new scene</li>
-                <li><span class='arg-name'>ValueError</span>: If a scene with this name already exists</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None</p>
+            <p><span class='raises'>Raises:</span> ValueError: If a scene with this name already exists The scene is created but not made active. Use setScene() to switch to it.</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">createSoundBuffercreateSoundBuffer(filename: str) -> int</code></h3>
+            <h3><code class="function-signature">createSoundBuffer(filename: str) -> int</code></h3>
             <p>Load a sound effect from a file and return its buffer ID.</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>filename</span>: Path to the sound file (WAV, OGG, FLAC)</li>
             </ul>
-            <p><span class='returns'>Returns:</span>  int: Buffer ID for use with playSound() RuntimeError: If the file cannot be loaded</p>
+            <p><span class='returns'>Returns:</span> int: Buffer ID for use with playSound()</p>
+            <p><span class='raises'>Raises:</span> RuntimeError: If the file cannot be loaded</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">currentScenecurrentScene() -> str</code></h3>
+            <h3><code class="function-signature">currentScene() -> str</code></h3>
             <p>Get the name of the currently active scene.</p>
-            <p><span class='returns'>Returns:</span>  str: Name of the current scene</p>
+            <p><span class='returns'>Returns:</span> str: Name of the current scene</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">delTimerdelTimer(name: str) -> None</code></h3>
+            <h3><code class="function-signature">delTimer(name: str) -> None</code></h3>
             <p>Stop and remove a timer.
-
 
 Note:</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>name</span>: Timer identifier to remove</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None No error is raised if the timer doesn&#x27;t exist.</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">exitexit() -> None</code></h3>
+            <h3><code class="function-signature">exit() -> None</code></h3>
             <p>Cleanly shut down the game engine and exit the application.
 
-
 Note:</p>
+            <p><span class='returns'>Returns:</span> None This immediately closes the window and terminates the program.</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">findfind(name: str, scene: str = None) -> UIDrawable | None</code></h3>
+            <h3><code class="function-signature">find(name: str, scene: str = None) -> UIDrawable | None</code></h3>
             <p>Find the first UI element with the specified name.
-
 
 Note:</p>
             <h4>Arguments:</h4>
@@ -205,134 +205,134 @@ Note:</p>
                 <li><span class='arg-name'>name</span>: Exact name to search for</li>
                 <li><span class='arg-name'>scene</span>: Scene to search in (default: current scene)</li>
             </ul>
-            <p><span class='returns'>Returns:</span>  Frame, Caption, Sprite, Grid, or Entity if found; None otherwise Searches scene UI elements and entities within grids.</p>
+            <p><span class='returns'>Returns:</span> Frame, Caption, Sprite, Grid, or Entity if found; None otherwise Searches scene UI elements and entities within grids.</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">findAllfindAll(pattern: str, scene: str = None) -> list</code></h3>
-            <p>Find all UI elements matching a name pattern.</p>
+            <h3><code class="function-signature">findAll(pattern: str, scene: str = None) -> list</code></h3>
+            <p>Find all UI elements matching a name pattern.
+
+Note:</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>pattern</span>: Name pattern with optional wildcards (* matches any characters)</li>
                 <li><span class='arg-name'>scene</span>: Scene to search in (default: current scene)</li>
             </ul>
-            <p><span class='returns'>Returns:</span>  list: All matching UI elements and entities</p>
-            <h4>Example:</h4>
-            <pre><code>findAll(&#x27;enemy*&#x27;)  # Find all elements starting with &#x27;enemy&#x27;
-    findAll(&#x27;*_button&#x27;)  # Find all elements ending with &#x27;_button&#x27;</code></pre>
+            <p><span class='returns'>Returns:</span> list: All matching UI elements and entities</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">getMetricsgetMetrics() -> dict</code></h3>
+            <h3><code class="function-signature">getMetrics() -> dict</code></h3>
             <p>Get current performance metrics.</p>
-            <p><span class='returns'>Returns:</span>  dict: Performance data with keys: - frame_time: Last frame duration in seconds - avg_frame_time: Average frame time - fps: Frames per second - draw_calls: Number of draw calls - ui_elements: Total UI element count - visible_elements: Visible element count - current_frame: Frame counter - runtime: Total runtime in seconds</p>
+            <p><span class='returns'>Returns:</span> dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds)</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">getMusicVolumegetMusicVolume() -> int</code></h3>
+            <h3><code class="function-signature">getMusicVolume() -> int</code></h3>
             <p>Get the current music volume level.</p>
-            <p><span class='returns'>Returns:</span>  int: Current volume (0-100)</p>
+            <p><span class='returns'>Returns:</span> int: Current volume (0-100)</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">getSoundVolumegetSoundVolume() -> int</code></h3>
+            <h3><code class="function-signature">getSoundVolume() -> int</code></h3>
             <p>Get the current sound effects volume level.</p>
-            <p><span class='returns'>Returns:</span>  int: Current volume (0-100)</p>
+            <p><span class='returns'>Returns:</span> int: Current volume (0-100)</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">keypressScenekeypressScene(handler: callable) -> None</code></h3>
-            <p>Set the keyboard event handler for the current scene.</p>
+            <h3><code class="function-signature">keypressScene(handler: callable) -> None</code></h3>
+            <p>Set the keyboard event handler for the current scene.
+
+Note:</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>handler</span>: Callable that receives (key_name: str, is_pressed: bool)</li>
             </ul>
-            <h4>Example:</h4>
-            <pre><code>def on_key(key, pressed):
-        if key == &#x27;A&#x27; and pressed:
-            print(&#x27;A key pressed&#x27;)
-    mcrfpy.keypressScene(on_key)</code></pre>
+            <p><span class='returns'>Returns:</span> None</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">loadMusicloadMusic(filename: str) -> None</code></h3>
+            <h3><code class="function-signature">loadMusic(filename: str) -> None</code></h3>
             <p>Load and immediately play background music from a file.
-
 
 Note:</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>filename</span>: Path to the music file (WAV, OGG, FLAC)</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None Only one music track can play at a time. Loading new music stops the current track.</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">playSoundplaySound(buffer_id: int) -> None</code></h3>
+            <h3><code class="function-signature">playSound(buffer_id: int) -> None</code></h3>
             <p>Play a sound effect using a previously loaded buffer.</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>buffer_id</span>: Sound buffer ID returned by createSoundBuffer()</li>
-                <li><span class='arg-name'>RuntimeError</span>: If the buffer ID is invalid</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None</p>
+            <p><span class='raises'>Raises:</span> RuntimeError: If the buffer ID is invalid</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">sceneUIsceneUI(scene: str = None) -> list</code></h3>
+            <h3><code class="function-signature">sceneUI(scene: str = None) -> list</code></h3>
             <p>Get all UI elements for a scene.</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>scene</span>: Scene name. If None, uses current scene</li>
             </ul>
-            <p><span class='returns'>Returns:</span>  list: All UI elements (Frame, Caption, Sprite, Grid) in the scene KeyError: If the specified scene doesn&#x27;t exist</p>
+            <p><span class='returns'>Returns:</span> list: All UI elements (Frame, Caption, Sprite, Grid) in the scene</p>
+            <p><span class='raises'>Raises:</span> KeyError: If the specified scene doesn&#x27;t exist</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">setMusicVolumesetMusicVolume(volume: int) -> None</code></h3>
+            <h3><code class="function-signature">setMusicVolume(volume: int) -> None</code></h3>
             <p>Set the global music volume.</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>volume</span>: Volume level from 0 (silent) to 100 (full volume)</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">setScalesetScale(multiplier: float) -> None</code></h3>
+            <h3><code class="function-signature">setScale(multiplier: float) -> None</code></h3>
             <p>Scale the game window size.
-
 
 Note:</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>multiplier</span>: Scale factor (e.g., 2.0 for double size)</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None The internal resolution remains 1024x768, but the window is scaled. This is deprecated - use Window.resolution instead.</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">setScenesetScene(scene: str, transition: str = None, duration: float = 0.0) -> None</code></h3>
+            <h3><code class="function-signature">setScene(scene: str, transition: str = None, duration: float = 0.0) -> None</code></h3>
             <p>Switch to a different scene with optional transition effect.</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>scene</span>: Name of the scene to switch to</li>
                 <li><span class='arg-name'>transition</span>: Transition type (&#x27;fade&#x27;, &#x27;slide_left&#x27;, &#x27;slide_right&#x27;, &#x27;slide_up&#x27;, &#x27;slide_down&#x27;)</li>
                 <li><span class='arg-name'>duration</span>: Transition duration in seconds (default: 0.0 for instant)</li>
-                <li><span class='arg-name'>KeyError</span>: If the scene doesn&#x27;t exist</li>
-                <li><span class='arg-name'>ValueError</span>: If the transition type is invalid</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None</p>
+            <p><span class='raises'>Raises:</span> KeyError: If the scene doesn&#x27;t exist ValueError: If the transition type is invalid</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">setSoundVolumesetSoundVolume(volume: int) -> None</code></h3>
+            <h3><code class="function-signature">setSoundVolume(volume: int) -> None</code></h3>
             <p>Set the global sound effects volume.</p>
             <h4>Arguments:</h4>
             <ul>
                 <li><span class='arg-name'>volume</span>: Volume level from 0 (silent) to 100 (full volume)</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None</p>
         </div>
 
         <div class="method-section">
-            <h3><code class="function-signature">setTimersetTimer(name: str, handler: callable, interval: int) -> None</code></h3>
+            <h3><code class="function-signature">setTimer(name: str, handler: callable, interval: int) -> None</code></h3>
             <p>Create or update a recurring timer.
-
 
 Note:</p>
             <h4>Arguments:</h4>
@@ -341,6 +341,7 @@ Note:</p>
                 <li><span class='arg-name'>handler</span>: Function called with (runtime: float) parameter</li>
                 <li><span class='arg-name'>interval</span>: Time between calls in milliseconds</li>
             </ul>
+            <p><span class='returns'>Returns:</span> None If a timer with this name exists, it will be replaced. The handler receives the total runtime in seconds as its argument.</p>
         </div>
 
         <h2 id='classes'>Classes</h2>
@@ -351,34 +352,49 @@ Note:</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">completecomplete() -> None</code></h5>
-                <p>Complete the animation immediately by jumping to the final value.</p>
+                <h5><code class="method-name">complete() -> None</code></h5>
+                <p>Complete the animation immediately by jumping to the final value.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Sets elapsed = duration and applies target value immediately. Completion callback will be called if set.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_current_value(...)</code></h5>
-                <p>Get the current interpolated value</p>
+                <h5><code class="method-name">get_current_value() -> Any</code></h5>
+                <p>Get the current interpolated value of the animation.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Any: Current value (type depends on property: float, int, Color tuple, Vector tuple, or str) Return type matches the target property type. For sprite_index returns int, for pos returns (x, y), for fill_color returns (r, g, b, a).</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">hasValidTargethasValidTarget() -> bool</code></h5>
-                <p>Check if the animation still has a valid target.</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  True if the target still exists, False if it was destroyed.</p>
+                <h5><code class="method-name">hasValidTarget() -> bool</code></h5>
+                <p>Check if the animation still has a valid target.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> bool: True if the target still exists, False if it was destroyed Animations automatically clean up when targets are destroyed. Use this to check if manual cleanup is needed.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">startstart(target) -> None</code></h5>
+                <h5><code class="method-name">start(target: UIDrawable) -> None</code></h5>
                 <p>Start the animation on a target UI element.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>target</span>: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)</div>
                 </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None The animation will automatically stop if the target is destroyed. Call AnimationManager.update(delta_time) each frame to progress animations.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">updateUpdate the animation by deltaTime (returns True if still running)</code></h5>
+                <h5><code class="method-name">update(delta_time: float) -> bool</code></h5>
+                <p>Update the animation by the given time delta.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>delta_time</span>: Time elapsed since last update in seconds</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> bool: True if animation is still running, False if complete Typically called by AnimationManager automatically. Manual calls only needed for custom animation control.</p>
             </div>
         </div>
 
@@ -424,19 +440,16 @@ Attributes:
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_boundsget_bounds() -> tuple</code></h5>
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
                 <p>Get the bounding rectangle of this drawable element.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">movemove(dx: float, dy: float) -> None</code></h5>
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
                 <p>Move the element by a relative offset.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -446,9 +459,8 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">resizeresize(width: float, height: float) -> None</code></h5>
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
                 <p>Resize the element to new dimensions.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -464,38 +476,35 @@ Note:</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">from_hexfrom_hex(hex_string: str) -> Color</code></h5>
+                <h5><code class="method-name">from_hex(hex_string: str) -> Color</code></h5>
                 <p>Create a Color from a hexadecimal string.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>hex_string</span>: Hex color string (e.g., &#x27;#FF0000&#x27;, &#x27;FF0000&#x27;, &#x27;#AABBCCDD&#x27; for RGBA)</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Color: New Color object with values from hex string ValueError: If hex string is not 6 or 8 characters (RGB or RGBA) This is a class method. Call as Color.from_hex(&#x27;#FF0000&#x27;)</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Color: New Color object with values from hex string</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> ValueError: If hex string is not 6 or 8 characters (RGB or RGBA) This is a class method. Call as Color.from_hex(&#x27;#FF0000&#x27;)</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">lerplerp(other: Color, t: float) -> Color</code></h5>
+                <h5><code class="method-name">lerp(other: Color, t: float) -> Color</code></h5>
                 <p>Linearly interpolate between this color and another.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>other</span>: The target Color to interpolate towards</div>
                     <div><span class='arg-name'>t</span>: Interpolation factor (0.0 = this color, 1.0 = other color). Automatically clamped to [0.0, 1.0]</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Color: New Color representing the interpolated value All components (r, g, b, a) are interpolated independently</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Color: New Color representing the interpolated value All components (r, g, b, a) are interpolated independently</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">to_hexto_hex() -> str</code></h5>
+                <h5><code class="method-name">to_hex() -> str</code></h5>
                 <p>Convert this Color to a hexadecimal string.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  str: Hex string in format &#x27;#RRGGBB&#x27; or &#x27;#RRGGBBAA&#x27; (if alpha &lt; 255) Alpha component is only included if not fully opaque (&lt; 255)</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> str: Hex string in format &#x27;#RRGGBB&#x27; or &#x27;#RRGGBBAA&#x27; (if alpha &lt; 255) Alpha component is only included if not fully opaque (&lt; 255)</p>
             </div>
         </div>
 
@@ -505,19 +514,16 @@ Note:</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_boundsget_bounds() -> tuple</code></h5>
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
                 <p>Get the bounding rectangle of this drawable element.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">movemove(dx: float, dy: float) -> None</code></h5>
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
                 <p>Move the element by a relative offset.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -527,9 +533,8 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">resizeresize(width: float, height: float) -> None</code></h5>
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
                 <p>Resize the element to new dimensions.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -579,13 +584,11 @@ Attributes:
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_boundsget_bounds() -> tuple</code></h5>
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
                 <p>Get the bounding rectangle of this drawable element.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -594,9 +597,8 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">movemove(dx: float, dy: float) -> None</code></h5>
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
                 <p>Move the element by a relative offset.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -606,19 +608,18 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">path_topath_to(x: int, y: int) -> bool</code></h5>
+                <h5><code class="method-name">path_to(x: int, y: int) -> bool</code></h5>
                 <p>Find and follow path to target position using A* pathfinding.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x</span>: Target X coordinate</div>
                     <div><span class='arg-name'>y</span>: Target Y coordinate</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  True if a path was found and the entity started moving, False otherwise</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> True if a path was found and the entity started moving, False otherwise The entity will automatically move along the path over multiple frames. Call this again to change the target or repath.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">resizeresize(width: float, height: float) -> None</code></h5>
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
                 <p>Resize the element to new dimensions.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -628,9 +629,8 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">update_visibilityupdate_visibility() -> None</code></h5>
+                <h5><code class="method-name">update_visibility() -> None</code></h5>
                 <p>Update entity&#x27;s visibility state based on current FOV.
-
 Recomputes which cells are visible from the entity&#x27;s position and updates
 the entity&#x27;s gridstate to track explored areas. This is called automatically
 when the entity moves if it has a grid with perspective set.</p>
@@ -712,19 +712,16 @@ Attributes:
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_boundsget_bounds() -> tuple</code></h5>
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
                 <p>Get the bounding rectangle of this drawable element.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">movemove(dx: float, dy: float) -> None</code></h5>
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
                 <p>Move the element by a relative offset.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -734,9 +731,8 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">resizeresize(width: float, height: float) -> None</code></h5>
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
                 <p>Resize the element to new dimensions.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -803,7 +799,7 @@ Attributes:
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">compute_astar_pathcompute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]</code></h5>
+                <h5><code class="method-name">compute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]</code></h5>
                 <p>Compute A* path between two points.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x1</span>: Starting X coordinate</div>
@@ -812,11 +808,11 @@ Attributes:
                     <div><span class='arg-name'>y2</span>: Target Y coordinate</div>
                     <div><span class='arg-name'>diagonal_cost</span>: Cost of diagonal movement (default: 1.41)</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  List of (x, y) tuples representing the path, empty list if no path exists</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of (x, y) tuples representing the path, empty list if no path exists Alternative A* implementation. Prefer find_path() for consistency.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">compute_dijkstracompute_dijkstra(root_x: int, root_y: int, diagonal_cost: float = 1.41) -> None</code></h5>
+                <h5><code class="method-name">compute_dijkstra(root_x: int, root_y: int, diagonal_cost: float = 1.41) -> None</code></h5>
                 <p>Compute Dijkstra map from root position.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>root_x</span>: X coordinate of the root/target</div>
@@ -826,7 +822,7 @@ Attributes:
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">compute_fovcompute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]</code></h5>
+                <h5><code class="method-name">compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]</code></h5>
                 <p>Compute field of view from a position and return visible cells.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x</span>: X coordinate of the viewer</div>
@@ -835,11 +831,11 @@ Attributes:
                     <div><span class='arg-name'>light_walls</span>: Whether walls are lit when visible</div>
                     <div><span class='arg-name'>algorithm</span>: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  List of tuples (x, y, visible, discovered) for all visible cells: - x, y: Grid coordinates - visible: True (all returned cells are visible) - discovered: True (FOV implies discovery)</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of tuples (x, y, visible, discovered) for all visible cells: - x, y: Grid coordinates - visible: True (all returned cells are visible) - discovered: True (FOV implies discovery) Also updates the internal FOV state for use with is_in_fov().</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">find_pathfind_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]</code></h5>
+                <h5><code class="method-name">find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]</code></h5>
                 <p>Find A* path between two points.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x1</span>: Starting X coordinate</div>
@@ -848,53 +844,50 @@ Attributes:
                     <div><span class='arg-name'>y2</span>: Target Y coordinate</div>
                     <div><span class='arg-name'>diagonal_cost</span>: Cost of diagonal movement (default: 1.41)</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  List of (x, y) tuples representing the path, empty list if no path exists</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of (x, y) tuples representing the path, empty list if no path exists Uses A* algorithm with walkability from grid cells.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_boundsget_bounds() -> tuple</code></h5>
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
                 <p>Get the bounding rectangle of this drawable element.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_dijkstra_distanceget_dijkstra_distance(x: int, y: int) -> Optional[float]</code></h5>
+                <h5><code class="method-name">get_dijkstra_distance(x: int, y: int) -> Optional[float]</code></h5>
                 <p>Get distance from Dijkstra root to position.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x</span>: X coordinate to query</div>
                     <div><span class='arg-name'>y</span>: Y coordinate to query</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Distance as float, or None if position is unreachable or invalid</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Distance as float, or None if position is unreachable or invalid Must call compute_dijkstra() first.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_dijkstra_pathget_dijkstra_path(x: int, y: int) -> List[Tuple[int, int]]</code></h5>
+                <h5><code class="method-name">get_dijkstra_path(x: int, y: int) -> List[Tuple[int, int]]</code></h5>
                 <p>Get path from position to Dijkstra root.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x</span>: Starting X coordinate</div>
                     <div><span class='arg-name'>y</span>: Starting Y coordinate</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  List of (x, y) tuples representing path to root, empty if unreachable</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of (x, y) tuples representing path to root, empty if unreachable Must call compute_dijkstra() first. Path includes start but not root position.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">is_in_fovis_in_fov(x: int, y: int) -> bool</code></h5>
+                <h5><code class="method-name">is_in_fov(x: int, y: int) -> bool</code></h5>
                 <p>Check if a cell is in the field of view.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x</span>: X coordinate to check</div>
                     <div><span class='arg-name'>y</span>: Y coordinate to check</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  True if the cell is visible, False otherwise</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> True if the cell is visible, False otherwise Must call compute_fov() first to calculate visibility.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">movemove(dx: float, dy: float) -> None</code></h5>
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
                 <p>Move the element by a relative offset.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -904,9 +897,8 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">resizeresize(width: float, height: float) -> None</code></h5>
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
                 <p>Resize the element to new dimensions.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -934,17 +926,30 @@ Note:</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">activate(...)</code></h5>
-                <p>Make this the active scene</p>
+                <h5><code class="method-name">activate() -> None</code></h5>
+                <p>Make this the active scene.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Deactivates the current scene and activates this one. Scene transitions and lifecycle callbacks are triggered.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_ui(...)</code></h5>
-                <p>Get the UI element collection for this scene</p>
+                <h5><code class="method-name">get_ui() -> UICollection</code></h5>
+                <p>Get the UI element collection for this scene.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> UICollection: Collection of UI elements (Frames, Captions, Sprites, Grids) in this scene Use to add, remove, or iterate over UI elements. Changes are reflected immediately.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">register_keyboardRegister a keyboard handler function (alternative to overriding on_keypress)</code></h5>
+                <h5><code class="method-name">register_keyboard(callback: callable) -> None</code></h5>
+                <p>Register a keyboard event handler function.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>callback</span>: Function that receives (key: str, pressed: bool) when keyboard events occur</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Alternative to overriding on_keypress() method. Handler is called for both key press and release events.</p>
             </div>
         </div>
 
@@ -988,19 +993,16 @@ Attributes:
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_boundsget_bounds() -> tuple</code></h5>
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
                 <p>Get the bounding rectangle of this drawable element.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">movemove(dx: float, dy: float) -> None</code></h5>
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
                 <p>Move the element by a relative offset.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -1010,9 +1012,8 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">resizeresize(width: float, height: float) -> None</code></h5>
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
                 <p>Resize the element to new dimensions.
-
 
 Note:</p>
                 <div style='margin-left: 20px;'>
@@ -1067,43 +1068,35 @@ Example:
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">cancelcancel() -> None</code></h5>
+                <h5><code class="method-name">cancel() -> None</code></h5>
                 <p>Cancel the timer and remove it from the timer system.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  None The timer will no longer fire and cannot be restarted. The callback will not be called again.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None The timer will no longer fire and cannot be restarted. The callback will not be called again.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">pausepause() -> None</code></h5>
+                <h5><code class="method-name">pause() -> None</code></h5>
                 <p>Pause the timer, preserving the time remaining until next trigger.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  None The timer can be resumed later with resume(). Time spent paused does not count toward the interval.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None The timer can be resumed later with resume(). Time spent paused does not count toward the interval.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">restartrestart() -> None</code></h5>
+                <h5><code class="method-name">restart() -> None</code></h5>
                 <p>Restart the timer from the beginning.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  None Resets the timer to fire after a full interval from now, regardless of remaining time.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Resets the timer to fire after a full interval from now, regardless of remaining time.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">resumeresume() -> None</code></h5>
+                <h5><code class="method-name">resume() -> None</code></h5>
                 <p>Resume a paused timer from where it left off.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  None Has no effect if the timer is not paused. Timer will fire after the remaining time elapses.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Has no effect if the timer is not paused. Timer will fire after the remaining time elapses.</p>
             </div>
         </div>
 
@@ -1151,59 +1144,55 @@ Note:</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">angleangle() -> float</code></h5>
+                <h5><code class="method-name">angle() -> float</code></h5>
                 <p>Get the angle of this vector in radians.</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: Angle in radians from positive x-axis</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> float: Angle in radians from positive x-axis</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">copycopy() -> Vector</code></h5>
+                <h5><code class="method-name">copy() -> Vector</code></h5>
                 <p>Create a copy of this vector.</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Vector: New Vector object with same x and y values</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Vector: New Vector object with same x and y values</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">distance_todistance_to(other: Vector) -> float</code></h5>
+                <h5><code class="method-name">distance_to(other: Vector) -> float</code></h5>
                 <p>Calculate the distance to another vector.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>other</span>: The other vector</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: Distance between the two vectors</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> float: Distance between the two vectors</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">dotdot(other: Vector) -> float</code></h5>
+                <h5><code class="method-name">dot(other: Vector) -> float</code></h5>
                 <p>Calculate the dot product with another vector.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>other</span>: The other vector</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: Dot product of the two vectors</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> float: Dot product of the two vectors</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">magnitudemagnitude() -> float</code></h5>
+                <h5><code class="method-name">magnitude() -> float</code></h5>
                 <p>Calculate the length/magnitude of this vector.</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: The magnitude of the vector</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> float: The magnitude of the vector</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">magnitude_squaredmagnitude_squared() -> float</code></h5>
+                <h5><code class="method-name">magnitude_squared() -> float</code></h5>
                 <p>Calculate the squared magnitude of this vector.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  float: The squared magnitude (faster than magnitude()) Use this for comparisons to avoid expensive square root calculation.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> float: The squared magnitude (faster than magnitude()) Use this for comparisons to avoid expensive square root calculation.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">normalizenormalize() -> Vector</code></h5>
+                <h5><code class="method-name">normalize() -> Vector</code></h5>
                 <p>Return a unit vector in the same direction.
 
-
-
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span>  Vector: New normalized vector with magnitude 1.0 For zero vectors (magnitude 0.0), returns a zero vector rather than raising an exception</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Vector: New normalized vector with magnitude 1.0 For zero vectors (magnitude 0.0), returns a zero vector rather than raising an exception</p>
             </div>
         </div>
 
@@ -1213,18 +1202,30 @@ Note:</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">center(...)</code></h5>
-                <p>Center the window on the screen</p>
+                <h5><code class="method-name">center() -> None</code></h5>
+                <p>Center the window on the screen.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Only works in windowed mode. Has no effect when fullscreen or in headless mode.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get(...)</code></h5>
-                <p>Get the Window singleton instance</p>
+                <h5><code class="method-name">get() -> Window</code></h5>
+                <p>Get the Window singleton instance.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Window: The global window object This is a class method. Call as Window.get(). There is only one window instance per application.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">screenshot(...)</code></h5>
-                <p>Take a screenshot. Pass filename to save to file, or get raw bytes if no filename.</p>
+                <h5><code class="method-name">screenshot(filename: str = None) -> bytes | None</code></h5>
+                <p>Take a screenshot of the current window contents.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>filename</span>: Optional path to save screenshot. If omitted, returns raw RGBA bytes.</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> bytes | None: Raw RGBA pixel data if no filename given, otherwise None after saving Screenshot is taken at the actual window resolution. Use after render loop update for current frame.</p>
             </div>
         </div>
 

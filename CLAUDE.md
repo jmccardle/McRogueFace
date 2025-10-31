@@ -460,19 +460,30 @@ After modifying C++ inline documentation with MCRF_* macros:
 
 1. **Rebuild the project**: `make -j$(nproc)`
 
-2. **Generate documentation** (automatic from compiled module):
+2. **Generate all documentation** (recommended - single command):
    ```bash
-   ./build/mcrogueface --headless --exec tools/generate_dynamic_docs.py
+   ./tools/generate_all_docs.sh
    ```
    This creates:
-   - `docs/api_reference_dynamic.html`
-   - `docs/API_REFERENCE_DYNAMIC.md`
+   - `docs/api_reference_dynamic.html` - HTML API reference
+   - `docs/API_REFERENCE_DYNAMIC.md` - Markdown API reference
+   - `docs/mcrfpy.3` - Unix man page (section 3)
+   - `stubs/mcrfpy.pyi` - Type stubs for IDE support
 
-3. **Generate stub files** (optional, for IDE support):
+3. **Or generate individually**:
    ```bash
-   ./build/mcrogueface --headless --exec tools/generate_stubs.py
+   # API docs (HTML + Markdown)
+   ./build/mcrogueface --headless --exec tools/generate_dynamic_docs.py
+
+   # Type stubs (manually-maintained with @overload support)
+   ./build/mcrogueface --headless --exec tools/generate_stubs_v2.py
+
+   # Man page (requires pandoc)
+   ./tools/generate_man_page.sh
    ```
-   Creates `.pyi` stub files for type checking and autocompletion
+
+**System Requirements:**
+- `pandoc` must be installed for man page generation: `sudo apt-get install pandoc`
 
 ### Important Notes
 
