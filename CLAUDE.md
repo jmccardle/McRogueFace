@@ -105,6 +105,69 @@ Claude Code has access to Gitea MCP tools for:
 
 Use these tools liberally to keep the project organized!
 
+### Gitea Label System
+
+**IMPORTANT**: Always apply appropriate labels when creating new issues!
+
+The project uses a structured label system to organize issues:
+
+**Label Categories:**
+
+1. **System Labels** (identify affected codebase area):
+   - `system:rendering` - Rendering pipeline and visuals
+   - `system:ui-hierarchy` - UI component hierarchy and composition
+   - `system:grid` - Grid system and spatial containers
+   - `system:animation` - Animation and property interpolation
+   - `system:python-binding` - Python/C++ binding layer
+   - `system:input` - Input handling and events
+   - `system:performance` - Performance optimization and profiling
+   - `system:documentation` - Documentation infrastructure
+
+2. **Priority Labels** (development timeline):
+   - `priority:tier1-active` - Current development focus - critical path to v1.0
+   - `priority:tier2-foundation` - Important foundation work - not blocking v1.0
+   - `priority:tier3-future` - Future features - deferred until after v1.0
+
+3. **Type/Scope Labels** (effort and complexity):
+   - `Major Feature` - Significant time and effort required
+   - `Minor Feature` - Some effort required to create or overhaul functionality
+   - `Tiny Feature` - Quick and easy - a few lines or little interconnection
+   - `Bugfix` - Fixes incorrect behavior
+   - `Refactoring & Cleanup` - No new functionality, just improving codebase
+   - `Documentation` - Documentation work
+   - `Demo Target` - Functionality to demonstrate
+
+4. **Workflow Labels** (current blockers/needs):
+   - `workflow:blocked` - Blocked by other work - waiting on dependencies
+   - `workflow:needs-documentation` - Needs documentation before or after implementation
+   - `workflow:needs-benchmark` - Needs performance testing and benchmarks
+   - `Alpha Release Requirement` - Blocker to 0.1 Alpha release
+
+**When creating issues:**
+- Apply at least one `system:*` label (what part of codebase)
+- Apply one `priority:tier*` label (when to address it)
+- Apply one type label (`Major Feature`, `Minor Feature`, `Tiny Feature`, or `Bugfix`)
+- Apply `workflow:*` labels if applicable (blocked, needs docs, needs benchmarks)
+
+**Example label combinations:**
+- New rendering feature: `system:rendering`, `priority:tier2-foundation`, `Major Feature`
+- Python API improvement: `system:python-binding`, `priority:tier1-active`, `Minor Feature`
+- Performance work: `system:performance`, `priority:tier1-active`, `Major Feature`, `workflow:needs-benchmark`
+
+**Note**: The Gitea MCP tool has unreliable label application. The `add_issue_labels` and `replace_issue_labels` functions often apply wrong labels even with correct IDs.
+
+**STRONGLY RECOMMENDED**: Apply labels manually via web interface:
+`https://gamedev.ffwf.net/gitea/john/McRogueFace/issues/<number>`
+
+**Label ID Reference** (for documentation purposes - see issue #131 for details):
+```
+1=Major Feature, 2=Alpha Release, 3=Bugfix, 4=Demo Target, 5=Documentation,
+6=Minor Feature, 7=tier1-active, 8=tier2-foundation, 9=tier3-future,
+10=Refactoring, 11=animation, 12=docs, 13=grid, 14=input, 15=performance,
+16=python-binding, 17=rendering, 18=ui-hierarchy, 19=Tiny Feature,
+20=blocked, 21=needs-benchmark, 22=needs-documentation
+```
+
 ## Build Commands
 
 ```bash
