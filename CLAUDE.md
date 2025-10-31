@@ -502,3 +502,4 @@ After modifying C++ inline documentation with MCRF_* macros:
 5. **No drift**: Impossible for docs and code to disagree - they're the same file!
 
 The macro system ensures complete, consistent documentation across all Python bindings.
+- Close issues automatically in gitea by adding to the commit message "closes #X", where X is the issue number. This associates the issue closure with the specific commit, so granular commits are preferred. You should only use the MCP tool to close issues directly when discovering that the issue is already complete; when committing changes, always such "closes" (or the opposite, "reopens") references to related issues. If on a feature branch, the issue will be referenced by the commit, and when merged to master, the issue will be actually closed (or reopened).

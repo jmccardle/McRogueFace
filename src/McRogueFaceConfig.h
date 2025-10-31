@@ -28,6 +28,9 @@ struct McRogueFaceConfig {
     // Screenshot functionality for headless mode
     std::string screenshot_path;
     bool take_screenshot = false;
+
+    // Auto-exit when no timers remain (for --headless --exec automation)
+    bool auto_exit_after_exec = false;
 };
 
 #endif // MCROGUEFACE_CONFIG_H

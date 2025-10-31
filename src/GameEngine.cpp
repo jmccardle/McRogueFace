@@ -284,6 +284,11 @@ void GameEngine::run()
         if (!headless && window && !window->isOpen()) {
             running = false;
         }
+
+        // In headless exec mode, auto-exit when no timers remain
+        if (config.auto_exit_after_exec && timers.empty()) {
+            running = false;
+        }
     }
     
     // Clean up before exiting the run loop

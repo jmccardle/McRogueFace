@@ -80,9 +80,10 @@ For detailed task tracking and current priorities, see the [Gitea issue tracker]
 **Status**: Complete
 **Key Issues**: #50 (Grid backgrounds), #6 (RenderTexture), #8 (Viewport rendering)
 
-### Phase 7: Documentation & Distribution
-**Status**: In Progress
+### Phase 7: Documentation & Distribution ✅
+**Status**: Complete (2025-10-30)
 **Key Issues**: #85 (Docstrings), #86 (Parameter docs), #108 (Type stubs), #97 (API docs)
+**Completed**: All classes and functions converted to MCRF_* macro system with automated HTML/Markdown/man page generation
 
 See [current open issues](https://gamedev.ffwf.net/gitea/john/McRogueFace/issues?state=open) for active work.
 

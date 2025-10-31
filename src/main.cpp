@@ -196,6 +196,14 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
     }
     else if (!config.exec_scripts.empty()) {
         // With --exec, run the game engine after scripts execute
+        // In headless mode, auto-exit when no timers remain
+        McRogueFaceConfig mutable_config = config;
+        if (mutable_config.headless) {
+            mutable_config.auto_exit_after_exec = true;
+        }
+        delete engine;
+        engine = new GameEngine(mutable_config);
+        McRFPy_API::game = engine;
         engine->run();
         McRFPy_API::api_shutdown();
         delete engine;
