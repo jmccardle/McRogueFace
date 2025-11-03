@@ -154,10 +154,15 @@ The project uses a structured label system to organize issues:
 - Python API improvement: `system:python-binding`, `priority:tier1-active`, `Minor Feature`
 - Performance work: `system:performance`, `priority:tier1-active`, `Major Feature`, `workflow:needs-benchmark`
 
-**Note**: The Gitea MCP tool has unreliable label application. The `add_issue_labels` and `replace_issue_labels` functions often apply wrong labels even with correct IDs.
+**⚠️ CRITICAL BUG**: The Gitea MCP tool (v0.07) has a label application bug documented in `GITEA_MCP_LABEL_BUG_REPORT.md`:
+- `add_issue_labels` and `replace_issue_labels` behave inconsistently
+- Single ID arrays produce different results than multi-ID arrays for the SAME IDs
+- Label IDs do not map reliably to actual labels
 
-**STRONGLY RECOMMENDED**: Apply labels manually via web interface:
-`https://gamedev.ffwf.net/gitea/john/McRogueFace/issues/<number>`
+**Workaround Options:**
+1. **Best**: Apply labels manually via web interface: `https://gamedev.ffwf.net/gitea/john/McRogueFace/issues/<number>`
+2. **Automated**: Apply labels ONE AT A TIME using single-element arrays (slower but more reliable)
+3. **Use single-ID mapping** (documented below)
 
 **Label ID Reference** (for documentation purposes - see issue #131 for details):
 ```
