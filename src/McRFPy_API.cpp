@@ -373,10 +373,10 @@ PyStatus init_python(const char *program_name)
 	// search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-3.12",
+        L"/lib/Python/lib.linux-x86_64-3.14",
 	    L"/lib/Python",
         L"/lib/Python/Lib",
-        L"/venv/lib/python3.12/site-packages"
+        L"/venv/lib/python3.14/site-packages"
     };
     
 
@@ -425,7 +425,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config, in
     if (std::filesystem::exists(venv_root / "pyvenv.cfg")) {
         // We're running from within a venv!
         // Add venv's site-packages to module search paths
-        auto site_packages = venv_root / "lib" / "python3.12" / "site-packages";
+        auto site_packages = venv_root / "lib" / "python3.14" / "site-packages";
         PyWideStringList_Append(&pyconfig.module_search_paths,
                                site_packages.wstring().c_str());
         pyconfig.module_search_paths_set = 1;
@@ -444,12 +444,12 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config, in
     // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-3.12",
+        L"/lib/Python/lib.linux-x86_64-3.14",
         L"/lib/Python",
         L"/lib/Python/Lib",
-        L"/venv/lib/python3.12/site-packages"
+        L"/venv/lib/python3.14/site-packages"
     };
-    
+
     for(auto s : str_arr) {
         status = PyWideStringList_Append(&pyconfig.module_search_paths, (executable_path() + s).c_str());
         if (PyStatus_Exception(status)) {

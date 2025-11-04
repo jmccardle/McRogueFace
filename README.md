@@ -74,7 +74,7 @@ The documentation site includes:
 
 - C++17 compiler (GCC 7+ or Clang 5+)
 - CMake 3.14+
-- Python 3.12+
+- Python 3.14+
 - SFML 2.6
 - Linux or Windows (macOS untested)
 

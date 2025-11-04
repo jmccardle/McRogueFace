@@ -168,5 +168,5 @@ void CommandLineParser::print_help() {
 }
 
 void CommandLineParser::print_version() {
-    std::cout << "Python 3.12.0 (McRogueFace embedded)\n";
+    std::cout << "Python 3.14.0 (McRogueFace embedded)\n";
 }
