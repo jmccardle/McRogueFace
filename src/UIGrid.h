@@ -75,7 +75,11 @@ public:
     sf::RenderTexture renderTexture;
     std::vector<UIGridPoint> points;
     std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> entities;
-    
+
+    // UIDrawable children collection (speech bubbles, effects, overlays, etc.)
+    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
+    bool children_need_sort = true;  // Dirty flag for z_index sorting
+
     // Background rendering
     sf::Color fill_color;
     
@@ -118,6 +122,7 @@ public:
     static PyObject* py_compute_astar_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
+    static PyObject* get_entities(PyUIGridObject* self, void* closure);
     static PyObject* get_children(PyUIGridObject* self, void* closure);
     static PyObject* repr(PyUIGridObject* self);
     

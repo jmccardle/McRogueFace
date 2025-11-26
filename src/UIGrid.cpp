@@ -14,7 +14,10 @@ UIGrid::UIGrid()
 {
     // Initialize entities list
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
-    
+
+    // Initialize children collection (for UIDrawables like speech bubbles, effects)
+    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
+
     // Initialize box with safe defaults
     box.setSize(sf::Vector2f(0, 0));
     position = sf::Vector2f(0, 0);  // Set base class position
@@ -47,6 +50,9 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
     center_x = (gx/2) * cell_width;
     center_y = (gy/2) * cell_height;
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
+
+    // Initialize children collection (for UIDrawables like speech bubbles, effects)
+    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
 
     box.setSize(_wh);
     position = _xy;               // Set base class position
@@ -209,7 +215,38 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
         Resources::game->metrics.entitiesRendered += entitiesRendered;
         Resources::game->metrics.totalEntities += totalEntities;
     }
-    
+
+    // Children layer - UIDrawables in grid-world pixel coordinates
+    // Positioned between entities and FOV overlay for proper z-ordering
+    if (children && !children->empty()) {
+        // Sort by z_index if needed
+        if (children_need_sort) {
+            std::sort(children->begin(), children->end(),
+                [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
+            children_need_sort = false;
+        }
+
+        for (auto& child : *children) {
+            if (!child->visible) continue;
+
+            // Cull children outside visible region (convert pixel pos to cell coords)
+            float child_grid_x = child->position.x / cell_width;
+            float child_grid_y = child->position.y / cell_height;
+
+            if (child_grid_x < left_edge - 2 || child_grid_x >= left_edge + width_sq + 2 ||
+                child_grid_y < top_edge - 2 || child_grid_y >= top_edge + height_sq + 2) {
+                continue; // Not visible, skip rendering
+            }
+
+            // Transform grid-world pixel position to RenderTexture pixel position
+            auto pixel_pos = sf::Vector2f(
+                (child->position.x - left_spritepixels) * zoom,
+                (child->position.y - top_spritepixels) * zoom
+            );
+
+            child->render(pixel_pos, renderTexture);
+        }
+    }
 
     // top layer - opacity for discovered / visible status based on perspective
     // Only render visibility overlay if perspective is enabled
@@ -529,10 +566,32 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
     int left_spritepixels = center_x - (box.getSize().x / 2.0 / zoom);
     int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
     
-    // Convert click position to grid coordinates
-    float grid_x = (localPoint.x / zoom + left_spritepixels) / cell_width;
-    float grid_y = (localPoint.y / zoom + top_spritepixels) / cell_height;
-    
+    // Convert click position to grid-world pixel coordinates
+    float grid_world_x = localPoint.x / zoom + left_spritepixels;
+    float grid_world_y = localPoint.y / zoom + top_spritepixels;
+
+    // Convert to grid cell coordinates
+    float grid_x = grid_world_x / cell_width;
+    float grid_y = grid_world_y / cell_height;
+
+    // Check children first (they render on top, so they get priority)
+    // Children are positioned in grid-world pixel coordinates
+    if (children && !children->empty()) {
+        // Check in reverse z-order (highest z_index first, rendered last = on top)
+        for (auto it = children->rbegin(); it != children->rend(); ++it) {
+            auto& child = *it;
+            if (!child->visible) continue;
+
+            // Transform click to child's local coordinate space
+            // Children's position is in grid-world pixels
+            sf::Vector2f childLocalPoint = sf::Vector2f(grid_world_x, grid_world_y);
+
+            if (auto target = child->click_at(childLocalPoint)) {
+                return target;
+            }
+        }
+    }
+
     // Check entities in reverse order (assuming they should be checked top to bottom)
     // Note: entities list is not sorted by z-index currently, but we iterate in reverse
     // to match the render order assumption
@@ -1408,7 +1467,8 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size, "Size of the grid (width, height)", NULL},
     {"center", (getter)UIGrid::get_center, (setter)UIGrid::set_center, "Grid coordinate at the center of the Grid's view (pan)", NULL},
 
-    {"entities", (getter)UIGrid::get_children, NULL, "EntityCollection of entities on this grid", NULL},
+    {"entities", (getter)UIGrid::get_entities, NULL, "EntityCollection of entities on this grid", NULL},
+    {"children", (getter)UIGrid::get_children, NULL, "UICollection of UIDrawable children (speech bubbles, effects, overlays)", NULL},
 
     {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "top-left corner X-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 0)},
     {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "top-left corner Y-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 1)},
@@ -1442,15 +1502,25 @@ PyGetSetDef UIGrid::getsetters[] = {
     {NULL}  /* Sentinel */
 };
 
-PyObject* UIGrid::get_children(PyUIGridObject* self, void* closure)
+PyObject* UIGrid::get_entities(PyUIGridObject* self, void* closure)
 {
-    // create PyUICollection instance pointing to self->data->children
-    //PyUIEntityCollectionObject* o = (PyUIEntityCollectionObject*)PyUIEntityCollectionType.tp_alloc(&PyUIEntityCollectionType, 0);
+    // Returns EntityCollection for entity management
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "EntityCollection");
     auto o = (PyUIEntityCollectionObject*)type->tp_alloc(type, 0);
     if (o) {
-        o->data = self->data->entities; // todone. / BUGFIX - entities isn't a shared pointer on UIGrid, what to do? -- I made it a sp<list<sp<UIEntity>>>
+        o->data = self->data->entities;
         o->grid = self->data;
+    }
+    return (PyObject*)o;
+}
+
+PyObject* UIGrid::get_children(PyUIGridObject* self, void* closure)
+{
+    // Returns UICollection for UIDrawable children (speech bubbles, effects, overlays)
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
+    auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
+    if (o) {
+        o->data = self->data->children;
     }
     return (PyObject*)o;
 }
