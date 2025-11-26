@@ -124,25 +124,31 @@ def test_viewport_modes(runtime):
     def test_window_resize(runtime):
         mcrfpy.delTimer("test_resize")
         from mcrfpy import automation
-        
+
         print("\nTesting window resize with fit mode:")
-        
-        # Make window wider
-        window.resolution = (1280, 720)
-        print(f"Window resized to: {window.resolution}")
-        automation.screenshot("viewport_fit_wide.png")
-        
-        # Make window taller
-        mcrfpy.setTimer("test_tall", test_tall_window, 1000)
+
+        # Make window wider (skip in headless mode)
+        try:
+            window.resolution = (1280, 720)
+            print(f"Window resized to: {window.resolution}")
+            automation.screenshot("viewport_fit_wide.png")
+            # Make window taller
+            mcrfpy.setTimer("test_tall", test_tall_window, 1000)
+        except RuntimeError as e:
+            print(f"  Skipping window resize tests (headless mode): {e}")
+            mcrfpy.setTimer("test_game_res", test_game_resolution, 100)
     
     def test_tall_window(runtime):
         mcrfpy.delTimer("test_tall")
         from mcrfpy import automation
-        
-        window.resolution = (800, 1000)
-        print(f"Window resized to: {window.resolution}")
-        automation.screenshot("viewport_fit_tall.png")
-        
+
+        try:
+            window.resolution = (800, 1000)
+            print(f"Window resized to: {window.resolution}")
+            automation.screenshot("viewport_fit_tall.png")
+        except RuntimeError as e:
+            print(f"  Skipping tall window test (headless mode): {e}")
+
         # Test game resolution change
         mcrfpy.setTimer("test_game_res", test_game_resolution, 1000)
     
@@ -163,11 +169,14 @@ def test_viewport_modes(runtime):
         print("  - viewport_fit_wide.png")
         print("  - viewport_fit_tall.png")
         
-        # Restore original settings
-        window.resolution = (1024, 768)
+        # Restore original settings (skip resolution in headless mode)
+        try:
+            window.resolution = (1024, 768)
+        except RuntimeError:
+            pass  # Headless mode - can't change resolution
         window.game_resolution = (1024, 768)
         window.scaling_mode = "fit"
-        
+
         sys.exit(0)
     
     # Start test sequence

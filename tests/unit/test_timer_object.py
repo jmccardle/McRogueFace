@@ -68,10 +68,11 @@ def run_tests(runtime):
     
     # Cancel after 350ms (should fire once)
     def cancel_timer3(runtime):
+        mcrfpy.delTimer("cancel_timer3")  # Make this a one-shot timer
         print("  Canceling timer3...")
         timer3.cancel()
         print("  Timer3 canceled")
-    
+
     mcrfpy.setTimer("cancel_timer3", cancel_timer3, 350)
     
     # Test 4: Test interval modification
