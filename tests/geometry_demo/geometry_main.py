@@ -69,28 +69,34 @@ class GeometryDemoRunner:
         mcrfpy.createScene("geo_menu")
         ui = mcrfpy.sceneUI("geo_menu")
 
+        # Screen dimensions
+        SCREEN_WIDTH = 1024
+        SCREEN_HEIGHT = 768
+
         # Background
-        bg = mcrfpy.Frame(pos=(0, 0), size=(800, 600))
+        bg = mcrfpy.Frame(pos=(0, 0), size=(SCREEN_WIDTH, SCREEN_HEIGHT))
         bg.fill_color = mcrfpy.Color(15, 15, 25)
         ui.append(bg)
 
         # Title
-        title = mcrfpy.Caption(text="Geometry Module Demo", pos=(400, 30))
+        title = mcrfpy.Caption(text="Geometry Module Demo", pos=(SCREEN_WIDTH // 2, 40))
         title.fill_color = mcrfpy.Color(255, 255, 255)
         title.outline = 2
         title.outline_color = mcrfpy.Color(0, 0, 0)
         ui.append(title)
 
-        subtitle = mcrfpy.Caption(text="Pinships Orbital Mechanics", pos=(400, 70))
+        subtitle = mcrfpy.Caption(text="Pinships Orbital Mechanics", pos=(SCREEN_WIDTH // 2, 80))
         subtitle.fill_color = mcrfpy.Color(180, 180, 180)
         ui.append(subtitle)
 
-        # Menu items
+        # Menu items - wider buttons centered on 1024 width
+        btn_width = 500
+        btn_x = (SCREEN_WIDTH - btn_width) // 2
         for i, screen in enumerate(self.screens):
-            y = 130 + i * 60
+            y = 140 + i * 70
 
             # Button frame
-            btn = mcrfpy.Frame(pos=(200, y), size=(400, 50))
+            btn = mcrfpy.Frame(pos=(btn_x, y), size=(btn_width, 60))
             btn.fill_color = mcrfpy.Color(30, 40, 60)
             btn.outline = 2
             btn.outline_color = mcrfpy.Color(80, 100, 150)
@@ -102,21 +108,21 @@ class GeometryDemoRunner:
             btn.children.append(label)
 
             # Description
-            desc = mcrfpy.Caption(text=screen.description, pos=(20, 32))
+            desc = mcrfpy.Caption(text=screen.description, pos=(20, 35))
             desc.fill_color = mcrfpy.Color(120, 120, 150)
             btn.children.append(desc)
 
         # Instructions
-        instr1 = mcrfpy.Caption(text="Press 1-5 to view demos", pos=(300, 480))
+        instr1 = mcrfpy.Caption(text="Press 1-5 to view demos", pos=(SCREEN_WIDTH // 2 - 100, 540))
         instr1.fill_color = mcrfpy.Color(150, 150, 150)
         ui.append(instr1)
 
-        instr2 = mcrfpy.Caption(text="ESC = return to menu  |  Q = quit", pos=(270, 510))
+        instr2 = mcrfpy.Caption(text="ESC = return to menu  |  Q = quit", pos=(SCREEN_WIDTH // 2 - 130, 580))
         instr2.fill_color = mcrfpy.Color(100, 100, 100)
         ui.append(instr2)
 
         # Credits
-        credits = mcrfpy.Caption(text="Geometry module: src/scripts/geometry.py", pos=(250, 560))
+        credits = mcrfpy.Caption(text="Geometry module: src/scripts/geometry.py", pos=(SCREEN_WIDTH // 2 - 150, 700))
         credits.fill_color = mcrfpy.Color(80, 80, 100)
         ui.append(credits)
 
@@ -170,12 +176,13 @@ class GeometryDemoRunner:
             if key in [f"Num{n}" for n in "123456789"]:
                 idx = int(key[-1]) - 1
                 if idx < len(self.screens):
-                    # Clean up previous screen's timers
+                    # Clean up ALL screen's timers first
                     for screen in self.screens:
                         screen.cleanup()
+                    # Switch to selected scene
                     mcrfpy.setScene(self.screens[idx].scene_name)
-                    # Re-setup the screen to restart animations
-                    # (timers were cleaned up, need to restart)
+                    # Restart timers for the selected screen
+                    self.screens[idx].restart_timers()
 
             # ESC returns to menu
             elif key == "Escape":

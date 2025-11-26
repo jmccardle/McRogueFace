@@ -2,10 +2,29 @@
 import mcrfpy
 import sys
 import os
+import math
 
 # Add scripts path for geometry module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src', 'scripts'))
 from geometry import *
+
+# Screen resolution
+SCREEN_WIDTH = 1024
+SCREEN_HEIGHT = 768
+
+
+def screen_angle_between(p1, p2):
+    """
+    Calculate angle from p1 to p2 in screen coordinates.
+    In screen coords, Y increases downward, so we negate dy.
+    Returns angle in degrees where 0=right, 90=up, 180=left, 270=down.
+    """
+    dx = p2[0] - p1[0]
+    dy = p1[1] - p2[1]  # Negate because screen Y is inverted
+    angle = math.degrees(math.atan2(dy, dx))
+    if angle < 0:
+        angle += 360
+    return angle
 
 
 class GeometryDemoScreen:
@@ -19,6 +38,7 @@ class GeometryDemoScreen:
         mcrfpy.createScene(scene_name)
         self.ui = mcrfpy.sceneUI(scene_name)
         self.timers = []  # Track timer names for cleanup
+        self._timer_configs = []  # Store timer configs for restart
 
     def setup(self):
         """Override to set up the screen content."""
@@ -32,13 +52,21 @@ class GeometryDemoScreen:
             except:
                 pass
 
+    def restart_timers(self):
+        """Re-register timers after cleanup."""
+        for name, callback, interval in self._timer_configs:
+            try:
+                mcrfpy.setTimer(name, callback, interval)
+            except Exception as e:
+                print(f"Timer restart failed: {e}")
+
     def get_screenshot_name(self):
         """Return the screenshot filename for this screen."""
         return f"{self.scene_name}.png"
 
     def add_title(self, text, y=10):
-        """Add a title caption."""
-        title = mcrfpy.Caption(text=text, pos=(400, y))
+        """Add a title caption centered at top."""
+        title = mcrfpy.Caption(text=text, pos=(SCREEN_WIDTH // 2, y))
         title.fill_color = mcrfpy.Color(255, 255, 255)
         title.outline = 2
         title.outline_color = mcrfpy.Color(0, 0, 0)
@@ -79,6 +107,10 @@ class GeometryDemoScreen:
             pass  # Out of bounds
 
     def add_timer(self, name, callback, interval):
-        """Add a timer and track it for cleanup."""
+        """Add a timer and track it for cleanup/restart."""
+        if callback is None:
+            print(f"Warning: Timer '{name}' callback is None, skipping")
+            return
         mcrfpy.setTimer(name, callback, interval)
         self.timers.append(name)
+        self._timer_configs.append((name, callback, interval))

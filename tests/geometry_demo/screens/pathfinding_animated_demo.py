@@ -4,7 +4,8 @@ import math
 from .base import (GeometryDemoScreen, OrbitalBody, create_solar_system,
                    create_planet, point_on_circle, distance, angle_between,
                    normalize_angle, is_viable_waypoint, nearest_orbit_entry,
-                   optimal_exit_heading)
+                   optimal_exit_heading, screen_angle_between,
+                   SCREEN_WIDTH, SCREEN_HEIGHT)
 
 
 class PathfindingAnimatedDemo(GeometryDemoScreen):
@@ -17,17 +18,28 @@ class PathfindingAnimatedDemo(GeometryDemoScreen):
         self.add_title("Pathfinding Through Moving Planets")
         self.add_description("Ship anticipates planetary motion to use orbital slingshots")
 
-        # Screen layout
-        self.center_x = 400
-        self.center_y = 320
-        self.scale = 2.0
+        margin = 30
+        top_area = 80
+        bottom_panel = 60
+
+        # Screen layout - full width for 1024x768
+        frame_width = SCREEN_WIDTH - 2 * margin
+        frame_height = SCREEN_HEIGHT - top_area - bottom_panel - margin
+
+        # Center of display area
+        self.center_x = margin + frame_width // 2
+        self.center_y = top_area + frame_height // 2
+        self.scale = 2.5  # Larger scale for better visibility
 
         # Background
-        bg = mcrfpy.Frame(pos=(50, 80), size=(700, 460))
+        bg = mcrfpy.Frame(pos=(margin, top_area), size=(frame_width, frame_height))
         bg.fill_color = mcrfpy.Color(5, 5, 15)
         bg.outline = 1
         bg.outline_color = mcrfpy.Color(40, 40, 80)
         self.ui.append(bg)
+
+        # Store frame boundaries
+        self.frame_bottom = top_area + frame_height
 
         # Create solar system
         self.star = create_solar_system(
@@ -39,7 +51,7 @@ class PathfindingAnimatedDemo(GeometryDemoScreen):
         self.planet = create_planet(
             name="Waypoint",
             star=self.star,
-            orbital_radius=80,
+            orbital_radius=60,  # Smaller orbit to not clip edges
             surface_radius=8,
             orbit_ring_radius=15,
             angular_velocity=5,  # Moves 5 degrees per turn
@@ -47,9 +59,10 @@ class PathfindingAnimatedDemo(GeometryDemoScreen):
         )
 
         # Ship state
-        self.ship_speed = 10  # Grid units per turn
-        self.ship_pos = [30, 100]  # Start position (grid coords, relative to star)
-        self.ship_target = [100, -80]  # Target position
+        self.ship_speed = 8  # Grid units per turn
+        # Position ship further from sun to avoid line clipping through it
+        self.ship_pos = [-80, 60]  # Start position (grid coords, relative to star) - lower left
+        self.ship_target = [80, -60]  # Target position - upper right
         self.ship_state = "approach"  # approach, orbiting, exiting, traveling
         self.ship_orbit_angle = 0
         self.current_time = 0
@@ -234,24 +247,25 @@ class PathfindingAnimatedDemo(GeometryDemoScreen):
 
     def _draw_info_panel(self):
         """Draw information panel."""
-        panel = mcrfpy.Frame(pos=(50, 545), size=(700, 45))
+        panel_y = self.frame_bottom + 10
+        panel = mcrfpy.Frame(pos=(30, panel_y), size=(SCREEN_WIDTH - 60, 45))
         panel.fill_color = mcrfpy.Color(20, 20, 35)
         panel.outline = 1
         panel.outline_color = mcrfpy.Color(60, 60, 100)
         self.ui.append(panel)
 
         # Time display
-        self.time_label = mcrfpy.Caption(text="Turn: 0", pos=(60, 555))
+        self.time_label = mcrfpy.Caption(text="Turn: 0", pos=(40, panel_y + 12))
         self.time_label.fill_color = mcrfpy.Color(255, 255, 255)
         self.ui.append(self.time_label)
 
         # Status display
-        self.status_label = mcrfpy.Caption(text="Status: Approaching planet", pos=(180, 555))
+        self.status_label = mcrfpy.Caption(text="Status: Approaching planet", pos=(180, panel_y + 12))
         self.status_label.fill_color = mcrfpy.Color(100, 200, 255)
         self.ui.append(self.status_label)
 
         # Distance display
-        self.dist_label = mcrfpy.Caption(text="Distance to target: ---", pos=(450, 555))
+        self.dist_label = mcrfpy.Caption(text="Distance to target: ---", pos=(550, panel_y + 12))
         self.dist_label.fill_color = mcrfpy.Color(150, 150, 150)
         self.ui.append(self.dist_label)
 

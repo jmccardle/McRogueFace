@@ -2,7 +2,8 @@
 import mcrfpy
 import math
 from .base import (GeometryDemoScreen, OrbitalBody, create_solar_system,
-                   create_planet, create_moon, point_on_circle)
+                   create_planet, create_moon, point_on_circle,
+                   SCREEN_WIDTH, SCREEN_HEIGHT)
 
 
 class SolarSystemDemo(GeometryDemoScreen):
@@ -15,17 +16,28 @@ class SolarSystemDemo(GeometryDemoScreen):
         self.add_title("Animated Solar System")
         self.add_description("Planets snap to grid positions as time advances (1 tick = 1 turn)")
 
-        # Screen layout
-        self.center_x = 400
-        self.center_y = 320
-        self.scale = 1.5  # Pixels per grid unit
+        margin = 30
+        top_area = 80
+        bottom_panel = 60
+
+        # Screen layout - centered, with room for Earth's moon orbit
+        frame_width = SCREEN_WIDTH - 2 * margin
+        frame_height = SCREEN_HEIGHT - top_area - bottom_panel - margin
+
+        # Center of display area, shifted down a bit to give room for moon orbit at top
+        self.center_x = margin + frame_width // 2
+        self.center_y = top_area + frame_height // 2 + 30  # Shifted down
+        self.scale = 2.0  # Pixels per grid unit (larger for 1024x768)
 
         # Background
-        bg = mcrfpy.Frame(pos=(50, 80), size=(700, 480))
+        bg = mcrfpy.Frame(pos=(margin, top_area), size=(frame_width, frame_height))
         bg.fill_color = mcrfpy.Color(5, 5, 15)
         bg.outline = 1
         bg.outline_color = mcrfpy.Color(40, 40, 80)
         self.ui.append(bg)
+
+        # Store frame boundaries for info panel
+        self.frame_bottom = top_area + frame_height
 
         # Create the solar system using geometry module
         self.star = create_solar_system(
@@ -92,13 +104,21 @@ class SolarSystemDemo(GeometryDemoScreen):
         # Draw initial planet positions
         self._draw_planets()
 
+        # Info panel below the main frame
+        panel_y = self.frame_bottom + 10
+        panel = mcrfpy.Frame(pos=(30, panel_y), size=(SCREEN_WIDTH - 60, 45))
+        panel.fill_color = mcrfpy.Color(20, 20, 35)
+        panel.outline = 1
+        panel.outline_color = mcrfpy.Color(60, 60, 100)
+        self.ui.append(panel)
+
         # Time display
-        self.time_label = mcrfpy.Caption(text="Turn: 0", pos=(60, 530))
+        self.time_label = mcrfpy.Caption(text="Turn: 0", pos=(40, panel_y + 12))
         self.time_label.fill_color = mcrfpy.Color(255, 255, 255)
         self.ui.append(self.time_label)
 
         # Instructions
-        self.add_label("Time advances automatically every second", 200, 530, (150, 150, 150))
+        self.add_label("Time advances automatically every second", 200, panel_y + 12, (150, 150, 150))
 
         # Start the animation timer
         self.add_timer("solar_tick", self._tick, 1000)  # 1 second per turn
