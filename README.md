@@ -35,6 +35,43 @@ cd build
 ./mcrogueface
 ```
 
+## Building from Source
+
+For most users, pre-built releases are available. If you need to build from source:
+
+### Quick Build (with pre-built dependencies)
+
+Download `build_deps.tar.gz` from the releases page, then:
+
+```bash
+git clone <repository-url> McRogueFace
+cd McRogueFace
+tar -xzf /path/to/build_deps.tar.gz
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
+
+### Full Build (compiling all dependencies)
+
+```bash
+git clone --recursive <repository-url> McRogueFace
+cd McRogueFace
+# See BUILD_FROM_SOURCE.md for complete instructions
+```
+
+**[BUILD_FROM_SOURCE.md](BUILD_FROM_SOURCE.md)** - Complete build guide including:
+- System dependency installation
+- Compiling SFML, Python, and libtcod-headless from source
+- Creating `build_deps` archives for distribution
+- Troubleshooting common build issues
+
+### System Requirements
+
+- **Linux**: Debian/Ubuntu tested; other distros should work
+- **Windows**: Supported (see build guide for details)
+- **macOS**: Untested
+
 ## Example: Creating a Simple Scene
 
 ```python
