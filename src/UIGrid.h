@@ -141,6 +141,8 @@ public:
     static PyObject* append(PyUIEntityCollectionObject* self, PyObject* o);
     static PyObject* extend(PyUIEntityCollectionObject* self, PyObject* o);
     static PyObject* remove(PyUIEntityCollectionObject* self, PyObject* o);
+    static PyObject* pop(PyUIEntityCollectionObject* self, PyObject* args);
+    static PyObject* insert(PyUIEntityCollectionObject* self, PyObject* args);
     static PyObject* index_method(PyUIEntityCollectionObject* self, PyObject* value);
     static PyObject* count(PyUIEntityCollectionObject* self, PyObject* value);
     static PyObject* find(PyUIEntityCollectionObject* self, PyObject* args, PyObject* kwds);

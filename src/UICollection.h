@@ -30,6 +30,8 @@ public:
 	static PyObject* append(PyUICollectionObject* self, PyObject* o);
 	static PyObject* extend(PyUICollectionObject* self, PyObject* iterable);
 	static PyObject* remove(PyUICollectionObject* self, PyObject* o);
+	static PyObject* pop(PyUICollectionObject* self, PyObject* args);
+	static PyObject* insert(PyUICollectionObject* self, PyObject* args);
 	static PyObject* index_method(PyUICollectionObject* self, PyObject* value);
 	static PyObject* count(PyUICollectionObject* self, PyObject* value);
 	static PyObject* find(PyUICollectionObject* self, PyObject* args, PyObject* kwds);

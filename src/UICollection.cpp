@@ -790,30 +790,151 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
 
 PyObject* UICollection::remove(PyUICollectionObject* self, PyObject* o)
 {
-	if (!PyLong_Check(o))
-    {
-        PyErr_SetString(PyExc_TypeError, "UICollection.remove requires an integer index to remove");
-        return NULL;
-    }
-	long index = PyLong_AsLong(o);
-	
-	// Handle negative indexing
-	while (index < 0) index += self->data->size();
-	
-	if (index >= self->data->size())
-    {
-        PyErr_SetString(PyExc_ValueError, "Index out of range");
+    auto vec = self->data.get();
+    if (!vec) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
         return NULL;
     }
 
-	// release the shared pointer at self->data[index];
-    self->data->erase(self->data->begin() + index);
-    
-    // Mark scene as needing resort after removing element
+    // Type checking - must be a UIDrawable subclass
+    if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Drawable"))) {
+        PyErr_SetString(PyExc_TypeError,
+            "UICollection.remove requires a UI element (Frame, Caption, Sprite, Grid)");
+        return NULL;
+    }
+
+    // Get the C++ object from the Python object
+    std::shared_ptr<UIDrawable> search_drawable = nullptr;
+
+    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
+        search_drawable = ((PyUIFrameObject*)o)->data;
+    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
+        search_drawable = ((PyUICaptionObject*)o)->data;
+    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
+        search_drawable = ((PyUISpriteObject*)o)->data;
+    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
+        search_drawable = ((PyUIGridObject*)o)->data;
+    }
+
+    if (!search_drawable) {
+        PyErr_SetString(PyExc_TypeError,
+            "UICollection.remove requires a UI element (Frame, Caption, Sprite, Grid)");
+        return NULL;
+    }
+
+    // Search for the object and remove first occurrence
+    for (auto it = vec->begin(); it != vec->end(); ++it) {
+        if (it->get() == search_drawable.get()) {
+            vec->erase(it);
+            McRFPy_API::markSceneNeedsSort();
+            Py_RETURN_NONE;
+        }
+    }
+
+    PyErr_SetString(PyExc_ValueError, "element not in UICollection");
+    return NULL;
+}
+
+PyObject* UICollection::pop(PyUICollectionObject* self, PyObject* args)
+{
+    Py_ssize_t index = -1;  // Default to last element
+
+    if (!PyArg_ParseTuple(args, "|n", &index)) {
+        return NULL;
+    }
+
+    auto vec = self->data.get();
+    if (!vec) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
+        return NULL;
+    }
+
+    if (vec->empty()) {
+        PyErr_SetString(PyExc_IndexError, "pop from empty UICollection");
+        return NULL;
+    }
+
+    // Handle negative indexing
+    Py_ssize_t size = static_cast<Py_ssize_t>(vec->size());
+    if (index < 0) {
+        index += size;
+    }
+
+    if (index < 0 || index >= size) {
+        PyErr_SetString(PyExc_IndexError, "pop index out of range");
+        return NULL;
+    }
+
+    // Get the element before removing
+    std::shared_ptr<UIDrawable> drawable = (*vec)[index];
+
+    // Remove from vector
+    vec->erase(vec->begin() + index);
+
     McRFPy_API::markSceneNeedsSort();
-    
-    Py_INCREF(Py_None);
-    return Py_None;
+
+    // Convert to Python object and return
+    return convertDrawableToPython(drawable);
+}
+
+PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
+{
+    Py_ssize_t index;
+    PyObject* o;
+
+    if (!PyArg_ParseTuple(args, "nO", &index, &o)) {
+        return NULL;
+    }
+
+    auto vec = self->data.get();
+    if (!vec) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
+        return NULL;
+    }
+
+    // Type checking - must be a UIDrawable subclass
+    if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Drawable"))) {
+        PyErr_SetString(PyExc_TypeError,
+            "UICollection.insert requires a UI element (Frame, Caption, Sprite, Grid)");
+        return NULL;
+    }
+
+    // Get the C++ object from the Python object
+    std::shared_ptr<UIDrawable> drawable = nullptr;
+
+    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
+        drawable = ((PyUIFrameObject*)o)->data;
+    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
+        drawable = ((PyUICaptionObject*)o)->data;
+    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
+        drawable = ((PyUISpriteObject*)o)->data;
+    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
+        drawable = ((PyUIGridObject*)o)->data;
+    }
+
+    if (!drawable) {
+        PyErr_SetString(PyExc_TypeError,
+            "UICollection.insert requires a UI element (Frame, Caption, Sprite, Grid)");
+        return NULL;
+    }
+
+    // Handle negative indexing and clamping (Python list.insert behavior)
+    Py_ssize_t size = static_cast<Py_ssize_t>(vec->size());
+    if (index < 0) {
+        index += size;
+        if (index < 0) {
+            index = 0;
+        }
+    } else if (index > size) {
+        index = size;
+    }
+
+    // Insert at position
+    vec->insert(vec->begin() + index, drawable);
+
+    McRFPy_API::markSceneNeedsSort();
+
+    Py_RETURN_NONE;
 }
 
 PyObject* UICollection::index_method(PyUICollectionObject* self, PyObject* value) {
@@ -1036,15 +1157,30 @@ PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObjec
 
 PyMethodDef UICollection::methods[] = {
 	{"append", (PyCFunction)UICollection::append, METH_O,
-	 "Add an element to the end of the collection"},
+	 "append(element)\n\n"
+	 "Add an element to the end of the collection."},
 	{"extend", (PyCFunction)UICollection::extend, METH_O,
-	 "Add all elements from an iterable to the collection"},
+	 "extend(iterable)\n\n"
+	 "Add all elements from an iterable to the collection."},
+	{"insert", (PyCFunction)UICollection::insert, METH_VARARGS,
+	 "insert(index, element)\n\n"
+	 "Insert element at index. Like list.insert(), indices past the end append.\n\n"
+	 "Note: If using z_index for sorting, insertion order may not persist after\n"
+	 "the next render. Use name-based .find() for stable element access."},
 	{"remove", (PyCFunction)UICollection::remove, METH_O,
-	 "Remove element at the given index"},
+	 "remove(element)\n\n"
+	 "Remove first occurrence of element. Raises ValueError if not found."},
+	{"pop", (PyCFunction)UICollection::pop, METH_VARARGS,
+	 "pop([index]) -> element\n\n"
+	 "Remove and return element at index (default: last element).\n\n"
+	 "Note: If using z_index for sorting, indices may shift after render.\n"
+	 "Use name-based .find() for stable element access."},
 	{"index", (PyCFunction)UICollection::index_method, METH_O,
-	 "Return the index of an element in the collection"},
+	 "index(element) -> int\n\n"
+	 "Return index of first occurrence of element. Raises ValueError if not found."},
 	{"count", (PyCFunction)UICollection::count, METH_O,
-	 "Count occurrences of an element in the collection"},
+	 "count(element) -> int\n\n"
+	 "Count occurrences of element in the collection."},
 	{"find", (PyCFunction)UICollection::find, METH_VARARGS | METH_KEYWORDS,
 	 "find(name, recursive=False) -> element or list\n\n"
 	 "Find elements by name.\n\n"

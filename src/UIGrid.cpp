@@ -1953,13 +1953,132 @@ PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject*
     return Py_None;
 }
 
+PyObject* UIEntityCollection::pop(PyUIEntityCollectionObject* self, PyObject* args)
+{
+    Py_ssize_t index = -1;  // Default to last element
+
+    if (!PyArg_ParseTuple(args, "|n", &index)) {
+        return NULL;
+    }
+
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
+        return NULL;
+    }
+
+    if (list->empty()) {
+        PyErr_SetString(PyExc_IndexError, "pop from empty EntityCollection");
+        return NULL;
+    }
+
+    // Handle negative indexing
+    Py_ssize_t size = static_cast<Py_ssize_t>(list->size());
+    if (index < 0) {
+        index += size;
+    }
+
+    if (index < 0 || index >= size) {
+        PyErr_SetString(PyExc_IndexError, "pop index out of range");
+        return NULL;
+    }
+
+    // Navigate to the element (std::list requires iteration)
+    auto it = list->begin();
+    std::advance(it, index);
+
+    // Get the entity before removing
+    std::shared_ptr<UIEntity> entity = *it;
+
+    // Clear grid reference and remove from list
+    entity->grid = nullptr;
+    list->erase(it);
+
+    // Create Python object for the entity
+    PyTypeObject* entityType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+    if (!entityType) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not find Entity type");
+        return NULL;
+    }
+
+    PyUIEntityObject* py_entity = (PyUIEntityObject*)entityType->tp_alloc(entityType, 0);
+    Py_DECREF(entityType);
+
+    if (!py_entity) {
+        return NULL;
+    }
+
+    py_entity->data = entity;
+    py_entity->weakreflist = NULL;
+
+    return (PyObject*)py_entity;
+}
+
+PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject* args)
+{
+    Py_ssize_t index;
+    PyObject* o;
+
+    if (!PyArg_ParseTuple(args, "nO", &index, &o)) {
+        return NULL;
+    }
+
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
+        return NULL;
+    }
+
+    // Type checking - must be an Entity
+    if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
+        PyErr_SetString(PyExc_TypeError, "EntityCollection.insert requires an Entity object");
+        return NULL;
+    }
+
+    PyUIEntityObject* entity = (PyUIEntityObject*)o;
+    if (!entity->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
+        return NULL;
+    }
+
+    // Handle negative indexing and clamping (Python list.insert behavior)
+    Py_ssize_t size = static_cast<Py_ssize_t>(list->size());
+    if (index < 0) {
+        index += size;
+        if (index < 0) {
+            index = 0;
+        }
+    } else if (index > size) {
+        index = size;
+    }
+
+    // Navigate to insert position
+    auto it = list->begin();
+    std::advance(it, index);
+
+    // Insert and set grid reference
+    list->insert(it, entity->data);
+    entity->data->grid = self->grid;
+
+    // Initialize gridstate if needed
+    if (entity->data->gridstate.size() == 0 && self->grid) {
+        entity->data->gridstate.resize(self->grid->grid_x * self->grid->grid_y);
+        for (auto& state : entity->data->gridstate) {
+            state.visible = false;
+            state.discovered = false;
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
 PyObject* UIEntityCollection::index_method(PyUIEntityCollectionObject* self, PyObject* value) {
     auto list = self->data.get();
     if (!list) {
         PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
         return NULL;
     }
-    
+
     // Type checking - must be an Entity
     if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity"))) {
         PyErr_SetString(PyExc_TypeError, "EntityCollection.index requires an Entity object");
@@ -2317,15 +2436,26 @@ PyObject* UIEntityCollection::find(PyUIEntityCollectionObject* self, PyObject* a
 
 PyMethodDef UIEntityCollection::methods[] = {
     {"append", (PyCFunction)UIEntityCollection::append, METH_O,
-     "Add an entity to the collection"},
+     "append(entity)\n\n"
+     "Add an entity to the end of the collection."},
     {"extend", (PyCFunction)UIEntityCollection::extend, METH_O,
-     "Add all entities from an iterable"},
+     "extend(iterable)\n\n"
+     "Add all entities from an iterable to the collection."},
+    {"insert", (PyCFunction)UIEntityCollection::insert, METH_VARARGS,
+     "insert(index, entity)\n\n"
+     "Insert entity at index. Like list.insert(), indices past the end append."},
     {"remove", (PyCFunction)UIEntityCollection::remove, METH_O,
-     "Remove an entity from the collection"},
+     "remove(entity)\n\n"
+     "Remove first occurrence of entity. Raises ValueError if not found."},
+    {"pop", (PyCFunction)UIEntityCollection::pop, METH_VARARGS,
+     "pop([index]) -> entity\n\n"
+     "Remove and return entity at index (default: last entity)."},
     {"index", (PyCFunction)UIEntityCollection::index_method, METH_O,
-     "Return the index of an entity"},
+     "index(entity) -> int\n\n"
+     "Return index of first occurrence of entity. Raises ValueError if not found."},
     {"count", (PyCFunction)UIEntityCollection::count, METH_O,
-     "Count occurrences of an entity"},
+     "count(entity) -> int\n\n"
+     "Count occurrences of entity in the collection."},
     {"find", (PyCFunction)UIEntityCollection::find, METH_VARARGS | METH_KEYWORDS,
      "find(name) -> entity or list\n\n"
      "Find entities by name.\n\n"
