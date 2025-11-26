@@ -10,6 +10,7 @@
 [submodule "modules/SFML"]
 	path = modules/SFML
 	url = git@github.com:SFML/SFML.git
-[submodule "modules/libtcod"]
-	path = modules/libtcod
-	url = git@github.com:libtcod/libtcod.git
+[submodule "modules/libtcod-headless"]
+	path = modules/libtcod-headless
+	url = git@github.com:jmccardle/libtcod-headless.git
+	branch = 2.2.1-headless

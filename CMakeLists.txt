@@ -50,6 +50,9 @@ link_directories(${CMAKE_SOURCE_DIR}/__lib)
 # Define the executable target before linking libraries
 add_executable(mcrogueface ${SOURCES})
 
+# Define NO_SDL for libtcod-headless headers (excludes SDL-dependent code)
+target_compile_definitions(mcrogueface PRIVATE NO_SDL)
+
 # On Windows, set subsystem to WINDOWS to hide console
 if(WIN32)
     set_target_properties(mcrogueface PROPERTIES
