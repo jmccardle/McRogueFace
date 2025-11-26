@@ -213,6 +213,7 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
         delete engine;
         engine = new GameEngine(mutable_config);
         McRFPy_API::game = engine;
+        engine->executeStartupScripts();  // Execute --exec scripts ONCE here
         engine->run();
         McRFPy_API::api_shutdown();
         delete engine;

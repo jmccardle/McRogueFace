@@ -10,17 +10,20 @@ call_count = 0
 pause_test_count = 0
 cancel_test_count = 0
 
-def timer_callback(elapsed_ms):
+def timer_callback(timer, runtime):
+    """Timer object callbacks receive (timer, runtime)"""
     global call_count
     call_count += 1
-    print(f"Timer fired! Count: {call_count}, Elapsed: {elapsed_ms}ms")
+    print(f"Timer fired! Count: {call_count}, Runtime: {runtime}ms")
 
-def pause_test_callback(elapsed_ms):
+def pause_test_callback(timer, runtime):
+    """Timer object callbacks receive (timer, runtime)"""
     global pause_test_count
     pause_test_count += 1
     print(f"Pause test timer: {pause_test_count}")
 
-def cancel_test_callback(elapsed_ms):
+def cancel_test_callback(timer, runtime):
+    """Timer object callbacks receive (timer, runtime)"""
     global cancel_test_count
     cancel_test_count += 1
     print(f"Cancel test timer: {cancel_test_count} - This should only print once!")
@@ -46,20 +49,22 @@ def run_tests(runtime):
     
     # Schedule pause after 250ms
     def pause_timer2(runtime):
+        mcrfpy.delTimer("pause_timer2")  # Prevent re-entry
         print("  Pausing timer2...")
         timer2.pause()
         print(f"  Timer2 paused: {timer2.paused}")
         print(f"  Timer2 active: {timer2.active}")
-        
+
         # Schedule resume after another 400ms
         def resume_timer2(runtime):
+            mcrfpy.delTimer("resume_timer2")  # Prevent re-entry
             print("  Resuming timer2...")
             timer2.resume()
             print(f"  Timer2 paused: {timer2.paused}")
             print(f"  Timer2 active: {timer2.active}")
-        
+
         mcrfpy.setTimer("resume_timer2", resume_timer2, 400)
-    
+
     mcrfpy.setTimer("pause_timer2", pause_timer2, 250)
     
     # Test 3: Test cancel
@@ -68,43 +73,47 @@ def run_tests(runtime):
     
     # Cancel after 350ms (should fire once)
     def cancel_timer3(runtime):
+        mcrfpy.delTimer("cancel_timer3")  # Prevent re-entry
         print("  Canceling timer3...")
         timer3.cancel()
         print("  Timer3 canceled")
-    
+
     mcrfpy.setTimer("cancel_timer3", cancel_timer3, 350)
     
     # Test 4: Test interval modification
     print("\nTest 4: Testing interval modification")
-    def interval_test(runtime):
+    def interval_test(timer, runtime):
         print(f"  Interval test fired at {runtime}ms")
-    
+
     timer4 = mcrfpy.Timer("interval_test", interval_test, 1000)
     print(f"  Original interval: {timer4.interval}ms")
     timer4.interval = 500
     print(f"  Modified interval: {timer4.interval}ms")
     
-    # Test 5: Test remaining time
+    # Test 5: Test remaining time (periodic check - no delTimer, runs multiple times)
     print("\nTest 5: Testing remaining time")
     def check_remaining(runtime):
-        if timer1.active:
-            print(f"  Timer1 remaining: {timer1.remaining}ms")
-        if timer2.active or timer2.paused:
-            print(f"  Timer2 remaining: {timer2.remaining}ms (paused: {timer2.paused})")
-    
+        try:
+            if timer1.active:
+                print(f"  Timer1 remaining: {timer1.remaining}ms")
+            if timer2.active or timer2.paused:
+                print(f"  Timer2 remaining: {timer2.remaining}ms (paused: {timer2.paused})")
+        except RuntimeError:
+            pass  # Timer may have been cancelled
+
     mcrfpy.setTimer("check_remaining", check_remaining, 150)
     
     # Test 6: Test restart
     print("\nTest 6: Testing restart functionality")
     restart_count = [0]
-    
-    def restart_test(runtime):
+
+    def restart_test(timer, runtime):
         restart_count[0] += 1
         print(f"  Restart test: {restart_count[0]}")
         if restart_count[0] == 2:
             print("  Restarting timer...")
-            timer5.restart()
-    
+            timer.restart()
+
     timer5 = mcrfpy.Timer("restart_test", restart_test, 400)
     
     # Final verification after 2 seconds
