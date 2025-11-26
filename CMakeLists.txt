@@ -31,7 +31,7 @@ set(LINK_LIBS
 # On Windows, add any additional libs and include directories
 if(WIN32)
     # Windows-specific Python library name (no dots)
-    list(APPEND LINK_LIBS python312)
+    list(APPEND LINK_LIBS python314)
     # Add the necessary Windows-specific libraries and include directories
     # include_directories(path_to_additional_includes)
     # link_directories(path_to_additional_libs)
@@ -39,7 +39,7 @@ if(WIN32)
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
 else()
     # Unix/Linux specific libraries
-    list(APPEND LINK_LIBS python3.12 m dl util pthread)
+    list(APPEND LINK_LIBS python3.14 m dl util pthread)
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
 endif()
 

@@ -11,27 +11,27 @@
 
 // Forward declarations
 int run_game_engine(const McRogueFaceConfig& config);
-int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv[]);
+int run_python_interpreter(const McRogueFaceConfig& config);
 
 int main(int argc, char* argv[])
 {
     McRogueFaceConfig config;
     CommandLineParser parser(argc, argv);
-    
+
     // Parse arguments
     auto parse_result = parser.parse(config);
     if (parse_result.should_exit) {
         return parse_result.exit_code;
     }
-    
+
     // Special handling for -m module: let Python handle modules properly
     if (!config.python_module.empty()) {
         config.python_mode = true;
     }
-    
+
     // Initialize based on configuration
     if (config.python_mode) {
-        return run_python_interpreter(config, argc, argv);
+        return run_python_interpreter(config);
     } else {
         return run_game_engine(config);
     }
@@ -52,13 +52,13 @@ int run_game_engine(const McRogueFaceConfig& config)
     return 0;
 }
 
-int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv[])
+int run_python_interpreter(const McRogueFaceConfig& config)
 {
     // Create a game engine with the requested configuration
     GameEngine* engine = new GameEngine(config);
-    
-    // Initialize Python with configuration
-    McRFPy_API::init_python_with_config(config, argc, argv);
+
+    // Initialize Python with configuration (argv is constructed from config)
+    McRFPy_API::init_python_with_config(config);
     
     // Import mcrfpy module and store reference
     McRFPy_API::mcrf_module = PyImport_ImportModule("mcrfpy");
@@ -116,48 +116,27 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
         }
     }
     else if (!config.python_module.empty()) {
-        // Execute module using runpy
-        std::string run_module_code = 
-            "import sys\n"
+        // Execute module using runpy (sys.argv already set at init time)
+        std::string run_module_code =
             "import runpy\n"
-            "sys.argv = ['" + config.python_module + "'";
-        
-        for (const auto& arg : config.script_args) {
-            run_module_code += ", '" + arg + "'";
-        }
-        run_module_code += "]\n";
-        run_module_code += "runpy.run_module('" + config.python_module + "', run_name='__main__', alter_sys=True)\n";
-        
+            "runpy.run_module('" + config.python_module + "', run_name='__main__', alter_sys=True)\n";
+
         int result = PyRun_SimpleString(run_module_code.c_str());
         McRFPy_API::api_shutdown();
         delete engine;
         return result;
     }
     else if (!config.script_path.empty()) {
-        // Execute script file
+        // Execute script file (sys.argv already set at init time)
         FILE* fp = fopen(config.script_path.string().c_str(), "r");
         if (!fp) {
             std::cerr << "mcrogueface: can't open file '" << config.script_path << "': ";
             std::cerr << "[Errno " << errno << "] " << strerror(errno) << std::endl;
             return 1;
         }
-        
-        // Set up sys.argv
-        wchar_t** python_argv = new wchar_t*[config.script_args.size() + 1];
-        python_argv[0] = Py_DecodeLocale(config.script_path.string().c_str(), nullptr);
-        for (size_t i = 0; i < config.script_args.size(); i++) {
-            python_argv[i + 1] = Py_DecodeLocale(config.script_args[i].c_str(), nullptr);
-        }
-        PySys_SetArgvEx(config.script_args.size() + 1, python_argv, 0);
-        
+
         int result = PyRun_SimpleFile(fp, config.script_path.string().c_str());
         fclose(fp);
-        
-        // Clean up
-        for (size_t i = 0; i <= config.script_args.size(); i++) {
-            PyMem_RawFree(python_argv[i]);
-        }
-        delete[] python_argv;
         
         if (config.interactive_mode) {
             // Even if script had SystemExit, continue to interactive mode
@@ -197,22 +176,18 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
     }
     else if (config.interactive_mode) {
         // Interactive Python interpreter (only if explicitly requested with -i)
-        Py_InspectFlag = 1;
+        // Note: pyconfig.inspect is set at init time based on config.interactive_mode
         PyRun_InteractiveLoop(stdin, "<stdin>");
         McRFPy_API::api_shutdown();
         delete engine;
         return 0;
     }
     else if (!config.exec_scripts.empty()) {
-        // With --exec, run the game engine after scripts execute
-        // In headless mode, auto-exit when no timers remain
-        McRogueFaceConfig mutable_config = config;
-        if (mutable_config.headless) {
-            mutable_config.auto_exit_after_exec = true;
+        // With --exec, scripts were already executed by the first GameEngine constructor.
+        // Just configure auto-exit and run the existing engine to preserve timers/state.
+        if (config.headless) {
+            engine->setAutoExitAfterExec(true);
         }
-        delete engine;
-        engine = new GameEngine(mutable_config);
-        McRFPy_API::game = engine;
         engine->run();
         McRFPy_API::api_shutdown();
         delete engine;

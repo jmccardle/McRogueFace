@@ -154,6 +154,7 @@ public:
     void setWindowScale(float);
     bool isHeadless() const { return headless; }
     const McRogueFaceConfig& getConfig() const { return config; }
+    void setAutoExitAfterExec(bool enabled) { config.auto_exit_after_exec = enabled; }
     void processEvent(const sf::Event& event);
     
     // Window property accessors

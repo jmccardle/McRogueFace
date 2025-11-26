@@ -29,8 +29,8 @@ public:
     //static void setSpriteTexture(int);
     inline static GameEngine* game;
     static void api_init();
-    static void api_init(const McRogueFaceConfig& config, int argc, char** argv);
-    static PyStatus init_python_with_config(const McRogueFaceConfig& config, int argc, char** argv);
+    static void api_init(const McRogueFaceConfig& config);
+    static PyStatus init_python_with_config(const McRogueFaceConfig& config);
     static void api_shutdown();
     // Python API functionality - use mcrfpy.* in scripts
     //static PyObject* _drawSprite(PyObject*, PyObject*);

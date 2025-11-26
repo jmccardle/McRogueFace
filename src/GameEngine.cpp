@@ -336,9 +336,14 @@ void GameEngine::testTimers()
     auto it = timers.begin();
     while (it != timers.end())
     {
-        it->second->test(now);
-        
-        // Remove timers that have been cancelled or are one-shot and fired
+        // Keep a local copy of the timer to prevent use-after-free.
+        // If the callback calls delTimer(), the map entry gets replaced,
+        // but we need the Timer object to survive until test() returns.
+        auto timer = it->second;
+        timer->test(now);
+
+        // Remove timers that have been cancelled or are one-shot and fired.
+        // Note: Check it->second (current map value) in case callback replaced it.
         if (!it->second->getCallback() || it->second->getCallback() == Py_None)
         {
             it = timers.erase(it);

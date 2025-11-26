@@ -21,7 +21,7 @@ def test_viewport_visual(runtime):
     game_res = window.game_resolution
     
     # Full boundary frame
-    boundary = Frame(0, 0, game_res[0], game_res[1],
+    boundary = Frame(pos=(0, 0), size=(game_res[0], game_res[1]),
                     fill_color=Color(40, 40, 80),
                     outline_color=Color(255, 255, 0),
                     outline=3)
@@ -44,13 +44,13 @@ def test_viewport_visual(runtime):
     labels = ["TL", "TR", "BL", "BR"]
     
     for (x, y), color, label in zip(positions, colors, labels):
-        corner = Frame(x, y, corner_size, corner_size,
+        corner = Frame(pos=(x, y), size=(corner_size, corner_size),
                       fill_color=color,
                       outline_color=Color(255, 255, 255),
                       outline=2)
         scene.append(corner)
         
-        text = Caption(x + 10, y + 10, label)
+        text = Caption(text=label, pos=(x + 10, y + 10))
         text.font_size = 32
         text.fill_color = Color(0, 0, 0)
         scene.append(text)
@@ -58,23 +58,23 @@ def test_viewport_visual(runtime):
     # Center crosshair
     center_x = game_res[0] // 2
     center_y = game_res[1] // 2
-    h_line = Frame(0, center_y - 1, game_res[0], 2,
+    h_line = Frame(pos=(0, center_y - 1), size=(game_res[0], 2),
                   fill_color=Color(255, 255, 255, 128))
-    v_line = Frame(center_x - 1, 0, 2, game_res[1],
+    v_line = Frame(pos=(center_x - 1, 0), size=(2, game_res[1]),
                   fill_color=Color(255, 255, 255, 128))
     scene.append(h_line)
     scene.append(v_line)
     
     # Mode text
-    mode_text = Caption(center_x - 100, center_y - 50, 
-                       f"Mode: {window.scaling_mode}")
+    mode_text = Caption(text=f"Mode: {window.scaling_mode}",
+                       pos=(center_x - 100, center_y - 50))
     mode_text.font_size = 36
     mode_text.fill_color = Color(255, 255, 255)
     scene.append(mode_text)
-    
+
     # Resolution text
-    res_text = Caption(center_x - 150, center_y + 10,
-                      f"Game: {game_res[0]}x{game_res[1]}")
+    res_text = Caption(text=f"Game: {game_res[0]}x{game_res[1]}",
+                      pos=(center_x - 150, center_y + 10))
     res_text.font_size = 24
     res_text.fill_color = Color(200, 200, 200)
     scene.append(res_text)

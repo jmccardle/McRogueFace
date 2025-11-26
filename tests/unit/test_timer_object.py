@@ -10,17 +10,17 @@ call_count = 0
 pause_test_count = 0
 cancel_test_count = 0
 
-def timer_callback(elapsed_ms):
+def timer_callback(timer, runtime):
     global call_count
     call_count += 1
-    print(f"Timer fired! Count: {call_count}, Elapsed: {elapsed_ms}ms")
+    print(f"Timer fired! Count: {call_count}, Runtime: {runtime}ms")
 
-def pause_test_callback(elapsed_ms):
+def pause_test_callback(timer, runtime):
     global pause_test_count
     pause_test_count += 1
     print(f"Pause test timer: {pause_test_count}")
 
-def cancel_test_callback(elapsed_ms):
+def cancel_test_callback(timer, runtime):
     global cancel_test_count
     cancel_test_count += 1
     print(f"Cancel test timer: {cancel_test_count} - This should only print once!")
@@ -50,14 +50,14 @@ def run_tests(runtime):
         timer2.pause()
         print(f"  Timer2 paused: {timer2.paused}")
         print(f"  Timer2 active: {timer2.active}")
-        
+
         # Schedule resume after another 400ms
         def resume_timer2(runtime):
             print("  Resuming timer2...")
             timer2.resume()
             print(f"  Timer2 paused: {timer2.paused}")
             print(f"  Timer2 active: {timer2.active}")
-        
+
         mcrfpy.setTimer("resume_timer2", resume_timer2, 400)
     
     mcrfpy.setTimer("pause_timer2", pause_timer2, 250)
@@ -76,7 +76,7 @@ def run_tests(runtime):
     
     # Test 4: Test interval modification
     print("\nTest 4: Testing interval modification")
-    def interval_test(runtime):
+    def interval_test(timer, runtime):
         print(f"  Interval test fired at {runtime}ms")
     
     timer4 = mcrfpy.Timer("interval_test", interval_test, 1000)
@@ -98,12 +98,12 @@ def run_tests(runtime):
     print("\nTest 6: Testing restart functionality")
     restart_count = [0]
     
-    def restart_test(runtime):
+    def restart_test(timer, runtime):
         restart_count[0] += 1
         print(f"  Restart test: {restart_count[0]}")
         if restart_count[0] == 2:
             print("  Restarting timer...")
-            timer5.restart()
+            timer.restart()
     
     timer5 = mcrfpy.Timer("restart_test", restart_test, 400)
     

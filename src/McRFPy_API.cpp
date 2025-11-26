@@ -397,10 +397,10 @@ PyStatus init_python(const char *program_name)
 	// search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-3.12",
+        L"/lib/Python/lib.linux-x86_64-3.14",
 	    L"/lib/Python",
         L"/lib/Python/Lib",
-        L"/venv/lib/python3.12/site-packages"
+        L"/venv/lib/python3.14/site-packages"
     };
     
 
@@ -419,61 +419,107 @@ PyStatus init_python(const char *program_name)
     return status;
 }
 
-PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config, int argc, char** argv)
+PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 {
     // If Python is already initialized, just return success
     if (Py_IsInitialized()) {
         return PyStatus_Ok();
     }
-    
+
     PyStatus status;
     PyConfig pyconfig;
     PyConfig_InitIsolatedConfig(&pyconfig);
-    
+
     // Configure UTF-8 for stdio
     PyConfig_SetString(&pyconfig, &pyconfig.stdio_encoding, L"UTF-8");
     PyConfig_SetString(&pyconfig, &pyconfig.stdio_errors, L"surrogateescape");
     pyconfig.configure_c_stdio = 1;
-    
-    // CRITICAL: Pass actual command line arguments to Python
-    status = PyConfig_SetBytesArgv(&pyconfig, argc, argv);
+
+    // Set interactive mode (replaces deprecated Py_InspectFlag)
+    if (config.interactive_mode) {
+        pyconfig.inspect = 1;
+    }
+
+    // Don't modify sys.path based on script location (replaces PySys_SetArgvEx updatepath=0)
+    pyconfig.safe_path = 1;
+
+    // Construct Python argv from config (replaces deprecated PySys_SetArgvEx)
+    // Python convention:
+    //   - Script mode: argv[0] = script_path, argv[1:] = script_args
+    //   - -c mode: argv[0] = "-c"
+    //   - -m mode: argv[0] = module_name, argv[1:] = script_args
+    //   - Interactive only: argv[0] = ""
+    std::vector<std::wstring> argv_storage;
+
+    if (!config.script_path.empty()) {
+        // Script execution: argv[0] = script path
+        argv_storage.push_back(config.script_path.wstring());
+        for (const auto& arg : config.script_args) {
+            std::wstring warg(arg.begin(), arg.end());
+            argv_storage.push_back(warg);
+        }
+    } else if (!config.python_command.empty()) {
+        // -c command: argv[0] = "-c"
+        argv_storage.push_back(L"-c");
+    } else if (!config.python_module.empty()) {
+        // -m module: argv[0] = module name
+        std::wstring wmodule(config.python_module.begin(), config.python_module.end());
+        argv_storage.push_back(wmodule);
+        for (const auto& arg : config.script_args) {
+            std::wstring warg(arg.begin(), arg.end());
+            argv_storage.push_back(warg);
+        }
+    } else {
+        // Interactive mode or no script: argv[0] = ""
+        argv_storage.push_back(L"");
+    }
+
+    // Build wchar_t* array for PyConfig
+    std::vector<wchar_t*> argv_ptrs;
+    for (auto& ws : argv_storage) {
+        argv_ptrs.push_back(const_cast<wchar_t*>(ws.c_str()));
+    }
+
+    status = PyConfig_SetWideStringList(&pyconfig, &pyconfig.argv,
+                                         argv_ptrs.size(), argv_ptrs.data());
     if (PyStatus_Exception(status)) {
         return status;
     }
-    
+
     // Check if we're in a virtual environment
-    auto exe_path = std::filesystem::path(argv[0]);
-    auto exe_dir = exe_path.parent_path();
+    auto exe_wpath = executable_filename();
+    auto exe_path_fs = std::filesystem::path(exe_wpath);
+    auto exe_dir = exe_path_fs.parent_path();
     auto venv_root = exe_dir.parent_path();
-    
+
     if (std::filesystem::exists(venv_root / "pyvenv.cfg")) {
         // We're running from within a venv!
         // Add venv's site-packages to module search paths
-        auto site_packages = venv_root / "lib" / "python3.12" / "site-packages";
+        auto site_packages = venv_root / "lib" / "python3.14" / "site-packages";
         PyWideStringList_Append(&pyconfig.module_search_paths,
                                site_packages.wstring().c_str());
         pyconfig.module_search_paths_set = 1;
     }
-    
+
     // Set Python home to our bundled Python
     auto python_home = executable_path() + L"/lib/Python";
     PyConfig_SetString(&pyconfig, &pyconfig.home, python_home.c_str());
-    
+
     // Set up module search paths
 #if __PLATFORM_SET_PYTHON_SEARCH_PATHS == 1
     if (!pyconfig.module_search_paths_set) {
         pyconfig.module_search_paths_set = 1;
     }
-    
+
     // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-3.12",
+        L"/lib/Python/lib.linux-x86_64-3.14",
         L"/lib/Python",
         L"/lib/Python/Lib",
-        L"/venv/lib/python3.12/site-packages"
+        L"/venv/lib/python3.14/site-packages"
     };
-    
+
     for(auto s : str_arr) {
         status = PyWideStringList_Append(&pyconfig.module_search_paths, (executable_path() + s).c_str());
         if (PyStatus_Exception(status)) {
@@ -481,15 +527,13 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config, in
         }
     }
 #endif
-    
+
     // Register mcrfpy module before initialization
-    if (!Py_IsInitialized()) {
-        PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
-    }
-    
+    PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
+
     status = Py_InitializeFromConfig(&pyconfig);
     PyConfig_Clear(&pyconfig);
-    
+
     return status;
 }
 
@@ -535,9 +579,9 @@ void McRFPy_API::api_init() {
     //setSpriteTexture(0);
 }
 
-void McRFPy_API::api_init(const McRogueFaceConfig& config, int argc, char** argv) {
-    // Initialize Python with proper argv - this is CRITICAL
-    PyStatus status = init_python_with_config(config, argc, argv);
+void McRFPy_API::api_init(const McRogueFaceConfig& config) {
+    // Initialize Python with proper argv constructed from config
+    PyStatus status = init_python_with_config(config);
     if (PyStatus_Exception(status)) {
         Py_ExitStatusException(status);
     }

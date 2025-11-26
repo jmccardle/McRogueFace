@@ -15,16 +15,16 @@ def test_nested_clipping(runtime):
     scene = mcrfpy.sceneUI("test")
     
     # Create outer frame with clipping enabled
-    outer = Frame(50, 50, 400, 300,
+    outer = Frame(pos=(50, 50), size=(400, 300),
                   fill_color=Color(50, 50, 150),
                   outline_color=Color(255, 255, 255),
                   outline=3)
     outer.name = "outer"
     outer.clip_children = True
     scene.append(outer)
-    
+
     # Create inner frame that extends beyond outer bounds
-    inner = Frame(200, 150, 300, 200,
+    inner = Frame(pos=(200, 150), size=(300, 200),
                   fill_color=Color(150, 50, 50),
                   outline_color=Color(255, 255, 0),
                   outline=2)
@@ -34,13 +34,13 @@ def test_nested_clipping(runtime):
     
     # Add content to inner frame that extends beyond its bounds
     for i in range(5):
-        caption = Caption(10, 30 * i, f"Line {i+1}: This text should be double-clipped")
+        caption = Caption(text=f"Line {i+1}: This text should be double-clipped", pos=(10, 30 * i))
         caption.font_size = 14
         caption.fill_color = Color(255, 255, 255)
         inner.children.append(caption)
     
     # Add a child frame to inner that extends way out
-    deeply_nested = Frame(250, 100, 200, 150,
+    deeply_nested = Frame(pos=(250, 100), size=(200, 150),
                          fill_color=Color(50, 150, 50),
                          outline_color=Color(255, 0, 255),
                          outline=2)
@@ -48,11 +48,11 @@ def test_nested_clipping(runtime):
     inner.children.append(deeply_nested)
     
     # Add status text
-    status = Caption(50, 380, 
-                    "Nested clipping test:\n"
-                    "- Blue outer frame clips red inner frame\n"
-                    "- Red inner frame clips green deeply nested frame\n"
-                    "- All text should be clipped to frame bounds")
+    status = Caption(text="Nested clipping test:\n"
+                         "- Blue outer frame clips red inner frame\n"
+                         "- Red inner frame clips green deeply nested frame\n"
+                         "- All text should be clipped to frame bounds",
+                    pos=(50, 380))
     status.font_size = 12
     status.fill_color = Color(200, 200, 200)
     scene.append(status)

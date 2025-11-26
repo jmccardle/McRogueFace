@@ -24,7 +24,7 @@ def test_viewport_modes(runtime):
     
     # Create a frame that fills the game resolution to show boundaries
     game_res = window.game_resolution
-    boundary = Frame(0, 0, game_res[0], game_res[1],
+    boundary = Frame(pos=(0, 0), size=(game_res[0], game_res[1]),
                     fill_color=Color(50, 50, 100),
                     outline_color=Color(255, 255, 255),
                     outline=2)
@@ -41,13 +41,13 @@ def test_viewport_modes(runtime):
     ]
     
     for x, y, label in corners:
-        corner = Frame(x, y, corner_size, corner_size,
+        corner = Frame(pos=(x, y), size=(corner_size, corner_size),
                       fill_color=Color(255, 100, 100),
                       outline_color=Color(255, 255, 255),
                       outline=1)
         scene.append(corner)
         
-        text = Caption(x + 5, y + 5, label)
+        text = Caption(text=label, pos=(x + 5, y + 5))
         text.font_size = 20
         text.fill_color = Color(255, 255, 255)
         scene.append(text)
@@ -55,28 +55,28 @@ def test_viewport_modes(runtime):
     # Add center crosshair
     center_x = game_res[0] // 2
     center_y = game_res[1] // 2
-    h_line = Frame(center_x - 50, center_y - 1, 100, 2,
+    h_line = Frame(pos=(center_x - 50, center_y - 1), size=(100, 2),
                   fill_color=Color(255, 255, 0))
-    v_line = Frame(center_x - 1, center_y - 50, 2, 100,
+    v_line = Frame(pos=(center_x - 1, center_y - 50), size=(2, 100),
                   fill_color=Color(255, 255, 0))
     scene.append(h_line)
     scene.append(v_line)
     
     # Add mode indicator
-    mode_text = Caption(10, 10, f"Mode: {window.scaling_mode}")
+    mode_text = Caption(text=f"Mode: {window.scaling_mode}", pos=(10, 10))
     mode_text.font_size = 24
     mode_text.fill_color = Color(255, 255, 255)
     mode_text.name = "mode_text"
     scene.append(mode_text)
-    
+
     # Add instructions
-    instructions = Caption(10, 40,
-                         "Press 1: Center mode (1:1 pixels)\n"
-                         "Press 2: Stretch mode (fill window)\n"
-                         "Press 3: Fit mode (maintain aspect ratio)\n"
-                         "Press R: Change resolution\n"
-                         "Press G: Change game resolution\n"
-                         "Press Esc: Exit")
+    instructions = Caption(text="Press 1: Center mode (1:1 pixels)\n"
+                               "Press 2: Stretch mode (fill window)\n"
+                               "Press 3: Fit mode (maintain aspect ratio)\n"
+                               "Press R: Change resolution\n"
+                               "Press G: Change game resolution\n"
+                               "Press Esc: Exit",
+                          pos=(10, 40))
     instructions.font_size = 14
     instructions.fill_color = Color(200, 200, 200)
     scene.append(instructions)

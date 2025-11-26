@@ -236,6 +236,7 @@ PyColorObject* PyColor::from_arg(PyObject* args)
     
     // Check if args is already a Color instance
     if (PyObject_IsInstance(args, (PyObject*)type.get())) {
+        Py_INCREF(args);  // Return new reference so caller can safely DECREF
         return (PyColorObject*)args;
     }
     
