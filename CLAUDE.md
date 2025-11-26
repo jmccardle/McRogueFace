@@ -238,25 +238,72 @@ After building, the executable expects:
 2. Expose to Python using the existing binding pattern
 3. Update Python scripts to use new functionality
 
-## Testing Game Changes
+## Testing
 
-Currently no automated test suite. Manual testing workflow:
-1. Build with `make`
-2. Run `make run` or `cd build && ./mcrogueface`
-3. Test specific features through gameplay
-4. Check console output for Python errors
+### Test Suite Structure
+
+The `tests/` directory contains the comprehensive test suite:
+
+```
+tests/
+├── run_tests.py          # Test runner - executes all tests with timeout
+├── unit/                 # Unit tests for individual components (105+ tests)
+├── integration/          # Integration tests for system interactions
+├── regression/           # Bug regression tests (issue_XX_*.py)
+├── benchmarks/           # Performance benchmarks
+├── demo/                 # Feature demonstration system
+│   ├── demo_main.py      # Interactive demo runner
+│   ├── screens/          # Per-feature demo screens
+│   └── screenshots/      # Generated demo screenshots
+└── notes/                # Analysis files and documentation
+```
+
+### Running Tests
+
+```bash
+# Run the full test suite (from tests/ directory)
+cd tests && python3 run_tests.py
+
+# Run a specific test
+cd build && ./mcrogueface --headless --exec ../tests/unit/some_test.py
+
+# Run the demo system interactively
+cd build && ./mcrogueface ../tests/demo/demo_main.py
+
+# Generate demo screenshots (headless)
+cd build && ./mcrogueface --headless --exec ../tests/demo/demo_main.py
+```
+
+### Reading Tests as Examples
+
+**IMPORTANT**: Before implementing a feature or fixing a bug, check existing tests for API usage examples:
+
+- `tests/unit/` - Shows correct usage of individual mcrfpy classes and functions
+- `tests/demo/screens/` - Complete working examples of UI components
+- `tests/regression/` - Documents edge cases and bug scenarios
+
+Example: To understand Animation API:
+```bash
+grep -r "Animation" tests/unit/
+cat tests/demo/screens/animation_demo.py
+```
+
+### Writing Tests
+
+**Always write tests when adding features or fixing bugs:**
+
+1. **For new features**: Create `tests/unit/feature_name_test.py`
+2. **For bug fixes**: Create `tests/regression/issue_XX_description_test.py`
+3. **For demos**: Add to `tests/demo/screens/` if it showcases a feature
 
 ### Quick Testing Commands
 ```bash
-# Test basic functionality
-make test
-
-# Run in Python interactive mode
-make python
-
-# Test headless mode
+# Test headless mode with inline Python
 cd build
 ./mcrogueface --headless -c "import mcrfpy; print('Headless test')"
+
+# Run specific test with output
+./mcrogueface --headless --exec ../tests/unit/my_test.py 2>&1
 ```
 
 ## Common Development Tasks
@@ -387,76 +434,82 @@ build/
 ## Testing Guidelines
 
 ### Test-Driven Development
-- **Always write tests first**: Create automation tests in `./tests/` for all bugs and new features
-- **Practice TDD**: Write tests that fail to demonstrate the issue, then pass after the fix is applied
-- **Close the loop**: Reproduce issue → change code → recompile → verify behavior change
+- **Always write tests first**: Create tests in `./tests/` for all bugs and new features
+- **Practice TDD**: Write tests that fail to demonstrate the issue, then pass after the fix
+- **Read existing tests**: Check `tests/unit/` and `tests/demo/screens/` for API examples before writing code
+- **Close the loop**: Reproduce issue → change code → recompile → run test → verify
 
 ### Two Types of Tests
 
 #### 1. Direct Execution Tests (No Game Loop)
 For tests that only need class initialization or direct code execution:
 ```python
-# These tests can treat McRogueFace like a Python interpreter
+# tests/unit/my_feature_test.py
 import mcrfpy
+import sys
 
-# Test code here
-result = mcrfpy.some_function()
-assert result == expected_value
-print("PASS" if condition else "FAIL")
+# Test code - runs immediately
+frame = mcrfpy.Frame(pos=(0,0), size=(100,100))
+assert frame.x == 0
+assert frame.w == 100
+
+print("PASS")
+sys.exit(0)
 ```
 
 #### 2. Game Loop Tests (Timer-Based)
-For tests requiring rendering, game state, or elapsed time:
+For tests requiring rendering, screenshots, or elapsed time:
 ```python
+# tests/unit/my_visual_test.py
 import mcrfpy
 from mcrfpy import automation
 import sys
 
 def run_test(runtime):
     """Timer callback - runs after game loop starts"""
-    # Now rendering is active, screenshots will work
     automation.screenshot("test_result.png")
-    
-    # Run your tests here
-    automation.click(100, 100)
-    
-    # Always exit at the end
-    print("PASS" if success else "FAIL")
+    # Validate results...
+    print("PASS")
     sys.exit(0)
 
-# Set up the test scene
 mcrfpy.createScene("test")
-# ... add UI elements ...
-
-# Schedule test to run after game loop starts
-mcrfpy.setTimer("test", run_test, 100)  # 0.1 seconds
+ui = mcrfpy.sceneUI("test")
+ui.append(mcrfpy.Frame(pos=(50,50), size=(100,100)))
+mcrfpy.setScene("test")
+mcrfpy.setTimer("test", run_test, 100)
 ```
 
 ### Key Testing Principles
-- **Timer callbacks are essential**: Screenshots and UI interactions only work after the render loop starts
-- **Use automation API**: Always create and examine screenshots when visual feedback is required
-- **Exit properly**: Call `sys.exit()` at the end of timer-based tests to prevent hanging
-- **Headless mode**: Use `--exec` flag for automated testing: `./mcrogueface --headless --exec tests/my_test.py`
+- **Timer callbacks are essential**: Screenshots only work after the render loop starts
+- **Use automation API**: `automation.screenshot()`, `automation.click()` for visual testing
+- **Exit properly**: Always call `sys.exit(0)` for PASS or `sys.exit(1)` for FAIL
+- **Headless mode**: Use `--headless --exec` for CI/automated testing
+- **Check examples first**: Read `tests/demo/screens/*.py` for correct API usage
 
-### Example Test Pattern
-```bash
-# Run a test that requires game loop
-./build/mcrogueface --headless --exec tests/issue_78_middle_click_test.py
+### API Quick Reference (from tests)
+```python
+# Animation: (property, target_value, duration, easing)
+anim = mcrfpy.Animation("x", 500.0, 2.0, "easeInOut")
+anim.start(frame)
 
-# The test will:
-# 1. Set up the scene during script execution
-# 2. Register a timer callback
-# 3. Game loop starts
-# 4. Timer fires after 100ms
-# 5. Test runs with full rendering available
-# 6. Test takes screenshots and validates behavior
-# 7. Test calls sys.exit() to terminate
+# Caption: use keyword arguments to avoid positional conflicts
+cap = mcrfpy.Caption(text="Hello", pos=(100, 100))
+
+# Grid center: uses pixel coordinates, not cell coordinates
+grid = mcrfpy.Grid(grid_size=(15, 10), pos=(50, 50), size=(400, 300))
+grid.center = (120, 80)  # pixels: (cells * cell_size / 2)
+
+# Keyboard handler: key names are "Num1", "Num2", "Escape", "Q", etc.
+def on_key(key, state):
+    if key == "Num1" and state == "start":
+        mcrfpy.setScene("demo_1")
 ```
 
 ## Development Best Practices
 
 ### Testing and Deployment
-- **Keep tests in ./tests, not ./build/tests** - ./build gets shipped, and tests shouldn't be included
+- **Keep tests in ./tests, not ./build/tests** - ./build gets shipped, tests shouldn't be included
+- **Run full suite before commits**: `cd tests && python3 run_tests.py`
 
 ## Documentation Guidelines
 

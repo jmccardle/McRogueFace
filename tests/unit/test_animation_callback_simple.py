@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Simple test for animation callbacks - demonstrates basic usage"""
+
+import mcrfpy
+import sys
+
+# Global state to track callback
+callback_count = 0
+
+def my_callback(anim, target):
+    """Simple callback that prints when animation completes"""
+    global callback_count
+    callback_count += 1
+    print(f"Animation completed! Callback #{callback_count}")
+    # For now, anim and target are None - future enhancement
+
+def setup_and_run():
+    """Set up scene and run animation with callback"""
+    # Create scene
+    mcrfpy.createScene("callback_demo")
+    mcrfpy.setScene("callback_demo")
+    
+    # Create a frame to animate
+    frame = mcrfpy.Frame((100, 100), (200, 200), fill_color=(255, 0, 0))
+    ui = mcrfpy.sceneUI("callback_demo")
+    ui.append(frame)
+    
+    # Create animation with callback
+    print("Starting animation with callback...")
+    anim = mcrfpy.Animation("x", 400.0, 1.0, "easeInOutQuad", callback=my_callback)
+    anim.start(frame)
+    
+    # Schedule check after animation should complete
+    mcrfpy.setTimer("check", check_result, 1500)
+
+def check_result(runtime):
+    """Check if callback fired correctly"""
+    global callback_count
+    
+    if callback_count == 1:
+        print("SUCCESS: Callback fired exactly once!")
+        
+        # Test 2: Animation without callback
+        print("\nTesting animation without callback...")
+        ui = mcrfpy.sceneUI("callback_demo")
+        frame = ui[0]
+        
+        anim2 = mcrfpy.Animation("y", 300.0, 0.5, "linear")
+        anim2.start(frame)
+        
+        mcrfpy.setTimer("final", final_check, 700)
+    else:
+        print(f"FAIL: Expected 1 callback, got {callback_count}")
+        sys.exit(1)
+
+def final_check(runtime):
+    """Final check - callback count should still be 1"""
+    global callback_count
+    
+    if callback_count == 1:
+        print("SUCCESS: No unexpected callbacks fired!")
+        print("\nAnimation callback feature working correctly!")
+        sys.exit(0)
+    else:
+        print(f"FAIL: Callback count changed to {callback_count}")
+        sys.exit(1)
+
+# Start the demo
+print("Animation Callback Demo")
+print("=" * 30)
+setup_and_run()

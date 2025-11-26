@@ -8,26 +8,26 @@ PCbuild
 obj
 build
 lib
-obj
 __pycache__
 
 .cache/
 7DRL2025 Release/
 CMakeFiles/
 Makefile
-*.md
 *.zip
 __lib/
 _oldscripts/
 assets/
 cellular_automata_fire/
-*.txt
 deps/
 fetch_issues_txt.py
 forest_fire_CA.py
 mcrogueface.github.io
 scripts/
-test_*
-
 tcod_reference
 .archive
+
+# Keep important documentation and tests
+!CLAUDE.md
+!README.md
+!tests/
