@@ -3,6 +3,7 @@
 #include "UIEntity.h"
 #include "PyAnimation.h"
 #include "McRFPy_API.h"
+#include "GameEngine.h"
 #include "PythonObjectCache.h"
 #include <cmath>
 #include <algorithm>
@@ -368,9 +369,14 @@ void Animation::triggerCallback() {
     Py_DECREF(args);
     
     if (!result) {
-        // Print error but don't crash
+        std::cerr << "Animation callback raised an exception:" << std::endl;
         PyErr_Print();
-        PyErr_Clear(); // Clear the error state
+        PyErr_Clear();
+
+        // Check if we should exit on exception
+        if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+            McRFPy_API::signalPythonException();
+        }
     } else {
         Py_DECREF(result);
     }

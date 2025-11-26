@@ -153,6 +153,7 @@ public:
     std::shared_ptr<Timer> getTimer(const std::string& name);
     void setWindowScale(float);
     bool isHeadless() const { return headless; }
+    const McRogueFaceConfig& getConfig() const { return config; }
     void processEvent(const sf::Event& event);
     
     // Window property accessors

@@ -27,6 +27,9 @@ std::shared_ptr<PyFont> McRFPy_API::default_font;
 std::shared_ptr<PyTexture> McRFPy_API::default_texture;
 PyObject* McRFPy_API::mcrf_module;
 
+// Exception handling state
+std::atomic<bool> McRFPy_API::exception_occurred{false};
+std::atomic<int> McRFPy_API::exit_code{0};
 
 static PyMethodDef mcrfpyMethods[] = {
 
@@ -1144,6 +1147,23 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // Add general metrics
     PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));
     PyDict_SetItemString(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds()));
-    
+
     return dict;
+}
+
+// Exception handling implementation
+void McRFPy_API::signalPythonException() {
+    // Check if we should exit on exception (consult config via game)
+    if (game && !game->isHeadless()) {
+        // In windowed mode, respect the config setting
+        // Access config through game engine - but we need to check the config
+    }
+
+    // For now, always signal - the game loop will check the config
+    exception_occurred.store(true);
+    exit_code.store(1);
+}
+
+bool McRFPy_API::shouldExit() {
+    return exception_occurred.load();
 }

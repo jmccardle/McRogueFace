@@ -31,6 +31,10 @@ struct McRogueFaceConfig {
 
     // Auto-exit when no timers remain (for --headless --exec automation)
     bool auto_exit_after_exec = false;
+
+    // Exception handling: exit on first Python callback exception (default: true)
+    // Use --continue-after-exceptions to disable
+    bool exit_on_exception = true;
 };
 
 #endif // MCROGUEFACE_CONFIG_H

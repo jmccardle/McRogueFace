@@ -44,6 +44,11 @@ int run_game_engine(const McRogueFaceConfig& config)
     if (Py_IsInitialized()) {
         McRFPy_API::api_shutdown();
     }
+
+    // Return exception exit code if a Python exception signaled exit
+    if (McRFPy_API::shouldExit()) {
+        return McRFPy_API::exit_code.load();
+    }
     return 0;
 }
 
@@ -181,9 +186,13 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
         
         // Run the game engine after script execution
         engine->run();
-        
+
         McRFPy_API::api_shutdown();
         delete engine;
+        // Return exception exit code if signaled
+        if (McRFPy_API::shouldExit()) {
+            return McRFPy_API::exit_code.load();
+        }
         return result;
     }
     else if (config.interactive_mode) {
@@ -207,6 +216,10 @@ int run_python_interpreter(const McRogueFaceConfig& config, int argc, char* argv
         engine->run();
         McRFPy_API::api_shutdown();
         delete engine;
+        // Return exception exit code if signaled
+        if (McRFPy_API::shouldExit()) {
+            return McRFPy_API::exit_code.load();
+        }
         return 0;
     }
     

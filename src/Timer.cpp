@@ -1,6 +1,8 @@
 #include "Timer.h"
 #include "PythonObjectCache.h"
 #include "PyCallable.h"
+#include "McRFPy_API.h"
+#include "GameEngine.h"
 
 Timer::Timer(PyObject* _target, int _interval, int now, bool _once)
 : callback(std::make_shared<PyCallable>(_target)), interval(_interval), last_ran(now),
@@ -51,10 +53,15 @@ bool Timer::test(int now)
         Py_DECREF(args);
         
         if (!retval)
-        {   
-            std::cout << "Timer callback has raised an exception. It's going to STDERR and being dropped:" << std::endl;
+        {
+            std::cerr << "Timer callback raised an exception:" << std::endl;
             PyErr_Print();
             PyErr_Clear();
+
+            // Check if we should exit on exception
+            if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+                McRFPy_API::signalPythonException();
+            }
         } else if (retval != Py_None)
         {   
             std::cout << "Timer returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;

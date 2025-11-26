@@ -1,4 +1,6 @@
 #include "PyCallable.h"
+#include "McRFPy_API.h"
+#include "GameEngine.h"
 
 PyCallable::PyCallable(PyObject* _target)
 {
@@ -51,9 +53,14 @@ void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::strin
     PyObject* retval = PyCallable::call(args, NULL);
     if (!retval)
     {
-        std::cout << "ClickCallable has raised an exception. It's going to STDERR and being dropped:" << std::endl;
+        std::cerr << "Click callback raised an exception:" << std::endl;
         PyErr_Print();
         PyErr_Clear();
+
+        // Check if we should exit on exception
+        if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+            McRFPy_API::signalPythonException();
+        }
     } else if (retval != Py_None)
     {
         std::cout << "ClickCallable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
@@ -81,9 +88,14 @@ void PyKeyCallable::call(std::string key, std::string action)
     PyObject* retval = PyCallable::call(args, NULL);
     if (!retval)
     {
-        std::cout << "KeyCallable has raised an exception. It's going to STDERR and being dropped:" << std::endl;
+        std::cerr << "Key callback raised an exception:" << std::endl;
         PyErr_Print();
         PyErr_Clear();
+
+        // Check if we should exit on exception
+        if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+            McRFPy_API::signalPythonException();
+        }
     } else if (retval != Py_None)
     {
         std::cout << "KeyCallable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;

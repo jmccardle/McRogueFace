@@ -2,6 +2,7 @@
 #include "Common.h"
 #include "Python.h"
 #include <list>
+#include <atomic>
 
 #include "PyFont.h"
 #include "PyTexture.h"
@@ -85,4 +86,10 @@ public:
     static void triggerSceneChange(const std::string& from_scene, const std::string& to_scene);
     static void updatePythonScenes(float dt);
     static void triggerResize(int width, int height);
+
+    // Exception handling - signal game loop to exit on unhandled Python exceptions
+    static std::atomic<bool> exception_occurred;
+    static std::atomic<int> exit_code;
+    static void signalPythonException();  // Called by exception handlers
+    static bool shouldExit();             // Checked by game loop
 };

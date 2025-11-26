@@ -289,6 +289,11 @@ void GameEngine::run()
         if (config.auto_exit_after_exec && timers.empty()) {
             running = false;
         }
+
+        // Check if a Python exception has signaled exit
+        if (McRFPy_API::shouldExit()) {
+            running = false;
+        }
     }
     
     // Clean up before exiting the run loop

@@ -121,6 +121,12 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
             current_arg++;
             continue;
         }
+
+        if (arg == "--continue-after-exceptions") {
+            config.exit_on_exception = false;
+            current_arg++;
+            continue;
+        }
         
         // If no flags matched, treat as positional argument (script name)
         if (arg[0] != '-') {
@@ -160,6 +166,8 @@ void CommandLineParser::print_help() {
               << "  --audio-off  : disable audio\n"
               << "  --audio-on   : enable audio (even in headless mode)\n"
               << "  --screenshot [path] : take a screenshot in headless mode\n"
+              << "  --continue-after-exceptions : don't exit on Python callback exceptions\n"
+              << "                       (default: exit on first exception)\n"
               << "\n"
               << "Arguments:\n"
               << "  file   : program read from script file\n"
