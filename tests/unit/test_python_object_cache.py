@@ -92,9 +92,9 @@ def run_tests(runtime):
         test(retrieved_caption.caption_id == "test_caption", "Caption custom data preserved")
     
     # Test 8: Test removal and re-addition
-    #scene_ui.remove(frame) # TypeError: UICollection.remove requires an integer index to remove - seems like a C++ bug in the remove() implementation
+    # Use del to remove by index (Python standard), or .remove(element) to remove by value
     print(f"before remove: {len(scene_ui)=}")
-    scene_ui.remove(-1)
+    del scene_ui[-1]  # Remove last element by index
     print(f"after remove: {len(scene_ui)=}")
 
     scene_ui.append(frame)
