@@ -4,6 +4,9 @@
 #include "UICaption.h"
 #include "UISprite.h"
 #include "UIGrid.h"
+#include "UILine.h"
+#include "UICircle.h"
+#include "UIArc.h"
 #include "McRFPy_API.h"
 #include "PyObjectUtils.h"
 #include "PythonObjectCache.h"
@@ -74,6 +77,42 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UILINE:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line");
+            if (!type) return nullptr;
+            auto pyObj = (PyUILineObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UILine>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICIRCLE:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle");
+            if (!type) return nullptr;
+            auto pyObj = (PyUICircleObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICircle>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIARC:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc");
+            if (!type) return nullptr;
+            auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIArc>(drawable);
                 pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;
@@ -577,10 +616,13 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
     if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
         !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
         !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))
+        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")) &&
+        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")) &&
+        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")) &&
+        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc"))
         )
     {
-        PyErr_SetString(PyExc_TypeError, "Only Frame, Caption, Sprite, and Grid objects can be added to UICollection");
+        PyErr_SetString(PyExc_TypeError, "Only Frame, Caption, Sprite, Grid, Line, Circle, and Arc objects can be added to UICollection");
         return NULL;
     }
 
@@ -620,7 +662,25 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
         grid->data->z_index = new_z_index;
         self->data->push_back(grid->data);
     }
-    
+    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")))
+    {
+        PyUILineObject* line = (PyUILineObject*)o;
+        line->data->z_index = new_z_index;
+        self->data->push_back(line->data);
+    }
+    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")))
+    {
+        PyUICircleObject* circle = (PyUICircleObject*)o;
+        circle->data->z_index = new_z_index;
+        self->data->push_back(circle->data);
+    }
+    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")))
+    {
+        PyUIArcObject* arc = (PyUIArcObject*)o;
+        arc->data->z_index = new_z_index;
+        self->data->push_back(arc->data);
+    }
+
     // Mark scene as needing resort after adding element
     McRFPy_API::markSceneNeedsSort();
 
@@ -656,11 +716,14 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
         if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
             !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
             !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")))
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")) &&
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")) &&
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")) &&
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")))
         {
             Py_DECREF(item);
             Py_DECREF(iterator);
-            PyErr_SetString(PyExc_TypeError, "All items must be Frame, Caption, Sprite, or Grid objects");
+            PyErr_SetString(PyExc_TypeError, "All items must be Frame, Caption, Sprite, Grid, Line, Circle, or Arc objects");
             return NULL;
         }
         
@@ -692,10 +755,25 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
             grid->data->z_index = current_z_index;
             self->data->push_back(grid->data);
         }
-        
+        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line"))) {
+            PyUILineObject* line = (PyUILineObject*)item;
+            line->data->z_index = current_z_index;
+            self->data->push_back(line->data);
+        }
+        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle"))) {
+            PyUICircleObject* circle = (PyUICircleObject*)item;
+            circle->data->z_index = current_z_index;
+            self->data->push_back(circle->data);
+        }
+        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc"))) {
+            PyUIArcObject* arc = (PyUIArcObject*)item;
+            arc->data->z_index = current_z_index;
+            self->data->push_back(arc->data);
+        }
+
         Py_DECREF(item);
     }
-    
+
     Py_DECREF(iterator);
     
     // Check if iteration ended due to an error

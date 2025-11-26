@@ -21,7 +21,10 @@ enum PyObjectsEnum : int
     UIFRAME = 1,
     UICAPTION,
     UISPRITE,
-    UIGRID
+    UIGRID,
+    UILINE,
+    UICIRCLE,
+    UIARC
 };
 
 class UIDrawable

@@ -10,6 +10,9 @@
 #include "PySceneObject.h"
 #include "GameEngine.h"
 #include "UI.h"
+#include "UILine.h"
+#include "UICircle.h"
+#include "UIArc.h"
 #include "Resources.h"
 #include "PyScene.h"
 #include <filesystem>
@@ -251,6 +254,7 @@ PyObject* PyInit_mcrfpy()
 
         /*UI widgets*/
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,
+        &PyUILineType, &PyUICircleType, &PyUIArcType,
 
         /*game map & perspective data*/
         &PyUIGridPointType, &PyUIGridPointStateType,
@@ -258,19 +262,19 @@ PyObject* PyInit_mcrfpy()
         /*collections & iterators*/
         &PyUICollectionType, &PyUICollectionIterType,
         &PyUIEntityCollectionType, &PyUIEntityCollectionIterType,
-        
+
         /*animation*/
         &PyAnimationType,
-        
+
         /*timer*/
         &PyTimerType,
-        
+
         /*window singleton*/
         &PyWindowType,
-        
+
         /*scene class*/
         &PySceneType,
-        
+
         nullptr};
     
     // Set up PyWindowType methods and getsetters before PyType_Ready
@@ -288,6 +292,9 @@ PyObject* PyInit_mcrfpy()
     PyUISpriteType.tp_weaklistoffset = offsetof(PyUISpriteObject, weakreflist);
     PyUIGridType.tp_weaklistoffset = offsetof(PyUIGridObject, weakreflist);
     PyUIEntityType.tp_weaklistoffset = offsetof(PyUIEntityObject, weakreflist);
+    PyUILineType.tp_weaklistoffset = offsetof(PyUILineObject, weakreflist);
+    PyUICircleType.tp_weaklistoffset = offsetof(PyUICircleObject, weakreflist);
+    PyUIArcType.tp_weaklistoffset = offsetof(PyUIArcObject, weakreflist);
     
     int i = 0;
     auto t = pytypes[i];

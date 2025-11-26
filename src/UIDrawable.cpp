@@ -3,6 +3,9 @@
 #include "UICaption.h"
 #include "UISprite.h"
 #include "UIGrid.h"
+#include "UILine.h"
+#include "UICircle.h"
+#include "UIArc.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
@@ -152,6 +155,24 @@ PyObject* UIDrawable::get_click(PyObject* self, void* closure) {
             else
                 ptr = NULL;
             break;
+        case PyObjectsEnum::UILINE:
+            if (((PyUILineObject*)self)->data->click_callable)
+                ptr = ((PyUILineObject*)self)->data->click_callable->borrow();
+            else
+                ptr = NULL;
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            if (((PyUICircleObject*)self)->data->click_callable)
+                ptr = ((PyUICircleObject*)self)->data->click_callable->borrow();
+            else
+                ptr = NULL;
+            break;
+        case PyObjectsEnum::UIARC:
+            if (((PyUIArcObject*)self)->data->click_callable)
+                ptr = ((PyUIArcObject*)self)->data->click_callable->borrow();
+            else
+                ptr = NULL;
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _get_click");
             return NULL;
@@ -178,6 +199,15 @@ int UIDrawable::set_click(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UIGRID:
             target = (((PyUIGridObject*)self)->data.get());
+            break;
+        case PyObjectsEnum::UILINE:
+            target = (((PyUILineObject*)self)->data.get());
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            target = (((PyUICircleObject*)self)->data.get());
+            break;
+        case PyObjectsEnum::UIARC:
+            target = (((PyUIArcObject*)self)->data.get());
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _set_click");
@@ -215,18 +245,27 @@ PyObject* UIDrawable::get_int(PyObject* self, void* closure) {
         case PyObjectsEnum::UIGRID:
             drawable = ((PyUIGridObject*)self)->data.get();
             break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return NULL;
     }
-    
+
     return PyLong_FromLong(drawable->z_index);
 }
 
 int UIDrawable::set_int(PyObject* self, PyObject* value, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
     UIDrawable* drawable = nullptr;
-    
+
     switch (objtype) {
         case PyObjectsEnum::UIFRAME:
             drawable = ((PyUIFrameObject*)self)->data.get();
@@ -240,11 +279,20 @@ int UIDrawable::set_int(PyObject* self, PyObject* value, void* closure) {
         case PyObjectsEnum::UIGRID:
             drawable = ((PyUIGridObject*)self)->data.get();
             break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return -1;
     }
-    
+
     if (!PyLong_Check(value)) {
         PyErr_SetString(PyExc_TypeError, "z_index must be an integer");
         return -1;
@@ -283,7 +331,7 @@ void UIDrawable::notifyZIndexChanged() {
 PyObject* UIDrawable::get_name(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
     UIDrawable* drawable = nullptr;
-    
+
     switch (objtype) {
         case PyObjectsEnum::UIFRAME:
             drawable = ((PyUIFrameObject*)self)->data.get();
@@ -297,18 +345,27 @@ PyObject* UIDrawable::get_name(PyObject* self, void* closure) {
         case PyObjectsEnum::UIGRID:
             drawable = ((PyUIGridObject*)self)->data.get();
             break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return NULL;
     }
-    
+
     return PyUnicode_FromString(drawable->name.c_str());
 }
 
 int UIDrawable::set_name(PyObject* self, PyObject* value, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
     UIDrawable* drawable = nullptr;
-    
+
     switch (objtype) {
         case PyObjectsEnum::UIFRAME:
             drawable = ((PyUIFrameObject*)self)->data.get();
@@ -322,11 +379,20 @@ int UIDrawable::set_name(PyObject* self, PyObject* value, void* closure) {
         case PyObjectsEnum::UIGRID:
             drawable = ((PyUIGridObject*)self)->data.get();
             break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return -1;
     }
-    
+
     if (value == NULL || value == Py_None) {
         drawable->name = "";
         return 0;
@@ -383,7 +449,7 @@ PyObject* UIDrawable::get_float_member(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure) >> 8);
     int member = reinterpret_cast<intptr_t>(closure) & 0xFF;
     UIDrawable* drawable = nullptr;
-    
+
     switch (objtype) {
         case PyObjectsEnum::UIFRAME:
             drawable = ((PyUIFrameObject*)self)->data.get();
@@ -397,11 +463,20 @@ PyObject* UIDrawable::get_float_member(PyObject* self, void* closure) {
         case PyObjectsEnum::UIGRID:
             drawable = ((PyUIGridObject*)self)->data.get();
             break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return NULL;
     }
-    
+
     switch (member) {
         case 0: // x
             return PyFloat_FromDouble(drawable->position.x);
@@ -421,7 +496,7 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure) >> 8);
     int member = reinterpret_cast<intptr_t>(closure) & 0xFF;
     UIDrawable* drawable = nullptr;
-    
+
     switch (objtype) {
         case PyObjectsEnum::UIFRAME:
             drawable = ((PyUIFrameObject*)self)->data.get();
@@ -435,11 +510,20 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
         case PyObjectsEnum::UIGRID:
             drawable = ((PyUIGridObject*)self)->data.get();
             break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return -1;
     }
-    
+
     float val = 0.0f;
     if (PyFloat_Check(value)) {
         val = PyFloat_AsDouble(value);
@@ -481,7 +565,7 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
 PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
     UIDrawable* drawable = nullptr;
-    
+
     switch (objtype) {
         case PyObjectsEnum::UIFRAME:
             drawable = ((PyUIFrameObject*)self)->data.get();
@@ -495,11 +579,20 @@ PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
         case PyObjectsEnum::UIGRID:
             drawable = ((PyUIGridObject*)self)->data.get();
             break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return NULL;
     }
-    
+
     // Create a Python Vector object from position
     PyObject* module = PyImport_ImportModule("mcrfpy");
     if (!module) return NULL;
@@ -519,7 +612,7 @@ PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
 int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
     UIDrawable* drawable = nullptr;
-    
+
     switch (objtype) {
         case PyObjectsEnum::UIFRAME:
             drawable = ((PyUIFrameObject*)self)->data.get();
@@ -533,11 +626,20 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
         case PyObjectsEnum::UIGRID:
             drawable = ((PyUIGridObject*)self)->data.get();
             break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return -1;
     }
-    
+
     // Accept tuple or Vector
     float x, y;
     if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
