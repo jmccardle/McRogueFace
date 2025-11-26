@@ -146,6 +146,7 @@ public:
     void run();
     void sUserInput();
     void cleanup(); // Clean up Python references before destruction
+    void executeStartupScripts(); // Execute --exec scripts (called once after final engine setup)
     int getFrame() { return currentFrame; }
     float getFrameTime() { return frameTime; }
     sf::View getView() { return visible; }

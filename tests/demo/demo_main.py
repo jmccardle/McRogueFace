@@ -14,9 +14,6 @@ from mcrfpy import automation
 import sys
 import os
 
-# Note: Engine runs --exec scripts twice - we use this to our advantage
-# First run sets up scenes, second run's timer fires after game loop starts
-
 # Add parent to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

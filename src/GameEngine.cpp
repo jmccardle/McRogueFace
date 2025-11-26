@@ -63,23 +63,31 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         McRFPy_API::executePyString("import mcrfpy");
         McRFPy_API::executeScript("scripts/game.py");
     }
-    
+
+    // Note: --exec scripts are NOT executed here.
+    // They are executed via executeStartupScripts() after the final engine is set up.
+    // This prevents double-execution when main.cpp creates multiple GameEngine instances.
+
+    clock.restart();
+    runtime.restart();
+}
+
+void GameEngine::executeStartupScripts()
+{
     // Execute any --exec scripts in order
+    // This is called ONCE from main.cpp after the final engine is set up
     if (!config.exec_scripts.empty()) {
         if (!Py_IsInitialized()) {
             McRFPy_API::api_init();
         }
         McRFPy_API::executePyString("import mcrfpy");
-        
+
         for (const auto& exec_script : config.exec_scripts) {
             std::cout << "Executing script: " << exec_script << std::endl;
             McRFPy_API::executeScript(exec_script.string());
         }
         std::cout << "All --exec scripts completed" << std::endl;
     }
-
-    clock.restart();
-    runtime.restart();
 }
 
 GameEngine::~GameEngine()

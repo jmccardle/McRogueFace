@@ -183,8 +183,8 @@ int run_python_interpreter(const McRogueFaceConfig& config)
         return 0;
     }
     else if (!config.exec_scripts.empty()) {
-        // With --exec, scripts were already executed by the first GameEngine constructor.
-        // Just configure auto-exit and run the existing engine to preserve timers/state.
+        // Execute startup scripts on the existing engine (not in constructor to prevent double-execution)
+        engine->executeStartupScripts();
         if (config.headless) {
             engine->setAutoExitAfterExec(true);
         }
