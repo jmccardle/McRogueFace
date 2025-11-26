@@ -45,15 +45,24 @@ public:
     static PyObject* distance_to(PyVectorObject*, PyObject*);
     static PyObject* angle(PyVectorObject*, PyObject*);
     static PyObject* copy(PyVectorObject*, PyObject*);
+    static PyObject* floor(PyVectorObject*, PyObject*);
+
+    // Sequence protocol
+    static Py_ssize_t sequence_length(PyObject*);
+    static PyObject* sequence_item(PyObject*, Py_ssize_t);
+
+    // Additional properties
+    static PyObject* get_int(PyObject*, void*);
     
     static PyGetSetDef getsetters[];
     static PyMethodDef methods[];
 };
 
 namespace mcrfpydef {
-    // Forward declare the PyNumberMethods structure
+    // Forward declare the PyNumberMethods and PySequenceMethods structures
     extern PyNumberMethods PyVector_as_number;
-    
+    extern PySequenceMethods PyVector_as_sequence;
+
     static PyTypeObject PyVectorType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Vector",
@@ -61,6 +70,7 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_repr = PyVector::repr,
         .tp_as_number = &PyVector_as_number,
+        .tp_as_sequence = &PyVector_as_sequence,
         .tp_hash = PyVector::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("SFML Vector Object"),

@@ -8,6 +8,8 @@ PyGetSetDef PyVector::getsetters[] = {
      MCRF_PROPERTY(x, "X coordinate of the vector (float)"), (void*)0},
     {"y", (getter)PyVector::get_member, (setter)PyVector::set_member,
      MCRF_PROPERTY(y, "Y coordinate of the vector (float)"), (void*)1},
+    {"int", (getter)PyVector::get_int, NULL,
+     MCRF_PROPERTY(int, "Integer tuple (floor of x and y) for use as dict keys. Read-only."), NULL},
     {NULL}
 };
 
@@ -60,6 +62,13 @@ PyMethodDef PyVector::methods[] = {
          MCRF_DESC("Create a copy of this vector."),
          MCRF_RETURNS("Vector: New Vector object with same x and y values")
      )},
+    {"floor", (PyCFunction)PyVector::floor, METH_NOARGS,
+     MCRF_METHOD(Vector, floor,
+         MCRF_SIG("()", "Vector"),
+         MCRF_DESC("Return a new vector with floored (integer) coordinates."),
+         MCRF_RETURNS("Vector: New Vector with floor(x) and floor(y)")
+         MCRF_NOTE("Useful for grid-based positioning. For a hashable tuple, use the .int property instead.")
+     )},
     {NULL}
 };
 
@@ -101,6 +110,19 @@ namespace mcrfpydef {
         .nb_index = 0,
         .nb_matrix_multiply = 0,
         .nb_inplace_matrix_multiply = 0
+    };
+
+    PySequenceMethods PyVector_as_sequence = {
+        .sq_length = PyVector::sequence_length,
+        .sq_concat = 0,
+        .sq_repeat = 0,
+        .sq_item = PyVector::sequence_item,
+        .was_sq_slice = 0,
+        .sq_ass_item = 0,
+        .was_sq_ass_slice = 0,
+        .sq_contains = 0,
+        .sq_inplace_concat = 0,
+        .sq_inplace_repeat = 0
     };
 }
 
@@ -397,29 +419,65 @@ int PyVector::bool_check(PyObject* self)
 PyObject* PyVector::richcompare(PyObject* left, PyObject* right, int op)
 {
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    
-    if (!PyObject_IsInstance(left, (PyObject*)type) || !PyObject_IsInstance(right, (PyObject*)type)) {
+
+    float left_x, left_y, right_x, right_y;
+
+    // Extract left operand values
+    if (PyObject_IsInstance(left, (PyObject*)type)) {
+        PyVectorObject* vec = (PyVectorObject*)left;
+        left_x = vec->data.x;
+        left_y = vec->data.y;
+    } else if (PyTuple_Check(left) && PyTuple_Size(left) == 2) {
+        PyObject* x_obj = PyTuple_GetItem(left, 0);
+        PyObject* y_obj = PyTuple_GetItem(left, 1);
+        if ((PyFloat_Check(x_obj) || PyLong_Check(x_obj)) &&
+            (PyFloat_Check(y_obj) || PyLong_Check(y_obj))) {
+            left_x = (float)PyFloat_AsDouble(x_obj);
+            left_y = (float)PyFloat_AsDouble(y_obj);
+        } else {
+            Py_INCREF(Py_NotImplemented);
+            return Py_NotImplemented;
+        }
+    } else {
         Py_INCREF(Py_NotImplemented);
         return Py_NotImplemented;
     }
-    
-    PyVectorObject* vec1 = (PyVectorObject*)left;
-    PyVectorObject* vec2 = (PyVectorObject*)right;
-    
+
+    // Extract right operand values
+    if (PyObject_IsInstance(right, (PyObject*)type)) {
+        PyVectorObject* vec = (PyVectorObject*)right;
+        right_x = vec->data.x;
+        right_y = vec->data.y;
+    } else if (PyTuple_Check(right) && PyTuple_Size(right) == 2) {
+        PyObject* x_obj = PyTuple_GetItem(right, 0);
+        PyObject* y_obj = PyTuple_GetItem(right, 1);
+        if ((PyFloat_Check(x_obj) || PyLong_Check(x_obj)) &&
+            (PyFloat_Check(y_obj) || PyLong_Check(y_obj))) {
+            right_x = (float)PyFloat_AsDouble(x_obj);
+            right_y = (float)PyFloat_AsDouble(y_obj);
+        } else {
+            Py_INCREF(Py_NotImplemented);
+            return Py_NotImplemented;
+        }
+    } else {
+        Py_INCREF(Py_NotImplemented);
+        return Py_NotImplemented;
+    }
+
     bool result = false;
-    
+
     switch (op) {
         case Py_EQ:
-            result = (vec1->data.x == vec2->data.x && vec1->data.y == vec2->data.y);
+            result = (left_x == right_x && left_y == right_y);
             break;
         case Py_NE:
-            result = (vec1->data.x != vec2->data.x || vec1->data.y != vec2->data.y);
+            result = (left_x != right_x || left_y != right_y);
             break;
         default:
             Py_INCREF(Py_NotImplemented);
             return Py_NotImplemented;
     }
-    
+
     if (result)
         Py_RETURN_TRUE;
     else
@@ -500,10 +558,54 @@ PyObject* PyVector::copy(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
 {
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
     auto result = (PyVectorObject*)type->tp_alloc(type, 0);
-    
+
     if (result) {
         result->data = self->data;
     }
-    
+
     return (PyObject*)result;
+}
+
+PyObject* PyVector::floor(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
+{
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto result = (PyVectorObject*)type->tp_alloc(type, 0);
+
+    if (result) {
+        result->data = sf::Vector2f(std::floor(self->data.x), std::floor(self->data.y));
+    }
+
+    return (PyObject*)result;
+}
+
+// Sequence protocol implementation
+Py_ssize_t PyVector::sequence_length(PyObject* self)
+{
+    return 2;  // Vectors always have exactly 2 elements
+}
+
+PyObject* PyVector::sequence_item(PyObject* obj, Py_ssize_t index)
+{
+    PyVectorObject* self = (PyVectorObject*)obj;
+
+    // Note: Python already handles negative index normalization when sq_length is defined
+    // So v[-1] arrives here as index=1, v[-2] as index=0
+    // Out-of-range negative indices (like v[-3]) arrive as negative values (e.g., -1)
+    if (index == 0) {
+        return PyFloat_FromDouble(self->data.x);
+    } else if (index == 1) {
+        return PyFloat_FromDouble(self->data.y);
+    } else {
+        PyErr_SetString(PyExc_IndexError, "Vector index out of range (must be 0 or 1)");
+        return NULL;
+    }
+}
+
+// Property: .int - returns integer tuple for use as dict keys
+PyObject* PyVector::get_int(PyObject* obj, void* closure)
+{
+    PyVectorObject* self = (PyVectorObject*)obj;
+    long ix = (long)std::floor(self->data.x);
+    long iy = (long)std::floor(self->data.y);
+    return Py_BuildValue("(ll)", ix, iy);
 }
