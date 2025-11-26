@@ -143,6 +143,7 @@ public:
     static PyObject* remove(PyUIEntityCollectionObject* self, PyObject* o);
     static PyObject* index_method(PyUIEntityCollectionObject* self, PyObject* value);
     static PyObject* count(PyUIEntityCollectionObject* self, PyObject* value);
+    static PyObject* find(PyUIEntityCollectionObject* self, PyObject* args, PyObject* kwds);
     static PyMethodDef methods[];
     static PyObject* repr(PyUIEntityCollectionObject* self);
     static int init(PyUIEntityCollectionObject* self, PyObject* args, PyObject* kwds);

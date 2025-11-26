@@ -32,6 +32,7 @@ public:
 	static PyObject* remove(PyUICollectionObject* self, PyObject* o);
 	static PyObject* index_method(PyUICollectionObject* self, PyObject* value);
 	static PyObject* count(PyUICollectionObject* self, PyObject* value);
+	static PyObject* find(PyUICollectionObject* self, PyObject* args, PyObject* kwds);
 	static PyMethodDef methods[];
 	static PyObject* repr(PyUICollectionObject* self);
     static int init(PyUICollectionObject* self, PyObject* args, PyObject* kwds);

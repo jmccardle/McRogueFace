@@ -905,12 +905,158 @@ PyObject* UICollection::count(PyUICollectionObject* self, PyObject* value) {
     return PyLong_FromSsize_t(count);
 }
 
+// Helper function to match names with optional wildcard support
+static bool matchName(const std::string& name, const std::string& pattern) {
+    // Check for wildcard pattern
+    if (pattern.find('*') != std::string::npos) {
+        // Simple wildcard matching: only support * at start, end, or both
+        if (pattern == "*") {
+            return true;  // Match everything
+        } else if (pattern.front() == '*' && pattern.back() == '*' && pattern.length() > 2) {
+            // *substring* - contains match
+            std::string substring = pattern.substr(1, pattern.length() - 2);
+            return name.find(substring) != std::string::npos;
+        } else if (pattern.front() == '*') {
+            // *suffix - ends with
+            std::string suffix = pattern.substr(1);
+            return name.length() >= suffix.length() &&
+                   name.compare(name.length() - suffix.length(), suffix.length(), suffix) == 0;
+        } else if (pattern.back() == '*') {
+            // prefix* - starts with
+            std::string prefix = pattern.substr(0, pattern.length() - 1);
+            return name.compare(0, prefix.length(), prefix) == 0;
+        }
+        // For more complex patterns, fall back to exact match
+        return name == pattern;
+    }
+    // Exact match
+    return name == pattern;
+}
+
+PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObject* kwds) {
+    const char* name = nullptr;
+    int recursive = 0;
+
+    static const char* kwlist[] = {"name", "recursive", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|p", const_cast<char**>(kwlist),
+                                     &name, &recursive)) {
+        return NULL;
+    }
+
+    auto vec = self->data.get();
+    if (!vec) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
+        return NULL;
+    }
+
+    std::string pattern(name);
+    bool has_wildcard = (pattern.find('*') != std::string::npos);
+
+    if (has_wildcard) {
+        // Return list of all matches
+        PyObject* results = PyList_New(0);
+        if (!results) return NULL;
+
+        for (auto& drawable : *vec) {
+            if (matchName(drawable->name, pattern)) {
+                PyObject* py_drawable = convertDrawableToPython(drawable);
+                if (!py_drawable) {
+                    Py_DECREF(results);
+                    return NULL;
+                }
+                if (PyList_Append(results, py_drawable) < 0) {
+                    Py_DECREF(py_drawable);
+                    Py_DECREF(results);
+                    return NULL;
+                }
+                Py_DECREF(py_drawable);  // PyList_Append increfs
+            }
+
+            // Recursive search into Frame children
+            if (recursive && drawable->derived_type() == PyObjectsEnum::UIFRAME) {
+                auto frame = std::static_pointer_cast<UIFrame>(drawable);
+                // Create temporary collection object for recursive call
+                PyTypeObject* collType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
+                if (collType) {
+                    PyUICollectionObject* child_coll = (PyUICollectionObject*)collType->tp_alloc(collType, 0);
+                    if (child_coll) {
+                        child_coll->data = frame->children;
+                        PyObject* child_results = find(child_coll, args, kwds);
+                        if (child_results && PyList_Check(child_results)) {
+                            // Extend results with child results
+                            for (Py_ssize_t i = 0; i < PyList_Size(child_results); i++) {
+                                PyObject* item = PyList_GetItem(child_results, i);
+                                Py_INCREF(item);
+                                PyList_Append(results, item);
+                                Py_DECREF(item);
+                            }
+                            Py_DECREF(child_results);
+                        }
+                        Py_DECREF(child_coll);
+                    }
+                    Py_DECREF(collType);
+                }
+            }
+        }
+
+        return results;
+    } else {
+        // Return first exact match or None
+        for (auto& drawable : *vec) {
+            if (drawable->name == pattern) {
+                return convertDrawableToPython(drawable);
+            }
+
+            // Recursive search into Frame children
+            if (recursive && drawable->derived_type() == PyObjectsEnum::UIFRAME) {
+                auto frame = std::static_pointer_cast<UIFrame>(drawable);
+                PyTypeObject* collType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
+                if (collType) {
+                    PyUICollectionObject* child_coll = (PyUICollectionObject*)collType->tp_alloc(collType, 0);
+                    if (child_coll) {
+                        child_coll->data = frame->children;
+                        PyObject* result = find(child_coll, args, kwds);
+                        Py_DECREF(child_coll);
+                        Py_DECREF(collType);
+                        if (result && result != Py_None) {
+                            return result;
+                        }
+                        Py_XDECREF(result);
+                    } else {
+                        Py_DECREF(collType);
+                    }
+                }
+            }
+        }
+
+        Py_RETURN_NONE;
+    }
+}
+
 PyMethodDef UICollection::methods[] = {
-	{"append", (PyCFunction)UICollection::append, METH_O},
-	{"extend", (PyCFunction)UICollection::extend, METH_O},
-	{"remove", (PyCFunction)UICollection::remove, METH_O},
-	{"index", (PyCFunction)UICollection::index_method, METH_O},
-	{"count", (PyCFunction)UICollection::count, METH_O},
+	{"append", (PyCFunction)UICollection::append, METH_O,
+	 "Add an element to the end of the collection"},
+	{"extend", (PyCFunction)UICollection::extend, METH_O,
+	 "Add all elements from an iterable to the collection"},
+	{"remove", (PyCFunction)UICollection::remove, METH_O,
+	 "Remove element at the given index"},
+	{"index", (PyCFunction)UICollection::index_method, METH_O,
+	 "Return the index of an element in the collection"},
+	{"count", (PyCFunction)UICollection::count, METH_O,
+	 "Count occurrences of an element in the collection"},
+	{"find", (PyCFunction)UICollection::find, METH_VARARGS | METH_KEYWORDS,
+	 "find(name, recursive=False) -> element or list\n\n"
+	 "Find elements by name.\n\n"
+	 "Args:\n"
+	 "    name (str): Name to search for. Supports wildcards:\n"
+	 "        - 'exact' for exact match (returns single element or None)\n"
+	 "        - 'prefix*' for starts-with match (returns list)\n"
+	 "        - '*suffix' for ends-with match (returns list)\n"
+	 "        - '*substring*' for contains match (returns list)\n"
+	 "    recursive (bool): If True, search in Frame children recursively.\n\n"
+	 "Returns:\n"
+	 "    Single element if exact match, list if wildcard, None if not found."},
 	{NULL, NULL, 0, NULL}
 };
 

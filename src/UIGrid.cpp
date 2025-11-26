@@ -2216,12 +2216,127 @@ PyMappingMethods UIEntityCollection::mpmethods = {
     .mp_ass_subscript = (objobjargproc)UIEntityCollection::ass_subscript
 };
 
+// Helper function for entity name matching with wildcards
+static bool matchEntityName(const std::string& name, const std::string& pattern) {
+    if (pattern.find('*') != std::string::npos) {
+        if (pattern == "*") {
+            return true;
+        } else if (pattern.front() == '*' && pattern.back() == '*' && pattern.length() > 2) {
+            std::string substring = pattern.substr(1, pattern.length() - 2);
+            return name.find(substring) != std::string::npos;
+        } else if (pattern.front() == '*') {
+            std::string suffix = pattern.substr(1);
+            return name.length() >= suffix.length() &&
+                   name.compare(name.length() - suffix.length(), suffix.length(), suffix) == 0;
+        } else if (pattern.back() == '*') {
+            std::string prefix = pattern.substr(0, pattern.length() - 1);
+            return name.compare(0, prefix.length(), prefix) == 0;
+        }
+        return name == pattern;
+    }
+    return name == pattern;
+}
+
+PyObject* UIEntityCollection::find(PyUIEntityCollectionObject* self, PyObject* args, PyObject* kwds) {
+    const char* name = nullptr;
+
+    static const char* kwlist[] = {"name", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", const_cast<char**>(kwlist), &name)) {
+        return NULL;
+    }
+
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
+        return NULL;
+    }
+
+    std::string pattern(name);
+    bool has_wildcard = (pattern.find('*') != std::string::npos);
+
+    // Get the Entity type for creating Python objects
+    PyTypeObject* entityType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+    if (!entityType) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not find Entity type");
+        return NULL;
+    }
+
+    if (has_wildcard) {
+        // Return list of all matches
+        PyObject* results = PyList_New(0);
+        if (!results) {
+            Py_DECREF(entityType);
+            return NULL;
+        }
+
+        for (auto& entity : *list) {
+            // Entity name is stored in sprite.name
+            if (matchEntityName(entity->sprite.name, pattern)) {
+                PyUIEntityObject* py_entity = (PyUIEntityObject*)entityType->tp_alloc(entityType, 0);
+                if (!py_entity) {
+                    Py_DECREF(results);
+                    Py_DECREF(entityType);
+                    return NULL;
+                }
+                py_entity->data = entity;
+                py_entity->weakreflist = NULL;
+
+                if (PyList_Append(results, (PyObject*)py_entity) < 0) {
+                    Py_DECREF(py_entity);
+                    Py_DECREF(results);
+                    Py_DECREF(entityType);
+                    return NULL;
+                }
+                Py_DECREF(py_entity);  // PyList_Append increfs
+            }
+        }
+
+        Py_DECREF(entityType);
+        return results;
+    } else {
+        // Return first exact match or None
+        for (auto& entity : *list) {
+            if (entity->sprite.name == pattern) {
+                PyUIEntityObject* py_entity = (PyUIEntityObject*)entityType->tp_alloc(entityType, 0);
+                if (!py_entity) {
+                    Py_DECREF(entityType);
+                    return NULL;
+                }
+                py_entity->data = entity;
+                py_entity->weakreflist = NULL;
+                Py_DECREF(entityType);
+                return (PyObject*)py_entity;
+            }
+        }
+
+        Py_DECREF(entityType);
+        Py_RETURN_NONE;
+    }
+}
+
 PyMethodDef UIEntityCollection::methods[] = {
-    {"append", (PyCFunction)UIEntityCollection::append, METH_O},
-    {"extend", (PyCFunction)UIEntityCollection::extend, METH_O},
-    {"remove", (PyCFunction)UIEntityCollection::remove, METH_O},
-    {"index", (PyCFunction)UIEntityCollection::index_method, METH_O},
-    {"count", (PyCFunction)UIEntityCollection::count, METH_O},
+    {"append", (PyCFunction)UIEntityCollection::append, METH_O,
+     "Add an entity to the collection"},
+    {"extend", (PyCFunction)UIEntityCollection::extend, METH_O,
+     "Add all entities from an iterable"},
+    {"remove", (PyCFunction)UIEntityCollection::remove, METH_O,
+     "Remove an entity from the collection"},
+    {"index", (PyCFunction)UIEntityCollection::index_method, METH_O,
+     "Return the index of an entity"},
+    {"count", (PyCFunction)UIEntityCollection::count, METH_O,
+     "Count occurrences of an entity"},
+    {"find", (PyCFunction)UIEntityCollection::find, METH_VARARGS | METH_KEYWORDS,
+     "find(name) -> entity or list\n\n"
+     "Find entities by name.\n\n"
+     "Args:\n"
+     "    name (str): Name to search for. Supports wildcards:\n"
+     "        - 'exact' for exact match (returns single entity or None)\n"
+     "        - 'prefix*' for starts-with match (returns list)\n"
+     "        - '*suffix' for ends-with match (returns list)\n"
+     "        - '*substring*' for contains match (returns list)\n\n"
+     "Returns:\n"
+     "    Single entity if exact match, list if wildcard, None if not found."},
     {NULL, NULL, 0, NULL}
 };
 
