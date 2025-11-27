@@ -395,25 +395,49 @@ PyStatus init_python(const char *program_name)
     PyConfig_SetString(&config, &config.stdio_errors, L"surrogateescape");
     config.configure_c_stdio = 1;
 
-	PyConfig_SetBytesString(&config, &config.home, 
+    // Set sys.executable to the McRogueFace binary path
+    auto exe_filename = executable_filename();
+    PyConfig_SetString(&config, &config.executable, exe_filename.c_str());
+
+	PyConfig_SetBytesString(&config, &config.home,
         narrow_string(executable_path() + L"/lib/Python").c_str());
 
     status = PyConfig_SetBytesString(&config, &config.program_name,
                                      program_name);
 
+    // Check for sibling venv/ directory (self-contained deployment)
+    auto exe_dir = std::filesystem::path(executable_path());
+    auto sibling_venv = exe_dir / "venv";
+    if (std::filesystem::exists(sibling_venv)) {
+        // Platform-specific site-packages path
+#ifdef _WIN32
+        auto site_packages = sibling_venv / "Lib" / "site-packages";
+#else
+        auto site_packages = sibling_venv / "lib" / "python3.14" / "site-packages";
+#endif
+        if (std::filesystem::exists(site_packages)) {
+            // Prepend so venv packages take priority over bundled
+            PyWideStringList_Insert(&config.module_search_paths, 0,
+                                   site_packages.wstring().c_str());
+            config.module_search_paths_set = 1;
+        }
+    }
+
     // under Windows, the search paths are correct; under Linux, they need manual insertion
 #if __PLATFORM_SET_PYTHON_SEARCH_PATHS == 1
-    config.module_search_paths_set = 1;
-	
-	// search paths for python libs/modules/scripts
+    if (!config.module_search_paths_set) {
+        config.module_search_paths_set = 1;
+    }
+
+    // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
         L"/lib/Python/lib.linux-x86_64-3.14",
-	    L"/lib/Python",
-        L"/lib/Python/Lib",
-        L"/venv/lib/python3.14/site-packages"
+        L"/lib/Python",
+        L"/lib/Python/Lib"
+        // Note: venv site-packages handled above via sibling_venv detection
     };
-    
+
 
     for(auto s : str_arr) {
         status = PyWideStringList_Append(&config.module_search_paths, (executable_path() + s).c_str());
@@ -445,6 +469,10 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     PyConfig_SetString(&pyconfig, &pyconfig.stdio_encoding, L"UTF-8");
     PyConfig_SetString(&pyconfig, &pyconfig.stdio_errors, L"surrogateescape");
     pyconfig.configure_c_stdio = 1;
+
+    // Set sys.executable to the McRogueFace binary path
+    auto exe_path = executable_filename();
+    PyConfig_SetString(&pyconfig, &pyconfig.executable, exe_path.c_str());
 
     // Set interactive mode (replaces deprecated Py_InspectFlag)
     if (config.interactive_mode) {
@@ -497,7 +525,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
         return status;
     }
 
-    // Check if we're in a virtual environment
+    // Check if we're in a virtual environment (symlinked into a venv)
     auto exe_wpath = executable_filename();
     auto exe_path_fs = std::filesystem::path(exe_wpath);
     auto exe_dir = exe_path_fs.parent_path();
@@ -510,6 +538,23 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
         PyWideStringList_Append(&pyconfig.module_search_paths,
                                site_packages.wstring().c_str());
         pyconfig.module_search_paths_set = 1;
+    }
+
+    // Check for sibling venv/ directory (self-contained deployment)
+    auto sibling_venv = exe_dir / "venv";
+    if (std::filesystem::exists(sibling_venv)) {
+        // Platform-specific site-packages path
+#ifdef _WIN32
+        auto site_packages = sibling_venv / "Lib" / "site-packages";
+#else
+        auto site_packages = sibling_venv / "lib" / "python3.14" / "site-packages";
+#endif
+        if (std::filesystem::exists(site_packages)) {
+            // Prepend so venv packages take priority over bundled
+            PyWideStringList_Insert(&pyconfig.module_search_paths, 0,
+                                   site_packages.wstring().c_str());
+            pyconfig.module_search_paths_set = 1;
+        }
     }
 
     // Set Python home to our bundled Python
@@ -527,8 +572,8 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
         L"/scripts",
         L"/lib/Python/lib.linux-x86_64-3.14",
         L"/lib/Python",
-        L"/lib/Python/Lib",
-        L"/venv/lib/python3.14/site-packages"
+        L"/lib/Python/Lib"
+        // Note: venv site-packages handled above via sibling_venv detection
     };
 
     for(auto s : str_arr) {
