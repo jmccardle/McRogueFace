@@ -136,6 +136,10 @@ void GameEngine::cleanup()
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }
+Scene* GameEngine::getScene(const std::string& name) {
+    auto it = scenes.find(name);
+    return (it != scenes.end()) ? it->second : nullptr;
+}
 void GameEngine::changeScene(std::string s)
 {
     changeScene(s, TransitionType::None, 0.0f);

@@ -162,4 +162,18 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
          "Automatically clamped to valid range [0.0, 1.0]." \
      ), NULL}
 
+// #122 & #102: Macro for parent/global_position properties (requires closure with type enum)
+// These need the PyObjectsEnum value in closure, so they're added separately in each class
+#define UIDRAWABLE_PARENT_GETSETTERS(type_enum) \
+    {"parent", (getter)UIDrawable::get_parent, NULL, \
+     MCRF_PROPERTY(parent, \
+         "Parent drawable (read-only). " \
+         "Returns the parent Frame/Grid if nested, or None if at scene level." \
+     ), (void*)type_enum}, \
+    {"global_position", (getter)UIDrawable::get_global_pos, NULL, \
+     MCRF_PROPERTY(global_position, \
+         "Global screen position (read-only). " \
+         "Calculates absolute position by walking up the parent chain." \
+     ), (void*)type_enum}
+
 // UIEntity specializations are defined in UIEntity.cpp after UIEntity class is complete

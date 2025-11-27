@@ -35,12 +35,22 @@ public:
     bool hasAction(std::string);
     bool hasAction(int);
     std::string action(int);
-    
-    
+
+
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> ui_elements;
 
     //PyObject* key_callable;
     std::unique_ptr<PyKeyCallable> key_callable;
     void key_register(PyObject*);
     void key_unregister();
+
+    // #118: Scene-level UIDrawable-like properties for animations/transitions
+    sf::Vector2f position{0.0f, 0.0f};  // Offset applied to all ui_elements
+    bool visible = true;                 // Controls rendering of scene
+    float opacity = 1.0f;                // Applied to all ui_elements (0.0-1.0)
+
+    // Animation support for scene properties
+    bool setProperty(const std::string& name, float value);
+    bool setProperty(const std::string& name, const sf::Vector2f& value);
+    float getProperty(const std::string& name) const;
 };

@@ -133,8 +133,157 @@ PyObject* PySceneClass::get_active(PySceneObject* self, void* closure)
     if (!game) {
         Py_RETURN_FALSE;
     }
-    
+
     return PyBool_FromLong(game->scene == self->name);
+}
+
+// #118: Scene position getter
+static PyObject* PySceneClass_get_pos(PySceneObject* self, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        Py_RETURN_NONE;
+    }
+
+    // Get the scene by name using the public accessor
+    auto scene = game->getScene(self->name);
+    if (!scene) {
+        Py_RETURN_NONE;
+    }
+
+    // Create a Vector object
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!type) return NULL;
+    PyObject* args = Py_BuildValue("(ff)", scene->position.x, scene->position.y);
+    PyObject* result = PyObject_CallObject((PyObject*)type, args);
+    Py_DECREF(type);
+    Py_DECREF(args);
+    return result;
+}
+
+// #118: Scene position setter
+static int PySceneClass_set_pos(PySceneObject* self, PyObject* value, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "No game engine");
+        return -1;
+    }
+
+    auto scene = game->getScene(self->name);
+    if (!scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not found");
+        return -1;
+    }
+
+    // Accept tuple or Vector
+    float x, y;
+    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
+        x = PyFloat_AsDouble(PyTuple_GetItem(value, 0));
+        y = PyFloat_AsDouble(PyTuple_GetItem(value, 1));
+    } else if (PyObject_HasAttrString(value, "x") && PyObject_HasAttrString(value, "y")) {
+        PyObject* xobj = PyObject_GetAttrString(value, "x");
+        PyObject* yobj = PyObject_GetAttrString(value, "y");
+        x = PyFloat_AsDouble(xobj);
+        y = PyFloat_AsDouble(yobj);
+        Py_DECREF(xobj);
+        Py_DECREF(yobj);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
+        return -1;
+    }
+
+    scene->position = sf::Vector2f(x, y);
+    return 0;
+}
+
+// #118: Scene visible getter
+static PyObject* PySceneClass_get_visible(PySceneObject* self, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        Py_RETURN_TRUE;
+    }
+
+    auto scene = game->getScene(self->name);
+    if (!scene) {
+        Py_RETURN_TRUE;
+    }
+
+    return PyBool_FromLong(scene->visible);
+}
+
+// #118: Scene visible setter
+static int PySceneClass_set_visible(PySceneObject* self, PyObject* value, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "No game engine");
+        return -1;
+    }
+
+    auto scene = game->getScene(self->name);
+    if (!scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not found");
+        return -1;
+    }
+
+    if (!PyBool_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "visible must be a boolean");
+        return -1;
+    }
+
+    scene->visible = PyObject_IsTrue(value);
+    return 0;
+}
+
+// #118: Scene opacity getter
+static PyObject* PySceneClass_get_opacity(PySceneObject* self, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        return PyFloat_FromDouble(1.0);
+    }
+
+    auto scene = game->getScene(self->name);
+    if (!scene) {
+        return PyFloat_FromDouble(1.0);
+    }
+
+    return PyFloat_FromDouble(scene->opacity);
+}
+
+// #118: Scene opacity setter
+static int PySceneClass_set_opacity(PySceneObject* self, PyObject* value, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "No game engine");
+        return -1;
+    }
+
+    auto scene = game->getScene(self->name);
+    if (!scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not found");
+        return -1;
+    }
+
+    double opacity;
+    if (PyFloat_Check(value)) {
+        opacity = PyFloat_AsDouble(value);
+    } else if (PyLong_Check(value)) {
+        opacity = PyLong_AsDouble(value);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "opacity must be a number");
+        return -1;
+    }
+
+    // Clamp to valid range
+    if (opacity < 0.0) opacity = 0.0;
+    if (opacity > 1.0) opacity = 1.0;
+
+    scene->opacity = opacity;
+    return 0;
 }
 
 // Lifecycle callbacks
@@ -148,8 +297,12 @@ void PySceneClass::call_on_enter(PySceneObject* self)
         } else {
             PyErr_Print();
         }
+        Py_DECREF(method);
+    } else {
+        // Clear AttributeError if method doesn't exist
+        PyErr_Clear();
+        Py_XDECREF(method);
     }
-    Py_XDECREF(method);
 }
 
 void PySceneClass::call_on_exit(PySceneObject* self)
@@ -162,14 +315,18 @@ void PySceneClass::call_on_exit(PySceneObject* self)
         } else {
             PyErr_Print();
         }
+        Py_DECREF(method);
+    } else {
+        // Clear AttributeError if method doesn't exist
+        PyErr_Clear();
+        Py_XDECREF(method);
     }
-    Py_XDECREF(method);
 }
 
 void PySceneClass::call_on_keypress(PySceneObject* self, std::string key, std::string action)
 {
     PyGILState_STATE gstate = PyGILState_Ensure();
-    
+
     PyObject* method = PyObject_GetAttrString((PyObject*)self, "on_keypress");
     if (method && PyCallable_Check(method)) {
         PyObject* result = PyObject_CallFunction(method, "ss", key.c_str(), action.c_str());
@@ -178,9 +335,13 @@ void PySceneClass::call_on_keypress(PySceneObject* self, std::string key, std::s
         } else {
             PyErr_Print();
         }
+        Py_DECREF(method);
+    } else {
+        // Clear AttributeError if method doesn't exist
+        PyErr_Clear();
+        Py_XDECREF(method);
     }
-    Py_XDECREF(method);
-    
+
     PyGILState_Release(gstate);
 }
 
@@ -194,8 +355,12 @@ void PySceneClass::call_update(PySceneObject* self, float dt)
         } else {
             PyErr_Print();
         }
+        Py_DECREF(method);
+    } else {
+        // Clear AttributeError if method doesn't exist
+        PyErr_Clear();
+        Py_XDECREF(method);
     }
-    Py_XDECREF(method);
 }
 
 void PySceneClass::call_on_resize(PySceneObject* self, int width, int height)
@@ -208,8 +373,12 @@ void PySceneClass::call_on_resize(PySceneObject* self, int width, int height)
         } else {
             PyErr_Print();
         }
+        Py_DECREF(method);
+    } else {
+        // Clear AttributeError if method doesn't exist
+        PyErr_Clear();
+        Py_XDECREF(method);
     }
-    Py_XDECREF(method);
 }
 
 // Properties
@@ -218,6 +387,13 @@ PyGetSetDef PySceneClass::getsetters[] = {
      MCRF_PROPERTY(name, "Scene name (str, read-only). Unique identifier for this scene."), NULL},
     {"active", (getter)get_active, NULL,
      MCRF_PROPERTY(active, "Whether this scene is currently active (bool, read-only). Only one scene can be active at a time."), NULL},
+    // #118: Scene-level UIDrawable-like properties
+    {"pos", (getter)PySceneClass_get_pos, (setter)PySceneClass_set_pos,
+     MCRF_PROPERTY(pos, "Scene position offset (Vector). Applied to all UI elements during rendering."), NULL},
+    {"visible", (getter)PySceneClass_get_visible, (setter)PySceneClass_set_visible,
+     MCRF_PROPERTY(visible, "Scene visibility (bool). If False, scene is not rendered."), NULL},
+    {"opacity", (getter)PySceneClass_get_opacity, (setter)PySceneClass_set_opacity,
+     MCRF_PROPERTY(opacity, "Scene opacity (0.0-1.0). Applied to all UI elements during rendering."), NULL},
     {NULL}
 };
 

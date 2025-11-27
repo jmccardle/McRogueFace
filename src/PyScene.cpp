@@ -64,18 +64,23 @@ void PyScene::doAction(std::string name, std::string type)
 
 void PyScene::render()
 {
+    // #118: Skip rendering if scene is not visible
+    if (!visible) {
+        return;
+    }
+
     game->getRenderTarget().clear();
-    
+
     // Only sort if z_index values have changed
     if (ui_elements_need_sort) {
-        std::sort(ui_elements->begin(), ui_elements->end(), 
+        std::sort(ui_elements->begin(), ui_elements->end(),
             [](const std::shared_ptr<UIDrawable>& a, const std::shared_ptr<UIDrawable>& b) {
                 return a->z_index < b->z_index;
             });
         ui_elements_need_sort = false;
     }
-    
-    // Render in sorted order (no need to copy anymore)
+
+    // Render in sorted order with scene-level transformations
     for (auto e: *ui_elements)
     {
         if (e) {
@@ -86,9 +91,22 @@ void PyScene::render()
                 // Count this as a draw call (each visible element = 1+ draw calls)
                 game->metrics.drawCalls++;
             }
-            e->render();
+
+            // #118: Apply scene-level opacity to element
+            float original_opacity = e->opacity;
+            if (opacity < 1.0f) {
+                e->opacity = original_opacity * opacity;
+            }
+
+            // #118: Render with scene position offset
+            e->render(position, game->getRenderTarget());
+
+            // #118: Restore original opacity
+            if (opacity < 1.0f) {
+                e->opacity = original_opacity;
+            }
         }
     }
-    
+
     // Display is handled by GameEngine
 }

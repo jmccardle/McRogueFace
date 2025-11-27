@@ -54,3 +54,43 @@ void Scene::key_unregister()
     */
     key_callable.reset();
 }
+
+// #118: Scene animation property support
+bool Scene::setProperty(const std::string& name, float value)
+{
+    if (name == "x") {
+        position.x = value;
+        return true;
+    }
+    if (name == "y") {
+        position.y = value;
+        return true;
+    }
+    if (name == "opacity") {
+        opacity = std::max(0.0f, std::min(1.0f, value));
+        return true;
+    }
+    if (name == "visible") {
+        visible = (value != 0.0f);
+        return true;
+    }
+    return false;
+}
+
+bool Scene::setProperty(const std::string& name, const sf::Vector2f& value)
+{
+    if (name == "pos" || name == "position") {
+        position = value;
+        return true;
+    }
+    return false;
+}
+
+float Scene::getProperty(const std::string& name) const
+{
+    if (name == "x") return position.x;
+    if (name == "y") return position.y;
+    if (name == "opacity") return opacity;
+    if (name == "visible") return visible ? 1.0f : 0.0f;
+    return 0.0f;
+}

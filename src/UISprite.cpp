@@ -352,6 +352,7 @@ PyGetSetDef UISprite::getsetters[] = {
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UISPRITE},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UISPRITE},
     UIDRAWABLE_GETSETTERS,
+    UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UISPRITE),
     {NULL}
 };
 

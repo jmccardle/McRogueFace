@@ -139,6 +139,7 @@ public:
     GameEngine(const McRogueFaceConfig& cfg);
     ~GameEngine();
     Scene* currentScene();
+    Scene* getScene(const std::string& name);  // #118: Get scene by name
     void changeScene(std::string);
     void changeScene(std::string sceneName, TransitionType transitionType, float duration);
     void createScene(std::string);

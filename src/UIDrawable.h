@@ -5,6 +5,7 @@
 #include "IndexTexture.h"
 #include "Resources.h"
 #include <list>
+#include <memory>
 
 #include "PyCallable.h"
 #include "PyTexture.h"
@@ -73,9 +74,28 @@ public:
     
     // Name for finding elements
     std::string name;
-    
+
     // Position in pixel coordinates (moved from derived classes)
     sf::Vector2f position;
+
+    // Parent-child hierarchy (#122)
+    std::weak_ptr<UIDrawable> parent;
+
+    // Set the parent of this drawable (called by collections when adding)
+    void setParent(std::shared_ptr<UIDrawable> new_parent);
+
+    // Get the parent drawable (returns nullptr if no parent or expired)
+    std::shared_ptr<UIDrawable> getParent() const;
+
+    // Remove this drawable from its current parent's children
+    void removeFromParent();
+
+    // Get the global (screen) position by walking up the parent chain (#102)
+    sf::Vector2f get_global_position() const;
+
+    // Python API for parent/global_position
+    static PyObject* get_parent(PyObject* self, void* closure);
+    static PyObject* get_global_pos(PyObject* self, void* closure);
     
     // New properties for Phase 1
     bool visible = true;      // #87 - visibility flag
@@ -117,13 +137,20 @@ protected:
     void updateRenderTexture();
     
 public:
-    // Mark this drawable as needing redraw
-    void markDirty() { render_dirty = true; }
+    // Mark this drawable as needing redraw (#116 - propagates up parent chain)
+    void markDirty();
+
+    // Check if this drawable needs redraw
+    bool isDirty() const { return render_dirty; }
+
+    // Clear dirty flag (called after rendering)
+    void clearDirty() { render_dirty = false; }
 };
 
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
+    std::weak_ptr<UIDrawable> owner;  // #122: Parent drawable (for Frame.children, Grid.children)
 } PyUICollectionObject;
 
 typedef struct {

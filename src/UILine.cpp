@@ -435,6 +435,7 @@ PyGetSetDef UILine::getsetters[] = {
      MCRF_PROPERTY(pos, "Position as a Vector (midpoint of line)."),
      (void*)PyObjectsEnum::UILINE},
     UIDRAWABLE_GETSETTERS,
+    UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UILINE),
     {NULL}
 };
 

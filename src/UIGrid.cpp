@@ -1499,6 +1499,7 @@ PyGetSetDef UIGrid::getsetters[] = {
      ), (void*)PyObjectsEnum::UIGRID},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIGRID},
     UIDRAWABLE_GETSETTERS,
+    UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIGRID),
     {NULL}  /* Sentinel */
 };
 
@@ -1519,8 +1520,10 @@ PyObject* UIGrid::get_children(PyUIGridObject* self, void* closure)
     // Returns UICollection for UIDrawable children (speech bubbles, effects, overlays)
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
     auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
+    Py_DECREF(type);
     if (o) {
         o->data = self->data->children;
+        o->owner = self->data;  // #122: Set owner for parent tracking
     }
     return (PyObject*)o;
 }

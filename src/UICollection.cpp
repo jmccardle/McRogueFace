@@ -220,6 +220,8 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
     
     // Handle deletion
     if (value == NULL) {
+        // #122: Clear the parent before removing
+        (*self->data)[index]->setParent(nullptr);
         self->data->erase(self->data->begin() + index);
         return 0;
     }
@@ -255,16 +257,27 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
         PyErr_SetString(PyExc_RuntimeError, "Failed to extract C++ object from Python object");
         return -1;
     }
-    
+
+    // #122: Clear parent of old element
+    (*vec)[index]->setParent(nullptr);
+
+    // #122: Remove new drawable from its old parent if it has one
+    if (auto old_parent = new_drawable->getParent()) {
+        new_drawable->removeFromParent();
+    }
+
     // Preserve the z_index of the replaced element
     new_drawable->z_index = old_z_index;
-    
+
+    // #122: Set new parent
+    new_drawable->setParent(self->owner.lock());
+
     // Replace the element
     (*vec)[index] = new_drawable;
-    
+
     // Mark scene as needing resort after replacing element
     McRFPy_API::markSceneNeedsSort();
-    
+
     return 0;
 }
 
@@ -638,47 +651,51 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
         }
     }
 
+    // #122: Get the owner as parent for this drawable
+    std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
+
+    // Helper lambda to add drawable with parent tracking
+    auto addDrawable = [&](std::shared_ptr<UIDrawable> drawable) {
+        // #122: Remove from old parent if it has one
+        if (auto old_parent = drawable->getParent()) {
+            drawable->removeFromParent();
+        }
+
+        drawable->z_index = new_z_index;
+
+        // #122: Set new parent (owner of this collection)
+        drawable->setParent(owner_ptr);
+
+        self->data->push_back(drawable);
+    };
+
     if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")))
     {
-        PyUIFrameObject* frame = (PyUIFrameObject*)o;
-        frame->data->z_index = new_z_index;
-        self->data->push_back(frame->data);
+        addDrawable(((PyUIFrameObject*)o)->data);
     }
     if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")))
     {
-        PyUICaptionObject* caption = (PyUICaptionObject*)o;
-        caption->data->z_index = new_z_index;
-        self->data->push_back(caption->data);
+        addDrawable(((PyUICaptionObject*)o)->data);
     }
     if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")))
     {
-        PyUISpriteObject* sprite = (PyUISpriteObject*)o;
-        sprite->data->z_index = new_z_index;
-        self->data->push_back(sprite->data);
+        addDrawable(((PyUISpriteObject*)o)->data);
     }
     if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")))
     {
-        PyUIGridObject* grid = (PyUIGridObject*)o;
-        grid->data->z_index = new_z_index;
-        self->data->push_back(grid->data);
+        addDrawable(((PyUIGridObject*)o)->data);
     }
     if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")))
     {
-        PyUILineObject* line = (PyUILineObject*)o;
-        line->data->z_index = new_z_index;
-        self->data->push_back(line->data);
+        addDrawable(((PyUILineObject*)o)->data);
     }
     if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")))
     {
-        PyUICircleObject* circle = (PyUICircleObject*)o;
-        circle->data->z_index = new_z_index;
-        self->data->push_back(circle->data);
+        addDrawable(((PyUICircleObject*)o)->data);
     }
     if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")))
     {
-        PyUIArcObject* arc = (PyUIArcObject*)o;
-        arc->data->z_index = new_z_index;
-        self->data->push_back(arc->data);
+        addDrawable(((PyUIArcObject*)o)->data);
     }
 
     // Mark scene as needing resort after adding element
@@ -734,41 +751,41 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
             current_z_index = INT_MAX;
         }
         
+        // #122: Get the owner as parent for this drawable
+        std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
+
+        // Helper lambda to add drawable with parent tracking
+        auto addDrawable = [&](std::shared_ptr<UIDrawable> drawable) {
+            // #122: Remove from old parent if it has one
+            if (auto old_parent = drawable->getParent()) {
+                drawable->removeFromParent();
+            }
+            drawable->z_index = current_z_index;
+            drawable->setParent(owner_ptr);
+            self->data->push_back(drawable);
+        };
+
         // Add the item based on its type
         if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-            PyUIFrameObject* frame = (PyUIFrameObject*)item;
-            frame->data->z_index = current_z_index;
-            self->data->push_back(frame->data);
+            addDrawable(((PyUIFrameObject*)item)->data);
         }
         else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-            PyUICaptionObject* caption = (PyUICaptionObject*)item;
-            caption->data->z_index = current_z_index;
-            self->data->push_back(caption->data);
+            addDrawable(((PyUICaptionObject*)item)->data);
         }
         else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-            PyUISpriteObject* sprite = (PyUISpriteObject*)item;
-            sprite->data->z_index = current_z_index;
-            self->data->push_back(sprite->data);
+            addDrawable(((PyUISpriteObject*)item)->data);
         }
         else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-            PyUIGridObject* grid = (PyUIGridObject*)item;
-            grid->data->z_index = current_z_index;
-            self->data->push_back(grid->data);
+            addDrawable(((PyUIGridObject*)item)->data);
         }
         else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line"))) {
-            PyUILineObject* line = (PyUILineObject*)item;
-            line->data->z_index = current_z_index;
-            self->data->push_back(line->data);
+            addDrawable(((PyUILineObject*)item)->data);
         }
         else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle"))) {
-            PyUICircleObject* circle = (PyUICircleObject*)item;
-            circle->data->z_index = current_z_index;
-            self->data->push_back(circle->data);
+            addDrawable(((PyUICircleObject*)item)->data);
         }
         else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc"))) {
-            PyUIArcObject* arc = (PyUIArcObject*)item;
-            arc->data->z_index = current_z_index;
-            self->data->push_back(arc->data);
+            addDrawable(((PyUIArcObject*)item)->data);
         }
 
         Py_DECREF(item);
@@ -825,6 +842,8 @@ PyObject* UICollection::remove(PyUICollectionObject* self, PyObject* o)
     // Search for the object and remove first occurrence
     for (auto it = vec->begin(); it != vec->end(); ++it) {
         if (it->get() == search_drawable.get()) {
+            // #122: Clear the parent before removing
+            (*it)->setParent(nullptr);
             vec->erase(it);
             McRFPy_API::markSceneNeedsSort();
             Py_RETURN_NONE;
@@ -867,6 +886,9 @@ PyObject* UICollection::pop(PyUICollectionObject* self, PyObject* args)
 
     // Get the element before removing
     std::shared_ptr<UIDrawable> drawable = (*vec)[index];
+
+    // #122: Clear the parent before removing
+    drawable->setParent(nullptr);
 
     // Remove from vector
     vec->erase(vec->begin() + index);
@@ -928,6 +950,14 @@ PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
     } else if (index > size) {
         index = size;
     }
+
+    // #122: Remove from old parent if it has one
+    if (auto old_parent = drawable->getParent()) {
+        drawable->removeFromParent();
+    }
+
+    // #122: Set new parent
+    drawable->setParent(self->owner.lock());
 
     // Insert at position
     vec->insert(vec->begin() + index, drawable);

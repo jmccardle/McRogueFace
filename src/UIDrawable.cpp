@@ -685,3 +685,215 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
     drawable->onPositionChanged();
     return 0;
 }
+
+// #122 - Parent-child hierarchy implementation
+void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
+    parent = new_parent;
+}
+
+std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
+    return parent.lock();
+}
+
+void UIDrawable::removeFromParent() {
+    auto p = parent.lock();
+    if (!p) return;
+
+    // Check if parent is a UIFrame (has children vector)
+    if (p->derived_type() == PyObjectsEnum::UIFRAME) {
+        auto frame = std::static_pointer_cast<UIFrame>(p);
+        auto& children = *frame->children;
+
+        // Find and remove this drawable from parent's children
+        // We need to find ourselves - but we don't have shared_from_this
+        // Instead, compare raw pointers
+        for (auto it = children.begin(); it != children.end(); ++it) {
+            if (it->get() == this) {
+                children.erase(it);
+                break;
+            }
+        }
+        frame->children_need_sort = true;
+    }
+    // TODO: Handle UIGrid children when needed
+
+    parent.reset();
+}
+
+// #102 - Global position calculation
+sf::Vector2f UIDrawable::get_global_position() const {
+    sf::Vector2f global_pos = position;
+
+    auto p = parent.lock();
+    while (p) {
+        global_pos += p->position;
+        p = p->parent.lock();
+    }
+
+    return global_pos;
+}
+
+// #116 - Dirty flag propagation up parent chain
+void UIDrawable::markDirty() {
+    if (render_dirty) return;  // Already dirty, no need to propagate
+
+    render_dirty = true;
+
+    // Propagate to parent
+    auto p = parent.lock();
+    if (p) {
+        p->markDirty();
+    }
+}
+
+// Python API - get parent drawable
+PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return NULL;
+    }
+
+    auto parent_ptr = drawable->getParent();
+    if (!parent_ptr) {
+        Py_RETURN_NONE;
+    }
+
+    // Convert parent to Python object using the cache/conversion system
+    // Re-use the pattern from UICollection
+    PyTypeObject* type = nullptr;
+    PyObject* obj = nullptr;
+
+    switch (parent_ptr->derived_type()) {
+        case PyObjectsEnum::UIFRAME:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+            if (!type) return nullptr;
+            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIFrame>(parent_ptr);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICAPTION:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
+            if (!type) return nullptr;
+            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICaption>(parent_ptr);
+                pyObj->font = nullptr;
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UISPRITE:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
+            if (!type) return nullptr;
+            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UISprite>(parent_ptr);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIGRID:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+            if (!type) return nullptr;
+            auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIGrid>(parent_ptr);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        default:
+            Py_RETURN_NONE;
+    }
+
+    if (type) {
+        Py_DECREF(type);
+    }
+    return obj;
+}
+
+// Python API - get global position (read-only)
+PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return NULL;
+    }
+
+    sf::Vector2f global_pos = drawable->get_global_position();
+
+    // Create a Python Vector object
+    PyObject* module = PyImport_ImportModule("mcrfpy");
+    if (!module) return NULL;
+
+    PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
+    Py_DECREF(module);
+    if (!vector_type) return NULL;
+
+    PyObject* args = Py_BuildValue("(ff)", global_pos.x, global_pos.y);
+    PyObject* result = PyObject_CallObject(vector_type, args);
+    Py_DECREF(vector_type);
+    Py_DECREF(args);
+
+    return result;
+}

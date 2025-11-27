@@ -285,6 +285,7 @@ PyGetSetDef UICaption::getsetters[] = {
      ), (void*)PyObjectsEnum::UICAPTION},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UICAPTION},
     UIDRAWABLE_GETSETTERS,
+    UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICAPTION),
     {NULL}
 };
 

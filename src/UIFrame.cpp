@@ -168,11 +168,13 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 PyObject* UIFrame::get_children(PyUIFrameObject* self, void* closure)
 {
     // create PyUICollection instance pointing to self->data->children
-    //PyUICollectionObject* o = (PyUICollectionObject*)mcrfpydef::PyUICollectionType.tp_alloc(&mcrfpydef::PyUICollectionType, 0);
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
     auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
-    if (o)
+    Py_DECREF(type);
+    if (o) {
         o->data = self->data->children;
+        o->owner = self->data;  // #122: Set owner for parent tracking
+    }
     return (PyObject*)o;
 }
 
@@ -412,6 +414,7 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UIFRAME},
     {"clip_children", (getter)UIFrame::get_clip_children, (setter)UIFrame::set_clip_children, "Whether to clip children to frame bounds", NULL},
     UIDRAWABLE_GETSETTERS,
+    UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIFRAME),
     {NULL}
 };
 

@@ -413,6 +413,7 @@ PyGetSetDef UIArc::getsetters[] = {
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
      "Position as a Vector (same as center).", (void*)PyObjectsEnum::UIARC},
     UIDRAWABLE_GETSETTERS,
+    UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIARC),
     {NULL}
 };
 
