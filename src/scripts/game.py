@@ -45,9 +45,9 @@ class Crypt:
         mcrfpy.createScene("play")
         self.ui = mcrfpy.sceneUI("play")
 
-        entity_frame = mcrfpy.Frame(815, 10, 194, 595, fill_color = frame_color)
-        inventory_frame = mcrfpy.Frame(10, 610, 800, 143, fill_color = frame_color)
-        stats_frame = mcrfpy.Frame(815, 610, 194, 143, fill_color = frame_color)
+        entity_frame = mcrfpy.Frame(pos=(815, 10), size=(194, 595), fill_color=frame_color)
+        inventory_frame = mcrfpy.Frame(pos=(10, 610), size=(800, 143), fill_color=frame_color)
+        stats_frame = mcrfpy.Frame(pos=(815, 610), size=(194, 143), fill_color=frame_color)
 
         #self.level = cl.Level(30, 23)
         self.entities = []
@@ -71,42 +71,42 @@ class Crypt:
                 }
 
         # empty void for the player to initialize into
-        self.headsup = mcrfpy.Frame(10, 684, 320, 64, fill_color = (0, 0, 0, 0))
-        self.sidebar = mcrfpy.Frame(860, 4, 160, 600, fill_color = (96, 96, 160))
+        self.headsup = mcrfpy.Frame(pos=(10, 684), size=(320, 64), fill_color=(0, 0, 0, 0))
+        self.sidebar = mcrfpy.Frame(pos=(860, 4), size=(160, 600), fill_color=(96, 96, 160))
 
         # Heads Up (health bar, armor bar) config
-        self.health_bar = [mcrfpy.Sprite(32*i, 2, t, 659, 2) for i in range(10)]
+        self.health_bar = [mcrfpy.Sprite(x=32*i, y=2, texture=t, sprite_index=659, scale=2) for i in range(10)]
         [self.headsup.children.append(i) for i in self.health_bar]
-        self.armor_bar = [mcrfpy.Sprite(32*i, 42, t, 659, 2) for i in range(10)]
+        self.armor_bar = [mcrfpy.Sprite(x=32*i, y=42, texture=t, sprite_index=659, scale=2) for i in range(10)]
         [self.headsup.children.append(i) for i in self.armor_bar]
         # (40, 3), caption, font, fill_color=font_color
-        self.stat_captions = mcrfpy.Caption((325,0), "HP:10\nDef:0(+0)", font, fill_color=(255, 255, 255))
+        self.stat_captions = mcrfpy.Caption(text="HP:10\nDef:0(+0)", pos=(325,0), font=font, fill_color=(255, 255, 255))
         self.stat_captions.outline = 3
         self.stat_captions.outline_color = (0, 0, 0)
         self.headsup.children.append(self.stat_captions)
 
         # Side Bar (inventory, level info) config
-        self.level_caption = mcrfpy.Caption((5,5), "Level: 1", font, fill_color=(255, 255, 255))
+        self.level_caption = mcrfpy.Caption(text="Level: 1", pos=(5,5), font=font, fill_color=(255, 255, 255))
         self.level_caption.font_size = 26 
         self.level_caption.outline = 3
         self.level_caption.outline_color = (0, 0, 0)
         self.sidebar.children.append(self.level_caption)
-        self.inv_sprites = [mcrfpy.Sprite(15, 70 + 95*i, t, 659, 6.0) for i in range(5)]
+        self.inv_sprites = [mcrfpy.Sprite(x=15, y=70 + 95*i, texture=t, sprite_index=659, scale=6.0) for i in range(5)]
         for i in self.inv_sprites:
             self.sidebar.children.append(i)
         self.key_captions = [
-                mcrfpy.Sprite(75, 130 + (95*2) + 95 * i, t, 384 + i, 3.0) for i in range(3)
+                mcrfpy.Sprite(x=75, y=130 + (95*2) + 95 * i, texture=t, sprite_index=384 + i, scale=3.0) for i in range(3)
                 ]
         for i in self.key_captions:
             self.sidebar.children.append(i)
         self.inv_captions = [
-                mcrfpy.Caption((25, 130 + 95 * i), "x", font, fill_color=(255, 255, 255)) for i in range(5)
+                mcrfpy.Caption(text="x", pos=(25, 130 + 95 * i), font=font, fill_color=(255, 255, 255)) for i in range(5)
                 ]
         for i in self.inv_captions:
             i.font_size = 16
             self.sidebar.children.append(i)
 
-        liminal_void = mcrfpy.Grid(1, 1, t, (0, 0), (16, 16))
+        liminal_void = mcrfpy.Grid(grid_size=(1, 1), texture=t, pos=(0, 0), size=(16, 16))
         self.grid = liminal_void
         self.player = ce.PlayerEntity(game=self)
         self.spawn_point = (0, 0)
@@ -252,7 +252,7 @@ class Crypt:
         self.entities.sort(key = lambda e: e.draw_order, reverse=False)
         # hack / workaround for grid.entities not interable
         while len(self.grid.entities): # while there are entities on the grid,
-            self.grid.entities.remove(0) # remove the 1st ("0th")
+            self.grid.entities.pop(0) # remove the 1st ("0th")
         for e in self.entities:
             self.grid.entities.append(e._entity)
 
@@ -401,6 +401,9 @@ class Crypt:
         self.level = new_level
         self.grid = self.level.grid
         self.grid.zoom = 2.0
+        # Center the camera on the middle of the grid (pixel coordinates: cells * tile_size / 2)
+        gw, gh = self.grid.grid_size
+        self.grid.center = (gw * 16 / 2, gh * 16 / 2)
         # TODO, make an entity mover function
         #self.add_entity(self.player)
         self.player.grid = self.grid
@@ -410,7 +413,7 @@ class Crypt:
         # reform UI (workaround to ui collection iterators crashing)
         while len(self.ui) > 0:
             try:
-                self.ui.remove(0)
+                self.ui.pop(0)
             except:
                 pass
         self.ui.append(self.grid)
@@ -431,26 +434,26 @@ class SweetButton:
         #self.shadow_box = mcrfpy.Frame
         x, y = pos
 
-        # box w/ drop shadow 
+        # box w/ drop shadow
         self.shadow_offset = shadow_offset
-        self.base_frame = mcrfpy.Frame(x, y, box_width+shadow_offset, box_height, fill_color = (0, 0, 0, 255))
+        self.base_frame = mcrfpy.Frame(pos=(x, y), size=(box_width+shadow_offset, box_height), fill_color=(0, 0, 0, 255))
         self.base_frame.click = self.do_click
 
         # drop shadow won't need configured, append directly
         if shadow:
-            self.base_frame.children.append(mcrfpy.Frame(0, 0, box_width, box_height, fill_color = shadow_color))
+            self.base_frame.children.append(mcrfpy.Frame(pos=(0, 0), size=(box_width, box_height), fill_color=shadow_color))
 
         # main button is where the content lives
-        self.main_button = mcrfpy.Frame(shadow_offset, shadow_offset, box_width, box_height, fill_color = box_color)
+        self.main_button = mcrfpy.Frame(pos=(shadow_offset, shadow_offset), size=(box_width, box_height), fill_color=box_color)
         self.click = click
         self.base_frame.children.append(self.main_button)
 
         # main button icon
-        self.icon = mcrfpy.Sprite(0, 3, btn_tex, icon, icon_scale)
+        self.icon = mcrfpy.Sprite(x=0, y=3, texture=btn_tex, sprite_index=icon, scale=icon_scale)
         self.main_button.children.append(self.icon)
 
         # main button caption
-        self.caption = mcrfpy.Caption((40, 3), caption, font, fill_color=font_color)
+        self.caption = mcrfpy.Caption(text=caption, pos=(40, 3), font=font, fill_color=font_color)
         self.caption.font_size = font_size
         self.caption.outline_color=font_outline_color
         self.caption.outline=font_outline_width
@@ -497,6 +500,9 @@ class MainMenu:
         self.demo = cl.Level(20, 20)
         self.grid = self.demo.grid
         self.grid.zoom = 1.75
+        # Center the camera on the middle of the grid (pixel coordinates: cells * tile_size / 2)
+        gw, gh = self.grid.grid_size
+        self.grid.center = (gw * 16 / 2, gh * 16 / 2)
         coords = self.demo.generate(
                 [("boulder", "boulder", "rat", "cyclops", "boulder"), ("spawn"), ("rat", "big rat"), ("button", "boulder", "exit")]
                 )
@@ -546,21 +552,21 @@ class MainMenu:
 
 
         # title text
-        drop_shadow = mcrfpy.Caption((150, 10), "Crypt Of Sokoban", font, fill_color=(96, 96, 96), outline_color=(192, 0, 0))
+        drop_shadow = mcrfpy.Caption(text="Crypt Of Sokoban", pos=(150, 10), font=font, fill_color=(96, 96, 96), outline_color=(192, 0, 0))
         drop_shadow.outline = 3
         drop_shadow.font_size = 64
         components.append(
                 drop_shadow
             )
 
-        title_txt = mcrfpy.Caption((158, 18), "Crypt Of Sokoban", font, fill_color=(255, 255, 255))
+        title_txt = mcrfpy.Caption(text="Crypt Of Sokoban", pos=(158, 18), font=font, fill_color=(255, 255, 255))
         title_txt.font_size = 64
         components.append(
                 title_txt
             )
 
         # toast: text over the demo grid that fades out on a timer
-        self.toast = mcrfpy.Caption((150, 400), "", font, fill_color=(0, 0, 0))
+        self.toast = mcrfpy.Caption(text="", pos=(150, 400), font=font, fill_color=(0, 0, 0))
         self.toast.font_size = 28
         self.toast.outline = 2
         self.toast.outline_color = (255, 255, 255)

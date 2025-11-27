@@ -105,7 +105,7 @@ class Level:
         self.height = height
         #self.graph = [(0, 0, width, height)]
         self.graph = RoomGraph( (0, 0, width, height) )
-        self.grid = mcrfpy.Grid(width, height, t, (10, 5), (1014, 700))
+        self.grid = mcrfpy.Grid(grid_size=(width, height), texture=t, pos=(10, 5), size=(1014, 700))
         self.highlighted = -1 #debug view feature
         self.walled_rooms = [] # for tracking "hallway rooms" vs "walled rooms"
 
@@ -182,7 +182,7 @@ class Level:
             self.grid.at((self.width-1, y)).walkable = False
 
     def dig_path(self, start:"Tuple[int, int]", end:"Tuple[int, int]", walkable=True, color=None, sprite=None):
-        print(f"Digging: {start} -> {end}")
+        #print(f"Digging: {start} -> {end}")
         # get x1,y1 and x2,y2 coordinates: top left and bottom right points on the rect formed by two random points, one from each of the 2 rooms
         x1 = min([start[0], end[0]])
         x2 = max([start[0], end[0]])

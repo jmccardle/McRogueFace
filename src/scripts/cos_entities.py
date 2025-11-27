@@ -14,7 +14,7 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
     def __init__(self, g:mcrfpy.Grid, x=0, y=0, sprite_num=86, *, game):
         #self.e = mcrfpy.Entity((x, y), t, sprite_num)
         #super().__init__((x, y), t, sprite_num)
-        self._entity = mcrfpy.Entity((x, y), t, sprite_num)
+        self._entity = mcrfpy.Entity(grid_pos=(x, y), texture=t, sprite_index=sprite_num)
         #grid.entities.append(self.e)
         self.grid = g
         #g.entities.append(self._entity)
@@ -47,7 +47,7 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
             e = self.grid.entities[i]
             if e == self._entity:
             #if e == self:
-                self.grid.entities.remove(i)
+                self.grid.entities.pop(i)
                 break
         else:
             print(f"!!! {self!r} wasn't removed from grid on call to die()")
