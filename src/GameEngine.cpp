@@ -6,6 +6,8 @@
 #include "Resources.h"
 #include "Animation.h"
 #include "Timer.h"
+#include "imgui.h"
+#include "imgui-SFML.h"
 #include <cmath>
 
 GameEngine::GameEngine() : GameEngine(McRogueFaceConfig{})
@@ -31,8 +33,13 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         window->create(sf::VideoMode(1024, 768), window_title, sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
         window->setFramerateLimit(60);
         render_target = window.get();
+
+        // Initialize ImGui for the window
+        if (ImGui::SFML::Init(*window)) {
+            imguiInitialized = true;
+        }
     }
-    
+
     visible = render_target->getDefaultView();
     
     // Initialize the game view
@@ -116,6 +123,12 @@ void GameEngine::cleanup()
         McRFPy_API::game = nullptr;
     }
     
+    // Shutdown ImGui before closing window
+    if (imguiInitialized) {
+        ImGui::SFML::Shutdown();
+        imguiInitialized = false;
+    }
+
     // Force close the window if it's still open
     if (window && window->isOpen()) {
         window->close();
@@ -224,6 +237,11 @@ void GameEngine::run()
         
         if (!headless) {
             sUserInput();
+
+            // Update ImGui
+            if (imguiInitialized) {
+                ImGui::SFML::Update(*window, clock.getElapsedTime());
+            }
         }
         if (!paused)
         {
@@ -260,6 +278,12 @@ void GameEngine::run()
         if (profilerOverlay && !headless) {
             profilerOverlay->update(metrics);
             profilerOverlay->render(*render_target);
+        }
+
+        // Render ImGui console overlay
+        if (imguiInitialized && !headless) {
+            console.render();
+            ImGui::SFML::Render(*window);
         }
 
         // Display the frame
@@ -420,6 +444,26 @@ void GameEngine::sUserInput()
     sf::Event event;
     while (window && window->pollEvent(event))
     {
+        // Process event through ImGui first
+        if (imguiInitialized) {
+            ImGui::SFML::ProcessEvent(*window, event);
+        }
+
+        // Handle grave/tilde key for console toggle (before other processing)
+        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Grave) {
+            console.toggle();
+            continue;  // Don't pass grave key to game
+        }
+
+        // If console wants keyboard, don't pass keyboard events to game
+        if (console.wantsKeyboardInput()) {
+            // Still process non-keyboard events (mouse, window close, etc.)
+            if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased ||
+                event.type == sf::Event::TextEntered) {
+                continue;
+            }
+        }
+
         processEvent(event);
     }
 }

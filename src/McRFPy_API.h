@@ -81,7 +81,10 @@ public:
     
     // Profiling/metrics
     static PyObject* _getMetrics(PyObject*, PyObject*);
-    
+
+    // Developer console
+    static PyObject* _setDevConsole(PyObject*, PyObject*);
+
     // Scene lifecycle management for Python Scene objects
     static void triggerSceneChange(const std::string& from_scene, const std::string& to_scene);
     static void updatePythonScenes(float dt);

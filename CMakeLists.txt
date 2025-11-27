@@ -17,16 +17,36 @@ include_directories(${CMAKE_SOURCE_DIR}/deps/libtcod)
 include_directories(${CMAKE_SOURCE_DIR}/deps/cpython)
 include_directories(${CMAKE_SOURCE_DIR}/deps/Python)
 
+# ImGui and ImGui-SFML include directories
+include_directories(${CMAKE_SOURCE_DIR}/modules/imgui)
+include_directories(${CMAKE_SOURCE_DIR}/modules/imgui-sfml)
+
+# ImGui source files
+set(IMGUI_SOURCES
+    ${CMAKE_SOURCE_DIR}/modules/imgui/imgui.cpp
+    ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_draw.cpp
+    ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_tables.cpp
+    ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_widgets.cpp
+    ${CMAKE_SOURCE_DIR}/modules/imgui-sfml/imgui-SFML.cpp
+)
+
 # Collect all the source files
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
+# Add ImGui sources to the build
+list(APPEND SOURCES ${IMGUI_SOURCES})
+
+# Find OpenGL (required by ImGui-SFML)
+find_package(OpenGL REQUIRED)
+
 # Create a list of libraries to link against
-set(LINK_LIBS 
-    sfml-graphics 
-    sfml-window 
-    sfml-system 
-    sfml-audio 
-    tcod)
+set(LINK_LIBS
+    sfml-graphics
+    sfml-window
+    sfml-system
+    sfml-audio
+    tcod
+    OpenGL::GL)
 
 # On Windows, add any additional libs and include directories
 if(WIN32)

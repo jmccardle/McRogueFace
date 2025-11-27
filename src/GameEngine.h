@@ -10,6 +10,7 @@
 #include "HeadlessRenderer.h"
 #include "SceneTransition.h"
 #include "Profiler.h"
+#include "ImGuiConsole.h"
 #include <memory>
 #include <sstream>
 
@@ -61,6 +62,10 @@ private:
     bool showProfilerOverlay = false;         // F3 key toggles this
     int overlayUpdateCounter = 0;             // Only update overlay every N frames
     ProfilerOverlay* profilerOverlay = nullptr; // The actual overlay renderer
+
+    // ImGui console overlay
+    ImGuiConsole console;
+    bool imguiInitialized = false;
 
     void updateViewport();
 

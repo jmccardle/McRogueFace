@@ -9,6 +9,7 @@
 #include "PyWindow.h"
 #include "PySceneObject.h"
 #include "GameEngine.h"
+#include "ImGuiConsole.h"
 #include "UI.h"
 #include "UILine.h"
 #include "UICircle.h"
@@ -200,6 +201,16 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
          MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds)")
+     )},
+
+    {"setDevConsole", McRFPy_API::_setDevConsole, METH_VARARGS,
+     MCRF_FUNCTION(setDevConsole,
+         MCRF_SIG("(enabled: bool)", "None"),
+         MCRF_DESC("Enable or disable the developer console overlay."),
+         MCRF_ARGS_START
+         MCRF_ARG("enabled", "True to enable the console (default), False to disable")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("When disabled, the grave/tilde key will not open the console. Use this to ship games without debug features.")
      )},
 
     {NULL, NULL, 0, NULL}
@@ -1193,6 +1204,16 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     PyDict_SetItemString(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds()));
 
     return dict;
+}
+
+PyObject* McRFPy_API::_setDevConsole(PyObject* self, PyObject* args) {
+    int enabled;
+    if (!PyArg_ParseTuple(args, "p", &enabled)) {  // "p" for boolean predicate
+        return NULL;
+    }
+
+    ImGuiConsole::setEnabled(enabled);
+    Py_RETURN_NONE;
 }
 
 // Exception handling implementation
