@@ -10,6 +10,7 @@
 #include "PySceneObject.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
+#include "BenchmarkLogger.h"
 #include "UI.h"
 #include "UILine.h"
 #include "UICircle.h"
@@ -211,6 +212,35 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_ARG("enabled", "True to enable the console (default), False to disable")
          MCRF_RETURNS("None")
          MCRF_NOTE("When disabled, the grave/tilde key will not open the console. Use this to ship games without debug features.")
+     )},
+
+    {"start_benchmark", McRFPy_API::_startBenchmark, METH_NOARGS,
+     MCRF_FUNCTION(start_benchmark,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Start capturing benchmark data to a file."),
+         MCRF_RETURNS("None")
+         MCRF_RAISES("RuntimeError", "If a benchmark is already running")
+         MCRF_NOTE("Benchmark filename is auto-generated from PID and timestamp. Use end_benchmark() to stop and get filename.")
+     )},
+
+    {"end_benchmark", McRFPy_API::_endBenchmark, METH_NOARGS,
+     MCRF_FUNCTION(end_benchmark,
+         MCRF_SIG("()", "str"),
+         MCRF_DESC("Stop benchmark capture and write data to JSON file."),
+         MCRF_RETURNS("str: The filename of the written benchmark data")
+         MCRF_RAISES("RuntimeError", "If no benchmark is currently running")
+         MCRF_NOTE("Returns the auto-generated filename (e.g., 'benchmark_12345_20250528_143022.json')")
+     )},
+
+    {"log_benchmark", McRFPy_API::_logBenchmark, METH_VARARGS,
+     MCRF_FUNCTION(log_benchmark,
+         MCRF_SIG("(message: str)", "None"),
+         MCRF_DESC("Add a log message to the current benchmark frame."),
+         MCRF_ARGS_START
+         MCRF_ARG("message", "Text to associate with the current frame")
+         MCRF_RETURNS("None")
+         MCRF_RAISES("RuntimeError", "If no benchmark is currently running")
+         MCRF_NOTE("Messages appear in the 'logs' array of each frame in the output JSON.")
      )},
 
     {NULL, NULL, 0, NULL}
@@ -1271,6 +1301,42 @@ PyObject* McRFPy_API::_setDevConsole(PyObject* self, PyObject* args) {
 
     ImGuiConsole::setEnabled(enabled);
     Py_RETURN_NONE;
+}
+
+// Benchmark logging implementation (#104)
+PyObject* McRFPy_API::_startBenchmark(PyObject* self, PyObject* args) {
+    try {
+        g_benchmarkLogger.start();
+        Py_RETURN_NONE;
+    } catch (const std::runtime_error& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return NULL;
+    }
+}
+
+PyObject* McRFPy_API::_endBenchmark(PyObject* self, PyObject* args) {
+    try {
+        std::string filename = g_benchmarkLogger.end();
+        return PyUnicode_FromString(filename.c_str());
+    } catch (const std::runtime_error& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return NULL;
+    }
+}
+
+PyObject* McRFPy_API::_logBenchmark(PyObject* self, PyObject* args) {
+    const char* message;
+    if (!PyArg_ParseTuple(args, "s", &message)) {
+        return NULL;
+    }
+
+    try {
+        g_benchmarkLogger.log(message);
+        Py_RETURN_NONE;
+    } catch (const std::runtime_error& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return NULL;
+    }
 }
 
 // Exception handling implementation

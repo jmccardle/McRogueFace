@@ -6,6 +6,7 @@
 #include "Resources.h"
 #include "Animation.h"
 #include "Timer.h"
+#include "BenchmarkLogger.h"
 #include "imgui.h"
 #include "imgui-SFML.h"
 #include <cmath>
@@ -308,7 +309,10 @@ void GameEngine::run()
         
         // Update profiling metrics
         metrics.updateFrameTime(frameTime * 1000.0f); // Convert to milliseconds
-        
+
+        // Record frame data for benchmark logging (if running)
+        g_benchmarkLogger.recordFrame(metrics);
+
         int whole_fps = metrics.fps;
         int tenth_fps = (metrics.fps * 10) % 10;
         

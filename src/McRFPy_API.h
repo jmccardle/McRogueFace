@@ -82,6 +82,11 @@ public:
     // Profiling/metrics
     static PyObject* _getMetrics(PyObject*, PyObject*);
 
+    // Benchmark logging (#104)
+    static PyObject* _startBenchmark(PyObject*, PyObject*);
+    static PyObject* _endBenchmark(PyObject*, PyObject*);
+    static PyObject* _logBenchmark(PyObject*, PyObject*);
+
     // Developer console
     static PyObject* _setDevConsole(PyObject*, PyObject*);
 

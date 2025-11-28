@@ -14,6 +14,70 @@
 #include <memory>
 #include <sstream>
 
+/**
+ * @brief Performance profiling metrics structure
+ *
+ * Tracks frame timing, render counts, and detailed timing breakdowns.
+ * Used by GameEngine, ProfilerOverlay (F3), and BenchmarkLogger.
+ */
+struct ProfilingMetrics {
+    float frameTime = 0.0f;          // Current frame time in milliseconds
+    float avgFrameTime = 0.0f;       // Average frame time over last N frames
+    int fps = 0;                     // Frames per second
+    int drawCalls = 0;               // Draw calls per frame
+    int uiElements = 0;              // Number of UI elements rendered
+    int visibleElements = 0;         // Number of visible elements
+
+    // Detailed timing breakdowns (added for profiling system)
+    float gridRenderTime = 0.0f;     // Time spent rendering grids (ms)
+    float entityRenderTime = 0.0f;   // Time spent rendering entities (ms)
+    float fovOverlayTime = 0.0f;     // Time spent rendering FOV overlays (ms)
+    float pythonScriptTime = 0.0f;   // Time spent in Python callbacks (ms)
+    float animationTime = 0.0f;      // Time spent updating animations (ms)
+
+    // Grid-specific metrics
+    int gridCellsRendered = 0;       // Number of grid cells drawn this frame
+    int entitiesRendered = 0;        // Number of entities drawn this frame
+    int totalEntities = 0;           // Total entities in scene
+
+    // Frame time history for averaging
+    static constexpr int HISTORY_SIZE = 60;
+    float frameTimeHistory[HISTORY_SIZE] = {0};
+    int historyIndex = 0;
+
+    void updateFrameTime(float deltaMs) {
+        frameTime = deltaMs;
+        frameTimeHistory[historyIndex] = deltaMs;
+        historyIndex = (historyIndex + 1) % HISTORY_SIZE;
+
+        // Calculate average
+        float sum = 0.0f;
+        for (int i = 0; i < HISTORY_SIZE; ++i) {
+            sum += frameTimeHistory[i];
+        }
+        avgFrameTime = sum / HISTORY_SIZE;
+        fps = avgFrameTime > 0 ? static_cast<int>(1000.0f / avgFrameTime) : 0;
+    }
+
+    void resetPerFrame() {
+        drawCalls = 0;
+        uiElements = 0;
+        visibleElements = 0;
+
+        // Reset per-frame timing metrics
+        gridRenderTime = 0.0f;
+        entityRenderTime = 0.0f;
+        fovOverlayTime = 0.0f;
+        pythonScriptTime = 0.0f;
+        animationTime = 0.0f;
+
+        // Reset per-frame counters
+        gridCellsRendered = 0;
+        entitiesRendered = 0;
+        totalEntities = 0;
+    }
+};
+
 class GameEngine
 {
 public:
@@ -76,64 +140,8 @@ public:
     std::map<std::string, std::shared_ptr<Timer>> timers;
     std::string scene;
     
-    // Profiling metrics
-    struct ProfilingMetrics {
-        float frameTime = 0.0f;          // Current frame time in milliseconds
-        float avgFrameTime = 0.0f;       // Average frame time over last N frames
-        int fps = 0;                     // Frames per second
-        int drawCalls = 0;               // Draw calls per frame
-        int uiElements = 0;              // Number of UI elements rendered
-        int visibleElements = 0;         // Number of visible elements
-
-        // Detailed timing breakdowns (added for profiling system)
-        float gridRenderTime = 0.0f;     // Time spent rendering grids (ms)
-        float entityRenderTime = 0.0f;   // Time spent rendering entities (ms)
-        float fovOverlayTime = 0.0f;     // Time spent rendering FOV overlays (ms)
-        float pythonScriptTime = 0.0f;   // Time spent in Python callbacks (ms)
-        float animationTime = 0.0f;      // Time spent updating animations (ms)
-
-        // Grid-specific metrics
-        int gridCellsRendered = 0;       // Number of grid cells drawn this frame
-        int entitiesRendered = 0;        // Number of entities drawn this frame
-        int totalEntities = 0;           // Total entities in scene
-
-        // Frame time history for averaging
-        static constexpr int HISTORY_SIZE = 60;
-        float frameTimeHistory[HISTORY_SIZE] = {0};
-        int historyIndex = 0;
-
-        void updateFrameTime(float deltaMs) {
-            frameTime = deltaMs;
-            frameTimeHistory[historyIndex] = deltaMs;
-            historyIndex = (historyIndex + 1) % HISTORY_SIZE;
-
-            // Calculate average
-            float sum = 0.0f;
-            for (int i = 0; i < HISTORY_SIZE; ++i) {
-                sum += frameTimeHistory[i];
-            }
-            avgFrameTime = sum / HISTORY_SIZE;
-            fps = avgFrameTime > 0 ? static_cast<int>(1000.0f / avgFrameTime) : 0;
-        }
-
-        void resetPerFrame() {
-            drawCalls = 0;
-            uiElements = 0;
-            visibleElements = 0;
-
-            // Reset per-frame timing metrics
-            gridRenderTime = 0.0f;
-            entityRenderTime = 0.0f;
-            fovOverlayTime = 0.0f;
-            pythonScriptTime = 0.0f;
-            animationTime = 0.0f;
-
-            // Reset per-frame counters
-            gridCellsRendered = 0;
-            entitiesRendered = 0;
-            totalEntities = 0;
-        }
-    } metrics;
+    // Profiling metrics (struct defined above class)
+    ProfilingMetrics metrics;
 
     GameEngine();
     GameEngine(const McRogueFaceConfig& cfg);
