@@ -413,6 +413,92 @@ int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* cl
     return 0;
 }
 
+PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
+{
+    if (!self->data || !self->data->grid) {
+        Py_RETURN_NONE;
+    }
+
+    // Return a Python Grid object wrapping the C++ grid
+    PyTypeObject* grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+    if (!grid_type) return nullptr;
+
+    auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
+    Py_DECREF(grid_type);
+
+    if (pyGrid) {
+        pyGrid->data = self->data->grid;
+        pyGrid->weakreflist = NULL;
+    }
+    return (PyObject*)pyGrid;
+}
+
+int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
+{
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
+        return -1;
+    }
+
+    // Handle None - remove from current grid
+    if (value == Py_None) {
+        if (self->data->grid) {
+            // Remove from current grid's entity list
+            auto& entities = self->data->grid->entities;
+            auto it = std::find_if(entities->begin(), entities->end(),
+                [self](const std::shared_ptr<UIEntity>& e) {
+                    return e.get() == self->data.get();
+                });
+            if (it != entities->end()) {
+                entities->erase(it);
+            }
+            self->data->grid.reset();
+        }
+        return 0;
+    }
+
+    // Value must be a Grid
+    PyTypeObject* grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+    bool is_grid = grid_type && PyObject_IsInstance(value, (PyObject*)grid_type);
+    Py_XDECREF(grid_type);
+
+    if (!is_grid) {
+        PyErr_SetString(PyExc_TypeError, "grid must be a Grid or None");
+        return -1;
+    }
+
+    auto new_grid = ((PyUIGridObject*)value)->data;
+
+    // Remove from old grid first (if any)
+    if (self->data->grid && self->data->grid != new_grid) {
+        auto& old_entities = self->data->grid->entities;
+        auto it = std::find_if(old_entities->begin(), old_entities->end(),
+            [self](const std::shared_ptr<UIEntity>& e) {
+                return e.get() == self->data.get();
+            });
+        if (it != old_entities->end()) {
+            old_entities->erase(it);
+        }
+    }
+
+    // Add to new grid
+    if (self->data->grid != new_grid) {
+        new_grid->entities->push_back(self->data);
+        self->data->grid = new_grid;
+
+        // Initialize gridstate if needed
+        if (self->data->gridstate.size() == 0) {
+            self->data->gridstate.resize(new_grid->grid_x * new_grid->grid_y);
+            for (auto& state : self->data->gridstate) {
+                state.visible = false;
+                state.discovered = false;
+            }
+        }
+    }
+
+    return 0;
+}
+
 PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
 {
     // Check if entity has a grid
@@ -557,6 +643,10 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position (graphically)", (void*)0},
     {"pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position (integer grid coordinates)", (void*)1},
     {"gridstate", (getter)UIEntity::get_gridstate, NULL, "Grid point states for the entity", NULL},
+    {"grid", (getter)UIEntity::get_grid, (setter)UIEntity::set_grid,
+     "Grid this entity belongs to. "
+     "Get: Returns the Grid or None. "
+     "Set: Assign a Grid to move entity, or None to remove from grid.", NULL},
     {"sprite_index", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index on the texture on the display", NULL},
     {"sprite_number", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index (DEPRECATED: use sprite_index instead)", NULL},
     {"x", (getter)UIEntity::get_float_member, (setter)UIEntity::set_float_member, "Entity x position", (void*)0},

@@ -98,6 +98,8 @@ public:
     static int set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_float_member(PyUIEntityObject* self, void* closure);
     static int set_float_member(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_grid(PyUIEntityObject* self, void* closure);
+    static int set_grid(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIEntityObject* self);

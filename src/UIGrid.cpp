@@ -1846,20 +1846,33 @@ PySequenceMethods UIEntityCollection::sqmethods = {
 
 PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject* o)
 {
-    // if not UIDrawable subclass, reject it
-    // self->data->push_back( c++ object inside o );
-
-    // this would be a great use case for .tp_base
-    //if (!PyObject_IsInstance(o, (PyObject*)&PyUIEntityType))
+    // Type check - must be Entity
     if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity")))
     {
         PyErr_SetString(PyExc_TypeError, "Only Entity objects can be added to EntityCollection");
         return NULL;
     }
     PyUIEntityObject* entity = (PyUIEntityObject*)o;
-    self->data->push_back(entity->data);
-    entity->data->grid = self->grid;
-    
+
+    // Remove from old grid first (if different from target grid)
+    // This implements the documented "single grid only" behavior
+    if (entity->data->grid && entity->data->grid != self->grid) {
+        auto& old_entities = entity->data->grid->entities;
+        auto it = std::find_if(old_entities->begin(), old_entities->end(),
+            [entity](const std::shared_ptr<UIEntity>& e) {
+                return e.get() == entity->data.get();
+            });
+        if (it != old_entities->end()) {
+            old_entities->erase(it);
+        }
+    }
+
+    // Add to this grid (if not already in it)
+    if (entity->data->grid != self->grid) {
+        self->data->push_back(entity->data);
+        entity->data->grid = self->grid;
+    }
+
     // Initialize gridstate if not already done
     if (entity->data->gridstate.size() == 0 && self->grid) {
         entity->data->gridstate.resize(self->grid->grid_x * self->grid->grid_y);
