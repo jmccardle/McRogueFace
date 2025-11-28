@@ -499,27 +499,33 @@ bool UISprite::setProperty(const std::string& name, float value) {
     if (name == "x") {
         position.x = value;
         sprite.setPosition(position);  // Keep sprite in sync
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "y") {
         position.y = value;
         sprite.setPosition(position);  // Keep sprite in sync
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "scale") {
         sprite.setScale(sf::Vector2f(value, value));
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "scale_x") {
         sprite.setScale(sf::Vector2f(value, sprite.getScale().y));
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "scale_y") {
         sprite.setScale(sf::Vector2f(sprite.getScale().x, value));
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "z_index") {
         z_index = static_cast<int>(value);
+        markDirty();  // #144 - Z-order change affects parent
         return true;
     }
     return false;
@@ -528,10 +534,12 @@ bool UISprite::setProperty(const std::string& name, float value) {
 bool UISprite::setProperty(const std::string& name, int value) {
     if (name == "sprite_index" || name == "sprite_number") {
         setSpriteIndex(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "z_index") {
         z_index = value;
+        markDirty();  // #144 - Z-order change affects parent
         return true;
     }
     return false;

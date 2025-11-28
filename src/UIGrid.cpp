@@ -2725,54 +2725,66 @@ bool UIGrid::setProperty(const std::string& name, float value) {
         position.x = value;
         box.setPosition(position);
         output.setPosition(position);
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "y") {
         position.y = value;
         box.setPosition(position);
         output.setPosition(position);
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "w" || name == "width") {
         box.setSize(sf::Vector2f(value, box.getSize().y));
         output.setTextureRect(sf::IntRect(0, 0, box.getSize().x, box.getSize().y));
+        markDirty();  // #144 - Size change
         return true;
     }
     else if (name == "h" || name == "height") {
         box.setSize(sf::Vector2f(box.getSize().x, value));
         output.setTextureRect(sf::IntRect(0, 0, box.getSize().x, box.getSize().y));
+        markDirty();  // #144 - Size change
         return true;
     }
     else if (name == "center_x") {
         center_x = value;
+        markDirty();  // #144 - View change affects content
         return true;
     }
     else if (name == "center_y") {
         center_y = value;
+        markDirty();  // #144 - View change affects content
         return true;
     }
     else if (name == "zoom") {
         zoom = value;
+        markDirty();  // #144 - View change affects content
         return true;
     }
     else if (name == "z_index") {
         z_index = static_cast<int>(value);
+        markDirty();  // #144 - Z-order change affects parent
         return true;
     }
     else if (name == "fill_color.r") {
         fill_color.r = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, value)));
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "fill_color.g") {
         fill_color.g = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, value)));
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "fill_color.b") {
         fill_color.b = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, value)));
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "fill_color.a") {
         fill_color.a = static_cast<uint8_t>(std::max(0.0f, std::min(255.0f, value)));
+        markDirty();  // #144 - Content change
         return true;
     }
     return false;
@@ -2783,16 +2795,19 @@ bool UIGrid::setProperty(const std::string& name, const sf::Vector2f& value) {
         position = value;
         box.setPosition(position);
         output.setPosition(position);
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "size") {
         box.setSize(value);
         output.setTextureRect(sf::IntRect(0, 0, box.getSize().x, box.getSize().y));
+        markDirty();  // #144 - Size change
         return true;
     }
     else if (name == "center") {
         center_x = value.x;
         center_y = value.y;
+        markDirty();  // #144 - View change affects content
         return true;
     }
     return false;

@@ -471,71 +471,84 @@ bool UICaption::setProperty(const std::string& name, float value) {
     if (name == "x") {
         position.x = value;
         text.setPosition(position);  // Keep text in sync
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "y") {
         position.y = value;
         text.setPosition(position);  // Keep text in sync
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "font_size" || name == "size") { // Support both for backward compatibility
         text.setCharacterSize(static_cast<unsigned int>(value));
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "outline") {
         text.setOutlineThickness(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "fill_color.r") {
         auto color = text.getFillColor();
         color.r = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setFillColor(color);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "fill_color.g") {
         auto color = text.getFillColor();
         color.g = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setFillColor(color);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "fill_color.b") {
         auto color = text.getFillColor();
         color.b = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setFillColor(color);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "fill_color.a") {
         auto color = text.getFillColor();
         color.a = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setFillColor(color);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "outline_color.r") {
         auto color = text.getOutlineColor();
         color.r = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setOutlineColor(color);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "outline_color.g") {
         auto color = text.getOutlineColor();
         color.g = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setOutlineColor(color);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "outline_color.b") {
         auto color = text.getOutlineColor();
         color.b = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setOutlineColor(color);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "outline_color.a") {
         auto color = text.getOutlineColor();
         color.a = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setOutlineColor(color);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "z_index") {
         z_index = static_cast<int>(value);
+        markDirty();  // #144 - Z-order change affects parent
         return true;
     }
     return false;
@@ -544,10 +557,12 @@ bool UICaption::setProperty(const std::string& name, float value) {
 bool UICaption::setProperty(const std::string& name, const sf::Color& value) {
     if (name == "fill_color") {
         text.setFillColor(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "outline_color") {
         text.setOutlineColor(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     return false;
@@ -556,6 +571,7 @@ bool UICaption::setProperty(const std::string& name, const sf::Color& value) {
 bool UICaption::setProperty(const std::string& name, const std::string& value) {
     if (name == "text") {
         text.setString(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     return false;

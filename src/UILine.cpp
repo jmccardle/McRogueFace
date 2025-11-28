@@ -207,36 +207,43 @@ bool UILine::setProperty(const std::string& name, float value) {
     if (name == "thickness") {
         thickness = value;
         vertices_dirty = true;
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "x") {
         float dx = value - position.x;
         move(dx, 0);
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "y") {
         float dy = value - position.y;
         move(0, dy);
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "start_x") {
         start_pos.x = value;
         vertices_dirty = true;
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "start_y") {
         start_pos.y = value;
         vertices_dirty = true;
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "end_x") {
         end_pos.x = value;
         vertices_dirty = true;
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "end_y") {
         end_pos.y = value;
         vertices_dirty = true;
+        markDirty();  // #144 - Content change
         return true;
     }
     return false;
@@ -246,6 +253,7 @@ bool UILine::setProperty(const std::string& name, const sf::Color& value) {
     if (name == "color") {
         color = value;
         vertices_dirty = true;
+        markDirty();  // #144 - Content change
         return true;
     }
     return false;
@@ -255,11 +263,13 @@ bool UILine::setProperty(const std::string& name, const sf::Vector2f& value) {
     if (name == "start") {
         start_pos = value;
         vertices_dirty = true;
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "end") {
         end_pos = value;
         vertices_dirty = true;
+        markDirty();  // #144 - Content change
         return true;
     }
     return false;

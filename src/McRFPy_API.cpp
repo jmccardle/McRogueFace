@@ -1233,17 +1233,29 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // Create a dictionary with metrics
     PyObject* dict = PyDict_New();
     if (!dict) return NULL;
-    
+
     // Add frame time metrics
     PyDict_SetItemString(dict, "frame_time", PyFloat_FromDouble(game->metrics.frameTime));
     PyDict_SetItemString(dict, "avg_frame_time", PyFloat_FromDouble(game->metrics.avgFrameTime));
     PyDict_SetItemString(dict, "fps", PyLong_FromLong(game->metrics.fps));
-    
+
     // Add draw call metrics
     PyDict_SetItemString(dict, "draw_calls", PyLong_FromLong(game->metrics.drawCalls));
     PyDict_SetItemString(dict, "ui_elements", PyLong_FromLong(game->metrics.uiElements));
     PyDict_SetItemString(dict, "visible_elements", PyLong_FromLong(game->metrics.visibleElements));
-    
+
+    // #144 - Add detailed timing breakdown (in milliseconds)
+    PyDict_SetItemString(dict, "grid_render_time", PyFloat_FromDouble(game->metrics.gridRenderTime));
+    PyDict_SetItemString(dict, "entity_render_time", PyFloat_FromDouble(game->metrics.entityRenderTime));
+    PyDict_SetItemString(dict, "fov_overlay_time", PyFloat_FromDouble(game->metrics.fovOverlayTime));
+    PyDict_SetItemString(dict, "python_time", PyFloat_FromDouble(game->metrics.pythonScriptTime));
+    PyDict_SetItemString(dict, "animation_time", PyFloat_FromDouble(game->metrics.animationTime));
+
+    // #144 - Add grid-specific metrics
+    PyDict_SetItemString(dict, "grid_cells_rendered", PyLong_FromLong(game->metrics.gridCellsRendered));
+    PyDict_SetItemString(dict, "entities_rendered", PyLong_FromLong(game->metrics.entitiesRendered));
+    PyDict_SetItemString(dict, "total_entities", PyLong_FromLong(game->metrics.totalEntities));
+
     // Add general metrics
     PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));
     PyDict_SetItemString(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds()));

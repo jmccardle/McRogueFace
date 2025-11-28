@@ -206,30 +206,36 @@ void UIArc::resize(float w, float h) {
 bool UIArc::setProperty(const std::string& name, float value) {
     if (name == "radius") {
         setRadius(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "start_angle") {
         setStartAngle(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "end_angle") {
         setEndAngle(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "thickness") {
         setThickness(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "x") {
         center.x = value;
         position = center;
         vertices_dirty = true;
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     else if (name == "y") {
         center.y = value;
         position = center;
         vertices_dirty = true;
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     return false;
@@ -238,6 +244,7 @@ bool UIArc::setProperty(const std::string& name, float value) {
 bool UIArc::setProperty(const std::string& name, const sf::Color& value) {
     if (name == "color") {
         setColor(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     return false;
@@ -246,6 +253,7 @@ bool UIArc::setProperty(const std::string& name, const sf::Color& value) {
 bool UIArc::setProperty(const std::string& name, const sf::Vector2f& value) {
     if (name == "center") {
         setCenter(value);
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     return false;

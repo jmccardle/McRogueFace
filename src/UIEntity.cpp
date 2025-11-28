@@ -674,15 +674,18 @@ bool UIEntity::setProperty(const std::string& name, float value) {
     if (name == "x") {
         position.x = value;
         // Don't update sprite position here - UIGrid::render() handles the pixel positioning
+        if (grid) grid->markDirty();  // #144 - Propagate to parent grid for texture caching
         return true;
     }
     else if (name == "y") {
         position.y = value;
         // Don't update sprite position here - UIGrid::render() handles the pixel positioning
+        if (grid) grid->markDirty();  // #144 - Propagate to parent grid for texture caching
         return true;
     }
     else if (name == "sprite_scale") {
         sprite.setScale(sf::Vector2f(value, value));
+        if (grid) grid->markDirty();  // #144 - Content change
         return true;
     }
     return false;
@@ -691,6 +694,7 @@ bool UIEntity::setProperty(const std::string& name, float value) {
 bool UIEntity::setProperty(const std::string& name, int value) {
     if (name == "sprite_index" || name == "sprite_number") {
         sprite.setSpriteIndex(value);
+        if (grid) grid->markDirty();  // #144 - Content change
         return true;
     }
     return false;

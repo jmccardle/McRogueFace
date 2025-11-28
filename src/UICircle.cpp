@@ -172,15 +172,19 @@ void UICircle::resize(float w, float h) {
 bool UICircle::setProperty(const std::string& name, float value) {
     if (name == "radius") {
         setRadius(value);
+        markDirty();  // #144 - Content change
         return true;
     } else if (name == "outline") {
         setOutline(value);
+        markDirty();  // #144 - Content change
         return true;
     } else if (name == "x") {
         position.x = value;
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     } else if (name == "y") {
         position.y = value;
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     return false;
@@ -189,9 +193,11 @@ bool UICircle::setProperty(const std::string& name, float value) {
 bool UICircle::setProperty(const std::string& name, const sf::Color& value) {
     if (name == "fill_color") {
         setFillColor(value);
+        markDirty();  // #144 - Content change
         return true;
     } else if (name == "outline_color") {
         setOutlineColor(value);
+        markDirty();  // #144 - Content change
         return true;
     }
     return false;
@@ -200,6 +206,7 @@ bool UICircle::setProperty(const std::string& name, const sf::Color& value) {
 bool UICircle::setProperty(const std::string& name, const sf::Vector2f& value) {
     if (name == "center" || name == "position") {
         position = value;
+        markDirty();  // #144 - Propagate to parent for texture caching
         return true;
     }
     return false;
