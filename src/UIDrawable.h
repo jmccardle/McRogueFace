@@ -95,6 +95,7 @@ public:
 
     // Python API for parent/global_position
     static PyObject* get_parent(PyObject* self, void* closure);
+    static int set_parent(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_global_pos(PyObject* self, void* closure);
     
     // New properties for Phase 1

@@ -186,6 +186,67 @@ def test_all_drawable_types():
     print("  - All drawable types: PASS")
 
 
+def test_parent_setter():
+    """Test parent property setter (assign parent directly)"""
+    print("Testing parent setter...")
+
+    mcrfpy.createScene("test7")
+    ui = mcrfpy.sceneUI("test7")
+
+    # Create parent frame and child
+    parent = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
+    child = mcrfpy.Caption(text="Child", pos=(10, 10))
+    ui.append(parent)
+
+    # Child has no parent initially
+    assert child.parent is None, "Child should have no parent initially"
+
+    # Set parent via property assignment
+    child.parent = parent
+    assert child.parent is not None, "Child should have parent after assignment"
+    assert len(parent.children) == 1, f"Parent should have 1 child, has {len(parent.children)}"
+
+    # Verify global position updates
+    global_pos = child.global_position
+    assert global_pos.x == 110.0, f"Global X should be 110, got {global_pos.x}"
+    assert global_pos.y == 110.0, f"Global Y should be 110, got {global_pos.y}"
+
+    # Set parent to None to remove
+    child.parent = None
+    assert child.parent is None, "Child should have no parent after setting None"
+    assert len(parent.children) == 0, f"Parent should have 0 children, has {len(parent.children)}"
+
+    print("  - Parent setter: PASS")
+
+
+def test_reparenting_via_setter():
+    """Test moving a child from one parent to another via setter"""
+    print("Testing reparenting via setter...")
+
+    mcrfpy.createScene("test8")
+    ui = mcrfpy.sceneUI("test8")
+
+    parent1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
+    parent2 = mcrfpy.Frame(pos=(200, 200), size=(100, 100))
+    child = mcrfpy.Sprite(pos=(5, 5))
+
+    ui.append(parent1)
+    ui.append(parent2)
+
+    # Add to first parent via setter
+    child.parent = parent1
+    assert len(parent1.children) == 1, "Parent1 should have 1 child"
+    assert len(parent2.children) == 0, "Parent2 should have 0 children"
+
+    # Move to second parent via setter (should auto-remove from parent1)
+    child.parent = parent2
+    assert len(parent1.children) == 0, f"Parent1 should have 0 children after reparent, has {len(parent1.children)}"
+    assert len(parent2.children) == 1, f"Parent2 should have 1 child after reparent, has {len(parent2.children)}"
+    assert child.global_position.x == 205.0, f"Global X should be 205, got {child.global_position.x}"
+
+    print("  - Reparenting via setter: PASS")
+
+
 if __name__ == "__main__":
     try:
         test_parent_property()
@@ -194,6 +255,8 @@ if __name__ == "__main__":
         test_remove_clears_parent()
         test_scene_level_elements()
         test_all_drawable_types()
+        test_parent_setter()
+        test_reparenting_via_setter()
 
         print("\n=== All tests passed! ===")
         sys.exit(0)

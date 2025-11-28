@@ -848,6 +848,87 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
     return obj;
 }
 
+// Python API - set parent drawable (or None to remove from parent)
+int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    std::shared_ptr<UIDrawable> drawable = nullptr;
+
+    // Get the shared_ptr for self
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data;
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data;
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data;
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data;
+            break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data;
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data;
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data;
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return -1;
+    }
+
+    // Handle None - remove from parent
+    if (value == Py_None) {
+        drawable->removeFromParent();
+        return 0;
+    }
+
+    // Value must be a Frame or Grid (things with children collections)
+    // Check if it's a Frame
+    PyTypeObject* frame_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+    PyTypeObject* grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+
+    bool is_frame = frame_type && PyObject_IsInstance(value, (PyObject*)frame_type);
+    bool is_grid = grid_type && PyObject_IsInstance(value, (PyObject*)grid_type);
+
+    Py_XDECREF(frame_type);
+    Py_XDECREF(grid_type);
+
+    if (!is_frame && !is_grid) {
+        PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Grid, or None");
+        return -1;
+    }
+
+    // Remove from old parent first
+    drawable->removeFromParent();
+
+    // Get the new parent's children collection and append
+    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>* children_ptr = nullptr;
+    std::shared_ptr<UIDrawable> new_parent = nullptr;
+
+    if (is_frame) {
+        auto frame = ((PyUIFrameObject*)value)->data;
+        children_ptr = &frame->children;
+        new_parent = frame;
+    } else if (is_grid) {
+        auto grid = ((PyUIGridObject*)value)->data;
+        children_ptr = &grid->children;
+        new_parent = grid;
+    }
+
+    if (children_ptr && *children_ptr) {
+        // Add to new parent's children
+        (*children_ptr)->push_back(drawable);
+        drawable->setParent(new_parent);
+    }
+
+    return 0;
+}
+
 // Python API - get global position (read-only)
 PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
