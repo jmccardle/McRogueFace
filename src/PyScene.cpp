@@ -2,7 +2,11 @@
 #include "ActionCode.h"
 #include "Resources.h"
 #include "PyCallable.h"
+#include "UIFrame.h"
+#include "UIGrid.h"
+#include "McRFPy_Automation.h"  // #111 - For simulated mouse position
 #include <algorithm>
+#include <functional>
 
 PyScene::PyScene(GameEngine* g) : Scene(g)
 {
@@ -22,14 +26,17 @@ void PyScene::update()
 
 void PyScene::do_mouse_input(std::string button, std::string type)
 {
-    // In headless mode, mouse input is not available
+    sf::Vector2f mousepos;
+
+    // #111 - In headless mode, use simulated mouse position
     if (game->isHeadless()) {
-        return;
+        sf::Vector2i simPos = McRFPy_Automation::getSimulatedMousePosition();
+        mousepos = sf::Vector2f(static_cast<float>(simPos.x), static_cast<float>(simPos.y));
+    } else {
+        auto unscaledmousepos = sf::Mouse::getPosition(game->getWindow());
+        // Convert window coordinates to game coordinates using the viewport
+        mousepos = game->windowToGameCoords(sf::Vector2f(unscaledmousepos));
     }
-    
-    auto unscaledmousepos = sf::Mouse::getPosition(game->getWindow());
-    // Convert window coordinates to game coordinates using the viewport
-    auto mousepos = game->windowToGameCoords(sf::Vector2f(unscaledmousepos));
     
     // Only sort if z_index values have changed
     if (ui_elements_need_sort) {
@@ -59,6 +66,74 @@ void PyScene::doAction(std::string name, std::string type)
     }
     else if ACTIONONCE("debug_menu") {
         McRFPy_API::REPL();
+    }
+}
+
+// #140 - Mouse enter/exit tracking
+void PyScene::do_mouse_hover(int x, int y)
+{
+    // In headless mode, use the coordinates directly (already in game space)
+    sf::Vector2f mousepos;
+    if (game->isHeadless()) {
+        mousepos = sf::Vector2f(static_cast<float>(x), static_cast<float>(y));
+    } else {
+        // Convert window coordinates to game coordinates using the viewport
+        mousepos = game->windowToGameCoords(sf::Vector2f(static_cast<float>(x), static_cast<float>(y)));
+    }
+
+    // Helper function to process hover for a single drawable and its children
+    std::function<void(UIDrawable*)> processHover = [&](UIDrawable* drawable) {
+        if (!drawable || !drawable->visible) return;
+
+        bool is_inside = drawable->contains_point(mousepos.x, mousepos.y);
+        bool was_hovered = drawable->hovered;
+
+        if (is_inside && !was_hovered) {
+            // Mouse entered
+            drawable->hovered = true;
+            if (drawable->on_enter_callable) {
+                drawable->on_enter_callable->call(mousepos, "enter", "start");
+            }
+        } else if (!is_inside && was_hovered) {
+            // Mouse exited
+            drawable->hovered = false;
+            if (drawable->on_exit_callable) {
+                drawable->on_exit_callable->call(mousepos, "exit", "start");
+            }
+        }
+
+        // #141 - Fire on_move if mouse is inside and has a move callback
+        if (is_inside && drawable->on_move_callable) {
+            drawable->on_move_callable->call(mousepos, "move", "start");
+        }
+
+        // Process children for Frame elements
+        if (drawable->derived_type() == PyObjectsEnum::UIFRAME) {
+            auto frame = static_cast<UIFrame*>(drawable);
+            if (frame->children) {
+                for (auto& child : *frame->children) {
+                    processHover(child.get());
+                }
+            }
+        }
+        // Process children for Grid elements
+        else if (drawable->derived_type() == PyObjectsEnum::UIGRID) {
+            auto grid = static_cast<UIGrid*>(drawable);
+
+            // #142 - Update cell hover tracking for grid
+            grid->updateCellHover(mousepos);
+
+            if (grid->children) {
+                for (auto& child : *grid->children) {
+                    processHover(child.get());
+                }
+            }
+        }
+    };
+
+    // Process all top-level UI elements
+    for (auto& element : *ui_elements) {
+        processHover(element.get());
     }
 }
 

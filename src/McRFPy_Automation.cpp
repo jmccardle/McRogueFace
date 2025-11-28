@@ -6,6 +6,14 @@
 #include <sstream>
 #include <unordered_map>
 
+// #111 - Static member for simulated mouse position in headless mode
+sf::Vector2i McRFPy_Automation::simulated_mouse_pos(0, 0);
+
+// #111 - Get simulated mouse position for headless mode
+sf::Vector2i McRFPy_Automation::getSimulatedMousePosition() {
+    return simulated_mouse_pos;
+}
+
 // Helper function to get game engine
 GameEngine* McRFPy_Automation::getGameEngine() {
     return McRFPy_API::game;
@@ -106,10 +114,17 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
 void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button) {
     auto engine = getGameEngine();
     if (!engine) return;
-    
+
+    // #111 - Track simulated mouse position for headless mode
+    if (type == sf::Event::MouseMoved ||
+        type == sf::Event::MouseButtonPressed ||
+        type == sf::Event::MouseButtonReleased) {
+        simulated_mouse_pos = sf::Vector2i(x, y);
+    }
+
     sf::Event event;
     event.type = type;
-    
+
     switch (type) {
         case sf::Event::MouseMoved:
             event.mouseMove.x = x;
@@ -130,7 +145,7 @@ void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y
         default:
             break;
     }
-    
+
     engine->processEvent(event);
 }
 
@@ -219,18 +234,22 @@ PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
 PyObject* McRFPy_Automation::_position(PyObject* self, PyObject* args) {
     auto engine = getGameEngine();
     if (!engine || !engine->getRenderTargetPtr()) {
-        return Py_BuildValue("(ii)", 0, 0);
+        return Py_BuildValue("(ii)", simulated_mouse_pos.x, simulated_mouse_pos.y);
     }
-    
-    // In headless mode, we'd need to track the simulated mouse position
-    // For now, return the actual mouse position relative to window if available
+
+    // In headless mode, return the simulated mouse position (#111)
+    if (engine->isHeadless()) {
+        return Py_BuildValue("(ii)", simulated_mouse_pos.x, simulated_mouse_pos.y);
+    }
+
+    // In windowed mode, return the actual mouse position relative to window
     if (auto* window = dynamic_cast<sf::RenderWindow*>(engine->getRenderTargetPtr())) {
         sf::Vector2i pos = sf::Mouse::getPosition(*window);
         return Py_BuildValue("(ii)", pos.x, pos.y);
     }
-    
-    // In headless mode, return simulated position (TODO: track this)
-    return Py_BuildValue("(ii)", 0, 0);
+
+    // Fallback to simulated position
+    return Py_BuildValue("(ii)", simulated_mouse_pos.x, simulated_mouse_pos.y);
 }
 
 // Get screen size

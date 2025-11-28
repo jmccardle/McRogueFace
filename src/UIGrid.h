@@ -7,6 +7,7 @@
 #include <list>
 #include <libtcod.h>
 #include <mutex>
+#include <optional>
 
 #include "PyCallable.h"
 #include "PyTexture.h"
@@ -82,10 +83,22 @@ public:
 
     // Background rendering
     sf::Color fill_color;
-    
+
     // Perspective system - entity whose view to render
     std::weak_ptr<UIEntity> perspective_entity;  // Weak reference to perspective entity
     bool perspective_enabled;                     // Whether to use perspective rendering
+
+    // #142 - Grid cell mouse events
+    std::unique_ptr<PyClickCallable> on_cell_enter_callable;
+    std::unique_ptr<PyClickCallable> on_cell_exit_callable;
+    std::unique_ptr<PyClickCallable> on_cell_click_callable;
+    std::optional<sf::Vector2i> hovered_cell;  // Currently hovered cell or nullopt
+
+    // #142 - Cell coordinate conversion (screen pos -> cell coords)
+    std::optional<sf::Vector2i> screenToCell(sf::Vector2f screen_pos) const;
+
+    // #142 - Update cell hover state (called from PyScene)
+    void updateCellHover(sf::Vector2f mousepos);
     
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
@@ -125,6 +138,15 @@ public:
     static PyObject* get_entities(PyUIGridObject* self, void* closure);
     static PyObject* get_children(PyUIGridObject* self, void* closure);
     static PyObject* repr(PyUIGridObject* self);
+
+    // #142 - Grid cell mouse event Python API
+    static PyObject* get_on_cell_enter(PyUIGridObject* self, void* closure);
+    static int set_on_cell_enter(PyUIGridObject* self, PyObject* value, void* closure);
+    static PyObject* get_on_cell_exit(PyUIGridObject* self, void* closure);
+    static int set_on_cell_exit(PyUIGridObject* self, PyObject* value, void* closure);
+    static PyObject* get_on_cell_click(PyUIGridObject* self, void* closure);
+    static int set_on_cell_click(PyUIGridObject* self, PyObject* value, void* closure);
+    static PyObject* get_hovered_cell(PyUIGridObject* self, void* closure);
     
 };
 

@@ -51,6 +51,12 @@ public:
     static sf::Keyboard::Key stringToKey(const std::string& keyName);
     static void sleep_ms(int milliseconds);
     
+    // #111 - Simulated mouse position for headless mode
+    static sf::Vector2i getSimulatedMousePosition();
+
 private:
     static GameEngine* getGameEngine();
+
+    // #111 - Track simulated mouse position for headless mode
+    static sf::Vector2i simulated_mouse_pos;
 };

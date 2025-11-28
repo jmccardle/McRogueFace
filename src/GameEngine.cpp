@@ -428,6 +428,15 @@ void GameEngine::processEvent(const sf::Event& event)
             actionCode = ActionCode::keycode(event.mouseWheelScroll.wheel, delta );
         }
     }
+    // #140 - Handle mouse movement for hover detection
+    else if (event.type == sf::Event::MouseMoved)
+    {
+        // Cast to PyScene to call do_mouse_hover
+        if (auto* pyscene = dynamic_cast<PyScene*>(currentScene())) {
+            pyscene->do_mouse_hover(event.mouseMove.x, event.mouseMove.y);
+        }
+        return;
+    }
     else
         return;
 

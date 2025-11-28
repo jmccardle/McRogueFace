@@ -36,11 +36,28 @@ public:
     virtual void render(sf::Vector2f, sf::RenderTarget&) = 0;
     virtual PyObjectsEnum derived_type() = 0;
 
-    // Mouse input handling - callable object, methods to find event's destination
+    // Mouse input handling - callable objects for click, enter, exit, move events
     std::unique_ptr<PyClickCallable> click_callable;
+    std::unique_ptr<PyClickCallable> on_enter_callable;   // #140
+    std::unique_ptr<PyClickCallable> on_exit_callable;    // #140
+    std::unique_ptr<PyClickCallable> on_move_callable;    // #141
+
     virtual UIDrawable* click_at(sf::Vector2f point) = 0;
     void click_register(PyObject*);
     void click_unregister();
+
+    // #140 - Mouse enter/exit callbacks
+    void on_enter_register(PyObject*);
+    void on_enter_unregister();
+    void on_exit_register(PyObject*);
+    void on_exit_unregister();
+
+    // #141 - Mouse move callback
+    void on_move_register(PyObject*);
+    void on_move_unregister();
+
+    // #140 - Hovered state (set by GameEngine)
+    bool hovered = false;
 
     UIDrawable();
     virtual ~UIDrawable();
@@ -55,6 +72,15 @@ public:
 
     static PyObject* get_click(PyObject* self, void* closure);
     static int set_click(PyObject* self, PyObject* value, void* closure);
+    // #140 - Python API for on_enter/on_exit callbacks
+    static PyObject* get_on_enter(PyObject* self, void* closure);
+    static int set_on_enter(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_on_exit(PyObject* self, void* closure);
+    static int set_on_exit(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_hovered(PyObject* self, void* closure);
+    // #141 - Python API for on_move callback
+    static PyObject* get_on_move(PyObject* self, void* closure);
+    static int set_on_move(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_int(PyObject* self, void* closure);
     static int set_int(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_name(PyObject* self, void* closure);

@@ -5,6 +5,7 @@
 #include "UIEntity.h"
 #include "Profiler.h"
 #include <algorithm>
+#include <cmath>  // #142 - for std::floor
 // UIDrawable methods now in UIBase.h
 
 UIGrid::UIGrid() 
@@ -619,9 +620,51 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
     
     // No entity handled it, check if grid itself has handler
     if (click_callable) {
+        // #142 - Fire on_cell_click if we have the callback and clicked on a valid cell
+        if (on_cell_click_callable) {
+            int cell_x = static_cast<int>(std::floor(grid_x));
+            int cell_y = static_cast<int>(std::floor(grid_y));
+
+            // Only fire if within valid grid bounds
+            if (cell_x >= 0 && cell_x < this->grid_x && cell_y >= 0 && cell_y < this->grid_y) {
+                PyObject* args = Py_BuildValue("(ii)", cell_x, cell_y);
+                PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
+                Py_DECREF(args);
+                if (!result) {
+                    std::cerr << "Cell click callback raised an exception:" << std::endl;
+                    PyErr_Print();
+                    PyErr_Clear();
+                } else {
+                    Py_DECREF(result);
+                }
+            }
+        }
         return this;
     }
-    
+
+    // #142 - Even without click_callable, fire on_cell_click if present
+    // Note: We fire the callback but DON'T return this, because PyScene::do_mouse_input
+    // would try to call click_callable which doesn't exist
+    if (on_cell_click_callable) {
+        int cell_x = static_cast<int>(std::floor(grid_x));
+        int cell_y = static_cast<int>(std::floor(grid_y));
+
+        // Only fire if within valid grid bounds
+        if (cell_x >= 0 && cell_x < this->grid_x && cell_y >= 0 && cell_y < this->grid_y) {
+            PyObject* args = Py_BuildValue("(ii)", cell_x, cell_y);
+            PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
+            Py_DECREF(args);
+            if (!result) {
+                std::cerr << "Cell click callback raised an exception:" << std::endl;
+                PyErr_Print();
+                PyErr_Clear();
+            } else {
+                Py_DECREF(result);
+            }
+            // Don't return this - no click_callable to call
+        }
+    }
+
     return nullptr;
 }
 
@@ -1500,6 +1543,15 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIGRID},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIGRID),
+    // #142 - Grid cell mouse events
+    {"on_cell_enter", (getter)UIGrid::get_on_cell_enter, (setter)UIGrid::set_on_cell_enter,
+     "Callback when mouse enters a grid cell. Called with (cell_x, cell_y).", NULL},
+    {"on_cell_exit", (getter)UIGrid::get_on_cell_exit, (setter)UIGrid::set_on_cell_exit,
+     "Callback when mouse exits a grid cell. Called with (cell_x, cell_y).", NULL},
+    {"on_cell_click", (getter)UIGrid::get_on_cell_click, (setter)UIGrid::set_on_cell_click,
+     "Callback when a grid cell is clicked. Called with (cell_x, cell_y).", NULL},
+    {"hovered_cell", (getter)UIGrid::get_hovered_cell, NULL,
+     "Currently hovered cell as (x, y) tuple, or None if not hovering.", NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -1549,6 +1601,145 @@ void PyUIGrid_dealloc(PyUIGridObject* self) {
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 */
+
+// #142 - Grid cell mouse event getters/setters
+PyObject* UIGrid::get_on_cell_enter(PyUIGridObject* self, void* closure) {
+    if (self->data->on_cell_enter_callable) {
+        PyObject* cb = self->data->on_cell_enter_callable->borrow();
+        Py_INCREF(cb);  // Return new reference, not borrowed
+        return cb;
+    }
+    Py_RETURN_NONE;
+}
+
+int UIGrid::set_on_cell_enter(PyUIGridObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        self->data->on_cell_enter_callable.reset();
+    } else {
+        self->data->on_cell_enter_callable = std::make_unique<PyClickCallable>(value);
+    }
+    return 0;
+}
+
+PyObject* UIGrid::get_on_cell_exit(PyUIGridObject* self, void* closure) {
+    if (self->data->on_cell_exit_callable) {
+        PyObject* cb = self->data->on_cell_exit_callable->borrow();
+        Py_INCREF(cb);  // Return new reference, not borrowed
+        return cb;
+    }
+    Py_RETURN_NONE;
+}
+
+int UIGrid::set_on_cell_exit(PyUIGridObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        self->data->on_cell_exit_callable.reset();
+    } else {
+        self->data->on_cell_exit_callable = std::make_unique<PyClickCallable>(value);
+    }
+    return 0;
+}
+
+PyObject* UIGrid::get_on_cell_click(PyUIGridObject* self, void* closure) {
+    if (self->data->on_cell_click_callable) {
+        PyObject* cb = self->data->on_cell_click_callable->borrow();
+        Py_INCREF(cb);  // Return new reference, not borrowed
+        return cb;
+    }
+    Py_RETURN_NONE;
+}
+
+int UIGrid::set_on_cell_click(PyUIGridObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        self->data->on_cell_click_callable.reset();
+    } else {
+        self->data->on_cell_click_callable = std::make_unique<PyClickCallable>(value);
+    }
+    return 0;
+}
+
+PyObject* UIGrid::get_hovered_cell(PyUIGridObject* self, void* closure) {
+    if (self->data->hovered_cell.has_value()) {
+        return Py_BuildValue("(ii)", self->data->hovered_cell->x, self->data->hovered_cell->y);
+    }
+    Py_RETURN_NONE;
+}
+
+// #142 - Convert screen coordinates to cell coordinates
+std::optional<sf::Vector2i> UIGrid::screenToCell(sf::Vector2f screen_pos) const {
+    // Get grid's global position
+    sf::Vector2f global_pos = get_global_position();
+    sf::Vector2f local_pos = screen_pos - global_pos;
+
+    // Check if within grid bounds
+    sf::FloatRect bounds = box.getGlobalBounds();
+    if (local_pos.x < 0 || local_pos.y < 0 ||
+        local_pos.x >= bounds.width || local_pos.y >= bounds.height) {
+        return std::nullopt;
+    }
+
+    // Get cell size from texture or default
+    float cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
+    float cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+
+    // Apply zoom
+    cell_width *= zoom;
+    cell_height *= zoom;
+
+    // Calculate grid space position (account for center/pan)
+    float half_width = bounds.width / 2.0f;
+    float half_height = bounds.height / 2.0f;
+    float grid_space_x = (local_pos.x - half_width) / zoom + center_x;
+    float grid_space_y = (local_pos.y - half_height) / zoom + center_y;
+
+    // Convert to cell coordinates
+    int cell_x = static_cast<int>(std::floor(grid_space_x / (ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH)));
+    int cell_y = static_cast<int>(std::floor(grid_space_y / (ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT)));
+
+    // Check if within valid cell range
+    if (cell_x < 0 || cell_x >= grid_x || cell_y < 0 || cell_y >= grid_y) {
+        return std::nullopt;
+    }
+
+    return sf::Vector2i(cell_x, cell_y);
+}
+
+// #142 - Update cell hover state and fire callbacks
+void UIGrid::updateCellHover(sf::Vector2f mousepos) {
+    auto new_cell = screenToCell(mousepos);
+
+    // Check if cell changed
+    if (new_cell != hovered_cell) {
+        // Fire exit callback for old cell
+        if (hovered_cell.has_value() && on_cell_exit_callable) {
+            PyObject* args = Py_BuildValue("(ii)", hovered_cell->x, hovered_cell->y);
+            PyObject* result = PyObject_CallObject(on_cell_exit_callable->borrow(), args);
+            Py_DECREF(args);
+            if (!result) {
+                std::cerr << "Cell exit callback raised an exception:" << std::endl;
+                PyErr_Print();
+                PyErr_Clear();
+            } else {
+                Py_DECREF(result);
+            }
+        }
+
+        // Fire enter callback for new cell
+        if (new_cell.has_value() && on_cell_enter_callable) {
+            PyObject* args = Py_BuildValue("(ii)", new_cell->x, new_cell->y);
+            PyObject* result = PyObject_CallObject(on_cell_enter_callable->borrow(), args);
+            Py_DECREF(args);
+            if (!result) {
+                std::cerr << "Cell enter callback raised an exception:" << std::endl;
+                PyErr_Print();
+                PyErr_Clear();
+            } else {
+                Py_DECREF(result);
+            }
+        }
+
+        hovered_cell = new_cell;
+    }
+}
 
 int UIEntityCollectionIter::init(PyUIEntityCollectionIterObject* self, PyObject* args, PyObject* kwds)
 {

@@ -12,12 +12,13 @@
 
 UIDrawable::UIDrawable() : position(0.0f, 0.0f) { click_callable = NULL;  }
 
-UIDrawable::UIDrawable(const UIDrawable& other) 
+UIDrawable::UIDrawable(const UIDrawable& other)
     : z_index(other.z_index),
       name(other.name),
       position(other.position),
       visible(other.visible),
       opacity(other.opacity),
+      hovered(false),  // Don't copy hover state
       serial_number(0),  // Don't copy serial number
       use_render_texture(other.use_render_texture),
       render_dirty(true)  // Force redraw after copy
@@ -26,7 +27,18 @@ UIDrawable::UIDrawable(const UIDrawable& other)
     if (other.click_callable) {
         click_callable = std::make_unique<PyClickCallable>(*other.click_callable);
     }
-    
+    // #140 - Deep copy enter/exit callables
+    if (other.on_enter_callable) {
+        on_enter_callable = std::make_unique<PyClickCallable>(*other.on_enter_callable);
+    }
+    if (other.on_exit_callable) {
+        on_exit_callable = std::make_unique<PyClickCallable>(*other.on_exit_callable);
+    }
+    // #141 - Deep copy move callable
+    if (other.on_move_callable) {
+        on_move_callable = std::make_unique<PyClickCallable>(*other.on_move_callable);
+    }
+
     // Deep copy render texture if needed
     if (other.render_texture && other.use_render_texture) {
         auto size = other.render_texture->getSize();
@@ -42,16 +54,34 @@ UIDrawable& UIDrawable::operator=(const UIDrawable& other) {
         position = other.position;
         visible = other.visible;
         opacity = other.opacity;
+        hovered = false;  // Don't copy hover state
         use_render_texture = other.use_render_texture;
         render_dirty = true;  // Force redraw after copy
-        
+
         // Deep copy click_callable
         if (other.click_callable) {
             click_callable = std::make_unique<PyClickCallable>(*other.click_callable);
         } else {
             click_callable.reset();
         }
-        
+        // #140 - Deep copy enter/exit callables
+        if (other.on_enter_callable) {
+            on_enter_callable = std::make_unique<PyClickCallable>(*other.on_enter_callable);
+        } else {
+            on_enter_callable.reset();
+        }
+        if (other.on_exit_callable) {
+            on_exit_callable = std::make_unique<PyClickCallable>(*other.on_exit_callable);
+        } else {
+            on_exit_callable.reset();
+        }
+        // #141 - Deep copy move callable
+        if (other.on_move_callable) {
+            on_move_callable = std::make_unique<PyClickCallable>(*other.on_move_callable);
+        } else {
+            on_move_callable.reset();
+        }
+
         // Deep copy render texture if needed
         if (other.render_texture && other.use_render_texture) {
             auto size = other.render_texture->getSize();
@@ -70,8 +100,12 @@ UIDrawable::UIDrawable(UIDrawable&& other) noexcept
       position(other.position),
       visible(other.visible),
       opacity(other.opacity),
+      hovered(other.hovered),
       serial_number(other.serial_number),
       click_callable(std::move(other.click_callable)),
+      on_enter_callable(std::move(other.on_enter_callable)),  // #140
+      on_exit_callable(std::move(other.on_exit_callable)),    // #140
+      on_move_callable(std::move(other.on_move_callable)),    // #141
       render_texture(std::move(other.render_texture)),
       render_sprite(std::move(other.render_sprite)),
       use_render_texture(other.use_render_texture),
@@ -79,6 +113,7 @@ UIDrawable::UIDrawable(UIDrawable&& other) noexcept
 {
     // Clear the moved-from object's serial number to avoid cache issues
     other.serial_number = 0;
+    other.hovered = false;  // #140
 }
 
 UIDrawable& UIDrawable::operator=(UIDrawable&& other) noexcept {
@@ -87,24 +122,29 @@ UIDrawable& UIDrawable::operator=(UIDrawable&& other) noexcept {
         if (serial_number != 0) {
             PythonObjectCache::getInstance().remove(serial_number);
         }
-        
+
         // Move basic members
         z_index = other.z_index;
         name = std::move(other.name);
         position = other.position;
         visible = other.visible;
         opacity = other.opacity;
+        hovered = other.hovered;  // #140
         serial_number = other.serial_number;
         use_render_texture = other.use_render_texture;
         render_dirty = other.render_dirty;
-        
+
         // Move unique_ptr members
         click_callable = std::move(other.click_callable);
+        on_enter_callable = std::move(other.on_enter_callable);  // #140
+        on_exit_callable = std::move(other.on_exit_callable);    // #140
+        on_move_callable = std::move(other.on_move_callable);    // #141
         render_texture = std::move(other.render_texture);
         render_sprite = std::move(other.render_sprite);
-        
+
         // Clear the moved-from object's serial number
         other.serial_number = 0;
+        other.hovered = false;  // #140
     }
     return *this;
 }
@@ -226,6 +266,38 @@ int UIDrawable::set_click(PyObject* self, PyObject* value, void* closure) {
 void UIDrawable::click_register(PyObject* callable)
 {
     click_callable = std::make_unique<PyClickCallable>(callable);
+}
+
+// #140 - Mouse enter/exit callback registration
+void UIDrawable::on_enter_register(PyObject* callable)
+{
+    on_enter_callable = std::make_unique<PyClickCallable>(callable);
+}
+
+void UIDrawable::on_enter_unregister()
+{
+    on_enter_callable.reset();
+}
+
+void UIDrawable::on_exit_register(PyObject* callable)
+{
+    on_exit_callable = std::make_unique<PyClickCallable>(callable);
+}
+
+void UIDrawable::on_exit_unregister()
+{
+    on_exit_callable.reset();
+}
+
+// #141 - Mouse move callback registration
+void UIDrawable::on_move_register(PyObject* callable)
+{
+    on_move_callable = std::make_unique<PyClickCallable>(callable);
+}
+
+void UIDrawable::on_move_unregister()
+{
+    on_move_callable.reset();
 }
 
 PyObject* UIDrawable::get_int(PyObject* self, void* closure) {
@@ -1064,4 +1136,288 @@ PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
 
     sf::FloatRect bounds = drawable->get_global_bounds();
     return Py_BuildValue("(ffff)", bounds.left, bounds.top, bounds.width, bounds.height);
+}
+
+// #140 - Python API for on_enter property
+PyObject* UIDrawable::get_on_enter(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObject* ptr = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            if (((PyUIFrameObject*)self)->data->on_enter_callable)
+                ptr = ((PyUIFrameObject*)self)->data->on_enter_callable->borrow();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            if (((PyUICaptionObject*)self)->data->on_enter_callable)
+                ptr = ((PyUICaptionObject*)self)->data->on_enter_callable->borrow();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            if (((PyUISpriteObject*)self)->data->on_enter_callable)
+                ptr = ((PyUISpriteObject*)self)->data->on_enter_callable->borrow();
+            break;
+        case PyObjectsEnum::UIGRID:
+            if (((PyUIGridObject*)self)->data->on_enter_callable)
+                ptr = ((PyUIGridObject*)self)->data->on_enter_callable->borrow();
+            break;
+        case PyObjectsEnum::UILINE:
+            if (((PyUILineObject*)self)->data->on_enter_callable)
+                ptr = ((PyUILineObject*)self)->data->on_enter_callable->borrow();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            if (((PyUICircleObject*)self)->data->on_enter_callable)
+                ptr = ((PyUICircleObject*)self)->data->on_enter_callable->borrow();
+            break;
+        case PyObjectsEnum::UIARC:
+            if (((PyUIArcObject*)self)->data->on_enter_callable)
+                ptr = ((PyUIArcObject*)self)->data->on_enter_callable->borrow();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_enter");
+            return NULL;
+    }
+    if (ptr && ptr != Py_None)
+        return ptr;
+    else
+        Py_RETURN_NONE;
+}
+
+int UIDrawable::set_on_enter(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* target = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            target = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            target = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            target = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            target = ((PyUIGridObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UILINE:
+            target = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            target = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            target = ((PyUIArcObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_enter");
+            return -1;
+    }
+
+    if (value == Py_None) {
+        target->on_enter_unregister();
+    } else {
+        target->on_enter_register(value);
+    }
+    return 0;
+}
+
+// #140 - Python API for on_exit property
+PyObject* UIDrawable::get_on_exit(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObject* ptr = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            if (((PyUIFrameObject*)self)->data->on_exit_callable)
+                ptr = ((PyUIFrameObject*)self)->data->on_exit_callable->borrow();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            if (((PyUICaptionObject*)self)->data->on_exit_callable)
+                ptr = ((PyUICaptionObject*)self)->data->on_exit_callable->borrow();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            if (((PyUISpriteObject*)self)->data->on_exit_callable)
+                ptr = ((PyUISpriteObject*)self)->data->on_exit_callable->borrow();
+            break;
+        case PyObjectsEnum::UIGRID:
+            if (((PyUIGridObject*)self)->data->on_exit_callable)
+                ptr = ((PyUIGridObject*)self)->data->on_exit_callable->borrow();
+            break;
+        case PyObjectsEnum::UILINE:
+            if (((PyUILineObject*)self)->data->on_exit_callable)
+                ptr = ((PyUILineObject*)self)->data->on_exit_callable->borrow();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            if (((PyUICircleObject*)self)->data->on_exit_callable)
+                ptr = ((PyUICircleObject*)self)->data->on_exit_callable->borrow();
+            break;
+        case PyObjectsEnum::UIARC:
+            if (((PyUIArcObject*)self)->data->on_exit_callable)
+                ptr = ((PyUIArcObject*)self)->data->on_exit_callable->borrow();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_exit");
+            return NULL;
+    }
+    if (ptr && ptr != Py_None)
+        return ptr;
+    else
+        Py_RETURN_NONE;
+}
+
+int UIDrawable::set_on_exit(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* target = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            target = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            target = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            target = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            target = ((PyUIGridObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UILINE:
+            target = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            target = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            target = ((PyUIArcObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_exit");
+            return -1;
+    }
+
+    if (value == Py_None) {
+        target->on_exit_unregister();
+    } else {
+        target->on_exit_register(value);
+    }
+    return 0;
+}
+
+// #140 - Python API for hovered property (read-only)
+PyObject* UIDrawable::get_hovered(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return NULL;
+    }
+
+    return PyBool_FromLong(drawable->hovered);
+}
+
+// #141 - Python API for on_move property
+PyObject* UIDrawable::get_on_move(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObject* ptr = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            if (((PyUIFrameObject*)self)->data->on_move_callable)
+                ptr = ((PyUIFrameObject*)self)->data->on_move_callable->borrow();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            if (((PyUICaptionObject*)self)->data->on_move_callable)
+                ptr = ((PyUICaptionObject*)self)->data->on_move_callable->borrow();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            if (((PyUISpriteObject*)self)->data->on_move_callable)
+                ptr = ((PyUISpriteObject*)self)->data->on_move_callable->borrow();
+            break;
+        case PyObjectsEnum::UIGRID:
+            if (((PyUIGridObject*)self)->data->on_move_callable)
+                ptr = ((PyUIGridObject*)self)->data->on_move_callable->borrow();
+            break;
+        case PyObjectsEnum::UILINE:
+            if (((PyUILineObject*)self)->data->on_move_callable)
+                ptr = ((PyUILineObject*)self)->data->on_move_callable->borrow();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            if (((PyUICircleObject*)self)->data->on_move_callable)
+                ptr = ((PyUICircleObject*)self)->data->on_move_callable->borrow();
+            break;
+        case PyObjectsEnum::UIARC:
+            if (((PyUIArcObject*)self)->data->on_move_callable)
+                ptr = ((PyUIArcObject*)self)->data->on_move_callable->borrow();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_move");
+            return NULL;
+    }
+    if (ptr && ptr != Py_None)
+        return ptr;
+    else
+        Py_RETURN_NONE;
+}
+
+int UIDrawable::set_on_move(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* target = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            target = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            target = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            target = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            target = ((PyUIGridObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UILINE:
+            target = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            target = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            target = ((PyUIArcObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_move");
+            return -1;
+    }
+
+    if (value == Py_None) {
+        target->on_move_unregister();
+    } else {
+        target->on_move_register(value);
+    }
+    return 0;
 }

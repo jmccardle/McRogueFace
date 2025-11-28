@@ -183,6 +183,27 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
     {"global_bounds", (getter)UIDrawable::get_global_bounds_py, NULL, \
      MCRF_PROPERTY(global_bounds, \
          "Bounding rectangle (x, y, width, height) in screen coordinates." \
+     ), (void*)type_enum}, \
+    {"on_enter", (getter)UIDrawable::get_on_enter, (setter)UIDrawable::set_on_enter, \
+     MCRF_PROPERTY(on_enter, \
+         "Callback for mouse enter events. " \
+         "Called with (x, y, button, action) when mouse enters this element's bounds." \
+     ), (void*)type_enum}, \
+    {"on_exit", (getter)UIDrawable::get_on_exit, (setter)UIDrawable::set_on_exit, \
+     MCRF_PROPERTY(on_exit, \
+         "Callback for mouse exit events. " \
+         "Called with (x, y, button, action) when mouse leaves this element's bounds." \
+     ), (void*)type_enum}, \
+    {"hovered", (getter)UIDrawable::get_hovered, NULL, \
+     MCRF_PROPERTY(hovered, \
+         "Whether mouse is currently over this element (read-only). " \
+         "Updated automatically by the engine during mouse movement." \
+     ), (void*)type_enum}, \
+    {"on_move", (getter)UIDrawable::get_on_move, (setter)UIDrawable::set_on_move, \
+     MCRF_PROPERTY(on_move, \
+         "Callback for mouse movement within bounds. " \
+         "Called with (x, y, button, action) for each mouse movement while inside. " \
+         "Performance note: Called frequently during movement - keep handlers fast." \
      ), (void*)type_enum}
 
 // UIEntity specializations are defined in UIEntity.cpp after UIEntity class is complete

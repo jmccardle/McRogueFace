@@ -14,7 +14,8 @@ public:
     void render() override final;
 
     void do_mouse_input(std::string, std::string);
-    
+    void do_mouse_hover(int x, int y);  // #140 - Mouse enter/exit tracking
+
     // Dirty flag for z_index sorting optimization
     bool ui_elements_need_sort = true;
 };
