@@ -97,6 +97,10 @@ public:
     static PyObject* get_parent(PyObject* self, void* closure);
     static int set_parent(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_global_pos(PyObject* self, void* closure);
+
+    // Python API for hit testing (#138)
+    static PyObject* get_bounds_py(PyObject* self, void* closure);
+    static PyObject* get_global_bounds_py(PyObject* self, void* closure);
     
     // New properties for Phase 1
     bool visible = true;      // #87 - visibility flag
@@ -106,6 +110,10 @@ public:
     virtual sf::FloatRect get_bounds() const = 0;  // #89 - get bounding box
     virtual void move(float dx, float dy) = 0;     // #98 - move by offset
     virtual void resize(float w, float h) = 0;     // #98 - resize to dimensions
+
+    // Hit testing (#138)
+    sf::FloatRect get_global_bounds() const;       // Bounds in screen coordinates
+    bool contains_point(float x, float y) const;   // Hit test using global bounds
     
     // Called when position changes to allow derived classes to sync
     virtual void onPositionChanged() {}

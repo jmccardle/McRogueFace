@@ -175,6 +175,14 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
      MCRF_PROPERTY(global_position, \
          "Global screen position (read-only). " \
          "Calculates absolute position by walking up the parent chain." \
+     ), (void*)type_enum}, \
+    {"bounds", (getter)UIDrawable::get_bounds_py, NULL, \
+     MCRF_PROPERTY(bounds, \
+         "Bounding rectangle (x, y, width, height) in local coordinates." \
+     ), (void*)type_enum}, \
+    {"global_bounds", (getter)UIDrawable::get_global_bounds_py, NULL, \
+     MCRF_PROPERTY(global_bounds, \
+         "Bounding rectangle (x, y, width, height) in screen coordinates." \
      ), (void*)type_enum}
 
 // UIEntity specializations are defined in UIEntity.cpp after UIEntity class is complete

@@ -733,6 +733,21 @@ sf::Vector2f UIDrawable::get_global_position() const {
     return global_pos;
 }
 
+// #138 - Global bounds (bounds in screen coordinates)
+sf::FloatRect UIDrawable::get_global_bounds() const {
+    sf::FloatRect local_bounds = get_bounds();
+    sf::Vector2f global_pos = get_global_position();
+
+    // Return bounds offset to global position
+    return sf::FloatRect(global_pos.x, global_pos.y, local_bounds.width, local_bounds.height);
+}
+
+// #138 - Hit testing
+bool UIDrawable::contains_point(float x, float y) const {
+    sf::FloatRect global_bounds = get_global_bounds();
+    return global_bounds.contains(x, y);
+}
+
 // #116 - Dirty flag propagation up parent chain
 void UIDrawable::markDirty() {
     if (render_dirty) return;  // Already dirty, no need to propagate
@@ -977,4 +992,76 @@ PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
     Py_DECREF(args);
 
     return result;
+}
+
+// #138 - Python API for bounds property
+PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return NULL;
+    }
+
+    sf::FloatRect bounds = drawable->get_bounds();
+    return Py_BuildValue("(ffff)", bounds.left, bounds.top, bounds.width, bounds.height);
+}
+
+// #138 - Python API for global_bounds property
+PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    UIDrawable* drawable = nullptr;
+
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            drawable = ((PyUIFrameObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICAPTION:
+            drawable = ((PyUICaptionObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UISPRITE:
+            drawable = ((PyUISpriteObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRID:
+            drawable = ((PyUIGridObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UILINE:
+            drawable = ((PyUILineObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UICIRCLE:
+            drawable = ((PyUICircleObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIARC:
+            drawable = ((PyUIArcObject*)self)->data.get();
+            break;
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return NULL;
+    }
+
+    sf::FloatRect bounds = drawable->get_global_bounds();
+    return Py_BuildValue("(ffff)", bounds.left, bounds.top, bounds.width, bounds.height);
 }
