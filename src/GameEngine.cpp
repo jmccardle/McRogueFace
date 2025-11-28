@@ -291,6 +291,9 @@ void GameEngine::run()
             ImGui::SFML::Render(*window);
         }
 
+        // Record work time before display (which may block for vsync/framerate limit)
+        metrics.workTime = clock.getElapsedTime().asSeconds() * 1000.0f;
+
         // Display the frame
         if (headless) {
             headless_renderer->display();

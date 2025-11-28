@@ -57,8 +57,8 @@ def run_test(runtime):
         # Check frame structure
         frame = data['frames'][0]
         required_fields = ['frame_number', 'timestamp_ms', 'frame_time_ms', 'fps',
-                          'grid_render_ms', 'entity_render_ms', 'python_time_ms',
-                          'draw_calls', 'ui_elements', 'logs']
+                          'work_time_ms', 'grid_render_ms', 'entity_render_ms',
+                          'python_time_ms', 'draw_calls', 'ui_elements', 'logs']
         for field in required_fields:
             if field not in frame:
                 print(f"FAIL: Missing field '{field}' in frame")
@@ -75,7 +75,13 @@ def run_test(runtime):
             print("FAIL: Log message not found in any frame")
             sys.exit(1)
 
-        print(f"  First frame FPS: {data['frames'][0]['fps']}")
+        # Show timing breakdown
+        f0 = data['frames'][0]
+        print(f"  First frame FPS: {f0['fps']}")
+        print(f"  Frame time: {f0['frame_time_ms']:.3f}ms, Work time: {f0['work_time_ms']:.3f}ms")
+        if f0['frame_time_ms'] > 0:
+            load_pct = (f0['work_time_ms'] / f0['frame_time_ms']) * 100
+            print(f"  Load: {load_pct:.1f}% (sleep time: {f0['frame_time_ms'] - f0['work_time_ms']:.3f}ms)")
         print(f"  Log messages captured: Yes")
 
         # Clean up

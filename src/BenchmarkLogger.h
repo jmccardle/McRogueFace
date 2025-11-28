@@ -28,6 +28,7 @@ struct BenchmarkFrame {
     int fps;
 
     // Detailed timing breakdown
+    float work_time_ms;       // Actual work time (frame_time - sleep_time)
     float grid_render_ms;
     float entity_render_ms;
     float python_time_ms;
@@ -172,6 +173,7 @@ public:
             file << "      \"timestamp_ms\": " << std::fixed << std::setprecision(3) << f.timestamp_ms << ",\n";
             file << "      \"frame_time_ms\": " << std::setprecision(3) << f.frame_time_ms << ",\n";
             file << "      \"fps\": " << f.fps << ",\n";
+            file << "      \"work_time_ms\": " << std::setprecision(3) << f.work_time_ms << ",\n";
             file << "      \"grid_render_ms\": " << std::setprecision(3) << f.grid_render_ms << ",\n";
             file << "      \"entity_render_ms\": " << std::setprecision(3) << f.entity_render_ms << ",\n";
             file << "      \"python_time_ms\": " << std::setprecision(3) << f.python_time_ms << ",\n";

@@ -16,6 +16,7 @@ void BenchmarkLogger::recordFrame(const ProfilingMetrics& metrics) {
     frame.frame_time_ms = metrics.frameTime;
     frame.fps = metrics.fps;
 
+    frame.work_time_ms = metrics.workTime;
     frame.grid_render_ms = metrics.gridRenderTime;
     frame.entity_render_ms = metrics.entityRenderTime;
     frame.python_time_ms = metrics.pythonScriptTime;

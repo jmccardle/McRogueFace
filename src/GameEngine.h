@@ -34,6 +34,7 @@ struct ProfilingMetrics {
     float fovOverlayTime = 0.0f;     // Time spent rendering FOV overlays (ms)
     float pythonScriptTime = 0.0f;   // Time spent in Python callbacks (ms)
     float animationTime = 0.0f;      // Time spent updating animations (ms)
+    float workTime = 0.0f;           // Total work time before display/sleep (ms)
 
     // Grid-specific metrics
     int gridCellsRendered = 0;       // Number of grid cells drawn this frame
