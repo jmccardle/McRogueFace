@@ -360,7 +360,7 @@ PyGetSetDef UICircle::getsetters[] = {
      "Outline color of the circle", NULL},
     {"outline", (getter)UICircle::get_outline, (setter)UICircle::set_outline,
      "Outline thickness (0 for no outline)", NULL},
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+    {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      "Callable executed when circle is clicked.", (void*)PyObjectsEnum::UICIRCLE},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
      "Z-order for rendering (lower values rendered first).", (void*)PyObjectsEnum::UICIRCLE},

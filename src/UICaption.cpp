@@ -273,8 +273,8 @@ PyGetSetDef UICaption::getsetters[] = {
     //{"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
     {"text", (getter)UICaption::get_text, (setter)UICaption::set_text, "The text displayed", NULL},
     {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Font size (integer) in points", (void*)5},
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     MCRF_PROPERTY(click,
+    {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+     MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
          "Function receives (x, y) coordinates of click."
      ), (void*)PyObjectsEnum::UICAPTION},

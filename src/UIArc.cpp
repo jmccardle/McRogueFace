@@ -404,7 +404,7 @@ PyGetSetDef UIArc::getsetters[] = {
      "Arc color", NULL},
     {"thickness", (getter)UIArc::get_thickness, (setter)UIArc::set_thickness,
      "Line thickness", NULL},
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+    {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      "Callable executed when arc is clicked.", (void*)PyObjectsEnum::UIARC},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
      "Z-order for rendering (lower values rendered first).", (void*)PyObjectsEnum::UIARC},

@@ -67,7 +67,7 @@ def test_issue_42_click_callback():
     try:
         frame1 = mcrfpy.Frame(10, 10, 200, 150)
         ui.append(frame1)
-        frame1.click = correct_callback
+        frame1.on_click = correct_callback
         print("✓ Click callback with correct signature assigned successfully")
     except Exception as e:
         print(f"✗ Failed to assign correct callback: {type(e).__name__}: {e}")
@@ -80,7 +80,7 @@ def test_issue_42_click_callback():
     try:
         frame2 = mcrfpy.Frame(220, 10, 200, 150)
         ui.append(frame2)
-        frame2.click = wrong_callback_no_args
+        frame2.on_click = wrong_callback_no_args
         print("✓ Click callback with no args assigned (will fail at runtime per issue #42)")
     except Exception as e:
         print(f"✗ Failed to assign callback: {type(e).__name__}: {e}")
@@ -93,7 +93,7 @@ def test_issue_42_click_callback():
     try:
         frame3 = mcrfpy.Frame(10, 170, 200, 150)
         ui.append(frame3)
-        frame3.click = wrong_callback_few_args
+        frame3.on_click = wrong_callback_few_args
         print("✓ Click callback with 2 args assigned (will fail at runtime per issue #42)")
     except Exception as e:
         print(f"✗ Failed to assign callback: {type(e).__name__}: {e}")

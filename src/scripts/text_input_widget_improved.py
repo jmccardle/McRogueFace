@@ -127,7 +127,7 @@ class TextInput:
         self.parent_frame.children.append(self.frame)
         
         # Click handler on the input frame
-        self.frame.click = self._on_click
+        self.frame.on_click = self._on_click
     
     def _on_click(self, x, y, button, state):
         """Handle mouse clicks"""

@@ -339,8 +339,8 @@ PyGetSetDef UISprite::getsetters[] = {
     {"sprite_index", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Which sprite on the texture is shown", NULL},
     {"sprite_number", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Sprite index (DEPRECATED: use sprite_index instead)", NULL},
     {"texture", (getter)UISprite::get_texture, (setter)UISprite::set_texture,     "Texture object",                    NULL},
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     MCRF_PROPERTY(click,
+    {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+     MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
          "Function receives (x, y) coordinates of click."
      ), (void*)PyObjectsEnum::UISPRITE},

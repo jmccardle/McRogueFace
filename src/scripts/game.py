@@ -437,7 +437,7 @@ class SweetButton:
         # box w/ drop shadow
         self.shadow_offset = shadow_offset
         self.base_frame = mcrfpy.Frame(pos=(x, y), size=(box_width+shadow_offset, box_height), fill_color=(0, 0, 0, 255))
-        self.base_frame.click = self.do_click
+        self.base_frame.on_click = self.do_click
 
         # drop shadow won't need configured, append directly
         if shadow:

@@ -68,7 +68,7 @@ frame.children.append(caption)
 def frame_clicked(x, y, button):
     print(f"Frame clicked at ({x}, {y}) with button {button}")
 
-frame.click = frame_clicked
+frame.on_click = frame_clicked
 
 print("Scene setup complete. Setting timer for automation tests...")
 

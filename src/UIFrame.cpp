@@ -400,8 +400,8 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"fill_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member, "Fill color of the rectangle", (void*)0},
     {"outline_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member, "Outline color of the rectangle", (void*)1},
     {"children", (getter)UIFrame::get_children, NULL, "UICollection of objects on top of this one", NULL},
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     MCRF_PROPERTY(click,
+    {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+     MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
          "Function receives (x, y) coordinates of click."
      ), (void*)PyObjectsEnum::UIFRAME},

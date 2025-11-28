@@ -99,8 +99,8 @@ static int PyDrawable_set_opacity(PyDrawableObject* self, PyObject* value, void*
 
 // GetSetDef array for properties
 static PyGetSetDef PyDrawable_getsetters[] = {
-    {"click", (getter)PyDrawable_get_click, (setter)PyDrawable_set_click,
-     MCRF_PROPERTY(click,
+    {"on_click", (getter)PyDrawable_get_click, (setter)PyDrawable_set_click,
+     MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
          "Function receives (x, y) coordinates of click."
      ), NULL},

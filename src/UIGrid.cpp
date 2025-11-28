@@ -1478,8 +1478,8 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"center_y", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "center of the view Y-coordinate", (void*)5},
     {"zoom", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "zoom factor for displaying the Grid", (void*)6},
 
-    {"click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     MCRF_PROPERTY(click,
+    {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
+     MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
          "Function receives (x, y) coordinates of click."
      ), (void*)PyObjectsEnum::UIGRID},
