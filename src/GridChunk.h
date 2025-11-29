@@ -10,11 +10,11 @@ class UIGrid;
 class PyTexture;
 
 /**
- * #123 - Grid chunk for sub-grid rendering system
+ * #123 - Grid chunk for sub-grid data storage
+ * #150 - Rendering removed; layers now handle all rendering
  *
  * Each chunk represents a CHUNK_SIZE x CHUNK_SIZE portion of the grid.
- * Chunks have their own RenderTexture and dirty flag for efficient
- * incremental rendering - only dirty chunks are re-rendered.
+ * Chunks store GridPoint data for pathfinding and game logic.
  */
 class GridChunk {
 public:
@@ -30,16 +30,13 @@ public:
     // World position (in cell coordinates)
     int world_x, world_y;
 
-    // Cell data for this chunk
+    // Cell data for this chunk (pathfinding properties only)
     std::vector<UIGridPoint> cells;
 
-    // Cached rendering
-    sf::RenderTexture cached_texture;
-    sf::Sprite cached_sprite;
+    // Dirty flag (for layer sync if needed)
     bool dirty;
-    bool texture_initialized;
 
-    // Parent grid reference (for texture access)
+    // Parent grid reference
     UIGrid* parent_grid;
 
     // Constructor
@@ -50,15 +47,8 @@ public:
     UIGridPoint& at(int local_x, int local_y);
     const UIGridPoint& at(int local_x, int local_y) const;
 
-    // Mark chunk as needing re-render
+    // Mark chunk as dirty
     void markDirty();
-
-    // Ensure texture is properly sized
-    void ensureTexture(int cell_width, int cell_height);
-
-    // Render chunk content to cached texture
-    void renderToTexture(int cell_width, int cell_height,
-                         std::shared_ptr<PyTexture> texture);
 
     // Get pixel bounds of this chunk in world coordinates
     sf::FloatRect getWorldBounds(int cell_width, int cell_height) const;

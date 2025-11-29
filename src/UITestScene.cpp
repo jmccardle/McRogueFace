@@ -105,16 +105,16 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     */
 
     // UIGrid test:                (in grid cells)         (          in screen pixels            )
-    //              constructor args:  w  h  texture             x    y                  w    h   
+    //              constructor args:  w  h  texture             x    y                  w    h
     auto e5 = std::make_shared<UIGrid>(4, 4, ptex, sf::Vector2f(550, 150), sf::Vector2f(200, 200));
     e5->zoom=2.0;
-    e5->points[0].color =  sf::Color(255, 0, 0);
-    e5->points[1].tilesprite = 1;
-    e5->points[5].color =  sf::Color(0, 255, 0);
-    e5->points[6].tilesprite = 2;
-    e5->points[10].color = sf::Color(0, 0, 255);
-    e5->points[11].tilesprite = 3;
-    e5->points[15].color = sf::Color(255, 255, 255);
+
+    // #150 - GridPoint no longer has color/tilesprite properties
+    // Use layers for visual rendering; GridPoint only has walkable/transparent
+    // The default "tilesprite" TileLayer is created automatically
+    // Example: e5->layers[0]->at(x, y) = tile_index for TileLayer
+    e5->points[0].walkable = true;
+    e5->points[0].transparent = true;
 
     ui_elements->push_back(e5);
 

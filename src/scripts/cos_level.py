@@ -105,7 +105,9 @@ class Level:
         self.height = height
         #self.graph = [(0, 0, width, height)]
         self.graph = RoomGraph( (0, 0, width, height) )
-        self.grid = mcrfpy.Grid(grid_size=(width, height), texture=t, pos=(10, 5), size=(1014, 700))
+        # #150 - Create grid with explicit layers for color and tilesprite
+        self.grid = mcrfpy.Grid(grid_size=(width, height), texture=t, pos=(10, 5), size=(1014, 700),
+                                layers={"color": "color", "tilesprite": "tile"})
         self.highlighted = -1 #debug view feature
         self.walled_rooms = [] # for tracking "hallway rooms" vs "walled rooms"
 

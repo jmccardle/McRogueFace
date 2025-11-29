@@ -4,8 +4,7 @@
 #include <cstring>       // #150 - for strcmp
 
 UIGridPoint::UIGridPoint()
-: color(1.0f, 1.0f, 1.0f), color_overlay(0.0f, 0.0f, 0.0f), walkable(false), transparent(false),
- tilesprite(-1), tile_overlay(-1), uisprite(-1), grid_x(-1), grid_y(-1), parent_grid(nullptr)
+: walkable(false), transparent(false), grid_x(-1), grid_y(-1), parent_grid(nullptr)
 {}
 
 // Utility function to convert sf::Color to PyObject*
@@ -53,28 +52,7 @@ sf::Color PyObject_to_sfColor(PyObject* obj) {
     return sf::Color(r, g, b, a);
 }
 
-PyObject* UIGridPoint::get_color(PyUIGridPointObject* self, void* closure) {
-    if (reinterpret_cast<long>(closure) == 0) { // color
-        return sfColor_to_PyObject(self->data->color);
-    } else { // color_overlay
-        return sfColor_to_PyObject(self->data->color_overlay);
-    }
-}
-
-int UIGridPoint::set_color(PyUIGridPointObject* self, PyObject* value, void* closure) {
-    sf::Color color = PyObject_to_sfColor(value);
-    // Check if an error occurred during conversion
-    if (PyErr_Occurred()) {
-        return -1;
-    }
-    
-    if (reinterpret_cast<long>(closure) == 0) { // color
-        self->data->color = color;
-    } else { // color_overlay
-        self->data->color_overlay = color;
-    }
-    return 0;
-}
+// #150 - Removed get_color/set_color - now handled by layers
 
 PyObject* UIGridPoint::get_bool_member(PyUIGridPointObject* self, void* closure) {
     if (reinterpret_cast<long>(closure) == 0) { // walkable
@@ -110,36 +88,11 @@ int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, voi
     return 0;
 }
 
-PyObject* UIGridPoint::get_int_member(PyUIGridPointObject* self, void* closure) {
-    switch(reinterpret_cast<long>(closure)) {
-        case 0: return PyLong_FromLong(self->data->tilesprite);
-        case 1: return PyLong_FromLong(self->data->tile_overlay);
-        case 2: return PyLong_FromLong(self->data->uisprite);
-        default: PyErr_SetString(PyExc_RuntimeError, "Invalid closure"); return nullptr;
-    }
-}
-
-int UIGridPoint::set_int_member(PyUIGridPointObject* self, PyObject* value, void* closure) {
-    long val = PyLong_AsLong(value);
-    if (PyErr_Occurred()) return -1;
-
-    switch(reinterpret_cast<long>(closure)) {
-        case 0: self->data->tilesprite = val; break;
-        case 1: self->data->tile_overlay = val; break;
-        case 2: self->data->uisprite = val; break;
-        default: PyErr_SetString(PyExc_RuntimeError, "Invalid closure"); return -1;
-    }
-    return 0;
-}
+// #150 - Removed get_int_member/set_int_member - now handled by layers
 
 PyGetSetDef UIGridPoint::getsetters[] = {
-    {"color", (getter)UIGridPoint::get_color, (setter)UIGridPoint::set_color, "GridPoint color", (void*)0},
-    {"color_overlay", (getter)UIGridPoint::get_color, (setter)UIGridPoint::set_color, "GridPoint color overlay", (void*)1},
     {"walkable", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member, "Is the GridPoint walkable", (void*)0},
     {"transparent", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member, "Is the GridPoint transparent", (void*)1},
-    {"tilesprite", (getter)UIGridPoint::get_int_member, (setter)UIGridPoint::set_int_member, "Tile sprite index", (void*)0},
-    {"tile_overlay", (getter)UIGridPoint::get_int_member, (setter)UIGridPoint::set_int_member, "Tile overlay sprite index", (void*)1},
-    {"uisprite", (getter)UIGridPoint::get_int_member, (setter)UIGridPoint::set_int_member, "UI sprite index", (void*)2},
     {NULL}  /* Sentinel */
 };
 
@@ -148,9 +101,9 @@ PyObject* UIGridPoint::repr(PyUIGridPointObject* self) {
     if (!self->data) ss << "<GridPoint (invalid internal object)>";
     else {
         auto gp = self->data;
-        ss << "<GridPoint (walkable=" << (gp->walkable ? "True" : "False") << ", transparent=" << (gp->transparent ? "True" : "False") << 
-              ", tilesprite=" << gp->tilesprite << ", tile_overlay=" << gp->tile_overlay << ", uisprite=" << gp->uisprite <<
-        ")>";
+        ss << "<GridPoint (walkable=" << (gp->walkable ? "True" : "False")
+           << ", transparent=" << (gp->transparent ? "True" : "False")
+           << ") at (" << gp->grid_x << ", " << gp->grid_y << ")>";
     }
     std::string repr_str = ss.str();
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");

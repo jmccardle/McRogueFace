@@ -33,24 +33,20 @@ typedef struct {
     std::shared_ptr<UIEntity> entity;
 } PyUIGridPointStateObject;
 
-// UIGridPoint - revised grid data for each point
+// UIGridPoint - grid cell data for pathfinding and layer access
+// #150 - Layer-related properties (color, tilesprite, etc.) removed; now handled by layers
 class UIGridPoint
 {
 public:
-    sf::Color color, color_overlay;
-    bool walkable, transparent;
-    int tilesprite, tile_overlay, uisprite;
-    int grid_x, grid_y;  // Position in parent grid
-    UIGrid* parent_grid;  // Parent grid reference for TCOD sync
+    bool walkable, transparent;  // Pathfinding/FOV properties
+    int grid_x, grid_y;          // Position in parent grid
+    UIGrid* parent_grid;         // Parent grid reference for TCOD sync
     UIGridPoint();
 
-    static int set_int_member(PyUIGridPointObject* self, PyObject* value, void* closure);
+    // Built-in property accessors (walkable, transparent only)
     static PyGetSetDef getsetters[];
-    static PyObject* get_color(PyUIGridPointObject* self, void* closure);
-    static PyObject* get_int_member(PyUIGridPointObject* self, void* closure);
     static int set_bool_member(PyUIGridPointObject* self, PyObject* value, void* closure);
     static PyObject* get_bool_member(PyUIGridPointObject* self, void* closure);
-    static int set_color(PyUIGridPointObject* self, PyObject* value, void* closure);
     static PyObject* repr(PyUIGridPointObject* self);
 
     // #150 - Dynamic property access for named layers

@@ -14,7 +14,7 @@ GridChunk::GridChunk(int chunk_x, int chunk_y, int width, int height,
       width(width), height(height),
       world_x(world_x), world_y(world_y),
       cells(width * height),
-      dirty(true), texture_initialized(false),
+      dirty(true),
       parent_grid(parent)
 {}
 
@@ -30,60 +30,8 @@ void GridChunk::markDirty() {
     dirty = true;
 }
 
-void GridChunk::ensureTexture(int cell_width, int cell_height) {
-    unsigned int required_width = width * cell_width;
-    unsigned int required_height = height * cell_height;
-
-    if (texture_initialized &&
-        cached_texture.getSize().x == required_width &&
-        cached_texture.getSize().y == required_height) {
-        return;
-    }
-
-    if (!cached_texture.create(required_width, required_height)) {
-        texture_initialized = false;
-        return;
-    }
-
-    texture_initialized = true;
-    dirty = true;  // Force re-render after resize
-    cached_sprite.setTexture(cached_texture.getTexture());
-}
-
-void GridChunk::renderToTexture(int cell_width, int cell_height,
-                                std::shared_ptr<PyTexture> texture) {
-    ensureTexture(cell_width, cell_height);
-    if (!texture_initialized) return;
-
-    cached_texture.clear(sf::Color::Transparent);
-
-    sf::RectangleShape rect;
-    rect.setSize(sf::Vector2f(cell_width, cell_height));
-    rect.setOutlineThickness(0);
-
-    // Render all cells in this chunk
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            const auto& cell = at(x, y);
-            sf::Vector2f pixel_pos(x * cell_width, y * cell_height);
-
-            // Draw background color
-            rect.setPosition(pixel_pos);
-            rect.setFillColor(cell.color);
-            cached_texture.draw(rect);
-
-            // Draw tile sprite if available
-            if (texture && cell.tilesprite != -1) {
-                sf::Sprite sprite = texture->sprite(cell.tilesprite, pixel_pos,
-                                                    sf::Vector2f(1.0f, 1.0f));
-                cached_texture.draw(sprite);
-            }
-        }
-    }
-
-    cached_texture.display();
-    dirty = false;
-}
+// #150 - Removed ensureTexture/renderToTexture - base layer rendering removed
+// GridChunk now only provides data storage for GridPoints
 
 sf::FloatRect GridChunk::getWorldBounds(int cell_width, int cell_height) const {
     return sf::FloatRect(

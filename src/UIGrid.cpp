@@ -407,9 +407,9 @@ std::shared_ptr<GridLayer> UIGrid::getLayerByName(const std::string& name) {
 }
 
 bool UIGrid::isProtectedLayerName(const std::string& name) {
-    // #150 - These names are reserved for GridPoint properties
+    // #150 - These names are reserved for GridPoint pathfinding properties
     static const std::vector<std::string> protected_names = {
-        "walkable", "transparent", "color", "color_overlay"
+        "walkable", "transparent"
     };
     for (const auto& pn : protected_names) {
         if (name == pn) return true;
@@ -896,8 +896,8 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     // Default: {"tilesprite": "tile"} when layers not provided
     // Empty dict: no rendering layers (entity storage + pathfinding only)
     if (layers_obj == nullptr) {
-        // Default layer: single TileLayer named "tilesprite"
-        self->data->addTileLayer(0, texture_ptr, "tilesprite");
+        // Default layer: single TileLayer named "tilesprite" (z_index -1 = below entities)
+        self->data->addTileLayer(-1, texture_ptr, "tilesprite");
     } else if (layers_obj != Py_None) {
         if (!PyDict_Check(layers_obj)) {
             PyErr_SetString(PyExc_TypeError, "layers must be a dict mapping names to types ('color' or 'tile')");
@@ -907,7 +907,7 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         PyObject* key;
         PyObject* value;
         Py_ssize_t pos = 0;
-        int layer_z = 0;  // Auto-increment z_index for each layer
+        int layer_z = -1;  // Start at -1 (below entities), decrement for each layer
 
         while (PyDict_Next(layers_obj, &pos, &key, &value)) {
             if (!PyUnicode_Check(key)) {
@@ -929,9 +929,9 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
             }
 
             if (strcmp(layer_type, "color") == 0) {
-                self->data->addColorLayer(layer_z++, layer_name);
+                self->data->addColorLayer(layer_z--, layer_name);
             } else if (strcmp(layer_type, "tile") == 0) {
-                self->data->addTileLayer(layer_z++, texture_ptr, layer_name);
+                self->data->addTileLayer(layer_z--, texture_ptr, layer_name);
             } else {
                 PyErr_Format(PyExc_ValueError, "Unknown layer type '%s' (expected 'color' or 'tile')", layer_type);
                 return -1;
