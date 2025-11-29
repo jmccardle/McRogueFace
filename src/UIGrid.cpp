@@ -8,10 +8,10 @@
 #include <cmath>  // #142 - for std::floor
 // UIDrawable methods now in UIBase.h
 
-UIGrid::UIGrid() 
+UIGrid::UIGrid()
 : grid_x(0), grid_y(0), zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
   fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
-  perspective_enabled(false)  // Default to omniscient view
+  perspective_enabled(false), use_chunks(false)  // Default to omniscient view
 {
     // Initialize entities list
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
@@ -24,30 +24,31 @@ UIGrid::UIGrid()
     position = sf::Vector2f(0, 0);  // Set base class position
     box.setPosition(position);      // Sync box position
     box.setFillColor(sf::Color(0, 0, 0, 0));
-    
+
     // Initialize render texture (small default size)
     renderTexture.create(1, 1);
-    
+
     // Initialize output sprite
     output.setTextureRect(sf::IntRect(0, 0, 0, 0));
     output.setPosition(0, 0);
     output.setTexture(renderTexture.getTexture());
-    
+
     // Points vector starts empty (grid_x * grid_y = 0)
     // TCOD map will be created when grid is resized
 }
 
 UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _xy, sf::Vector2f _wh)
 : grid_x(gx), grid_y(gy),
-  zoom(1.0f), 
-  ptex(_ptex), points(gx * gy),
+  zoom(1.0f),
+  ptex(_ptex),
   fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
-  perspective_enabled(false)  // Default to omniscient view
+  perspective_enabled(false),
+  use_chunks(gx > CHUNK_THRESHOLD || gy > CHUNK_THRESHOLD)  // #123 - Use chunks for large grids
 {
     // Use texture dimensions if available, otherwise use defaults
     int cell_width = _ptex ? _ptex->sprite_width : DEFAULT_CELL_WIDTH;
     int cell_height = _ptex ? _ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-    
+
     center_x = (gx/2) * cell_width;
     center_y = (gy/2) * cell_height;
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
@@ -57,12 +58,12 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
 
     box.setSize(_wh);
     position = _xy;               // Set base class position
-    box.setPosition(position);    // Sync box position 
+    box.setPosition(position);    // Sync box position
 
     box.setFillColor(sf::Color(0,0,0,0));
     // create renderTexture with maximum theoretical size; sprite can resize to show whatever amount needs to be rendered
     renderTexture.create(1920, 1080); // TODO - renderTexture should be window size; above 1080p this will cause rendering errors
-    
+
     // Only initialize sprite if texture is available
     if (ptex) {
         sprite = ptex->sprite(0);
@@ -77,23 +78,47 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
 
     // Create TCOD map
     tcod_map = new TCODMap(gx, gy);
-    
+
     // Create TCOD dijkstra pathfinder
     tcod_dijkstra = new TCODDijkstra(tcod_map);
-    
+
     // Create TCOD A* pathfinder
     tcod_path = new TCODPath(tcod_map);
-    
-    // Initialize grid points with parent reference
-    for (int y = 0; y < gy; y++) {
-        for (int x = 0; x < gx; x++) {
-            int idx = y * gx + x;
-            points[idx].grid_x = x;
-            points[idx].grid_y = y;
-            points[idx].parent_grid = this;
+
+    // #123 - Initialize storage based on grid size
+    if (use_chunks) {
+        // Large grid: use chunk-based storage
+        chunk_manager = std::make_unique<ChunkManager>(gx, gy, this);
+
+        // Initialize all cells with parent reference
+        for (int cy = 0; cy < chunk_manager->chunks_y; ++cy) {
+            for (int cx = 0; cx < chunk_manager->chunks_x; ++cx) {
+                GridChunk* chunk = chunk_manager->getChunk(cx, cy);
+                if (!chunk) continue;
+
+                for (int ly = 0; ly < chunk->height; ++ly) {
+                    for (int lx = 0; lx < chunk->width; ++lx) {
+                        auto& cell = chunk->at(lx, ly);
+                        cell.grid_x = chunk->world_x + lx;
+                        cell.grid_y = chunk->world_y + ly;
+                        cell.parent_grid = this;
+                    }
+                }
+            }
+        }
+    } else {
+        // Small grid: use flat storage (original behavior)
+        points.resize(gx * gy);
+        for (int y = 0; y < gy; y++) {
+            for (int x = 0; x < gx; x++) {
+                int idx = y * gx + x;
+                points[idx].grid_x = x;
+                points[idx].grid_y = y;
+                points[idx].parent_grid = this;
+            }
         }
     }
-    
+
     // Initial sync of TCOD map
     syncTCODMap();
 }
@@ -147,36 +172,64 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // base layer - bottom color, tile sprite ("ground")
     int cellsRendered = 0;
-    for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
-        x < x_limit; //x < view_width;
-        x+=1)
-    {
-        //for (float y = (top_edge >= 0 ? top_edge : 0);
-        for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
-            y < y_limit; //y < view_height;
-            y+=1)
-        {
-            auto pixel_pos = sf::Vector2f(
-                    (x*cell_width - left_spritepixels) * zoom,
-                    (y*cell_height - top_spritepixels) * zoom );
 
-            auto gridpoint = at(std::floor(x), std::floor(y));
+    // #123 - Use chunk-based rendering for large grids
+    if (use_chunks && chunk_manager) {
+        // Get visible chunks based on cell coordinate bounds
+        float right_edge = left_edge + width_sq + 2;
+        float bottom_edge = top_edge + height_sq + 2;
+        auto visible_chunks = chunk_manager->getVisibleChunks(left_edge, top_edge, right_edge, bottom_edge);
 
-            //sprite.setPosition(pixel_pos);
-
-            r.setPosition(pixel_pos);
-            r.setFillColor(gridpoint.color);
-            renderTexture.draw(r);
-
-            // tilesprite - only draw if texture is available
-            // if discovered but not visible, set opacity to 90%
-            // if not discovered... just don't draw it?
-            if (ptex && gridpoint.tilesprite != -1) {
-                sprite = ptex->sprite(gridpoint.tilesprite, pixel_pos, sf::Vector2f(zoom, zoom)); //setSprite(gridpoint.tilesprite);;
-                renderTexture.draw(sprite);
+        for (auto* chunk : visible_chunks) {
+            // Re-render dirty chunks to their cached textures
+            if (chunk->dirty) {
+                chunk->renderToTexture(cell_width, cell_height, ptex);
             }
 
-            cellsRendered++;
+            // Calculate pixel position for this chunk's sprite
+            float chunk_pixel_x = (chunk->world_x * cell_width - left_spritepixels) * zoom;
+            float chunk_pixel_y = (chunk->world_y * cell_height - top_spritepixels) * zoom;
+
+            // Set up and draw the chunk sprite
+            chunk->cached_sprite.setPosition(chunk_pixel_x, chunk_pixel_y);
+            chunk->cached_sprite.setScale(zoom, zoom);
+            renderTexture.draw(chunk->cached_sprite);
+
+            cellsRendered += chunk->width * chunk->height;
+        }
+    } else {
+        // Original cell-by-cell rendering for small grids
+        for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
+            x < x_limit; //x < view_width;
+            x+=1)
+        {
+            //for (float y = (top_edge >= 0 ? top_edge : 0);
+            for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
+                y < y_limit; //y < view_height;
+                y+=1)
+            {
+                auto pixel_pos = sf::Vector2f(
+                        (x*cell_width - left_spritepixels) * zoom,
+                        (y*cell_height - top_spritepixels) * zoom );
+
+                auto gridpoint = at(std::floor(x), std::floor(y));
+
+                //sprite.setPosition(pixel_pos);
+
+                r.setPosition(pixel_pos);
+                r.setFillColor(gridpoint.color);
+                renderTexture.draw(r);
+
+                // tilesprite - only draw if texture is available
+                // if discovered but not visible, set opacity to 90%
+                // if not discovered... just don't draw it?
+                if (ptex && gridpoint.tilesprite != -1) {
+                    sprite = ptex->sprite(gridpoint.tilesprite, pixel_pos, sf::Vector2f(zoom, zoom)); //setSprite(gridpoint.tilesprite);;
+                    renderTexture.draw(sprite);
+                }
+
+                cellsRendered++;
+            }
         }
     }
 
@@ -368,6 +421,10 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 
 UIGridPoint& UIGrid::at(int x, int y)
 {
+    // #123 - Route through chunk manager for large grids
+    if (use_chunks && chunk_manager) {
+        return chunk_manager->at(x, y);
+    }
     return points[y * grid_x + x];
 }
 
@@ -1109,7 +1166,8 @@ PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds)
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPoint");
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
     //auto target = std::static_pointer_cast<UIEntity>(target);
-    obj->data = &(self->data->points[x + self->data->grid_x * y]);
+    // #123 - Use at() method to route through chunks for large grids
+    obj->data = &(self->data->at(x, y));
     obj->grid = self->data;
     return (PyObject*)obj;
 }

@@ -21,6 +21,7 @@
 #include "UIDrawable.h"
 #include "UIBase.h"
 #include "GridLayers.h"
+#include "GridChunk.h"
 
 class UIGrid: public UIDrawable
 {
@@ -75,7 +76,15 @@ public:
     std::shared_ptr<PyTexture> getTexture();
     sf::Sprite sprite, output;
     sf::RenderTexture renderTexture;
+
+    // #123 - Chunk-based storage for large grid support
+    std::unique_ptr<ChunkManager> chunk_manager;
+    // Legacy flat storage (kept for small grids or compatibility)
     std::vector<UIGridPoint> points;
+    // Use chunks for grids larger than this threshold
+    static constexpr int CHUNK_THRESHOLD = 64;
+    bool use_chunks;
+
     std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> entities;
 
     // UIDrawable children collection (speech bubbles, effects, overlays, etc.)
