@@ -28,10 +28,27 @@ public:
     UIGrid* parent_grid;   // Parent grid reference
     bool visible;          // Visibility flag
 
+    // #148 - Dirty flag and RenderTexture caching
+    bool dirty;                           // True if layer needs re-render
+    sf::RenderTexture cached_texture;     // Cached layer content
+    sf::Sprite cached_sprite;             // Sprite for blitting cached texture
+    bool texture_initialized;             // True if RenderTexture has been created
+    int cached_cell_width, cached_cell_height;  // Cell size used for cached texture
+
     GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, UIGrid* parent);
     virtual ~GridLayer() = default;
 
+    // Mark layer as needing re-render
+    void markDirty();
+
+    // Ensure cached texture is properly sized for current grid dimensions
+    void ensureTextureSize(int cell_width, int cell_height);
+
+    // Render the layer content to the cached texture (called when dirty)
+    virtual void renderToTexture(int cell_width, int cell_height) = 0;
+
     // Render the layer to a RenderTarget with the given transformation parameters
+    // Uses cached texture if available, only re-renders when dirty
     virtual void render(sf::RenderTarget& target,
                        float left_spritepixels, float top_spritepixels,
                        int left_edge, int top_edge, int x_limit, int y_limit,
@@ -54,6 +71,9 @@ public:
 
     // Fill entire layer with a color
     void fill(const sf::Color& color);
+
+    // #148 - Render all content to cached texture
+    void renderToTexture(int cell_width, int cell_height) override;
 
     void render(sf::RenderTarget& target,
                float left_spritepixels, float top_spritepixels,
@@ -78,6 +98,9 @@ public:
 
     // Fill entire layer with a tile index
     void fill(int tile_index);
+
+    // #148 - Render all content to cached texture
+    void renderToTexture(int cell_width, int cell_height) override;
 
     void render(sf::RenderTarget& target,
                float left_spritepixels, float top_spritepixels,

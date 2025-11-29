@@ -10,8 +10,49 @@
 
 GridLayer::GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, UIGrid* parent)
     : type(type), z_index(z_index), grid_x(grid_x), grid_y(grid_y),
-      parent_grid(parent), visible(true)
+      parent_grid(parent), visible(true),
+      dirty(true), texture_initialized(false),
+      cached_cell_width(0), cached_cell_height(0)
 {}
+
+void GridLayer::markDirty() {
+    dirty = true;
+}
+
+void GridLayer::ensureTextureSize(int cell_width, int cell_height) {
+    // Check if we need to resize/create the texture
+    unsigned int required_width = grid_x * cell_width;
+    unsigned int required_height = grid_y * cell_height;
+
+    // Maximum texture size limit (prevent excessive memory usage)
+    const unsigned int MAX_TEXTURE_SIZE = 4096;
+    if (required_width > MAX_TEXTURE_SIZE) required_width = MAX_TEXTURE_SIZE;
+    if (required_height > MAX_TEXTURE_SIZE) required_height = MAX_TEXTURE_SIZE;
+
+    // Skip if already properly sized
+    if (texture_initialized &&
+        cached_texture.getSize().x == required_width &&
+        cached_texture.getSize().y == required_height &&
+        cached_cell_width == cell_width &&
+        cached_cell_height == cell_height) {
+        return;
+    }
+
+    // Create or resize the texture (SFML uses .create() not .resize())
+    if (!cached_texture.create(required_width, required_height)) {
+        // Creation failed - texture will remain uninitialized
+        texture_initialized = false;
+        return;
+    }
+
+    cached_cell_width = cell_width;
+    cached_cell_height = cell_height;
+    texture_initialized = true;
+    dirty = true;  // Force re-render after resize
+
+    // Setup the sprite to use the texture
+    cached_sprite.setTexture(cached_texture.getTexture());
+}
 
 // =============================================================================
 // ColorLayer implementation
@@ -32,6 +73,7 @@ const sf::Color& ColorLayer::at(int x, int y) const {
 
 void ColorLayer::fill(const sf::Color& color) {
     std::fill(colors.begin(), colors.end(), color);
+    markDirty();  // #148 - Mark for re-render
 }
 
 void ColorLayer::resize(int new_grid_x, int new_grid_y) {
@@ -49,6 +91,37 @@ void ColorLayer::resize(int new_grid_x, int new_grid_y) {
     colors = std::move(new_colors);
     grid_x = new_grid_x;
     grid_y = new_grid_y;
+
+    // #148 - Invalidate cached texture (will be resized on next render)
+    texture_initialized = false;
+    markDirty();
+}
+
+// #148 - Render all cells to cached texture (called when dirty)
+void ColorLayer::renderToTexture(int cell_width, int cell_height) {
+    ensureTextureSize(cell_width, cell_height);
+    if (!texture_initialized) return;
+
+    cached_texture.clear(sf::Color::Transparent);
+
+    sf::RectangleShape rect;
+    rect.setSize(sf::Vector2f(cell_width, cell_height));
+    rect.setOutlineThickness(0);
+
+    // Render all cells to cached texture (no zoom - 1:1 pixel mapping)
+    for (int x = 0; x < grid_x; ++x) {
+        for (int y = 0; y < grid_y; ++y) {
+            const sf::Color& color = at(x, y);
+            if (color.a == 0) continue;  // Skip fully transparent
+
+            rect.setPosition(sf::Vector2f(x * cell_width, y * cell_height));
+            rect.setFillColor(color);
+            cached_texture.draw(rect);
+        }
+    }
+
+    cached_texture.display();
+    dirty = false;
 }
 
 void ColorLayer::render(sf::RenderTarget& target,
@@ -57,27 +130,61 @@ void ColorLayer::render(sf::RenderTarget& target,
                        float zoom, int cell_width, int cell_height) {
     if (!visible) return;
 
-    sf::RectangleShape rect;
-    rect.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
-    rect.setOutlineThickness(0);
-
-    for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0); x < x_limit; ++x) {
-        for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0); y < y_limit; ++y) {
-            if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
-
-            const sf::Color& color = at(x, y);
-            if (color.a == 0) continue;  // Skip fully transparent
-
-            auto pixel_pos = sf::Vector2f(
-                (x * cell_width - left_spritepixels) * zoom,
-                (y * cell_height - top_spritepixels) * zoom
-            );
-
-            rect.setPosition(pixel_pos);
-            rect.setFillColor(color);
-            target.draw(rect);
-        }
+    // #148 - Use cached texture rendering
+    // Re-render to texture only if dirty
+    if (dirty || !texture_initialized) {
+        renderToTexture(cell_width, cell_height);
     }
+
+    if (!texture_initialized) {
+        // Fallback to direct rendering if texture creation failed
+        sf::RectangleShape rect;
+        rect.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
+        rect.setOutlineThickness(0);
+
+        for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0); x < x_limit; ++x) {
+            for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0); y < y_limit; ++y) {
+                if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
+
+                const sf::Color& color = at(x, y);
+                if (color.a == 0) continue;
+
+                auto pixel_pos = sf::Vector2f(
+                    (x * cell_width - left_spritepixels) * zoom,
+                    (y * cell_height - top_spritepixels) * zoom
+                );
+
+                rect.setPosition(pixel_pos);
+                rect.setFillColor(color);
+                target.draw(rect);
+            }
+        }
+        return;
+    }
+
+    // Blit visible portion of cached texture with zoom applied
+    // Calculate source rectangle (unzoomed pixel coordinates in cached texture)
+    int src_left = std::max(0, (int)left_spritepixels);
+    int src_top = std::max(0, (int)top_spritepixels);
+    int src_width = std::min((int)cached_texture.getSize().x - src_left,
+                              (int)((x_limit - left_edge + 2) * cell_width));
+    int src_height = std::min((int)cached_texture.getSize().y - src_top,
+                               (int)((y_limit - top_edge + 2) * cell_height));
+
+    if (src_width <= 0 || src_height <= 0) return;
+
+    // Set texture rect for visible portion
+    cached_sprite.setTextureRect(sf::IntRect({src_left, src_top}, {src_width, src_height}));
+
+    // Position in target (offset for partial cell visibility)
+    float dest_x = (src_left - left_spritepixels) * zoom;
+    float dest_y = (src_top - top_spritepixels) * zoom;
+    cached_sprite.setPosition(sf::Vector2f(dest_x, dest_y));
+
+    // Apply zoom via scale
+    cached_sprite.setScale(sf::Vector2f(zoom, zoom));
+
+    target.draw(cached_sprite);
 }
 
 // =============================================================================
@@ -101,6 +208,7 @@ int TileLayer::at(int x, int y) const {
 
 void TileLayer::fill(int tile_index) {
     std::fill(tiles.begin(), tiles.end(), tile_index);
+    markDirty();  // #148 - Mark for re-render
 }
 
 void TileLayer::resize(int new_grid_x, int new_grid_y) {
@@ -118,6 +226,33 @@ void TileLayer::resize(int new_grid_x, int new_grid_y) {
     tiles = std::move(new_tiles);
     grid_x = new_grid_x;
     grid_y = new_grid_y;
+
+    // #148 - Invalidate cached texture (will be resized on next render)
+    texture_initialized = false;
+    markDirty();
+}
+
+// #148 - Render all cells to cached texture (called when dirty)
+void TileLayer::renderToTexture(int cell_width, int cell_height) {
+    ensureTextureSize(cell_width, cell_height);
+    if (!texture_initialized || !texture) return;
+
+    cached_texture.clear(sf::Color::Transparent);
+
+    // Render all tiles to cached texture (no zoom - 1:1 pixel mapping)
+    for (int x = 0; x < grid_x; ++x) {
+        for (int y = 0; y < grid_y; ++y) {
+            int tile_index = at(x, y);
+            if (tile_index < 0) continue;  // No tile
+
+            auto pixel_pos = sf::Vector2f(x * cell_width, y * cell_height);
+            sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, sf::Vector2f(1.0f, 1.0f));
+            cached_texture.draw(sprite);
+        }
+    }
+
+    cached_texture.display();
+    dirty = false;
 }
 
 void TileLayer::render(sf::RenderTarget& target,
@@ -126,22 +261,56 @@ void TileLayer::render(sf::RenderTarget& target,
                       float zoom, int cell_width, int cell_height) {
     if (!visible || !texture) return;
 
-    for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0); x < x_limit; ++x) {
-        for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0); y < y_limit; ++y) {
-            if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
-
-            int tile_index = at(x, y);
-            if (tile_index < 0) continue;  // No tile
-
-            auto pixel_pos = sf::Vector2f(
-                (x * cell_width - left_spritepixels) * zoom,
-                (y * cell_height - top_spritepixels) * zoom
-            );
-
-            sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, sf::Vector2f(zoom, zoom));
-            target.draw(sprite);
-        }
+    // #148 - Use cached texture rendering
+    // Re-render to texture only if dirty
+    if (dirty || !texture_initialized) {
+        renderToTexture(cell_width, cell_height);
     }
+
+    if (!texture_initialized) {
+        // Fallback to direct rendering if texture creation failed
+        for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0); x < x_limit; ++x) {
+            for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0); y < y_limit; ++y) {
+                if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
+
+                int tile_index = at(x, y);
+                if (tile_index < 0) continue;
+
+                auto pixel_pos = sf::Vector2f(
+                    (x * cell_width - left_spritepixels) * zoom,
+                    (y * cell_height - top_spritepixels) * zoom
+                );
+
+                sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, sf::Vector2f(zoom, zoom));
+                target.draw(sprite);
+            }
+        }
+        return;
+    }
+
+    // Blit visible portion of cached texture with zoom applied
+    // Calculate source rectangle (unzoomed pixel coordinates in cached texture)
+    int src_left = std::max(0, (int)left_spritepixels);
+    int src_top = std::max(0, (int)top_spritepixels);
+    int src_width = std::min((int)cached_texture.getSize().x - src_left,
+                              (int)((x_limit - left_edge + 2) * cell_width));
+    int src_height = std::min((int)cached_texture.getSize().y - src_top,
+                               (int)((y_limit - top_edge + 2) * cell_height));
+
+    if (src_width <= 0 || src_height <= 0) return;
+
+    // Set texture rect for visible portion
+    cached_sprite.setTextureRect(sf::IntRect({src_left, src_top}, {src_width, src_height}));
+
+    // Position in target (offset for partial cell visibility)
+    float dest_x = (src_left - left_spritepixels) * zoom;
+    float dest_y = (src_top - top_spritepixels) * zoom;
+    cached_sprite.setPosition(sf::Vector2f(dest_x, dest_y));
+
+    // Apply zoom via scale
+    cached_sprite.setScale(sf::Vector2f(zoom, zoom));
+
+    target.draw(cached_sprite);
 }
 
 // =============================================================================
@@ -273,6 +442,7 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
     Py_DECREF(color_type);
 
     self->data->at(x, y) = color;
+    self->data->markDirty();  // #148 - Mark for re-render
     Py_RETURN_NONE;
 }
 
@@ -491,6 +661,7 @@ PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args)
     }
 
     self->data->at(x, y) = index;
+    self->data->markDirty();  // #148 - Mark for re-render
     Py_RETURN_NONE;
 }
 
@@ -578,6 +749,7 @@ int PyGridLayerAPI::TileLayer_set_texture(PyTileLayerObject* self, PyObject* val
 
     if (value == Py_None) {
         self->data->texture.reset();
+        self->data->markDirty();  // #148 - Mark for re-render
         return 0;
     }
 
@@ -596,6 +768,7 @@ int PyGridLayerAPI::TileLayer_set_texture(PyTileLayerObject* self, PyObject* val
     Py_DECREF(texture_type);
 
     self->data->texture = ((PyTextureObject*)value)->data;
+    self->data->markDirty();  // #148 - Mark for re-render
     return 0;
 }
 
