@@ -2,6 +2,7 @@
 #include "GameEngine.h"
 #include "PyVector.h"
 #include "PythonObjectCache.h"
+#include "UIFrame.h"  // #144: For snapshot= parameter
 // UIDrawable methods now in UIBase.h
 
 UIDrawable* UISprite::click_at(sf::Vector2f point)
@@ -385,21 +386,22 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     int z_index = 0;
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f;
-    
+    PyObject* snapshot = nullptr;  // #144: snapshot parameter
+
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
         "pos", "texture", "sprite_index",  // Positional args (as per spec)
         // Keyword-only args
         "scale", "scale_x", "scale_y", "click",
-        "visible", "opacity", "z_index", "name", "x", "y",
+        "visible", "opacity", "z_index", "name", "x", "y", "snapshot",
         nullptr
     };
-    
+
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOifffOifizff", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOifffOifizffO", const_cast<char**>(kwlist),
                                      &pos_obj, &texture, &sprite_index,  // Positional
                                      &scale, &scale_x, &scale_y, &click_handler,
-                                     &visible, &opacity, &z_index, &name, &x, &y)) {
+                                     &visible, &opacity, &z_index, &name, &x, &y, &snapshot)) {
         return -1;
     }
     
@@ -430,9 +432,49 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
         }
     }
 
-    // Handle texture - allow None or use default
+    // #144: Handle snapshot parameter - renders a UIDrawable to texture
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
-    if (texture && texture != Py_None) {
+    if (snapshot && snapshot != Py_None) {
+        // Check if snapshot is a Frame (most common case)
+        PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+        if (PyObject_IsInstance(snapshot, frame_type)) {
+            Py_DECREF(frame_type);
+            auto pyframe = (PyUIFrameObject*)snapshot;
+            if (!pyframe->data) {
+                PyErr_SetString(PyExc_ValueError, "Invalid Frame object for snapshot");
+                return -1;
+            }
+
+            // Get bounds and create render texture
+            auto bounds = pyframe->data->get_bounds();
+            if (bounds.width <= 0 || bounds.height <= 0) {
+                PyErr_SetString(PyExc_ValueError, "snapshot Frame must have positive size");
+                return -1;
+            }
+
+            sf::RenderTexture render_tex;
+            if (!render_tex.create(static_cast<unsigned int>(bounds.width),
+                                   static_cast<unsigned int>(bounds.height))) {
+                PyErr_SetString(PyExc_RuntimeError, "Failed to create RenderTexture for snapshot");
+                return -1;
+            }
+
+            // Render the frame to the texture
+            render_tex.clear(sf::Color::Transparent);
+            pyframe->data->render(sf::Vector2f(0, 0), render_tex);
+            render_tex.display();
+
+            // Create PyTexture from the rendered content
+            texture_ptr = PyTexture::from_rendered(render_tex);
+            sprite_index = 0;  // Snapshot is always sprite index 0
+        } else {
+            Py_DECREF(frame_type);
+            PyErr_SetString(PyExc_TypeError, "snapshot must be a Frame instance");
+            return -1;
+        }
+    }
+    // Handle texture - allow None or use default (only if no snapshot)
+    else if (texture && texture != Py_None) {
         if (!PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
             return -1;
@@ -443,7 +485,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
         // Use default texture when None or not provided
         texture_ptr = McRFPy_API::default_texture;
     }
-    
+
     if (!texture_ptr) {
         PyErr_SetString(PyExc_RuntimeError, "No texture provided and no default texture available");
         return -1;
@@ -499,13 +541,13 @@ bool UISprite::setProperty(const std::string& name, float value) {
     if (name == "x") {
         position.x = value;
         sprite.setPosition(position);  // Keep sprite in sync
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "y") {
         position.y = value;
         sprite.setPosition(position);  // Keep sprite in sync
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "scale") {

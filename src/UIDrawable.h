@@ -172,14 +172,27 @@ protected:
     void updateRenderTexture();
     
 public:
-    // Mark this drawable as needing redraw (#116 - propagates up parent chain)
-    void markDirty();
+    // #144: Dirty flag system - content vs composite
+    // content_dirty: THIS drawable's texture needs rebuild (color/text/sprite changed)
+    // composite_dirty: Parent needs to re-composite children (position changed)
+
+    // Mark content as dirty - texture needs rebuild, propagates up
+    void markDirty();  // Legacy method - calls markContentDirty
+    void markContentDirty();
+
+    // Mark only composite as dirty - position changed, texture still valid
+    // Only notifies parent, doesn't set own render_dirty
+    void markCompositeDirty();
 
     // Check if this drawable needs redraw
     bool isDirty() const { return render_dirty; }
+    bool isCompositeDirty() const { return composite_dirty; }
 
-    // Clear dirty flag (called after rendering)
-    void clearDirty() { render_dirty = false; }
+    // Clear dirty flags (called after rendering)
+    void clearDirty() { render_dirty = false; composite_dirty = false; }
+
+protected:
+    bool composite_dirty = true;  // #144: Needs re-composite (child positions changed)
 };
 
 typedef struct {

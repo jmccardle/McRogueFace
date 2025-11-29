@@ -471,13 +471,13 @@ bool UICaption::setProperty(const std::string& name, float value) {
     if (name == "x") {
         position.x = value;
         text.setPosition(position);  // Keep text in sync
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "y") {
         position.y = value;
         text.setPosition(position);  // Keep text in sync
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "font_size" || name == "size") { // Support both for backward compatibility

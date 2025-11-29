@@ -338,9 +338,14 @@ void GameEngine::run()
             running = false;
         }
     }
-    
+
     // Clean up before exiting the run loop
     cleanup();
+
+    // #144: Quick exit to avoid cleanup segfaults in Python/C++ destructor ordering
+    // This is a pragmatic workaround - proper cleanup would require careful
+    // attention to shared_ptr cycles and Python GC interaction
+    std::_Exit(0);
 }
 
 std::shared_ptr<Timer> GameEngine::getTimer(const std::string& name)

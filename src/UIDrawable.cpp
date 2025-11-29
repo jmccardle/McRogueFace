@@ -820,17 +820,37 @@ bool UIDrawable::contains_point(float x, float y) const {
     return global_bounds.contains(x, y);
 }
 
-// #116 - Dirty flag propagation up parent chain
-void UIDrawable::markDirty() {
+// #144: Content dirty - texture needs rebuild
+void UIDrawable::markContentDirty() {
     if (render_dirty) return;  // Already dirty, no need to propagate
 
     render_dirty = true;
+    composite_dirty = true;  // If content changed, composite also needs update
 
-    // Propagate to parent
+    // Propagate to parent - parent's composite is dirty (child content changed)
     auto p = parent.lock();
     if (p) {
-        p->markDirty();
+        p->markContentDirty();  // Parent also needs to rebuild to include our changes
     }
+}
+
+// #144: Composite dirty - position changed, texture still valid
+void UIDrawable::markCompositeDirty() {
+    // Don't set render_dirty - our cached texture is still valid
+    // Only mark composite_dirty so parent knows to re-blit us
+
+    // Propagate to parent - parent needs to re-composite
+    auto p = parent.lock();
+    if (p) {
+        p->composite_dirty = true;
+        p->render_dirty = true;  // Parent needs to re-render (re-composite children)
+        p->markCompositeDirty();  // Continue propagating up
+    }
+}
+
+// Legacy method - calls markContentDirty for backwards compatibility
+void UIDrawable::markDirty() {
+    markContentDirty();
 }
 
 // Python API - get parent drawable

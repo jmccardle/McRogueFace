@@ -17,9 +17,35 @@ PyTexture::PyTexture(std::string filename, int sprite_w, int sprite_h)
     sheet_height = (size.y / sprite_height);
     if (size.x % sprite_width != 0 || size.y % sprite_height != 0)
     {
-        std::cout << "Warning: Texture `" << source << "` is not an even number of sprite widths or heights across." << std::endl 
+        std::cout << "Warning: Texture `" << source << "` is not an even number of sprite widths or heights across." << std::endl
             << "Sprite size given was " << sprite_w << "x" << sprite_h << "px but the file has a resolution of " << sheet_width << "x" << sheet_height << "px." << std::endl;
     }
+}
+
+// #144: Factory method to create texture from rendered content (snapshot)
+std::shared_ptr<PyTexture> PyTexture::from_rendered(sf::RenderTexture& render_tex)
+{
+    // Use a custom shared_ptr construction to access private default constructor
+    struct MakeSharedEnabler : public PyTexture {
+        MakeSharedEnabler() : PyTexture() {}
+    };
+    auto ptex = std::make_shared<MakeSharedEnabler>();
+
+    // Copy the rendered texture data
+    ptex->texture = render_tex.getTexture();
+    ptex->texture.setSmooth(false);  // Maintain pixel art aesthetic
+
+    // Set source to indicate this is a snapshot
+    ptex->source = "<snapshot>";
+
+    // Treat entire texture as single sprite
+    auto size = ptex->texture.getSize();
+    ptex->sprite_width = size.x;
+    ptex->sprite_height = size.y;
+    ptex->sheet_width = 1;
+    ptex->sheet_height = 1;
+
+    return ptex;
 }
 
 sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)

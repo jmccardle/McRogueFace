@@ -15,9 +15,16 @@ private:
     sf::Texture texture;
     std::string source;
     int sheet_width, sheet_height;
+
+    // Private default constructor for factory methods
+    PyTexture() : source("<uninitialized>"), sprite_width(0), sprite_height(0), sheet_width(0), sheet_height(0) {}
+
 public:
     int sprite_width, sprite_height; // just use them read only, OK?
     PyTexture(std::string filename, int sprite_w, int sprite_h);
+
+    // #144: Factory method to create texture from rendered content (snapshot)
+    static std::shared_ptr<PyTexture> from_rendered(sf::RenderTexture& render_tex);
     sf::Sprite sprite(int index, sf::Vector2f pos = sf::Vector2f(0, 0), sf::Vector2f s = sf::Vector2f(1.0, 1.0));
     int getSpriteCount() const { return sheet_width * sheet_height; }
 

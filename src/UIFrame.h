@@ -31,6 +31,7 @@ public:
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
     bool children_need_sort = true;  // Dirty flag for z_index sorting optimization
     bool clip_children = false;  // Whether to clip children to frame bounds
+    bool cache_subtree = false;  // #144: Whether to cache subtree rendering to texture
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     void move(sf::Vector2f);
     PyObjectsEnum derived_type() override final;
@@ -52,6 +53,8 @@ public:
     static int set_pos(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyObject* get_clip_children(PyUIFrameObject* self, void* closure);
     static int set_clip_children(PyUIFrameObject* self, PyObject* value, void* closure);
+    static PyObject* get_cache_subtree(PyUIFrameObject* self, void* closure);
+    static int set_cache_subtree(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIFrameObject* self);
     static int init(PyUIFrameObject* self, PyObject* args, PyObject* kwds);
@@ -109,7 +112,8 @@ namespace mcrfpydef {
                             "    y (float): Y position override. Default: 0\n"
                             "    w (float): Width override. Default: 0\n"
                             "    h (float): Height override. Default: 0\n"
-                            "    clip_children (bool): Whether to clip children to frame bounds. Default: False\n\n"
+                            "    clip_children (bool): Whether to clip children to frame bounds. Default: False\n"
+                            "    cache_subtree (bool): Cache rendering to texture for performance. Default: False\n\n"
                             "Attributes:\n"
                             "    x, y (float): Position in pixels\n"
                             "    w, h (float): Size in pixels\n"
@@ -122,7 +126,8 @@ namespace mcrfpydef {
                             "    opacity (float): Opacity value\n"
                             "    z_index (int): Rendering order\n"
                             "    name (str): Element name\n"
-                            "    clip_children (bool): Whether to clip children to frame bounds"),
+                            "    clip_children (bool): Whether to clip children to frame bounds\n"
+                            "    cache_subtree (bool): Cache subtree rendering to texture"),
         .tp_methods = UIFrame_methods,
         //.tp_members = PyUIFrame_members,
         .tp_getset = UIFrame::getsetters,

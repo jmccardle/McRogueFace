@@ -228,14 +228,14 @@ bool UIArc::setProperty(const std::string& name, float value) {
         center.x = value;
         position = center;
         vertices_dirty = true;
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "y") {
         center.y = value;
         position = center;
         vertices_dirty = true;
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     return false;
@@ -253,7 +253,7 @@ bool UIArc::setProperty(const std::string& name, const sf::Color& value) {
 bool UIArc::setProperty(const std::string& name, const sf::Vector2f& value) {
     if (name == "center") {
         setCenter(value);
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     return false;

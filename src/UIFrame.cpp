@@ -95,27 +95,33 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
     // Check visibility
     if (!visible) return;
-    
+
     // TODO: Apply opacity when SFML supports it on shapes
-    
-    // Check if we need to use RenderTexture for clipping
-    if (clip_children && !children->empty()) {
+
+    // #144: Use RenderTexture for clipping OR texture caching
+    // clip_children: requires texture for clipping effect (only when has children)
+    // cache_subtree: uses texture for performance (always, even without children)
+    bool use_texture = (clip_children && !children->empty()) || cache_subtree;
+
+    if (use_texture) {
         // Enable RenderTexture if not already enabled
         if (!use_render_texture) {
             auto size = box.getSize();
-            enableRenderTexture(static_cast<unsigned int>(size.x), 
-                              static_cast<unsigned int>(size.y));
+            if (size.x > 0 && size.y > 0) {
+                enableRenderTexture(static_cast<unsigned int>(size.x),
+                                  static_cast<unsigned int>(size.y));
+            }
         }
-        
+
         // Update RenderTexture if dirty
         if (use_render_texture && render_dirty) {
             // Clear the RenderTexture
             render_texture->clear(sf::Color::Transparent);
-            
+
             // Draw the frame box to RenderTexture
             box.setPosition(0, 0);  // Render at origin in texture
             render_texture->draw(box);
-            
+
             // Sort children by z_index if needed
             if (children_need_sort && !children->empty()) {
                 std::sort(children->begin(), children->end(),
@@ -124,28 +130,28 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
                     });
                 children_need_sort = false;
             }
-            
+
             // Render children to RenderTexture at local coordinates
             for (auto drawable : *children) {
                 drawable->render(sf::Vector2f(0, 0), *render_texture);
             }
-            
+
             // Finalize the RenderTexture
             render_texture->display();
-            
+
             // Update sprite
             render_sprite.setTexture(render_texture->getTexture());
-            
+
             render_dirty = false;
         }
-        
-        // Draw the RenderTexture sprite
+
+        // Draw the RenderTexture sprite (single blit!)
         if (use_render_texture) {
             render_sprite.setPosition(offset + box.getPosition());
             target.draw(render_sprite);
         }
     } else {
-        // Standard rendering without clipping
+        // Standard rendering without caching
         box.move(offset);
         target.draw(box);
         box.move(-offset);
@@ -382,6 +388,37 @@ int UIFrame::set_clip_children(PyUIFrameObject* self, PyObject* value, void* clo
     return 0;
 }
 
+// #144 - cache_subtree property for texture caching
+PyObject* UIFrame::get_cache_subtree(PyUIFrameObject* self, void* closure)
+{
+    return PyBool_FromLong(self->data->cache_subtree);
+}
+
+int UIFrame::set_cache_subtree(PyUIFrameObject* self, PyObject* value, void* closure)
+{
+    if (!PyBool_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "cache_subtree must be a boolean");
+        return -1;
+    }
+
+    bool new_cache = PyObject_IsTrue(value);
+    if (new_cache != self->data->cache_subtree) {
+        self->data->cache_subtree = new_cache;
+
+        // Enable or disable the render texture
+        if (new_cache) {
+            auto size = self->data->box.getSize();
+            if (size.x > 0 && size.y > 0) {
+                self->data->enableRenderTexture(static_cast<unsigned int>(size.x),
+                                                static_cast<unsigned int>(size.y));
+            }
+        }
+        self->data->markDirty();  // Mark as needing redraw
+    }
+
+    return 0;
+}
+
 // Define the PyObjectType alias for the macros
 typedef PyUIFrameObject PyObjectType;
 
@@ -413,6 +450,7 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIFRAME},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UIFRAME},
     {"clip_children", (getter)UIFrame::get_clip_children, (setter)UIFrame::set_clip_children, "Whether to clip children to frame bounds", NULL},
+    {"cache_subtree", (getter)UIFrame::get_cache_subtree, (setter)UIFrame::set_cache_subtree, "#144: Cache subtree rendering to texture for performance", NULL},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIFRAME),
     {NULL}
@@ -460,21 +498,22 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
     int clip_children = 0;
-    
+    int cache_subtree = 0;  // #144: texture caching
+
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
         "pos", "size",  // Positional args (as per spec)
         // Keyword-only args
         "fill_color", "outline_color", "outline", "children", "click",
-        "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "clip_children",
+        "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "clip_children", "cache_subtree",
         nullptr
     };
     
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOfOOifizffffi", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOfOOifizffffii", const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj,  // Positional
                                      &fill_color, &outline_color, &outline, &children_arg, &click_handler,
-                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &clip_children)) {
+                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &clip_children, &cache_subtree)) {
         return -1;
     }
     
@@ -563,6 +602,13 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     self->data->opacity = opacity;
     self->data->z_index = z_index;
     self->data->clip_children = clip_children;
+    self->data->cache_subtree = cache_subtree;  // #144: texture caching
+
+    // #144: Enable render texture if cache_subtree requested
+    if (cache_subtree && w > 0 && h > 0) {
+        self->data->enableRenderTexture(static_cast<unsigned int>(w), static_cast<unsigned int>(h));
+    }
+
     if (name) {
         self->data->name = std::string(name);
     }
@@ -657,12 +703,12 @@ bool UIFrame::setProperty(const std::string& name, float value) {
     if (name == "x") {
         position.x = value;
         box.setPosition(position);  // Keep box in sync
-        markDirty();
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     } else if (name == "y") {
         position.y = value;
         box.setPosition(position);  // Keep box in sync
-        markDirty();
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     } else if (name == "w") {
         box.setSize(sf::Vector2f(value, box.getSize().y));

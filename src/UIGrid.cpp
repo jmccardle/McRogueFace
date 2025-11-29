@@ -2725,14 +2725,14 @@ bool UIGrid::setProperty(const std::string& name, float value) {
         position.x = value;
         box.setPosition(position);
         output.setPosition(position);
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "y") {
         position.y = value;
         box.setPosition(position);
         output.setPosition(position);
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "w" || name == "width") {
@@ -2795,7 +2795,7 @@ bool UIGrid::setProperty(const std::string& name, const sf::Vector2f& value) {
         position = value;
         box.setPosition(position);
         output.setPosition(position);
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "size") {

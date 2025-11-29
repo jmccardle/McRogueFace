@@ -213,13 +213,13 @@ bool UILine::setProperty(const std::string& name, float value) {
     else if (name == "x") {
         float dx = value - position.x;
         move(dx, 0);
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "y") {
         float dy = value - position.y;
         move(0, dy);
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     else if (name == "start_x") {

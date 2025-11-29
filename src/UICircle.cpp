@@ -180,11 +180,11 @@ bool UICircle::setProperty(const std::string& name, float value) {
         return true;
     } else if (name == "x") {
         position.x = value;
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     } else if (name == "y") {
         position.y = value;
-        markDirty();  // #144 - Propagate to parent for texture caching
+        markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
     return false;
