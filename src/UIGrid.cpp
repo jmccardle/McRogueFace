@@ -1183,41 +1183,10 @@ PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject*
     
     // Compute FOV
     self->data->computeFOV(x, y, radius, light_walls, (TCOD_fov_algorithm_t)algorithm);
-    
-    // Build list of visible cells as tuples (x, y, visible, discovered)
-    PyObject* result_list = PyList_New(0);
-    if (!result_list) return NULL;
-    
-    // Iterate through grid and collect visible cells
-    for (int gy = 0; gy < self->data->grid_y; gy++) {
-        for (int gx = 0; gx < self->data->grid_x; gx++) {
-            if (self->data->isInFOV(gx, gy)) {
-                // Create tuple (x, y, visible, discovered)
-                PyObject* cell_tuple = PyTuple_New(4);
-                if (!cell_tuple) {
-                    Py_DECREF(result_list);
-                    return NULL;
-                }
-                
-                PyTuple_SET_ITEM(cell_tuple, 0, PyLong_FromLong(gx));
-                PyTuple_SET_ITEM(cell_tuple, 1, PyLong_FromLong(gy));
-                PyTuple_SET_ITEM(cell_tuple, 2, Py_True);  // visible
-                PyTuple_SET_ITEM(cell_tuple, 3, Py_True);  // discovered
-                Py_INCREF(Py_True);  // Need to increment ref count for True
-                Py_INCREF(Py_True);
-                
-                // Append to list
-                if (PyList_Append(result_list, cell_tuple) < 0) {
-                    Py_DECREF(cell_tuple);
-                    Py_DECREF(result_list);
-                    return NULL;
-                }
-                Py_DECREF(cell_tuple);  // List now owns the reference
-            }
-        }
-    }
-    
-    return result_list;
+
+    // Return None - use is_in_fov() to query visibility
+    // See issue #146: returning a list had O(grid_size) performance
+    Py_RETURN_NONE;
 }
 
 PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args)
