@@ -95,11 +95,15 @@ public:
     std::vector<std::shared_ptr<GridLayer>> layers;
     bool layers_need_sort = true;  // Dirty flag for z_index sorting
 
-    // Layer management
-    std::shared_ptr<ColorLayer> addColorLayer(int z_index);
-    std::shared_ptr<TileLayer> addTileLayer(int z_index, std::shared_ptr<PyTexture> texture = nullptr);
+    // Layer management (#150 - extended with names)
+    std::shared_ptr<ColorLayer> addColorLayer(int z_index, const std::string& name = "");
+    std::shared_ptr<TileLayer> addTileLayer(int z_index, std::shared_ptr<PyTexture> texture = nullptr, const std::string& name = "");
     void removeLayer(std::shared_ptr<GridLayer> layer);
     void sortLayers();
+    std::shared_ptr<GridLayer> getLayerByName(const std::string& name);
+
+    // #150 - Protected layer names (reserved for GridPoint properties)
+    static bool isProtectedLayerName(const std::string& name);
 
     // Background rendering
     sf::Color fill_color;

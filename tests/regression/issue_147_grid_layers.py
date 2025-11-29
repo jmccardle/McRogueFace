@@ -21,13 +21,13 @@ def run_test(runtime):
     ui = mcrfpy.sceneUI("test")
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
 
-    # Create grid
-    grid = mcrfpy.Grid(pos=(50, 50), size=(400, 300), grid_size=(20, 15), texture=texture)
+    # Create grid with explicit empty layers (#150 migration)
+    grid = mcrfpy.Grid(pos=(50, 50), size=(400, 300), grid_size=(20, 15), texture=texture, layers={})
     ui.append(grid)
 
     print("\n--- Test 1: Initial state (no layers) ---")
     if len(grid.layers) == 0:
-        print("  PASS: Grid starts with no layers")
+        print("  PASS: Grid starts with no layers (layers={})")
     else:
         print(f"  FAIL: Expected 0 layers, got {len(grid.layers)}")
         sys.exit(1)

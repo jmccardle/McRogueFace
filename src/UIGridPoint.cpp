@@ -1,5 +1,7 @@
 #include "UIGridPoint.h"
 #include "UIGrid.h"
+#include "GridLayers.h"  // #150 - for GridLayerType, ColorLayer, TileLayer
+#include <cstring>       // #150 - for strcmp
 
 UIGridPoint::UIGridPoint()
 : color(1.0f, 1.0f, 1.0f), color_overlay(0.0f, 0.0f, 0.0f), walkable(false), transparent(false),
@@ -193,9 +195,103 @@ PyObject* UIGridPointState::repr(PyUIGridPointStateObject* self) {
     if (!self->data) ss << "<GridPointState (invalid internal object)>";
     else {
         auto gps = self->data;
-        ss << "<GridPointState (visible=" << (gps->visible ? "True" : "False") << ", discovered=" << (gps->discovered ? "True" : "False") << 
+        ss << "<GridPointState (visible=" << (gps->visible ? "True" : "False") << ", discovered=" << (gps->discovered ? "True" : "False") <<
         ")>";
     }
     std::string repr_str = ss.str();
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+}
+
+// #150 - Dynamic attribute access for named layers
+PyObject* UIGridPoint::getattro(PyUIGridPointObject* self, PyObject* name) {
+    // First try standard attribute lookup (built-in properties)
+    PyObject* result = PyObject_GenericGetAttr((PyObject*)self, name);
+    if (result != nullptr || !PyErr_ExceptionMatches(PyExc_AttributeError)) {
+        return result;
+    }
+
+    // Clear the AttributeError and check for layer name
+    PyErr_Clear();
+
+    if (!self->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "GridPoint has no parent grid");
+        return nullptr;
+    }
+
+    const char* attr_name = PyUnicode_AsUTF8(name);
+    if (!attr_name) return nullptr;
+
+    // Look up layer by name
+    auto layer = self->grid->getLayerByName(attr_name);
+    if (!layer) {
+        PyErr_Format(PyExc_AttributeError, "'GridPoint' object has no attribute '%s'", attr_name);
+        return nullptr;
+    }
+
+    int x = self->data->grid_x;
+    int y = self->data->grid_y;
+
+    // Get value based on layer type
+    if (layer->type == GridLayerType::Color) {
+        auto color_layer = std::static_pointer_cast<ColorLayer>(layer);
+        return sfColor_to_PyObject(color_layer->at(x, y));
+    } else if (layer->type == GridLayerType::Tile) {
+        auto tile_layer = std::static_pointer_cast<TileLayer>(layer);
+        return PyLong_FromLong(tile_layer->at(x, y));
+    }
+
+    PyErr_SetString(PyExc_RuntimeError, "Unknown layer type");
+    return nullptr;
+}
+
+int UIGridPoint::setattro(PyUIGridPointObject* self, PyObject* name, PyObject* value) {
+    // First try standard attribute setting (built-in properties)
+    // We need to check if this is a known attribute first
+    const char* attr_name = PyUnicode_AsUTF8(name);
+    if (!attr_name) return -1;
+
+    // Check if it's a built-in property (defined in getsetters)
+    for (PyGetSetDef* gsd = UIGridPoint::getsetters; gsd->name != nullptr; gsd++) {
+        if (strcmp(gsd->name, attr_name) == 0) {
+            // It's a built-in property, use standard setter
+            return PyObject_GenericSetAttr((PyObject*)self, name, value);
+        }
+    }
+
+    // Not a built-in property - try layer lookup
+    if (!self->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "GridPoint has no parent grid");
+        return -1;
+    }
+
+    auto layer = self->grid->getLayerByName(attr_name);
+    if (!layer) {
+        PyErr_Format(PyExc_AttributeError, "'GridPoint' object has no attribute '%s'", attr_name);
+        return -1;
+    }
+
+    int x = self->data->grid_x;
+    int y = self->data->grid_y;
+
+    // Set value based on layer type
+    if (layer->type == GridLayerType::Color) {
+        auto color_layer = std::static_pointer_cast<ColorLayer>(layer);
+        sf::Color color = PyObject_to_sfColor(value);
+        if (PyErr_Occurred()) return -1;
+        color_layer->at(x, y) = color;
+        color_layer->markDirty();
+        return 0;
+    } else if (layer->type == GridLayerType::Tile) {
+        auto tile_layer = std::static_pointer_cast<TileLayer>(layer);
+        if (!PyLong_Check(value)) {
+            PyErr_SetString(PyExc_TypeError, "Tile layer values must be integers");
+            return -1;
+        }
+        tile_layer->at(x, y) = PyLong_AsLong(value);
+        tile_layer->markDirty();
+        return 0;
+    }
+
+    PyErr_SetString(PyExc_RuntimeError, "Unknown layer type");
+    return -1;
 }

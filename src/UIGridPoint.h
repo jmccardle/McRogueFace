@@ -52,6 +52,10 @@ public:
     static PyObject* get_bool_member(PyUIGridPointObject* self, void* closure);
     static int set_color(PyUIGridPointObject* self, PyObject* value, void* closure);
     static PyObject* repr(PyUIGridPointObject* self);
+
+    // #150 - Dynamic property access for named layers
+    static PyObject* getattro(PyUIGridPointObject* self, PyObject* name);
+    static int setattro(PyUIGridPointObject* self, PyObject* name, PyObject* value);
 };
 
 // UIGridPointState - entity-specific info for each cell
@@ -73,6 +77,9 @@ namespace mcrfpydef {
         .tp_basicsize = sizeof(PyUIGridPointObject),
         .tp_itemsize = 0,
         .tp_repr = (reprfunc)UIGridPoint::repr,
+        // #150 - Dynamic attribute access for named layers
+        .tp_getattro = (getattrofunc)UIGridPoint::getattro,
+        .tp_setattro = (setattrofunc)UIGridPoint::setattro,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = "UIGridPoint object",
         .tp_getset = UIGridPoint::getsetters,

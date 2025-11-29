@@ -5,7 +5,8 @@
 #include "UIEntity.h"
 #include "Profiler.h"
 #include <algorithm>
-#include <cmath>  // #142 - for std::floor
+#include <cmath>    // #142 - for std::floor
+#include <cstring>  // #150 - for strcmp
 // UIDrawable methods now in UIBase.h
 
 UIGrid::UIGrid()
@@ -159,84 +160,14 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     int left_spritepixels = center_x - (box.getSize().x / 2.0 / zoom);
     int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
 
-    //sprite.setScale(sf::Vector2f(zoom, zoom));
-    sf::RectangleShape r; // for colors and overlays
-    r.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
-    r.setOutlineThickness(0);
-
     int x_limit = left_edge + width_sq + 2;
     if (x_limit > grid_x) x_limit = grid_x;
 
     int y_limit = top_edge + height_sq + 2;
     if (y_limit > grid_y) y_limit = grid_y;
 
-    // base layer - bottom color, tile sprite ("ground")
-    int cellsRendered = 0;
-
-    // #123 - Use chunk-based rendering for large grids
-    if (use_chunks && chunk_manager) {
-        // Get visible chunks based on cell coordinate bounds
-        float right_edge = left_edge + width_sq + 2;
-        float bottom_edge = top_edge + height_sq + 2;
-        auto visible_chunks = chunk_manager->getVisibleChunks(left_edge, top_edge, right_edge, bottom_edge);
-
-        for (auto* chunk : visible_chunks) {
-            // Re-render dirty chunks to their cached textures
-            if (chunk->dirty) {
-                chunk->renderToTexture(cell_width, cell_height, ptex);
-            }
-
-            // Calculate pixel position for this chunk's sprite
-            float chunk_pixel_x = (chunk->world_x * cell_width - left_spritepixels) * zoom;
-            float chunk_pixel_y = (chunk->world_y * cell_height - top_spritepixels) * zoom;
-
-            // Set up and draw the chunk sprite
-            chunk->cached_sprite.setPosition(chunk_pixel_x, chunk_pixel_y);
-            chunk->cached_sprite.setScale(zoom, zoom);
-            renderTexture.draw(chunk->cached_sprite);
-
-            cellsRendered += chunk->width * chunk->height;
-        }
-    } else {
-        // Original cell-by-cell rendering for small grids
-        for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
-            x < x_limit; //x < view_width;
-            x+=1)
-        {
-            //for (float y = (top_edge >= 0 ? top_edge : 0);
-            for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
-                y < y_limit; //y < view_height;
-                y+=1)
-            {
-                auto pixel_pos = sf::Vector2f(
-                        (x*cell_width - left_spritepixels) * zoom,
-                        (y*cell_height - top_spritepixels) * zoom );
-
-                auto gridpoint = at(std::floor(x), std::floor(y));
-
-                //sprite.setPosition(pixel_pos);
-
-                r.setPosition(pixel_pos);
-                r.setFillColor(gridpoint.color);
-                renderTexture.draw(r);
-
-                // tilesprite - only draw if texture is available
-                // if discovered but not visible, set opacity to 90%
-                // if not discovered... just don't draw it?
-                if (ptex && gridpoint.tilesprite != -1) {
-                    sprite = ptex->sprite(gridpoint.tilesprite, pixel_pos, sf::Vector2f(zoom, zoom)); //setSprite(gridpoint.tilesprite);;
-                    renderTexture.draw(sprite);
-                }
-
-                cellsRendered++;
-            }
-        }
-    }
-
-    // Record how many cells were rendered
-    Resources::game->metrics.gridCellsRendered += cellsRendered;
-
-    // #147 - Render dynamic layers with z_index < 0 (below entities)
+    // #150 - Layers are now the sole source of grid rendering (base layer removed)
+    // Render layers with z_index < 0 (below entities)
     sortLayers();
     for (auto& layer : layers) {
         if (layer->z_index >= 0) break;  // Stop at layers that go above entities
@@ -450,18 +381,40 @@ PyObjectsEnum UIGrid::derived_type()
 }
 
 // #147 - Layer management methods
-std::shared_ptr<ColorLayer> UIGrid::addColorLayer(int z_index) {
+std::shared_ptr<ColorLayer> UIGrid::addColorLayer(int z_index, const std::string& name) {
     auto layer = std::make_shared<ColorLayer>(z_index, grid_x, grid_y, this);
+    layer->name = name;
     layers.push_back(layer);
     layers_need_sort = true;
     return layer;
 }
 
-std::shared_ptr<TileLayer> UIGrid::addTileLayer(int z_index, std::shared_ptr<PyTexture> texture) {
+std::shared_ptr<TileLayer> UIGrid::addTileLayer(int z_index, std::shared_ptr<PyTexture> texture, const std::string& name) {
     auto layer = std::make_shared<TileLayer>(z_index, grid_x, grid_y, this, texture);
+    layer->name = name;
     layers.push_back(layer);
     layers_need_sort = true;
     return layer;
+}
+
+std::shared_ptr<GridLayer> UIGrid::getLayerByName(const std::string& name) {
+    for (auto& layer : layers) {
+        if (layer->name == name) {
+            return layer;
+        }
+    }
+    return nullptr;
+}
+
+bool UIGrid::isProtectedLayerName(const std::string& name) {
+    // #150 - These names are reserved for GridPoint properties
+    static const std::vector<std::string> protected_names = {
+        "walkable", "transparent", "color", "color_overlay"
+    };
+    for (const auto& pn : protected_names) {
+        if (name == pn) return true;
+    }
+    return false;
 }
 
 void UIGrid::removeLayer(std::shared_ptr<GridLayer> layer) {
@@ -779,6 +732,7 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     PyObject* textureObj = nullptr;
     PyObject* fill_color = nullptr;
     PyObject* click_handler = nullptr;
+    PyObject* layers_obj = nullptr;  // #150 - layers dict
     float center_x = 0.0f, center_y = 0.0f;
     float zoom = 1.0f;
     // perspective is now handled via properties, not init args
@@ -788,21 +742,23 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
     int grid_x = 2, grid_y = 2;  // Default to 2x2 grid
-    
+
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
         "pos", "size", "grid_size", "texture",  // Positional args (as per spec)
         // Keyword-only args
         "fill_color", "click", "center_x", "center_y", "zoom",
         "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "grid_x", "grid_y",
+        "layers",  // #150 - layers dict parameter
         nullptr
     };
-    
+
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOfffifizffffii", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOfffifizffffiiO", const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj, &grid_size_obj, &textureObj,  // Positional
                                      &fill_color, &click_handler, &center_x, &center_y, &zoom,
-                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &grid_x, &grid_y)) {
+                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &grid_x, &grid_y,
+                                     &layers_obj)) {
         return -1;
     }
     
@@ -935,7 +891,55 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         }
         self->data->click_register(click_handler);
     }
-    
+
+    // #150 - Handle layers dict
+    // Default: {"tilesprite": "tile"} when layers not provided
+    // Empty dict: no rendering layers (entity storage + pathfinding only)
+    if (layers_obj == nullptr) {
+        // Default layer: single TileLayer named "tilesprite"
+        self->data->addTileLayer(0, texture_ptr, "tilesprite");
+    } else if (layers_obj != Py_None) {
+        if (!PyDict_Check(layers_obj)) {
+            PyErr_SetString(PyExc_TypeError, "layers must be a dict mapping names to types ('color' or 'tile')");
+            return -1;
+        }
+
+        PyObject* key;
+        PyObject* value;
+        Py_ssize_t pos = 0;
+        int layer_z = 0;  // Auto-increment z_index for each layer
+
+        while (PyDict_Next(layers_obj, &pos, &key, &value)) {
+            if (!PyUnicode_Check(key)) {
+                PyErr_SetString(PyExc_TypeError, "Layer names must be strings");
+                return -1;
+            }
+            if (!PyUnicode_Check(value)) {
+                PyErr_SetString(PyExc_TypeError, "Layer types must be strings ('color' or 'tile')");
+                return -1;
+            }
+
+            const char* layer_name = PyUnicode_AsUTF8(key);
+            const char* layer_type = PyUnicode_AsUTF8(value);
+
+            // Check for protected names
+            if (UIGrid::isProtectedLayerName(layer_name)) {
+                PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", layer_name);
+                return -1;
+            }
+
+            if (strcmp(layer_type, "color") == 0) {
+                self->data->addColorLayer(layer_z++, layer_name);
+            } else if (strcmp(layer_type, "tile") == 0) {
+                self->data->addTileLayer(layer_z++, texture_ptr, layer_name);
+            } else {
+                PyErr_Format(PyExc_ValueError, "Unknown layer type '%s' (expected 'color' or 'tile')", layer_type);
+                return -1;
+            }
+        }
+    }
+    // else: layers_obj is Py_None - explicit empty, no layers created
+
     // Initialize weak reference list
     self->weakreflist = NULL;
     

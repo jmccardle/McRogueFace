@@ -5,6 +5,7 @@
 #include <SFML/Graphics.hpp>
 #include <memory>
 #include <vector>
+#include <string>
 
 // Forward declarations
 class UIGrid;
@@ -23,6 +24,7 @@ enum class GridLayerType {
 class GridLayer {
 public:
     GridLayerType type;
+    std::string name;      // #150 - Layer name for GridPoint property access
     int z_index;           // Negative = below entities, >= 0 = above entities
     int grid_x, grid_y;    // Dimensions
     UIGrid* parent_grid;   // Parent grid reference
