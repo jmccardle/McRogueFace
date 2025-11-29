@@ -15,6 +15,7 @@
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
+#include "GridLayers.h"
 #include "Resources.h"
 #include "PyScene.h"
 #include <filesystem>
@@ -302,6 +303,9 @@ PyObject* PyInit_mcrfpy()
 
         /*game map & perspective data*/
         &PyUIGridPointType, &PyUIGridPointStateType,
+
+        /*grid layers (#147)*/
+        &PyColorLayerType, &PyTileLayerType,
 
         /*collections & iterators*/
         &PyUICollectionType, &PyUICollectionIterType,

@@ -20,6 +20,7 @@
 #include "UIEntity.h"
 #include "UIDrawable.h"
 #include "UIBase.h"
+#include "GridLayers.h"
 
 class UIGrid: public UIDrawable
 {
@@ -80,6 +81,16 @@ public:
     // UIDrawable children collection (speech bubbles, effects, overlays, etc.)
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
     bool children_need_sort = true;  // Dirty flag for z_index sorting
+
+    // Dynamic layer system (#147)
+    std::vector<std::shared_ptr<GridLayer>> layers;
+    bool layers_need_sort = true;  // Dirty flag for z_index sorting
+
+    // Layer management
+    std::shared_ptr<ColorLayer> addColorLayer(int z_index);
+    std::shared_ptr<TileLayer> addTileLayer(int z_index, std::shared_ptr<PyTexture> texture = nullptr);
+    void removeLayer(std::shared_ptr<GridLayer> layer);
+    void sortLayers();
 
     // Background rendering
     sf::Color fill_color;
@@ -147,7 +158,12 @@ public:
     static PyObject* get_on_cell_click(PyUIGridObject* self, void* closure);
     static int set_on_cell_click(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_hovered_cell(PyUIGridObject* self, void* closure);
-    
+
+    // #147 - Layer system Python API
+    static PyObject* py_add_layer(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_remove_layer(PyUIGridObject* self, PyObject* args);
+    static PyObject* get_layers(PyUIGridObject* self, void* closure);
+    static PyObject* py_layer(PyUIGridObject* self, PyObject* args);
 };
 
 typedef struct {

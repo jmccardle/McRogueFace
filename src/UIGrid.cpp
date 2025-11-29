@@ -183,6 +183,14 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Record how many cells were rendered
     Resources::game->metrics.gridCellsRendered += cellsRendered;
 
+    // #147 - Render dynamic layers with z_index < 0 (below entities)
+    sortLayers();
+    for (auto& layer : layers) {
+        if (layer->z_index >= 0) break;  // Stop at layers that go above entities
+        layer->render(renderTexture, left_spritepixels, top_spritepixels,
+                     left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
+    }
+
     // middle layer - entities
     // disabling entity rendering until I can render their UISprite inside the rendertexture (not directly to window)
     {
@@ -215,6 +223,13 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
         // Record entity rendering stats
         Resources::game->metrics.entitiesRendered += entitiesRendered;
         Resources::game->metrics.totalEntities += totalEntities;
+    }
+
+    // #147 - Render dynamic layers with z_index >= 0 (above entities)
+    for (auto& layer : layers) {
+        if (layer->z_index < 0) continue;  // Skip layers below entities
+        layer->render(renderTexture, left_spritepixels, top_spritepixels,
+                     left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }
 
     // Children layer - UIDrawables in grid-world pixel coordinates
@@ -375,6 +390,36 @@ UIGrid::~UIGrid()
 PyObjectsEnum UIGrid::derived_type()
 {
     return PyObjectsEnum::UIGRID;
+}
+
+// #147 - Layer management methods
+std::shared_ptr<ColorLayer> UIGrid::addColorLayer(int z_index) {
+    auto layer = std::make_shared<ColorLayer>(z_index, grid_x, grid_y, this);
+    layers.push_back(layer);
+    layers_need_sort = true;
+    return layer;
+}
+
+std::shared_ptr<TileLayer> UIGrid::addTileLayer(int z_index, std::shared_ptr<PyTexture> texture) {
+    auto layer = std::make_shared<TileLayer>(z_index, grid_x, grid_y, this, texture);
+    layers.push_back(layer);
+    layers_need_sort = true;
+    return layer;
+}
+
+void UIGrid::removeLayer(std::shared_ptr<GridLayer> layer) {
+    auto it = std::find(layers.begin(), layers.end(), layer);
+    if (it != layers.end()) {
+        layers.erase(it);
+    }
+}
+
+void UIGrid::sortLayers() {
+    if (layers_need_sort) {
+        std::sort(layers.begin(), layers.end(),
+            [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
+        layers_need_sort = false;
+    }
 }
 
 // TCOD integration methods
@@ -1301,23 +1346,225 @@ PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, Py
     return path_list;
 }
 
+// #147 - Layer system Python API
+PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"type", "z_index", "texture", NULL};
+    const char* type_str = nullptr;
+    int z_index = -1;
+    PyObject* texture_obj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|iO", const_cast<char**>(kwlist),
+                                     &type_str, &z_index, &texture_obj)) {
+        return NULL;
+    }
+
+    std::string type(type_str);
+
+    if (type == "color") {
+        auto layer = self->data->addColorLayer(z_index);
+
+        // Create Python ColorLayer object
+        auto* color_layer_type = (PyTypeObject*)PyObject_GetAttrString(
+            PyImport_ImportModule("mcrfpy"), "ColorLayer");
+        if (!color_layer_type) return NULL;
+
+        PyColorLayerObject* py_layer = (PyColorLayerObject*)color_layer_type->tp_alloc(color_layer_type, 0);
+        Py_DECREF(color_layer_type);
+        if (!py_layer) return NULL;
+
+        py_layer->data = layer;
+        py_layer->grid = self->data;
+        return (PyObject*)py_layer;
+
+    } else if (type == "tile") {
+        // Parse texture
+        std::shared_ptr<PyTexture> texture;
+        if (texture_obj && texture_obj != Py_None) {
+            auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+            if (!mcrfpy_module) return NULL;
+
+            auto* texture_type = PyObject_GetAttrString(mcrfpy_module, "Texture");
+            Py_DECREF(mcrfpy_module);
+            if (!texture_type) return NULL;
+
+            if (!PyObject_IsInstance(texture_obj, texture_type)) {
+                Py_DECREF(texture_type);
+                PyErr_SetString(PyExc_TypeError, "texture must be a Texture object");
+                return NULL;
+            }
+            Py_DECREF(texture_type);
+            texture = ((PyTextureObject*)texture_obj)->data;
+        }
+
+        auto layer = self->data->addTileLayer(z_index, texture);
+
+        // Create Python TileLayer object
+        auto* tile_layer_type = (PyTypeObject*)PyObject_GetAttrString(
+            PyImport_ImportModule("mcrfpy"), "TileLayer");
+        if (!tile_layer_type) return NULL;
+
+        PyTileLayerObject* py_layer = (PyTileLayerObject*)tile_layer_type->tp_alloc(tile_layer_type, 0);
+        Py_DECREF(tile_layer_type);
+        if (!py_layer) return NULL;
+
+        py_layer->data = layer;
+        py_layer->grid = self->data;
+        return (PyObject*)py_layer;
+
+    } else {
+        PyErr_SetString(PyExc_ValueError, "type must be 'color' or 'tile'");
+        return NULL;
+    }
+}
+
+PyObject* UIGrid::py_remove_layer(PyUIGridObject* self, PyObject* args) {
+    PyObject* layer_obj;
+    if (!PyArg_ParseTuple(args, "O", &layer_obj)) {
+        return NULL;
+    }
+
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) return NULL;
+
+    // Check if ColorLayer
+    auto* color_layer_type = PyObject_GetAttrString(mcrfpy_module, "ColorLayer");
+    if (color_layer_type && PyObject_IsInstance(layer_obj, color_layer_type)) {
+        Py_DECREF(color_layer_type);
+        Py_DECREF(mcrfpy_module);
+        auto* py_layer = (PyColorLayerObject*)layer_obj;
+        self->data->removeLayer(py_layer->data);
+        Py_RETURN_NONE;
+    }
+    if (color_layer_type) Py_DECREF(color_layer_type);
+
+    // Check if TileLayer
+    auto* tile_layer_type = PyObject_GetAttrString(mcrfpy_module, "TileLayer");
+    if (tile_layer_type && PyObject_IsInstance(layer_obj, tile_layer_type)) {
+        Py_DECREF(tile_layer_type);
+        Py_DECREF(mcrfpy_module);
+        auto* py_layer = (PyTileLayerObject*)layer_obj;
+        self->data->removeLayer(py_layer->data);
+        Py_RETURN_NONE;
+    }
+    if (tile_layer_type) Py_DECREF(tile_layer_type);
+
+    Py_DECREF(mcrfpy_module);
+    PyErr_SetString(PyExc_TypeError, "layer must be a ColorLayer or TileLayer");
+    return NULL;
+}
+
+PyObject* UIGrid::get_layers(PyUIGridObject* self, void* closure) {
+    self->data->sortLayers();
+
+    PyObject* list = PyList_New(self->data->layers.size());
+    if (!list) return NULL;
+
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) {
+        Py_DECREF(list);
+        return NULL;
+    }
+
+    auto* color_layer_type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "ColorLayer");
+    auto* tile_layer_type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "TileLayer");
+    Py_DECREF(mcrfpy_module);
+
+    if (!color_layer_type || !tile_layer_type) {
+        if (color_layer_type) Py_DECREF(color_layer_type);
+        if (tile_layer_type) Py_DECREF(tile_layer_type);
+        Py_DECREF(list);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < self->data->layers.size(); ++i) {
+        auto& layer = self->data->layers[i];
+        PyObject* py_layer = nullptr;
+
+        if (layer->type == GridLayerType::Color) {
+            PyColorLayerObject* obj = (PyColorLayerObject*)color_layer_type->tp_alloc(color_layer_type, 0);
+            if (obj) {
+                obj->data = std::static_pointer_cast<ColorLayer>(layer);
+                obj->grid = self->data;
+                py_layer = (PyObject*)obj;
+            }
+        } else {
+            PyTileLayerObject* obj = (PyTileLayerObject*)tile_layer_type->tp_alloc(tile_layer_type, 0);
+            if (obj) {
+                obj->data = std::static_pointer_cast<TileLayer>(layer);
+                obj->grid = self->data;
+                py_layer = (PyObject*)obj;
+            }
+        }
+
+        if (!py_layer) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            Py_DECREF(list);
+            return NULL;
+        }
+
+        PyList_SET_ITEM(list, i, py_layer);  // Steals reference
+    }
+
+    Py_DECREF(color_layer_type);
+    Py_DECREF(tile_layer_type);
+    return list;
+}
+
+PyObject* UIGrid::py_layer(PyUIGridObject* self, PyObject* args) {
+    int z_index;
+    if (!PyArg_ParseTuple(args, "i", &z_index)) {
+        return NULL;
+    }
+
+    for (auto& layer : self->data->layers) {
+        if (layer->z_index == z_index) {
+            auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+            if (!mcrfpy_module) return NULL;
+
+            if (layer->type == GridLayerType::Color) {
+                auto* type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "ColorLayer");
+                Py_DECREF(mcrfpy_module);
+                if (!type) return NULL;
+
+                PyColorLayerObject* obj = (PyColorLayerObject*)type->tp_alloc(type, 0);
+                Py_DECREF(type);
+                if (!obj) return NULL;
+
+                obj->data = std::static_pointer_cast<ColorLayer>(layer);
+                obj->grid = self->data;
+                return (PyObject*)obj;
+            } else {
+                auto* type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "TileLayer");
+                Py_DECREF(mcrfpy_module);
+                if (!type) return NULL;
+
+                PyTileLayerObject* obj = (PyTileLayerObject*)type->tp_alloc(type, 0);
+                Py_DECREF(type);
+                if (!obj) return NULL;
+
+                obj->data = std::static_pointer_cast<TileLayer>(layer);
+                obj->grid = self->data;
+                return (PyObject*)obj;
+            }
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
 PyMethodDef UIGrid::methods[] = {
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
-    {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
-     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]\n\n"
-     "Compute field of view from a position and return visible cells.\n\n"
+    {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
+     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
+     "Compute field of view from a position.\n\n"
      "Args:\n"
      "    x: X coordinate of the viewer\n"
      "    y: Y coordinate of the viewer\n"
      "    radius: Maximum view distance (0 = unlimited)\n"
      "    light_walls: Whether walls are lit when visible\n"
      "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Returns:\n"
-     "    List of tuples (x, y, visible, discovered) for all visible cells:\n"
-     "    - x, y: Grid coordinates\n"
-     "    - visible: True (all returned cells are visible)\n"
-     "    - discovered: True (FOV implies discovery)\n\n"
-     "Also updates the internal FOV state for use with is_in_fov()."},
+     "Updates the internal FOV state. Use is_in_fov(x, y) to query visibility."},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
      "is_in_fov(x: int, y: int) -> bool\n\n"
      "Check if a cell is in the field of view.\n\n"
@@ -1379,6 +1626,12 @@ PyMethodDef UIGrid::methods[] = {
      "Returns:\n"
      "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
      "Alternative A* implementation. Prefer find_path() for consistency."},
+    {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS | METH_KEYWORDS,
+     "add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer"},
+    {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
+     "remove_layer(layer: ColorLayer | TileLayer) -> None"},
+    {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
+     "layer(z_index: int) -> ColorLayer | TileLayer | None"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -1389,21 +1642,16 @@ typedef PyUIGridObject PyObjectType;
 PyMethodDef UIGrid_all_methods[] = {
     UIDRAWABLE_METHODS,
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
-    {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS, 
-     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]\n\n"
-     "Compute field of view from a position and return visible cells.\n\n"
+    {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
+     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
+     "Compute field of view from a position.\n\n"
      "Args:\n"
      "    x: X coordinate of the viewer\n"
      "    y: Y coordinate of the viewer\n"
      "    radius: Maximum view distance (0 = unlimited)\n"
      "    light_walls: Whether walls are lit when visible\n"
      "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Returns:\n"
-     "    List of tuples (x, y, visible, discovered) for all visible cells:\n"
-     "    - x, y: Grid coordinates\n"
-     "    - visible: True (all returned cells are visible)\n"
-     "    - discovered: True (FOV implies discovery)\n\n"
-     "Also updates the internal FOV state for use with is_in_fov()."},
+     "Updates the internal FOV state. Use is_in_fov(x, y) to query visibility."},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
      "is_in_fov(x: int, y: int) -> bool\n\n"
      "Check if a cell is in the field of view.\n\n"
@@ -1465,6 +1713,27 @@ PyMethodDef UIGrid_all_methods[] = {
      "Returns:\n"
      "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
      "Alternative A* implementation. Prefer find_path() for consistency."},
+    {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS | METH_KEYWORDS,
+     "add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer\n\n"
+     "Add a new layer to the grid.\n\n"
+     "Args:\n"
+     "    type: Layer type ('color' or 'tile')\n"
+     "    z_index: Render order. Negative = below entities, >= 0 = above entities. Default: -1\n"
+     "    texture: Texture for tile layers. Required for 'tile' type.\n\n"
+     "Returns:\n"
+     "    The created ColorLayer or TileLayer object."},
+    {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
+     "remove_layer(layer: ColorLayer | TileLayer) -> None\n\n"
+     "Remove a layer from the grid.\n\n"
+     "Args:\n"
+     "    layer: The layer to remove."},
+    {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
+     "layer(z_index: int) -> ColorLayer | TileLayer | None\n\n"
+     "Get a layer by its z_index.\n\n"
+     "Args:\n"
+     "    z_index: The z_index of the layer to find.\n\n"
+     "Returns:\n"
+     "    The layer with the specified z_index, or None if not found."},
     {NULL}  // Sentinel
 };
 
@@ -1481,6 +1750,7 @@ PyGetSetDef UIGrid::getsetters[] = {
 
     {"entities", (getter)UIGrid::get_entities, NULL, "EntityCollection of entities on this grid", NULL},
     {"children", (getter)UIGrid::get_children, NULL, "UICollection of UIDrawable children (speech bubbles, effects, overlays)", NULL},
+    {"layers", (getter)UIGrid::get_layers, NULL, "List of grid layers (ColorLayer, TileLayer) sorted by z_index", NULL},
 
     {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "top-left corner X-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 0)},
     {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "top-left corner Y-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 1)},
