@@ -1,0 +1,41 @@
+{
+  "timestamp": "2025-11-28T16:53:30.850948",
+  "mode": "windowed",
+  "results": {
+    "many_frames": {
+      "avg_work_ms": 1.5756444444444444,
+      "max_work_ms": 3.257,
+      "frame_count": 90
+    },
+    "many_sprites": {
+      "avg_work_ms": 0.6889555555555555,
+      "max_work_ms": 1.533,
+      "frame_count": 90
+    },
+    "many_captions": {
+      "avg_work_ms": 1.2975777777777777,
+      "max_work_ms": 3.386,
+      "frame_count": 90
+    },
+    "deep_nesting": {
+      "avg_work_ms": 0.6173444444444445,
+      "max_work_ms": 1.4,
+      "frame_count": 90
+    },
+    "large_grid": {
+      "avg_work_ms": 3.6094,
+      "max_work_ms": 6.631,
+      "frame_count": 90
+    },
+    "animation_stress": {
+      "avg_work_ms": 0.5419333333333334,
+      "max_work_ms": 1.081,
+      "frame_count": 90
+    },
+    "static_scene": {
+      "avg_work_ms": 3.321588888888889,
+      "max_work_ms": 11.905,
+      "frame_count": 90
+    }
+  }
+}

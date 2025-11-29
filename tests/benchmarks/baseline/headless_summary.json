@@ -1,0 +1,51 @@
+{
+  "timestamp": "2025-11-28T19:22:01.900442",
+  "mode": "headless",
+  "results": {
+    "many_frames": {
+      "avg_work_ms": 0.5644053203661328,
+      "max_work_ms": 1.78,
+      "frame_count": 3496
+    },
+    "many_sprites": {
+      "avg_work_ms": 0.14705301494330555,
+      "max_work_ms": 11.814,
+      "frame_count": 13317
+    },
+    "many_captions": {
+      "avg_work_ms": 0.49336296106557376,
+      "max_work_ms": 2.202,
+      "frame_count": 3904
+    },
+    "deep_nesting": {
+      "avg_work_ms": 0.3517734925606891,
+      "max_work_ms": 145.75,
+      "frame_count": 10216
+    },
+    "deep_nesting_cached": {
+      "avg_work_ms": 0.0942947468905298,
+      "max_work_ms": 100.242,
+      "frame_count": 35617
+    },
+    "large_grid": {
+      "avg_work_ms": 2.2851537544696066,
+      "max_work_ms": 11.534,
+      "frame_count": 839
+    },
+    "animation_stress": {
+      "avg_work_ms": 0.0924456547145996,
+      "max_work_ms": 11.933,
+      "frame_count": 21391
+    },
+    "static_scene": {
+      "avg_work_ms": 2.022726128016789,
+      "max_work_ms": 17.275,
+      "frame_count": 953
+    },
+    "static_scene_cached": {
+      "avg_work_ms": 2.694431129476584,
+      "max_work_ms": 22.059,
+      "frame_count": 726
+    }
+  }
+}
