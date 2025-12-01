@@ -5,6 +5,7 @@
 #include "PyObjectUtils.h"
 #include "PyVector.h"
 #include "PythonObjectCache.h"
+#include "PyFOV.h"
 // UIDrawable methods now in UIBase.h
 #include "UIEntityPyMethods.h"
 
@@ -28,7 +29,7 @@ UIEntity::~UIEntity() {
 void UIEntity::updateVisibility()
 {
     if (!grid) return;
-    
+
     // Lazy initialize gridstate if needed
     if (gridstate.size() == 0) {
         gridstate.resize(grid->grid_x * grid->grid_y);
@@ -38,19 +39,19 @@ void UIEntity::updateVisibility()
             state.discovered = false;
         }
     }
-    
+
     // First, mark all cells as not visible
     for (auto& state : gridstate) {
         state.visible = false;
     }
-    
-    // Compute FOV from entity's position
+
+    // Compute FOV from entity's position using grid's FOV settings (#114)
     int x = static_cast<int>(position.x);
     int y = static_cast<int>(position.y);
-    
-    // Use default FOV radius of 10 (can be made configurable later)
-    grid->computeFOV(x, y, 10);
-    
+
+    // Use grid's configured FOV algorithm and radius
+    grid->computeFOV(x, y, grid->fov_radius, true, grid->fov_algorithm);
+
     // Update visible cells based on FOV computation
     for (int gy = 0; gy < grid->grid_y; gy++) {
         for (int gx = 0; gx < grid->grid_x; gx++) {
@@ -58,6 +59,32 @@ void UIEntity::updateVisibility()
             if (grid->isInFOV(gx, gy)) {
                 gridstate[idx].visible = true;
                 gridstate[idx].discovered = true;  // Once seen, always discovered
+            }
+        }
+    }
+
+    // #113 - Update any ColorLayers bound to this entity via perspective
+    // Get shared_ptr to self for comparison
+    std::shared_ptr<UIEntity> self_ptr = nullptr;
+    if (grid->entities) {
+        for (auto& entity : *grid->entities) {
+            if (entity.get() == this) {
+                self_ptr = entity;
+                break;
+            }
+        }
+    }
+
+    if (self_ptr) {
+        for (auto& layer : grid->layers) {
+            if (layer->type == GridLayerType::Color) {
+                auto color_layer = std::static_pointer_cast<ColorLayer>(layer);
+                if (color_layer->has_perspective) {
+                    auto bound_entity = color_layer->perspective_entity.lock();
+                    if (bound_entity && bound_entity.get() == this) {
+                        color_layer->updatePerspective();
+                    }
+                }
             }
         }
     }
@@ -588,11 +615,101 @@ PyObject* UIEntity::update_visibility(PyUIEntityObject* self, PyObject* Py_UNUSE
     Py_RETURN_NONE;
 }
 
+PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"fov", "radius", nullptr};
+    PyObject* fov_arg = nullptr;
+    int radius = -1;  // -1 means use grid default
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Oi", const_cast<char**>(keywords),
+                                     &fov_arg, &radius)) {
+        return NULL;
+    }
+
+    // Check if entity has a grid
+    if (!self->data || !self->data->grid) {
+        PyErr_SetString(PyExc_ValueError, "Entity must be associated with a grid to find visible entities");
+        return NULL;
+    }
+
+    auto grid = self->data->grid;
+
+    // Parse FOV algorithm - use grid default if not specified
+    TCOD_fov_algorithm_t algorithm = grid->fov_algorithm;
+    bool fov_was_none = false;
+    if (fov_arg && fov_arg != Py_None) {
+        if (PyFOV::from_arg(fov_arg, &algorithm, &fov_was_none) < 0) {
+            return NULL;  // Error already set
+        }
+    }
+
+    // Use grid radius if not specified
+    if (radius < 0) {
+        radius = grid->fov_radius;
+    }
+
+    // Get current position
+    int x = static_cast<int>(self->data->position.x);
+    int y = static_cast<int>(self->data->position.y);
+
+    // Compute FOV from this entity's position
+    grid->computeFOV(x, y, radius, true, algorithm);
+
+    // Create result list
+    PyObject* result = PyList_New(0);
+    if (!result) return PyErr_NoMemory();
+
+    // Get Entity type for creating Python objects
+    PyTypeObject* entity_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+    if (!entity_type) {
+        Py_DECREF(result);
+        return NULL;
+    }
+
+    // Iterate through all entities in the grid
+    if (grid->entities) {
+        for (auto& entity : *grid->entities) {
+            // Skip self
+            if (entity.get() == self->data.get()) {
+                continue;
+            }
+
+            // Check if entity is in FOV
+            int ex = static_cast<int>(entity->position.x);
+            int ey = static_cast<int>(entity->position.y);
+
+            if (grid->isInFOV(ex, ey)) {
+                // Create Python Entity object for this entity
+                auto pyEntity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
+                if (!pyEntity) {
+                    Py_DECREF(result);
+                    Py_DECREF(entity_type);
+                    return PyErr_NoMemory();
+                }
+
+                pyEntity->data = entity;
+                pyEntity->weakreflist = NULL;
+
+                if (PyList_Append(result, (PyObject*)pyEntity) < 0) {
+                    Py_DECREF(pyEntity);
+                    Py_DECREF(result);
+                    Py_DECREF(entity_type);
+                    return NULL;
+                }
+                Py_DECREF(pyEntity);  // List now owns the reference
+            }
+        }
+    }
+
+    Py_DECREF(entity_type);
+    return result;
+}
+
 PyMethodDef UIEntity::methods[] = {
     {"at", (PyCFunction)UIEntity::at, METH_O},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
-    {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS, 
+    {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS,
      "path_to(x: int, y: int) -> bool\n\n"
      "Find and follow path to target position using A* pathfinding.\n\n"
      "Args:\n"
@@ -602,12 +719,22 @@ PyMethodDef UIEntity::methods[] = {
      "    True if a path was found and the entity started moving, False otherwise\n\n"
      "The entity will automatically move along the path over multiple frames.\n"
      "Call this again to change the target or repath."},
-    {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS, 
+    {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS,
      "update_visibility() -> None\n\n"
      "Update entity's visibility state based on current FOV.\n\n"
      "Recomputes which cells are visible from the entity's position and updates\n"
      "the entity's gridstate to track explored areas. This is called automatically\n"
      "when the entity moves if it has a grid with perspective set."},
+    {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
+     "visible_entities(fov=None, radius=None) -> list[Entity]\n\n"
+     "Get list of other entities visible from this entity's position.\n\n"
+     "Args:\n"
+     "    fov (FOV, optional): FOV algorithm to use. Default: grid.fov\n"
+     "    radius (int, optional): FOV radius. Default: grid.fov_radius\n\n"
+     "Returns:\n"
+     "    List of Entity objects that are within field of view.\n\n"
+     "Computes FOV from this entity's position and returns all other entities\n"
+     "whose positions fall within the visible area."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -620,7 +747,7 @@ PyMethodDef UIEntity_all_methods[] = {
     {"at", (PyCFunction)UIEntity::at, METH_O},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
-    {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS, 
+    {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS,
      "path_to(x: int, y: int) -> bool\n\n"
      "Find and follow path to target position using A* pathfinding.\n\n"
      "Args:\n"
@@ -630,12 +757,22 @@ PyMethodDef UIEntity_all_methods[] = {
      "    True if a path was found and the entity started moving, False otherwise\n\n"
      "The entity will automatically move along the path over multiple frames.\n"
      "Call this again to change the target or repath."},
-    {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS, 
+    {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS,
      "update_visibility() -> None\n\n"
      "Update entity's visibility state based on current FOV.\n\n"
      "Recomputes which cells are visible from the entity's position and updates\n"
      "the entity's gridstate to track explored areas. This is called automatically\n"
      "when the entity moves if it has a grid with perspective set."},
+    {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
+     "visible_entities(fov=None, radius=None) -> list[Entity]\n\n"
+     "Get list of other entities visible from this entity's position.\n\n"
+     "Args:\n"
+     "    fov (FOV, optional): FOV algorithm to use. Default: grid.fov\n"
+     "    radius (int, optional): FOV radius. Default: grid.fov_radius\n\n"
+     "Returns:\n"
+     "    List of Entity objects that are within field of view.\n\n"
+     "Computes FOV from this entity's position and returns all other entities\n"
+     "whose positions fall within the visible area."},
     {NULL}  // Sentinel
 };
 

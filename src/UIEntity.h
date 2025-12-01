@@ -89,6 +89,7 @@ public:
     static PyObject* die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* path_to(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
     static PyObject* update_visibility(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
+    static PyObject* visible_entities(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
     static int init(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
 
     static PyObject* get_position(PyUIEntityObject* self, void* closure);
