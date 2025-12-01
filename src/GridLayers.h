@@ -11,6 +11,7 @@
 // Forward declarations
 class UIGrid;
 class PyTexture;
+class UIEntity;
 
 // Include PyTexture.h for PyTextureObject (typedef, not struct)
 #include "PyTexture.h"
@@ -89,6 +90,13 @@ class ColorLayer : public GridLayer {
 public:
     std::vector<sf::Color> colors;
 
+    // Perspective binding (#113) - binds layer to entity for automatic FOV updates
+    std::weak_ptr<UIEntity> perspective_entity;
+    sf::Color perspective_visible;
+    sf::Color perspective_discovered;
+    sf::Color perspective_unknown;
+    bool has_perspective;
+
     ColorLayer(int z_index, int grid_x, int grid_y, UIGrid* parent);
 
     // Access color at position
@@ -108,6 +116,18 @@ public:
                  const sf::Color& visible,
                  const sf::Color& discovered,
                  const sf::Color& unknown);
+
+    // Perspective binding (#113) - bind layer to entity for automatic updates
+    void applyPerspective(std::shared_ptr<UIEntity> entity,
+                          const sf::Color& visible,
+                          const sf::Color& discovered,
+                          const sf::Color& unknown);
+
+    // Update perspective - redraws based on bound entity's current position
+    void updatePerspective();
+
+    // Clear perspective binding
+    void clearPerspective();
 
     // Render a specific chunk to its texture (called when chunk is dirty AND visible)
     void renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, int cell_height) override;
@@ -185,6 +205,9 @@ public:
     static PyObject* ColorLayer_fill(PyColorLayerObject* self, PyObject* args);
     static PyObject* ColorLayer_fill_rect(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* ColorLayer_draw_fov(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* ColorLayer_apply_perspective(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* ColorLayer_update_perspective(PyColorLayerObject* self, PyObject* args);
+    static PyObject* ColorLayer_clear_perspective(PyColorLayerObject* self, PyObject* args);
     static PyObject* ColorLayer_get_z_index(PyColorLayerObject* self, void* closure);
     static int ColorLayer_set_z_index(PyColorLayerObject* self, PyObject* value, void* closure);
     static PyObject* ColorLayer_get_visible(PyColorLayerObject* self, void* closure);

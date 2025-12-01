@@ -1,5 +1,6 @@
 #include "GridLayers.h"
 #include "UIGrid.h"
+#include "UIEntity.h"
 #include "PyColor.h"
 #include "PyTexture.h"
 #include "PyFOV.h"
@@ -110,7 +111,11 @@ void GridLayer::ensureChunkTexture(int chunk_idx, int cell_width, int cell_heigh
 
 ColorLayer::ColorLayer(int z_index, int grid_x, int grid_y, UIGrid* parent)
     : GridLayer(GridLayerType::Color, z_index, grid_x, grid_y, parent),
-      colors(grid_x * grid_y, sf::Color::Transparent)
+      colors(grid_x * grid_y, sf::Color::Transparent),
+      perspective_visible(255, 255, 200, 64),
+      perspective_discovered(100, 100, 100, 128),
+      perspective_unknown(0, 0, 0, 255),
+      has_perspective(false)
 {}
 
 sf::Color& ColorLayer::at(int x, int y) {
@@ -193,6 +198,48 @@ void ColorLayer::drawFOV(int source_x, int source_y, int radius,
 
     // Mark entire layer dirty
     markDirty();
+}
+
+void ColorLayer::applyPerspective(std::shared_ptr<UIEntity> entity,
+                                   const sf::Color& visible,
+                                   const sf::Color& discovered,
+                                   const sf::Color& unknown) {
+    perspective_entity = entity;
+    perspective_visible = visible;
+    perspective_discovered = discovered;
+    perspective_unknown = unknown;
+    has_perspective = true;
+
+    // Initial draw based on entity's current position
+    updatePerspective();
+}
+
+void ColorLayer::updatePerspective() {
+    if (!has_perspective) return;
+
+    auto entity = perspective_entity.lock();
+    if (!entity) {
+        // Entity was deleted, clear perspective
+        has_perspective = false;
+        return;
+    }
+
+    if (!parent_grid) return;
+
+    // Get entity position and grid's FOV settings
+    int source_x = static_cast<int>(entity->position.x);
+    int source_y = static_cast<int>(entity->position.y);
+    int radius = parent_grid->fov_radius;
+    TCOD_fov_algorithm_t algorithm = parent_grid->fov_algorithm;
+
+    // Use drawFOV with our stored colors
+    drawFOV(source_x, source_y, radius, algorithm,
+            perspective_visible, perspective_discovered, perspective_unknown);
+}
+
+void ColorLayer::clearPerspective() {
+    perspective_entity.reset();
+    has_perspective = false;
 }
 
 void ColorLayer::resize(int new_grid_x, int new_grid_y) {
@@ -539,6 +586,22 @@ PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
      "    discovered (Color): Color for previously seen cells\n"
      "    unknown (Color): Color for never-seen cells\n\n"
      "Note: Layer must be attached to a grid for FOV calculation."},
+    {"apply_perspective", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_perspective, METH_VARARGS | METH_KEYWORDS,
+     "apply_perspective(entity, visible=None, discovered=None, unknown=None)\n\n"
+     "Bind this layer to an entity for automatic FOV updates.\n\n"
+     "Args:\n"
+     "    entity (Entity): The entity whose perspective to track\n"
+     "    visible (Color): Color for currently visible cells\n"
+     "    discovered (Color): Color for previously seen cells\n"
+     "    unknown (Color): Color for never-seen cells\n\n"
+     "After binding, call update_perspective() when the entity moves."},
+    {"update_perspective", (PyCFunction)PyGridLayerAPI::ColorLayer_update_perspective, METH_NOARGS,
+     "update_perspective()\n\n"
+     "Redraw FOV based on the bound entity's current position.\n\n"
+     "Call this after the entity moves to update the visibility layer."},
+    {"clear_perspective", (PyCFunction)PyGridLayerAPI::ColorLayer_clear_perspective, METH_NOARGS,
+     "clear_perspective()\n\n"
+     "Remove the perspective binding from this layer."},
     {NULL}
 };
 
@@ -862,6 +925,122 @@ PyObject* PyGridLayerAPI::ColorLayer_draw_fov(PyColorLayerObject* self, PyObject
     if (!parse_color(unknown_obj, unknown_color, unknown_color, "unknown")) return NULL;
 
     self->data->drawFOV(source_x, source_y, radius, algorithm, visible_color, discovered_color, unknown_color);
+    Py_RETURN_NONE;
+}
+
+PyObject* PyGridLayerAPI::ColorLayer_apply_perspective(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"entity", "visible", "discovered", "unknown", NULL};
+    PyObject* entity_obj;
+    PyObject* visible_obj = nullptr;
+    PyObject* discovered_obj = nullptr;
+    PyObject* unknown_obj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OOO", const_cast<char**>(kwlist),
+                                     &entity_obj, &visible_obj, &discovered_obj, &unknown_obj)) {
+        return NULL;
+    }
+
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    if (!self->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer is not attached to a grid");
+        return NULL;
+    }
+
+    // Get the Entity type
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) return NULL;
+
+    auto* entity_type = PyObject_GetAttrString(mcrfpy_module, "Entity");
+    Py_DECREF(mcrfpy_module);
+    if (!entity_type) return NULL;
+
+    if (!PyObject_IsInstance(entity_obj, entity_type)) {
+        Py_DECREF(entity_type);
+        PyErr_SetString(PyExc_TypeError, "entity must be an Entity object");
+        return NULL;
+    }
+    Py_DECREF(entity_type);
+
+    // Get the shared_ptr to the entity
+    PyUIEntityObject* py_entity = (PyUIEntityObject*)entity_obj;
+    if (!py_entity->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Entity has no data");
+        return NULL;
+    }
+
+    // Helper lambda to parse color
+    auto parse_color = [](PyObject* obj, sf::Color& out, const sf::Color& default_val, const char* name) -> bool {
+        if (!obj || obj == Py_None) {
+            out = default_val;
+            return true;
+        }
+
+        auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+        if (!mcrfpy_module) return false;
+
+        auto* color_type = PyObject_GetAttrString(mcrfpy_module, "Color");
+        Py_DECREF(mcrfpy_module);
+        if (!color_type) return false;
+
+        if (PyObject_IsInstance(obj, color_type)) {
+            out = ((PyColorObject*)obj)->data;
+            Py_DECREF(color_type);
+            return true;
+        } else if (PyTuple_Check(obj)) {
+            int r, g, b, a = 255;
+            if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
+                Py_DECREF(color_type);
+                return false;
+            }
+            out = sf::Color(r, g, b, a);
+            Py_DECREF(color_type);
+            return true;
+        }
+
+        Py_DECREF(color_type);
+        PyErr_Format(PyExc_TypeError, "%s must be a Color object or (r, g, b[, a]) tuple", name);
+        return false;
+    };
+
+    // Parse colors with defaults
+    sf::Color visible_color(255, 255, 200, 64);
+    sf::Color discovered_color(100, 100, 100, 128);
+    sf::Color unknown_color(0, 0, 0, 255);
+
+    if (!parse_color(visible_obj, visible_color, visible_color, "visible")) return NULL;
+    if (!parse_color(discovered_obj, discovered_color, discovered_color, "discovered")) return NULL;
+    if (!parse_color(unknown_obj, unknown_color, unknown_color, "unknown")) return NULL;
+
+    self->data->applyPerspective(py_entity->data, visible_color, discovered_color, unknown_color);
+    Py_RETURN_NONE;
+}
+
+PyObject* PyGridLayerAPI::ColorLayer_update_perspective(PyColorLayerObject* self, PyObject* args) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    if (!self->data->has_perspective) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no perspective binding. Call apply_perspective() first.");
+        return NULL;
+    }
+
+    self->data->updatePerspective();
+    Py_RETURN_NONE;
+}
+
+PyObject* PyGridLayerAPI::ColorLayer_clear_perspective(PyColorLayerObject* self, PyObject* args) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    self->data->clearPerspective();
     Py_RETURN_NONE;
 }
 
