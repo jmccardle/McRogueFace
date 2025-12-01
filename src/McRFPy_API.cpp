@@ -8,6 +8,7 @@
 #include "PyTimer.h"
 #include "PyWindow.h"
 #include "PySceneObject.h"
+#include "PyFOV.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
 #include "BenchmarkLogger.h"
@@ -366,20 +367,28 @@ PyObject* PyInit_mcrfpy()
     PyModule_AddObject(m, "default_font", Py_None);
     PyModule_AddObject(m, "default_texture", Py_None);
     
-    // Add TCOD FOV algorithm constants
-    PyModule_AddIntConstant(m, "FOV_BASIC", FOV_BASIC);
-    PyModule_AddIntConstant(m, "FOV_DIAMOND", FOV_DIAMOND);
-    PyModule_AddIntConstant(m, "FOV_SHADOW", FOV_SHADOW);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_0", FOV_PERMISSIVE_0);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_1", FOV_PERMISSIVE_1);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_2", FOV_PERMISSIVE_2);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_3", FOV_PERMISSIVE_3);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_4", FOV_PERMISSIVE_4);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_5", FOV_PERMISSIVE_5);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_6", FOV_PERMISSIVE_6);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_7", FOV_PERMISSIVE_7);
-    PyModule_AddIntConstant(m, "FOV_PERMISSIVE_8", FOV_PERMISSIVE_8);
-    PyModule_AddIntConstant(m, "FOV_RESTRICTIVE", FOV_RESTRICTIVE);
+    // Add FOV enum class (uses Python's IntEnum) (#114)
+    PyObject* fov_class = PyFOV::create_enum_class(m);
+    if (!fov_class) {
+        // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add default_fov module property - defaults to FOV.BASIC
+    // New grids copy this value at creation time
+    if (fov_class) {
+        PyObject* default_fov = PyObject_GetAttrString(fov_class, "BASIC");
+        if (default_fov) {
+            PyModule_AddObject(m, "default_fov", default_fov);
+        } else {
+            PyErr_Clear();
+            // Fallback to integer
+            PyModule_AddIntConstant(m, "default_fov", FOV_BASIC);
+        }
+    } else {
+        // Fallback to integer if enum failed
+        PyModule_AddIntConstant(m, "default_fov", FOV_BASIC);
+    }
     
     // Add automation submodule
     PyObject* automation_module = McRFPy_Automation::init_automation_module();

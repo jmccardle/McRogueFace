@@ -4,6 +4,7 @@
 #include "PythonObjectCache.h"
 #include "UIEntity.h"
 #include "Profiler.h"
+#include "PyFOV.h"
 #include <algorithm>
 #include <cmath>    // #142 - for std::floor
 #include <cstring>  // #150 - for strcmp
@@ -12,7 +13,8 @@
 UIGrid::UIGrid()
 : grid_x(0), grid_y(0), zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
   fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
-  perspective_enabled(false), use_chunks(false)  // Default to omniscient view
+  perspective_enabled(false), fov_algorithm(FOV_BASIC), fov_radius(10),
+  use_chunks(false)  // Default to omniscient view
 {
     // Initialize entities list
     entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
@@ -43,7 +45,7 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
   zoom(1.0f),
   ptex(_ptex),
   fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
-  perspective_enabled(false),
+  perspective_enabled(false), fov_algorithm(FOV_BASIC), fov_radius(10),
   use_chunks(gx > CHUNK_THRESHOLD || gy > CHUNK_THRESHOLD)  // #123 - Use chunks for large grids
 {
     // Use texture dimensions if available, otherwise use defaults
@@ -1275,6 +1277,62 @@ int UIGrid::set_perspective_enabled(PyUIGridObject* self, PyObject* value, void*
     return 0;
 }
 
+// #114 - FOV algorithm property
+PyObject* UIGrid::get_fov(PyUIGridObject* self, void* closure)
+{
+    // Return the FOV enum member for the current algorithm
+    if (PyFOV::fov_enum_class) {
+        // Get the enum member by value
+        PyObject* value = PyLong_FromLong(self->data->fov_algorithm);
+        if (!value) return NULL;
+
+        // Call FOV(value) to get the enum member
+        PyObject* args = PyTuple_Pack(1, value);
+        Py_DECREF(value);
+        if (!args) return NULL;
+
+        PyObject* result = PyObject_Call(PyFOV::fov_enum_class, args, NULL);
+        Py_DECREF(args);
+        return result;
+    }
+    // Fallback to integer
+    return PyLong_FromLong(self->data->fov_algorithm);
+}
+
+int UIGrid::set_fov(PyUIGridObject* self, PyObject* value, void* closure)
+{
+    TCOD_fov_algorithm_t algo;
+    if (!PyFOV::from_arg(value, &algo, nullptr)) {
+        return -1;
+    }
+    self->data->fov_algorithm = algo;
+    return 0;
+}
+
+// #114 - FOV radius property
+PyObject* UIGrid::get_fov_radius(PyUIGridObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->fov_radius);
+}
+
+int UIGrid::set_fov_radius(PyUIGridObject* self, PyObject* value, void* closure)
+{
+    if (!PyLong_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "fov_radius must be an integer");
+        return -1;
+    }
+    long radius = PyLong_AsLong(value);
+    if (radius == -1 && PyErr_Occurred()) {
+        return -1;
+    }
+    if (radius < 0) {
+        PyErr_SetString(PyExc_ValueError, "fov_radius must be non-negative");
+        return -1;
+    }
+    self->data->fov_radius = (int)radius;
+    return 0;
+}
+
 // Python API implementations for TCOD functionality
 PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
@@ -1836,6 +1894,11 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"perspective_enabled", (getter)UIGrid::get_perspective_enabled, (setter)UIGrid::set_perspective_enabled,
      "Whether to use perspective-based FOV rendering. When True with no valid entity, "
      "all cells appear undiscovered.", NULL},
+    {"fov", (getter)UIGrid::get_fov, (setter)UIGrid::set_fov,
+     "FOV algorithm for this grid (mcrfpy.FOV enum). "
+     "Used by entity.updateVisibility() and layer methods when fov=None.", NULL},
+    {"fov_radius", (getter)UIGrid::get_fov_radius, (setter)UIGrid::set_fov_radius,
+     "Default FOV radius for this grid. Used when radius not specified.", NULL},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
      MCRF_PROPERTY(z_index,
          "Z-order for rendering (lower values rendered first). "

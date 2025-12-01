@@ -185,38 +185,19 @@ static PyObject* McRFPy_Libtcod::dijkstra_path_to(PyObject* self, PyObject* args
     return path_list;
 }
 
-// Add FOV algorithm constants to module
-static PyObject* McRFPy_Libtcod::add_fov_constants(PyObject* module) {
-    // FOV algorithms
-    PyModule_AddIntConstant(module, "FOV_BASIC", FOV_BASIC);
-    PyModule_AddIntConstant(module, "FOV_DIAMOND", FOV_DIAMOND);
-    PyModule_AddIntConstant(module, "FOV_SHADOW", FOV_SHADOW);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_0", FOV_PERMISSIVE_0);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_1", FOV_PERMISSIVE_1);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_2", FOV_PERMISSIVE_2);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_3", FOV_PERMISSIVE_3);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_4", FOV_PERMISSIVE_4);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_5", FOV_PERMISSIVE_5);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_6", FOV_PERMISSIVE_6);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_7", FOV_PERMISSIVE_7);
-    PyModule_AddIntConstant(module, "FOV_PERMISSIVE_8", FOV_PERMISSIVE_8);
-    PyModule_AddIntConstant(module, "FOV_RESTRICTIVE", FOV_RESTRICTIVE);
-    PyModule_AddIntConstant(module, "FOV_SYMMETRIC_SHADOWCAST", FOV_SYMMETRIC_SHADOWCAST);
-    
-    return module;
-}
+// FOV algorithm constants removed - use mcrfpy.FOV enum instead (#114)
 
 // Method definitions
 static PyMethodDef libtcodMethods[] = {
-    {"compute_fov", McRFPy_Libtcod::compute_fov, METH_VARARGS, 
-     "compute_fov(grid, x, y, radius, light_walls=True, algorithm=FOV_BASIC)\n\n"
+    {"compute_fov", McRFPy_Libtcod::compute_fov, METH_VARARGS,
+     "compute_fov(grid, x, y, radius, light_walls=True, algorithm=mcrfpy.FOV.BASIC)\n\n"
      "Compute field of view from a position.\n\n"
      "Args:\n"
      "    grid: Grid object to compute FOV on\n"
      "    x, y: Origin position\n"
      "    radius: Maximum sight radius\n"
      "    light_walls: Whether walls are lit when in FOV\n"
-     "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_SHADOW, etc.)\n\n"
+     "    algorithm: FOV algorithm (mcrfpy.FOV.BASIC, mcrfpy.FOV.SHADOW, etc.)\n\n"
      "Returns:\n"
      "    List of (x, y) tuples for visible cells"},
      
@@ -293,13 +274,13 @@ static PyModuleDef libtcodModule = {
     "TCOD-compatible algorithms for field of view, pathfinding, and line drawing.\n\n"
     "This module provides access to TCOD's algorithms integrated with McRogueFace grids.\n"
     "Unlike the original TCOD, these functions work directly with Grid objects.\n\n"
-    "FOV Algorithms:\n"
-    "    FOV_BASIC - Basic circular FOV\n"
-    "    FOV_SHADOW - Shadow casting (recommended)\n"
-    "    FOV_DIAMOND - Diamond-shaped FOV\n"
-    "    FOV_PERMISSIVE_0 through FOV_PERMISSIVE_8 - Permissive variants\n"
-    "    FOV_RESTRICTIVE - Most restrictive FOV\n"
-    "    FOV_SYMMETRIC_SHADOWCAST - Symmetric shadow casting\n\n"
+    "FOV Algorithms (use mcrfpy.FOV enum):\n"
+    "    mcrfpy.FOV.BASIC - Basic circular FOV\n"
+    "    mcrfpy.FOV.SHADOW - Shadow casting (recommended)\n"
+    "    mcrfpy.FOV.DIAMOND - Diamond-shaped FOV\n"
+    "    mcrfpy.FOV.PERMISSIVE_0 through PERMISSIVE_8 - Permissive variants\n"
+    "    mcrfpy.FOV.RESTRICTIVE - Most restrictive FOV\n"
+    "    mcrfpy.FOV.SYMMETRIC_SHADOWCAST - Symmetric shadow casting\n\n"
     "Example:\n"
     "    import mcrfpy\n"
     "    from mcrfpy import libtcod\n\n"
@@ -317,8 +298,7 @@ PyObject* McRFPy_Libtcod::init_libtcod_module() {
         return NULL;
     }
     
-    // Add FOV algorithm constants
-    add_fov_constants(m);
-    
+    // FOV algorithm constants now provided by mcrfpy.FOV enum (#114)
+
     return m;
 }

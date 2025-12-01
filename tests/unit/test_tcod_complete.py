@@ -37,13 +37,13 @@ def run_tests():
     # Test 3: Field of View
     print("Test 3: Field of View Algorithms")
     
-    # Test different algorithms
+    # Test different algorithms (using new mcrfpy.FOV enum)
     algorithms = [
-        ("Basic", mcrfpy.FOV_BASIC),
-        ("Diamond", mcrfpy.FOV_DIAMOND),
-        ("Shadow", mcrfpy.FOV_SHADOW),
-        ("Permissive", mcrfpy.FOV_PERMISSIVE_2),
-        ("Restrictive", mcrfpy.FOV_RESTRICTIVE)
+        ("Basic", mcrfpy.FOV.BASIC),
+        ("Diamond", mcrfpy.FOV.DIAMOND),
+        ("Shadow", mcrfpy.FOV.SHADOW),
+        ("Permissive", mcrfpy.FOV.PERMISSIVE_2),
+        ("Restrictive", mcrfpy.FOV.RESTRICTIVE)
     ]
     
     for name, algo in algorithms:

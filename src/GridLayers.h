@@ -3,6 +3,7 @@
 #include "Python.h"
 #include "structmember.h"
 #include <SFML/Graphics.hpp>
+#include <libtcod.h>
 #include <memory>
 #include <vector>
 #include <string>
@@ -23,6 +24,9 @@ enum class GridLayerType {
 // Abstract base class for grid layers
 class GridLayer {
 public:
+    // Chunk size for per-chunk dirty tracking (matches GridChunk::CHUNK_SIZE)
+    static constexpr int CHUNK_SIZE = 64;
+
     GridLayerType type;
     std::string name;      // #150 - Layer name for GridPoint property access
     int z_index;           // Negative = below entities, >= 0 = above entities
@@ -30,33 +34,53 @@ public:
     UIGrid* parent_grid;   // Parent grid reference
     bool visible;          // Visibility flag
 
-    // #148 - Dirty flag and RenderTexture caching
-    bool dirty;                           // True if layer needs re-render
-    sf::RenderTexture cached_texture;     // Cached layer content
-    sf::Sprite cached_sprite;             // Sprite for blitting cached texture
-    bool texture_initialized;             // True if RenderTexture has been created
-    int cached_cell_width, cached_cell_height;  // Cell size used for cached texture
+    // Chunk dimensions
+    int chunks_x, chunks_y;
+
+    // Per-chunk dirty flags and RenderTextures
+    std::vector<bool> chunk_dirty;                              // One flag per chunk
+    std::vector<std::unique_ptr<sf::RenderTexture>> chunk_textures;  // One texture per chunk
+    std::vector<bool> chunk_texture_initialized;                // Track which textures are created
+    int cached_cell_width, cached_cell_height;                  // Cell size used for cached textures
 
     GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, UIGrid* parent);
     virtual ~GridLayer() = default;
 
-    // Mark layer as needing re-render
+    // Mark entire layer as needing re-render
     void markDirty();
 
-    // Ensure cached texture is properly sized for current grid dimensions
-    void ensureTextureSize(int cell_width, int cell_height);
+    // Mark specific cell's chunk as dirty
+    void markDirty(int cell_x, int cell_y);
 
-    // Render the layer content to the cached texture (called when dirty)
+    // Get chunk index for a cell
+    int getChunkIndex(int cell_x, int cell_y) const;
+
+    // Get chunk coordinates for a cell
+    void getChunkCoords(int cell_x, int cell_y, int& chunk_x, int& chunk_y) const;
+
+    // Get cell bounds for a chunk
+    void getChunkBounds(int chunk_x, int chunk_y, int& start_x, int& start_y, int& end_x, int& end_y) const;
+
+    // Ensure a specific chunk's texture is properly sized
+    void ensureChunkTexture(int chunk_idx, int cell_width, int cell_height);
+
+    // Initialize chunk tracking arrays
+    void initChunks();
+
+    // Render a specific chunk to its cached texture (called when chunk is dirty)
+    virtual void renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, int cell_height) = 0;
+
+    // Render the layer content to the cached texture (legacy - marks all dirty)
     virtual void renderToTexture(int cell_width, int cell_height) = 0;
 
     // Render the layer to a RenderTarget with the given transformation parameters
-    // Uses cached texture if available, only re-renders when dirty
+    // Uses cached chunk textures, only re-renders visible dirty chunks
     virtual void render(sf::RenderTarget& target,
                        float left_spritepixels, float top_spritepixels,
                        int left_edge, int top_edge, int x_limit, int y_limit,
                        float zoom, int cell_width, int cell_height) = 0;
 
-    // Resize the layer (reallocates storage)
+    // Resize the layer (reallocates storage and reinitializes chunks)
     virtual void resize(int new_grid_x, int new_grid_y) = 0;
 };
 
@@ -74,7 +98,21 @@ public:
     // Fill entire layer with a color
     void fill(const sf::Color& color);
 
-    // #148 - Render all content to cached texture
+    // Fill a rectangular region with a color (#113)
+    void fillRect(int x, int y, int width, int height, const sf::Color& color);
+
+    // Draw FOV-based visibility (#113)
+    // Paints cells based on current FOV state from parent grid
+    void drawFOV(int source_x, int source_y, int radius,
+                 TCOD_fov_algorithm_t algorithm,
+                 const sf::Color& visible,
+                 const sf::Color& discovered,
+                 const sf::Color& unknown);
+
+    // Render a specific chunk to its texture (called when chunk is dirty AND visible)
+    void renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, int cell_height) override;
+
+    // #148 - Render all content to cached texture (legacy - calls renderChunkToTexture for all)
     void renderToTexture(int cell_width, int cell_height) override;
 
     void render(sf::RenderTarget& target,
@@ -101,7 +139,13 @@ public:
     // Fill entire layer with a tile index
     void fill(int tile_index);
 
-    // #148 - Render all content to cached texture
+    // Fill a rectangular region with a tile index (#113)
+    void fillRect(int x, int y, int width, int height, int tile_index);
+
+    // Render a specific chunk to its texture (called when chunk is dirty AND visible)
+    void renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, int cell_height) override;
+
+    // #148 - Render all content to cached texture (legacy - calls renderChunkToTexture for all)
     void renderToTexture(int cell_width, int cell_height) override;
 
     void render(sf::RenderTarget& target,
@@ -139,6 +183,8 @@ public:
     static PyObject* ColorLayer_at(PyColorLayerObject* self, PyObject* args);
     static PyObject* ColorLayer_set(PyColorLayerObject* self, PyObject* args);
     static PyObject* ColorLayer_fill(PyColorLayerObject* self, PyObject* args);
+    static PyObject* ColorLayer_fill_rect(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* ColorLayer_draw_fov(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* ColorLayer_get_z_index(PyColorLayerObject* self, void* closure);
     static int ColorLayer_set_z_index(PyColorLayerObject* self, PyObject* value, void* closure);
     static PyObject* ColorLayer_get_visible(PyColorLayerObject* self, void* closure);
@@ -151,6 +197,7 @@ public:
     static PyObject* TileLayer_at(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_set(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_fill(PyTileLayerObject* self, PyObject* args);
+    static PyObject* TileLayer_fill_rect(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* TileLayer_get_z_index(PyTileLayerObject* self, void* closure);
     static int TileLayer_set_z_index(PyTileLayerObject* self, PyObject* value, void* closure);
     static PyObject* TileLayer_get_visible(PyTileLayerObject* self, void* closure);

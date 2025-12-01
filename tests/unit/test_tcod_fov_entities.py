@@ -7,190 +7,142 @@ Demonstrates:
 1. Grid with obstacles (walls)
 2. Two entities at different positions
 3. Entity-specific FOV calculation
-4. Visual representation of visible/discovered areas
+4. Color layer for FOV visualization (new API)
 """
 
 import mcrfpy
-from mcrfpy import libtcod
 import sys
 
-# Constants
-WALL_SPRITE = 219  # Full block character
-PLAYER_SPRITE = 64  # @ symbol
-ENEMY_SPRITE = 69   # E character
-FLOOR_SPRITE = 46   # . period
+def run_tests():
+    """Run FOV entity tests"""
+    print("=== TCOD FOV Entity Tests ===\n")
 
-def setup_scene():
-    """Create the demo scene with grid and entities"""
-    mcrfpy.createScene("fov_demo")
-    
-    # Create grid
-    grid = mcrfpy.Grid(0, 0, grid_size=(40, 25))
-    grid.background_color = mcrfpy.Color(20, 20, 20)
-    
-    # Initialize all cells as floor
-    for y in range(grid.grid_y):
-        for x in range(grid.grid_x):
-            cell = grid.at(x, y)
-            cell.walkable = True
-            cell.transparent = True
-            cell.tilesprite = FLOOR_SPRITE
-            cell.color = mcrfpy.Color(50, 50, 50)
-    
-    # Create walls (horizontal wall)
-    for x in range(10, 30):
-        cell = grid.at(x, 10)
-        cell.walkable = False
-        cell.transparent = False
-        cell.tilesprite = WALL_SPRITE
-        cell.color = mcrfpy.Color(100, 100, 100)
-    
-    # Create walls (vertical wall)
-    for y in range(5, 20):
-        cell = grid.at(20, y)
-        cell.walkable = False
-        cell.transparent = False
-        cell.tilesprite = WALL_SPRITE
-        cell.color = mcrfpy.Color(100, 100, 100)
-    
-    # Add door gaps
-    grid.at(15, 10).walkable = True
-    grid.at(15, 10).transparent = True
-    grid.at(15, 10).tilesprite = FLOOR_SPRITE
-    
-    grid.at(20, 15).walkable = True
-    grid.at(20, 15).transparent = True
-    grid.at(20, 15).tilesprite = FLOOR_SPRITE
-    
-    # Create two entities
-    player = mcrfpy.Entity(5, 5)
-    player.sprite = PLAYER_SPRITE
+    # Test 1: FOV enum availability
+    print("Test 1: FOV Enum")
+    try:
+        print(f"  FOV.BASIC = {mcrfpy.FOV.BASIC}")
+        print(f"  FOV.SHADOW = {mcrfpy.FOV.SHADOW}")
+        print("✓ FOV enum available\n")
+    except Exception as e:
+        print(f"✗ FOV enum not available: {e}")
+        return False
+
+    # Test 2: Create grid with walls
+    print("Test 2: Grid Creation with Walls")
+    grid = mcrfpy.Grid(pos=(0, 0), size=(640, 400), grid_size=(40, 25))
+
+    # Set up walls
+    for y in range(25):
+        for x in range(40):
+            point = grid.at(x, y)
+            # Border walls
+            if x == 0 or x == 39 or y == 0 or y == 24:
+                point.walkable = False
+                point.transparent = False
+            # Central wall
+            elif x == 20 and y != 12:  # Wall with door at y=12
+                point.walkable = False
+                point.transparent = False
+            else:
+                point.walkable = True
+                point.transparent = True
+
+    print("✓ Grid with walls created\n")
+
+    # Test 3: Create entities
+    print("Test 3: Entity Creation")
+    player = mcrfpy.Entity((5, 12))
+    enemy = mcrfpy.Entity((35, 12))
     grid.entities.append(player)
-    
-    enemy = mcrfpy.Entity(35, 20)
-    enemy.sprite = ENEMY_SPRITE
     grid.entities.append(enemy)
-    
-    # Add grid to scene
-    ui = mcrfpy.sceneUI("fov_demo")
-    ui.append(grid)
-    
-    # Add info text
-    info = mcrfpy.Caption("TCOD FOV Demo - Blue: Player FOV, Red: Enemy FOV", 10, 430)
-    info.fill_color = mcrfpy.Color(255, 255, 255)
-    ui.append(info)
-    
-    controls = mcrfpy.Caption("Arrow keys: Move player | Q: Quit", 10, 450)
-    controls.fill_color = mcrfpy.Color(200, 200, 200)
-    ui.append(controls)
-    
-    return grid, player, enemy
+    print(f"  Player at ({player.x}, {player.y})")
+    print(f"  Enemy at ({enemy.x}, {enemy.y})")
+    print("✓ Entities created\n")
 
-def update_fov(grid, player, enemy):
-    """Update field of view for both entities"""
-    # Clear all overlays first
-    for y in range(grid.grid_y):
-        for x in range(grid.grid_x):
-            cell = grid.at(x, y)
-            cell.color_overlay = mcrfpy.Color(0, 0, 0, 200)  # Dark by default
-    
-    # Compute and display player FOV (blue tint)
-    grid.compute_fov(player.x, player.y, radius=10, algorithm=libtcod.FOV_SHADOW)
-    for y in range(grid.grid_y):
-        for x in range(grid.grid_x):
-            if grid.is_in_fov(x, y):
-                cell = grid.at(x, y)
-                cell.color_overlay = mcrfpy.Color(100, 100, 255, 50)  # Light blue
-    
-    # Compute and display enemy FOV (red tint) 
-    grid.compute_fov(enemy.x, enemy.y, radius=8, algorithm=libtcod.FOV_SHADOW)
-    for y in range(grid.grid_y):
-        for x in range(grid.grid_x):
-            if grid.is_in_fov(x, y):
-                cell = grid.at(x, y)
-                # Mix colors if both can see
-                if cell.color_overlay.r > 0 or cell.color_overlay.g > 0 or cell.color_overlay.b > 200:
-                    # Already blue, make purple
-                    cell.color_overlay = mcrfpy.Color(255, 100, 255, 50)
-                else:
-                    # Just red
-                    cell.color_overlay = mcrfpy.Color(255, 100, 100, 50)
+    # Test 4: FOV calculation for player
+    print("Test 4: Player FOV Calculation")
+    grid.compute_fov(int(player.x), int(player.y), radius=15, algorithm=mcrfpy.FOV.SHADOW)
 
-def test_pathfinding(grid, player, enemy):
-    """Test pathfinding between entities"""
-    path = grid.find_path(player.x, player.y, enemy.x, enemy.y)
-    
-    if path:
-        print(f"Path found from player to enemy: {len(path)} steps")
-        # Highlight path
-        for x, y in path[1:-1]:  # Skip start and end
-            cell = grid.at(x, y)
-            if cell.walkable:
-                cell.tile_overlay = 43  # + symbol
-    else:
-        print("No path found between player and enemy")
+    # Player should see themselves
+    assert grid.is_in_fov(int(player.x), int(player.y)), "Player should see themselves"
+    print("  Player can see their own position")
 
-def handle_keypress(scene_name, keycode):
-    """Handle keyboard input"""
-    if keycode == 81 or keycode == 256:  # Q or ESC
-        print("\nExiting FOV demo...")
-        sys.exit(0)
-    
-    # Get entities (assumes global access for demo)
-    if keycode == 265:  # UP
-        if player.y > 0 and grid.at(player.x, player.y - 1).walkable:
-            player.y -= 1
-    elif keycode == 264:  # DOWN
-        if player.y < grid.grid_y - 1 and grid.at(player.x, player.y + 1).walkable:
-            player.y += 1
-    elif keycode == 263:  # LEFT
-        if player.x > 0 and grid.at(player.x - 1, player.y).walkable:
-            player.x -= 1
-    elif keycode == 262:  # RIGHT
-        if player.x < grid.grid_x - 1 and grid.at(player.x + 1, player.y).walkable:
-            player.x += 1
-    
-    # Update FOV after movement
-    update_fov(grid, player, enemy)
-    test_pathfinding(grid, player, enemy)
+    # Player should see nearby cells
+    assert grid.is_in_fov(6, 12), "Player should see adjacent cells"
+    print("  Player can see adjacent cells")
+
+    # Player should NOT see behind the wall (outside door line)
+    assert not grid.is_in_fov(21, 5), "Player should not see behind wall"
+    print("  Player cannot see behind wall at (21, 5)")
+
+    # Player should NOT see enemy (behind wall even with door)
+    assert not grid.is_in_fov(int(enemy.x), int(enemy.y)), "Player should not see enemy"
+    print("  Player cannot see enemy")
+
+    print("✓ Player FOV working correctly\n")
+
+    # Test 5: FOV calculation for enemy
+    print("Test 5: Enemy FOV Calculation")
+    grid.compute_fov(int(enemy.x), int(enemy.y), radius=15, algorithm=mcrfpy.FOV.SHADOW)
+
+    # Enemy should see themselves
+    assert grid.is_in_fov(int(enemy.x), int(enemy.y)), "Enemy should see themselves"
+    print("  Enemy can see their own position")
+
+    # Enemy should NOT see player (behind wall)
+    assert not grid.is_in_fov(int(player.x), int(player.y)), "Enemy should not see player"
+    print("  Enemy cannot see player")
+
+    print("✓ Enemy FOV working correctly\n")
+
+    # Test 6: FOV with color layer
+    print("Test 6: FOV Color Layer Visualization")
+    fov_layer = grid.add_layer('color', z_index=-1)
+    fov_layer.fill((0, 0, 0, 255))  # Start with black (unknown)
+
+    # Draw player FOV
+    fov_layer.draw_fov(
+        source=(int(player.x), int(player.y)),
+        radius=10,
+        fov=mcrfpy.FOV.SHADOW,
+        visible=(255, 255, 200, 64),
+        discovered=(100, 100, 100, 128),
+        unknown=(0, 0, 0, 255)
+    )
+
+    # Check visible cell
+    visible_cell = fov_layer.at(int(player.x), int(player.y))
+    assert visible_cell.r == 255, "Player position should be visible"
+    print("  Player position has visible color")
+
+    # Check hidden cell (behind wall)
+    hidden_cell = fov_layer.at(int(enemy.x), int(enemy.y))
+    assert hidden_cell.r == 0, "Enemy position should be unknown"
+    print("  Enemy position has unknown color")
+
+    print("✓ FOV color layer working correctly\n")
+
+    # Test 7: Line of sight via libtcod
+    print("Test 7: Line Drawing")
+    line = mcrfpy.libtcod.line(int(player.x), int(player.y), int(enemy.x), int(enemy.y))
+    print(f"  Line from player to enemy: {len(line)} cells")
+    assert len(line) > 0, "Line should have cells"
+    print("✓ Line drawing working\n")
+
+    print("=== All FOV Entity Tests Passed! ===")
+    return True
 
 # Main execution
-print("McRogueFace TCOD FOV Demo")
-print("=========================")
-print("Testing mcrfpy.libtcod module...")
-
-# Test that libtcod module exists
-try:
-    print(f"libtcod module: {libtcod}")
-    print(f"FOV constants: FOV_BASIC={libtcod.FOV_BASIC}, FOV_SHADOW={libtcod.FOV_SHADOW}")
-except Exception as e:
-    print(f"ERROR: Could not access libtcod module: {e}")
-    sys.exit(1)
-
-# Create scene
-grid, player, enemy = setup_scene()
-
-# Make these global for keypress handler (demo only)
-globals()['grid'] = grid
-globals()['player'] = player
-globals()['enemy'] = enemy
-
-# Initial FOV calculation
-update_fov(grid, player, enemy)
-
-# Test pathfinding
-test_pathfinding(grid, player, enemy)
-
-# Test line drawing
-line = libtcod.line(player.x, player.y, enemy.x, enemy.y)
-print(f"Line from player to enemy: {len(line)} cells")
-
-# Set up input handling
-mcrfpy.keypressScene(handle_keypress)
-
-# Show the scene
-mcrfpy.setScene("fov_demo")
-
-print("\nFOV demo running. Use arrow keys to move player (@)")
-print("Blue areas are visible to player, red to enemy, purple to both")
-print("Press Q to quit")
+if __name__ == "__main__":
+    try:
+        if run_tests():
+            print("\nPASS")
+            sys.exit(0)
+        else:
+            print("\nFAIL")
+            sys.exit(1)
+    except Exception as e:
+        print(f"\nFAIL: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

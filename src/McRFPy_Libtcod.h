@@ -18,10 +18,7 @@ namespace McRFPy_Libtcod
     // Line algorithms
     static PyObject* line(PyObject* self, PyObject* args);
     static PyObject* line_iter(PyObject* self, PyObject* args);
-    
-    // FOV algorithm constants
-    static PyObject* add_fov_constants(PyObject* module);
-    
+
     // Module initialization
     PyObject* init_libtcod_module();
 }

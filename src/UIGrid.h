@@ -112,6 +112,10 @@ public:
     std::weak_ptr<UIEntity> perspective_entity;  // Weak reference to perspective entity
     bool perspective_enabled;                     // Whether to use perspective rendering
 
+    // #114 - FOV algorithm and radius for this grid
+    TCOD_fov_algorithm_t fov_algorithm;           // Default FOV algorithm (from mcrfpy.default_fov)
+    int fov_radius;                               // Default FOV radius
+
     // #142 - Grid cell mouse events
     std::unique_ptr<PyClickCallable> on_cell_enter_callable;
     std::unique_ptr<PyClickCallable> on_cell_exit_callable;
@@ -149,6 +153,10 @@ public:
     static int set_perspective(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_perspective_enabled(PyUIGridObject* self, void* closure);
     static int set_perspective_enabled(PyUIGridObject* self, PyObject* value, void* closure);
+    static PyObject* get_fov(PyUIGridObject* self, void* closure);
+    static int set_fov(PyUIGridObject* self, PyObject* value, void* closure);
+    static PyObject* get_fov_radius(PyUIGridObject* self, void* closure);
+    static int set_fov_radius(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_is_in_fov(PyUIGridObject* self, PyObject* args);
