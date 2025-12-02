@@ -1355,6 +1355,14 @@ PyObject* McRFPy_API::_setDevConsole(PyObject* self, PyObject* args) {
 // Benchmark logging implementation (#104)
 PyObject* McRFPy_API::_startBenchmark(PyObject* self, PyObject* args) {
     try {
+        // Warn if in headless mode - benchmark frames are only recorded by the game loop
+        if (game && game->isHeadless()) {
+            PyErr_WarnEx(PyExc_UserWarning,
+                "Benchmark started in headless mode. Note: step() and screenshot() do not "
+                "record benchmark frames. The benchmark API captures per-frame data from the "
+                "game loop, which is bypassed when using step()-based simulation control. "
+                "For headless performance measurement, use Python's time module instead.", 1);
+        }
         g_benchmarkLogger.start();
         Py_RETURN_NONE;
     } catch (const std::runtime_error& e) {
