@@ -62,6 +62,9 @@ public:
     static PyObject* _setTimer(PyObject*, PyObject*);
     static PyObject* _delTimer(PyObject*, PyObject*);
 
+    // #153 - Headless simulation control
+    static PyObject* _step(PyObject*, PyObject*);
+
     static PyObject* _exit(PyObject*, PyObject*);
     static PyObject* _setScale(PyObject*, PyObject*);
 

@@ -161,6 +161,15 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_RETURNS("None")
          MCRF_NOTE("No error is raised if the timer doesn't exist.")
      )},
+    {"step", McRFPy_API::_step, METH_VARARGS,
+     MCRF_FUNCTION(step,
+         MCRF_SIG("(dt: float = None)", "float"),
+         MCRF_DESC("Advance simulation time (headless mode only)."),
+         MCRF_ARGS_START
+         MCRF_ARG("dt", "Time to advance in seconds. If None, advances to the next scheduled event (timer/animation).")
+         MCRF_RETURNS("float: Actual time advanced in seconds. Returns 0.0 in windowed mode.")
+         MCRF_NOTE("In windowed mode, this is a no-op and returns 0.0. Use this for deterministic simulation control in headless/testing scenarios.")
+     )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
      MCRF_FUNCTION(exit,
          MCRF_SIG("()", "None"),
@@ -981,6 +990,33 @@ PyObject* McRFPy_API::_delTimer(PyObject* self, PyObject* args) {
     game->manageTimer(name, NULL, 0);
     Py_INCREF(Py_None);
     return Py_None;
+}
+
+// #153 - Headless simulation control
+PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
+    PyObject* dt_obj = Py_None;
+    if (!PyArg_ParseTuple(args, "|O", &dt_obj)) return NULL;
+
+    float dt;
+    if (dt_obj == Py_None) {
+        // None means "advance to next event"
+        dt = -1.0f;
+    } else if (PyFloat_Check(dt_obj)) {
+        dt = static_cast<float>(PyFloat_AsDouble(dt_obj));
+    } else if (PyLong_Check(dt_obj)) {
+        dt = static_cast<float>(PyLong_AsLong(dt_obj));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "step() argument must be a float, int, or None");
+        return NULL;
+    }
+
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
+        return NULL;
+    }
+
+    float actual_dt = game->step(dt);
+    return PyFloat_FromDouble(actual_dt);
 }
 
 PyObject* McRFPy_API::_exit(PyObject* self, PyObject* args) {

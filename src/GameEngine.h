@@ -110,6 +110,10 @@ private:
     bool headless = false;
     McRogueFaceConfig config;
     bool cleaned_up = false;
+
+    // #153 - Headless simulation control
+    int simulation_time = 0;           // Simulated time in milliseconds (for headless mode)
+    bool simulation_clock_paused = false;  // True when simulation is paused (waiting for step())
     
     // Window state tracking
     bool vsync_enabled = false;
@@ -188,6 +192,11 @@ public:
     ViewportMode getViewportMode() const { return viewportMode; }
     std::string getViewportModeString() const;
     sf::Vector2f windowToGameCoords(const sf::Vector2f& windowPos) const;
+
+    // #153 - Headless simulation control
+    float step(float dt = -1.0f);  // Advance simulation; dt<0 means advance to next event
+    int getSimulationTime() const { return simulation_time; }
+    void renderScene();  // Force render current scene (for synchronous screenshot)
 
     // global textures for scripts to access
     std::vector<IndexTexture> textures;

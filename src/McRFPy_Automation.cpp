@@ -185,47 +185,52 @@ void McRFPy_Automation::injectTextEvent(sf::Uint32 unicode) {
 }
 
 // Screenshot implementation
+// #153 - In headless mode, this is now SYNCHRONOUS: renders scene then captures
 PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
     const char* filename;
     if (!PyArg_ParseTuple(args, "s", &filename)) {
         return NULL;
     }
-    
+
     auto engine = getGameEngine();
     if (!engine) {
         PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
         return NULL;
     }
-    
+
     // Get the render target
     sf::RenderTarget* target = engine->getRenderTargetPtr();
     if (!target) {
         PyErr_SetString(PyExc_RuntimeError, "No render target available");
         return NULL;
     }
-    
-    // For RenderWindow, we can get a screenshot directly
+
+    // For RenderWindow (windowed mode), capture the current buffer
     if (auto* window = dynamic_cast<sf::RenderWindow*>(target)) {
         sf::Vector2u windowSize = window->getSize();
         sf::Texture texture;
         texture.create(windowSize.x, windowSize.y);
         texture.update(*window);
-        
+
         if (texture.copyToImage().saveToFile(filename)) {
             Py_RETURN_TRUE;
         } else {
             Py_RETURN_FALSE;
         }
     }
-    // For RenderTexture (headless mode)
+    // For RenderTexture (headless mode) - SYNCHRONOUS render then capture
     else if (auto* renderTexture = dynamic_cast<sf::RenderTexture*>(target)) {
+        // #153 - Force a synchronous render before capturing
+        // This ensures we capture the CURRENT state, not the previous frame
+        engine->renderScene();
+
         if (renderTexture->getTexture().copyToImage().saveToFile(filename)) {
             Py_RETURN_TRUE;
         } else {
             Py_RETURN_FALSE;
         }
     }
-    
+
     PyErr_SetString(PyExc_RuntimeError, "Unknown render target type");
     return NULL;
 }

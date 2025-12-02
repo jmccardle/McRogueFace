@@ -360,13 +360,17 @@ std::shared_ptr<Timer> GameEngine::getTimer(const std::string& name)
 void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
 {
     auto it = timers.find(name);
+
+    // #153 - In headless mode, use simulation_time instead of real-time clock
+    int now = headless ? simulation_time : runtime.getElapsedTime().asMilliseconds();
+
     if (it != timers.end()) // overwrite existing
     {
         if (target == NULL || target == Py_None)
         {
             // Delete: Overwrite existing timer with one that calls None. This will be deleted in the next timer check
             // see gitea issue #4: this allows for a timer to be deleted during its own call to itself
-            timers[name] = std::make_shared<Timer>(Py_None, 1000, runtime.getElapsedTime().asMilliseconds());
+            timers[name] = std::make_shared<Timer>(Py_None, 1000, now);
             return;
         }
     }
@@ -375,7 +379,7 @@ void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
         std::cout << "Refusing to initialize timer to None. It's not an error, it's just pointless." << std::endl;
         return;
     }
-    timers[name] = std::make_shared<Timer>(target, interval, runtime.getElapsedTime().asMilliseconds());
+    timers[name] = std::make_shared<Timer>(target, interval, now);
 }
 
 void GameEngine::testTimers()
@@ -626,7 +630,92 @@ void GameEngine::updateViewport() {
 
 sf::Vector2f GameEngine::windowToGameCoords(const sf::Vector2f& windowPos) const {
     if (!render_target) return windowPos;
-    
+
     // Convert window coordinates to game coordinates using the view
     return render_target->mapPixelToCoords(sf::Vector2i(windowPos), gameView);
+}
+
+// #153 - Headless simulation control: step() advances simulation time
+float GameEngine::step(float dt) {
+    // In windowed mode, step() is a no-op
+    if (!headless) {
+        return 0.0f;
+    }
+
+    float actual_dt;
+
+    if (dt < 0) {
+        // dt < 0 means "advance to next event"
+        // Find the minimum time until next timer fires
+        int min_remaining = INT_MAX;
+
+        for (auto& [name, timer] : timers) {
+            if (timer && timer->isActive()) {
+                int remaining = timer->getRemaining(simulation_time);
+                if (remaining > 0 && remaining < min_remaining) {
+                    min_remaining = remaining;
+                }
+            }
+        }
+
+        // Also consider animations - find minimum time to completion
+        // AnimationManager doesn't expose this, so we'll just step by 1ms if no timers
+        if (min_remaining == INT_MAX) {
+            // No pending timers - check if there are active animations
+            // Step by a small amount to advance any running animations
+            min_remaining = 1;  // 1ms minimum step
+        }
+
+        actual_dt = static_cast<float>(min_remaining) / 1000.0f;  // Convert to seconds
+        simulation_time += min_remaining;
+    } else {
+        // Advance by specified amount
+        actual_dt = dt;
+        simulation_time += static_cast<int>(dt * 1000.0f);  // Convert seconds to ms
+    }
+
+    // Update animations with the dt in seconds
+    if (actual_dt > 0.0f && actual_dt < 10.0f) {  // Sanity check
+        AnimationManager::getInstance().update(actual_dt);
+    }
+
+    // Test timers with the new simulation time
+    auto it = timers.begin();
+    while (it != timers.end()) {
+        auto timer = it->second;
+
+        // Custom timer test using simulation time instead of runtime
+        if (timer && timer->isActive() && timer->hasElapsed(simulation_time)) {
+            timer->test(simulation_time);
+        }
+
+        // Remove cancelled timers
+        if (!it->second->getCallback() || it->second->getCallback() == Py_None) {
+            it = timers.erase(it);
+        } else {
+            it++;
+        }
+    }
+
+    return actual_dt;
+}
+
+// #153 - Force render the current scene (for synchronous screenshots)
+void GameEngine::renderScene() {
+    if (!render_target) return;
+
+    // Handle scene transitions
+    if (transition.type != TransitionType::None) {
+        transition.update(0);  // Don't advance transition time, just render current state
+        render_target->clear();
+        transition.render(*render_target);
+    } else {
+        // Normal scene rendering
+        currentScene()->render();
+    }
+
+    // For RenderTexture (headless), we need to call display()
+    if (headless && headless_renderer) {
+        headless_renderer->display();
+    }
 }
