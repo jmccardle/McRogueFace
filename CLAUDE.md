@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 2. **Always Check Gitea First**
    - Before starting work: Check open issues for related tasks or blockers
+   - Before implementing: Read relevant wiki pages per the [Development Workflow](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Development-Workflow) consultation table
    - When using `/roadmap` command: Query Gitea for up-to-date issue status
    - When researching a feature: Search Gitea wiki and issues before grepping codebase
    - When encountering a bug: Check if an issue already exists
@@ -29,9 +30,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 4. **Document as You Go**
    - When work on one issue interacts with another system: Add notes to related issues
-   - When discovering undocumented behavior: Create task to document it
-   - When documentation misleads you: Create task to correct or expand it
-   - When implementing a feature: Update the Gitea wiki if appropriate
+   - When discovering undocumented behavior: Note it for wiki update
+   - When documentation misleads you: Note it for wiki correction
+   - After committing code changes: Update relevant wiki pages (with user permission)
+   - Follow the [Development Workflow](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Development-Workflow) for wiki update procedures
 
 5. **Cross-Reference Everything**
    - Commit messages should reference issue numbers (e.g., "Fixes #104", "Addresses #125")
