@@ -1,5 +1,6 @@
 #include "UIGridPoint.h"
 #include "UIGrid.h"
+#include "UIEntity.h"    // #114 - for GridPoint.entities
 #include "GridLayers.h"  // #150 - for GridLayerType, ColorLayer, TileLayer
 #include <cstring>       // #150 - for strcmp
 
@@ -90,9 +91,52 @@ int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, voi
 
 // #150 - Removed get_int_member/set_int_member - now handled by layers
 
+// #114 - Get list of entities at this grid cell
+PyObject* UIGridPoint::get_entities(PyUIGridPointObject* self, void* closure) {
+    if (!self->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "GridPoint has no parent grid");
+        return NULL;
+    }
+
+    int target_x = self->data->grid_x;
+    int target_y = self->data->grid_y;
+
+    PyObject* list = PyList_New(0);
+    if (!list) return NULL;
+
+    // Iterate through grid's entities and find those at this position
+    for (auto& entity : *(self->grid->entities)) {
+        if (static_cast<int>(entity->position.x) == target_x &&
+            static_cast<int>(entity->position.y) == target_y) {
+            // Create Python Entity object for this entity
+            auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+            if (!type) {
+                Py_DECREF(list);
+                return NULL;
+            }
+            auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
+            Py_DECREF(type);
+            if (!obj) {
+                Py_DECREF(list);
+                return NULL;
+            }
+            obj->data = entity;
+            if (PyList_Append(list, (PyObject*)obj) < 0) {
+                Py_DECREF(obj);
+                Py_DECREF(list);
+                return NULL;
+            }
+            Py_DECREF(obj);  // List now owns the reference
+        }
+    }
+
+    return list;
+}
+
 PyGetSetDef UIGridPoint::getsetters[] = {
     {"walkable", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member, "Is the GridPoint walkable", (void*)0},
     {"transparent", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member, "Is the GridPoint transparent", (void*)1},
+    {"entities", (getter)UIGridPoint::get_entities, NULL, "List of entities at this grid cell (read-only)", NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -137,9 +181,43 @@ int UIGridPointState::set_bool_member(PyUIGridPointStateObject* self, PyObject* 
     return 0;
 }
 
+// #16 - Get GridPoint at this position (None if not discovered)
+PyObject* UIGridPointState::get_point(PyUIGridPointStateObject* self, void* closure) {
+    // Return None if entity hasn't discovered this cell
+    if (!self->data->discovered) {
+        Py_RETURN_NONE;
+    }
+
+    if (!self->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "GridPointState has no parent grid");
+        return NULL;
+    }
+
+    // Return the GridPoint at this position
+    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPoint");
+    if (!type) return NULL;
+
+    auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
+    Py_DECREF(type);
+    if (!obj) return NULL;
+
+    // Get the GridPoint from the grid
+    int idx = self->y * self->grid->grid_x + self->x;
+    if (idx < 0 || idx >= static_cast<int>(self->grid->points.size())) {
+        Py_DECREF(obj);
+        PyErr_SetString(PyExc_IndexError, "GridPointState position out of bounds");
+        return NULL;
+    }
+
+    obj->data = &(self->grid->points[idx]);
+    obj->grid = self->grid;
+    return (PyObject*)obj;
+}
+
 PyGetSetDef UIGridPointState::getsetters[] = {
     {"visible", (getter)UIGridPointState::get_bool_member, (setter)UIGridPointState::set_bool_member, "Is the GridPointState visible", (void*)0},
     {"discovered", (getter)UIGridPointState::get_bool_member, (setter)UIGridPointState::set_bool_member, "Has the GridPointState been discovered", (void*)1},
+    {"point", (getter)UIGridPointState::get_point, NULL, "GridPoint at this position (None if not discovered)", NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -232,7 +310,7 @@ int UIGridPoint::setattro(PyUIGridPointObject* self, PyObject* name, PyObject* v
         sf::Color color = PyObject_to_sfColor(value);
         if (PyErr_Occurred()) return -1;
         color_layer->at(x, y) = color;
-        color_layer->markDirty();
+        color_layer->markDirty(x, y);  // Mark only the affected chunk
         return 0;
     } else if (layer->type == GridLayerType::Tile) {
         auto tile_layer = std::static_pointer_cast<TileLayer>(layer);
@@ -241,7 +319,7 @@ int UIGridPoint::setattro(PyUIGridPointObject* self, PyObject* name, PyObject* v
             return -1;
         }
         tile_layer->at(x, y) = PyLong_AsLong(value);
-        tile_layer->markDirty();
+        tile_layer->markDirty(x, y);  // Mark only the affected chunk
         return 0;
     }
 

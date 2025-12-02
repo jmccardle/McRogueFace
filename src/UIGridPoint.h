@@ -31,6 +31,7 @@ typedef struct {
     UIGridPointState* data;
     std::shared_ptr<UIGrid> grid;
     std::shared_ptr<UIEntity> entity;
+    int x, y;  // Position in grid (needed for .point property)
 } PyUIGridPointStateObject;
 
 // UIGridPoint - grid cell data for pathfinding and layer access
@@ -49,6 +50,9 @@ public:
     static PyObject* get_bool_member(PyUIGridPointObject* self, void* closure);
     static PyObject* repr(PyUIGridPointObject* self);
 
+    // #114 - entities property: list of entities at this cell
+    static PyObject* get_entities(PyUIGridPointObject* self, void* closure);
+
     // #150 - Dynamic property access for named layers
     static PyObject* getattro(PyUIGridPointObject* self, PyObject* name);
     static int setattro(PyUIGridPointObject* self, PyObject* name, PyObject* value);
@@ -64,6 +68,9 @@ public:
     static int set_bool_member(PyUIGridPointStateObject* self, PyObject* value, void* closure);
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIGridPointStateObject* self);
+
+    // #16 - point property: access to GridPoint (None if not discovered)
+    static PyObject* get_point(PyUIGridPointStateObject* self, void* closure);
 };
 
 namespace mcrfpydef {

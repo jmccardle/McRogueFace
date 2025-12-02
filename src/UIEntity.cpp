@@ -120,9 +120,12 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* o) {
     
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPointState");
     auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
+    Py_DECREF(type);
     obj->data = &(self->data->gridstate[y * self->data->grid->grid_x + x]);
     obj->grid = self->data->grid;
     obj->entity = self->data;
+    obj->x = x;  // #16 - Store position for .point property
+    obj->y = y;
     return (PyObject*)obj;
 }
 
@@ -312,23 +315,29 @@ sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
 }
 
 PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state) {
-    // Create a new GridPointState Python object
+    // Create a new GridPointState Python object (detached - no grid/entity context)
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPointState");
     if (!type) {
         return NULL;
     }
-    
+
     auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
     if (!obj) {
         Py_DECREF(type);
         return NULL;
     }
-    
+
     // Allocate new data and copy values
     obj->data = new UIGridPointState();
     obj->data->visible = state.visible;
     obj->data->discovered = state.discovered;
-    
+
+    // Initialize context fields (detached state has no grid/entity context)
+    obj->grid = nullptr;
+    obj->entity = nullptr;
+    obj->x = -1;
+    obj->y = -1;
+
     Py_DECREF(type);
     return (PyObject*)obj;
 }
