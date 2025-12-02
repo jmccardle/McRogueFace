@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2025-10-30 21:14:43</em></p>
+        <p><em>Generated on 2025-11-29 10:12:05</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -118,8 +118,11 @@
                 <li><a href="#classes">Classes</a>
                     <ul>
                         <li><a href="#Animation">Animation</a></li>
+                        <li><a href="#Arc">Arc</a></li>
                         <li><a href="#Caption">Caption</a></li>
+                        <li><a href="#Circle">Circle</a></li>
                         <li><a href="#Color">Color</a></li>
+                        <li><a href="#ColorLayer">ColorLayer</a></li>
                         <li><a href="#Drawable">Drawable</a></li>
                         <li><a href="#Entity">Entity</a></li>
                         <li><a href="#EntityCollection">EntityCollection</a></li>
@@ -128,9 +131,11 @@
                         <li><a href="#Grid">Grid</a></li>
                         <li><a href="#GridPoint">GridPoint</a></li>
                         <li><a href="#GridPointState">GridPointState</a></li>
+                        <li><a href="#Line">Line</a></li>
                         <li><a href="#Scene">Scene</a></li>
                         <li><a href="#Sprite">Sprite</a></li>
                         <li><a href="#Texture">Texture</a></li>
+                        <li><a href="#TileLayer">TileLayer</a></li>
                         <li><a href="#Timer">Timer</a></li>
                         <li><a href="#UICollection">UICollection</a></li>
                         <li><a href="#UICollectionIter">UICollectionIter</a></li>
@@ -185,6 +190,15 @@ Note:</p>
                 <li><span class='arg-name'>name</span>: Timer identifier to remove</li>
             </ul>
             <p><span class='returns'>Returns:</span> None No error is raised if the timer doesn&#x27;t exist.</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">end_benchmark() -> str</code></h3>
+            <p>Stop benchmark capture and write data to JSON file.
+
+Note:</p>
+            <p><span class='returns'>Returns:</span> str: The filename of the written benchmark data</p>
+            <p><span class='raises'>Raises:</span> RuntimeError: If no benchmark is currently running Returns the auto-generated filename (e.g., &#x27;benchmark_12345_20250528_143022.json&#x27;)</p>
         </div>
 
         <div class="method-section">
@@ -264,6 +278,19 @@ Note:</p>
         </div>
 
         <div class="method-section">
+            <h3><code class="function-signature">log_benchmark(message: str) -> None</code></h3>
+            <p>Add a log message to the current benchmark frame.
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>message</span>: Text to associate with the current frame</li>
+            </ul>
+            <p><span class='returns'>Returns:</span> None</p>
+            <p><span class='raises'>Raises:</span> RuntimeError: If no benchmark is currently running Messages appear in the &#x27;logs&#x27; array of each frame in the output JSON.</p>
+        </div>
+
+        <div class="method-section">
             <h3><code class="function-signature">playSound(buffer_id: int) -> None</code></h3>
             <p>Play a sound effect using a previously loaded buffer.</p>
             <h4>Arguments:</h4>
@@ -283,6 +310,18 @@ Note:</p>
             </ul>
             <p><span class='returns'>Returns:</span> list: All UI elements (Frame, Caption, Sprite, Grid) in the scene</p>
             <p><span class='raises'>Raises:</span> KeyError: If the specified scene doesn&#x27;t exist</p>
+        </div>
+
+        <div class="method-section">
+            <h3><code class="function-signature">setDevConsole(enabled: bool) -> None</code></h3>
+            <p>Enable or disable the developer console overlay.
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>enabled</span>: True to enable the console (default), False to disable</li>
+            </ul>
+            <p><span class='returns'>Returns:</span> None When disabled, the grave/tilde key will not open the console. Use this to ship games without debug features.</p>
         </div>
 
         <div class="method-section">
@@ -344,6 +383,15 @@ Note:</p>
             <p><span class='returns'>Returns:</span> None If a timer with this name exists, it will be replaced. The handler receives the total runtime in seconds as its argument.</p>
         </div>
 
+        <div class="method-section">
+            <h3><code class="function-signature">start_benchmark() -> None</code></h3>
+            <p>Start capturing benchmark data to a file.
+
+Note:</p>
+            <p><span class='returns'>Returns:</span> None</p>
+            <p><span class='raises'>Raises:</span> RuntimeError: If a benchmark is already running Benchmark filename is auto-generated from PID and timestamp. Use end_benchmark() to stop and get filename.</p>
+        </div>
+
         <h2 id='classes'>Classes</h2>
 
         <div class="method-section">
@@ -395,6 +443,73 @@ Note:</p>
                     <div><span class='arg-name'>delta_time</span>: Time elapsed since last update in seconds</div>
                 </div>
                 <p style='margin-left: 20px;'><span class='returns'>Returns:</span> bool: True if animation is still running, False if complete Typically called by AnimationManager automatically. Manual calls only needed for custom animation control.</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Arc"><span class="class-name">Arc</span></h3>
+            <p><em>Inherits from: Drawable</em></p>
+            <p>Arc(center=None, radius=0, start_angle=0, end_angle=90, color=None, thickness=1, **kwargs)
+
+An arc UI element for drawing curved line segments.
+
+Args:
+    center (tuple, optional): Center position as (x, y). Default: (0, 0)
+    radius (float, optional): Arc radius in pixels. Default: 0
+    start_angle (float, optional): Starting angle in degrees. Default: 0
+    end_angle (float, optional): Ending angle in degrees. Default: 90
+    color (Color, optional): Arc color. Default: White
+    thickness (float, optional): Line thickness. Default: 1.0
+
+Keyword Args:
+    click (callable): Click handler. Default: None
+    visible (bool): Visibility state. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    z_index (int): Rendering order. Default: 0
+    name (str): Element name for finding. Default: None
+
+Attributes:
+    center (Vector): Center position
+    radius (float): Arc radius
+    start_angle (float): Starting angle in degrees
+    end_angle (float): Ending angle in degrees
+    color (Color): Arc color
+    thickness (float): Line thickness
+    visible (bool): Visibility state
+    opacity (float): Opacity value
+    z_index (int): Rendering order
+    name (str): Element name
+</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
+                <p>Get the bounding rectangle of this drawable element.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
+                <p>Move the element by a relative offset.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>dx</span>: Horizontal offset in pixels</div>
+                    <div><span class='arg-name'>dy</span>: Vertical offset in pixels</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
+                <p>Resize the element to new dimensions.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>width</span>: New width in pixels</div>
+                    <div><span class='arg-name'>height</span>: New height in pixels</div>
+                </div>
             </div>
         </div>
 
@@ -471,6 +586,71 @@ Note:</p>
         </div>
 
         <div class="method-section">
+            <h3 id="Circle"><span class="class-name">Circle</span></h3>
+            <p><em>Inherits from: Drawable</em></p>
+            <p>Circle(radius=0, center=None, fill_color=None, outline_color=None, outline=0, **kwargs)
+
+A circle UI element for drawing filled or outlined circles.
+
+Args:
+    radius (float, optional): Circle radius in pixels. Default: 0
+    center (tuple, optional): Center position as (x, y). Default: (0, 0)
+    fill_color (Color, optional): Fill color. Default: White
+    outline_color (Color, optional): Outline color. Default: Transparent
+    outline (float, optional): Outline thickness. Default: 0 (no outline)
+
+Keyword Args:
+    click (callable): Click handler. Default: None
+    visible (bool): Visibility state. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    z_index (int): Rendering order. Default: 0
+    name (str): Element name for finding. Default: None
+
+Attributes:
+    radius (float): Circle radius
+    center (Vector): Center position
+    fill_color (Color): Fill color
+    outline_color (Color): Outline color
+    outline (float): Outline thickness
+    visible (bool): Visibility state
+    opacity (float): Opacity value
+    z_index (int): Rendering order
+    name (str): Element name
+</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
+                <p>Get the bounding rectangle of this drawable element.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
+                <p>Move the element by a relative offset.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>dx</span>: Horizontal offset in pixels</div>
+                    <div><span class='arg-name'>dy</span>: Vertical offset in pixels</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
+                <p>Resize the element to new dimensions.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>width</span>: New width in pixels</div>
+                    <div><span class='arg-name'>height</span>: New height in pixels</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="method-section">
             <h3 id="Color"><span class="class-name">Color</span></h3>
             <p>SFML Color Object</p>
             <h4>Methods:</h4>
@@ -505,6 +685,43 @@ Note:</p>
 
 Note:</p>
                 <p style='margin-left: 20px;'><span class='returns'>Returns:</span> str: Hex string in format &#x27;#RRGGBB&#x27; or &#x27;#RRGGBBAA&#x27; (if alpha &lt; 255) Alpha component is only included if not fully opaque (&lt; 255)</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="ColorLayer"><span class="class-name">ColorLayer</span></h3>
+            <p>ColorLayer(z_index=-1, grid_size=None)
+
+A grid layer that stores RGBA colors per cell.
+
+Args:
+    z_index (int): Render order. Negative = below entities. Default: -1
+    grid_size (tuple): Dimensions as (width, height). Default: parent grid size
+
+Attributes:
+    z_index (int): Layer z-order relative to entities
+    visible (bool): Whether layer is rendered
+    grid_size (tuple): Layer dimensions (read-only)
+
+Methods:
+    at(x, y): Get color at cell position
+    set(x, y, color): Set color at cell position
+    fill(color): Fill entire layer with color</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">at(x, y) -> Color</code></h5>
+                <p>Get the color at cell position (x, y).</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">fill(color)</code></h5>
+                <p>Fill the entire layer with the specified color.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">set(x, y, color)</code></h5>
+                <p>Set the color at cell position (x, y).</p>
             </div>
         </div>
 
@@ -643,23 +860,44 @@ when the entity moves if it has a grid with perspective set.</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">append(...)</code></h5>
+                <h5><code class="method-name">append(entity)</code></h5>
+                <p>Add an entity to the end of the collection.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">count(...)</code></h5>
+                <h5><code class="method-name">count(entity) -> int</code></h5>
+                <p>Count occurrences of entity in the collection.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">extend(...)</code></h5>
+                <h5><code class="method-name">extend(iterable)</code></h5>
+                <p>Add all entities from an iterable to the collection.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">index(...)</code></h5>
+                <h5><code class="method-name">find(name) -> entity or list</code></h5>
+                <p>Find entities by name.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Single entity if exact match, list if wildcard, None if not found.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">remove(...)</code></h5>
+                <h5><code class="method-name">index(entity) -> int</code></h5>
+                <p>Return index of first occurrence of entity. Raises ValueError if not found.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">insert(index, entity)</code></h5>
+                <p>Insert entity at index. Like list.insert(), indices past the end append.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">pop([index]) -> entity</code></h5>
+                <p>Remove and return entity at index (default: last entity).</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">remove(entity)</code></h5>
+                <p>Remove first occurrence of entity. Raises ValueError if not found.</p>
             </div>
         </div>
 
@@ -695,6 +933,7 @@ Keyword Args:
     w (float): Width override. Default: 0
     h (float): Height override. Default: 0
     clip_children (bool): Whether to clip children to frame bounds. Default: False
+    cache_subtree (bool): Cache rendering to texture for performance. Default: False
 
 Attributes:
     x, y (float): Position in pixels
@@ -708,7 +947,8 @@ Attributes:
     opacity (float): Opacity value
     z_index (int): Rendering order
     name (str): Element name
-    clip_children (bool): Whether to clip children to frame bounds</p>
+    clip_children (bool): Whether to clip children to frame bounds
+    cache_subtree (bool): Cache subtree rendering to texture</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -795,6 +1035,17 @@ Attributes:
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer</code></h5>
+                <p>Add a new layer to the grid.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>type</span>: Layer type (&#x27;color&#x27; or &#x27;tile&#x27;)</div>
+                    <div><span class='arg-name'>z_index</span>: Render order. Negative = below entities, &gt;= 0 = above entities. Default: -1</div>
+                    <div><span class='arg-name'>texture</span>: Texture for tile layers. Required for &#x27;tile&#x27; type.</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> The created ColorLayer or TileLayer object.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">at(...)</code></h5>
             </div>
 
@@ -822,8 +1073,8 @@ Attributes:
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]</code></h5>
-                <p>Compute field of view from a position and return visible cells.</p>
+                <h5><code class="method-name">compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None</code></h5>
+                <p>Compute field of view from a position.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>x</span>: X coordinate of the viewer</div>
                     <div><span class='arg-name'>y</span>: Y coordinate of the viewer</div>
@@ -831,7 +1082,6 @@ Attributes:
                     <div><span class='arg-name'>light_walls</span>: Whether walls are lit when visible</div>
                     <div><span class='arg-name'>algorithm</span>: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of tuples (x, y, visible, discovered) for all visible cells: - x, y: Grid coordinates - visible: True (all returned cells are visible) - discovered: True (FOV implies discovery) Also updates the internal FOV state for use with is_in_fov().</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -886,6 +1136,15 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">layer(z_index: int) -> ColorLayer | TileLayer | None</code></h5>
+                <p>Get a layer by its z_index.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>z_index</span>: The z_index of the layer to find.</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> The layer with the specified z_index, or None if not found.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
                 <p>Move the element by a relative offset.
 
@@ -893,6 +1152,14 @@ Note:</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>dx</span>: Horizontal offset in pixels</div>
                     <div><span class='arg-name'>dy</span>: Vertical offset in pixels</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">remove_layer(layer: ColorLayer | TileLayer) -> None</code></h5>
+                <p>Remove a layer from the grid.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>layer</span>: The layer to remove.</div>
                 </div>
             </div>
 
@@ -918,6 +1185,69 @@ Note:</p>
             <h3 id="GridPointState"><span class="class-name">GridPointState</span></h3>
             <p>UIGridPointState object</p>
             <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Line"><span class="class-name">Line</span></h3>
+            <p><em>Inherits from: Drawable</em></p>
+            <p>Line(start=None, end=None, thickness=1.0, color=None, **kwargs)
+
+A line UI element for drawing straight lines between two points.
+
+Args:
+    start (tuple, optional): Starting point as (x, y). Default: (0, 0)
+    end (tuple, optional): Ending point as (x, y). Default: (0, 0)
+    thickness (float, optional): Line thickness in pixels. Default: 1.0
+    color (Color, optional): Line color. Default: White
+
+Keyword Args:
+    click (callable): Click handler. Default: None
+    visible (bool): Visibility state. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    z_index (int): Rendering order. Default: 0
+    name (str): Element name for finding. Default: None
+
+Attributes:
+    start (Vector): Starting point
+    end (Vector): Ending point
+    thickness (float): Line thickness
+    color (Color): Line color
+    visible (bool): Visibility state
+    opacity (float): Opacity value
+    z_index (int): Rendering order
+    name (str): Element name
+</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">get_bounds() -> tuple</code></h5>
+                <p>Get the bounding rectangle of this drawable element.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> tuple: (x, y, width, height) representing the element&#x27;s bounds The bounds are in screen coordinates and account for current position and size.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">move(dx: float, dy: float) -> None</code></h5>
+                <p>Move the element by a relative offset.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>dx</span>: Horizontal offset in pixels</div>
+                    <div><span class='arg-name'>dy</span>: Vertical offset in pixels</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">resize(width: float, height: float) -> None</code></h5>
+                <p>Resize the element to new dimensions.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>width</span>: New width in pixels</div>
+                    <div><span class='arg-name'>height</span>: New height in pixels</div>
+                </div>
+            </div>
         </div>
 
         <div class="method-section">
@@ -1030,6 +1360,45 @@ Note:</p>
         </div>
 
         <div class="method-section">
+            <h3 id="TileLayer"><span class="class-name">TileLayer</span></h3>
+            <p>TileLayer(z_index=-1, texture=None, grid_size=None)
+
+A grid layer that stores sprite indices per cell.
+
+Args:
+    z_index (int): Render order. Negative = below entities. Default: -1
+    texture (Texture): Sprite atlas for tile rendering. Default: None
+    grid_size (tuple): Dimensions as (width, height). Default: parent grid size
+
+Attributes:
+    z_index (int): Layer z-order relative to entities
+    visible (bool): Whether layer is rendered
+    texture (Texture): Tile sprite atlas
+    grid_size (tuple): Layer dimensions (read-only)
+
+Methods:
+    at(x, y): Get tile index at cell position
+    set(x, y, index): Set tile index at cell position
+    fill(index): Fill entire layer with tile index</p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">at(x, y) -> int</code></h5>
+                <p>Get the tile index at cell position (x, y). Returns -1 if no tile.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">fill(index)</code></h5>
+                <p>Fill the entire layer with the specified tile index.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">set(x, y, index)</code></h5>
+                <p>Set the tile index at cell position (x, y). Use -1 for no tile.</p>
+            </div>
+        </div>
+
+        <div class="method-section">
             <h3 id="Timer"><span class="class-name">Timer</span></h3>
             <p>Timer(name, callback, interval, once=False)
 
@@ -1106,23 +1475,50 @@ Note:</p>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">append(...)</code></h5>
+                <h5><code class="method-name">append(element)</code></h5>
+                <p>Add an element to the end of the collection.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">count(...)</code></h5>
+                <h5><code class="method-name">count(element) -> int</code></h5>
+                <p>Count occurrences of element in the collection.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">extend(...)</code></h5>
+                <h5><code class="method-name">extend(iterable)</code></h5>
+                <p>Add all elements from an iterable to the collection.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">index(...)</code></h5>
+                <h5><code class="method-name">find(name, recursive=False) -> element or list</code></h5>
+                <p>Find elements by name.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Single element if exact match, list if wildcard, None if not found.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">remove(...)</code></h5>
+                <h5><code class="method-name">index(element) -> int</code></h5>
+                <p>Return index of first occurrence of element. Raises ValueError if not found.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">insert(index, element)</code></h5>
+                <p>Insert element at index. Like list.insert(), indices past the end append.
+
+Note: If using z_index for sorting, insertion order may not persist after
+the next render. Use name-based .find() for stable element access.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">pop([index]) -> element</code></h5>
+                <p>Remove and return element at index (default: last element).
+
+Note: If using z_index for sorting, indices may shift after render.
+Use name-based .find() for stable element access.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">remove(element)</code></h5>
+                <p>Remove first occurrence of element. Raises ValueError if not found.</p>
             </div>
         </div>
 
@@ -1171,6 +1567,14 @@ Note:</p>
                     <div><span class='arg-name'>other</span>: The other vector</div>
                 </div>
                 <p style='margin-left: 20px;'><span class='returns'>Returns:</span> float: Dot product of the two vectors</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">floor() -> Vector</code></h5>
+                <p>Return a new vector with floored (integer) coordinates.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Vector: New Vector with floor(x) and floor(y) Useful for grid-based positioning. For a hashable tuple, use the .int property instead.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">

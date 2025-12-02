@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2025-10-30" "McRogueFace dev" ""
+.TH "MCRFPY" "3" "2025-11-29" "McRogueFace dev" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2025-10-30 20:49:34\f[R]
+\f[I]Generated on 2025-11-29 10:12:05\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -31,9 +31,15 @@ Classes
 .IP \[bu] 2
 Animation
 .IP \[bu] 2
+Arc
+.IP \[bu] 2
 Caption
 .IP \[bu] 2
+Circle
+.IP \[bu] 2
 Color
+.IP \[bu] 2
+ColorLayer
 .IP \[bu] 2
 Drawable
 .IP \[bu] 2
@@ -51,11 +57,15 @@ GridPoint
 .IP \[bu] 2
 GridPointState
 .IP \[bu] 2
+Line
+.IP \[bu] 2
 Scene
 .IP \[bu] 2
 Sprite
 .IP \[bu] 2
 Texture
+.IP \[bu] 2
+TileLayer
 .IP \[bu] 2
 Timer
 .IP \[bu] 2
@@ -110,6 +120,17 @@ Note:
 .PP
 \f[B]Returns:\f[R] None No error is raised if the timer doesn\[cq]t
 exist.
+.SS \f[V]end_benchmark() -> str\f[R]
+.PP
+Stop benchmark capture and write data to JSON file.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] str: The filename of the written benchmark data
+.PP
+\f[B]Raises:\f[R] RuntimeError: If no benchmark is currently running
+Returns the auto-generated filename (e.g.,
+`benchmark_12345_20250528_143022.json')
 .SS \f[V]exit() -> None\f[R]
 .PP
 Cleanly shut down the game engine and exit the application.
@@ -180,6 +201,19 @@ OGG, FLAC)
 .PP
 \f[B]Returns:\f[R] None Only one music track can play at a time.
 Loading new music stops the current track.
+.SS \f[V]log_benchmark(message: str) -> None\f[R]
+.PP
+Add a log message to the current benchmark frame.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]message\f[R]: Text to associate with the
+current frame
+.PP
+\f[B]Returns:\f[R] None
+.PP
+\f[B]Raises:\f[R] RuntimeError: If no benchmark is currently running
+Messages appear in the `logs' array of each frame in the output JSON.
 .SS \f[V]playSound(buffer_id: int) -> None\f[R]
 .PP
 Play a sound effect using a previously loaded buffer.
@@ -201,6 +235,18 @@ If None, uses current scene
 in the scene
 .PP
 \f[B]Raises:\f[R] KeyError: If the specified scene doesn\[cq]t exist
+.SS \f[V]setDevConsole(enabled: bool) -> None\f[R]
+.PP
+Enable or disable the developer console overlay.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]enabled\f[R]: True to enable the console
+(default), False to disable
+.PP
+\f[B]Returns:\f[R] None When disabled, the grave/tilde key will not open
+the console.
+Use this to ship games without debug features.
 .SS \f[V]setMusicVolume(volume: int) -> None\f[R]
 .PP
 Set the global music volume.
@@ -255,6 +301,17 @@ Note:
 \f[B]Returns:\f[R] None If a timer with this name exists, it will be
 replaced.
 The handler receives the total runtime in seconds as its argument.
+.SS \f[V]start_benchmark() -> None\f[R]
+.PP
+Start capturing benchmark data to a file.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] None
+.PP
+\f[B]Raises:\f[R] RuntimeError: If a benchmark is already running
+Benchmark filename is auto-generated from PID and timestamp.
+Use end_benchmark() to stop and get filename.
 .SS Classes
 .SS Animation
 .PP
@@ -316,6 +373,62 @@ update in seconds
 \f[B]Returns:\f[R] bool: True if animation is still running, False if
 complete Typically called by AnimationManager automatically.
 Manual calls only needed for custom animation control.
+.SS Arc
+.PP
+\f[I]Inherits from: Drawable\f[R]
+.PP
+Arc(center=None, radius=0, start_angle=0, end_angle=90, color=None,
+thickness=1, **kwargs)
+.PP
+An arc UI element for drawing curved line segments.
+.PP
+Args: center (tuple, optional): Center position as (x, y).
+Default: (0, 0) radius (float, optional): Arc radius in pixels.
+Default: 0 start_angle (float, optional): Starting angle in degrees.
+Default: 0 end_angle (float, optional): Ending angle in degrees.
+Default: 90 color (Color, optional): Arc color.
+Default: White thickness (float, optional): Line thickness.
+Default: 1.0
+.PP
+Keyword Args: click (callable): Click handler.
+Default: None visible (bool): Visibility state.
+Default: True opacity (float): Opacity (0.0-1.0).
+Default: 1.0 z_index (int): Rendering order.
+Default: 0 name (str): Element name for finding.
+Default: None
+.PP
+Attributes: center (Vector): Center position radius (float): Arc radius
+start_angle (float): Starting angle in degrees end_angle (float): Ending
+angle in degrees color (Color): Arc color thickness (float): Line
+thickness visible (bool): Visibility state opacity (float): Opacity
+value z_index (int): Rendering order name (str): Element name
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]get_bounds() -> tuple\f[R]
+.PP
+Get the bounding rectangle of this drawable element.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
+element\[cq]s bounds The bounds are in screen coordinates and account
+for current position and size.
+.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+.PP
+Move the element by a relative offset.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
+\f[V]dy\f[R]: Vertical offset in pixels
+.SS \f[V]resize(width: float, height: float) -> None\f[R]
+.PP
+Resize the element to new dimensions.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
+\f[V]height\f[R]: New height in pixels
 .SS Caption
 .PP
 \f[I]Inherits from: Drawable\f[R]
@@ -351,6 +464,61 @@ Outline thickness click (callable): Click event handler visible (bool):
 Visibility state opacity (float): Opacity value z_index (int): Rendering
 order name (str): Element name w, h (float): Read-only computed size
 based on text and font
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]get_bounds() -> tuple\f[R]
+.PP
+Get the bounding rectangle of this drawable element.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
+element\[cq]s bounds The bounds are in screen coordinates and account
+for current position and size.
+.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+.PP
+Move the element by a relative offset.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
+\f[V]dy\f[R]: Vertical offset in pixels
+.SS \f[V]resize(width: float, height: float) -> None\f[R]
+.PP
+Resize the element to new dimensions.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
+\f[V]height\f[R]: New height in pixels
+.SS Circle
+.PP
+\f[I]Inherits from: Drawable\f[R]
+.PP
+Circle(radius=0, center=None, fill_color=None, outline_color=None,
+outline=0, **kwargs)
+.PP
+A circle UI element for drawing filled or outlined circles.
+.PP
+Args: radius (float, optional): Circle radius in pixels.
+Default: 0 center (tuple, optional): Center position as (x, y).
+Default: (0, 0) fill_color (Color, optional): Fill color.
+Default: White outline_color (Color, optional): Outline color.
+Default: Transparent outline (float, optional): Outline thickness.
+Default: 0 (no outline)
+.PP
+Keyword Args: click (callable): Click handler.
+Default: None visible (bool): Visibility state.
+Default: True opacity (float): Opacity (0.0-1.0).
+Default: 1.0 z_index (int): Rendering order.
+Default: 0 name (str): Element name for finding.
+Default: None
+.PP
+Attributes: radius (float): Circle radius center (Vector): Center
+position fill_color (Color): Fill color outline_color (Color): Outline
+color outline (float): Outline thickness visible (bool): Visibility
+state opacity (float): Opacity value z_index (int): Rendering order name
+(str): Element name
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]get_bounds() -> tuple\f[R]
@@ -419,6 +587,34 @@ Note:
 \f[B]Returns:\f[R] str: Hex string in format `#RRGGBB' or `#RRGGBBAA'
 (if alpha < 255) Alpha component is only included if not fully opaque (<
 255)
+.SS ColorLayer
+.PP
+ColorLayer(z_index=-1, grid_size=None)
+.PP
+A grid layer that stores RGBA colors per cell.
+.PP
+Args: z_index (int): Render order.
+Negative = below entities.
+Default: -1 grid_size (tuple): Dimensions as (width, height).
+Default: parent grid size
+.PP
+Attributes: z_index (int): Layer z-order relative to entities visible
+(bool): Whether layer is rendered grid_size (tuple): Layer dimensions
+(read-only)
+.PP
+Methods: at(x, y): Get color at cell position set(x, y, color): Set
+color at cell position fill(color): Fill entire layer with color
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]at(x, y) -> Color\f[R]
+.PP
+Get the color at cell position (x, y).
+.SS \f[V]fill(color)\f[R]
+.PP
+Fill the entire layer with the specified color.
+.SS \f[V]set(x, y, color)\f[R]
+.PP
+Set the color at cell position (x, y).
 .SS Drawable
 .PP
 Base class for all drawable UI elements
@@ -531,11 +727,36 @@ perspective set.
 Iterable, indexable collection of Entities
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]append(...)\f[R]
-.SS \f[V]count(...)\f[R]
-.SS \f[V]extend(...)\f[R]
-.SS \f[V]index(...)\f[R]
-.SS \f[V]remove(...)\f[R]
+.SS \f[V]append(entity)\f[R]
+.PP
+Add an entity to the end of the collection.
+.SS \f[V]count(entity) -> int\f[R]
+.PP
+Count occurrences of entity in the collection.
+.SS \f[V]extend(iterable)\f[R]
+.PP
+Add all entities from an iterable to the collection.
+.SS \f[V]find(name) -> entity or list\f[R]
+.PP
+Find entities by name.
+.PP
+\f[B]Returns:\f[R] Single entity if exact match, list if wildcard, None
+if not found.
+.SS \f[V]index(entity) -> int\f[R]
+.PP
+Return index of first occurrence of entity.
+Raises ValueError if not found.
+.SS \f[V]insert(index, entity)\f[R]
+.PP
+Insert entity at index.
+Like list.insert(), indices past the end append.
+.SS \f[V]pop([index]) -> entity\f[R]
+.PP
+Remove and return entity at index (default: last entity).
+.SS \f[V]remove(entity)\f[R]
+.PP
+Remove first occurrence of entity.
+Raises ValueError if not found.
 .SS Font
 .PP
 SFML Font Object
@@ -568,6 +789,8 @@ Default: 0 w (float): Width override.
 Default: 0 h (float): Height override.
 Default: 0 clip_children (bool): Whether to clip children to frame
 bounds.
+Default: False cache_subtree (bool): Cache rendering to texture for
+performance.
 Default: False
 .PP
 Attributes: x, y (float): Position in pixels w, h (float): Size in
@@ -577,7 +800,7 @@ thickness click (callable): Click event handler children (list):
 Collection of child drawable elements visible (bool): Visibility state
 opacity (float): Opacity value z_index (int): Rendering order name
 (str): Element name clip_children (bool): Whether to clip children to
-frame bounds
+frame bounds cache_subtree (bool): Cache subtree rendering to texture
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]get_bounds() -> tuple\f[R]
@@ -653,6 +876,17 @@ visible (bool): Visibility state opacity (float): Opacity value z_index
 (int): Rendering order name (str): Element name
 .PP
 \f[B]Methods:\f[R]
+.SS \f[V]add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer\f[R]
+.PP
+Add a new layer to the grid.
+.PP
+\f[B]Arguments:\f[R] - \f[V]type\f[R]: Layer type (`color' or `tile') -
+\f[V]z_index\f[R]: Render order.
+Negative = below entities, >= 0 = above entities.
+Default: -1 - \f[V]texture\f[R]: Texture for tile layers.
+Required for `tile' type.
+.PP
+\f[B]Returns:\f[R] The created ColorLayer or TileLayer object.
 .SS \f[V]at(...)\f[R]
 .SS \f[V]compute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\f[R]
 .PP
@@ -673,20 +907,15 @@ Compute Dijkstra map from root position.
 \f[B]Arguments:\f[R] - \f[V]root_x\f[R]: X coordinate of the root/target
 - \f[V]root_y\f[R]: Y coordinate of the root/target -
 \f[V]diagonal_cost\f[R]: Cost of diagonal movement (default: 1.41)
-.SS \f[V]compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> List[Tuple[int, int, bool, bool]]\f[R]
+.SS \f[V]compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\f[R]
 .PP
-Compute field of view from a position and return visible cells.
+Compute field of view from a position.
 .PP
 \f[B]Arguments:\f[R] - \f[V]x\f[R]: X coordinate of the viewer -
 \f[V]y\f[R]: Y coordinate of the viewer - \f[V]radius\f[R]: Maximum view
 distance (0 = unlimited) - \f[V]light_walls\f[R]: Whether walls are lit
 when visible - \f[V]algorithm\f[R]: FOV algorithm to use (FOV_BASIC,
 FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)
-.PP
-\f[B]Returns:\f[R] List of tuples (x, y, visible, discovered) for all
-visible cells: - x, y: Grid coordinates - visible: True (all returned
-cells are visible) - discovered: True (FOV implies discovery) Also
-updates the internal FOV state for use with is_in_fov().
 .SS \f[V]find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\f[R]
 .PP
 Find A* path between two points.
@@ -736,6 +965,15 @@ Y coordinate to check
 .PP
 \f[B]Returns:\f[R] True if the cell is visible, False otherwise Must
 call compute_fov() first to calculate visibility.
+.SS \f[V]layer(z_index: int) -> ColorLayer | TileLayer | None\f[R]
+.PP
+Get a layer by its z_index.
+.PP
+\f[B]Arguments:\f[R] - \f[V]z_index\f[R]: The z_index of the layer to
+find.
+.PP
+\f[B]Returns:\f[R] The layer with the specified z_index, or None if not
+found.
 .SS \f[V]move(dx: float, dy: float) -> None\f[R]
 .PP
 Move the element by a relative offset.
@@ -744,6 +982,11 @@ Note:
 .PP
 \f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
 \f[V]dy\f[R]: Vertical offset in pixels
+.SS \f[V]remove_layer(layer: ColorLayer | TileLayer) -> None\f[R]
+.PP
+Remove a layer from the grid.
+.PP
+\f[B]Arguments:\f[R] - \f[V]layer\f[R]: The layer to remove.
 .SS \f[V]resize(width: float, height: float) -> None\f[R]
 .PP
 Resize the element to new dimensions.
@@ -762,6 +1005,58 @@ UIGridPoint object
 UIGridPointState object
 .PP
 \f[B]Methods:\f[R]
+.SS Line
+.PP
+\f[I]Inherits from: Drawable\f[R]
+.PP
+Line(start=None, end=None, thickness=1.0, color=None, **kwargs)
+.PP
+A line UI element for drawing straight lines between two points.
+.PP
+Args: start (tuple, optional): Starting point as (x, y).
+Default: (0, 0) end (tuple, optional): Ending point as (x, y).
+Default: (0, 0) thickness (float, optional): Line thickness in pixels.
+Default: 1.0 color (Color, optional): Line color.
+Default: White
+.PP
+Keyword Args: click (callable): Click handler.
+Default: None visible (bool): Visibility state.
+Default: True opacity (float): Opacity (0.0-1.0).
+Default: 1.0 z_index (int): Rendering order.
+Default: 0 name (str): Element name for finding.
+Default: None
+.PP
+Attributes: start (Vector): Starting point end (Vector): Ending point
+thickness (float): Line thickness color (Color): Line color visible
+(bool): Visibility state opacity (float): Opacity value z_index (int):
+Rendering order name (str): Element name
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]get_bounds() -> tuple\f[R]
+.PP
+Get the bounding rectangle of this drawable element.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
+element\[cq]s bounds The bounds are in screen coordinates and account
+for current position and size.
+.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+.PP
+Move the element by a relative offset.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
+\f[V]dy\f[R]: Vertical offset in pixels
+.SS \f[V]resize(width: float, height: float) -> None\f[R]
+.PP
+Resize the element to new dimensions.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
+\f[V]height\f[R]: New height in pixels
 .SS Scene
 .PP
 Base class for object-oriented scenes
@@ -864,6 +1159,38 @@ Note:
 SFML Texture Object
 .PP
 \f[B]Methods:\f[R]
+.SS TileLayer
+.PP
+TileLayer(z_index=-1, texture=None, grid_size=None)
+.PP
+A grid layer that stores sprite indices per cell.
+.PP
+Args: z_index (int): Render order.
+Negative = below entities.
+Default: -1 texture (Texture): Sprite atlas for tile rendering.
+Default: None grid_size (tuple): Dimensions as (width, height).
+Default: parent grid size
+.PP
+Attributes: z_index (int): Layer z-order relative to entities visible
+(bool): Whether layer is rendered texture (Texture): Tile sprite atlas
+grid_size (tuple): Layer dimensions (read-only)
+.PP
+Methods: at(x, y): Get tile index at cell position set(x, y, index): Set
+tile index at cell position fill(index): Fill entire layer with tile
+index
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]at(x, y) -> int\f[R]
+.PP
+Get the tile index at cell position (x, y).
+Returns -1 if no tile.
+.SS \f[V]fill(index)\f[R]
+.PP
+Fill the entire layer with the specified tile index.
+.SS \f[V]set(x, y, index)\f[R]
+.PP
+Set the tile index at cell position (x, y).
+Use -1 for no tile.
 .SS Timer
 .PP
 Timer(name, callback, interval, once=False)
@@ -937,11 +1264,43 @@ Timer will fire after the remaining time elapses.
 Iterable, indexable collection of UI objects
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]append(...)\f[R]
-.SS \f[V]count(...)\f[R]
-.SS \f[V]extend(...)\f[R]
-.SS \f[V]index(...)\f[R]
-.SS \f[V]remove(...)\f[R]
+.SS \f[V]append(element)\f[R]
+.PP
+Add an element to the end of the collection.
+.SS \f[V]count(element) -> int\f[R]
+.PP
+Count occurrences of element in the collection.
+.SS \f[V]extend(iterable)\f[R]
+.PP
+Add all elements from an iterable to the collection.
+.SS \f[V]find(name, recursive=False) -> element or list\f[R]
+.PP
+Find elements by name.
+.PP
+\f[B]Returns:\f[R] Single element if exact match, list if wildcard, None
+if not found.
+.SS \f[V]index(element) -> int\f[R]
+.PP
+Return index of first occurrence of element.
+Raises ValueError if not found.
+.SS \f[V]insert(index, element)\f[R]
+.PP
+Insert element at index.
+Like list.insert(), indices past the end append.
+.PP
+Note: If using z_index for sorting, insertion order may not persist
+after the next render.
+Use name-based .find() for stable element access.
+.SS \f[V]pop([index]) -> element\f[R]
+.PP
+Remove and return element at index (default: last element).
+.PP
+Note: If using z_index for sorting, indices may shift after render.
+Use name-based .find() for stable element access.
+.SS \f[V]remove(element)\f[R]
+.PP
+Remove first occurrence of element.
+Raises ValueError if not found.
 .SS UICollectionIter
 .PP
 Iterator for a collection of UI objects
@@ -981,6 +1340,15 @@ Calculate the dot product with another vector.
 \f[B]Arguments:\f[R] - \f[V]other\f[R]: The other vector
 .PP
 \f[B]Returns:\f[R] float: Dot product of the two vectors
+.SS \f[V]floor() -> Vector\f[R]
+.PP
+Return a new vector with floored (integer) coordinates.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] Vector: New Vector with floor(x) and floor(y) Useful
+for grid-based positioning.
+For a hashable tuple, use the .int property instead.
 .SS \f[V]magnitude() -> float\f[R]
 .PP
 Calculate the length/magnitude of this vector.

@@ -96,96 +96,157 @@ class Drawable:
         ...
 
 class Frame(Drawable):
-    """Frame(x=0, y=0, w=0, h=0, fill_color=None, outline_color=None, outline=0, click=None, children=None)
-    
+    """Frame(x=0, y=0, w=0, h=0, fill_color=None, outline_color=None, outline=0, on_click=None, children=None)
+
     A rectangular frame UI element that can contain other drawable elements.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, x: float = 0, y: float = 0, w: float = 0, h: float = 0,
                  fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
-                 outline: float = 0, click: Optional[Callable] = None,
+                 outline: float = 0, on_click: Optional[Callable] = None,
                  children: Optional[List[UIElement]] = None) -> None: ...
-    
+
     w: float
     h: float
     fill_color: Color
     outline_color: Color
     outline: float
-    click: Optional[Callable[[float, float, int], None]]
+    on_click: Optional[Callable[[float, float, int], None]]
+    on_enter: Optional[Callable[[], None]]
+    on_exit: Optional[Callable[[], None]]
+    on_move: Optional[Callable[[float, float], None]]
     children: 'UICollection'
     clip_children: bool
 
 class Caption(Drawable):
-    """Caption(text='', x=0, y=0, font=None, fill_color=None, outline_color=None, outline=0, click=None)
-    
+    """Caption(text='', x=0, y=0, font=None, fill_color=None, outline_color=None, outline=0, on_click=None)
+
     A text display UI element with customizable font and styling.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, text: str = '', x: float = 0, y: float = 0,
                  font: Optional[Font] = None, fill_color: Optional[Color] = None,
                  outline_color: Optional[Color] = None, outline: float = 0,
-                 click: Optional[Callable] = None) -> None: ...
-    
+                 on_click: Optional[Callable] = None) -> None: ...
+
     text: str
     font: Font
     fill_color: Color
     outline_color: Color
     outline: float
-    click: Optional[Callable[[float, float, int], None]]
+    on_click: Optional[Callable[[float, float, int], None]]
+    on_enter: Optional[Callable[[], None]]
+    on_exit: Optional[Callable[[], None]]
+    on_move: Optional[Callable[[float, float], None]]
     w: float  # Read-only, computed from text
     h: float  # Read-only, computed from text
 
 class Sprite(Drawable):
-    """Sprite(x=0, y=0, texture=None, sprite_index=0, scale=1.0, click=None)
-    
+    """Sprite(x=0, y=0, texture=None, sprite_index=0, scale=1.0, on_click=None)
+
     A sprite UI element that displays a texture or portion of a texture atlas.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, x: float = 0, y: float = 0, texture: Optional[Texture] = None,
                  sprite_index: int = 0, scale: float = 1.0,
-                 click: Optional[Callable] = None) -> None: ...
-    
+                 on_click: Optional[Callable] = None) -> None: ...
+
     texture: Texture
     sprite_index: int
     scale: float
-    click: Optional[Callable[[float, float, int], None]]
+    on_click: Optional[Callable[[float, float, int], None]]
+    on_enter: Optional[Callable[[], None]]
+    on_exit: Optional[Callable[[], None]]
+    on_move: Optional[Callable[[float, float], None]]
     w: float  # Read-only, computed from texture
     h: float  # Read-only, computed from texture
 
 class Grid(Drawable):
-    """Grid(x=0, y=0, grid_size=(20, 20), texture=None, tile_width=16, tile_height=16, scale=1.0, click=None)
-    
+    """Grid(pos=None, size=None, grid_size=(20, 20), texture=None, on_click=None, layers=None)
+
     A grid-based tilemap UI element for rendering tile-based levels and game worlds.
+    Supports multiple rendering layers (ColorLayer, TileLayer) and entity management.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
-    def __init__(self, x: float = 0, y: float = 0, grid_size: Tuple[int, int] = (20, 20),
-                 texture: Optional[Texture] = None, tile_width: int = 16, tile_height: int = 16,
-                 scale: float = 1.0, click: Optional[Callable] = None) -> None: ...
-    
+    def __init__(self, pos: Optional[Tuple[float, float]] = None,
+                 size: Optional[Tuple[float, float]] = None,
+                 grid_size: Tuple[int, int] = (20, 20),
+                 texture: Optional[Texture] = None,
+                 on_click: Optional[Callable] = None,
+                 layers: Optional[Dict[str, str]] = None) -> None: ...
+
     grid_size: Tuple[int, int]
-    tile_width: int
-    tile_height: int
+    grid_x: int  # Read-only grid width
+    grid_y: int  # Read-only grid height
     texture: Texture
-    scale: float
-    points: List[List['GridPoint']]
+    zoom: float
+    center: Tuple[float, float]
+    center_x: float
+    center_y: float
+    fill_color: Color
     entities: 'EntityCollection'
-    background_color: Color
-    click: Optional[Callable[[int, int, int], None]]
-    
+    children: 'UICollection'
+    layers: List[Union['ColorLayer', 'TileLayer']]
+    hovered_cell: Optional[Tuple[int, int]]
+
+    # Mouse event handlers
+    on_click: Optional[Callable[[float, float, int], None]]
+    on_enter: Optional[Callable[[], None]]
+    on_exit: Optional[Callable[[], None]]
+    on_move: Optional[Callable[[float, float], None]]
+
+    # Grid cell event handlers
+    on_cell_click: Optional[Callable[[int, int], None]]
+    on_cell_enter: Optional[Callable[[int, int], None]]
+    on_cell_exit: Optional[Callable[[int, int], None]]
+
     def at(self, x: int, y: int) -> 'GridPoint':
         """Get grid point at tile coordinates."""
+        ...
+
+    def add_layer(self, type: str, z_index: int = -1,
+                  texture: Optional[Texture] = None) -> Union['ColorLayer', 'TileLayer']:
+        """Add a rendering layer. type='color' or 'tile'. z_index<0 = below entities."""
+        ...
+
+    def remove_layer(self, layer: Union['ColorLayer', 'TileLayer']) -> None:
+        """Remove a layer from the grid."""
+        ...
+
+    def compute_fov(self, x: int, y: int, radius: int) -> None:
+        """Compute field of view from a position."""
+        ...
+
+    def is_in_fov(self, x: int, y: int) -> bool:
+        """Check if a cell is visible in the current FOV."""
+        ...
+
+    def compute_dijkstra(self, sources: List[Tuple[int, int]], max_cost: float = -1) -> None:
+        """Compute Dijkstra distance map from source points."""
+        ...
+
+    def get_dijkstra_distance(self, x: int, y: int) -> float:
+        """Get distance to nearest source for a cell."""
+        ...
+
+    def get_dijkstra_path(self, x: int, y: int) -> List[Tuple[int, int]]:
+        """Get path from cell to nearest source."""
+        ...
+
+    def find_path(self, x1: int, y1: int, x2: int, y2: int) -> List[Tuple[int, int]]:
+        """Find A* path between two cells."""
         ...
 
 class GridPoint:
@@ -197,9 +258,48 @@ class GridPoint:
 
 class GridPointState:
     """State information for a grid point."""
-    
+
     texture_index: int
     color: Color
+
+class ColorLayer:
+    """Grid layer that renders solid colors per cell."""
+
+    z_index: int
+    visible: bool
+    grid_size: Tuple[int, int]
+
+    def fill(self, color: Color) -> None:
+        """Fill all cells with a color."""
+        ...
+
+    def set(self, x: int, y: int, color: Color) -> None:
+        """Set color at a specific cell."""
+        ...
+
+    def at(self, x: int, y: int) -> Color:
+        """Get color at a specific cell."""
+        ...
+
+class TileLayer:
+    """Grid layer that renders texture tiles per cell."""
+
+    z_index: int
+    visible: bool
+    texture: Texture
+    grid_size: Tuple[int, int]
+
+    def fill(self, sprite_index: int) -> None:
+        """Fill all cells with a sprite index."""
+        ...
+
+    def set(self, x: int, y: int, sprite_index: int) -> None:
+        """Set tile sprite at a specific cell."""
+        ...
+
+    def at(self, x: int, y: int) -> int:
+        """Get tile sprite index at a specific cell."""
+        ...
 
 class Entity(Drawable):
     """Entity(grid_x=0, grid_y=0, texture=None, sprite_index=0, name='')
