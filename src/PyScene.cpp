@@ -61,7 +61,7 @@ void PyScene::do_mouse_input(std::string button, std::string type)
 
 void PyScene::doAction(std::string name, std::string type)
 {
-    if (name.compare("left") == 0 || name.compare("rclick") == 0 || name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0) {
+    if (name.compare("left") == 0 || name.compare("right") == 0 || name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0) {
         do_mouse_input(name, type);
     }
     else if ACTIONONCE("debug_menu") {
