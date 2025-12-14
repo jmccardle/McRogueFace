@@ -22,6 +22,9 @@ import base64
 import os
 import random
 
+from action_parser import parse_action
+from action_executor import ActionExecutor
+
 # VLLM configuration
 VLLM_URL = "http://192.168.1.100:8100/v1/chat/completions"
 SCREENSHOT_DIR = "/tmp/vllm_multi_agent"
@@ -284,6 +287,9 @@ def run_demo():
     # Setup scene
     grid, fov_layer, agents, rat = setup_scene()
 
+    # Create action executor
+    executor = ActionExecutor(grid)
+
     # Cycle through each agent's perspective
     for i, agent in enumerate(agents):
         print(f"\n{'='*70}")
@@ -318,6 +324,21 @@ def run_demo():
         response = query_agent(agent, screenshot_path, grounded_text)
         print(f"\n{agent.name}'s Response:\n{response}")
         print()
+
+        # Parse and execute action
+        print(f"--- Action Execution ---")
+        action = parse_action(response)
+        print(f"Parsed action: {action.type.value} {action.args}")
+
+        result = executor.execute(agent, action)
+        if result.success:
+            print(f"SUCCESS: {result.message}")
+            if result.new_position:
+                # Update perspective after movement
+                switch_perspective(grid, fov_layer, agent)
+                mcrfpy.step(0.016)
+        else:
+            print(f"FAILED: {result.message}")
 
     print("\n" + "=" * 70)
     print("Multi-Agent Demo Complete")
