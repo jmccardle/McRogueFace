@@ -84,7 +84,8 @@ PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args)
     return result;
 }
 
-PyObject* PySceneClass::get_ui(PySceneObject* self, PyObject* args)
+// children property getter (replaces get_ui method)
+static PyObject* PySceneClass_get_children(PySceneObject* self, void* closure)
 {
     // Call the static method from McRFPy_API
     PyObject* py_args = Py_BuildValue("(s)", self->name.c_str());
@@ -99,15 +100,15 @@ PyObject* PySceneClass::register_keyboard(PySceneObject* self, PyObject* args)
     if (!PyArg_ParseTuple(args, "O", &callable)) {
         return NULL;
     }
-    
+
     if (!PyCallable_Check(callable)) {
         PyErr_SetString(PyExc_TypeError, "Argument must be callable");
         return NULL;
     }
-    
+
     // Store the callable
     Py_INCREF(callable);
-    
+
     // Get the current scene and set its key_callable
     GameEngine* game = McRFPy_API::game;
     if (game) {
@@ -117,9 +118,56 @@ PyObject* PySceneClass::register_keyboard(PySceneObject* self, PyObject* args)
         game->currentScene()->key_callable = std::make_unique<PyKeyCallable>(callable);
         game->scene = old_scene;
     }
-    
+
     Py_DECREF(callable);
     Py_RETURN_NONE;
+}
+
+// on_key property getter
+static PyObject* PySceneClass_get_on_key(PySceneObject* self, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        Py_RETURN_NONE;
+    }
+
+    auto scene = game->getScene(self->name);
+    if (!scene || !scene->key_callable) {
+        Py_RETURN_NONE;
+    }
+
+    PyObject* callable = scene->key_callable->borrow();
+    if (callable && callable != Py_None) {
+        Py_INCREF(callable);
+        return callable;
+    }
+    Py_RETURN_NONE;
+}
+
+// on_key property setter
+static int PySceneClass_set_on_key(PySceneObject* self, PyObject* value, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "No game engine");
+        return -1;
+    }
+
+    auto scene = game->getScene(self->name);
+    if (!scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not found");
+        return -1;
+    }
+
+    if (value == Py_None || value == NULL) {
+        scene->key_unregister();
+    } else if (PyCallable_Check(value)) {
+        scene->key_register(value);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "on_key must be callable or None");
+        return -1;
+    }
+    return 0;
 }
 
 PyObject* PySceneClass::get_name(PySceneObject* self, void* closure)
@@ -394,6 +442,14 @@ PyGetSetDef PySceneClass::getsetters[] = {
      MCRF_PROPERTY(visible, "Scene visibility (bool). If False, scene is not rendered."), NULL},
     {"opacity", (getter)PySceneClass_get_opacity, (setter)PySceneClass_set_opacity,
      MCRF_PROPERTY(opacity, "Scene opacity (0.0-1.0). Applied to all UI elements during rendering."), NULL},
+    // #151: Consistent Scene API
+    {"children", (getter)PySceneClass_get_children, NULL,
+     MCRF_PROPERTY(children, "UI element collection for this scene (UICollection, read-only). "
+         "Use to add, remove, or iterate over UI elements. Changes are reflected immediately."), NULL},
+    {"on_key", (getter)PySceneClass_get_on_key, (setter)PySceneClass_set_on_key,
+     MCRF_PROPERTY(on_key, "Keyboard event handler (callable or None). "
+         "Function receives (key: str, action: str) for keyboard events. "
+         "Set to None to remove the handler."), NULL},
     {NULL}
 };
 
@@ -406,13 +462,6 @@ PyMethodDef PySceneClass::methods[] = {
          MCRF_RETURNS("None")
          MCRF_NOTE("Deactivates the current scene and activates this one. Scene transitions and lifecycle callbacks are triggered.")
      )},
-    {"get_ui", (PyCFunction)get_ui, METH_NOARGS,
-     MCRF_METHOD(SceneClass, get_ui,
-         MCRF_SIG("()", "UICollection"),
-         MCRF_DESC("Get the UI element collection for this scene."),
-         MCRF_RETURNS("UICollection: Collection of UI elements (Frames, Captions, Sprites, Grids) in this scene")
-         MCRF_NOTE("Use to add, remove, or iterate over UI elements. Changes are reflected immediately.")
-     )},
     {"register_keyboard", (PyCFunction)register_keyboard, METH_VARARGS,
      MCRF_METHOD(SceneClass, register_keyboard,
          MCRF_SIG("(callback: callable)", "None"),
@@ -420,7 +469,7 @@ PyMethodDef PySceneClass::methods[] = {
          MCRF_ARGS_START
          MCRF_ARG("callback", "Function that receives (key: str, pressed: bool) when keyboard events occur")
          MCRF_RETURNS("None")
-         MCRF_NOTE("Alternative to overriding on_keypress() method. Handler is called for both key press and release events.")
+         MCRF_NOTE("Alternative to setting on_key property. Handler is called for both key press and release events.")
      )},
     {NULL}
 };
@@ -456,9 +505,96 @@ void McRFPy_API::triggerResize(int width, int height)
 {
     GameEngine* game = McRFPy_API::game;
     if (!game) return;
-    
+
     // Only notify the active scene
     if (python_scenes.count(game->scene) > 0) {
         PySceneClass::call_on_resize(python_scenes[game->scene], width, height);
     }
+}
+
+// #151: Get the current scene as a Python Scene object
+PyObject* McRFPy_API::api_get_current_scene()
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        Py_RETURN_NONE;
+    }
+
+    const std::string& current_name = game->scene;
+    if (python_scenes.count(current_name) > 0) {
+        PyObject* scene_obj = (PyObject*)python_scenes[current_name];
+        Py_INCREF(scene_obj);
+        return scene_obj;
+    }
+
+    // Scene exists but wasn't created via Python Scene class
+    Py_RETURN_NONE;
+}
+
+// #151: Set the current scene from a Python Scene object
+int McRFPy_API::api_set_current_scene(PyObject* value)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "No game engine");
+        return -1;
+    }
+
+    if (!value) {
+        PyErr_SetString(PyExc_ValueError, "value is NULL");
+        return -1;
+    }
+
+    // Accept Scene object or string name
+    const char* scene_name = nullptr;
+
+    if (PyUnicode_Check(value)) {
+        scene_name = PyUnicode_AsUTF8(value);
+    } else {
+        // Check if value is a Scene or Scene subclass - use same pattern as rest of codebase
+        PyObject* scene_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Scene");
+        if (scene_type && PyObject_IsInstance(value, scene_type)) {
+            Py_DECREF(scene_type);
+            PySceneObject* scene_obj = (PySceneObject*)value;
+            scene_name = scene_obj->name.c_str();
+        } else {
+            Py_XDECREF(scene_type);
+            PyErr_SetString(PyExc_TypeError, "current_scene must be a Scene object or scene name string");
+            return -1;
+        }
+    }
+
+    if (!scene_name) {
+        PyErr_SetString(PyExc_ValueError, "Invalid scene name");
+        return -1;
+    }
+
+    // Verify scene exists
+    if (!game->getScene(scene_name)) {
+        PyErr_Format(PyExc_KeyError, "Scene '%s' does not exist", scene_name);
+        return -1;
+    }
+
+    std::string old_scene = game->scene;
+    game->scene = scene_name;
+    McRFPy_API::triggerSceneChange(old_scene, scene_name);
+
+    return 0;
+}
+
+// #151: Get all scenes as a tuple of Python Scene objects
+PyObject* McRFPy_API::api_get_scenes()
+{
+    PyObject* tuple = PyTuple_New(python_scenes.size());
+    if (!tuple) return NULL;
+
+    Py_ssize_t i = 0;
+    for (auto& pair : python_scenes) {
+        PyObject* scene_obj = (PyObject*)pair.second;
+        Py_INCREF(scene_obj);
+        PyTuple_SET_ITEM(tuple, i, scene_obj);
+        i++;
+    }
+
+    return tuple;
 }

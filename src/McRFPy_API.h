@@ -98,6 +98,11 @@ public:
     static void updatePythonScenes(float dt);
     static void triggerResize(int width, int height);
 
+    // #151: Module-level scene property accessors
+    static PyObject* api_get_current_scene();
+    static int api_set_current_scene(PyObject* value);
+    static PyObject* api_get_scenes();
+
     // Exception handling - signal game loop to exit on unhandled Python exceptions
     static std::atomic<bool> exception_occurred;
     static std::atomic<int> exit_code;

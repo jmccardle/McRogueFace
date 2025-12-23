@@ -132,9 +132,9 @@ def test_scene_active():
 
     print("  - Scene active property: PASS")
 
-def test_scene_get_ui():
-    """Test Scene get_ui method"""
-    print("Testing scene get_ui method...")
+def test_scene_children():
+    """Test Scene children property (#151)"""
+    print("Testing scene children property...")
 
     class TestScene(mcrfpy.Scene):
         def __init__(self, name):
@@ -142,18 +142,18 @@ def test_scene_get_ui():
 
     scene = TestScene("ui_test_scene")
 
-    # Get UI collection
-    ui = scene.get_ui()
-    assert ui is not None, "get_ui() should return a collection"
+    # Get UI collection via children property
+    ui = scene.children
+    assert ui is not None, "children should return a collection"
 
     # Add some elements
     ui.append(mcrfpy.Frame(pos=(10, 20), size=(100, 100)))
     ui.append(mcrfpy.Caption(text="Test", pos=(50, 50)))
 
     # Verify length
-    assert len(ui) == 2, f"UI should have 2 elements, got {len(ui)}"
+    assert len(scene.children) == 2, f"children should have 2 elements, got {len(scene.children)}"
 
-    print("  - Scene get_ui method: PASS")
+    print("  - Scene children property: PASS")
 
 # Run all tests
 if __name__ == "__main__":
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         test_scene_opacity()
         test_scene_name()
         test_scene_active()
-        test_scene_get_ui()
+        test_scene_children()
 
         print("\n=== All Scene property tests passed! ===")
         sys.exit(0)

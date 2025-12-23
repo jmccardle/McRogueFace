@@ -27,7 +27,6 @@ public:
     
     // Scene methods
     static PyObject* activate(PySceneObject* self, PyObject* args);
-    static PyObject* get_ui(PySceneObject* self, PyObject* args);
     static PyObject* register_keyboard(PySceneObject* self, PyObject* args);
     
     // Properties

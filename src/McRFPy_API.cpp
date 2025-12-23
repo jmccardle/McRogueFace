@@ -35,6 +35,71 @@ PyObject* McRFPy_API::mcrf_module;
 std::atomic<bool> McRFPy_API::exception_occurred{false};
 std::atomic<int> McRFPy_API::exit_code{0};
 
+// #151: Module-level __getattr__ for dynamic properties (current_scene, scenes)
+static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
+{
+    const char* name;
+    if (!PyArg_ParseTuple(args, "s", &name)) {
+        return NULL;
+    }
+
+    if (strcmp(name, "current_scene") == 0) {
+        return McRFPy_API::api_get_current_scene();
+    }
+
+    if (strcmp(name, "scenes") == 0) {
+        return McRFPy_API::api_get_scenes();
+    }
+
+    // Attribute not found - raise AttributeError
+    PyErr_Format(PyExc_AttributeError, "module 'mcrfpy' has no attribute '%s'", name);
+    return NULL;
+}
+
+// #151: Custom module type with __setattr__ support for current_scene
+static int mcrfpy_module_setattro(PyObject* self, PyObject* name, PyObject* value)
+{
+    const char* name_str = PyUnicode_AsUTF8(name);
+    if (!name_str) return -1;
+
+    if (strcmp(name_str, "current_scene") == 0) {
+        return McRFPy_API::api_set_current_scene(value);
+    }
+
+    if (strcmp(name_str, "scenes") == 0) {
+        PyErr_SetString(PyExc_AttributeError, "'scenes' is read-only");
+        return -1;
+    }
+
+    // For other attributes, use default module setattr
+    return PyObject_GenericSetAttr(self, name, value);
+}
+
+// Custom module type that inherits from PyModule_Type but has our __setattr__
+static PyTypeObject McRFPyModuleType = {
+    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .tp_name = "mcrfpy.module",
+    .tp_basicsize = 0,  // Inherited from base
+    .tp_itemsize = 0,
+    .tp_dealloc = NULL,
+    .tp_vectorcall_offset = 0,
+    .tp_getattr = NULL,
+    .tp_setattr = NULL,
+    .tp_as_async = NULL,
+    .tp_repr = NULL,
+    .tp_as_number = NULL,
+    .tp_as_sequence = NULL,
+    .tp_as_mapping = NULL,
+    .tp_hash = NULL,
+    .tp_call = NULL,
+    .tp_str = NULL,
+    .tp_getattro = NULL,
+    .tp_setattro = mcrfpy_module_setattro,
+    .tp_as_buffer = NULL,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+    .tp_doc = "McRogueFace module with property support",
+};
+
 static PyMethodDef mcrfpyMethods[] = {
 
     {"createSoundBuffer", McRFPy_API::_createSoundBuffer, METH_VARARGS,
@@ -254,6 +319,10 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("Messages appear in the 'logs' array of each frame in the output JSON.")
      )},
 
+    // #151: Module-level attribute access for current_scene and scenes
+    {"__getattr__", mcrfpy_module_getattr, METH_VARARGS,
+     "Module-level __getattr__ for dynamic properties (current_scene, scenes)"},
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -293,12 +362,22 @@ static PyModuleDef mcrfpyModule = {
 PyObject* PyInit_mcrfpy()
 {
     PyObject* m = PyModule_Create(&mcrfpyModule);
-    
-    if (m == NULL) 
+
+    if (m == NULL)
     {
         return NULL;
     }
-    
+
+    // #151: Set up custom module type for current_scene/scenes property support
+    // The custom type inherits from PyModule_Type and adds __setattr__ handling
+    McRFPyModuleType.tp_base = &PyModule_Type;
+    if (PyType_Ready(&McRFPyModuleType) < 0) {
+        std::cout << "ERROR: PyType_Ready failed for McRFPyModuleType" << std::endl;
+        return NULL;
+    }
+    // Change the module's type to our custom type
+    Py_SET_TYPE(m, &McRFPyModuleType);
+
     using namespace mcrfpydef;
     PyTypeObject* pytypes[] = {
         /*SFML exposed types*/
