@@ -29,8 +29,8 @@ GRID_SIZE = (100, 100)  # 10,000 cells - entities will actually see each other
 # Full suite - may timeout on large counts due to O(n²) visibility
 # ENTITY_COUNTS = [100, 500, 1000, 2500, 5000, 10000]
 
-# Quick suite for initial baseline (on 100x100 grid, these give densities of 1-20%)
-ENTITY_COUNTS = [100, 500, 1000, 2000]
+# Extended suite to validate scalability (on 100x100 grid)
+ENTITY_COUNTS = [100, 500, 1000, 2000, 5000]
 QUERY_RADIUS = 15  # Smaller radius for smaller grid
 MOVEMENT_PERCENT = 0.10  # 10% of entities move each frame
 N2N_SAMPLE_SIZE = 50  # Sample size for N×N visibility test
