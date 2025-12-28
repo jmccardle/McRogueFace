@@ -75,22 +75,31 @@ class Font:
 
 class Drawable:
     """Base class for all drawable UI elements."""
-    
+
     x: float
     y: float
     visible: bool
     z_index: int
     name: str
     pos: Vector
-    
+
+    # Mouse event callbacks (#140, #141)
+    on_click: Optional[Callable[[float, float, int, str], None]]
+    on_enter: Optional[Callable[[float, float, int, str], None]]
+    on_exit: Optional[Callable[[float, float, int, str], None]]
+    on_move: Optional[Callable[[float, float, int, str], None]]
+
+    # Read-only hover state (#140)
+    hovered: bool
+
     def get_bounds(self) -> Tuple[float, float, float, float]:
         """Get bounding box as (x, y, width, height)."""
         ...
-    
+
     def move(self, dx: float, dy: float) -> None:
         """Move by relative offset (dx, dy)."""
         ...
-    
+
     def resize(self, width: float, height: float) -> None:
         """Resize to new dimensions (width, height)."""
         ...
@@ -331,45 +340,47 @@ class EntityCollection:
 
 class Scene:
     """Base class for object-oriented scenes."""
-    
+
     name: str
-    
+    children: UICollection  # #151: UI elements collection (read-only alias for get_ui())
+    on_key: Optional[Callable[[str, str], None]]  # Keyboard handler (key, action)
+
     def __init__(self, name: str) -> None: ...
-    
+
     def activate(self) -> None:
         """Called when scene becomes active."""
         ...
-    
+
     def deactivate(self) -> None:
         """Called when scene becomes inactive."""
         ...
-    
+
     def get_ui(self) -> UICollection:
         """Get UI elements collection."""
         ...
-    
+
     def on_keypress(self, key: str, pressed: bool) -> None:
-        """Handle keyboard events."""
+        """Handle keyboard events (override in subclass)."""
         ...
-    
+
     def on_click(self, x: float, y: float, button: int) -> None:
-        """Handle mouse clicks."""
+        """Handle mouse clicks (override in subclass)."""
         ...
-    
+
     def on_enter(self) -> None:
-        """Called when entering the scene."""
+        """Called when entering the scene (override in subclass)."""
         ...
-    
+
     def on_exit(self) -> None:
-        """Called when leaving the scene."""
+        """Called when leaving the scene (override in subclass)."""
         ...
-    
+
     def on_resize(self, width: int, height: int) -> None:
-        """Handle window resize events."""
+        """Handle window resize events (override in subclass)."""
         ...
-    
+
     def update(self, dt: float) -> None:
-        """Update scene logic."""
+        """Update scene logic (override in subclass)."""
         ...
 
 class Timer:
