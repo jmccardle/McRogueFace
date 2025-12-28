@@ -3,11 +3,12 @@
 Core game engine interface for creating roguelike games with Python.
 """
 
-from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload
+from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload, Literal
 
 # Type aliases
 UIElement = Union['Frame', 'Caption', 'Sprite', 'Grid']
 Transition = Union[str, None]
+ConflictMode = Literal['replace', 'queue', 'error']
 
 # Classes
 
@@ -461,8 +462,19 @@ class Animation:
                  duration: float, easing: str = 'linear', loop: bool = False,
                  on_complete: Optional[Callable] = None) -> None: ...
     
-    def start(self) -> None:
-        """Start the animation."""
+    def start(self, target: Any, conflict_mode: ConflictMode = 'replace') -> None:
+        """Start the animation on a target UI element.
+
+        Args:
+            target: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)
+            conflict_mode: How to handle conflicts if property is already animating:
+                - 'replace' (default): Complete existing animation and start new one
+                - 'queue': Wait for existing animation to complete
+                - 'error': Raise RuntimeError if property is busy
+
+        Raises:
+            RuntimeError: When conflict_mode='error' and property is already animating
+        """
         ...
     
     def update(self, dt: float) -> bool:

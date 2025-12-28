@@ -12,6 +12,15 @@
 class UIDrawable;
 class UIEntity;
 
+/**
+ * ConflictMode - How to handle multiple animations on the same property (#120)
+ */
+enum class AnimationConflictMode {
+    REPLACE,  // Stop/complete existing animation, start new one (default)
+    QUEUE,    // Queue new animation to run after existing one completes
+    ERROR     // Raise an error if property is already being animated
+};
+
 // Forward declare namespace
 namespace EasingFunctions {
     float linear(float t);
@@ -71,6 +80,13 @@ public:
     float getElapsed() const { return elapsed; }
     bool isComplete() const { return elapsed >= duration; }
     bool isDelta() const { return delta; }
+
+    // Get raw target pointer for property locking (#120)
+    void* getTargetPtr() const {
+        if (auto sp = targetWeak.lock()) return sp.get();
+        if (auto sp = entityTargetWeak.lock()) return sp.get();
+        return nullptr;
+    }
     
 private:
     std::string targetProperty;    // Property name to animate (e.g., "x", "color.r", "sprite_number")
@@ -157,19 +173,64 @@ namespace EasingFunctions {
 class AnimationManager {
 public:
     static AnimationManager& getInstance();
-    
+
     // Add an animation to be managed
-    void addAnimation(std::shared_ptr<Animation> animation);
-    
+    // conflict_mode determines behavior when property is already animated (#120)
+    void addAnimation(std::shared_ptr<Animation> animation,
+                     AnimationConflictMode conflict_mode = AnimationConflictMode::REPLACE);
+
     // Update all animations
     void update(float deltaTime);
-    
+
     // Clear all animations (optionally completing them first)
     void clear(bool completeAnimations = false);
-    
+
+    // Get/set default conflict mode
+    AnimationConflictMode getDefaultConflictMode() const { return defaultConflictMode; }
+    void setDefaultConflictMode(AnimationConflictMode mode) { defaultConflictMode = mode; }
+
+    // Check if a property is currently being animated on a target
+    bool isPropertyAnimating(void* target, const std::string& property) const;
+
+    // Get active animation count (for debugging/testing)
+    size_t getActiveAnimationCount() const { return activeAnimations.size(); }
+
 private:
     AnimationManager() = default;
     std::vector<std::shared_ptr<Animation>> activeAnimations;
     std::vector<std::shared_ptr<Animation>> pendingAnimations; // Animations to add after update
     bool isUpdating = false; // Flag to track if we're in update loop
+    AnimationConflictMode defaultConflictMode = AnimationConflictMode::REPLACE;
+
+    // Property lock tracking for conflict detection (#120)
+    // Key: (target_ptr, property_name) -> weak reference to active animation
+    struct PropertyKey {
+        void* target;
+        std::string property;
+
+        bool operator==(const PropertyKey& other) const {
+            return target == other.target && property == other.property;
+        }
+    };
+
+    struct PropertyKeyHash {
+        size_t operator()(const PropertyKey& key) const {
+            return std::hash<void*>()(key.target) ^
+                   (std::hash<std::string>()(key.property) << 1);
+        }
+    };
+
+    std::unordered_map<PropertyKey, std::weak_ptr<Animation>, PropertyKeyHash> propertyLocks;
+
+    // Queued animations waiting for property to become available
+    std::vector<std::pair<PropertyKey, std::shared_ptr<Animation>>> animationQueue;
+
+    // Helper to get target pointer from animation
+    void* getAnimationTarget(const std::shared_ptr<Animation>& anim) const;
+
+    // Clean up expired property locks
+    void cleanupPropertyLocks();
+
+    // Process queued animations
+    void processQueue();
 };

@@ -25,7 +25,7 @@ public:
     static PyObject* get_is_delta(PyAnimationObject* self, void* closure);
     
     // Methods
-    static PyObject* start(PyAnimationObject* self, PyObject* args);
+    static PyObject* start(PyAnimationObject* self, PyObject* args, PyObject* kwds);
     static PyObject* update(PyAnimationObject* self, PyObject* args);
     static PyObject* get_current_value(PyAnimationObject* self, PyObject* args);
     static PyObject* complete(PyAnimationObject* self, PyObject* args);

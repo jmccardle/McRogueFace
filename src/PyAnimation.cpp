@@ -8,7 +8,7 @@
 #include "UIGrid.h"
 #include "UIEntity.h"
 #include "UI.h"  // For the PyTypeObject definitions
-#include <cstring>
+#include <cstring>  // For strcmp in parseConflictMode
 
 PyObject* PyAnimation::create(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     PyAnimationObject* self = (PyAnimationObject*)type->tp_alloc(type, 0);
@@ -133,27 +133,53 @@ PyObject* PyAnimation::get_is_delta(PyAnimationObject* self, void* closure) {
     return PyBool_FromLong(self->data->isDelta());
 }
 
-PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args) {
+// Helper to convert Python string to AnimationConflictMode
+static bool parseConflictMode(const char* mode_str, AnimationConflictMode& mode) {
+    if (!mode_str || strcmp(mode_str, "replace") == 0) {
+        mode = AnimationConflictMode::REPLACE;
+    } else if (strcmp(mode_str, "queue") == 0) {
+        mode = AnimationConflictMode::QUEUE;
+    } else if (strcmp(mode_str, "error") == 0) {
+        mode = AnimationConflictMode::ERROR;
+    } else {
+        PyErr_Format(PyExc_ValueError,
+            "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", mode_str);
+        return false;
+    }
+    return true;
+}
+
+PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"target", "conflict_mode", nullptr};
     PyObject* target_obj;
-    if (!PyArg_ParseTuple(args, "O", &target_obj)) {
+    const char* conflict_mode_str = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|s", const_cast<char**>(kwlist),
+                                      &target_obj, &conflict_mode_str)) {
         return NULL;
     }
-    
+
+    // Parse conflict mode
+    AnimationConflictMode conflict_mode;
+    if (!parseConflictMode(conflict_mode_str, conflict_mode)) {
+        return NULL;  // Error already set
+    }
+
     // Get type objects from the module to ensure they're initialized
     PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
     PyObject* caption_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
     PyObject* sprite_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
     PyObject* grid_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
     PyObject* entity_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-    
+
     bool handled = false;
-    
+
     // Use PyObject_IsInstance to support inheritance
     if (frame_type && PyObject_IsInstance(target_obj, frame_type)) {
         PyUIFrameObject* frame = (PyUIFrameObject*)target_obj;
         if (frame->data) {
             self->data->start(frame->data);
-            AnimationManager::getInstance().addAnimation(self->data);
+            AnimationManager::getInstance().addAnimation(self->data, conflict_mode);
             handled = true;
         }
     }
@@ -161,7 +187,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args) {
         PyUICaptionObject* caption = (PyUICaptionObject*)target_obj;
         if (caption->data) {
             self->data->start(caption->data);
-            AnimationManager::getInstance().addAnimation(self->data);
+            AnimationManager::getInstance().addAnimation(self->data, conflict_mode);
             handled = true;
         }
     }
@@ -169,7 +195,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args) {
         PyUISpriteObject* sprite = (PyUISpriteObject*)target_obj;
         if (sprite->data) {
             self->data->start(sprite->data);
-            AnimationManager::getInstance().addAnimation(self->data);
+            AnimationManager::getInstance().addAnimation(self->data, conflict_mode);
             handled = true;
         }
     }
@@ -177,7 +203,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args) {
         PyUIGridObject* grid = (PyUIGridObject*)target_obj;
         if (grid->data) {
             self->data->start(grid->data);
-            AnimationManager::getInstance().addAnimation(self->data);
+            AnimationManager::getInstance().addAnimation(self->data, conflict_mode);
             handled = true;
         }
     }
@@ -186,23 +212,28 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args) {
         PyUIEntityObject* entity = (PyUIEntityObject*)target_obj;
         if (entity->data) {
             self->data->startEntity(entity->data);
-            AnimationManager::getInstance().addAnimation(self->data);
+            AnimationManager::getInstance().addAnimation(self->data, conflict_mode);
             handled = true;
         }
     }
-    
+
     // Clean up references
     Py_XDECREF(frame_type);
     Py_XDECREF(caption_type);
     Py_XDECREF(sprite_type);
     Py_XDECREF(grid_type);
     Py_XDECREF(entity_type);
-    
+
     if (!handled) {
         PyErr_SetString(PyExc_TypeError, "Target must be a Frame, Caption, Sprite, Grid, or Entity (or a subclass of these)");
         return NULL;
     }
-    
+
+    // Check if an error was set (e.g., from ERROR conflict mode)
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+
     Py_RETURN_NONE;
 }
 
@@ -276,14 +307,19 @@ PyGetSetDef PyAnimation::getsetters[] = {
 };
 
 PyMethodDef PyAnimation::methods[] = {
-    {"start", (PyCFunction)start, METH_VARARGS,
+    {"start", (PyCFunction)start, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Animation, start,
-         MCRF_SIG("(target: UIDrawable)", "None"),
+         MCRF_SIG("(target: UIDrawable, conflict_mode: str = 'replace')", "None"),
          MCRF_DESC("Start the animation on a target UI element."),
          MCRF_ARGS_START
          MCRF_ARG("target", "The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)")
+         MCRF_ARG("conflict_mode", "How to handle conflicts if property is already animating: "
+                  "'replace' (default) - complete existing animation and start new one; "
+                  "'queue' - wait for existing animation to complete; "
+                  "'error' - raise RuntimeError if property is busy")
          MCRF_RETURNS("None")
-         MCRF_NOTE("The animation will automatically stop if the target is destroyed. Call AnimationManager.update(delta_time) each frame to progress animations.")
+         MCRF_RAISES("RuntimeError", "When conflict_mode='error' and property is already animating")
+         MCRF_NOTE("The animation will automatically stop if the target is destroyed.")
      )},
     {"update", (PyCFunction)update, METH_VARARGS,
      MCRF_METHOD(Animation, update,

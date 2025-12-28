@@ -631,21 +631,122 @@ AnimationManager& AnimationManager::getInstance() {
     return instance;
 }
 
-void AnimationManager::addAnimation(std::shared_ptr<Animation> animation) {
-    if (animation && animation->hasValidTarget()) {
-        if (isUpdating) {
-            // Defer adding during update to avoid iterator invalidation
-            pendingAnimations.push_back(animation);
+void* AnimationManager::getAnimationTarget(const std::shared_ptr<Animation>& anim) const {
+    return anim ? anim->getTargetPtr() : nullptr;
+}
+
+bool AnimationManager::isPropertyAnimating(void* target, const std::string& property) const {
+    if (!target) return false;
+    PropertyKey key{target, property};
+    auto it = propertyLocks.find(key);
+    if (it == propertyLocks.end()) return false;
+    // Check if the animation is still valid
+    return !it->second.expired();
+}
+
+void AnimationManager::cleanupPropertyLocks() {
+    // Remove expired locks
+    for (auto it = propertyLocks.begin(); it != propertyLocks.end(); ) {
+        if (it->second.expired()) {
+            it = propertyLocks.erase(it);
         } else {
-            activeAnimations.push_back(animation);
+            ++it;
         }
+    }
+}
+
+void AnimationManager::processQueue() {
+    // Try to start queued animations whose properties are now free
+    for (auto it = animationQueue.begin(); it != animationQueue.end(); ) {
+        const auto& key = it->first;
+        auto& anim = it->second;
+
+        // Check if property is now free
+        auto lockIt = propertyLocks.find(key);
+        bool propertyFree = (lockIt == propertyLocks.end()) || lockIt->second.expired();
+
+        if (propertyFree && anim && anim->hasValidTarget()) {
+            // Property is free, start the animation
+            propertyLocks[key] = anim;
+            activeAnimations.push_back(anim);
+            it = animationQueue.erase(it);
+        } else if (!anim || !anim->hasValidTarget()) {
+            // Animation target was destroyed, remove from queue
+            it = animationQueue.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void AnimationManager::addAnimation(std::shared_ptr<Animation> animation,
+                                    AnimationConflictMode conflict_mode) {
+    if (!animation || !animation->hasValidTarget()) {
+        return;
+    }
+
+    void* target = getAnimationTarget(animation);
+    std::string property = animation->getTargetProperty();
+    PropertyKey key{target, property};
+
+    // Check for existing animation on this property (#120)
+    auto existingIt = propertyLocks.find(key);
+    bool hasExisting = (existingIt != propertyLocks.end()) && !existingIt->second.expired();
+
+    if (hasExisting) {
+        auto existingAnim = existingIt->second.lock();
+
+        switch (conflict_mode) {
+            case AnimationConflictMode::REPLACE:
+                // Complete the existing animation and replace it
+                if (existingAnim) {
+                    existingAnim->complete();
+                    // Remove from active animations
+                    activeAnimations.erase(
+                        std::remove(activeAnimations.begin(), activeAnimations.end(), existingAnim),
+                        activeAnimations.end()
+                    );
+                }
+                // Fall through to add the new animation
+                break;
+
+            case AnimationConflictMode::QUEUE:
+                // Add to queue - will start when existing completes
+                if (isUpdating) {
+                    // Also defer queue additions during update
+                    pendingAnimations.push_back(animation);
+                } else {
+                    animationQueue.emplace_back(key, animation);
+                }
+                return;  // Don't add to active animations yet
+
+            case AnimationConflictMode::ERROR:
+                // Raise Python exception
+                PyGILState_STATE gstate = PyGILState_Ensure();
+                PyErr_Format(PyExc_RuntimeError,
+                    "Animation conflict: property '%s' is already being animated on this target. "
+                    "Use conflict_mode='replace' to override or 'queue' to wait.",
+                    property.c_str());
+                PyGILState_Release(gstate);
+                return;
+        }
+    }
+
+    // Register property lock and add animation
+    propertyLocks[key] = animation;
+
+    if (isUpdating) {
+        // Defer adding during update to avoid iterator invalidation
+        pendingAnimations.push_back(animation);
+    } else {
+        activeAnimations.push_back(animation);
     }
 }
 
 void AnimationManager::update(float deltaTime) {
     // Set flag to defer new animations
     isUpdating = true;
-    
+
     // Remove completed or invalid animations
     activeAnimations.erase(
         std::remove_if(activeAnimations.begin(), activeAnimations.end(),
@@ -654,15 +755,37 @@ void AnimationManager::update(float deltaTime) {
             }),
         activeAnimations.end()
     );
-    
+
     // Clear update flag
     isUpdating = false;
-    
+
+    // Clean up expired property locks (#120)
+    cleanupPropertyLocks();
+
+    // Process queued animations - start any that are now unblocked (#120)
+    processQueue();
+
     // Add any animations that were created during update
     if (!pendingAnimations.empty()) {
-        activeAnimations.insert(activeAnimations.end(), 
-                              pendingAnimations.begin(), 
-                              pendingAnimations.end());
+        // Re-add pending animations through addAnimation to handle conflicts properly
+        for (auto& anim : pendingAnimations) {
+            if (anim && anim->hasValidTarget()) {
+                // Check if this was a queued animation or a new one
+                void* target = getAnimationTarget(anim);
+                std::string property = anim->getTargetProperty();
+                PropertyKey key{target, property};
+
+                // If not already locked, add it
+                auto lockIt = propertyLocks.find(key);
+                if (lockIt == propertyLocks.end() || lockIt->second.expired()) {
+                    propertyLocks[key] = anim;
+                    activeAnimations.push_back(anim);
+                } else {
+                    // Property still locked, re-queue
+                    animationQueue.emplace_back(key, anim);
+                }
+            }
+        }
         pendingAnimations.clear();
     }
 }
@@ -678,4 +801,7 @@ void AnimationManager::clear(bool completeAnimations) {
         }
     }
     activeAnimations.clear();
+    pendingAnimations.clear();
+    animationQueue.clear();
+    propertyLocks.clear();
 }
