@@ -6,7 +6,7 @@ Core game engine interface for creating roguelike games with Python.
 from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload
 
 # Type aliases
-UIElement = Union['Frame', 'Caption', 'Sprite', 'Grid']
+UIElement = Union['Frame', 'Caption', 'Sprite', 'Grid', 'Line', 'Circle', 'Arc']
 Transition = Union[str, None]
 
 # Classes
@@ -96,84 +96,84 @@ class Drawable:
         ...
 
 class Frame(Drawable):
-    """Frame(x=0, y=0, w=0, h=0, fill_color=None, outline_color=None, outline=0, click=None, children=None)
-    
+    """Frame(x=0, y=0, w=0, h=0, fill_color=None, outline_color=None, outline=0, on_click=None, children=None)
+
     A rectangular frame UI element that can contain other drawable elements.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, x: float = 0, y: float = 0, w: float = 0, h: float = 0,
                  fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
-                 outline: float = 0, click: Optional[Callable] = None,
+                 outline: float = 0, on_click: Optional[Callable] = None,
                  children: Optional[List[UIElement]] = None) -> None: ...
-    
+
     w: float
     h: float
     fill_color: Color
     outline_color: Color
     outline: float
-    click: Optional[Callable[[float, float, int], None]]
+    on_click: Optional[Callable[[float, float, int], None]]
     children: 'UICollection'
     clip_children: bool
 
 class Caption(Drawable):
-    """Caption(text='', x=0, y=0, font=None, fill_color=None, outline_color=None, outline=0, click=None)
-    
+    """Caption(text='', x=0, y=0, font=None, fill_color=None, outline_color=None, outline=0, on_click=None)
+
     A text display UI element with customizable font and styling.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, text: str = '', x: float = 0, y: float = 0,
                  font: Optional[Font] = None, fill_color: Optional[Color] = None,
                  outline_color: Optional[Color] = None, outline: float = 0,
-                 click: Optional[Callable] = None) -> None: ...
-    
+                 on_click: Optional[Callable] = None) -> None: ...
+
     text: str
     font: Font
     fill_color: Color
     outline_color: Color
     outline: float
-    click: Optional[Callable[[float, float, int], None]]
+    on_click: Optional[Callable[[float, float, int], None]]
     w: float  # Read-only, computed from text
     h: float  # Read-only, computed from text
 
 class Sprite(Drawable):
-    """Sprite(x=0, y=0, texture=None, sprite_index=0, scale=1.0, click=None)
-    
+    """Sprite(x=0, y=0, texture=None, sprite_index=0, scale=1.0, on_click=None)
+
     A sprite UI element that displays a texture or portion of a texture atlas.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, x: float = 0, y: float = 0, texture: Optional[Texture] = None,
                  sprite_index: int = 0, scale: float = 1.0,
-                 click: Optional[Callable] = None) -> None: ...
-    
+                 on_click: Optional[Callable] = None) -> None: ...
+
     texture: Texture
     sprite_index: int
     scale: float
-    click: Optional[Callable[[float, float, int], None]]
+    on_click: Optional[Callable[[float, float, int], None]]
     w: float  # Read-only, computed from texture
     h: float  # Read-only, computed from texture
 
 class Grid(Drawable):
-    """Grid(x=0, y=0, grid_size=(20, 20), texture=None, tile_width=16, tile_height=16, scale=1.0, click=None)
-    
+    """Grid(x=0, y=0, grid_size=(20, 20), texture=None, tile_width=16, tile_height=16, scale=1.0, on_click=None)
+
     A grid-based tilemap UI element for rendering tile-based levels and game worlds.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, x: float = 0, y: float = 0, grid_size: Tuple[int, int] = (20, 20),
                  texture: Optional[Texture] = None, tile_width: int = 16, tile_height: int = 16,
-                 scale: float = 1.0, click: Optional[Callable] = None) -> None: ...
-    
+                 scale: float = 1.0, on_click: Optional[Callable] = None) -> None: ...
+
     grid_size: Tuple[int, int]
     tile_width: int
     tile_height: int
@@ -182,11 +182,73 @@ class Grid(Drawable):
     points: List[List['GridPoint']]
     entities: 'EntityCollection'
     background_color: Color
-    click: Optional[Callable[[int, int, int], None]]
-    
+    on_click: Optional[Callable[[int, int, int], None]]
+
     def at(self, x: int, y: int) -> 'GridPoint':
         """Get grid point at tile coordinates."""
         ...
+
+class Line(Drawable):
+    """Line(start=None, end=None, thickness=1.0, color=None, on_click=None, **kwargs)
+
+    A line UI element for drawing straight lines between two points.
+    """
+
+    @overload
+    def __init__(self) -> None: ...
+    @overload
+    def __init__(self, start: Optional[Tuple[float, float]] = None,
+                 end: Optional[Tuple[float, float]] = None,
+                 thickness: float = 1.0, color: Optional[Color] = None,
+                 on_click: Optional[Callable] = None) -> None: ...
+
+    start: Vector
+    end: Vector
+    thickness: float
+    color: Color
+    on_click: Optional[Callable[[float, float, int], None]]
+
+class Circle(Drawable):
+    """Circle(radius=0, center=None, fill_color=None, outline_color=None, outline=0, on_click=None, **kwargs)
+
+    A circle UI element for drawing filled or outlined circles.
+    """
+
+    @overload
+    def __init__(self) -> None: ...
+    @overload
+    def __init__(self, radius: float = 0, center: Optional[Tuple[float, float]] = None,
+                 fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
+                 outline: float = 0, on_click: Optional[Callable] = None) -> None: ...
+
+    radius: float
+    center: Vector
+    fill_color: Color
+    outline_color: Color
+    outline: float
+    on_click: Optional[Callable[[float, float, int], None]]
+
+class Arc(Drawable):
+    """Arc(center=None, radius=0, start_angle=0, end_angle=90, color=None, thickness=1, on_click=None, **kwargs)
+
+    An arc UI element for drawing curved line segments.
+    """
+
+    @overload
+    def __init__(self) -> None: ...
+    @overload
+    def __init__(self, center: Optional[Tuple[float, float]] = None, radius: float = 0,
+                 start_angle: float = 0, end_angle: float = 90,
+                 color: Optional[Color] = None, thickness: float = 1.0,
+                 on_click: Optional[Callable] = None) -> None: ...
+
+    center: Vector
+    radius: float
+    start_angle: float
+    end_angle: float
+    color: Color
+    thickness: float
+    on_click: Optional[Callable[[float, float, int], None]]
 
 class GridPoint:
     """Grid point representing a single tile."""
@@ -232,7 +294,7 @@ class Entity(Drawable):
         ...
 
 class UICollection:
-    """Collection of UI drawable elements (Frame, Caption, Sprite, Grid)."""
+    """Collection of UI drawable elements (Frame, Caption, Sprite, Grid, Line, Circle, Arc)."""
     
     def __len__(self) -> int: ...
     def __getitem__(self, index: int) -> UIElement: ...
