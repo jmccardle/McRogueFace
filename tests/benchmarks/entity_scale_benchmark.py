@@ -138,6 +138,16 @@ def benchmark_range_query(entity, radius):
     return elapsed * 1000, len(visible)  # ms, count
 
 
+def benchmark_range_query_spatial(grid, x, y, radius):
+    """B3b: Measure grid.entities_in_radius call (SpatialHash O(k) implementation)."""
+    start = time.perf_counter()
+
+    visible = grid.entities_in_radius(x, y, radius)
+
+    elapsed = time.perf_counter() - start
+    return elapsed * 1000, len(visible)  # ms, count
+
+
 def benchmark_n_to_n_visibility(grid, radius, sample_size):
     """B4: Measure visibility queries for a sample of entities.
 
@@ -154,6 +164,29 @@ def benchmark_n_to_n_visibility(grid, radius, sample_size):
     total_visible = 0
     for entity in sample:
         visible = entity.visible_entities(radius=radius)
+        total_visible += len(visible)
+
+    elapsed = time.perf_counter() - start
+    avg_visible = total_visible / actual_sample if actual_sample > 0 else 0
+
+    return elapsed * 1000, actual_sample, avg_visible  # ms, sample_size, avg_found
+
+
+def benchmark_n_to_n_visibility_spatial(grid, radius, sample_size):
+    """B4b: Measure N×N visibility using SpatialHash.
+
+    Same test as B4 but uses grid.entities_in_radius() instead of entity.visible_entities().
+    """
+    entities_list = list(grid.entities)
+    n = len(entities_list)
+    actual_sample = min(sample_size, n)
+    sample = random.sample(entities_list, actual_sample)
+
+    start = time.perf_counter()
+
+    total_visible = 0
+    for entity in sample:
+        visible = grid.entities_in_radius(entity.x, entity.y, radius)
         total_visible += len(visible)
 
     elapsed = time.perf_counter() - start
@@ -232,8 +265,19 @@ def run_single_scale(n_entities):
     print(f"  Found: {found} entities in range")
     print(f"  Checked: {n_entities} entities (O(n) scan)")
 
+    # B3b: SpatialHash range query
+    print(f"\n[B3b] SpatialHash Range Query (radius={QUERY_RADIUS})...")
+    spatial_query_ms, spatial_found = benchmark_range_query_spatial(
+        grid, test_entity.x, test_entity.y, QUERY_RADIUS
+    )
+    print(f"  Time: {spatial_query_ms:.3f}ms")
+    print(f"  Found: {spatial_found} entities in range")
+    if query_ms > 0:
+        speedup = query_ms / spatial_query_ms if spatial_query_ms > 0 else float('inf')
+        print(f"  Speedup: {speedup:.1f}× faster than O(n) scan")
+
     # B4: N-to-N visibility
-    print(f"\n[B4] N×N Visibility (sample={N2N_SAMPLE_SIZE})...")
+    print(f"\n[B4] N×N Visibility O(n) (sample={N2N_SAMPLE_SIZE})...")
     n2n_ms, sample_size, avg_visible = benchmark_n_to_n_visibility(
         grid, QUERY_RADIUS, N2N_SAMPLE_SIZE
     )
@@ -245,6 +289,20 @@ def run_single_scale(n_entities):
     # Extrapolate to full N×N
     full_n2n_ms = per_query_ms * n_entities
     print(f"  Estimated full N×N: {full_n2n_ms:,.0f}ms ({full_n2n_ms/1000:.1f}s)")
+
+    # B4b: N-to-N visibility with SpatialHash
+    print(f"\n[B4b] N×N Visibility SpatialHash (sample={N2N_SAMPLE_SIZE})...")
+    n2n_spatial_ms, _, _ = benchmark_n_to_n_visibility_spatial(
+        grid, QUERY_RADIUS, N2N_SAMPLE_SIZE
+    )
+    per_query_spatial_ms = n2n_spatial_ms / sample_size if sample_size > 0 else 0
+    print(f"  Sample time: {n2n_spatial_ms:.2f}ms ({sample_size} queries)")
+    print(f"  Per query: {per_query_spatial_ms:.3f}ms")
+    full_n2n_spatial_ms = per_query_spatial_ms * n_entities
+    print(f"  Estimated full N×N: {full_n2n_spatial_ms:,.0f}ms ({full_n2n_spatial_ms/1000:.1f}s)")
+    if n2n_ms > 0:
+        n2n_speedup = n2n_ms / n2n_spatial_ms if n2n_spatial_ms > 0 else float('inf')
+        print(f"  Speedup: {n2n_speedup:.1f}× faster than O(n)")
 
     # B5: Movement
     print(f"\n[B5] Movement ({MOVEMENT_PERCENT*100:.0f}% of entities)...")
@@ -261,10 +319,14 @@ def run_single_scale(n_entities):
         'iter_coll_ms': iter_coll_ms,
         'query_ms': query_ms,
         'query_found': found,
+        'spatial_query_ms': spatial_query_ms,
+        'spatial_query_found': spatial_found,
         'n2n_sample_ms': n2n_ms,
         'n2n_per_query_ms': per_query_ms,
         'n2n_avg_visible': avg_visible,
         'n2n_full_estimate_ms': full_n2n_ms,
+        'n2n_spatial_ms': n2n_spatial_ms,
+        'n2n_spatial_full_estimate_ms': full_n2n_spatial_ms,
         'move_ms': move_ms,
         'move_count': moved,
     }
@@ -272,19 +334,29 @@ def run_single_scale(n_entities):
 
 def print_summary_table():
     """Print a summary table of all results."""
-    print("\n" + "=" * 80)
+    print("\n" + "=" * 100)
     print("SUMMARY TABLE")
-    print("=" * 80)
+    print("=" * 100)
 
-    header = f"{'Entities':>10} {'Create':>10} {'Iterate':>10} {'Query':>10} {'N×N Est':>12} {'Move':>10}"
+    header = f"{'Entities':>10} {'Create':>10} {'Iterate':>10} {'Query O(n)':>12} {'Query Hash':>12} {'N×N O(n)':>12} {'N×N Hash':>12}"
     print(header)
-    print(f"{'':>10} {'(ms)':>10} {'(ms)':>10} {'(ms)':>10} {'(ms)':>12} {'(ms)':>10}")
-    print("-" * 80)
+    print(f"{'':>10} {'(ms)':>10} {'(ms)':>10} {'(ms)':>12} {'(ms)':>12} {'(ms)':>12} {'(ms)':>12}")
+    print("-" * 100)
 
     for n in sorted(results.keys()):
         r = results[n]
+        speedup_q = r['query_ms'] / r['spatial_query_ms'] if r['spatial_query_ms'] > 0 else 0
+        speedup_n = r['n2n_full_estimate_ms'] / r['n2n_spatial_full_estimate_ms'] if r['n2n_spatial_full_estimate_ms'] > 0 else 0
         print(f"{r['n']:>10,} {r['create_ms']:>10.1f} {r['iter_ms']:>10.2f} "
-              f"{r['query_ms']:>10.2f} {r['n2n_full_estimate_ms']:>12,.0f} {r['move_ms']:>10.2f}")
+              f"{r['query_ms']:>12.3f} {r['spatial_query_ms']:>12.3f} "
+              f"{r['n2n_full_estimate_ms']:>12,.0f} {r['n2n_spatial_full_estimate_ms']:>12,.0f}")
+
+    print("\nSpatialHash Speedups:")
+    for n in sorted(results.keys()):
+        r = results[n]
+        speedup_q = r['query_ms'] / r['spatial_query_ms'] if r['spatial_query_ms'] > 0 else float('inf')
+        speedup_n = r['n2n_full_estimate_ms'] / r['n2n_spatial_full_estimate_ms'] if r['n2n_spatial_full_estimate_ms'] > 0 else float('inf')
+        print(f"  {r['n']:>6,} entities: Query {speedup_q:>5.1f}×, N×N {speedup_n:>5.1f}×")
 
 
 def print_analysis():

@@ -370,6 +370,10 @@ PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closure) {
+    // Save old position for spatial hash update (#115)
+    float old_x = self->data->position.x;
+    float old_y = self->data->position.y;
+
     if (reinterpret_cast<long>(closure) == 0) {
         sf::Vector2f vec = PyObject_to_sfVector2f(value);
         if (PyErr_Occurred()) {
@@ -382,9 +386,15 @@ int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closur
         if (PyErr_Occurred()) {
             return -1;  // Error already set by PyObject_to_sfVector2i
         }
-        self->data->position = sf::Vector2f(static_cast<float>(vec.x), 
+        self->data->position = sf::Vector2f(static_cast<float>(vec.x),
                                             static_cast<float>(vec.y));
     }
+
+    // Update spatial hash if grid exists (#115)
+    if (self->data->grid) {
+        self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+    }
+
     return 0;
 }
 
@@ -438,6 +448,11 @@ int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* cl
         PyErr_SetString(PyExc_TypeError, "Position must be a number (int or float)");
         return -1;
     }
+
+    // Save old position for spatial hash update (#115)
+    float old_x = self->data->position.x;
+    float old_y = self->data->position.y;
+
     if (member_ptr == 0) // x
     {
         self->data->position.x = val;
@@ -446,6 +461,12 @@ int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* cl
     {
         self->data->position.y = val;
     }
+
+    // Update spatial hash if grid exists (#115)
+    if (self->data->grid) {
+        self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+    }
+
     return 0;
 }
 
@@ -541,23 +562,26 @@ PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
     if (!self->data || !self->data->grid) {
         Py_RETURN_NONE;  // Entity not on a grid, nothing to do
     }
-    
+
     // Remove entity from grid's entity list
     auto grid = self->data->grid;
     auto& entities = grid->entities;
-    
+
     // Find and remove this entity from the list
     auto it = std::find_if(entities->begin(), entities->end(),
         [self](const std::shared_ptr<UIEntity>& e) {
             return e.get() == self->data.get();
         });
-    
+
     if (it != entities->end()) {
+        // Remove from spatial hash before erasing (#115)
+        grid->spatial_hash.remove(self->data);
+
         entities->erase(it);
         // Clear the grid reference
         self->data->grid.reset();
     }
-    
+
     Py_RETURN_NONE;
 }
 

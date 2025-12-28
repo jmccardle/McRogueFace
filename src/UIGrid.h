@@ -22,6 +22,7 @@
 #include "UIBase.h"
 #include "GridLayers.h"
 #include "GridChunk.h"
+#include "SpatialHash.h"
 
 class UIGrid: public UIDrawable
 {
@@ -86,6 +87,9 @@ public:
     bool use_chunks;
 
     std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> entities;
+
+    // Spatial hash for O(1) entity queries (#115)
+    SpatialHash spatial_hash;
 
     // UIDrawable children collection (speech bubbles, effects, overlays, etc.)
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
@@ -165,6 +169,7 @@ public:
     static PyObject* py_get_dijkstra_distance(PyUIGridObject* self, PyObject* args);
     static PyObject* py_get_dijkstra_path(PyUIGridObject* self, PyObject* args);
     static PyObject* py_compute_astar_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds);  // #115
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyObject* get_entities(PyUIGridObject* self, void* closure);

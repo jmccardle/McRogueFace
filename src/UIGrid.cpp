@@ -1673,6 +1673,63 @@ PyObject* UIGrid::py_layer(PyUIGridObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
+// #115 - Spatial hash query for entities in radius
+PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"x", "y", "radius", NULL};
+    float x, y, radius;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "fff", const_cast<char**>(kwlist),
+                                     &x, &y, &radius)) {
+        return NULL;
+    }
+
+    if (radius < 0) {
+        PyErr_SetString(PyExc_ValueError, "radius must be non-negative");
+        return NULL;
+    }
+
+    // Query spatial hash for entities in radius
+    auto entities = self->data->spatial_hash.queryRadius(x, y, radius);
+
+    // Create result list
+    PyObject* result = PyList_New(entities.size());
+    if (!result) return PyErr_NoMemory();
+
+    // Cache Entity type for efficiency
+    static PyTypeObject* cached_entity_type = nullptr;
+    if (!cached_entity_type) {
+        cached_entity_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+        if (!cached_entity_type) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        Py_INCREF(cached_entity_type);
+    }
+
+    for (size_t i = 0; i < entities.size(); i++) {
+        auto& entity = entities[i];
+
+        // Return stored Python object if it exists
+        if (entity->self != nullptr) {
+            Py_INCREF(entity->self);
+            PyList_SET_ITEM(result, i, entity->self);
+        } else {
+            // Create new Python Entity wrapper
+            auto pyEntity = (PyUIEntityObject*)cached_entity_type->tp_alloc(cached_entity_type, 0);
+            if (!pyEntity) {
+                Py_DECREF(result);
+                return PyErr_NoMemory();
+            }
+            pyEntity->data = entity;
+            pyEntity->weakreflist = NULL;
+            PyList_SET_ITEM(result, i, (PyObject*)pyEntity);
+        }
+    }
+
+    return result;
+}
+
 PyMethodDef UIGrid::methods[] = {
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
@@ -1752,6 +1809,15 @@ PyMethodDef UIGrid::methods[] = {
      "remove_layer(layer: ColorLayer | TileLayer) -> None"},
     {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
      "layer(z_index: int) -> ColorLayer | TileLayer | None"},
+    {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
+     "entities_in_radius(x: float, y: float, radius: float) -> list[Entity]\n\n"
+     "Query entities within radius using spatial hash (O(k) where k = nearby entities).\n\n"
+     "Args:\n"
+     "    x: Center X coordinate\n"
+     "    y: Center Y coordinate\n"
+     "    radius: Search radius\n\n"
+     "Returns:\n"
+     "    List of Entity objects within the radius."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -1854,6 +1920,15 @@ PyMethodDef UIGrid_all_methods[] = {
      "    z_index: The z_index of the layer to find.\n\n"
      "Returns:\n"
      "    The layer with the specified z_index, or None if not found."},
+    {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
+     "entities_in_radius(x: float, y: float, radius: float) -> list[Entity]\n\n"
+     "Query entities within radius using spatial hash (O(k) where k = nearby entities).\n\n"
+     "Args:\n"
+     "    x: Center X coordinate\n"
+     "    y: Center Y coordinate\n"
+     "    radius: Search radius\n\n"
+     "Returns:\n"
+     "    List of Entity objects within the radius."},
     {NULL}  // Sentinel
 };
 
@@ -2414,13 +2489,16 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
     // Remove from old grid first (if different from target grid)
     // This implements the documented "single grid only" behavior
     if (entity->data->grid && entity->data->grid != self->grid) {
-        auto& old_entities = entity->data->grid->entities;
+        auto old_grid = entity->data->grid;
+        auto& old_entities = old_grid->entities;
         auto it = std::find_if(old_entities->begin(), old_entities->end(),
             [entity](const std::shared_ptr<UIEntity>& e) {
                 return e.get() == entity->data.get();
             });
         if (it != old_entities->end()) {
             old_entities->erase(it);
+            // Remove from old grid's spatial hash (#115)
+            old_grid->spatial_hash.remove(entity->data);
         }
     }
 
@@ -2428,6 +2506,10 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
     if (entity->data->grid != self->grid) {
         self->data->push_back(entity->data);
         entity->data->grid = self->grid;
+        // Add to spatial hash for O(1) queries (#115)
+        if (self->grid) {
+            self->grid->spatial_hash.insert(entity->data);
+        }
     }
 
     // Initialize gridstate if not already done
@@ -2471,12 +2553,17 @@ PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject*
     auto it = list->begin();
     while (it != list->end()) {
         if (it->get() == entity->data.get()) {
+            // Remove from spatial hash before clearing grid (#115)
+            if (self->grid) {
+                self->grid->spatial_hash.remove(*it);
+            }
+
             // Found it - clear grid reference before removing
             (*it)->grid = nullptr;
-            
+
             // Remove from the list
             self->data->erase(it);
-            
+
             Py_INCREF(Py_None);
             return Py_None;
         }
