@@ -2113,38 +2113,37 @@ int UIEntityCollectionIter::init(PyUIEntityCollectionIterObject* self, PyObject*
 
 PyObject* UIEntityCollectionIter::next(PyUIEntityCollectionIterObject* self)
 {
+    // Check for collection modification during iteration
     if (self->data->size() != self->start_size)
     {
         PyErr_SetString(PyExc_RuntimeError, "collection changed size during iteration");
         return NULL;
     }
 
-    if (self->index > self->start_size - 1)
+    // Check if we've reached the end
+    if (self->current == self->end)
     {
         PyErr_SetNone(PyExc_StopIteration);
         return NULL;
     }
-    self->index++;
-    auto vec = self->data.get();
-    if (!vec)
-    {
-        PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
-        return NULL;
-    }
-    // Advance list iterator since Entities are stored in a list, not a vector
-    auto l_begin = (*vec).begin();
-    std::advance(l_begin, self->index-1);
-    auto target = *l_begin;
-    
+
+    // Get current element and advance iterator - O(1) operation
+    auto target = *self->current;
+    ++self->current;
+
     // Return the stored Python object if it exists (preserves derived types)
     if (target->self != nullptr) {
         Py_INCREF(target->self);
         return target->self;
     }
-    
+
     // Otherwise create and return a new Python Entity object
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-    auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
+    // Cache the Entity type to avoid repeated dictionary lookups (#159)
+    static PyTypeObject* cached_entity_type = nullptr;
+    if (!cached_entity_type) {
+        cached_entity_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+    }
+    auto o = (PyUIEntityObject*)cached_entity_type->tp_alloc(cached_entity_type, 0);
     auto p = std::static_pointer_cast<UIEntity>(target);
     o->data = p;
     return (PyObject*)o;
@@ -2153,9 +2152,12 @@ PyObject* UIEntityCollectionIter::next(PyUIEntityCollectionIterObject* self)
 PyObject* UIEntityCollectionIter::repr(PyUIEntityCollectionIterObject* self)
 {
     std::ostringstream ss;
-    if (!self->data) ss << "<UICollectionIter (invalid internal object)>";
+    if (!self->data) ss << "<UIEntityCollectionIter (invalid internal object)>";
     else {
-        ss << "<UICollectionIter (" << self->data->size() << " child objects, @ index " << self->index  << ")>";
+        // Calculate current position by distance from end
+        auto remaining = std::distance(self->current, self->end);
+        auto total = self->data->size();
+        ss << "<UIEntityCollectionIter (" << (total - remaining) << "/" << total << " entities)>";
     }
     std::string repr_str = ss.str();
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
@@ -3060,26 +3062,30 @@ int UIEntityCollection::init(PyUIEntityCollectionObject* self, PyObject* args, P
 
 PyObject* UIEntityCollection::iter(PyUIEntityCollectionObject* self)
 {
-    // Get the iterator type from the module to ensure we have the registered version
-    PyTypeObject* iterType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UIEntityCollectionIter");
-    if (!iterType) {
-        PyErr_SetString(PyExc_RuntimeError, "Could not find UIEntityCollectionIter type in module");
-        return NULL;
+    // Cache the iterator type to avoid repeated dictionary lookups (#159)
+    static PyTypeObject* cached_iter_type = nullptr;
+    if (!cached_iter_type) {
+        cached_iter_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UIEntityCollectionIter");
+        if (!cached_iter_type) {
+            PyErr_SetString(PyExc_RuntimeError, "Could not find UIEntityCollectionIter type in module");
+            return NULL;
+        }
+        // Keep a reference to prevent it from being garbage collected
+        Py_INCREF(cached_iter_type);
     }
-    
+
     // Allocate new iterator instance
-    PyUIEntityCollectionIterObject* iterObj = (PyUIEntityCollectionIterObject*)iterType->tp_alloc(iterType, 0);
-    
+    PyUIEntityCollectionIterObject* iterObj = (PyUIEntityCollectionIterObject*)cached_iter_type->tp_alloc(cached_iter_type, 0);
+
     if (iterObj == NULL) {
-        Py_DECREF(iterType);
         return NULL;  // Failed to allocate memory for the iterator object
     }
 
     iterObj->data = self->data;
-    iterObj->index = 0;
+    iterObj->current = self->data->begin();  // Start at beginning
+    iterObj->end = self->data->end();        // Cache end iterator
     iterObj->start_size = self->data->size();
 
-    Py_DECREF(iterType);
     return (PyObject*)iterObj;
 }
 

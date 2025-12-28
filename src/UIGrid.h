@@ -222,8 +222,9 @@ public:
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> data;
-    int index;
-    int start_size;
+    std::list<std::shared_ptr<UIEntity>>::iterator current;  // Actual list iterator - O(1) increment
+    std::list<std::shared_ptr<UIEntity>>::iterator end;      // End iterator for bounds check
+    int start_size;  // For detecting modification during iteration
 } PyUIEntityCollectionIterObject;
 
 class UIEntityCollectionIter {

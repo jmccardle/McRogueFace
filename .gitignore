@@ -26,6 +26,7 @@ mcrogueface.github.io
 scripts/
 tcod_reference
 .archive
+.mcp.json
 
 # Keep important documentation and tests
 !CLAUDE.md
