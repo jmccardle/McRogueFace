@@ -751,16 +751,14 @@ def create_demo_scene():
         else:
             status_text.text = "No widget focused"
 
-    # Register key handler using Scene API
-    scene = mcrfpy.sceneUI("focus_demo")
-    # Note: We use keypressScene for function-based handler since we're not subclassing Scene
+    # Activate scene first (keypressScene sets handler for CURRENT scene)
+    mcrfpy.setScene("focus_demo")
+
+    # Register key handler for the now-current scene
     mcrfpy.keypressScene(on_key)
 
     # Set initial focus
     focus_mgr.focus(0)
-
-    # Activate scene
-    mcrfpy.setScene("focus_demo")
 
     return demo_state
 
