@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2025-11-29 10:12:05</em></p>
+        <p><em>Generated on 2025-12-28 14:29:42</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -126,6 +126,7 @@
                         <li><a href="#Drawable">Drawable</a></li>
                         <li><a href="#Entity">Entity</a></li>
                         <li><a href="#EntityCollection">EntityCollection</a></li>
+                        <li><a href="#FOV">FOV</a></li>
                         <li><a href="#Font">Font</a></li>
                         <li><a href="#Frame">Frame</a></li>
                         <li><a href="#Grid">Grid</a></li>
@@ -392,6 +393,18 @@ Note:</p>
             <p><span class='raises'>Raises:</span> RuntimeError: If a benchmark is already running Benchmark filename is auto-generated from PID and timestamp. Use end_benchmark() to stop and get filename.</p>
         </div>
 
+        <div class="method-section">
+            <h3><code class="function-signature">step(dt: float = None) -> float</code></h3>
+            <p>Advance simulation time (headless mode only).
+
+Note:</p>
+            <h4>Arguments:</h4>
+            <ul>
+                <li><span class='arg-name'>dt</span>: Time to advance in seconds. If None, advances to the next scheduled event (timer/animation).</li>
+            </ul>
+            <p><span class='returns'>Returns:</span> float: Actual time advanced in seconds. Returns 0.0 in windowed mode. In windowed mode, this is a no-op and returns 0.0. Use this for deterministic simulation control in headless/testing scenarios.</p>
+        </div>
+
         <h2 id='classes'>Classes</h2>
 
         <div class="method-section">
@@ -424,14 +437,16 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">start(target: UIDrawable) -> None</code></h5>
+                <h5><code class="method-name">start(target: UIDrawable, conflict_mode: str = 'replace') -> None</code></h5>
                 <p>Start the animation on a target UI element.
 
 Note:</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>target</span>: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)</div>
+                    <div><span class='arg-name'>conflict_mode</span>: How to handle conflicts if property is already animating: &#x27;replace&#x27; (default) - complete existing animation and start new one; &#x27;queue&#x27; - wait for existing animation to complete; &#x27;error&#x27; - raise RuntimeError if property is busy</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None The animation will automatically stop if the target is destroyed. Call AnimationManager.update(delta_time) each frame to progress animations.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> RuntimeError: When conflict_mode=&#x27;error&#x27; and property is already animating The animation will automatically stop if the target is destroyed.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -462,7 +477,7 @@ Args:
     thickness (float, optional): Line thickness. Default: 1.0
 
 Keyword Args:
-    click (callable): Click handler. Default: None
+    on_click (callable): Click handler. Default: None
     visible (bool): Visibility state. Default: True
     opacity (float): Opacity (0.0-1.0). Default: 1.0
     z_index (int): Rendering order. Default: 0
@@ -600,7 +615,7 @@ Args:
     outline (float, optional): Outline thickness. Default: 0 (no outline)
 
 Keyword Args:
-    click (callable): Click handler. Default: None
+    on_click (callable): Click handler. Default: None
     visible (bool): Visibility state. Default: True
     opacity (float): Opacity (0.0-1.0). Default: 1.0
     z_index (int): Rendering order. Default: 0
@@ -710,8 +725,25 @@ Methods:
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">apply_perspective(entity, visible=None, discovered=None, unknown=None)</code></h5>
+                <p>Bind this layer to an entity for automatic FOV updates.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">at(x, y) -> Color</code></h5>
                 <p>Get the color at cell position (x, y).</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">clear_perspective()</code></h5>
+                <p>Remove the perspective binding from this layer.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">draw_fov(source, radius=None, fov=None, visible=None, discovered=None, unknown=None)</code></h5>
+                <p>Paint cells based on field-of-view visibility from source position.
+
+Note: Layer must be attached to a grid for FOV calculation.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -720,8 +752,22 @@ Methods:
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">fill_rect(pos, size, color)</code></h5>
+                <p>Fill a rectangular region with a color.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>color</span>: Color object or (r, g, b[, a]) tuple</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">set(x, y, color)</code></h5>
                 <p>Set the color at cell position (x, y).</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">update_perspective()</code></h5>
+                <p>Redraw FOV based on the bound entity&#x27;s current position.
+Call this after the entity moves to update the visibility layer.</p>
             </div>
         </div>
 
@@ -852,6 +898,12 @@ Recomputes which cells are visible from the entity&#x27;s position and updates
 the entity&#x27;s gridstate to track explored areas. This is called automatically
 when the entity moves if it has a grid with perspective set.</p>
             </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">visible_entities(fov=None, radius=None) -> list[Entity]</code></h5>
+                <p>Get list of other entities visible from this entity&#x27;s position.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of Entity objects that are within field of view. Computes FOV from this entity&#x27;s position and returns all other entities whose positions fall within the visible area.</p>
+            </div>
         </div>
 
         <div class="method-section">
@@ -898,6 +950,90 @@ when the entity moves if it has a grid with perspective set.</p>
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">remove(entity)</code></h5>
                 <p>Remove first occurrence of entity. Raises ValueError if not found.</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="FOV"><span class="class-name">FOV</span></h3>
+            <p><em>Inherits from: IntEnum</em></p>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">as_integer_ratio(...)</code></h5>
+                <p>Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+&gt;&gt;&gt; (10).as_integer_ratio()
+(10, 1)
+&gt;&gt;&gt; (-10).as_integer_ratio()
+(-10, 1)
+&gt;&gt;&gt; (0).as_integer_ratio()
+(0, 1)</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">bit_count(...)</code></h5>
+                <p>Number of ones in the binary representation of the absolute value of self.
+Also known as the population count.
+&gt;&gt;&gt; bin(13)
+&#x27;0b1101&#x27;
+&gt;&gt;&gt; (13).bit_count()
+3</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">bit_length(...)</code></h5>
+                <p>Number of bits necessary to represent self in binary.
+&gt;&gt;&gt; bin(37)
+&#x27;0b100101&#x27;
+&gt;&gt;&gt; (37).bit_length()
+6</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">conjugate(...)</code></h5>
+                <p>Returns self, the complex conjugate of any int.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">from_bytes(...)</code></h5>
+                <p>Return the integer represented by the given array of bytes.
+  bytes
+    Holds the array of bytes to convert.  The argument must either
+    support the buffer protocol or be an iterable object producing bytes.
+    Bytes and bytearray are examples of built-in objects that support the
+    buffer protocol.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is &#x27;big&#x27;,
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is &#x27;little&#x27;, the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use &#x27;big&#x27;.
+  signed
+    Indicates whether two&#x27;s complement is used to represent the integer.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">is_integer(...)</code></h5>
+                <p>Returns True. Exists for duck type compatibility with float.is_integer.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">to_bytes(...)</code></h5>
+                <p>Return an array of bytes representing an integer.
+  length
+    Length of bytes object to use.  An OverflowError is raised if the
+    integer is not representable with the given number of bytes.  Default
+    is length 1.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is &#x27;big&#x27;,
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is &#x27;little&#x27;, the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use &#x27;big&#x27;.
+  signed
+    Determines whether two&#x27;s complement is used to represent the integer.
+    If signed is False and a negative integer is given, an OverflowError
+    is raised.</p>
             </div>
         </div>
 
@@ -1085,6 +1221,17 @@ Attributes:
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">entities_in_radius(x: float, y: float, radius: float) -> list[Entity]</code></h5>
+                <p>Query entities within radius using spatial hash (O(k) where k = nearby entities).</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>x</span>: Center X coordinate</div>
+                    <div><span class='arg-name'>y</span>: Center Y coordinate</div>
+                    <div><span class='arg-name'>radius</span>: Search radius</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of Entity objects within the radius.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]</code></h5>
                 <p>Find A* path between two points.</p>
                 <div style='margin-left: 20px;'>
@@ -1201,7 +1348,7 @@ Args:
     color (Color, optional): Line color. Default: White
 
 Keyword Args:
-    click (callable): Click handler. Default: None
+    on_click (callable): Click handler. Default: None
     visible (bool): Visibility state. Default: True
     opacity (float): Opacity (0.0-1.0). Default: 1.0
     z_index (int): Rendering order. Default: 0
@@ -1264,14 +1411,6 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_ui() -> UICollection</code></h5>
-                <p>Get the UI element collection for this scene.
-
-Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> UICollection: Collection of UI elements (Frames, Captions, Sprites, Grids) in this scene Use to add, remove, or iterate over UI elements. Changes are reflected immediately.</p>
-            </div>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">register_keyboard(callback: callable) -> None</code></h5>
                 <p>Register a keyboard event handler function.
 
@@ -1279,7 +1418,7 @@ Note:</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>callback</span>: Function that receives (key: str, pressed: bool) when keyboard events occur</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Alternative to overriding on_keypress() method. Handler is called for both key press and release events.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Alternative to setting on_key property. Handler is called for both key press and release events.</p>
             </div>
         </div>
 
@@ -1390,6 +1529,11 @@ Methods:
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">fill(index)</code></h5>
                 <p>Fill the entire layer with the specified tile index.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">fill_rect(pos, size, index)</code></h5>
+                <p>Fill a rectangular region with a tile index.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1635,19 +1779,6 @@ Note:</p>
 
         <h2 id='constants'>Constants</h2>
         <ul>
-            <li><code>FOV_BASIC</code> (int): 0</li>
-            <li><code>FOV_DIAMOND</code> (int): 1</li>
-            <li><code>FOV_PERMISSIVE_0</code> (int): 3</li>
-            <li><code>FOV_PERMISSIVE_1</code> (int): 4</li>
-            <li><code>FOV_PERMISSIVE_2</code> (int): 5</li>
-            <li><code>FOV_PERMISSIVE_3</code> (int): 6</li>
-            <li><code>FOV_PERMISSIVE_4</code> (int): 7</li>
-            <li><code>FOV_PERMISSIVE_5</code> (int): 8</li>
-            <li><code>FOV_PERMISSIVE_6</code> (int): 9</li>
-            <li><code>FOV_PERMISSIVE_7</code> (int): 10</li>
-            <li><code>FOV_PERMISSIVE_8</code> (int): 11</li>
-            <li><code>FOV_RESTRICTIVE</code> (int): 12</li>
-            <li><code>FOV_SHADOW</code> (int): 2</li>
         </ul>
 
     </div>

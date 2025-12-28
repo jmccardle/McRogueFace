@@ -463,7 +463,7 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
 
     static const char* kwlist[] = {
         "center", "radius", "start_angle", "end_angle", "color", "thickness",
-        "click", "visible", "opacity", "z_index", "name",
+        "on_click", "visible", "opacity", "z_index", "name",
         nullptr
     };
 
@@ -511,7 +511,7 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
     // Handle common UIDrawable properties
     if (click_handler && click_handler != Py_None) {
         if (!PyCallable_Check(click_handler)) {
-            PyErr_SetString(PyExc_TypeError, "click must be callable");
+            PyErr_SetString(PyExc_TypeError, "on_click must be callable");
             return -1;
         }
         self->data->click_register(click_handler);

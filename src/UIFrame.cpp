@@ -504,7 +504,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     static const char* kwlist[] = {
         "pos", "size",  // Positional args (as per spec)
         // Keyword-only args
-        "fill_color", "outline_color", "outline", "children", "click",
+        "fill_color", "outline_color", "outline", "children", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "clip_children", "cache_subtree",
         nullptr
     };

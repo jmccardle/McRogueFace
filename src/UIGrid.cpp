@@ -749,7 +749,7 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {
         "pos", "size", "grid_size", "texture",  // Positional args (as per spec)
         // Keyword-only args
-        "fill_color", "click", "center_x", "center_y", "zoom",
+        "fill_color", "on_click", "center_x", "center_y", "zoom",
         "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "grid_x", "grid_y",
         "layers",  // #150 - layers dict parameter
         nullptr

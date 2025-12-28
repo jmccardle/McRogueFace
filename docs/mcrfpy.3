@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2025-11-29" "McRogueFace dev" ""
+.TH "MCRFPY" "3" "2025-12-28" "McRogueFace dev" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2025-11-29 10:12:05\f[R]
+\f[I]Generated on 2025-12-28 14:29:42\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -46,6 +46,8 @@ Drawable
 Entity
 .IP \[bu] 2
 EntityCollection
+.IP \[bu] 2
+FOV
 .IP \[bu] 2
 Font
 .IP \[bu] 2
@@ -312,6 +314,20 @@ Note:
 \f[B]Raises:\f[R] RuntimeError: If a benchmark is already running
 Benchmark filename is auto-generated from PID and timestamp.
 Use end_benchmark() to stop and get filename.
+.SS \f[V]step(dt: float = None) -> float\f[R]
+.PP
+Advance simulation time (headless mode only).
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]dt\f[R]: Time to advance in seconds.
+If None, advances to the next scheduled event (timer/animation).
+.PP
+\f[B]Returns:\f[R] float: Actual time advanced in seconds.
+Returns 0.0 in windowed mode.
+In windowed mode, this is a no-op and returns 0.0.
+Use this for deterministic simulation control in headless/testing
+scenarios.
 .SS Classes
 .SS Animation
 .PP
@@ -348,19 +364,24 @@ Note:
 was destroyed Animations automatically clean up when targets are
 destroyed.
 Use this to check if manual cleanup is needed.
-.SS \f[V]start(target: UIDrawable) -> None\f[R]
+.SS \f[V]start(target: UIDrawable, conflict_mode: str = \[aq]replace\[aq]) -> None\f[R]
 .PP
 Start the animation on a target UI element.
 .PP
 Note:
 .PP
 \f[B]Arguments:\f[R] - \f[V]target\f[R]: The UI element to animate
-(Frame, Caption, Sprite, Grid, or Entity)
+(Frame, Caption, Sprite, Grid, or Entity) - \f[V]conflict_mode\f[R]: How
+to handle conflicts if property is already animating: `replace'
+(default) - complete existing animation and start new one; `queue' -
+wait for existing animation to complete; `error' - raise RuntimeError if
+property is busy
 .PP
-\f[B]Returns:\f[R] None The animation will automatically stop if the
-target is destroyed.
-Call AnimationManager.update(delta_time) each frame to progress
-animations.
+\f[B]Returns:\f[R] None
+.PP
+\f[B]Raises:\f[R] RuntimeError: When conflict_mode=`error' and property
+is already animating The animation will automatically stop if the target
+is destroyed.
 .SS \f[V]update(delta_time: float) -> bool\f[R]
 .PP
 Update the animation by the given time delta.
@@ -390,7 +411,7 @@ Default: 90 color (Color, optional): Arc color.
 Default: White thickness (float, optional): Line thickness.
 Default: 1.0
 .PP
-Keyword Args: click (callable): Click handler.
+Keyword Args: on_click (callable): Click handler.
 Default: None visible (bool): Visibility state.
 Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 z_index (int): Rendering order.
@@ -507,7 +528,7 @@ Default: White outline_color (Color, optional): Outline color.
 Default: Transparent outline (float, optional): Outline thickness.
 Default: 0 (no outline)
 .PP
-Keyword Args: click (callable): Click handler.
+Keyword Args: on_click (callable): Click handler.
 Default: None visible (bool): Visibility state.
 Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 z_index (int): Rendering order.
@@ -606,15 +627,36 @@ Methods: at(x, y): Get color at cell position set(x, y, color): Set
 color at cell position fill(color): Fill entire layer with color
 .PP
 \f[B]Methods:\f[R]
+.SS \f[V]apply_perspective(entity, visible=None, discovered=None, unknown=None)\f[R]
+.PP
+Bind this layer to an entity for automatic FOV updates.
 .SS \f[V]at(x, y) -> Color\f[R]
 .PP
 Get the color at cell position (x, y).
+.SS \f[V]clear_perspective()\f[R]
+.PP
+Remove the perspective binding from this layer.
+.SS \f[V]draw_fov(source, radius=None, fov=None, visible=None, discovered=None, unknown=None)\f[R]
+.PP
+Paint cells based on field-of-view visibility from source position.
+.PP
+Note: Layer must be attached to a grid for FOV calculation.
 .SS \f[V]fill(color)\f[R]
 .PP
 Fill the entire layer with the specified color.
+.SS \f[V]fill_rect(pos, size, color)\f[R]
+.PP
+Fill a rectangular region with a color.
+.PP
+\f[B]Arguments:\f[R] - \f[V]color\f[R]: Color object or (r, g, b[, a])
+tuple
 .SS \f[V]set(x, y, color)\f[R]
 .PP
 Set the color at cell position (x, y).
+.SS \f[V]update_perspective()\f[R]
+.PP
+Redraw FOV based on the bound entity\[cq]s current position.
+Call this after the entity moves to update the visibility layer.
 .SS Drawable
 .PP
 Base class for all drawable UI elements
@@ -722,6 +764,13 @@ Recomputes which cells are visible from the entity\[cq]s position and
 updates the entity\[cq]s gridstate to track explored areas.
 This is called automatically when the entity moves if it has a grid with
 perspective set.
+.SS \f[V]visible_entities(fov=None, radius=None) -> list[Entity]\f[R]
+.PP
+Get list of other entities visible from this entity\[cq]s position.
+.PP
+\f[B]Returns:\f[R] List of Entity objects that are within field of view.
+Computes FOV from this entity\[cq]s position and returns all other
+entities whose positions fall within the visible area.
 .SS EntityCollection
 .PP
 Iterable, indexable collection of Entities
@@ -757,6 +806,71 @@ Remove and return entity at index (default: last entity).
 .PP
 Remove first occurrence of entity.
 Raises ValueError if not found.
+.SS FOV
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
 .SS Font
 .PP
 SFML Font Object
@@ -916,6 +1030,15 @@ Compute field of view from a position.
 distance (0 = unlimited) - \f[V]light_walls\f[R]: Whether walls are lit
 when visible - \f[V]algorithm\f[R]: FOV algorithm to use (FOV_BASIC,
 FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)
+.SS \f[V]entities_in_radius(x: float, y: float, radius: float) -> list[Entity]\f[R]
+.PP
+Query entities within radius using spatial hash (O(k) where k = nearby
+entities).
+.PP
+\f[B]Arguments:\f[R] - \f[V]x\f[R]: Center X coordinate - \f[V]y\f[R]:
+Center Y coordinate - \f[V]radius\f[R]: Search radius
+.PP
+\f[B]Returns:\f[R] List of Entity objects within the radius.
 .SS \f[V]find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\f[R]
 .PP
 Find A* path between two points.
@@ -1019,7 +1142,7 @@ Default: (0, 0) thickness (float, optional): Line thickness in pixels.
 Default: 1.0 color (Color, optional): Line color.
 Default: White
 .PP
-Keyword Args: click (callable): Click handler.
+Keyword Args: on_click (callable): Click handler.
 Default: None visible (bool): Visibility state.
 Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 z_index (int): Rendering order.
@@ -1071,16 +1194,6 @@ Note:
 \f[B]Returns:\f[R] None Deactivates the current scene and activates this
 one.
 Scene transitions and lifecycle callbacks are triggered.
-.SS \f[V]get_ui() -> UICollection\f[R]
-.PP
-Get the UI element collection for this scene.
-.PP
-Note:
-.PP
-\f[B]Returns:\f[R] UICollection: Collection of UI elements (Frames,
-Captions, Sprites, Grids) in this scene Use to add, remove, or iterate
-over UI elements.
-Changes are reflected immediately.
 .SS \f[V]register_keyboard(callback: callable) -> None\f[R]
 .PP
 Register a keyboard event handler function.
@@ -1090,7 +1203,7 @@ Note:
 \f[B]Arguments:\f[R] - \f[V]callback\f[R]: Function that receives (key:
 str, pressed: bool) when keyboard events occur
 .PP
-\f[B]Returns:\f[R] None Alternative to overriding on_keypress() method.
+\f[B]Returns:\f[R] None Alternative to setting on_key property.
 Handler is called for both key press and release events.
 .SS Sprite
 .PP
@@ -1187,6 +1300,9 @@ Returns -1 if no tile.
 .SS \f[V]fill(index)\f[R]
 .PP
 Fill the entire layer with the specified tile index.
+.SS \f[V]fill_rect(pos, size, index)\f[R]
+.PP
+Fill a rectangular region with a tile index.
 .SS \f[V]set(x, y, index)\f[R]
 .PP
 Set the tile index at cell position (x, y).
@@ -1410,29 +1526,3 @@ given, otherwise None after saving Screenshot is taken at the actual
 window resolution.
 Use after render loop update for current frame.
 .SS Constants
-.IP \[bu] 2
-\f[V]FOV_BASIC\f[R] (int): 0
-.IP \[bu] 2
-\f[V]FOV_DIAMOND\f[R] (int): 1
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_0\f[R] (int): 3
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_1\f[R] (int): 4
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_2\f[R] (int): 5
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_3\f[R] (int): 6
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_4\f[R] (int): 7
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_5\f[R] (int): 8
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_6\f[R] (int): 9
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_7\f[R] (int): 10
-.IP \[bu] 2
-\f[V]FOV_PERMISSIVE_8\f[R] (int): 11
-.IP \[bu] 2
-\f[V]FOV_RESTRICTIVE\f[R] (int): 12
-.IP \[bu] 2
-\f[V]FOV_SHADOW\f[R] (int): 2

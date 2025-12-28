@@ -331,7 +331,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     static const char* kwlist[] = {
         "pos", "font", "text",  // Positional args (as per spec)
         // Keyword-only args
-        "fill_color", "outline_color", "outline", "font_size", "click",
+        "fill_color", "outline_color", "outline", "font_size", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y",
         nullptr
     };

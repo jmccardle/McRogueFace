@@ -134,7 +134,7 @@ namespace mcrfpydef {
             "    color (Color, optional): Arc color. Default: White\n"
             "    thickness (float, optional): Line thickness. Default: 1.0\n\n"
             "Keyword Args:\n"
-            "    click (callable): Click handler. Default: None\n"
+            "    on_click (callable): Click handler. Default: None\n"
             "    visible (bool): Visibility state. Default: True\n"
             "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
             "    z_index (int): Rendering order. Default: 0\n"

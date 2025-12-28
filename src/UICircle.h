@@ -123,7 +123,7 @@ namespace mcrfpydef {
             "    outline_color (Color, optional): Outline color. Default: Transparent\n"
             "    outline (float, optional): Outline thickness. Default: 0 (no outline)\n\n"
             "Keyword Args:\n"
-            "    click (callable): Click handler. Default: None\n"
+            "    on_click (callable): Click handler. Default: None\n"
             "    visible (bool): Visibility state. Default: True\n"
             "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
             "    z_index (int): Rendering order. Default: 0\n"

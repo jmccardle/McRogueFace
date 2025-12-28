@@ -400,7 +400,7 @@ PyObject* UICircle::repr(PyUICircleObject* self) {
 int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {
         "radius", "center", "fill_color", "outline_color", "outline",
-        "click", "visible", "opacity", "z_index", "name", NULL
+        "on_click", "visible", "opacity", "z_index", "name", NULL
     };
 
     float radius = 10.0f;
@@ -480,7 +480,7 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     // Handle common UIDrawable properties
     if (click_obj && click_obj != Py_None) {
         if (!PyCallable_Check(click_obj)) {
-            PyErr_SetString(PyExc_TypeError, "click must be callable");
+            PyErr_SetString(PyExc_TypeError, "on_click must be callable");
             return -1;
         }
         self->data->click_register(click_obj);

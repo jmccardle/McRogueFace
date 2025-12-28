@@ -481,7 +481,7 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
 
     static const char* kwlist[] = {
         "start", "end", "thickness", "color",
-        "click", "visible", "opacity", "z_index", "name",
+        "on_click", "visible", "opacity", "z_index", "name",
         nullptr
     };
 
@@ -549,7 +549,7 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     // Handle click handler
     if (click_handler && click_handler != Py_None) {
         if (!PyCallable_Check(click_handler)) {
-            PyErr_SetString(PyExc_TypeError, "click must be callable");
+            PyErr_SetString(PyExc_TypeError, "on_click must be callable");
             return -1;
         }
         self->data->click_register(click_handler);

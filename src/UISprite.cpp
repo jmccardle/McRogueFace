@@ -392,7 +392,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     static const char* kwlist[] = {
         "pos", "texture", "sprite_index",  // Positional args (as per spec)
         // Keyword-only args
-        "scale", "scale_x", "scale_y", "click",
+        "scale", "scale_x", "scale_y", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y", "snapshot",
         nullptr
     };
