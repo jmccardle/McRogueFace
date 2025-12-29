@@ -9,6 +9,10 @@
 #include "PyWindow.h"
 #include "PySceneObject.h"
 #include "PyFOV.h"
+#include "PySound.h"
+#include "PyMusic.h"
+#include "PyKeyboard.h"
+#include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
 #include "BenchmarkLogger.h"
@@ -22,10 +26,6 @@
 #include <filesystem>
 #include <cstring>
 #include <libtcod.h>
-
-std::vector<sf::SoundBuffer>* McRFPy_API::soundbuffers = nullptr;
-sf::Music* McRFPy_API::music = nullptr;
-sf::Sound* McRFPy_API::sfx = nullptr;
 
 std::shared_ptr<PyFont> McRFPy_API::default_font;
 std::shared_ptr<PyTexture> McRFPy_API::default_texture;
@@ -101,62 +101,6 @@ static PyTypeObject McRFPyModuleType = {
 };
 
 static PyMethodDef mcrfpyMethods[] = {
-
-    {"createSoundBuffer", McRFPy_API::_createSoundBuffer, METH_VARARGS,
-     MCRF_FUNCTION(createSoundBuffer,
-         MCRF_SIG("(filename: str)", "int"),
-         MCRF_DESC("Load a sound effect from a file and return its buffer ID."),
-         MCRF_ARGS_START
-         MCRF_ARG("filename", "Path to the sound file (WAV, OGG, FLAC)")
-         MCRF_RETURNS("int: Buffer ID for use with playSound()")
-         MCRF_RAISES("RuntimeError", "If the file cannot be loaded")
-     )},
-	{"loadMusic", McRFPy_API::_loadMusic, METH_VARARGS,
-     MCRF_FUNCTION(loadMusic,
-         MCRF_SIG("(filename: str)", "None"),
-         MCRF_DESC("Load and immediately play background music from a file."),
-         MCRF_ARGS_START
-         MCRF_ARG("filename", "Path to the music file (WAV, OGG, FLAC)")
-         MCRF_RETURNS("None")
-         MCRF_NOTE("Only one music track can play at a time. Loading new music stops the current track.")
-     )},
-	{"setMusicVolume", McRFPy_API::_setMusicVolume, METH_VARARGS,
-     MCRF_FUNCTION(setMusicVolume,
-         MCRF_SIG("(volume: int)", "None"),
-         MCRF_DESC("Set the global music volume."),
-         MCRF_ARGS_START
-         MCRF_ARG("volume", "Volume level from 0 (silent) to 100 (full volume)")
-         MCRF_RETURNS("None")
-     )},
-	{"setSoundVolume", McRFPy_API::_setSoundVolume, METH_VARARGS,
-     MCRF_FUNCTION(setSoundVolume,
-         MCRF_SIG("(volume: int)", "None"),
-         MCRF_DESC("Set the global sound effects volume."),
-         MCRF_ARGS_START
-         MCRF_ARG("volume", "Volume level from 0 (silent) to 100 (full volume)")
-         MCRF_RETURNS("None")
-     )},
-	{"playSound", McRFPy_API::_playSound, METH_VARARGS,
-     MCRF_FUNCTION(playSound,
-         MCRF_SIG("(buffer_id: int)", "None"),
-         MCRF_DESC("Play a sound effect using a previously loaded buffer."),
-         MCRF_ARGS_START
-         MCRF_ARG("buffer_id", "Sound buffer ID returned by createSoundBuffer()")
-         MCRF_RETURNS("None")
-         MCRF_RAISES("RuntimeError", "If the buffer ID is invalid")
-     )},
-	{"getMusicVolume", McRFPy_API::_getMusicVolume, METH_NOARGS,
-     MCRF_FUNCTION(getMusicVolume,
-         MCRF_SIG("()", "int"),
-         MCRF_DESC("Get the current music volume level."),
-         MCRF_RETURNS("int: Current volume (0-100)")
-     )},
-	{"getSoundVolume", McRFPy_API::_getSoundVolume, METH_NOARGS,
-     MCRF_FUNCTION(getSoundVolume,
-         MCRF_SIG("()", "int"),
-         MCRF_DESC("Get the current sound effects volume level."),
-         MCRF_RETURNS("int: Current volume (0-100)")
-     )},
 
     {"sceneUI", McRFPy_API::_sceneUI, METH_VARARGS,
      MCRF_FUNCTION(sceneUI,
@@ -412,6 +356,13 @@ PyObject* PyInit_mcrfpy()
         /*scene class*/
         &PySceneType,
 
+        /*audio (#66)*/
+        &PySoundType,
+        &PyMusicType,
+
+        /*keyboard state (#160)*/
+        &PyKeyboardType,
+
         nullptr};
     
     // Set up PyWindowType methods and getsetters before PyType_Ready
@@ -454,7 +405,16 @@ PyObject* PyInit_mcrfpy()
     // These will be set later when the window is created
     PyModule_AddObject(m, "default_font", Py_None);
     PyModule_AddObject(m, "default_texture", Py_None);
-    
+
+    // Add keyboard singleton (#160)
+    PyObject* keyboard_instance = PyObject_CallObject((PyObject*)&PyKeyboardType, NULL);
+    if (keyboard_instance) {
+        PyModule_AddObject(m, "keyboard", keyboard_instance);
+    }
+
+    // Add version string (#164)
+    PyModule_AddStringConstant(m, "__version__", MCRFPY_VERSION);
+
     // Add FOV enum class (uses Python's IntEnum) (#114)
     PyObject* fov_class = PyFOV::create_enum_class(m);
     if (!fov_class) {
@@ -821,23 +781,7 @@ void McRFPy_API::executeScript(std::string filename)
 
 void McRFPy_API::api_shutdown()
 {
-    // Clean up audio resources in correct order
-    if (sfx) {
-        sfx->stop();
-        delete sfx;
-        sfx = nullptr;
-    }
-    if (music) {
-        music->stop();
-        delete music;
-        music = nullptr;
-    }
-    if (soundbuffers) {
-        soundbuffers->clear();
-        delete soundbuffers;
-        soundbuffers = nullptr;
-    }
-    
+    // Audio cleanup now handled by Python garbage collection (Sound/Music classes)
     Py_Finalize();
 }
 
@@ -869,86 +813,7 @@ PyObject* McRFPy_API::_refreshFov(PyObject* self, PyObject* args) {
 }
 */
 
-PyObject* McRFPy_API::_createSoundBuffer(PyObject* self, PyObject* args) {
-	const char *fn_cstr;
-	if (!PyArg_ParseTuple(args, "s", &fn_cstr)) return NULL;
-	// Initialize soundbuffers if needed
-	if (!McRFPy_API::soundbuffers) {
-		McRFPy_API::soundbuffers = new std::vector<sf::SoundBuffer>();
-	}
-	auto b = sf::SoundBuffer();
-	b.loadFromFile(fn_cstr);
-	McRFPy_API::soundbuffers->push_back(b);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-PyObject* McRFPy_API::_loadMusic(PyObject* self, PyObject* args) {
-	const char *fn_cstr;
-	PyObject* loop_obj = Py_False;
-	if (!PyArg_ParseTuple(args, "s|O", &fn_cstr, &loop_obj)) return NULL;
-	// Initialize music if needed
-	if (!McRFPy_API::music) {
-		McRFPy_API::music = new sf::Music();
-	}
-	McRFPy_API::music->stop();
-	McRFPy_API::music->openFromFile(fn_cstr);
-	McRFPy_API::music->setLoop(PyObject_IsTrue(loop_obj));
-	McRFPy_API::music->play();
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-PyObject* McRFPy_API::_setMusicVolume(PyObject* self, PyObject* args) {
-	int vol;
-	if (!PyArg_ParseTuple(args, "i", &vol)) return NULL;
-	if (!McRFPy_API::music) {
-		McRFPy_API::music = new sf::Music();
-	}
-	McRFPy_API::music->setVolume(vol);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-PyObject* McRFPy_API::_setSoundVolume(PyObject* self, PyObject* args) {
-	float vol;
-	if (!PyArg_ParseTuple(args, "f", &vol)) return NULL;
-	if (!McRFPy_API::sfx) {
-		McRFPy_API::sfx = new sf::Sound();
-	}
-	McRFPy_API::sfx->setVolume(vol);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-PyObject* McRFPy_API::_playSound(PyObject* self, PyObject* args) {
-	float index;
-	if (!PyArg_ParseTuple(args, "f", &index)) return NULL;
-	if (!McRFPy_API::soundbuffers || index >= McRFPy_API::soundbuffers->size()) return NULL;
-	if (!McRFPy_API::sfx) {
-		McRFPy_API::sfx = new sf::Sound();
-	}
-	McRFPy_API::sfx->stop();
-	McRFPy_API::sfx->setBuffer((*McRFPy_API::soundbuffers)[index]);
-	McRFPy_API::sfx->play();
-    Py_INCREF(Py_None);
-    return Py_None;
-}
-
-PyObject* McRFPy_API::_getMusicVolume(PyObject* self, PyObject* args) {
-	if (!McRFPy_API::music) {
-		return Py_BuildValue("f", 0.0f);
-	}
-	return Py_BuildValue("f", McRFPy_API::music->getVolume());
-}
-
-PyObject* McRFPy_API::_getSoundVolume(PyObject* self, PyObject* args) {
-	if (!McRFPy_API::sfx) {
-		return Py_BuildValue("f", 0.0f);
-	}
-	return Py_BuildValue("f", McRFPy_API::sfx->getVolume());
-}
-
+// Removed deprecated audio functions - use mcrfpy.Sound and mcrfpy.Music classes instead (#66)
 // Removed deprecated player_input, computerTurn, playerTurn functions
 // These were part of the old turn-based system that is no longer used
 

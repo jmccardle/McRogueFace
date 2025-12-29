@@ -37,19 +37,6 @@ public:
     static void REPL_device(FILE * fp, const char *filename);
     static void REPL();
 
-    static std::vector<sf::SoundBuffer>* soundbuffers;
-    static sf::Music* music;
-    static sf::Sound* sfx;
-    
-    
-    static PyObject* _createSoundBuffer(PyObject*, PyObject*);
-    static PyObject* _loadMusic(PyObject*, PyObject*);
-    static PyObject* _setMusicVolume(PyObject*, PyObject*);
-    static PyObject* _setSoundVolume(PyObject*, PyObject*);
-    static PyObject* _playSound(PyObject*, PyObject*);
-    static PyObject* _getMusicVolume(PyObject*, PyObject*);
-    static PyObject* _getSoundVolume(PyObject*, PyObject*);
-    
     static PyObject* _sceneUI(PyObject*, PyObject*);
 
     // scene control

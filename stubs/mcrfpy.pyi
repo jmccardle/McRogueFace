@@ -67,11 +67,124 @@ class Texture:
 
 class Font:
     """SFML Font Object for text rendering."""
-    
+
     def __init__(self, filename: str) -> None: ...
-    
+
     filename: str
     family: str
+
+class Sound:
+    """Sound effect object for short audio clips.
+
+    Sounds are loaded entirely into memory, making them suitable for
+    short sound effects that need to be played with minimal latency.
+    Multiple Sound instances can play simultaneously.
+    """
+
+    def __init__(self, filename: str) -> None:
+        """Load a sound effect from a file.
+
+        Args:
+            filename: Path to the sound file (WAV, OGG, FLAC supported)
+
+        Raises:
+            RuntimeError: If the file cannot be loaded
+        """
+        ...
+
+    volume: float
+    """Volume level from 0 (silent) to 100 (full volume)."""
+
+    loop: bool
+    """Whether the sound loops when it reaches the end."""
+
+    playing: bool
+    """True if the sound is currently playing (read-only)."""
+
+    duration: float
+    """Total duration of the sound in seconds (read-only)."""
+
+    source: str
+    """Filename path used to load this sound (read-only)."""
+
+    def play(self) -> None:
+        """Start or resume playing the sound."""
+        ...
+
+    def pause(self) -> None:
+        """Pause the sound. Use play() to resume."""
+        ...
+
+    def stop(self) -> None:
+        """Stop playing and reset to the beginning."""
+        ...
+
+class Music:
+    """Streaming music object for longer audio tracks.
+
+    Music is streamed from disk rather than loaded entirely into memory,
+    making it suitable for longer audio tracks like background music.
+    """
+
+    def __init__(self, filename: str) -> None:
+        """Load a music track from a file.
+
+        Args:
+            filename: Path to the music file (WAV, OGG, FLAC supported)
+
+        Raises:
+            RuntimeError: If the file cannot be loaded
+        """
+        ...
+
+    volume: float
+    """Volume level from 0 (silent) to 100 (full volume)."""
+
+    loop: bool
+    """Whether the music loops when it reaches the end."""
+
+    playing: bool
+    """True if the music is currently playing (read-only)."""
+
+    duration: float
+    """Total duration of the music in seconds (read-only)."""
+
+    position: float
+    """Current playback position in seconds. Can be set to seek."""
+
+    source: str
+    """Filename path used to load this music (read-only)."""
+
+    def play(self) -> None:
+        """Start or resume playing the music."""
+        ...
+
+    def pause(self) -> None:
+        """Pause the music. Use play() to resume."""
+        ...
+
+    def stop(self) -> None:
+        """Stop playing and reset to the beginning."""
+        ...
+
+class Keyboard:
+    """Keyboard state singleton for checking modifier keys.
+
+    Access via mcrfpy.keyboard (singleton instance).
+    Queries real-time keyboard state from SFML.
+    """
+
+    shift: bool
+    """True if either Shift key is currently pressed (read-only)."""
+
+    ctrl: bool
+    """True if either Control key is currently pressed (read-only)."""
+
+    alt: bool
+    """True if either Alt key is currently pressed (read-only)."""
+
+    system: bool
+    """True if either System key (Win/Cmd) is currently pressed (read-only)."""
 
 class Drawable:
     """Base class for all drawable UI elements."""
@@ -446,35 +559,15 @@ class Animation:
         """Get the current interpolated value."""
         ...
 
+# Module-level attributes
+
+__version__: str
+"""McRogueFace version string (e.g., '1.0.0')."""
+
+keyboard: Keyboard
+"""Keyboard state singleton for checking modifier keys."""
+
 # Module functions
-
-def createSoundBuffer(filename: str) -> int:
-    """Load a sound effect from a file and return its buffer ID."""
-    ...
-
-def loadMusic(filename: str) -> None:
-    """Load and immediately play background music from a file."""
-    ...
-
-def setMusicVolume(volume: int) -> None:
-    """Set the global music volume (0-100)."""
-    ...
-
-def setSoundVolume(volume: int) -> None:
-    """Set the global sound effects volume (0-100)."""
-    ...
-
-def playSound(buffer_id: int) -> None:
-    """Play a sound effect using a previously loaded buffer."""
-    ...
-
-def getMusicVolume() -> int:
-    """Get the current music volume level (0-100)."""
-    ...
-
-def getSoundVolume() -> int:
-    """Get the current sound effects volume level (0-100)."""
-    ...
 
 def sceneUI(scene: Optional[str] = None) -> UICollection:
     """Get all UI elements for a scene."""
