@@ -14,12 +14,15 @@ Three agents:
 Each agent gets their own screenshot and VLLM query.
 """
 
+import sys
+import os
+# Add the vllm_demo directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import mcrfpy
 from mcrfpy import automation
-import sys
 import requests
 import base64
-import os
 import random
 
 from action_parser import parse_action
