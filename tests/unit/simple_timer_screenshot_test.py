@@ -30,7 +30,7 @@ mcrfpy.setScene("test")
 ui = mcrfpy.sceneUI("test")
 
 # Add visible content - a white frame on default background
-frame = mcrfpy.Frame(100, 100, 200, 200,
+frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200),
                     fill_color=mcrfpy.Color(255, 255, 255))
 ui.append(frame)
 

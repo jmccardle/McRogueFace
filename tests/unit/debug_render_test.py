@@ -22,7 +22,7 @@ print(f"UI collection type: {type(ui)}")
 print(f"Initial UI elements: {len(ui)}")
 
 # Add a simple frame
-frame = mcrfpy.Frame(0, 0, 100, 100, 
+frame = mcrfpy.Frame(pos=(0, 0), size=(100, 100),
                     fill_color=mcrfpy.Color(255, 255, 255))
 ui.append(frame)
 print(f"After adding frame: {len(ui)} elements")

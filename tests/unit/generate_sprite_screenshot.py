@@ -22,20 +22,20 @@ mcrfpy.createScene("sprites")
 texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
 
 # Title
-title = mcrfpy.Caption(400, 30, "Sprite Examples")
+title = mcrfpy.Caption(pos=(400, 30), text="Sprite Examples")
 title.font = mcrfpy.default_font
 title.font_size = 24
-title.font_color = (255, 255, 255)
+title.fill_color = mcrfpy.Color(255, 255, 255)
 
 # Create a frame background
-frame = mcrfpy.Frame(50, 80, 700, 500)
-frame.bgcolor = (64, 64, 128)
+frame = mcrfpy.Frame(pos=(50, 80), size=(700, 500))
+frame.fill_color = mcrfpy.Color(64, 64, 128)
 frame.outline = 2
 
 # Player sprite
-player_label = mcrfpy.Caption(100, 120, "Player")
+player_label = mcrfpy.Caption(pos=(100, 120), text="Player")
 player_label.font = mcrfpy.default_font
-player_label.font_color = (255, 255, 255)
+player_label.fill_color = mcrfpy.Color(255, 255, 255)
 
 player = mcrfpy.Sprite(120, 150)
 player.texture = texture
@@ -43,9 +43,9 @@ player.sprite_index = 84  # Player sprite
 player.scale = (3.0, 3.0)
 
 # Enemy sprites
-enemy_label = mcrfpy.Caption(250, 120, "Enemies")
+enemy_label = mcrfpy.Caption(pos=(250, 120), text="Enemies")
 enemy_label.font = mcrfpy.default_font
-enemy_label.font_color = (255, 255, 255)
+enemy_label.fill_color = mcrfpy.Color(255, 255, 255)
 
 rat = mcrfpy.Sprite(250, 150)
 rat.texture = texture
@@ -63,9 +63,9 @@ cyclops.sprite_index = 109  # Cyclops
 cyclops.scale = (3.0, 3.0)
 
 # Items row
-items_label = mcrfpy.Caption(100, 250, "Items")
+items_label = mcrfpy.Caption(pos=(100, 250), text="Items")
 items_label.font = mcrfpy.default_font
-items_label.font_color = (255, 255, 255)
+items_label.fill_color = mcrfpy.Color(255, 255, 255)
 
 # Boulder
 boulder = mcrfpy.Sprite(100, 280)
@@ -92,9 +92,9 @@ button.sprite_index = 250  # Button
 button.scale = (3.0, 3.0)
 
 # UI elements row
-ui_label = mcrfpy.Caption(100, 380, "UI Elements")
+ui_label = mcrfpy.Caption(pos=(100, 380), text="UI Elements")
 ui_label.font = mcrfpy.default_font
-ui_label.font_color = (255, 255, 255)
+ui_label.fill_color = mcrfpy.Color(255, 255, 255)
 
 # Hearts
 heart_full = mcrfpy.Sprite(100, 410)
@@ -119,9 +119,9 @@ armor.sprite_index = 211  # Armor
 armor.scale = (3.0, 3.0)
 
 # Scale demonstration
-scale_label = mcrfpy.Caption(500, 120, "Scale Demo")
+scale_label = mcrfpy.Caption(pos=(500, 120), text="Scale Demo")
 scale_label.font = mcrfpy.default_font
-scale_label.font_color = (255, 255, 255)
+scale_label.fill_color = mcrfpy.Color(255, 255, 255)
 
 # Same sprite at different scales
 for i, scale in enumerate([1.0, 2.0, 3.0, 4.0]):

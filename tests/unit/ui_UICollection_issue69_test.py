@@ -11,8 +11,8 @@ def test_UICollection():
     ui = mcrfpy.sceneUI("collection_test")
     
     # Add various UI elements
-    frame = mcrfpy.Frame(10, 10, 100, 100)
-    caption = mcrfpy.Caption(mcrfpy.Vector(120, 10), text="Test")
+    frame = mcrfpy.Frame(pos=(10, 10), size=(100, 100))
+    caption = mcrfpy.Caption(pos=(120, 10), text="Test")
     # Skip sprite for now since it requires a texture
     
     ui.append(frame)
@@ -74,9 +74,9 @@ def test_UICollection():
     # Test type preservation (Issue #76)
     try:
         # Add a frame with children to test nested collections
-        parent_frame = mcrfpy.Frame(250, 10, 200, 200,
+        parent_frame = mcrfpy.Frame(pos=(250, 10), size=(200, 200),
                                    fill_color=mcrfpy.Color(200, 200, 200))
-        child_caption = mcrfpy.Caption(mcrfpy.Vector(10, 10), text="Child")
+        child_caption = mcrfpy.Caption(pos=(10, 10), text="Child")
         parent_frame.children.append(child_caption)
         ui.append(parent_frame)
         

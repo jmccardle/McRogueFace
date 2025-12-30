@@ -282,23 +282,23 @@ def setup_grid_stress():
     grid.center = (400, 400)  # Center view
     ui.append(grid)
 
-    # Fill with alternating colors
+    # Add color layer and fill with alternating colors
+    color_layer = grid.add_layer("color", z_index=-1)
     for y in range(50):
         for x in range(50):
-            cell = grid.at(x, y)
             if (x + y) % 2 == 0:
-                cell.color = mcrfpy.Color(60, 60, 80)
+                color_layer.set(x, y, mcrfpy.Color(60, 60, 80))
             else:
-                cell.color = mcrfpy.Color(40, 40, 60)
+                color_layer.set(x, y, mcrfpy.Color(40, 40, 60))
 
     # Add 50 entities
     try:
         texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 
         for i in range(50):
-            # Entity takes positional args: (position, texture, sprite_index, grid)
-            pos = mcrfpy.Vector(random.randint(5, 45), random.randint(5, 45))
-            entity = mcrfpy.Entity(pos, texture, random.randint(0, 100), grid)
+            # Entity takes tuple position and keyword args
+            pos = (random.randint(5, 45), random.randint(5, 45))
+            entity = mcrfpy.Entity(pos, texture=texture, sprite_index=random.randint(0, 100), grid=grid)
             grid.entities.append(entity)
     except Exception as e:
         print(f"  Note: Could not create entities: {e}")

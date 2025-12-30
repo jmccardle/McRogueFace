@@ -11,8 +11,8 @@ ui = mcrfpy.sceneUI("detect_test")
 mcrfpy.setScene("detect_test")
 
 # Create a frame
-frame = mcrfpy.Frame(100, 100, 200, 200)
-frame.fill_color = (255, 100, 100, 255)
+frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
+frame.fill_color = mcrfpy.Color(255, 100, 100, 255)
 ui.append(frame)
 
 def test_mode(runtime):

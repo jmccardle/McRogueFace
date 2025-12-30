@@ -32,6 +32,7 @@ ENTITY_COLORS = [
 
 # Global state
 grid = None
+color_layer = None
 entities = []
 first_point = None
 second_point = None
@@ -43,14 +44,17 @@ original_positions = []  # Store original entity positions
 
 def create_map():
     """Create the interactive map with the layout specified by the user"""
-    global grid, entities, original_positions
-    
+    global grid, color_layer, entities, original_positions
+
     mcrfpy.createScene("dijkstra_enhanced")
-    
+
     # Create grid - 14x10 as specified
     grid = mcrfpy.Grid(grid_x=14, grid_y=10)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
-    
+
+    # Add color layer for cell coloring
+    color_layer = grid.add_layer("color", z_index=-1)
+
     # Define the map layout from user's specification
     # . = floor, W = wall, E = entity position
     map_layout = [
@@ -65,87 +69,86 @@ def create_map():
         "..W.WWW.......",  # Row 8
         "..............",  # Row 9
     ]
-    
+
     # Create the map
     entity_positions = []
     for y, row in enumerate(map_layout):
         for x, char in enumerate(row):
             cell = grid.at(x, y)
-            
+
             if char == 'W':
                 # Wall
                 cell.walkable = False
                 cell.transparent = False
-                cell.color = WALL_COLOR
+                color_layer.set(x, y, WALL_COLOR)
             else:
                 # Floor
                 cell.walkable = True
                 cell.transparent = True
-                cell.color = FLOOR_COLOR
-                
+                color_layer.set(x, y, FLOOR_COLOR)
+
                 if char == 'E':
                     # Entity position
                     entity_positions.append((x, y))
-    
+
     # Create entities at marked positions
     entities = []
     original_positions = []
     for i, (x, y) in enumerate(entity_positions):
-        entity = mcrfpy.Entity(x, y)
+        entity = mcrfpy.Entity((x, y), grid=grid)
         entity.sprite_index = 49 + i  # '1', '2', '3'
-        grid.entities.append(entity)
         entities.append(entity)
         original_positions.append((x, y))
-    
+
     return grid
 
 def clear_path_highlight():
     """Clear any existing path highlighting"""
     global current_path
-    
+
     # Reset all floor tiles to original color
     for y in range(grid.grid_y):
         for x in range(grid.grid_x):
             cell = grid.at(x, y)
             if cell.walkable:
-                cell.color = FLOOR_COLOR
-    
+                color_layer.set(x, y, FLOOR_COLOR)
+
     current_path = []
 
 def highlight_path():
     """Highlight the path between selected entities using entity.path_to()"""
     global current_path
-    
+
     if first_point is None or second_point is None:
         return
-    
+
     # Clear previous highlighting
     clear_path_highlight()
-    
+
     # Get entities
     entity1 = entities[first_point]
     entity2 = entities[second_point]
-    
+
     # Use the new path_to method!
     path = entity1.path_to(int(entity2.x), int(entity2.y))
-    
+
     if path:
         current_path = path
-        
+
         # Highlight the path
         for i, (x, y) in enumerate(path):
             cell = grid.at(x, y)
             if cell.walkable:
                 # Use gradient for path visualization
                 if i < len(path) - 1:
-                    cell.color = PATH_COLOR
+                    color_layer.set(x, y, PATH_COLOR)
                 else:
-                    cell.color = VISITED_COLOR
-        
+                    color_layer.set(x, y, VISITED_COLOR)
+
         # Highlight start and end with entity colors
-        grid.at(int(entity1.x), int(entity1.y)).color = ENTITY_COLORS[first_point]
-        grid.at(int(entity2.x), int(entity2.y)).color = ENTITY_COLORS[second_point]
-        
+        color_layer.set(int(entity1.x), int(entity1.y), ENTITY_COLORS[first_point])
+        color_layer.set(int(entity2.x), int(entity2.y), ENTITY_COLORS[second_point])
+
         # Update info
         info_text.text = f"Path: Entity {first_point+1} to Entity {second_point+1} - {len(path)} steps"
     else:
@@ -291,39 +294,38 @@ grid.size = (560, 400)  # 14*40, 10*40
 grid.position = (120, 60)
 
 # Add title
-title = mcrfpy.Caption("Enhanced Dijkstra Pathfinding", 250, 10)
+title = mcrfpy.Caption(pos=(250, 10), text="Enhanced Dijkstra Pathfinding")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Add status text
-status_text = mcrfpy.Caption("Press 1/2/3 for first entity, A/B/C for second", 120, 480)
+status_text = mcrfpy.Caption(pos=(120, 480), text="Press 1/2/3 for first entity, A/B/C for second")
 status_text.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(status_text)
 
 # Add info text
-info_text = mcrfpy.Caption("Space to clear, Q to quit", 120, 500)
+info_text = mcrfpy.Caption(pos=(120, 500), text="Space to clear, Q to quit")
 info_text.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(info_text)
 
 # Add control text
-control_text = mcrfpy.Caption("Press M to move, P to pause, R to reset", 120, 520)
+control_text = mcrfpy.Caption(pos=(120, 520), text="Press M to move, P to pause, R to reset")
 control_text.fill_color = mcrfpy.Color(150, 200, 150)
 ui.append(control_text)
 
 # Add legend
-legend1 = mcrfpy.Caption("Entities: 1=Red 2=Green 3=Blue", 120, 560)
+legend1 = mcrfpy.Caption(pos=(120, 560), text="Entities: 1=Red 2=Green 3=Blue")
 legend1.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend1)
 
-legend2 = mcrfpy.Caption("Colors: Dark=Wall Light=Floor Cyan=Path", 120, 580)
+legend2 = mcrfpy.Caption(pos=(120, 580), text="Colors: Dark=Wall Light=Floor Cyan=Path")
 legend2.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend2)
 
 # Mark entity positions with colored indicators
 for i, entity in enumerate(entities):
-    marker = mcrfpy.Caption(str(i+1), 
-                          120 + int(entity.x) * 40 + 15,
-                          60 + int(entity.y) * 40 + 10)
+    marker = mcrfpy.Caption(pos=(120 + int(entity.x) * 40 + 15, 60 + int(entity.y) * 40 + 10),
+                            text=str(i+1))
     marker.fill_color = ENTITY_COLORS[i]
     marker.outline = 1
     marker.outline_color = mcrfpy.Color(0, 0, 0)

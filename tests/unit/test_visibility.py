@@ -18,6 +18,9 @@ mcrfpy.createScene("visibility_test")
 grid = mcrfpy.Grid(grid_x=20, grid_y=15)
 grid.fill_color = mcrfpy.Color(20, 20, 30)  # Dark background
 
+# Add a color layer for cell coloring
+color_layer = grid.add_layer("color", z_index=-1)
+
 # Initialize grid - all walkable and transparent
 print("\nInitializing 20x15 grid...")
 for y in range(15):
@@ -25,7 +28,7 @@ for y in range(15):
         cell = grid.at(x, y)
         cell.walkable = True
         cell.transparent = True
-        cell.color = mcrfpy.Color(100, 100, 120)  # Floor color
+        color_layer.set(x, y, mcrfpy.Color(100, 100, 120))  # Floor color
 
 # Create some walls to block vision
 print("Adding walls...")
@@ -47,14 +50,14 @@ for wall_group in walls:
         cell = grid.at(x, y)
         cell.walkable = False
         cell.transparent = False
-        cell.color = mcrfpy.Color(40, 20, 20)  # Wall color
+        color_layer.set(x, y, mcrfpy.Color(40, 20, 20))  # Wall color
 
 # Create entities
 print("\nCreating entities...")
 entities = [
-    mcrfpy.Entity(2, 7),    # Left side
-    mcrfpy.Entity(18, 7),   # Right side
-    mcrfpy.Entity(10, 1),   # Top center (above wall)
+    mcrfpy.Entity((2, 7)),    # Left side
+    mcrfpy.Entity((18, 7)),   # Right side
+    mcrfpy.Entity((10, 1)),   # Top center (above wall)
 ]
 
 for i, entity in enumerate(entities):
@@ -138,17 +141,17 @@ grid.position = (50, 50)
 grid.size = (600, 450)  # 20*30, 15*30
 
 # Add title
-title = mcrfpy.Caption("Knowledge Stubs 1 - Visibility Test", 200, 10)
+title = mcrfpy.Caption(pos=(200, 10), text="Knowledge Stubs 1 - Visibility Test")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Add info
-info = mcrfpy.Caption("Perspective: -1 (omniscient)", 50, 520)
+info = mcrfpy.Caption(pos=(50, 520), text="Perspective: -1 (omniscient)")
 info.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(info)
 
 # Add legend
-legend = mcrfpy.Caption("Black=Never seen, Dark gray=Discovered, Normal=Visible", 50, 540)
+legend = mcrfpy.Caption(pos=(50, 540), text="Black=Never seen, Dark gray=Discovered, Normal=Visible")
 legend.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend)
 

@@ -10,7 +10,7 @@ def test_properties(runtime):
     
     # Test Frame
     try:
-        frame = mcrfpy.Frame(10, 10, 100, 100)
+        frame = mcrfpy.Frame(pos=(10, 10), size=(100, 100))
         print(f"Frame visible: {frame.visible}")
         frame.visible = False
         print(f"Frame visible after setting to False: {frame.visible}")

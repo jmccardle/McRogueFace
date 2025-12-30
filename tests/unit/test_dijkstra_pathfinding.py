@@ -17,10 +17,15 @@ import sys
 def create_test_grid():
     """Create a test grid with obstacles"""
     mcrfpy.createScene("dijkstra_test")
-    
+
     # Create grid
     grid = mcrfpy.Grid(grid_x=20, grid_y=20)
-    
+
+    # Add color layer for cell coloring
+    color_layer = grid.add_layer("color", z_index=-1)
+    # Store color_layer on grid for access elsewhere
+    grid._color_layer = color_layer
+
     # Initialize all cells as walkable
     for y in range(grid.grid_y):
         for x in range(grid.grid_x):
@@ -28,8 +33,8 @@ def create_test_grid():
             cell.walkable = True
             cell.transparent = True
             cell.tilesprite = 46  # . period
-            cell.color = mcrfpy.Color(50, 50, 50)
-    
+            color_layer.set(x, y, mcrfpy.Color(50, 50, 50))
+
     # Create some walls to make pathfinding interesting
     # Vertical wall
     for y in range(5, 15):
@@ -37,8 +42,8 @@ def create_test_grid():
         cell.walkable = False
         cell.transparent = False
         cell.tilesprite = 219  # Block
-        cell.color = mcrfpy.Color(100, 100, 100)
-    
+        color_layer.set(10, y, mcrfpy.Color(100, 100, 100))
+
     # Horizontal wall
     for x in range(5, 15):
         if x != 10:  # Leave a gap
@@ -46,8 +51,8 @@ def create_test_grid():
             cell.walkable = False
             cell.transparent = False
             cell.tilesprite = 219
-            cell.color = mcrfpy.Color(100, 100, 100)
-    
+            color_layer.set(x, 10, mcrfpy.Color(100, 100, 100))
+
     return grid
 
 def test_basic_dijkstra():
@@ -133,7 +138,7 @@ def test_multi_target_scenario():
         # Mark threat position
         cell = grid.at(tx, ty)
         cell.tilesprite = 84  # T for threat
-        cell.color = mcrfpy.Color(255, 0, 0)
+        grid._color_layer.set(tx, ty, mcrfpy.Color(255, 0, 0))
         
         # Compute Dijkstra from this threat
         grid.compute_dijkstra(tx, ty)
@@ -176,7 +181,7 @@ def test_multi_target_scenario():
         # Mark safe position
         cell = grid.at(best_pos[0], best_pos[1])
         cell.tilesprite = 83  # S for safe
-        cell.color = mcrfpy.Color(0, 255, 0)
+        grid._color_layer.set(best_pos[0], best_pos[1], mcrfpy.Color(0, 255, 0))
 
 def run_test(runtime):
     """Timer callback to run tests after scene loads"""
@@ -211,7 +216,7 @@ ui = mcrfpy.sceneUI("dijkstra_test")
 ui.append(grid)
 
 # Add title
-title = mcrfpy.Caption("Dijkstra Pathfinding Test", 10, 10)
+title = mcrfpy.Caption(pos=(10, 10), text="Dijkstra Pathfinding Test")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 

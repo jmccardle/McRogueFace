@@ -11,16 +11,16 @@ mcrfpy.setScene("timer_works")
 ui = mcrfpy.sceneUI("timer_works")
 
 # Add visible content
-frame = mcrfpy.Frame(100, 100, 300, 200,
+frame = mcrfpy.Frame(pos=(100, 100), size=(300, 200),
                     fill_color=mcrfpy.Color(255, 0, 0),
                     outline_color=mcrfpy.Color(255, 255, 255),
                     outline=3.0)
 ui.append(frame)
 
-caption = mcrfpy.Caption(mcrfpy.Vector(150, 150),
+caption = mcrfpy.Caption(pos=(150, 150),
                         text="TIMER TEST SUCCESS",
                         fill_color=mcrfpy.Color(255, 255, 255))
-caption.size = 24
+caption.font_size = 24
 ui.append(caption)
 
 # Timer callback with correct signature

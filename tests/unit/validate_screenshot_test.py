@@ -18,50 +18,50 @@ def test_screenshot_validation():
     print("Creating UI elements...")
     
     # Bright red frame with white outline
-    frame1 = mcrfpy.Frame(50, 50, 300, 200,
+    frame1 = mcrfpy.Frame(pos=(50, 50), size=(300, 200),
                          fill_color=mcrfpy.Color(255, 0, 0),      # Bright red
                          outline_color=mcrfpy.Color(255, 255, 255), # White
                          outline=5.0)
     ui.append(frame1)
     print("Added red frame at (50, 50)")
-    
+
     # Bright green frame
-    frame2 = mcrfpy.Frame(400, 50, 300, 200,
+    frame2 = mcrfpy.Frame(pos=(400, 50), size=(300, 200),
                          fill_color=mcrfpy.Color(0, 255, 0),      # Bright green
                          outline_color=mcrfpy.Color(0, 0, 0),     # Black
                          outline=3.0)
     ui.append(frame2)
     print("Added green frame at (400, 50)")
-    
+
     # Blue frame
-    frame3 = mcrfpy.Frame(50, 300, 300, 200,
+    frame3 = mcrfpy.Frame(pos=(50, 300), size=(300, 200),
                          fill_color=mcrfpy.Color(0, 0, 255),      # Bright blue
                          outline_color=mcrfpy.Color(255, 255, 0), # Yellow
                          outline=4.0)
     ui.append(frame3)
     print("Added blue frame at (50, 300)")
-    
+
     # Add text captions
-    caption1 = mcrfpy.Caption(mcrfpy.Vector(60, 60),
+    caption1 = mcrfpy.Caption(pos=(60, 60),
                              text="RED FRAME TEST",
                              fill_color=mcrfpy.Color(255, 255, 255))
-    caption1.size = 24
+    caption1.font_size = 24
     frame1.children.append(caption1)
-    
-    caption2 = mcrfpy.Caption(mcrfpy.Vector(410, 60),
+
+    caption2 = mcrfpy.Caption(pos=(410, 60),
                              text="GREEN FRAME TEST",
                              fill_color=mcrfpy.Color(0, 0, 0))
-    caption2.size = 24
+    caption2.font_size = 24
     ui.append(caption2)
-    
-    caption3 = mcrfpy.Caption(mcrfpy.Vector(60, 310),
+
+    caption3 = mcrfpy.Caption(pos=(60, 310),
                              text="BLUE FRAME TEST",
                              fill_color=mcrfpy.Color(255, 255, 0))
-    caption3.size = 24
+    caption3.font_size = 24
     ui.append(caption3)
-    
+
     # White background frame to ensure non-transparent background
-    background = mcrfpy.Frame(0, 0, 1024, 768,
+    background = mcrfpy.Frame(pos=(0, 0), size=(1024, 768),
                              fill_color=mcrfpy.Color(200, 200, 200))  # Light gray
     # Insert at beginning so it's behind everything
     ui.remove(len(ui) - 1)  # Remove to re-add at start

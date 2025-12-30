@@ -6,9 +6,13 @@ Uses C++ benchmark logger (start_benchmark/end_benchmark) for accurate timing.
 Results written to JSON files for analysis.
 
 Compares rendering performance between:
-1. Traditional grid.at(x,y).color API (no caching)
-2. New layer system with dirty flag caching
+1. ColorLayer with per-cell modifications (no caching benefit)
+2. ColorLayer with dirty flag caching (static after fill)
 3. Various layer configurations
+
+NOTE: The old grid.at(x,y).color API no longer exists. All color operations
+now go through the ColorLayer system. This benchmark compares different
+layer usage patterns to measure caching effectiveness.
 
 Usage:
     ./mcrogueface --exec tests/benchmarks/layer_performance_test.py
@@ -94,7 +98,7 @@ def run_next_test():
 # ============================================================================
 
 def setup_base_layer_static():
-    """Traditional grid.at(x,y).color API - no modifications during render."""
+    """ColorLayer with per-cell set() calls - static after initial fill."""
     mcrfpy.createScene("test_base_static")
     ui = mcrfpy.sceneUI("test_base_static")
 
@@ -102,17 +106,17 @@ def setup_base_layer_static():
                        pos=(10, 10), size=(600, 600))
     ui.append(grid)
 
-    # Fill base layer using traditional API
+    # Fill using ColorLayer with per-cell set() calls (baseline)
+    layer = grid.add_layer("color", z_index=-1)
     for y in range(GRID_SIZE):
         for x in range(GRID_SIZE):
-            cell = grid.at(x, y)
-            cell.color = mcrfpy.Color((x * 2) % 256, (y * 2) % 256, 128, 255)
+            layer.set(x, y, mcrfpy.Color((x * 2) % 256, (y * 2) % 256, 128, 255))
 
     mcrfpy.setScene("test_base_static")
 
 
 def setup_base_layer_modified():
-    """Traditional API with single cell modified each frame."""
+    """ColorLayer with single cell modified each frame - tests dirty flag."""
     mcrfpy.createScene("test_base_mod")
     ui = mcrfpy.sceneUI("test_base_mod")
 
@@ -120,19 +124,16 @@ def setup_base_layer_modified():
                        pos=(10, 10), size=(600, 600))
     ui.append(grid)
 
-    # Fill base layer
-    for y in range(GRID_SIZE):
-        for x in range(GRID_SIZE):
-            cell = grid.at(x, y)
-            cell.color = mcrfpy.Color(100, 100, 100, 255)
+    # Fill using ColorLayer
+    layer = grid.add_layer("color", z_index=-1)
+    layer.fill(mcrfpy.Color(100, 100, 100, 255))
 
-    # Timer to modify one cell per frame
+    # Timer to modify one cell per frame (triggers dirty flag each frame)
     mod_counter = [0]
     def modify_cell(runtime):
         x = mod_counter[0] % GRID_SIZE
         y = (mod_counter[0] // GRID_SIZE) % GRID_SIZE
-        cell = grid.at(x, y)
-        cell.color = mcrfpy.Color(255, 0, 0, 255)
+        layer.set(x, y, mcrfpy.Color(255, 0, 0, 255))
         mod_counter[0] += 1
 
     mcrfpy.setScene("test_base_mod")

@@ -16,11 +16,11 @@ def test_issue_38_children():
     print("\nTest 1: Passing children argument to Frame constructor")
     try:
         # Create some child elements
-        child1 = mcrfpy.Caption(mcrfpy.Vector(10, 10), text="Child 1")
-        child2 = mcrfpy.Sprite(mcrfpy.Vector(10, 30))
-        
+        child1 = mcrfpy.Caption(pos=(10, 10), text="Child 1")
+        child2 = mcrfpy.Sprite(pos=(10, 30))
+
         # Try to create frame with children argument
-        frame = mcrfpy.Frame(10, 10, 200, 150, children=[child1, child2])
+        frame = mcrfpy.Frame(pos=(10, 10), size=(200, 150), children=[child1, child2])
         print("✗ UNEXPECTED: Frame accepted children argument (should fail per issue #38)")
     except TypeError as e:
         print(f"✓ EXPECTED: Frame constructor rejected children argument: {e}")
@@ -30,12 +30,12 @@ def test_issue_38_children():
     # Test 2: Verify children can be added after creation
     print("\nTest 2: Adding children after Frame creation")
     try:
-        frame = mcrfpy.Frame(10, 10, 200, 150)
+        frame = mcrfpy.Frame(pos=(10, 10), size=(200, 150))
         ui.append(frame)
-        
+
         # Add children via the children collection
-        child1 = mcrfpy.Caption(mcrfpy.Vector(10, 10), text="Added Child 1")
-        child2 = mcrfpy.Caption(mcrfpy.Vector(10, 30), text="Added Child 2")
+        child1 = mcrfpy.Caption(pos=(10, 10), text="Added Child 1")
+        child2 = mcrfpy.Caption(pos=(10, 30), text="Added Child 2")
         
         frame.children.append(child1)
         frame.children.append(child2)
@@ -65,33 +65,33 @@ def test_issue_42_click_callback():
         return True
     
     try:
-        frame1 = mcrfpy.Frame(10, 10, 200, 150)
+        frame1 = mcrfpy.Frame(pos=(10, 10), size=(200, 150))
         ui.append(frame1)
         frame1.on_click = correct_callback
         print("✓ Click callback with correct signature assigned successfully")
     except Exception as e:
         print(f"✗ Failed to assign correct callback: {type(e).__name__}: {e}")
-    
+
     # Test 2: Callback with wrong signature (no args)
     print("\nTest 2: Click callback with no arguments")
     def wrong_callback_no_args():
         print("  Wrong callback called")
-    
+
     try:
-        frame2 = mcrfpy.Frame(220, 10, 200, 150)
+        frame2 = mcrfpy.Frame(pos=(220, 10), size=(200, 150))
         ui.append(frame2)
         frame2.on_click = wrong_callback_no_args
         print("✓ Click callback with no args assigned (will fail at runtime per issue #42)")
     except Exception as e:
         print(f"✗ Failed to assign callback: {type(e).__name__}: {e}")
-    
+
     # Test 3: Callback with wrong signature (too few args)
     print("\nTest 3: Click callback with too few arguments")
     def wrong_callback_few_args(x, y):
         print(f"  Wrong callback called: x={x}, y={y}")
-    
+
     try:
-        frame3 = mcrfpy.Frame(10, 170, 200, 150)
+        frame3 = mcrfpy.Frame(pos=(10, 170), size=(200, 150))
         ui.append(frame3)
         frame3.on_click = wrong_callback_few_args
         print("✓ Click callback with 2 args assigned (will fail at runtime per issue #42)")

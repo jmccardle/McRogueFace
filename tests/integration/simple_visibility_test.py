@@ -13,8 +13,8 @@ print("Scene created")
 grid = mcrfpy.Grid(grid_x=5, grid_y=5)
 print("Grid created")
 
-# Create entity without appending
-entity = mcrfpy.Entity(2, 2, grid=grid)
+# Create entity with grid association
+entity = mcrfpy.Entity((2, 2), grid=grid)
 print(f"Entity created at ({entity.x}, {entity.y})")
 
 # Check if gridstate is initialized

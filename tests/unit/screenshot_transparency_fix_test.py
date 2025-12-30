@@ -17,42 +17,42 @@ def test_transparency_workaround():
     # WORKAROUND: Create a full-window opaque frame as the first element
     # This acts as an opaque background since the scene clears with transparent
     print("Creating full-window opaque background...")
-    background = mcrfpy.Frame(0, 0, 1024, 768,
+    background = mcrfpy.Frame(pos=(0, 0), size=(1024, 768),
                              fill_color=mcrfpy.Color(50, 50, 50),  # Dark gray
                              outline_color=None,
                              outline=0.0)
     ui.append(background)
     print("✓ Added opaque background frame")
-    
+
     # Now add normal content on top
     print("\nAdding test content...")
-    
+
     # Red frame
-    frame1 = mcrfpy.Frame(100, 100, 200, 150,
+    frame1 = mcrfpy.Frame(pos=(100, 100), size=(200, 150),
                          fill_color=mcrfpy.Color(255, 0, 0),
                          outline_color=mcrfpy.Color(255, 255, 255),
                          outline=3.0)
     ui.append(frame1)
-    
+
     # Green frame
-    frame2 = mcrfpy.Frame(350, 100, 200, 150,
+    frame2 = mcrfpy.Frame(pos=(350, 100), size=(200, 150),
                          fill_color=mcrfpy.Color(0, 255, 0),
                          outline_color=mcrfpy.Color(0, 0, 0),
                          outline=3.0)
     ui.append(frame2)
-    
+
     # Blue frame
-    frame3 = mcrfpy.Frame(100, 300, 200, 150,
+    frame3 = mcrfpy.Frame(pos=(100, 300), size=(200, 150),
                          fill_color=mcrfpy.Color(0, 0, 255),
                          outline_color=mcrfpy.Color(255, 255, 0),
                          outline=3.0)
     ui.append(frame3)
-    
+
     # Add text
-    caption = mcrfpy.Caption(mcrfpy.Vector(250, 50),
+    caption = mcrfpy.Caption(pos=(250, 50),
                             text="OPAQUE BACKGROUND TEST",
                             fill_color=mcrfpy.Color(255, 255, 255))
-    caption.size = 32
+    caption.font_size = 32
     ui.append(caption)
     
     # Take screenshot

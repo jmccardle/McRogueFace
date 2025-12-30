@@ -21,10 +21,8 @@ for i in range(5):
     grid.at(5, i + 2).walkable = False
 
 # Create entities
-e1 = mcrfpy.Entity(2, 5)
-e2 = mcrfpy.Entity(8, 5)
-grid.entities.append(e1)
-grid.entities.append(e2)
+e1 = mcrfpy.Entity((2, 5), grid=grid)
+e2 = mcrfpy.Entity((8, 5), grid=grid)
 
 # Test pathfinding between entities
 print(f"Entity 1 at ({e1.x}, {e1.y})")

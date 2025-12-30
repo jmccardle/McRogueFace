@@ -19,26 +19,30 @@ END_COLOR = mcrfpy.Color(255, 255, 100)    # Yellow for end
 
 # Global state
 grid = None
+color_layer = None
 mode = "ASTAR"
 start_pos = (5, 10)
 end_pos = (27, 10)  # Changed from 25 to 27 to avoid the wall
 
 def create_map():
     """Create a map with obstacles to show pathfinding differences"""
-    global grid
-    
+    global grid, color_layer
+
     mcrfpy.createScene("pathfinding_comparison")
-    
+
     # Create grid
     grid = mcrfpy.Grid(grid_x=30, grid_y=20)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
-    
+
+    # Add color layer for cell coloring
+    color_layer = grid.add_layer("color", z_index=-1)
+
     # Initialize all as floor
     for y in range(20):
         for x in range(30):
             grid.at(x, y).walkable = True
-            grid.at(x, y).color = FLOOR_COLOR
-    
+            color_layer.set(x, y, FLOOR_COLOR)
+
     # Create obstacles that make A* and Dijkstra differ
     obstacles = [
         # Vertical wall with gaps
@@ -50,15 +54,15 @@ def create_map():
         [(x, 10) for x in range(20, 25)],
         [(25, y) for y in range(5, 15)],
     ]
-    
+
     for obstacle_group in obstacles:
         for x, y in obstacle_group:
             grid.at(x, y).walkable = False
-            grid.at(x, y).color = WALL_COLOR
-    
+            color_layer.set(x, y, WALL_COLOR)
+
     # Mark start and end
-    grid.at(start_pos[0], start_pos[1]).color = START_COLOR
-    grid.at(end_pos[0], end_pos[1]).color = END_COLOR
+    color_layer.set(start_pos[0], start_pos[1], START_COLOR)
+    color_layer.set(end_pos[0], end_pos[1], END_COLOR)
 
 def clear_paths():
     """Clear path highlighting"""
@@ -66,34 +70,34 @@ def clear_paths():
         for x in range(30):
             cell = grid.at(x, y)
             if cell.walkable:
-                cell.color = FLOOR_COLOR
-    
+                color_layer.set(x, y, FLOOR_COLOR)
+
     # Restore start and end colors
-    grid.at(start_pos[0], start_pos[1]).color = START_COLOR
-    grid.at(end_pos[0], end_pos[1]).color = END_COLOR
+    color_layer.set(start_pos[0], start_pos[1], START_COLOR)
+    color_layer.set(end_pos[0], end_pos[1], END_COLOR)
 
 def show_astar():
     """Show A* path"""
     clear_paths()
-    
+
     # Compute A* path
     path = grid.compute_astar_path(start_pos[0], start_pos[1], end_pos[0], end_pos[1])
-    
+
     # Color the path
     for i, (x, y) in enumerate(path):
         if (x, y) != start_pos and (x, y) != end_pos:
-            grid.at(x, y).color = ASTAR_COLOR
-    
+            color_layer.set(x, y, ASTAR_COLOR)
+
     status_text.text = f"A* Path: {len(path)} steps (optimized for single target)"
     status_text.fill_color = ASTAR_COLOR
 
 def show_dijkstra():
     """Show Dijkstra exploration"""
     clear_paths()
-    
+
     # Compute Dijkstra from start
     grid.compute_dijkstra(start_pos[0], start_pos[1])
-    
+
     # Color cells by distance (showing exploration)
     max_dist = 40.0
     for y in range(20):
@@ -103,50 +107,50 @@ def show_dijkstra():
                 if dist is not None and dist < max_dist:
                     # Color based on distance
                     intensity = int(255 * (1 - dist / max_dist))
-                    grid.at(x, y).color = mcrfpy.Color(0, intensity // 2, intensity)
-    
+                    color_layer.set(x, y, mcrfpy.Color(0, intensity // 2, intensity))
+
     # Get the actual path
     path = grid.get_dijkstra_path(end_pos[0], end_pos[1])
-    
+
     # Highlight the actual path more brightly
     for x, y in path:
         if (x, y) != start_pos and (x, y) != end_pos:
-            grid.at(x, y).color = DIJKSTRA_COLOR
-    
+            color_layer.set(x, y, DIJKSTRA_COLOR)
+
     # Restore start and end
-    grid.at(start_pos[0], start_pos[1]).color = START_COLOR
-    grid.at(end_pos[0], end_pos[1]).color = END_COLOR
-    
+    color_layer.set(start_pos[0], start_pos[1], START_COLOR)
+    color_layer.set(end_pos[0], end_pos[1], END_COLOR)
+
     status_text.text = f"Dijkstra: {len(path)} steps (explores all directions)"
     status_text.fill_color = DIJKSTRA_COLOR
 
 def show_both():
     """Show both paths overlaid"""
     clear_paths()
-    
+
     # Get both paths
     astar_path = grid.compute_astar_path(start_pos[0], start_pos[1], end_pos[0], end_pos[1])
     grid.compute_dijkstra(start_pos[0], start_pos[1])
     dijkstra_path = grid.get_dijkstra_path(end_pos[0], end_pos[1])
-    
+
     print(astar_path, dijkstra_path)
 
     # Color Dijkstra path first (blue)
     for x, y in dijkstra_path:
         if (x, y) != start_pos and (x, y) != end_pos:
-            grid.at(x, y).color = DIJKSTRA_COLOR
-    
+            color_layer.set(x, y, DIJKSTRA_COLOR)
+
     # Then A* path (green) - will overwrite shared cells
     for x, y in astar_path:
         if (x, y) != start_pos and (x, y) != end_pos:
-            grid.at(x, y).color = ASTAR_COLOR
-    
+            color_layer.set(x, y, ASTAR_COLOR)
+
     # Mark differences
     different_cells = []
     for cell in dijkstra_path:
         if cell not in astar_path:
             different_cells.append(cell)
-    
+
     status_text.text = f"Both paths: A*={len(astar_path)} steps, Dijkstra={len(dijkstra_path)} steps"
     if different_cells:
         info_text.text = f"Paths differ at {len(different_cells)} cells"
@@ -202,26 +206,26 @@ grid.size = (600, 400)  # 30*20, 20*20
 grid.position = (100, 100)
 
 # Add title
-title = mcrfpy.Caption("A* vs Dijkstra Pathfinding", 250, 20)
+title = mcrfpy.Caption(pos=(250, 20), text="A* vs Dijkstra Pathfinding")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Add status
-status_text = mcrfpy.Caption("Press A for A*, D for Dijkstra, B for Both", 100, 60)
+status_text = mcrfpy.Caption(pos=(100, 60), text="Press A for A*, D for Dijkstra, B for Both")
 status_text.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(status_text)
 
 # Add info
-info_text = mcrfpy.Caption("", 100, 520)
+info_text = mcrfpy.Caption(pos=(100, 520), text="")
 info_text.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(info_text)
 
 # Add legend
-legend1 = mcrfpy.Caption("Red=Start, Yellow=End, Green=A*, Blue=Dijkstra", 100, 540)
+legend1 = mcrfpy.Caption(pos=(100, 540), text="Red=Start, Yellow=End, Green=A*, Blue=Dijkstra")
 legend1.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend1)
 
-legend2 = mcrfpy.Caption("Dark=Walls, Light=Floor", 100, 560)
+legend2 = mcrfpy.Caption(pos=(100, 560), text="Dark=Walls, Light=Floor")
 legend2.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend2)
 

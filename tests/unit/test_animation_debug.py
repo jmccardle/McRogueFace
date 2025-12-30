@@ -63,14 +63,15 @@ mcrfpy.createScene("anim_debug")
 
 # Simple grid
 grid = mcrfpy.Grid(grid_x=15, grid_y=10)
+color_layer = grid.add_layer("color", z_index=-1)
 for y in range(10):
     for x in range(15):
         cell = grid.at(x, y)
         cell.walkable = True
-        cell.color = mcrfpy.Color(100, 100, 120)
+        color_layer.set(x, y, mcrfpy.Color(100, 100, 120))
 
 # Test entity
-entity = mcrfpy.Entity(5, 5, grid=grid)
+entity = mcrfpy.Entity((5, 5), grid=grid)
 entity.sprite_index = 64
 
 # UI
@@ -79,19 +80,19 @@ ui.append(grid)
 grid.position = (100, 150)
 grid.size = (450, 300)
 
-title = mcrfpy.Caption("Animation Debug Tool", 250, 20)
+title = mcrfpy.Caption(pos=(250, 20), text="Animation Debug Tool")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
-status = mcrfpy.Caption("Press keys to test animations", 100, 50)
+status = mcrfpy.Caption(pos=(100, 50), text="Press keys to test animations")
 status.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(status)
 
-pos_display = mcrfpy.Caption("", 100, 70)
+pos_display = mcrfpy.Caption(pos=(100, 70), text="")
 pos_display.fill_color = mcrfpy.Color(255, 255, 100)
 ui.append(pos_display)
 
-active_display = mcrfpy.Caption("Active animations: 0", 100, 90)
+active_display = mcrfpy.Caption(pos=(100, 90), text="Active animations: 0")
 active_display.fill_color = mcrfpy.Color(100, 255, 255)
 ui.append(active_display)
 

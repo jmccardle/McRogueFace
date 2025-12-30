@@ -13,32 +13,28 @@ def test_grid_background():
     ui = mcrfpy.sceneUI("test")
     
     # Create a grid with default background
-    grid = mcrfpy.Grid(20, 15, grid_size=(20, 15))
-    grid.x = 50
-    grid.y = 50
-    grid.w = 400
-    grid.h = 300
+    grid = mcrfpy.Grid(pos=(50, 50), size=(400, 300), grid_size=(20, 15))
     ui.append(grid)
-    
-    # Add some tiles to see the background better
+
+    # Add color layer for some tiles to see the background better
+    color_layer = grid.add_layer("color", z_index=-1)
     for x in range(5, 15):
         for y in range(5, 10):
-            point = grid.at(x, y)
-            point.color = mcrfpy.Color(100, 150, 100)
+            color_layer.set(x, y, mcrfpy.Color(100, 150, 100))
     
     # Add UI to show current background color
-    info_frame = mcrfpy.Frame(500, 50, 200, 150,
+    info_frame = mcrfpy.Frame(pos=(500, 50), size=(200, 150),
                              fill_color=mcrfpy.Color(40, 40, 40),
                              outline_color=mcrfpy.Color(200, 200, 200),
                              outline=2)
     ui.append(info_frame)
-    
-    color_caption = mcrfpy.Caption(510, 60, "Background Color:")
+
+    color_caption = mcrfpy.Caption(pos=(510, 60), text="Background Color:")
     color_caption.font_size = 14
     color_caption.fill_color = mcrfpy.Color(255, 255, 255)
     info_frame.children.append(color_caption)
-    
-    color_display = mcrfpy.Caption(510, 80, "")
+
+    color_display = mcrfpy.Caption(pos=(510, 80), text="")
     color_display.font_size = 12
     color_display.fill_color = mcrfpy.Color(200, 200, 200)
     info_frame.children.append(color_display)

@@ -18,49 +18,52 @@ ENTITY_COLORS = [
 
 # Global state
 grid = None
+color_layer = None
 entities = []
 first_point = None
 second_point = None
 
 def create_simple_map():
     """Create a simple test map"""
-    global grid, entities
-    
+    global grid, color_layer, entities
+
     mcrfpy.createScene("dijkstra_debug")
-    
+
     # Small grid for easy debugging
     grid = mcrfpy.Grid(grid_x=10, grid_y=10)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
-    
+
+    # Add color layer for cell coloring
+    color_layer = grid.add_layer("color", z_index=-1)
+
     print("Initializing 10x10 grid...")
-    
+
     # Initialize all as floor
     for y in range(10):
         for x in range(10):
             grid.at(x, y).walkable = True
             grid.at(x, y).transparent = True
-            grid.at(x, y).color = FLOOR_COLOR
-    
+            color_layer.set(x, y, FLOOR_COLOR)
+
     # Add a simple wall
     print("Adding walls at:")
     walls = [(5, 2), (5, 3), (5, 4), (5, 5), (5, 6)]
     for x, y in walls:
         print(f"  Wall at ({x}, {y})")
         grid.at(x, y).walkable = False
-        grid.at(x, y).color = WALL_COLOR
-    
+        color_layer.set(x, y, WALL_COLOR)
+
     # Create 3 entities
     entity_positions = [(2, 5), (8, 5), (5, 8)]
     entities = []
-    
+
     print("\nCreating entities at:")
     for i, (x, y) in enumerate(entity_positions):
         print(f"  Entity {i+1} at ({x}, {y})")
-        entity = mcrfpy.Entity(x, y)
+        entity = mcrfpy.Entity((x, y), grid=grid)
         entity.sprite_index = 49 + i  # '1', '2', '3'
-        grid.entities.append(entity)
         entities.append(entity)
-    
+
     return grid
 
 def test_path_highlighting():
@@ -88,12 +91,14 @@ def test_path_highlighting():
             print(f"  Step {i}: ({x}, {y})")
             # Get current color for debugging
             cell = grid.at(x, y)
-            old_color = (cell.color.r, cell.color.g, cell.color.b)
-            
+            old_c = color_layer.at(x, y)
+            old_color = (old_c.r, old_c.g, old_c.b)
+
             # Set new color
-            cell.color = PATH_COLOR
-            new_color = (cell.color.r, cell.color.g, cell.color.b)
-            
+            color_layer.set(x, y, PATH_COLOR)
+            new_c = color_layer.at(x, y)
+            new_color = (new_c.r, new_c.g, new_c.b)
+
             print(f"    Color changed from {old_color} to {new_color}")
             print(f"    Walkable: {cell.walkable}")
     
@@ -111,8 +116,8 @@ def test_path_highlighting():
     # Verify colors were set
     print("\nVerifying cell colors after highlighting:")
     for x, y in path[:3]:  # Check first 3 cells
-        cell = grid.at(x, y)
-        color = (cell.color.r, cell.color.g, cell.color.b)
+        c = color_layer.at(x, y)
+        color = (c.r, c.g, c.b)
         expected = (PATH_COLOR.r, PATH_COLOR.g, PATH_COLOR.b)
         match = color == expected
         print(f"  Cell ({x}, {y}): color={color}, expected={expected}, match={match}")
@@ -143,12 +148,12 @@ grid.position = (50, 50)
 grid.size = (400, 400)  # 10*40
 
 # Add title
-title = mcrfpy.Caption("Dijkstra Debug - Press SPACE to retest, Q to quit", 50, 10)
+title = mcrfpy.Caption(pos=(50, 10), text="Dijkstra Debug - Press SPACE to retest, Q to quit")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Add debug info
-info = mcrfpy.Caption("Check console for debug output", 50, 470)
+info = mcrfpy.Caption(pos=(50, 470), text="Check console for debug output")
 info.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(info)
 

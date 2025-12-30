@@ -20,9 +20,8 @@ for y in range(5):
 
 # Create entity
 print("Creating entity...")
-entity = mcrfpy.Entity(2, 2)
+entity = mcrfpy.Entity((2, 2), grid=grid)
 entity.sprite_index = 64
-grid.entities.append(entity)
 print(f"Entity at ({entity.x}, {entity.y})")
 
 # Check gridstate

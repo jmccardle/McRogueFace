@@ -18,13 +18,13 @@ def create_demo():
     scene = mcrfpy.sceneUI("text_demo")
     
     # Background
-    bg = mcrfpy.Frame(0, 0, 800, 600)
-    bg.fill_color = (40, 40, 40, 255)
+    bg = mcrfpy.Frame(pos=(0, 0), size=(800, 600))
+    bg.fill_color = mcrfpy.Color(40, 40, 40, 255)
     scene.append(bg)
-    
+
     # Title
-    title = mcrfpy.Caption("Text Input Widget Demo", 20, 20)
-    title.fill_color = (255, 255, 255, 255)
+    title = mcrfpy.Caption(pos=(20, 20), text="Text Input Widget Demo")
+    title.fill_color = mcrfpy.Color(255, 255, 255, 255)
     scene.append(title)
     
     # Focus manager
@@ -62,8 +62,8 @@ def create_demo():
     inputs.append(comment_input)
     
     # Status display
-    status = mcrfpy.Caption("Ready for input...", 50, 360)
-    status.fill_color = (150, 255, 150, 255)
+    status = mcrfpy.Caption(pos=(50, 360), text="Ready for input...")
+    status.fill_color = mcrfpy.Color(150, 255, 150, 255)
     scene.append(status)
     
     # Update handler

@@ -20,6 +20,7 @@ NO_PATH_COLOR = mcrfpy.Color(255, 0, 0)    # Pure red for unreachable
 
 # Global state
 grid = None
+color_layer = None
 entities = []
 current_combo_index = 0
 all_combinations = []  # All possible pairs
@@ -27,14 +28,17 @@ current_path = []
 
 def create_map():
     """Create the map with entities"""
-    global grid, entities, all_combinations
-    
+    global grid, color_layer, entities, all_combinations
+
     mcrfpy.createScene("dijkstra_all")
-    
+
     # Create grid
     grid = mcrfpy.Grid(grid_x=14, grid_y=10)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
-    
+
+    # Add color layer for cell coloring
+    color_layer = grid.add_layer("color", z_index=-1)
+
     # Map layout - Entity 1 is intentionally trapped!
     map_layout = [
         "..............",  # Row 0
@@ -48,29 +52,28 @@ def create_map():
         "..W.WWW.......",  # Row 8
         "..............",  # Row 9
     ]
-    
+
     # Create the map
     entity_positions = []
     for y, row in enumerate(map_layout):
         for x, char in enumerate(row):
             cell = grid.at(x, y)
-            
+
             if char == 'W':
                 cell.walkable = False
-                cell.color = WALL_COLOR
+                color_layer.set(x, y, WALL_COLOR)
             else:
                 cell.walkable = True
-                cell.color = FLOOR_COLOR
-                
+                color_layer.set(x, y, FLOOR_COLOR)
+
                 if char == 'E':
                     entity_positions.append((x, y))
-    
+
     # Create entities
     entities = []
     for i, (x, y) in enumerate(entity_positions):
-        entity = mcrfpy.Entity(x, y)
+        entity = mcrfpy.Entity((x, y), grid=grid)
         entity.sprite_index = 49 + i  # '1', '2', '3'
-        grid.entities.append(entity)
         entities.append(entity)
     
     print("Map Analysis:")
@@ -90,47 +93,47 @@ def create_map():
 def clear_path_colors():
     """Reset all floor tiles to original color"""
     global current_path
-    
+
     for y in range(grid.grid_y):
         for x in range(grid.grid_x):
             cell = grid.at(x, y)
             if cell.walkable:
-                cell.color = FLOOR_COLOR
-    
+                color_layer.set(x, y, FLOOR_COLOR)
+
     current_path = []
 
 def show_combination(index):
     """Show a specific path combination (valid or invalid)"""
     global current_combo_index, current_path
-    
+
     current_combo_index = index % len(all_combinations)
     from_idx, to_idx = all_combinations[current_combo_index]
-    
+
     # Clear previous path
     clear_path_colors()
-    
+
     # Get entities
     e_from = entities[from_idx]
     e_to = entities[to_idx]
-    
+
     # Calculate path
     path = e_from.path_to(int(e_to.x), int(e_to.y))
     current_path = path if path else []
-    
+
     # Always color start and end positions
-    grid.at(int(e_from.x), int(e_from.y)).color = START_COLOR
-    grid.at(int(e_to.x), int(e_to.y)).color = NO_PATH_COLOR if not path else END_COLOR
-    
+    color_layer.set(int(e_from.x), int(e_from.y), START_COLOR)
+    color_layer.set(int(e_to.x), int(e_to.y), NO_PATH_COLOR if not path else END_COLOR)
+
     # Color the path if it exists
     if path:
         # Color intermediate steps
         for i, (x, y) in enumerate(path):
             if i > 0 and i < len(path) - 1:
-                grid.at(x, y).color = PATH_COLOR
-        
+                color_layer.set(x, y, PATH_COLOR)
+
         status_text.text = f"Path {current_combo_index + 1}/{len(all_combinations)}: Entity {from_idx+1} → Entity {to_idx+1} = {len(path)} steps"
         status_text.fill_color = mcrfpy.Color(100, 255, 100)  # Green for valid
-        
+
         # Show path steps
         path_display = []
         for i, (x, y) in enumerate(path[:5]):
@@ -142,7 +145,7 @@ def show_combination(index):
         status_text.text = f"Path {current_combo_index + 1}/{len(all_combinations)}: Entity {from_idx+1} → Entity {to_idx+1} = NO PATH!"
         status_text.fill_color = mcrfpy.Color(255, 100, 100)  # Red for invalid
         path_text.text = "Path: [] (No valid path exists)"
-    
+
     # Update info
     info_text.text = f"From: Entity {from_idx+1} at ({int(e_from.x)}, {int(e_from.y)}) | To: Entity {to_idx+1} at ({int(e_to.x)}, {int(e_to.y)})"
 
@@ -183,37 +186,37 @@ grid.size = (560, 400)
 grid.position = (120, 100)
 
 # Add title
-title = mcrfpy.Caption("Dijkstra - All Paths (Valid & Invalid)", 200, 20)
+title = mcrfpy.Caption(pos=(200, 20), text="Dijkstra - All Paths (Valid & Invalid)")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Add status (will change color based on validity)
-status_text = mcrfpy.Caption("Ready", 120, 60)
+status_text = mcrfpy.Caption(pos=(120, 60), text="Ready")
 status_text.fill_color = mcrfpy.Color(255, 255, 100)
 ui.append(status_text)
 
 # Add info
-info_text = mcrfpy.Caption("", 120, 80)
+info_text = mcrfpy.Caption(pos=(120, 80), text="")
 info_text.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(info_text)
 
 # Add path display
-path_text = mcrfpy.Caption("Path: None", 120, 520)
+path_text = mcrfpy.Caption(pos=(120, 520), text="Path: None")
 path_text.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(path_text)
 
 # Add controls
-controls = mcrfpy.Caption("SPACE/N=Next, P=Previous, 1-6=Jump to path, Q=Quit", 120, 540)
+controls = mcrfpy.Caption(pos=(120, 540), text="SPACE/N=Next, P=Previous, 1-6=Jump to path, Q=Quit")
 controls.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(controls)
 
 # Add legend
-legend = mcrfpy.Caption("Red Start→Blue End (valid) | Red Start→Red End (invalid)", 120, 560)
+legend = mcrfpy.Caption(pos=(120, 560), text="Red Start→Blue End (valid) | Red Start→Red End (invalid)")
 legend.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend)
 
 # Expected results info
-expected = mcrfpy.Caption("Entity 1 is trapped: paths 1→2, 1→3, 2→1, 3→1 will fail", 120, 580)
+expected = mcrfpy.Caption(pos=(120, 580), text="Entity 1 is trapped: paths 1→2, 1→3, 2→1, 3→1 will fail")
 expected.fill_color = mcrfpy.Color(255, 150, 150)
 ui.append(expected)
 

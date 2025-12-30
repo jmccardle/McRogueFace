@@ -13,13 +13,13 @@ def test_scene_transitions():
     # Scene 1
     mcrfpy.createScene("scene1")
     ui1 = mcrfpy.sceneUI("scene1")
-    frame1 = mcrfpy.Frame(0, 0, 100, 100, fill_color=mcrfpy.Color(255, 0, 0))
+    frame1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100), fill_color=mcrfpy.Color(255, 0, 0))
     ui1.append(frame1)
-    
-    # Scene 2 
+
+    # Scene 2
     mcrfpy.createScene("scene2")
     ui2 = mcrfpy.sceneUI("scene2")
-    frame2 = mcrfpy.Frame(0, 0, 100, 100, fill_color=mcrfpy.Color(0, 0, 255))
+    frame2 = mcrfpy.Frame(pos=(0, 0), size=(100, 100), fill_color=mcrfpy.Color(0, 0, 255))
     ui2.append(frame2)
     
     # Test each transition type

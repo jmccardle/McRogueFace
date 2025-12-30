@@ -115,18 +115,18 @@ mcrfpy.setScene("metrics_test")
 ui = mcrfpy.sceneUI("metrics_test")
 
 # Create various UI elements
-frame1 = mcrfpy.Frame(10, 10, 200, 150)
-frame1.fill_color = (100, 100, 100, 128)
+frame1 = mcrfpy.Frame(pos=(10, 10), size=(200, 150))
+frame1.fill_color = mcrfpy.Color(100, 100, 100, 128)
 ui.append(frame1)
 
-caption1 = mcrfpy.Caption("Test Caption", 50, 50)
+caption1 = mcrfpy.Caption(pos=(50, 50), text="Test Caption")
 ui.append(caption1)
 
-sprite1 = mcrfpy.Sprite(100, 100)
+sprite1 = mcrfpy.Sprite(pos=(100, 100))
 ui.append(sprite1)
 
 # Invisible element (should not count as visible)
-frame2 = mcrfpy.Frame(300, 10, 100, 100)
+frame2 = mcrfpy.Frame(pos=(300, 10), size=(100, 100))
 frame2.visible = False
 ui.append(frame2)
 

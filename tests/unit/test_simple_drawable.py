@@ -8,7 +8,7 @@ def simple_test(runtime):
     
     try:
         # Test basic functionality
-        frame = mcrfpy.Frame(10, 10, 100, 100)
+        frame = mcrfpy.Frame(pos=(10, 10), size=(100, 100))
         print(f"Frame created: visible={frame.visible}, opacity={frame.opacity}")
         
         bounds = frame.get_bounds()

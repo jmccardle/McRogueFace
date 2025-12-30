@@ -30,7 +30,7 @@ def test_1_basic_animation():
     """Test that basic animations still work"""
     try:
         ui = mcrfpy.sceneUI("test")
-        frame = mcrfpy.Frame(100, 100, 100, 100)
+        frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
         
         anim = mcrfpy.Animation("x", 200.0, 1000, "linear")
@@ -49,7 +49,7 @@ def test_2_remove_animated_object():
     """Test removing object with active animation"""
     try:
         ui = mcrfpy.sceneUI("test")
-        frame = mcrfpy.Frame(100, 100, 100, 100)
+        frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
         
         # Start animation
@@ -73,7 +73,7 @@ def test_3_complete_animation():
     """Test completing animation immediately"""
     try:
         ui = mcrfpy.sceneUI("test")
-        frame = mcrfpy.Frame(100, 100, 100, 100)
+        frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
         
         # Start animation
@@ -98,7 +98,7 @@ def test_4_multiple_animations_timer():
         nonlocal success
         try:
             ui = mcrfpy.sceneUI("test")
-            frame = mcrfpy.Frame(200, 200, 100, 100)
+            frame = mcrfpy.Frame(pos=(200, 200), size=(100, 100))
             ui.append(frame)
             
             # Create multiple animations rapidly (this used to crash)
@@ -129,7 +129,7 @@ def test_5_scene_cleanup():
         # Add animated objects to first scene
         ui = mcrfpy.sceneUI("test")
         for i in range(5):
-            frame = mcrfpy.Frame(50 * i, 100, 40, 40)
+            frame = mcrfpy.Frame(pos=(50 * i, 100), size=(40, 40))
             ui.append(frame)
             anim = mcrfpy.Animation("y", 300.0, 2000, "easeOutBounce")
             anim.start(frame)
@@ -148,9 +148,9 @@ def test_6_animation_after_clear():
     """Test animations after clearing UI"""
     try:
         ui = mcrfpy.sceneUI("test")
-        
+
         # Create and animate
-        frame = mcrfpy.Frame(100, 100, 100, 100)
+        frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
         anim = mcrfpy.Animation("w", 200.0, 1500, "easeInOutCubic")
         anim.start(frame)
@@ -207,7 +207,7 @@ mcrfpy.setScene("test")
 
 # Add a background
 ui = mcrfpy.sceneUI("test")
-bg = mcrfpy.Frame(0, 0, 1024, 768)
+bg = mcrfpy.Frame(pos=(0, 0), size=(1024, 768))
 bg.fill_color = mcrfpy.Color(20, 20, 30)
 ui.append(bg)
 

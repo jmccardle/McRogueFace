@@ -11,6 +11,9 @@ mcrfpy.createScene("vis_test")
 print("Creating grid...")
 grid = mcrfpy.Grid(grid_x=10, grid_y=10)
 
+# Add color layer for cell coloring
+color_layer = grid.add_layer("color", z_index=-1)
+
 # Initialize grid
 print("Initializing grid...")
 for y in range(10):
@@ -18,11 +21,11 @@ for y in range(10):
         cell = grid.at(x, y)
         cell.walkable = True
         cell.transparent = True
-        cell.color = mcrfpy.Color(100, 100, 120)
+        color_layer.set(x, y, mcrfpy.Color(100, 100, 120))
 
 # Create entity
 print("Creating entity...")
-entity = mcrfpy.Entity(5, 5, grid=grid)
+entity = mcrfpy.Entity((5, 5), grid=grid)
 entity.sprite_index = 64
 
 print("Updating visibility...")

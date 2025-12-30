@@ -33,16 +33,19 @@ mcrfpy.createScene("fix_demo")
 grid = mcrfpy.Grid(grid_x=15, grid_y=10)
 grid.fill_color = mcrfpy.Color(20, 20, 30)
 
+# Add color layer for cell coloring
+color_layer = grid.add_layer("color", z_index=-1)
+
 # Make floor
 for y in range(10):
     for x in range(15):
         cell = grid.at(x, y)
         cell.walkable = True
         cell.transparent = True
-        cell.color = mcrfpy.Color(100, 100, 120)
+        color_layer.set(x, y, mcrfpy.Color(100, 100, 120))
 
 # Create entity
-entity = mcrfpy.Entity(2, 2, grid=grid)
+entity = mcrfpy.Entity((2, 2), grid=grid)
 entity.sprite_index = 64  # @
 
 # UI
@@ -52,19 +55,19 @@ grid.position = (100, 150)
 grid.size = (450, 300)
 
 # Info displays
-title = mcrfpy.Caption("Entity Animation Issue Demo", 250, 20)
+title = mcrfpy.Caption(pos=(250, 20), text="Entity Animation Issue Demo")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
-pos_info = mcrfpy.Caption("", 100, 50)
+pos_info = mcrfpy.Caption(pos=(100, 50), text="")
 pos_info.fill_color = mcrfpy.Color(255, 255, 100)
 ui.append(pos_info)
 
-sprite_info = mcrfpy.Caption("", 100, 70)
+sprite_info = mcrfpy.Caption(pos=(100, 70), text="")
 sprite_info.fill_color = mcrfpy.Color(255, 100, 100)
 ui.append(sprite_info)
 
-status = mcrfpy.Caption("Press SPACE to animate entity", 100, 100)
+status = mcrfpy.Caption(pos=(100, 100), text="Press SPACE to animate entity")
 status.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(status)
 

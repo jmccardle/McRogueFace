@@ -31,9 +31,9 @@ def take_screenshot(runtime):
 mcrfpy.createScene("test")
 
 # Add a visible element
-caption = mcrfpy.Caption(100, 100, "Screenshot Test")
+caption = mcrfpy.Caption(pos=(100, 100), text="Screenshot Test")
 caption.font = mcrfpy.default_font
-caption.font_color = (255, 255, 255)
+caption.fill_color = mcrfpy.Color(255, 255, 255)
 caption.font_size = 24
 
 mcrfpy.sceneUI("test").append(caption)

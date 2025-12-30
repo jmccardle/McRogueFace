@@ -17,13 +17,16 @@ mcrfpy.createScene("test_anim")
 grid = mcrfpy.Grid(grid_x=15, grid_y=15)
 grid.fill_color = mcrfpy.Color(20, 20, 30)
 
+# Add a color layer for cell coloring
+color_layer = grid.add_layer("color", z_index=-1)
+
 # Initialize all cells as walkable floors
 for y in range(15):
     for x in range(15):
         cell = grid.at(x, y)
         cell.walkable = True
         cell.transparent = True
-        cell.color = mcrfpy.Color(100, 100, 120)
+        color_layer.set(x, y, mcrfpy.Color(100, 100, 120))
 
 # Mark the path we'll follow with different color
 path_cells = [(5,5), (6,5), (7,5), (8,5), (9,5), (10,5),
@@ -32,11 +35,10 @@ path_cells = [(5,5), (6,5), (7,5), (8,5), (9,5), (10,5),
               (5,9), (5,8), (5,7), (5,6)]
 
 for x, y in path_cells:
-    cell = grid.at(x, y)
-    cell.color = mcrfpy.Color(120, 120, 150)
+    color_layer.set(x, y, mcrfpy.Color(120, 120, 150))
 
 # Create entity at start position
-entity = mcrfpy.Entity(5, 5, grid=grid)
+entity = mcrfpy.Entity((5, 5), grid=grid)
 entity.sprite_index = 64  # @
 
 # UI setup
@@ -46,27 +48,27 @@ grid.position = (100, 100)
 grid.size = (450, 450)  # 15 * 30 pixels per cell
 
 # Title
-title = mcrfpy.Caption("Entity Animation Test - Square Path", 200, 20)
+title = mcrfpy.Caption(pos=(200, 20), text="Entity Animation Test - Square Path")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Status display
-status = mcrfpy.Caption("Press SPACE to start animation | Q to quit", 100, 50)
+status = mcrfpy.Caption(pos=(100, 50), text="Press SPACE to start animation | Q to quit")
 status.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(status)
 
 # Position display
-pos_display = mcrfpy.Caption(f"Entity Position: ({entity.x:.2f}, {entity.y:.2f})", 100, 70)
+pos_display = mcrfpy.Caption(pos=(100, 70), text=f"Entity Position: ({entity.x:.2f}, {entity.y:.2f})")
 pos_display.fill_color = mcrfpy.Color(255, 255, 100)
 ui.append(pos_display)
 
 # Animation info
-anim_info = mcrfpy.Caption("Animation: Not started", 400, 70)
+anim_info = mcrfpy.Caption(pos=(400, 70), text="Animation: Not started")
 anim_info.fill_color = mcrfpy.Color(100, 255, 255)
 ui.append(anim_info)
 
 # Debug info
-debug_info = mcrfpy.Caption("Debug: Waiting...", 100, 570)
+debug_info = mcrfpy.Caption(pos=(100, 570), text="Debug: Waiting...")
 debug_info.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(debug_info)
 

@@ -22,8 +22,7 @@ for x, y in walls:
     grid.at(x, y).walkable = False
 
 # Create entity
-entity = mcrfpy.Entity(2, 2)
-grid.entities.append(entity)
+entity = mcrfpy.Entity((2, 2), grid=grid)
 
 print(f"Entity at: ({entity.x}, {entity.y})")
 

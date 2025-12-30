@@ -11,51 +11,51 @@ def create_test_scenes():
     # Scene 1: Red background
     mcrfpy.createScene("red_scene")
     ui1 = mcrfpy.sceneUI("red_scene")
-    bg1 = mcrfpy.Frame(0, 0, 1024, 768, fill_color=mcrfpy.Color(255, 0, 0, 255))
-    label1 = mcrfpy.Caption(512, 384, "RED SCENE", font=mcrfpy.Font.font_ui)
-    label1.color = mcrfpy.Color(255, 255, 255, 255)
+    bg1 = mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=mcrfpy.Color(255, 0, 0, 255))
+    label1 = mcrfpy.Caption(pos=(512, 384), text="RED SCENE", font=mcrfpy.Font.font_ui)
+    label1.fill_color = mcrfpy.Color(255, 255, 255, 255)
     ui1.append(bg1)
     ui1.append(label1)
-    
+
     # Scene 2: Blue background
     mcrfpy.createScene("blue_scene")
     ui2 = mcrfpy.sceneUI("blue_scene")
-    bg2 = mcrfpy.Frame(0, 0, 1024, 768, fill_color=mcrfpy.Color(0, 0, 255, 255))
-    label2 = mcrfpy.Caption(512, 384, "BLUE SCENE", font=mcrfpy.Font.font_ui)
-    label2.color = mcrfpy.Color(255, 255, 255, 255)
+    bg2 = mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=mcrfpy.Color(0, 0, 255, 255))
+    label2 = mcrfpy.Caption(pos=(512, 384), text="BLUE SCENE", font=mcrfpy.Font.font_ui)
+    label2.fill_color = mcrfpy.Color(255, 255, 255, 255)
     ui2.append(bg2)
     ui2.append(label2)
-    
+
     # Scene 3: Green background
     mcrfpy.createScene("green_scene")
     ui3 = mcrfpy.sceneUI("green_scene")
-    bg3 = mcrfpy.Frame(0, 0, 1024, 768, fill_color=mcrfpy.Color(0, 255, 0, 255))
-    label3 = mcrfpy.Caption(512, 384, "GREEN SCENE", font=mcrfpy.Font.font_ui)
-    label3.color = mcrfpy.Color(0, 0, 0, 255)  # Black text on green
+    bg3 = mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=mcrfpy.Color(0, 255, 0, 255))
+    label3 = mcrfpy.Caption(pos=(512, 384), text="GREEN SCENE", font=mcrfpy.Font.font_ui)
+    label3.fill_color = mcrfpy.Color(0, 0, 0, 255)  # Black text on green
     ui3.append(bg3)
     ui3.append(label3)
-    
+
     # Scene 4: Menu scene with buttons
     mcrfpy.createScene("menu_scene")
     ui4 = mcrfpy.sceneUI("menu_scene")
-    bg4 = mcrfpy.Frame(0, 0, 1024, 768, fill_color=mcrfpy.Color(50, 50, 50, 255))
-    
-    title = mcrfpy.Caption(512, 100, "SCENE TRANSITION DEMO", font=mcrfpy.Font.font_ui)
-    title.color = mcrfpy.Color(255, 255, 255, 255)
+    bg4 = mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=mcrfpy.Color(50, 50, 50, 255))
+
+    title = mcrfpy.Caption(pos=(512, 100), text="SCENE TRANSITION DEMO", font=mcrfpy.Font.font_ui)
+    title.fill_color = mcrfpy.Color(255, 255, 255, 255)
     ui4.append(bg4)
     ui4.append(title)
-    
+
     # Add instruction text
-    instructions = mcrfpy.Caption(512, 200, "Press keys 1-6 for different transitions", font=mcrfpy.Font.font_ui)
-    instructions.color = mcrfpy.Color(200, 200, 200, 255)
+    instructions = mcrfpy.Caption(pos=(512, 200), text="Press keys 1-6 for different transitions", font=mcrfpy.Font.font_ui)
+    instructions.fill_color = mcrfpy.Color(200, 200, 200, 255)
     ui4.append(instructions)
-    
-    controls = mcrfpy.Caption(512, 250, "1: Fade | 2: Slide Left | 3: Slide Right | 4: Slide Up | 5: Slide Down | 6: Instant", font=mcrfpy.Font.font_ui)
-    controls.color = mcrfpy.Color(150, 150, 150, 255)
+
+    controls = mcrfpy.Caption(pos=(512, 250), text="1: Fade | 2: Slide Left | 3: Slide Right | 4: Slide Up | 5: Slide Down | 6: Instant", font=mcrfpy.Font.font_ui)
+    controls.fill_color = mcrfpy.Color(150, 150, 150, 255)
     ui4.append(controls)
-    
-    scene_info = mcrfpy.Caption(512, 300, "R: Red Scene | B: Blue Scene | G: Green Scene | M: Menu", font=mcrfpy.Font.font_ui)
-    scene_info.color = mcrfpy.Color(150, 150, 150, 255)
+
+    scene_info = mcrfpy.Caption(pos=(512, 300), text="R: Red Scene | B: Blue Scene | G: Green Scene | M: Menu", font=mcrfpy.Font.font_ui)
+    scene_info.fill_color = mcrfpy.Color(150, 150, 150, 255)
     ui4.append(scene_info)
     
     print("Created test scenes: red_scene, blue_scene, green_scene, menu_scene")

@@ -13,7 +13,7 @@ print("2. Getting UI...")
 ui = mcrfpy.sceneUI("test")
 
 print("3. Creating frame...")
-frame = mcrfpy.Frame(100, 100, 200, 200)
+frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
 ui.append(frame)
 
 print("4. Creating Animation object...")

@@ -34,12 +34,15 @@ grid = mcrfpy.Grid(
     size=(1024, 768)
 )
 
+# Add color layer for floor pattern
+color_layer = grid.add_layer("color", z_index=-1)
+
 # Simple floor pattern
 for x in range(100):
     for y in range(100):
-        cell = grid.at((x, y))
+        cell = grid.at(x, y)
         cell.tilesprite = 0
-        cell.color = (40, 40, 40, 255)
+        color_layer.set(x, y, mcrfpy.Color(40, 40, 40, 255))
 
 # Create 50 entities with random positions and velocities
 entities = []
@@ -47,15 +50,15 @@ ENTITY_COUNT = 50
 
 for i in range(ENTITY_COUNT):
     entity = mcrfpy.Entity(
-        grid_pos=(random.randint(0, 99), random.randint(0, 99)),
-        sprite_index=random.randint(10, 20)  # Use varied sprites
+        (random.randint(0, 99), random.randint(0, 99)),
+        sprite_index=random.randint(10, 20),  # Use varied sprites
+        grid=grid
     )
 
-    # Give each entity a random velocity
+    # Give each entity a random velocity (stored as Python attributes)
     entity.velocity_x = random.uniform(-0.5, 0.5)
     entity.velocity_y = random.uniform(-0.5, 0.5)
 
-    grid.entities.append(entity)
     entities.append(entity)
 
 ui.append(grid)

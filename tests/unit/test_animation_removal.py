@@ -42,14 +42,14 @@ mcrfpy.setScene("test")
 ui = mcrfpy.sceneUI("test")
 
 # Add title and subtitle (to preserve during clearing)
-title = mcrfpy.Caption("Test Title", 400, 20)
-subtitle = mcrfpy.Caption("Test Subtitle", 400, 50)
+title = mcrfpy.Caption(pos=(400, 20), text="Test Title")
+subtitle = mcrfpy.Caption(pos=(400, 50), text="Test Subtitle")
 ui.extend([title, subtitle])
 
 # Create initial animated objects
 print("Creating initial animated objects...")
 for i in range(10):
-    f = mcrfpy.Frame(50 + i*30, 100, 25, 25)
+    f = mcrfpy.Frame(pos=(50 + i*30, 100), size=(25, 25))
     f.fill_color = mcrfpy.Color(255, 100, 100)
     ui.append(f)
     

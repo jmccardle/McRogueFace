@@ -18,6 +18,7 @@ END_COLOR = mcrfpy.Color(100, 100, 255)    # Light blue
 
 # Global state
 grid = None
+color_layer = None
 entities = []
 current_path_index = 0
 path_combinations = []
@@ -25,14 +26,17 @@ current_path = []
 
 def create_map():
     """Create the map with entities"""
-    global grid, entities
-    
+    global grid, color_layer, entities
+
     mcrfpy.createScene("dijkstra_cycle")
-    
+
     # Create grid
     grid = mcrfpy.Grid(grid_x=14, grid_y=10)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
-    
+
+    # Add color layer for cell coloring
+    color_layer = grid.add_layer("color", z_index=-1)
+
     # Map layout
     map_layout = [
         "..............",  # Row 0
@@ -46,29 +50,28 @@ def create_map():
         "..W.WWW.......",  # Row 8
         "..............",  # Row 9
     ]
-    
+
     # Create the map
     entity_positions = []
     for y, row in enumerate(map_layout):
         for x, char in enumerate(row):
             cell = grid.at(x, y)
-            
+
             if char == 'W':
                 cell.walkable = False
-                cell.color = WALL_COLOR
+                color_layer.set(x, y, WALL_COLOR)
             else:
                 cell.walkable = True
-                cell.color = FLOOR_COLOR
-                
+                color_layer.set(x, y, FLOOR_COLOR)
+
                 if char == 'E':
                     entity_positions.append((x, y))
-    
+
     # Create entities
     entities = []
     for i, (x, y) in enumerate(entity_positions):
-        entity = mcrfpy.Entity(x, y)
+        entity = mcrfpy.Entity((x, y), grid=grid)
         entity.sprite_index = 49 + i  # '1', '2', '3'
-        grid.entities.append(entity)
         entities.append(entity)
     
     print("Entities created:")
@@ -113,48 +116,48 @@ def create_map():
 def clear_path_colors():
     """Reset all floor tiles to original color"""
     global current_path
-    
+
     for y in range(grid.grid_y):
         for x in range(grid.grid_x):
             cell = grid.at(x, y)
             if cell.walkable:
-                cell.color = FLOOR_COLOR
-    
+                color_layer.set(x, y, FLOOR_COLOR)
+
     current_path = []
 
 def show_path(index):
     """Show a specific path combination"""
     global current_path_index, current_path
-    
+
     if not path_combinations:
         status_text.text = "No valid paths available (Entity 1 is trapped!)"
         return
-    
+
     current_path_index = index % len(path_combinations)
     from_idx, to_idx, path = path_combinations[current_path_index]
-    
+
     # Clear previous path
     clear_path_colors()
-    
+
     # Get entities
     e_from = entities[from_idx]
     e_to = entities[to_idx]
-    
+
     # Color the path
     current_path = path
     if path:
         # Color start and end
-        grid.at(int(e_from.x), int(e_from.y)).color = START_COLOR
-        grid.at(int(e_to.x), int(e_to.y)).color = END_COLOR
-        
+        color_layer.set(int(e_from.x), int(e_from.y), START_COLOR)
+        color_layer.set(int(e_to.x), int(e_to.y), END_COLOR)
+
         # Color intermediate steps
         for i, (x, y) in enumerate(path):
             if i > 0 and i < len(path) - 1:
-                grid.at(x, y).color = PATH_COLOR
-    
+                color_layer.set(x, y, PATH_COLOR)
+
     # Update status
     status_text.text = f"Path {current_path_index + 1}/{len(path_combinations)}: Entity {from_idx+1} → Entity {to_idx+1} ({len(path)} steps)"
-    
+
     # Update path display
     path_display = []
     for i, (x, y) in enumerate(path[:5]):  # Show first 5 steps
@@ -194,27 +197,27 @@ grid.size = (560, 400)
 grid.position = (120, 100)
 
 # Add title
-title = mcrfpy.Caption("Dijkstra Pathfinding - Cycle Paths", 200, 20)
+title = mcrfpy.Caption(pos=(200, 20), text="Dijkstra Pathfinding - Cycle Paths")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Add status
-status_text = mcrfpy.Caption("Press SPACE to cycle paths", 120, 60)
+status_text = mcrfpy.Caption(pos=(120, 60), text="Press SPACE to cycle paths")
 status_text.fill_color = mcrfpy.Color(255, 255, 100)
 ui.append(status_text)
 
 # Add path display
-path_text = mcrfpy.Caption("Path: None", 120, 520)
+path_text = mcrfpy.Caption(pos=(120, 520), text="Path: None")
 path_text.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(path_text)
 
 # Add controls
-controls = mcrfpy.Caption("SPACE/N=Next, P=Previous, R=Refresh, Q=Quit", 120, 540)
+controls = mcrfpy.Caption(pos=(120, 540), text="SPACE/N=Next, P=Previous, R=Refresh, Q=Quit")
 controls.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(controls)
 
 # Add legend
-legend = mcrfpy.Caption("Red=Start, Blue=End, Green=Path, Dark=Wall", 120, 560)
+legend = mcrfpy.Caption(pos=(120, 560), text="Red=Start, Blue=End, Green=Path, Dark=Wall")
 legend.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend)
 

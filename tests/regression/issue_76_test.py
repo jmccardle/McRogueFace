@@ -10,10 +10,10 @@ import sys
 
 # Create a derived Entity class
 class CustomEntity(mcrfpy.Entity):
-    def __init__(self, x, y):
-        super().__init__(x, y)
+    def __init__(self, pos):
+        super().__init__(pos)
         self.custom_attribute = "I am custom!"
-    
+
     def custom_method(self):
         return "Custom method called"
 
@@ -21,11 +21,11 @@ def run_test(runtime):
     """Test that derived entity classes maintain their type in collections"""
     try:
         # Create a grid
-        grid = mcrfpy.Grid(10, 10)
-        
+        grid = mcrfpy.Grid(grid_size=(10, 10))
+
         # Create instances of base and derived entities
-        base_entity = mcrfpy.Entity(1, 1)
-        custom_entity = CustomEntity(2, 2)
+        base_entity = mcrfpy.Entity((1, 1))
+        custom_entity = CustomEntity((2, 2))
         
         # Add them to the grid's entity collection
         grid.entities.append(base_entity)

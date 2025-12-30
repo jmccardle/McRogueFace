@@ -9,7 +9,7 @@ print("=" * 50)
 # Test 1: Entity without grid
 print("Test 1: Entity not in grid")
 try:
-    entity = mcrfpy.Entity(5, 5)
+    entity = mcrfpy.Entity((5, 5))
     path = entity.path_to(8, 8)
     print("  ✗ Should have failed for entity not in grid")
 except ValueError as e:
@@ -31,8 +31,7 @@ for y in range(5):
 for x in range(5):
     grid.at(x, 2).walkable = False
 
-entity = mcrfpy.Entity(1, 1)
-grid.entities.append(entity)
+entity = mcrfpy.Entity((1, 1), grid=grid)
 
 try:
     path = entity.path_to(1, 4)

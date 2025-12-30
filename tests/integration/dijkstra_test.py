@@ -128,12 +128,12 @@ grid.position = (50, 50)
 grid.size = (500, 300)
 
 # Add title
-title = mcrfpy.Caption("Dijkstra Pathfinding Test", 200, 10)
+title = mcrfpy.Caption(pos=(200, 10), text="Dijkstra Pathfinding Test")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Add legend
-legend = mcrfpy.Caption("Red=Entity1  Green=Entity2  Blue=Entity3  Cyan=Path 1→3", 50, 360)
+legend = mcrfpy.Caption(pos=(50, 360), text="Red=Entity1  Green=Entity2  Blue=Entity3  Cyan=Path 1→3")
 legend.fill_color = mcrfpy.Color(180, 180, 180)
 ui.append(legend)
 

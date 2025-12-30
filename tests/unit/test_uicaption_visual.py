@@ -69,11 +69,11 @@ def main():
     mcrfpy.setScene("test")
     
     # Create multiple captions for testing
-    caption1 = mcrfpy.Caption(50, 50, "Caption 1: Normal", fill_color=(255, 255, 255))
-    caption2 = mcrfpy.Caption(50, 100, "Caption 2: Will be invisible", fill_color=(255, 200, 200))
-    caption3 = mcrfpy.Caption(50, 150, "Caption 3: 50% opacity", fill_color=(200, 255, 200))
-    caption4 = mcrfpy.Caption(50, 200, "Caption 4: 25% opacity", fill_color=(200, 200, 255))
-    caption5 = mcrfpy.Caption(50, 250, "Caption 5: 0% opacity", fill_color=(255, 255, 200))
+    caption1 = mcrfpy.Caption(pos=(50, 50), text="Caption 1: Normal", fill_color=mcrfpy.Color(255, 255, 255))
+    caption2 = mcrfpy.Caption(pos=(50, 100), text="Caption 2: Will be invisible", fill_color=mcrfpy.Color(255, 200, 200))
+    caption3 = mcrfpy.Caption(pos=(50, 150), text="Caption 3: 50% opacity", fill_color=mcrfpy.Color(200, 255, 200))
+    caption4 = mcrfpy.Caption(pos=(50, 200), text="Caption 4: 25% opacity", fill_color=mcrfpy.Color(200, 200, 255))
+    caption5 = mcrfpy.Caption(pos=(50, 250), text="Caption 5: 0% opacity", fill_color=mcrfpy.Color(255, 255, 200))
     
     # Add captions to scene
     ui = mcrfpy.sceneUI("test")
@@ -84,7 +84,7 @@ def main():
     ui.append(caption5)
     
     # Also add a frame as background to see transparency better
-    frame = mcrfpy.Frame(40, 40, 400, 250, fill_color=(50, 50, 50))
+    frame = mcrfpy.Frame(pos=(40, 40), size=(400, 250), fill_color=mcrfpy.Color(50, 50, 50))
     frame.z_index = -1  # Put it behind the captions
     ui.append(frame)
     

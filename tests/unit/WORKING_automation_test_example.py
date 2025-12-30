@@ -51,17 +51,17 @@ mcrfpy.setScene("timer_test_scene")
 ui = mcrfpy.sceneUI("timer_test_scene")
 
 # Add a bright red frame that should be visible
-frame = mcrfpy.Frame(100, 100, 400, 300,
+frame = mcrfpy.Frame(pos=(100, 100), size=(400, 300),
                     fill_color=mcrfpy.Color(255, 0, 0),      # Bright red
                     outline_color=mcrfpy.Color(255, 255, 255), # White outline
                     outline=5.0)
 ui.append(frame)
 
 # Add text
-caption = mcrfpy.Caption(mcrfpy.Vector(150, 150),
+caption = mcrfpy.Caption(pos=(150, 150),
                         text="TIMER TEST - SHOULD BE VISIBLE",
                         fill_color=mcrfpy.Color(255, 255, 255))
-caption.size = 24
+caption.font_size = 24
 frame.children.append(caption)
 
 # Add click handler to demonstrate interaction

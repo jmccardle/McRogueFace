@@ -73,6 +73,9 @@ mcrfpy.createScene("chain_test")
 grid = mcrfpy.Grid(grid_x=20, grid_y=15)
 grid.fill_color = mcrfpy.Color(20, 20, 30)
 
+# Add a color layer for cell coloring
+color_layer = grid.add_layer("color", z_index=-1)
+
 # Simple map
 for y in range(15):
     for x in range(20):
@@ -80,17 +83,17 @@ for y in range(15):
         if x == 0 or x == 19 or y == 0 or y == 14:
             cell.walkable = False
             cell.transparent = False
-            cell.color = mcrfpy.Color(60, 40, 40)
+            color_layer.set(x, y, mcrfpy.Color(60, 40, 40))
         else:
             cell.walkable = True
             cell.transparent = True
-            cell.color = mcrfpy.Color(100, 100, 120)
+            color_layer.set(x, y, mcrfpy.Color(100, 100, 120))
 
 # Create entities
-player = mcrfpy.Entity(2, 2, grid=grid)
+player = mcrfpy.Entity((2, 2), grid=grid)
 player.sprite_index = 64  # @
 
-enemy = mcrfpy.Entity(17, 12, grid=grid)
+enemy = mcrfpy.Entity((17, 12), grid=grid)
 enemy.sprite_index = 69  # E
 
 # UI setup
@@ -99,15 +102,15 @@ ui.append(grid)
 grid.position = (100, 100)
 grid.size = (600, 450)
 
-title = mcrfpy.Caption("Animation Chaining Test", 300, 20)
+title = mcrfpy.Caption(pos=(300, 20), text="Animation Chaining Test")
 title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
-status = mcrfpy.Caption("Press 1: Animate Player | 2: Animate Enemy | 3: Both | Q: Quit", 100, 50)
+status = mcrfpy.Caption(pos=(100, 50), text="Press 1: Animate Player | 2: Animate Enemy | 3: Both | Q: Quit")
 status.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(status)
 
-info = mcrfpy.Caption("Status: Ready", 100, 70)
+info = mcrfpy.Caption(pos=(100, 70), text="Status: Ready")
 info.fill_color = mcrfpy.Color(100, 255, 100)
 ui.append(info)
 
