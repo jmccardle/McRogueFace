@@ -625,4 +625,123 @@ After modifying C++ inline documentation with MCRF_* macros:
 5. **No drift**: Impossible for docs and code to disagree - they're the same file!
 
 The macro system ensures complete, consistent documentation across all Python bindings.
+
+### Adding Documentation for New Python Types
+
+When adding a new Python class/type to the engine, follow these steps to ensure it's properly documented:
+
+#### 1. Class Docstring (tp_doc)
+
+In the `PyTypeObject` definition (usually in the header file), set `tp_doc` with a comprehensive docstring:
+
+```cpp
+// In PyMyClass.h
+.tp_doc = PyDoc_STR(
+    "MyClass(arg1: type, arg2: type)\n\n"
+    "Brief description of what this class does.\n\n"
+    "Args:\n"
+    "    arg1: Description of first argument.\n"
+    "    arg2: Description of second argument.\n\n"
+    "Properties:\n"
+    "    prop1 (type, read-only): Description of property.\n"
+    "    prop2 (type): Description of writable property.\n\n"
+    "Example:\n"
+    "    obj = mcrfpy.MyClass('example', 42)\n"
+    "    print(obj.prop1)\n"
+),
+```
+
+#### 2. Method Documentation (PyMethodDef)
+
+For each method in the `methods[]` array, use the MCRF_* macros:
+
+```cpp
+// In PyMyClass.cpp
+PyMethodDef PyMyClass::methods[] = {
+    {"do_something", (PyCFunction)do_something, METH_VARARGS,
+     MCRF_METHOD(MyClass, do_something,
+         MCRF_SIG("(value: int)", "bool"),
+         MCRF_DESC("Does something with the value."),
+         MCRF_ARGS_START
+         MCRF_ARG("value", "The value to process")
+         MCRF_RETURNS("True if successful, False otherwise")
+     )},
+    {NULL}  // Sentinel
+};
+```
+
+#### 3. Property Documentation (PyGetSetDef)
+
+For each property in the `getsetters[]` array, include a docstring:
+
+```cpp
+// In PyMyClass.cpp
+PyGetSetDef PyMyClass::getsetters[] = {
+    {"property_name", (getter)get_property, (setter)set_property,
+     "Property description. Include (type, read-only) if not writable.",
+     NULL},
+    {NULL}  // Sentinel
+};
+```
+
+**Important for read-only properties:** Include "read-only" in the docstring so the doc generator detects it:
+```cpp
+{"name", (getter)get_name, NULL,  // NULL setter = read-only
+ "Object name (str, read-only). Unique identifier.",
+ NULL},
+```
+
+#### 4. Register Type in Module
+
+Ensure the type is properly registered in `McRFPy_API.cpp` and its methods/getsetters are assigned:
+
+```cpp
+// Set methods and getsetters before PyType_Ready
+mcrfpydef::PyMyClassType.tp_methods = PyMyClass::methods;
+mcrfpydef::PyMyClassType.tp_getset = PyMyClass::getsetters;
+
+// Then call PyType_Ready and add to module
+```
+
+#### 5. Regenerate Documentation
+
+After adding the new type, regenerate all docs:
+
+```bash
+make -j4  # Rebuild with new documentation
+cd build
+./mcrogueface --headless --exec ../tools/generate_dynamic_docs.py
+cp docs/API_REFERENCE_DYNAMIC.md ../docs/
+cp docs/api_reference_dynamic.html ../docs/
+```
+
+#### 6. Update Type Stubs (Optional)
+
+For IDE support, update `stubs/mcrfpy.pyi` with the new class:
+
+```python
+class MyClass:
+    """Brief description."""
+    def __init__(self, arg1: str, arg2: int) -> None: ...
+    @property
+    def prop1(self) -> str: ...
+    def do_something(self, value: int) -> bool: ...
+```
+
+### Documentation Extraction Details
+
+The doc generator (`tools/generate_dynamic_docs.py`) uses Python introspection:
+
+- **Classes**: Detected via `inspect.isclass()`, docstring from `cls.__doc__`
+- **Methods**: Detected via `callable()` check on class attributes
+- **Properties**: Detected via `types.GetSetDescriptorType` (C++ extension) or `property` (Python)
+- **Read-only detection**: Checks if "read-only" appears in property docstring
+
+If documentation isn't appearing, verify:
+1. The type is exported to the `mcrfpy` module
+2. Methods/getsetters arrays are properly assigned before `PyType_Ready()`
+3. Docstrings don't contain null bytes or invalid UTF-8
+
+---
+
 - Close issues automatically in gitea by adding to the commit message "closes #X", where X is the issue number. This associates the issue closure with the specific commit, so granular commits are preferred. You should only use the MCP tool to close issues directly when discovering that the issue is already complete; when committing changes, always such "closes" (or the opposite, "reopens") references to related issues. If on a feature branch, the issue will be referenced by the commit, and when merged to master, the issue will be actually closed (or reopened).

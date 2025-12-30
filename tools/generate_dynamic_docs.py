@@ -10,6 +10,7 @@ import inspect
 import datetime
 import html
 import re
+import types
 from pathlib import Path
 
 def transform_doc_links(docstring, format='html', base_url=''):
@@ -214,10 +215,20 @@ def get_all_classes():
                             "parsed": parse_docstring(method_doc)
                         }
                     elif isinstance(attr, property):
+                        # Pure Python property
                         prop_doc = (attr.fget.__doc__ if attr.fget else "") or ""
                         class_info["properties"][attr_name] = {
                             "doc": prop_doc,
                             "readonly": attr.fset is None
+                        }
+                    elif isinstance(attr, (types.GetSetDescriptorType, types.MemberDescriptorType)):
+                        # C++ extension property (PyGetSetDef or PyMemberDef)
+                        prop_doc = attr.__doc__ or ""
+                        # Check if docstring indicates read-only (convention: "read-only" in description)
+                        readonly = "read-only" in prop_doc.lower()
+                        class_info["properties"][attr_name] = {
+                            "doc": prop_doc,
+                            "readonly": readonly
                         }
                 except:
                     pass

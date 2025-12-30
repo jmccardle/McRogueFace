@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2025-12-28 14:29:42*
+*Generated on 2025-12-29 14:24:58*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -289,6 +289,13 @@ Note:
 
 Animation object for animating UI properties
 
+**Properties:**
+- `duration` *(read-only)*: Animation duration in seconds (float, read-only). Total time for the animation to complete.
+- `elapsed` *(read-only)*: Elapsed time in seconds (float, read-only). Time since the animation started.
+- `is_complete` *(read-only)*: Whether animation is complete (bool, read-only). True when elapsed >= duration or complete() was called.
+- `is_delta` *(read-only)*: Whether animation uses delta mode (bool, read-only). In delta mode, the target value is added to the starting value.
+- `property` *(read-only)*: Target property name (str, read-only). The property being animated (e.g., 'pos', 'opacity', 'sprite_index').
+
 **Methods:**
 
 #### `complete() -> None`
@@ -376,6 +383,28 @@ Attributes:
     name (str): Element name
 
 
+**Properties:**
+- `bounds`: Bounding rectangle (x, y, width, height) in local coordinates.
+- `center`: Center position of the arc
+- `color`: Arc color
+- `end_angle`: Ending angle in degrees
+- `global_bounds`: Bounding rectangle (x, y, width, height) in screen coordinates.
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `name`: Name for finding this element.
+- `on_click`: Callable executed when arc is clicked.
+- `on_enter`: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `pos`: Position as a Vector (same as center).
+- `radius`: Arc radius in pixels
+- `start_angle`: Starting angle in degrees
+- `thickness`: Line thickness
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `z_index`: Z-order for rendering (lower values rendered first).
+
 **Methods:**
 
 #### `get_bounds() -> tuple`
@@ -447,6 +476,29 @@ Attributes:
     name (str): Element name
     w, h (float): Read-only computed size based on text and font
 
+**Properties:**
+- `bounds`: Bounding rectangle (x, y, width, height) in local coordinates.
+- `fill_color`: Fill color of the text
+- `font_size`: Font size (integer) in points
+- `global_bounds`: Bounding rectangle (x, y, width, height) in screen coordinates.
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `name`: Name for finding elements
+- `on_click`: Callable executed when object is clicked. Function receives (x, y) coordinates of click.
+- `on_enter`: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `outline`: Thickness of the border
+- `outline_color`: Outline color of the text
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `pos`: (x, y) vector
+- `text`: The text displayed
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `x`: X coordinate of top-left corner
+- `y`: Y coordinate of top-left corner
+- `z_index`: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
+
 **Methods:**
 
 #### `get_bounds() -> tuple`
@@ -511,6 +563,27 @@ Attributes:
     name (str): Element name
 
 
+**Properties:**
+- `bounds`: Bounding rectangle (x, y, width, height) in local coordinates.
+- `center`: Center position of the circle
+- `fill_color`: Fill color of the circle
+- `global_bounds`: Bounding rectangle (x, y, width, height) in screen coordinates.
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `name`: Name for finding this element.
+- `on_click`: Callable executed when circle is clicked.
+- `on_enter`: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `outline`: Outline thickness (0 for no outline)
+- `outline_color`: Outline color of the circle
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `pos`: Position as a Vector (same as center).
+- `radius`: Circle radius in pixels
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `z_index`: Z-order for rendering (lower values rendered first).
+
 **Methods:**
 
 #### `get_bounds() -> tuple`
@@ -544,6 +617,12 @@ Note:
 ### Color
 
 SFML Color Object
+
+**Properties:**
+- `a`: Alpha component (0-255, where 0=transparent, 255=opaque). Automatically clamped to valid range.
+- `b`: Blue component (0-255). Automatically clamped to valid range.
+- `g`: Green component (0-255). Automatically clamped to valid range.
+- `r`: Red component (0-255). Automatically clamped to valid range.
 
 **Methods:**
 
@@ -600,6 +679,11 @@ Methods:
     set(x, y, color): Set color at cell position
     fill(color): Fill entire layer with color
 
+**Properties:**
+- `grid_size`: Layer dimensions as (width, height) tuple.
+- `visible`: Whether the layer is rendered.
+- `z_index`: Layer z-order. Negative values render below entities.
+
 **Methods:**
 
 #### `apply_perspective(entity, visible=None, discovered=None, unknown=None)`
@@ -643,6 +727,12 @@ Call this after the entity moves to update the visibility layer.
 ### Drawable
 
 Base class for all drawable UI elements
+
+**Properties:**
+- `on_click`: Callable executed when object is clicked. Function receives (x, y) coordinates of click.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `z_index`: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
 
 **Methods:**
 
@@ -702,6 +792,19 @@ Attributes:
     visible (bool): Visibility state
     opacity (float): Opacity value
     name (str): Element name
+
+**Properties:**
+- `draw_pos`: Entity position (graphically)
+- `grid`: Grid this entity belongs to. Get: Returns the Grid or None. Set: Assign a Grid to move entity, or None to remove from grid.
+- `gridstate`: Grid point states for the entity
+- `name`: Name for finding elements
+- `opacity`: Opacity (0.0 = transparent, 1.0 = opaque)
+- `pos`: Entity position (integer grid coordinates)
+- `sprite_index`: Sprite index on the texture on the display
+- `sprite_number`: Sprite index (DEPRECATED: use sprite_index instead)
+- `visible`: Visibility flag
+- `x`: Entity x position
+- `y`: Entity y position
 
 **Methods:**
 
@@ -810,6 +913,12 @@ Remove first occurrence of entity. Raises ValueError if not found.
 
 *Inherits from: IntEnum*
 
+**Properties:**
+- `denominator`: the denominator of a rational number in lowest terms
+- `imag`: the imaginary part of a complex number
+- `numerator`: the numerator of a rational number in lowest terms
+- `real`: the real part of a complex number
+
 **Methods:**
 
 #### `as_integer_ratio(...)`
@@ -887,6 +996,10 @@ Return an array of bytes representing an integer.
 
 SFML Font Object
 
+**Properties:**
+- `family` *(read-only)*: Font family name (str, read-only). Retrieved from font metadata.
+- `source` *(read-only)*: Source filename path (str, read-only). The path used to load this font.
+
 **Methods:**
 
 ### Frame
@@ -932,6 +1045,32 @@ Attributes:
     name (str): Element name
     clip_children (bool): Whether to clip children to frame bounds
     cache_subtree (bool): Cache subtree rendering to texture
+
+**Properties:**
+- `bounds`: Bounding rectangle (x, y, width, height) in local coordinates.
+- `cache_subtree`: #144: Cache subtree rendering to texture for performance
+- `children`: UICollection of objects on top of this one
+- `clip_children`: Whether to clip children to frame bounds
+- `fill_color`: Fill color of the rectangle
+- `global_bounds`: Bounding rectangle (x, y, width, height) in screen coordinates.
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `h`: height of the rectangle
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `name`: Name for finding elements
+- `on_click`: Callable executed when object is clicked. Function receives (x, y) coordinates of click.
+- `on_enter`: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `outline`: Thickness of the border
+- `outline_color`: Outline color of the rectangle
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `pos`: Position as a Vector
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `w`: width of the rectangle
+- `x`: X coordinate of top-left corner
+- `y`: Y coordinate of top-left corner
+- `z_index`: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
 
 **Methods:**
 
@@ -1014,6 +1153,48 @@ Attributes:
     opacity (float): Opacity value
     z_index (int): Rendering order
     name (str): Element name
+
+**Properties:**
+- `bounds`: Bounding rectangle (x, y, width, height) in local coordinates.
+- `center`: Grid coordinate at the center of the Grid's view (pan)
+- `center_x`: center of the view X-coordinate
+- `center_y`: center of the view Y-coordinate
+- `children`: UICollection of UIDrawable children (speech bubbles, effects, overlays)
+- `entities`: EntityCollection of entities on this grid
+- `fill_color`: Background fill color of the grid
+- `fov`: FOV algorithm for this grid (mcrfpy.FOV enum). Used by entity.updateVisibility() and layer methods when fov=None.
+- `fov_radius`: Default FOV radius for this grid. Used when radius not specified.
+- `global_bounds`: Bounding rectangle (x, y, width, height) in screen coordinates.
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `grid_size`: Grid dimensions (grid_x, grid_y)
+- `grid_x`: Grid x dimension
+- `grid_y`: Grid y dimension
+- `h`: visible widget height
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `hovered_cell`: Currently hovered cell as (x, y) tuple, or None if not hovering.
+- `layers`: List of grid layers (ColorLayer, TileLayer) sorted by z_index
+- `name`: Name for finding elements
+- `on_cell_click`: Callback when a grid cell is clicked. Called with (cell_x, cell_y).
+- `on_cell_enter`: Callback when mouse enters a grid cell. Called with (cell_x, cell_y).
+- `on_cell_exit`: Callback when mouse exits a grid cell. Called with (cell_x, cell_y).
+- `on_click`: Callable executed when object is clicked. Function receives (x, y) coordinates of click.
+- `on_enter`: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `perspective`: Entity whose perspective to use for FOV rendering (None for omniscient view). Setting an entity automatically enables perspective mode.
+- `perspective_enabled`: Whether to use perspective-based FOV rendering. When True with no valid entity, all cells appear undiscovered.
+- `pos`: Position of the grid as Vector
+- `position`: Position of the grid (x, y)
+- `size`: Size of the grid (width, height)
+- `texture`: Texture of the grid
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `w`: visible widget width
+- `x`: top-left corner X-coordinate
+- `y`: top-left corner Y-coordinate
+- `z_index`: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
+- `zoom`: zoom factor for displaying the Grid
 
 **Methods:**
 
@@ -1165,11 +1346,21 @@ Note:
 
 UIGridPoint object
 
+**Properties:**
+- `entities` *(read-only)*: List of entities at this grid cell (read-only)
+- `transparent`: Is the GridPoint transparent
+- `walkable`: Is the GridPoint walkable
+
 **Methods:**
 
 ### GridPointState
 
 UIGridPointState object
+
+**Properties:**
+- `discovered`: Has the GridPointState been discovered
+- `point`: GridPoint at this position (None if not discovered)
+- `visible`: Is the GridPointState visible
 
 **Methods:**
 
@@ -1205,6 +1396,26 @@ Attributes:
     name (str): Element name
 
 
+**Properties:**
+- `bounds`: Bounding rectangle (x, y, width, height) in local coordinates.
+- `color`: Line color as a Color object.
+- `end`: Ending point of the line as a Vector.
+- `global_bounds`: Bounding rectangle (x, y, width, height) in screen coordinates.
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `name`: Name for finding this element.
+- `on_click`: Callable executed when line is clicked.
+- `on_enter`: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `pos`: Position as a Vector (midpoint of line).
+- `start`: Starting point of the line as a Vector.
+- `thickness`: Line thickness in pixels.
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `z_index`: Z-order for rendering (lower values rendered first).
+
 **Methods:**
 
 #### `get_bounds() -> tuple`
@@ -1237,7 +1448,56 @@ Note:
 
 ### Scene
 
-Base class for object-oriented scenes
+Scene(name: str)
+
+Object-oriented scene management with lifecycle callbacks.
+
+This is the recommended approach for scene management, replacing module-level
+functions like createScene(), setScene(), and sceneUI(). Key advantage: you can
+set on_key handlers on ANY scene, not just the currently active one.
+
+Args:
+    name: Unique identifier for this scene. Used for scene transitions.
+
+Properties:
+    name (str, read-only): Scene's unique identifier.
+    active (bool, read-only): Whether this scene is currently displayed.
+    children (UICollection, read-only): UI elements in this scene. Modify to add/remove elements.
+    on_key (callable): Keyboard handler. Set on ANY scene, regardless of which is active!
+    pos (Vector): Position offset for all UI elements.
+    visible (bool): Whether the scene renders.
+    opacity (float): Scene transparency (0.0-1.0).
+
+Lifecycle Callbacks (override in subclass):
+    on_enter(): Called when scene becomes active via activate().
+    on_exit(): Called when scene is deactivated (another scene activates).
+    on_keypress(key: str, action: str): Called for keyboard events. Alternative to on_key property.
+    update(dt: float): Called every frame with delta time in seconds.
+    on_resize(width: int, height: int): Called when window is resized.
+
+Example:
+    # Basic usage (replacing module functions):
+    scene = mcrfpy.Scene('main_menu')
+    scene.children.append(mcrfpy.Caption(text='Welcome', pos=(100, 100)))
+    scene.on_key = lambda key, action: print(f'Key: {key}')
+    scene.activate()  # Switch to this scene
+
+    # Subclassing for lifecycle:
+    class GameScene(mcrfpy.Scene):
+        def on_enter(self):
+            print('Game started!')
+        def update(self, dt):
+            self.player.move(dt)
+
+
+**Properties:**
+- `active` *(read-only)*: Whether this scene is currently active (bool, read-only). Only one scene can be active at a time.
+- `children` *(read-only)*: UI element collection for this scene (UICollection, read-only). Use to add, remove, or iterate over UI elements. Changes are reflected immediately.
+- `name` *(read-only)*: Scene name (str, read-only). Unique identifier for this scene.
+- `on_key`: Keyboard event handler (callable or None). Function receives (key: str, action: str) for keyboard events. Set to None to remove the handler.
+- `opacity`: Scene opacity (0.0-1.0). Applied to all UI elements during rendering.
+- `pos`: Scene position offset (Vector). Applied to all UI elements during rendering.
+- `visible`: Scene visibility (bool). If False, scene is not rendered.
 
 **Methods:**
 
@@ -1299,6 +1559,30 @@ Attributes:
     name (str): Element name
     w, h (float): Read-only computed size based on texture and scale
 
+**Properties:**
+- `bounds`: Bounding rectangle (x, y, width, height) in local coordinates.
+- `global_bounds`: Bounding rectangle (x, y, width, height) in screen coordinates.
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `name`: Name for finding elements
+- `on_click`: Callable executed when object is clicked. Function receives (x, y) coordinates of click.
+- `on_enter`: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `pos`: Position as a Vector
+- `scale`: Uniform size factor
+- `scale_x`: Horizontal scale factor
+- `scale_y`: Vertical scale factor
+- `sprite_index`: Which sprite on the texture is shown
+- `sprite_number`: Sprite index (DEPRECATED: use sprite_index instead)
+- `texture`: Texture object
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `x`: X coordinate of top-left corner
+- `y`: Y coordinate of top-left corner
+- `z_index`: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
+
 **Methods:**
 
 #### `get_bounds() -> tuple`
@@ -1333,6 +1617,14 @@ Note:
 
 SFML Texture Object
 
+**Properties:**
+- `sheet_height` *(read-only)*: Number of sprite rows in the texture sheet (int, read-only). Calculated as texture_height / sprite_height.
+- `sheet_width` *(read-only)*: Number of sprite columns in the texture sheet (int, read-only). Calculated as texture_width / sprite_width.
+- `source` *(read-only)*: Source filename path (str, read-only). The path used to load this texture.
+- `sprite_count` *(read-only)*: Total number of sprites in the texture sheet (int, read-only). Equals sheet_width * sheet_height.
+- `sprite_height` *(read-only)*: Height of each sprite in pixels (int, read-only). Specified during texture initialization.
+- `sprite_width` *(read-only)*: Width of each sprite in pixels (int, read-only). Specified during texture initialization.
+
 **Methods:**
 
 ### TileLayer
@@ -1356,6 +1648,12 @@ Methods:
     at(x, y): Get tile index at cell position
     set(x, y, index): Set tile index at cell position
     fill(index): Fill entire layer with tile index
+
+**Properties:**
+- `grid_size`: Layer dimensions as (width, height) tuple.
+- `texture`: Texture atlas for tile sprites.
+- `visible`: Whether the layer is rendered.
+- `z_index`: Layer z-order. Negative values render below entities.
 
 **Methods:**
 
@@ -1411,6 +1709,15 @@ Example:
     timer.pause()  # Pause timer
     timer.resume() # Resume timer
     timer.once = True  # Make it one-shot
+
+**Properties:**
+- `active` *(read-only)*: Whether the timer is active and not paused (bool, read-only). False if cancelled or paused.
+- `callback`: The callback function to be called when timer fires (callable). Can be changed while timer is running.
+- `interval`: Timer interval in milliseconds (int). Must be positive. Can be changed while timer is running.
+- `name` *(read-only)*: Timer name (str, read-only). Unique identifier for this timer.
+- `once`: Whether the timer stops after firing once (bool). If False, timer repeats indefinitely.
+- `paused` *(read-only)*: Whether the timer is paused (bool, read-only). Paused timers preserve their remaining time.
+- `remaining` *(read-only)*: Time remaining until next trigger in milliseconds (int, read-only). Preserved when timer is paused.
 
 **Methods:**
 
@@ -1508,6 +1815,11 @@ Iterator for a collection of UI objects
 
 SFML Vector Object
 
+**Properties:**
+- `int` *(read-only)*: Integer tuple (floor of x and y) for use as dict keys. Read-only.
+- `x`: X coordinate of the vector (float)
+- `y`: Y coordinate of the vector (float)
+
 **Methods:**
 
 #### `angle() -> float`
@@ -1573,6 +1885,16 @@ Note:
 ### Window
 
 Window singleton for accessing and modifying the game window properties
+
+**Properties:**
+- `framerate_limit`: Frame rate limit in FPS (int, 0 for unlimited). Caps maximum frame rate.
+- `fullscreen`: Window fullscreen state (bool). Setting this recreates the window.
+- `game_resolution`: Fixed game resolution as (width, height) tuple. Enables resolution-independent rendering with scaling.
+- `resolution`: Window resolution as (width, height) tuple. Setting this recreates the window.
+- `scaling_mode`: Viewport scaling mode (str): 'center' (no scaling), 'stretch' (fill window), or 'fit' (maintain aspect ratio).
+- `title`: Window title string (str). Displayed in the window title bar.
+- `visible`: Window visibility state (bool). Hidden windows still process events.
+- `vsync`: Vertical sync enabled state (bool). Prevents screen tearing but may limit framerate.
 
 **Methods:**
 

@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2025-12-28 14:29:42</em></p>
+        <p><em>Generated on 2025-12-29 14:23:40</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -410,6 +410,14 @@ Note:</p>
         <div class="method-section">
             <h3 id="Animation"><span class="class-name">Animation</span></h3>
             <p>Animation object for animating UI properties</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>duration</span> (read-only): Animation duration in seconds (float, read-only). Total time for the animation to complete.</li>
+                <li><span class='property-name'>elapsed</span> (read-only): Elapsed time in seconds (float, read-only). Time since the animation started.</li>
+                <li><span class='property-name'>is_complete</span> (read-only): Whether animation is complete (bool, read-only). True when elapsed &gt;= duration or complete() was called.</li>
+                <li><span class='property-name'>is_delta</span> (read-only): Whether animation uses delta mode (bool, read-only). In delta mode, the target value is added to the starting value.</li>
+                <li><span class='property-name'>property</span> (read-only): Target property name (str, read-only). The property being animated (e.g., &#x27;pos&#x27;, &#x27;opacity&#x27;, &#x27;sprite_index&#x27;).</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -495,6 +503,29 @@ Attributes:
     z_index (int): Rendering order
     name (str): Element name
 </p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>bounds</span>: Bounding rectangle (x, y, width, height) in local coordinates.</li>
+                <li><span class='property-name'>center</span>: Center position of the arc</li>
+                <li><span class='property-name'>color</span>: Arc color</li>
+                <li><span class='property-name'>end_angle</span>: Ending angle in degrees</li>
+                <li><span class='property-name'>global_bounds</span>: Bounding rectangle (x, y, width, height) in screen coordinates.</li>
+                <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
+                <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
+                <li><span class='property-name'>name</span>: Name for finding this element.</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when arc is clicked.</li>
+                <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
+                <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
+                <li><span class='property-name'>pos</span>: Position as a Vector (same as center).</li>
+                <li><span class='property-name'>radius</span>: Arc radius in pixels</li>
+                <li><span class='property-name'>start_angle</span>: Starting angle in degrees</li>
+                <li><span class='property-name'>thickness</span>: Line thickness</li>
+                <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first).</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -567,6 +598,30 @@ Attributes:
     z_index (int): Rendering order
     name (str): Element name
     w, h (float): Read-only computed size based on text and font</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>bounds</span>: Bounding rectangle (x, y, width, height) in local coordinates.</li>
+                <li><span class='property-name'>fill_color</span>: Fill color of the text</li>
+                <li><span class='property-name'>font_size</span>: Font size (integer) in points</li>
+                <li><span class='property-name'>global_bounds</span>: Bounding rectangle (x, y, width, height) in screen coordinates.</li>
+                <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
+                <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
+                <li><span class='property-name'>name</span>: Name for finding elements</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked. Function receives (x, y) coordinates of click.</li>
+                <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
+                <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>outline</span>: Thickness of the border</li>
+                <li><span class='property-name'>outline_color</span>: Outline color of the text</li>
+                <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
+                <li><span class='property-name'>pos</span>: (x, y) vector</li>
+                <li><span class='property-name'>text</span>: The text displayed</li>
+                <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
+                <li><span class='property-name'>x</span>: X coordinate of top-left corner</li>
+                <li><span class='property-name'>y</span>: Y coordinate of top-left corner</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -632,6 +687,28 @@ Attributes:
     z_index (int): Rendering order
     name (str): Element name
 </p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>bounds</span>: Bounding rectangle (x, y, width, height) in local coordinates.</li>
+                <li><span class='property-name'>center</span>: Center position of the circle</li>
+                <li><span class='property-name'>fill_color</span>: Fill color of the circle</li>
+                <li><span class='property-name'>global_bounds</span>: Bounding rectangle (x, y, width, height) in screen coordinates.</li>
+                <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
+                <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
+                <li><span class='property-name'>name</span>: Name for finding this element.</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when circle is clicked.</li>
+                <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
+                <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>outline</span>: Outline thickness (0 for no outline)</li>
+                <li><span class='property-name'>outline_color</span>: Outline color of the circle</li>
+                <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
+                <li><span class='property-name'>pos</span>: Position as a Vector (same as center).</li>
+                <li><span class='property-name'>radius</span>: Circle radius in pixels</li>
+                <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first).</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -668,6 +745,13 @@ Note:</p>
         <div class="method-section">
             <h3 id="Color"><span class="class-name">Color</span></h3>
             <p>SFML Color Object</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>a</span>: Alpha component (0-255, where 0=transparent, 255=opaque). Automatically clamped to valid range.</li>
+                <li><span class='property-name'>b</span>: Blue component (0-255). Automatically clamped to valid range.</li>
+                <li><span class='property-name'>g</span>: Green component (0-255). Automatically clamped to valid range.</li>
+                <li><span class='property-name'>r</span>: Red component (0-255). Automatically clamped to valid range.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -722,6 +806,12 @@ Methods:
     at(x, y): Get color at cell position
     set(x, y, color): Set color at cell position
     fill(color): Fill entire layer with color</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>grid_size</span>: Layer dimensions as (width, height) tuple.</li>
+                <li><span class='property-name'>visible</span>: Whether the layer is rendered.</li>
+                <li><span class='property-name'>z_index</span>: Layer z-order. Negative values render below entities.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -774,6 +864,13 @@ Call this after the entity moves to update the visibility layer.</p>
         <div class="method-section">
             <h3 id="Drawable"><span class="class-name">Drawable</span></h3>
             <p>Base class for all drawable UI elements</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked. Function receives (x, y) coordinates of click.</li>
+                <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -835,6 +932,20 @@ Attributes:
     visible (bool): Visibility state
     opacity (float): Opacity value
     name (str): Element name</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>draw_pos</span>: Entity position (graphically)</li>
+                <li><span class='property-name'>grid</span>: Grid this entity belongs to. Get: Returns the Grid or None. Set: Assign a Grid to move entity, or None to remove from grid.</li>
+                <li><span class='property-name'>gridstate</span>: Grid point states for the entity</li>
+                <li><span class='property-name'>name</span>: Name for finding elements</li>
+                <li><span class='property-name'>opacity</span>: Opacity (0.0 = transparent, 1.0 = opaque)</li>
+                <li><span class='property-name'>pos</span>: Entity position (integer grid coordinates)</li>
+                <li><span class='property-name'>sprite_index</span>: Sprite index on the texture on the display</li>
+                <li><span class='property-name'>sprite_number</span>: Sprite index (DEPRECATED: use sprite_index instead)</li>
+                <li><span class='property-name'>visible</span>: Visibility flag</li>
+                <li><span class='property-name'>x</span>: Entity x position</li>
+                <li><span class='property-name'>y</span>: Entity y position</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -956,6 +1067,13 @@ when the entity moves if it has a grid with perspective set.</p>
         <div class="method-section">
             <h3 id="FOV"><span class="class-name">FOV</span></h3>
             <p><em>Inherits from: IntEnum</em></p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>denominator</span>: the denominator of a rational number in lowest terms</li>
+                <li><span class='property-name'>imag</span>: the imaginary part of a complex number</li>
+                <li><span class='property-name'>numerator</span>: the numerator of a rational number in lowest terms</li>
+                <li><span class='property-name'>real</span>: the real part of a complex number</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1040,6 +1158,11 @@ Also known as the population count.
         <div class="method-section">
             <h3 id="Font"><span class="class-name">Font</span></h3>
             <p>SFML Font Object</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>family</span> (read-only): Font family name (str, read-only). Retrieved from font metadata.</li>
+                <li><span class='property-name'>source</span> (read-only): Source filename path (str, read-only). The path used to load this font.</li>
+            </ul>
             <h4>Methods:</h4>
         </div>
 
@@ -1085,6 +1208,33 @@ Attributes:
     name (str): Element name
     clip_children (bool): Whether to clip children to frame bounds
     cache_subtree (bool): Cache subtree rendering to texture</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>bounds</span>: Bounding rectangle (x, y, width, height) in local coordinates.</li>
+                <li><span class='property-name'>cache_subtree</span>: #144: Cache subtree rendering to texture for performance</li>
+                <li><span class='property-name'>children</span>: UICollection of objects on top of this one</li>
+                <li><span class='property-name'>clip_children</span>: Whether to clip children to frame bounds</li>
+                <li><span class='property-name'>fill_color</span>: Fill color of the rectangle</li>
+                <li><span class='property-name'>global_bounds</span>: Bounding rectangle (x, y, width, height) in screen coordinates.</li>
+                <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
+                <li><span class='property-name'>h</span>: height of the rectangle</li>
+                <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
+                <li><span class='property-name'>name</span>: Name for finding elements</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked. Function receives (x, y) coordinates of click.</li>
+                <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
+                <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>outline</span>: Thickness of the border</li>
+                <li><span class='property-name'>outline_color</span>: Outline color of the rectangle</li>
+                <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
+                <li><span class='property-name'>pos</span>: Position as a Vector</li>
+                <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
+                <li><span class='property-name'>w</span>: width of the rectangle</li>
+                <li><span class='property-name'>x</span>: X coordinate of top-left corner</li>
+                <li><span class='property-name'>y</span>: Y coordinate of top-left corner</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1168,6 +1318,49 @@ Attributes:
     opacity (float): Opacity value
     z_index (int): Rendering order
     name (str): Element name</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>bounds</span>: Bounding rectangle (x, y, width, height) in local coordinates.</li>
+                <li><span class='property-name'>center</span>: Grid coordinate at the center of the Grid&#x27;s view (pan)</li>
+                <li><span class='property-name'>center_x</span>: center of the view X-coordinate</li>
+                <li><span class='property-name'>center_y</span>: center of the view Y-coordinate</li>
+                <li><span class='property-name'>children</span>: UICollection of UIDrawable children (speech bubbles, effects, overlays)</li>
+                <li><span class='property-name'>entities</span>: EntityCollection of entities on this grid</li>
+                <li><span class='property-name'>fill_color</span>: Background fill color of the grid</li>
+                <li><span class='property-name'>fov</span>: FOV algorithm for this grid (mcrfpy.FOV enum). Used by entity.updateVisibility() and layer methods when fov=None.</li>
+                <li><span class='property-name'>fov_radius</span>: Default FOV radius for this grid. Used when radius not specified.</li>
+                <li><span class='property-name'>global_bounds</span>: Bounding rectangle (x, y, width, height) in screen coordinates.</li>
+                <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
+                <li><span class='property-name'>grid_size</span>: Grid dimensions (grid_x, grid_y)</li>
+                <li><span class='property-name'>grid_x</span>: Grid x dimension</li>
+                <li><span class='property-name'>grid_y</span>: Grid y dimension</li>
+                <li><span class='property-name'>h</span>: visible widget height</li>
+                <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
+                <li><span class='property-name'>hovered_cell</span>: Currently hovered cell as (x, y) tuple, or None if not hovering.</li>
+                <li><span class='property-name'>layers</span>: List of grid layers (ColorLayer, TileLayer) sorted by z_index</li>
+                <li><span class='property-name'>name</span>: Name for finding elements</li>
+                <li><span class='property-name'>on_cell_click</span>: Callback when a grid cell is clicked. Called with (cell_x, cell_y).</li>
+                <li><span class='property-name'>on_cell_enter</span>: Callback when mouse enters a grid cell. Called with (cell_x, cell_y).</li>
+                <li><span class='property-name'>on_cell_exit</span>: Callback when mouse exits a grid cell. Called with (cell_x, cell_y).</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked. Function receives (x, y) coordinates of click.</li>
+                <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
+                <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
+                <li><span class='property-name'>perspective</span>: Entity whose perspective to use for FOV rendering (None for omniscient view). Setting an entity automatically enables perspective mode.</li>
+                <li><span class='property-name'>perspective_enabled</span>: Whether to use perspective-based FOV rendering. When True with no valid entity, all cells appear undiscovered.</li>
+                <li><span class='property-name'>pos</span>: Position of the grid as Vector</li>
+                <li><span class='property-name'>position</span>: Position of the grid (x, y)</li>
+                <li><span class='property-name'>size</span>: Size of the grid (width, height)</li>
+                <li><span class='property-name'>texture</span>: Texture of the grid</li>
+                <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
+                <li><span class='property-name'>w</span>: visible widget width</li>
+                <li><span class='property-name'>x</span>: top-left corner X-coordinate</li>
+                <li><span class='property-name'>y</span>: top-left corner Y-coordinate</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.</li>
+                <li><span class='property-name'>zoom</span>: zoom factor for displaying the Grid</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1325,12 +1518,24 @@ Note:</p>
         <div class="method-section">
             <h3 id="GridPoint"><span class="class-name">GridPoint</span></h3>
             <p>UIGridPoint object</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>entities</span> (read-only): List of entities at this grid cell (read-only)</li>
+                <li><span class='property-name'>transparent</span>: Is the GridPoint transparent</li>
+                <li><span class='property-name'>walkable</span>: Is the GridPoint walkable</li>
+            </ul>
             <h4>Methods:</h4>
         </div>
 
         <div class="method-section">
             <h3 id="GridPointState"><span class="class-name">GridPointState</span></h3>
             <p>UIGridPointState object</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>discovered</span>: Has the GridPointState been discovered</li>
+                <li><span class='property-name'>point</span>: GridPoint at this position (None if not discovered)</li>
+                <li><span class='property-name'>visible</span>: Is the GridPointState visible</li>
+            </ul>
             <h4>Methods:</h4>
         </div>
 
@@ -1364,6 +1569,27 @@ Attributes:
     z_index (int): Rendering order
     name (str): Element name
 </p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>bounds</span>: Bounding rectangle (x, y, width, height) in local coordinates.</li>
+                <li><span class='property-name'>color</span>: Line color as a Color object.</li>
+                <li><span class='property-name'>end</span>: Ending point of the line as a Vector.</li>
+                <li><span class='property-name'>global_bounds</span>: Bounding rectangle (x, y, width, height) in screen coordinates.</li>
+                <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
+                <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
+                <li><span class='property-name'>name</span>: Name for finding this element.</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when line is clicked.</li>
+                <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
+                <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
+                <li><span class='property-name'>pos</span>: Position as a Vector (midpoint of line).</li>
+                <li><span class='property-name'>start</span>: Starting point of the line as a Vector.</li>
+                <li><span class='property-name'>thickness</span>: Line thickness in pixels.</li>
+                <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first).</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1399,7 +1625,57 @@ Note:</p>
 
         <div class="method-section">
             <h3 id="Scene"><span class="class-name">Scene</span></h3>
-            <p>Base class for object-oriented scenes</p>
+            <p>Scene(name: str)
+
+Object-oriented scene management with lifecycle callbacks.
+
+This is the recommended approach for scene management, replacing module-level
+functions like createScene(), setScene(), and sceneUI(). Key advantage: you can
+set on_key handlers on ANY scene, not just the currently active one.
+
+Args:
+    name: Unique identifier for this scene. Used for scene transitions.
+
+Properties:
+    name (str, read-only): Scene&#x27;s unique identifier.
+    active (bool, read-only): Whether this scene is currently displayed.
+    children (UICollection, read-only): UI elements in this scene. Modify to add/remove elements.
+    on_key (callable): Keyboard handler. Set on ANY scene, regardless of which is active!
+    pos (Vector): Position offset for all UI elements.
+    visible (bool): Whether the scene renders.
+    opacity (float): Scene transparency (0.0-1.0).
+
+Lifecycle Callbacks (override in subclass):
+    on_enter(): Called when scene becomes active via activate().
+    on_exit(): Called when scene is deactivated (another scene activates).
+    on_keypress(key: str, action: str): Called for keyboard events. Alternative to on_key property.
+    update(dt: float): Called every frame with delta time in seconds.
+    on_resize(width: int, height: int): Called when window is resized.
+
+Example:
+    # Basic usage (replacing module functions):
+    scene = mcrfpy.Scene(&#x27;main_menu&#x27;)
+    scene.children.append(mcrfpy.Caption(text=&#x27;Welcome&#x27;, pos=(100, 100)))
+    scene.on_key = lambda key, action: print(f&#x27;Key: {key}&#x27;)
+    scene.activate()  # Switch to this scene
+
+    # Subclassing for lifecycle:
+    class GameScene(mcrfpy.Scene):
+        def on_enter(self):
+            print(&#x27;Game started!&#x27;)
+        def update(self, dt):
+            self.player.move(dt)
+</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>active</span> (read-only): Whether this scene is currently active (bool, read-only). Only one scene can be active at a time.</li>
+                <li><span class='property-name'>children</span> (read-only): UI element collection for this scene (UICollection, read-only). Use to add, remove, or iterate over UI elements. Changes are reflected immediately.</li>
+                <li><span class='property-name'>name</span> (read-only): Scene name (str, read-only). Unique identifier for this scene.</li>
+                <li><span class='property-name'>on_key</span>: Keyboard event handler (callable or None). Function receives (key: str, action: str) for keyboard events. Set to None to remove the handler.</li>
+                <li><span class='property-name'>opacity</span>: Scene opacity (0.0-1.0). Applied to all UI elements during rendering.</li>
+                <li><span class='property-name'>pos</span>: Scene position offset (Vector). Applied to all UI elements during rendering.</li>
+                <li><span class='property-name'>visible</span>: Scene visibility (bool). If False, scene is not rendered.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1459,6 +1735,31 @@ Attributes:
     z_index (int): Rendering order
     name (str): Element name
     w, h (float): Read-only computed size based on texture and scale</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>bounds</span>: Bounding rectangle (x, y, width, height) in local coordinates.</li>
+                <li><span class='property-name'>global_bounds</span>: Bounding rectangle (x, y, width, height) in screen coordinates.</li>
+                <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
+                <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
+                <li><span class='property-name'>name</span>: Name for finding elements</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked. Function receives (x, y) coordinates of click.</li>
+                <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (x, y, button, action) when mouse enters this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (x, y, button, action) when mouse leaves this element&#x27;s bounds.</li>
+                <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (x, y, button, action) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
+                <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
+                <li><span class='property-name'>pos</span>: Position as a Vector</li>
+                <li><span class='property-name'>scale</span>: Uniform size factor</li>
+                <li><span class='property-name'>scale_x</span>: Horizontal scale factor</li>
+                <li><span class='property-name'>scale_y</span>: Vertical scale factor</li>
+                <li><span class='property-name'>sprite_index</span>: Which sprite on the texture is shown</li>
+                <li><span class='property-name'>sprite_number</span>: Sprite index (DEPRECATED: use sprite_index instead)</li>
+                <li><span class='property-name'>texture</span>: Texture object</li>
+                <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
+                <li><span class='property-name'>x</span>: X coordinate of top-left corner</li>
+                <li><span class='property-name'>y</span>: Y coordinate of top-left corner</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1495,6 +1796,15 @@ Note:</p>
         <div class="method-section">
             <h3 id="Texture"><span class="class-name">Texture</span></h3>
             <p>SFML Texture Object</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>sheet_height</span> (read-only): Number of sprite rows in the texture sheet (int, read-only). Calculated as texture_height / sprite_height.</li>
+                <li><span class='property-name'>sheet_width</span> (read-only): Number of sprite columns in the texture sheet (int, read-only). Calculated as texture_width / sprite_width.</li>
+                <li><span class='property-name'>source</span> (read-only): Source filename path (str, read-only). The path used to load this texture.</li>
+                <li><span class='property-name'>sprite_count</span> (read-only): Total number of sprites in the texture sheet (int, read-only). Equals sheet_width * sheet_height.</li>
+                <li><span class='property-name'>sprite_height</span> (read-only): Height of each sprite in pixels (int, read-only). Specified during texture initialization.</li>
+                <li><span class='property-name'>sprite_width</span> (read-only): Width of each sprite in pixels (int, read-only). Specified during texture initialization.</li>
+            </ul>
             <h4>Methods:</h4>
         </div>
 
@@ -1519,6 +1829,13 @@ Methods:
     at(x, y): Get tile index at cell position
     set(x, y, index): Set tile index at cell position
     fill(index): Fill entire layer with tile index</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>grid_size</span>: Layer dimensions as (width, height) tuple.</li>
+                <li><span class='property-name'>texture</span>: Texture atlas for tile sprites.</li>
+                <li><span class='property-name'>visible</span>: Whether the layer is rendered.</li>
+                <li><span class='property-name'>z_index</span>: Layer z-order. Negative values render below entities.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1578,6 +1895,16 @@ Example:
     timer.pause()  # Pause timer
     timer.resume() # Resume timer
     timer.once = True  # Make it one-shot</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>active</span> (read-only): Whether the timer is active and not paused (bool, read-only). False if cancelled or paused.</li>
+                <li><span class='property-name'>callback</span>: The callback function to be called when timer fires (callable). Can be changed while timer is running.</li>
+                <li><span class='property-name'>interval</span>: Timer interval in milliseconds (int). Must be positive. Can be changed while timer is running.</li>
+                <li><span class='property-name'>name</span> (read-only): Timer name (str, read-only). Unique identifier for this timer.</li>
+                <li><span class='property-name'>once</span>: Whether the timer stops after firing once (bool). If False, timer repeats indefinitely.</li>
+                <li><span class='property-name'>paused</span> (read-only): Whether the timer is paused (bool, read-only). Paused timers preserve their remaining time.</li>
+                <li><span class='property-name'>remaining</span> (read-only): Time remaining until next trigger in milliseconds (int, read-only). Preserved when timer is paused.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1681,6 +2008,12 @@ Use name-based .find() for stable element access.</p>
         <div class="method-section">
             <h3 id="Vector"><span class="class-name">Vector</span></h3>
             <p>SFML Vector Object</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>int</span> (read-only): Integer tuple (floor of x and y) for use as dict keys. Read-only.</li>
+                <li><span class='property-name'>x</span>: X coordinate of the vector (float)</li>
+                <li><span class='property-name'>y</span>: Y coordinate of the vector (float)</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -1747,6 +2080,17 @@ Note:</p>
         <div class="method-section">
             <h3 id="Window"><span class="class-name">Window</span></h3>
             <p>Window singleton for accessing and modifying the game window properties</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>framerate_limit</span>: Frame rate limit in FPS (int, 0 for unlimited). Caps maximum frame rate.</li>
+                <li><span class='property-name'>fullscreen</span>: Window fullscreen state (bool). Setting this recreates the window.</li>
+                <li><span class='property-name'>game_resolution</span>: Fixed game resolution as (width, height) tuple. Enables resolution-independent rendering with scaling.</li>
+                <li><span class='property-name'>resolution</span>: Window resolution as (width, height) tuple. Setting this recreates the window.</li>
+                <li><span class='property-name'>scaling_mode</span>: Viewport scaling mode (str): &#x27;center&#x27; (no scaling), &#x27;stretch&#x27; (fill window), or &#x27;fit&#x27; (maintain aspect ratio).</li>
+                <li><span class='property-name'>title</span>: Window title string (str). Displayed in the window title bar.</li>
+                <li><span class='property-name'>visible</span>: Window visibility state (bool). Hidden windows still process events.</li>
+                <li><span class='property-name'>vsync</span>: Vertical sync enabled state (bool). Prevents screen tearing but may limit framerate.</li>
+            </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
