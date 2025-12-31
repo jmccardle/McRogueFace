@@ -170,6 +170,12 @@ public:
     static PyObject* py_get_dijkstra_path(PyUIGridObject* self, PyObject* args);
     static PyObject* py_compute_astar_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds);  // #115
+    static PyObject* py_center_camera(PyUIGridObject* self, PyObject* args);  // #169
+
+    // #169 - Camera positioning
+    void center_camera();  // Center on grid's middle tile
+    void center_camera(float tile_x, float tile_y);  // Center on specific tile
+
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyObject* get_entities(PyUIGridObject* self, void* closure);

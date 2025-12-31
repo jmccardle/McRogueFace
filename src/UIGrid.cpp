@@ -6,8 +6,9 @@
 #include "Profiler.h"
 #include "PyFOV.h"
 #include <algorithm>
-#include <cmath>    // #142 - for std::floor
+#include <cmath>    // #142 - for std::floor, std::isnan
 #include <cstring>  // #150 - for strcmp
+#include <limits>   // #169 - for std::numeric_limits
 // UIDrawable methods now in UIBase.h
 
 UIGrid::UIGrid()
@@ -735,7 +736,9 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     PyObject* fill_color = nullptr;
     PyObject* click_handler = nullptr;
     PyObject* layers_obj = nullptr;  // #150 - layers dict
-    float center_x = 0.0f, center_y = 0.0f;
+    // #169 - Use NaN as sentinel to detect if user provided center values
+    float center_x = std::numeric_limits<float>::quiet_NaN();
+    float center_y = std::numeric_limits<float>::quiet_NaN();
     float zoom = 1.0f;
     // perspective is now handled via properties, not init args
     int visible = 1;
@@ -862,9 +865,19 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
                                           sf::Vector2f(x, y), sf::Vector2f(w, h));
     
     // Set additional properties
+    self->data->zoom = zoom;  // Set zoom first, needed for default center calculation
+
+    // #169 - Calculate default center if not provided by user
+    // Default: tile (0,0) at top-left of widget
+    if (std::isnan(center_x)) {
+        // Center = half widget size (in pixels), so tile 0,0 appears at top-left
+        center_x = w / (2.0f * zoom);
+    }
+    if (std::isnan(center_y)) {
+        center_y = h / (2.0f * zoom);
+    }
     self->data->center_x = center_x;
     self->data->center_y = center_y;
-    self->data->zoom = zoom;
     // perspective is now handled by perspective_entity and perspective_enabled
     // self->data->perspective = perspective;
     self->data->visible = visible;
@@ -1730,6 +1743,72 @@ PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, Py
     return result;
 }
 
+// #169 - center_camera implementations
+void UIGrid::center_camera() {
+    // Center on grid's middle tile
+    int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
+    int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    center_x = (grid_x / 2.0f) * cell_width;
+    center_y = (grid_y / 2.0f) * cell_height;
+    markDirty();  // #144 - View change affects content
+}
+
+void UIGrid::center_camera(float tile_x, float tile_y) {
+    // Position specified tile at top-left of widget
+    int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
+    int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    // To put tile (tx, ty) at top-left: center = tile_pos + half_viewport
+    float half_viewport_x = box.getSize().x / zoom / 2.0f;
+    float half_viewport_y = box.getSize().y / zoom / 2.0f;
+    center_x = tile_x * cell_width + half_viewport_x;
+    center_y = tile_y * cell_height + half_viewport_y;
+    markDirty();  // #144 - View change affects content
+}
+
+PyObject* UIGrid::py_center_camera(PyUIGridObject* self, PyObject* args) {
+    PyObject* pos_arg = nullptr;
+
+    // Parse optional positional argument (tuple of tile coordinates)
+    if (!PyArg_ParseTuple(args, "|O", &pos_arg)) {
+        return nullptr;
+    }
+
+    if (pos_arg == nullptr || pos_arg == Py_None) {
+        // No args: center on grid's middle tile
+        self->data->center_camera();
+    } else if (PyTuple_Check(pos_arg) && PyTuple_Size(pos_arg) == 2) {
+        // Tuple provided: center on (tile_x, tile_y)
+        PyObject* x_obj = PyTuple_GetItem(pos_arg, 0);
+        PyObject* y_obj = PyTuple_GetItem(pos_arg, 1);
+
+        float tile_x, tile_y;
+        if (PyFloat_Check(x_obj)) {
+            tile_x = PyFloat_AsDouble(x_obj);
+        } else if (PyLong_Check(x_obj)) {
+            tile_x = (float)PyLong_AsLong(x_obj);
+        } else {
+            PyErr_SetString(PyExc_TypeError, "tile coordinates must be numeric");
+            return nullptr;
+        }
+
+        if (PyFloat_Check(y_obj)) {
+            tile_y = PyFloat_AsDouble(y_obj);
+        } else if (PyLong_Check(y_obj)) {
+            tile_y = (float)PyLong_AsLong(y_obj);
+        } else {
+            PyErr_SetString(PyExc_TypeError, "tile coordinates must be numeric");
+            return nullptr;
+        }
+
+        self->data->center_camera(tile_x, tile_y);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "center_camera() takes an optional tuple (tile_x, tile_y)");
+        return nullptr;
+    }
+
+    Py_RETURN_NONE;
+}
+
 PyMethodDef UIGrid::methods[] = {
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
@@ -1818,6 +1897,15 @@ PyMethodDef UIGrid::methods[] = {
      "    radius: Search radius\n\n"
      "Returns:\n"
      "    List of Entity objects within the radius."},
+    {"center_camera", (PyCFunction)UIGrid::py_center_camera, METH_VARARGS,
+     "center_camera(pos: tuple = None) -> None\n\n"
+     "Center the camera on a tile coordinate.\n\n"
+     "Args:\n"
+     "    pos: Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.\n\n"
+     "Example:\n"
+     "    grid.center_camera()        # Center on middle of grid\n"
+     "    grid.center_camera((5, 10)) # Center on tile (5, 10)\n"
+     "    grid.center_camera((0, 0))  # Center on tile (0, 0)"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -1929,6 +2017,15 @@ PyMethodDef UIGrid_all_methods[] = {
      "    radius: Search radius\n\n"
      "Returns:\n"
      "    List of Entity objects within the radius."},
+    {"center_camera", (PyCFunction)UIGrid::py_center_camera, METH_VARARGS,
+     "center_camera(pos: tuple = None) -> None\n\n"
+     "Center the camera on a tile coordinate.\n\n"
+     "Args:\n"
+     "    pos: Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.\n\n"
+     "Example:\n"
+     "    grid.center_camera()        # Center on middle of grid\n"
+     "    grid.center_camera((5, 10)) # Center on tile (5, 10)\n"
+     "    grid.center_camera((0, 0))  # Center on tile (0, 0)"},
     {NULL}  // Sentinel
 };
 
