@@ -28,10 +28,10 @@ focus_mgr.register(name_input)
 # Create demo scene
 import mcrfpy
 
-mcrfpy.createScene("text_example")
-mcrfpy.setScene("text_example")
+text_example = mcrfpy.Scene("text_example")
+text_example.activate()
 
-ui = mcrfpy.sceneUI("text_example")
+ui = text_example.children
 # Add to scene
 #ui.append(name_input) # don't do this, only the internal Frame class can go into the UI; have to manage derived objects "carefully" (McRogueFace alpha anti-feature)
 name_input.add_to_scene(ui)
@@ -44,5 +44,5 @@ def handle_keys(key, state):
             focus_mgr.focus_next()
 
 # McRogueFace alpha anti-feature: only the active scene can be given a keypress callback
-mcrfpy.keypressScene(handle_keys)
+text_example.on_key = handle_keys
 

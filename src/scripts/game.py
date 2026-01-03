@@ -42,7 +42,7 @@ resources = Resources()
 
 class Crypt:
     def __init__(self):
-        mcrfpy.createScene("play")
+        play = mcrfpy.Scene("play")
         self.ui = mcrfpy.sceneUI("play")
 
         entity_frame = mcrfpy.Frame(pos=(815, 10), size=(194, 595), fill_color=frame_color)
@@ -244,8 +244,8 @@ class Crypt:
 
     def start(self):
         resources.play_sfx(1)
-        mcrfpy.setScene("play")
-        mcrfpy.keypressScene(self.cos_keys)
+        play.activate()
+        play.on_key = self.cos_keys
 
     def add_entity(self, e:ce.COSEntity):
         self.entities.append(e)
@@ -490,9 +490,9 @@ class SweetButton:
 
 class MainMenu:
     def __init__(self):
-        mcrfpy.createScene("menu")
+        menu = mcrfpy.Scene("menu")
         self.ui = mcrfpy.sceneUI("menu")
-        mcrfpy.setScene("menu")
+        menu.activate()
         self.crypt = None
 
         components = []
