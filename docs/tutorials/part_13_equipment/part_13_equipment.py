@@ -1662,9 +1662,9 @@ grid = mcrfpy.Grid(
     pos=(20, GAME_AREA_Y),
     size=(700, GAME_AREA_HEIGHT - 20),
     grid_size=(GRID_WIDTH, GRID_HEIGHT),
-    texture=texture
+    texture=texture,
+    zoom=1.0
 )
-grid.zoom = 1.0
 
 fov_layer = grid.add_layer("color", z_index=-1)
 for y in range(GRID_HEIGHT):

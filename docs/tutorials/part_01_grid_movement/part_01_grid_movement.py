@@ -29,12 +29,10 @@ texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 grid = mcrfpy.Grid(
     pos=(100, 80),          # Position on screen (pixels)
     size=(640, 480),        # Display size (pixels)
+    zoom = 2.0,
     grid_size=(GRID_WIDTH, GRID_HEIGHT),  # Size in tiles
     texture=texture
 )
-
-# Set the zoom level for better visibility
-grid.zoom = 2.0
 
 # Fill the grid with floor tiles
 for y in range(GRID_HEIGHT):

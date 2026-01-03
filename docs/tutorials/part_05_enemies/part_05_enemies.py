@@ -448,9 +448,9 @@ grid = mcrfpy.Grid(
     pos=(50, 80),
     size=(800, 560),
     grid_size=(GRID_WIDTH, GRID_HEIGHT),
-    texture=texture
+    texture=texture,
+    zoom=1.0
 )
-grid.zoom = 1.0
 
 # Generate the dungeon (without player first to get starting position)
 fill_with_walls(grid)

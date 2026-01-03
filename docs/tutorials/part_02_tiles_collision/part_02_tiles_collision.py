@@ -102,9 +102,9 @@ grid = mcrfpy.Grid(
     pos=(80, 100),
     size=(720, 480),
     grid_size=(GRID_WIDTH, GRID_HEIGHT),
-    texture=texture
+    texture=texture,
+    zoom=1.5
 )
-grid.zoom = 1.5
 
 # Build the map
 create_map(grid)
