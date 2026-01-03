@@ -22,7 +22,7 @@ def take_second_screenshot(runtime):
 def animate_frames(runtime):
     """Animate frames to demonstrate clipping"""
     mcrfpy.delTimer("animate")
-    scene = mcrfpy.sceneUI("test")
+    scene = test.children
     # Move child frames
     parent1 = scene[0]
     parent2 = scene[1]
@@ -36,7 +36,7 @@ def test_clipping(runtime):
 
     print("Testing UIFrame clipping functionality...")
 
-    scene = mcrfpy.sceneUI("test")
+    scene = test.children
 
     # Create parent frame with clipping disabled (default)
     parent1 = Frame(pos=(50, 50), size=(200, 150),
@@ -119,15 +119,15 @@ def test_clipping(runtime):
 
 def handle_keypress(key, modifiers):
     if key == "c":
-        scene = mcrfpy.sceneUI("test")
+        scene = test.children
         parent1 = scene[0]
         parent1.clip_children = not parent1.clip_children
         print(f"Toggled parent1 clip_children to: {parent1.clip_children}")
 
 # Main execution
 print("Creating test scene...")
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
-mcrfpy.keypressScene(handle_keypress)
+test = mcrfpy.Scene("test")
+test.activate()
+test.on_key = handle_keypress
 mcrfpy.setTimer("test_clipping", test_clipping, 100)
 print("Test scheduled, running...")

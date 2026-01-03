@@ -6,9 +6,9 @@ from mcrfpy import automation
 print("Setting up timer test...")
 
 # Create a scene
-mcrfpy.createScene("timer_works")
-mcrfpy.setScene("timer_works")
-ui = mcrfpy.sceneUI("timer_works")
+timer_works = mcrfpy.Scene("timer_works")
+timer_works.activate()
+ui = timer_works.children
 
 # Add visible content
 frame = mcrfpy.Frame(pos=(100, 100), size=(300, 200),

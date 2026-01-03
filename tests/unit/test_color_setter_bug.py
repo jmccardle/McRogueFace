@@ -9,7 +9,7 @@ print("=" * 50)
 # Test 1: Setting color with tuple (old way)
 print("Test 1: Setting color with tuple")
 try:
-    mcrfpy.createScene("test1")
+    test1 = mcrfpy.Scene("test1")
     grid = mcrfpy.Grid(grid_x=5, grid_y=5)
     
     # This should work (PyArg_ParseTuple expects tuple)
@@ -26,7 +26,7 @@ print()
 # Test 2: Setting color with Color object (the bug)
 print("Test 2: Setting color with Color object")
 try:
-    mcrfpy.createScene("test2")
+    test2 = mcrfpy.Scene("test2")
     grid = mcrfpy.Grid(grid_x=5, grid_y=5)
     
     # This will fail in PyArg_ParseTuple but not report it
@@ -45,7 +45,7 @@ print()
 # Test 3: Multiple color assignments
 print("Test 3: Multiple Color assignments (reproducing original bug)")
 try:
-    mcrfpy.createScene("test3")
+    test3 = mcrfpy.Scene("test3")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     
     # Do multiple color assignments

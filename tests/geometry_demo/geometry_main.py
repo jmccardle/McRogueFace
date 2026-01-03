@@ -66,8 +66,8 @@ class GeometryDemoRunner:
 
     def create_menu(self):
         """Create the main menu screen."""
-        mcrfpy.createScene("geo_menu")
-        ui = mcrfpy.sceneUI("geo_menu")
+        geo_menu = mcrfpy.Scene("geo_menu")
+        ui = geo_menu.children
 
         # Screen dimensions
         SCREEN_WIDTH = 1024
@@ -142,7 +142,7 @@ class GeometryDemoRunner:
                     sys.exit(0)
                     return
                 screen = self.screens[self.current_index]
-                mcrfpy.setScene(screen.scene_name)
+                mcrfpy.current_scene = screen
                 self.render_wait = 1
             elif self.render_wait < 3:
                 # Wait for animated demos to show initial state
@@ -188,21 +188,21 @@ class GeometryDemoRunner:
             elif key == "Escape":
                 for screen in self.screens:
                     screen.cleanup()
-                mcrfpy.setScene("geo_menu")
+                geo_menu.activate()
 
             # Q quits
             elif key == "Q":
                 sys.exit(0)
 
         # Register keyboard handler on all scenes
-        mcrfpy.setScene("geo_menu")
-        mcrfpy.keypressScene(handle_key)
+        geo_menu.activate()
+        geo_menu.on_key = handle_key
 
         for screen in self.screens:
-            mcrfpy.setScene(screen.scene_name)
-            mcrfpy.keypressScene(handle_key)
+            mcrfpy.current_scene = screen
+            geo_menu.on_key = handle_key
 
-        mcrfpy.setScene("geo_menu")
+        geo_menu.activate()
 
 
 def main():

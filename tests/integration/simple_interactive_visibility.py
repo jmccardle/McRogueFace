@@ -6,7 +6,7 @@ import sys
 
 # Create scene and grid
 print("Creating scene...")
-mcrfpy.createScene("vis_test")
+vis_test = mcrfpy.Scene("vis_test")
 
 print("Creating grid...")
 grid = mcrfpy.Grid(grid_x=10, grid_y=10)
@@ -33,7 +33,7 @@ entity.update_visibility()
 
 # Set up UI
 print("Setting up UI...")
-ui = mcrfpy.sceneUI("vis_test")
+ui = vis_test.children
 ui.append(grid)
 grid.position = (50, 50)
 grid.size = (300, 300)
@@ -44,6 +44,6 @@ grid.perspective = -1  # Omniscient
 print(f"Perspective set to: {grid.perspective}")
 
 print("Setting scene...")
-mcrfpy.setScene("vis_test")
+vis_test.activate()
 
 print("Ready!")

@@ -8,8 +8,8 @@ def test_bounds_property():
     """Test bounds property returns correct local bounds"""
     print("Testing bounds property...")
 
-    mcrfpy.createScene("test_bounds")
-    ui = mcrfpy.sceneUI("test_bounds")
+    test_bounds = mcrfpy.Scene("test_bounds")
+    ui = test_bounds.children
 
     frame = mcrfpy.Frame(pos=(50, 75), size=(200, 150))
     ui.append(frame)
@@ -27,8 +27,8 @@ def test_global_bounds_no_parent():
     """Test global_bounds equals bounds when no parent"""
     print("Testing global_bounds without parent...")
 
-    mcrfpy.createScene("test_gb1")
-    ui = mcrfpy.sceneUI("test_gb1")
+    test_gb1 = mcrfpy.Scene("test_gb1")
+    ui = test_gb1.children
 
     frame = mcrfpy.Frame(pos=(100, 100), size=(50, 50))
     ui.append(frame)
@@ -45,8 +45,8 @@ def test_global_bounds_with_parent():
     """Test global_bounds correctly adds parent offset"""
     print("Testing global_bounds with parent...")
 
-    mcrfpy.createScene("test_gb2")
-    ui = mcrfpy.sceneUI("test_gb2")
+    test_gb2 = mcrfpy.Scene("test_gb2")
+    ui = test_gb2.children
 
     parent = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
     ui.append(parent)
@@ -67,8 +67,8 @@ def test_global_bounds_nested():
     """Test global_bounds with deeply nested hierarchy"""
     print("Testing global_bounds with nested hierarchy...")
 
-    mcrfpy.createScene("test_gb3")
-    ui = mcrfpy.sceneUI("test_gb3")
+    test_gb3 = mcrfpy.Scene("test_gb3")
+    ui = test_gb3.children
 
     # Create 3-level hierarchy
     root = mcrfpy.Frame(pos=(10, 10), size=(300, 300))
@@ -92,8 +92,8 @@ def test_all_drawable_types_have_bounds():
     """Test that all drawable types have bounds properties"""
     print("Testing bounds on all drawable types...")
 
-    mcrfpy.createScene("test_types")
-    ui = mcrfpy.sceneUI("test_types")
+    test_types = mcrfpy.Scene("test_types")
+    ui = test_types.children
 
     types_to_test = [
         ("Frame", mcrfpy.Frame(pos=(0, 0), size=(100, 100))),

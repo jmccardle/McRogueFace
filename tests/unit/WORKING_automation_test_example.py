@@ -46,9 +46,9 @@ def run_automation_tests():
 print("=== Setting Up Test Scene ===")
 
 # Create scene with visible content
-mcrfpy.createScene("timer_test_scene")
-mcrfpy.setScene("timer_test_scene")
-ui = mcrfpy.sceneUI("timer_test_scene")
+timer_test_scene = mcrfpy.Scene("timer_test_scene")
+timer_test_scene.activate()
+ui = timer_test_scene.children
 
 # Add a bright red frame that should be visible
 frame = mcrfpy.Frame(pos=(100, 100), size=(400, 300),

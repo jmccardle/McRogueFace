@@ -24,13 +24,14 @@ import random
 
 # Configuration
 # Use smaller grid for denser entity distribution (more realistic visibility tests)
-GRID_SIZE = (100, 100)  # 10,000 cells - entities will actually see each other
+#GRID_SIZE = (100, 100)  # 10,000 cells - entities will actually see each other
+GRID_SIZE = (1250, 1250)
 
 # Full suite - may timeout on large counts due to O(n²) visibility
 # ENTITY_COUNTS = [100, 500, 1000, 2500, 5000, 10000]
 
 # Extended suite to validate scalability (on 100x100 grid)
-ENTITY_COUNTS = [100, 500, 1000, 2000, 5000]
+ENTITY_COUNTS = [100, 500, 1000, 5000]
 QUERY_RADIUS = 15  # Smaller radius for smaller grid
 MOVEMENT_PERCENT = 0.10  # 10% of entities move each frame
 N2N_SAMPLE_SIZE = 50  # Sample size for N×N visibility test
@@ -44,11 +45,12 @@ def setup_grid_with_entities(n_entities):
     global texture
 
     scene_name = f"bench_{n_entities}"
-    mcrfpy.createScene(scene_name)
-    ui = mcrfpy.sceneUI(scene_name)
+    _scene = mcrfpy.Scene(scene_name)
+    ui = _scene.children
 
     # Create grid - minimal rendering size since we're testing entity operations
-    grid = mcrfpy.Grid(grid_size=GRID_SIZE, pos=(0, 0), size=(100, 100))
+    #grid = mcrfpy.Grid(grid_size=GRID_SIZE, pos=(0, 0), size=(100, 100))
+    grid = mcrfpy.Grid(grid_size=GRID_SIZE, pos=(0, 0), size=(1024, 768))
     ui.append(grid)
 
     # Load texture once
@@ -66,7 +68,7 @@ def setup_grid_with_entities(n_entities):
         entity = mcrfpy.Entity((x, y), texture, 0, grid)
         grid.entities.append(entity)
 
-    mcrfpy.setScene(scene_name)
+    mcrfpy.current_scene = scene_name
     return grid, scene_name
 
 
@@ -75,8 +77,8 @@ def benchmark_creation(n_entities):
     global texture
 
     scene_name = "bench_create_test"
-    mcrfpy.createScene(scene_name)
-    ui = mcrfpy.sceneUI(scene_name)
+    _scene = mcrfpy.Scene(scene_name)
+    ui = _scene.children
 
     grid = mcrfpy.Grid(grid_size=GRID_SIZE, pos=(0, 0), size=(100, 100))
     ui.append(grid)

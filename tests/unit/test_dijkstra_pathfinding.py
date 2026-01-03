@@ -16,7 +16,7 @@ import sys
 
 def create_test_grid():
     """Create a test grid with obstacles"""
-    mcrfpy.createScene("dijkstra_test")
+    dijkstra_test = mcrfpy.Scene("dijkstra_test")
 
     # Create grid
     grid = mcrfpy.Grid(grid_x=20, grid_y=20)
@@ -212,7 +212,7 @@ print("=====================================")
 
 # Set up scene
 grid = create_test_grid()
-ui = mcrfpy.sceneUI("dijkstra_test")
+ui = dijkstra_test.children
 ui.append(grid)
 
 # Add title
@@ -224,4 +224,4 @@ ui.append(title)
 mcrfpy.setTimer("test", run_test, 100)
 
 # Show scene
-mcrfpy.setScene("dijkstra_test")
+dijkstra_test.activate()

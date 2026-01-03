@@ -8,9 +8,9 @@ def test_issue_38_children():
     print("\n=== Testing Issue #38: children argument in Frame constructor ===")
     
     # Create test scene
-    mcrfpy.createScene("issue38_test")
-    mcrfpy.setScene("issue38_test")
-    ui = mcrfpy.sceneUI("issue38_test")
+    issue38_test = mcrfpy.Scene("issue38_test")
+    issue38_test.activate()
+    ui = issue38_test.children
     
     # Test 1: Try to pass children in constructor
     print("\nTest 1: Passing children argument to Frame constructor")
@@ -54,9 +54,9 @@ def test_issue_42_click_callback():
     print("\n\n=== Testing Issue #42: click callback arguments ===")
     
     # Create test scene
-    mcrfpy.createScene("issue42_test")
-    mcrfpy.setScene("issue42_test")
-    ui = mcrfpy.sceneUI("issue42_test")
+    issue42_test = mcrfpy.Scene("issue42_test")
+    issue42_test.activate()
+    ui = issue42_test.children
     
     # Test 1: Callback with correct signature
     print("\nTest 1: Click callback with correct signature (x, y, button)")

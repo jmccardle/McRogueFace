@@ -65,8 +65,8 @@ class DemoRunner:
 
     def create_menu(self):
         """Create the main menu screen."""
-        mcrfpy.createScene("menu")
-        ui = mcrfpy.sceneUI("menu")
+        menu = mcrfpy.Scene("menu")
+        ui = menu.children
 
         # Title
         title = mcrfpy.Caption(text="McRogueFace Demo", pos=(400, 30))
@@ -122,7 +122,7 @@ class DemoRunner:
                     sys.exit(0)
                     return
                 screen = self.screens[self.current_index]
-                mcrfpy.setScene(screen.scene_name)
+                mcrfpy.current_scene = screen
                 self.render_wait = 1
             elif self.render_wait < 2:
                 # Wait additional frame
@@ -157,23 +157,23 @@ class DemoRunner:
 
             # ESC returns to menu
             elif key == "Escape":
-                mcrfpy.setScene("menu")
+                menu.activate()
 
             # Q quits
             elif key == "Q":
                 sys.exit(0)
 
         # Register keyboard handler on menu scene
-        mcrfpy.setScene("menu")
-        mcrfpy.keypressScene(handle_key)
+        menu.activate()
+        menu.on_key = handle_key
 
         # Also register keyboard handler on all demo scenes
         for screen in self.screens:
-            mcrfpy.setScene(screen.scene_name)
-            mcrfpy.keypressScene(handle_key)
+            mcrfpy.current_scene = screen
+            menu.on_key = handle_key
 
         # Start on menu
-        mcrfpy.setScene("menu")
+        menu.activate()
 
 def main():
     """Main entry point."""

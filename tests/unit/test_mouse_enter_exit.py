@@ -15,8 +15,8 @@ def test_callback_assignment():
     """Test that on_enter and on_exit callbacks can be assigned"""
     print("Testing callback assignment...")
 
-    mcrfpy.createScene("test_assign")
-    ui = mcrfpy.sceneUI("test_assign")
+    test_assign = mcrfpy.Scene("test_assign")
+    ui = test_assign.children
 
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
     ui.append(frame)
@@ -50,8 +50,8 @@ def test_hovered_property():
     """Test that hovered property exists and is initially False"""
     print("Testing hovered property...")
 
-    mcrfpy.createScene("test_hovered")
-    ui = mcrfpy.sceneUI("test_hovered")
+    test_hovered = mcrfpy.Scene("test_hovered")
+    ui = test_hovered.children
 
     frame = mcrfpy.Frame(pos=(50, 50), size=(100, 100))
     ui.append(frame)
@@ -77,8 +77,8 @@ def test_all_types_have_events():
     """Test that all drawable types have on_enter/on_exit properties"""
     print("Testing events on all drawable types...")
 
-    mcrfpy.createScene("test_types")
-    ui = mcrfpy.sceneUI("test_types")
+    test_types = mcrfpy.Scene("test_types")
+    ui = test_types.children
 
     types_to_test = [
         ("Frame", mcrfpy.Frame(pos=(0, 0), size=(100, 100))),
@@ -121,9 +121,9 @@ def test_enter_exit_simulation():
     enter_positions = []
     exit_positions = []
 
-    mcrfpy.createScene("test_sim")
-    ui = mcrfpy.sceneUI("test_sim")
-    mcrfpy.setScene("test_sim")
+    test_sim = mcrfpy.Scene("test_sim")
+    ui = test_sim.children
+    test_sim.activate()
 
     # Create a frame at known position
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))

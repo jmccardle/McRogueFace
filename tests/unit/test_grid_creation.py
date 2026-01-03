@@ -8,7 +8,7 @@ print("Testing grid creation...")
 
 # First create scene
 try:
-    mcrfpy.createScene("test")
+    test = mcrfpy.Scene("test")
     print("✓ Created scene")
 except Exception as e:
     print(f"✗ Failed to create scene: {e}")

@@ -13,8 +13,8 @@ def test_parent_property():
     print("Testing parent property...")
 
     # Create scene and get UI
-    mcrfpy.createScene("test")
-    ui = mcrfpy.sceneUI("test")
+    test = mcrfpy.Scene("test")
+    ui = test.children
 
     # Create a parent frame
     parent = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
@@ -44,8 +44,8 @@ def test_global_position():
     print("Testing global_position property...")
 
     # Create scene and get UI
-    mcrfpy.createScene("test2")
-    ui = mcrfpy.sceneUI("test2")
+    test2 = mcrfpy.Scene("test2")
+    ui = test2.children
 
     # Create nested hierarchy:
     # root (50, 50)
@@ -81,8 +81,8 @@ def test_parent_changes_on_move():
     """Test that moving child to different parent updates parent reference"""
     print("Testing parent changes on move...")
 
-    mcrfpy.createScene("test3")
-    ui = mcrfpy.sceneUI("test3")
+    test3 = mcrfpy.Scene("test3")
+    ui = test3.children
 
     parent1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100), fill_color=(255, 0, 0, 255))
     parent2 = mcrfpy.Frame(pos=(200, 0), size=(100, 100), fill_color=(0, 255, 0, 255))
@@ -116,8 +116,8 @@ def test_remove_clears_parent():
     """Test that removing child clears parent reference"""
     print("Testing remove clears parent...")
 
-    mcrfpy.createScene("test4")
-    ui = mcrfpy.sceneUI("test4")
+    test4 = mcrfpy.Scene("test4")
+    ui = test4.children
 
     parent = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
     ui.append(parent)
@@ -140,8 +140,8 @@ def test_scene_level_elements():
     """Test that scene-level elements have no parent"""
     print("Testing scene-level elements...")
 
-    mcrfpy.createScene("test5")
-    ui = mcrfpy.sceneUI("test5")
+    test5 = mcrfpy.Scene("test5")
+    ui = test5.children
 
     frame = mcrfpy.Frame(pos=(10, 10), size=(50, 50))
     ui.append(frame)
@@ -160,8 +160,8 @@ def test_all_drawable_types():
     """Test parent/global_position on all drawable types"""
     print("Testing all drawable types...")
 
-    mcrfpy.createScene("test6")
-    ui = mcrfpy.sceneUI("test6")
+    test6 = mcrfpy.Scene("test6")
+    ui = test6.children
 
     parent = mcrfpy.Frame(pos=(100, 100), size=(300, 300))
     ui.append(parent)
@@ -190,8 +190,8 @@ def test_parent_setter():
     """Test parent property setter (assign parent directly)"""
     print("Testing parent setter...")
 
-    mcrfpy.createScene("test7")
-    ui = mcrfpy.sceneUI("test7")
+    test7 = mcrfpy.Scene("test7")
+    ui = test7.children
 
     # Create parent frame and child
     parent = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
@@ -223,8 +223,8 @@ def test_reparenting_via_setter():
     """Test moving a child from one parent to another via setter"""
     print("Testing reparenting via setter...")
 
-    mcrfpy.createScene("test8")
-    ui = mcrfpy.sceneUI("test8")
+    test8 = mcrfpy.Scene("test8")
+    ui = test8.children
 
     parent1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
     parent2 = mcrfpy.Frame(pos=(200, 200), size=(100, 100))

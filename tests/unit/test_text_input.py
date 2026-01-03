@@ -14,8 +14,8 @@ from text_input_widget import FocusManager, TextInput
 def create_demo():
     """Create demo scene with text inputs"""
     # Create scene
-    mcrfpy.createScene("text_demo")
-    scene = mcrfpy.sceneUI("text_demo")
+    text_demo = mcrfpy.Scene("text_demo")
+    scene = text_demo.children
     
     # Background
     bg = mcrfpy.Frame(pos=(0, 0), size=(800, 600))
@@ -86,8 +86,8 @@ def create_demo():
                     print(f"  Field {i+1}: '{inp.get_text()}'")
                 sys.exit(0)
     
-    mcrfpy.keypressScene("text_demo", handle_keys)
-    mcrfpy.setScene("text_demo")
+    text_demo.on_key = "text_demo", handle_keys
+    text_demo.activate()
     
     # Run demo test
     def run_test(timer_name):

@@ -7,7 +7,7 @@ import sys
 print("Debugging empty paths...")
 
 # Create scene and grid
-mcrfpy.createScene("debug")
+debug = mcrfpy.Scene("debug")
 grid = mcrfpy.Grid(grid_x=10, grid_y=10)
 
 # Initialize grid - all walkable
@@ -72,9 +72,9 @@ def timer_cb(dt):
     sys.exit(0)
 
 # Quick UI setup
-ui = mcrfpy.sceneUI("debug")
+ui = debug.children
 ui.append(grid)
-mcrfpy.setScene("debug")
+debug.activate()
 mcrfpy.setTimer("exit", timer_cb, 100)
 
 print("\nStarting timer...")

@@ -11,14 +11,14 @@ def test_scene_transitions():
     print("Creating test scenes...")
     
     # Scene 1
-    mcrfpy.createScene("scene1")
-    ui1 = mcrfpy.sceneUI("scene1")
+    scene1 = mcrfpy.Scene("scene1")
+    ui1 = scene1.children
     frame1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100), fill_color=mcrfpy.Color(255, 0, 0))
     ui1.append(frame1)
 
     # Scene 2
-    mcrfpy.createScene("scene2")
-    ui2 = mcrfpy.sceneUI("scene2")
+    scene2 = mcrfpy.Scene("scene2")
+    ui2 = scene2.children
     frame2 = mcrfpy.Frame(pos=(0, 0), size=(100, 100), fill_color=mcrfpy.Color(0, 0, 255))
     ui2.append(frame2)
     
@@ -35,20 +35,20 @@ def test_scene_transitions():
     print("\nTesting scene transitions:")
     
     # Start with scene1
-    mcrfpy.setScene("scene1")
-    print(f"Initial scene: {mcrfpy.currentScene()}")
+    scene1.activate()
+    print(f"Initial scene: {(mcrfpy.current_scene.name if mcrfpy.current_scene else None)}")
     
     for trans_type, duration in transitions:
-        target = "scene2" if mcrfpy.currentScene() == "scene1" else "scene1"
+        target = "scene2" if (mcrfpy.current_scene.name if mcrfpy.current_scene else None) == "scene1" else "scene1"
         
         if trans_type:
             print(f"\nTransitioning to {target} with {trans_type} (duration: {duration}s)")
             mcrfpy.setScene(target, trans_type, duration)
         else:
             print(f"\nTransitioning to {target} instantly")
-            mcrfpy.setScene(target)
+            mcrfpy.current_scene = target
         
-        print(f"Current scene after transition: {mcrfpy.currentScene()}")
+        print(f"Current scene after transition: {(mcrfpy.current_scene.name if mcrfpy.current_scene else None)}")
     
     print("\n✓ All scene transition types tested successfully!")
     print("\nNote: Visual transitions cannot be verified in headless mode.")

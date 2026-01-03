@@ -9,7 +9,7 @@ class DemoScreen:
 
     def __init__(self, scene_name):
         self.scene_name = scene_name
-        mcrfpy.createScene(scene_name)
+        _scene = mcrfpy.Scene(scene_name)
         self.ui = mcrfpy.sceneUI(scene_name)
 
     def setup(self):

@@ -16,7 +16,7 @@ def capture_grid(runtime):
     sys.exit(0)
 
 # Create scene
-mcrfpy.createScene("grid")
+grid = mcrfpy.Scene("grid")
 
 # Load texture
 texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
@@ -92,7 +92,7 @@ for i, label in enumerate(labels):
     l.font = mcrfpy.default_font
     l.font_size = 10
     l.fill_color = mcrfpy.Color(255, 255, 255)
-    mcrfpy.sceneUI("grid").append(l)
+    grid.children.append(l)
 
 # Add info caption
 info = mcrfpy.Caption(pos=(100, 680), text="Grid supports tiles and entities. Entities can move independently of the tile grid.")
@@ -101,7 +101,7 @@ info.font_size = 14
 info.fill_color = mcrfpy.Color(200, 200, 200)
 
 # Add all elements to scene
-ui = mcrfpy.sceneUI("grid")
+ui = grid.children
 ui.append(title)
 ui.append(grid)
 ui.append(palette_label)
@@ -109,7 +109,7 @@ ui.append(palette)
 ui.append(info)
 
 # Switch to scene
-mcrfpy.setScene("grid")
+grid.activate()
 
 # Set timer to capture after rendering starts
 mcrfpy.setTimer("capture", capture_grid, 100)

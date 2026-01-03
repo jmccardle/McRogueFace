@@ -59,7 +59,7 @@ class AnimationTracker:
             mcrfpy.delTimer(f"check_{self.name}")
 
 # Create test scene
-mcrfpy.createScene("anim_debug")
+anim_debug = mcrfpy.Scene("anim_debug")
 
 # Simple grid
 grid = mcrfpy.Grid(grid_x=15, grid_y=10)
@@ -75,7 +75,7 @@ entity = mcrfpy.Entity((5, 5), grid=grid)
 entity.sprite_index = 64
 
 # UI
-ui = mcrfpy.sceneUI("anim_debug")
+ui = anim_debug.children
 ui.append(grid)
 grid.position = (100, 150)
 grid.size = (450, 300)
@@ -215,8 +215,8 @@ def handle_input(key, state):
         print("Reset entity and cleared log")
 
 # Setup
-mcrfpy.setScene("anim_debug")
-mcrfpy.keypressScene(handle_input)
+anim_debug.activate()
+anim_debug.on_key = handle_input
 mcrfpy.setTimer("update", update_display, 100)
 
 print("Animation Debug Tool")

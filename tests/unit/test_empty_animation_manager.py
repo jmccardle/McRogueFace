@@ -6,8 +6,8 @@ Test if AnimationManager crashes with no animations
 import mcrfpy
 
 print("Creating empty scene...")
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 print("Scene created, no animations added")
 print("Starting game loop in 100ms...")

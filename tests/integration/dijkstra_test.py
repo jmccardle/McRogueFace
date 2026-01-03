@@ -12,7 +12,7 @@ import sys
 
 def create_test_map():
     """Create a test map with obstacles"""
-    mcrfpy.createScene("dijkstra_test")
+    dijkstra_test = mcrfpy.Scene("dijkstra_test")
     
     # Create grid
     grid = mcrfpy.Grid(grid_x=20, grid_y=12)
@@ -120,7 +120,7 @@ print("Creating Dijkstra pathfinding test...")
 grid, entities = create_test_map()
 
 # Set up UI
-ui = mcrfpy.sceneUI("dijkstra_test")
+ui = dijkstra_test.children
 ui.append(grid)
 
 # Position and scale grid
@@ -138,7 +138,7 @@ legend.fill_color = mcrfpy.Color(180, 180, 180)
 ui.append(legend)
 
 # Set scene
-mcrfpy.setScene("dijkstra_test")
+dijkstra_test.activate()
 
 # Run test after scene loads
 mcrfpy.setTimer("test", run_test, 100)

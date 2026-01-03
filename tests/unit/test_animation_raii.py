@@ -29,7 +29,7 @@ def test_result(name, passed, details=""):
 def test_1_basic_animation():
     """Test that basic animations still work"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
         
@@ -48,7 +48,7 @@ def test_1_basic_animation():
 def test_2_remove_animated_object():
     """Test removing object with active animation"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
         
@@ -72,7 +72,7 @@ def test_2_remove_animated_object():
 def test_3_complete_animation():
     """Test completing animation immediately"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
         
@@ -97,7 +97,7 @@ def test_4_multiple_animations_timer():
     def create_animations(runtime):
         nonlocal success
         try:
-            ui = mcrfpy.sceneUI("test")
+            ui = test.children
             frame = mcrfpy.Frame(pos=(200, 200), size=(100, 100))
             ui.append(frame)
             
@@ -113,7 +113,7 @@ def test_4_multiple_animations_timer():
             mcrfpy.setTimer("exit", lambda t: None, 100)
     
     # Clear scene
-    ui = mcrfpy.sceneUI("test")
+    ui = test.children
     while len(ui) > 0:
         ui.remove(len(ui) - 1)
     
@@ -124,10 +124,10 @@ def test_5_scene_cleanup():
     """Test that changing scenes cleans up animations"""
     try:
         # Create a second scene
-        mcrfpy.createScene("test2")
+        test2 = mcrfpy.Scene("test2")
         
         # Add animated objects to first scene
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         for i in range(5):
             frame = mcrfpy.Frame(pos=(50 * i, 100), size=(40, 40))
             ui.append(frame)
@@ -135,10 +135,10 @@ def test_5_scene_cleanup():
             anim.start(frame)
         
         # Switch scenes (animations should become invalid)
-        mcrfpy.setScene("test2")
+        test2.activate()
         
         # Switch back
-        mcrfpy.setScene("test")
+        test.activate()
         
         test_result("Scene change cleanup", True)
     except Exception as e:
@@ -147,7 +147,7 @@ def test_5_scene_cleanup():
 def test_6_animation_after_clear():
     """Test animations after clearing UI"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
 
         # Create and animate
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
@@ -202,11 +202,11 @@ def print_results(runtime):
     mcrfpy.setTimer("exit", lambda t: sys.exit(0 if tests_failed == 0 else 1), 500)
 
 # Setup and run
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Add a background
-ui = mcrfpy.sceneUI("test")
+ui = test.children
 bg = mcrfpy.Frame(pos=(0, 0), size=(1024, 768))
 bg.fill_color = mcrfpy.Color(20, 20, 30)
 ui.append(bg)

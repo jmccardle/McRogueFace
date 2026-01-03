@@ -69,7 +69,7 @@ print("Testing if it's about grid size vs range size...")
 
 try:
     # Small grid, large range
-    mcrfpy.createScene("test_small_grid")
+    test_small_grid = mcrfpy.Scene("test_small_grid")
     grid = mcrfpy.Grid(grid_x=5, grid_y=5)
     
     # Do minimal grid operations
@@ -85,7 +85,7 @@ except Exception as e:
 
 try:
     # Large grid, see what happens
-    mcrfpy.createScene("test_large_grid")
+    test_large_grid = mcrfpy.Scene("test_large_grid")
     grid = mcrfpy.Grid(grid_x=20, grid_y=20)
     
     # Do operations on large grid

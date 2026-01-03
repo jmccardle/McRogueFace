@@ -72,9 +72,9 @@ def setup_scene():
     print("Setting up scene...")
 
     # Create and set scene
-    mcrfpy.createScene("vllm_demo")
-    mcrfpy.setScene("vllm_demo")
-    ui = mcrfpy.sceneUI("vllm_demo")
+    vllm_demo = mcrfpy.Scene("vllm_demo")
+    vllm_demo.activate()
+    ui = vllm_demo.children
 
     # Load the game texture (16x16 tiles from Crypt of Sokoban)
     texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)

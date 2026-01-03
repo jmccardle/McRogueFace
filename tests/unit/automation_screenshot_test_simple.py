@@ -6,8 +6,8 @@ import os
 import sys
 
 # Create a simple scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Take a screenshot immediately
 try:

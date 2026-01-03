@@ -100,9 +100,9 @@ def setup_scene():
     print("Setting up multi-agent scene...")
 
     # Create and set scene
-    mcrfpy.createScene("multi_agent_demo")
-    mcrfpy.setScene("multi_agent_demo")
-    ui = mcrfpy.sceneUI("multi_agent_demo")
+    multi_agent_demo = mcrfpy.Scene("multi_agent_demo")
+    multi_agent_demo.activate()
+    ui = multi_agent_demo.children
 
     # Load the game texture
     texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)

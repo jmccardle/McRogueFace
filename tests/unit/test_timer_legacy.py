@@ -17,8 +17,8 @@ def timer_callback(runtime):
         sys.exit(0)
 
 # Set up the scene
-mcrfpy.createScene("test_scene")
-mcrfpy.setScene("test_scene")
+test_scene = mcrfpy.Scene("test_scene")
+test_scene.activate()
 
 # Create a timer the old way
 mcrfpy.setTimer("test_timer", timer_callback, 100)

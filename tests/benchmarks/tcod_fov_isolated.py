@@ -12,8 +12,8 @@ def run_test(runtime):
     print("=" * 60)
 
     # Create a 1000x1000 grid
-    mcrfpy.createScene("test")
-    ui = mcrfpy.sceneUI("test")
+    test = mcrfpy.Scene("test")
+    ui = test.children
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
 
     print("\nCreating 1000x1000 grid...")
@@ -94,6 +94,6 @@ def run_test(runtime):
 
     sys.exit(0)
 
-mcrfpy.createScene("init")
-mcrfpy.setScene("init")
+init = mcrfpy.Scene("init")
+init.activate()
 mcrfpy.setTimer("test", run_test, 100)

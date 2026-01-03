@@ -9,8 +9,8 @@ def test_on_move_property():
     """Test that on_move property exists and can be assigned"""
     print("Testing on_move property...")
 
-    mcrfpy.createScene("test_move_prop")
-    ui = mcrfpy.sceneUI("test_move_prop")
+    test_move_prop = mcrfpy.Scene("test_move_prop")
+    ui = test_move_prop.children
 
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
     ui.append(frame)
@@ -33,9 +33,9 @@ def test_on_move_fires():
     """Test that on_move fires when mouse moves within bounds"""
     print("Testing on_move callback firing...")
 
-    mcrfpy.createScene("test_move")
-    ui = mcrfpy.sceneUI("test_move")
-    mcrfpy.setScene("test_move")
+    test_move = mcrfpy.Scene("test_move")
+    ui = test_move.children
+    test_move.activate()
 
     # Create a frame at known position
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
@@ -78,9 +78,9 @@ def test_on_move_not_outside():
     """Test that on_move doesn't fire when mouse is outside bounds"""
     print("Testing on_move doesn't fire outside bounds...")
 
-    mcrfpy.createScene("test_move_outside")
-    ui = mcrfpy.sceneUI("test_move_outside")
-    mcrfpy.setScene("test_move_outside")
+    test_move_outside = mcrfpy.Scene("test_move_outside")
+    ui = test_move_outside.children
+    test_move_outside.activate()
 
     # Frame at 100-300, 100-300
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
@@ -117,8 +117,8 @@ def test_all_types_have_on_move():
     """Test that all drawable types have on_move property"""
     print("Testing on_move on all drawable types...")
 
-    mcrfpy.createScene("test_types")
-    ui = mcrfpy.sceneUI("test_types")
+    test_types = mcrfpy.Scene("test_types")
+    ui = test_types.children
 
     types_to_test = [
         ("Frame", mcrfpy.Frame(pos=(0, 0), size=(100, 100))),

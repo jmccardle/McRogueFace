@@ -12,7 +12,7 @@ FLOOR_COLOR = mcrfpy.Color(200, 200, 220)
 
 def test_exact_pattern():
     """Exact code from dijkstra_demo_final.py"""
-    mcrfpy.createScene("dijkstra_demo")
+    dijkstra_demo = mcrfpy.Scene("dijkstra_demo")
     
     # Create grid
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
@@ -48,7 +48,7 @@ print("Test 2: Breaking it down step by step...")
 
 # Step 1: Scene and grid
 try:
-    mcrfpy.createScene("test2")
+    test2 = mcrfpy.Scene("test2")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     print("  ✓ Step 1: Scene and grid created")
 except Exception as e:

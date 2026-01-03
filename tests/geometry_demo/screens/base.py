@@ -35,7 +35,7 @@ class GeometryDemoScreen:
 
     def __init__(self, scene_name):
         self.scene_name = scene_name
-        mcrfpy.createScene(scene_name)
+        _scene = mcrfpy.Scene(scene_name)
         self.ui = mcrfpy.sceneUI(scene_name)
         self.timers = []  # Track timer names for cleanup
         self._timer_configs = []  # Store timer configs for restart

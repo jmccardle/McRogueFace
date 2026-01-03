@@ -20,7 +20,7 @@ def test_viewport_modes(runtime):
     print(f"Window resolution: {window.resolution}")
     
     # Create test scene with visual elements
-    scene = mcrfpy.sceneUI("test")
+    scene = test.children
     
     # Create a frame that fills the game resolution to show boundaries
     game_res = window.game_resolution
@@ -188,7 +188,7 @@ def handle_keypress(key, state):
         return
         
     window = Window.get()
-    scene = mcrfpy.sceneUI("test")
+    scene = test.children
     mode_text = None
     for elem in scene:
         if hasattr(elem, 'name') and elem.name == "mode_text":
@@ -235,9 +235,9 @@ def handle_keypress(key, state):
 
 # Main execution
 print("Creating viewport test scene...")
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
-mcrfpy.keypressScene(handle_keypress)
+test = mcrfpy.Scene("test")
+test.activate()
+test.on_key = handle_keypress
 
 # Schedule the test
 mcrfpy.setTimer("test_viewport", test_viewport_modes, 100)

@@ -108,11 +108,11 @@ def test_metrics(runtime):
 
 # Set up test scene
 print("Setting up metrics test scene...")
-mcrfpy.createScene("metrics_test")
-mcrfpy.setScene("metrics_test")
+metrics_test = mcrfpy.Scene("metrics_test")
+metrics_test.activate()
 
 # Add some UI elements
-ui = mcrfpy.sceneUI("metrics_test")
+ui = metrics_test.children
 
 # Create various UI elements
 frame1 = mcrfpy.Frame(pos=(10, 10), size=(200, 150))

@@ -5,9 +5,9 @@ import mcrfpy
 print("Testing Sprite texture methods (Issue #19)...")
 
 # Create test scene
-mcrfpy.createScene("sprite_texture_test")
-mcrfpy.setScene("sprite_texture_test")
-ui = mcrfpy.sceneUI("sprite_texture_test")
+sprite_texture_test = mcrfpy.Scene("sprite_texture_test")
+sprite_texture_test.activate()
+ui = sprite_texture_test.children
 
 # Create sprites
 # Based on sprite2 syntax: Sprite(x, y, texture, sprite_index, scale)

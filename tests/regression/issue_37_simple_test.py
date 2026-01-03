@@ -15,7 +15,7 @@ print(f"Current working directory: {os.getcwd()}")
 print(f"Script location: {__file__}")
 
 # Create a simple scene to verify everything is working
-mcrfpy.createScene("issue37_test")
+issue37_test = mcrfpy.Scene("issue37_test")
 
 print("PASS: Issue #37 - Script loading working correctly")
 sys.exit(0)

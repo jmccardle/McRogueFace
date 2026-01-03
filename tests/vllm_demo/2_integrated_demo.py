@@ -126,9 +126,9 @@ def setup_scene_from_world(world: WorldGraph):
 
     Carves out rooms and places doors based on WorldGraph data.
     """
-    mcrfpy.createScene("integrated_demo")
-    mcrfpy.setScene("integrated_demo")
-    ui = mcrfpy.sceneUI("integrated_demo")
+    integrated_demo = mcrfpy.Scene("integrated_demo")
+    integrated_demo.activate()
+    ui = integrated_demo.children
 
     texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
 

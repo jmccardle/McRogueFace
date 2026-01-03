@@ -55,7 +55,7 @@ class StressTestRunner:
 
         # Setup scene
         scene_name = f"stress_{self.current_test}"
-        mcrfpy.createScene(scene_name)
+        _scene = mcrfpy.Scene(scene_name)
 
         # Start benchmark
         mcrfpy.start_benchmark()
@@ -67,7 +67,7 @@ class StressTestRunner:
         except Exception as e:
             print(f"  SETUP ERROR: {e}")
 
-        mcrfpy.setScene(scene_name)
+        mcrfpy.current_scene = scene_name
         self.frames_counted = 0
 
     def end_current_test(self):
@@ -133,10 +133,10 @@ class StressTestRunner:
         print("="*50)
         print(f"Tests: {len(self.tests)}, Duration: {TEST_DURATION_MS}ms each")
 
-        mcrfpy.createScene("init")
-        ui = mcrfpy.sceneUI("init")
+        init = mcrfpy.Scene("init")
+        ui = init.children
         ui.append(mcrfpy.Frame(pos=(0,0), size=(10,10)))  # Required for timer to fire
-        mcrfpy.setScene("init")
+        init.activate()
         mcrfpy.setTimer("tick", self.tick, TIMER_INTERVAL_MS)
 
 
@@ -146,7 +146,7 @@ class StressTestRunner:
 
 def test_many_frames(scene_name):
     """1000 Frame elements"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
     for i in range(1000):
         frame = mcrfpy.Frame(
             pos=((i % 32) * 32, (i // 32) * 24),
@@ -158,7 +158,7 @@ def test_many_frames(scene_name):
 
 def test_many_sprites(scene_name):
     """500 Sprite elements"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
     for i in range(500):
         sprite = mcrfpy.Sprite(
@@ -173,7 +173,7 @@ def test_many_sprites(scene_name):
 
 def test_many_captions(scene_name):
     """500 Caption elements"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
     for i in range(500):
         caption = mcrfpy.Caption(
             text=f"Text #{i}",
@@ -184,7 +184,7 @@ def test_many_captions(scene_name):
 
 def test_deep_nesting(scene_name):
     """15-level nested frames"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
     current = ui
     for level in range(15):
         frame = mcrfpy.Frame(
@@ -202,7 +202,7 @@ def test_deep_nesting(scene_name):
 
 def test_large_grid(scene_name):
     """100x100 grid with 500 entities"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
     grid = mcrfpy.Grid(pos=(50, 50), size=(900, 650), grid_size=(100, 100), texture=texture)
     ui.append(grid)
@@ -223,7 +223,7 @@ def test_large_grid(scene_name):
 
 def test_animation_stress(scene_name):
     """100 frames with 200 animations"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
     for i in range(100):
         frame = mcrfpy.Frame(
             pos=((i % 10) * 100 + 10, (i // 10) * 70 + 10),
@@ -241,7 +241,7 @@ def test_animation_stress(scene_name):
 
 def test_static_scene(scene_name):
     """Static game scene (ideal for caching)"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
 
     # Background
@@ -270,7 +270,7 @@ def test_static_scene(scene_name):
 
 def test_static_scene_cached(scene_name):
     """Static game scene with cache_subtree enabled (#144)"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
 
     # Background with caching enabled
@@ -299,7 +299,7 @@ def test_static_scene_cached(scene_name):
 
 def test_deep_nesting_cached(scene_name):
     """15-level nested frames with cache_subtree on outer frame (#144)"""
-    ui = mcrfpy.sceneUI(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
 
     # Outer frame with caching - entire subtree cached
     outer = mcrfpy.Frame(

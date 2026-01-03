@@ -11,15 +11,15 @@ def test_keypress_validation(timer_name):
     print("Testing keypressScene() validation...")
     
     # Create test scene
-    mcrfpy.createScene("test")
-    mcrfpy.setScene("test")
+    test = mcrfpy.Scene("test")
+    test.activate()
     
     # Test 1: Valid callable (function)
     def key_handler(key, action):
         print(f"Key pressed: {key}, action: {action}")
     
     try:
-        mcrfpy.keypressScene(key_handler)
+        test.on_key = key_handler
         print("✓ Accepted valid function as key handler")
     except Exception as e:
         print(f"✗ Rejected valid function: {e}")
@@ -27,7 +27,7 @@ def test_keypress_validation(timer_name):
     
     # Test 2: Valid callable (lambda)
     try:
-        mcrfpy.keypressScene(lambda k, a: None)
+        test.on_key = lambda k, a: None
         print("✓ Accepted valid lambda as key handler")
     except Exception as e:
         print(f"✗ Rejected valid lambda: {e}")
@@ -35,7 +35,7 @@ def test_keypress_validation(timer_name):
     
     # Test 3: Invalid - string
     try:
-        mcrfpy.keypressScene("not callable")
+        test.on_key = "not callable"
         print("✗ Should have rejected string as key handler")
     except TypeError as e:
         print(f"✓ Correctly rejected string: {e}")
@@ -45,7 +45,7 @@ def test_keypress_validation(timer_name):
     
     # Test 4: Invalid - number
     try:
-        mcrfpy.keypressScene(42)
+        test.on_key = 42
         print("✗ Should have rejected number as key handler")
     except TypeError as e:
         print(f"✓ Correctly rejected number: {e}")
@@ -55,7 +55,7 @@ def test_keypress_validation(timer_name):
     
     # Test 5: Invalid - None
     try:
-        mcrfpy.keypressScene(None)
+        test.on_key = None
         print("✗ Should have rejected None as key handler")
     except TypeError as e:
         print(f"✓ Correctly rejected None: {e}")
@@ -65,7 +65,7 @@ def test_keypress_validation(timer_name):
     
     # Test 6: Invalid - dict
     try:
-        mcrfpy.keypressScene({"not": "callable"})
+        test.on_key = {"not": "callable"}
         print("✗ Should have rejected dict as key handler")
     except TypeError as e:
         print(f"✓ Correctly rejected dict: {e}")
@@ -79,7 +79,7 @@ def test_keypress_validation(timer_name):
             print(f"Class handler: {key}, {action}")
     
     try:
-        mcrfpy.keypressScene(KeyHandler())
+        test.on_key = KeyHandler()
         print("✓ Accepted valid callable class instance")
     except Exception as e:
         print(f"✗ Rejected valid callable class: {e}")

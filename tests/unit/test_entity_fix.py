@@ -27,7 +27,7 @@ print("UIEntity::setProperty for 'x' and 'y' properties.")
 print()
 
 # Create scene to demonstrate
-mcrfpy.createScene("fix_demo")
+fix_demo = mcrfpy.Scene("fix_demo")
 
 # Create grid
 grid = mcrfpy.Grid(grid_x=15, grid_y=10)
@@ -49,7 +49,7 @@ entity = mcrfpy.Entity((2, 2), grid=grid)
 entity.sprite_index = 64  # @
 
 # UI
-ui = mcrfpy.sceneUI("fix_demo")
+ui = fix_demo.children
 ui.append(grid)
 grid.position = (100, 150)
 grid.size = (450, 300)
@@ -111,8 +111,8 @@ def handle_input(key, state):
         status.text = "Reset entity to (2,2)"
 
 # Setup
-mcrfpy.setScene("fix_demo")
-mcrfpy.keypressScene(handle_input)
+fix_demo.activate()
+fix_demo.on_key = handle_input
 mcrfpy.setTimer("update", update_display, 100)
 
 print("Ready to demonstrate the issue.")

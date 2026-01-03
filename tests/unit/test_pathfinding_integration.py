@@ -8,7 +8,7 @@ print("Testing pathfinding integration...")
 print("=" * 50)
 
 # Create scene and grid
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 grid = mcrfpy.Grid(grid_x=10, grid_y=10)
 
 # Initialize grid

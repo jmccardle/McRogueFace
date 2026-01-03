@@ -27,7 +27,7 @@ def test_script_loading():
         test_script = """
 import mcrfpy
 print("TEST SCRIPT LOADED SUCCESSFULLY")
-mcrfpy.createScene("test_scene")
+test_scene = mcrfpy.Scene("test_scene")
 """
         
         # Save the original game.py

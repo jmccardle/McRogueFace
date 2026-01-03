@@ -6,7 +6,7 @@ import sys
 
 try:
     print("1. Creating scene and grid...")
-    mcrfpy.createScene("test")
+    test = mcrfpy.Scene("test")
     grid = mcrfpy.Grid(grid_x=5, grid_y=5, texture=None, pos=(0, 0), size=(80, 80))
     print("   Grid created")
     

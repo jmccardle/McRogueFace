@@ -16,7 +16,7 @@ def capture_sprites(runtime):
     sys.exit(0)
 
 # Create scene
-mcrfpy.createScene("sprites")
+sprites = mcrfpy.Scene("sprites")
 
 # Load texture
 texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
@@ -129,10 +129,10 @@ for i, scale in enumerate([1.0, 2.0, 3.0, 4.0]):
     s.texture = texture
     s.sprite_index = 84  # Player
     s.scale = (scale, scale)
-    mcrfpy.sceneUI("sprites").append(s)
+    sprites.children.append(s)
 
 # Add all elements to scene
-ui = mcrfpy.sceneUI("sprites")
+ui = sprites.children
 ui.append(frame)
 ui.append(title)
 ui.append(player_label)
@@ -154,7 +154,7 @@ ui.append(armor)
 ui.append(scale_label)
 
 # Switch to scene
-mcrfpy.setScene("sprites")
+sprites.activate()
 
 # Set timer to capture after rendering starts
 mcrfpy.setTimer("capture", capture_sprites, 100)

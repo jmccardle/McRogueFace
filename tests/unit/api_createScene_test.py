@@ -9,7 +9,7 @@ def test_createScene():
     
     for scene_name in test_scenes:
         try:
-            mcrfpy.createScene(scene_name)
+            _scene = mcrfpy.Scene(scene_name)
             print(f"✓ Created scene: {scene_name}")
         except Exception as e:
             print(f"✗ Failed to create scene {scene_name}: {e}")
@@ -17,8 +17,8 @@ def test_createScene():
     
     # Try to set scene to verify it was created
     try:
-        mcrfpy.setScene("test_scene1")
-        current = mcrfpy.currentScene()
+        test_scene1.activate()  # Note: ensure scene was created
+        current = (mcrfpy.current_scene.name if mcrfpy.current_scene else None)
         if current == "test_scene1":
             print("✓ Scene switching works correctly")
         else:

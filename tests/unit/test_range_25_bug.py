@@ -18,7 +18,7 @@ except Exception as e:
 # Test 2: range(25) after creating scene/grid
 print("\nTest 2: range(25) after creating 25x15 grid")
 try:
-    mcrfpy.createScene("test")
+    test = mcrfpy.Scene("test")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     
     for i in range(25):
@@ -30,7 +30,7 @@ except Exception as e:
 # Test 3: The killer combination
 print("\nTest 3: range(25) after 15x25 grid.at() operations")
 try:
-    mcrfpy.createScene("test3")
+    test3 = mcrfpy.Scene("test3")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     
     # Do the nested loop that triggers the bug
@@ -54,7 +54,7 @@ except Exception as e:
 # Test 4: Does range(24) still work?
 print("\nTest 4: range(24) after same operations")
 try:
-    mcrfpy.createScene("test4")
+    test4 = mcrfpy.Scene("test4")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     
     for y in range(15):
@@ -76,7 +76,7 @@ except Exception as e:
 # Test 5: Is it about the specific combination of 15 and 25?
 print("\nTest 5: Different grid dimensions")
 try:
-    mcrfpy.createScene("test5")
+    test5 = mcrfpy.Scene("test5")
     grid = mcrfpy.Grid(grid_x=30, grid_y=20)
     
     for y in range(20):

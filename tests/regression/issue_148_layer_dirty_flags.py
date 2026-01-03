@@ -20,14 +20,14 @@ def run_test(runtime):
     print("=" * 60)
 
     # Create test scene
-    mcrfpy.createScene("test")
-    ui = mcrfpy.sceneUI("test")
+    test = mcrfpy.Scene("test")
+    ui = test.children
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
 
     # Create grid with larger size for performance testing
     grid = mcrfpy.Grid(pos=(50, 50), size=(500, 400), grid_size=(50, 40), texture=texture)
     ui.append(grid)
-    mcrfpy.setScene("test")
+    test.activate()
 
     print("\n--- Test 1: Layer creation (starts dirty) ---")
     color_layer = grid.add_layer("color", z_index=-1)
@@ -106,7 +106,7 @@ def run_test(runtime):
 
     # First render will be slow (cache miss)
     start = time.time()
-    mcrfpy.setScene("test")  # Force render
+    test.activate()  # Force render
     first_render = time.time() - start
     print(f"  First render (cache build): {first_render*1000:.2f}ms")
 
@@ -152,6 +152,6 @@ def run_test(runtime):
     sys.exit(0)
 
 # Initialize and run
-mcrfpy.createScene("init")
-mcrfpy.setScene("init")
+init = mcrfpy.Scene("init")
+init.activate()
 mcrfpy.setTimer("test", run_test, 100)

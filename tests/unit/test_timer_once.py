@@ -31,8 +31,8 @@ def check_results(runtime):
         sys.exit(1)
 
 # Set up the scene
-mcrfpy.createScene("test_scene") 
-mcrfpy.setScene("test_scene")
+test_scene = mcrfpy.Scene("test_scene") 
+test_scene.activate()
 
 # Create timers
 print("Creating once timer with once=True...")

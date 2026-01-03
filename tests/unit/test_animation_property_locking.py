@@ -30,7 +30,7 @@ def test_result(name, passed, details=""):
 def test_1_replace_mode_default():
     """Test that REPLACE mode is the default and works correctly"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
@@ -55,7 +55,7 @@ def test_1_replace_mode_default():
 def test_2_replace_mode_explicit():
     """Test explicit REPLACE mode"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
@@ -73,7 +73,7 @@ def test_2_replace_mode_explicit():
 def test_3_queue_mode():
     """Test QUEUE mode - animation should be queued"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
@@ -95,7 +95,7 @@ def test_3_queue_mode():
 def test_4_error_mode():
     """Test ERROR mode - should raise RuntimeError"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
@@ -120,7 +120,7 @@ def test_4_error_mode():
 def test_5_invalid_conflict_mode():
     """Test that invalid conflict_mode raises ValueError"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
@@ -140,7 +140,7 @@ def test_5_invalid_conflict_mode():
 def test_6_different_properties_no_conflict():
     """Test that different properties can animate simultaneously"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
@@ -164,7 +164,7 @@ def test_6_different_properties_no_conflict():
 def test_7_different_targets_no_conflict():
     """Test that same property on different targets doesn't conflict"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame1 = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         frame2 = mcrfpy.Frame(pos=(200, 200), size=(100, 100))
         ui.append(frame1)
@@ -187,7 +187,7 @@ def test_7_different_targets_no_conflict():
 def test_8_replace_completes_old():
     """Test that REPLACE mode completes the old animation's value"""
     try:
-        ui = mcrfpy.sceneUI("test")
+        ui = test.children
         frame = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
         ui.append(frame)
 
@@ -242,8 +242,8 @@ def run_all_tests(runtime):
 
 
 # Setup and run
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Start tests after a brief delay to allow scene to initialize
 mcrfpy.setTimer("start", run_all_tests, 100)

@@ -9,8 +9,8 @@ def test_properties():
     """Test grid cell event properties exist and work"""
     print("Testing grid cell event properties...")
 
-    mcrfpy.createScene("test_props")
-    ui = mcrfpy.sceneUI("test_props")
+    test_props = mcrfpy.Scene("test_props")
+    ui = test_props.children
     grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
     ui.append(grid)
 
@@ -45,9 +45,9 @@ def test_cell_hover():
     """Test cell hover events"""
     print("Testing cell hover events...")
 
-    mcrfpy.createScene("test_hover")
-    ui = mcrfpy.sceneUI("test_hover")
-    mcrfpy.setScene("test_hover")
+    test_hover = mcrfpy.Scene("test_hover")
+    ui = test_hover.children
+    test_hover.activate()
 
     grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
     ui.append(grid)
@@ -89,9 +89,9 @@ def test_cell_click():
     """Test cell click events"""
     print("Testing cell click events...")
 
-    mcrfpy.createScene("test_click")
-    ui = mcrfpy.sceneUI("test_click")
-    mcrfpy.setScene("test_click")
+    test_click = mcrfpy.Scene("test_click")
+    ui = test_click.children
+    test_click.activate()
 
     grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
     ui.append(grid)

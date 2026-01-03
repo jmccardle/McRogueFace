@@ -28,7 +28,7 @@ def take_screenshot(runtime):
     sys.exit(0)
 
 # Create minimal scene
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 
 # Add a visible element
 caption = mcrfpy.Caption(pos=(100, 100), text="Screenshot Test")
@@ -36,8 +36,8 @@ caption.font = mcrfpy.default_font
 caption.fill_color = mcrfpy.Color(255, 255, 255)
 caption.font_size = 24
 
-mcrfpy.sceneUI("test").append(caption)
-mcrfpy.setScene("test")
+test.children.append(caption)
+test.activate()
 
 # Use timer to ensure rendering has started
 print("Setting timer...")

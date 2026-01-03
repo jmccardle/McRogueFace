@@ -4,7 +4,7 @@ import mcrfpy
 import sys
 
 # Create test scenes
-mcrfpy.createScene("test_scene")
+test_scene = mcrfpy.Scene("test_scene")
 
 def test_scene_pos():
     """Test Scene pos property"""

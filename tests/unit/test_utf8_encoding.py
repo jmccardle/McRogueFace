@@ -31,5 +31,5 @@ def test_utf8(runtime):
     sys.exit(0)
 
 # Run test
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 mcrfpy.setTimer("test", test_utf8, 100)

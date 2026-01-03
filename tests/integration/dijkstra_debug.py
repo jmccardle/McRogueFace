@@ -27,7 +27,7 @@ def create_simple_map():
     """Create a simple test map"""
     global grid, color_layer, entities
 
-    mcrfpy.createScene("dijkstra_debug")
+    dijkstra_debug = mcrfpy.Scene("dijkstra_debug")
 
     # Small grid for easy debugging
     grid = mcrfpy.Grid(grid_x=10, grid_y=10)
@@ -140,7 +140,7 @@ grid = create_simple_map()
 test_path_highlighting()
 
 # Set up UI
-ui = mcrfpy.sceneUI("dijkstra_debug")
+ui = dijkstra_debug.children
 ui.append(grid)
 
 # Position and scale
@@ -158,8 +158,8 @@ info.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(info)
 
 # Set up scene
-mcrfpy.keypressScene(handle_keypress)
-mcrfpy.setScene("dijkstra_debug")
+dijkstra_debug.on_key = handle_keypress
+dijkstra_debug.activate()
 
 print("\nScene ready. The path should be highlighted in cyan.")
 print("If you don't see the path, there may be a rendering issue.")

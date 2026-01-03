@@ -9,8 +9,8 @@ def test_grid_background():
     print("Testing Grid Background Color...")
     
     # Create a test scene
-    mcrfpy.createScene("test")
-    ui = mcrfpy.sceneUI("test")
+    test = mcrfpy.Scene("test")
+    ui = test.children
     
     # Create a grid with default background
     grid = mcrfpy.Grid(pos=(50, 50), size=(400, 300), grid_size=(20, 15))
@@ -40,7 +40,7 @@ def test_grid_background():
     info_frame.children.append(color_display)
     
     # Activate the scene
-    mcrfpy.setScene("test")
+    test.activate()
     
     def run_tests(dt):
         """Run background color tests"""

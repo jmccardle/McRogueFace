@@ -14,7 +14,7 @@ print("A* Pathfinding Test")
 print("==================")
 
 # Create scene and grid
-mcrfpy.createScene("astar_test")
+astar_test = mcrfpy.Scene("astar_test")
 grid = mcrfpy.Grid(grid_x=20, grid_y=20)
 
 # Initialize grid - all walkable
@@ -119,12 +119,12 @@ def visual_test(runtime):
     sys.exit(0)
 
 # Set up minimal UI for visual test
-ui = mcrfpy.sceneUI("astar_test")
+ui = astar_test.children
 ui.append(grid)
 grid.position = (50, 50)
 grid.size = (400, 400)
 
-mcrfpy.setScene("astar_test")
+astar_test.activate()
 mcrfpy.setTimer("visual", visual_test, 100)
 
 print("\nStarting visual test...")

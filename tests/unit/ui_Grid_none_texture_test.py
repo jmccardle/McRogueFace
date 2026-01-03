@@ -17,7 +17,7 @@ def test_grid_none_texture(runtime):
         sys.exit(1)
 
     # Add to UI
-    ui = mcrfpy.sceneUI("grid_none_test")
+    ui = grid_none_test.children
     ui.append(grid)
 
     # Test 2: Verify grid properties
@@ -83,11 +83,11 @@ def test_grid_none_texture(runtime):
 
 # Set up test scene
 print("Creating test scene...")
-mcrfpy.createScene("grid_none_test")
-mcrfpy.setScene("grid_none_test")
+grid_none_test = mcrfpy.Scene("grid_none_test")
+grid_none_test.activate()
 
 # Add a background frame so we can see the grid
-ui = mcrfpy.sceneUI("grid_none_test")
+ui = grid_none_test.children
 background = mcrfpy.Frame(pos=(0, 0), size=(800, 600),
                          fill_color=mcrfpy.Color(200, 200, 200),
                          outline_color=mcrfpy.Color(0, 0, 0),

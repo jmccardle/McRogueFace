@@ -36,7 +36,7 @@ def run_tests(runtime):
     
     # Test 2: Create instance and add to scene
     frame = MyFrame(50, 50)
-    scene_ui = mcrfpy.sceneUI("test_scene")
+    scene_ui = test_scene.children
     scene_ui.append(frame)
     
     # Test 3: Retrieve from collection and check type
@@ -142,8 +142,8 @@ def run_tests(runtime):
     sys.exit(0 if test_passed else 1)
 
 # Create test scene
-mcrfpy.createScene("test_scene")
-mcrfpy.setScene("test_scene")
+test_scene = mcrfpy.Scene("test_scene")
+test_scene.activate()
 
 # Schedule tests to run after game loop starts
 mcrfpy.setTimer("test", run_tests, 100)

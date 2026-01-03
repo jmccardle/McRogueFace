@@ -67,7 +67,7 @@ class PathAnimator:
             self._animate_next_step()
 
 # Create test scene
-mcrfpy.createScene("chain_test")
+chain_test = mcrfpy.Scene("chain_test")
 
 # Create grid
 grid = mcrfpy.Grid(grid_x=20, grid_y=15)
@@ -97,7 +97,7 @@ enemy = mcrfpy.Entity((17, 12), grid=grid)
 enemy.sprite_index = 69  # E
 
 # UI setup
-ui = mcrfpy.sceneUI("chain_test")
+ui = chain_test.children
 ui.append(grid)
 grid.position = (100, 100)
 grid.size = (600, 450)
@@ -201,8 +201,8 @@ def handle_input(key, state):
         info.text = "Positions reset"
 
 # Setup
-mcrfpy.setScene("chain_test")
-mcrfpy.keypressScene(handle_input)
+chain_test.activate()
+chain_test.on_key = handle_input
 
 # Camera update timer
 mcrfpy.setTimer("cam_update", update_camera, 100)

@@ -12,8 +12,8 @@ def test_uicollection_remove():
     """Test UICollection.remove() takes a value, not an index."""
     print("Testing UICollection.remove()...")
 
-    mcrfpy.createScene("test_remove")
-    ui = mcrfpy.sceneUI("test_remove")
+    test_remove = mcrfpy.Scene("test_remove")
+    ui = test_remove.children
 
     frame1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
     frame2 = mcrfpy.Frame(pos=(100, 0), size=(100, 100))
@@ -58,8 +58,8 @@ def test_uicollection_pop():
     """Test UICollection.pop() removes and returns element at index."""
     print("\nTesting UICollection.pop()...")
 
-    mcrfpy.createScene("test_pop")
-    ui = mcrfpy.sceneUI("test_pop")
+    test_pop = mcrfpy.Scene("test_pop")
+    ui = test_pop.children
 
     frame1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
     frame1.name = "first"
@@ -108,8 +108,8 @@ def test_uicollection_insert():
     """Test UICollection.insert() inserts at given index."""
     print("\nTesting UICollection.insert()...")
 
-    mcrfpy.createScene("test_insert")
-    ui = mcrfpy.sceneUI("test_insert")
+    test_insert = mcrfpy.Scene("test_insert")
+    ui = test_insert.children
 
     frame1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
     frame1.name = "first"
@@ -160,8 +160,8 @@ def test_entitycollection_pop_insert():
     """Test EntityCollection.pop() and insert()."""
     print("\nTesting EntityCollection.pop() and insert()...")
 
-    mcrfpy.createScene("test_entity_pop")
-    ui = mcrfpy.sceneUI("test_entity_pop")
+    test_entity_pop = mcrfpy.Scene("test_entity_pop")
+    ui = test_entity_pop.children
 
     grid = mcrfpy.Grid(grid_size=(10, 10), pos=(0, 0), size=(400, 400))
     ui.append(grid)
@@ -204,8 +204,8 @@ def test_index_and_count():
     """Test index() and count() methods."""
     print("\nTesting index() and count()...")
 
-    mcrfpy.createScene("test_index_count")
-    ui = mcrfpy.sceneUI("test_index_count")
+    test_index_count = mcrfpy.Scene("test_index_count")
+    ui = test_index_count.children
 
     frame1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
     frame2 = mcrfpy.Frame(pos=(100, 0), size=(100, 100))

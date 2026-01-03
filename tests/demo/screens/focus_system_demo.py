@@ -600,8 +600,8 @@ def create_demo_scene():
     """Create and populate the focus system demo scene."""
 
     # Create scene
-    mcrfpy.createScene("focus_demo")
-    ui = mcrfpy.sceneUI("focus_demo")
+    focus_demo = mcrfpy.Scene("focus_demo")
+    ui = focus_demo.children
 
     # Background
     bg = mcrfpy.Frame(
@@ -752,10 +752,10 @@ def create_demo_scene():
             status_text.text = "No widget focused"
 
     # Activate scene first (keypressScene sets handler for CURRENT scene)
-    mcrfpy.setScene("focus_demo")
+    focus_demo.activate()
 
     # Register key handler for the now-current scene
-    mcrfpy.keypressScene(on_key)
+    focus_demo.on_key = on_key
 
     # Set initial focus
     focus_mgr.focus(0)

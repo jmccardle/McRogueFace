@@ -19,7 +19,7 @@ except Exception as e:
 
 # Test 2: Entity in grid with walls blocking path
 print("\nTest 2: Completely blocked path")
-mcrfpy.createScene("blocked_test")
+blocked_test = mcrfpy.Scene("blocked_test")
 grid = mcrfpy.Grid(grid_x=5, grid_y=5)
 
 # Make all tiles walkable first

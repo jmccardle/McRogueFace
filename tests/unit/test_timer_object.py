@@ -132,8 +132,8 @@ def run_tests(runtime):
     mcrfpy.setTimer("final_check", final_check, 2000)
 
 # Create a minimal scene
-mcrfpy.createScene("timer_test")
-mcrfpy.setScene("timer_test")
+timer_test = mcrfpy.Scene("timer_test")
+timer_test.activate()
 
 # Start tests after game loop begins
 mcrfpy.setTimer("run_tests", run_tests, 100)

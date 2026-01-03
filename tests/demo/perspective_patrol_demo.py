@@ -37,10 +37,10 @@ def setup_scene():
     """Create the demo scene"""
     global g_grid, g_patrol, g_fov_layer
 
-    mcrfpy.createScene("patrol_demo")
-    mcrfpy.setScene("patrol_demo")
+    patrol_demo = mcrfpy.Scene("patrol_demo")
+    patrol_demo.activate()
 
-    ui = mcrfpy.sceneUI("patrol_demo")
+    ui = patrol_demo.children
 
     # Title
     title = mcrfpy.Caption(text="Perspective Patrol Demo", pos=(10, 10))
@@ -123,7 +123,7 @@ def setup_scene():
     ui.append(status)
 
     # Set up keyboard handler
-    mcrfpy.keypressScene(on_keypress)
+    patrol_demo.on_key = on_keypress
 
     # Start patrol timer
     mcrfpy.setTimer("patrol", patrol_step, move_timer_ms)
@@ -173,7 +173,7 @@ def on_keypress(key, state):
         else:
             update_status("Status: Patrolling")
     elif key == "Q":
-        mcrfpy.setScene(None)
+        mcrfpy.current_scene = None
 
 def reset_vision():
     """Reset entity's discovered state to demonstrate unknown vs discovered"""
@@ -194,7 +194,7 @@ def reset_vision():
 
 def update_status(text):
     """Update status caption"""
-    ui = mcrfpy.sceneUI("patrol_demo")
+    ui = patrol_demo.children
     for element in ui:
         if hasattr(element, 'name') and element.name == "status":
             element.text = text

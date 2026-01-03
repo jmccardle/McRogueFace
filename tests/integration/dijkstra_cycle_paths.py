@@ -28,7 +28,7 @@ def create_map():
     """Create the map with entities"""
     global grid, color_layer, entities
 
-    mcrfpy.createScene("dijkstra_cycle")
+    dijkstra_cycle = mcrfpy.Scene("dijkstra_cycle")
 
     # Create grid
     grid = mcrfpy.Grid(grid_x=14, grid_y=10)
@@ -189,7 +189,7 @@ print()
 create_map()
 
 # Set up UI
-ui = mcrfpy.sceneUI("dijkstra_cycle")
+ui = dijkstra_cycle.children
 ui.append(grid)
 
 # Scale and position
@@ -222,8 +222,8 @@ legend.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend)
 
 # Show first valid path
-mcrfpy.setScene("dijkstra_cycle")
-mcrfpy.keypressScene(handle_keypress)
+dijkstra_cycle.activate()
+dijkstra_cycle.on_key = handle_keypress
 
 # Display initial path
 if path_combinations:

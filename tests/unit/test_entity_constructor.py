@@ -2,8 +2,8 @@
 import mcrfpy
 
 # Create scene and grid
-mcrfpy.createScene("test")
-ui = mcrfpy.sceneUI("test")
+test = mcrfpy.Scene("test")
+ui = test.children
 
 # Create texture and grid
 texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)

@@ -7,7 +7,7 @@ print("Testing Entity.path_to() method...")
 print("=" * 50)
 
 # Create scene and grid
-mcrfpy.createScene("path_test")
+path_test = mcrfpy.Scene("path_test")
 grid = mcrfpy.Grid(grid_x=10, grid_y=10)
 
 # Set up a simple map with some walls

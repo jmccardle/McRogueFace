@@ -20,7 +20,7 @@ def run_test(runtime):
         grid.h = 200
         
         # Add grid to scene
-        scene_ui = mcrfpy.sceneUI("test")
+        scene_ui = test.children
         scene_ui.append(grid)
         
         # Take initial screenshot
@@ -82,8 +82,8 @@ def run_test(runtime):
     sys.exit(0)
 
 # Set up the test scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule test to run after game loop starts
 mcrfpy.setTimer("test", run_test, 100)

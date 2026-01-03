@@ -32,8 +32,8 @@ def create_caption(x, y, text, font_size=16, text_color=WHITE, outline_color=BLA
 
 def create_caption_example():
     """Create a scene showing Caption UI element examples"""
-    mcrfpy.createScene("caption_example")
-    ui = mcrfpy.sceneUI("caption_example")
+    caption_example = mcrfpy.Scene("caption_example")
+    ui = caption_example.children
     
     # Background frame
     bg = mcrfpy.Frame(0, 0, 800, 600, fill_color=FRAME_COLOR)
@@ -61,8 +61,8 @@ def create_caption_example():
 
 def create_sprite_example():
     """Create a scene showing Sprite UI element examples"""
-    mcrfpy.createScene("sprite_example")
-    ui = mcrfpy.sceneUI("sprite_example")
+    sprite_example = mcrfpy.Scene("sprite_example")
+    ui = sprite_example.children
     
     # Background frame
     bg = mcrfpy.Frame(0, 0, 800, 600, fill_color=FRAME_COLOR)
@@ -122,8 +122,8 @@ def create_sprite_example():
 
 def create_frame_example():
     """Create a scene showing Frame UI element examples"""
-    mcrfpy.createScene("frame_example")
-    ui = mcrfpy.sceneUI("frame_example")
+    frame_example = mcrfpy.Scene("frame_example")
+    ui = frame_example.children
     
     # Background
     bg = mcrfpy.Frame(0, 0, 800, 600, fill_color=SHADOW_COLOR)
@@ -184,8 +184,8 @@ def create_frame_example():
 
 def create_grid_example():
     """Create a scene showing Grid UI element examples"""
-    mcrfpy.createScene("grid_example")
-    ui = mcrfpy.sceneUI("grid_example")
+    grid_example = mcrfpy.Scene("grid_example")
+    ui = grid_example.children
     
     # Background
     bg = mcrfpy.Frame(0, 0, 800, 600, fill_color=FRAME_COLOR)
@@ -234,8 +234,8 @@ def create_grid_example():
 
 def create_entity_example():
     """Create a scene showing Entity examples in a Grid"""
-    mcrfpy.createScene("entity_example")
-    ui = mcrfpy.sceneUI("entity_example")
+    entity_example = mcrfpy.Scene("entity_example")
+    ui = entity_example.children
     
     # Background
     bg = mcrfpy.Frame(0, 0, 800, 600, fill_color=FRAME_COLOR)
@@ -310,8 +310,8 @@ def create_entity_example():
 
 def create_combined_example():
     """Create a scene showing all UI elements combined"""
-    mcrfpy.createScene("combined_example")
-    ui = mcrfpy.sceneUI("combined_example")
+    combined_example = mcrfpy.Scene("combined_example")
+    ui = combined_example.children
     
     # Background
     bg = mcrfpy.Frame(0, 0, 800, 600, fill_color=SHADOW_COLOR)
@@ -417,7 +417,7 @@ def take_screenshots(runtime):
     scene_name, filename = screenshots[current_screenshot]
     
     # Switch to the scene
-    mcrfpy.setScene(scene_name)
+    mcrfpy.current_scene = scene_name
     
     # Take screenshot after a short delay to ensure rendering
     def capture():
@@ -435,7 +435,7 @@ def take_screenshots(runtime):
     mcrfpy.setTimer("capture", lambda r: capture(), 100)
 
 # Start with the first scene
-mcrfpy.setScene("caption_example")
+caption_example.activate()
 
 # Start the screenshot process
 print(f"\nStarting screenshot capture of {len(screenshots)} scenes...")

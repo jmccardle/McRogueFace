@@ -14,8 +14,8 @@ def timer_that_raises(runtime):
     raise ValueError("Intentional test exception")
 
 # Create a test scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule the timer - it will fire after 50ms
 mcrfpy.setTimer("raise_exception", timer_that_raises, 50)

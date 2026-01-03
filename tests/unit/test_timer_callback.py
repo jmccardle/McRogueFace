@@ -23,8 +23,8 @@ def new_style_callback(arg1, arg2=None):
     sys.exit(0)
 
 # Set up the scene
-mcrfpy.createScene("test_scene") 
-mcrfpy.setScene("test_scene")
+test_scene = mcrfpy.Scene("test_scene") 
+test_scene.activate()
 
 print("Testing old style timer with setTimer...")
 mcrfpy.setTimer("old_timer", old_style_callback, 100)

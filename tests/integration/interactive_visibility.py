@@ -15,7 +15,7 @@ import mcrfpy
 import sys
 
 # Create scene and grid
-mcrfpy.createScene("visibility_demo")
+visibility_demo = mcrfpy.Scene("visibility_demo")
 grid = mcrfpy.Grid(grid_x=30, grid_y=20)
 grid.fill_color = mcrfpy.Color(20, 20, 30)  # Dark background
 
@@ -77,7 +77,7 @@ current_perspective = -1
 perspective_names = ["Omniscient", "Player", "Enemy"]
 
 # UI Setup
-ui = mcrfpy.sceneUI("visibility_demo")
+ui = visibility_demo.children
 ui.append(grid)
 grid.position = (50, 100)
 grid.size = (900, 600)  # 30*30, 20*30
@@ -187,10 +187,10 @@ def handle_keys(key, state):
     update_info()
 
 # Set scene first
-mcrfpy.setScene("visibility_demo")
+visibility_demo.activate()
 
 # Register key handler (operates on current scene)
-mcrfpy.keypressScene(handle_keys)
+visibility_demo.on_key = handle_keys
 
 print("Interactive Visibility Demo")
 print("===========================")

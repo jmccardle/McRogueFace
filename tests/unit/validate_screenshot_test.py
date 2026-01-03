@@ -10,9 +10,9 @@ def test_screenshot_validation():
     print("=== Screenshot Validation Test ===\n")
     
     # Create a scene with bright, visible content
-    mcrfpy.createScene("screenshot_validation")
-    mcrfpy.setScene("screenshot_validation")
-    ui = mcrfpy.sceneUI("screenshot_validation")
+    screenshot_validation = mcrfpy.Scene("screenshot_validation")
+    screenshot_validation.activate()
+    ui = screenshot_validation.children
     
     # Create multiple colorful elements to ensure visibility
     print("Creating UI elements...")

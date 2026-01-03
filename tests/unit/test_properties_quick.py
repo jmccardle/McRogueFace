@@ -53,5 +53,5 @@ def test_properties(runtime):
     
     sys.exit(0)
 
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 mcrfpy.setTimer("test_properties", test_properties, 100)

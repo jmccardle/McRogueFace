@@ -6,11 +6,11 @@ print("Starting test...")
 
 # Create test scene
 print("[DEBUG] Creating scene...")
-mcrfpy.createScene("grid_test")
+grid_test = mcrfpy.Scene("grid_test")
 print("[DEBUG] Setting scene...")
-mcrfpy.setScene("grid_test")
+grid_test.activate()
 print("[DEBUG] Getting UI...")
-ui = mcrfpy.sceneUI("grid_test")
+ui = grid_test.children
 print("[DEBUG] UI retrieved")
 
 # Test texture creation

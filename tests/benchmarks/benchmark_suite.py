@@ -158,14 +158,14 @@ def run_next_scenario():
 
 def setup_empty_scene():
     """Scenario 1: Empty scene - pure engine overhead."""
-    mcrfpy.createScene("bench_empty")
-    mcrfpy.setScene("bench_empty")
+    bench_empty = mcrfpy.Scene("bench_empty")
+    bench_empty.activate()
 
 
 def setup_static_100():
     """Scenario 2: 100 static frames - best case for caching."""
-    mcrfpy.createScene("bench_static")
-    ui = mcrfpy.sceneUI("bench_static")
+    bench_static = mcrfpy.Scene("bench_static")
+    ui = bench_static.children
 
     # Create 100 frames in a 10x10 grid
     for i in range(100):
@@ -183,13 +183,13 @@ def setup_static_100():
 
         ui.append(frame)
 
-    mcrfpy.setScene("bench_static")
+    bench_static.activate()
 
 
 def setup_animated_100():
     """Scenario 3: 100 frames all animating - worst case for caching."""
-    mcrfpy.createScene("bench_animated")
-    ui = mcrfpy.sceneUI("bench_animated")
+    bench_animated = mcrfpy.Scene("bench_animated")
+    ui = bench_animated.children
 
     frames = []
     for i in range(100):
@@ -200,7 +200,7 @@ def setup_animated_100():
         frames.append(frame)
         ui.append(frame)
 
-    mcrfpy.setScene("bench_animated")
+    bench_animated.activate()
 
     # Start animations on all frames (color animation = content change)
     for i, frame in enumerate(frames):
@@ -212,8 +212,8 @@ def setup_animated_100():
 
 def setup_mixed_100():
     """Scenario 4: 100 frames, only 10 animating - realistic case."""
-    mcrfpy.createScene("bench_mixed")
-    ui = mcrfpy.sceneUI("bench_mixed")
+    bench_mixed = mcrfpy.Scene("bench_mixed")
+    ui = bench_mixed.children
 
     frames = []
     for i in range(100):
@@ -224,7 +224,7 @@ def setup_mixed_100():
         frames.append(frame)
         ui.append(frame)
 
-    mcrfpy.setScene("bench_mixed")
+    bench_mixed.activate()
 
     # Animate only 10 frames (every 10th)
     for i in range(0, 100, 10):
@@ -235,8 +235,8 @@ def setup_mixed_100():
 
 def setup_deep_hierarchy():
     """Scenario 5: 5 levels of nesting - test dirty flag propagation cost."""
-    mcrfpy.createScene("bench_deep")
-    ui = mcrfpy.sceneUI("bench_deep")
+    bench_deep = mcrfpy.Scene("bench_deep")
+    ui = bench_deep.children
 
     # Create 10 trees, each with 5 levels of nesting
     deepest_frames = []
@@ -263,7 +263,7 @@ def setup_deep_hierarchy():
             if level == 4:  # Deepest level
                 deepest_frames.append(frame)
 
-    mcrfpy.setScene("bench_deep")
+    bench_deep.activate()
 
     # Animate the deepest frames - tests propagation up the hierarchy
     for frame in deepest_frames:
@@ -273,8 +273,8 @@ def setup_deep_hierarchy():
 
 def setup_grid_stress():
     """Scenario 6: Large grid with entities - known performance bottleneck."""
-    mcrfpy.createScene("bench_grid")
-    ui = mcrfpy.sceneUI("bench_grid")
+    bench_grid = mcrfpy.Scene("bench_grid")
+    ui = bench_grid.children
 
     # Create a 50x50 grid (2500 cells)
     grid = mcrfpy.Grid(grid_size=(50, 50), pos=(50, 50), size=(700, 700))
@@ -303,7 +303,7 @@ def setup_grid_stress():
     except Exception as e:
         print(f"  Note: Could not create entities: {e}")
 
-    mcrfpy.setScene("bench_grid")
+    bench_grid.activate()
 
 
 # ============================================================================

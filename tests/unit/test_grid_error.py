@@ -8,7 +8,7 @@ import traceback
 print("Testing grid creation with detailed error...")
 
 # Create scene first
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 
 # Try to create grid and get detailed error
 try:

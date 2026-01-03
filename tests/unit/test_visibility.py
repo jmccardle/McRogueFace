@@ -14,7 +14,7 @@ print("Knowledge Stubs 1 - Visibility System Test")
 print("==========================================")
 
 # Create scene and grid
-mcrfpy.createScene("visibility_test")
+visibility_test = mcrfpy.Scene("visibility_test")
 grid = mcrfpy.Grid(grid_x=20, grid_y=15)
 grid.fill_color = mcrfpy.Color(20, 20, 30)  # Dark background
 
@@ -135,7 +135,7 @@ visible_count = sum(1 for state in entity.gridstate if state.visible)
 print(f"  Visible cells after move: {visible_count}")
 
 # Set up UI
-ui = mcrfpy.sceneUI("visibility_test")
+ui = visibility_test.children
 ui.append(grid)
 grid.position = (50, 50)
 grid.size = (600, 450)  # 20*30, 15*30
@@ -156,7 +156,7 @@ legend.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend)
 
 # Set scene
-mcrfpy.setScene("visibility_test")
+visibility_test.activate()
 
 # Set timer to cycle perspectives
 mcrfpy.setTimer("cycle", visual_test, 2000)  # Every 2 seconds

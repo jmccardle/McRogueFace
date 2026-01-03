@@ -131,9 +131,9 @@ What do you do? Brief reasoning (1-2 sentences), then Action: <action>"""
 
 def setup_scene(world: WorldGraph):
     """Create McRogueFace scene from WorldGraph."""
-    mcrfpy.createScene("multi_turn")
-    mcrfpy.setScene("multi_turn")
-    ui = mcrfpy.sceneUI("multi_turn")
+    multi_turn = mcrfpy.Scene("multi_turn")
+    multi_turn.activate()
+    ui = multi_turn.children
 
     texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
 

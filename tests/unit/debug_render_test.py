@@ -11,13 +11,13 @@ print(f"Automation available: {'automation' in dir(mcrfpy)}")
 
 # Try to understand the scene state
 print("\nCreating and checking scene...")
-mcrfpy.createScene("debug_scene")
-mcrfpy.setScene("debug_scene")
-current = mcrfpy.currentScene()
+debug_scene = mcrfpy.Scene("debug_scene")
+debug_scene.activate()
+current = (mcrfpy.current_scene.name if mcrfpy.current_scene else None)
 print(f"Current scene: {current}")
 
 # Get UI collection
-ui = mcrfpy.sceneUI("debug_scene")
+ui = debug_scene.children
 print(f"UI collection type: {type(ui)}")
 print(f"Initial UI elements: {len(ui)}")
 

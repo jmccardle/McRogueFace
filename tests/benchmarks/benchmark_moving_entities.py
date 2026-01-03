@@ -21,11 +21,11 @@ import sys
 import random
 
 # Create the benchmark scene
-mcrfpy.createScene("benchmark")
-mcrfpy.setScene("benchmark")
+benchmark = mcrfpy.Scene("benchmark")
+benchmark.activate()
 
 # Get scene UI
-ui = mcrfpy.sceneUI("benchmark")
+ui = benchmark.children
 
 # Create a 100x100 grid
 grid = mcrfpy.Grid(
@@ -94,7 +94,7 @@ def handle_key(key, state):
         print("\nBenchmark ended by user")
         sys.exit(0)
 
-mcrfpy.keypressScene(handle_key)
+benchmark.on_key = handle_key
 
 # Update entity positions
 def update_entities(ms):

@@ -5,9 +5,9 @@ import mcrfpy
 import sys
 
 # Create a simple scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
-ui = mcrfpy.sceneUI("test")
+test = mcrfpy.Scene("test")
+test.activate()
+ui = test.children
 
 # Create a small grid
 grid = mcrfpy.Grid(

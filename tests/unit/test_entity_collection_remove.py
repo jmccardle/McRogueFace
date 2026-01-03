@@ -12,11 +12,11 @@ def test_remove_by_entity():
     
     # Create a test scene and grid
     scene_name = "test_entity_remove"
-    mcrfpy.createScene(scene_name)
+    _scene = mcrfpy.Scene(scene_name)
     
     # Create a grid (entities need a grid)
     grid = mcrfpy.Grid()  # Default 2x2 grid is fine for testing
-    mcrfpy.sceneUI(scene_name).append(grid)
+    _scene.children.append(grid)  # TODO: Replace _scene with correct Scene object
     
     # Get the entity collection
     entities = grid.entities

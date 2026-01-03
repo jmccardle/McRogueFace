@@ -243,5 +243,5 @@ def test_vector_arithmetic(runtime):
     sys.exit(0 if all_pass else 1)
 
 # Run test
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 mcrfpy.setTimer("test", test_vector_arithmetic, 100)

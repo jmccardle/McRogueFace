@@ -22,9 +22,9 @@ def run_tests():
     print("=== Synchronous Screenshot Tests ===\n")
 
     # Create a test scene with UI elements
-    mcrfpy.createScene("screenshot_test")
-    mcrfpy.setScene("screenshot_test")
-    ui = mcrfpy.sceneUI("screenshot_test")
+    screenshot_test = mcrfpy.Scene("screenshot_test")
+    screenshot_test.activate()
+    ui = screenshot_test.children
 
     # Test 1: Basic screenshot works
     print("Test 1: Basic screenshot functionality")

@@ -12,7 +12,7 @@ def test_nested_clipping(runtime):
     print("Testing advanced UIFrame clipping with nested frames...")
     
     # Create test scene
-    scene = mcrfpy.sceneUI("test")
+    scene = test.children
     
     # Create outer frame with clipping enabled
     outer = Frame(pos=(50, 50), size=(400, 300),
@@ -94,8 +94,8 @@ def test_nested_clipping(runtime):
 
 # Main execution
 print("Creating advanced test scene...")
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule the test
 mcrfpy.setTimer("test_nested_clipping", test_nested_clipping, 100)

@@ -7,7 +7,7 @@ import sys
 print("Simple visibility test...")
 
 # Create scene and grid
-mcrfpy.createScene("simple")
+simple = mcrfpy.Scene("simple")
 print("Scene created")
 
 grid = mcrfpy.Grid(grid_x=5, grid_y=5)

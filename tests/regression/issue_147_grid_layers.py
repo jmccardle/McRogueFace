@@ -17,8 +17,8 @@ def run_test(runtime):
     print("=" * 60)
 
     # Create test scene
-    mcrfpy.createScene("test")
-    ui = mcrfpy.sceneUI("test")
+    test = mcrfpy.Scene("test")
+    ui = test.children
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
 
     # Create grid with explicit empty layers (#150 migration)
@@ -188,6 +188,6 @@ def run_test(runtime):
     sys.exit(0)
 
 # Initialize and run
-mcrfpy.createScene("init")
-mcrfpy.setScene("init")
+init = mcrfpy.Scene("init")
+init.activate()
 mcrfpy.setTimer("test", run_test, 100)

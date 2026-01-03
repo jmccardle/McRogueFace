@@ -5,9 +5,9 @@ import mcrfpy
 import sys
 
 # Create scene
-mcrfpy.createScene("headless_test")
-ui = mcrfpy.sceneUI("headless_test")
-mcrfpy.setScene("headless_test")
+headless_test = mcrfpy.Scene("headless_test")
+ui = headless_test.children
+headless_test.activate()
 
 # Create a visible indicator
 frame = mcrfpy.Frame(pos=(200, 200), size=(400, 200))

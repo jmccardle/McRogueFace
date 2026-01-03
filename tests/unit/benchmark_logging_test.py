@@ -128,8 +128,8 @@ mcrfpy.log_benchmark("Test log message")
 print("Logged test message")
 
 # Set up scene and run for a few frames
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule test completion after ~100ms (to capture some frames)
 mcrfpy.setTimer("test", run_test, 100)

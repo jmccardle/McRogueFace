@@ -8,7 +8,7 @@ try:
     print("1. Module loaded")
     
     print("2. Creating scene...")
-    mcrfpy.createScene("test")
+    test = mcrfpy.Scene("test")
     print("   Scene created")
     
     print("3. Creating grid with explicit parameters...")

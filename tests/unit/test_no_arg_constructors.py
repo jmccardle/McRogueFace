@@ -85,7 +85,7 @@ def test_ui_constructors(runtime):
     sys.exit(0)
 
 # Create a basic scene so the game can start
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 
 # Schedule the test to run after game initialization
 mcrfpy.setTimer("test", test_ui_constructors, 100)

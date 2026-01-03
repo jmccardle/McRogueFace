@@ -26,5 +26,5 @@ def simple_test(runtime):
     
     sys.exit(0)
 
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 mcrfpy.setTimer("simple_test", simple_test, 100)

@@ -17,12 +17,12 @@ def my_callback(anim, target):
 def setup_and_run():
     """Set up scene and run animation with callback"""
     # Create scene
-    mcrfpy.createScene("callback_demo")
-    mcrfpy.setScene("callback_demo")
+    callback_demo = mcrfpy.Scene("callback_demo")
+    callback_demo.activate()
     
     # Create a frame to animate
     frame = mcrfpy.Frame((100, 100), (200, 200), fill_color=(255, 0, 0))
-    ui = mcrfpy.sceneUI("callback_demo")
+    ui = callback_demo.children
     ui.append(frame)
     
     # Create animation with callback
@@ -42,7 +42,7 @@ def check_result(runtime):
         
         # Test 2: Animation without callback
         print("\nTesting animation without callback...")
-        ui = mcrfpy.sceneUI("callback_demo")
+        ui = callback_demo.children
         frame = ui[0]
         
         anim2 = mcrfpy.Animation("y", 300.0, 0.5, "linear")

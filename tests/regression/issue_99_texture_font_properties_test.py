@@ -217,8 +217,8 @@ def run_test(runtime):
     sys.exit(0)
 
 # Set up the test scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule test to run after game loop starts
 mcrfpy.setTimer("test", run_test, 100)

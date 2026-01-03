@@ -9,8 +9,8 @@ print(f"stdin.isatty(): {sys.stdin.isatty()}")
 print(f"stdin fileno: {sys.stdin.fileno()}")
 
 # Set up a basic scene
-mcrfpy.createScene("stdin_test")
-mcrfpy.setScene("stdin_test")
+stdin_test = mcrfpy.Scene("stdin_test")
+stdin_test.activate()
 
 # Try to prevent interactive mode by closing stdin
 print("\nAttempting to prevent interactive mode...")

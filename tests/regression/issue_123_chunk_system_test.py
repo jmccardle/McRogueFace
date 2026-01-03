@@ -181,8 +181,8 @@ if __name__ == "__main__":
     print("Issue #123: Grid Sub-grid Chunk System Test")
     print("=" * 60)
 
-    mcrfpy.createScene("test")
-    mcrfpy.setScene("test")
+    test = mcrfpy.Scene("test")
+    test.activate()
 
     # Run tests after scene is active
     mcrfpy.setTimer("test", run_test, 100)

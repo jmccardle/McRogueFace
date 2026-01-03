@@ -11,7 +11,7 @@ import mcrfpy
 import sys
 
 # Create scene
-mcrfpy.createScene("test_anim")
+test_anim = mcrfpy.Scene("test_anim")
 
 # Create simple grid
 grid = mcrfpy.Grid(grid_x=15, grid_y=15)
@@ -42,7 +42,7 @@ entity = mcrfpy.Entity((5, 5), grid=grid)
 entity.sprite_index = 64  # @
 
 # UI setup
-ui = mcrfpy.sceneUI("test_anim")
+ui = test_anim.children
 ui.append(grid)
 grid.position = (100, 100)
 grid.size = (450, 450)  # 15 * 30 pixels per cell
@@ -182,8 +182,8 @@ def handle_input(key, state):
         print(f"Reset entity to ({entity.x}, {entity.y})")
 
 # Set scene
-mcrfpy.setScene("test_anim")
-mcrfpy.keypressScene(handle_input)
+test_anim.activate()
+test_anim.on_key = handle_input
 
 # Start position update timer
 mcrfpy.setTimer("update_pos", update_position_display, 200)

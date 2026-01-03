@@ -10,7 +10,7 @@ FLOOR_COLOR = mcrfpy.Color(200, 200, 220)
 PATH_COLOR = mcrfpy.Color(100, 255, 100)
 
 # Create scene
-mcrfpy.createScene("visual_test")
+visual_test = mcrfpy.Scene("visual_test")
 
 # Create grid
 grid = mcrfpy.Grid(grid_x=5, grid_y=5)
@@ -64,7 +64,7 @@ if path:
         print(f"  Set ({x},{y}) to green")
 
 # Set up UI
-ui = mcrfpy.sceneUI("visual_test")
+ui = visual_test.children
 ui.append(grid)
 grid.position = (50, 50)
 grid.size = (250, 250)
@@ -75,7 +75,7 @@ title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Set scene
-mcrfpy.setScene("visual_test")
+visual_test.activate()
 
 # Set timer to check rendering
 mcrfpy.setTimer("check", check_render, 500)

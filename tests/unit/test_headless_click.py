@@ -13,9 +13,9 @@ def test_headless_click():
     """Test that clicks work in headless mode via automation API"""
     print("Testing headless click events...")
 
-    mcrfpy.createScene("test_click")
-    ui = mcrfpy.sceneUI("test_click")
-    mcrfpy.setScene("test_click")
+    test_click = mcrfpy.Scene("test_click")
+    ui = test_click.children
+    test_click.activate()
 
     # Create a frame at known position
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
@@ -64,9 +64,9 @@ def test_click_miss():
     click_count = 0
     click_positions = []
 
-    mcrfpy.createScene("test_miss")
-    ui = mcrfpy.sceneUI("test_miss")
-    mcrfpy.setScene("test_miss")
+    test_miss = mcrfpy.Scene("test_miss")
+    ui = test_miss.children
+    test_miss.activate()
 
     # Create a frame at known position
     frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))

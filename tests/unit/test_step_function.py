@@ -108,8 +108,8 @@ def run_tests():
 if __name__ == "__main__":
     try:
         # Create a scene for the test
-        mcrfpy.createScene("test_step")
-        mcrfpy.setScene("test_step")
+        test_step = mcrfpy.Scene("test_step")
+        test_step.activate()
 
         if run_tests():
             print("\nPASS")

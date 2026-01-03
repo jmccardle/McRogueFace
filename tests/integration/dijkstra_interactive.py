@@ -38,7 +38,7 @@ def create_map():
     """Create the interactive map with the layout specified by the user"""
     global grid, color_layer, entities
 
-    mcrfpy.createScene("dijkstra_interactive")
+    dijkstra_interactive = mcrfpy.Scene("dijkstra_interactive")
 
     # Create grid - 14x10 as specified
     grid = mcrfpy.Grid(grid_x=14, grid_y=10)
@@ -194,7 +194,7 @@ print("  Q/ESC - Quit")
 grid = create_map()
 
 # Set up UI
-ui = mcrfpy.sceneUI("dijkstra_interactive")
+ui = dijkstra_interactive.children
 ui.append(grid)
 
 # Scale and position grid for better visibility
@@ -235,10 +235,10 @@ for i, entity in enumerate(entities):
     ui.append(marker)
 
 # Set up input handling
-mcrfpy.keypressScene(handle_keypress)
+dijkstra_interactive.on_key = handle_keypress
 
 # Show the scene
-mcrfpy.setScene("dijkstra_interactive")
+dijkstra_interactive.activate()
 
 print("\nVisualization ready!")
 print("Entities are at:")

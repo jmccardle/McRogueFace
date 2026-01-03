@@ -8,9 +8,9 @@ def test_grid_null_texture():
     print("=== Testing Grid with null texture ===")
     
     # Create test scene
-    mcrfpy.createScene("grid_null_test")
-    mcrfpy.setScene("grid_null_test")
-    ui = mcrfpy.sceneUI("grid_null_test")
+    grid_null_test = mcrfpy.Scene("grid_null_test")
+    grid_null_test.activate()
+    ui = grid_null_test.children
     
     # Test 1: Try with None
     try:

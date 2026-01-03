@@ -8,9 +8,9 @@ print("Test script starting...")
 def test_Entity():
     """Test Entity class and index() method for collection removal"""
     # Create test scene with grid
-    mcrfpy.createScene("entity_test")
-    mcrfpy.setScene("entity_test")
-    ui = mcrfpy.sceneUI("entity_test")
+    entity_test = mcrfpy.Scene("entity_test")
+    entity_test.activate()
+    ui = entity_test.children
     
     # Create a grid
     grid = mcrfpy.Grid(10, 10,

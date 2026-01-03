@@ -28,7 +28,7 @@ def create_map():
     """Create a map with obstacles to show pathfinding differences"""
     global grid, color_layer
 
-    mcrfpy.createScene("pathfinding_comparison")
+    pathfinding_comparison = mcrfpy.Scene("pathfinding_comparison")
 
     # Create grid
     grid = mcrfpy.Grid(grid_x=30, grid_y=20)
@@ -198,7 +198,7 @@ print("Dijkstra explores in all directions (good for multiple targets)")
 create_map()
 
 # Set up UI
-ui = mcrfpy.sceneUI("pathfinding_comparison")
+ui = pathfinding_comparison.children
 ui.append(grid)
 
 # Scale and position
@@ -230,8 +230,8 @@ legend2.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend2)
 
 # Set scene and input
-mcrfpy.setScene("pathfinding_comparison")
-mcrfpy.keypressScene(handle_keypress)
+pathfinding_comparison.activate()
+pathfinding_comparison.on_key = handle_keypress
 
 # Show initial A* path
 show_astar()

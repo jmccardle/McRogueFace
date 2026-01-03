@@ -11,7 +11,7 @@ def run_visual_test(runtime):
     print("\nRunning visual tests...")
     
     # Get our captions
-    ui = mcrfpy.sceneUI("test")
+    ui = test.children
     
     # Test 1: Make caption2 invisible
     print("Test 1: Making caption2 invisible")
@@ -65,8 +65,8 @@ def main():
     print("=== UICaption Visual Test ===\n")
     
     # Create test scene
-    mcrfpy.createScene("test")
-    mcrfpy.setScene("test")
+    test = mcrfpy.Scene("test")
+    test.activate()
     
     # Create multiple captions for testing
     caption1 = mcrfpy.Caption(pos=(50, 50), text="Caption 1: Normal", fill_color=mcrfpy.Color(255, 255, 255))
@@ -76,7 +76,7 @@ def main():
     caption5 = mcrfpy.Caption(pos=(50, 250), text="Caption 5: 0% opacity", fill_color=mcrfpy.Color(255, 255, 200))
     
     # Add captions to scene
-    ui = mcrfpy.sceneUI("test")
+    ui = test.children
     ui.append(caption1)
     ui.append(caption2)
     ui.append(caption3)

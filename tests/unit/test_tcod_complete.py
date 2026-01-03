@@ -9,7 +9,7 @@ def run_tests():
     
     # Test 1: Basic Grid Creation
     print("Test 1: Grid Creation")
-    mcrfpy.createScene("tcod_test")
+    tcod_test = mcrfpy.Scene("tcod_test")
     grid = mcrfpy.Grid(grid_x=10, grid_y=10, texture=None, pos=(10, 10), size=(160, 160))
     print("✓ Grid created successfully\n")
     

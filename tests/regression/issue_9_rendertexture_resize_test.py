@@ -45,7 +45,7 @@ def test_rendertexture_resize():
     """Test RenderTexture behavior with various grid sizes"""
     print("=== Testing UIGrid RenderTexture Resize (Issue #9) ===\n")
     
-    scene_ui = mcrfpy.sceneUI("test")
+    scene_ui = test.children
     
     # Test 1: Small grid (should work fine)
     print("--- Test 1: Small Grid (400x300) ---")
@@ -222,8 +222,8 @@ def run_test(runtime):
     sys.exit(0)
 
 # Set up the test scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule test to run after game loop starts
 mcrfpy.setTimer("test", run_test, 100)

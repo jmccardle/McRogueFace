@@ -19,8 +19,8 @@ def benchmark_grid_size(grid_x, grid_y):
 
     # Create scene and grid
     scene_name = f"bench_{grid_x}x{grid_y}"
-    mcrfpy.createScene(scene_name)
-    ui = mcrfpy.sceneUI(scene_name)
+    _scene = mcrfpy.Scene(scene_name)
+    ui = _scene.children  # TODO: Replace _scene with correct Scene object
 
     texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
 
@@ -130,8 +130,8 @@ def main():
     sys.exit(0)
 
 # Run immediately (no timer needed for this test)
-mcrfpy.createScene("init")
-mcrfpy.setScene("init")
+init = mcrfpy.Scene("init")
+init.activate()
 
 # Use a timer to let the engine initialize
 def run_benchmark(runtime):

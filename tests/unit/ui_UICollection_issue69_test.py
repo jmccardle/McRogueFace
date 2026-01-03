@@ -6,9 +6,9 @@ from datetime import datetime
 def test_UICollection():
     """Test UICollection sequence protocol compliance"""
     # Create test scene
-    mcrfpy.createScene("collection_test")
-    mcrfpy.setScene("collection_test")
-    ui = mcrfpy.sceneUI("collection_test")
+    collection_test = mcrfpy.Scene("collection_test")
+    collection_test.activate()
+    ui = collection_test.children
     
     # Add various UI elements
     frame = mcrfpy.Frame(pos=(10, 10), size=(100, 100))

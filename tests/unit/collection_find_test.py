@@ -12,8 +12,8 @@ def test_uicollection_find():
     print("Testing UICollection.find()...")
 
     # Create a scene with named elements
-    mcrfpy.createScene("test_find")
-    ui = mcrfpy.sceneUI("test_find")
+    test_find = mcrfpy.Scene("test_find")
+    ui = test_find.children
 
     # Create frames with names
     frame1 = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
@@ -94,8 +94,8 @@ def test_entitycollection_find():
     print("\nTesting EntityCollection.find()...")
 
     # Create a grid with entities
-    mcrfpy.createScene("test_entity_find")
-    ui = mcrfpy.sceneUI("test_entity_find")
+    test_entity_find = mcrfpy.Scene("test_entity_find")
+    ui = test_entity_find.children
 
     grid = mcrfpy.Grid(grid_size=(10, 10), pos=(0, 0), size=(400, 400))
     ui.append(grid)
@@ -149,8 +149,8 @@ def test_recursive_find():
     """Test recursive find in nested Frame children."""
     print("\nTesting recursive find in nested frames...")
 
-    mcrfpy.createScene("test_recursive")
-    ui = mcrfpy.sceneUI("test_recursive")
+    test_recursive = mcrfpy.Scene("test_recursive")
+    ui = test_recursive.children
 
     # Create nested structure
     parent = mcrfpy.Frame(pos=(0, 0), size=(400, 400))

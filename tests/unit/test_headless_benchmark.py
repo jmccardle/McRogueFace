@@ -17,9 +17,9 @@ def run_tests():
     print("=== Headless Benchmark Tests ===\n")
 
     # Create a test scene
-    mcrfpy.createScene("benchmark_test")
-    mcrfpy.setScene("benchmark_test")
-    ui = mcrfpy.sceneUI("benchmark_test")
+    benchmark_test = mcrfpy.Scene("benchmark_test")
+    benchmark_test.activate()
+    ui = benchmark_test.children
 
     # Add some UI elements to have something to render
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))

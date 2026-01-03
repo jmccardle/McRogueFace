@@ -25,9 +25,9 @@ def take_screenshot_and_exit():
 
 # Set up a simple scene
 print("Creating test scene...")
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
-ui = mcrfpy.sceneUI("test")
+test = mcrfpy.Scene("test")
+test.activate()
+ui = test.children
 
 # Add visible content - a white frame on default background
 frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200),

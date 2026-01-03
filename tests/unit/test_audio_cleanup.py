@@ -6,6 +6,6 @@ import sys
 print("Testing audio cleanup...")
 
 # Create a scene and immediately exit
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 print("Exiting now...")
 sys.exit(0)

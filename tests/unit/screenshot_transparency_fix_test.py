@@ -10,9 +10,9 @@ def test_transparency_workaround():
     print("=== Screenshot Transparency Fix Test ===\n")
     
     # Create a scene
-    mcrfpy.createScene("opaque_test")
-    mcrfpy.setScene("opaque_test")
-    ui = mcrfpy.sceneUI("opaque_test")
+    opaque_test = mcrfpy.Scene("opaque_test")
+    opaque_test.activate()
+    ui = opaque_test.children
     
     # WORKAROUND: Create a full-window opaque frame as the first element
     # This acts as an opaque background since the scene clears with transparent

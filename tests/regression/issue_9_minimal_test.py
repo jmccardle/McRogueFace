@@ -21,7 +21,7 @@ def run_test(runtime):
         grid.h = 300
         
         # Add to scene
-        scene_ui = mcrfpy.sceneUI("test")
+        scene_ui = test.children
         scene_ui.append(grid)
         
         # Test accessing grid points
@@ -60,8 +60,8 @@ def run_test(runtime):
     sys.exit(0)
 
 # Create and set scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule test
 mcrfpy.setTimer("test", run_test, 100)

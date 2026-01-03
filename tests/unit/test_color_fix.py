@@ -7,7 +7,7 @@ print("Testing Color fix...")
 
 # Test 1: Create grid
 try:
-    mcrfpy.createScene("test")
+    test = mcrfpy.Scene("test")
     grid = mcrfpy.Grid(grid_x=5, grid_y=5)
     print("✓ Grid created")
 except Exception as e:

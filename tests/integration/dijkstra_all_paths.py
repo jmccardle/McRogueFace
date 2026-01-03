@@ -30,7 +30,7 @@ def create_map():
     """Create the map with entities"""
     global grid, color_layer, entities, all_combinations
 
-    mcrfpy.createScene("dijkstra_all")
+    dijkstra_all = mcrfpy.Scene("dijkstra_all")
 
     # Create grid
     grid = mcrfpy.Grid(grid_x=14, grid_y=10)
@@ -178,7 +178,7 @@ print()
 create_map()
 
 # Set up UI
-ui = mcrfpy.sceneUI("dijkstra_all")
+ui = dijkstra_all.children
 ui.append(grid)
 
 # Scale and position
@@ -221,8 +221,8 @@ expected.fill_color = mcrfpy.Color(255, 150, 150)
 ui.append(expected)
 
 # Set scene first, then set up input handler
-mcrfpy.setScene("dijkstra_all")
-mcrfpy.keypressScene(handle_keypress)
+dijkstra_all.activate()
+dijkstra_all.on_key = handle_keypress
 
 # Show first combination
 show_combination(0)

@@ -10,7 +10,7 @@ def clear_and_recreate(runtime):
     """Clear UI and recreate - mimics demo switching"""
     print(f"\nTimer called at {runtime}")
     
-    ui = mcrfpy.sceneUI("test")
+    ui = test.children
     
     # Remove all but first 2 items (like clear_demo_objects)
     print(f"Scene has {len(ui)} elements before clearing")
@@ -37,9 +37,9 @@ def clear_and_recreate(runtime):
 
 # Create initial scene
 print("Creating scene...")
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
-ui = mcrfpy.sceneUI("test")
+test = mcrfpy.Scene("test")
+test.activate()
+ui = test.children
 
 # Add title and subtitle (to preserve during clearing)
 title = mcrfpy.Caption(pos=(400, 20), text="Test Title")

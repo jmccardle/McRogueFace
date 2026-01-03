@@ -9,7 +9,7 @@ print("=" * 50)
 # Test 1: Basic Color assignment
 print("Test 1: Color assignment in grid")
 try:
-    mcrfpy.createScene("test1")
+    test1 = mcrfpy.Scene("test1")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     
     # Assign color to a cell
@@ -27,7 +27,7 @@ except Exception as e:
 # Test 2: Multiple color assignments
 print("\nTest 2: Multiple color assignments")
 try:
-    mcrfpy.createScene("test2")
+    test2 = mcrfpy.Scene("test2")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     
     # Multiple properties including color
@@ -54,7 +54,7 @@ print("\nTest 3: Exact pattern from dijkstra_demo_final.py")
 try:
     # Recreate the exact function
     def create_demo():
-        mcrfpy.createScene("dijkstra_demo")
+        dijkstra_demo = mcrfpy.Scene("dijkstra_demo")
         
         # Create grid
         grid = mcrfpy.Grid(grid_x=25, grid_y=15)

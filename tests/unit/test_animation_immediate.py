@@ -6,11 +6,11 @@ Test Animation creation without timer
 import mcrfpy
 
 print("1. Creating scene...")
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 print("2. Getting UI...")
-ui = mcrfpy.sceneUI("test")
+ui = test.children
 
 print("3. Creating frame...")
 frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))

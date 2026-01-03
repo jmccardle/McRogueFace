@@ -180,9 +180,9 @@ Always end your final response with: Action: <YOUR_ACTION>"""
 
 def setup_scene(world: WorldGraph):
     """Create McRogueFace scene from WorldGraph."""
-    mcrfpy.createScene("enhanced_demo")
-    mcrfpy.setScene("enhanced_demo")
-    ui = mcrfpy.sceneUI("enhanced_demo")
+    enhanced_demo = mcrfpy.Scene("enhanced_demo")
+    enhanced_demo.activate()
+    ui = enhanced_demo.children
 
     texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
 

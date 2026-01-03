@@ -6,9 +6,9 @@ from mcrfpy import automation
 import sys
 
 # Create scene
-mcrfpy.createScene("detect_test")
-ui = mcrfpy.sceneUI("detect_test")
-mcrfpy.setScene("detect_test")
+detect_test = mcrfpy.Scene("detect_test")
+ui = detect_test.children
+detect_test.activate()
 
 # Create a frame
 frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))

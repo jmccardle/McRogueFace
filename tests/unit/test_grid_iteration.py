@@ -9,7 +9,7 @@ print("=" * 50)
 # Test 1: Basic grid.at() calls
 print("Test 1: Basic grid.at() calls")
 try:
-    mcrfpy.createScene("test1")
+    test1 = mcrfpy.Scene("test1")
     grid = mcrfpy.Grid(grid_x=5, grid_y=5)
     
     # Single call
@@ -32,7 +32,7 @@ print()
 # Test 2: Grid.at() in a loop
 print("Test 2: Grid.at() in simple loop")
 try:
-    mcrfpy.createScene("test2")
+    test2 = mcrfpy.Scene("test2")
     grid = mcrfpy.Grid(grid_x=5, grid_y=5)
     
     for i in range(3):
@@ -50,7 +50,7 @@ print()
 # Test 3: Nested loops with grid.at()
 print("Test 3: Nested loops with grid.at()")
 try:
-    mcrfpy.createScene("test3")
+    test3 = mcrfpy.Scene("test3")
     grid = mcrfpy.Grid(grid_x=5, grid_y=5)
     
     for y in range(3):
@@ -68,7 +68,7 @@ print()
 # Test 4: Exact pattern from failing code
 print("Test 4: Exact failing pattern")
 try:
-    mcrfpy.createScene("test4")
+    test4 = mcrfpy.Scene("test4")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
     
@@ -109,7 +109,7 @@ print()
 # Test 5: Is it related to the number of grid.at() calls?
 print("Test 5: Testing grid.at() call limits")
 try:
-    mcrfpy.createScene("test5")
+    test5 = mcrfpy.Scene("test5")
     grid = mcrfpy.Grid(grid_x=10, grid_y=10)
     
     count = 0

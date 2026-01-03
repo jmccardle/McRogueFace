@@ -18,7 +18,7 @@ def run_test(runtime):
     mcrfpy.delTimer("test")
 
     # Get the scene UI
-    ui = mcrfpy.sceneUI("test")
+    ui = test.children
 
     # Create a grid without texture (uses default 16x16 cells)
     print("Test 1: Creating Grid with children...")
@@ -122,8 +122,8 @@ def run_test(runtime):
     mcrfpy.setTimer("screenshot", take_screenshot, 100)
 
 # Create a test scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule test to run after game loop starts
 mcrfpy.setTimer("test", run_test, 50)

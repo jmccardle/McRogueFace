@@ -78,6 +78,6 @@ def run_test(runtime):
     sys.exit(0)
 
 # Set up scene and run
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 mcrfpy.setTimer("test", run_test, 100)

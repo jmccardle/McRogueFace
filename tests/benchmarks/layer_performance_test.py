@@ -99,8 +99,8 @@ def run_next_test():
 
 def setup_base_layer_static():
     """ColorLayer with per-cell set() calls - static after initial fill."""
-    mcrfpy.createScene("test_base_static")
-    ui = mcrfpy.sceneUI("test_base_static")
+    test_base_static = mcrfpy.Scene("test_base_static")
+    ui = test_base_static.children
 
     grid = mcrfpy.Grid(grid_size=(GRID_SIZE, GRID_SIZE),
                        pos=(10, 10), size=(600, 600))
@@ -112,13 +112,13 @@ def setup_base_layer_static():
         for x in range(GRID_SIZE):
             layer.set(x, y, mcrfpy.Color((x * 2) % 256, (y * 2) % 256, 128, 255))
 
-    mcrfpy.setScene("test_base_static")
+    test_base_static.activate()
 
 
 def setup_base_layer_modified():
     """ColorLayer with single cell modified each frame - tests dirty flag."""
-    mcrfpy.createScene("test_base_mod")
-    ui = mcrfpy.sceneUI("test_base_mod")
+    test_base_mod = mcrfpy.Scene("test_base_mod")
+    ui = test_base_mod.children
 
     grid = mcrfpy.Grid(grid_size=(GRID_SIZE, GRID_SIZE),
                        pos=(10, 10), size=(600, 600))
@@ -136,14 +136,14 @@ def setup_base_layer_modified():
         layer.set(x, y, mcrfpy.Color(255, 0, 0, 255))
         mod_counter[0] += 1
 
-    mcrfpy.setScene("test_base_mod")
+    test_base_mod.activate()
     mcrfpy.setTimer("modify", modify_cell, 1)
 
 
 def setup_color_layer_static():
     """New ColorLayer with dirty flag caching - static after fill."""
-    mcrfpy.createScene("test_color_static")
-    ui = mcrfpy.sceneUI("test_color_static")
+    test_color_static = mcrfpy.Scene("test_color_static")
+    ui = test_color_static.children
 
     grid = mcrfpy.Grid(grid_size=(GRID_SIZE, GRID_SIZE),
                        pos=(10, 10), size=(600, 600))
@@ -153,13 +153,13 @@ def setup_color_layer_static():
     layer = grid.add_layer("color", z_index=-1)
     layer.fill(mcrfpy.Color(100, 150, 200, 128))
 
-    mcrfpy.setScene("test_color_static")
+    test_color_static.activate()
 
 
 def setup_color_layer_modified():
     """ColorLayer with single cell modified each frame - tests dirty flag."""
-    mcrfpy.createScene("test_color_mod")
-    ui = mcrfpy.sceneUI("test_color_mod")
+    test_color_mod = mcrfpy.Scene("test_color_mod")
+    ui = test_color_mod.children
 
     grid = mcrfpy.Grid(grid_size=(GRID_SIZE, GRID_SIZE),
                        pos=(10, 10), size=(600, 600))
@@ -176,14 +176,14 @@ def setup_color_layer_modified():
         layer.set(x, y, mcrfpy.Color(255, 0, 0, 255))
         mod_counter[0] += 1
 
-    mcrfpy.setScene("test_color_mod")
+    test_color_mod.activate()
     mcrfpy.setTimer("modify", modify_cell, 1)
 
 
 def setup_tile_layer_static():
     """TileLayer with caching - static after fill."""
-    mcrfpy.createScene("test_tile_static")
-    ui = mcrfpy.sceneUI("test_tile_static")
+    test_tile_static = mcrfpy.Scene("test_tile_static")
+    ui = test_tile_static.children
 
     try:
         texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
@@ -198,13 +198,13 @@ def setup_tile_layer_static():
         layer = grid.add_layer("tile", z_index=-1, texture=texture)
         layer.fill(5)
 
-    mcrfpy.setScene("test_tile_static")
+    test_tile_static.activate()
 
 
 def setup_tile_layer_modified():
     """TileLayer with single cell modified each frame."""
-    mcrfpy.createScene("test_tile_mod")
-    ui = mcrfpy.sceneUI("test_tile_mod")
+    test_tile_mod = mcrfpy.Scene("test_tile_mod")
+    ui = test_tile_mod.children
 
     try:
         texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
@@ -229,14 +229,14 @@ def setup_tile_layer_modified():
             layer.set(x, y, (mod_counter[0] % 20))
         mod_counter[0] += 1
 
-    mcrfpy.setScene("test_tile_mod")
+    test_tile_mod.activate()
     mcrfpy.setTimer("modify", modify_cell, 1)
 
 
 def setup_multi_layer_static():
     """Multiple layers (5 color, 5 tile) - all static."""
-    mcrfpy.createScene("test_multi_static")
-    ui = mcrfpy.sceneUI("test_multi_static")
+    test_multi_static = mcrfpy.Scene("test_multi_static")
+    ui = test_multi_static.children
 
     try:
         texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
@@ -259,13 +259,13 @@ def setup_multi_layer_static():
             layer.fill(i * 4)
 
     print(f"  Created {len(grid.layers)} layers")
-    mcrfpy.setScene("test_multi_static")
+    test_multi_static.activate()
 
 
 def setup_base_vs_layer_comparison():
     """Direct comparison: same visual using base API vs layer API."""
-    mcrfpy.createScene("test_comparison")
-    ui = mcrfpy.sceneUI("test_comparison")
+    test_comparison = mcrfpy.Scene("test_comparison")
+    ui = test_comparison.children
 
     # Grid using ONLY the new layer system (no base layer colors)
     grid = mcrfpy.Grid(grid_size=(GRID_SIZE, GRID_SIZE),
@@ -280,7 +280,7 @@ def setup_base_vs_layer_comparison():
         for x in range(GRID_SIZE):
             layer.set(x, y, mcrfpy.Color((x * 2) % 256, (y * 2) % 256, 128, 255))
 
-    mcrfpy.setScene("test_comparison")
+    test_comparison.activate()
 
 
 # ============================================================================

@@ -37,7 +37,7 @@ print()
 print("Test 3: Function creating mcrfpy objects")
 def create_scene():
     try:
-        mcrfpy.createScene("test")
+        test = mcrfpy.Scene("test")
         print("  ✓ Created scene")
         
         # Now try range
@@ -69,7 +69,7 @@ print()
 print("Test 4: Exact failing pattern")
 def failing_pattern():
     try:
-        mcrfpy.createScene("failing_test")
+        failing_test = mcrfpy.Scene("failing_test")
         grid = mcrfpy.Grid(grid_x=14, grid_y=10)
         
         # This is where it fails in the demos

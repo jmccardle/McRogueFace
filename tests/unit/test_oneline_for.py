@@ -47,7 +47,7 @@ print()
 # Test 4: After creating mcrfpy objects
 print("Test 4: After creating mcrfpy scene/grid")
 try:
-    mcrfpy.createScene("test")
+    test = mcrfpy.Scene("test")
     grid = mcrfpy.Grid(grid_x=10, grid_y=10)
     
     walls = []
@@ -63,7 +63,7 @@ print()
 # Test 5: Check line number in error
 print("Test 5: Checking exact error location")
 def test_exact_pattern():
-    mcrfpy.createScene("dijkstra_demo")
+    dijkstra_demo = mcrfpy.Scene("dijkstra_demo")
     grid = mcrfpy.Grid(grid_x=25, grid_y=15)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
     

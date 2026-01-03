@@ -8,7 +8,7 @@ print("Testing path color changes...")
 print("=" * 50)
 
 # Create scene and small grid
-mcrfpy.createScene("test")
+test = mcrfpy.Scene("test")
 grid = mcrfpy.Grid(grid_x=5, grid_y=5)
 
 # Add color layer for cell coloring
@@ -75,12 +75,12 @@ def check_visual(runtime):
     sys.exit(0)
 
 # Set up minimal UI to test rendering
-ui = mcrfpy.sceneUI("test")
+ui = test.children
 ui.append(grid)
 grid.position = (50, 50)
 grid.size = (250, 250)
 
-mcrfpy.setScene("test")
+test.activate()
 mcrfpy.setTimer("check", check_visual, 500)
 
 print("\nStarting render test...")

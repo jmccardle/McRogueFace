@@ -18,7 +18,7 @@ def run_test(runtime):
     mcrfpy.delTimer("test")
 
     # Get the scene UI
-    ui = mcrfpy.sceneUI("test")
+    ui = test.children
 
     # Test 1: Create arcs with different parameters
     print("Test 1: Creating arcs...")
@@ -130,8 +130,8 @@ def run_test(runtime):
     mcrfpy.setTimer("screenshot", take_screenshot, 50)
 
 # Create a test scene
-mcrfpy.createScene("test")
-mcrfpy.setScene("test")
+test = mcrfpy.Scene("test")
+test.activate()
 
 # Schedule test to run after game loop starts
 mcrfpy.setTimer("test", run_test, 50)
