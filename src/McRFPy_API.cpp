@@ -102,54 +102,6 @@ static PyTypeObject McRFPyModuleType = {
 
 static PyMethodDef mcrfpyMethods[] = {
 
-    {"sceneUI", McRFPy_API::_sceneUI, METH_VARARGS,
-     MCRF_FUNCTION(sceneUI,
-         MCRF_SIG("(scene: str = None)", "list"),
-         MCRF_DESC("Get all UI elements for a scene."),
-         MCRF_ARGS_START
-         MCRF_ARG("scene", "Scene name. If None, uses current scene")
-         MCRF_RETURNS("list: All UI elements (Frame, Caption, Sprite, Grid) in the scene")
-         MCRF_RAISES("KeyError", "If the specified scene doesn't exist")
-     )},
-
-    {"currentScene", McRFPy_API::_currentScene, METH_NOARGS,
-     MCRF_FUNCTION(currentScene,
-         MCRF_SIG("()", "str"),
-         MCRF_DESC("Get the name of the currently active scene."),
-         MCRF_RETURNS("str: Name of the current scene")
-     )},
-    {"setScene", McRFPy_API::_setScene, METH_VARARGS,
-     MCRF_FUNCTION(setScene,
-         MCRF_SIG("(scene: str, transition: str = None, duration: float = 0.0)", "None"),
-         MCRF_DESC("Switch to a different scene with optional transition effect."),
-         MCRF_ARGS_START
-         MCRF_ARG("scene", "Name of the scene to switch to")
-         MCRF_ARG("transition", "Transition type ('fade', 'slide_left', 'slide_right', 'slide_up', 'slide_down')")
-         MCRF_ARG("duration", "Transition duration in seconds (default: 0.0 for instant)")
-         MCRF_RETURNS("None")
-         MCRF_RAISES("KeyError", "If the scene doesn't exist")
-         MCRF_RAISES("ValueError", "If the transition type is invalid")
-     )},
-    {"createScene", McRFPy_API::_createScene, METH_VARARGS,
-     MCRF_FUNCTION(createScene,
-         MCRF_SIG("(name: str)", "None"),
-         MCRF_DESC("Create a new empty scene."),
-         MCRF_ARGS_START
-         MCRF_ARG("name", "Unique name for the new scene")
-         MCRF_RETURNS("None")
-         MCRF_RAISES("ValueError", "If a scene with this name already exists")
-         MCRF_NOTE("The scene is created but not made active. Use setScene() to switch to it.")
-     )},
-    {"keypressScene", McRFPy_API::_keypressScene, METH_VARARGS,
-     MCRF_FUNCTION(keypressScene,
-         MCRF_SIG("(handler: callable)", "None"),
-         MCRF_DESC("Set the keyboard event handler for the current scene."),
-         MCRF_ARGS_START
-         MCRF_ARG("handler", "Callable that receives (key_name: str, is_pressed: bool)")
-         MCRF_RETURNS("None")
-         MCRF_NOTE("Example: def on_key(key, pressed): if key == 'A' and pressed: print('A key pressed') mcrfpy.keypressScene(on_key)")
-     )},
-
     {"setTimer", McRFPy_API::_setTimer, METH_VARARGS,
      MCRF_FUNCTION(setTimer,
          MCRF_SIG("(name: str, handler: callable, interval: int)", "None"),
@@ -276,7 +228,7 @@ static PyModuleDef mcrfpyModule = {
     PyDoc_STR("McRogueFace Python API\n\n"
               "Core game engine interface for creating roguelike games with Python.\n\n"
               "This module provides:\n"
-              "- Scene management (createScene, setScene, currentScene)\n"
+              "- Scene management via Scene objects (mcrfpy.Scene, mcrfpy.current_scene)\n"
               "- UI components (Frame, Caption, Sprite, Grid)\n"
               "- Entity system for game objects\n"
               "- Audio playback (sound effects and music)\n"
@@ -286,14 +238,17 @@ static PyModuleDef mcrfpyModule = {
               "Example:\n"
               "    import mcrfpy\n"
               "    \n"
-              "    # Create a new scene\n"
-              "    mcrfpy.createScene('game')\n"
-              "    mcrfpy.setScene('game')\n"
+              "    # Create and activate a scene\n"
+              "    scene = mcrfpy.Scene('game')\n"
+              "    scene.activate()\n"
               "    \n"
               "    # Add UI elements\n"
               "    frame = mcrfpy.Frame(10, 10, 200, 100)\n"
               "    caption = mcrfpy.Caption('Hello World', 50, 50)\n"
-              "    mcrfpy.sceneUI().extend([frame, caption])\n"),
+              "    scene.children.extend([frame, caption])\n"
+              "    \n"
+              "    # Set keyboard handler\n"
+              "    scene.on_key = lambda key, action: print(f'{key} {action}')\n"),
     -1,                    /* m_size - Setting m_size to -1 means that the module does not support sub-interpreters, because it has global state. */
     mcrfpyMethods,         /* m_methods */
     NULL,                  /* m_slots - An array of slot definitions ...  When using single-phase initialization, m_slots must be NULL. */
@@ -837,7 +792,7 @@ PyObject* McRFPy_API::_camFollow(PyObject* self, PyObject* args) {
 }
 */
 
-//McRFPy_API::_sceneUI
+// Internal use - called by PySceneClass_get_children()
 PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
     using namespace mcrfpydef;
 	const char *scene_cstr;
@@ -858,10 +813,7 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
         return (PyObject*)o;
 }
 
-PyObject* McRFPy_API::_currentScene(PyObject* self, PyObject* args) {
-	return Py_BuildValue("s", game->scene.c_str());
-}
-
+// Internal use - called by PySceneObject::activate()
 PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
 	const char* newscene;
 	const char* transition_str = nullptr;
@@ -882,38 +834,6 @@ PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
 	}
 	
 	game->changeScene(newscene, transition_type, duration);
-    Py_INCREF(Py_None);
-    return Py_None;		
-}
-
-PyObject* McRFPy_API::_createScene(PyObject* self, PyObject* args) {
-	const char* newscene;
-	if (!PyArg_ParseTuple(args, "s", &newscene)) return NULL;
-	game->createScene(newscene);
-    Py_INCREF(Py_None);
-    return Py_None;		
-}
-
-PyObject* McRFPy_API::_keypressScene(PyObject* self, PyObject* args) {
-    PyObject* callable;
-	if (!PyArg_ParseTuple(args, "O", &callable)) return NULL;
-    
-    // Validate that the argument is callable
-    if (!PyCallable_Check(callable)) {
-        PyErr_SetString(PyExc_TypeError, "keypressScene() argument must be callable");
-        return NULL;
-    }
-    
-    /*
-    if (game->currentScene()->key_callable != NULL and game->currentScene()->key_callable != Py_None)
-    {
-        Py_DECREF(game->currentScene()->key_callable);
-    }
-    Py_INCREF(callable);
-    game->currentScene()->key_callable = callable;
-    Py_INCREF(Py_None);
-    */
-    game->currentScene()->key_callable = std::make_unique<PyKeyCallable>(callable);
     Py_INCREF(Py_None);
     return Py_None;		
 }

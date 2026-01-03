@@ -37,13 +37,11 @@ public:
     static void REPL_device(FILE * fp, const char *filename);
     static void REPL();
 
+    // Internal - used by PySceneClass_get_children()
     static PyObject* _sceneUI(PyObject*, PyObject*);
 
-    // scene control
+    // Internal - used by PySceneObject::activate()
     static PyObject* _setScene(PyObject*, PyObject*);
-    static PyObject* _currentScene(PyObject*, PyObject*);
-    static PyObject* _createScene(PyObject*, PyObject*);
-    static PyObject* _keypressScene(PyObject*, PyObject*); 
 
     // timer control
     static PyObject* _setTimer(PyObject*, PyObject*);
