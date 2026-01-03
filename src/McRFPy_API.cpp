@@ -9,6 +9,7 @@
 #include "PyWindow.h"
 #include "PySceneObject.h"
 #include "PyFOV.h"
+#include "PyTransition.h"
 #include "PySound.h"
 #include "PyMusic.h"
 #include "PyKeyboard.h"
@@ -51,6 +52,14 @@ static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
         return McRFPy_API::api_get_scenes();
     }
 
+    if (strcmp(name, "default_transition") == 0) {
+        return PyTransition::to_python(PyTransition::default_transition);
+    }
+
+    if (strcmp(name, "default_transition_duration") == 0) {
+        return PyFloat_FromDouble(PyTransition::default_duration);
+    }
+
     // Attribute not found - raise AttributeError
     PyErr_Format(PyExc_AttributeError, "module 'mcrfpy' has no attribute '%s'", name);
     return NULL;
@@ -69,6 +78,33 @@ static int mcrfpy_module_setattro(PyObject* self, PyObject* name, PyObject* valu
     if (strcmp(name_str, "scenes") == 0) {
         PyErr_SetString(PyExc_AttributeError, "'scenes' is read-only");
         return -1;
+    }
+
+    if (strcmp(name_str, "default_transition") == 0) {
+        TransitionType trans;
+        if (!PyTransition::from_arg(value, &trans, nullptr)) {
+            return -1;
+        }
+        PyTransition::default_transition = trans;
+        return 0;
+    }
+
+    if (strcmp(name_str, "default_transition_duration") == 0) {
+        double duration;
+        if (PyFloat_Check(value)) {
+            duration = PyFloat_AsDouble(value);
+        } else if (PyLong_Check(value)) {
+            duration = PyLong_AsDouble(value);
+        } else {
+            PyErr_SetString(PyExc_TypeError, "default_transition_duration must be a number");
+            return -1;
+        }
+        if (duration < 0.0) {
+            PyErr_SetString(PyExc_ValueError, "default_transition_duration must be non-negative");
+            return -1;
+        }
+        PyTransition::default_duration = static_cast<float>(duration);
+        return 0;
     }
 
     // For other attributes, use default module setattr
@@ -392,7 +428,16 @@ PyObject* PyInit_mcrfpy()
         // Fallback to integer if enum failed
         PyModule_AddIntConstant(m, "default_fov", FOV_BASIC);
     }
-    
+
+    // Add Transition enum class (uses Python's IntEnum)
+    PyObject* transition_class = PyTransition::create_enum_class(m);
+    if (!transition_class) {
+        // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+    // Note: default_transition and default_transition_duration are handled via
+    // mcrfpy_module_getattr/setattro using PyTransition::default_transition/default_duration
+
     // Add automation submodule
     PyObject* automation_module = McRFPy_Automation::init_automation_module();
     if (automation_module != NULL) {

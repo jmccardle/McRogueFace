@@ -63,7 +63,7 @@ def create_test_scenes():
     print("Created test scenes: red_scene, blue_scene, green_scene, menu_scene")
 
 # Track current transition type
-current_transition = "fade"
+current_transition = mcrfpy.Transition.FADE
 transition_duration = 1.0
 
 def handle_key(key, action):
@@ -76,24 +76,35 @@ def handle_key(key, action):
     current_scene = (mcrfpy.current_scene.name if mcrfpy.current_scene else None)
     
     # Number keys set transition type
-    if key == "Num1":
-        current_transition = "fade"
-        print("Transition set to: fade")
-    elif key == "Num2":
-        current_transition = "slide_left"
-        print("Transition set to: slide_left")
-    elif key == "Num3":
-        current_transition = "slide_right"
-        print("Transition set to: slide_right")
-    elif key == "Num4":
-        current_transition = "slide_up"
-        print("Transition set to: slide_up")
-    elif key == "Num5":
-        current_transition = "slide_down"
-        print("Transition set to: slide_down")
-    elif key == "Num6":
-        current_transition = None  # Instant
-        print("Transition set to: instant")
+    keyselections = {
+            "Num1": mcrfpy.Transition.FADE,
+            "Num2": mcrfpy.Transition.SLIDE_LEFT,
+            "Num3": mcrfpy.Transition.SLIDE_RIGHT,
+            "Num4": mcrfpy.Transition.SLIDE_UP,
+            "Num5": mcrfpy.Transition.SLIDE_DOWN,
+            "Num6": mcrfpy.Transition.NONE
+            }
+    if key in keyselections:
+        current_transition = keyselections[key]
+        print(f"Transition set to: {current_transition}")
+    #if key == "Num1":
+    #    current_transition = "fade"
+    #    print("Transition set to: fade")
+    #elif key == "Num2":
+    #    current_transition = "slide_left"
+    #    print("Transition set to: slide_left")
+    #elif key == "Num3":
+    #    current_transition = "slide_right"
+    #    print("Transition set to: slide_right")
+    #elif key == "Num4":
+    #    current_transition = "slide_up"
+    #    print("Transition set to: slide_up")
+    #elif key == "Num5":
+    #    current_transition = "slide_down"
+    #    print("Transition set to: slide_down")
+    #elif key == "Num6":
+    #    current_transition = None  # Instant
+    #    print("Transition set to: instant")
     
     # Letter keys change scene
     keytransitions = {
@@ -104,7 +115,7 @@ def handle_key(key, action):
             }
     if key in keytransitions:
         if mcrfpy.current_scene != keytransitions[key]:
-            keytransitions[key].activate()
+            keytransitions[key].activate(current_transition, transition_duration)
     #elif key == "R":
     #    if current_scene != "red_scene":
     #        print(f"Transitioning to red_scene with {current_transition}")

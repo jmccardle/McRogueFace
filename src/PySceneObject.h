@@ -26,7 +26,7 @@ public:
     static PyObject* __repr__(PySceneObject* self);
     
     // Scene methods
-    static PyObject* activate(PySceneObject* self, PyObject* args);
+    static PyObject* activate(PySceneObject* self, PyObject* args, PyObject* kwds);
     static PyObject* register_keyboard(PySceneObject* self, PyObject* args);
     
     // Properties

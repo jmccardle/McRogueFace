@@ -3,6 +3,7 @@
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
+#include "PyTransition.h"
 #include <iostream>
 
 // Static map to store Python scene objects by name
@@ -75,13 +76,54 @@ PyObject* PySceneClass::__repr__(PySceneObject* self)
     return PyUnicode_FromFormat("<Scene '%s'>", self->name.c_str());
 }
 
-PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args)
+PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args, PyObject* kwds)
 {
-    // Call the static method from McRFPy_API
-    PyObject* py_args = Py_BuildValue("(s)", self->name.c_str());
-    PyObject* result = McRFPy_API::_setScene(NULL, py_args);
-    Py_DECREF(py_args);
-    return result;
+    static const char* keywords[] = {"transition", "duration", nullptr};
+    PyObject* transition_arg = nullptr;
+    PyObject* duration_arg = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", const_cast<char**>(keywords),
+                                      &transition_arg, &duration_arg)) {
+        return NULL;
+    }
+
+    // Get transition type (use default if not provided)
+    TransitionType transition_type;
+    bool trans_was_none = false;
+    if (transition_arg) {
+        if (!PyTransition::from_arg(transition_arg, &transition_type, &trans_was_none)) {
+            return NULL;
+        }
+    } else {
+        transition_type = PyTransition::default_transition;
+    }
+
+    // Get duration (use default if not provided)
+    float duration;
+    if (duration_arg && duration_arg != Py_None) {
+        if (PyFloat_Check(duration_arg)) {
+            duration = static_cast<float>(PyFloat_AsDouble(duration_arg));
+        } else if (PyLong_Check(duration_arg)) {
+            duration = static_cast<float>(PyLong_AsLong(duration_arg));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "duration must be a number");
+            return NULL;
+        }
+    } else {
+        duration = PyTransition::default_duration;
+    }
+
+    // Build transition string for _setScene (or call game->changeScene directly)
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "No game engine");
+        return NULL;
+    }
+
+    // Call game->changeScene directly with proper transition
+    game->changeScene(self->name, transition_type, duration);
+
+    Py_RETURN_NONE;
 }
 
 // children property getter (replaces get_ui method)
@@ -455,12 +497,15 @@ PyGetSetDef PySceneClass::getsetters[] = {
 
 // Methods
 PyMethodDef PySceneClass::methods[] = {
-    {"activate", (PyCFunction)activate, METH_NOARGS,
+    {"activate", (PyCFunction)activate, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(SceneClass, activate,
-         MCRF_SIG("()", "None"),
-         MCRF_DESC("Make this the active scene."),
+         MCRF_SIG("(transition: Transition = None, duration: float = None)", "None"),
+         MCRF_DESC("Make this the active scene with optional transition effect."),
+         MCRF_ARGS_START
+         MCRF_ARG("transition", "Transition type (mcrfpy.Transition enum). Defaults to mcrfpy.default_transition")
+         MCRF_ARG("duration", "Transition duration in seconds. Defaults to mcrfpy.default_transition_duration")
          MCRF_RETURNS("None")
-         MCRF_NOTE("Deactivates the current scene and activates this one. Scene transitions and lifecycle callbacks are triggered.")
+         MCRF_NOTE("Deactivates the current scene and activates this one. Lifecycle callbacks (on_exit, on_enter) are triggered.")
      )},
     {"register_keyboard", (PyCFunction)register_keyboard, METH_VARARGS,
      MCRF_METHOD(SceneClass, register_keyboard,
@@ -575,9 +620,8 @@ int McRFPy_API::api_set_current_scene(PyObject* value)
         return -1;
     }
 
-    std::string old_scene = game->scene;
-    game->scene = scene_name;
-    McRFPy_API::triggerSceneChange(old_scene, scene_name);
+    // Use changeScene with default transition settings
+    game->changeScene(scene_name, PyTransition::default_transition, PyTransition::default_duration);
 
     return 0;
 }
