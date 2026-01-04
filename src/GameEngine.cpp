@@ -124,15 +124,17 @@ void GameEngine::cleanup()
         McRFPy_API::game = nullptr;
     }
     
-    // Shutdown ImGui before closing window
+    // Close window FIRST - ImGui-SFML requires window to be closed before Shutdown()
+    // because Shutdown() destroys sf::Cursor objects that the window may reference.
+    // See: modules/imgui-sfml/README.md - "Call ImGui::SFML::Shutdown() after window.close()"
+    if (window && window->isOpen()) {
+        window->close();
+    }
+
+    // Shutdown ImGui AFTER window is closed to avoid X11 BadCursor errors
     if (imguiInitialized) {
         ImGui::SFML::Shutdown();
         imguiInitialized = false;
-    }
-
-    // Force close the window if it's still open
-    if (window && window->isOpen()) {
-        window->close();
     }
 }
 
