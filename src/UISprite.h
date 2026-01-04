@@ -63,6 +63,7 @@ public:
     bool getProperty(const std::string& name, float& value) const override;
     bool getProperty(const std::string& name, int& value) const override;
 
+    bool hasProperty(const std::string& name) const override;
 
     static PyObject* get_float_member(PyUISpriteObject* self, void* closure);
     static int set_float_member(PyUISpriteObject* self, PyObject* value, void* closure);

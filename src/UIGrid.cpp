@@ -3436,3 +3436,20 @@ bool UIGrid::getProperty(const std::string& name, sf::Vector2f& value) const {
     }
     return false;
 }
+
+bool UIGrid::hasProperty(const std::string& name) const {
+    // Float properties
+    if (name == "x" || name == "y" ||
+        name == "w" || name == "h" || name == "width" || name == "height" ||
+        name == "center_x" || name == "center_y" || name == "zoom" ||
+        name == "z_index" ||
+        name == "fill_color.r" || name == "fill_color.g" ||
+        name == "fill_color.b" || name == "fill_color.a") {
+        return true;
+    }
+    // Vector2f properties
+    if (name == "position" || name == "size" || name == "center") {
+        return true;
+    }
+    return false;
+}

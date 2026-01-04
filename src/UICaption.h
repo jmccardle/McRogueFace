@@ -28,6 +28,8 @@ public:
     bool getProperty(const std::string& name, sf::Color& value) const override;
     bool getProperty(const std::string& name, std::string& value) const override;
 
+    bool hasProperty(const std::string& name) const override;
+
     static PyObject* get_float_member(PyUICaptionObject* self, void* closure);
     static int set_float_member(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_vec_member(PyUICaptionObject* self, void* closure);

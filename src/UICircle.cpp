@@ -248,6 +248,23 @@ bool UICircle::getProperty(const std::string& name, sf::Vector2f& value) const {
     return false;
 }
 
+bool UICircle::hasProperty(const std::string& name) const {
+    // Float properties
+    if (name == "radius" || name == "outline" ||
+        name == "x" || name == "y") {
+        return true;
+    }
+    // Color properties
+    if (name == "fill_color" || name == "outline_color") {
+        return true;
+    }
+    // Vector2f properties
+    if (name == "center" || name == "position") {
+        return true;
+    }
+    return false;
+}
+
 // Python API implementations
 PyObject* UICircle::get_radius(PyUICircleObject* self, void* closure) {
     return PyFloat_FromDouble(self->data->getRadius());

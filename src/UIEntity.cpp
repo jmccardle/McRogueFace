@@ -2,10 +2,14 @@
 #include "UIGrid.h"
 #include "McRFPy_API.h"
 #include <algorithm>
+#include <cstring>
 #include "PyObjectUtils.h"
 #include "PyVector.h"
 #include "PythonObjectCache.h"
 #include "PyFOV.h"
+#include "Animation.h"
+#include "PyAnimation.h"
+#include "PyEasing.h"
 // UIDrawable methods now in UIBase.h
 #include "UIEntityPyMethods.h"
 
@@ -775,8 +779,26 @@ PyMethodDef UIEntity::methods[] = {
 typedef PyUIEntityObject PyObjectType;
 
 // Combine base methods with entity-specific methods
+// Note: Use UIDRAWABLE_METHODS_BASE (not UIDRAWABLE_METHODS) because UIEntity is NOT a UIDrawable
+// and the template-based animate helper won't work. Entity has its own animate() method.
 PyMethodDef UIEntity_all_methods[] = {
-    UIDRAWABLE_METHODS,
+    UIDRAWABLE_METHODS_BASE,
+    {"animate", (PyCFunction)UIEntity::animate, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(Entity, animate,
+         MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace')", "Animation"),
+         MCRF_DESC("Create and start an animation on this entity's property."),
+         MCRF_ARGS_START
+         MCRF_ARG("property", "Name of the property to animate (e.g., 'x', 'y', 'sprite_index')")
+         MCRF_ARG("target", "Target value - float or int depending on property")
+         MCRF_ARG("duration", "Animation duration in seconds")
+         MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear")
+         MCRF_ARG("delta", "If True, target is relative to current value; if False, target is absolute")
+         MCRF_ARG("callback", "Optional callable invoked when animation completes")
+         MCRF_ARG("conflict_mode", "'replace' (default), 'queue', or 'error' if property already animating")
+         MCRF_RETURNS("Animation object for monitoring progress")
+         MCRF_RAISES("ValueError", "If property name is not valid for Entity (x, y, sprite_scale, sprite_index)")
+         MCRF_NOTE("Entity animations use grid coordinates for x/y, not pixel coordinates.")
+     )},
     {"at", (PyCFunction)UIEntity::at, METH_O},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
@@ -884,4 +906,123 @@ bool UIEntity::getProperty(const std::string& name, float& value) const {
         return true;
     }
     return false;
+}
+
+bool UIEntity::hasProperty(const std::string& name) const {
+    // Float properties
+    if (name == "x" || name == "y" || name == "sprite_scale") {
+        return true;
+    }
+    // Int properties
+    if (name == "sprite_index" || name == "sprite_number") {
+        return true;
+    }
+    return false;
+}
+
+// Animation shorthand for Entity - creates and starts an animation
+PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
+    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "callback", "conflict_mode", nullptr};
+
+    const char* property_name;
+    PyObject* target_value;
+    float duration;
+    PyObject* easing_arg = Py_None;
+    int delta = 0;
+    PyObject* callback = nullptr;
+    const char* conflict_mode_str = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OpOs", const_cast<char**>(keywords),
+                                      &property_name, &target_value, &duration,
+                                      &easing_arg, &delta, &callback, &conflict_mode_str)) {
+        return NULL;
+    }
+
+    // Validate property exists on this entity
+    if (!self->data->hasProperty(property_name)) {
+        PyErr_Format(PyExc_ValueError,
+            "Property '%s' is not valid for animation on Entity. "
+            "Valid properties: x, y, sprite_scale, sprite_index, sprite_number",
+            property_name);
+        return NULL;
+    }
+
+    // Validate callback is callable if provided
+    if (callback && callback != Py_None && !PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "callback must be callable");
+        return NULL;
+    }
+
+    // Convert None to nullptr for C++
+    if (callback == Py_None) {
+        callback = nullptr;
+    }
+
+    // Convert Python target value to AnimationValue
+    // Entity only supports float and int properties
+    AnimationValue animValue;
+
+    if (PyFloat_Check(target_value)) {
+        animValue = static_cast<float>(PyFloat_AsDouble(target_value));
+    }
+    else if (PyLong_Check(target_value)) {
+        animValue = static_cast<int>(PyLong_AsLong(target_value));
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError, "Entity animations only support float or int target values");
+        return NULL;
+    }
+
+    // Get easing function from argument
+    EasingFunction easingFunc;
+    if (!PyEasing::from_arg(easing_arg, &easingFunc, nullptr)) {
+        return NULL;  // Error already set by from_arg
+    }
+
+    // Parse conflict mode
+    AnimationConflictMode conflict_mode = AnimationConflictMode::REPLACE;
+    if (conflict_mode_str) {
+        if (strcmp(conflict_mode_str, "replace") == 0) {
+            conflict_mode = AnimationConflictMode::REPLACE;
+        } else if (strcmp(conflict_mode_str, "queue") == 0) {
+            conflict_mode = AnimationConflictMode::QUEUE;
+        } else if (strcmp(conflict_mode_str, "error") == 0) {
+            conflict_mode = AnimationConflictMode::ERROR;
+        } else {
+            PyErr_Format(PyExc_ValueError,
+                "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", conflict_mode_str);
+            return NULL;
+        }
+    }
+
+    // Create the Animation
+    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, callback);
+
+    // Start on this entity (uses startEntity, not start)
+    animation->startEntity(self->data);
+
+    // Add to AnimationManager
+    AnimationManager::getInstance().addAnimation(animation, conflict_mode);
+
+    // Check if ERROR mode raised an exception
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+
+    // Create and return a PyAnimation wrapper
+    PyTypeObject* animType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Animation");
+    if (!animType) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not find Animation type");
+        return NULL;
+    }
+
+    PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
+    Py_DECREF(animType);
+
+    if (!pyAnim) {
+        return NULL;
+    }
+
+    pyAnim->data = animation;
+    return (PyObject*)pyAnim;
 }

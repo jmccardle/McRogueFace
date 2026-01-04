@@ -303,6 +303,23 @@ bool UIArc::getProperty(const std::string& name, sf::Vector2f& value) const {
     return false;
 }
 
+bool UIArc::hasProperty(const std::string& name) const {
+    // Float properties
+    if (name == "radius" || name == "start_angle" || name == "end_angle" ||
+        name == "thickness" || name == "x" || name == "y") {
+        return true;
+    }
+    // Color properties
+    if (name == "color") {
+        return true;
+    }
+    // Vector2f properties
+    if (name == "center") {
+        return true;
+    }
+    return false;
+}
+
 // Python API implementation
 PyObject* UIArc::get_center(PyUIArcObject* self, void* closure) {
     auto center = self->data->getCenter();

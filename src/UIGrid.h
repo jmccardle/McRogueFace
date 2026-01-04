@@ -138,6 +138,8 @@ public:
     bool getProperty(const std::string& name, float& value) const override;
     bool getProperty(const std::string& name, sf::Vector2f& value) const override;
 
+    bool hasProperty(const std::string& name) const override;
+
     static int init(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* get_grid_size(PyUIGridObject* self, void* closure);
     static PyObject* get_grid_x(PyUIGridObject* self, void* closure);

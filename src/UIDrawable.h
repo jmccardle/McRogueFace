@@ -156,7 +156,13 @@ public:
     virtual bool getProperty(const std::string& name, sf::Color& value) const { return false; }
     virtual bool getProperty(const std::string& name, sf::Vector2f& value) const { return false; }
     virtual bool getProperty(const std::string& name, std::string& value) const { return false; }
-    
+
+    // Check if a property name is valid for animation on this drawable type
+    virtual bool hasProperty(const std::string& name) const { return false; }
+
+    // Note: animate_helper is now a free function (UIDrawable_animate_impl) declared in UIBase.h
+    // to avoid incomplete type issues with template instantiation.
+
     // Python object cache support
     uint64_t serial_number = 0;
     

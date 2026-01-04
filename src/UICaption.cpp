@@ -657,3 +657,24 @@ bool UICaption::getProperty(const std::string& name, std::string& value) const {
     return false;
 }
 
+bool UICaption::hasProperty(const std::string& name) const {
+    // Float properties
+    if (name == "x" || name == "y" ||
+        name == "font_size" || name == "size" || name == "outline" ||
+        name == "fill_color.r" || name == "fill_color.g" ||
+        name == "fill_color.b" || name == "fill_color.a" ||
+        name == "outline_color.r" || name == "outline_color.g" ||
+        name == "outline_color.b" || name == "outline_color.a") {
+        return true;
+    }
+    // Color properties
+    if (name == "fill_color" || name == "outline_color") {
+        return true;
+    }
+    // String properties
+    if (name == "text") {
+        return true;
+    }
+    return false;
+}
+

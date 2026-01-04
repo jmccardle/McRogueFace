@@ -78,7 +78,12 @@ public:
     bool setProperty(const std::string& name, float value);
     bool setProperty(const std::string& name, int value);
     bool getProperty(const std::string& name, float& value) const;
-    
+    bool hasProperty(const std::string& name) const;
+
+    // Animation shorthand helper - creates and starts an animation on this entity
+    // Returns a PyAnimation object. Used by the .animate() method.
+    static PyObject* animate(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
+
     // Methods that delegate to sprite
     sf::FloatRect get_bounds() const { return sprite.get_bounds(); }
     void move(float dx, float dy) { sprite.move(dx, dy); position.x += dx; position.y += dy; }

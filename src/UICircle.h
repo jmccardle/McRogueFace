@@ -77,6 +77,8 @@ public:
     bool getProperty(const std::string& name, sf::Color& value) const override;
     bool getProperty(const std::string& name, sf::Vector2f& value) const override;
 
+    bool hasProperty(const std::string& name) const override;
+
     // Python API
     static PyObject* get_radius(PyUICircleObject* self, void* closure);
     static int set_radius(PyUICircleObject* self, PyObject* value, void* closure);

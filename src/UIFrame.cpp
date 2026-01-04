@@ -885,3 +885,24 @@ bool UIFrame::getProperty(const std::string& name, sf::Vector2f& value) const {
     }
     return false;
 }
+
+bool UIFrame::hasProperty(const std::string& name) const {
+    // Float properties
+    if (name == "x" || name == "y" || name == "w" || name == "h" ||
+        name == "outline" ||
+        name == "fill_color.r" || name == "fill_color.g" ||
+        name == "fill_color.b" || name == "fill_color.a" ||
+        name == "outline_color.r" || name == "outline_color.g" ||
+        name == "outline_color.b" || name == "outline_color.a") {
+        return true;
+    }
+    // Color properties
+    if (name == "fill_color" || name == "outline_color") {
+        return true;
+    }
+    // Vector2f properties
+    if (name == "position" || name == "size") {
+        return true;
+    }
+    return false;
+}

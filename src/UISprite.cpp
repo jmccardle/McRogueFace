@@ -626,3 +626,17 @@ bool UISprite::getProperty(const std::string& name, int& value) const {
     }
     return false;
 }
+
+bool UISprite::hasProperty(const std::string& name) const {
+    // Float properties
+    if (name == "x" || name == "y" ||
+        name == "scale" || name == "scale_x" || name == "scale_y" ||
+        name == "z_index") {
+        return true;
+    }
+    // Int properties
+    if (name == "sprite_index" || name == "sprite_number") {
+        return true;
+    }
+    return false;
+}

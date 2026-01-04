@@ -9,6 +9,9 @@
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
+#include "Animation.h"
+#include "PyAnimation.h"
+#include "PyEasing.h"
 
 UIDrawable::UIDrawable() : position(0.0f, 0.0f) { click_callable = NULL;  }
 
@@ -1440,4 +1443,154 @@ int UIDrawable::set_on_move(PyObject* self, PyObject* value, void* closure) {
         target->on_move_register(value);
     }
     return 0;
+}
+
+// Animation shorthand helper - creates and starts an animation on a UIDrawable
+// This is a free function (not a member) to avoid incomplete type issues in UIBase.h template
+PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> self, PyObject* args, PyObject* kwds) {
+    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "callback", "conflict_mode", nullptr};
+
+    const char* property_name;
+    PyObject* target_value;
+    float duration;
+    PyObject* easing_arg = Py_None;
+    int delta = 0;
+    PyObject* callback = nullptr;
+    const char* conflict_mode_str = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OpOs", const_cast<char**>(keywords),
+                                      &property_name, &target_value, &duration,
+                                      &easing_arg, &delta, &callback, &conflict_mode_str)) {
+        return NULL;
+    }
+
+    // Validate property exists on this drawable
+    if (!self->hasProperty(property_name)) {
+        PyErr_Format(PyExc_ValueError,
+            "Property '%s' is not valid for animation on this object. "
+            "Check spelling or use a supported property name.",
+            property_name);
+        return NULL;
+    }
+
+    // Validate callback is callable if provided
+    if (callback && callback != Py_None && !PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "callback must be callable");
+        return NULL;
+    }
+
+    // Convert None to nullptr for C++
+    if (callback == Py_None) {
+        callback = nullptr;
+    }
+
+    // Convert Python target value to AnimationValue
+    AnimationValue animValue;
+
+    if (PyFloat_Check(target_value)) {
+        animValue = static_cast<float>(PyFloat_AsDouble(target_value));
+    }
+    else if (PyLong_Check(target_value)) {
+        animValue = static_cast<int>(PyLong_AsLong(target_value));
+    }
+    else if (PyList_Check(target_value)) {
+        // List of integers for sprite animation
+        std::vector<int> indices;
+        Py_ssize_t size = PyList_Size(target_value);
+        for (Py_ssize_t i = 0; i < size; i++) {
+            PyObject* item = PyList_GetItem(target_value, i);
+            if (PyLong_Check(item)) {
+                indices.push_back(PyLong_AsLong(item));
+            } else {
+                PyErr_SetString(PyExc_TypeError, "Sprite animation list must contain only integers");
+                return NULL;
+            }
+        }
+        animValue = indices;
+    }
+    else if (PyTuple_Check(target_value)) {
+        Py_ssize_t size = PyTuple_Size(target_value);
+        if (size == 2) {
+            // Vector2f
+            float x = PyFloat_AsDouble(PyTuple_GetItem(target_value, 0));
+            float y = PyFloat_AsDouble(PyTuple_GetItem(target_value, 1));
+            if (PyErr_Occurred()) return NULL;
+            animValue = sf::Vector2f(x, y);
+        }
+        else if (size == 3 || size == 4) {
+            // Color (RGB or RGBA)
+            int r = PyLong_AsLong(PyTuple_GetItem(target_value, 0));
+            int g = PyLong_AsLong(PyTuple_GetItem(target_value, 1));
+            int b = PyLong_AsLong(PyTuple_GetItem(target_value, 2));
+            int a = size == 4 ? PyLong_AsLong(PyTuple_GetItem(target_value, 3)) : 255;
+            if (PyErr_Occurred()) return NULL;
+            animValue = sf::Color(r, g, b, a);
+        }
+        else {
+            PyErr_SetString(PyExc_ValueError, "Tuple must have 2 elements (vector) or 3-4 elements (color)");
+            return NULL;
+        }
+    }
+    else if (PyUnicode_Check(target_value)) {
+        // String for text animation
+        const char* str = PyUnicode_AsUTF8(target_value);
+        animValue = std::string(str);
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError, "Target value must be float, int, list, tuple, or string");
+        return NULL;
+    }
+
+    // Get easing function from argument
+    EasingFunction easingFunc;
+    if (!PyEasing::from_arg(easing_arg, &easingFunc, nullptr)) {
+        return NULL;  // Error already set by from_arg
+    }
+
+    // Parse conflict mode
+    AnimationConflictMode conflict_mode = AnimationConflictMode::REPLACE;
+    if (conflict_mode_str) {
+        if (strcmp(conflict_mode_str, "replace") == 0) {
+            conflict_mode = AnimationConflictMode::REPLACE;
+        } else if (strcmp(conflict_mode_str, "queue") == 0) {
+            conflict_mode = AnimationConflictMode::QUEUE;
+        } else if (strcmp(conflict_mode_str, "error") == 0) {
+            conflict_mode = AnimationConflictMode::ERROR;
+        } else {
+            PyErr_Format(PyExc_ValueError,
+                "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", conflict_mode_str);
+            return NULL;
+        }
+    }
+
+    // Create the Animation
+    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, callback);
+
+    // Start on this drawable
+    animation->start(self);
+
+    // Add to AnimationManager
+    AnimationManager::getInstance().addAnimation(animation, conflict_mode);
+
+    // Check if ERROR mode raised an exception
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+
+    // Create and return a PyAnimation wrapper
+    PyTypeObject* animType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Animation");
+    if (!animType) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not find Animation type");
+        return NULL;
+    }
+
+    PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
+    Py_DECREF(animType);
+
+    if (!pyAnim) {
+        return NULL;
+    }
+
+    pyAnim->data = animation;
+    return (PyObject*)pyAnim;
 }

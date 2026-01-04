@@ -85,6 +85,8 @@ public:
     bool getProperty(const std::string& name, sf::Color& value) const override;
     bool getProperty(const std::string& name, sf::Vector2f& value) const override;
 
+    bool hasProperty(const std::string& name) const override;
+
     // Python API
     static PyObject* get_center(PyUIArcObject* self, void* closure);
     static int set_center(PyUIArcObject* self, PyObject* value, void* closure);

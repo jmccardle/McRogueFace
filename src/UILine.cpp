@@ -327,6 +327,24 @@ bool UILine::getProperty(const std::string& name, sf::Vector2f& value) const {
     return false;
 }
 
+bool UILine::hasProperty(const std::string& name) const {
+    // Float properties
+    if (name == "thickness" || name == "x" || name == "y" ||
+        name == "start_x" || name == "start_y" ||
+        name == "end_x" || name == "end_y") {
+        return true;
+    }
+    // Color properties
+    if (name == "color") {
+        return true;
+    }
+    // Vector2f properties
+    if (name == "start" || name == "end") {
+        return true;
+    }
+    return false;
+}
+
 // Python API implementation
 PyObject* UILine::get_start(PyUILineObject* self, void* closure) {
     auto vec = self->data->getStart();

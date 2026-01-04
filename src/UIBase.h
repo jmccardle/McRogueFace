@@ -71,13 +71,25 @@ static PyObject* UIDrawable_resize(T* self, PyObject* args)
     if (!PyArg_ParseTuple(args, "ff", &w, &h)) {
         return NULL;
     }
-    
+
     self->data->resize(w, h);
     Py_RETURN_NONE;
 }
 
-// Macro to add common UIDrawable methods to a method array
-#define UIDRAWABLE_METHODS \
+// animate method implementation - shorthand for creating and starting animations
+// This free function is implemented in UIDrawable.cpp
+// We use a free function instead of UIDrawable::animate_helper to avoid incomplete type issues
+class UIDrawable;
+PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> target, PyObject* args, PyObject* kwds);
+
+template<typename T>
+static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
+{
+    return UIDrawable_animate_impl(self->data, args, kwds);
+}
+
+// Macro to add common UIDrawable methods to a method array (without animate - for base types)
+#define UIDRAWABLE_METHODS_BASE \
     {"get_bounds", (PyCFunction)UIDrawable_get_bounds<PyObjectType>, METH_NOARGS, \
      MCRF_METHOD(Drawable, get_bounds, \
          MCRF_SIG("()", "tuple"), \
@@ -103,6 +115,29 @@ static PyObject* UIDrawable_resize(T* self, PyObject* args)
          MCRF_ARG("height", "New height in pixels") \
          MCRF_NOTE("For Caption and Sprite, this may not change actual size if determined by content.") \
      )}
+
+// Macro to add common UIDrawable methods to a method array (includes animate for UIDrawable derivatives)
+#define UIDRAWABLE_METHODS \
+    UIDRAWABLE_METHODS_BASE, \
+    {"animate", (PyCFunction)UIDrawable_animate<PyObjectType>, METH_VARARGS | METH_KEYWORDS, \
+     MCRF_METHOD(Drawable, animate, \
+         MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace')", "Animation"), \
+         MCRF_DESC("Create and start an animation on this drawable's property."), \
+         MCRF_ARGS_START \
+         MCRF_ARG("property", "Name of the property to animate (e.g., 'x', 'fill_color', 'opacity')") \
+         MCRF_ARG("target", "Target value - type depends on property (float, tuple for color/vector, etc.)") \
+         MCRF_ARG("duration", "Animation duration in seconds") \
+         MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear") \
+         MCRF_ARG("delta", "If True, target is relative to current value; if False, target is absolute") \
+         MCRF_ARG("callback", "Optional callable invoked when animation completes") \
+         MCRF_ARG("conflict_mode", "'replace' (default), 'queue', or 'error' if property already animating") \
+         MCRF_RETURNS("Animation object for monitoring progress") \
+         MCRF_RAISES("ValueError", "If property name is not valid for this drawable type") \
+         MCRF_NOTE("This is a convenience method that creates an Animation, starts it, and adds it to the AnimationManager.") \
+     )}
+
+// Legacy macro for backwards compatibility - same as UIDRAWABLE_METHODS
+#define UIDRAWABLE_METHODS_FULL UIDRAWABLE_METHODS
 
 // Property getters/setters for visible and opacity
 template<typename T>
