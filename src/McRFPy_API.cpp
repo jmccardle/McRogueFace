@@ -10,6 +10,7 @@
 #include "PySceneObject.h"
 #include "PyFOV.h"
 #include "PyTransition.h"
+#include "PyEasing.h"
 #include "PySound.h"
 #include "PyMusic.h"
 #include "PyKeyboard.h"
@@ -428,6 +429,13 @@ PyObject* PyInit_mcrfpy()
     }
     // Note: default_transition and default_transition_duration are handled via
     // mcrfpy_module_getattr/setattro using PyTransition::default_transition/default_duration
+
+    // Add Easing enum class (uses Python's IntEnum)
+    PyObject* easing_class = PyEasing::create_enum_class(m);
+    if (!easing_class) {
+        // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
 
     // Add automation submodule
     PyObject* automation_module = McRFPy_Automation::init_automation_module();

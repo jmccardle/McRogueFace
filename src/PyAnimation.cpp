@@ -1,6 +1,7 @@
 #include "PyAnimation.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
+#include "PyEasing.h"
 #include "UIDrawable.h"
 #include "UIFrame.h"
 #include "UICaption.h"
@@ -20,16 +21,16 @@ PyObject* PyAnimation::create(PyTypeObject* type, PyObject* args, PyObject* kwds
 
 int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
     static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "callback", nullptr};
-    
+
     const char* property_name;
     PyObject* target_value;
     float duration;
-    const char* easing_name = "linear";
+    PyObject* easing_arg = Py_None;
     int delta = 0;
     PyObject* callback = nullptr;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|spO", const_cast<char**>(keywords),
-                                      &property_name, &target_value, &duration, &easing_name, &delta, &callback)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OpO", const_cast<char**>(keywords),
+                                      &property_name, &target_value, &duration, &easing_arg, &delta, &callback)) {
         return -1;
     }
     
@@ -98,10 +99,13 @@ int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
         PyErr_SetString(PyExc_TypeError, "Target value must be float, int, list, tuple, or string");
         return -1;
     }
-    
-    // Get easing function
-    EasingFunction easingFunc = EasingFunctions::getByName(easing_name);
-    
+
+    // Get easing function from argument (enum, string, int, or None)
+    EasingFunction easingFunc;
+    if (!PyEasing::from_arg(easing_arg, &easingFunc, nullptr)) {
+        return -1;  // Error already set by from_arg
+    }
+
     // Create the Animation
     self->data = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, callback);
     
