@@ -255,7 +255,7 @@ class SolarSystemDemo(GeometryDemoScreen):
         self.ui.append(moon_path)
         self.orbit_rings[moon.name + "_path"] = moon_path
 
-    def _tick(self, runtime):
+    def _tick(self, timer, runtime):
         """Advance time by one turn and update planet positions."""
         self.current_time += 1
 

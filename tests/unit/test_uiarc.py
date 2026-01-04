@@ -4,18 +4,18 @@ import mcrfpy
 from mcrfpy import automation
 import sys
 
-def take_screenshot(runtime):
+def take_screenshot(timer, runtime):
     """Take screenshot after render completes"""
-    mcrfpy.delTimer("screenshot")
+    timer.stop()
     automation.screenshot("test_uiarc_result.png")
 
     print("Screenshot saved to test_uiarc_result.png")
     print("PASS - UIArc test completed")
     sys.exit(0)
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Main test - runs after scene is set up"""
-    mcrfpy.delTimer("test")
+    timer.stop()
 
     # Get the scene UI
     ui = test.children
@@ -127,11 +127,12 @@ def run_test(runtime):
     print(f"  Arc 10 (reverse): {a10}")
 
     # Schedule screenshot for next frame
-    mcrfpy.setTimer("screenshot", take_screenshot, 50)
+    global screenshot_timer
+    screenshot_timer = mcrfpy.Timer("screenshot", take_screenshot, 50, once=True)
 
 # Create a test scene
 test = mcrfpy.Scene("test")
 test.activate()
 
 # Schedule test to run after game loop starts
-mcrfpy.setTimer("test", run_test, 50)
+test_timer = mcrfpy.Timer("test", run_test, 50, once=True)

@@ -31,7 +31,7 @@ class StressTestRunner:
     def add_test(self, name, setup_fn, description=""):
         self.tests.append({'name': name, 'setup': setup_fn, 'description': description})
 
-    def tick(self, runtime):
+    def tick(self, timer, runtime):
         """Single timer callback that manages all test flow"""
         self.frames_counted += 1
 
@@ -103,7 +103,7 @@ class StressTestRunner:
             self.results[test['name']] = {'error': str(e)}
 
     def finish_suite(self):
-        mcrfpy.delTimer("tick")
+        self.tick_timer.stop()
 
         print("\n" + "="*50)
         print("STRESS TEST COMPLETE")
@@ -137,7 +137,7 @@ class StressTestRunner:
         ui = init.children
         ui.append(mcrfpy.Frame(pos=(0,0), size=(10,10)))  # Required for timer to fire
         init.activate()
-        mcrfpy.setTimer("tick", self.tick, TIMER_INTERVAL_MS)
+        self.tick_timer = mcrfpy.Timer("tick", self.tick, TIMER_INTERVAL_MS)
 
 
 # =============================================================================

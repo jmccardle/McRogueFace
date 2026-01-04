@@ -97,7 +97,7 @@ def handle_key(key, state):
 benchmark.on_key = handle_key
 
 # Update entity positions
-def update_entities(ms):
+def update_entities(timer, ms):
     dt = ms / 1000.0  # Convert to seconds
 
     for entity in entities:
@@ -119,13 +119,13 @@ def update_entities(ms):
         entity.y = new_y
 
 # Run movement update every frame (16ms)
-mcrfpy.setTimer("movement", update_entities, 16)
+movement_timer = mcrfpy.Timer("movement", update_entities, 16)
 
 # Benchmark statistics
 frame_count = 0
 start_time = None
 
-def benchmark_timer(ms):
+def benchmark_callback(timer, ms):
     global frame_count, start_time
 
     if start_time is None:
@@ -152,4 +152,4 @@ def benchmark_timer(ms):
         print("=" * 60)
         # Don't exit - let user review
 
-mcrfpy.setTimer("benchmark", benchmark_timer, 100)
+benchmark_timer = mcrfpy.Timer("benchmark", benchmark_callback, 100)

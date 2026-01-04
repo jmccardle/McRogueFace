@@ -784,12 +784,12 @@ def run_demo():
     demo_state = create_demo_scene()
 
     # Set up exit timer for headless testing
-    def check_exit(dt):
+    def check_exit(timer, dt):
         # In headless mode, exit after a short delay
         # In interactive mode, this won't trigger
         pass
 
-    # mcrfpy.setTimer("demo_check", check_exit, 100)
+    # check_exit_timer = mcrfpy.Timer("demo_check", check_exit, 100)
 
 
 # Run if executed directly
@@ -801,8 +801,8 @@ if __name__ == "__main__":
 
     # If --screenshot flag, take a screenshot and exit
     if "--screenshot" in sys.argv or len(sys.argv) > 1:
-        def take_screenshot(dt):
+        def take_screenshot(timer, dt):
             automation.screenshot("focus_demo_screenshot.png")
             print("Screenshot saved: focus_demo_screenshot.png")
             sys.exit(0)
-        mcrfpy.setTimer("screenshot", take_screenshot, 200)
+        screenshot_timer = mcrfpy.Timer("screenshot", take_screenshot, 200, once=True)

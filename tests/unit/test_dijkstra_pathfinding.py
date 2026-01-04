@@ -183,7 +183,7 @@ def test_multi_target_scenario():
         cell.tilesprite = 83  # S for safe
         grid._color_layer.set(best_pos[0], best_pos[1], mcrfpy.Color(0, 255, 0))
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Timer callback to run tests after scene loads"""
     test_basic_dijkstra()
     test_libtcod_interface()
@@ -221,7 +221,7 @@ title.fill_color = mcrfpy.Color(255, 255, 255)
 ui.append(title)
 
 # Set timer to run tests
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)
 
 # Show scene
 dijkstra_test.activate()

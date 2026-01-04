@@ -5,7 +5,7 @@ import sys
 import os
 import json
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Timer callback to test benchmark logging"""
     # Stop the benchmark and get filename
     try:
@@ -132,4 +132,4 @@ test = mcrfpy.Scene("test")
 test.activate()
 
 # Schedule test completion after ~100ms (to capture some frames)
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

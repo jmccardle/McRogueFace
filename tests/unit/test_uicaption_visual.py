@@ -6,7 +6,7 @@ from mcrfpy import automation
 import sys
 import time
 
-def run_visual_test(runtime):
+def run_visual_test(timer, runtime):
     """Timer callback to run visual tests and take screenshots."""
     print("\nRunning visual tests...")
     
@@ -89,9 +89,9 @@ def main():
     ui.append(frame)
     
     print("Scene setup complete. Scheduling visual tests...")
-    
+
     # Schedule visual test to run after render loop starts
-    mcrfpy.setTimer("visual_test", run_visual_test, 100)
+    visual_test_timer = mcrfpy.Timer("visual_test", run_visual_test, 100, once=True)
 
 if __name__ == "__main__":
     main()

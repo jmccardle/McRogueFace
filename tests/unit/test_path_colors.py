@@ -63,7 +63,7 @@ for y in range(5):
 print("\nIf colors are changing in data but not visually, it may be a rendering issue.")
 
 # Quick visual test
-def check_visual(runtime):
+def check_visual(timer, runtime):
     print("\nTimer fired - checking if scene is rendering...")
     # Take screenshot to see actual rendering
     try:
@@ -81,6 +81,6 @@ grid.position = (50, 50)
 grid.size = (250, 250)
 
 test.activate()
-mcrfpy.setTimer("check", check_visual, 500)
+check_timer = mcrfpy.Timer("check", check_visual, 500, once=True)
 
 print("\nStarting render test...")

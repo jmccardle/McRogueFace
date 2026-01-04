@@ -209,7 +209,7 @@ def test_rendertexture_resize():
     
     print(f"\nScreenshots saved to /tmp/issue_9_*.png")
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Timer callback to run the test"""
     try:
         test_rendertexture_resize()
@@ -226,4 +226,4 @@ test = mcrfpy.Scene("test")
 test.activate()
 
 # Schedule test to run after game loop starts
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

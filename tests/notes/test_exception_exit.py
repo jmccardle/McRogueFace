@@ -9,7 +9,7 @@ This test verifies that:
 import mcrfpy
 import sys
 
-def timer_that_raises(runtime):
+def timer_that_raises(timer, runtime):
     """A timer callback that raises an exception"""
     raise ValueError("Intentional test exception")
 
@@ -17,8 +17,8 @@ def timer_that_raises(runtime):
 test = mcrfpy.Scene("test")
 test.activate()
 
-# Schedule the timer - it will fire after 50ms
-mcrfpy.setTimer("raise_exception", timer_that_raises, 50)
+# Schedule the timer - it will fire after 50ms (one-shot timer)
+exception_timer = mcrfpy.Timer("raise_exception", timer_that_raises, 50, once=True)
 
 # This test expects:
 # - Default behavior: exit with code 1 after first exception

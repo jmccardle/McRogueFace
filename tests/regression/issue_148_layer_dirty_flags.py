@@ -14,7 +14,7 @@ import mcrfpy
 import sys
 import time
 
-def run_test(runtime):
+def run_test(timer, runtime):
     print("=" * 60)
     print("Issue #148 Regression Test: Layer Dirty Flags and Caching")
     print("=" * 60)
@@ -154,4 +154,4 @@ def run_test(runtime):
 # Initialize and run
 init = mcrfpy.Scene("init")
 init.activate()
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

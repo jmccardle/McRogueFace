@@ -34,7 +34,7 @@ frame_count = 0
 test_results = {}  # Store filenames for each test
 
 
-def run_test_phase(runtime):
+def run_test_phase(timer, runtime):
     """Run through warmup and measurement phases."""
     global frame_count
 
@@ -51,7 +51,7 @@ def run_test_phase(runtime):
         test_results[current_test] = filename
         print(f"  {current_test}: saved to {filename}")
 
-        mcrfpy.delTimer("test_phase")
+        timer.stop()
         run_next_test()
 
 
@@ -90,7 +90,8 @@ def run_next_test():
     print(f"\n[{next_idx + 1}/{len(tests)}] Running: {current_test}")
     tests[next_idx][1]()
 
-    mcrfpy.setTimer("test_phase", run_test_phase, 1)
+    global test_phase_timer
+    test_phase_timer = mcrfpy.Timer("test_phase", run_test_phase, 1)
 
 
 # ============================================================================
@@ -130,14 +131,15 @@ def setup_base_layer_modified():
 
     # Timer to modify one cell per frame (triggers dirty flag each frame)
     mod_counter = [0]
-    def modify_cell(runtime):
+    def modify_cell(timer, runtime):
         x = mod_counter[0] % GRID_SIZE
         y = (mod_counter[0] // GRID_SIZE) % GRID_SIZE
         layer.set(x, y, mcrfpy.Color(255, 0, 0, 255))
         mod_counter[0] += 1
 
     test_base_mod.activate()
-    mcrfpy.setTimer("modify", modify_cell, 1)
+    global modify_timer
+    modify_timer = mcrfpy.Timer("modify", modify_cell, 1)
 
 
 def setup_color_layer_static():
@@ -170,14 +172,15 @@ def setup_color_layer_modified():
 
     # Timer to modify one cell per frame - triggers re-render
     mod_counter = [0]
-    def modify_cell(runtime):
+    def modify_cell(timer, runtime):
         x = mod_counter[0] % GRID_SIZE
         y = (mod_counter[0] // GRID_SIZE) % GRID_SIZE
         layer.set(x, y, mcrfpy.Color(255, 0, 0, 255))
         mod_counter[0] += 1
 
     test_color_mod.activate()
-    mcrfpy.setTimer("modify", modify_cell, 1)
+    global modify_timer
+    modify_timer = mcrfpy.Timer("modify", modify_cell, 1)
 
 
 def setup_tile_layer_static():
@@ -222,7 +225,7 @@ def setup_tile_layer_modified():
 
     # Timer to modify one cell per frame
     mod_counter = [0]
-    def modify_cell(runtime):
+    def modify_cell(timer, runtime):
         if layer:
             x = mod_counter[0] % GRID_SIZE
             y = (mod_counter[0] // GRID_SIZE) % GRID_SIZE
@@ -230,7 +233,8 @@ def setup_tile_layer_modified():
         mod_counter[0] += 1
 
     test_tile_mod.activate()
-    mcrfpy.setTimer("modify", modify_cell, 1)
+    global modify_timer
+    modify_timer = mcrfpy.Timer("modify", modify_cell, 1)
 
 
 def setup_multi_layer_static():

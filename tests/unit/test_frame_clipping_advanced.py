@@ -5,9 +5,9 @@ import mcrfpy
 from mcrfpy import Color, Frame, Caption, Vector
 import sys
 
-def test_nested_clipping(runtime):
+def test_nested_clipping(timer, runtime):
     """Test nested frames with clipping"""
-    mcrfpy.delTimer("test_nested_clipping")
+    timer.stop()
     
     print("Testing advanced UIFrame clipping with nested frames...")
     
@@ -62,8 +62,8 @@ def test_nested_clipping(runtime):
     print(f"Inner frame size: {inner.w}x{inner.h}")
     
     # Dynamically resize frames to test RenderTexture recreation
-    def resize_test(runtime):
-        mcrfpy.delTimer("resize_test")
+    def resize_test(timer, runtime):
+        timer.stop()
         print("Resizing frames to test RenderTexture recreation...")
         outer.w = 450
         outer.h = 350
@@ -71,12 +71,13 @@ def test_nested_clipping(runtime):
         inner.h = 250
         print(f"New outer frame size: {outer.w}x{outer.h}")
         print(f"New inner frame size: {inner.w}x{inner.h}")
-        
+
         # Take screenshot after resize
-        mcrfpy.setTimer("screenshot_resize", take_resize_screenshot, 500)
-    
-    def take_resize_screenshot(runtime):
-        mcrfpy.delTimer("screenshot_resize")
+        global screenshot_resize_timer
+        screenshot_resize_timer = mcrfpy.Timer("screenshot_resize", take_resize_screenshot, 500, once=True)
+
+    def take_resize_screenshot(timer, runtime):
+        timer.stop()
         from mcrfpy import automation
         automation.screenshot("frame_clipping_resized.png")
         print("\nAdvanced test completed!")
@@ -88,9 +89,10 @@ def test_nested_clipping(runtime):
     from mcrfpy import automation
     automation.screenshot("frame_clipping_nested.png")
     print("Initial screenshot saved: frame_clipping_nested.png")
-    
+
     # Schedule resize test
-    mcrfpy.setTimer("resize_test", resize_test, 1000)
+    global resize_test_timer
+    resize_test_timer = mcrfpy.Timer("resize_test", resize_test, 1000, once=True)
 
 # Main execution
 print("Creating advanced test scene...")
@@ -98,6 +100,6 @@ test = mcrfpy.Scene("test")
 test.activate()
 
 # Schedule the test
-mcrfpy.setTimer("test_nested_clipping", test_nested_clipping, 100)
+test_nested_clipping_timer = mcrfpy.Timer("test_nested_clipping", test_nested_clipping, 100, once=True)
 
 print("Advanced test scheduled, running...")

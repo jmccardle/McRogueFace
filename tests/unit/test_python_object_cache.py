@@ -21,7 +21,7 @@ def test(condition, message):
         test_results.append(f"✗ {message}")
         test_passed = False
 
-def run_tests(runtime):
+def run_tests(timer, runtime):
     """Timer callback to run tests after game loop starts"""
     global test_passed
     
@@ -146,6 +146,6 @@ test_scene = mcrfpy.Scene("test_scene")
 test_scene.activate()
 
 # Schedule tests to run after game loop starts
-mcrfpy.setTimer("test", run_tests, 100)
+test_timer = mcrfpy.Timer("test", run_tests, 100, once=True)
 
 print("Python object cache test initialized. Running tests...")

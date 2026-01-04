@@ -5,13 +5,13 @@ import mcrfpy
 from mcrfpy import automation
 import sys
 
-def capture_sprites(runtime):
+def capture_sprites(timer, runtime):
     """Capture sprite examples after render loop starts"""
-    
+
     # Take screenshot
     automation.screenshot("mcrogueface.github.io/images/ui_sprite_example.png")
     print("Sprite screenshot saved!")
-    
+
     # Exit after capturing
     sys.exit(0)
 
@@ -157,4 +157,4 @@ ui.append(scale_label)
 sprites.activate()
 
 # Set timer to capture after rendering starts
-mcrfpy.setTimer("capture", capture_sprites, 100)
+capture_timer = mcrfpy.Timer("capture", capture_sprites, 100, once=True)

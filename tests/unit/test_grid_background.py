@@ -42,25 +42,25 @@ def test_grid_background():
     # Activate the scene
     test.activate()
     
-    def run_tests(dt):
+    def run_tests(timer, runtime):
         """Run background color tests"""
-        mcrfpy.delTimer("run_tests")
+        timer.stop()
         
         print("\nTest 1: Default background color")
         default_color = grid.background_color
         print(f"Default: R={default_color.r}, G={default_color.g}, B={default_color.b}, A={default_color.a}")
         color_display.text = f"R:{default_color.r} G:{default_color.g} B:{default_color.b}"
         
-        def test_set_color(dt):
-            mcrfpy.delTimer("test_set")
+        def test_set_color(timer, runtime):
+            timer.stop()
             print("\nTest 2: Set background to blue")
             grid.background_color = mcrfpy.Color(20, 40, 100)
             new_color = grid.background_color
-            print(f"✓ Set to: R={new_color.r}, G={new_color.g}, B={new_color.b}")
+            print(f"+ Set to: R={new_color.r}, G={new_color.g}, B={new_color.b}")
             color_display.text = f"R:{new_color.r} G:{new_color.g} B:{new_color.b}"
-        
-        def test_animation(dt):
-            mcrfpy.delTimer("test_anim")
+
+        def test_animation(timer, runtime):
+            timer.stop()
             print("\nTest 3: Manual color cycling")
             # Manually change color to test property is working
             colors = [
@@ -68,55 +68,55 @@ def test_grid_background():
                 mcrfpy.Color(20, 200, 20),   # Green
                 mcrfpy.Color(20, 20, 200),   # Blue
             ]
-            
+
             color_index = [0]  # Use list to allow modification in nested function
-            
-            def cycle_red(dt):
-                mcrfpy.delTimer("cycle_0")
+
+            def cycle_red(t, r):
+                t.stop()
                 grid.background_color = colors[0]
                 c = grid.background_color
                 color_display.text = f"R:{c.r} G:{c.g} B:{c.b}"
-                print(f"✓ Set to Red: R={c.r}, G={c.g}, B={c.b}")
-            
-            def cycle_green(dt):
-                mcrfpy.delTimer("cycle_1")
+                print(f"+ Set to Red: R={c.r}, G={c.g}, B={c.b}")
+
+            def cycle_green(t, r):
+                t.stop()
                 grid.background_color = colors[1]
                 c = grid.background_color
                 color_display.text = f"R:{c.r} G:{c.g} B:{c.b}"
-                print(f"✓ Set to Green: R={c.r}, G={c.g}, B={c.b}")
-            
-            def cycle_blue(dt):
-                mcrfpy.delTimer("cycle_2")
+                print(f"+ Set to Green: R={c.r}, G={c.g}, B={c.b}")
+
+            def cycle_blue(t, r):
+                t.stop()
                 grid.background_color = colors[2]
                 c = grid.background_color
                 color_display.text = f"R:{c.r} G:{c.g} B:{c.b}"
-                print(f"✓ Set to Blue: R={c.r}, G={c.g}, B={c.b}")
-            
+                print(f"+ Set to Blue: R={c.r}, G={c.g}, B={c.b}")
+
             # Cycle through colors
-            mcrfpy.setTimer("cycle_0", cycle_red, 100)
-            mcrfpy.setTimer("cycle_1", cycle_green, 400)
-            mcrfpy.setTimer("cycle_2", cycle_blue, 700)
-        
-        def test_complete(dt):
-            mcrfpy.delTimer("complete")
+            mcrfpy.Timer("cycle_0", cycle_red, 100, once=True)
+            mcrfpy.Timer("cycle_1", cycle_green, 400, once=True)
+            mcrfpy.Timer("cycle_2", cycle_blue, 700, once=True)
+
+        def test_complete(timer, runtime):
+            timer.stop()
             print("\nTest 4: Final color check")
             final_color = grid.background_color
             print(f"Final: R={final_color.r}, G={final_color.g}, B={final_color.b}")
-            
-            print("\n✓ Grid background color tests completed!")
+
+            print("\n+ Grid background color tests completed!")
             print("- Default background color works")
             print("- Setting background color works")
             print("- Color cycling works")
-            
+
             sys.exit(0)
-        
+
         # Schedule tests
-        mcrfpy.setTimer("test_set", test_set_color, 1000)
-        mcrfpy.setTimer("test_anim", test_animation, 2000)
-        mcrfpy.setTimer("complete", test_complete, 4500)
-    
+        mcrfpy.Timer("test_set", test_set_color, 1000, once=True)
+        mcrfpy.Timer("test_anim", test_animation, 2000, once=True)
+        mcrfpy.Timer("complete", test_complete, 4500, once=True)
+
     # Start tests
-    mcrfpy.setTimer("run_tests", run_tests, 100)
+    mcrfpy.Timer("run_tests", run_tests, 100, once=True)
 
 if __name__ == "__main__":
     test_grid_background()

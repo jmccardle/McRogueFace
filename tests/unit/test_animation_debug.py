@@ -38,25 +38,25 @@ class AnimationTracker:
         
         # Track it
         active_animations[self.name] = self
-        
+
         # Set timer to check completion
         check_interval = 100  # ms
-        mcrfpy.setTimer(f"check_{self.name}", self._check_complete, check_interval)
+        self._check_timer = mcrfpy.Timer(f"check_{self.name}", self._check_complete, check_interval)
         
-    def _check_complete(self, dt):
+    def _check_complete(self, timer, runtime):
         """Check if animation is complete"""
         if self.animation and hasattr(self.animation, 'is_complete') and self.animation.is_complete:
             # Log completion
             log_entry = f"COMPLETE: {self.name}"
             animation_log.append(log_entry)
             print(log_entry)
-            
+
             # Remove from active
             if self.name in active_animations:
                 del active_animations[self.name]
-            
+
             # Stop checking
-            mcrfpy.delTimer(f"check_{self.name}")
+            timer.stop()
 
 # Create test scene
 anim_debug = mcrfpy.Scene("anim_debug")
@@ -117,14 +117,15 @@ def test_rapid_fire():
     # Start first animation
     anim1 = AnimationTracker("rapid_1", entity, "x", 8.0, 2.0)
     anim1.start()
-    
+
     # Start another after 500ms (before first completes)
-    def start_second(dt):
+    def start_second(timer, runtime):
         anim2 = AnimationTracker("rapid_2", entity, "x", 12.0, 1.0)
         anim2.start()
-        mcrfpy.delTimer("rapid_timer")
-    
-    mcrfpy.setTimer("rapid_timer", start_second, 500)
+        timer.stop()
+
+    global rapid_timer
+    rapid_timer = mcrfpy.Timer("rapid_timer", start_second, 500, once=True)
 
 def test_sequential():
     """Test proper sequential animations"""
@@ -142,14 +143,14 @@ def test_sequential():
         if index >= len(sequence):
             print("Sequence complete!")
             return
-            
+
         name, prop, value, duration = sequence[index]
         anim = AnimationTracker(name, entity, prop, value, duration)
         anim.start()
-        
+
         # Schedule next
         delay = int(duration * 1000) + 100  # Add buffer
-        mcrfpy.setTimer(f"seq_timer_{index}", lambda dt: run_sequence(index + 1), delay)
+        mcrfpy.Timer(f"seq_timer_{index}", lambda t, r: run_sequence(index + 1), delay, once=True)
     
     run_sequence()
 
@@ -163,19 +164,20 @@ def test_conflicting():
     anim1.start()
     
     # After 1 second, start conflicting animation to x=2
-    def start_conflict(dt):
+    def start_conflict(timer, runtime):
         print("Starting conflicting animation!")
         anim2 = AnimationTracker("conflict_2", entity, "x", 2.0, 1.0)
         anim2.start()
-        mcrfpy.delTimer("conflict_timer")
-    
-    mcrfpy.setTimer("conflict_timer", start_conflict, 1000)
+        timer.stop()
+
+    global conflict_timer
+    conflict_timer = mcrfpy.Timer("conflict_timer", start_conflict, 1000, once=True)
 
 # Update display
-def update_display(dt):
+def update_display(timer, runtime):
     pos_display.text = f"Entity position: ({entity.x:.2f}, {entity.y:.2f})"
     active_display.text = f"Active animations: {len(active_animations)}"
-    
+
     # Show active animation names
     if active_animations:
         names = ", ".join(active_animations.keys())
@@ -217,7 +219,7 @@ def handle_input(key, state):
 # Setup
 anim_debug.activate()
 anim_debug.on_key = handle_input
-mcrfpy.setTimer("update", update_display, 100)
+update_display_timer = mcrfpy.Timer("update", update_display, 100)
 
 print("Animation Debug Tool")
 print("====================")

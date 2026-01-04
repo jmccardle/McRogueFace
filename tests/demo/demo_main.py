@@ -114,7 +114,7 @@ class DemoRunner:
         self.current_index = 0
         self.render_wait = 0
 
-        def screenshot_cycle(runtime):
+        def screenshot_cycle(timer, runtime):
             if self.render_wait == 0:
                 # Set scene and wait for render
                 if self.current_index >= len(self.screens):
@@ -139,7 +139,7 @@ class DemoRunner:
                     print("Done!")
                     sys.exit(0)
 
-        mcrfpy.setTimer("screenshot", screenshot_cycle, 50)
+        self.screenshot_timer = mcrfpy.Timer("screenshot", screenshot_cycle, 50)
 
     def run_interactive(self):
         """Run in interactive mode with menu."""

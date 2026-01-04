@@ -9,7 +9,7 @@ import mcrfpy
 from mcrfpy import automation
 import sys
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Test that UIGrid properly handles resizing"""
     try:
         # Create a grid with initial size
@@ -86,4 +86,4 @@ test = mcrfpy.Scene("test")
 test.activate()
 
 # Schedule test to run after game loop starts
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

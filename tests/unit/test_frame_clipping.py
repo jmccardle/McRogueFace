@@ -8,9 +8,9 @@ import sys
 # Module-level state to avoid closures
 _test_state = {}
 
-def take_second_screenshot(runtime):
+def take_second_screenshot(timer, runtime):
     """Take final screenshot and exit"""
-    mcrfpy.delTimer("screenshot2")
+    timer.stop()
     from mcrfpy import automation
     automation.screenshot("frame_clipping_animated.png")
     print("\nTest completed successfully!")
@@ -19,20 +19,21 @@ def take_second_screenshot(runtime):
     print("  - frame_clipping_animated.png (with animation)")
     sys.exit(0)
 
-def animate_frames(runtime):
+def animate_frames(timer, runtime):
     """Animate frames to demonstrate clipping"""
-    mcrfpy.delTimer("animate")
+    timer.stop()
     scene = test.children
     # Move child frames
     parent1 = scene[0]
     parent2 = scene[1]
     parent1.children[1].x = 50
     parent2.children[1].x = 50
-    mcrfpy.setTimer("screenshot2", take_second_screenshot, 500)
+    global screenshot2_timer
+    screenshot2_timer = mcrfpy.Timer("screenshot2", take_second_screenshot, 500, once=True)
 
-def test_clipping(runtime):
+def test_clipping(timer, runtime):
     """Test that clip_children property works correctly"""
-    mcrfpy.delTimer("test_clipping")
+    timer.stop()
 
     print("Testing UIFrame clipping functionality...")
 
@@ -115,7 +116,8 @@ def test_clipping(runtime):
         print(f"PASS: clip_children correctly rejected non-boolean: {e}")
 
     # Start animation after a short delay
-    mcrfpy.setTimer("animate", animate_frames, 100)
+    global animate_timer
+    animate_timer = mcrfpy.Timer("animate", animate_frames, 100, once=True)
 
 def handle_keypress(key, modifiers):
     if key == "c":
@@ -129,5 +131,5 @@ print("Creating test scene...")
 test = mcrfpy.Scene("test")
 test.activate()
 test.on_key = handle_keypress
-mcrfpy.setTimer("test_clipping", test_clipping, 100)
+test_clipping_timer = mcrfpy.Timer("test_clipping", test_clipping, 100, once=True)
 print("Test scheduled, running...")

@@ -135,7 +135,7 @@ class GeometryDemoRunner:
         self.current_index = 0
         self.render_wait = 0
 
-        def screenshot_cycle(runtime):
+        def screenshot_cycle(timer, runtime):
             if self.render_wait == 0:
                 if self.current_index >= len(self.screens):
                     print("Done!")
@@ -162,7 +162,7 @@ class GeometryDemoRunner:
                     print("Done!")
                     sys.exit(0)
 
-        mcrfpy.setTimer("screenshot", screenshot_cycle, 100)
+        self.screenshot_timer = mcrfpy.Timer("screenshot", screenshot_cycle, 100)
 
     def run_interactive(self):
         """Run in interactive mode with menu."""

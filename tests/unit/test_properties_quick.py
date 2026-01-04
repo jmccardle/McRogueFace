@@ -3,8 +3,8 @@
 import mcrfpy
 import sys
 
-def test_properties(runtime):
-    mcrfpy.delTimer("test_properties")
+def test_properties(timer, runtime):
+    timer.stop()
     
     print("\n=== Testing Properties ===")
     
@@ -54,4 +54,4 @@ def test_properties(runtime):
     sys.exit(0)
 
 test = mcrfpy.Scene("test")
-mcrfpy.setTimer("test_properties", test_properties, 100)
+test_properties_timer = mcrfpy.Timer("test_properties", test_properties, 100, once=True)

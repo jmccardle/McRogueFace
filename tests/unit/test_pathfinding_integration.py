@@ -48,11 +48,11 @@ print("\n✓ Pathfinding integration working correctly!")
 print("Enhanced demos are ready for interactive use.")
 
 # Quick animation test
-def test_timer(dt):
-    print(f"Timer callback received: dt={dt}ms")
+def test_timer(timer, runtime):
+    print(f"Timer callback received: runtime={runtime}ms")
     sys.exit(0)
 
 # Set a quick timer to test animation system
-mcrfpy.setTimer("test", test_timer, 100)
+timer = mcrfpy.Timer("test", test_timer, 100, once=True)
 
 print("\nTesting timer system for animations...")

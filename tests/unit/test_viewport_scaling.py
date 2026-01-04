@@ -5,9 +5,9 @@ import mcrfpy
 from mcrfpy import Window, Frame, Caption, Color, Vector
 import sys
 
-def test_viewport_modes(runtime):
+def test_viewport_modes(timer, runtime):
     """Test all three viewport scaling modes"""
-    mcrfpy.delTimer("test_viewport")
+    timer.stop()
     
     print("Testing viewport scaling modes...")
     
@@ -82,47 +82,47 @@ def test_viewport_modes(runtime):
     scene.append(instructions)
     
     # Test changing modes
-    def test_mode_changes(runtime):
-        mcrfpy.delTimer("test_modes")
+    def test_mode_changes(t, r):
+        t.stop()
         from mcrfpy import automation
-        
+
         print("\nTesting scaling modes:")
-        
+
         # Test center mode
         window.scaling_mode = "center"
         print(f"Set to center mode: {window.scaling_mode}")
         mode_text.text = f"Mode: center (1:1 pixels)"
         automation.screenshot("viewport_center_mode.png")
-        
+
         # Schedule next mode test
-        mcrfpy.setTimer("test_stretch", test_stretch_mode, 1000)
-    
-    def test_stretch_mode(runtime):
-        mcrfpy.delTimer("test_stretch")
+        mcrfpy.Timer("test_stretch", test_stretch_mode, 1000, once=True)
+
+    def test_stretch_mode(t, r):
+        t.stop()
         from mcrfpy import automation
-        
+
         window.scaling_mode = "stretch"
         print(f"Set to stretch mode: {window.scaling_mode}")
         mode_text.text = f"Mode: stretch (fill window)"
         automation.screenshot("viewport_stretch_mode.png")
-        
+
         # Schedule next mode test
-        mcrfpy.setTimer("test_fit", test_fit_mode, 1000)
-    
-    def test_fit_mode(runtime):
-        mcrfpy.delTimer("test_fit")
+        mcrfpy.Timer("test_fit", test_fit_mode, 1000, once=True)
+
+    def test_fit_mode(t, r):
+        t.stop()
         from mcrfpy import automation
-        
+
         window.scaling_mode = "fit"
         print(f"Set to fit mode: {window.scaling_mode}")
         mode_text.text = f"Mode: fit (aspect ratio maintained)"
         automation.screenshot("viewport_fit_mode.png")
-        
+
         # Test different window sizes
-        mcrfpy.setTimer("test_resize", test_window_resize, 1000)
-    
-    def test_window_resize(runtime):
-        mcrfpy.delTimer("test_resize")
+        mcrfpy.Timer("test_resize", test_window_resize, 1000, once=True)
+
+    def test_window_resize(t, r):
+        t.stop()
         from mcrfpy import automation
 
         print("\nTesting window resize with fit mode:")
@@ -133,13 +133,13 @@ def test_viewport_modes(runtime):
             print(f"Window resized to: {window.resolution}")
             automation.screenshot("viewport_fit_wide.png")
             # Make window taller
-            mcrfpy.setTimer("test_tall", test_tall_window, 1000)
+            mcrfpy.Timer("test_tall", test_tall_window, 1000, once=True)
         except RuntimeError as e:
             print(f"  Skipping window resize tests (headless mode): {e}")
-            mcrfpy.setTimer("test_game_res", test_game_resolution, 100)
-    
-    def test_tall_window(runtime):
-        mcrfpy.delTimer("test_tall")
+            mcrfpy.Timer("test_game_res", test_game_resolution, 100, once=True)
+
+    def test_tall_window(t, r):
+        t.stop()
         from mcrfpy import automation
 
         try:
@@ -150,10 +150,10 @@ def test_viewport_modes(runtime):
             print(f"  Skipping tall window test (headless mode): {e}")
 
         # Test game resolution change
-        mcrfpy.setTimer("test_game_res", test_game_resolution, 1000)
-    
-    def test_game_resolution(runtime):
-        mcrfpy.delTimer("test_game_res")
+        mcrfpy.Timer("test_game_res", test_game_resolution, 1000, once=True)
+
+    def test_game_resolution(t, r):
+        t.stop()
         
         print("\nTesting game resolution change:")
         window.game_resolution = (800, 600)
@@ -178,9 +178,9 @@ def test_viewport_modes(runtime):
         window.scaling_mode = "fit"
 
         sys.exit(0)
-    
+
     # Start test sequence
-    mcrfpy.setTimer("test_modes", test_mode_changes, 500)
+    mcrfpy.Timer("test_modes", test_mode_changes, 500, once=True)
 
 # Set up keyboard handler for manual testing
 def handle_keypress(key, state):
@@ -240,7 +240,7 @@ test.activate()
 test.on_key = handle_keypress
 
 # Schedule the test
-mcrfpy.setTimer("test_viewport", test_viewport_modes, 100)
+test_viewport_timer = mcrfpy.Timer("test_viewport", test_viewport_modes, 100, once=True)
 
 print("Viewport test running...")
 print("Use number keys to switch modes, R to resize window, G to change game resolution")

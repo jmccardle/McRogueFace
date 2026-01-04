@@ -5,13 +5,13 @@ import mcrfpy
 from mcrfpy import automation
 import sys
 
-def capture_grid(runtime):
+def capture_grid(timer, runtime):
     """Capture grid example after render loop starts"""
-    
+
     # Take screenshot
     automation.screenshot("mcrogueface.github.io/images/ui_grid_example.png")
     print("Grid screenshot saved!")
-    
+
     # Exit after capturing
     sys.exit(0)
 
@@ -112,4 +112,4 @@ ui.append(info)
 grid.activate()
 
 # Set timer to capture after rendering starts
-mcrfpy.setTimer("capture", capture_grid, 100)
+capture_timer = mcrfpy.Timer("capture", capture_grid, 100, once=True)

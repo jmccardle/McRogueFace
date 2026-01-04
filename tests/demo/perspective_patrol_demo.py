@@ -126,9 +126,10 @@ def setup_scene():
     patrol_demo.on_key = on_keypress
 
     # Start patrol timer
-    mcrfpy.setTimer("patrol", patrol_step, move_timer_ms)
+    global patrol_timer
+    patrol_timer = mcrfpy.Timer("patrol", patrol_step, move_timer_ms)
 
-def patrol_step(runtime):
+def patrol_step(timer, runtime):
     """Move entity one step toward current waypoint"""
     global current_waypoint, patrol_paused
 

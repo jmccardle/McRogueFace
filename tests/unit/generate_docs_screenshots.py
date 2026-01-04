@@ -404,48 +404,50 @@ screenshots = [
     ("combined_example", "ui_combined_example.png")
 ]
 
-def take_screenshots(runtime):
+def take_screenshots(timer, runtime):
     """Timer callback to take screenshots sequentially"""
     global current_screenshot
-    
+
     if current_screenshot >= len(screenshots):
         print("\nAll screenshots captured successfully!")
         print(f"Screenshots saved to: {output_dir}/")
         mcrfpy.exit()
         return
-    
+
     scene_name, filename = screenshots[current_screenshot]
-    
+
     # Switch to the scene
     mcrfpy.current_scene = scene_name
-    
+
     # Take screenshot after a short delay to ensure rendering
-    def capture():
+    def capture(t, r):
         global current_screenshot
         full_path = f"{output_dir}/{filename}"
         result = automation.screenshot(full_path)
         print(f"Screenshot {current_screenshot + 1}/{len(screenshots)}: {filename} - {'Success' if result else 'Failed'}")
-        
+
         current_screenshot += 1
-        
+
         # Schedule next screenshot
-        mcrfpy.setTimer("next_screenshot", take_screenshots, 200)
-    
+        global next_screenshot_timer
+        next_screenshot_timer = mcrfpy.Timer("next_screenshot", take_screenshots, 200, once=True)
+
     # Give scene time to render
-    mcrfpy.setTimer("capture", lambda r: capture(), 100)
+    global capture_timer
+    capture_timer = mcrfpy.Timer("capture", capture, 100, once=True)
 
 # Start with the first scene
 caption_example.activate()
 
 # Start the screenshot process
 print(f"\nStarting screenshot capture of {len(screenshots)} scenes...")
-mcrfpy.setTimer("start", take_screenshots, 500)
+start_timer = mcrfpy.Timer("start", take_screenshots, 500, once=True)
 
 # Safety timeout
-def safety_exit(runtime):
+def safety_exit(timer, runtime):
     print("\nERROR: Safety timeout reached! Exiting...")
     mcrfpy.exit()
 
-mcrfpy.setTimer("safety", safety_exit, 30000)
+safety_timer = mcrfpy.Timer("safety", safety_exit, 30000, once=True)
 
 print("Setup complete. Game loop starting...")

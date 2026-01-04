@@ -3,8 +3,8 @@
 import mcrfpy
 import sys
 
-def simple_test(runtime):
-    mcrfpy.delTimer("simple_test")
+def simple_test(timer, runtime):
+    timer.stop()
     
     try:
         # Test basic functionality
@@ -27,4 +27,4 @@ def simple_test(runtime):
     sys.exit(0)
 
 test = mcrfpy.Scene("test")
-mcrfpy.setTimer("simple_test", simple_test, 100)
+simple_test_timer = mcrfpy.Timer("simple_test", simple_test, 100, once=True)

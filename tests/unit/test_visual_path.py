@@ -19,9 +19,9 @@ grid.fill_color = mcrfpy.Color(0, 0, 0)
 # Add color layer for cell coloring
 color_layer = grid.add_layer("color", z_index=-1)
 
-def check_render(dt):
+def check_render(timer, runtime):
     """Timer callback to verify rendering"""
-    print(f"\nTimer fired after {dt}ms")
+    print(f"\nTimer fired after {runtime}ms")
 
     # Take screenshot
     from mcrfpy import automation
@@ -78,6 +78,6 @@ ui.append(title)
 visual_test.activate()
 
 # Set timer to check rendering
-mcrfpy.setTimer("check", check_render, 500)
+check_timer = mcrfpy.Timer("check", check_render, 500, once=True)
 
 print("\nScene ready. Path should be visible in green.")

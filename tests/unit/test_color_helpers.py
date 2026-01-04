@@ -6,7 +6,7 @@ Test #94: Color helper methods - from_hex, to_hex, lerp
 import mcrfpy
 import sys
 
-def test_color_helpers(runtime):
+def test_color_helpers(timer, runtime):
     """Test Color helper methods"""
     
     all_pass = True
@@ -179,4 +179,4 @@ def test_color_helpers(runtime):
 
 # Run test
 test = mcrfpy.Scene("test")
-mcrfpy.setTimer("test", test_color_helpers, 100)
+test_timer = mcrfpy.Timer("test", test_color_helpers, 100, once=True)

@@ -6,7 +6,7 @@ Test UTF-8 encoding support
 import mcrfpy
 import sys
 
-def test_utf8(runtime):
+def test_utf8(timer, runtime):
     """Test UTF-8 encoding in print statements"""
     
     # Test various unicode characters
@@ -32,4 +32,4 @@ def test_utf8(runtime):
 
 # Run test
 test = mcrfpy.Scene("test")
-mcrfpy.setTimer("test", test_utf8, 100)
+test_timer = mcrfpy.Timer("test", test_utf8, 100, once=True)

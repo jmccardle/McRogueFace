@@ -31,7 +31,7 @@ frame_count = 0
 metrics_samples = []
 
 
-def collect_metrics(runtime):
+def collect_metrics(timer, runtime):
     """Timer callback to collect metrics each frame."""
     global frame_count, metrics_samples
 
@@ -65,9 +65,9 @@ def collect_metrics(runtime):
 
 def finish_scenario():
     """Calculate statistics and store results for current scenario."""
-    global results, current_scenario, metrics_samples
+    global results, current_scenario, metrics_samples, benchmark_timer
 
-    mcrfpy.delTimer("benchmark_collect")
+    benchmark_timer.stop()
 
     if not metrics_samples:
         print(f"  WARNING: No samples collected for {current_scenario}")
@@ -149,7 +149,8 @@ def run_next_scenario():
     scenarios[next_idx][1]()
 
     # Start collection timer (runs every frame)
-    mcrfpy.setTimer("benchmark_collect", collect_metrics, 1)
+    global benchmark_timer
+    benchmark_timer = mcrfpy.Timer("benchmark_collect", collect_metrics, 1)
 
 
 # ============================================================================

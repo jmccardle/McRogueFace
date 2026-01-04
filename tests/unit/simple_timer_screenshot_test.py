@@ -6,18 +6,18 @@ from mcrfpy import automation
 # Counter to track timer calls
 call_count = 0
 
-def take_screenshot_and_exit():
+def take_screenshot_and_exit(timer, runtime):
     """Timer callback that takes screenshot then exits"""
     global call_count
     call_count += 1
-    
+
     print(f"\nTimer callback fired! (call #{call_count})")
-    
+
     # Take screenshot
     filename = f"timer_screenshot_test_{call_count}.png"
     result = automation.screenshot(filename)
     print(f"Screenshot result: {result} -> {filename}")
-    
+
     # Exit after first call
     if call_count >= 1:
         print("Exiting game...")
@@ -35,6 +35,6 @@ frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200),
 ui.append(frame)
 
 print("Setting timer to fire in 100ms...")
-mcrfpy.setTimer("screenshot_timer", take_screenshot_and_exit, 100)
+mcrfpy.Timer("screenshot_timer", take_screenshot_and_exit, 100, once=True)
 
 print("Setup complete. Game loop starting...")

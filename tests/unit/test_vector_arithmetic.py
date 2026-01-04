@@ -7,7 +7,7 @@ import mcrfpy
 import sys
 import math
 
-def test_vector_arithmetic(runtime):
+def test_vector_arithmetic(timer, runtime):
     """Test vector arithmetic operations"""
     
     all_pass = True
@@ -244,4 +244,4 @@ def test_vector_arithmetic(runtime):
 
 # Run test
 test = mcrfpy.Scene("test")
-mcrfpy.setTimer("test", test_vector_arithmetic, 100)
+test_timer = mcrfpy.Timer("test", test_vector_arithmetic, 100, once=True)

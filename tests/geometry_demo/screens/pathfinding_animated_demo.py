@@ -269,7 +269,7 @@ class PathfindingAnimatedDemo(GeometryDemoScreen):
         self.dist_label.fill_color = mcrfpy.Color(150, 150, 150)
         self.ui.append(self.dist_label)
 
-    def _tick(self, runtime):
+    def _tick(self, timer, runtime):
         """Advance one turn."""
         self.current_time += 1
         self.time_label.text = f"Turn: {self.current_time}"

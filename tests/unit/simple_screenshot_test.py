@@ -6,17 +6,17 @@ from mcrfpy import automation
 import sys
 import time
 
-def take_screenshot(runtime):
+def take_screenshot(timer, runtime):
     """Take screenshot after render starts"""
     print(f"Timer callback fired at runtime: {runtime}")
-    
+
     # Try different paths
     paths = [
         "test_screenshot.png",
-        "./test_screenshot.png", 
+        "./test_screenshot.png",
         "mcrogueface.github.io/images/test_screenshot.png"
     ]
-    
+
     for path in paths:
         try:
             print(f"Trying to save to: {path}")
@@ -24,7 +24,7 @@ def take_screenshot(runtime):
             print(f"Success: {path}")
         except Exception as e:
             print(f"Failed {path}: {e}")
-    
+
     sys.exit(0)
 
 # Create minimal scene
@@ -41,5 +41,5 @@ test.activate()
 
 # Use timer to ensure rendering has started
 print("Setting timer...")
-mcrfpy.setTimer("screenshot", take_screenshot, 500)  # Wait 0.5 seconds
+mcrfpy.Timer("screenshot", take_screenshot, 500, once=True)  # Wait 0.5 seconds
 print("Timer set, entering game loop...")

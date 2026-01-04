@@ -134,7 +134,7 @@ init = mcrfpy.Scene("init")
 init.activate()
 
 # Use a timer to let the engine initialize
-def run_benchmark(runtime):
+def run_benchmark(timer, runtime):
     main()
 
-mcrfpy.setTimer("bench", run_benchmark, 100)
+bench_timer = mcrfpy.Timer("bench", run_benchmark, 100, once=True)

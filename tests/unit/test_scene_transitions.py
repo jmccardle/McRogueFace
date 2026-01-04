@@ -186,7 +186,7 @@ for s in (red_scene, blue_scene, green_scene, menu_scene):
 
 # Option to run automatic test
 if len(sys.argv) > 1 and sys.argv[1] == "--auto":
-    mcrfpy.setTimer("auto_test", test_automatic_transitions, 1000)
+    mcrfpy.Timer("auto_test", lambda t, r: test_automatic_transitions(r), 1000, once=True)
 else:
     print("\nManual test mode. Use keyboard controls shown on screen.")
     print("Run with --auto flag for automatic transition demo.")

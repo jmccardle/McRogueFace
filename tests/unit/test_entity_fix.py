@@ -72,7 +72,7 @@ status.fill_color = mcrfpy.Color(200, 200, 200)
 ui.append(status)
 
 # Update display
-def update_display(dt):
+def update_display(timer, runtime):
     pos_info.text = f"Entity Grid Position: ({entity.x:.2f}, {entity.y:.2f})"
     # We can't access sprite position from Python, but in C++ it would show
     # the issue: sprite position would be (2, 2) instead of pixel coords
@@ -113,7 +113,7 @@ def handle_input(key, state):
 # Setup
 fix_demo.activate()
 fix_demo.on_key = handle_input
-mcrfpy.setTimer("update", update_display, 100)
+update_timer = mcrfpy.Timer("update", update_display, 100)
 
 print("Ready to demonstrate the issue.")
 print()

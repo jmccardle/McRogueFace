@@ -77,10 +77,10 @@ current_waypoint = 0
 animating = False
 waypoints = [(5,5), (10,5), (10,10), (5,10), (5,5)]
 
-def update_position_display(dt):
+def update_position_display(timer, runtime):
     """Update position display every 200ms"""
     pos_display.text = f"Entity Position: ({entity.x:.2f}, {entity.y:.2f})"
-    
+
     # Check if entity is at expected position
     if animating and current_waypoint > 0:
         target = waypoints[current_waypoint - 1]
@@ -124,9 +124,10 @@ def animate_to_next_waypoint():
     print(f"Started animations: x to {float(target_x)}, y to {float(target_y)}, duration: {duration}s")
     
     current_waypoint += 1
-    
+
     # Schedule next waypoint
-    mcrfpy.setTimer("next_waypoint", lambda dt: animate_to_next_waypoint(), int(duration * 1000 + 100))
+    global next_waypoint_timer
+    next_waypoint_timer = mcrfpy.Timer("next_waypoint", lambda t, r: animate_to_next_waypoint(), int(duration * 1000 + 100), once=True)
 
 def start_animation():
     """Start or restart the animation sequence"""
@@ -186,7 +187,7 @@ test_anim.activate()
 test_anim.on_key = handle_input
 
 # Start position update timer
-mcrfpy.setTimer("update_pos", update_position_display, 200)
+update_pos_timer = mcrfpy.Timer("update_pos", update_position_display, 200)
 
 # No perspective (omniscient view)
 grid.perspective = -1

@@ -158,7 +158,7 @@ def test_edge_cases():
     print("  Edge cases: PASS")
     return True
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Timer callback to run tests after scene is active"""
     results = []
 
@@ -185,4 +185,4 @@ if __name__ == "__main__":
     test.activate()
 
     # Run tests after scene is active
-    mcrfpy.setTimer("test", run_test, 100)
+    test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

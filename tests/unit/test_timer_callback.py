@@ -1,34 +1,27 @@
 #!/usr/bin/env python3
 """
-Test timer callback arguments
+Test timer callback arguments with new Timer API (#173)
 """
 import mcrfpy
 import sys
 
 call_count = 0
 
-def old_style_callback(arg):
-    """Old style callback - should receive just runtime"""
+def new_style_callback(timer, runtime):
+    """New style callback - receives timer object and runtime"""
     global call_count
     call_count += 1
-    print(f"Old style callback called with: {arg} (type: {type(arg)})")
+    print(f"Callback called with: timer={timer} (type: {type(timer)}), runtime={runtime} (type: {type(runtime)})")
+    if hasattr(timer, 'once'):
+        print(f"Got Timer object! once={timer.once}")
     if call_count >= 2:
+        print("PASS")
         sys.exit(0)
 
-def new_style_callback(arg1, arg2=None):
-    """New style callback - should receive timer object and runtime"""
-    print(f"New style callback called with: arg1={arg1} (type: {type(arg1)}), arg2={arg2} (type: {type(arg2) if arg2 else 'None'})")
-    if hasattr(arg1, 'once'):
-        print(f"Got Timer object! once={arg1.once}")
-    sys.exit(0)
-
 # Set up the scene
-test_scene = mcrfpy.Scene("test_scene") 
+test_scene = mcrfpy.Scene("test_scene")
 test_scene.activate()
 
-print("Testing old style timer with setTimer...")
-mcrfpy.setTimer("old_timer", old_style_callback, 100)
-
-print("\nTesting new style timer with Timer object...")
-timer = mcrfpy.Timer("new_timer", new_style_callback, 200)
+print("Testing new Timer callback signature (timer, runtime)...")
+timer = mcrfpy.Timer("test_timer", new_style_callback, 100)
 print(f"Timer created: {timer}")

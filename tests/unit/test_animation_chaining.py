@@ -35,35 +35,36 @@ class PathAnimator:
         if self.current_index >= len(self.path):
             # Path complete
             self.animating = False
-            mcrfpy.delTimer(self.check_timer_name)
+            if hasattr(self, '_check_timer'):
+                self._check_timer.stop()
             if self.on_complete:
                 self.on_complete()
             return
-            
+
         # Get target position
         target_x, target_y = self.path[self.current_index]
-        
+
         # Create animations
         self.anim_x = mcrfpy.Animation("x", float(target_x), self.step_duration, "easeInOut")
         self.anim_y = mcrfpy.Animation("y", float(target_y), self.step_duration, "easeInOut")
-        
+
         # Start animations
         self.anim_x.start(self.entity)
         self.anim_y.start(self.entity)
-        
+
         # Update visibility if entity has this method
         if hasattr(self.entity, 'update_visibility'):
             self.entity.update_visibility()
-        
+
         # Set timer to check completion
-        mcrfpy.setTimer(self.check_timer_name, self._check_completion, 50)
-        
-    def _check_completion(self, dt):
+        self._check_timer = mcrfpy.Timer(self.check_timer_name, self._check_completion, 50)
+
+    def _check_completion(self, timer, runtime):
         """Check if current animation is complete"""
         if hasattr(self.anim_x, 'is_complete') and self.anim_x.is_complete:
             # Move to next step
             self.current_index += 1
-            mcrfpy.delTimer(self.check_timer_name)
+            timer.stop()
             self._animate_next_step()
 
 # Create test scene
@@ -165,7 +166,7 @@ def animate_both():
 # Camera follow test
 camera_follow = False
 
-def update_camera(dt):
+def update_camera(timer, runtime):
     """Update camera to follow player if enabled"""
     if camera_follow and player_animator and player_animator.animating:
         # Smooth camera follow
@@ -205,7 +206,7 @@ chain_test.activate()
 chain_test.on_key = handle_input
 
 # Camera update timer
-mcrfpy.setTimer("cam_update", update_camera, 100)
+cam_update_timer = mcrfpy.Timer("cam_update", update_camera, 100)
 
 print("Animation Chaining Test")
 print("=======================")

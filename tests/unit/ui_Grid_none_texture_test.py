@@ -4,7 +4,7 @@ import mcrfpy
 from mcrfpy import automation
 import sys
 
-def test_grid_none_texture(runtime):
+def test_grid_none_texture(timer, runtime):
     """Test Grid functionality without texture"""
     print("\n=== Testing Grid with None texture ===")
 
@@ -95,5 +95,5 @@ background = mcrfpy.Frame(pos=(0, 0), size=(800, 600),
 ui.append(background)
 
 # Schedule test
-mcrfpy.setTimer("test", test_grid_none_texture, 100)
+test_timer = mcrfpy.Timer("test", test_grid_none_texture, 100, once=True)
 print("Test scheduled...")

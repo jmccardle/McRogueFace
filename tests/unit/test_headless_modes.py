@@ -22,8 +22,8 @@ ui.append(caption)
 print("Script started. Window should appear unless --headless was specified.")
 
 # Exit after 2 seconds
-def exit_test(runtime):
+def exit_test(timer, runtime):
     print("Test complete. Exiting.")
     sys.exit(0)
 
-mcrfpy.setTimer("exit", exit_test, 2000)
+exit_timer = mcrfpy.Timer("exit", exit_test, 2000, once=True)

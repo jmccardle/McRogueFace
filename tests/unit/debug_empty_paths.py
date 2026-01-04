@@ -68,13 +68,13 @@ print("\nTest 7: Path after potential sync")
 path4 = grid.compute_astar_path(0, 0, 5, 5)
 print(f"  A* path: {path4}")
 
-def timer_cb(dt):
+def timer_cb(timer, runtime):
     sys.exit(0)
 
 # Quick UI setup
 ui = debug.children
 ui.append(grid)
 debug.activate()
-mcrfpy.setTimer("exit", timer_cb, 100)
+exit_timer = mcrfpy.Timer("exit", timer_cb, 100, once=True)
 
 print("\nStarting timer...")

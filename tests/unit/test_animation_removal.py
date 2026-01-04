@@ -6,7 +6,7 @@ Test if the crash is related to removing animated objects
 import mcrfpy
 import sys
 
-def clear_and_recreate(runtime):
+def clear_and_recreate(timer, runtime):
     """Clear UI and recreate - mimics demo switching"""
     print(f"\nTimer called at {runtime}")
     
@@ -31,9 +31,10 @@ def clear_and_recreate(runtime):
         anim.start(f)
     
     print("New objects created and animated")
-    
+
     # Schedule exit
-    mcrfpy.setTimer("exit", lambda t: sys.exit(0), 2000)
+    global exit_timer
+    exit_timer = mcrfpy.Timer("exit", lambda t, r: sys.exit(0), 2000, once=True)
 
 # Create initial scene
 print("Creating scene...")
@@ -60,6 +61,6 @@ for i in range(10):
 print(f"Initial scene has {len(ui)} elements")
 
 # Schedule the clear and recreate
-mcrfpy.setTimer("switch", clear_and_recreate, 1000)
+switch_timer = mcrfpy.Timer("switch", clear_and_recreate, 1000, once=True)
 
 print("\nEntering game loop...")

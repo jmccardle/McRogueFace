@@ -266,7 +266,7 @@ def handle_keypress(scene_name, keycode):
         sys.exit(0)
 
 # Timer callback for animation
-def update_animation(dt):
+def update_animation(timer, dt):
     """Update animation state"""
     animate_movement(dt / 1000.0)  # Convert ms to seconds
 
@@ -335,7 +335,7 @@ for i, entity in enumerate(entities):
 dijkstra_enhanced.on_key = handle_keypress
 
 # Set up animation timer (60 FPS)
-mcrfpy.setTimer("animation", update_animation, 16)
+animation_timer = mcrfpy.Timer("animation", update_animation, 16)
 
 # Show the scene
 dijkstra_enhanced.activate()

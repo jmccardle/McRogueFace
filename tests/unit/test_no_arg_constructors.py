@@ -7,7 +7,7 @@ This verifies the fix for requiring arguments even with safe default constructor
 import mcrfpy
 import sys
 
-def test_ui_constructors(runtime):
+def test_ui_constructors(timer, runtime):
     """Test that UI classes can be instantiated without arguments"""
     
     print("Testing UI class instantiation without arguments...")
@@ -88,4 +88,4 @@ def test_ui_constructors(runtime):
 test = mcrfpy.Scene("test")
 
 # Schedule the test to run after game initialization
-mcrfpy.setTimer("test", test_ui_constructors, 100)
+test_timer = mcrfpy.Timer("test", test_ui_constructors, 100, once=True)

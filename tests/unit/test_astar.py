@@ -114,7 +114,7 @@ print("  - Empty paths returned for blocked destinations")
 print("  - Diagonal movement supported")
 
 # Quick visual test
-def visual_test(runtime):
+def visual_test(timer, runtime):
     print("\nVisual test timer fired")
     sys.exit(0)
 
@@ -125,6 +125,6 @@ grid.position = (50, 50)
 grid.size = (400, 400)
 
 astar_test.activate()
-mcrfpy.setTimer("visual", visual_test, 100)
+visual_test_timer = mcrfpy.Timer("visual", visual_test, 100, once=True)
 
 print("\nStarting visual test...")

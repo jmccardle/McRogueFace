@@ -64,7 +64,7 @@ def demonstrate_solution():
     }
     """)
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Timer callback"""
     try:
         demonstrate_solution()
@@ -74,10 +74,10 @@ def run_test(runtime):
         print(f"\nError: {e}")
         import traceback
         traceback.print_exc()
-    
+
     sys.exit(0)
 
 # Set up scene and run
 test = mcrfpy.Scene("test")
 test.activate()
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

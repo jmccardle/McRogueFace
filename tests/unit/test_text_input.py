@@ -16,7 +16,7 @@ def create_demo():
     # Create scene
     text_demo = mcrfpy.Scene("text_demo")
     scene = text_demo.children
-    
+
     # Background
     bg = mcrfpy.Frame(pos=(0, 0), size=(800, 600))
     bg.fill_color = mcrfpy.Color(40, 40, 40, 255)
@@ -26,55 +26,55 @@ def create_demo():
     title = mcrfpy.Caption(pos=(20, 20), text="Text Input Widget Demo")
     title.fill_color = mcrfpy.Color(255, 255, 255, 255)
     scene.append(title)
-    
+
     # Focus manager
     focus_mgr = FocusManager()
-    
+
     # Create inputs
     inputs = []
-    
+
     # Name input
     name_input = TextInput(50, 100, 300, label="Name:", placeholder="Enter your name")
     name_input._focus_manager = focus_mgr
     focus_mgr.register(name_input)
     name_input.add_to_scene(scene)
     inputs.append(name_input)
-    
+
     # Email input
     email_input = TextInput(50, 160, 300, label="Email:", placeholder="user@example.com")
     email_input._focus_manager = focus_mgr
     focus_mgr.register(email_input)
     email_input.add_to_scene(scene)
     inputs.append(email_input)
-    
+
     # Tags input
     tags_input = TextInput(50, 220, 400, label="Tags:", placeholder="comma, separated, tags")
     tags_input._focus_manager = focus_mgr
     focus_mgr.register(tags_input)
     tags_input.add_to_scene(scene)
     inputs.append(tags_input)
-    
+
     # Comment input
     comment_input = TextInput(50, 280, 500, height=30, label="Comment:", placeholder="Add a comment...")
     comment_input._focus_manager = focus_mgr
     focus_mgr.register(comment_input)
     comment_input.add_to_scene(scene)
     inputs.append(comment_input)
-    
+
     # Status display
     status = mcrfpy.Caption(pos=(50, 360), text="Ready for input...")
     status.fill_color = mcrfpy.Color(150, 255, 150, 255)
     scene.append(status)
-    
+
     # Update handler
     def update_status(text=None):
         values = [inp.get_text() for inp in inputs]
         status.text = f"Data: {values[0]} | {values[1]} | {values[2]} | {values[3]}"
-    
+
     # Set change handlers
     for inp in inputs:
         inp.on_change = update_status
-    
+
     # Keyboard handler
     def handle_keys(scene_name, key):
         if not focus_mgr.handle_key(key):
@@ -85,12 +85,12 @@ def create_demo():
                 for i, inp in enumerate(inputs):
                     print(f"  Field {i+1}: '{inp.get_text()}'")
                 sys.exit(0)
-    
+
     text_demo.on_key = "text_demo", handle_keys
     text_demo.activate()
-    
+
     # Run demo test
-    def run_test(timer_name):
+    def run_test(timer, runtime):
         print("\n=== Text Input Widget Test ===")
         print("Features:")
         print("- Click to focus fields")
@@ -102,8 +102,8 @@ def create_demo():
         print("- Visual focus indication")
         print("- Press Escape to exit")
         print("\nTry it out!")
-    
-    mcrfpy.setTimer("info", run_test, 100)
+
+    info_timer = mcrfpy.Timer("info", run_test, 100, once=True)
 
 
 if __name__ == "__main__":

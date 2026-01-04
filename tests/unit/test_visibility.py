@@ -75,7 +75,7 @@ print(f"  Expected: {20 * 15}")
 print("\nTest 2: Updating visibility for each entity")
 for i, entity in enumerate(entities):
     entity.update_visibility()
-    
+
     # Count visible/discovered cells
     visible_count = sum(1 for state in entity.gridstate if state.visible)
     discovered_count = sum(1 for state in entity.gridstate if state.discovered)
@@ -95,9 +95,9 @@ except IndexError as e:
     print(f"  ✓ Correctly rejected invalid perspective: {e}")
 
 # Test 4: Visual demonstration
-def visual_test(runtime):
+def visual_test(timer, runtime):
     print(f"\nVisual test - cycling perspectives at {runtime}ms")
-    
+
     # Cycle through perspectives
     current = grid.perspective
     if current == -1:
@@ -112,7 +112,7 @@ def visual_test(runtime):
     else:
         grid.perspective = -1
         print("  Switched to omniscient view")
-    
+
     # Take screenshot
     from mcrfpy import automation
     filename = f"visibility_perspective_{grid.perspective}.png"
@@ -159,14 +159,14 @@ ui.append(legend)
 visibility_test.activate()
 
 # Set timer to cycle perspectives
-mcrfpy.setTimer("cycle", visual_test, 2000)  # Every 2 seconds
+cycle_timer = mcrfpy.Timer("cycle", visual_test, 2000)  # Every 2 seconds
 
 print("\nTest complete! Visual demo cycling through perspectives...")
 print("Perspectives will cycle: Omniscient → Entity 0 → Entity 1 → Entity 2 → Omniscient")
 
 # Quick test to exit after screenshots
-def exit_timer(dt):
+def exit_timer_cb(timer, runtime):
     print("\nExiting after demo...")
     sys.exit(0)
 
-mcrfpy.setTimer("exit", exit_timer, 10000)  # Exit after 10 seconds
+exit_timer_obj = mcrfpy.Timer("exit", exit_timer_cb, 10000, once=True)  # Exit after 10 seconds

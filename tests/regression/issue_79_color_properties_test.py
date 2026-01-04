@@ -149,7 +149,7 @@ def test_color_properties():
     
     return tests_passed == tests_total
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Timer callback to run the test"""
     try:
         success = test_color_properties()
@@ -167,4 +167,4 @@ test = mcrfpy.Scene("test")
 test.activate()
 
 # Schedule test to run after game loop starts
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

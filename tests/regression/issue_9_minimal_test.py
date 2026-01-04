@@ -7,7 +7,7 @@ import mcrfpy
 from mcrfpy import automation
 import sys
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Test RenderTexture resizing"""
     print("Testing Issue #9: RenderTexture resize (minimal)")
     
@@ -64,4 +64,4 @@ test = mcrfpy.Scene("test")
 test.activate()
 
 # Schedule test
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

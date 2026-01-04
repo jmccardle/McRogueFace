@@ -17,7 +17,7 @@ class CustomEntity(mcrfpy.Entity):
     def custom_method(self):
         return "Custom method called"
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Test that derived entity classes maintain their type in collections"""
     try:
         # Create a grid
@@ -85,4 +85,4 @@ test = mcrfpy.Scene("test")
 test.activate()
 
 # Schedule test to run after game loop starts
-mcrfpy.setTimer("test", run_test, 100)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

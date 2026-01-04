@@ -427,7 +427,7 @@ def print_analysis():
     print(f"  Note: This overhead is acceptable given query speedups")
 
 
-def run_benchmarks(runtime=None):
+def run_benchmarks(timer=None, runtime=None):
     """Main benchmark runner."""
     global results
 
@@ -458,4 +458,4 @@ if __name__ == "__main__":
     if "--headless" in sys.argv or True:  # Always run immediately for benchmarks
         run_benchmarks()
     else:
-        mcrfpy.setTimer("run_bench", run_benchmarks, 100)
+        bench_timer = mcrfpy.Timer("run_bench", run_benchmarks, 100, once=True)

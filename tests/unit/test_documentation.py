@@ -20,7 +20,7 @@ def test_method_docs():
         'createSoundBuffer', 'loadMusic', 'setMusicVolume', 'setSoundVolume',
         'playSound', 'getMusicVolume', 'getSoundVolume', 'sceneUI',
         'currentScene', 'setScene', 'createScene', 'keypressScene',
-        'setTimer', 'delTimer', 'exit', 'setScale', 'find', 'findAll',
+        'exit', 'setScale', 'find', 'findAll',
         'getMetrics'
     ]
     
@@ -40,7 +40,7 @@ def test_class_docs():
     """Test class documentation."""
     print("=== Class Documentation ===")
     
-    classes = ['Frame', 'Caption', 'Sprite', 'Grid', 'Entity', 'Color', 'Vector', 'Texture', 'Font']
+    classes = ['Frame', 'Caption', 'Sprite', 'Grid', 'Entity', 'Color', 'Vector', 'Texture', 'Font', 'Timer']
     
     for class_name in classes:
         if hasattr(mcrfpy, class_name):
@@ -80,12 +80,12 @@ def test_method_signatures():
         else:
             print("✗ setScene signature incorrect or missing")
     
-    if hasattr(mcrfpy, 'setTimer'):
-        doc = mcrfpy.setTimer.__doc__
-        if doc and 'setTimer(name: str, handler: callable, interval: int)' in doc:
-            print("✓ setTimer signature correct")
+    if hasattr(mcrfpy, 'Timer'):
+        doc = mcrfpy.Timer.__doc__
+        if doc and 'Timer' in doc:
+            print("+ Timer class documentation present")
         else:
-            print("✗ setTimer signature incorrect or missing")
+            print("x Timer class documentation missing")
     
     if hasattr(mcrfpy, 'find'):
         doc = mcrfpy.find.__doc__

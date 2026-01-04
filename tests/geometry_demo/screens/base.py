@@ -46,17 +46,19 @@ class GeometryDemoScreen:
 
     def cleanup(self):
         """Clean up timers when leaving screen."""
-        for timer_name in self.timers:
+        for timer in self.timers:
             try:
-                mcrfpy.delTimer(timer_name)
+                timer.stop()
             except:
                 pass
 
     def restart_timers(self):
         """Re-register timers after cleanup."""
+        self.timers = []  # Clear old timer references
         for name, callback, interval in self._timer_configs:
             try:
-                mcrfpy.setTimer(name, callback, interval)
+                timer = mcrfpy.Timer(name, callback, interval)
+                self.timers.append(timer)
             except Exception as e:
                 print(f"Timer restart failed: {e}")
 
@@ -111,6 +113,6 @@ class GeometryDemoScreen:
         if callback is None:
             print(f"Warning: Timer '{name}' callback is None, skipping")
             return
-        mcrfpy.setTimer(name, callback, interval)
-        self.timers.append(name)
+        timer = mcrfpy.Timer(name, callback, interval)
+        self.timers.append(timer)
         self._timer_configs.append((name, callback, interval))

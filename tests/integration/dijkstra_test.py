@@ -88,11 +88,11 @@ def test_dijkstra(grid, entities):
     
     return results
 
-def run_test(runtime):
+def run_test(timer, runtime):
     """Timer callback to run tests and take screenshot"""
     # Run pathfinding tests
     results = test_dijkstra(grid, entities)
-    
+
     # Update display with results
     y_pos = 380
     for result in results:
@@ -100,9 +100,9 @@ def run_test(runtime):
         caption.fill_color = mcrfpy.Color(200, 200, 200)
         ui.append(caption)
         y_pos += 20
-    
-    # Take screenshot
-    mcrfpy.setTimer("screenshot", lambda rt: take_screenshot(), 500)
+
+    # Take screenshot (one-shot timer)
+    screenshot_timer = mcrfpy.Timer("screenshot", lambda t, rt: take_screenshot(), 500, once=True)
 
 def take_screenshot():
     """Take screenshot and exit"""
@@ -140,7 +140,7 @@ ui.append(legend)
 # Set scene
 dijkstra_test.activate()
 
-# Run test after scene loads
-mcrfpy.setTimer("test", run_test, 100)
+# Run test after scene loads (one-shot timer)
+test_timer = mcrfpy.Timer("test", run_test, 100, once=True)
 
 print("Running Dijkstra tests...")

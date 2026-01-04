@@ -3,7 +3,7 @@
 Test for keypressScene() validation - should reject non-callable arguments
 """
 
-def test_keypress_validation(timer_name):
+def test_keypress_validation(timer, runtime):
     """Test that keypressScene validates its argument is callable"""
     import mcrfpy
     import sys
@@ -90,4 +90,4 @@ def test_keypress_validation(timer_name):
 
 # Execute the test after a short delay
 import mcrfpy
-mcrfpy.setTimer("test", test_keypress_validation, 100)
+test_timer = mcrfpy.Timer("test", test_keypress_validation, 100, once=True)

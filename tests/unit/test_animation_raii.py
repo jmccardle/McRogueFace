@@ -93,32 +93,32 @@ def test_3_complete_animation():
 def test_4_multiple_animations_timer():
     """Test creating multiple animations in timer callback"""
     success = False
-    
-    def create_animations(runtime):
+
+    def create_animations(timer, runtime):
         nonlocal success
         try:
             ui = test.children
             frame = mcrfpy.Frame(pos=(200, 200), size=(100, 100))
             ui.append(frame)
-            
+
             # Create multiple animations rapidly (this used to crash)
             for i in range(10):
                 anim = mcrfpy.Animation("x", 300.0 + i * 10, 1000, "linear")
                 anim.start(frame)
-            
+
             success = True
         except Exception as e:
             print(f"Timer animation error: {e}")
         finally:
-            mcrfpy.setTimer("exit", lambda t: None, 100)
-    
+            mcrfpy.Timer("exit", lambda t, r: None, 100, once=True)
+
     # Clear scene
     ui = test.children
     while len(ui) > 0:
         ui.remove(len(ui) - 1)
-    
-    mcrfpy.setTimer("test", create_animations, 50)
-    mcrfpy.setTimer("check", lambda t: test_result("Multiple animations in timer", success), 200)
+
+    mcrfpy.Timer("test", create_animations, 50, once=True)
+    mcrfpy.Timer("check", lambda t, r: test_result("Multiple animations in timer", success), 200, once=True)
 
 def test_5_scene_cleanup():
     """Test that changing scenes cleans up animations"""
@@ -168,38 +168,38 @@ def test_6_animation_after_clear():
     except Exception as e:
         test_result("Animation after UI clear", False, str(e))
 
-def run_all_tests(runtime):
+def run_all_tests(timer, runtime):
     """Run all RAII tests"""
     print("\nRunning RAII Animation Tests...")
     print("-" * 40)
-    
+
     test_1_basic_animation()
     test_2_remove_animated_object()
     test_3_complete_animation()
     test_4_multiple_animations_timer()
     test_5_scene_cleanup()
     test_6_animation_after_clear()
-    
-    # Schedule result summary
-    mcrfpy.setTimer("results", print_results, 500)
 
-def print_results(runtime):
+    # Schedule result summary
+    mcrfpy.Timer("results", print_results, 500, once=True)
+
+def print_results(timer, runtime):
     """Print test results"""
     print("\n" + "=" * 40)
     print(f"Tests passed: {tests_passed}")
     print(f"Tests failed: {tests_failed}")
-    
+
     if tests_failed == 0:
-        print("\n✓ All tests passed! RAII implementation is working correctly.")
+        print("\n+ All tests passed! RAII implementation is working correctly.")
     else:
-        print(f"\n✗ {tests_failed} tests failed.")
+        print(f"\nx {tests_failed} tests failed.")
         print("\nFailed tests:")
         for name, passed, details in test_results:
             if not passed:
                 print(f"  - {name}: {details}")
-    
+
     # Exit
-    mcrfpy.setTimer("exit", lambda t: sys.exit(0 if tests_failed == 0 else 1), 500)
+    mcrfpy.Timer("exit", lambda t, r: sys.exit(0 if tests_failed == 0 else 1), 500, once=True)
 
 # Setup and run
 test = mcrfpy.Scene("test")
@@ -212,4 +212,4 @@ bg.fill_color = mcrfpy.Color(20, 20, 30)
 ui.append(bg)
 
 # Start tests
-mcrfpy.setTimer("start", run_all_tests, 100)
+start_timer = mcrfpy.Timer("start", run_all_tests, 100, once=True)
