@@ -17,37 +17,42 @@ private:
     bool paused;
     int pause_start_time;
     int total_paused_time;
-    
+
     // One-shot timer support
     bool once;
+
+    // Stopped state: timer is not in engine map, but callback is preserved
+    bool stopped;
     
 public:
     uint64_t serial_number = 0;  // For Python object cache
-    
+
     Timer(); // for map to build
-    Timer(PyObject* target, int interval, int now, bool once = false);
+    Timer(PyObject* target, int interval, int now, bool once = false, bool start = true);
     ~Timer();
-    
+
     // Core timer functionality
     bool test(int now);
     bool hasElapsed(int now) const;
-    
+
     // Timer control methods
     void pause(int current_time);
     void resume(int current_time);
     void restart(int current_time);
-    void cancel();
-    
+    void start(int current_time);   // Clear stopped flag, reset progress
+    void stop();                     // Set stopped flag, preserve callback
+
     // Timer state queries
     bool isPaused() const { return paused; }
-    bool isActive() const;
+    bool isStopped() const { return stopped; }
+    bool isActive() const;  // Running: not paused AND not stopped AND has callback
     int getInterval() const { return interval; }
     void setInterval(int new_interval) { interval = new_interval; }
     int getRemaining(int current_time) const;
     int getElapsed(int current_time) const;
     bool isOnce() const { return once; }
     void setOnce(bool value) { once = value; }
-    
+
     // Callback management
     PyObject* getCallback();
     void setCallback(PyObject* new_callback);

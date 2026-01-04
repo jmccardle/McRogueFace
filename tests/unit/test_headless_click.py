@@ -36,9 +36,7 @@ def test_headless_click():
     automation.click(150, 150)
 
     # Give time for events to process
-    def check_results(runtime):
-        mcrfpy.delTimer("check_click")  # Clean up timer
-
+    def check_results(timer, runtime):
         if len(start_clicks) >= 1:
             print(f"  - Click received: {len(start_clicks)} click(s)")
             # Verify position
@@ -53,7 +51,7 @@ def test_headless_click():
             print(f"  - No clicks received: FAIL")
             sys.exit(1)
 
-    mcrfpy.setTimer("check_click", check_results, 200)
+    mcrfpy.Timer("check_click", check_results, 200, once=True)
 
 
 def test_click_miss():
@@ -84,9 +82,7 @@ def test_click_miss():
     print("  Clicking outside frame at (50, 50)...")
     automation.click(50, 50)
 
-    def check_miss_results(runtime):
-        mcrfpy.delTimer("check_miss")  # Clean up timer
-
+    def check_miss_results(timer, runtime):
         if miss_count[0] == 0:
             print("  - No click on miss: PASS")
             # Now run the main click test
@@ -95,7 +91,7 @@ def test_click_miss():
             print(f"  - Unexpected {miss_count[0]} click(s): FAIL")
             sys.exit(1)
 
-    mcrfpy.setTimer("check_miss", check_miss_results, 200)
+    mcrfpy.Timer("check_miss", check_miss_results, 200, once=True)
 
 
 def test_position_tracking():

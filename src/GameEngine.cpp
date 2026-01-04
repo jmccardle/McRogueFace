@@ -357,51 +357,35 @@ std::shared_ptr<Timer> GameEngine::getTimer(const std::string& name)
     return nullptr;
 }
 
-void GameEngine::manageTimer(std::string name, PyObject* target, int interval)
-{
-    auto it = timers.find(name);
-
-    // #153 - In headless mode, use simulation_time instead of real-time clock
-    int now = headless ? simulation_time : runtime.getElapsedTime().asMilliseconds();
-
-    if (it != timers.end()) // overwrite existing
-    {
-        if (target == NULL || target == Py_None)
-        {
-            // Delete: Overwrite existing timer with one that calls None. This will be deleted in the next timer check
-            // see gitea issue #4: this allows for a timer to be deleted during its own call to itself
-            timers[name] = std::make_shared<Timer>(Py_None, 1000, now);
-            return;
-        }
-    }
-    if (target == NULL || target == Py_None)
-    {
-        std::cout << "Refusing to initialize timer to None. It's not an error, it's just pointless." << std::endl;
-        return;
-    }
-    timers[name] = std::make_shared<Timer>(target, interval, now);
-}
+// Note: manageTimer() removed in #173 - use Timer objects directly
 
 void GameEngine::testTimers()
 {
-    int now = runtime.getElapsedTime().asMilliseconds();
+    int now = headless ? simulation_time : runtime.getElapsedTime().asMilliseconds();
     auto it = timers.begin();
     while (it != timers.end())
     {
         // Keep a local copy of the timer to prevent use-after-free.
-        // If the callback calls delTimer(), the map entry gets replaced,
+        // If the callback calls stop(), the timer may be marked for removal,
         // but we need the Timer object to survive until test() returns.
         auto timer = it->second;
-        timer->test(now);
 
-        // Remove timers that have been cancelled or are one-shot and fired.
+        // Skip stopped timers (they'll be removed below)
+        if (!timer->isStopped()) {
+            timer->test(now);
+        }
+
+        // Remove timers that have been stopped (including one-shot timers that fired).
+        // The stopped flag is the authoritative marker for "remove from map".
         // Note: Check it->second (current map value) in case callback replaced it.
-        if (!it->second->getCallback() || it->second->getCallback() == Py_None)
+        if (it->second->isStopped())
         {
             it = timers.erase(it);
         }
         else
+        {
             it++;
+        }
     }
 }
 

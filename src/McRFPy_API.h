@@ -43,9 +43,7 @@ public:
     // Internal - used by PySceneObject::activate()
     static PyObject* _setScene(PyObject*, PyObject*);
 
-    // timer control
-    static PyObject* _setTimer(PyObject*, PyObject*);
-    static PyObject* _delTimer(PyObject*, PyObject*);
+    // Note: setTimer/delTimer removed in #173 - use Timer objects instead
 
     // #153 - Headless simulation control
     static PyObject* _step(PyObject*, PyObject*);
@@ -87,6 +85,9 @@ public:
     static PyObject* api_get_current_scene();
     static int api_set_current_scene(PyObject* value);
     static PyObject* api_get_scenes();
+
+    // #173: Module-level timer collection accessor
+    static PyObject* api_get_timers();
 
     // Exception handling - signal game loop to exit on unhandled Python exceptions
     static std::atomic<bool> exception_occurred;

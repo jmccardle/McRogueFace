@@ -24,6 +24,7 @@
 #include "GridLayers.h"
 #include "Resources.h"
 #include "PyScene.h"
+#include "PythonObjectCache.h"
 #include <filesystem>
 #include <cstring>
 #include <libtcod.h>
@@ -52,6 +53,10 @@ static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
         return McRFPy_API::api_get_scenes();
     }
 
+    if (strcmp(name, "timers") == 0) {
+        return McRFPy_API::api_get_timers();
+    }
+
     if (strcmp(name, "default_transition") == 0) {
         return PyTransition::to_python(PyTransition::default_transition);
     }
@@ -77,6 +82,11 @@ static int mcrfpy_module_setattro(PyObject* self, PyObject* name, PyObject* valu
 
     if (strcmp(name_str, "scenes") == 0) {
         PyErr_SetString(PyExc_AttributeError, "'scenes' is read-only");
+        return -1;
+    }
+
+    if (strcmp(name_str, "timers") == 0) {
+        PyErr_SetString(PyExc_AttributeError, "'timers' is read-only");
         return -1;
     }
 
@@ -138,26 +148,7 @@ static PyTypeObject McRFPyModuleType = {
 
 static PyMethodDef mcrfpyMethods[] = {
 
-    {"setTimer", McRFPy_API::_setTimer, METH_VARARGS,
-     MCRF_FUNCTION(setTimer,
-         MCRF_SIG("(name: str, handler: callable, interval: int)", "None"),
-         MCRF_DESC("Create or update a recurring timer."),
-         MCRF_ARGS_START
-         MCRF_ARG("name", "Unique identifier for the timer")
-         MCRF_ARG("handler", "Function called with (runtime: float) parameter")
-         MCRF_ARG("interval", "Time between calls in milliseconds")
-         MCRF_RETURNS("None")
-         MCRF_NOTE("If a timer with this name exists, it will be replaced. The handler receives the total runtime in seconds as its argument.")
-     )},
-    {"delTimer", McRFPy_API::_delTimer, METH_VARARGS,
-     MCRF_FUNCTION(delTimer,
-         MCRF_SIG("(name: str)", "None"),
-         MCRF_DESC("Stop and remove a timer."),
-         MCRF_ARGS_START
-         MCRF_ARG("name", "Timer identifier to remove")
-         MCRF_RETURNS("None")
-         MCRF_NOTE("No error is raised if the timer doesn't exist.")
-     )},
+    // Note: setTimer and delTimer removed in #173 - use Timer objects instead
     {"step", McRFPy_API::_step, METH_VARARGS,
      MCRF_FUNCTION(step,
          MCRF_SIG("(dt: float = None)", "float"),
@@ -883,22 +874,34 @@ PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
     return Py_None;		
 }
 
-PyObject* McRFPy_API::_setTimer(PyObject* self, PyObject* args) { // TODO - compare with UIDrawable mouse & Scene Keyboard methods - inconsistent responsibility for incref/decref around mcrogueface
-    const char* name;
-    PyObject* callable;
-    int interval;
-	if (!PyArg_ParseTuple(args, "sOi", &name, &callable, &interval)) return NULL;
-    game->manageTimer(name, callable, interval);
-    Py_INCREF(Py_None);
-    return Py_None;
-}
+// #173: Get all timers as a tuple of Python Timer objects
+PyObject* McRFPy_API::api_get_timers()
+{
+    if (!game) {
+        return PyTuple_New(0);
+    }
 
-PyObject* McRFPy_API::_delTimer(PyObject* self, PyObject* args) {
-	const char* name;
-	if (!PyArg_ParseTuple(args, "s", &name)) return NULL;
-    game->manageTimer(name, NULL, 0);
-    Py_INCREF(Py_None);
-    return Py_None;
+    // Count timers that have Python wrappers
+    std::vector<PyObject*> timer_objs;
+    for (auto& pair : game->timers) {
+        auto& timer = pair.second;
+        if (timer && timer->serial_number != 0) {
+            PyObject* timer_obj = PythonObjectCache::getInstance().lookup(timer->serial_number);
+            if (timer_obj && timer_obj != Py_None) {
+                timer_objs.push_back(timer_obj);
+            }
+        }
+    }
+
+    PyObject* tuple = PyTuple_New(timer_objs.size());
+    if (!tuple) return NULL;
+
+    for (Py_ssize_t i = 0; i < static_cast<Py_ssize_t>(timer_objs.size()); i++) {
+        Py_INCREF(timer_objs[i]);
+        PyTuple_SET_ITEM(tuple, i, timer_objs[i]);
+    }
+
+    return tuple;
 }
 
 // #153 - Headless simulation control

@@ -63,13 +63,13 @@ def run_tests():
     print("Test 5: Timer fires after step() advances past interval")
     timer_fired = [False]  # Use list for mutable closure
 
-    def on_timer(runtime):
-        """Timer callback - receives runtime in ms"""
+    def on_timer(timer, runtime):
+        """Timer callback - receives timer object and runtime in ms"""
         timer_fired[0] = True
         print(f"    Timer fired at simulation time={runtime}ms")
 
     # Set a timer for 500ms
-    mcrfpy.setTimer("test_timer", on_timer, 500)
+    test_timer = mcrfpy.Timer("test_timer", on_timer, 500)
 
     # Step 600ms - timer should fire (500ms interval + some buffer)
     dt = mcrfpy.step(0.6)
@@ -88,7 +88,7 @@ def run_tests():
         print("  Skipping timer test in windowed mode")
 
     # Clean up
-    mcrfpy.delTimer("test_timer")
+    test_timer.stop()
     print()
 
     # Test 6: Error handling - invalid argument type

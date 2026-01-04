@@ -4,14 +4,14 @@
 #include "McRFPy_API.h"
 #include "GameEngine.h"
 
-Timer::Timer(PyObject* _target, int _interval, int now, bool _once)
+Timer::Timer(PyObject* _target, int _interval, int now, bool _once, bool _start)
 : callback(std::make_shared<PyCallable>(_target)), interval(_interval), last_ran(now),
-  paused(false), pause_start_time(0), total_paused_time(0), once(_once)
+  paused(false), pause_start_time(0), total_paused_time(0), once(_once), stopped(!_start)
 {}
 
 Timer::Timer()
 : callback(std::make_shared<PyCallable>(Py_None)), interval(0), last_ran(0),
-  paused(false), pause_start_time(0), total_paused_time(0), once(false)
+  paused(false), pause_start_time(0), total_paused_time(0), once(false), stopped(true)
 {}
 
 Timer::~Timer() {
@@ -22,24 +22,24 @@ Timer::~Timer() {
 
 bool Timer::hasElapsed(int now) const
 {
-    if (paused) return false;
+    if (paused || stopped) return false;
     return now >= last_ran + interval;
 }
 
 bool Timer::test(int now)
 {
-    if (!callback || callback->isNone()) return false;
-    
+    if (!callback || callback->isNone() || stopped) return false;
+
     if (hasElapsed(now))
     {
         last_ran = now;
-        
+
         // Get the PyTimer wrapper from cache to pass to callback
         PyObject* timer_obj = nullptr;
         if (serial_number != 0) {
             timer_obj = PythonObjectCache::getInstance().lookup(serial_number);
         }
-        
+
         // Build args: (timer, runtime) or just (runtime) if no wrapper found
         PyObject* args;
         if (timer_obj) {
@@ -48,10 +48,10 @@ bool Timer::test(int now)
             // Fallback to old behavior if no wrapper found
             args = Py_BuildValue("(i)", now);
         }
-        
+
         PyObject* retval = callback->call(args, NULL);
         Py_DECREF(args);
-        
+
         if (!retval)
         {
             std::cerr << "Timer callback raised an exception:" << std::endl;
@@ -63,16 +63,16 @@ bool Timer::test(int now)
                 McRFPy_API::signalPythonException();
             }
         } else if (retval != Py_None)
-        {   
+        {
             std::cout << "Timer returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
             Py_DECREF(retval);
         }
-        
-        // Handle one-shot timers
+
+        // Handle one-shot timers: stop but preserve callback for potential restart
         if (once) {
-            cancel();
+            stopped = true;  // Will be removed from map by testTimers(), but callback preserved
         }
-        
+
         return true;
     }
     return false;
@@ -101,23 +101,41 @@ void Timer::restart(int current_time)
 {
     last_ran = current_time;
     paused = false;
+    stopped = false;  // Ensure timer is running
     pause_start_time = 0;
     total_paused_time = 0;
 }
 
-void Timer::cancel()
+void Timer::start(int current_time)
 {
-    // Cancel by setting callback to None
-    callback = std::make_shared<PyCallable>(Py_None);
+    // Start/resume the timer - clear stopped flag, reset progress
+    stopped = false;
+    paused = false;
+    last_ran = current_time;
+    pause_start_time = 0;
+    total_paused_time = 0;
+}
+
+void Timer::stop()
+{
+    // Stop the timer - it will be removed from engine map, but callback is preserved
+    stopped = true;
+    paused = false;
+    pause_start_time = 0;
+    total_paused_time = 0;
 }
 
 bool Timer::isActive() const
 {
-    return callback && !callback->isNone() && !paused;
+    return callback && !callback->isNone() && !paused && !stopped;
 }
 
 int Timer::getRemaining(int current_time) const
 {
+    if (stopped) {
+        // When stopped, progress is reset - full interval remaining
+        return interval;
+    }
     if (paused) {
         // When paused, calculate time remaining from when it was paused
         int elapsed_when_paused = pause_start_time - last_ran;
@@ -129,6 +147,10 @@ int Timer::getRemaining(int current_time) const
 
 int Timer::getElapsed(int current_time) const
 {
+    if (stopped) {
+        // When stopped, progress is reset
+        return 0;
+    }
     if (paused) {
         return pause_start_time - last_ran;
     }

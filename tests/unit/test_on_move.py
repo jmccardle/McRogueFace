@@ -57,9 +57,7 @@ def test_on_move_fires():
     automation.moveTo(200, 200)
     automation.moveTo(250, 250)
 
-    def check_results(runtime):
-        mcrfpy.delTimer("check_move")
-
+    def check_results(timer, runtime):
         if move_count[0] >= 2:
             print(f"  - on_move fired {move_count[0]} times: PASS")
             print(f"    Positions: {positions[:5]}...")
@@ -71,7 +69,7 @@ def test_on_move_fires():
             print("\n=== on_move basic tests passed! ===")
             sys.exit(0)
 
-    mcrfpy.setTimer("check_move", check_results, 200)
+    mcrfpy.Timer("check_move", check_results, 200, once=True)
 
 
 def test_on_move_not_outside():
@@ -99,9 +97,7 @@ def test_on_move_not_outside():
     automation.moveTo(60, 60)
     automation.moveTo(70, 70)
 
-    def check_results(runtime):
-        mcrfpy.delTimer("check_outside")
-
+    def check_results(timer, runtime):
         if move_count[0] == 0:
             print("  - No on_move outside bounds: PASS")
             # Chain to the firing test
@@ -110,7 +106,7 @@ def test_on_move_not_outside():
             print(f"  - Unexpected {move_count[0]} move(s) outside bounds: FAIL")
             sys.exit(1)
 
-    mcrfpy.setTimer("check_outside", check_results, 200)
+    mcrfpy.Timer("check_outside", check_results, 200, once=True)
 
 
 def test_all_types_have_on_move():

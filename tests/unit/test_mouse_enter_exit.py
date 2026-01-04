@@ -153,7 +153,7 @@ def test_enter_exit_simulation():
     automation.moveTo(50, 50)
 
     # Give time for callbacks to execute
-    def check_results(runtime):
+    def check_results(timer, runtime):
         global enter_count, exit_count
 
         if enter_count >= 1 and exit_count >= 1:
@@ -166,7 +166,7 @@ def test_enter_exit_simulation():
             print("\n=== Basic Mouse Enter/Exit tests passed! ===")
             sys.exit(0)
 
-    mcrfpy.setTimer("check", check_results, 200)
+    mcrfpy.Timer("check", check_results, 200, once=True)
 
 
 def run_basic_tests():

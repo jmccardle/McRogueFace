@@ -169,7 +169,7 @@ public:
     int getFrame() { return currentFrame; }
     float getFrameTime() { return frameTime; }
     sf::View getView() { return visible; }
-    void manageTimer(std::string, PyObject*, int);
+    // Note: manageTimer() removed in #173 - use Timer objects directly
     std::shared_ptr<Timer> getTimer(const std::string& name);
     void setWindowScale(float);
     bool isHeadless() const { return headless; }

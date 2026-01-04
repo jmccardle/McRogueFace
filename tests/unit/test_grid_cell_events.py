@@ -68,9 +68,7 @@ def test_cell_hover():
     automation.moveTo(150, 150)
     automation.moveTo(200, 200)
 
-    def check_hover(runtime):
-        mcrfpy.delTimer("check_hover")
-
+    def check_hover(timer, runtime):
         print(f"  Enter events: {len(enter_events)}, Exit events: {len(exit_events)}")
         print(f"  Hovered cell: {grid.hovered_cell}")
 
@@ -82,7 +80,7 @@ def test_cell_hover():
         # Continue to click test
         test_cell_click()
 
-    mcrfpy.setTimer("check_hover", check_hover, 200)
+    mcrfpy.Timer("check_hover", check_hover, 200, once=True)
 
 
 def test_cell_click():
@@ -105,9 +103,7 @@ def test_cell_click():
 
     automation.click(200, 200)
 
-    def check_click(runtime):
-        mcrfpy.delTimer("check_click")
-
+    def check_click(timer, runtime):
         print(f"  Click events: {len(click_events)}")
 
         if len(click_events) >= 1:
@@ -118,7 +114,7 @@ def test_cell_click():
         print("\n=== All grid cell event tests passed! ===")
         sys.exit(0)
 
-    mcrfpy.setTimer("check_click", check_click, 200)
+    mcrfpy.Timer("check_click", check_click, 200, once=True)
 
 
 if __name__ == "__main__":
