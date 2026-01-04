@@ -268,8 +268,12 @@ PyGetSetDef UICaption::getsetters[] = {
     //{"w", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "width of the rectangle",   (void*)2},
     //{"h", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "height of the rectangle",   (void*)3},
     {"outline", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Thickness of the border",   (void*)4},
-    {"fill_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member, "Fill color of the text", (void*)0},
-    {"outline_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member, "Outline color of the text", (void*)1},
+    {"fill_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member,
+     "Fill color of the text. Returns a copy; modifying components requires reassignment. "
+     "For animation, use 'fill_color.r', 'fill_color.g', etc.", (void*)0},
+    {"outline_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member,
+     "Outline color of the text. Returns a copy; modifying components requires reassignment. "
+     "For animation, use 'outline_color.r', 'outline_color.g', etc.", (void*)1},
     //{"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
     {"text", (getter)UICaption::get_text, (setter)UICaption::set_text, "The text displayed", NULL},
     {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Font size (integer) in points", (void*)5},

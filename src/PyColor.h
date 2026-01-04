@@ -47,7 +47,34 @@ namespace mcrfpydef {
         .tp_repr = PyColor::repr,
         .tp_hash = PyColor::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Color Object"),
+        .tp_doc = PyDoc_STR(
+            "Color(r: int = 0, g: int = 0, b: int = 0, a: int = 255)\n"
+            "\n"
+            "RGBA color representation.\n"
+            "\n"
+            "Args:\n"
+            "    r: Red component (0-255)\n"
+            "    g: Green component (0-255)\n"
+            "    b: Blue component (0-255)\n"
+            "    a: Alpha component (0-255, default 255 = opaque)\n"
+            "\n"
+            "Note:\n"
+            "    When accessing colors from UI elements (e.g., frame.fill_color),\n"
+            "    you receive a COPY of the color. Modifying it doesn't affect the\n"
+            "    original. To change a component:\n"
+            "\n"
+            "        # This does NOT work:\n"
+            "        frame.fill_color.r = 255  # Modifies a temporary copy\n"
+            "\n"
+            "        # Do this instead:\n"
+            "        c = frame.fill_color\n"
+            "        c.r = 255\n"
+            "        frame.fill_color = c\n"
+            "\n"
+            "        # Or use Animation for sub-properties:\n"
+            "        anim = mcrfpy.Animation('fill_color.r', 255, 0.5, 'linear')\n"
+            "        anim.start(frame)\n"
+        ),
         .tp_methods = PyColor::methods,
         .tp_getset = PyColor::getsetters,
         .tp_init = (initproc)PyColor::init,

@@ -12,26 +12,44 @@ Transition = Union[str, None]
 # Classes
 
 class Color:
-    """SFML Color Object for RGBA colors."""
-    
+    """RGBA color representation.
+
+    Note:
+        When accessing colors from UI elements (e.g., frame.fill_color),
+        you receive a COPY of the color. Modifying it doesn't affect the
+        original. To change a component:
+
+            # This does NOT work:
+            frame.fill_color.r = 255  # Modifies a temporary copy
+
+            # Do this instead:
+            c = frame.fill_color
+            c.r = 255
+            frame.fill_color = c
+
+            # Or use Animation for sub-properties:
+            anim = mcrfpy.Animation('fill_color.r', 255, 0.5, 'linear')
+            anim.start(frame)
+    """
+
     r: int
     g: int
     b: int
     a: int
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, r: int, g: int, b: int, a: int = 255) -> None: ...
-    
+
     def from_hex(self, hex_string: str) -> 'Color':
         """Create color from hex string (e.g., '#FF0000' or 'FF0000')."""
         ...
-    
+
     def to_hex(self) -> str:
         """Convert color to hex string format."""
         ...
-    
+
     def lerp(self, other: 'Color', t: float) -> 'Color':
         """Linear interpolation between two colors."""
         ...
@@ -534,29 +552,116 @@ class Window:
         ...
 
 class Animation:
-    """Animation object for animating UI properties."""
-    
-    target: Any
-    property: str
-    duration: float
-    easing: str
-    loop: bool
-    on_complete: Optional[Callable]
-    
-    def __init__(self, target: Any, property: str, start_value: Any, end_value: Any,
-                 duration: float, easing: str = 'linear', loop: bool = False,
-                 on_complete: Optional[Callable] = None) -> None: ...
-    
-    def start(self) -> None:
-        """Start the animation."""
+    """Animation for interpolating UI properties over time.
+
+    Create an animation targeting a specific property, then call start() on a
+    UI element to begin the animation. The AnimationManager handles updates
+    automatically.
+
+    Example:
+        # Move a frame to x=500 over 2 seconds with easing
+        anim = mcrfpy.Animation('x', 500.0, 2.0, 'easeInOut')
+        anim.start(my_frame)
+
+        # Animate color with completion callback
+        def on_done(anim, target):
+            print('Fade complete!')
+        fade = mcrfpy.Animation('fill_color.a', 0, 1.0, callback=on_done)
+        fade.start(my_sprite)
+    """
+
+    @property
+    def property(self) -> str:
+        """Target property name being animated (read-only)."""
         ...
-    
+
+    @property
+    def duration(self) -> float:
+        """Animation duration in seconds (read-only)."""
+        ...
+
+    @property
+    def elapsed(self) -> float:
+        """Time elapsed since animation started in seconds (read-only)."""
+        ...
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether the animation has finished (read-only)."""
+        ...
+
+    @property
+    def is_delta(self) -> bool:
+        """Whether animation uses delta/additive mode (read-only)."""
+        ...
+
+    def __init__(self,
+                 property: str,
+                 target: Union[float, int, Tuple[float, float], Tuple[int, int, int], Tuple[int, int, int, int], List[int], str],
+                 duration: float,
+                 easing: str = 'linear',
+                 delta: bool = False,
+                 callback: Optional[Callable[['Animation', Any], None]] = None) -> None:
+        """Create an animation for a UI property.
+
+        Args:
+            property: Property name to animate. Common properties:
+                - Position/Size: 'x', 'y', 'w', 'h', 'pos', 'size'
+                - Appearance: 'fill_color', 'outline_color', 'opacity'
+                - Sprite: 'sprite_index', 'scale'
+                - Grid: 'center', 'zoom'
+                - Sub-properties: 'fill_color.r', 'fill_color.g', etc.
+            target: Target value. Type depends on property:
+                - float: For x, y, w, h, scale, opacity, zoom
+                - int: For sprite_index
+                - (r, g, b) or (r, g, b, a): For colors
+                - (x, y): For pos, size, center
+                - [int, ...]: For sprite animation sequences
+                - str: For text animation
+            duration: Animation duration in seconds.
+            easing: Easing function. Options: 'linear', 'easeIn', 'easeOut',
+                'easeInOut', 'easeInQuad', 'easeOutQuad', 'easeInOutQuad',
+                'easeInCubic', 'easeOutCubic', 'easeInOutCubic',
+                'easeInElastic', 'easeOutElastic', 'easeInOutElastic',
+                'easeInBounce', 'easeOutBounce', 'easeInOutBounce', and more.
+            delta: If True, target value is added to start value.
+            callback: Function(animation, target) called on completion.
+        """
+        ...
+
+    def start(self, target: UIElement, conflict_mode: str = 'replace') -> None:
+        """Start the animation on a UI element.
+
+        Args:
+            target: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)
+            conflict_mode: How to handle if property is already animating:
+                - 'replace': Stop existing animation, start new one (default)
+                - 'queue': Wait for existing animation to complete
+                - 'error': Raise RuntimeError if property is busy
+        """
+        ...
+
     def update(self, dt: float) -> bool:
-        """Update animation, returns True if still running."""
+        """Update animation by time delta. Returns True if still running.
+
+        Note: Normally called automatically by AnimationManager.
+        """
         ...
-    
+
     def get_current_value(self) -> Any:
         """Get the current interpolated value."""
+        ...
+
+    def complete(self) -> None:
+        """Complete the animation immediately, jumping to final value."""
+        ...
+
+    def hasValidTarget(self) -> bool:
+        """Check if the animation target still exists."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return string representation showing property, duration, and status."""
         ...
 
 # Module-level attributes

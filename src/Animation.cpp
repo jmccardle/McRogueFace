@@ -57,15 +57,15 @@ Animation::~Animation() {
 
 void Animation::start(std::shared_ptr<UIDrawable> target) {
     if (!target) return;
-    
+
     targetWeak = target;
     elapsed = 0.0f;
     callbackTriggered = false; // Reset callback state
-    
+
     // Capture start value from target
     std::visit([this, &target](const auto& targetVal) {
         using T = std::decay_t<decltype(targetVal)>;
-        
+
         if constexpr (std::is_same_v<T, float>) {
             float value;
             if (target->getProperty(targetProperty, value)) {
@@ -73,9 +73,15 @@ void Animation::start(std::shared_ptr<UIDrawable> target) {
             }
         }
         else if constexpr (std::is_same_v<T, int>) {
-            int value;
-            if (target->getProperty(targetProperty, value)) {
-                startValue = value;
+            // Most UI properties use float, so try float first, then int
+            float fvalue;
+            if (target->getProperty(targetProperty, fvalue)) {
+                startValue = static_cast<int>(fvalue);
+            } else {
+                int ivalue;
+                if (target->getProperty(targetProperty, ivalue)) {
+                    startValue = ivalue;
+                }
             }
         }
         else if constexpr (std::is_same_v<T, std::vector<int>>) {
@@ -104,19 +110,29 @@ void Animation::start(std::shared_ptr<UIDrawable> target) {
             }
         }
     }, targetValue);
+
+    // For zero-duration animations, apply final value immediately
+    if (duration <= 0.0f) {
+        AnimationValue finalValue = interpolate(1.0f);
+        applyValue(target.get(), finalValue);
+        if (pythonCallback && !callbackTriggered) {
+            triggerCallback();
+        }
+        callbackTriggered = true;
+    }
 }
 
 void Animation::startEntity(std::shared_ptr<UIEntity> target) {
     if (!target) return;
-    
+
     entityTargetWeak = target;
     elapsed = 0.0f;
     callbackTriggered = false; // Reset callback state
-    
+
     // Capture the starting value from the entity
     std::visit([this, target](const auto& val) {
         using T = std::decay_t<decltype(val)>;
-        
+
         if constexpr (std::is_same_v<T, float>) {
             float value = 0.0f;
             if (target->getProperty(targetProperty, value)) {
@@ -131,6 +147,16 @@ void Animation::startEntity(std::shared_ptr<UIEntity> target) {
         }
         // Entities don't support other types yet
     }, targetValue);
+
+    // For zero-duration animations, apply final value immediately
+    if (duration <= 0.0f) {
+        AnimationValue finalValue = interpolate(1.0f);
+        applyValue(target.get(), finalValue);
+        if (pythonCallback && !callbackTriggered) {
+            triggerCallback();
+        }
+        callbackTriggered = true;
+    }
 }
 
 bool Animation::hasValidTarget() const {
@@ -169,39 +195,55 @@ bool Animation::update(float deltaTime) {
     // Try to lock weak_ptr to get shared_ptr
     std::shared_ptr<UIDrawable> target = targetWeak.lock();
     std::shared_ptr<UIEntity> entity = entityTargetWeak.lock();
-    
+
     // If both are null, target was destroyed
     if (!target && !entity) {
         return false;  // Remove this animation
     }
-    
+
+    // Handle already-complete animations (e.g., duration=0)
+    // Apply final value once before returning
     if (isComplete()) {
+        if (!callbackTriggered) {
+            // Apply final value for zero-duration animations
+            AnimationValue finalValue = interpolate(1.0f);
+            if (target) {
+                applyValue(target.get(), finalValue);
+            } else if (entity) {
+                applyValue(entity.get(), finalValue);
+            }
+            // Trigger callback
+            if (pythonCallback) {
+                triggerCallback();
+            }
+            callbackTriggered = true;
+        }
         return false;
     }
-    
+
     elapsed += deltaTime;
     elapsed = std::min(elapsed, duration);
-    
+
     // Calculate easing value (0.0 to 1.0)
     float t = duration > 0 ? elapsed / duration : 1.0f;
     float easedT = easingFunc(t);
-    
+
     // Get interpolated value
     AnimationValue currentValue = interpolate(easedT);
-    
+
     // Apply to whichever target is valid
     if (target) {
         applyValue(target.get(), currentValue);
     } else if (entity) {
         applyValue(entity.get(), currentValue);
     }
-    
+
     // Trigger callback when animation completes
     // Check pythonCallback again in case it was cleared during update
     if (isComplete() && !callbackTriggered && pythonCallback) {
         triggerCallback();
     }
-    
+
     return !isComplete();
 }
 
@@ -310,15 +352,19 @@ AnimationValue Animation::interpolate(float t) const {
 
 void Animation::applyValue(UIDrawable* target, const AnimationValue& value) {
     if (!target) return;
-    
+
     std::visit([this, target](const auto& val) {
         using T = std::decay_t<decltype(val)>;
-        
+
         if constexpr (std::is_same_v<T, float>) {
             target->setProperty(targetProperty, val);
         }
         else if constexpr (std::is_same_v<T, int>) {
-            target->setProperty(targetProperty, val);
+            // Most UI properties use float setProperty, so try float first
+            if (!target->setProperty(targetProperty, static_cast<float>(val))) {
+                // Fall back to int if float didn't work
+                target->setProperty(targetProperty, val);
+            }
         }
         else if constexpr (std::is_same_v<T, sf::Color>) {
             target->setProperty(targetProperty, val);

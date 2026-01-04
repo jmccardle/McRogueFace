@@ -434,8 +434,12 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"w", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "width of the rectangle", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 2)},
     {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "height of the rectangle", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 3)},
     {"outline", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "Thickness of the border",   (void*)4},
-    {"fill_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member, "Fill color of the rectangle", (void*)0},
-    {"outline_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member, "Outline color of the rectangle", (void*)1},
+    {"fill_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member,
+     "Fill color of the rectangle. Returns a copy; modifying components requires reassignment. "
+     "For animation, use 'fill_color.r', 'fill_color.g', etc.", (void*)0},
+    {"outline_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member,
+     "Outline color of the rectangle. Returns a copy; modifying components requires reassignment. "
+     "For animation, use 'outline_color.r', 'outline_color.g', etc.", (void*)1},
     {"children", (getter)UIFrame::get_children, NULL, "UICollection of objects on top of this one", NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,

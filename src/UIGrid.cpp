@@ -2059,7 +2059,9 @@ PyGetSetDef UIGrid::getsetters[] = {
      ), (void*)PyObjectsEnum::UIGRID},
 
     {"texture", (getter)UIGrid::get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
-    {"fill_color", (getter)UIGrid::get_fill_color, (setter)UIGrid::set_fill_color, "Background fill color of the grid", NULL},
+    {"fill_color", (getter)UIGrid::get_fill_color, (setter)UIGrid::set_fill_color,
+     "Background fill color of the grid. Returns a copy; modifying components requires reassignment. "
+     "For animation, use 'fill_color.r', 'fill_color.g', etc.", NULL},
     {"perspective", (getter)UIGrid::get_perspective, (setter)UIGrid::set_perspective, 
      "Entity whose perspective to use for FOV rendering (None for omniscient view). "
      "Setting an entity automatically enables perspective mode.", NULL},

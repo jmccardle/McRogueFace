@@ -16,6 +16,7 @@ public:
     static PyObject* create(PyTypeObject* type, PyObject* args, PyObject* kwds);
     static int init(PyAnimationObject* self, PyObject* args, PyObject* kwds);
     static void dealloc(PyAnimationObject* self);
+    static PyObject* repr(PyAnimationObject* self);
     
     // Properties
     static PyObject* get_property(PyAnimationObject* self, void* closure);
@@ -42,8 +43,59 @@ namespace mcrfpydef {
         .tp_basicsize = sizeof(PyAnimationObject),
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)PyAnimation::dealloc,
+        .tp_repr = (reprfunc)PyAnimation::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("Animation object for animating UI properties"),
+        .tp_doc = PyDoc_STR(
+            "Animation(property: str, target: Any, duration: float, easing: str = 'linear', delta: bool = False, callback: Callable = None)\n"
+            "\n"
+            "Create an animation that interpolates a property value over time.\n"
+            "\n"
+            "Args:\n"
+            "    property: Property name to animate. Valid properties depend on target type:\n"
+            "        - Position/Size: 'x', 'y', 'w', 'h', 'pos', 'size'\n"
+            "        - Appearance: 'fill_color', 'outline_color', 'outline', 'opacity'\n"
+            "        - Sprite: 'sprite_index', 'sprite_number', 'scale'\n"
+            "        - Grid: 'center', 'zoom'\n"
+            "        - Caption: 'text'\n"
+            "        - Sub-properties: 'fill_color.r', 'fill_color.g', 'fill_color.b', 'fill_color.a'\n"
+            "    target: Target value for the animation. Type depends on property:\n"
+            "        - float: For numeric properties (x, y, w, h, scale, opacity, zoom)\n"
+            "        - int: For integer properties (sprite_index)\n"
+            "        - tuple (r, g, b[, a]): For color properties\n"
+            "        - tuple (x, y): For vector properties (pos, size, center)\n"
+            "        - list[int]: For sprite animation sequences\n"
+            "        - str: For text animation\n"
+            "    duration: Animation duration in seconds.\n"
+            "    easing: Easing function name. Options:\n"
+            "        - 'linear' (default)\n"
+            "        - 'easeIn', 'easeOut', 'easeInOut'\n"
+            "        - 'easeInQuad', 'easeOutQuad', 'easeInOutQuad'\n"
+            "        - 'easeInCubic', 'easeOutCubic', 'easeInOutCubic'\n"
+            "        - 'easeInQuart', 'easeOutQuart', 'easeInOutQuart'\n"
+            "        - 'easeInSine', 'easeOutSine', 'easeInOutSine'\n"
+            "        - 'easeInExpo', 'easeOutExpo', 'easeInOutExpo'\n"
+            "        - 'easeInCirc', 'easeOutCirc', 'easeInOutCirc'\n"
+            "        - 'easeInElastic', 'easeOutElastic', 'easeInOutElastic'\n"
+            "        - 'easeInBack', 'easeOutBack', 'easeInOutBack'\n"
+            "        - 'easeInBounce', 'easeOutBounce', 'easeInOutBounce'\n"
+            "    delta: If True, target is relative to start value (additive). Default False.\n"
+            "    callback: Function(animation, target) called when animation completes.\n"
+            "\n"
+            "Example:\n"
+            "    # Move a frame from current position to x=500 over 2 seconds\n"
+            "    anim = mcrfpy.Animation('x', 500.0, 2.0, 'easeInOut')\n"
+            "    anim.start(my_frame)\n"
+            "\n"
+            "    # Fade out with callback\n"
+            "    def on_done(anim, target):\n"
+            "        print('Animation complete!')\n"
+            "    fade = mcrfpy.Animation('fill_color.a', 0, 1.0, callback=on_done)\n"
+            "    fade.start(my_sprite)\n"
+            "\n"
+            "    # Animate through sprite frames\n"
+            "    walk_cycle = mcrfpy.Animation('sprite_index', [0,1,2,3,2,1], 0.5, 'linear')\n"
+            "    walk_cycle.start(my_entity)\n"
+        ),
         .tp_methods = PyAnimation::methods,
         .tp_getset = PyAnimation::getsetters,
         .tp_init = (initproc)PyAnimation::init,

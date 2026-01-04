@@ -113,6 +113,48 @@ void PyAnimation::dealloc(PyAnimationObject* self) {
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
+PyObject* PyAnimation::repr(PyAnimationObject* self) {
+    if (!self->data) {
+        return PyUnicode_FromString("<Animation (uninitialized)>");
+    }
+
+    std::string property = self->data->getTargetProperty();
+    float duration = self->data->getDuration();
+    float elapsed = self->data->getElapsed();
+    bool complete = self->data->isComplete();
+    bool delta = self->data->isDelta();
+    bool hasTarget = self->data->hasValidTarget();
+
+    // Format: <Animation 'property' duration=2.0s elapsed=0.5s running>
+    // or:     <Animation 'property' duration=2.0s complete>
+    // or:     <Animation 'property' duration=2.0s delta complete>
+    // or:     <Animation 'property' duration=2.0s (no target)>
+
+    std::string status;
+    if (!hasTarget) {
+        status = "(no target)";
+    } else if (complete) {
+        status = "complete";
+    } else {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "elapsed=%.2fs", elapsed);
+        status = buf;
+    }
+
+    char result[256];
+    if (delta) {
+        snprintf(result, sizeof(result),
+                 "<Animation '%s' duration=%.2fs delta %s>",
+                 property.c_str(), duration, status.c_str());
+    } else {
+        snprintf(result, sizeof(result),
+                 "<Animation '%s' duration=%.2fs %s>",
+                 property.c_str(), duration, status.c_str());
+    }
+
+    return PyUnicode_FromString(result);
+}
+
 PyObject* PyAnimation::get_property(PyAnimationObject* self, void* closure) {
     return PyUnicode_FromString(self->data->getTargetProperty().c_str());
 }
