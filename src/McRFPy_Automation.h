@@ -20,7 +20,7 @@ public:
     // Mouse position and screen info
     static PyObject* _position(PyObject* self, PyObject* args);
     static PyObject* _size(PyObject* self, PyObject* args);
-    static PyObject* _onScreen(PyObject* self, PyObject* args);
+    static PyObject* _onScreen(PyObject* self, PyObject* args, PyObject* kwargs);
     
     // Mouse movement
     static PyObject* _moveTo(PyObject* self, PyObject* args, PyObject* kwargs);

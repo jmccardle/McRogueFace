@@ -165,11 +165,11 @@ public:
     static int set_fov_radius(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* py_is_in_fov(PyUIGridObject* self, PyObject* args);
+    static PyObject* py_is_in_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_compute_dijkstra(PyUIGridObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* py_get_dijkstra_distance(PyUIGridObject* self, PyObject* args);
-    static PyObject* py_get_dijkstra_path(PyUIGridObject* self, PyObject* args);
+    static PyObject* py_get_dijkstra_distance(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_get_dijkstra_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_compute_astar_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds);  // #115
     static PyObject* py_center_camera(PyUIGridObject* self, PyObject* args);  // #169

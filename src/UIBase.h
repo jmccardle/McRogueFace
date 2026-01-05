@@ -1,6 +1,7 @@
 #pragma once
 #include "Python.h"
 #include "McRFPy_Doc.h"
+#include "PyPositionHelper.h"
 #include <memory>
 
 class UIEntity;
@@ -52,23 +53,23 @@ static PyObject* UIDrawable_get_bounds(T* self, PyObject* Py_UNUSED(args))
 
 // move method implementation (#98)
 template<typename T>
-static PyObject* UIDrawable_move(T* self, PyObject* args)
+static PyObject* UIDrawable_move(T* self, PyObject* args, PyObject* kwds)
 {
     float dx, dy;
-    if (!PyArg_ParseTuple(args, "ff", &dx, &dy)) {
+    if (!PyPosition_ParseFloat(args, kwds, &dx, &dy)) {
         return NULL;
     }
-    
+
     self->data->move(dx, dy);
     Py_RETURN_NONE;
 }
 
 // resize method implementation (#98)
 template<typename T>
-static PyObject* UIDrawable_resize(T* self, PyObject* args)
+static PyObject* UIDrawable_resize(T* self, PyObject* args, PyObject* kwds)
 {
     float w, h;
-    if (!PyArg_ParseTuple(args, "ff", &w, &h)) {
+    if (!PyPosition_ParseFloat(args, kwds, &w, &h)) {
         return NULL;
     }
 
@@ -97,23 +98,25 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
          MCRF_RETURNS("tuple: (x, y, width, height) representing the element's bounds") \
          MCRF_NOTE("The bounds are in screen coordinates and account for current position and size.") \
      )}, \
-    {"move", (PyCFunction)UIDrawable_move<PyObjectType>, METH_VARARGS, \
+    {"move", (PyCFunction)UIDrawable_move<PyObjectType>, METH_VARARGS | METH_KEYWORDS, \
      MCRF_METHOD(Drawable, move, \
-         MCRF_SIG("(dx: float, dy: float)", "None"), \
+         MCRF_SIG("(dx, dy) or (delta)", "None"), \
          MCRF_DESC("Move the element by a relative offset."), \
          MCRF_ARGS_START \
-         MCRF_ARG("dx", "Horizontal offset in pixels") \
-         MCRF_ARG("dy", "Vertical offset in pixels") \
-         MCRF_NOTE("This modifies the x and y position properties by the given amounts.") \
+         MCRF_ARG("dx", "Horizontal offset in pixels (or use delta)") \
+         MCRF_ARG("dy", "Vertical offset in pixels (or use delta)") \
+         MCRF_ARG("delta", "Offset as tuple, list, or Vector: (dx, dy)") \
+         MCRF_NOTE("Accepts move(dx, dy), move((dx, dy)), move(Vector), or move(pos=(dx, dy)).") \
      )}, \
-    {"resize", (PyCFunction)UIDrawable_resize<PyObjectType>, METH_VARARGS, \
+    {"resize", (PyCFunction)UIDrawable_resize<PyObjectType>, METH_VARARGS | METH_KEYWORDS, \
      MCRF_METHOD(Drawable, resize, \
-         MCRF_SIG("(width: float, height: float)", "None"), \
+         MCRF_SIG("(width, height) or (size)", "None"), \
          MCRF_DESC("Resize the element to new dimensions."), \
          MCRF_ARGS_START \
-         MCRF_ARG("width", "New width in pixels") \
-         MCRF_ARG("height", "New height in pixels") \
-         MCRF_NOTE("For Caption and Sprite, this may not change actual size if determined by content.") \
+         MCRF_ARG("width", "New width in pixels (or use size)") \
+         MCRF_ARG("height", "New height in pixels (or use size)") \
+         MCRF_ARG("size", "Size as tuple, list, or Vector: (width, height)") \
+         MCRF_NOTE("Accepts resize(w, h), resize((w, h)), resize(Vector), or resize(pos=(w, h)).") \
      )}
 
 // Macro to add common UIDrawable methods to a method array (includes animate for UIDrawable derivatives)
@@ -222,12 +225,12 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
     {"on_enter", (getter)UIDrawable::get_on_enter, (setter)UIDrawable::set_on_enter, \
      MCRF_PROPERTY(on_enter, \
          "Callback for mouse enter events. " \
-         "Called with (x, y, button, action) when mouse enters this element's bounds." \
+         "Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds." \
      ), (void*)type_enum}, \
     {"on_exit", (getter)UIDrawable::get_on_exit, (setter)UIDrawable::set_on_exit, \
      MCRF_PROPERTY(on_exit, \
          "Callback for mouse exit events. " \
-         "Called with (x, y, button, action) when mouse leaves this element's bounds." \
+         "Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds." \
      ), (void*)type_enum}, \
     {"hovered", (getter)UIDrawable::get_hovered, NULL, \
      MCRF_PROPERTY(hovered, \
@@ -237,7 +240,7 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
     {"on_move", (getter)UIDrawable::get_on_move, (setter)UIDrawable::set_on_move, \
      MCRF_PROPERTY(on_move, \
          "Callback for mouse movement within bounds. " \
-         "Called with (x, y, button, action) for each mouse movement while inside. " \
+         "Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. " \
          "Performance note: Called frequently during movement - keep handlers fast." \
      ), (void*)type_enum}
 

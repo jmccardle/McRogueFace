@@ -4,6 +4,7 @@
 #include "PyColor.h"
 #include "PyTexture.h"
 #include "PyFOV.h"
+#include "PyPositionHelper.h"
 #include <sstream>
 
 // =============================================================================
@@ -562,10 +563,18 @@ void TileLayer::render(sf::RenderTarget& target,
 // =============================================================================
 
 PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
-    {"at", (PyCFunction)PyGridLayerAPI::ColorLayer_at, METH_VARARGS,
-     "at(x, y) -> Color\n\nGet the color at cell position (x, y)."},
+    {"at", (PyCFunction)PyGridLayerAPI::ColorLayer_at, METH_VARARGS | METH_KEYWORDS,
+     "at(pos) -> Color\nat(x, y) -> Color\n\n"
+     "Get the color at cell position.\n\n"
+     "Args:\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n"
+     "    x, y: Position as separate integer arguments"},
     {"set", (PyCFunction)PyGridLayerAPI::ColorLayer_set, METH_VARARGS,
-     "set(x, y, color)\n\nSet the color at cell position (x, y)."},
+     "set(pos, color)\n\n"
+     "Set the color at cell position.\n\n"
+     "Args:\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n"
+     "    color: Color object or (r, g, b[, a]) tuple"},
     {"fill", (PyCFunction)PyGridLayerAPI::ColorLayer_fill, METH_VARARGS,
      "fill(color)\n\nFill the entire layer with the specified color."},
     {"fill_rect", (PyCFunction)PyGridLayerAPI::ColorLayer_fill_rect, METH_VARARGS | METH_KEYWORDS,
@@ -646,9 +655,9 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
     return 0;
 }
 
-PyObject* PyGridLayerAPI::ColorLayer_at(PyColorLayerObject* self, PyObject* args) {
+PyObject* PyGridLayerAPI::ColorLayer_at(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
     int x, y;
-    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return NULL;
     }
 
@@ -678,9 +687,14 @@ PyObject* PyGridLayerAPI::ColorLayer_at(PyColorLayerObject* self, PyObject* args
 }
 
 PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* args) {
-    int x, y;
+    PyObject* pos_obj;
     PyObject* color_obj;
-    if (!PyArg_ParseTuple(args, "iiO", &x, &y, &color_obj)) {
+    if (!PyArg_ParseTuple(args, "OO", &pos_obj, &color_obj)) {
+        return NULL;
+    }
+
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
         return NULL;
     }
 
@@ -1108,10 +1122,18 @@ PyObject* PyGridLayerAPI::ColorLayer_repr(PyColorLayerObject* self) {
 // =============================================================================
 
 PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
-    {"at", (PyCFunction)PyGridLayerAPI::TileLayer_at, METH_VARARGS,
-     "at(x, y) -> int\n\nGet the tile index at cell position (x, y). Returns -1 if no tile."},
+    {"at", (PyCFunction)PyGridLayerAPI::TileLayer_at, METH_VARARGS | METH_KEYWORDS,
+     "at(pos) -> int\nat(x, y) -> int\n\n"
+     "Get the tile index at cell position. Returns -1 if no tile.\n\n"
+     "Args:\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n"
+     "    x, y: Position as separate integer arguments"},
     {"set", (PyCFunction)PyGridLayerAPI::TileLayer_set, METH_VARARGS,
-     "set(x, y, index)\n\nSet the tile index at cell position (x, y). Use -1 for no tile."},
+     "set(pos, index)\n\n"
+     "Set the tile index at cell position. Use -1 for no tile.\n\n"
+     "Args:\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n"
+     "    index: Tile index (-1 for no tile)"},
     {"fill", (PyCFunction)PyGridLayerAPI::TileLayer_fill, METH_VARARGS,
      "fill(index)\n\nFill the entire layer with the specified tile index."},
     {"fill_rect", (PyCFunction)PyGridLayerAPI::TileLayer_fill_rect, METH_VARARGS | METH_KEYWORDS,
@@ -1190,9 +1212,9 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
     return 0;
 }
 
-PyObject* PyGridLayerAPI::TileLayer_at(PyTileLayerObject* self, PyObject* args) {
+PyObject* PyGridLayerAPI::TileLayer_at(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
     int x, y;
-    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return NULL;
     }
 
@@ -1210,8 +1232,14 @@ PyObject* PyGridLayerAPI::TileLayer_at(PyTileLayerObject* self, PyObject* args) 
 }
 
 PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args) {
-    int x, y, index;
-    if (!PyArg_ParseTuple(args, "iii", &x, &y, &index)) {
+    PyObject* pos_obj;
+    int index;
+    if (!PyArg_ParseTuple(args, "Oi", &pos_obj, &index)) {
+        return NULL;
+    }
+
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
         return NULL;
     }
 

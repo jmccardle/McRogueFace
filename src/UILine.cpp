@@ -451,7 +451,7 @@ PyGetSetDef UILine::getsetters[] = {
     {"thickness", (getter)UILine::get_thickness, (setter)UILine::set_thickness,
      MCRF_PROPERTY(thickness, "Line thickness in pixels."), NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     MCRF_PROPERTY(on_click, "Callable executed when line is clicked."),
+     MCRF_PROPERTY(on_click, "Callable executed when line is clicked. Function receives (pos: Vector, button: str, action: str)."),
      (void*)PyObjectsEnum::UILINE},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
      MCRF_PROPERTY(z_index, "Z-order for rendering (lower values rendered first)."),

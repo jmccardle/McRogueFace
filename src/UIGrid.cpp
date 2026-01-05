@@ -5,6 +5,7 @@
 #include "UIEntity.h"
 #include "Profiler.h"
 #include "PyFOV.h"
+#include "PyPositionHelper.h"  // For standardized position argument parsing
 #include <algorithm>
 #include <cmath>    // #142 - for std::floor, std::isnan
 #include <cstring>  // #150 - for strcmp
@@ -685,15 +686,20 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
 
             // Only fire if within valid grid bounds
             if (cell_x >= 0 && cell_x < this->grid_x && cell_y >= 0 && cell_y < this->grid_y) {
-                PyObject* args = Py_BuildValue("(ii)", cell_x, cell_y);
-                PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
-                Py_DECREF(args);
-                if (!result) {
-                    std::cerr << "Cell click callback raised an exception:" << std::endl;
-                    PyErr_Print();
-                    PyErr_Clear();
-                } else {
-                    Py_DECREF(result);
+                // Create Vector object for cell position
+                PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)cell_x, (float)cell_y);
+                if (cell_pos) {
+                    PyObject* args = Py_BuildValue("(O)", cell_pos);
+                    Py_DECREF(cell_pos);
+                    PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
+                    Py_DECREF(args);
+                    if (!result) {
+                        std::cerr << "Cell click callback raised an exception:" << std::endl;
+                        PyErr_Print();
+                        PyErr_Clear();
+                    } else {
+                        Py_DECREF(result);
+                    }
                 }
             }
         }
@@ -709,15 +715,20 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
 
         // Only fire if within valid grid bounds
         if (cell_x >= 0 && cell_x < this->grid_x && cell_y >= 0 && cell_y < this->grid_y) {
-            PyObject* args = Py_BuildValue("(ii)", cell_x, cell_y);
-            PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
-            Py_DECREF(args);
-            if (!result) {
-                std::cerr << "Cell click callback raised an exception:" << std::endl;
-                PyErr_Print();
-                PyErr_Clear();
-            } else {
-                Py_DECREF(result);
+            // Create Vector object for cell position
+            PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)cell_x, (float)cell_y);
+            if (cell_pos) {
+                PyObject* args = Py_BuildValue("(O)", cell_pos);
+                Py_DECREF(cell_pos);
+                PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
+                Py_DECREF(args);
+                if (!result) {
+                    std::cerr << "Cell click callback raised an exception:" << std::endl;
+                    PyErr_Print();
+                    PyErr_Clear();
+                } else {
+                    Py_DECREF(result);
+                }
             }
             // Don't return this - no click_callable to call
         }
@@ -1141,36 +1152,14 @@ PyObject* UIGrid::get_texture(PyUIGridObject* self, void* closure) {
 
 PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"x", "y", nullptr};
-    int x = 0, y = 0;
-    
-    // First try to parse as two integers
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii", const_cast<char**>(keywords), &x, &y)) {
-        PyErr_Clear();
-        
-        // Try to parse as a single tuple argument
-        PyObject* pos_tuple = nullptr;
-        if (PyArg_ParseTuple(args, "O", &pos_tuple)) {
-            if (PyTuple_Check(pos_tuple) && PyTuple_Size(pos_tuple) == 2) {
-                PyObject* x_obj = PyTuple_GetItem(pos_tuple, 0);
-                PyObject* y_obj = PyTuple_GetItem(pos_tuple, 1);
-                if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
-                    x = PyLong_AsLong(x_obj);
-                    y = PyLong_AsLong(y_obj);
-                } else {
-                    PyErr_SetString(PyExc_TypeError, "Grid indices must be integers");
-                    return NULL;
-                }
-            } else {
-                PyErr_SetString(PyExc_TypeError, "at() takes two integers or a tuple of two integers");
-                return NULL;
-            }
-        } else {
-            PyErr_SetString(PyExc_TypeError, "at() takes two integers or a tuple of two integers");
-            return NULL;
-        }
+    int x, y;
+
+    // Use the flexible position parsing helper - accepts:
+    // at(x, y), at((x, y)), at([x, y]), at(Vector(x, y)), at(pos=(x, y)), etc.
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
+        return NULL;  // Error already set by PyPosition_ParseInt
     }
-    
+
     // Range validation
     if (x < 0 || x >= self->data->grid_x) {
         PyErr_Format(PyExc_IndexError, "x index %d is out of range [0, %d)", x, self->data->grid_x);
@@ -1349,16 +1338,22 @@ int UIGrid::set_fov_radius(PyUIGridObject* self, PyObject* value, void* closure)
 // Python API implementations for TCOD functionality
 PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* kwlist[] = {"x", "y", "radius", "light_walls", "algorithm", NULL};
-    int x, y, radius = 0;
+    static const char* kwlist[] = {"pos", "radius", "light_walls", "algorithm", NULL};
+    PyObject* pos_obj = NULL;
+    int radius = 0;
     int light_walls = 1;
     int algorithm = FOV_BASIC;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii|ipi", const_cast<char**>(kwlist), 
-                                     &x, &y, &radius, &light_walls, &algorithm)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|ipi", const_cast<char**>(kwlist),
+                                     &pos_obj, &radius, &light_walls, &algorithm)) {
         return NULL;
     }
-    
+
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
+        return NULL;
+    }
+
     // Compute FOV
     self->data->computeFOV(x, y, radius, light_walls, (TCOD_fov_algorithm_t)algorithm);
 
@@ -1367,33 +1362,42 @@ PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject*
     Py_RETURN_NONE;
 }
 
-PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args)
+PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
     int x, y;
-    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return NULL;
     }
-    
+
     bool in_fov = self->data->isInFOV(x, y);
     return PyBool_FromLong(in_fov);
 }
 
 PyObject* UIGrid::py_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
-    int x1, y1, x2, y2;
+    static const char* kwlist[] = {"start", "end", "diagonal_cost", NULL};
+    PyObject* start_obj = NULL;
+    PyObject* end_obj = NULL;
     float diagonal_cost = 1.41f;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", const_cast<char**>(kwlist), 
-                                     &x1, &y1, &x2, &y2, &diagonal_cost)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|f", const_cast<char**>(kwlist),
+                                     &start_obj, &end_obj, &diagonal_cost)) {
         return NULL;
     }
-    
+
+    int x1, y1, x2, y2;
+    if (!PyPosition_FromObjectInt(start_obj, &x1, &y1)) {
+        return NULL;
+    }
+    if (!PyPosition_FromObjectInt(end_obj, &x2, &y2)) {
+        return NULL;
+    }
+
     std::vector<std::pair<int, int>> path = self->data->findPath(x1, y1, x2, y2, diagonal_cost);
-    
+
     PyObject* path_list = PyList_New(path.size());
     if (!path_list) return NULL;
-    
+
     for (size_t i = 0; i < path.size(); i++) {
         PyObject* coord = Py_BuildValue("(ii)", path[i].first, path[i].second);
         if (!coord) {
@@ -1402,80 +1406,93 @@ PyObject* UIGrid::py_find_path(PyUIGridObject* self, PyObject* args, PyObject* k
         }
         PyList_SET_ITEM(path_list, i, coord);
     }
-    
+
     return path_list;
 }
 
 PyObject* UIGrid::py_compute_dijkstra(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* kwlist[] = {"root_x", "root_y", "diagonal_cost", NULL};
-    int root_x, root_y;
+    static const char* kwlist[] = {"root", "diagonal_cost", NULL};
+    PyObject* root_obj = NULL;
     float diagonal_cost = 1.41f;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii|f", const_cast<char**>(kwlist), 
-                                     &root_x, &root_y, &diagonal_cost)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|f", const_cast<char**>(kwlist),
+                                     &root_obj, &diagonal_cost)) {
         return NULL;
     }
-    
+
+    int root_x, root_y;
+    if (!PyPosition_FromObjectInt(root_obj, &root_x, &root_y)) {
+        return NULL;
+    }
+
     self->data->computeDijkstra(root_x, root_y, diagonal_cost);
     Py_RETURN_NONE;
 }
 
-PyObject* UIGrid::py_get_dijkstra_distance(PyUIGridObject* self, PyObject* args)
+PyObject* UIGrid::py_get_dijkstra_distance(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
     int x, y;
-    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return NULL;
     }
-    
+
     float distance = self->data->getDijkstraDistance(x, y);
     if (distance < 0) {
         Py_RETURN_NONE;  // Invalid position
     }
-    
+
     return PyFloat_FromDouble(distance);
 }
 
-PyObject* UIGrid::py_get_dijkstra_path(PyUIGridObject* self, PyObject* args)
+PyObject* UIGrid::py_get_dijkstra_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
     int x, y;
-    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return NULL;
     }
-    
+
     std::vector<std::pair<int, int>> path = self->data->getDijkstraPath(x, y);
-    
+
     PyObject* path_list = PyList_New(path.size());
     for (size_t i = 0; i < path.size(); i++) {
         PyObject* pos = Py_BuildValue("(ii)", path[i].first, path[i].second);
         PyList_SetItem(path_list, i, pos);  // Steals reference
     }
-    
+
     return path_list;
 }
 
 PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    int x1, y1, x2, y2;
+    static const char* kwlist[] = {"start", "end", "diagonal_cost", NULL};
+    PyObject* start_obj = NULL;
+    PyObject* end_obj = NULL;
     float diagonal_cost = 1.41f;
-    
-    static const char* kwlist[] = {"x1", "y1", "x2", "y2", "diagonal_cost", NULL};
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiii|f", const_cast<char**>(kwlist), 
-                                     &x1, &y1, &x2, &y2, &diagonal_cost)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|f", const_cast<char**>(kwlist),
+                                     &start_obj, &end_obj, &diagonal_cost)) {
         return NULL;
     }
-    
+
+    int x1, y1, x2, y2;
+    if (!PyPosition_FromObjectInt(start_obj, &x1, &y1)) {
+        return NULL;
+    }
+    if (!PyPosition_FromObjectInt(end_obj, &x2, &y2)) {
+        return NULL;
+    }
+
     // Compute A* path
     std::vector<std::pair<int, int>> path = self->data->computeAStarPath(x1, y1, x2, y2, diagonal_cost);
-    
+
     // Convert to Python list
     PyObject* path_list = PyList_New(path.size());
     for (size_t i = 0; i < path.size(); i++) {
         PyObject* pos = Py_BuildValue("(ii)", path[i].first, path[i].second);
         PyList_SetItem(path_list, i, pos);  // Steals reference
     }
-    
+
     return path_list;
 }
 
@@ -1812,72 +1829,63 @@ PyObject* UIGrid::py_center_camera(PyUIGridObject* self, PyObject* args) {
 PyMethodDef UIGrid::methods[] = {
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
-     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
+     "compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
      "Compute field of view from a position.\n\n"
      "Args:\n"
-     "    x: X coordinate of the viewer\n"
-     "    y: Y coordinate of the viewer\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n"
      "    radius: Maximum view distance (0 = unlimited)\n"
      "    light_walls: Whether walls are lit when visible\n"
      "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Updates the internal FOV state. Use is_in_fov(x, y) to query visibility."},
-    {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
-     "is_in_fov(x: int, y: int) -> bool\n\n"
+     "Updates the internal FOV state. Use is_in_fov(pos) to query visibility."},
+    {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
+     "is_in_fov(pos) -> bool\n\n"
      "Check if a cell is in the field of view.\n\n"
      "Args:\n"
-     "    x: X coordinate to check\n"
-     "    y: Y coordinate to check\n\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
      "Returns:\n"
      "    True if the cell is visible, False otherwise\n\n"
      "Must call compute_fov() first to calculate visibility."},
-    {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS, 
-     "find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+    {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS,
+     "find_path(start, end, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
      "Find A* path between two points.\n\n"
      "Args:\n"
-     "    x1: Starting X coordinate\n"
-     "    y1: Starting Y coordinate\n"
-     "    x2: Target X coordinate\n"
-     "    y2: Target Y coordinate\n"
+     "    start: Starting position as (x, y) tuple, list, or Vector\n"
+     "    end: Target position as (x, y) tuple, list, or Vector\n"
      "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
      "Returns:\n"
      "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
      "Uses A* algorithm with walkability from grid cells."},
-    {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS, 
-     "compute_dijkstra(root_x: int, root_y: int, diagonal_cost: float = 1.41) -> None\n\n"
+    {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS,
+     "compute_dijkstra(root, diagonal_cost: float = 1.41) -> None\n\n"
      "Compute Dijkstra map from root position.\n\n"
      "Args:\n"
-     "    root_x: X coordinate of the root/target\n"
-     "    root_y: Y coordinate of the root/target\n"
+     "    root: Root position as (x, y) tuple, list, or Vector\n"
      "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
      "Precomputes distances from all reachable cells to the root.\n"
      "Use get_dijkstra_distance() and get_dijkstra_path() to query results.\n"
      "Useful for multiple entities pathfinding to the same target."},
-    {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS,
-     "get_dijkstra_distance(x: int, y: int) -> Optional[float]\n\n"
+    {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS | METH_KEYWORDS,
+     "get_dijkstra_distance(pos) -> Optional[float]\n\n"
      "Get distance from Dijkstra root to position.\n\n"
      "Args:\n"
-     "    x: X coordinate to query\n"
-     "    y: Y coordinate to query\n\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
      "Returns:\n"
      "    Distance as float, or None if position is unreachable or invalid\n\n"
      "Must call compute_dijkstra() first."},
-    {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS,
-     "get_dijkstra_path(x: int, y: int) -> List[Tuple[int, int]]\n\n"
+    {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS | METH_KEYWORDS,
+     "get_dijkstra_path(pos) -> List[Tuple[int, int]]\n\n"
      "Get path from position to Dijkstra root.\n\n"
      "Args:\n"
-     "    x: Starting X coordinate\n"
-     "    y: Starting Y coordinate\n\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
      "Returns:\n"
      "    List of (x, y) tuples representing path to root, empty if unreachable\n\n"
      "Must call compute_dijkstra() first. Path includes start but not root position."},
     {"compute_astar_path", (PyCFunction)UIGrid::py_compute_astar_path, METH_VARARGS | METH_KEYWORDS,
-     "compute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+     "compute_astar_path(start, end, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
      "Compute A* path between two points.\n\n"
      "Args:\n"
-     "    x1: Starting X coordinate\n"
-     "    y1: Starting Y coordinate\n"
-     "    x2: Target X coordinate\n"
-     "    y2: Target Y coordinate\n"
+     "    start: Starting position as (x, y) tuple, list, or Vector\n"
+     "    end: Target position as (x, y) tuple, list, or Vector\n"
      "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
      "Returns:\n"
      "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
@@ -1917,72 +1925,63 @@ PyMethodDef UIGrid_all_methods[] = {
     UIDRAWABLE_METHODS,
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
-     "compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
+     "compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
      "Compute field of view from a position.\n\n"
      "Args:\n"
-     "    x: X coordinate of the viewer\n"
-     "    y: Y coordinate of the viewer\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n"
      "    radius: Maximum view distance (0 = unlimited)\n"
      "    light_walls: Whether walls are lit when visible\n"
      "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Updates the internal FOV state. Use is_in_fov(x, y) to query visibility."},
-    {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS, 
-     "is_in_fov(x: int, y: int) -> bool\n\n"
+     "Updates the internal FOV state. Use is_in_fov(pos) to query visibility."},
+    {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
+     "is_in_fov(pos) -> bool\n\n"
      "Check if a cell is in the field of view.\n\n"
      "Args:\n"
-     "    x: X coordinate to check\n"
-     "    y: Y coordinate to check\n\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
      "Returns:\n"
      "    True if the cell is visible, False otherwise\n\n"
      "Must call compute_fov() first to calculate visibility."},
-    {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS, 
-     "find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+    {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS,
+     "find_path(start, end, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
      "Find A* path between two points.\n\n"
      "Args:\n"
-     "    x1: Starting X coordinate\n"
-     "    y1: Starting Y coordinate\n"
-     "    x2: Target X coordinate\n"
-     "    y2: Target Y coordinate\n"
+     "    start: Starting position as (x, y) tuple, list, or Vector\n"
+     "    end: Target position as (x, y) tuple, list, or Vector\n"
      "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
      "Returns:\n"
      "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
      "Uses A* algorithm with walkability from grid cells."},
-    {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS, 
-     "compute_dijkstra(root_x: int, root_y: int, diagonal_cost: float = 1.41) -> None\n\n"
+    {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS,
+     "compute_dijkstra(root, diagonal_cost: float = 1.41) -> None\n\n"
      "Compute Dijkstra map from root position.\n\n"
      "Args:\n"
-     "    root_x: X coordinate of the root/target\n"
-     "    root_y: Y coordinate of the root/target\n"
+     "    root: Root position as (x, y) tuple, list, or Vector\n"
      "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
      "Precomputes distances from all reachable cells to the root.\n"
      "Use get_dijkstra_distance() and get_dijkstra_path() to query results.\n"
      "Useful for multiple entities pathfinding to the same target."},
-    {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS,
-     "get_dijkstra_distance(x: int, y: int) -> Optional[float]\n\n"
+    {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS | METH_KEYWORDS,
+     "get_dijkstra_distance(pos) -> Optional[float]\n\n"
      "Get distance from Dijkstra root to position.\n\n"
      "Args:\n"
-     "    x: X coordinate to query\n"
-     "    y: Y coordinate to query\n\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
      "Returns:\n"
      "    Distance as float, or None if position is unreachable or invalid\n\n"
      "Must call compute_dijkstra() first."},
-    {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS,
-     "get_dijkstra_path(x: int, y: int) -> List[Tuple[int, int]]\n\n"
+    {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS | METH_KEYWORDS,
+     "get_dijkstra_path(pos) -> List[Tuple[int, int]]\n\n"
      "Get path from position to Dijkstra root.\n\n"
      "Args:\n"
-     "    x: Starting X coordinate\n"
-     "    y: Starting Y coordinate\n\n"
+     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
      "Returns:\n"
      "    List of (x, y) tuples representing path to root, empty if unreachable\n\n"
      "Must call compute_dijkstra() first. Path includes start but not root position."},
     {"compute_astar_path", (PyCFunction)UIGrid::py_compute_astar_path, METH_VARARGS | METH_KEYWORDS,
-     "compute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+     "compute_astar_path(start, end, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
      "Compute A* path between two points.\n\n"
      "Args:\n"
-     "    x1: Starting X coordinate\n"
-     "    y1: Starting Y coordinate\n"
-     "    x2: Target X coordinate\n"
-     "    y2: Target Y coordinate\n"
+     "    start: Starting position as (x, y) tuple, list, or Vector\n"
+     "    end: Target position as (x, y) tuple, list, or Vector\n"
      "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
      "Returns:\n"
      "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
@@ -2055,7 +2054,7 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
-         "Function receives (x, y) coordinates of click."
+         "Function receives (pos: Vector, button: str, action: str)."
      ), (void*)PyObjectsEnum::UIGRID},
 
     {"texture", (getter)UIGrid::get_texture, NULL, "Texture of the grid", NULL}, //TODO 7DRL-day2-item5
@@ -2083,11 +2082,11 @@ PyGetSetDef UIGrid::getsetters[] = {
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIGRID),
     // #142 - Grid cell mouse events
     {"on_cell_enter", (getter)UIGrid::get_on_cell_enter, (setter)UIGrid::set_on_cell_enter,
-     "Callback when mouse enters a grid cell. Called with (cell_x, cell_y).", NULL},
+     "Callback when mouse enters a grid cell. Called with (cell_pos: Vector).", NULL},
     {"on_cell_exit", (getter)UIGrid::get_on_cell_exit, (setter)UIGrid::set_on_cell_exit,
-     "Callback when mouse exits a grid cell. Called with (cell_x, cell_y).", NULL},
+     "Callback when mouse exits a grid cell. Called with (cell_pos: Vector).", NULL},
     {"on_cell_click", (getter)UIGrid::get_on_cell_click, (setter)UIGrid::set_on_cell_click,
-     "Callback when a grid cell is clicked. Called with (cell_x, cell_y).", NULL},
+     "Callback when a grid cell is clicked. Called with (cell_pos: Vector).", NULL},
     {"hovered_cell", (getter)UIGrid::get_hovered_cell, NULL,
      "Currently hovered cell as (x, y) tuple, or None if not hovering.", NULL},
     {NULL}  /* Sentinel */
@@ -2249,29 +2248,39 @@ void UIGrid::updateCellHover(sf::Vector2f mousepos) {
     if (new_cell != hovered_cell) {
         // Fire exit callback for old cell
         if (hovered_cell.has_value() && on_cell_exit_callable) {
-            PyObject* args = Py_BuildValue("(ii)", hovered_cell->x, hovered_cell->y);
-            PyObject* result = PyObject_CallObject(on_cell_exit_callable->borrow(), args);
-            Py_DECREF(args);
-            if (!result) {
-                std::cerr << "Cell exit callback raised an exception:" << std::endl;
-                PyErr_Print();
-                PyErr_Clear();
-            } else {
-                Py_DECREF(result);
+            // Create Vector object for cell position
+            PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)hovered_cell->x, (float)hovered_cell->y);
+            if (cell_pos) {
+                PyObject* args = Py_BuildValue("(O)", cell_pos);
+                Py_DECREF(cell_pos);
+                PyObject* result = PyObject_CallObject(on_cell_exit_callable->borrow(), args);
+                Py_DECREF(args);
+                if (!result) {
+                    std::cerr << "Cell exit callback raised an exception:" << std::endl;
+                    PyErr_Print();
+                    PyErr_Clear();
+                } else {
+                    Py_DECREF(result);
+                }
             }
         }
 
         // Fire enter callback for new cell
         if (new_cell.has_value() && on_cell_enter_callable) {
-            PyObject* args = Py_BuildValue("(ii)", new_cell->x, new_cell->y);
-            PyObject* result = PyObject_CallObject(on_cell_enter_callable->borrow(), args);
-            Py_DECREF(args);
-            if (!result) {
-                std::cerr << "Cell enter callback raised an exception:" << std::endl;
-                PyErr_Print();
-                PyErr_Clear();
-            } else {
-                Py_DECREF(result);
+            // Create Vector object for cell position
+            PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)new_cell->x, (float)new_cell->y);
+            if (cell_pos) {
+                PyObject* args = Py_BuildValue("(O)", cell_pos);
+                Py_DECREF(cell_pos);
+                PyObject* result = PyObject_CallObject(on_cell_enter_callable->borrow(), args);
+                Py_DECREF(args);
+                if (!result) {
+                    std::cerr << "Cell enter callback raised an exception:" << std::endl;
+                    PyErr_Print();
+                    PyErr_Clear();
+                } else {
+                    Py_DECREF(result);
+                }
             }
         }
 

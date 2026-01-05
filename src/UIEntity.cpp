@@ -10,6 +10,7 @@
 #include "Animation.h"
 #include "PyAnimation.h"
 #include "PyEasing.h"
+#include "PyPositionHelper.h"
 // UIDrawable methods now in UIBase.h
 #include "UIEntityPyMethods.h"
 
@@ -94,18 +95,17 @@ void UIEntity::updateVisibility()
     }
 }
 
-PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* o) {
+PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     int x, y;
-    if (!PyArg_ParseTuple(o, "ii", &x, &y)) {
-        PyErr_SetString(PyExc_TypeError, "UIEntity.at requires two integer arguments: (x, y)");
-        return NULL;
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
+        return NULL;  // Error already set by PyPosition_ParseInt
     }
-    
+
     if (self->data->grid == NULL) {
         PyErr_SetString(PyExc_ValueError, "Entity cannot access surroundings because it is not associated with a grid");
         return NULL;
     }
-    
+
     // Lazy initialize gridstate if needed
     if (self->data->gridstate.size() == 0) {
         self->data->gridstate.resize(self->data->grid->grid_x * self->data->grid->grid_y);
@@ -115,13 +115,13 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* o) {
             state.discovered = false;
         }
     }
-    
+
     // Bounds check
     if (x < 0 || x >= self->data->grid->grid_x || y < 0 || y >= self->data->grid->grid_y) {
         PyErr_Format(PyExc_IndexError, "Grid coordinates (%d, %d) out of bounds", x, y);
         return NULL;
     }
-    
+
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPointState");
     auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
     Py_DECREF(type);
@@ -590,21 +590,14 @@ PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
 }
 
 PyObject* UIEntity::path_to(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
-    static const char* keywords[] = {"target_x", "target_y", "x", "y", nullptr};
-    int target_x = -1, target_y = -1;
-    
-    // Parse arguments - support both target_x/target_y and x/y parameter names
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii", const_cast<char**>(keywords), 
-                                     &target_x, &target_y)) {
-        PyErr_Clear();
-        // Try alternative parameter names
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiii", const_cast<char**>(keywords), 
-                                         &target_x, &target_y, &target_x, &target_y)) {
-            PyErr_SetString(PyExc_TypeError, "path_to() requires target_x and target_y integer arguments");
-            return NULL;
-        }
+    int target_x, target_y;
+
+    // Parse position using flexible position helper
+    // Supports: path_to(x, y), path_to((x, y)), path_to(pos=(x, y)), path_to(Vector(x, y))
+    if (!PyPosition_ParseInt(args, kwds, &target_x, &target_y)) {
+        return NULL;  // Error already set by PyPosition_ParseInt
     }
-    
+
     // Check if entity has a grid
     if (!self->data || !self->data->grid) {
         PyErr_SetString(PyExc_ValueError, "Entity must be associated with a grid to compute paths");
@@ -743,19 +736,32 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
 }
 
 PyMethodDef UIEntity::methods[] = {
-    {"at", (PyCFunction)UIEntity::at, METH_O},
+    {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
+     "at(x, y) or at(pos) -> GridPointState\n\n"
+     "Get the grid point state at the specified position.\n\n"
+     "Args:\n"
+     "    x, y: Grid coordinates as two integers, OR\n"
+     "    pos: Grid coordinates as tuple, list, or Vector\n\n"
+     "Returns:\n"
+     "    GridPointState for the entity's view of that grid cell.\n\n"
+     "Example:\n"
+     "    state = entity.at(5, 3)\n"
+     "    state = entity.at((5, 3))\n"
+     "    state = entity.at(pos=(5, 3))"},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
     {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS,
-     "path_to(x: int, y: int) -> bool\n\n"
-     "Find and follow path to target position using A* pathfinding.\n\n"
+     "path_to(x, y) or path_to(target) -> list\n\n"
+     "Find a path to the target position using Dijkstra pathfinding.\n\n"
      "Args:\n"
-     "    x: Target X coordinate\n"
-     "    y: Target Y coordinate\n\n"
+     "    x, y: Target coordinates as two integers, OR\n"
+     "    target: Target coordinates as tuple, list, or Vector\n\n"
      "Returns:\n"
-     "    True if a path was found and the entity started moving, False otherwise\n\n"
-     "The entity will automatically move along the path over multiple frames.\n"
-     "Call this again to change the target or repath."},
+     "    List of (x, y) tuples representing the path.\n\n"
+     "Example:\n"
+     "    path = entity.path_to(10, 5)\n"
+     "    path = entity.path_to((10, 5))\n"
+     "    path = entity.path_to(pos=(10, 5))"},
     {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS,
      "update_visibility() -> None\n\n"
      "Update entity's visibility state based on current FOV.\n\n"
@@ -799,19 +805,32 @@ PyMethodDef UIEntity_all_methods[] = {
          MCRF_RAISES("ValueError", "If property name is not valid for Entity (x, y, sprite_scale, sprite_index)")
          MCRF_NOTE("Entity animations use grid coordinates for x/y, not pixel coordinates.")
      )},
-    {"at", (PyCFunction)UIEntity::at, METH_O},
+    {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
+     "at(x, y) or at(pos) -> GridPointState\n\n"
+     "Get the grid point state at the specified position.\n\n"
+     "Args:\n"
+     "    x, y: Grid coordinates as two integers, OR\n"
+     "    pos: Grid coordinates as tuple, list, or Vector\n\n"
+     "Returns:\n"
+     "    GridPointState for the entity's view of that grid cell.\n\n"
+     "Example:\n"
+     "    state = entity.at(5, 3)\n"
+     "    state = entity.at((5, 3))\n"
+     "    state = entity.at(pos=(5, 3))"},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
     {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS,
-     "path_to(x: int, y: int) -> bool\n\n"
-     "Find and follow path to target position using A* pathfinding.\n\n"
+     "path_to(x, y) or path_to(target) -> list\n\n"
+     "Find a path to the target position using Dijkstra pathfinding.\n\n"
      "Args:\n"
-     "    x: Target X coordinate\n"
-     "    y: Target Y coordinate\n\n"
+     "    x, y: Target coordinates as two integers, OR\n"
+     "    target: Target coordinates as tuple, list, or Vector\n\n"
      "Returns:\n"
-     "    True if a path was found and the entity started moving, False otherwise\n\n"
-     "The entity will automatically move along the path over multiple frames.\n"
-     "Call this again to change the target or repath."},
+     "    List of (x, y) tuples representing the path.\n\n"
+     "Example:\n"
+     "    path = entity.path_to(10, 5)\n"
+     "    path = entity.path_to((10, 5))\n"
+     "    path = entity.path_to(pos=(10, 5))"},
     {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS,
      "update_visibility() -> None\n\n"
      "Update entity's visibility state based on current FOV.\n\n"

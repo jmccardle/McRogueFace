@@ -1,6 +1,7 @@
 #include "PyCallable.h"
 #include "McRFPy_API.h"
 #include "GameEngine.h"
+#include "PyVector.h"
 
 PyCallable::PyCallable(PyObject* _target)
 {
@@ -49,7 +50,16 @@ PyClickCallable::PyClickCallable()
 
 void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::string action)
 {
-    PyObject* args = Py_BuildValue("(iiss)", (int)mousepos.x, (int)mousepos.y, button.c_str(), action.c_str());
+    // Create a Vector object for the position
+    PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", mousepos.x, mousepos.y);
+    if (!pos) {
+        std::cerr << "Failed to create Vector object for click callback" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+        return;
+    }
+    PyObject* args = Py_BuildValue("(Oss)", pos, button.c_str(), action.c_str());
+    Py_DECREF(pos);  // Py_BuildValue increments the refcount
     PyObject* retval = PyCallable::call(args, NULL);
     if (!retval)
     {

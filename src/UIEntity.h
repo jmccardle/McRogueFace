@@ -89,7 +89,7 @@ public:
     void move(float dx, float dy) { sprite.move(dx, dy); position.x += dx; position.y += dy; }
     void resize(float w, float h) { /* Entities don't support direct resizing */ }
     
-    static PyObject* at(PyUIEntityObject* self, PyObject* o);
+    static PyObject* at(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
     static PyObject* index(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* path_to(PyUIEntityObject* self, PyObject* args, PyObject* kwds);

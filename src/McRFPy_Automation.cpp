@@ -1,6 +1,7 @@
 #include "McRFPy_Automation.h"
 #include "McRFPy_API.h"
 #include "GameEngine.h"
+#include "PyPositionHelper.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -37,20 +38,20 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
         {"s", sf::Keyboard::S}, {"t", sf::Keyboard::T}, {"u", sf::Keyboard::U},
         {"v", sf::Keyboard::V}, {"w", sf::Keyboard::W}, {"x", sf::Keyboard::X},
         {"y", sf::Keyboard::Y}, {"z", sf::Keyboard::Z},
-        
+
         // Numbers
         {"0", sf::Keyboard::Num0}, {"1", sf::Keyboard::Num1}, {"2", sf::Keyboard::Num2},
         {"3", sf::Keyboard::Num3}, {"4", sf::Keyboard::Num4}, {"5", sf::Keyboard::Num5},
         {"6", sf::Keyboard::Num6}, {"7", sf::Keyboard::Num7}, {"8", sf::Keyboard::Num8},
         {"9", sf::Keyboard::Num9},
-        
+
         // Function keys
         {"f1", sf::Keyboard::F1}, {"f2", sf::Keyboard::F2}, {"f3", sf::Keyboard::F3},
         {"f4", sf::Keyboard::F4}, {"f5", sf::Keyboard::F5}, {"f6", sf::Keyboard::F6},
         {"f7", sf::Keyboard::F7}, {"f8", sf::Keyboard::F8}, {"f9", sf::Keyboard::F9},
         {"f10", sf::Keyboard::F10}, {"f11", sf::Keyboard::F11}, {"f12", sf::Keyboard::F12},
         {"f13", sf::Keyboard::F13}, {"f14", sf::Keyboard::F14}, {"f15", sf::Keyboard::F15},
-        
+
         // Special keys
         {"escape", sf::Keyboard::Escape}, {"esc", sf::Keyboard::Escape},
         {"enter", sf::Keyboard::Enter}, {"return", sf::Keyboard::Enter},
@@ -63,13 +64,13 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
         {"end", sf::Keyboard::End},
         {"pageup", sf::Keyboard::PageUp}, {"pgup", sf::Keyboard::PageUp},
         {"pagedown", sf::Keyboard::PageDown}, {"pgdn", sf::Keyboard::PageDown},
-        
+
         // Arrow keys
         {"left", sf::Keyboard::Left},
         {"right", sf::Keyboard::Right},
         {"up", sf::Keyboard::Up},
         {"down", sf::Keyboard::Down},
-        
+
         // Modifiers
         {"ctrl", sf::Keyboard::LControl}, {"ctrlleft", sf::Keyboard::LControl},
         {"ctrlright", sf::Keyboard::RControl},
@@ -79,14 +80,14 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
         {"shiftright", sf::Keyboard::RShift},
         {"win", sf::Keyboard::LSystem}, {"winleft", sf::Keyboard::LSystem},
         {"winright", sf::Keyboard::RSystem}, {"command", sf::Keyboard::LSystem},
-        
+
         // Punctuation
         {",", sf::Keyboard::Comma}, {".", sf::Keyboard::Period},
         {"/", sf::Keyboard::Slash}, {"\\", sf::Keyboard::BackSlash},
         {";", sf::Keyboard::SemiColon}, {"'", sf::Keyboard::Quote},
         {"[", sf::Keyboard::LBracket}, {"]", sf::Keyboard::RBracket},
         {"-", sf::Keyboard::Dash}, {"=", sf::Keyboard::Equal},
-        
+
         // Numpad
         {"num0", sf::Keyboard::Numpad0}, {"num1", sf::Keyboard::Numpad1},
         {"num2", sf::Keyboard::Numpad2}, {"num3", sf::Keyboard::Numpad3},
@@ -95,14 +96,14 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
         {"num8", sf::Keyboard::Numpad8}, {"num9", sf::Keyboard::Numpad9},
         {"add", sf::Keyboard::Add}, {"subtract", sf::Keyboard::Subtract},
         {"multiply", sf::Keyboard::Multiply}, {"divide", sf::Keyboard::Divide},
-        
+
         // Other
         {"pause", sf::Keyboard::Pause},
         {"capslock", sf::Keyboard::LControl},  // Note: SFML doesn't have CapsLock
         {"numlock", sf::Keyboard::LControl},   // Note: SFML doesn't have NumLock
         {"scrolllock", sf::Keyboard::LControl}, // Note: SFML doesn't have ScrollLock
     };
-    
+
     auto it = keyMap.find(keyName);
     if (it != keyMap.end()) {
         return it->second;
@@ -153,22 +154,22 @@ void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y
 void McRFPy_Automation::injectKeyEvent(sf::Event::EventType type, sf::Keyboard::Key key) {
     auto engine = getGameEngine();
     if (!engine) return;
-    
+
     sf::Event event;
     event.type = type;
-    
+
     if (type == sf::Event::KeyPressed || type == sf::Event::KeyReleased) {
         event.key.code = key;
-        event.key.alt = sf::Keyboard::isKeyPressed(sf::Keyboard::LAlt) || 
+        event.key.alt = sf::Keyboard::isKeyPressed(sf::Keyboard::LAlt) ||
                         sf::Keyboard::isKeyPressed(sf::Keyboard::RAlt);
-        event.key.control = sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) || 
+        event.key.control = sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
                            sf::Keyboard::isKeyPressed(sf::Keyboard::RControl);
-        event.key.shift = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) || 
+        event.key.shift = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) ||
                          sf::Keyboard::isKeyPressed(sf::Keyboard::RShift);
-        event.key.system = sf::Keyboard::isKeyPressed(sf::Keyboard::LSystem) || 
+        event.key.system = sf::Keyboard::isKeyPressed(sf::Keyboard::LSystem) ||
                           sf::Keyboard::isKeyPressed(sf::Keyboard::RSystem);
     }
-    
+
     engine->processEvent(event);
 }
 
@@ -176,11 +177,11 @@ void McRFPy_Automation::injectKeyEvent(sf::Event::EventType type, sf::Keyboard::
 void McRFPy_Automation::injectTextEvent(sf::Uint32 unicode) {
     auto engine = getGameEngine();
     if (!engine) return;
-    
+
     sf::Event event;
     event.type = sf::Event::TextEntered;
     event.text.unicode = unicode;
-    
+
     engine->processEvent(event);
 }
 
@@ -235,51 +236,77 @@ PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
     return NULL;
 }
 
-// Get current mouse position
+// Get current mouse position - returns Vector object
 PyObject* McRFPy_Automation::_position(PyObject* self, PyObject* args) {
-    auto engine = getGameEngine();
-    if (!engine || !engine->getRenderTargetPtr()) {
-        return Py_BuildValue("(ii)", simulated_mouse_pos.x, simulated_mouse_pos.y);
-    }
-
-    // In headless mode, return the simulated mouse position (#111)
-    if (engine->isHeadless()) {
-        return Py_BuildValue("(ii)", simulated_mouse_pos.x, simulated_mouse_pos.y);
-    }
-
-    // In windowed mode, return the actual mouse position relative to window
-    if (auto* window = dynamic_cast<sf::RenderWindow*>(engine->getRenderTargetPtr())) {
-        sf::Vector2i pos = sf::Mouse::getPosition(*window);
-        return Py_BuildValue("(ii)", pos.x, pos.y);
-    }
-
-    // Fallback to simulated position
-    return Py_BuildValue("(ii)", simulated_mouse_pos.x, simulated_mouse_pos.y);
-}
-
-// Get screen size
-PyObject* McRFPy_Automation::_size(PyObject* self, PyObject* args) {
-    auto engine = getGameEngine();
-    if (!engine || !engine->getRenderTargetPtr()) {
-        return Py_BuildValue("(ii)", 1024, 768);  // Default size
-    }
-    
-    sf::Vector2u size = engine->getRenderTarget().getSize();
-    return Py_BuildValue("(ii)", size.x, size.y);
-}
-
-// Check if coordinates are on screen
-PyObject* McRFPy_Automation::_onScreen(PyObject* self, PyObject* args) {
     int x, y;
-    if (!PyArg_ParseTuple(args, "ii", &x, &y)) {
+
+    auto engine = getGameEngine();
+    if (!engine || !engine->getRenderTargetPtr()) {
+        x = simulated_mouse_pos.x;
+        y = simulated_mouse_pos.y;
+    }
+    else if (engine->isHeadless()) {
+        // In headless mode, return the simulated mouse position (#111)
+        x = simulated_mouse_pos.x;
+        y = simulated_mouse_pos.y;
+    }
+    else if (auto* window = dynamic_cast<sf::RenderWindow*>(engine->getRenderTargetPtr())) {
+        // In windowed mode, return the actual mouse position relative to window
+        sf::Vector2i pos = sf::Mouse::getPosition(*window);
+        x = pos.x;
+        y = pos.y;
+    }
+    else {
+        // Fallback to simulated position
+        x = simulated_mouse_pos.x;
+        y = simulated_mouse_pos.y;
+    }
+
+    // Return a Vector object - get type from module to ensure we use the initialized type
+    auto vector_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) {
+        PyErr_SetString(PyExc_RuntimeError, "Vector type not found in mcrfpy module");
         return NULL;
     }
-    
+    PyObject* result = PyObject_CallFunction((PyObject*)vector_type, "ff", (float)x, (float)y);
+    Py_DECREF(vector_type);
+    return result;
+}
+
+// Get screen size - returns Vector object
+PyObject* McRFPy_Automation::_size(PyObject* self, PyObject* args) {
+    // Get Vector type from module to ensure we use the initialized type
+    auto vector_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) {
+        PyErr_SetString(PyExc_RuntimeError, "Vector type not found in mcrfpy module");
+        return NULL;
+    }
+
+    auto engine = getGameEngine();
+    if (!engine || !engine->getRenderTargetPtr()) {
+        PyObject* result = PyObject_CallFunction((PyObject*)vector_type, "ff", 1024.0f, 768.0f);  // Default size
+        Py_DECREF(vector_type);
+        return result;
+    }
+
+    sf::Vector2u size = engine->getRenderTarget().getSize();
+    PyObject* result = PyObject_CallFunction((PyObject*)vector_type, "ff", (float)size.x, (float)size.y);
+    Py_DECREF(vector_type);
+    return result;
+}
+
+// Check if coordinates are on screen - accepts onScreen(x, y) or onScreen(pos)
+PyObject* McRFPy_Automation::_onScreen(PyObject* self, PyObject* args, PyObject* kwargs) {
+    int x, y;
+    if (!PyPosition_ParseInt(args, kwargs, &x, &y)) {
+        return NULL;
+    }
+
     auto engine = getGameEngine();
     if (!engine || !engine->getRenderTargetPtr()) {
         Py_RETURN_FALSE;
     }
-    
+
     sf::Vector2u size = engine->getRenderTarget().getSize();
     if (x >= 0 && x < (int)size.x && y >= 0 && y < (int)size.y) {
         Py_RETURN_TRUE;
@@ -288,84 +315,101 @@ PyObject* McRFPy_Automation::_onScreen(PyObject* self, PyObject* args) {
     }
 }
 
-// Move mouse to position
+// Move mouse to position - accepts moveTo(pos, duration)
 PyObject* McRFPy_Automation::_moveTo(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", "duration", NULL};
-    int x, y;
+    static const char* kwlist[] = {"pos", "duration", NULL};
+    PyObject* pos_obj;
     float duration = 0.0f;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|f", const_cast<char**>(kwlist), 
-                                     &x, &y, &duration)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|f", const_cast<char**>(kwlist),
+                                     &pos_obj, &duration)) {
         return NULL;
     }
-    
+
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
+        return NULL;
+    }
+
     // TODO: Implement smooth movement with duration
     injectMouseEvent(sf::Event::MouseMoved, x, y);
-    
+
     if (duration > 0) {
         sleep_ms(static_cast<int>(duration * 1000));
     }
-    
+
     Py_RETURN_NONE;
 }
 
-// Move mouse relative
+// Move mouse relative - accepts moveRel(offset, duration)
 PyObject* McRFPy_Automation::_moveRel(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"xOffset", "yOffset", "duration", NULL};
-    int xOffset, yOffset;
+    static const char* kwlist[] = {"offset", "duration", NULL};
+    PyObject* offset_obj;
     float duration = 0.0f;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|f", const_cast<char**>(kwlist), 
-                                     &xOffset, &yOffset, &duration)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|f", const_cast<char**>(kwlist),
+                                     &offset_obj, &duration)) {
         return NULL;
     }
-    
-    // Get current position
+
+    int xOffset, yOffset;
+    if (!PyPosition_FromObjectInt(offset_obj, &xOffset, &yOffset)) {
+        return NULL;
+    }
+
+    // Get current position from Vector
     PyObject* pos = _position(self, NULL);
     if (!pos) return NULL;
-    
+
+    // Extract position from Vector object
     int currentX, currentY;
-    if (!PyArg_ParseTuple(pos, "ii", &currentX, &currentY)) {
+    if (!PyPosition_FromObjectInt(pos, &currentX, &currentY)) {
         Py_DECREF(pos);
         return NULL;
     }
     Py_DECREF(pos);
-    
+
     // Move to new position
     injectMouseEvent(sf::Event::MouseMoved, currentX + xOffset, currentY + yOffset);
-    
+
     if (duration > 0) {
         sleep_ms(static_cast<int>(duration * 1000));
     }
-    
+
     Py_RETURN_NONE;
 }
 
-// Click implementation
+// Click implementation - accepts click(pos, clicks, interval, button) or click() for current position
 PyObject* McRFPy_Automation::_click(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", "clicks", "interval", "button", NULL};
-    int x = -1, y = -1;
+    static const char* kwlist[] = {"pos", "clicks", "interval", "button", NULL};
+    PyObject* pos_obj = Py_None;
     int clicks = 1;
     float interval = 0.0f;
     const char* button = "left";
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|iiifs", const_cast<char**>(kwlist), 
-                                     &x, &y, &clicks, &interval, &button)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Oifs", const_cast<char**>(kwlist),
+                                     &pos_obj, &clicks, &interval, &button)) {
         return NULL;
     }
-    
-    // If no position specified, use current position
-    if (x == -1 || y == -1) {
+
+    int x, y;
+
+    // If no position specified or None, use current position
+    if (pos_obj == Py_None) {
         PyObject* pos = _position(self, NULL);
         if (!pos) return NULL;
-        
-        if (!PyArg_ParseTuple(pos, "ii", &x, &y)) {
+
+        if (!PyPosition_FromObjectInt(pos, &x, &y)) {
             Py_DECREF(pos);
             return NULL;
         }
         Py_DECREF(pos);
+    } else {
+        if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
+            return NULL;
+        }
     }
-    
+
     // Determine button
     sf::Mouse::Button sfButton = sf::Mouse::Left;
     if (strcmp(button, "right") == 0) {
@@ -373,59 +417,61 @@ PyObject* McRFPy_Automation::_click(PyObject* self, PyObject* args, PyObject* kw
     } else if (strcmp(button, "middle") == 0) {
         sfButton = sf::Mouse::Middle;
     }
-    
+
     // Move to position first
     injectMouseEvent(sf::Event::MouseMoved, x, y);
-    
+
     // Perform clicks
     for (int i = 0; i < clicks; i++) {
         if (i > 0 && interval > 0) {
             sleep_ms(static_cast<int>(interval * 1000));
         }
-        
+
         injectMouseEvent(sf::Event::MouseButtonPressed, x, y, sfButton);
         sleep_ms(10);  // Small delay between press and release
         injectMouseEvent(sf::Event::MouseButtonReleased, x, y, sfButton);
     }
-    
+
     Py_RETURN_NONE;
 }
 
-// Right click
+// Right click - accepts rightClick(pos) or rightClick() for current position
 PyObject* McRFPy_Automation::_rightClick(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", NULL};
-    int x = -1, y = -1;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ii", const_cast<char**>(kwlist), &x, &y)) {
+    static const char* kwlist[] = {"pos", NULL};
+    PyObject* pos_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", const_cast<char**>(kwlist), &pos_obj)) {
         return NULL;
     }
-    
+
     // Build new args with button="right"
     PyObject* newKwargs = PyDict_New();
     PyDict_SetItemString(newKwargs, "button", PyUnicode_FromString("right"));
-    if (x != -1) PyDict_SetItemString(newKwargs, "x", PyLong_FromLong(x));
-    if (y != -1) PyDict_SetItemString(newKwargs, "y", PyLong_FromLong(y));
-    
+    if (pos_obj != Py_None) {
+        PyDict_SetItemString(newKwargs, "pos", pos_obj);
+    }
+
     PyObject* result = _click(self, PyTuple_New(0), newKwargs);
     Py_DECREF(newKwargs);
     return result;
 }
 
-// Double click
+// Double click - accepts doubleClick(pos) or doubleClick() for current position
 PyObject* McRFPy_Automation::_doubleClick(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", NULL};
-    int x = -1, y = -1;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ii", const_cast<char**>(kwlist), &x, &y)) {
+    static const char* kwlist[] = {"pos", NULL};
+    PyObject* pos_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", const_cast<char**>(kwlist), &pos_obj)) {
         return NULL;
     }
-    
+
     PyObject* newKwargs = PyDict_New();
     PyDict_SetItemString(newKwargs, "clicks", PyLong_FromLong(2));
     PyDict_SetItemString(newKwargs, "interval", PyFloat_FromDouble(0.1));
-    if (x != -1) PyDict_SetItemString(newKwargs, "x", PyLong_FromLong(x));
-    if (y != -1) PyDict_SetItemString(newKwargs, "y", PyLong_FromLong(y));
-    
+    if (pos_obj != Py_None) {
+        PyDict_SetItemString(newKwargs, "pos", pos_obj);
+    }
+
     PyObject* result = _click(self, PyTuple_New(0), newKwargs);
     Py_DECREF(newKwargs);
     return result;
@@ -436,20 +482,20 @@ PyObject* McRFPy_Automation::_typewrite(PyObject* self, PyObject* args, PyObject
     static const char* kwlist[] = {"message", "interval", NULL};
     const char* message;
     float interval = 0.0f;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|f", const_cast<char**>(kwlist), 
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|f", const_cast<char**>(kwlist),
                                      &message, &interval)) {
         return NULL;
     }
-    
+
     // Type each character
     for (size_t i = 0; message[i] != '\0'; i++) {
         if (i > 0 && interval > 0) {
             sleep_ms(static_cast<int>(interval * 1000));
         }
-        
+
         char c = message[i];
-        
+
         // Handle special characters
         if (c == '\n') {
             injectKeyEvent(sf::Event::KeyPressed, sf::Keyboard::Enter);
@@ -462,7 +508,7 @@ PyObject* McRFPy_Automation::_typewrite(PyObject* self, PyObject* args, PyObject
             injectTextEvent(static_cast<sf::Uint32>(c));
         }
     }
-    
+
     Py_RETURN_NONE;
 }
 
@@ -472,13 +518,13 @@ PyObject* McRFPy_Automation::_keyDown(PyObject* self, PyObject* args) {
     if (!PyArg_ParseTuple(args, "s", &keyName)) {
         return NULL;
     }
-    
+
     sf::Keyboard::Key key = stringToKey(keyName);
     if (key == sf::Keyboard::Unknown) {
         PyErr_Format(PyExc_ValueError, "Unknown key: %s", keyName);
         return NULL;
     }
-    
+
     injectKeyEvent(sf::Event::KeyPressed, key);
     Py_RETURN_NONE;
 }
@@ -489,13 +535,13 @@ PyObject* McRFPy_Automation::_keyUp(PyObject* self, PyObject* args) {
     if (!PyArg_ParseTuple(args, "s", &keyName)) {
         return NULL;
     }
-    
+
     sf::Keyboard::Key key = stringToKey(keyName);
     if (key == sf::Keyboard::Unknown) {
         PyErr_Format(PyExc_ValueError, "Unknown key: %s", keyName);
         return NULL;
     }
-    
+
     injectKeyEvent(sf::Event::KeyReleased, key);
     Py_RETURN_NONE;
 }
@@ -508,7 +554,7 @@ PyObject* McRFPy_Automation::_hotkey(PyObject* self, PyObject* args) {
         PyErr_SetString(PyExc_ValueError, "hotkey() requires at least one key");
         return NULL;
     }
-    
+
     // Press all keys
     for (Py_ssize_t i = 0; i < numKeys; i++) {
         PyObject* keyObj = PyTuple_GetItem(args, i);
@@ -516,198 +562,226 @@ PyObject* McRFPy_Automation::_hotkey(PyObject* self, PyObject* args) {
         if (!keyName) {
             return NULL;
         }
-        
+
         sf::Keyboard::Key key = stringToKey(keyName);
         if (key == sf::Keyboard::Unknown) {
             PyErr_Format(PyExc_ValueError, "Unknown key: %s", keyName);
             return NULL;
         }
-        
+
         injectKeyEvent(sf::Event::KeyPressed, key);
         sleep_ms(10);  // Small delay between key presses
     }
-    
+
     // Release all keys in reverse order
     for (Py_ssize_t i = numKeys - 1; i >= 0; i--) {
         PyObject* keyObj = PyTuple_GetItem(args, i);
         const char* keyName = PyUnicode_AsUTF8(keyObj);
-        
+
         sf::Keyboard::Key key = stringToKey(keyName);
         injectKeyEvent(sf::Event::KeyReleased, key);
         sleep_ms(10);
     }
-    
+
     Py_RETURN_NONE;
 }
 
-// Scroll wheel
+// Scroll wheel - accepts scroll(clicks, pos) or scroll(clicks) for current position
 PyObject* McRFPy_Automation::_scroll(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"clicks", "x", "y", NULL};
+    static const char* kwlist[] = {"clicks", "pos", NULL};
     int clicks;
-    int x = -1, y = -1;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|ii", const_cast<char**>(kwlist), 
-                                     &clicks, &x, &y)) {
+    PyObject* pos_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|O", const_cast<char**>(kwlist),
+                                     &clicks, &pos_obj)) {
         return NULL;
     }
-    
-    // If no position specified, use current position
-    if (x == -1 || y == -1) {
+
+    int x, y;
+
+    // If no position specified or None, use current position
+    if (pos_obj == Py_None) {
         PyObject* pos = _position(self, NULL);
         if (!pos) return NULL;
-        
-        if (!PyArg_ParseTuple(pos, "ii", &x, &y)) {
+
+        if (!PyPosition_FromObjectInt(pos, &x, &y)) {
             Py_DECREF(pos);
             return NULL;
         }
         Py_DECREF(pos);
+    } else {
+        if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
+            return NULL;
+        }
     }
-    
+
     // Inject scroll event
     injectMouseEvent(sf::Event::MouseWheelScrolled, clicks, y);
-    
+
     Py_RETURN_NONE;
 }
 
-// Other click types using the main click function
+// Other click types using the main click function - accepts middleClick(pos) or middleClick()
 PyObject* McRFPy_Automation::_middleClick(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", NULL};
-    int x = -1, y = -1;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ii", const_cast<char**>(kwlist), &x, &y)) {
+    static const char* kwlist[] = {"pos", NULL};
+    PyObject* pos_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", const_cast<char**>(kwlist), &pos_obj)) {
         return NULL;
     }
-    
+
     PyObject* newKwargs = PyDict_New();
     PyDict_SetItemString(newKwargs, "button", PyUnicode_FromString("middle"));
-    if (x != -1) PyDict_SetItemString(newKwargs, "x", PyLong_FromLong(x));
-    if (y != -1) PyDict_SetItemString(newKwargs, "y", PyLong_FromLong(y));
-    
+    if (pos_obj != Py_None) {
+        PyDict_SetItemString(newKwargs, "pos", pos_obj);
+    }
+
     PyObject* result = _click(self, PyTuple_New(0), newKwargs);
     Py_DECREF(newKwargs);
     return result;
 }
 
+// Triple click - accepts tripleClick(pos) or tripleClick()
 PyObject* McRFPy_Automation::_tripleClick(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", NULL};
-    int x = -1, y = -1;
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ii", const_cast<char**>(kwlist), &x, &y)) {
+    static const char* kwlist[] = {"pos", NULL};
+    PyObject* pos_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", const_cast<char**>(kwlist), &pos_obj)) {
         return NULL;
     }
-    
+
     PyObject* newKwargs = PyDict_New();
     PyDict_SetItemString(newKwargs, "clicks", PyLong_FromLong(3));
     PyDict_SetItemString(newKwargs, "interval", PyFloat_FromDouble(0.1));
-    if (x != -1) PyDict_SetItemString(newKwargs, "x", PyLong_FromLong(x));
-    if (y != -1) PyDict_SetItemString(newKwargs, "y", PyLong_FromLong(y));
-    
+    if (pos_obj != Py_None) {
+        PyDict_SetItemString(newKwargs, "pos", pos_obj);
+    }
+
     PyObject* result = _click(self, PyTuple_New(0), newKwargs);
     Py_DECREF(newKwargs);
     return result;
 }
 
-// Mouse button press/release
+// Mouse button press/release - accepts mouseDown(pos, button) or mouseDown() for current position
 PyObject* McRFPy_Automation::_mouseDown(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", "button", NULL};
-    int x = -1, y = -1;
+    static const char* kwlist[] = {"pos", "button", NULL};
+    PyObject* pos_obj = Py_None;
     const char* button = "left";
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|iis", const_cast<char**>(kwlist), 
-                                     &x, &y, &button)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Os", const_cast<char**>(kwlist),
+                                     &pos_obj, &button)) {
         return NULL;
     }
-    
-    // If no position specified, use current position
-    if (x == -1 || y == -1) {
+
+    int x, y;
+
+    // If no position specified or None, use current position
+    if (pos_obj == Py_None) {
         PyObject* pos = _position(self, NULL);
         if (!pos) return NULL;
-        
-        if (!PyArg_ParseTuple(pos, "ii", &x, &y)) {
+
+        if (!PyPosition_FromObjectInt(pos, &x, &y)) {
             Py_DECREF(pos);
             return NULL;
         }
         Py_DECREF(pos);
+    } else {
+        if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
+            return NULL;
+        }
     }
-    
+
     sf::Mouse::Button sfButton = sf::Mouse::Left;
     if (strcmp(button, "right") == 0) {
         sfButton = sf::Mouse::Right;
     } else if (strcmp(button, "middle") == 0) {
         sfButton = sf::Mouse::Middle;
     }
-    
+
     injectMouseEvent(sf::Event::MouseButtonPressed, x, y, sfButton);
     Py_RETURN_NONE;
 }
 
+// Mouse up - accepts mouseUp(pos, button) or mouseUp() for current position
 PyObject* McRFPy_Automation::_mouseUp(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", "button", NULL};
-    int x = -1, y = -1;
+    static const char* kwlist[] = {"pos", "button", NULL};
+    PyObject* pos_obj = Py_None;
     const char* button = "left";
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|iis", const_cast<char**>(kwlist), 
-                                     &x, &y, &button)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Os", const_cast<char**>(kwlist),
+                                     &pos_obj, &button)) {
         return NULL;
     }
-    
-    // If no position specified, use current position
-    if (x == -1 || y == -1) {
+
+    int x, y;
+
+    // If no position specified or None, use current position
+    if (pos_obj == Py_None) {
         PyObject* pos = _position(self, NULL);
         if (!pos) return NULL;
-        
-        if (!PyArg_ParseTuple(pos, "ii", &x, &y)) {
+
+        if (!PyPosition_FromObjectInt(pos, &x, &y)) {
             Py_DECREF(pos);
             return NULL;
         }
         Py_DECREF(pos);
+    } else {
+        if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
+            return NULL;
+        }
     }
-    
+
     sf::Mouse::Button sfButton = sf::Mouse::Left;
     if (strcmp(button, "right") == 0) {
         sfButton = sf::Mouse::Right;
     } else if (strcmp(button, "middle") == 0) {
         sfButton = sf::Mouse::Middle;
     }
-    
+
     injectMouseEvent(sf::Event::MouseButtonReleased, x, y, sfButton);
     Py_RETURN_NONE;
 }
 
-// Drag operations
+// Drag operations - accepts dragTo(pos, duration, button)
 PyObject* McRFPy_Automation::_dragTo(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"x", "y", "duration", "button", NULL};
-    int x, y;
+    static const char* kwlist[] = {"pos", "duration", "button", NULL};
+    PyObject* pos_obj;
     float duration = 0.0f;
     const char* button = "left";
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|fs", const_cast<char**>(kwlist), 
-                                     &x, &y, &duration, &button)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|fs", const_cast<char**>(kwlist),
+                                     &pos_obj, &duration, &button)) {
         return NULL;
     }
-    
+
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
+        return NULL;
+    }
+
     // Get current position
     PyObject* pos = _position(self, NULL);
     if (!pos) return NULL;
-    
+
     int startX, startY;
-    if (!PyArg_ParseTuple(pos, "ii", &startX, &startY)) {
+    if (!PyPosition_FromObjectInt(pos, &startX, &startY)) {
         Py_DECREF(pos);
         return NULL;
     }
     Py_DECREF(pos);
-    
-    // Mouse down at current position
-    PyObject* downArgs = Py_BuildValue("(ii)", startX, startY);
+
+    // Mouse down at current position - create position tuple for the call
+    PyObject* startPosObj = Py_BuildValue("(ii)", startX, startY);
     PyObject* downKwargs = PyDict_New();
+    PyDict_SetItemString(downKwargs, "pos", startPosObj);
     PyDict_SetItemString(downKwargs, "button", PyUnicode_FromString(button));
-    
-    PyObject* downResult = _mouseDown(self, downArgs, downKwargs);
-    Py_DECREF(downArgs);
+
+    PyObject* downResult = _mouseDown(self, PyTuple_New(0), downKwargs);
+    Py_DECREF(startPosObj);
     Py_DECREF(downKwargs);
     if (!downResult) return NULL;
     Py_DECREF(downResult);
-    
+
     // Move to target position
     if (duration > 0) {
         // Smooth movement
@@ -721,103 +795,111 @@ PyObject* McRFPy_Automation::_dragTo(PyObject* self, PyObject* args, PyObject* k
     } else {
         injectMouseEvent(sf::Event::MouseMoved, x, y);
     }
-    
+
     // Mouse up at target position
-    PyObject* upArgs = Py_BuildValue("(ii)", x, y);
+    PyObject* endPosObj = Py_BuildValue("(ii)", x, y);
     PyObject* upKwargs = PyDict_New();
+    PyDict_SetItemString(upKwargs, "pos", endPosObj);
     PyDict_SetItemString(upKwargs, "button", PyUnicode_FromString(button));
-    
-    PyObject* upResult = _mouseUp(self, upArgs, upKwargs);
-    Py_DECREF(upArgs);
+
+    PyObject* upResult = _mouseUp(self, PyTuple_New(0), upKwargs);
+    Py_DECREF(endPosObj);
     Py_DECREF(upKwargs);
     if (!upResult) return NULL;
     Py_DECREF(upResult);
-    
+
     Py_RETURN_NONE;
 }
 
+// Drag relative - accepts dragRel(offset, duration, button)
 PyObject* McRFPy_Automation::_dragRel(PyObject* self, PyObject* args, PyObject* kwargs) {
-    static const char* kwlist[] = {"xOffset", "yOffset", "duration", "button", NULL};
-    int xOffset, yOffset;
+    static const char* kwlist[] = {"offset", "duration", "button", NULL};
+    PyObject* offset_obj;
     float duration = 0.0f;
     const char* button = "left";
-    
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii|fs", const_cast<char**>(kwlist), 
-                                     &xOffset, &yOffset, &duration, &button)) {
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|fs", const_cast<char**>(kwlist),
+                                     &offset_obj, &duration, &button)) {
         return NULL;
     }
-    
+
+    int xOffset, yOffset;
+    if (!PyPosition_FromObjectInt(offset_obj, &xOffset, &yOffset)) {
+        return NULL;
+    }
+
     // Get current position
     PyObject* pos = _position(self, NULL);
     if (!pos) return NULL;
-    
+
     int currentX, currentY;
-    if (!PyArg_ParseTuple(pos, "ii", &currentX, &currentY)) {
+    if (!PyPosition_FromObjectInt(pos, &currentX, &currentY)) {
         Py_DECREF(pos);
         return NULL;
     }
     Py_DECREF(pos);
-    
+
     // Call dragTo with absolute position
-    PyObject* dragArgs = Py_BuildValue("(ii)", currentX + xOffset, currentY + yOffset);
+    PyObject* targetPos = Py_BuildValue("(ii)", currentX + xOffset, currentY + yOffset);
     PyObject* dragKwargs = PyDict_New();
+    PyDict_SetItemString(dragKwargs, "pos", targetPos);
     PyDict_SetItemString(dragKwargs, "duration", PyFloat_FromDouble(duration));
     PyDict_SetItemString(dragKwargs, "button", PyUnicode_FromString(button));
-    
-    PyObject* result = _dragTo(self, dragArgs, dragKwargs);
-    Py_DECREF(dragArgs);
+
+    PyObject* result = _dragTo(self, PyTuple_New(0), dragKwargs);
+    Py_DECREF(targetPos);
     Py_DECREF(dragKwargs);
-    
+
     return result;
 }
 
 // Method definitions for the automation module
 static PyMethodDef automationMethods[] = {
-    {"screenshot", McRFPy_Automation::_screenshot, METH_VARARGS, 
+    {"screenshot", McRFPy_Automation::_screenshot, METH_VARARGS,
      "screenshot(filename) - Save a screenshot to the specified file"},
-    
-    {"position", McRFPy_Automation::_position, METH_NOARGS, 
-     "position() - Get current mouse position as (x, y) tuple"},
-    {"size", McRFPy_Automation::_size, METH_NOARGS, 
-     "size() - Get screen size as (width, height) tuple"},
-    {"onScreen", McRFPy_Automation::_onScreen, METH_VARARGS, 
-     "onScreen(x, y) - Check if coordinates are within screen bounds"},
-    
-    {"moveTo", (PyCFunction)McRFPy_Automation::_moveTo, METH_VARARGS | METH_KEYWORDS, 
-     "moveTo(x, y, duration=0.0) - Move mouse to absolute position"},
-    {"moveRel", (PyCFunction)McRFPy_Automation::_moveRel, METH_VARARGS | METH_KEYWORDS, 
-     "moveRel(xOffset, yOffset, duration=0.0) - Move mouse relative to current position"},
-    {"dragTo", (PyCFunction)McRFPy_Automation::_dragTo, METH_VARARGS | METH_KEYWORDS, 
-     "dragTo(x, y, duration=0.0, button='left') - Drag mouse to position"},
-    {"dragRel", (PyCFunction)McRFPy_Automation::_dragRel, METH_VARARGS | METH_KEYWORDS, 
-     "dragRel(xOffset, yOffset, duration=0.0, button='left') - Drag mouse relative to current position"},
-    
-    {"click", (PyCFunction)McRFPy_Automation::_click, METH_VARARGS | METH_KEYWORDS, 
-     "click(x=None, y=None, clicks=1, interval=0.0, button='left') - Click at position"},
-    {"rightClick", (PyCFunction)McRFPy_Automation::_rightClick, METH_VARARGS | METH_KEYWORDS, 
-     "rightClick(x=None, y=None) - Right click at position"},
-    {"middleClick", (PyCFunction)McRFPy_Automation::_middleClick, METH_VARARGS | METH_KEYWORDS, 
-     "middleClick(x=None, y=None) - Middle click at position"},
-    {"doubleClick", (PyCFunction)McRFPy_Automation::_doubleClick, METH_VARARGS | METH_KEYWORDS, 
-     "doubleClick(x=None, y=None) - Double click at position"},
-    {"tripleClick", (PyCFunction)McRFPy_Automation::_tripleClick, METH_VARARGS | METH_KEYWORDS, 
-     "tripleClick(x=None, y=None) - Triple click at position"},
-    {"scroll", (PyCFunction)McRFPy_Automation::_scroll, METH_VARARGS | METH_KEYWORDS, 
-     "scroll(clicks, x=None, y=None) - Scroll wheel at position"},
-    {"mouseDown", (PyCFunction)McRFPy_Automation::_mouseDown, METH_VARARGS | METH_KEYWORDS, 
-     "mouseDown(x=None, y=None, button='left') - Press mouse button"},
-    {"mouseUp", (PyCFunction)McRFPy_Automation::_mouseUp, METH_VARARGS | METH_KEYWORDS, 
-     "mouseUp(x=None, y=None, button='left') - Release mouse button"},
-    
-    {"typewrite", (PyCFunction)McRFPy_Automation::_typewrite, METH_VARARGS | METH_KEYWORDS, 
+
+    {"position", McRFPy_Automation::_position, METH_NOARGS,
+     "position() - Get current mouse position as Vector"},
+    {"size", McRFPy_Automation::_size, METH_NOARGS,
+     "size() - Get screen size as Vector"},
+    {"onScreen", (PyCFunction)McRFPy_Automation::_onScreen, METH_VARARGS | METH_KEYWORDS,
+     "onScreen(pos) - Check if position is within screen bounds. Accepts (x,y) tuple, [x,y] list, or Vector."},
+
+    {"moveTo", (PyCFunction)McRFPy_Automation::_moveTo, METH_VARARGS | METH_KEYWORDS,
+     "moveTo(pos, duration=0.0) - Move mouse to position. Accepts (x,y) tuple, [x,y] list, or Vector."},
+    {"moveRel", (PyCFunction)McRFPy_Automation::_moveRel, METH_VARARGS | METH_KEYWORDS,
+     "moveRel(offset, duration=0.0) - Move mouse relative to current position. Accepts (x,y) tuple, [x,y] list, or Vector."},
+    {"dragTo", (PyCFunction)McRFPy_Automation::_dragTo, METH_VARARGS | METH_KEYWORDS,
+     "dragTo(pos, duration=0.0, button='left') - Drag mouse to position. Accepts (x,y) tuple, [x,y] list, or Vector."},
+    {"dragRel", (PyCFunction)McRFPy_Automation::_dragRel, METH_VARARGS | METH_KEYWORDS,
+     "dragRel(offset, duration=0.0, button='left') - Drag mouse relative to current position. Accepts (x,y) tuple, [x,y] list, or Vector."},
+
+    {"click", (PyCFunction)McRFPy_Automation::_click, METH_VARARGS | METH_KEYWORDS,
+     "click(pos=None, clicks=1, interval=0.0, button='left') - Click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+    {"rightClick", (PyCFunction)McRFPy_Automation::_rightClick, METH_VARARGS | METH_KEYWORDS,
+     "rightClick(pos=None) - Right click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+    {"middleClick", (PyCFunction)McRFPy_Automation::_middleClick, METH_VARARGS | METH_KEYWORDS,
+     "middleClick(pos=None) - Middle click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+    {"doubleClick", (PyCFunction)McRFPy_Automation::_doubleClick, METH_VARARGS | METH_KEYWORDS,
+     "doubleClick(pos=None) - Double click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+    {"tripleClick", (PyCFunction)McRFPy_Automation::_tripleClick, METH_VARARGS | METH_KEYWORDS,
+     "tripleClick(pos=None) - Triple click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+    {"scroll", (PyCFunction)McRFPy_Automation::_scroll, METH_VARARGS | METH_KEYWORDS,
+     "scroll(clicks, pos=None) - Scroll wheel at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+    {"mouseDown", (PyCFunction)McRFPy_Automation::_mouseDown, METH_VARARGS | METH_KEYWORDS,
+     "mouseDown(pos=None, button='left') - Press mouse button at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+    {"mouseUp", (PyCFunction)McRFPy_Automation::_mouseUp, METH_VARARGS | METH_KEYWORDS,
+     "mouseUp(pos=None, button='left') - Release mouse button at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+
+    {"typewrite", (PyCFunction)McRFPy_Automation::_typewrite, METH_VARARGS | METH_KEYWORDS,
      "typewrite(message, interval=0.0) - Type text with optional interval between keystrokes"},
-    {"hotkey", McRFPy_Automation::_hotkey, METH_VARARGS, 
+    {"hotkey", McRFPy_Automation::_hotkey, METH_VARARGS,
      "hotkey(*keys) - Press a hotkey combination (e.g., hotkey('ctrl', 'c'))"},
-    {"keyDown", McRFPy_Automation::_keyDown, METH_VARARGS, 
+    {"keyDown", McRFPy_Automation::_keyDown, METH_VARARGS,
      "keyDown(key) - Press and hold a key"},
-    {"keyUp", McRFPy_Automation::_keyUp, METH_VARARGS, 
+    {"keyUp", McRFPy_Automation::_keyUp, METH_VARARGS,
      "keyUp(key) - Release a key"},
-    
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -836,6 +918,6 @@ PyObject* McRFPy_Automation::init_automation_module() {
     if (module == NULL) {
         return NULL;
     }
-    
+
     return module;
 }

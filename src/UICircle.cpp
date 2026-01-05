@@ -385,7 +385,7 @@ PyGetSetDef UICircle::getsetters[] = {
     {"outline", (getter)UICircle::get_outline, (setter)UICircle::set_outline,
      "Outline thickness (0 for no outline)", NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     "Callable executed when circle is clicked.", (void*)PyObjectsEnum::UICIRCLE},
+     "Callable executed when circle is clicked. Function receives (pos: Vector, button: str, action: str).", (void*)PyObjectsEnum::UICIRCLE},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
      "Z-order for rendering (lower values rendered first).", (void*)PyObjectsEnum::UICIRCLE},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,

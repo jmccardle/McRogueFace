@@ -200,7 +200,7 @@ class PyGridLayerAPI {
 public:
     // ColorLayer methods
     static int ColorLayer_init(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* ColorLayer_at(PyColorLayerObject* self, PyObject* args);
+    static PyObject* ColorLayer_at(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* ColorLayer_set(PyColorLayerObject* self, PyObject* args);
     static PyObject* ColorLayer_fill(PyColorLayerObject* self, PyObject* args);
     static PyObject* ColorLayer_fill_rect(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
@@ -217,7 +217,7 @@ public:
 
     // TileLayer methods
     static int TileLayer_init(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* TileLayer_at(PyTileLayerObject* self, PyObject* args);
+    static PyObject* TileLayer_at(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* TileLayer_set(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_fill(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_fill_rect(PyTileLayerObject* self, PyObject* args, PyObject* kwds);

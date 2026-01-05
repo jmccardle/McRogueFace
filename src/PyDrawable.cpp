@@ -1,13 +1,14 @@
 #include "PyDrawable.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
+#include "PyPositionHelper.h"
 
 // Click property getter
 static PyObject* PyDrawable_get_click(PyDrawableObject* self, void* closure)
 {
-    if (!self->data->click_callable) 
+    if (!self->data->click_callable)
         Py_RETURN_NONE;
-    
+
     PyObject* ptr = self->data->click_callable->borrow();
     if (ptr && ptr != Py_None)
         return ptr;
@@ -35,20 +36,20 @@ static PyObject* PyDrawable_get_z_index(PyDrawableObject* self, void* closure)
     return PyLong_FromLong(self->data->z_index);
 }
 
-// Z-index property setter  
+// Z-index property setter
 static int PyDrawable_set_z_index(PyDrawableObject* self, PyObject* value, void* closure)
 {
     if (!PyLong_Check(value)) {
         PyErr_SetString(PyExc_TypeError, "z_index must be an integer");
         return -1;
     }
-    
+
     int val = PyLong_AsLong(value);
     self->data->z_index = val;
-    
+
     // Mark scene as needing resort
     self->data->notifyZIndexChanged();
-    
+
     return 0;
 }
 
@@ -65,7 +66,7 @@ static int PyDrawable_set_visible(PyDrawableObject* self, PyObject* value, void*
         PyErr_SetString(PyExc_TypeError, "visible must be a boolean");
         return -1;
     }
-    
+
     self->data->visible = (value == Py_True);
     return 0;
 }
@@ -88,11 +89,11 @@ static int PyDrawable_set_opacity(PyDrawableObject* self, PyObject* value, void*
         PyErr_SetString(PyExc_TypeError, "opacity must be a number");
         return -1;
     }
-    
+
     // Clamp to valid range
     if (val < 0.0f) val = 0.0f;
     if (val > 1.0f) val = 1.0f;
-    
+
     self->data->opacity = val;
     return 0;
 }
@@ -102,7 +103,7 @@ static PyGetSetDef PyDrawable_getsetters[] = {
     {"on_click", (getter)PyDrawable_get_click, (setter)PyDrawable_set_click,
      MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
-         "Function receives (x, y) coordinates of click."
+         "Function receives (pos: Vector, button: str, action: str)."
      ), NULL},
     {"z_index", (getter)PyDrawable_get_z_index, (setter)PyDrawable_set_z_index,
      MCRF_PROPERTY(z_index,
@@ -130,25 +131,25 @@ static PyObject* PyDrawable_get_bounds(PyDrawableObject* self, PyObject* Py_UNUS
 }
 
 // move method implementation (#98)
-static PyObject* PyDrawable_move(PyDrawableObject* self, PyObject* args)
+static PyObject* PyDrawable_move(PyDrawableObject* self, PyObject* args, PyObject* kwds)
 {
     float dx, dy;
-    if (!PyArg_ParseTuple(args, "ff", &dx, &dy)) {
+    if (!PyPosition_ParseFloat(args, kwds, &dx, &dy)) {
         return NULL;
     }
-    
+
     self->data->move(dx, dy);
     Py_RETURN_NONE;
 }
 
 // resize method implementation (#98)
-static PyObject* PyDrawable_resize(PyDrawableObject* self, PyObject* args)
+static PyObject* PyDrawable_resize(PyDrawableObject* self, PyObject* args, PyObject* kwds)
 {
     float w, h;
-    if (!PyArg_ParseTuple(args, "ff", &w, &h)) {
+    if (!PyPosition_ParseFloat(args, kwds, &w, &h)) {
         return NULL;
     }
-    
+
     self->data->resize(w, h);
     Py_RETURN_NONE;
 }
@@ -162,23 +163,27 @@ static PyMethodDef PyDrawable_methods[] = {
          MCRF_RETURNS("tuple: (x, y, width, height) representing the element's bounds")
          MCRF_NOTE("The bounds are in screen coordinates and account for current position and size.")
      )},
-    {"move", (PyCFunction)PyDrawable_move, METH_VARARGS,
+    {"move", (PyCFunction)PyDrawable_move, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Drawable, move,
-         MCRF_SIG("(dx: float, dy: float)", "None"),
+         MCRF_SIG("(dx, dy) or (delta)", "None"),
          MCRF_DESC("Move the element by a relative offset."),
          MCRF_ARGS_START
-         MCRF_ARG("dx", "Horizontal offset in pixels")
-         MCRF_ARG("dy", "Vertical offset in pixels")
-         MCRF_NOTE("This modifies the x and y position properties by the given amounts.")
+         MCRF_ARG("dx", "Horizontal offset in pixels (or use delta)")
+         MCRF_ARG("dy", "Vertical offset in pixels (or use delta)")
+         MCRF_ARG("delta", "Offset as tuple, list, or Vector: (dx, dy)")
+         MCRF_NOTE("This modifies the x and y position properties by the given amounts. "
+                   "Accepts move(dx, dy), move((dx, dy)), move(Vector), or move(pos=(dx, dy)).")
      )},
-    {"resize", (PyCFunction)PyDrawable_resize, METH_VARARGS,
+    {"resize", (PyCFunction)PyDrawable_resize, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Drawable, resize,
-         MCRF_SIG("(width: float, height: float)", "None"),
+         MCRF_SIG("(width, height) or (size)", "None"),
          MCRF_DESC("Resize the element to new dimensions."),
          MCRF_ARGS_START
-         MCRF_ARG("width", "New width in pixels")
-         MCRF_ARG("height", "New height in pixels")
-         MCRF_NOTE("For Caption and Sprite, this may not change actual size if determined by content.")
+         MCRF_ARG("width", "New width in pixels (or use size)")
+         MCRF_ARG("height", "New height in pixels (or use size)")
+         MCRF_ARG("size", "Size as tuple, list, or Vector: (width, height)")
+         MCRF_NOTE("For Caption and Sprite, this may not change actual size if determined by content. "
+                   "Accepts resize(w, h), resize((w, h)), resize(Vector), or resize(pos=(w, h)).")
      )},
     {NULL}  // Sentinel
 };
