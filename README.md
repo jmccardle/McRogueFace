@@ -78,7 +78,7 @@ cd McRogueFace
 import mcrfpy
 
 # Create a new scene
-mcrfpy.createScene("intro")
+intro = mcrfpy.Scene("intro")
 
 # Add a text caption
 caption = mcrfpy.Caption((50, 50), "Welcome to McRogueFace!")
@@ -86,10 +86,10 @@ caption.size = 48
 caption.fill_color = (255, 255, 255)
 
 # Add to scene
-mcrfpy.sceneUI("intro").append(caption)
+intro.children.append(caption)
 
 # Switch to the scene
-mcrfpy.setScene("intro")
+intro.activate()
 ```
 
 ## Documentation
@@ -107,7 +107,7 @@ Key wiki pages:
 - **[Python Binding System](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Python-Binding-System)** - C++/Python integration
 - **[Performance and Profiling](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Performance-and-Profiling)** - Optimization tools
 - **[Adding Python Bindings](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Adding-Python-Bindings)** - Step-by-step binding guide
-- **[Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap)** - All 46 open issues organized by system
+- **[Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap)** - All open issues organized by system
 
 ### 📖 Development Guides
 

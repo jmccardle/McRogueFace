@@ -214,12 +214,12 @@ McRogueFace is a C++ game engine with Python scripting support, designed for cre
 
 ### Key Python API (`mcrfpy` module)
 The C++ engine exposes these primary functions to Python:
-- Scene Management: `createScene()`, `setScene()`, `sceneUI()`
+- Scene Management: `Scene("name")` object
 - Entity Creation: `Entity()` with position and sprite properties
 - Grid Management: `Grid()` for tilemap rendering
 - Input Handling: `keypressScene()` for keyboard events
 - Audio: `createSoundBuffer()`, `playSound()`, `setVolume()`
-- Timers: `setTimer()`, `delTimer()` for event scheduling
+- Timers: `Timer("name")` object for event scheduling
 
 ## Development Workflow
 
@@ -374,7 +374,7 @@ cp my_test.py scripts/game.py
 mv scripts/game.py.bak scripts/game.py
 
 # Option 3: For quick tests, create minimal game.py
-echo 'import mcrfpy; print("Test"); mcrfpy.createScene("test")' > scripts/game.py
+echo 'import mcrfpy; print("Test"); scene = mcrfpy.Scene("test"); scene.activate()' > scripts/game.py
 ```
 
 ### Understanding Key Macros and Patterns
@@ -474,11 +474,11 @@ def run_test(runtime):
     print("PASS")
     sys.exit(0)
 
-mcrfpy.createScene("test")
-ui = mcrfpy.sceneUI("test")
+test_scene = mcrfpy.Scene("test")
+ui = test_scene.children
 ui.append(mcrfpy.Frame(pos=(50,50), size=(100,100)))
-mcrfpy.setScene("test")
-mcrfpy.setTimer("test", run_test, 100)
+mcrfpy.current_scene = test_scene
+timer = mcrfpy.Timer("test", run_test, 100)
 ```
 
 ### Key Testing Principles
@@ -490,9 +490,17 @@ mcrfpy.setTimer("test", run_test, 100)
 
 ### API Quick Reference (from tests)
 ```python
+# Scene: create and activate a scene, or create another scene
+mcrfpy.current_scene = mcrfpy.Scene("test")
+demo_scene = mcrfpy.Scene("demo")
+
 # Animation: (property, target_value, duration, easing)
-anim = mcrfpy.Animation("x", 500.0, 2.0, "easeInOut")
-anim.start(frame)
+# direct use of Animation object: deprecated
+#anim = mcrfpy.Animation("x", 500.0, 2.0, "easeInOut")
+#anim.start(frame)
+
+# preferred: create animations directly against the targeted object; use Enum of easing functions
+frame.animate("x", 500.0, 2.0, mcrfpy.Easing.EASE_IN_OUT)
 
 # Caption: use keyword arguments to avoid positional conflicts
 cap = mcrfpy.Caption(text="Hello", pos=(100, 100))
@@ -500,11 +508,14 @@ cap = mcrfpy.Caption(text="Hello", pos=(100, 100))
 # Grid center: uses pixel coordinates, not cell coordinates
 grid = mcrfpy.Grid(grid_size=(15, 10), pos=(50, 50), size=(400, 300))
 grid.center = (120, 80)  # pixels: (cells * cell_size / 2)
+# grid center defaults to the position that puts (0, 0) in the top left corner of the grid's visible area.
+# set grid.center to focus on that position. To position the camera in tile coordinates, use grid.center_camera():
+grid.center_camera((14.5, 8.5)) # offset of 0.5 tiles to point at the middle of the tile
 
 # Keyboard handler: key names are "Num1", "Num2", "Escape", "Q", etc.
 def on_key(key, state):
     if key == "Num1" and state == "start":
-        mcrfpy.setScene("demo_1")
+        demo_scene.activate()
 ```
 
 ## Development Best Practices
