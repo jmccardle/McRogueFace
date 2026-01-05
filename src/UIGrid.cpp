@@ -686,19 +686,23 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
 
             // Only fire if within valid grid bounds
             if (cell_x >= 0 && cell_x < this->grid_x && cell_y >= 0 && cell_y < this->grid_y) {
-                // Create Vector object for cell position
-                PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)cell_x, (float)cell_y);
-                if (cell_pos) {
-                    PyObject* args = Py_BuildValue("(O)", cell_pos);
-                    Py_DECREF(cell_pos);
-                    PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
-                    Py_DECREF(args);
-                    if (!result) {
-                        std::cerr << "Cell click callback raised an exception:" << std::endl;
-                        PyErr_Print();
-                        PyErr_Clear();
-                    } else {
-                        Py_DECREF(result);
+                // Create Vector object for cell position - must fetch finalized type from module
+                PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+                if (vector_type) {
+                    PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)cell_x, (float)cell_y);
+                    Py_DECREF(vector_type);
+                    if (cell_pos) {
+                        PyObject* args = Py_BuildValue("(O)", cell_pos);
+                        Py_DECREF(cell_pos);
+                        PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
+                        Py_DECREF(args);
+                        if (!result) {
+                            std::cerr << "Cell click callback raised an exception:" << std::endl;
+                            PyErr_Print();
+                            PyErr_Clear();
+                        } else {
+                            Py_DECREF(result);
+                        }
                     }
                 }
             }
@@ -715,19 +719,23 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
 
         // Only fire if within valid grid bounds
         if (cell_x >= 0 && cell_x < this->grid_x && cell_y >= 0 && cell_y < this->grid_y) {
-            // Create Vector object for cell position
-            PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)cell_x, (float)cell_y);
-            if (cell_pos) {
-                PyObject* args = Py_BuildValue("(O)", cell_pos);
-                Py_DECREF(cell_pos);
-                PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
-                Py_DECREF(args);
-                if (!result) {
-                    std::cerr << "Cell click callback raised an exception:" << std::endl;
-                    PyErr_Print();
-                    PyErr_Clear();
-                } else {
-                    Py_DECREF(result);
+            // Create Vector object for cell position - must fetch finalized type from module
+            PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+            if (vector_type) {
+                PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)cell_x, (float)cell_y);
+                Py_DECREF(vector_type);
+                if (cell_pos) {
+                    PyObject* args = Py_BuildValue("(O)", cell_pos);
+                    Py_DECREF(cell_pos);
+                    PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
+                    Py_DECREF(args);
+                    if (!result) {
+                        std::cerr << "Cell click callback raised an exception:" << std::endl;
+                        PyErr_Print();
+                        PyErr_Clear();
+                    } else {
+                        Py_DECREF(result);
+                    }
                 }
             }
             // Don't return this - no click_callable to call
@@ -2248,38 +2256,46 @@ void UIGrid::updateCellHover(sf::Vector2f mousepos) {
     if (new_cell != hovered_cell) {
         // Fire exit callback for old cell
         if (hovered_cell.has_value() && on_cell_exit_callable) {
-            // Create Vector object for cell position
-            PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)hovered_cell->x, (float)hovered_cell->y);
-            if (cell_pos) {
-                PyObject* args = Py_BuildValue("(O)", cell_pos);
-                Py_DECREF(cell_pos);
-                PyObject* result = PyObject_CallObject(on_cell_exit_callable->borrow(), args);
-                Py_DECREF(args);
-                if (!result) {
-                    std::cerr << "Cell exit callback raised an exception:" << std::endl;
-                    PyErr_Print();
-                    PyErr_Clear();
-                } else {
-                    Py_DECREF(result);
+            // Create Vector object for cell position - must fetch finalized type from module
+            PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+            if (vector_type) {
+                PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)hovered_cell->x, (float)hovered_cell->y);
+                Py_DECREF(vector_type);
+                if (cell_pos) {
+                    PyObject* args = Py_BuildValue("(O)", cell_pos);
+                    Py_DECREF(cell_pos);
+                    PyObject* result = PyObject_CallObject(on_cell_exit_callable->borrow(), args);
+                    Py_DECREF(args);
+                    if (!result) {
+                        std::cerr << "Cell exit callback raised an exception:" << std::endl;
+                        PyErr_Print();
+                        PyErr_Clear();
+                    } else {
+                        Py_DECREF(result);
+                    }
                 }
             }
         }
 
         // Fire enter callback for new cell
         if (new_cell.has_value() && on_cell_enter_callable) {
-            // Create Vector object for cell position
-            PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)new_cell->x, (float)new_cell->y);
-            if (cell_pos) {
-                PyObject* args = Py_BuildValue("(O)", cell_pos);
-                Py_DECREF(cell_pos);
-                PyObject* result = PyObject_CallObject(on_cell_enter_callable->borrow(), args);
-                Py_DECREF(args);
-                if (!result) {
-                    std::cerr << "Cell enter callback raised an exception:" << std::endl;
-                    PyErr_Print();
-                    PyErr_Clear();
-                } else {
-                    Py_DECREF(result);
+            // Create Vector object for cell position - must fetch finalized type from module
+            PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+            if (vector_type) {
+                PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)new_cell->x, (float)new_cell->y);
+                Py_DECREF(vector_type);
+                if (cell_pos) {
+                    PyObject* args = Py_BuildValue("(O)", cell_pos);
+                    Py_DECREF(cell_pos);
+                    PyObject* result = PyObject_CallObject(on_cell_enter_callable->borrow(), args);
+                    Py_DECREF(args);
+                    if (!result) {
+                        std::cerr << "Cell enter callback raised an exception:" << std::endl;
+                        PyErr_Print();
+                        PyErr_Clear();
+                    } else {
+                        Py_DECREF(result);
+                    }
                 }
             }
         }

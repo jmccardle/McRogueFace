@@ -50,8 +50,16 @@ PyClickCallable::PyClickCallable()
 
 void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::string action)
 {
-    // Create a Vector object for the position
-    PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", mousepos.x, mousepos.y);
+    // Create a Vector object for the position - must fetch the finalized type from the module
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) {
+        std::cerr << "Failed to get Vector type for click callback" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+        return;
+    }
+    PyObject* pos = PyObject_CallFunction(vector_type, "ff", mousepos.x, mousepos.y);
+    Py_DECREF(vector_type);
     if (!pos) {
         std::cerr << "Failed to create Vector object for click callback" << std::endl;
         PyErr_Print();
