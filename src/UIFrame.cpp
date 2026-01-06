@@ -174,9 +174,9 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 PyObject* UIFrame::get_children(PyUIFrameObject* self, void* closure)
 {
     // create PyUICollection instance pointing to self->data->children
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
+    // Use the type directly from namespace (#189 - type not exported to module)
+    PyTypeObject* type = &mcrfpydef::PyUICollectionType;
     auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
     if (o) {
         o->data = self->data->children;
         o->owner = self->data;  // #122: Set owner for parent tracking

@@ -37,7 +37,7 @@ void UIEntity::updateVisibility()
 
     // Lazy initialize gridstate if needed
     if (gridstate.size() == 0) {
-        gridstate.resize(grid->grid_x * grid->grid_y);
+        gridstate.resize(grid->grid_w * grid->grid_h);
         // Initialize all cells as not visible/discovered
         for (auto& state : gridstate) {
             state.visible = false;
@@ -58,9 +58,9 @@ void UIEntity::updateVisibility()
     grid->computeFOV(x, y, grid->fov_radius, true, grid->fov_algorithm);
 
     // Update visible cells based on FOV computation
-    for (int gy = 0; gy < grid->grid_y; gy++) {
-        for (int gx = 0; gx < grid->grid_x; gx++) {
-            int idx = gy * grid->grid_x + gx;
+    for (int gy = 0; gy < grid->grid_h; gy++) {
+        for (int gx = 0; gx < grid->grid_w; gx++) {
+            int idx = gy * grid->grid_w + gx;
             if (grid->isInFOV(gx, gy)) {
                 gridstate[idx].visible = true;
                 gridstate[idx].discovered = true;  // Once seen, always discovered
@@ -108,7 +108,7 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
     // Lazy initialize gridstate if needed
     if (self->data->gridstate.size() == 0) {
-        self->data->gridstate.resize(self->data->grid->grid_x * self->data->grid->grid_y);
+        self->data->gridstate.resize(self->data->grid->grid_w * self->data->grid->grid_h);
         // Initialize all cells as not visible/discovered
         for (auto& state : self->data->gridstate) {
             state.visible = false;
@@ -117,7 +117,7 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     }
 
     // Bounds check
-    if (x < 0 || x >= self->data->grid->grid_x || y < 0 || y >= self->data->grid->grid_y) {
+    if (x < 0 || x >= self->data->grid->grid_w || y < 0 || y >= self->data->grid->grid_h) {
         PyErr_Format(PyExc_IndexError, "Grid coordinates (%d, %d) out of bounds", x, y);
         return NULL;
     }
@@ -125,7 +125,7 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     // Use type directly since GridPointState is internal-only (not exported to module)
     auto type = &mcrfpydef::PyUIGridPointStateType;
     auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
-    obj->data = &(self->data->gridstate[y * self->data->grid->grid_x + x]);
+    obj->data = &(self->data->gridstate[y * self->data->grid->grid_w + x]);
     obj->grid = self->data->grid;
     obj->entity = self->data;
     obj->x = x;  // #16 - Store position for .point property
@@ -469,6 +469,157 @@ int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* cl
     return 0;
 }
 
+// #176 - Helper to get cell dimensions from grid
+static void get_cell_dimensions(UIEntity* entity, float& cell_width, float& cell_height) {
+    // Default cell dimensions when no texture
+    constexpr float DEFAULT_CELL_WIDTH = 16.0f;
+    constexpr float DEFAULT_CELL_HEIGHT = 16.0f;
+
+    if (entity->grid) {
+        auto ptex = entity->grid->getTexture();
+        cell_width = ptex ? static_cast<float>(ptex->sprite_width) : DEFAULT_CELL_WIDTH;
+        cell_height = ptex ? static_cast<float>(ptex->sprite_height) : DEFAULT_CELL_HEIGHT;
+    } else {
+        cell_width = DEFAULT_CELL_WIDTH;
+        cell_height = DEFAULT_CELL_HEIGHT;
+    }
+}
+
+// #176 - Pixel position: pos = draw_pos * tile_size
+PyObject* UIEntity::get_pixel_pos(PyUIEntityObject* self, void* closure) {
+    if (!self->data->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
+        return NULL;
+    }
+
+    float cell_width, cell_height;
+    get_cell_dimensions(self->data.get(), cell_width, cell_height);
+
+    sf::Vector2f pixel_pos(
+        self->data->position.x * cell_width,
+        self->data->position.y * cell_height
+    );
+    return sfVector2f_to_PyObject(pixel_pos);
+}
+
+int UIEntity::set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closure) {
+    if (!self->data->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
+        return -1;
+    }
+
+    sf::Vector2f pixel_vec = PyObject_to_sfVector2f(value);
+    if (PyErr_Occurred()) {
+        return -1;
+    }
+
+    float cell_width, cell_height;
+    get_cell_dimensions(self->data.get(), cell_width, cell_height);
+
+    // Save old position for spatial hash update
+    float old_x = self->data->position.x;
+    float old_y = self->data->position.y;
+
+    // Convert pixels to tile coordinates
+    self->data->position.x = pixel_vec.x / cell_width;
+    self->data->position.y = pixel_vec.y / cell_height;
+
+    // Update spatial hash
+    self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+
+    return 0;
+}
+
+// #176 - Individual pixel coordinates (x, y)
+PyObject* UIEntity::get_pixel_member(PyUIEntityObject* self, void* closure) {
+    if (!self->data->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
+        return NULL;
+    }
+
+    float cell_width, cell_height;
+    get_cell_dimensions(self->data.get(), cell_width, cell_height);
+
+    auto member_ptr = reinterpret_cast<long>(closure);
+    if (member_ptr == 0) // x
+        return PyFloat_FromDouble(self->data->position.x * cell_width);
+    else // y
+        return PyFloat_FromDouble(self->data->position.y * cell_height);
+}
+
+int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* closure) {
+    if (!self->data->grid) {
+        PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
+        return -1;
+    }
+
+    float val;
+    if (PyFloat_Check(value)) {
+        val = PyFloat_AsDouble(value);
+    } else if (PyLong_Check(value)) {
+        val = PyLong_AsLong(value);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Position must be a number (int or float)");
+        return -1;
+    }
+
+    float cell_width, cell_height;
+    get_cell_dimensions(self->data.get(), cell_width, cell_height);
+
+    // Save old position for spatial hash update
+    float old_x = self->data->position.x;
+    float old_y = self->data->position.y;
+
+    auto member_ptr = reinterpret_cast<long>(closure);
+    if (member_ptr == 0) // x
+        self->data->position.x = val / cell_width;
+    else // y
+        self->data->position.y = val / cell_height;
+
+    // Update spatial hash
+    self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+
+    return 0;
+}
+
+// #176 - Integer grid position (grid_x, grid_y)
+PyObject* UIEntity::get_grid_int_member(PyUIEntityObject* self, void* closure) {
+    auto member_ptr = reinterpret_cast<long>(closure);
+    if (member_ptr == 0) // grid_x
+        return PyLong_FromLong(static_cast<int>(self->data->position.x));
+    else // grid_y
+        return PyLong_FromLong(static_cast<int>(self->data->position.y));
+}
+
+int UIEntity::set_grid_int_member(PyUIEntityObject* self, PyObject* value, void* closure) {
+    int val;
+    if (PyLong_Check(value)) {
+        val = PyLong_AsLong(value);
+    } else if (PyFloat_Check(value)) {
+        val = static_cast<int>(PyFloat_AsDouble(value));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Grid position must be an integer");
+        return -1;
+    }
+
+    // Save old position for spatial hash update
+    float old_x = self->data->position.x;
+    float old_y = self->data->position.y;
+
+    auto member_ptr = reinterpret_cast<long>(closure);
+    if (member_ptr == 0) // grid_x
+        self->data->position.x = static_cast<float>(val);
+    else // grid_y
+        self->data->position.y = static_cast<float>(val);
+
+    // Update spatial hash if grid exists
+    if (self->data->grid) {
+        self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+    }
+
+    return 0;
+}
+
 PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
 {
     if (!self->data || !self->data->grid) {
@@ -544,7 +695,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
 
         // Initialize gridstate if needed
         if (self->data->gridstate.size() == 0) {
-            self->data->gridstate.resize(new_grid->grid_x * new_grid->grid_y);
+            self->data->gridstate.resize(new_grid->grid_w * new_grid->grid_h);
             for (auto& state : self->data->gridstate) {
                 state.visible = false;
                 state.discovered = false;
@@ -605,9 +756,9 @@ PyObject* UIEntity::path_to(PyUIEntityObject* self, PyObject* args, PyObject* kw
     
     // Validate target position
     auto grid = self->data->grid;
-    if (target_x < 0 || target_x >= grid->grid_x || target_y < 0 || target_y >= grid->grid_y) {
+    if (target_x < 0 || target_x >= grid->grid_w || target_y < 0 || target_y >= grid->grid_h) {
         PyErr_Format(PyExc_ValueError, "Target position (%d, %d) is out of grid bounds (0-%d, 0-%d)", 
-                     target_x, target_y, grid->grid_x - 1, grid->grid_y - 1);
+                     target_x, target_y, grid->grid_w - 1, grid->grid_h - 1);
         return NULL;
     }
     
@@ -789,7 +940,7 @@ PyMethodDef UIEntity_all_methods[] = {
          MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace')", "Animation"),
          MCRF_DESC("Create and start an animation on this entity's property."),
          MCRF_ARGS_START
-         MCRF_ARG("property", "Name of the property to animate (e.g., 'x', 'y', 'sprite_index')")
+         MCRF_ARG("property", "Name of the property to animate: 'draw_x', 'draw_y' (tile coords), 'sprite_scale', 'sprite_index'")
          MCRF_ARG("target", "Target value - float or int depending on property")
          MCRF_ARG("duration", "Animation duration in seconds")
          MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear")
@@ -797,8 +948,8 @@ PyMethodDef UIEntity_all_methods[] = {
          MCRF_ARG("callback", "Optional callable invoked when animation completes")
          MCRF_ARG("conflict_mode", "'replace' (default), 'queue', or 'error' if property already animating")
          MCRF_RETURNS("Animation object for monitoring progress")
-         MCRF_RAISES("ValueError", "If property name is not valid for Entity (x, y, sprite_scale, sprite_index)")
-         MCRF_NOTE("Entity animations use grid coordinates for x/y, not pixel coordinates.")
+         MCRF_RAISES("ValueError", "If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index)")
+         MCRF_NOTE("Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells.")
      )},
     {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
      "at(x, y) or at(pos) -> GridPointState\n\n"
@@ -846,8 +997,27 @@ PyMethodDef UIEntity_all_methods[] = {
 };
 
 PyGetSetDef UIEntity::getsetters[] = {
-    {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position (graphically)", (void*)0},
-    {"pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position, "Entity position (integer grid coordinates)", (void*)1},
+    // #176 - Pixel coordinates (relative to grid, like UIDrawable.pos)
+    {"pos", (getter)UIEntity::get_pixel_pos, (setter)UIEntity::set_pixel_pos,
+     "Pixel position relative to grid (Vector). Computed as draw_pos * tile_size. "
+     "Requires entity to be attached to a grid.", NULL},
+    {"x", (getter)UIEntity::get_pixel_member, (setter)UIEntity::set_pixel_member,
+     "Pixel X position relative to grid. Requires entity to be attached to a grid.", (void*)0},
+    {"y", (getter)UIEntity::get_pixel_member, (setter)UIEntity::set_pixel_member,
+     "Pixel Y position relative to grid. Requires entity to be attached to a grid.", (void*)1},
+
+    // #176 - Integer tile coordinates (logical game position)
+    {"grid_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position,
+     "Grid position as integer tile coordinates (Vector). The logical cell this entity occupies.", (void*)1},
+    {"grid_x", (getter)UIEntity::get_grid_int_member, (setter)UIEntity::set_grid_int_member,
+     "Grid X position as integer tile coordinate.", (void*)0},
+    {"grid_y", (getter)UIEntity::get_grid_int_member, (setter)UIEntity::set_grid_int_member,
+     "Grid Y position as integer tile coordinate.", (void*)1},
+
+    // Float tile coordinates (for smooth animation between tiles)
+    {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position,
+     "Fractional tile position for rendering (Vector). Use for smooth animation between grid cells.", (void*)0},
+
     {"gridstate", (getter)UIEntity::get_gridstate, NULL, "Grid point states for the entity", NULL},
     {"grid", (getter)UIEntity::get_grid, (setter)UIEntity::set_grid,
      "Grid this entity belongs to. "
@@ -855,8 +1025,6 @@ PyGetSetDef UIEntity::getsetters[] = {
      "Set: Assign a Grid to move entity, or None to remove from grid.", NULL},
     {"sprite_index", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index on the texture on the display", NULL},
     {"sprite_number", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index (DEPRECATED: use sprite_index instead)", NULL},
-    {"x", (getter)UIEntity::get_float_member, (setter)UIEntity::set_float_member, "Entity x position", (void*)0},
-    {"y", (getter)UIEntity::get_float_member, (setter)UIEntity::set_float_member, "Entity y position", (void*)1},
     {"visible", (getter)UIEntity_get_visible, (setter)UIEntity_set_visible, "Visibility flag", NULL},
     {"opacity", (getter)UIEntity_get_opacity, (setter)UIEntity_set_opacity, "Opacity (0.0 = transparent, 1.0 = opaque)", NULL},
     {"name", (getter)UIEntity_get_name, (setter)UIEntity_set_name, "Name for finding elements", NULL},
@@ -867,23 +1035,26 @@ PyObject* UIEntity::repr(PyUIEntityObject* self) {
     std::ostringstream ss;
     if (!self->data) ss << "<Entity (invalid internal object)>";
     else {
-        auto ent = self->data;
-        ss << "<Entity (x=" << self->data->position.x << ", y=" << self->data->position.y << ", sprite_index=" << self->data->sprite.getSpriteIndex() <<
-         ")>";
+        // #176 - Use grid_x/grid_y naming to reflect tile coordinates
+        ss << "<Entity (grid_x=" << static_cast<int>(self->data->position.x)
+           << ", grid_y=" << static_cast<int>(self->data->position.y)
+           << ", sprite_index=" << self->data->sprite.getSpriteIndex() << ")>";
     }
     std::string repr_str = ss.str();
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
 }
 
 // Property system implementation for animations
+// #176 - Animation properties use tile coordinates (draw_x, draw_y)
+// "x" and "y" are kept as aliases for backwards compatibility
 bool UIEntity::setProperty(const std::string& name, float value) {
-    if (name == "x") {
+    if (name == "draw_x" || name == "x") {  // #176 - draw_x is preferred, x is alias
         position.x = value;
         // Don't update sprite position here - UIGrid::render() handles the pixel positioning
         if (grid) grid->markDirty();  // #144 - Propagate to parent grid for texture caching
         return true;
     }
-    else if (name == "y") {
+    else if (name == "draw_y" || name == "y") {  // #176 - draw_y is preferred, y is alias
         position.y = value;
         // Don't update sprite position here - UIGrid::render() handles the pixel positioning
         if (grid) grid->markDirty();  // #144 - Propagate to parent grid for texture caching
@@ -907,11 +1078,11 @@ bool UIEntity::setProperty(const std::string& name, int value) {
 }
 
 bool UIEntity::getProperty(const std::string& name, float& value) const {
-    if (name == "x") {
+    if (name == "draw_x" || name == "x") {  // #176
         value = position.x;
         return true;
     }
-    else if (name == "y") {
+    else if (name == "draw_y" || name == "y") {  // #176
         value = position.y;
         return true;
     }
@@ -923,8 +1094,8 @@ bool UIEntity::getProperty(const std::string& name, float& value) const {
 }
 
 bool UIEntity::hasProperty(const std::string& name) const {
-    // Float properties
-    if (name == "x" || name == "y" || name == "sprite_scale") {
+    // #176 - Float properties (draw_x/draw_y preferred, x/y are aliases)
+    if (name == "draw_x" || name == "draw_y" || name == "x" || name == "y" || name == "sprite_scale") {
         return true;
     }
     // Int properties
@@ -956,7 +1127,7 @@ PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kw
     if (!self->data->hasProperty(property_name)) {
         PyErr_Format(PyExc_ValueError,
             "Property '%s' is not valid for animation on Entity. "
-            "Valid properties: x, y, sprite_scale, sprite_index, sprite_number",
+            "Valid properties: draw_x, draw_y (tile coords), sprite_scale, sprite_index",
             property_name);
         return NULL;
     }

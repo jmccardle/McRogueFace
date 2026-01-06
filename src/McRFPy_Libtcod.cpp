@@ -42,8 +42,8 @@ static PyObject* McRFPy_Libtcod::compute_fov(PyObject* self, PyObject* args) {
     
     // Return list of visible cells
     PyObject* visible_list = PyList_New(0);
-    for (int gy = 0; gy < grid->grid_y; gy++) {
-        for (int gx = 0; gx < grid->grid_x; gx++) {
+    for (int gy = 0; gy < grid->grid_h; gy++) {
+        for (int gx = 0; gx < grid->grid_w; gx++) {
             if (grid->isInFOV(gx, gy)) {
                 PyObject* pos = Py_BuildValue("(ii)", gx, gy);
                 PyList_Append(visible_list, pos);

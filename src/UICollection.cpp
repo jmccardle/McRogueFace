@@ -1128,25 +1128,23 @@ PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObjec
             if (recursive && drawable->derived_type() == PyObjectsEnum::UIFRAME) {
                 auto frame = std::static_pointer_cast<UIFrame>(drawable);
                 // Create temporary collection object for recursive call
-                PyTypeObject* collType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
-                if (collType) {
-                    PyUICollectionObject* child_coll = (PyUICollectionObject*)collType->tp_alloc(collType, 0);
-                    if (child_coll) {
-                        child_coll->data = frame->children;
-                        PyObject* child_results = find(child_coll, args, kwds);
-                        if (child_results && PyList_Check(child_results)) {
-                            // Extend results with child results
-                            for (Py_ssize_t i = 0; i < PyList_Size(child_results); i++) {
-                                PyObject* item = PyList_GetItem(child_results, i);
-                                Py_INCREF(item);
-                                PyList_Append(results, item);
-                                Py_DECREF(item);
-                            }
-                            Py_DECREF(child_results);
+                // Use the type directly from namespace (#189 - type not exported to module)
+                PyTypeObject* collType = &PyUICollectionType;
+                PyUICollectionObject* child_coll = (PyUICollectionObject*)collType->tp_alloc(collType, 0);
+                if (child_coll) {
+                    child_coll->data = frame->children;
+                    PyObject* child_results = find(child_coll, args, kwds);
+                    if (child_results && PyList_Check(child_results)) {
+                        // Extend results with child results
+                        for (Py_ssize_t i = 0; i < PyList_Size(child_results); i++) {
+                            PyObject* item = PyList_GetItem(child_results, i);
+                            Py_INCREF(item);
+                            PyList_Append(results, item);
+                            Py_DECREF(item);
                         }
-                        Py_DECREF(child_coll);
+                        Py_DECREF(child_results);
                     }
-                    Py_DECREF(collType);
+                    Py_DECREF(child_coll);
                 }
             }
         }
@@ -1162,21 +1160,17 @@ PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObjec
             // Recursive search into Frame children
             if (recursive && drawable->derived_type() == PyObjectsEnum::UIFRAME) {
                 auto frame = std::static_pointer_cast<UIFrame>(drawable);
-                PyTypeObject* collType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
-                if (collType) {
-                    PyUICollectionObject* child_coll = (PyUICollectionObject*)collType->tp_alloc(collType, 0);
-                    if (child_coll) {
-                        child_coll->data = frame->children;
-                        PyObject* result = find(child_coll, args, kwds);
-                        Py_DECREF(child_coll);
-                        Py_DECREF(collType);
-                        if (result && result != Py_None) {
-                            return result;
-                        }
-                        Py_XDECREF(result);
-                    } else {
-                        Py_DECREF(collType);
+                // Use the type directly from namespace (#189 - type not exported to module)
+                PyTypeObject* collType = &PyUICollectionType;
+                PyUICollectionObject* child_coll = (PyUICollectionObject*)collType->tp_alloc(collType, 0);
+                if (child_coll) {
+                    child_coll->data = frame->children;
+                    PyObject* result = find(child_coll, args, kwds);
+                    Py_DECREF(child_coll);
+                    if (result && result != Py_None) {
+                        return result;
                     }
+                    Py_XDECREF(result);
                 }
             }
         }

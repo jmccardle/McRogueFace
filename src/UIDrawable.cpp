@@ -774,7 +774,7 @@ void UIDrawable::removeFromParent() {
     auto p = parent.lock();
     if (!p) return;
 
-    // Check if parent is a UIFrame (has children vector)
+    // Check if parent is a UIFrame or UIGrid (both have children vector)
     if (p->derived_type() == PyObjectsEnum::UIFRAME) {
         auto frame = std::static_pointer_cast<UIFrame>(p);
         auto& children = *frame->children;
@@ -790,7 +790,18 @@ void UIDrawable::removeFromParent() {
         }
         frame->children_need_sort = true;
     }
-    // TODO: Handle UIGrid children when needed
+    else if (p->derived_type() == PyObjectsEnum::UIGRID) {
+        auto grid = std::static_pointer_cast<UIGrid>(p);
+        auto& children = *grid->children;
+
+        for (auto it = children.begin(); it != children.end(); ++it) {
+            if (it->get() == this) {
+                children.erase(it);
+                break;
+            }
+        }
+        grid->children_need_sort = true;
+    }
 
     parent.reset();
 }
@@ -1031,9 +1042,20 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
     }
 
     if (children_ptr && *children_ptr) {
-        // Add to new parent's children
-        (*children_ptr)->push_back(drawable);
-        drawable->setParent(new_parent);
+        // Check if already in this parent's collection (prevent duplicates)
+        bool already_present = false;
+        for (const auto& child : **children_ptr) {
+            if (child.get() == drawable.get()) {
+                already_present = true;
+                break;
+            }
+        }
+
+        if (!already_present) {
+            // Add to new parent's children
+            (*children_ptr)->push_back(drawable);
+            drawable->setParent(new_parent);
+        }
     }
 
     return 0;

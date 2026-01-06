@@ -104,6 +104,15 @@ public:
     static int set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_float_member(PyUIEntityObject* self, void* closure);
     static int set_float_member(PyUIEntityObject* self, PyObject* value, void* closure);
+
+    // #176 - Pixel position (pos, x, y) computed from draw_pos * tile_size
+    static PyObject* get_pixel_pos(PyUIEntityObject* self, void* closure);
+    static int set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_pixel_member(PyUIEntityObject* self, void* closure);
+    static int set_pixel_member(PyUIEntityObject* self, PyObject* value, void* closure);
+    // #176 - Integer grid position (grid_x, grid_y)
+    static PyObject* get_grid_int_member(PyUIEntityObject* self, void* closure);
+    static int set_grid_int_member(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_grid(PyUIEntityObject* self, void* closure);
     static int set_grid(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyMethodDef methods[];
@@ -133,12 +142,14 @@ namespace mcrfpydef {
                             "    visible (bool): Visibility state. Default: True\n"
                             "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
                             "    name (str): Element name for finding. Default: None\n"
-                            "    x (float): X grid position override. Default: 0\n"
-                            "    y (float): Y grid position override. Default: 0\n\n"
+                            "    x (float): X grid position override (tile coords). Default: 0\n"
+                            "    y (float): Y grid position override (tile coords). Default: 0\n\n"
                             "Attributes:\n"
-                            "    pos (tuple): Grid position as (x, y) tuple\n"
-                            "    x, y (float): Grid position coordinates\n"
-                            "    draw_pos (tuple): Pixel position for rendering\n"
+                            "    pos (Vector): Pixel position relative to grid (requires grid attachment)\n"
+                            "    x, y (float): Pixel position components (requires grid attachment)\n"
+                            "    grid_pos (Vector): Integer tile coordinates (logical game position)\n"
+                            "    grid_x, grid_y (int): Integer tile coordinate components\n"
+                            "    draw_pos (Vector): Fractional tile position for smooth animation\n"
                             "    gridstate (GridPointState): Visibility state for grid points\n"
                             "    sprite_index (int): Current sprite index\n"
                             "    visible (bool): Visibility state\n"

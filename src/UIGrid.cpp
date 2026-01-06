@@ -14,7 +14,7 @@
 // UIDrawable methods now in UIBase.h
 
 UIGrid::UIGrid()
-: grid_x(0), grid_y(0), zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
+: grid_w(0), grid_h(0), zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
   fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
   perspective_enabled(false), fov_algorithm(FOV_BASIC), fov_radius(10),
   use_chunks(false)  // Default to omniscient view
@@ -39,12 +39,12 @@ UIGrid::UIGrid()
     output.setPosition(0, 0);
     output.setTexture(renderTexture.getTexture());
 
-    // Points vector starts empty (grid_x * grid_y = 0)
+    // Points vector starts empty (grid_w * grid_h = 0)
     // TCOD map will be created when grid is resized
 }
 
 UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _xy, sf::Vector2f _wh)
-: grid_x(gx), grid_y(gy),
+: grid_w(gx), grid_h(gy),
   zoom(1.0f),
   ptex(_ptex),
   fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
@@ -166,10 +166,10 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
 
     int x_limit = left_edge + width_sq + 2;
-    if (x_limit > grid_x) x_limit = grid_x;
+    if (x_limit > grid_w) x_limit = grid_w;
 
     int y_limit = top_edge + height_sq + 2;
-    if (y_limit > grid_y) y_limit = grid_y;
+    if (y_limit > grid_h) y_limit = grid_h;
 
     // #150 - Layers are now the sole source of grid rendering (base layer removed)
     // Render layers with z_index < 0 (below entities)
@@ -274,14 +274,14 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                     y+=1)
                 {
                     // Skip out-of-bounds cells
-                    if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
+                    if (x < 0 || x >= grid_w || y < 0 || y >= grid_h) continue;
                     
                     auto pixel_pos = sf::Vector2f(
                             (x*cell_width - left_spritepixels) * zoom,
                             (y*cell_height - top_spritepixels) * zoom );
 
                     // Get visibility state from entity's perspective
-                    int idx = y * grid_x + x;
+                    int idx = y * grid_w + x;
                     if (idx >= 0 && idx < static_cast<int>(entity->gridstate.size())) {
                         const auto& state = entity->gridstate[idx];
                         
@@ -313,7 +313,7 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                     y+=1)
                 {
                     // Skip out-of-bounds cells
-                    if (x < 0 || x >= grid_x || y < 0 || y >= grid_y) continue;
+                    if (x < 0 || x >= grid_w || y < 0 || y >= grid_h) continue;
                     
                     auto pixel_pos = sf::Vector2f(
                             (x*cell_width - left_spritepixels) * zoom,
@@ -361,7 +361,7 @@ UIGridPoint& UIGrid::at(int x, int y)
     if (use_chunks && chunk_manager) {
         return chunk_manager->at(x, y);
     }
-    return points[y * grid_x + x];
+    return points[y * grid_w + x];
 }
 
 UIGrid::~UIGrid()
@@ -387,7 +387,7 @@ PyObjectsEnum UIGrid::derived_type()
 
 // #147 - Layer management methods
 std::shared_ptr<ColorLayer> UIGrid::addColorLayer(int z_index, const std::string& name) {
-    auto layer = std::make_shared<ColorLayer>(z_index, grid_x, grid_y, this);
+    auto layer = std::make_shared<ColorLayer>(z_index, grid_w, grid_h, this);
     layer->name = name;
     layers.push_back(layer);
     layers_need_sort = true;
@@ -395,7 +395,7 @@ std::shared_ptr<ColorLayer> UIGrid::addColorLayer(int z_index, const std::string
 }
 
 std::shared_ptr<TileLayer> UIGrid::addTileLayer(int z_index, std::shared_ptr<PyTexture> texture, const std::string& name) {
-    auto layer = std::make_shared<TileLayer>(z_index, grid_x, grid_y, this, texture);
+    auto layer = std::make_shared<TileLayer>(z_index, grid_w, grid_h, this, texture);
     layer->name = name;
     layers.push_back(layer);
     layers_need_sort = true;
@@ -442,8 +442,8 @@ void UIGrid::syncTCODMap()
 {
     if (!tcod_map) return;
     
-    for (int y = 0; y < grid_y; y++) {
-        for (int x = 0; x < grid_x; x++) {
+    for (int y = 0; y < grid_h; y++) {
+        for (int x = 0; x < grid_w; x++) {
             const UIGridPoint& point = at(x, y);
             tcod_map->setProperties(x, y, point.transparent, point.walkable);
         }
@@ -452,15 +452,15 @@ void UIGrid::syncTCODMap()
 
 void UIGrid::syncTCODMapCell(int x, int y)
 {
-    if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return;
-    
+    if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return;
+
     const UIGridPoint& point = at(x, y);
     tcod_map->setProperties(x, y, point.transparent, point.walkable);
 }
 
 void UIGrid::computeFOV(int x, int y, int radius, bool light_walls, TCOD_fov_algorithm_t algo)
 {
-    if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return;
+    if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return;
     
     std::lock_guard<std::mutex> lock(fov_mutex);
     tcod_map->computeFov(x, y, radius, light_walls, algo);
@@ -468,7 +468,7 @@ void UIGrid::computeFOV(int x, int y, int radius, bool light_walls, TCOD_fov_alg
 
 bool UIGrid::isInFOV(int x, int y) const
 {
-    if (!tcod_map || x < 0 || x >= grid_x || y < 0 || y >= grid_y) return false;
+    if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return false;
     
     std::lock_guard<std::mutex> lock(fov_mutex);
     return tcod_map->isInFov(x, y);
@@ -478,8 +478,8 @@ std::vector<std::pair<int, int>> UIGrid::findPath(int x1, int y1, int x2, int y2
 {
     std::vector<std::pair<int, int>> path;
     
-    if (!tcod_map || x1 < 0 || x1 >= grid_x || y1 < 0 || y1 >= grid_y ||
-        x2 < 0 || x2 >= grid_x || y2 < 0 || y2 >= grid_y) {
+    if (!tcod_map || x1 < 0 || x1 >= grid_w || y1 < 0 || y1 >= grid_h ||
+        x2 < 0 || x2 >= grid_w || y2 < 0 || y2 >= grid_h) {
         return path;
     }
     
@@ -497,7 +497,7 @@ std::vector<std::pair<int, int>> UIGrid::findPath(int x1, int y1, int x2, int y2
 
 void UIGrid::computeDijkstra(int rootX, int rootY, float diagonalCost)
 {
-    if (!tcod_map || !tcod_dijkstra || rootX < 0 || rootX >= grid_x || rootY < 0 || rootY >= grid_y) return;
+    if (!tcod_map || !tcod_dijkstra || rootX < 0 || rootX >= grid_w || rootY < 0 || rootY >= grid_h) return;
     
     // Compute the Dijkstra map from the root position
     tcod_dijkstra->compute(rootX, rootY);
@@ -505,7 +505,7 @@ void UIGrid::computeDijkstra(int rootX, int rootY, float diagonalCost)
 
 float UIGrid::getDijkstraDistance(int x, int y) const
 {
-    if (!tcod_dijkstra || x < 0 || x >= grid_x || y < 0 || y >= grid_y) {
+    if (!tcod_dijkstra || x < 0 || x >= grid_w || y < 0 || y >= grid_h) {
         return -1.0f;  // Invalid position
     }
     
@@ -516,7 +516,7 @@ std::vector<std::pair<int, int>> UIGrid::getDijkstraPath(int x, int y) const
 {
     std::vector<std::pair<int, int>> path;
     
-    if (!tcod_dijkstra || x < 0 || x >= grid_x || y < 0 || y >= grid_y) {
+    if (!tcod_dijkstra || x < 0 || x >= grid_w || y < 0 || y >= grid_h) {
         return path;  // Empty path for invalid position
     }
     
@@ -538,9 +538,9 @@ std::vector<std::pair<int, int>> UIGrid::computeAStarPath(int x1, int y1, int x2
     std::vector<std::pair<int, int>> path;
     
     // Validate inputs
-    if (!tcod_map || !tcod_path || 
-        x1 < 0 || x1 >= grid_x || y1 < 0 || y1 >= grid_y ||
-        x2 < 0 || x2 >= grid_x || y2 < 0 || y2 >= grid_y) {
+    if (!tcod_map || !tcod_path ||
+        x1 < 0 || x1 >= grid_w || y1 < 0 || y1 >= grid_h ||
+        x2 < 0 || x2 >= grid_w || y2 < 0 || y2 >= grid_h) {
         return path; // Return empty path
     }
     
@@ -686,7 +686,7 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
             int cell_y = static_cast<int>(std::floor(grid_y));
 
             // Only fire if within valid grid bounds
-            if (cell_x >= 0 && cell_x < this->grid_x && cell_y >= 0 && cell_y < this->grid_y) {
+            if (cell_x >= 0 && cell_x < this->grid_w && cell_y >= 0 && cell_y < this->grid_h) {
                 // Create Vector object for cell position - must fetch finalized type from module
                 PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
                 if (vector_type) {
@@ -719,7 +719,7 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
         int cell_y = static_cast<int>(std::floor(grid_y));
 
         // Only fire if within valid grid bounds
-        if (cell_x >= 0 && cell_x < this->grid_x && cell_y >= 0 && cell_y < this->grid_y) {
+        if (cell_x >= 0 && cell_x < this->grid_w && cell_y >= 0 && cell_y < this->grid_h) {
             // Create Vector object for cell position - must fetch finalized type from module
             PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
             if (vector_type) {
@@ -766,14 +766,14 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     int z_index = 0;
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
-    int grid_x = 2, grid_y = 2;  // Default to 2x2 grid
+    int grid_w = 2, grid_h = 2;  // Default to 2x2 grid
 
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
         "pos", "size", "grid_size", "texture",  // Positional args (as per spec)
         // Keyword-only args
         "fill_color", "on_click", "center_x", "center_y", "zoom",
-        "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "grid_x", "grid_y",
+        "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "grid_w", "grid_h",
         "layers",  // #150 - layers dict parameter
         nullptr
     };
@@ -782,7 +782,7 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOfffifizffffiiO", const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj, &grid_size_obj, &textureObj,  // Positional
                                      &fill_color, &click_handler, &center_x, &center_y, &zoom,
-                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &grid_x, &grid_y,
+                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &grid_w, &grid_h,
                                      &layers_obj)) {
         return -1;
     }
@@ -833,26 +833,26 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         }
     }
     
-    // Handle grid_size argument (can be tuple or use grid_x/grid_y keywords)
+    // Handle grid_size argument (can be tuple or use grid_w/grid_h keywords)
     if (grid_size_obj) {
         if (PyTuple_Check(grid_size_obj) && PyTuple_Size(grid_size_obj) == 2) {
             PyObject* gx_val = PyTuple_GetItem(grid_size_obj, 0);
             PyObject* gy_val = PyTuple_GetItem(grid_size_obj, 1);
             if (PyLong_Check(gx_val) && PyLong_Check(gy_val)) {
-                grid_x = PyLong_AsLong(gx_val);
-                grid_y = PyLong_AsLong(gy_val);
+                grid_w = PyLong_AsLong(gx_val);
+                grid_h = PyLong_AsLong(gy_val);
             } else {
                 PyErr_SetString(PyExc_TypeError, "grid_size tuple must contain integers");
                 return -1;
             }
         } else {
-            PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple (grid_x, grid_y)");
+            PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple (grid_w, grid_h)");
             return -1;
         }
     }
     
     // Validate grid dimensions
-    if (grid_x <= 0 || grid_y <= 0) {
+    if (grid_w <= 0 || grid_h <= 0) {
         PyErr_SetString(PyExc_ValueError, "Grid dimensions must be positive integers");
         return -1;
     }
@@ -873,15 +873,15 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     
     // If size wasn't specified, calculate based on grid dimensions and texture
     if (!size_obj && texture_ptr) {
-        w = grid_x * texture_ptr->sprite_width;
-        h = grid_y * texture_ptr->sprite_height;
+        w = grid_w * texture_ptr->sprite_width;
+        h = grid_h * texture_ptr->sprite_height;
     } else if (!size_obj) {
-        w = grid_x * 16.0f;  // Default tile size
-        h = grid_y * 16.0f;
+        w = grid_w * 16.0f;  // Default tile size
+        h = grid_h * 16.0f;
     }
-    
+
     // Create the grid
-    self->data = std::make_shared<UIGrid>(grid_x, grid_y, texture_ptr, 
+    self->data = std::make_shared<UIGrid>(grid_w, grid_h, texture_ptr, 
                                           sf::Vector2f(x, y), sf::Vector2f(w, h));
     
     // Set additional properties
@@ -993,16 +993,16 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
 
 // #179 - Return grid_size as Vector
 PyObject* UIGrid::get_grid_size(PyUIGridObject* self, void* closure) {
-    return PyVector(sf::Vector2f(static_cast<float>(self->data->grid_x),
-                                  static_cast<float>(self->data->grid_y))).pyObject();
+    return PyVector(sf::Vector2f(static_cast<float>(self->data->grid_w),
+                                  static_cast<float>(self->data->grid_h))).pyObject();
 }
 
-PyObject* UIGrid::get_grid_x(PyUIGridObject* self, void* closure) {
-    return PyLong_FromLong(self->data->grid_x);
+PyObject* UIGrid::get_grid_w(PyUIGridObject* self, void* closure) {
+    return PyLong_FromLong(self->data->grid_w);
 }
 
-PyObject* UIGrid::get_grid_y(PyUIGridObject* self, void* closure) {
-    return PyLong_FromLong(self->data->grid_y);
+PyObject* UIGrid::get_grid_h(PyUIGridObject* self, void* closure) {
+    return PyLong_FromLong(self->data->grid_h);
 }
 
 PyObject* UIGrid::get_position(PyUIGridObject* self, void* closure) {
@@ -1021,16 +1021,26 @@ int UIGrid::set_position(PyUIGridObject* self, PyObject* value, void* closure) {
     return 0;
 }
 
+// #181 - Return size as Vector
 PyObject* UIGrid::get_size(PyUIGridObject* self, void* closure) {
     auto& box = self->data->box;
-    return Py_BuildValue("(ff)", box.getSize().x, box.getSize().y);
+    return PyVector(box.getSize()).pyObject();
 }
 
 int UIGrid::set_size(PyUIGridObject* self, PyObject* value, void* closure) {
     float w, h;
-    if (!PyArg_ParseTuple(value, "ff", &w, &h)) {
-        PyErr_SetString(PyExc_ValueError, "Size must be a tuple of two floats");
-        return -1;
+    // Accept Vector or tuple
+    PyVectorObject* vec = PyVector::from_arg(value);
+    if (vec) {
+        w = vec->data.x;
+        h = vec->data.y;
+        Py_DECREF(vec);
+    } else {
+        PyErr_Clear();
+        if (!PyArg_ParseTuple(value, "ff", &w, &h)) {
+            PyErr_SetString(PyExc_TypeError, "size must be a Vector or tuple (w, h)");
+            return -1;
+        }
     }
     self->data->box.setSize(sf::Vector2f(w, h));
     
@@ -1173,12 +1183,12 @@ PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds)
     }
 
     // Range validation
-    if (x < 0 || x >= self->data->grid_x) {
-        PyErr_Format(PyExc_IndexError, "x index %d is out of range [0, %d)", x, self->data->grid_x);
+    if (x < 0 || x >= self->data->grid_w) {
+        PyErr_Format(PyExc_IndexError, "x index %d is out of range [0, %d)", x, self->data->grid_w);
         return NULL;
     }
-    if (y < 0 || y >= self->data->grid_y) {
-        PyErr_Format(PyExc_IndexError, "y index %d is out of range [0, %d)", y, self->data->grid_y);
+    if (y < 0 || y >= self->data->grid_h) {
+        PyErr_Format(PyExc_IndexError, "y index %d is out of range [0, %d)", y, self->data->grid_h);
         return NULL;
     }
 
@@ -1777,8 +1787,8 @@ void UIGrid::center_camera() {
     // Center on grid's middle tile
     int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
     int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-    center_x = (grid_x / 2.0f) * cell_width;
-    center_y = (grid_y / 2.0f) * cell_height;
+    center_x = (grid_w / 2.0f) * cell_width;
+    center_y = (grid_h / 2.0f) * cell_height;
     markDirty();  // #144 - View change affects content
 }
 
@@ -2043,12 +2053,12 @@ PyMethodDef UIGrid_all_methods[] = {
 PyGetSetDef UIGrid::getsetters[] = {
 
     // TODO - refactor into get_vector_member with field identifier values `(void*)n`
-    {"grid_size", (getter)UIGrid::get_grid_size, NULL, "Grid dimensions (grid_x, grid_y)", NULL},
-    {"grid_x", (getter)UIGrid::get_grid_x, NULL, "Grid x dimension", NULL},
-    {"grid_y", (getter)UIGrid::get_grid_y, NULL, "Grid y dimension", NULL},
+    {"grid_size", (getter)UIGrid::get_grid_size, NULL, "Grid dimensions (grid_w, grid_h)", NULL},
+    {"grid_w", (getter)UIGrid::get_grid_w, NULL, "Grid width in cells", NULL},
+    {"grid_h", (getter)UIGrid::get_grid_h, NULL, "Grid height in cells", NULL},
     {"position", (getter)UIGrid::get_position, (setter)UIGrid::set_position, "Position of the grid (x, y)", NULL},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position of the grid as Vector", (void*)PyObjectsEnum::UIGRID},
-    {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size, "Size of the grid (width, height)", NULL},
+    {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size, "Size of the grid as Vector (width, height)", NULL},
     {"center", (getter)UIGrid::get_center, (setter)UIGrid::set_center, "Grid coordinate at the center of the Grid's view (pan)", NULL},
 
     {"entities", (getter)UIGrid::get_entities, NULL, "EntityCollection of entities on this grid", NULL},
@@ -2119,9 +2129,9 @@ PyObject* UIGrid::get_entities(PyUIGridObject* self, void* closure)
 PyObject* UIGrid::get_children(PyUIGridObject* self, void* closure)
 {
     // Returns UICollection for UIDrawable children (speech bubbles, effects, overlays)
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollection");
+    // Use the type directly from namespace (#189 - type not exported to module)
+    PyTypeObject* type = &mcrfpydef::PyUICollectionType;
     auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
     if (o) {
         o->data = self->data->children;
         o->owner = self->data;  // #122: Set owner for parent tracking
@@ -2245,7 +2255,7 @@ std::optional<sf::Vector2i> UIGrid::screenToCell(sf::Vector2f screen_pos) const 
     int cell_y = static_cast<int>(std::floor(grid_space_y / (ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT)));
 
     // Check if within valid cell range
-    if (cell_x < 0 || cell_x >= grid_x || cell_y < 0 || cell_y >= grid_y) {
+    if (cell_x < 0 || cell_x >= grid_w || cell_y < 0 || cell_y >= grid_h) {
         return std::nullopt;
     }
 
@@ -2642,7 +2652,7 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
 
     // Initialize gridstate if not already done
     if (entity->data->gridstate.size() == 0 && self->grid) {
-        entity->data->gridstate.resize(self->grid->grid_x * self->grid->grid_y);
+        entity->data->gridstate.resize(self->grid->grid_w * self->grid->grid_h);
         // Initialize all cells as not visible/discovered
         for (auto& state : entity->data->gridstate) {
             state.visible = false;
@@ -2850,7 +2860,7 @@ PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject*
 
     // Initialize gridstate if needed
     if (entity->data->gridstate.size() == 0 && self->grid) {
-        entity->data->gridstate.resize(self->grid->grid_x * self->grid->grid_y);
+        entity->data->gridstate.resize(self->grid->grid_w * self->grid->grid_h);
         for (auto& state : entity->data->gridstate) {
             state.visible = false;
             state.discovered = false;

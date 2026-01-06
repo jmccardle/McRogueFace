@@ -69,7 +69,7 @@ public:
     void resize(float w, float h) override;
     void onPositionChanged() override;
 
-    int grid_x, grid_y;
+    int grid_w, grid_h;
     //int grid_size; // grid sizes are implied by IndexTexture now
     sf::RectangleShape box;
     float center_x, center_y, zoom;
@@ -142,8 +142,8 @@ public:
 
     static int init(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* get_grid_size(PyUIGridObject* self, void* closure);
-    static PyObject* get_grid_x(PyUIGridObject* self, void* closure);
-    static PyObject* get_grid_y(PyUIGridObject* self, void* closure);
+    static PyObject* get_grid_w(PyUIGridObject* self, void* closure);
+    static PyObject* get_grid_h(PyUIGridObject* self, void* closure);
     static PyObject* get_position(PyUIGridObject* self, void* closure);
     static int set_position(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_size(PyUIGridObject* self, void* closure);
@@ -279,7 +279,7 @@ namespace mcrfpydef {
                             "Args:\n"
                             "    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)\n"
                             "    size (tuple, optional): Size as (width, height) tuple. Default: auto-calculated from grid_size\n"
-                            "    grid_size (tuple, optional): Grid dimensions as (grid_x, grid_y) tuple. Default: (2, 2)\n"
+                            "    grid_size (tuple, optional): Grid dimensions as (grid_w, grid_h) tuple. Default: (2, 2)\n"
                             "    texture (Texture, optional): Texture containing tile sprites. Default: default texture\n\n"
                             "Keyword Args:\n"
                             "    fill_color (Color): Background fill color. Default: None\n"
@@ -296,18 +296,18 @@ namespace mcrfpydef {
                             "    y (float): Y position override. Default: 0\n"
                             "    w (float): Width override. Default: auto-calculated\n"
                             "    h (float): Height override. Default: auto-calculated\n"
-                            "    grid_x (int): Grid width override. Default: 2\n"
-                            "    grid_y (int): Grid height override. Default: 2\n\n"
+                            "    grid_w (int): Grid width override. Default: 2\n"
+                            "    grid_h (int): Grid height override. Default: 2\n\n"
                             "Attributes:\n"
                             "    x, y (float): Position in pixels\n"
                             "    w, h (float): Size in pixels\n"
                             "    pos (Vector): Position as a Vector object\n"
-                            "    size (tuple): Size as (width, height) tuple\n"
-                            "    center (tuple): Center point as (x, y) tuple\n"
+                            "    size (Vector): Size as (width, height) Vector\n"
+                            "    center (Vector): Center point as (x, y) Vector\n"
                             "    center_x, center_y (float): Center point coordinates\n"
                             "    zoom (float): Zoom level for rendering\n"
-                            "    grid_size (tuple): Grid dimensions (width, height) in tiles\n"
-                            "    grid_x, grid_y (int): Grid dimensions\n"
+                            "    grid_size (Vector): Grid dimensions (width, height) in tiles\n"
+                            "    grid_w, grid_h (int): Grid dimensions\n"
                             "    texture (Texture): Tile texture atlas\n"
                             "    fill_color (Color): Background color\n"
                             "    entities (EntityCollection): Collection of entities in the grid\n"

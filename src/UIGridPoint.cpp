@@ -207,7 +207,7 @@ PyObject* UIGridPointState::get_point(PyUIGridPointStateObject* self, void* clos
     if (!obj) return NULL;
 
     // Get the GridPoint from the grid
-    int idx = self->y * self->grid->grid_x + self->x;
+    int idx = self->y * self->grid->grid_w + self->x;
     if (idx < 0 || idx >= static_cast<int>(self->grid->points.size())) {
         Py_DECREF(obj);
         PyErr_SetString(PyExc_IndexError, "GridPointState position out of bounds");
