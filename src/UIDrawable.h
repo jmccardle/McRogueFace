@@ -107,13 +107,19 @@ public:
     // Parent-child hierarchy (#122)
     std::weak_ptr<UIDrawable> parent;
 
+    // Scene parent tracking (#183) - name of scene if this is a top-level element
+    std::string parent_scene;
+
     // Set the parent of this drawable (called by collections when adding)
     void setParent(std::shared_ptr<UIDrawable> new_parent);
+
+    // Set the parent scene name (called by UICollection when adding to scene)
+    void setParentScene(const std::string& scene_name);
 
     // Get the parent drawable (returns nullptr if no parent or expired)
     std::shared_ptr<UIDrawable> getParent() const;
 
-    // Remove this drawable from its current parent's children
+    // Remove this drawable from its current parent's children (or scene)
     void removeFromParent();
 
     // Get the global (screen) position by walking up the parent chain (#102)
@@ -205,6 +211,7 @@ typedef struct {
     PyObject_HEAD
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
     std::weak_ptr<UIDrawable> owner;  // #122: Parent drawable (for Frame.children, Grid.children)
+    std::string scene_name;           // #183: Scene name (for Scene.children) - empty if not scene-level
 } PyUICollectionObject;
 
 typedef struct {

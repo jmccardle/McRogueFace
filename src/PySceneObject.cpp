@@ -519,6 +519,20 @@ PyMethodDef PySceneClass::methods[] = {
     {NULL}
 };
 
+// #183: Lookup scene by name (returns new reference or nullptr)
+PyObject* PySceneClass::get_scene_by_name(const std::string& name)
+{
+    if (name.empty()) return nullptr;
+
+    if (python_scenes.count(name) > 0) {
+        PyObject* scene_obj = (PyObject*)python_scenes[name];
+        Py_INCREF(scene_obj);
+        return scene_obj;
+    }
+
+    return nullptr;
+}
+
 // Helper function to trigger lifecycle events
 void McRFPy_API::triggerSceneChange(const std::string& from_scene, const std::string& to_scene)
 {
@@ -526,7 +540,7 @@ void McRFPy_API::triggerSceneChange(const std::string& from_scene, const std::st
     if (!from_scene.empty() && python_scenes.count(from_scene) > 0) {
         PySceneClass::call_on_exit(python_scenes[from_scene]);
     }
-    
+
     // Call on_enter for the new scene
     if (!to_scene.empty() && python_scenes.count(to_scene) > 0) {
         PySceneClass::call_on_enter(python_scenes[to_scene]);

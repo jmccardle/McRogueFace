@@ -656,15 +656,19 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
 
     // Helper lambda to add drawable with parent tracking
     auto addDrawable = [&](std::shared_ptr<UIDrawable> drawable) {
-        // #122: Remove from old parent if it has one
-        if (auto old_parent = drawable->getParent()) {
-            drawable->removeFromParent();
-        }
+        // #183: Remove from old parent (drawable or scene)
+        drawable->removeFromParent();
 
         drawable->z_index = new_z_index;
 
-        // #122: Set new parent (owner of this collection)
-        drawable->setParent(owner_ptr);
+        // #183: Set new parent - either scene or drawable
+        if (!self->scene_name.empty()) {
+            // This is a scene's children collection
+            drawable->setParentScene(self->scene_name);
+        } else {
+            // This is a Frame/Grid's children collection
+            drawable->setParent(owner_ptr);
+        }
 
         self->data->push_back(drawable);
     };

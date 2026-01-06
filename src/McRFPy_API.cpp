@@ -879,9 +879,11 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
     //Py_INCREF(Py_None);
     //return Py_None;
     PyUICollectionObject* o = (PyUICollectionObject*)PyUICollectionType.tp_alloc(&PyUICollectionType, 0);
-        if (o)
-            o->data = ui;
-        return (PyObject*)o;
+    if (o) {
+        o->data = ui;
+        o->scene_name = scene_cstr;  // #183: Track scene ownership
+    }
+    return (PyObject*)o;
 }
 
 // Internal use - called by PySceneObject::activate()

@@ -39,7 +39,10 @@ public:
     static void call_on_keypress(PySceneObject* self, std::string key, std::string action);
     static void call_update(PySceneObject* self, float dt);
     static void call_on_resize(PySceneObject* self, int width, int height);
-    
+
+    // #183: Lookup scene by name (returns new reference or nullptr)
+    static PyObject* get_scene_by_name(const std::string& name);
+
     static PyGetSetDef getsetters[];
     static PyMethodDef methods[];
 };

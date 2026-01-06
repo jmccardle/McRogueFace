@@ -12,6 +12,7 @@
 #include "Animation.h"
 #include "PyAnimation.h"
 #include "PyEasing.h"
+#include "PySceneObject.h"  // #183: For scene parent lookup
 
 UIDrawable::UIDrawable() : position(0.0f, 0.0f) { click_callable = NULL;  }
 
@@ -764,6 +765,12 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
 // #122 - Parent-child hierarchy implementation
 void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
     parent = new_parent;
+    parent_scene.clear();  // #183: Clear scene parent when setting drawable parent
+}
+
+void UIDrawable::setParentScene(const std::string& scene_name) {
+    parent.reset();        // #183: Clear drawable parent when setting scene parent
+    parent_scene = scene_name;
 }
 
 std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
@@ -771,6 +778,22 @@ std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
 }
 
 void UIDrawable::removeFromParent() {
+    // #183: Handle scene parent removal
+    if (!parent_scene.empty()) {
+        auto ui = Resources::game->scene_ui(parent_scene);
+        if (ui) {
+            for (auto it = ui->begin(); it != ui->end(); ++it) {
+                if (it->get() == this) {
+                    ui->erase(it);
+                    break;
+                }
+            }
+        }
+        parent_scene.clear();
+        return;
+    }
+
+    // Handle drawable parent removal
     auto p = parent.lock();
     if (!p) return;
 
@@ -899,6 +922,15 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
             return NULL;
     }
 
+    // #183: Check for scene parent first
+    if (!drawable->parent_scene.empty()) {
+        PyObject* scene = PySceneClass::get_scene_by_name(drawable->parent_scene);
+        if (scene) {
+            return scene;  // Already has new reference from get_scene_by_name
+        }
+        // Scene not found in python_scenes (shouldn't happen, but fall through to None)
+    }
+
     auto parent_ptr = drawable->getParent();
     if (!parent_ptr) {
         Py_RETURN_NONE;
@@ -1008,20 +1040,50 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         return 0;
     }
 
-    // Value must be a Frame or Grid (things with children collections)
-    // Check if it's a Frame
+    // Value must be a Frame, Grid, or Scene (things with children collections)
     PyTypeObject* frame_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
     PyTypeObject* grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+    PyTypeObject* scene_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Scene");
 
     bool is_frame = frame_type && PyObject_IsInstance(value, (PyObject*)frame_type);
     bool is_grid = grid_type && PyObject_IsInstance(value, (PyObject*)grid_type);
+    bool is_scene = scene_type && PyObject_IsInstance(value, (PyObject*)scene_type);
 
     Py_XDECREF(frame_type);
     Py_XDECREF(grid_type);
+    Py_XDECREF(scene_type);
 
-    if (!is_frame && !is_grid) {
-        PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Grid, or None");
+    if (!is_frame && !is_grid && !is_scene) {
+        PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Grid, Scene, or None");
         return -1;
+    }
+
+    // Handle Scene parent specially - add to scene's children
+    if (is_scene) {
+        PySceneObject* scene_obj = (PySceneObject*)value;
+        std::string scene_name = scene_obj->name;
+
+        // Remove from old parent first
+        drawable->removeFromParent();
+
+        // Get the scene's UI elements and add
+        auto ui = Resources::game->scene_ui(scene_name);
+        if (ui) {
+            // Check if already in this scene (prevent duplicates)
+            bool already_present = false;
+            for (const auto& child : *ui) {
+                if (child.get() == drawable.get()) {
+                    already_present = true;
+                    break;
+                }
+            }
+
+            if (!already_present) {
+                ui->push_back(drawable);
+                drawable->setParentScene(scene_name);
+            }
+        }
+        return 0;
     }
 
     // Remove from old parent first
