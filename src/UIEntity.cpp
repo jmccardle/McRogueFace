@@ -122,9 +122,9 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         return NULL;
     }
 
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPointState");
+    // Use type directly since GridPointState is internal-only (not exported to module)
+    auto type = &mcrfpydef::PyUIGridPointStateType;
     auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
     obj->data = &(self->data->gridstate[y * self->data->grid->grid_x + x]);
     obj->grid = self->data->grid;
     obj->entity = self->data;
@@ -320,14 +320,10 @@ sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
 
 PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state) {
     // Create a new GridPointState Python object (detached - no grid/entity context)
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPointState");
-    if (!type) {
-        return NULL;
-    }
-
+    // Use type directly since GridPointState is internal-only (not exported to module)
+    auto type = &mcrfpydef::PyUIGridPointStateType;
     auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
     if (!obj) {
-        Py_DECREF(type);
         return NULL;
     }
 
@@ -342,7 +338,6 @@ PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state) {
     obj->x = -1;
     obj->y = -1;
 
-    Py_DECREF(type);
     return (PyObject*)obj;
 }
 

@@ -201,12 +201,9 @@ PyObject* UIGridPointState::get_point(PyUIGridPointStateObject* self, void* clos
         return NULL;
     }
 
-    // Return the GridPoint at this position
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "GridPoint");
-    if (!type) return NULL;
-
+    // Return the GridPoint at this position (use type directly since it's internal-only)
+    auto type = &mcrfpydef::PyUIGridPointType;
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
     if (!obj) return NULL;
 
     // Get the GridPoint from the grid
