@@ -2,6 +2,7 @@
 #include "UIGrid.h"
 #include "UIEntity.h"    // #114 - for GridPoint.entities
 #include "GridLayers.h"  // #150 - for GridLayerType, ColorLayer, TileLayer
+#include "McRFPy_Doc.h"  // #177 - for MCRF_PROPERTY macro
 #include <cstring>       // #150 - for strcmp
 
 UIGridPoint::UIGridPoint()
@@ -22,19 +23,19 @@ sf::Color PyObject_to_sfColor(PyObject* obj) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to import mcrfpy module");
         return sf::Color();
     }
-    
+
     PyObject* color_type = PyObject_GetAttrString(module, "Color");
     Py_DECREF(module);
-    
+
     if (!color_type) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to get Color type from mcrfpy module");
         return sf::Color();
     }
-    
+
     // Check if it's a mcrfpy.Color object
     int is_color = PyObject_IsInstance(obj, color_type);
     Py_DECREF(color_type);
-    
+
     if (is_color == 1) {
         PyColorObject* color_obj = (PyColorObject*)obj;
         return color_obj->data;
@@ -42,7 +43,7 @@ sf::Color PyObject_to_sfColor(PyObject* obj) {
         // Error occurred in PyObject_IsInstance
         return sf::Color();
     }
-    
+
     // Otherwise try to parse as tuple
     int r, g, b, a = 255; // Default alpha to fully opaque if not specified
     if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
@@ -80,12 +81,12 @@ int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, voi
         PyErr_SetString(PyExc_ValueError, "Expected a boolean value");
         return -1;
     }
-    
+
     // Sync with TCOD map if parent grid exists
     if (self->data->parent_grid && self->data->grid_x >= 0 && self->data->grid_y >= 0) {
         self->data->parent_grid->syncTCODMapCell(self->data->grid_x, self->data->grid_y);
     }
-    
+
     return 0;
 }
 
@@ -133,10 +134,17 @@ PyObject* UIGridPoint::get_entities(PyUIGridPointObject* self, void* closure) {
     return list;
 }
 
+// #177 - Get grid position as tuple
+PyObject* UIGridPoint::get_grid_pos(PyUIGridPointObject* self, void* closure) {
+    return Py_BuildValue("(ii)", self->data->grid_x, self->data->grid_y);
+}
+
 PyGetSetDef UIGridPoint::getsetters[] = {
     {"walkable", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member, "Is the GridPoint walkable", (void*)0},
     {"transparent", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member, "Is the GridPoint transparent", (void*)1},
     {"entities", (getter)UIGridPoint::get_entities, NULL, "List of entities at this grid cell (read-only)", NULL},
+    {"grid_pos", (getter)UIGridPoint::get_grid_pos, NULL,
+     MCRF_PROPERTY(grid_pos, "Grid coordinates as (x, y) tuple (read-only)."), NULL},
     {NULL}  /* Sentinel */
 };
 

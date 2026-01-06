@@ -43,14 +43,6 @@ typedef struct {
 // Common Python method implementations for UIDrawable-derived classes
 // These template functions provide shared functionality for Python bindings
 
-// get_bounds method implementation (#89)
-template<typename T>
-static PyObject* UIDrawable_get_bounds(T* self, PyObject* Py_UNUSED(args))
-{
-    auto bounds = self->data->get_bounds();
-    return Py_BuildValue("(ffff)", bounds.left, bounds.top, bounds.width, bounds.height);
-}
-
 // move method implementation (#98)
 template<typename T>
 static PyObject* UIDrawable_move(T* self, PyObject* args, PyObject* kwds)
@@ -90,14 +82,8 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
 }
 
 // Macro to add common UIDrawable methods to a method array (without animate - for base types)
+// #185: Removed get_bounds method - use .bounds property instead
 #define UIDRAWABLE_METHODS_BASE \
-    {"get_bounds", (PyCFunction)UIDrawable_get_bounds<PyObjectType>, METH_NOARGS, \
-     MCRF_METHOD(Drawable, get_bounds, \
-         MCRF_SIG("()", "tuple"), \
-         MCRF_DESC("Get the bounding rectangle of this drawable element."), \
-         MCRF_RETURNS("tuple: (x, y, width, height) representing the element's bounds") \
-         MCRF_NOTE("The bounds are in screen coordinates and account for current position and size.") \
-     )}, \
     {"move", (PyCFunction)UIDrawable_move<PyObjectType>, METH_VARARGS | METH_KEYWORDS, \
      MCRF_METHOD(Drawable, move, \
          MCRF_SIG("(dx, dy) or (delta)", "None"), \
@@ -216,11 +202,11 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
      ), (void*)type_enum}, \
     {"bounds", (getter)UIDrawable::get_bounds_py, NULL, \
      MCRF_PROPERTY(bounds, \
-         "Bounding rectangle (x, y, width, height) in local coordinates." \
+         "Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height))." \
      ), (void*)type_enum}, \
     {"global_bounds", (getter)UIDrawable::get_global_bounds_py, NULL, \
      MCRF_PROPERTY(global_bounds, \
-         "Bounding rectangle (x, y, width, height) in screen coordinates." \
+         "Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height))." \
      ), (void*)type_enum}, \
     {"on_enter", (getter)UIDrawable::get_on_enter, (setter)UIDrawable::set_on_enter, \
      MCRF_PROPERTY(on_enter, \

@@ -306,7 +306,9 @@ PyObject* PyInit_mcrfpy()
     Py_SET_TYPE(m, &McRFPyModuleType);
 
     using namespace mcrfpydef;
-    PyTypeObject* pytypes[] = {
+
+    // Types that are exported to Python (visible in module namespace)
+    PyTypeObject* exported_types[] = {
         /*SFML exposed types*/
         &PyColorType, /*&PyLinkedColorType,*/ &PyFontType, &PyTextureType, &PyVectorType,
 
@@ -317,15 +319,8 @@ PyObject* PyInit_mcrfpy()
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,
         &PyUILineType, &PyUICircleType, &PyUIArcType,
 
-        /*game map & perspective data*/
-        &PyUIGridPointType, &PyUIGridPointStateType,
-
         /*grid layers (#147)*/
         &PyColorLayerType, &PyTileLayerType,
-
-        /*collections & iterators*/
-        &PyUICollectionType, &PyUICollectionIterType,
-        &PyUIEntityCollectionType, &PyUIEntityCollectionIterType,
 
         /*animation*/
         &PyAnimationType,
@@ -333,7 +328,7 @@ PyObject* PyInit_mcrfpy()
         /*timer*/
         &PyTimerType,
 
-        /*window singleton*/
+        /*window singleton type (#184 - type exported for isinstance checks)*/
         &PyWindowType,
 
         /*scene class*/
@@ -345,6 +340,18 @@ PyObject* PyInit_mcrfpy()
 
         /*keyboard state (#160)*/
         &PyKeyboardType,
+
+        nullptr};
+
+    // Types that are used internally but NOT exported to module namespace (#189)
+    // These still need PyType_Ready() but are not added to module
+    PyTypeObject* internal_types[] = {
+        /*game map & perspective data - returned by Grid.at() but not directly instantiable*/
+        &PyUIGridPointType, &PyUIGridPointStateType,
+
+        /*collections & iterators - returned by .children/.entities but not directly instantiable*/
+        &PyUICollectionType, &PyUICollectionIterType,
+        &PyUIEntityCollectionType, &PyUIEntityCollectionIterType,
 
         nullptr};
     
@@ -367,19 +374,32 @@ PyObject* PyInit_mcrfpy()
     PyUICircleType.tp_weaklistoffset = offsetof(PyUICircleObject, weakreflist);
     PyUIArcType.tp_weaklistoffset = offsetof(PyUIArcObject, weakreflist);
     
+    // Process exported types - PyType_Ready AND add to module
     int i = 0;
-    auto t = pytypes[i];
+    auto t = exported_types[i];
     while (t != nullptr)
     {
-        //std::cout << "Registering type: " << t->tp_name << std::endl;
         if (PyType_Ready(t) < 0) {
             std::cout << "ERROR: PyType_Ready failed for " << t->tp_name << std::endl;
             return NULL;
         }
-        //std::cout << "  tp_alloc after PyType_Ready: " << (void*)t->tp_alloc << std::endl;
         PyModule_AddType(m, t);
         i++;
-        t = pytypes[i];
+        t = exported_types[i];
+    }
+
+    // Process internal types - PyType_Ready only, NOT added to module (#189)
+    i = 0;
+    t = internal_types[i];
+    while (t != nullptr)
+    {
+        if (PyType_Ready(t) < 0) {
+            std::cout << "ERROR: PyType_Ready failed for " << t->tp_name << std::endl;
+            return NULL;
+        }
+        // Note: NOT calling PyModule_AddType - these are internal-only types
+        i++;
+        t = internal_types[i];
     }
 
     // Add default_font and default_texture to module
@@ -393,6 +413,13 @@ PyObject* PyInit_mcrfpy()
     PyObject* keyboard_instance = PyObject_CallObject((PyObject*)&PyKeyboardType, NULL);
     if (keyboard_instance) {
         PyModule_AddObject(m, "keyboard", keyboard_instance);
+    }
+
+    // Add window singleton (#184)
+    // Use tp_alloc directly to bypass tp_new which blocks user instantiation
+    PyObject* window_instance = PyWindowType.tp_alloc(&PyWindowType, 0);
+    if (window_instance) {
+        PyModule_AddObject(m, "window", window_instance);
     }
 
     // Add version string (#164)

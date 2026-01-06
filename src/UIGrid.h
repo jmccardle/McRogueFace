@@ -330,7 +330,8 @@ namespace mcrfpydef {
         }
     };
 
-    static PyTypeObject PyUIEntityCollectionIterType = {
+    // #189 - Use inline instead of static to ensure single instance across translation units
+    inline PyTypeObject PyUIEntityCollectionIterType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.UIEntityCollectionIter",
         .tp_basicsize = sizeof(PyUIEntityCollectionIterObject),
@@ -356,7 +357,8 @@ namespace mcrfpydef {
         }
     };
 
-    static PyTypeObject PyUIEntityCollectionType = {
+    // #189 - Use inline instead of static to ensure single instance across translation units
+    inline PyTypeObject PyUIEntityCollectionType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.EntityCollection",
         .tp_basicsize = sizeof(PyUIEntityCollectionObject),

@@ -1285,18 +1285,13 @@ int UICollection::init(PyUICollectionObject* self, PyObject* args, PyObject* kwd
 
 PyObject* UICollection::iter(PyUICollectionObject* self)
 {
-    // Get the iterator type from the module to ensure we have the registered version
-    PyTypeObject* iterType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UICollectionIter");
-    if (!iterType) {
-        PyErr_SetString(PyExc_RuntimeError, "Could not find UICollectionIter type in module");
-        return NULL;
-    }
-    
+    // Use the iterator type directly from namespace (#189 - type not exported to module)
+    PyTypeObject* iterType = &PyUICollectionIterType;
+
     // Allocate new iterator instance
     PyUICollectionIterObject* iterObj = (PyUICollectionIterObject*)iterType->tp_alloc(iterType, 0);
-    
+
     if (iterObj == NULL) {
-        Py_DECREF(iterType);
         return NULL;  // Failed to allocate memory for the iterator object
     }
 
@@ -1304,6 +1299,5 @@ PyObject* UICollection::iter(PyUICollectionObject* self)
     iterObj->index = 0;
     iterObj->start_size = self->data->size();
 
-    Py_DECREF(iterType);
     return (PyObject*)iterObj;
 }

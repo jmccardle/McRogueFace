@@ -261,12 +261,31 @@ int UICaption::set_text(PyUICaptionObject* self, PyObject* value, void* closure)
     return 0;
 }
 
+PyObject* UICaption::get_size(PyUICaptionObject* self, void* closure)
+{
+    auto bounds = self->data->text.getGlobalBounds();
+    return PyVector(sf::Vector2f(bounds.width, bounds.height)).pyObject();
+}
+
+PyObject* UICaption::get_w(PyUICaptionObject* self, void* closure)
+{
+    auto bounds = self->data->text.getGlobalBounds();
+    return PyFloat_FromDouble(bounds.width);
+}
+
+PyObject* UICaption::get_h(PyUICaptionObject* self, void* closure)
+{
+    auto bounds = self->data->text.getGlobalBounds();
+    return PyFloat_FromDouble(bounds.height);
+}
+
 PyGetSetDef UICaption::getsetters[] = {
     {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "X coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 0)},
     {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "Y coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 1)},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "(x, y) vector", (void*)PyObjectsEnum::UICAPTION},
-    //{"w", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "width of the rectangle",   (void*)2},
-    //{"h", (getter)PyUIFrame_get_float_member, (setter)PyUIFrame_set_float_member, "height of the rectangle",   (void*)3},
+    {"size", (getter)UICaption::get_size, NULL, "Text dimensions as Vector (read-only)", NULL},
+    {"w", (getter)UICaption::get_w, NULL, "Text width in pixels (read-only)", NULL},
+    {"h", (getter)UICaption::get_h, NULL, "Text height in pixels (read-only)", NULL},
     {"outline", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Thickness of the border",   (void*)4},
     {"fill_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member,
      "Fill color of the text. Returns a copy; modifying components requires reassignment. "

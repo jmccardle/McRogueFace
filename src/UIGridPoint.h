@@ -53,6 +53,9 @@ public:
     // #114 - entities property: list of entities at this cell
     static PyObject* get_entities(PyUIGridPointObject* self, void* closure);
 
+    // #177 - grid_pos property: grid coordinates as tuple
+    static PyObject* get_grid_pos(PyUIGridPointObject* self, void* closure);
+
     // #150 - Dynamic property access for named layers
     static PyObject* getattro(PyUIGridPointObject* self, PyObject* name);
     static int setattro(PyUIGridPointObject* self, PyObject* name, PyObject* value);
@@ -74,7 +77,8 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PyUIGridPointType = {
+    // #189 - Use inline instead of static to ensure single instance across translation units
+    inline PyTypeObject PyUIGridPointType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.GridPoint",
         .tp_basicsize = sizeof(PyUIGridPointObject),
@@ -90,7 +94,8 @@ namespace mcrfpydef {
         .tp_new = NULL, // Prevent instantiation from Python - Issue #12
     };
 
-    static PyTypeObject PyUIGridPointStateType = {
+    // #189 - Use inline instead of static to ensure single instance across translation units
+    inline PyTypeObject PyUIGridPointStateType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.GridPointState",
         .tp_basicsize = sizeof(PyUIGridPointStateObject),

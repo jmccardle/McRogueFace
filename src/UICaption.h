@@ -38,6 +38,9 @@ public:
     static int set_color_member(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_text(PyUICaptionObject* self, void* closure);
     static int set_text(PyUICaptionObject* self, PyObject* value, void* closure);
+    static PyObject* get_size(PyUICaptionObject* self, void* closure);
+    static PyObject* get_w(PyUICaptionObject* self, void* closure);
+    static PyObject* get_h(PyUICaptionObject* self, void* closure);
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUICaptionObject* self);
     static int init(PyUICaptionObject* self, PyObject* args, PyObject* kwds);

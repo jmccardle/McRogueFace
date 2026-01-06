@@ -6,6 +6,7 @@
 #include "Profiler.h"
 #include "PyFOV.h"
 #include "PyPositionHelper.h"  // For standardized position argument parsing
+#include "PyVector.h"  // #179, #181 - For Vector return types
 #include <algorithm>
 #include <cmath>    // #142 - for std::floor, std::isnan
 #include <cstring>  // #150 - for strcmp
@@ -990,8 +991,10 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     return 0; // Success
 }
 
+// #179 - Return grid_size as Vector
 PyObject* UIGrid::get_grid_size(PyUIGridObject* self, void* closure) {
-    return Py_BuildValue("(ii)", self->data->grid_x, self->data->grid_y);
+    return PyVector(sf::Vector2f(static_cast<float>(self->data->grid_x),
+                                  static_cast<float>(self->data->grid_y))).pyObject();
 }
 
 PyObject* UIGrid::get_grid_x(PyUIGridObject* self, void* closure) {
@@ -1045,8 +1048,9 @@ int UIGrid::set_size(PyUIGridObject* self, PyObject* value, void* closure) {
     return 0;
 }
 
+// #181 - Return center as Vector
 PyObject* UIGrid::get_center(PyUIGridObject* self, void* closure) {
-    return Py_BuildValue("(ff)", self->data->center_x, self->data->center_y);
+    return PyVector(sf::Vector2f(self->data->center_x, self->data->center_y)).pyObject();
 }
 
 int UIGrid::set_center(PyUIGridObject* self, PyObject* value, void* closure) {
@@ -3273,20 +3277,11 @@ int UIEntityCollection::init(PyUIEntityCollectionObject* self, PyObject* args, P
 
 PyObject* UIEntityCollection::iter(PyUIEntityCollectionObject* self)
 {
-    // Cache the iterator type to avoid repeated dictionary lookups (#159)
-    static PyTypeObject* cached_iter_type = nullptr;
-    if (!cached_iter_type) {
-        cached_iter_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "UIEntityCollectionIter");
-        if (!cached_iter_type) {
-            PyErr_SetString(PyExc_RuntimeError, "Could not find UIEntityCollectionIter type in module");
-            return NULL;
-        }
-        // Keep a reference to prevent it from being garbage collected
-        Py_INCREF(cached_iter_type);
-    }
+    // Use the iterator type directly from namespace (#189 - type not exported to module)
+    PyTypeObject* iterType = &mcrfpydef::PyUIEntityCollectionIterType;
 
     // Allocate new iterator instance
-    PyUIEntityCollectionIterObject* iterObj = (PyUIEntityCollectionIterObject*)cached_iter_type->tp_alloc(cached_iter_type, 0);
+    PyUIEntityCollectionIterObject* iterObj = (PyUIEntityCollectionIterObject*)iterType->tp_alloc(iterType, 0);
 
     if (iterObj == NULL) {
         return NULL;  // Failed to allocate memory for the iterator object

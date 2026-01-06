@@ -123,13 +123,6 @@ static PyGetSetDef PyDrawable_getsetters[] = {
     {NULL}  // Sentinel
 };
 
-// get_bounds method implementation (#89)
-static PyObject* PyDrawable_get_bounds(PyDrawableObject* self, PyObject* Py_UNUSED(args))
-{
-    auto bounds = self->data->get_bounds();
-    return Py_BuildValue("(ffff)", bounds.left, bounds.top, bounds.width, bounds.height);
-}
-
 // move method implementation (#98)
 static PyObject* PyDrawable_move(PyDrawableObject* self, PyObject* args, PyObject* kwds)
 {
@@ -156,13 +149,6 @@ static PyObject* PyDrawable_resize(PyDrawableObject* self, PyObject* args, PyObj
 
 // Method definitions
 static PyMethodDef PyDrawable_methods[] = {
-    {"get_bounds", (PyCFunction)PyDrawable_get_bounds, METH_NOARGS,
-     MCRF_METHOD(Drawable, get_bounds,
-         MCRF_SIG("()", "tuple"),
-         MCRF_DESC("Get the bounding rectangle of this drawable element."),
-         MCRF_RETURNS("tuple: (x, y, width, height) representing the element's bounds")
-         MCRF_NOTE("The bounds are in screen coordinates and account for current position and size.")
-     )},
     {"move", (PyCFunction)PyDrawable_move, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Drawable, move,
          MCRF_SIG("(dx, dy) or (delta)", "None"),

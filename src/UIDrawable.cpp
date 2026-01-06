@@ -1089,7 +1089,7 @@ PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
     return result;
 }
 
-// #138 - Python API for bounds property
+// #138, #188 - Python API for bounds property - returns (pos, size) as pair of Vectors
 PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
     UIDrawable* drawable = nullptr;
@@ -1122,10 +1122,35 @@ PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
     }
 
     sf::FloatRect bounds = drawable->get_bounds();
-    return Py_BuildValue("(ffff)", bounds.left, bounds.top, bounds.width, bounds.height);
+
+    // Get Vector type from mcrfpy module
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) return NULL;
+
+    // Create pos vector
+    PyObject* pos_args = Py_BuildValue("(ff)", bounds.left, bounds.top);
+    PyObject* pos = PyObject_CallObject(vector_type, pos_args);
+    Py_DECREF(pos_args);
+    if (!pos) {
+        Py_DECREF(vector_type);
+        return NULL;
+    }
+
+    // Create size vector
+    PyObject* size_args = Py_BuildValue("(ff)", bounds.width, bounds.height);
+    PyObject* size = PyObject_CallObject(vector_type, size_args);
+    Py_DECREF(size_args);
+    Py_DECREF(vector_type);
+    if (!size) {
+        Py_DECREF(pos);
+        return NULL;
+    }
+
+    // Return tuple of two vectors (N steals reference)
+    return Py_BuildValue("(NN)", pos, size);
 }
 
-// #138 - Python API for global_bounds property
+// #138, #188 - Python API for global_bounds property - returns (pos, size) as pair of Vectors
 PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
     UIDrawable* drawable = nullptr;
@@ -1158,7 +1183,32 @@ PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
     }
 
     sf::FloatRect bounds = drawable->get_global_bounds();
-    return Py_BuildValue("(ffff)", bounds.left, bounds.top, bounds.width, bounds.height);
+
+    // Get Vector type from mcrfpy module
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) return NULL;
+
+    // Create pos vector
+    PyObject* pos_args = Py_BuildValue("(ff)", bounds.left, bounds.top);
+    PyObject* pos = PyObject_CallObject(vector_type, pos_args);
+    Py_DECREF(pos_args);
+    if (!pos) {
+        Py_DECREF(vector_type);
+        return NULL;
+    }
+
+    // Create size vector
+    PyObject* size_args = Py_BuildValue("(ff)", bounds.width, bounds.height);
+    PyObject* size = PyObject_CallObject(vector_type, size_args);
+    Py_DECREF(size_args);
+    Py_DECREF(vector_type);
+    if (!size) {
+        Py_DECREF(pos);
+        return NULL;
+    }
+
+    // Return tuple of two vectors (N steals reference)
+    return Py_BuildValue("(NN)", pos, size);
 }
 
 // #140 - Python API for on_enter property
