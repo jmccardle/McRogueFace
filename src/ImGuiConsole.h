@@ -30,13 +30,21 @@ public:
 private:
     void executeCommand(const std::string& command);
     void addOutput(const std::string& text, bool isError = false);
+    void renderCodeEditor();  // Separate multi-line code editor window
 
     // State
     bool visible = false;
     static bool enabled;  // Global enable/disable (for shipping games)
 
-    // Input buffer
+    // UI state
+    bool editorVisible = false;   // Multi-line editor window
+    bool consoleLocked = false;   // Prevent console dragging
+    bool editorLocked = false;    // Prevent editor dragging
+    float fontScale = 1.0f;       // Text size multiplier (0.5 - 2.0)
+
+    // Input buffers
     char inputBuffer[1024] = {0};
+    char codeBuffer[16384] = {0};  // 16KB for multi-line code
 
     // Output history
     struct OutputLine {

@@ -3,6 +3,8 @@
 #include "McRFPy_API.h"
 #include <Python.h>
 #include <sstream>
+#include <algorithm>
+#include <cstring>
 
 // Static member initialization
 bool ImGuiConsole::enabled = true;
@@ -141,23 +143,92 @@ _stderr_val = _console_stderr.getvalue()
 void ImGuiConsole::render() {
     if (!visible || !enabled) return;
 
+    // Render the code editor window if visible
+    if (editorVisible) {
+        renderCodeEditor();
+    }
+
     // Set up console window
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, io.DisplaySize.y * 0.4f), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar;
+    if (consoleLocked) flags |= ImGuiWindowFlags_NoMove;
 
     if (!ImGui::Begin("Console", &visible, flags)) {
         ImGui::End();
         return;
     }
 
-    // Output area (scrollable, no horizontal scrollbar - use word wrap)
+    // Apply font scale
+    ImGui::SetWindowFontScale(fontScale);
+
+    // Menu bar with toolbar buttons
+    if (ImGui::BeginMenuBar()) {
+        // Font size controls
+        if (ImGui::SmallButton("-")) {
+            fontScale = std::max(0.5f, fontScale - 0.1f);
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Decrease text size");
+
+        ImGui::Text("%.0f%%", fontScale * 100);
+
+        if (ImGui::SmallButton("+")) {
+            fontScale = std::min(2.0f, fontScale + 0.1f);
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Increase text size");
+
+        ImGui::Separator();
+
+        // Clear console output
+        if (ImGui::SmallButton("Clr")) {
+            outputHistory.clear();
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Clear console output");
+
+        // Send console output to code editor
+        if (ImGui::SmallButton("Snd")) {
+            // Build text from output history and copy to code editor
+            std::string allOutput;
+            for (const auto& line : outputHistory) {
+                allOutput += line.text;
+                allOutput += "\n";
+            }
+            // Copy to code editor buffer (truncate if too long)
+            size_t copyLen = std::min(allOutput.size(), sizeof(codeBuffer) - 1);
+            memcpy(codeBuffer, allOutput.c_str(), copyLen);
+            codeBuffer[copyLen] = '\0';
+            editorVisible = true;  // Show editor when sending
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Send console output to code editor");
+
+        ImGui::Separator();
+
+        // Multi-line editor toggle
+        if (ImGui::SmallButton("T")) {
+            editorVisible = !editorVisible;
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Toggle multi-line code editor");
+
+        ImGui::Separator();
+
+        // Lock/unlock toggle
+        if (ImGui::SmallButton(consoleLocked ? "U" : "L")) {
+            consoleLocked = !consoleLocked;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip(consoleLocked ? "Unlock window movement" : "Lock window position");
+        }
+
+        ImGui::EndMenuBar();
+    }
+
+    // Output area (scrollable)
     float footerHeight = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
     ImGui::BeginChild("ScrollingRegion", ImVec2(0, -footerHeight), false, ImGuiWindowFlags_None);
 
-    // Render output lines with word wrap
+    // Render output lines with color coding
     for (const auto& line : outputHistory) {
         if (line.isInput) {
             // User input - yellow/gold color
@@ -241,6 +312,65 @@ void ImGuiConsole::render() {
     if (reclaimFocus || (visible && !ImGui::IsAnyItemActive())) {
         ImGui::SetKeyboardFocusHere(-1);
     }
+
+    ImGui::End();
+}
+
+void ImGuiConsole::renderCodeEditor() {
+    ImGuiIO& io = ImGui::GetIO();
+
+    // Position editor below the console by default
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.6f, io.DisplaySize.y * 0.4f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.2f, io.DisplaySize.y * 0.45f), ImGuiCond_FirstUseEver);
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar;
+    if (editorLocked) flags |= ImGuiWindowFlags_NoMove;
+
+    if (!ImGui::Begin("Code Editor", &editorVisible, flags)) {
+        ImGui::End();
+        return;
+    }
+
+    // Apply same font scale as console
+    ImGui::SetWindowFontScale(fontScale);
+
+    // Menu bar
+    if (ImGui::BeginMenuBar()) {
+        // Run button
+        if (ImGui::SmallButton("Run") || (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) &&
+                                           io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Enter))) {
+            std::string code(codeBuffer);
+            if (!code.empty()) {
+                executeCommand(code);
+            }
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Execute code (Ctrl+Enter)");
+
+        // Clear button
+        if (ImGui::SmallButton("Clear")) {
+            codeBuffer[0] = '\0';
+        }
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Clear editor");
+
+        ImGui::Separator();
+
+        // Lock/unlock toggle
+        if (ImGui::SmallButton(editorLocked ? "U" : "L")) {
+            editorLocked = !editorLocked;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip(editorLocked ? "Unlock window movement" : "Lock window position");
+        }
+
+        ImGui::EndMenuBar();
+    }
+
+    // Multi-line text input - fills available space
+    ImVec2 contentSize = ImGui::GetContentRegionAvail();
+    ImGuiInputTextFlags textFlags = ImGuiInputTextFlags_AllowTabInput;
+
+    ImGui::InputTextMultiline("##CodeEditor", codeBuffer, sizeof(codeBuffer),
+                               contentSize, textFlags);
 
     ImGui::End();
 }
