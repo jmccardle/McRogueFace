@@ -204,6 +204,41 @@ class Keyboard:
     system: bool
     """True if either System key (Win/Cmd) is currently pressed (read-only)."""
 
+class Mouse:
+    """Mouse state singleton for reading button/position state and controlling cursor.
+
+    Access via mcrfpy.mouse (singleton instance).
+    Queries real-time mouse state from SFML. In headless mode, returns
+    simulated position from mcrfpy.automation calls.
+    """
+
+    # Position (read-only)
+    x: int
+    """Current mouse X position in window coordinates (read-only)."""
+
+    y: int
+    """Current mouse Y position in window coordinates (read-only)."""
+
+    pos: Vector
+    """Current mouse position as Vector (read-only)."""
+
+    # Button state (read-only)
+    left: bool
+    """True if left mouse button is currently pressed (read-only)."""
+
+    right: bool
+    """True if right mouse button is currently pressed (read-only)."""
+
+    middle: bool
+    """True if middle mouse button is currently pressed (read-only)."""
+
+    # Cursor control (read-write)
+    visible: bool
+    """Whether the mouse cursor is visible (default: True)."""
+
+    grabbed: bool
+    """Whether the mouse cursor is confined to the window (default: False)."""
+
 class Drawable:
     """Base class for all drawable UI elements."""
 
@@ -671,6 +706,12 @@ __version__: str
 
 keyboard: Keyboard
 """Keyboard state singleton for checking modifier keys."""
+
+mouse: Mouse
+"""Mouse state singleton for reading button/position state and controlling cursor."""
+
+window: Window
+"""Window singleton for controlling window properties."""
 
 # Module functions
 

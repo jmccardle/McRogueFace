@@ -14,6 +14,7 @@
 #include "PySound.h"
 #include "PyMusic.h"
 #include "PyKeyboard.h"
+#include "PyMouse.h"
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
@@ -341,6 +342,9 @@ PyObject* PyInit_mcrfpy()
         /*keyboard state (#160)*/
         &PyKeyboardType,
 
+        /*mouse state (#186)*/
+        &PyMouseType,
+
         nullptr};
 
     // Types that are used internally but NOT exported to module namespace (#189)
@@ -413,6 +417,12 @@ PyObject* PyInit_mcrfpy()
     PyObject* keyboard_instance = PyObject_CallObject((PyObject*)&PyKeyboardType, NULL);
     if (keyboard_instance) {
         PyModule_AddObject(m, "keyboard", keyboard_instance);
+    }
+
+    // Add mouse singleton (#186)
+    PyObject* mouse_instance = PyObject_CallObject((PyObject*)&PyMouseType, NULL);
+    if (mouse_instance) {
+        PyModule_AddObject(m, "mouse", mouse_instance);
     }
 
     // Add window singleton (#184)
