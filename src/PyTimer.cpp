@@ -80,8 +80,8 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
         current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
     }
 
-    // Create the timer with start parameter
-    self->data = std::make_shared<Timer>(callback, interval, current_time, (bool)once, (bool)start);
+    // Create the timer with start parameter and name (#180)
+    self->data = std::make_shared<Timer>(callback, interval, current_time, (bool)once, (bool)start, self->name);
 
     // Register in Python object cache
     if (self->data->serial_number == 0) {
@@ -112,18 +112,14 @@ void PyTimer::dealloc(PyTimerObject* self) {
         PyObject_ClearWeakRefs((PyObject*)self);
     }
 
-    // Remove from game engine if still registered
-    if (Resources::game && !self->name.empty()) {
-        auto it = Resources::game->timers.find(self->name);
-        if (it != Resources::game->timers.end() && it->second == self->data) {
-            Resources::game->timers.erase(it);
-        }
-    }
+    // #180: DON'T remove from game->timers - timer keeps running even without Python wrapper.
+    // The engine's shared_ptr keeps the Timer alive. When timer.stop() is called or
+    // a one-shot timer fires, testTimers() removes it from the map.
 
     // Explicitly destroy std::string
     self->name.~basic_string();
 
-    // Clear shared_ptr - this is the only place that truly destroys the Timer
+    // Clear our shared_ptr - if engine still has one, Timer lives on
     self->data.reset();
 
     Py_TYPE(self)->tp_free((PyObject*)self);

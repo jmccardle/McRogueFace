@@ -4,9 +4,9 @@
 #include "McRFPy_API.h"
 #include "GameEngine.h"
 
-Timer::Timer(PyObject* _target, int _interval, int now, bool _once, bool _start)
+Timer::Timer(PyObject* _target, int _interval, int now, bool _once, bool _start, const std::string& _name)
 : callback(std::make_shared<PyCallable>(_target)), interval(_interval), last_ran(now),
-  paused(false), pause_start_time(0), total_paused_time(0), once(_once), stopped(!_start)
+  paused(false), pause_start_time(0), total_paused_time(0), once(_once), stopped(!_start), name(_name)
 {}
 
 Timer::Timer()

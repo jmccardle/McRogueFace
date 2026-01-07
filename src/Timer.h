@@ -2,6 +2,7 @@
 #include "Common.h"
 #include "Python.h"
 #include <memory>
+#include <string>
 
 class PyCallable;
 class GameEngine; // forward declare
@@ -12,7 +13,7 @@ private:
     std::shared_ptr<PyCallable> callback;
     int interval;
     int last_ran;
-    
+
     // Pause/resume support
     bool paused;
     int pause_start_time;
@@ -23,12 +24,13 @@ private:
 
     // Stopped state: timer is not in engine map, but callback is preserved
     bool stopped;
-    
+
 public:
     uint64_t serial_number = 0;  // For Python object cache
+    std::string name;  // Store name for creating Python wrappers (#180)
 
     Timer(); // for map to build
-    Timer(PyObject* target, int interval, int now, bool once = false, bool start = true);
+    Timer(PyObject* target, int interval, int now, bool once = false, bool start = true, const std::string& name = "");
     ~Timer();
 
     // Core timer functionality
