@@ -182,7 +182,7 @@ void UISprite::onPositionChanged()
 
 PyObject* UISprite::get_float_member(PyUISpriteObject* self, void* closure)
 {
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0)
         return PyFloat_FromDouble(self->data->getPosition().x);
     else if (member_ptr == 1)
@@ -203,7 +203,7 @@ PyObject* UISprite::get_float_member(PyUISpriteObject* self, void* closure)
 int UISprite::set_float_member(PyUISpriteObject* self, PyObject* value, void* closure)
 {
     float val;
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (PyFloat_Check(value))
     {
         val = PyFloat_AsDouble(value);
@@ -232,7 +232,7 @@ int UISprite::set_float_member(PyUISpriteObject* self, PyObject* value, void* cl
 
 PyObject* UISprite::get_int_member(PyUISpriteObject* self, void* closure)
 {
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (true) {}
     else
     {
@@ -246,7 +246,7 @@ PyObject* UISprite::get_int_member(PyUISpriteObject* self, void* closure)
 int UISprite::set_int_member(PyUISpriteObject* self, PyObject* value, void* closure)
 {
     int val;
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (PyLong_Check(value))
     {
         val = PyLong_AsLong(value);

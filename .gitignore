@@ -16,6 +16,7 @@ CMakeFiles/
 Makefile
 *.zip
 __lib/
+__lib_windows/
 _oldscripts/
 assets/
 cellular_automata_fire/

@@ -1076,7 +1076,7 @@ int UIGrid::set_center(PyUIGridObject* self, PyObject* value, void* closure) {
 
 PyObject* UIGrid::get_float_member(PyUIGridObject* self, void* closure)
 {
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0) // x
         return PyFloat_FromDouble(self->data->box.getPosition().x);
     else if (member_ptr == 1) // y
@@ -1101,7 +1101,7 @@ PyObject* UIGrid::get_float_member(PyUIGridObject* self, void* closure)
 int UIGrid::set_float_member(PyUIGridObject* self, PyObject* value, void* closure)
 {
     float val;
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (PyFloat_Check(value))
     {
         val = PyFloat_AsDouble(value);

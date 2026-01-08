@@ -8,14 +8,33 @@ project(McRogueFace)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# Detect cross-compilation for Windows (MinGW)
+if(CMAKE_CROSSCOMPILING AND WIN32)
+    set(MCRF_CROSS_WINDOWS TRUE)
+    message(STATUS "Cross-compiling for Windows using MinGW")
+endif()
+
 # Add include directories
-#include_directories(${CMAKE_SOURCE_DIR}/deps_linux)
 include_directories(${CMAKE_SOURCE_DIR}/deps)
-#include_directories(${CMAKE_SOURCE_DIR}/deps_linux/Python-3.11.1)
 include_directories(${CMAKE_SOURCE_DIR}/deps/libtcod)
 
-include_directories(${CMAKE_SOURCE_DIR}/deps/cpython)
-include_directories(${CMAKE_SOURCE_DIR}/deps/Python)
+# Python includes: use different paths for Windows vs Linux
+if(MCRF_CROSS_WINDOWS)
+    # Windows cross-compilation: use cpython headers with PC/pyconfig.h
+    # Problem: Python.h uses #include "pyconfig.h" which finds Include/pyconfig.h (Linux) first
+    # Solution: Use -include to force Windows pyconfig.h to be included first
+    # This defines MS_WINDOWS before Python.h is processed, ensuring correct struct layouts
+    add_compile_options(-include ${CMAKE_SOURCE_DIR}/deps/cpython/PC/pyconfig.h)
+    include_directories(${CMAKE_SOURCE_DIR}/deps/cpython/Include)
+    include_directories(${CMAKE_SOURCE_DIR}/deps/cpython/PC)  # For other Windows-specific headers
+    # Also include SFML and libtcod Windows headers
+    include_directories(${CMAKE_SOURCE_DIR}/__lib_windows/sfml/include)
+    include_directories(${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/include)
+else()
+    # Native builds (Linux/Windows): use existing Python setup
+    include_directories(${CMAKE_SOURCE_DIR}/deps/cpython)
+    include_directories(${CMAKE_SOURCE_DIR}/deps/Python)
+endif()
 
 # ImGui and ImGui-SFML include directories
 include_directories(${CMAKE_SOURCE_DIR}/modules/imgui)
@@ -37,35 +56,71 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 list(APPEND SOURCES ${IMGUI_SOURCES})
 
 # Find OpenGL (required by ImGui-SFML)
-find_package(OpenGL REQUIRED)
-
-# Create a list of libraries to link against
-set(LINK_LIBS
-    sfml-graphics
-    sfml-window
-    sfml-system
-    sfml-audio
-    tcod
-    OpenGL::GL)
-
-# On Windows, add any additional libs and include directories
-if(WIN32)
-    # Windows-specific Python library name (no dots)
-    list(APPEND LINK_LIBS python314)
-    # Add the necessary Windows-specific libraries and include directories
-    # include_directories(path_to_additional_includes)
-    # link_directories(path_to_additional_libs)
-    # list(APPEND LINK_LIBS additional_windows_libs)
-    include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
+if(MCRF_CROSS_WINDOWS)
+    # For cross-compilation, OpenGL is provided by MinGW
+    set(OPENGL_LIBRARIES opengl32)
 else()
-    # Unix/Linux specific libraries
-    list(APPEND LINK_LIBS python3.14 m dl util pthread)
-    include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
+    find_package(OpenGL REQUIRED)
+    set(OPENGL_LIBRARIES OpenGL::GL)
 endif()
 
-# Add the directory where the linker should look for the libraries
-#link_directories(${CMAKE_SOURCE_DIR}/deps_linux)
-link_directories(${CMAKE_SOURCE_DIR}/__lib)
+# Create a list of libraries to link against
+if(MCRF_CROSS_WINDOWS)
+    # MinGW cross-compilation: use full library names
+    set(LINK_LIBS
+        sfml-graphics
+        sfml-window
+        sfml-system
+        sfml-audio
+        libtcod
+        python314
+        ${OPENGL_LIBRARIES})
+
+    # Add Windows system libraries needed by SFML and MinGW
+    list(APPEND LINK_LIBS
+        winmm      # Windows multimedia (for audio)
+        gdi32      # Graphics Device Interface
+        ws2_32     # Winsock (networking, used by some deps)
+        ole32      # OLE support
+        oleaut32   # OLE automation
+        uuid       # UUID library
+        comdlg32   # Common dialogs
+        imm32      # Input Method Manager
+        version    # Version info
+    )
+
+    include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
+
+    # Link directories for cross-compiled Windows libs
+    link_directories(${CMAKE_SOURCE_DIR}/__lib_windows/sfml/lib)
+    link_directories(${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/lib)
+    link_directories(${CMAKE_SOURCE_DIR}/__lib_windows)
+elseif(WIN32)
+    # Native Windows build (MSVC)
+    set(LINK_LIBS
+        sfml-graphics
+        sfml-window
+        sfml-system
+        sfml-audio
+        tcod
+        python314
+        ${OPENGL_LIBRARIES})
+    include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
+    link_directories(${CMAKE_SOURCE_DIR}/__lib)
+else()
+    # Unix/Linux build
+    set(LINK_LIBS
+        sfml-graphics
+        sfml-window
+        sfml-system
+        sfml-audio
+        tcod
+        python3.14
+        m dl util pthread
+        ${OPENGL_LIBRARIES})
+    include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
+    link_directories(${CMAKE_SOURCE_DIR}/__lib)
+endif()
 
 # Define the executable target before linking libraries
 add_executable(mcrogueface ${SOURCES})
@@ -73,11 +128,24 @@ add_executable(mcrogueface ${SOURCES})
 # Define NO_SDL for libtcod-headless headers (excludes SDL-dependent code)
 target_compile_definitions(mcrogueface PRIVATE NO_SDL)
 
+# On Windows, define Py_ENABLE_SHARED for proper Python DLL imports
+# Py_PYCONFIG_H prevents Include/pyconfig.h (Linux config) from being included
+# (PC/pyconfig.h already defines HAVE_DECLSPEC_DLL and MS_WINDOWS)
+if(WIN32 OR MCRF_CROSS_WINDOWS)
+    target_compile_definitions(mcrogueface PRIVATE Py_ENABLE_SHARED Py_PYCONFIG_H)
+endif()
+
 # On Windows, set subsystem to WINDOWS to hide console
-if(WIN32)
+if(WIN32 AND NOT MCRF_CROSS_WINDOWS)
+    # MSVC-specific flags
     set_target_properties(mcrogueface PROPERTIES
         WIN32_EXECUTABLE TRUE
         LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+elseif(MCRF_CROSS_WINDOWS)
+    # MinGW cross-compilation: use -mwindows to hide console
+    set_target_properties(mcrogueface PROPERTIES
+        WIN32_EXECUTABLE TRUE
+        LINK_FLAGS "-mwindows")
 endif()
 
 # Now the linker will find the libraries in the specified directory
@@ -99,20 +167,36 @@ add_custom_command(TARGET mcrogueface POST_BUILD
     ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
 
 # On Windows, copy DLLs to executable directory
-if(WIN32)
-    # Copy all DLL files from lib to the executable directory
+if(MCRF_CROSS_WINDOWS)
+    # Cross-compilation: copy DLLs from __lib_windows
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/__lib_windows/sfml/bin $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/bin $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/__lib_windows/python314.dll $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/__lib_windows/python3.dll $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/__lib_windows/vcruntime140.dll $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/__lib_windows/vcruntime140_1.dll $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E copy
+        /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E echo "Copied Windows DLLs to executable directory")
+
+    # Copy Python standard library zip
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/__lib_windows/python314.zip $<TARGET_FILE_DIR:mcrogueface>
+        COMMAND ${CMAKE_COMMAND} -E echo "Copied Python stdlib")
+elseif(WIN32)
+    # Native Windows build: copy DLLs from __lib
     add_custom_command(TARGET mcrogueface POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>
         COMMAND ${CMAKE_COMMAND} -E echo "Copied DLLs to executable directory")
-        
-    # Alternative: Copy specific DLLs if you want more control
-    # file(GLOB DLLS "${CMAKE_SOURCE_DIR}/__lib/*.dll")
-    # foreach(DLL ${DLLS})
-    #     add_custom_command(TARGET mcrogueface POST_BUILD
-    #         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    #         ${DLL} $<TARGET_FILE_DIR:mcrogueface>)
-    # endforeach()
 endif()
 
 # rpath for including shared libraries (Linux/Unix only)

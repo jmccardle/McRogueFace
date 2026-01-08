@@ -187,7 +187,7 @@ PyObject* UIFrame::get_children(PyUIFrameObject* self, void* closure)
 
 PyObject* UIFrame::get_float_member(PyUIFrameObject* self, void* closure)
 {
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0)
         return PyFloat_FromDouble(self->data->box.getPosition().x);
     else if (member_ptr == 1)
@@ -208,7 +208,7 @@ PyObject* UIFrame::get_float_member(PyUIFrameObject* self, void* closure)
 int UIFrame::set_float_member(PyUIFrameObject* self, PyObject* value, void* closure)
 {
     float val;
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (PyFloat_Check(value))
     {
         val = PyFloat_AsDouble(value);
@@ -258,7 +258,7 @@ int UIFrame::set_float_member(PyUIFrameObject* self, PyObject* value, void* clos
 PyObject* UIFrame::get_color_member(PyUIFrameObject* self, void* closure)
 {
     // validate closure (should be impossible to be wrong, but it's thorough)
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr != 0 && member_ptr != 1)
     {
         PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
@@ -293,7 +293,7 @@ PyObject* UIFrame::get_color_member(PyUIFrameObject* self, void* closure)
 int UIFrame::set_color_member(PyUIFrameObject* self, PyObject* value, void* closure)
 {
     //TODO: this logic of (PyColor instance OR tuple -> sf::color) should be encapsulated for reuse
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     int r, g, b, a;
     if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color")))
     {

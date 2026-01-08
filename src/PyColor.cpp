@@ -172,7 +172,7 @@ PyObject* PyColor::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 PyObject* PyColor::get_member(PyObject* obj, void* closure)
 {
     PyColorObject* self = (PyColorObject*)obj;
-    long member = (long)closure;
+    intptr_t member = (intptr_t)closure;
     
     switch (member) {
         case 0: // r
@@ -192,7 +192,7 @@ PyObject* PyColor::get_member(PyObject* obj, void* closure)
 int PyColor::set_member(PyObject* obj, PyObject* value, void* closure)
 {
     PyColorObject* self = (PyColorObject*)obj;
-    long member = (long)closure;
+    intptr_t member = (intptr_t)closure;
     
     if (!PyLong_Check(value)) {
         PyErr_SetString(PyExc_TypeError, "Color values must be integers");

@@ -358,7 +358,7 @@ PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& 
 }
 
 PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
-    if (reinterpret_cast<long>(closure) == 0) {
+    if (reinterpret_cast<intptr_t>(closure) == 0) {
         return sfVector2f_to_PyObject(self->data->position);
     } else {
         // Return integer-cast position for grid coordinates
@@ -373,7 +373,7 @@ int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closur
     float old_x = self->data->position.x;
     float old_y = self->data->position.y;
 
-    if (reinterpret_cast<long>(closure) == 0) {
+    if (reinterpret_cast<intptr_t>(closure) == 0) {
         sf::Vector2f vec = PyObject_to_sfVector2f(value);
         if (PyErr_Occurred()) {
             return -1;  // Error already set by PyObject_to_sfVector2f
@@ -418,7 +418,7 @@ int UIEntity::set_spritenumber(PyUIEntityObject* self, PyObject* value, void* cl
 
 PyObject* UIEntity::get_float_member(PyUIEntityObject* self, void* closure)
 {
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0) // x
         return PyFloat_FromDouble(self->data->position.x);
     else if (member_ptr == 1) // y
@@ -433,7 +433,7 @@ PyObject* UIEntity::get_float_member(PyUIEntityObject* self, void* closure)
 int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* closure)
 {
     float val;
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (PyFloat_Check(value))
     {
         val = PyFloat_AsDouble(value);
@@ -540,7 +540,7 @@ PyObject* UIEntity::get_pixel_member(PyUIEntityObject* self, void* closure) {
     float cell_width, cell_height;
     get_cell_dimensions(self->data.get(), cell_width, cell_height);
 
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0) // x
         return PyFloat_FromDouble(self->data->position.x * cell_width);
     else // y
@@ -570,7 +570,7 @@ int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* cl
     float old_x = self->data->position.x;
     float old_y = self->data->position.y;
 
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0) // x
         self->data->position.x = val / cell_width;
     else // y
@@ -584,7 +584,7 @@ int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* cl
 
 // #176 - Integer grid position (grid_x, grid_y)
 PyObject* UIEntity::get_grid_int_member(PyUIEntityObject* self, void* closure) {
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0) // grid_x
         return PyLong_FromLong(static_cast<int>(self->data->position.x));
     else // grid_y
@@ -606,7 +606,7 @@ int UIEntity::set_grid_int_member(PyUIEntityObject* self, PyObject* value, void*
     float old_x = self->data->position.x;
     float old_y = self->data->position.y;
 
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0) // grid_x
         self->data->position.x = static_cast<float>(val);
     else // grid_y
@@ -1172,7 +1172,7 @@ PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kw
         } else if (strcmp(conflict_mode_str, "queue") == 0) {
             conflict_mode = AnimationConflictMode::QUEUE;
         } else if (strcmp(conflict_mode_str, "error") == 0) {
-            conflict_mode = AnimationConflictMode::ERROR;
+            conflict_mode = AnimationConflictMode::RAISE_ERROR;
         } else {
             PyErr_Format(PyExc_ValueError,
                 "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", conflict_mode_str);

@@ -16,9 +16,10 @@ class UIEntity;
  * ConflictMode - How to handle multiple animations on the same property (#120)
  */
 enum class AnimationConflictMode {
-    REPLACE,  // Stop/complete existing animation, start new one (default)
-    QUEUE,    // Queue new animation to run after existing one completes
-    ERROR     // Raise an error if property is already being animated
+    REPLACE,       // Stop/complete existing animation, start new one (default)
+    QUEUE,         // Queue new animation to run after existing one completes
+    RAISE_ERROR    // Raise an error if property is already being animated
+                   // Note: Can't use ERROR as it conflicts with Windows macro
 };
 
 // Forward declare namespace

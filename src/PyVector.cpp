@@ -227,7 +227,7 @@ PyObject* PyVector::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 PyObject* PyVector::get_member(PyObject* obj, void* closure)
 {
     PyVectorObject* self = (PyVectorObject*)obj;
-    if (reinterpret_cast<long>(closure) == 0) {
+    if (reinterpret_cast<intptr_t>(closure) == 0) {
         // x
         return PyFloat_FromDouble(self->data.x);
     } else {
@@ -250,7 +250,7 @@ int PyVector::set_member(PyObject* obj, PyObject* value, void* closure)
         return -1;
     }
     
-    if (reinterpret_cast<long>(closure) == 0) {
+    if (reinterpret_cast<intptr_t>(closure) == 0) {
         // x
         self->data.x = val;
     } else {

@@ -57,7 +57,7 @@ sf::Color PyObject_to_sfColor(PyObject* obj) {
 // #150 - Removed get_color/set_color - now handled by layers
 
 PyObject* UIGridPoint::get_bool_member(PyUIGridPointObject* self, void* closure) {
-    if (reinterpret_cast<long>(closure) == 0) { // walkable
+    if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
         return PyBool_FromLong(self->data->walkable);
     } else { // transparent
         return PyBool_FromLong(self->data->transparent);
@@ -66,13 +66,13 @@ PyObject* UIGridPoint::get_bool_member(PyUIGridPointObject* self, void* closure)
 
 int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, void* closure) {
     if (value == Py_True) {
-        if (reinterpret_cast<long>(closure) == 0) { // walkable
+        if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
             self->data->walkable = true;
         } else { // transparent
             self->data->transparent = true;
         }
     } else if (value == Py_False) {
-        if (reinterpret_cast<long>(closure) == 0) { // walkable
+        if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
             self->data->walkable = false;
         } else { // transparent
             self->data->transparent = false;
@@ -162,7 +162,7 @@ PyObject* UIGridPoint::repr(PyUIGridPointObject* self) {
 }
 
 PyObject* UIGridPointState::get_bool_member(PyUIGridPointStateObject* self, void* closure) {
-    if (reinterpret_cast<long>(closure) == 0) { // visible
+    if (reinterpret_cast<intptr_t>(closure) == 0) { // visible
         return PyBool_FromLong(self->data->visible);
     } else { // discovered
         return PyBool_FromLong(self->data->discovered);
@@ -180,7 +180,7 @@ int UIGridPointState::set_bool_member(PyUIGridPointStateObject* self, PyObject* 
         return -1; // PyObject_IsTrue returns -1 on error
     }
 
-    if (reinterpret_cast<long>(closure) == 0) { // visible
+    if (reinterpret_cast<intptr_t>(closure) == 0) { // visible
         self->data->visible = truthValue;
     } else { // discovered
         self->data->discovered = truthValue;

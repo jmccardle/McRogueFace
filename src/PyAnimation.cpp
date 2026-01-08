@@ -186,7 +186,7 @@ static bool parseConflictMode(const char* mode_str, AnimationConflictMode& mode)
     } else if (strcmp(mode_str, "queue") == 0) {
         mode = AnimationConflictMode::QUEUE;
     } else if (strcmp(mode_str, "error") == 0) {
-        mode = AnimationConflictMode::ERROR;
+        mode = AnimationConflictMode::RAISE_ERROR;
     } else {
         PyErr_Format(PyExc_ValueError,
             "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", mode_str);

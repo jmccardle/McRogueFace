@@ -767,7 +767,7 @@ void AnimationManager::addAnimation(std::shared_ptr<Animation> animation,
                 }
                 return;  // Don't add to active animations yet
 
-            case AnimationConflictMode::ERROR:
+            case AnimationConflictMode::RAISE_ERROR:
                 // Raise Python exception
                 PyGILState_STATE gstate = PyGILState_Ensure();
                 PyErr_Format(PyExc_RuntimeError,

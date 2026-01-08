@@ -170,7 +170,7 @@ void UIDrawable::render()
 }
 
 PyObject* UIDrawable::get_click(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure)); // trust me bro, it's an Enum
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure)); // trust me bro, it's an Enum
     PyObject* ptr;
 
     switch (objtype)
@@ -228,7 +228,7 @@ PyObject* UIDrawable::get_click(PyObject* self, void* closure) {
 }
 
 int UIDrawable::set_click(PyObject* self, PyObject* value, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure)); // trust me bro, it's an Enum
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure)); // trust me bro, it's an Enum
     UIDrawable* target;
     switch (objtype)
     {
@@ -305,7 +305,7 @@ void UIDrawable::on_move_unregister()
 }
 
 PyObject* UIDrawable::get_int(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
     
     switch (objtype) {
@@ -339,7 +339,7 @@ PyObject* UIDrawable::get_int(PyObject* self, void* closure) {
 }
 
 int UIDrawable::set_int(PyObject* self, PyObject* value, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -405,7 +405,7 @@ void UIDrawable::notifyZIndexChanged() {
 }
 
 PyObject* UIDrawable::get_name(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -439,7 +439,7 @@ PyObject* UIDrawable::get_name(PyObject* self, void* closure) {
 }
 
 int UIDrawable::set_name(PyObject* self, PyObject* value, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -639,7 +639,7 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
 }
 
 PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -686,7 +686,7 @@ PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
 }
 
 int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -892,7 +892,7 @@ void UIDrawable::markDirty() {
 
 // Python API - get parent drawable
 PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -1003,7 +1003,7 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
 
 // Python API - set parent drawable (or None to remove from parent)
 int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     std::shared_ptr<UIDrawable> drawable = nullptr;
 
     // Get the shared_ptr for self
@@ -1125,7 +1125,7 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
 
 // Python API - get global position (read-only)
 PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -1175,7 +1175,7 @@ PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
 
 // #138, #188 - Python API for bounds property - returns (pos, size) as pair of Vectors
 PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -1236,7 +1236,7 @@ PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
 
 // #138, #188 - Python API for global_bounds property - returns (pos, size) as pair of Vectors
 PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -1297,7 +1297,7 @@ PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
 
 // #140 - Python API for on_enter property
 PyObject* UIDrawable::get_on_enter(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     PyObject* ptr = nullptr;
 
     switch (objtype) {
@@ -1340,7 +1340,7 @@ PyObject* UIDrawable::get_on_enter(PyObject* self, void* closure) {
 }
 
 int UIDrawable::set_on_enter(PyObject* self, PyObject* value, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* target = nullptr;
 
     switch (objtype) {
@@ -1380,7 +1380,7 @@ int UIDrawable::set_on_enter(PyObject* self, PyObject* value, void* closure) {
 
 // #140 - Python API for on_exit property
 PyObject* UIDrawable::get_on_exit(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     PyObject* ptr = nullptr;
 
     switch (objtype) {
@@ -1423,7 +1423,7 @@ PyObject* UIDrawable::get_on_exit(PyObject* self, void* closure) {
 }
 
 int UIDrawable::set_on_exit(PyObject* self, PyObject* value, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* target = nullptr;
 
     switch (objtype) {
@@ -1463,7 +1463,7 @@ int UIDrawable::set_on_exit(PyObject* self, PyObject* value, void* closure) {
 
 // #140 - Python API for hovered property (read-only)
 PyObject* UIDrawable::get_hovered(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = nullptr;
 
     switch (objtype) {
@@ -1498,7 +1498,7 @@ PyObject* UIDrawable::get_hovered(PyObject* self, void* closure) {
 
 // #141 - Python API for on_move property
 PyObject* UIDrawable::get_on_move(PyObject* self, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     PyObject* ptr = nullptr;
 
     switch (objtype) {
@@ -1541,7 +1541,7 @@ PyObject* UIDrawable::get_on_move(PyObject* self, void* closure) {
 }
 
 int UIDrawable::set_on_move(PyObject* self, PyObject* value, void* closure) {
-    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<long>(closure));
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* target = nullptr;
 
     switch (objtype) {
@@ -1689,7 +1689,7 @@ PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> self, PyObject* ar
         } else if (strcmp(conflict_mode_str, "queue") == 0) {
             conflict_mode = AnimationConflictMode::QUEUE;
         } else if (strcmp(conflict_mode_str, "error") == 0) {
-            conflict_mode = AnimationConflictMode::ERROR;
+            conflict_mode = AnimationConflictMode::RAISE_ERROR;
         } else {
             PyErr_Format(PyExc_ValueError,
                 "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", conflict_mode_str);

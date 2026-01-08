@@ -96,7 +96,7 @@ void UICaption::onPositionChanged()
 
 PyObject* UICaption::get_float_member(PyUICaptionObject* self, void* closure)
 {
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0)
         return PyFloat_FromDouble(self->data->text.getPosition().x);
     else if (member_ptr == 1)
@@ -115,7 +115,7 @@ PyObject* UICaption::get_float_member(PyUICaptionObject* self, void* closure)
 int UICaption::set_float_member(PyUICaptionObject* self, PyObject* value, void* closure)
 {
     float val;
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (PyFloat_Check(value))
     {
         val = PyFloat_AsDouble(value);
@@ -156,7 +156,7 @@ PyObject* UICaption::get_color_member(PyUICaptionObject* self, void* closure)
     // TODO: migrate this code to a switch statement - validate closure & return values in one tighter, more extensible structure
 
     // validate closure (should be impossible to be wrong, but it's thorough)
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr != 0 && member_ptr != 1)
     {
         PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
@@ -181,7 +181,7 @@ PyObject* UICaption::get_color_member(PyUICaptionObject* self, void* closure)
 
 int UICaption::set_color_member(PyUICaptionObject* self, PyObject* value, void* closure)
 {
-    auto member_ptr = reinterpret_cast<long>(closure);
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
     //TODO: this logic of (PyColor instance OR tuple -> sf::color) should be encapsulated for reuse
     int r, g, b, a;
     if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color")  /*(PyObject*)&mcrfpydef::PyColorType)*/))
