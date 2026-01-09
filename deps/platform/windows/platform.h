@@ -1,6 +1,6 @@
 #ifndef __PLATFORM
 #define __PLATFORM
-#define __PLATFORM_SET_PYTHON_SEARCH_PATHS 0
+#define __PLATFORM_SET_PYTHON_SEARCH_PATHS 1
 #include <windows.h>
 
 std::wstring executable_path()

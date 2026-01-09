@@ -135,17 +135,28 @@ if(WIN32 OR MCRF_CROSS_WINDOWS)
     target_compile_definitions(mcrogueface PRIVATE Py_ENABLE_SHARED Py_PYCONFIG_H)
 endif()
 
-# On Windows, set subsystem to WINDOWS to hide console
+# On Windows, set subsystem to WINDOWS to hide console (release builds only)
+# Use -DMCRF_WINDOWS_CONSOLE=ON for debug builds with console output
+option(MCRF_WINDOWS_CONSOLE "Keep console window visible for debugging" OFF)
+
 if(WIN32 AND NOT MCRF_CROSS_WINDOWS)
     # MSVC-specific flags
-    set_target_properties(mcrogueface PROPERTIES
-        WIN32_EXECUTABLE TRUE
-        LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+    if(NOT MCRF_WINDOWS_CONSOLE)
+        set_target_properties(mcrogueface PROPERTIES
+            WIN32_EXECUTABLE TRUE
+            LINK_FLAGS "/SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+    endif()
 elseif(MCRF_CROSS_WINDOWS)
-    # MinGW cross-compilation: use -mwindows to hide console
-    set_target_properties(mcrogueface PROPERTIES
-        WIN32_EXECUTABLE TRUE
-        LINK_FLAGS "-mwindows")
+    # MinGW cross-compilation
+    if(NOT MCRF_WINDOWS_CONSOLE)
+        # Release: use -mwindows to hide console
+        set_target_properties(mcrogueface PROPERTIES
+            WIN32_EXECUTABLE TRUE
+            LINK_FLAGS "-mwindows")
+    else()
+        # Debug: keep console for stdout/stderr output
+        message(STATUS "Windows console enabled for debugging")
+    endif()
 endif()
 
 # Now the linker will find the libraries in the specified directory

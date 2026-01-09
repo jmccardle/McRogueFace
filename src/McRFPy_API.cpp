@@ -28,6 +28,7 @@
 #include "PyScene.h"
 #include "PythonObjectCache.h"
 #include <filesystem>
+#include <fstream>
 #include <cstring>
 #include <libtcod.h>
 
@@ -806,13 +807,26 @@ void McRFPy_API::executeScript(std::string filename)
         }
     }
     
-    FILE* PScriptFile = fopen(script_path.string().c_str(), "r");
-    if(PScriptFile) {
-        PyRun_SimpleFile(PScriptFile, script_path.string().c_str());
-        fclose(PScriptFile);
-    } else {
+    // Use std::ifstream + PyRun_SimpleString instead of PyRun_SimpleFile
+    // PyRun_SimpleFile has compatibility issues with MinGW-compiled code
+    std::ifstream file(script_path);
+    if (!file.is_open()) {
         std::cout << "Failed to open script: " << script_path.string() << std::endl;
+        return;
     }
+
+    std::string script_content((std::istreambuf_iterator<char>(file)),
+                                std::istreambuf_iterator<char>());
+    file.close();
+
+    // Set __file__ before execution
+    PyObject* main_module = PyImport_AddModule("__main__");
+    PyObject* main_dict = PyModule_GetDict(main_module);
+    PyObject* py_filename = PyUnicode_FromString(script_path.string().c_str());
+    PyDict_SetItemString(main_dict, "__file__", py_filename);
+    Py_DECREF(py_filename);
+
+    PyRun_SimpleString(script_content.c_str());
 }
 
 void McRFPy_API::api_shutdown()

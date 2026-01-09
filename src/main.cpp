@@ -7,6 +7,7 @@
 #include "PyTexture.h"
 #include <Python.h>
 #include <iostream>
+#include <fstream>
 #include <filesystem>
 
 // Forward declarations
@@ -18,7 +19,6 @@ int main(int argc, char* argv[])
     McRogueFaceConfig config;
     CommandLineParser parser(argc, argv);
 
-    // Parse arguments
     auto parse_result = parser.parse(config);
     if (parse_result.should_exit) {
         return parse_result.exit_code;
@@ -59,7 +59,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
 
     // Initialize Python with configuration (argv is constructed from config)
     McRFPy_API::init_python_with_config(config);
-    
+
     // Import mcrfpy module and store reference
     McRFPy_API::mcrf_module = PyImport_ImportModule("mcrfpy");
     if (!McRFPy_API::mcrf_module) {
@@ -74,7 +74,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
         PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
         PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
     }
-    
+
     // Handle different Python modes
     if (!config.python_command.empty()) {
         // Execute command from -c
@@ -82,15 +82,15 @@ int run_python_interpreter(const McRogueFaceConfig& config)
             // Use PyRun_String to catch SystemExit
             PyObject* main_module = PyImport_AddModule("__main__");
             PyObject* main_dict = PyModule_GetDict(main_module);
-            PyObject* result_obj = PyRun_String(config.python_command.c_str(), 
+            PyObject* result_obj = PyRun_String(config.python_command.c_str(),
                                               Py_file_input, main_dict, main_dict);
-            
+
             if (result_obj == NULL) {
                 // Check if it's SystemExit
                 if (PyErr_Occurred()) {
                     PyObject *type, *value, *traceback;
                     PyErr_Fetch(&type, &value, &traceback);
-                    
+
                     // If it's SystemExit and we're in interactive mode, clear it
                     if (PyErr_GivenExceptionMatches(type, PyExc_SystemExit)) {
                         PyErr_Clear();
@@ -99,7 +99,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
                         PyErr_Restore(type, value, traceback);
                         PyErr_Print();
                     }
-                    
+
                     Py_XDECREF(type);
                     Py_XDECREF(value);
                     Py_XDECREF(traceback);
@@ -128,16 +128,46 @@ int run_python_interpreter(const McRogueFaceConfig& config)
     }
     else if (!config.script_path.empty()) {
         // Execute script file (sys.argv already set at init time)
-        FILE* fp = fopen(config.script_path.string().c_str(), "r");
-        if (!fp) {
+        // Note: Using PyRun_SimpleString instead of PyRun_SimpleFile for better
+        // cross-platform compatibility (PyRun_SimpleFile has issues with MinGW/Wine)
+
+        // Read file contents
+        std::ifstream file(config.script_path);
+        if (!file.is_open()) {
             std::cerr << "mcrogueface: can't open file '" << config.script_path << "': ";
             std::cerr << "[Errno " << errno << "] " << strerror(errno) << std::endl;
+            delete engine;
             return 1;
         }
+        std::string script_content((std::istreambuf_iterator<char>(file)),
+                                    std::istreambuf_iterator<char>());
+        file.close();
 
-        int result = PyRun_SimpleFile(fp, config.script_path.string().c_str());
-        fclose(fp);
-        
+        // Set __file__ before execution
+        PyObject* main_module = PyImport_AddModule("__main__");
+        PyObject* main_dict = PyModule_GetDict(main_module);
+        PyObject* py_filename = PyUnicode_FromString(config.script_path.string().c_str());
+        PyDict_SetItemString(main_dict, "__file__", py_filename);
+        Py_DECREF(py_filename);
+
+        int result = PyRun_SimpleString(script_content.c_str());
+
+        // Flush Python stdout/stderr to ensure output appears before engine->run() blocks
+        PyObject* sys_module = PyImport_ImportModule("sys");
+        if (sys_module) {
+            PyObject* stdout_obj = PyObject_GetAttrString(sys_module, "stdout");
+            if (stdout_obj) {
+                PyObject_CallMethod(stdout_obj, "flush", NULL);
+                Py_DECREF(stdout_obj);
+            }
+            PyObject* stderr_obj = PyObject_GetAttrString(sys_module, "stderr");
+            if (stderr_obj) {
+                PyObject_CallMethod(stderr_obj, "flush", NULL);
+                Py_DECREF(stderr_obj);
+            }
+            Py_DECREF(sys_module);
+        }
+
         if (config.interactive_mode) {
             // Even if script had SystemExit, continue to interactive mode
             if (result != 0) {
@@ -145,7 +175,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
                 if (PyErr_Occurred()) {
                     PyObject *type, *value, *traceback;
                     PyErr_Fetch(&type, &value, &traceback);
-                    
+
                     if (PyErr_GivenExceptionMatches(type, PyExc_SystemExit)) {
                         PyErr_Clear();
                         result = 0; // Don't exit with error
@@ -153,7 +183,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
                         PyErr_Restore(type, value, traceback);
                         PyErr_Print();
                     }
-                    
+
                     Py_XDECREF(type);
                     Py_XDECREF(value);
                     Py_XDECREF(traceback);
@@ -162,7 +192,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
             // Run interactive mode after script
             PyRun_InteractiveLoop(stdin, "<stdin>");
         }
-        
+
         // Run the game engine after script execution
         engine->run();
 
@@ -197,7 +227,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
         }
         return 0;
     }
-    
+
     delete engine;
     return 0;
 }
