@@ -1,4 +1,4 @@
 #pragma once
 
 // McRogueFace version string (#164)
-#define MCRFPY_VERSION "1.0.0"
+#define MCRFPY_VERSION "0.2.0-prerelease-7drl2026"
