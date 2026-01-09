@@ -1,0 +1,239 @@
+# McRogueFace Python Standard Library Module Configuration
+# Used by package_stdlib.py to create light/full distribution variants
+#
+# Categories:
+#   core     - Required for Python interpreter to function
+#   gamedev  - Commonly needed for game development
+#   utility  - Generally useful modules
+#   typing   - Type hints and annotations
+#   data     - Data structures and serialization
+#   text     - Text processing and parsing
+#   debug    - Debugging and development tools
+#   network  - Networking (excluded from light)
+#   async    - Async programming (excluded from light)
+#   system   - System/OS interaction (selective)
+#   exclude  - Always excluded (test suites, IDE, etc.)
+
+# Modules required for Python to start
+core:
+  - abc
+  - codecs
+  - encodings           # Directory - all encodings
+  - enum
+  - genericpath
+  - io
+  - os
+  - posixpath
+  - ntpath
+  - stat
+  - _collections_abc
+  - _sitebuiltins
+  - site
+  - types
+  - warnings
+  - reprlib
+  - keyword
+  - operator
+  - linecache
+  - tokenize
+  - token
+
+# Game development essentials
+gamedev:
+  - random
+  - json
+  - math               # Note: mostly builtin, but module exists
+  - collections
+  - dataclasses
+  - pathlib
+  - re
+  - functools
+  - itertools
+  - bisect
+  - heapq
+  - copy
+  - weakref
+  - colorsys           # Color conversion utilities
+
+# Generally useful utilities
+utility:
+  - contextlib
+  - datetime
+  - time
+  - calendar
+  - string
+  - textwrap
+  - shutil
+  - tempfile
+  - glob
+  - fnmatch
+  - hashlib
+  - hmac
+  - base64
+  - binascii
+  - struct
+  - array
+  - queue
+  - threading
+  - _threading_local
+
+# Type system support
+typing:
+  - typing
+  - typing_extensions  # If present
+  - annotationlib
+
+# Data handling
+data:
+  - pickle
+  - shelve
+  - dbm
+  - csv
+  - configparser
+  - tomllib
+  - zipfile
+  - tarfile
+  - gzip
+  - bz2
+  - lzma
+  - zlib
+
+# Text processing
+text:
+  - html
+  - html.parser
+  - html.entities
+  - xml
+  - xml.etree
+  - xml.etree.ElementTree
+  - xml.dom
+  - xml.sax
+  - difflib
+  - pprint
+  - gettext
+  - locale
+
+# Debugging/development (include in full, optional for light)
+debug:
+  - traceback
+  - logging
+  - pdb
+  - dis
+  - inspect
+  - ast
+  - code
+  - codeop
+  - profile
+  - cProfile
+  - pstats
+  - timeit
+
+# Networking (excluded from light builds)
+network:
+  - socket
+  - ssl
+  - http
+  - http.client
+  - http.server
+  - http.cookies
+  - http.cookiejar
+  - urllib
+  - urllib.request
+  - urllib.parse
+  - urllib.error
+  - ftplib
+  - imaplib
+  - poplib
+  - smtplib
+  - email
+  - mailbox
+  - mimetypes
+  - webbrowser
+
+# Async support (excluded from light builds)
+async:
+  - asyncio
+  - concurrent
+  - concurrent.futures
+  - selectors
+  - select
+
+# System interaction (selective inclusion)
+system:
+  - subprocess
+  - multiprocessing
+  - signal
+  - platform
+  - sysconfig
+  - importlib
+  - pkgutil
+  - runpy
+  - zipimport
+  - ctypes
+  - getopt
+  - argparse
+  - getpass
+  - grp               # Unix only
+  - pwd               # Unix only
+  - pty               # Unix only
+  - tty               # Unix only
+  - termios           # Unix only
+  - fcntl             # Unix only
+  - resource          # Unix only
+  - nis               # Unix only
+  - spwd              # Unix only
+  - crypt             # Unix only
+  - winreg            # Windows only
+  - msvcrt            # Windows only
+  - winsound          # Windows only
+  - _winapi           # Windows only
+  - ensurepip         # pip installer
+  - venv              # Virtual environments
+
+# Always excluded - never include these
+exclude:
+  - test              # Python test suite (34MB!)
+  - tests             # Any tests directories
+  - idlelib           # IDLE editor
+  - idle              # IDLE
+  - tkinter           # No Tcl/Tk runtime
+  - turtle            # Requires tkinter
+  - turtledemo        # Turtle demos
+  - pydoc             # Documentation generator
+  - pydoc_data        # Documentation strings (571KB)
+  - lib2to3           # Python 2 to 3 converter
+  - distutils         # Deprecated
+  - __phello__        # Test package
+  - _pyrepl           # REPL (we have our own)
+
+# Build presets
+presets:
+  light:
+    include:
+      - core
+      - gamedev
+      - utility
+      - typing
+      - data
+      - system
+    exclude_patterns:
+      - "**/test_*.py"
+      - "**/tests/**"
+      - "**/*_test.py"
+
+  full:
+    include:
+      - core
+      - gamedev
+      - utility
+      - typing
+      - data
+      - text
+      - debug
+      - network
+      - async
+      - system
+    exclude_patterns:
+      - "**/test_*.py"
+      - "**/tests/**"
+      - "**/*_test.py"

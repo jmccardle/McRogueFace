@@ -17,6 +17,8 @@ Makefile
 *.zip
 __lib/
 __lib_windows/
+build-windows/
+build_windows/
 _oldscripts/
 assets/
 cellular_automata_fire/
@@ -28,6 +30,7 @@ scripts/
 tcod_reference
 .archive
 .mcp.json
+dist/
 
 # Keep important documentation and tests
 !CLAUDE.md

@@ -175,25 +175,120 @@ The project uses a structured label system to organize issues:
 20=blocked, 21=needs-benchmark, 22=needs-documentation
 ```
 
-## Build Commands
+## Build System
+
+McRogueFace uses a unified Makefile for both Linux native builds and Windows cross-compilation.
+
+**IMPORTANT**: All `make` commands must be run from the **project root directory** (`/home/john/Development/McRogueFace/`), not from `build/` or any subdirectory.
+
+### Quick Reference
 
 ```bash
-# Build the project (compiles to ./build directory)
-make
+# Linux builds
+make                    # Build for Linux (default target)
+make linux              # Same as above
+make run                # Build and run
+make clean              # Remove Linux build artifacts
 
-# Or use the build script directly
-./build.sh
+# Windows cross-compilation (requires MinGW-w64)
+make windows            # Release build for Windows
+make windows-debug      # Debug build with console output
+make clean-windows      # Remove Windows build artifacts
 
-# Run the game
-make run
+# Distribution packages
+make package-linux-light    # Linux with minimal stdlib (~25 MB)
+make package-linux-full     # Linux with full stdlib (~26 MB)
+make package-windows-light  # Windows with minimal stdlib
+make package-windows-full   # Windows with full stdlib
+make package-all            # All platform/preset combinations
 
-# Clean build artifacts
-make clean
-
-# The executable and all assets are in ./build/
-cd build
-./mcrogueface
+# Cleanup
+make clean-all          # Remove all builds and packages
+make clean-dist         # Remove only distribution packages
 ```
+
+### Build Outputs
+
+| Command | Output Directory | Executable |
+|---------|------------------|------------|
+| `make` / `make linux` | `build/` | `build/mcrogueface` |
+| `make windows` | `build-windows/` | `build-windows/mcrogueface.exe` |
+| `make windows-debug` | `build-windows-debug/` | `build-windows-debug/mcrogueface.exe` |
+| `make package-*` | `dist/` | `.tar.gz` or `.zip` archives |
+
+### Prerequisites
+
+**Linux build:**
+- CMake 3.14+
+- GCC/G++ with C++17 support
+- SFML 2.6 development libraries
+- Libraries in `__lib/` directory (libpython3.14, libtcod, etc.)
+
+**Windows cross-compilation:**
+- MinGW-w64 (`x86_64-w64-mingw32-g++-posix`)
+- Libraries in `__lib_windows/` directory
+- Toolchain file: `cmake/toolchains/mingw-w64-x86_64.cmake`
+
+### Library Dependencies
+
+The build expects pre-built libraries in:
+- `__lib/` - Linux shared libraries (libpython3.14.so, libsfml-*.so, libtcod.so)
+- `__lib/Python/Lib/` - Python standard library source
+- `__lib/Python/lib.linux-x86_64-3.14/` - Python extension modules (.so)
+- `__lib_windows/` - Windows DLLs and libraries
+
+### Manual CMake Build
+
+If you need more control over the build:
+
+```bash
+# Linux
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+
+# Windows cross-compile
+mkdir build-windows && cd build-windows
+cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mingw-w64-x86_64.cmake \
+         -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+
+# Windows debug with console
+cmake .. -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mingw-w64-x86_64.cmake \
+         -DCMAKE_BUILD_TYPE=Debug \
+         -DMCRF_WINDOWS_CONSOLE=ON
+```
+
+### Distribution Packaging
+
+The packaging system creates self-contained archives with:
+- Executable
+- Required shared libraries
+- Assets (sprites, fonts, audio)
+- Python scripts
+- Filtered Python stdlib (light or full variant)
+
+**Light variant** (~25 MB): Core + gamedev + utility modules only
+**Full variant** (~26 MB): Includes networking, async, debugging modules
+
+Packaging tools:
+- `tools/package.sh` - Main packaging orchestrator
+- `tools/package_stdlib.py` - Creates filtered stdlib archives
+- `tools/stdlib_modules.yaml` - Module categorization config
+
+### Troubleshooting
+
+**"No rule to make target 'linux'"**: You're in the wrong directory. Run `make` from project root.
+
+**Library linking errors**: Ensure `__lib/` contains all required .so files. Check `CMakeLists.txt` for `link_directories(${CMAKE_SOURCE_DIR}/__lib)`.
+
+**Windows build fails**: Verify MinGW-w64 is installed with posix thread model: `x86_64-w64-mingw32-g++-posix --version`
+
+### Legacy Build Scripts
+
+The following are deprecated but kept for reference:
+- `build.sh` - Original Linux build script (use `make` instead)
+- `GNUmakefile.legacy` - Old wrapper makefile (renamed to avoid conflicts)
 
 ## Project Architecture
 
@@ -311,20 +406,14 @@ cd build
 ## Common Development Tasks
 
 ### Compiling McRogueFace
+
+See the [Build System](#build-system) section above for comprehensive build instructions.
+
 ```bash
-# Standard build (to ./build directory)
-make
-
-# Full rebuild
-make clean && make
-
-# Manual CMake build
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-
-# The library path issue: if linking fails, check that libraries are in __lib/
-# CMakeLists.txt expects: link_directories(${CMAKE_SOURCE_DIR}/__lib)
+# Quick reference (run from project root!)
+make                # Linux build
+make windows        # Windows cross-compile
+make clean && make  # Full rebuild
 ```
 
 ### Running and Capturing Output
