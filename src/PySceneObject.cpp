@@ -413,23 +413,28 @@ void PySceneClass::call_on_exit(PySceneObject* self)
     }
 }
 
-void PySceneClass::call_on_keypress(PySceneObject* self, std::string key, std::string action)
+void PySceneClass::call_on_key(PySceneObject* self, const std::string& key, const std::string& action)
 {
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    PyObject* method = PyObject_GetAttrString((PyObject*)self, "on_keypress");
-    if (method && PyCallable_Check(method)) {
-        PyObject* result = PyObject_CallFunction(method, "ss", key.c_str(), action.c_str());
+    // Look for on_key attribute on the Python object
+    // This handles both:
+    // 1. Subclass methods: class MyScene(Scene): def on_key(self, k, s): ...
+    // 2. Instance attributes: ts.on_key = lambda k, s: ...  (when subclass shadows property)
+    PyObject* attr = PyObject_GetAttrString((PyObject*)self, "on_key");
+    if (attr && PyCallable_Check(attr) && attr != Py_None) {
+        // Call it - works for both bound methods and regular callables
+        PyObject* result = PyObject_CallFunction(attr, "ss", key.c_str(), action.c_str());
         if (result) {
             Py_DECREF(result);
         } else {
             PyErr_Print();
         }
-        Py_DECREF(method);
+        Py_DECREF(attr);
     } else {
-        // Clear AttributeError if method doesn't exist
+        // Not callable or is None - nothing to call
         PyErr_Clear();
-        Py_XDECREF(method);
+        Py_XDECREF(attr);
     }
 
     PyGILState_Release(gstate);
@@ -568,6 +573,18 @@ void McRFPy_API::triggerResize(int width, int height)
     // Only notify the active scene
     if (python_scenes.count(game->scene) > 0) {
         PySceneClass::call_on_resize(python_scenes[game->scene], width, height);
+    }
+}
+
+// Helper function to trigger key events on Python scene subclasses
+void McRFPy_API::triggerKeyEvent(const std::string& key, const std::string& action)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) return;
+
+    // Only notify the active scene if it has an on_key method (subclass)
+    if (python_scenes.count(game->scene) > 0) {
+        PySceneClass::call_on_key(python_scenes[game->scene], key, action);
     }
 }
 

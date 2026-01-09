@@ -80,6 +80,7 @@ public:
     static void triggerSceneChange(const std::string& from_scene, const std::string& to_scene);
     static void updatePythonScenes(float dt);
     static void triggerResize(int width, int height);
+    static void triggerKeyEvent(const std::string& key, const std::string& action);
 
     // #151: Module-level scene property accessors
     static PyObject* api_get_current_scene();

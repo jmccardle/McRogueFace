@@ -457,10 +457,16 @@ void GameEngine::processEvent(const sf::Event& event)
         std::string name = currentScene()->action(actionCode);
         currentScene()->doAction(name, actionType);
     }
-    else if (currentScene()->key_callable && 
+    else if (currentScene()->key_callable && !currentScene()->key_callable->isNone() &&
              (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased))
     {
+        // Property-assigned handler (scene.on_key = callable)
         currentScene()->key_callable->call(ActionCode::key_str(event.key.code), actionType);
+    }
+    else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased)
+    {
+        // Try subclass on_key method if no property handler is set
+        McRFPy_API::triggerKeyEvent(ActionCode::key_str(event.key.code), actionType);
     }
 }
 

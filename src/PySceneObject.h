@@ -36,7 +36,7 @@ public:
     // Lifecycle callbacks (called from C++)
     static void call_on_enter(PySceneObject* self);
     static void call_on_exit(PySceneObject* self);
-    static void call_on_keypress(PySceneObject* self, std::string key, std::string action);
+    static void call_on_key(PySceneObject* self, const std::string& key, const std::string& action);
     static void call_update(PySceneObject* self, float dt);
     static void call_on_resize(PySceneObject* self, int width, int height);
 
@@ -75,7 +75,7 @@ namespace mcrfpydef {
             "Lifecycle Callbacks (override in subclass):\n"
             "    on_enter(): Called when scene becomes active via activate().\n"
             "    on_exit(): Called when scene is deactivated (another scene activates).\n"
-            "    on_keypress(key: str, action: str): Called for keyboard events. Alternative to on_key property.\n"
+            "    on_key(key: str, action: str): Called for keyboard events (subclass method).\n"
             "    update(dt: float): Called every frame with delta time in seconds.\n"
             "    on_resize(width: int, height: int): Called when window is resized.\n\n"
             "Example:\n"
