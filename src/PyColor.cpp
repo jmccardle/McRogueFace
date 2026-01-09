@@ -92,9 +92,9 @@ Py_hash_t PyColor::hash(PyObject* obj)
     auto self = (PyColorObject*)obj;
     Py_hash_t value = 0;
     value += self->data.r;
-    value << 8; value += self->data.g; 
-    value << 8; value += self->data.b; 
-    value << 8; value += self->data.a;
+    value <<= 8; value += self->data.g; 
+    value <<= 8; value += self->data.b; 
+    value <<= 8; value += self->data.a;
 
     return value;
 }

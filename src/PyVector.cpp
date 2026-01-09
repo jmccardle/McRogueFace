@@ -160,7 +160,7 @@ Py_hash_t PyVector::hash(PyObject* obj)
     auto self = (PyVectorObject*)obj;
     Py_hash_t value = 0;
     value += self->data.x;
-    value << 8; value += self->data.y; 
+    value <<= 8; value += self->data.y; 
 
     return value;
 }
