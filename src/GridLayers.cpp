@@ -57,11 +57,6 @@ int GridLayer::getChunkIndex(int cell_x, int cell_y) const {
     return cy * chunks_x + cx;
 }
 
-void GridLayer::getChunkCoords(int cell_x, int cell_y, int& chunk_x, int& chunk_y) const {
-    chunk_x = cell_x / CHUNK_SIZE;
-    chunk_y = cell_y / CHUNK_SIZE;
-}
-
 void GridLayer::getChunkBounds(int chunk_x, int chunk_y, int& start_x, int& start_y, int& end_x, int& end_y) const {
     start_x = chunk_x * CHUNK_SIZE;
     start_y = chunk_y * CHUNK_SIZE;

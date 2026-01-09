@@ -56,9 +56,6 @@ public:
     // Get chunk index for a cell
     int getChunkIndex(int cell_x, int cell_y) const;
 
-    // Get chunk coordinates for a cell
-    void getChunkCoords(int cell_x, int cell_y, int& chunk_x, int& chunk_y) const;
-
     // Get cell bounds for a chunk
     void getChunkBounds(int chunk_x, int chunk_y, int& start_x, int& start_y, int& end_x, int& end_y) const;
 

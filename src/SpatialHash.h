@@ -37,15 +37,11 @@ public:
     // Returns entities whose positions are within the circular radius
     std::vector<std::shared_ptr<UIEntity>> queryRadius(float x, float y, float radius) const;
 
-    // Query all entities within a rectangular region
-    std::vector<std::shared_ptr<UIEntity>> queryRect(float x, float y, float width, float height) const;
-
     // Clear all entities from the hash
     void clear();
 
     // Get statistics for debugging
     size_t bucketCount() const { return buckets.size(); }
-    size_t totalEntities() const;
 
 private:
     int bucket_size;
@@ -72,10 +68,4 @@ private:
 
     // Get all bucket coordinates that overlap with a radius query
     std::vector<std::pair<int, int>> getBucketsInRadius(float x, float y, float radius) const;
-
-    // Get all bucket coordinates that overlap with a rectangle
-    std::vector<std::pair<int, int>> getBucketsInRect(float x, float y, float width, float height) const;
-
-    // Clean expired weak_ptrs from a bucket
-    void cleanBucket(std::vector<std::weak_ptr<UIEntity>>& bucket);
 };

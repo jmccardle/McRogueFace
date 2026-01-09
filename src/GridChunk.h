@@ -50,9 +50,6 @@ public:
     // Mark chunk as dirty
     void markDirty();
 
-    // Get pixel bounds of this chunk in world coordinates
-    sf::FloatRect getWorldBounds(int cell_width, int cell_height) const;
-
     // Check if chunk overlaps with viewport
     bool isVisible(float left_edge, float top_edge,
                    float right_edge, float bottom_edge) const;
@@ -89,13 +86,6 @@ public:
     // Access cell at grid coordinates (routes through chunk)
     UIGridPoint& at(int x, int y);
     const UIGridPoint& at(int x, int y) const;
-
-    // Mark all chunks dirty (for full rebuild)
-    void markAllDirty();
-
-    // Get chunks that overlap with viewport
-    std::vector<GridChunk*> getVisibleChunks(float left_edge, float top_edge,
-                                              float right_edge, float bottom_edge);
 
     // Resize grid (rebuilds chunks)
     void resize(int new_grid_x, int new_grid_y);

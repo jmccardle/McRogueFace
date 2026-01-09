@@ -92,24 +92,6 @@ std::vector<std::pair<int, int>> SpatialHash::getBucketsInRadius(float x, float 
     return result;
 }
 
-std::vector<std::pair<int, int>> SpatialHash::getBucketsInRect(float x, float y, float width, float height) const
-{
-    std::vector<std::pair<int, int>> result;
-
-    int min_bx = static_cast<int>(std::floor(x / bucket_size));
-    int max_bx = static_cast<int>(std::floor((x + width) / bucket_size));
-    int min_by = static_cast<int>(std::floor(y / bucket_size));
-    int max_by = static_cast<int>(std::floor((y + height) / bucket_size));
-
-    for (int bx = min_bx; bx <= max_bx; ++bx) {
-        for (int by = min_by; by <= max_by; ++by) {
-            result.emplace_back(bx, by);
-        }
-    }
-
-    return result;
-}
-
 std::vector<std::shared_ptr<UIEntity>> SpatialHash::queryRadius(float x, float y, float radius) const
 {
     std::vector<std::shared_ptr<UIEntity>> result;
@@ -137,57 +119,7 @@ std::vector<std::shared_ptr<UIEntity>> SpatialHash::queryRadius(float x, float y
     return result;
 }
 
-std::vector<std::shared_ptr<UIEntity>> SpatialHash::queryRect(float x, float y, float width, float height) const
-{
-    std::vector<std::shared_ptr<UIEntity>> result;
-
-    auto bucket_coords = getBucketsInRect(x, y, width, height);
-
-    for (const auto& coord : bucket_coords) {
-        auto it = buckets.find(coord);
-        if (it == buckets.end()) continue;
-
-        for (const auto& wp : it->second) {
-            auto entity = wp.lock();
-            if (!entity) continue;
-
-            // Check if entity is within the rectangle
-            float ex = entity->position.x;
-            float ey = entity->position.y;
-            if (ex >= x && ex < x + width && ey >= y && ey < y + height) {
-                result.push_back(entity);
-            }
-        }
-    }
-
-    return result;
-}
-
 void SpatialHash::clear()
 {
     buckets.clear();
-}
-
-size_t SpatialHash::totalEntities() const
-{
-    size_t count = 0;
-    for (const auto& [coord, bucket] : buckets) {
-        for (const auto& wp : bucket) {
-            if (wp.lock()) {
-                ++count;
-            }
-        }
-    }
-    return count;
-}
-
-void SpatialHash::cleanBucket(std::vector<std::weak_ptr<UIEntity>>& bucket)
-{
-    bucket.erase(
-        std::remove_if(bucket.begin(), bucket.end(),
-            [](const std::weak_ptr<UIEntity>& wp) {
-                return wp.expired();
-            }),
-        bucket.end()
-    );
 }

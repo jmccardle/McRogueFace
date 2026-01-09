@@ -33,13 +33,6 @@ void GridChunk::markDirty() {
 // #150 - Removed ensureTexture/renderToTexture - base layer rendering removed
 // GridChunk now only provides data storage for GridPoints
 
-sf::FloatRect GridChunk::getWorldBounds(int cell_width, int cell_height) const {
-    return sf::FloatRect(
-        sf::Vector2f(world_x * cell_width, world_y * cell_height),
-        sf::Vector2f(width * cell_width, height * cell_height)
-    );
-}
-
 bool GridChunk::isVisible(float left_edge, float top_edge,
                           float right_edge, float bottom_edge) const {
     // Check if chunk's cell range overlaps with viewport's cell range
@@ -145,26 +138,6 @@ const UIGridPoint& ChunkManager::at(int x, int y) const {
     int local_y = y % GridChunk::CHUNK_SIZE;
 
     return chunk->at(local_x, local_y);
-}
-
-void ChunkManager::markAllDirty() {
-    for (auto& chunk : chunks) {
-        chunk->markDirty();
-    }
-}
-
-std::vector<GridChunk*> ChunkManager::getVisibleChunks(float left_edge, float top_edge,
-                                                        float right_edge, float bottom_edge) {
-    std::vector<GridChunk*> visible;
-    visible.reserve(chunks.size()); // Pre-allocate for worst case
-
-    for (auto& chunk : chunks) {
-        if (chunk->isVisible(left_edge, top_edge, right_edge, bottom_edge)) {
-            visible.push_back(chunk.get());
-        }
-    }
-
-    return visible;
 }
 
 void ChunkManager::resize(int new_grid_x, int new_grid_y) {
