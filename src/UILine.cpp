@@ -137,7 +137,8 @@ void UILine::render(sf::Vector2f offset, sf::RenderTarget& target) {
 }
 
 UIDrawable* UILine::click_at(sf::Vector2f point) {
-    if (!click_callable) return nullptr;
+    // #184: Also check for Python subclass (might have on_click method)
+    if (!click_callable && !is_python_subclass) return nullptr;
 
     // Check if point is close enough to the line
     // Using a simple bounding box check plus distance-to-line calculation
@@ -584,6 +585,13 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
             PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
             Py_DECREF(weakref);
         }
+    }
+
+    // #184: Check if this is a Python subclass (for callback method support)
+    PyObject* line_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line");
+    if (line_type) {
+        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != line_type;
+        Py_DECREF(line_type);
     }
 
     return 0;

@@ -7,7 +7,8 @@
 
 UIDrawable* UISprite::click_at(sf::Vector2f point)
 {
-    if (click_callable)
+    // #184: Also check for Python subclass (might have on_click method)
+    if (click_callable || is_python_subclass)
     {
         if(sprite.getGlobalBounds().contains(point)) return this;
     }
@@ -531,6 +532,13 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
             PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
             Py_DECREF(weakref);  // Cache owns the reference now
         }
+    }
+
+    // #184: Check if this is a Python subclass (for callback method support)
+    PyObject* sprite_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
+    if (sprite_type) {
+        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != sprite_type;
+        Py_DECREF(sprite_type);
     }
 
     return 0;

@@ -5,8 +5,88 @@
 #include "UIFrame.h"
 #include "UIGrid.h"
 #include "McRFPy_Automation.h"  // #111 - For simulated mouse position
+#include "PythonObjectCache.h"  // #184 - For subclass callback support
 #include <algorithm>
 #include <functional>
+
+// ============================================================================
+// #184: Helper functions for calling Python subclass methods
+// ============================================================================
+
+// Try to call a Python method on a UIDrawable subclass
+// Returns true if a method was found and called, false otherwise
+static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
+                                 sf::Vector2f mousepos, const char* button, const char* action) {
+    if (!drawable->is_python_subclass) return false;
+
+    PyObject* pyObj = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+    if (!pyObj) return false;
+
+    // Check and refresh cache if needed
+    PyObject* type = (PyObject*)Py_TYPE(pyObj);
+    if (!drawable->isCallbackCacheValid(type)) {
+        drawable->refreshCallbackCache(pyObj);
+    }
+
+    // Check if this method exists in the cache
+    bool has_method = false;
+    if (strcmp(method_name, "on_click") == 0) {
+        has_method = drawable->callback_cache.has_on_click;
+    } else if (strcmp(method_name, "on_enter") == 0) {
+        has_method = drawable->callback_cache.has_on_enter;
+    } else if (strcmp(method_name, "on_exit") == 0) {
+        has_method = drawable->callback_cache.has_on_exit;
+    } else if (strcmp(method_name, "on_move") == 0) {
+        has_method = drawable->callback_cache.has_on_move;
+    }
+
+    if (!has_method) {
+        Py_DECREF(pyObj);
+        return false;
+    }
+
+    // Get and call the method
+    PyObject* method = PyObject_GetAttrString(pyObj, method_name);
+    bool called = false;
+
+    if (method && PyCallable_Check(method) && method != Py_None) {
+        // Call with (x, y, button, action) signature
+        PyObject* result = PyObject_CallFunction(method, "ffss",
+            mousepos.x, mousepos.y, button, action);
+        if (result) {
+            Py_DECREF(result);
+            called = true;
+        } else {
+            PyErr_Print();
+        }
+    }
+
+    PyErr_Clear();
+    Py_XDECREF(method);
+    Py_DECREF(pyObj);
+
+    return called;
+}
+
+// Check if a UIDrawable can potentially handle an event
+// (has either a callable property OR is a Python subclass that might have a method)
+static bool canHandleEvent(UIDrawable* drawable, const char* event_type) {
+    // Check for property-assigned callable first
+    if (strcmp(event_type, "click") == 0) {
+        if (drawable->click_callable && !drawable->click_callable->isNone()) return true;
+    } else if (strcmp(event_type, "enter") == 0) {
+        if (drawable->on_enter_callable && !drawable->on_enter_callable->isNone()) return true;
+    } else if (strcmp(event_type, "exit") == 0) {
+        if (drawable->on_exit_callable && !drawable->on_exit_callable->isNone()) return true;
+    } else if (strcmp(event_type, "move") == 0) {
+        if (drawable->on_move_callable && !drawable->on_move_callable->isNone()) return true;
+    }
+
+    // If it's a Python subclass, it might have a method
+    return drawable->is_python_subclass;
+}
+
+// ============================================================================
 
 PyScene::PyScene(GameEngine* g) : Scene(g)
 {
@@ -51,10 +131,24 @@ void PyScene::do_mouse_input(std::string button, std::string type)
     for (auto it = ui_elements->rbegin(); it != ui_elements->rend(); ++it) {
         const auto& element = *it;
         if (!element->visible) continue;
-        
+
         if (auto target = element->click_at(sf::Vector2f(mousepos))) {
-            target->click_callable->call(mousepos, button, type);
-            return; // Stop after first handler
+            // #184: Try property-assigned callable first (fast path)
+            if (target->click_callable && !target->click_callable->isNone()) {
+                target->click_callable->call(mousepos, button, type);
+                return; // Stop after first handler
+            }
+
+            // #184: Try Python subclass method
+            if (tryCallPythonMethod(target, "on_click", mousepos, button.c_str(), type.c_str())) {
+                return; // Stop after first handler
+            }
+
+            // Element claimed the click but had no handler - still stop propagation
+            // (This maintains consistent behavior for subclasses that don't define on_click)
+            if (target->is_python_subclass) {
+                return;
+            }
         }
     }
 }
@@ -91,20 +185,32 @@ void PyScene::do_mouse_hover(int x, int y)
         if (is_inside && !was_hovered) {
             // Mouse entered
             drawable->hovered = true;
-            if (drawable->on_enter_callable) {
+            // #184: Try property-assigned callable first, then Python subclass method
+            if (drawable->on_enter_callable && !drawable->on_enter_callable->isNone()) {
                 drawable->on_enter_callable->call(mousepos, "enter", "start");
+            } else if (drawable->is_python_subclass) {
+                tryCallPythonMethod(drawable, "on_enter", mousepos, "enter", "start");
             }
         } else if (!is_inside && was_hovered) {
             // Mouse exited
             drawable->hovered = false;
-            if (drawable->on_exit_callable) {
+            // #184: Try property-assigned callable first, then Python subclass method
+            if (drawable->on_exit_callable && !drawable->on_exit_callable->isNone()) {
                 drawable->on_exit_callable->call(mousepos, "exit", "start");
+            } else if (drawable->is_python_subclass) {
+                tryCallPythonMethod(drawable, "on_exit", mousepos, "exit", "start");
             }
         }
 
-        // #141 - Fire on_move if mouse is inside and has a move callback
-        if (is_inside && drawable->on_move_callable) {
-            drawable->on_move_callable->call(mousepos, "move", "start");
+        // #141 - Fire on_move if mouse is inside and has a move/on_move callback
+        // #184: Try property-assigned callable first, then Python subclass method
+        // Check is_python_subclass before function call to avoid overhead on hot path
+        if (is_inside) {
+            if (drawable->on_move_callable && !drawable->on_move_callable->isNone()) {
+                drawable->on_move_callable->call(mousepos, "move", "start");
+            } else if (drawable->is_python_subclass) {
+                tryCallPythonMethod(drawable, "on_move", mousepos, "move", "start");
+            }
         }
 
         // Process children for Frame elements

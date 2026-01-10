@@ -127,7 +127,8 @@ void UICircle::render(sf::Vector2f offset, sf::RenderTarget& target) {
 }
 
 UIDrawable* UICircle::click_at(sf::Vector2f point) {
-    if (!click_callable) return nullptr;
+    // #184: Also check for Python subclass (might have on_click method)
+    if (!click_callable && !is_python_subclass) return nullptr;
 
     // Check if point is within the circle (including outline)
     float dx = point.x - position.x;
@@ -509,6 +510,23 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
 
     if (name) {
         self->data->name = name;
+    }
+
+    // Register in Python object cache
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);
+        }
+    }
+
+    // #184: Check if this is a Python subclass (for callback method support)
+    PyObject* circle_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle");
+    if (circle_type) {
+        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != circle_type;
+        Py_DECREF(circle_type);
     }
 
     return 0;

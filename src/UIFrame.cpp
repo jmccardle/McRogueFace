@@ -16,25 +16,26 @@ UIDrawable* UIFrame::click_at(sf::Vector2f point)
     if (point.x < x || point.y < y || point.x >= x+w || point.y >= y+h) {
         return nullptr;
     }
-    
+
     // Transform to local coordinates for children
     sf::Vector2f localPoint = point - position;
-    
+
     // Check children in reverse order (top to bottom, highest z-index first)
     for (auto it = children->rbegin(); it != children->rend(); ++it) {
         auto& child = *it;
         if (!child->visible) continue;
-        
+
         if (auto target = child->click_at(localPoint)) {
             return target;
         }
     }
-    
+
     // No child handled it, check if we have a handler
-    if (click_callable) {
+    // #184: Also check for Python subclass (might have on_click method)
+    if (click_callable || is_python_subclass) {
         return this;
     }
-    
+
     return nullptr;
 }
 
@@ -698,7 +699,14 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
             Py_DECREF(weakref);  // Cache owns the reference now
         }
     }
-    
+
+    // #184: Check if this is a Python subclass (for callback method support)
+    PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+    if (frame_type) {
+        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != frame_type;
+        Py_DECREF(frame_type);
+    }
+
     return 0;
 }
 

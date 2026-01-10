@@ -1,4 +1,5 @@
 #include "McRFPy_API.h"
+#include "UIDrawable.h"
 #include "McRFPy_Automation.h"
 #include "McRFPy_Libtcod.h"
 #include "McRFPy_Doc.h"
@@ -39,6 +40,39 @@ PyObject* McRFPy_API::mcrf_module;
 // Exception handling state
 std::atomic<bool> McRFPy_API::exception_occurred{false};
 std::atomic<int> McRFPy_API::exit_code{0};
+
+// ============================================================================
+// #184: Metaclass for UI types - tracks callback generation for cache invalidation
+// ============================================================================
+
+// tp_setattro for the metaclass - intercepts class attribute assignments
+static int McRFPyMetaclass_setattro(PyObject* type, PyObject* name, PyObject* value) {
+    // First, do the normal attribute set on the class
+    int result = PyType_Type.tp_setattro(type, name, value);
+    if (result < 0) return result;
+
+    // Check if it's a callback attribute (on_click, on_enter, on_exit, on_move)
+    const char* attr_name = PyUnicode_AsUTF8(name);
+    if (attr_name && strncmp(attr_name, "on_", 3) == 0) {
+        // Check if it's one of our callback names
+        if (strcmp(attr_name, "on_click") == 0 ||
+            strcmp(attr_name, "on_enter") == 0 ||
+            strcmp(attr_name, "on_exit") == 0 ||
+            strcmp(attr_name, "on_move") == 0) {
+            // Increment the callback generation for this class
+            UIDrawable::incrementCallbackGeneration(type);
+        }
+    }
+
+    return 0;
+}
+
+// The metaclass type object - initialized in api_init() because
+// designated initializers in C++ require declaration order
+static PyTypeObject McRFPyMetaclassType = {PyVarObject_HEAD_INIT(&PyType_Type, 0)};
+static bool McRFPyMetaclass_initialized = false;
+
+// ============================================================================
 
 // #151: Module-level __getattr__ for dynamic properties (current_scene, scenes)
 static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
@@ -307,7 +341,33 @@ PyObject* PyInit_mcrfpy()
     // Change the module's type to our custom type
     Py_SET_TYPE(m, &McRFPyModuleType);
 
+    // #184: Set up the UI metaclass for callback generation tracking
+    if (!McRFPyMetaclass_initialized) {
+        McRFPyMetaclassType.tp_name = "mcrfpy._UIMetaclass";
+        McRFPyMetaclassType.tp_basicsize = sizeof(PyHeapTypeObject);
+        McRFPyMetaclassType.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE;
+        McRFPyMetaclassType.tp_doc = PyDoc_STR("Metaclass for UI types that tracks callback method changes");
+        McRFPyMetaclassType.tp_setattro = McRFPyMetaclass_setattro;
+        McRFPyMetaclassType.tp_base = &PyType_Type;
+        McRFPyMetaclass_initialized = true;
+    }
+    if (PyType_Ready(&McRFPyMetaclassType) < 0) {
+        std::cout << "ERROR: PyType_Ready failed for McRFPyMetaclassType" << std::endl;
+        return NULL;
+    }
+
     using namespace mcrfpydef;
+
+    // #184: Set the metaclass for UI types that support callback methods
+    // This must be done BEFORE PyType_Ready is called on these types
+    PyTypeObject* ui_types_with_callbacks[] = {
+        &PyUIFrameType, &PyUICaptionType, &PyUISpriteType, &PyUIGridType,
+        &PyUILineType, &PyUICircleType, &PyUIArcType,
+        nullptr
+    };
+    for (int i = 0; ui_types_with_callbacks[i] != nullptr; i++) {
+        Py_SET_TYPE(ui_types_with_callbacks[i], &McRFPyMetaclassType);
+    }
 
     // Types that are exported to Python (visible in module namespace)
     PyTypeObject* exported_types[] = {

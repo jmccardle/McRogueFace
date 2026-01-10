@@ -1,5 +1,6 @@
 #include "UIArc.h"
 #include "McRFPy_API.h"
+#include "PythonObjectCache.h"
 #include <cmath>
 #include <sstream>
 
@@ -140,6 +141,9 @@ void UIArc::render(sf::Vector2f offset, sf::RenderTarget& target) {
 
 UIDrawable* UIArc::click_at(sf::Vector2f point) {
     if (!visible) return nullptr;
+
+    // #184: Also check for Python subclass (might have on_click method)
+    if (!click_callable && !is_python_subclass) return nullptr;
 
     // Calculate distance from center
     float dx = point.x - center.x;
@@ -540,6 +544,23 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
 
     if (name) {
         self->data->name = name;
+    }
+
+    // Register in Python object cache
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);
+        }
+    }
+
+    // #184: Check if this is a Python subclass (for callback method support)
+    PyObject* arc_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc");
+    if (arc_type) {
+        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != arc_type;
+        Py_DECREF(arc_type);
     }
 
     return 0;

@@ -171,7 +171,34 @@ public:
 
     // Python object cache support
     uint64_t serial_number = 0;
-    
+
+    // Python subclass callback support (#184)
+    // Enables subclass method overrides like: class MyFrame(Frame): def on_click(self, ...): ...
+    bool is_python_subclass = false;
+
+    // Callback method cache - avoids repeated Python lookups
+    struct CallbackCache {
+        uint32_t generation = 0;          // Class generation when cache was populated
+        bool valid = false;               // Whether cache has been populated
+        bool has_on_click = false;
+        bool has_on_enter = false;
+        bool has_on_exit = false;
+        bool has_on_move = false;
+    };
+    CallbackCache callback_cache;
+
+    // Check if callback cache is still valid (compares against class generation)
+    bool isCallbackCacheValid(PyObject* type) const;
+
+    // Refresh the callback cache by checking for methods on the Python object
+    void refreshCallbackCache(PyObject* pyObj);
+
+    // Get the current callback generation for a type
+    static uint32_t getCallbackGeneration(PyObject* type);
+
+    // Increment callback generation for a type (called when on_* attributes change)
+    static void incrementCallbackGeneration(PyObject* type);
+
 protected:
     // RenderTexture support (opt-in)
     std::unique_ptr<sf::RenderTexture> render_texture;

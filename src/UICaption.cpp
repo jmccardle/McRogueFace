@@ -21,7 +21,8 @@ UICaption::UICaption()
 
 UIDrawable* UICaption::click_at(sf::Vector2f point)
 {
-    if (click_callable)
+    // #184: Also check for Python subclass (might have on_click method)
+    if (click_callable || is_python_subclass)
     {
         if (text.getGlobalBounds().contains(point)) return this;
     }
@@ -484,7 +485,14 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
             Py_DECREF(weakref);  // Cache owns the reference now
         }
     }
-    
+
+    // #184: Check if this is a Python subclass (for callback method support)
+    PyObject* caption_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
+    if (caption_type) {
+        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != caption_type;
+        Py_DECREF(caption_type);
+    }
+
     return 0;
 }
 

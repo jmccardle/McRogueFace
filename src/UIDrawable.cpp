@@ -1728,3 +1728,79 @@ PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> self, PyObject* ar
     pyAnim->data = animation;
     return (PyObject*)pyAnim;
 }
+
+// ============================================================================
+// Callback Cache Support (#184) - Python subclass method resolution
+// ============================================================================
+
+// Key for storing callback generation on Python type objects
+static const char* CALLBACK_GEN_ATTR = "_mcrf_callback_gen";
+
+uint32_t UIDrawable::getCallbackGeneration(PyObject* type) {
+    if (!type) return 0;
+
+    PyObject* gen = PyObject_GetAttrString(type, CALLBACK_GEN_ATTR);
+    if (gen) {
+        uint32_t result = static_cast<uint32_t>(PyLong_AsUnsignedLong(gen));
+        Py_DECREF(gen);
+        return result;
+    }
+
+    // No generation set yet - initialize to 0
+    PyErr_Clear();
+    return 0;
+}
+
+void UIDrawable::incrementCallbackGeneration(PyObject* type) {
+    if (!type) return;
+
+    uint32_t current = getCallbackGeneration(type);
+    PyObject* new_gen = PyLong_FromUnsignedLong(current + 1);
+    if (new_gen) {
+        PyObject_SetAttrString(type, CALLBACK_GEN_ATTR, new_gen);
+        Py_DECREF(new_gen);
+    }
+    PyErr_Clear();  // Clear any errors from SetAttr
+}
+
+bool UIDrawable::isCallbackCacheValid(PyObject* type) const {
+    if (!callback_cache.valid) return false;
+    return callback_cache.generation == getCallbackGeneration(type);
+}
+
+void UIDrawable::refreshCallbackCache(PyObject* pyObj) {
+    if (!pyObj) return;
+
+    PyObject* type = (PyObject*)Py_TYPE(pyObj);
+
+    // Update generation
+    callback_cache.generation = getCallbackGeneration(type);
+    callback_cache.valid = true;
+
+    // Check for each callback method
+    // We check the object (not just the class) to handle instance attributes too
+
+    // on_click
+    PyObject* attr = PyObject_GetAttrString(pyObj, "on_click");
+    callback_cache.has_on_click = (attr && PyCallable_Check(attr) && attr != Py_None);
+    Py_XDECREF(attr);
+    PyErr_Clear();
+
+    // on_enter
+    attr = PyObject_GetAttrString(pyObj, "on_enter");
+    callback_cache.has_on_enter = (attr && PyCallable_Check(attr) && attr != Py_None);
+    Py_XDECREF(attr);
+    PyErr_Clear();
+
+    // on_exit
+    attr = PyObject_GetAttrString(pyObj, "on_exit");
+    callback_cache.has_on_exit = (attr && PyCallable_Check(attr) && attr != Py_None);
+    Py_XDECREF(attr);
+    PyErr_Clear();
+
+    // on_move
+    attr = PyObject_GetAttrString(pyObj, "on_move");
+    callback_cache.has_on_move = (attr && PyCallable_Check(attr) && attr != Py_None);
+    Py_XDECREF(attr);
+    PyErr_Clear();
+}

@@ -679,7 +679,8 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
     }
     
     // No entity handled it, check if grid itself has handler
-    if (click_callable) {
+    // #184: Also check for Python subclass (might have on_click method)
+    if (click_callable || is_python_subclass) {
         // #142 - Fire on_cell_click if we have the callback and clicked on a valid cell
         if (on_cell_click_callable) {
             int cell_x = static_cast<int>(std::floor(grid_x));
@@ -987,7 +988,14 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
             Py_DECREF(weakref);  // Cache owns the reference now
         }
     }
-    
+
+    // #184: Check if this is a Python subclass (for callback method support)
+    PyObject* grid_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+    if (grid_type) {
+        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != grid_type;
+        Py_DECREF(grid_type);
+    }
+
     return 0; // Success
 }
 

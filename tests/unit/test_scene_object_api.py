@@ -153,8 +153,8 @@ def test_scene_subclass():
             self.exit_count += 1
             print(f"    GameScene.on_exit() called (count: {self.exit_count})")
 
-        def on_keypress(self, key, action):
-            print(f"    GameScene.on_keypress({key}, {action})")
+        def on_key(self, key, action):
+            print(f"    GameScene.on_key({key}, {action})")
 
         def update(self, dt):
             self.update_count += 1
