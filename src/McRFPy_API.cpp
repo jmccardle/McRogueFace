@@ -3,6 +3,7 @@
 #include "McRFPy_Automation.h"
 #include "McRFPy_Libtcod.h"
 #include "McRFPy_Doc.h"
+#include "PyTypeCache.h"  // Thread-safe cached Python types
 #include "platform.h"
 #include "PyAnimation.h"
 #include "PyDrawable.h"
@@ -549,12 +550,20 @@ PyObject* PyInit_mcrfpy()
     PyObject* libtcod_module = McRFPy_Libtcod::init_libtcod_module();
     if (libtcod_module != NULL) {
         PyModule_AddObject(m, "libtcod", libtcod_module);
-        
+
         // Also add to sys.modules for proper import behavior
         PyObject* sys_modules = PyImport_GetModuleDict();
         PyDict_SetItemString(sys_modules, "mcrfpy.libtcod", libtcod_module);
     }
-    
+
+    // Initialize PyTypeCache for thread-safe type lookups
+    // This must be done after all types are added to the module
+    if (!PyTypeCache::initialize(m)) {
+        // Failed to initialize type cache - this is a critical error
+        // Error message already set by PyTypeCache::initialize
+        return NULL;
+    }
+
     //McRFPy_API::mcrf_module = m;
     return m;
 }
