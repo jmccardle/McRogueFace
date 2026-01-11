@@ -3,6 +3,7 @@
 #include "McRFPy_API.h"
 #include <algorithm>
 #include <cstring>
+#include <libtcod.h>
 #include "PyObjectUtils.h"
 #include "PyVector.h"
 #include "PythonObjectCache.h"
@@ -749,39 +750,45 @@ PyObject* UIEntity::path_to(PyUIEntityObject* self, PyObject* args, PyObject* kw
         PyErr_SetString(PyExc_ValueError, "Entity must be associated with a grid to compute paths");
         return NULL;
     }
-    
+
     // Get current position
     int current_x = static_cast<int>(self->data->position.x);
     int current_y = static_cast<int>(self->data->position.y);
-    
+
     // Validate target position
     auto grid = self->data->grid;
     if (target_x < 0 || target_x >= grid->grid_w || target_y < 0 || target_y >= grid->grid_h) {
-        PyErr_Format(PyExc_ValueError, "Target position (%d, %d) is out of grid bounds (0-%d, 0-%d)", 
+        PyErr_Format(PyExc_ValueError, "Target position (%d, %d) is out of grid bounds (0-%d, 0-%d)",
                      target_x, target_y, grid->grid_w - 1, grid->grid_h - 1);
         return NULL;
     }
-    
-    // Use the grid's Dijkstra implementation
-    grid->computeDijkstra(current_x, current_y);
-    auto path = grid->getDijkstraPath(target_x, target_y);
-    
+
+    // Use A* pathfinding via temporary TCODPath
+    TCODPath tcod_path(grid->getTCODMap(), 1.41f);
+    if (!tcod_path.compute(current_x, current_y, target_x, target_y)) {
+        // No path found - return empty list
+        return PyList_New(0);
+    }
+
     // Convert path to Python list of tuples
-    PyObject* path_list = PyList_New(path.size());
+    PyObject* path_list = PyList_New(tcod_path.size());
     if (!path_list) return PyErr_NoMemory();
-    
-    for (size_t i = 0; i < path.size(); ++i) {
+
+    for (int i = 0; i < tcod_path.size(); ++i) {
+        int px, py;
+        tcod_path.get(i, &px, &py);
+
         PyObject* coord_tuple = PyTuple_New(2);
         if (!coord_tuple) {
             Py_DECREF(path_list);
             return PyErr_NoMemory();
         }
-        
-        PyTuple_SetItem(coord_tuple, 0, PyLong_FromLong(path[i].first));
-        PyTuple_SetItem(coord_tuple, 1, PyLong_FromLong(path[i].second));
+
+        PyTuple_SetItem(coord_tuple, 0, PyLong_FromLong(px));
+        PyTuple_SetItem(coord_tuple, 1, PyLong_FromLong(py));
         PyList_SetItem(path_list, i, coord_tuple);
     }
-    
+
     return path_list;
 }
 

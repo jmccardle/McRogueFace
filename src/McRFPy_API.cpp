@@ -20,6 +20,7 @@
 #include "PyMusic.h"
 #include "PyKeyboard.h"
 #include "PyMouse.h"
+#include "UIGridPathfinding.h"  // AStarPath and DijkstraMap types
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
@@ -410,6 +411,10 @@ PyObject* PyInit_mcrfpy()
         /*mouse state (#186)*/
         &PyMouseType,
 
+        /*pathfinding result types*/
+        &mcrfpydef::PyAStarPathType,
+        &mcrfpydef::PyDijkstraMapType,
+
         nullptr};
 
     // Types that are used internally but NOT exported to module namespace (#189)
@@ -421,6 +426,9 @@ PyObject* PyInit_mcrfpy()
         /*collections & iterators - returned by .children/.entities but not directly instantiable*/
         &PyUICollectionType, &PyUICollectionIterType,
         &PyUIEntityCollectionType, &PyUIEntityCollectionIterType,
+
+        /*pathfinding iterator - returned by AStarPath.__iter__() but not directly instantiable*/
+        &mcrfpydef::PyAStarPathIterType,
 
         nullptr};
     

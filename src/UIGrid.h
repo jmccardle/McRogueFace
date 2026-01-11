@@ -8,6 +8,8 @@
 #include <libtcod.h>
 #include <mutex>
 #include <optional>
+#include <map>
+#include <memory>
 
 #include "PyCallable.h"
 #include "PyTexture.h"
@@ -25,6 +27,9 @@
 #include "SpatialHash.h"
 #include "UIEntityCollection.h"  // EntityCollection types (extracted from UIGrid)
 
+// Forward declaration for pathfinding
+class DijkstraMap;
+
 class UIGrid: public UIDrawable
 {
 private:
@@ -33,10 +38,13 @@ private:
     static constexpr int DEFAULT_CELL_WIDTH = 16;
     static constexpr int DEFAULT_CELL_HEIGHT = 16;
     TCODMap* tcod_map;  // TCOD map for FOV and pathfinding
-    TCODDijkstra* tcod_dijkstra;  // Dijkstra pathfinding
-    TCODPath* tcod_path;  // A* pathfinding
     mutable std::mutex fov_mutex;  // Mutex for thread-safe FOV operations
-    
+
+public:
+    // Dijkstra map cache - keyed by root position
+    // Public so UIGridPathfinding can access it
+    std::map<std::pair<int,int>, std::shared_ptr<DijkstraMap>> dijkstra_maps;
+
 public:
     UIGrid();
     //UIGrid(int, int, IndexTexture*, float, float, float, float);
@@ -54,15 +62,12 @@ public:
     void syncTCODMapCell(int x, int y);  // Sync a single cell to TCOD map
     void computeFOV(int x, int y, int radius, bool light_walls = true, TCOD_fov_algorithm_t algo = FOV_BASIC);
     bool isInFOV(int x, int y) const;
+    TCODMap* getTCODMap() const { return tcod_map; }  // Access for pathfinding
     
-    // Pathfinding methods
-    std::vector<std::pair<int, int>> findPath(int x1, int y1, int x2, int y2, float diagonalCost = 1.41f);
-    void computeDijkstra(int rootX, int rootY, float diagonalCost = 1.41f);
-    float getDijkstraDistance(int x, int y) const;
-    std::vector<std::pair<int, int>> getDijkstraPath(int x, int y) const;
-    
-    // A* pathfinding methods
-    std::vector<std::pair<int, int>> computeAStarPath(int x1, int y1, int x2, int y2, float diagonalCost = 1.41f);
+    // Pathfinding - new API creates AStarPath/DijkstraMap objects
+    // See UIGridPathfinding.h for the new pathfinding API
+    // Grid.find_path() now returns AStarPath objects
+    // Grid.get_dijkstra_map() returns DijkstraMap objects (cached by root position)
     
     // Phase 1 virtual method implementations
     sf::FloatRect get_bounds() const override;
@@ -167,11 +172,10 @@ public:
     static PyObject* py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_is_in_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* py_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* py_compute_dijkstra(PyUIGridObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* py_get_dijkstra_distance(PyUIGridObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* py_get_dijkstra_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* py_compute_astar_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    // Pathfinding methods moved to UIGridPathfinding.cpp
+    // py_find_path -> UIGridPathfinding::Grid_find_path (returns AStarPath)
+    // py_get_dijkstra_map -> UIGridPathfinding::Grid_get_dijkstra_map (returns DijkstraMap)
+    // py_clear_dijkstra_maps -> UIGridPathfinding::Grid_clear_dijkstra_maps
     static PyObject* py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds);  // #115
     static PyObject* py_center_camera(PyUIGridObject* self, PyObject* args);  // #169
 

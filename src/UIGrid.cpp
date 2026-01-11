@@ -1,4 +1,5 @@
 #include "UIGrid.h"
+#include "UIGridPathfinding.h"  // New pathfinding API
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
@@ -17,7 +18,7 @@
 
 UIGrid::UIGrid()
 : grid_w(0), grid_h(0), zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
-  fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
+  fill_color(8, 8, 8, 255), tcod_map(nullptr),
   perspective_enabled(false), fov_algorithm(FOV_BASIC), fov_radius(10),
   use_chunks(false)  // Default to omniscient view
 {
@@ -49,7 +50,7 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
 : grid_w(gx), grid_h(gy),
   zoom(1.0f),
   ptex(_ptex),
-  fill_color(8, 8, 8, 255), tcod_map(nullptr), tcod_dijkstra(nullptr), tcod_path(nullptr),
+  fill_color(8, 8, 8, 255), tcod_map(nullptr),
   perspective_enabled(false), fov_algorithm(FOV_BASIC), fov_radius(10),
   use_chunks(gx > CHUNK_THRESHOLD || gy > CHUNK_THRESHOLD)  // #123 - Use chunks for large grids
 {
@@ -84,14 +85,10 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
      // textures are upside-down inside renderTexture
      output.setTexture(renderTexture.getTexture());
 
-    // Create TCOD map
+    // Create TCOD map for FOV and as source for pathfinding
     tcod_map = new TCODMap(gx, gy);
-
-    // Create TCOD dijkstra pathfinder
-    tcod_dijkstra = new TCODDijkstra(tcod_map);
-
-    // Create TCOD A* pathfinder
-    tcod_path = new TCODPath(tcod_map);
+    // Note: DijkstraMap objects are created on-demand via get_dijkstra_map()
+    // A* paths are computed on-demand via find_path()
 
     // #123 - Initialize storage based on grid size
     if (use_chunks) {
@@ -368,14 +365,9 @@ UIGridPoint& UIGrid::at(int x, int y)
 
 UIGrid::~UIGrid()
 {
-    if (tcod_path) {
-        delete tcod_path;
-        tcod_path = nullptr;
-    }
-    if (tcod_dijkstra) {
-        delete tcod_dijkstra;
-        tcod_dijkstra = nullptr;
-    }
+    // Clear Dijkstra maps first (they reference tcod_map)
+    dijkstra_maps.clear();
+
     if (tcod_map) {
         delete tcod_map;
         tcod_map = nullptr;
@@ -476,98 +468,9 @@ bool UIGrid::isInFOV(int x, int y) const
     return tcod_map->isInFov(x, y);
 }
 
-std::vector<std::pair<int, int>> UIGrid::findPath(int x1, int y1, int x2, int y2, float diagonalCost)
-{
-    std::vector<std::pair<int, int>> path;
-    
-    if (!tcod_map || x1 < 0 || x1 >= grid_w || y1 < 0 || y1 >= grid_h ||
-        x2 < 0 || x2 >= grid_w || y2 < 0 || y2 >= grid_h) {
-        return path;
-    }
-    
-    TCODPath tcod_path(tcod_map, diagonalCost);
-    if (tcod_path.compute(x1, y1, x2, y2)) {
-        for (int i = 0; i < tcod_path.size(); i++) {
-            int x, y;
-            tcod_path.get(i, &x, &y);
-            path.push_back(std::make_pair(x, y));
-        }
-    }
-    
-    return path;
-}
-
-void UIGrid::computeDijkstra(int rootX, int rootY, float diagonalCost)
-{
-    if (!tcod_map || !tcod_dijkstra || rootX < 0 || rootX >= grid_w || rootY < 0 || rootY >= grid_h) return;
-    
-    // Compute the Dijkstra map from the root position
-    tcod_dijkstra->compute(rootX, rootY);
-}
-
-float UIGrid::getDijkstraDistance(int x, int y) const
-{
-    if (!tcod_dijkstra || x < 0 || x >= grid_w || y < 0 || y >= grid_h) {
-        return -1.0f;  // Invalid position
-    }
-    
-    return tcod_dijkstra->getDistance(x, y);
-}
-
-std::vector<std::pair<int, int>> UIGrid::getDijkstraPath(int x, int y) const
-{
-    std::vector<std::pair<int, int>> path;
-    
-    if (!tcod_dijkstra || x < 0 || x >= grid_w || y < 0 || y >= grid_h) {
-        return path;  // Empty path for invalid position
-    }
-    
-    // Set the destination
-    if (tcod_dijkstra->setPath(x, y)) {
-        // Walk the path and collect points
-        int px, py;
-        while (tcod_dijkstra->walk(&px, &py)) {
-            path.push_back(std::make_pair(px, py));
-        }
-    }
-    
-    return path;
-}
-
-// A* pathfinding implementation
-std::vector<std::pair<int, int>> UIGrid::computeAStarPath(int x1, int y1, int x2, int y2, float diagonalCost)
-{
-    std::vector<std::pair<int, int>> path;
-    
-    // Validate inputs
-    if (!tcod_map || !tcod_path ||
-        x1 < 0 || x1 >= grid_w || y1 < 0 || y1 >= grid_h ||
-        x2 < 0 || x2 >= grid_w || y2 < 0 || y2 >= grid_h) {
-        return path; // Return empty path
-    }
-    
-    // Set diagonal cost (TCODPath doesn't take it as parameter to compute)
-    // Instead, diagonal cost is set during TCODPath construction
-    // For now, we'll use the default diagonal cost from the constructor
-    
-    // Compute the path
-    bool success = tcod_path->compute(x1, y1, x2, y2);
-    
-    if (success) {
-        // Get the computed path
-        int pathSize = tcod_path->size();
-        path.reserve(pathSize);
-        
-        // TCOD path includes the starting position, so we start from index 0
-        for (int i = 0; i < pathSize; i++) {
-            int px, py;
-            tcod_path->get(i, &px, &py);
-            path.push_back(std::make_pair(px, py));
-        }
-    }
-    
-    return path;
-}
+// Pathfinding methods moved to UIGridPathfinding.cpp
+// - Grid.find_path() returns AStarPath objects
+// - Grid.get_dijkstra_map() returns DijkstraMap objects (cached)
 
 // Phase 1 implementations
 sf::FloatRect UIGrid::get_bounds() const
@@ -1453,128 +1356,9 @@ PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args, PyObject* k
     return PyBool_FromLong(in_fov);
 }
 
-PyObject* UIGrid::py_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
-{
-    static const char* kwlist[] = {"start", "end", "diagonal_cost", NULL};
-    PyObject* start_obj = NULL;
-    PyObject* end_obj = NULL;
-    float diagonal_cost = 1.41f;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|f", const_cast<char**>(kwlist),
-                                     &start_obj, &end_obj, &diagonal_cost)) {
-        return NULL;
-    }
-
-    int x1, y1, x2, y2;
-    if (!PyPosition_FromObjectInt(start_obj, &x1, &y1)) {
-        return NULL;
-    }
-    if (!PyPosition_FromObjectInt(end_obj, &x2, &y2)) {
-        return NULL;
-    }
-
-    std::vector<std::pair<int, int>> path = self->data->findPath(x1, y1, x2, y2, diagonal_cost);
-
-    PyObject* path_list = PyList_New(path.size());
-    if (!path_list) return NULL;
-
-    for (size_t i = 0; i < path.size(); i++) {
-        PyObject* coord = Py_BuildValue("(ii)", path[i].first, path[i].second);
-        if (!coord) {
-            Py_DECREF(path_list);
-            return NULL;
-        }
-        PyList_SET_ITEM(path_list, i, coord);
-    }
-
-    return path_list;
-}
-
-PyObject* UIGrid::py_compute_dijkstra(PyUIGridObject* self, PyObject* args, PyObject* kwds)
-{
-    static const char* kwlist[] = {"root", "diagonal_cost", NULL};
-    PyObject* root_obj = NULL;
-    float diagonal_cost = 1.41f;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|f", const_cast<char**>(kwlist),
-                                     &root_obj, &diagonal_cost)) {
-        return NULL;
-    }
-
-    int root_x, root_y;
-    if (!PyPosition_FromObjectInt(root_obj, &root_x, &root_y)) {
-        return NULL;
-    }
-
-    self->data->computeDijkstra(root_x, root_y, diagonal_cost);
-    Py_RETURN_NONE;
-}
-
-PyObject* UIGrid::py_get_dijkstra_distance(PyUIGridObject* self, PyObject* args, PyObject* kwds)
-{
-    int x, y;
-    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
-        return NULL;
-    }
-
-    float distance = self->data->getDijkstraDistance(x, y);
-    if (distance < 0) {
-        Py_RETURN_NONE;  // Invalid position
-    }
-
-    return PyFloat_FromDouble(distance);
-}
-
-PyObject* UIGrid::py_get_dijkstra_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
-{
-    int x, y;
-    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
-        return NULL;
-    }
-
-    std::vector<std::pair<int, int>> path = self->data->getDijkstraPath(x, y);
-
-    PyObject* path_list = PyList_New(path.size());
-    for (size_t i = 0; i < path.size(); i++) {
-        PyObject* pos = Py_BuildValue("(ii)", path[i].first, path[i].second);
-        PyList_SetItem(path_list, i, pos);  // Steals reference
-    }
-
-    return path_list;
-}
-
-PyObject* UIGrid::py_compute_astar_path(PyUIGridObject* self, PyObject* args, PyObject* kwds)
-{
-    static const char* kwlist[] = {"start", "end", "diagonal_cost", NULL};
-    PyObject* start_obj = NULL;
-    PyObject* end_obj = NULL;
-    float diagonal_cost = 1.41f;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|f", const_cast<char**>(kwlist),
-                                     &start_obj, &end_obj, &diagonal_cost)) {
-        return NULL;
-    }
-
-    int x1, y1, x2, y2;
-    if (!PyPosition_FromObjectInt(start_obj, &x1, &y1)) {
-        return NULL;
-    }
-    if (!PyPosition_FromObjectInt(end_obj, &x2, &y2)) {
-        return NULL;
-    }
-
-    // Compute A* path
-    std::vector<std::pair<int, int>> path = self->data->computeAStarPath(x1, y1, x2, y2, diagonal_cost);
-
-    // Convert to Python list
-    PyObject* path_list = PyList_New(path.size());
-    for (size_t i = 0; i < path.size(); i++) {
-        PyObject* pos = Py_BuildValue("(ii)", path[i].first, path[i].second);
-        PyList_SetItem(path_list, i, pos);  // Steals reference
-    }
-
-    return path_list;
-}
+// Old pathfinding Python methods removed - see UIGridPathfinding.cpp for new implementation
+// Grid.find_path() now returns AStarPath objects
+// Grid.get_dijkstra_map() returns DijkstraMap objects (cached by root)
 
 // #147 - Layer system Python API
 PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
@@ -1925,51 +1709,32 @@ PyMethodDef UIGrid::methods[] = {
      "Returns:\n"
      "    True if the cell is visible, False otherwise\n\n"
      "Must call compute_fov() first to calculate visibility."},
-    {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS,
-     "find_path(start, end, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
-     "Find A* path between two points.\n\n"
-     "Args:\n"
-     "    start: Starting position as (x, y) tuple, list, or Vector\n"
-     "    end: Target position as (x, y) tuple, list, or Vector\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
-     "Returns:\n"
-     "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
-     "Uses A* algorithm with walkability from grid cells."},
-    {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS,
-     "compute_dijkstra(root, diagonal_cost: float = 1.41) -> None\n\n"
-     "Compute Dijkstra map from root position.\n\n"
-     "Args:\n"
-     "    root: Root position as (x, y) tuple, list, or Vector\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
-     "Precomputes distances from all reachable cells to the root.\n"
-     "Use get_dijkstra_distance() and get_dijkstra_path() to query results.\n"
-     "Useful for multiple entities pathfinding to the same target."},
-    {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS | METH_KEYWORDS,
-     "get_dijkstra_distance(pos) -> Optional[float]\n\n"
-     "Get distance from Dijkstra root to position.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    Distance as float, or None if position is unreachable or invalid\n\n"
-     "Must call compute_dijkstra() first."},
-    {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS | METH_KEYWORDS,
-     "get_dijkstra_path(pos) -> List[Tuple[int, int]]\n\n"
-     "Get path from position to Dijkstra root.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    List of (x, y) tuples representing path to root, empty if unreachable\n\n"
-     "Must call compute_dijkstra() first. Path includes start but not root position."},
-    {"compute_astar_path", (PyCFunction)UIGrid::py_compute_astar_path, METH_VARARGS | METH_KEYWORDS,
-     "compute_astar_path(start, end, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+    {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
+     "find_path(start, end, diagonal_cost: float = 1.41) -> AStarPath | None\n\n"
      "Compute A* path between two points.\n\n"
      "Args:\n"
-     "    start: Starting position as (x, y) tuple, list, or Vector\n"
-     "    end: Target position as (x, y) tuple, list, or Vector\n"
+     "    start: Starting position as Vector, Entity, or (x, y) tuple\n"
+     "    end: Target position as Vector, Entity, or (x, y) tuple\n"
      "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
      "Returns:\n"
-     "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
-     "Alternative A* implementation. Prefer find_path() for consistency."},
+     "    AStarPath object if path exists, None otherwise.\n\n"
+     "The returned AStarPath can be iterated or walked step-by-step."},
+    {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
+     "get_dijkstra_map(root, diagonal_cost: float = 1.41) -> DijkstraMap\n\n"
+     "Get or create a Dijkstra distance map for a root position.\n\n"
+     "Args:\n"
+     "    root: Root position as Vector, Entity, or (x, y) tuple\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "Returns:\n"
+     "    DijkstraMap object for querying distances and paths.\n\n"
+     "Grid caches DijkstraMaps by root position. Multiple requests for the\n"
+     "same root return the same cached map. Call clear_dijkstra_maps() after\n"
+     "changing grid walkability to invalidate the cache."},
+    {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
+     "clear_dijkstra_maps() -> None\n\n"
+     "Clear all cached Dijkstra maps.\n\n"
+     "Call this after modifying grid cell walkability to ensure pathfinding\n"
+     "uses updated walkability data."},
     {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS | METH_KEYWORDS,
      "add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer"},
     {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
@@ -2021,51 +1786,32 @@ PyMethodDef UIGrid_all_methods[] = {
      "Returns:\n"
      "    True if the cell is visible, False otherwise\n\n"
      "Must call compute_fov() first to calculate visibility."},
-    {"find_path", (PyCFunction)UIGrid::py_find_path, METH_VARARGS | METH_KEYWORDS,
-     "find_path(start, end, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
-     "Find A* path between two points.\n\n"
-     "Args:\n"
-     "    start: Starting position as (x, y) tuple, list, or Vector\n"
-     "    end: Target position as (x, y) tuple, list, or Vector\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
-     "Returns:\n"
-     "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
-     "Uses A* algorithm with walkability from grid cells."},
-    {"compute_dijkstra", (PyCFunction)UIGrid::py_compute_dijkstra, METH_VARARGS | METH_KEYWORDS,
-     "compute_dijkstra(root, diagonal_cost: float = 1.41) -> None\n\n"
-     "Compute Dijkstra map from root position.\n\n"
-     "Args:\n"
-     "    root: Root position as (x, y) tuple, list, or Vector\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
-     "Precomputes distances from all reachable cells to the root.\n"
-     "Use get_dijkstra_distance() and get_dijkstra_path() to query results.\n"
-     "Useful for multiple entities pathfinding to the same target."},
-    {"get_dijkstra_distance", (PyCFunction)UIGrid::py_get_dijkstra_distance, METH_VARARGS | METH_KEYWORDS,
-     "get_dijkstra_distance(pos) -> Optional[float]\n\n"
-     "Get distance from Dijkstra root to position.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    Distance as float, or None if position is unreachable or invalid\n\n"
-     "Must call compute_dijkstra() first."},
-    {"get_dijkstra_path", (PyCFunction)UIGrid::py_get_dijkstra_path, METH_VARARGS | METH_KEYWORDS,
-     "get_dijkstra_path(pos) -> List[Tuple[int, int]]\n\n"
-     "Get path from position to Dijkstra root.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    List of (x, y) tuples representing path to root, empty if unreachable\n\n"
-     "Must call compute_dijkstra() first. Path includes start but not root position."},
-    {"compute_astar_path", (PyCFunction)UIGrid::py_compute_astar_path, METH_VARARGS | METH_KEYWORDS,
-     "compute_astar_path(start, end, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\n\n"
+    {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
+     "find_path(start, end, diagonal_cost: float = 1.41) -> AStarPath | None\n\n"
      "Compute A* path between two points.\n\n"
      "Args:\n"
-     "    start: Starting position as (x, y) tuple, list, or Vector\n"
-     "    end: Target position as (x, y) tuple, list, or Vector\n"
+     "    start: Starting position as Vector, Entity, or (x, y) tuple\n"
+     "    end: Target position as Vector, Entity, or (x, y) tuple\n"
      "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
      "Returns:\n"
-     "    List of (x, y) tuples representing the path, empty list if no path exists\n\n"
-     "Alternative A* implementation. Prefer find_path() for consistency."},
+     "    AStarPath object if path exists, None otherwise.\n\n"
+     "The returned AStarPath can be iterated or walked step-by-step."},
+    {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
+     "get_dijkstra_map(root, diagonal_cost: float = 1.41) -> DijkstraMap\n\n"
+     "Get or create a Dijkstra distance map for a root position.\n\n"
+     "Args:\n"
+     "    root: Root position as Vector, Entity, or (x, y) tuple\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "Returns:\n"
+     "    DijkstraMap object for querying distances and paths.\n\n"
+     "Grid caches DijkstraMaps by root position. Multiple requests for the\n"
+     "same root return the same cached map. Call clear_dijkstra_maps() after\n"
+     "changing grid walkability to invalidate the cache."},
+    {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
+     "clear_dijkstra_maps() -> None\n\n"
+     "Clear all cached Dijkstra maps.\n\n"
+     "Call this after modifying grid cell walkability to ensure pathfinding\n"
+     "uses updated walkability data."},
     {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS | METH_KEYWORDS,
      "add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer\n\n"
      "Add a new layer to the grid.\n\n"
