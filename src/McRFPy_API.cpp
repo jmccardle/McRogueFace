@@ -13,6 +13,9 @@
 #include "PyFOV.h"
 #include "PyTransition.h"
 #include "PyEasing.h"
+#include "PyKey.h"
+#include "PyMouseButton.h"
+#include "PyInputState.h"
 #include "PySound.h"
 #include "PyMusic.h"
 #include "PyKeyboard.h"
@@ -532,6 +535,27 @@ PyObject* PyInit_mcrfpy()
     // Add Easing enum class (uses Python's IntEnum)
     PyObject* easing_class = PyEasing::create_enum_class(m);
     if (!easing_class) {
+        // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add Key enum class for keyboard input
+    PyObject* key_class = PyKey::create_enum_class(m);
+    if (!key_class) {
+        // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add MouseButton enum class for mouse input
+    PyObject* mouse_button_class = PyMouseButton::create_enum_class(m);
+    if (!mouse_button_class) {
+        // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add InputState enum class for input event states (pressed/released)
+    PyObject* input_state_class = PyInputState::create_enum_class(m);
+    if (!input_state_class) {
         // If enum creation fails, continue without it (non-fatal)
         PyErr_Clear();
     }

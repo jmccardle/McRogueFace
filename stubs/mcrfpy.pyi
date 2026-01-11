@@ -4,10 +4,211 @@ Core game engine interface for creating roguelike games with Python.
 """
 
 from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload
+from enum import IntEnum
 
 # Type aliases
 UIElement = Union['Frame', 'Caption', 'Sprite', 'Grid', 'Line', 'Circle', 'Arc']
 Transition = Union[str, None]
+
+# Enums
+
+class Key(IntEnum):
+    """Keyboard key codes.
+
+    These enum values compare equal to their legacy string equivalents
+    for backwards compatibility:
+        Key.ESCAPE == 'Escape'  # True
+        Key.LEFT_SHIFT == 'LShift'  # True
+    """
+    # Letters
+    A = 0
+    B = 1
+    C = 2
+    D = 3
+    E = 4
+    F = 5
+    G = 6
+    H = 7
+    I = 8
+    J = 9
+    K = 10
+    L = 11
+    M = 12
+    N = 13
+    O = 14
+    P = 15
+    Q = 16
+    R = 17
+    S = 18
+    T = 19
+    U = 20
+    V = 21
+    W = 22
+    X = 23
+    Y = 24
+    Z = 25
+    # Number row
+    NUM_0 = 26
+    NUM_1 = 27
+    NUM_2 = 28
+    NUM_3 = 29
+    NUM_4 = 30
+    NUM_5 = 31
+    NUM_6 = 32
+    NUM_7 = 33
+    NUM_8 = 34
+    NUM_9 = 35
+    # Control keys
+    ESCAPE = 36
+    LEFT_CONTROL = 37
+    LEFT_SHIFT = 38
+    LEFT_ALT = 39
+    LEFT_SYSTEM = 40
+    RIGHT_CONTROL = 41
+    RIGHT_SHIFT = 42
+    RIGHT_ALT = 43
+    RIGHT_SYSTEM = 44
+    MENU = 45
+    # Punctuation
+    LEFT_BRACKET = 46
+    RIGHT_BRACKET = 47
+    SEMICOLON = 48
+    COMMA = 49
+    PERIOD = 50
+    APOSTROPHE = 51
+    SLASH = 52
+    BACKSLASH = 53
+    GRAVE = 54
+    EQUAL = 55
+    HYPHEN = 56
+    # Whitespace/editing
+    SPACE = 57
+    ENTER = 58
+    BACKSPACE = 59
+    TAB = 60
+    # Navigation
+    PAGE_UP = 61
+    PAGE_DOWN = 62
+    END = 63
+    HOME = 64
+    INSERT = 65
+    DELETE = 66
+    # Numpad operators
+    ADD = 67
+    SUBTRACT = 68
+    MULTIPLY = 69
+    DIVIDE = 70
+    # Arrows
+    LEFT = 71
+    RIGHT = 72
+    UP = 73
+    DOWN = 74
+    # Numpad numbers
+    NUMPAD_0 = 75
+    NUMPAD_1 = 76
+    NUMPAD_2 = 77
+    NUMPAD_3 = 78
+    NUMPAD_4 = 79
+    NUMPAD_5 = 80
+    NUMPAD_6 = 81
+    NUMPAD_7 = 82
+    NUMPAD_8 = 83
+    NUMPAD_9 = 84
+    # Function keys
+    F1 = 85
+    F2 = 86
+    F3 = 87
+    F4 = 88
+    F5 = 89
+    F6 = 90
+    F7 = 91
+    F8 = 92
+    F9 = 93
+    F10 = 94
+    F11 = 95
+    F12 = 96
+    F13 = 97
+    F14 = 98
+    F15 = 99
+    # Misc
+    PAUSE = 100
+    UNKNOWN = -1
+
+class MouseButton(IntEnum):
+    """Mouse button codes.
+
+    These enum values compare equal to their legacy string equivalents
+    for backwards compatibility:
+        MouseButton.LEFT == 'left'  # True
+        MouseButton.RIGHT == 'right'  # True
+    """
+    LEFT = 0
+    RIGHT = 1
+    MIDDLE = 2
+    X1 = 3
+    X2 = 4
+
+class InputState(IntEnum):
+    """Input event states (pressed/released).
+
+    These enum values compare equal to their legacy string equivalents
+    for backwards compatibility:
+        InputState.PRESSED == 'start'  # True
+        InputState.RELEASED == 'end'  # True
+    """
+    PRESSED = 0
+    RELEASED = 1
+
+class Easing(IntEnum):
+    """Easing functions for animations."""
+    LINEAR = 0
+    EASE_IN = 1
+    EASE_OUT = 2
+    EASE_IN_OUT = 3
+    EASE_IN_QUAD = 4
+    EASE_OUT_QUAD = 5
+    EASE_IN_OUT_QUAD = 6
+    EASE_IN_CUBIC = 7
+    EASE_OUT_CUBIC = 8
+    EASE_IN_OUT_CUBIC = 9
+    EASE_IN_QUART = 10
+    EASE_OUT_QUART = 11
+    EASE_IN_OUT_QUART = 12
+    EASE_IN_SINE = 13
+    EASE_OUT_SINE = 14
+    EASE_IN_OUT_SINE = 15
+    EASE_IN_EXPO = 16
+    EASE_OUT_EXPO = 17
+    EASE_IN_OUT_EXPO = 18
+    EASE_IN_CIRC = 19
+    EASE_OUT_CIRC = 20
+    EASE_IN_OUT_CIRC = 21
+    EASE_IN_ELASTIC = 22
+    EASE_OUT_ELASTIC = 23
+    EASE_IN_OUT_ELASTIC = 24
+    EASE_IN_BACK = 25
+    EASE_OUT_BACK = 26
+    EASE_IN_OUT_BACK = 27
+    EASE_IN_BOUNCE = 28
+    EASE_OUT_BOUNCE = 29
+    EASE_IN_OUT_BOUNCE = 30
+
+class FOV(IntEnum):
+    """Field of view algorithms for visibility calculations."""
+    BASIC = 0
+    DIAMOND = 1
+    SHADOW = 2
+    PERMISSIVE_0 = 3
+    PERMISSIVE_1 = 4
+    PERMISSIVE_2 = 5
+    PERMISSIVE_3 = 6
+    PERMISSIVE_4 = 7
+    PERMISSIVE_5 = 8
+    PERMISSIVE_6 = 9
+    PERMISSIVE_7 = 10
+    PERMISSIVE_8 = 11
+    RESTRICTIVE = 12
+    SYMMETRIC_SHADOWCAST = 13
 
 # Classes
 
