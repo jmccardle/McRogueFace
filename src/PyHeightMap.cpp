@@ -3,6 +3,8 @@
 #include "McRFPy_Doc.h"
 #include "PyPositionHelper.h"  // Standardized position argument parsing
 #include <sstream>
+#include <cstdlib>  // For random seed handling
+#include <ctime>    // For time-based seeds
 
 // Property definitions
 PyGetSetDef PyHeightMap::getsetters[] = {
@@ -144,6 +146,80 @@ PyMethodDef PyHeightMap::methods[] = {
          MCRF_SIG("()", "HeightMap"),
          MCRF_DESC("Return NEW HeightMap with (1.0 - value) for each cell."),
          MCRF_RETURNS("HeightMap: New inverted HeightMap (original is unchanged)")
+     )},
+    // Terrain generation methods (#195)
+    {"add_hill", (PyCFunction)PyHeightMap::add_hill, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, add_hill,
+         MCRF_SIG("(center, radius: float, height: float)", "HeightMap"),
+         MCRF_DESC("Add a smooth hill at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("center", "Center position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("radius", "Radius of the hill in cells")
+         MCRF_ARG("height", "Height of the hill peak")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+     )},
+    {"dig_hill", (PyCFunction)PyHeightMap::dig_hill, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, dig_hill,
+         MCRF_SIG("(center, radius: float, depth: float)", "HeightMap"),
+         MCRF_DESC("Dig a smooth crater at the specified position. Use negative depth to dig below current terrain."),
+         MCRF_ARGS_START
+         MCRF_ARG("center", "Center position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("radius", "Radius of the crater in cells")
+         MCRF_ARG("depth", "Target depth (use negative to dig below current values)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_NOTE("Only modifies cells where current value exceeds target depth")
+     )},
+    {"add_voronoi", (PyCFunction)PyHeightMap::add_voronoi, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, add_voronoi,
+         MCRF_SIG("(num_points: int, coefficients: tuple = (1.0, -0.5), seed: int = None)", "HeightMap"),
+         MCRF_DESC("Add Voronoi-based terrain features."),
+         MCRF_ARGS_START
+         MCRF_ARG("num_points", "Number of Voronoi seed points")
+         MCRF_ARG("coefficients", "Coefficients for distance calculations (default: (1.0, -0.5))")
+         MCRF_ARG("seed", "Random seed (None for random)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+     )},
+    {"mid_point_displacement", (PyCFunction)PyHeightMap::mid_point_displacement, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, mid_point_displacement,
+         MCRF_SIG("(roughness: float = 0.5, seed: int = None)", "HeightMap"),
+         MCRF_DESC("Generate terrain using midpoint displacement algorithm (diamond-square)."),
+         MCRF_ARGS_START
+         MCRF_ARG("roughness", "Controls terrain roughness (0.0-1.0, default 0.5)")
+         MCRF_ARG("seed", "Random seed (None for random)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_NOTE("Works best with power-of-2+1 dimensions (e.g., 65x65, 129x129)")
+     )},
+    {"rain_erosion", (PyCFunction)PyHeightMap::rain_erosion, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, rain_erosion,
+         MCRF_SIG("(drops: int, erosion: float = 0.1, sedimentation: float = 0.05, seed: int = None)", "HeightMap"),
+         MCRF_DESC("Simulate rain erosion on the terrain."),
+         MCRF_ARGS_START
+         MCRF_ARG("drops", "Number of rain drops to simulate")
+         MCRF_ARG("erosion", "Erosion coefficient (default 0.1)")
+         MCRF_ARG("sedimentation", "Sedimentation coefficient (default 0.05)")
+         MCRF_ARG("seed", "Random seed (None for random)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+     )},
+    {"dig_bezier", (PyCFunction)PyHeightMap::dig_bezier, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, dig_bezier,
+         MCRF_SIG("(points: tuple, start_radius: float, end_radius: float, start_depth: float, end_depth: float)", "HeightMap"),
+         MCRF_DESC("Carve a path along a cubic Bezier curve. Use negative depths to dig below current terrain."),
+         MCRF_ARGS_START
+         MCRF_ARG("points", "Four control points as ((x0,y0), (x1,y1), (x2,y2), (x3,y3))")
+         MCRF_ARG("start_radius", "Radius at start of path")
+         MCRF_ARG("end_radius", "Radius at end of path")
+         MCRF_ARG("start_depth", "Target depth at start (use negative to dig)")
+         MCRF_ARG("end_depth", "Target depth at end (use negative to dig)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_NOTE("Only modifies cells where current value exceeds target depth")
+     )},
+    {"smooth", (PyCFunction)PyHeightMap::smooth, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, smooth,
+         MCRF_SIG("(iterations: int = 1)", "HeightMap"),
+         MCRF_DESC("Smooth the heightmap by averaging neighboring cells."),
+         MCRF_ARGS_START
+         MCRF_ARG("iterations", "Number of smoothing passes (default 1)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
     {NULL}
 };
@@ -757,4 +833,320 @@ PyObject* PyHeightMap::inverse(PyHeightMapObject* self, PyObject* Py_UNUSED(args
     }
 
     return (PyObject*)result;
+}
+
+// Terrain generation methods (#195)
+
+// Helper: Create TCOD random generator with optional seed
+static TCOD_Random* CreateTCODRandom(PyObject* seed_obj)
+{
+    if (seed_obj == nullptr || seed_obj == Py_None) {
+        // Use default random - return nullptr to use libtcod's default
+        return nullptr;
+    }
+
+    if (!PyLong_Check(seed_obj)) {
+        PyErr_SetString(PyExc_TypeError, "seed must be an integer or None");
+        return nullptr;
+    }
+
+    uint32_t seed = (uint32_t)PyLong_AsUnsignedLong(seed_obj);
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
+
+    return TCOD_random_new_from_seed(TCOD_RNG_MT, seed);
+}
+
+// Method: add_hill(center, radius, height) -> HeightMap
+PyObject* PyHeightMap::add_hill(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"center", "radius", "height", nullptr};
+    PyObject* center_obj = nullptr;
+    float radius, height;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off", const_cast<char**>(keywords),
+                                     &center_obj, &radius, &height)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    float cx, cy;
+    if (!PyPosition_FromObject(center_obj, &cx, &cy)) {
+        return nullptr;
+    }
+
+    TCOD_heightmap_add_hill(self->heightmap, cx, cy, radius, height);
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: dig_hill(center, radius, depth) -> HeightMap
+PyObject* PyHeightMap::dig_hill(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"center", "radius", "depth", nullptr};
+    PyObject* center_obj = nullptr;
+    float radius, depth;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off", const_cast<char**>(keywords),
+                                     &center_obj, &radius, &depth)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    float cx, cy;
+    if (!PyPosition_FromObject(center_obj, &cx, &cy)) {
+        return nullptr;
+    }
+
+    TCOD_heightmap_dig_hill(self->heightmap, cx, cy, radius, depth);
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: add_voronoi(num_points, coefficients=(1.0, -0.5), seed=None) -> HeightMap
+PyObject* PyHeightMap::add_voronoi(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"num_points", "coefficients", "seed", nullptr};
+    int num_points;
+    PyObject* coef_obj = nullptr;
+    PyObject* seed_obj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|OO", const_cast<char**>(keywords),
+                                     &num_points, &coef_obj, &seed_obj)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    if (num_points <= 0) {
+        PyErr_SetString(PyExc_ValueError, "num_points must be positive");
+        return nullptr;
+    }
+
+    // Parse coefficients - default to (1.0, -0.5)
+    std::vector<float> coef;
+    if (coef_obj == nullptr || coef_obj == Py_None) {
+        coef = {1.0f, -0.5f};
+    } else if (PyTuple_Check(coef_obj)) {
+        Py_ssize_t size = PyTuple_Size(coef_obj);
+        for (Py_ssize_t i = 0; i < size; i++) {
+            PyObject* item = PyTuple_GetItem(coef_obj, i);
+            if (PyFloat_Check(item)) {
+                coef.push_back((float)PyFloat_AsDouble(item));
+            } else if (PyLong_Check(item)) {
+                coef.push_back((float)PyLong_AsLong(item));
+            } else {
+                PyErr_SetString(PyExc_TypeError, "coefficients must be numeric");
+                return nullptr;
+            }
+        }
+    } else if (PyList_Check(coef_obj)) {
+        Py_ssize_t size = PyList_Size(coef_obj);
+        for (Py_ssize_t i = 0; i < size; i++) {
+            PyObject* item = PyList_GetItem(coef_obj, i);
+            if (PyFloat_Check(item)) {
+                coef.push_back((float)PyFloat_AsDouble(item));
+            } else if (PyLong_Check(item)) {
+                coef.push_back((float)PyLong_AsLong(item));
+            } else {
+                PyErr_SetString(PyExc_TypeError, "coefficients must be numeric");
+                return nullptr;
+            }
+        }
+    } else {
+        PyErr_SetString(PyExc_TypeError, "coefficients must be a tuple or list");
+        return nullptr;
+    }
+
+    if (coef.empty()) {
+        PyErr_SetString(PyExc_ValueError, "coefficients cannot be empty");
+        return nullptr;
+    }
+
+    // Create random generator if seed provided
+    TCOD_Random* rnd = CreateTCODRandom(seed_obj);
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
+
+    TCOD_heightmap_add_voronoi(self->heightmap, num_points, (int)coef.size(), coef.data(), rnd);
+
+    if (rnd) {
+        TCOD_random_delete(rnd);
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: mid_point_displacement(roughness=0.5, seed=None) -> HeightMap
+PyObject* PyHeightMap::mid_point_displacement(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"roughness", "seed", nullptr};
+    float roughness = 0.5f;
+    PyObject* seed_obj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|fO", const_cast<char**>(keywords),
+                                     &roughness, &seed_obj)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Create random generator if seed provided
+    TCOD_Random* rnd = CreateTCODRandom(seed_obj);
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
+
+    TCOD_heightmap_mid_point_displacement(self->heightmap, rnd, roughness);
+
+    if (rnd) {
+        TCOD_random_delete(rnd);
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: rain_erosion(drops, erosion=0.1, sedimentation=0.05, seed=None) -> HeightMap
+PyObject* PyHeightMap::rain_erosion(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"drops", "erosion", "sedimentation", "seed", nullptr};
+    int drops;
+    float erosion = 0.1f;
+    float sedimentation = 0.05f;
+    PyObject* seed_obj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|ffO", const_cast<char**>(keywords),
+                                     &drops, &erosion, &sedimentation, &seed_obj)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    if (drops <= 0) {
+        PyErr_SetString(PyExc_ValueError, "drops must be positive");
+        return nullptr;
+    }
+
+    // Create random generator if seed provided
+    TCOD_Random* rnd = CreateTCODRandom(seed_obj);
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
+
+    TCOD_heightmap_rain_erosion(self->heightmap, drops, erosion, sedimentation, rnd);
+
+    if (rnd) {
+        TCOD_random_delete(rnd);
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: dig_bezier(points, start_radius, end_radius, start_depth, end_depth) -> HeightMap
+PyObject* PyHeightMap::dig_bezier(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"points", "start_radius", "end_radius", "start_depth", "end_depth", nullptr};
+    PyObject* points_obj = nullptr;
+    float start_radius, end_radius, start_depth, end_depth;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Offff", const_cast<char**>(keywords),
+                                     &points_obj, &start_radius, &end_radius, &start_depth, &end_depth)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Parse 4 control points
+    if (!PyTuple_Check(points_obj) && !PyList_Check(points_obj)) {
+        PyErr_SetString(PyExc_TypeError, "points must be a tuple or list of 4 control points");
+        return nullptr;
+    }
+
+    Py_ssize_t size = PyTuple_Check(points_obj) ? PyTuple_Size(points_obj) : PyList_Size(points_obj);
+    if (size != 4) {
+        PyErr_Format(PyExc_ValueError, "points must contain exactly 4 control points, got %zd", size);
+        return nullptr;
+    }
+
+    int px[4], py[4];
+    for (int i = 0; i < 4; i++) {
+        PyObject* point = PyTuple_Check(points_obj) ? PyTuple_GetItem(points_obj, i) : PyList_GetItem(points_obj, i);
+        int x, y;
+        if (!PyPosition_FromObjectInt(point, &x, &y)) {
+            PyErr_Format(PyExc_TypeError, "control point %d must be a (x, y) position", i);
+            return nullptr;
+        }
+        px[i] = x;
+        py[i] = y;
+    }
+
+    TCOD_heightmap_dig_bezier(self->heightmap, px, py, start_radius, start_depth, end_radius, end_depth);
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: smooth(iterations=1) -> HeightMap
+PyObject* PyHeightMap::smooth(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"iterations", nullptr};
+    int iterations = 1;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", const_cast<char**>(keywords),
+                                     &iterations)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    if (iterations <= 0) {
+        PyErr_SetString(PyExc_ValueError, "iterations must be positive");
+        return nullptr;
+    }
+
+    // 3x3 averaging kernel
+    static const int kernel_size = 9;
+    static const int dx[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
+    static const int dy[9] = {-1, -1, -1, 0, 0, 0, 1, 1, 1};
+    static const float weight[9] = {1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f,
+                                     1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f,
+                                     1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f};
+
+    for (int i = 0; i < iterations; i++) {
+        // Apply to all heights (minLevel=0, maxLevel=very high)
+        TCOD_heightmap_kernel_transform(self->heightmap, kernel_size, dx, dy, weight, 0.0f, 1000000.0f);
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
 }

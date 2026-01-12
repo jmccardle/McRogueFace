@@ -45,6 +45,15 @@ public:
     static PyObject* threshold_binary(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* inverse(PyHeightMapObject* self, PyObject* Py_UNUSED(args));
 
+    // Terrain generation methods (#195) - mutate self, return self for chaining
+    static PyObject* add_hill(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* dig_hill(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* add_voronoi(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* mid_point_displacement(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* rain_erosion(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* dig_bezier(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* smooth(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+
     // Subscript support for hmap[x, y] syntax
     static PyObject* subscript(PyHeightMapObject* self, PyObject* key);
 
