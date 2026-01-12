@@ -32,6 +32,14 @@ public:
     static PyObject* clamp(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* normalize(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
 
+    // Query methods (#196)
+    static PyObject* get(PyHeightMapObject* self, PyObject* args);
+    static PyObject* get_interpolated(PyHeightMapObject* self, PyObject* args);
+    static PyObject* get_slope(PyHeightMapObject* self, PyObject* args);
+    static PyObject* get_normal(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* min_max(PyHeightMapObject* self, PyObject* Py_UNUSED(args));
+    static PyObject* count_in_range(PyHeightMapObject* self, PyObject* args);
+
     // Method and property definitions
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
