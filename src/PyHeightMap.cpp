@@ -119,6 +119,32 @@ PyMethodDef PyHeightMap::methods[] = {
          MCRF_RETURNS("int: Number of cells with values in range")
          MCRF_RAISES("ValueError", "min > max")
      )},
+    // Threshold operations (#197) - return NEW HeightMaps
+    {"threshold", (PyCFunction)PyHeightMap::threshold, METH_VARARGS,
+     MCRF_METHOD(HeightMap, threshold,
+         MCRF_SIG("(range: tuple[float, float])", "HeightMap"),
+         MCRF_DESC("Return NEW HeightMap with original values where in range, 0.0 elsewhere."),
+         MCRF_ARGS_START
+         MCRF_ARG("range", "Value range as (min, max) tuple or list, inclusive")
+         MCRF_RETURNS("HeightMap: New HeightMap (original is unchanged)")
+         MCRF_RAISES("ValueError", "min > max")
+     )},
+    {"threshold_binary", (PyCFunction)PyHeightMap::threshold_binary, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, threshold_binary,
+         MCRF_SIG("(range: tuple[float, float], value: float = 1.0)", "HeightMap"),
+         MCRF_DESC("Return NEW HeightMap with uniform value where in range, 0.0 elsewhere."),
+         MCRF_ARGS_START
+         MCRF_ARG("range", "Value range as (min, max) tuple or list, inclusive")
+         MCRF_ARG("value", "Value to set for cells in range (default 1.0)")
+         MCRF_RETURNS("HeightMap: New HeightMap (original is unchanged)")
+         MCRF_RAISES("ValueError", "min > max")
+     )},
+    {"inverse", (PyCFunction)PyHeightMap::inverse, METH_NOARGS,
+     MCRF_METHOD(HeightMap, inverse,
+         MCRF_SIG("()", "HeightMap"),
+         MCRF_DESC("Return NEW HeightMap with (1.0 - value) for each cell."),
+         MCRF_RETURNS("HeightMap: New inverted HeightMap (original is unchanged)")
+     )},
     {NULL}
 };
 
@@ -553,4 +579,182 @@ PyObject* PyHeightMap::subscript(PyHeightMapObject* self, PyObject* key)
 
     float value = TCOD_heightmap_get_value(self->heightmap, x, y);
     return PyFloat_FromDouble(value);
+}
+
+// Threshold operations (#197) - return NEW HeightMaps
+
+// Helper: Parse range from tuple or list
+static bool ParseRange(PyObject* range_obj, float* min_val, float* max_val)
+{
+    if (PyTuple_Check(range_obj) && PyTuple_Size(range_obj) == 2) {
+        PyObject* min_obj = PyTuple_GetItem(range_obj, 0);
+        PyObject* max_obj = PyTuple_GetItem(range_obj, 1);
+        if (PyFloat_Check(min_obj)) *min_val = (float)PyFloat_AsDouble(min_obj);
+        else if (PyLong_Check(min_obj)) *min_val = (float)PyLong_AsLong(min_obj);
+        else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return false; }
+        if (PyFloat_Check(max_obj)) *max_val = (float)PyFloat_AsDouble(max_obj);
+        else if (PyLong_Check(max_obj)) *max_val = (float)PyLong_AsLong(max_obj);
+        else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return false; }
+    } else if (PyList_Check(range_obj) && PyList_Size(range_obj) == 2) {
+        PyObject* min_obj = PyList_GetItem(range_obj, 0);
+        PyObject* max_obj = PyList_GetItem(range_obj, 1);
+        if (PyFloat_Check(min_obj)) *min_val = (float)PyFloat_AsDouble(min_obj);
+        else if (PyLong_Check(min_obj)) *min_val = (float)PyLong_AsLong(min_obj);
+        else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return false; }
+        if (PyFloat_Check(max_obj)) *max_val = (float)PyFloat_AsDouble(max_obj);
+        else if (PyLong_Check(max_obj)) *max_val = (float)PyLong_AsLong(max_obj);
+        else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return false; }
+    } else {
+        PyErr_SetString(PyExc_TypeError, "range must be a tuple or list of (min, max)");
+        return false;
+    }
+
+    if (*min_val > *max_val) {
+        PyErr_SetString(PyExc_ValueError, "range min must be less than or equal to max");
+        return false;
+    }
+
+    return !PyErr_Occurred();
+}
+
+// Helper: Create a new HeightMap object with same dimensions
+static PyHeightMapObject* CreateNewHeightMap(int width, int height)
+{
+    // Get the HeightMap type from the module
+    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!heightmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
+        return nullptr;
+    }
+
+    // Create size tuple
+    PyObject* size_tuple = Py_BuildValue("(ii)", width, height);
+    if (!size_tuple) {
+        Py_DECREF(heightmap_type);
+        return nullptr;
+    }
+
+    // Create args tuple containing the size tuple
+    PyObject* args = PyTuple_Pack(1, size_tuple);
+    Py_DECREF(size_tuple);
+    if (!args) {
+        Py_DECREF(heightmap_type);
+        return nullptr;
+    }
+
+    // Create the new object
+    PyHeightMapObject* new_hmap = (PyHeightMapObject*)PyObject_Call(heightmap_type, args, nullptr);
+    Py_DECREF(args);
+    Py_DECREF(heightmap_type);
+
+    if (!new_hmap) {
+        return nullptr;  // Python error already set
+    }
+
+    return new_hmap;
+}
+
+// Method: threshold(range) -> HeightMap
+PyObject* PyHeightMap::threshold(PyHeightMapObject* self, PyObject* args)
+{
+    PyObject* range_obj = nullptr;
+    if (!PyArg_ParseTuple(args, "O", &range_obj)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    float min_val, max_val;
+    if (!ParseRange(range_obj, &min_val, &max_val)) {
+        return nullptr;
+    }
+
+    // Create new HeightMap with same dimensions
+    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
+    if (!result) {
+        return nullptr;
+    }
+
+    // Copy values that are in range, leave others as 0.0
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            float value = TCOD_heightmap_get_value(self->heightmap, x, y);
+            if (value >= min_val && value <= max_val) {
+                TCOD_heightmap_set_value(result->heightmap, x, y, value);
+            }
+            // else: already 0.0 from initialization
+        }
+    }
+
+    return (PyObject*)result;
+}
+
+// Method: threshold_binary(range, value=1.0) -> HeightMap
+PyObject* PyHeightMap::threshold_binary(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"range", "value", nullptr};
+    PyObject* range_obj = nullptr;
+    float set_value = 1.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|f", const_cast<char**>(keywords),
+                                     &range_obj, &set_value)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    float min_val, max_val;
+    if (!ParseRange(range_obj, &min_val, &max_val)) {
+        return nullptr;
+    }
+
+    // Create new HeightMap with same dimensions
+    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
+    if (!result) {
+        return nullptr;
+    }
+
+    // Set uniform value where in range, leave others as 0.0
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            float value = TCOD_heightmap_get_value(self->heightmap, x, y);
+            if (value >= min_val && value <= max_val) {
+                TCOD_heightmap_set_value(result->heightmap, x, y, set_value);
+            }
+            // else: already 0.0 from initialization
+        }
+    }
+
+    return (PyObject*)result;
+}
+
+// Method: inverse() -> HeightMap
+PyObject* PyHeightMap::inverse(PyHeightMapObject* self, PyObject* Py_UNUSED(args))
+{
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Create new HeightMap with same dimensions
+    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
+    if (!result) {
+        return nullptr;
+    }
+
+    // Set (1.0 - value) for each cell
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            float value = TCOD_heightmap_get_value(self->heightmap, x, y);
+            TCOD_heightmap_set_value(result->heightmap, x, y, 1.0f - value);
+        }
+    }
+
+    return (PyObject*)result;
 }

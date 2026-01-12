@@ -40,6 +40,11 @@ public:
     static PyObject* min_max(PyHeightMapObject* self, PyObject* Py_UNUSED(args));
     static PyObject* count_in_range(PyHeightMapObject* self, PyObject* args);
 
+    // Threshold operations (#197) - return NEW HeightMaps
+    static PyObject* threshold(PyHeightMapObject* self, PyObject* args);
+    static PyObject* threshold_binary(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* inverse(PyHeightMapObject* self, PyObject* Py_UNUSED(args));
+
     // Subscript support for hmap[x, y] syntax
     static PyObject* subscript(PyHeightMapObject* self, PyObject* key);
 
