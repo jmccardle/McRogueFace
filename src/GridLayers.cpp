@@ -5,7 +5,137 @@
 #include "PyTexture.h"
 #include "PyFOV.h"
 #include "PyPositionHelper.h"
+#include "PyHeightMap.h"
 #include <sstream>
+
+// =============================================================================
+// HeightMap helper functions for layer operations
+// =============================================================================
+
+// Helper to parse a range tuple (min, max) and validate
+static bool ParseRange(PyObject* range_obj, float* out_min, float* out_max, const char* arg_name) {
+    if (!PyTuple_Check(range_obj) && !PyList_Check(range_obj)) {
+        PyErr_Format(PyExc_TypeError, "%s must be a (min, max) tuple or list", arg_name);
+        return false;
+    }
+
+    PyObject* seq = PySequence_Fast(range_obj, "range must be sequence");
+    if (!seq) return false;
+
+    if (PySequence_Fast_GET_SIZE(seq) != 2) {
+        Py_DECREF(seq);
+        PyErr_Format(PyExc_ValueError, "%s must have exactly 2 elements (min, max)", arg_name);
+        return false;
+    }
+
+    *out_min = (float)PyFloat_AsDouble(PySequence_Fast_GET_ITEM(seq, 0));
+    *out_max = (float)PyFloat_AsDouble(PySequence_Fast_GET_ITEM(seq, 1));
+    Py_DECREF(seq);
+
+    if (PyErr_Occurred()) return false;
+
+    if (*out_min > *out_max) {
+        // Build error message manually since PyErr_Format has limited float support
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s: min (%.3f) must be <= max (%.3f)",
+                 arg_name, *out_min, *out_max);
+        PyErr_SetString(PyExc_ValueError, buf);
+        return false;
+    }
+
+    return true;
+}
+
+// Helper to validate HeightMap matches layer dimensions
+static bool ValidateHeightMapSize(PyHeightMapObject* hmap, int grid_x, int grid_y) {
+    int hmap_width = hmap->heightmap->w;
+    int hmap_height = hmap->heightmap->h;
+
+    if (hmap_width != grid_x || hmap_height != grid_y) {
+        PyErr_Format(PyExc_ValueError,
+                     "HeightMap size (%d, %d) does not match layer size (%d, %d)",
+                     hmap_width, hmap_height, grid_x, grid_y);
+        return false;
+    }
+    return true;
+}
+
+// Helper to check if an object is a HeightMap (runtime lookup to avoid static type issues)
+static bool IsHeightMapObject(PyObject* obj, PyHeightMapObject** out_hmap) {
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) return false;
+
+    auto* heightmap_type = PyObject_GetAttrString(mcrfpy_module, "HeightMap");
+    Py_DECREF(mcrfpy_module);
+    if (!heightmap_type) return false;
+
+    bool result = PyObject_IsInstance(obj, heightmap_type);
+    Py_DECREF(heightmap_type);
+
+    if (result && out_hmap) {
+        *out_hmap = (PyHeightMapObject*)obj;
+    }
+    return result;
+}
+
+// Helper to parse a color from Python object
+static bool ParseColorArg(PyObject* obj, sf::Color& out_color, const char* arg_name) {
+    if (!obj || obj == Py_None) {
+        PyErr_Format(PyExc_TypeError, "%s cannot be None", arg_name);
+        return false;
+    }
+
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) return false;
+
+    auto* color_type = PyObject_GetAttrString(mcrfpy_module, "Color");
+    Py_DECREF(mcrfpy_module);
+    if (!color_type) return false;
+
+    if (PyObject_IsInstance(obj, color_type)) {
+        out_color = ((PyColorObject*)obj)->data;
+        Py_DECREF(color_type);
+        return true;
+    }
+    Py_DECREF(color_type);
+
+    if (PyTuple_Check(obj) || PyList_Check(obj)) {
+        PyObject* seq = PySequence_Fast(obj, "color must be sequence");
+        if (!seq) return false;
+
+        Py_ssize_t len = PySequence_Fast_GET_SIZE(seq);
+        if (len < 3 || len > 4) {
+            Py_DECREF(seq);
+            PyErr_Format(PyExc_ValueError, "%s must be (r, g, b) or (r, g, b, a)", arg_name);
+            return false;
+        }
+
+        int r = (int)PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, 0));
+        int g = (int)PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, 1));
+        int b = (int)PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, 2));
+        int a = (len == 4) ? (int)PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, 3)) : 255;
+        Py_DECREF(seq);
+
+        if (PyErr_Occurred()) return false;
+
+        out_color = sf::Color(r, g, b, a);
+        return true;
+    }
+
+    PyErr_Format(PyExc_TypeError, "%s must be a Color or (r, g, b[, a]) tuple", arg_name);
+    return false;
+}
+
+// Interpolate between two colors
+static sf::Color LerpColor(const sf::Color& a, const sf::Color& b, float t) {
+    t = std::max(0.0f, std::min(1.0f, t));  // Clamp t to [0, 1]
+    return sf::Color(
+        static_cast<sf::Uint8>(a.r + (b.r - a.r) * t),
+        static_cast<sf::Uint8>(a.g + (b.g - a.g) * t),
+        static_cast<sf::Uint8>(a.b + (b.b - a.b) * t),
+        static_cast<sf::Uint8>(a.a + (b.a - a.a) * t)
+    );
+}
 
 // =============================================================================
 // GridLayer base class
@@ -606,6 +736,53 @@ PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
     {"clear_perspective", (PyCFunction)PyGridLayerAPI::ColorLayer_clear_perspective, METH_NOARGS,
      "clear_perspective()\n\n"
      "Remove the perspective binding from this layer."},
+    {"apply_threshold", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_hmap_threshold, METH_VARARGS | METH_KEYWORDS,
+     "apply_threshold(source, range, color) -> ColorLayer\n\n"
+     "Set fixed color for cells where HeightMap value is within range.\n\n"
+     "Args:\n"
+     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
+     "    range (tuple): Value range as (min, max) inclusive\n"
+     "    color: Color or (r, g, b[, a]) tuple to set for cells in range\n\n"
+     "Returns:\n"
+     "    self for method chaining\n\n"
+     "Example:\n"
+     "    layer.apply_threshold(terrain, (0.0, 0.3), (0, 0, 180))  # Blue for water"},
+    {"apply_gradient", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_gradient, METH_VARARGS | METH_KEYWORDS,
+     "apply_gradient(source, range, color_low, color_high) -> ColorLayer\n\n"
+     "Interpolate between colors based on HeightMap value within range.\n\n"
+     "Args:\n"
+     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
+     "    range (tuple): Value range as (min, max) inclusive\n"
+     "    color_low: Color at range minimum\n"
+     "    color_high: Color at range maximum\n\n"
+     "Returns:\n"
+     "    self for method chaining\n\n"
+     "Note:\n"
+     "    Uses the original HeightMap value for interpolation, not binary.\n"
+     "    This allows smooth color transitions within a value range.\n\n"
+     "Example:\n"
+     "    layer.apply_gradient(terrain, (0.3, 0.7),\n"
+     "                         (50, 120, 50),    # Dark green at 0.3\n"
+     "                         (100, 200, 100))  # Light green at 0.7"},
+    {"apply_ranges", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_ranges, METH_VARARGS,
+     "apply_ranges(source, ranges) -> ColorLayer\n\n"
+     "Apply multiple color assignments in a single pass.\n\n"
+     "Args:\n"
+     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
+     "    ranges (list): List of range specifications. Each entry is:\n"
+     "        ((min, max), (r, g, b[, a])) - for fixed color\n"
+     "        ((min, max), ((r1, g1, b1[, a1]), (r2, g2, b2[, a2]))) - for gradient\n\n"
+     "Returns:\n"
+     "    self for method chaining\n\n"
+     "Note:\n"
+     "    Later ranges override earlier ones if overlapping.\n"
+     "    Cells not matching any range are left unchanged.\n\n"
+     "Example:\n"
+     "    layer.apply_ranges(terrain, [\n"
+     "        ((0.0, 0.3), (0, 0, 180)),                       # Fixed blue\n"
+     "        ((0.3, 0.7), ((50, 120, 50), (100, 200, 100))), # Gradient\n"
+     "        ((0.7, 1.0), ((100, 100, 100), (255, 255, 255))), # Gradient\n"
+     "    ])"},
     {NULL}
 };
 
@@ -1053,6 +1230,269 @@ PyObject* PyGridLayerAPI::ColorLayer_clear_perspective(PyColorLayerObject* self,
     Py_RETURN_NONE;
 }
 
+PyObject* PyGridLayerAPI::ColorLayer_apply_hmap_threshold(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"source", "range", "color", NULL};
+    PyObject* source_obj;
+    PyObject* range_obj;
+    PyObject* color_obj;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOO", const_cast<char**>(kwlist),
+                                     &source_obj, &range_obj, &color_obj)) {
+        return NULL;
+    }
+
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    // Validate source is a HeightMap
+    PyHeightMapObject* hmap;
+    if (!IsHeightMapObject(source_obj, &hmap)) {
+        PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return NULL;
+    }
+
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
+    // Parse range
+    float range_min, range_max;
+    if (!ParseRange(range_obj, &range_min, &range_max, "range")) {
+        return NULL;
+    }
+
+    // Parse color
+    sf::Color color;
+    if (!ParseColorArg(color_obj, color, "color")) {
+        return NULL;
+    }
+
+    // Apply threshold
+    int width = self->data->grid_x;
+    int height = self->data->grid_y;
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
+            if (value >= range_min && value <= range_max) {
+                self->data->at(x, y) = color;
+            }
+        }
+    }
+
+    self->data->markDirty();
+
+    // Return self for chaining
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+PyObject* PyGridLayerAPI::ColorLayer_apply_gradient(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"source", "range", "color_low", "color_high", NULL};
+    PyObject* source_obj;
+    PyObject* range_obj;
+    PyObject* color_low_obj;
+    PyObject* color_high_obj;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOOO", const_cast<char**>(kwlist),
+                                     &source_obj, &range_obj, &color_low_obj, &color_high_obj)) {
+        return NULL;
+    }
+
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    // Validate source is a HeightMap
+    PyHeightMapObject* hmap;
+    if (!IsHeightMapObject(source_obj, &hmap)) {
+        PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return NULL;
+    }
+
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
+    // Parse range
+    float range_min, range_max;
+    if (!ParseRange(range_obj, &range_min, &range_max, "range")) {
+        return NULL;
+    }
+
+    // Parse colors
+    sf::Color color_low, color_high;
+    if (!ParseColorArg(color_low_obj, color_low, "color_low")) {
+        return NULL;
+    }
+    if (!ParseColorArg(color_high_obj, color_high, "color_high")) {
+        return NULL;
+    }
+
+    // Apply gradient
+    int width = self->data->grid_x;
+    int height = self->data->grid_y;
+    float range_span = range_max - range_min;
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
+            if (value >= range_min && value <= range_max) {
+                // Normalize value within range for interpolation
+                float t = (range_span > 0.0f) ? (value - range_min) / range_span : 0.0f;
+                self->data->at(x, y) = LerpColor(color_low, color_high, t);
+            }
+        }
+    }
+
+    self->data->markDirty();
+
+    // Return self for chaining
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+PyObject* PyGridLayerAPI::ColorLayer_apply_ranges(PyColorLayerObject* self, PyObject* args) {
+    PyObject* source_obj;
+    PyObject* ranges_obj;
+
+    if (!PyArg_ParseTuple(args, "OO", &source_obj, &ranges_obj)) {
+        return NULL;
+    }
+
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    // Validate source is a HeightMap
+    PyHeightMapObject* hmap;
+    if (!IsHeightMapObject(source_obj, &hmap)) {
+        PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return NULL;
+    }
+
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
+    // Validate ranges is a list
+    if (!PyList_Check(ranges_obj)) {
+        PyErr_SetString(PyExc_TypeError, "ranges must be a list");
+        return NULL;
+    }
+
+    // Pre-parse all ranges for validation
+    // Each range can be:
+    //   ((min, max), (r, g, b[, a])) - fixed color
+    //   ((min, max), ((r1, g1, b1[, a1]), (r2, g2, b2[, a2]))) - gradient
+    struct ColorRange {
+        float min_val, max_val;
+        sf::Color color_low;
+        sf::Color color_high;
+        bool is_gradient;
+    };
+    std::vector<ColorRange> ranges;
+
+    Py_ssize_t n_ranges = PyList_Size(ranges_obj);
+    for (Py_ssize_t i = 0; i < n_ranges; ++i) {
+        PyObject* item = PyList_GetItem(ranges_obj, i);
+
+        if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
+            PyErr_Format(PyExc_TypeError,
+                         "ranges[%zd] must be a ((min, max), color) tuple", i);
+            return NULL;
+        }
+
+        PyObject* range_tuple = PyTuple_GetItem(item, 0);
+        PyObject* color_spec = PyTuple_GetItem(item, 1);
+
+        float min_val, max_val;
+        char range_name[32];
+        snprintf(range_name, sizeof(range_name), "ranges[%zd] range", i);
+        if (!ParseRange(range_tuple, &min_val, &max_val, range_name)) {
+            return NULL;
+        }
+
+        ColorRange cr;
+        cr.min_val = min_val;
+        cr.max_val = max_val;
+
+        // Determine if this is a gradient (tuple of 2 tuples) or fixed color
+        // Check if color_spec is a tuple of 2 elements where each element is also a sequence
+        bool is_gradient = false;
+        if (PyTuple_Check(color_spec) && PyTuple_Size(color_spec) == 2) {
+            PyObject* first = PyTuple_GetItem(color_spec, 0);
+            PyObject* second = PyTuple_GetItem(color_spec, 1);
+            // If both elements are tuples/lists (not ints), it's a gradient
+            if ((PyTuple_Check(first) || PyList_Check(first)) &&
+                (PyTuple_Check(second) || PyList_Check(second))) {
+                is_gradient = true;
+            }
+        }
+
+        cr.is_gradient = is_gradient;
+
+        if (is_gradient) {
+            // Parse as gradient: ((r1,g1,b1), (r2,g2,b2))
+            PyObject* color_low_obj = PyTuple_GetItem(color_spec, 0);
+            PyObject* color_high_obj = PyTuple_GetItem(color_spec, 1);
+
+            char color_name[48];
+            snprintf(color_name, sizeof(color_name), "ranges[%zd] color_low", i);
+            if (!ParseColorArg(color_low_obj, cr.color_low, color_name)) {
+                return NULL;
+            }
+            snprintf(color_name, sizeof(color_name), "ranges[%zd] color_high", i);
+            if (!ParseColorArg(color_high_obj, cr.color_high, color_name)) {
+                return NULL;
+            }
+        } else {
+            // Parse as fixed color
+            char color_name[48];
+            snprintf(color_name, sizeof(color_name), "ranges[%zd] color", i);
+            if (!ParseColorArg(color_spec, cr.color_low, color_name)) {
+                return NULL;
+            }
+            cr.color_high = cr.color_low;  // Not used, but set for consistency
+        }
+
+        ranges.push_back(cr);
+    }
+
+    // Apply all ranges in order (later ranges override)
+    int width = self->data->grid_x;
+    int height = self->data->grid_y;
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
+
+            // Check ranges in order, last match wins
+            for (const auto& cr : ranges) {
+                if (value >= cr.min_val && value <= cr.max_val) {
+                    if (cr.is_gradient) {
+                        float range_span = cr.max_val - cr.min_val;
+                        float t = (range_span > 0.0f) ? (value - cr.min_val) / range_span : 0.0f;
+                        self->data->at(x, y) = LerpColor(cr.color_low, cr.color_high, t);
+                    } else {
+                        self->data->at(x, y) = cr.color_low;
+                    }
+                }
+            }
+        }
+    }
+
+    self->data->markDirty();
+
+    // Return self for chaining
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
 PyObject* PyGridLayerAPI::ColorLayer_get_z_index(PyColorLayerObject* self, void* closure) {
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
@@ -1138,6 +1578,34 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
      "    pos (tuple): Top-left corner as (x, y)\n"
      "    size (tuple): Dimensions as (width, height)\n"
      "    index (int): Tile index to fill with (-1 for no tile)"},
+    {"apply_threshold", (PyCFunction)PyGridLayerAPI::TileLayer_apply_threshold, METH_VARARGS | METH_KEYWORDS,
+     "apply_threshold(source, range, tile) -> TileLayer\n\n"
+     "Set tile index for cells where HeightMap value is within range.\n\n"
+     "Args:\n"
+     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
+     "    range (tuple): Value range as (min, max) inclusive\n"
+     "    tile (int): Tile index to set for cells in range\n\n"
+     "Returns:\n"
+     "    self for method chaining\n\n"
+     "Example:\n"
+     "    layer.apply_threshold(terrain, (0.0, 0.3), WATER_TILE)"},
+    {"apply_ranges", (PyCFunction)PyGridLayerAPI::TileLayer_apply_ranges, METH_VARARGS,
+     "apply_ranges(source, ranges) -> TileLayer\n\n"
+     "Apply multiple tile assignments in a single pass.\n\n"
+     "Args:\n"
+     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
+     "    ranges (list): List of ((min, max), tile_index) tuples\n\n"
+     "Returns:\n"
+     "    self for method chaining\n\n"
+     "Note:\n"
+     "    Later ranges override earlier ones if overlapping.\n"
+     "    Cells not matching any range are left unchanged.\n\n"
+     "Example:\n"
+     "    layer.apply_ranges(terrain, [\n"
+     "        ((0.0, 0.2), DEEP_WATER),\n"
+     "        ((0.2, 0.3), SHALLOW_WATER),\n"
+     "        ((0.3, 0.7), GRASS),\n"
+     "    ])"},
     {NULL}
 };
 
@@ -1308,6 +1776,149 @@ PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject*
 
     self->data->fillRect(x, y, width, height, tile_index);
     Py_RETURN_NONE;
+}
+
+PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"source", "range", "tile", NULL};
+    PyObject* source_obj;
+    PyObject* range_obj;
+    int tile_index;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOi", const_cast<char**>(kwlist),
+                                     &source_obj, &range_obj, &tile_index)) {
+        return NULL;
+    }
+
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    // Validate source is a HeightMap
+    PyHeightMapObject* hmap;
+    if (!IsHeightMapObject(source_obj, &hmap)) {
+        PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return NULL;
+    }
+
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
+    // Parse range
+    float range_min, range_max;
+    if (!ParseRange(range_obj, &range_min, &range_max, "range")) {
+        return NULL;
+    }
+
+    // Apply threshold
+    int width = self->data->grid_x;
+    int height = self->data->grid_y;
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
+            if (value >= range_min && value <= range_max) {
+                self->data->at(x, y) = tile_index;
+            }
+        }
+    }
+
+    self->data->markDirty();
+
+    // Return self for chaining
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObject* args) {
+    PyObject* source_obj;
+    PyObject* ranges_obj;
+
+    if (!PyArg_ParseTuple(args, "OO", &source_obj, &ranges_obj)) {
+        return NULL;
+    }
+
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    // Validate source is a HeightMap
+    PyHeightMapObject* hmap;
+    if (!IsHeightMapObject(source_obj, &hmap)) {
+        PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return NULL;
+    }
+
+    if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
+        return NULL;
+    }
+
+    // Validate ranges is a list
+    if (!PyList_Check(ranges_obj)) {
+        PyErr_SetString(PyExc_TypeError, "ranges must be a list");
+        return NULL;
+    }
+
+    // Pre-parse all ranges for validation
+    struct TileRange {
+        float min_val, max_val;
+        int tile_index;
+    };
+    std::vector<TileRange> ranges;
+
+    Py_ssize_t n_ranges = PyList_Size(ranges_obj);
+    for (Py_ssize_t i = 0; i < n_ranges; ++i) {
+        PyObject* item = PyList_GetItem(ranges_obj, i);
+
+        if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
+            PyErr_Format(PyExc_TypeError,
+                         "ranges[%zd] must be a ((min, max), tile) tuple", i);
+            return NULL;
+        }
+
+        PyObject* range_tuple = PyTuple_GetItem(item, 0);
+        PyObject* tile_obj = PyTuple_GetItem(item, 1);
+
+        float min_val, max_val;
+        char range_name[32];
+        snprintf(range_name, sizeof(range_name), "ranges[%zd] range", i);
+        if (!ParseRange(range_tuple, &min_val, &max_val, range_name)) {
+            return NULL;
+        }
+
+        int tile_index = (int)PyLong_AsLong(tile_obj);
+        if (PyErr_Occurred()) {
+            PyErr_Format(PyExc_TypeError, "ranges[%zd] tile must be an integer", i);
+            return NULL;
+        }
+
+        ranges.push_back({min_val, max_val, tile_index});
+    }
+
+    // Apply all ranges in order (later ranges override)
+    int width = self->data->grid_x;
+    int height = self->data->grid_y;
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
+
+            // Check ranges in order, last match wins
+            for (const auto& range : ranges) {
+                if (value >= range.min_val && value <= range.max_val) {
+                    self->data->at(x, y) = range.tile_index;
+                }
+            }
+        }
+    }
+
+    self->data->markDirty();
+
+    // Return self for chaining
+    Py_INCREF(self);
+    return (PyObject*)self;
 }
 
 PyObject* PyGridLayerAPI::TileLayer_get_z_index(PyTileLayerObject* self, void* closure) {

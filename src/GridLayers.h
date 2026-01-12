@@ -205,6 +205,9 @@ public:
     static PyObject* ColorLayer_apply_perspective(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* ColorLayer_update_perspective(PyColorLayerObject* self, PyObject* args);
     static PyObject* ColorLayer_clear_perspective(PyColorLayerObject* self, PyObject* args);
+    static PyObject* ColorLayer_apply_hmap_threshold(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* ColorLayer_apply_gradient(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* ColorLayer_apply_ranges(PyColorLayerObject* self, PyObject* args);
     static PyObject* ColorLayer_get_z_index(PyColorLayerObject* self, void* closure);
     static int ColorLayer_set_z_index(PyColorLayerObject* self, PyObject* value, void* closure);
     static PyObject* ColorLayer_get_visible(PyColorLayerObject* self, void* closure);
@@ -218,6 +221,8 @@ public:
     static PyObject* TileLayer_set(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_fill(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_fill_rect(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* TileLayer_apply_threshold(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* TileLayer_apply_ranges(PyTileLayerObject* self, PyObject* args);
     static PyObject* TileLayer_get_z_index(PyTileLayerObject* self, void* closure);
     static int TileLayer_set_z_index(PyTileLayerObject* self, PyObject* value, void* closure);
     static PyObject* TileLayer_get_visible(PyTileLayerObject* self, void* closure);
