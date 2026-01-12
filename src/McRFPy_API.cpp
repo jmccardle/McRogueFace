@@ -22,6 +22,7 @@
 #include "PyMouse.h"
 #include "UIGridPathfinding.h"  // AStarPath and DijkstraMap types
 #include "PyHeightMap.h"  // Procedural generation heightmap (#193)
+#include "PyBSP.h"  // Procedural generation BSP (#202-206)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
@@ -418,6 +419,7 @@ PyObject* PyInit_mcrfpy()
 
         /*procedural generation (#192)*/
         &mcrfpydef::PyHeightMapType,
+        &mcrfpydef::PyBSPType,
 
         nullptr};
 
@@ -434,6 +436,10 @@ PyObject* PyInit_mcrfpy()
         /*pathfinding iterator - returned by AStarPath.__iter__() but not directly instantiable*/
         &mcrfpydef::PyAStarPathIterType,
 
+        /*BSP internal types - returned by BSP methods but not directly instantiable*/
+        &mcrfpydef::PyBSPNodeType,
+        &mcrfpydef::PyBSPIterType,
+
         nullptr};
     
     // Set up PyWindowType methods and getsetters before PyType_Ready
@@ -447,6 +453,12 @@ PyObject* PyInit_mcrfpy()
     // Set up PyHeightMapType methods and getsetters (#193)
     mcrfpydef::PyHeightMapType.tp_methods = PyHeightMap::methods;
     mcrfpydef::PyHeightMapType.tp_getset = PyHeightMap::getsetters;
+
+    // Set up PyBSPType and BSPNode methods and getsetters (#202-206)
+    mcrfpydef::PyBSPType.tp_methods = PyBSP::methods;
+    mcrfpydef::PyBSPType.tp_getset = PyBSP::getsetters;
+    mcrfpydef::PyBSPNodeType.tp_methods = PyBSPNode::methods;
+    mcrfpydef::PyBSPNodeType.tp_getset = PyBSPNode::getsetters;
 
     // Set up weakref support for all types that need it
     PyTimerType.tp_weaklistoffset = offsetof(PyTimerObject, weakreflist);
@@ -551,6 +563,13 @@ PyObject* PyInit_mcrfpy()
     // Add Easing enum class (uses Python's IntEnum)
     PyObject* easing_class = PyEasing::create_enum_class(m);
     if (!easing_class) {
+        // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add Traversal enum class for BSP traversal (uses Python's IntEnum)
+    PyObject* traversal_class = PyTraversal::create_enum_class(m);
+    if (!traversal_class) {
         // If enum creation fails, continue without it (non-fatal)
         PyErr_Clear();
     }
