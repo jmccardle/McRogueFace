@@ -160,14 +160,14 @@ PyMethodDef PyHeightMap::methods[] = {
      )},
     {"dig_hill", (PyCFunction)PyHeightMap::dig_hill, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, dig_hill,
-         MCRF_SIG("(center, radius: float, depth: float)", "HeightMap"),
-         MCRF_DESC("Dig a smooth crater at the specified position. Use negative depth to dig below current terrain."),
+         MCRF_SIG("(center, radius: float, target_height: float)", "HeightMap"),
+         MCRF_DESC("Construct a pit or crater with the specified center height."),
          MCRF_ARGS_START
          MCRF_ARG("center", "Center position as (x, y) tuple, list, or Vector")
          MCRF_ARG("radius", "Radius of the crater in cells")
-         MCRF_ARG("depth", "Target depth (use negative to dig below current values)")
+         MCRF_ARG("target_height", "Height at the center of the pit")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_NOTE("Only modifies cells where current value exceeds target depth")
+         MCRF_NOTE("Only lowers cells; cells below target_height are unchanged")
      )},
     {"add_voronoi", (PyCFunction)PyHeightMap::add_voronoi, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, add_voronoi,
@@ -202,16 +202,16 @@ PyMethodDef PyHeightMap::methods[] = {
      )},
     {"dig_bezier", (PyCFunction)PyHeightMap::dig_bezier, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, dig_bezier,
-         MCRF_SIG("(points: tuple, start_radius: float, end_radius: float, start_depth: float, end_depth: float)", "HeightMap"),
-         MCRF_DESC("Carve a path along a cubic Bezier curve. Use negative depths to dig below current terrain."),
+         MCRF_SIG("(points: tuple, start_radius: float, end_radius: float, start_height: float, end_height: float)", "HeightMap"),
+         MCRF_DESC("Construct a canal along a cubic Bezier curve with specified heights."),
          MCRF_ARGS_START
          MCRF_ARG("points", "Four control points as ((x0,y0), (x1,y1), (x2,y2), (x3,y3))")
          MCRF_ARG("start_radius", "Radius at start of path")
          MCRF_ARG("end_radius", "Radius at end of path")
-         MCRF_ARG("start_depth", "Target depth at start (use negative to dig)")
-         MCRF_ARG("end_depth", "Target depth at end (use negative to dig)")
+         MCRF_ARG("start_height", "Target height at start of path")
+         MCRF_ARG("end_height", "Target height at end of path")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_NOTE("Only modifies cells where current value exceeds target depth")
+         MCRF_NOTE("Only lowers cells; cells below target height are unchanged")
      )},
     {"smooth", (PyCFunction)PyHeightMap::smooth, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, smooth,
@@ -880,21 +880,29 @@ PyObject* PyHeightMap::add_hill(PyHeightMapObject* self, PyObject* args, PyObjec
         return nullptr;
     }
 
+    // Warn on zero/negative radius (no-op but likely user error)
+    if (radius <= 0) {
+        if (PyErr_WarnEx(PyExc_UserWarning,
+            "add_hill called with radius <= 0; no cells will be modified", 1) < 0) {
+            return nullptr;
+        }
+    }
+
     TCOD_heightmap_add_hill(self->heightmap, cx, cy, radius, height);
 
     Py_INCREF(self);
     return (PyObject*)self;
 }
 
-// Method: dig_hill(center, radius, depth) -> HeightMap
+// Method: dig_hill(center, radius, target_height) -> HeightMap
 PyObject* PyHeightMap::dig_hill(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"center", "radius", "depth", nullptr};
+    static const char* keywords[] = {"center", "radius", "target_height", nullptr};
     PyObject* center_obj = nullptr;
-    float radius, depth;
+    float radius, target_height;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off", const_cast<char**>(keywords),
-                                     &center_obj, &radius, &depth)) {
+                                     &center_obj, &radius, &target_height)) {
         return nullptr;
     }
 
@@ -908,7 +916,15 @@ PyObject* PyHeightMap::dig_hill(PyHeightMapObject* self, PyObject* args, PyObjec
         return nullptr;
     }
 
-    TCOD_heightmap_dig_hill(self->heightmap, cx, cy, radius, depth);
+    // Warn on zero/negative radius (no-op but likely user error)
+    if (radius <= 0) {
+        if (PyErr_WarnEx(PyExc_UserWarning,
+            "dig_hill called with radius <= 0; no cells will be modified", 1) < 0) {
+            return nullptr;
+        }
+    }
+
+    TCOD_heightmap_dig_hill(self->heightmap, cx, cy, radius, target_height);
 
     Py_INCREF(self);
     return (PyObject*)self;
@@ -1066,15 +1082,15 @@ PyObject* PyHeightMap::rain_erosion(PyHeightMapObject* self, PyObject* args, PyO
     return (PyObject*)self;
 }
 
-// Method: dig_bezier(points, start_radius, end_radius, start_depth, end_depth) -> HeightMap
+// Method: dig_bezier(points, start_radius, end_radius, start_height, end_height) -> HeightMap
 PyObject* PyHeightMap::dig_bezier(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"points", "start_radius", "end_radius", "start_depth", "end_depth", nullptr};
+    static const char* keywords[] = {"points", "start_radius", "end_radius", "start_height", "end_height", nullptr};
     PyObject* points_obj = nullptr;
-    float start_radius, end_radius, start_depth, end_depth;
+    float start_radius, end_radius, start_height, end_height;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "Offff", const_cast<char**>(keywords),
-                                     &points_obj, &start_radius, &end_radius, &start_depth, &end_depth)) {
+                                     &points_obj, &start_radius, &end_radius, &start_height, &end_height)) {
         return nullptr;
     }
 
@@ -1107,7 +1123,15 @@ PyObject* PyHeightMap::dig_bezier(PyHeightMapObject* self, PyObject* args, PyObj
         py[i] = y;
     }
 
-    TCOD_heightmap_dig_bezier(self->heightmap, px, py, start_radius, start_depth, end_radius, end_depth);
+    // Warn on zero/negative radii (no-op but likely user error)
+    if (start_radius <= 0 || end_radius <= 0) {
+        if (PyErr_WarnEx(PyExc_UserWarning,
+            "dig_bezier called with radius <= 0; some or all cells may not be modified", 1) < 0) {
+            return nullptr;
+        }
+    }
+
+    TCOD_heightmap_dig_bezier(self->heightmap, px, py, start_radius, start_height, end_radius, end_height);
 
     Py_INCREF(self);
     return (PyObject*)self;

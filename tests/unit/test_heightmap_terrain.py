@@ -48,13 +48,13 @@ def test_add_hill_flexible_center():
 
 
 def test_dig_hill_basic():
-    """dig_hill() creates depression at center using negative depth"""
+    """dig_hill() creates depression at center using target_height"""
     hmap = mcrfpy.HeightMap((50, 50), fill=0.5)
-    # dig_hill with negative depth creates a crater by setting values
-    # to max(current, target_depth) where target curves from center
-    hmap.dig_hill((25, 25), radius=15.0, depth=-0.3)
+    # dig_hill constructs a pit with target_height at center
+    # Only lowers cells - cells below target_height are unchanged
+    hmap.dig_hill((25, 25), radius=15.0, target_height=-0.3)
 
-    # Center should have lowest value (set to the negative depth)
+    # Center should have lowest value (set to the target_height)
     center_val = hmap[25, 25]
     edge_val = hmap[0, 0]
 
@@ -192,25 +192,27 @@ def test_rain_erosion_invalid_drops():
 
 
 def test_dig_bezier_basic():
-    """dig_bezier() carves a path using negative depths"""
+    """dig_bezier() constructs a canal with target heights"""
     hmap = mcrfpy.HeightMap((50, 50), fill=0.5)
 
-    # Carve a path from corner to corner
-    # Use negative depths to actually dig below current terrain
+    # Construct a canal from corner to corner
+    # target_height sets the center height of the canal
     points = ((0, 0), (10, 25), (40, 25), (49, 49))
     hmap.dig_bezier(points, start_radius=5.0, end_radius=5.0,
-                    start_depth=-0.3, end_depth=-0.3)
+                    start_height=-0.3, end_height=-0.3)
 
-    # Start and end should be lower than original (carved out)
-    assert hmap[0, 0] < 0.5, f"Start should be carved, got {hmap[0, 0]}"
-    assert hmap[0, 0] < 0, f"Start should be negative, got {hmap[0, 0]}"
+    # Start and end should be at the target height (lowered)
+    assert hmap[0, 0] < 0.5, f"Start should be lowered, got {hmap[0, 0]}"
+    assert hmap[0, 0] < 0, f"Start should be at target height, got {hmap[0, 0]}"
     print("PASS: test_dig_bezier_basic")
 
 
 def test_dig_bezier_returns_self():
     """dig_bezier() returns self for chaining"""
     hmap = mcrfpy.HeightMap((20, 20))
-    result = hmap.dig_bezier(((0, 0), (5, 10), (15, 10), (19, 19)), 2.0, 2.0, 0.3, 0.3)
+    result = hmap.dig_bezier(((0, 0), (5, 10), (15, 10), (19, 19)),
+                             start_radius=2.0, end_radius=2.0,
+                             start_height=0.3, end_height=0.3)
     assert result is hmap
     print("PASS: test_dig_bezier_returns_self")
 
@@ -220,7 +222,9 @@ def test_dig_bezier_wrong_point_count():
     hmap = mcrfpy.HeightMap((20, 20))
 
     try:
-        hmap.dig_bezier(((0, 0), (5, 5), (10, 10)), 2.0, 2.0, 0.3, 0.3)  # Only 3 points
+        hmap.dig_bezier(((0, 0), (5, 5), (10, 10)),
+                        start_radius=2.0, end_radius=2.0,
+                        start_height=0.3, end_height=0.3)  # Only 3 points
         print("FAIL: should have raised ValueError for 3 points")
         sys.exit(1)
     except ValueError as e:
@@ -233,7 +237,8 @@ def test_dig_bezier_accepts_list():
     """dig_bezier() accepts list of points"""
     hmap = mcrfpy.HeightMap((20, 20), fill=0.5)
     points = [[0, 0], [5, 10], [15, 10], [19, 19]]  # List instead of tuple
-    hmap.dig_bezier(points, 2.0, 2.0, 0.3, 0.3)
+    hmap.dig_bezier(points, start_radius=2.0, end_radius=2.0,
+                    start_height=0.3, end_height=0.3)
     # Should complete without error
     print("PASS: test_dig_bezier_accepts_list")
 
@@ -276,7 +281,60 @@ def test_smooth_invalid_iterations():
     except ValueError:
         pass
 
+    try:
+        hmap.smooth(iterations=-5)
+        print("FAIL: should have raised ValueError for iterations=-5")
+        sys.exit(1)
+    except ValueError:
+        pass
+
     print("PASS: test_smooth_invalid_iterations")
+
+
+def test_add_hill_zero_radius_warning():
+    """add_hill() warns on zero/negative radius"""
+    import warnings
+    hmap = mcrfpy.HeightMap((20, 20), fill=0.5)
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        hmap.add_hill((10, 10), radius=0.0, height=1.0)
+        assert len(w) == 1
+        assert "radius <= 0" in str(w[0].message)
+
+    # Map should be unchanged
+    assert abs(hmap[10, 10] - 0.5) < 0.001
+    print("PASS: test_add_hill_zero_radius_warning")
+
+
+def test_dig_hill_zero_radius_warning():
+    """dig_hill() warns on zero/negative radius"""
+    import warnings
+    hmap = mcrfpy.HeightMap((20, 20), fill=0.5)
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        hmap.dig_hill((10, 10), radius=-1.0, target_height=0.0)
+        assert len(w) == 1
+        assert "radius <= 0" in str(w[0].message)
+
+    print("PASS: test_dig_hill_zero_radius_warning")
+
+
+def test_dig_bezier_zero_radius_warning():
+    """dig_bezier() warns on zero/negative radius"""
+    import warnings
+    hmap = mcrfpy.HeightMap((20, 20), fill=0.5)
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        hmap.dig_bezier(((0, 0), (5, 10), (15, 10), (19, 19)),
+                        start_radius=0.0, end_radius=2.0,
+                        start_height=0.3, end_height=0.3)
+        assert len(w) == 1
+        assert "radius <= 0" in str(w[0].message)
+
+    print("PASS: test_dig_bezier_zero_radius_warning")
 
 
 def test_chaining_terrain_methods():
@@ -307,8 +365,10 @@ def test_terrain_pipeline():
 
     # Add features
     hmap.add_hill((32, 32), 20.0, 0.3)  # Mountain
-    # dig_bezier with negative depths to carve a river valley
-    hmap.dig_bezier(((0, 32), (20, 20), (45, 45), (64, 32)), 3.0, 2.0, -0.3, -0.2)
+    # dig_bezier constructs a river valley at target heights
+    hmap.dig_bezier(((0, 32), (20, 20), (45, 45), (64, 32)),
+                    start_radius=3.0, end_radius=2.0,
+                    start_height=-0.3, end_height=-0.2)
 
     # Apply erosion and smoothing
     hmap.rain_erosion(500, seed=123)
@@ -350,6 +410,9 @@ def run_all_tests():
     test_smooth_basic()
     test_smooth_returns_self()
     test_smooth_invalid_iterations()
+    test_add_hill_zero_radius_warning()
+    test_dig_hill_zero_radius_warning()
+    test_dig_bezier_zero_radius_warning()
     test_chaining_terrain_methods()
     test_terrain_pipeline()
 
