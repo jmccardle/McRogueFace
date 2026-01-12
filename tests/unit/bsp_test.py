@@ -11,14 +11,18 @@ import sys
 import mcrfpy
 
 def test_bsp_construction():
-    """Test BSP construction with bounds."""
+    """Test BSP construction with pos/size."""
     print("Testing BSP construction...")
 
-    # Basic construction
-    bsp = mcrfpy.BSP(bounds=((0, 0), (100, 80)))
+    # Basic construction with pos/size kwargs
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(100, 80))
     assert bsp is not None, "BSP should be created"
 
-    # Check bounds property
+    # Check pos and size properties
+    assert bsp.pos == (0, 0), f"pos should be (0, 0), got {bsp.pos}"
+    assert bsp.size == (100, 80), f"size should be (100, 80), got {bsp.size}"
+
+    # Check bounds property (combines pos and size)
     bounds = bsp.bounds
     assert bounds == ((0, 0), (100, 80)), f"Bounds should be ((0, 0), (100, 80)), got {bounds}"
 
@@ -28,7 +32,7 @@ def test_bsp_construction():
     assert root.bounds == ((0, 0), (100, 80)), f"Root bounds mismatch"
 
     # Construction with offset
-    bsp2 = mcrfpy.BSP(bounds=((10, 20), (50, 40)))
+    bsp2 = mcrfpy.BSP(pos=(10, 20), size=(50, 40))
     assert bsp2.bounds == ((10, 20), (50, 40)), "Offset bounds not preserved"
 
     print("  BSP construction: PASS")
@@ -37,7 +41,7 @@ def test_bsp_split_once():
     """Test single split operation (#202)."""
     print("Testing BSP split_once...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (100, 80)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(100, 80))
 
     # Before split, root should be a leaf
     assert bsp.root.is_leaf, "Root should be leaf before split"
@@ -66,7 +70,7 @@ def test_bsp_split_recursive():
     """Test recursive splitting (#202)."""
     print("Testing BSP split_recursive...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (80, 60)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
 
     # Recursive split with seed for reproducibility
     result = bsp.split_recursive(depth=3, min_size=(8, 8), max_ratio=1.5, seed=42)
@@ -91,7 +95,7 @@ def test_bsp_clear():
     """Test clear operation (#202)."""
     print("Testing BSP clear...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (100, 80)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(100, 80))
     bsp.split_recursive(depth=4, min_size=(8, 8), seed=42)
 
     # Should have multiple leaves
@@ -116,7 +120,7 @@ def test_bspnode_properties():
     """Test BSPNode properties (#203)."""
     print("Testing BSPNode properties...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (100, 80)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(100, 80))
     bsp.split_recursive(depth=3, min_size=(8, 8), seed=42)
 
     root = bsp.root
@@ -155,7 +159,7 @@ def test_bspnode_navigation():
     """Test BSPNode navigation (#203)."""
     print("Testing BSPNode navigation...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (100, 80)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(100, 80))
     bsp.split_once(horizontal=True, position=40)
 
     root = bsp.root
@@ -182,7 +186,7 @@ def test_bspnode_contains():
     """Test BSPNode contains method (#203)."""
     print("Testing BSPNode contains...")
 
-    bsp = mcrfpy.BSP(bounds=((10, 20), (50, 40)))  # x: 10-60, y: 20-60
+    bsp = mcrfpy.BSP(pos=(10, 20), size=(50, 40))  # x: 10-60, y: 20-60
 
     root = bsp.root
 
@@ -203,7 +207,7 @@ def test_bsp_leaves_iteration():
     """Test leaves iteration (#204)."""
     print("Testing BSP leaves iteration...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (80, 60)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
     bsp.split_recursive(depth=3, min_size=(8, 8), seed=42)
 
     # Iterate leaves
@@ -224,7 +228,7 @@ def test_bsp_traverse():
     """Test traverse with different orders (#204)."""
     print("Testing BSP traverse...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (80, 60)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
     bsp.split_recursive(depth=2, min_size=(8, 8), seed=42)
 
     # Test all traversal orders
@@ -261,7 +265,7 @@ def test_bsp_find():
     """Test find method (#205)."""
     print("Testing BSP find...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (80, 60)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
     bsp.split_recursive(depth=3, min_size=(8, 8), seed=42)
 
     # Find a point inside bounds
@@ -285,7 +289,7 @@ def test_bsp_to_heightmap():
     """Test to_heightmap conversion (#206)."""
     print("Testing BSP to_heightmap...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (50, 40)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(50, 40))
     bsp.split_recursive(depth=2, min_size=(8, 8), seed=42)
 
     # Basic conversion
@@ -346,7 +350,7 @@ def test_bsp_chaining():
     """Test method chaining."""
     print("Testing BSP method chaining...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (80, 60)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
 
     # Chain multiple operations
     result = bsp.split_recursive(depth=2, min_size=(8, 8), seed=42).clear().split_once(True, 30)
@@ -358,7 +362,7 @@ def test_bsp_repr():
     """Test repr output."""
     print("Testing BSP repr...")
 
-    bsp = mcrfpy.BSP(bounds=((0, 0), (80, 60)))
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
     repr_str = repr(bsp)
     assert "BSP" in repr_str, f"repr should contain BSP: {repr_str}"
     assert "80" in repr_str and "60" in repr_str, f"repr should contain size: {repr_str}"
@@ -372,6 +376,159 @@ def test_bsp_repr():
     assert "BSPNode" in node_repr, f"BSPNode repr: {node_repr}"
 
     print("  BSP repr: PASS")
+
+def test_bsp_stale_node_detection():
+    """Test that stale nodes are detected after clear()/split_recursive() (#review)."""
+    print("Testing BSP stale node detection...")
+
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
+    bsp.split_recursive(depth=2, min_size=(8, 8), seed=42)
+
+    # Save reference to a node
+    old_root = bsp.root
+    old_leaf = list(bsp.leaves())[0]
+
+    # Clear invalidates all nodes
+    bsp.clear()
+
+    # Accessing stale node should raise RuntimeError
+    try:
+        _ = old_root.bounds
+        assert False, "Accessing stale root bounds should raise RuntimeError"
+    except RuntimeError as e:
+        assert "stale" in str(e).lower() or "invalid" in str(e).lower(), \
+            f"Error should mention staleness: {e}"
+
+    try:
+        _ = old_leaf.is_leaf
+        assert False, "Accessing stale leaf should raise RuntimeError"
+    except RuntimeError as e:
+        pass  # Expected
+
+    # split_recursive also invalidates (rebuilds tree)
+    bsp2 = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
+    bsp2.split_recursive(depth=2, min_size=(8, 8), seed=42)
+    saved_node = bsp2.root
+    bsp2.split_recursive(depth=3, min_size=(8, 8), seed=99)
+
+    try:
+        _ = saved_node.bounds
+        assert False, "Accessing node after split_recursive should raise RuntimeError"
+    except RuntimeError:
+        pass  # Expected
+
+    print("  BSP stale node detection: PASS")
+
+def test_bsp_grid_max_validation():
+    """Test GRID_MAX validation (#review)."""
+    print("Testing BSP GRID_MAX validation...")
+
+    # Should succeed with valid size
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(1000, 1000))
+    assert bsp is not None
+
+    # Should fail with size exceeding GRID_MAX (8192)
+    try:
+        bsp_too_big = mcrfpy.BSP(pos=(0, 0), size=(10000, 100))
+        assert False, "Should raise ValueError for size > GRID_MAX"
+    except ValueError as e:
+        assert "8192" in str(e) or "exceed" in str(e).lower(), f"Error should mention limit: {e}"
+
+    try:
+        bsp_too_big = mcrfpy.BSP(pos=(0, 0), size=(100, 10000))
+        assert False, "Should raise ValueError for height > GRID_MAX"
+    except ValueError as e:
+        pass  # Expected
+
+    print("  BSP GRID_MAX validation: PASS")
+
+def test_bsp_depth_cap():
+    """Test depth is capped at 16 (#review)."""
+    print("Testing BSP depth cap...")
+
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(1000, 1000))
+
+    # Should cap depth at 16 or raise ValueError
+    try:
+        bsp.split_recursive(depth=20, min_size=(1, 1), seed=42)
+        # If it succeeds, verify reasonable number of leaves (not 2^20)
+        leaves = list(bsp.leaves())
+        assert len(leaves) <= 2**16, f"Too many leaves: {len(leaves)}"
+    except ValueError as e:
+        # It's also acceptable to reject excessive depth
+        assert "16" in str(e) or "depth" in str(e).lower(), f"Error should mention depth limit: {e}"
+
+    print("  BSP depth cap: PASS")
+
+def test_bsp_len():
+    """Test __len__ returns leaf count (#review)."""
+    print("Testing BSP __len__...")
+
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
+    assert len(bsp) == 1, f"Unsplit BSP should have 1 leaf, got {len(bsp)}"
+
+    bsp.split_once(horizontal=True, position=30)
+    assert len(bsp) == 2, f"After one split should have 2 leaves, got {len(bsp)}"
+
+    bsp.clear()
+    bsp.split_recursive(depth=3, min_size=(8, 8), seed=42)
+    expected = len(list(bsp.leaves()))
+    assert len(bsp) == expected, f"len() mismatch: {len(bsp)} != {expected}"
+
+    print("  BSP __len__: PASS")
+
+def test_bsp_iter():
+    """Test __iter__ as shorthand for leaves() (#review)."""
+    print("Testing BSP __iter__...")
+
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
+    bsp.split_recursive(depth=2, min_size=(8, 8), seed=42)
+
+    # Direct iteration should yield same results as leaves()
+    iter_list = list(bsp)
+    leaves_list = list(bsp.leaves())
+
+    assert len(iter_list) == len(leaves_list), \
+        f"Iterator count mismatch: {len(iter_list)} != {len(leaves_list)}"
+
+    # All items should be leaves
+    for node in bsp:
+        assert node.is_leaf, f"Iterator should yield leaves: {node}"
+
+    # Can iterate multiple times
+    count1 = sum(1 for _ in bsp)
+    count2 = sum(1 for _ in bsp)
+    assert count1 == count2, "Should be able to iterate multiple times"
+
+    print("  BSP __iter__: PASS")
+
+def test_bspnode_equality():
+    """Test BSPNode __eq__ comparison (#review)."""
+    print("Testing BSPNode equality...")
+
+    bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 60))
+    bsp.split_recursive(depth=2, min_size=(8, 8), seed=42)
+
+    # Same node should be equal
+    root1 = bsp.root
+    root2 = bsp.root
+    assert root1 == root2, "Same node should be equal"
+
+    # Different nodes should not be equal
+    leaves = list(bsp.leaves())
+    assert len(leaves) >= 2, "Need at least 2 leaves for comparison"
+    assert leaves[0] != leaves[1], "Different nodes should not be equal"
+
+    # Parent vs child should not be equal
+    root = bsp.root
+    left = root.left
+    assert root != left, "Parent and child should not be equal"
+
+    # Not equal to non-BSPNode
+    assert not (root == "not a node"), "BSPNode should not equal string"
+    assert not (root == 42), "BSPNode should not equal int"
+
+    print("  BSPNode equality: PASS")
 
 def run_all_tests():
     """Run all BSP tests."""
@@ -392,6 +549,12 @@ def run_all_tests():
         test_traversal_enum()
         test_bsp_chaining()
         test_bsp_repr()
+        test_bsp_stale_node_detection()
+        test_bsp_grid_max_validation()
+        test_bsp_depth_cap()
+        test_bsp_len()
+        test_bsp_iter()
+        test_bspnode_equality()
 
         print("\n=== ALL BSP TESTS PASSED ===\n")
         sys.exit(0)

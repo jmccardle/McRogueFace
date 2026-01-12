@@ -5,7 +5,7 @@ import mcrfpy
 print("Step 1: Import complete")
 
 print("Step 2: Creating BSP...")
-bsp = mcrfpy.BSP(bounds=((0, 0), (100, 80)))
+bsp = mcrfpy.BSP(pos=(0, 0), size=(100, 80))
 print("Step 2: BSP created:", bsp)
 
 print("Step 3: Getting bounds...")

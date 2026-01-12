@@ -85,11 +85,10 @@ PyObject* PyTraversal::create_enum_class(PyObject* module) {
         return NULL;
     }
 
-    // Cache reference
+    // Cache reference (borrowed by module after AddObject)
     traversal_enum_class = traversal_class;
-    Py_INCREF(traversal_enum_class);
 
-    // Add to module
+    // Add to module (steals reference)
     if (PyModule_AddObject(module, "Traversal", traversal_class) < 0) {
         Py_DECREF(traversal_class);
         traversal_enum_class = nullptr;
@@ -97,6 +96,12 @@ PyObject* PyTraversal::create_enum_class(PyObject* module) {
     }
 
     return traversal_class;
+}
+
+void PyTraversal::cleanup() {
+    // The enum class is owned by the module after PyModule_AddObject
+    // We just clear our pointer; the module handles cleanup
+    traversal_enum_class = nullptr;
 }
 
 int PyTraversal::from_arg(PyObject* arg, int* out_order) {
@@ -182,9 +187,18 @@ int PyTraversal::from_arg(PyObject* arg, int* out_order) {
 PyGetSetDef PyBSP::getsetters[] = {
     {"bounds", (getter)PyBSP::get_bounds, NULL,
      MCRF_PROPERTY(bounds, "Root node bounds as ((x, y), (w, h)). Read-only."), NULL},
+    {"pos", (getter)PyBSP::get_pos, NULL,
+     MCRF_PROPERTY(pos, "Top-left position (x, y). Read-only."), NULL},
+    {"size", (getter)PyBSP::get_size, NULL,
+     MCRF_PROPERTY(size, "Dimensions (width, height). Read-only."), NULL},
     {"root", (getter)PyBSP::get_root, NULL,
      MCRF_PROPERTY(root, "Reference to the root BSPNode. Read-only."), NULL},
     {NULL}
+};
+
+// Sequence methods for len() and iteration
+PySequenceMethods PyBSP::sequence_methods = {
+    .sq_length = (lenfunc)PyBSP::len,
 };
 
 // ==================== BSP Method Definitions ====================
@@ -193,18 +207,21 @@ PyMethodDef PyBSP::methods[] = {
     {"split_once", (PyCFunction)PyBSP::split_once, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSP, split_once,
          MCRF_SIG("(horizontal: bool, position: int)", "BSP"),
-         MCRF_DESC("Split the root node once at the specified position."),
+         MCRF_DESC("Split the root node once at the specified position. "
+                   "horizontal=True creates a horizontal divider, producing top/bottom rooms. "
+                   "horizontal=False creates a vertical divider, producing left/right rooms."),
          MCRF_ARGS_START
-         MCRF_ARG("horizontal", "True for horizontal split, False for vertical")
+         MCRF_ARG("horizontal", "True for horizontal divider (top/bottom), False for vertical (left/right)")
          MCRF_ARG("position", "Split coordinate (y for horizontal, x for vertical)")
          MCRF_RETURNS("BSP: self, for method chaining")
      )},
     {"split_recursive", (PyCFunction)PyBSP::split_recursive, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSP, split_recursive,
          MCRF_SIG("(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int = None)", "BSP"),
-         MCRF_DESC("Recursively split to the specified depth."),
+         MCRF_DESC("Recursively split to the specified depth. "
+                   "WARNING: Invalidates all existing BSPNode references from this tree."),
          MCRF_ARGS_START
-         MCRF_ARG("depth", "Maximum recursion depth. Creates up to 2^depth leaves.")
+         MCRF_ARG("depth", "Maximum recursion depth (1-16). Creates up to 2^depth leaves.")
          MCRF_ARG("min_size", "Minimum (width, height) for a node to be split.")
          MCRF_ARG("max_ratio", "Maximum aspect ratio before forcing split direction. Default: 1.5.")
          MCRF_ARG("seed", "Random seed. None for random.")
@@ -213,13 +230,14 @@ PyMethodDef PyBSP::methods[] = {
     {"clear", (PyCFunction)PyBSP::clear, METH_NOARGS,
      MCRF_METHOD(BSP, clear,
          MCRF_SIG("()", "BSP"),
-         MCRF_DESC("Remove all children, keeping only the root node with original bounds."),
+         MCRF_DESC("Remove all children, keeping only the root node with original bounds. "
+                   "WARNING: Invalidates all existing BSPNode references from this tree."),
          MCRF_RETURNS("BSP: self, for method chaining")
      )},
     {"leaves", (PyCFunction)PyBSP::leaves, METH_NOARGS,
      MCRF_METHOD(BSP, leaves,
          MCRF_SIG("()", "Iterator[BSPNode]"),
-         MCRF_DESC("Iterate all leaf nodes (the actual rooms)."),
+         MCRF_DESC("Iterate all leaf nodes (the actual rooms). Same as iterating the BSP directly."),
          MCRF_RETURNS("Iterator yielding BSPNode objects")
      )},
     {"traverse", (PyCFunction)PyBSP::traverse, METH_VARARGS | METH_KEYWORDS,
@@ -264,46 +282,46 @@ PyObject* PyBSP::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
         self->orig_y = 0;
         self->orig_w = 0;
         self->orig_h = 0;
+        self->generation = 0;
     }
     return (PyObject*)self;
 }
 
 int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"bounds", nullptr};
-    PyObject* bounds_obj = nullptr;
+    static const char* keywords[] = {"pos", "size", nullptr};
+    PyObject* pos_obj = nullptr;
+    PyObject* size_obj = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", const_cast<char**>(keywords),
-                                     &bounds_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", const_cast<char**>(keywords),
+                                     &pos_obj, &size_obj)) {
         return -1;
     }
 
-    // Parse bounds: ((x, y), (w, h))
-    if (!PyTuple_Check(bounds_obj) || PyTuple_Size(bounds_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "bounds must be ((x, y), (w, h)) tuple");
+    // Parse position using PyPositionHelper pattern
+    int x, y;
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
+        PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y), list, or Vector");
         return -1;
     }
 
-    PyObject* pos_obj = PyTuple_GetItem(bounds_obj, 0);
-    PyObject* size_obj = PyTuple_GetItem(bounds_obj, 1);
-
-    if (!PyTuple_Check(pos_obj) || PyTuple_Size(pos_obj) != 2 ||
-        !PyTuple_Check(size_obj) || PyTuple_Size(size_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "bounds must be ((x, y), (w, h)) tuple");
-        return -1;
-    }
-
-    int x = (int)PyLong_AsLong(PyTuple_GetItem(pos_obj, 0));
-    int y = (int)PyLong_AsLong(PyTuple_GetItem(pos_obj, 1));
-    int w = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 0));
-    int h = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 1));
-
-    if (PyErr_Occurred()) {
+    // Parse size using PyPositionHelper pattern
+    int w, h;
+    if (!PyPosition_FromObjectInt(size_obj, &w, &h)) {
+        PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h), list, or Vector");
         return -1;
     }
 
     if (w <= 0 || h <= 0) {
         PyErr_SetString(PyExc_ValueError, "width and height must be positive");
+        return -1;
+    }
+
+    // Validate against GRID_MAX like HeightMap does
+    if (w > GRID_MAX || h > GRID_MAX) {
+        PyErr_Format(PyExc_ValueError,
+            "BSP dimensions cannot exceed %d (got %dx%d)",
+            GRID_MAX, w, h);
         return -1;
     }
 
@@ -324,6 +342,7 @@ int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
     self->orig_y = y;
     self->orig_w = w;
     self->orig_h = h;
+    self->generation = 0;
 
     return 0;
 }
@@ -373,6 +392,26 @@ PyObject* PyBSP::get_bounds(PyBSPObject* self, void* closure)
                          self->root->w, self->root->h);
 }
 
+// Property: pos
+PyObject* PyBSP::get_pos(PyBSPObject* self, void* closure)
+{
+    if (!self->root) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP not initialized");
+        return nullptr;
+    }
+    return Py_BuildValue("(ii)", self->root->x, self->root->y);
+}
+
+// Property: size
+PyObject* PyBSP::get_size(PyBSPObject* self, void* closure)
+{
+    if (!self->root) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP not initialized");
+        return nullptr;
+    }
+    return Py_BuildValue("(ii)", self->root->w, self->root->h);
+}
+
 // Property: root
 PyObject* PyBSP::get_root(PyBSPObject* self, void* closure)
 {
@@ -400,6 +439,8 @@ PyObject* PyBSP::split_once(PyBSPObject* self, PyObject* args, PyObject* kwds)
         return nullptr;
     }
 
+    // Note: split_once only adds children, doesn't remove any nodes
+    // Root node pointer remains valid, so we don't increment generation
     TCOD_bsp_split_once(self->root, horizontal ? true : false, position);
 
     Py_INCREF(self);
@@ -425,21 +466,22 @@ PyObject* PyBSP::split_recursive(PyBSPObject* self, PyObject* args, PyObject* kw
         return nullptr;
     }
 
-    // Parse min_size tuple
-    if (!PyTuple_Check(min_size_obj) || PyTuple_Size(min_size_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "min_size must be (width, height) tuple");
+    // Parse min_size using PyPositionHelper pattern
+    int min_w, min_h;
+    if (!PyPosition_FromObjectInt(min_size_obj, &min_w, &min_h)) {
+        PyErr_SetString(PyExc_TypeError, "min_size must be (width, height) tuple, list, or Vector");
         return nullptr;
     }
 
-    int min_w = (int)PyLong_AsLong(PyTuple_GetItem(min_size_obj, 0));
-    int min_h = (int)PyLong_AsLong(PyTuple_GetItem(min_size_obj, 1));
-
-    if (PyErr_Occurred()) {
+    if (depth < 1) {
+        PyErr_SetString(PyExc_ValueError, "depth must be at least 1");
         return nullptr;
     }
 
-    if (depth < 0) {
-        PyErr_SetString(PyExc_ValueError, "depth must be non-negative");
+    if (depth > BSP_MAX_DEPTH) {
+        PyErr_Format(PyExc_ValueError,
+            "depth cannot exceed %d (got %d) to prevent memory exhaustion",
+            BSP_MAX_DEPTH, depth);
         return nullptr;
     }
 
@@ -462,6 +504,9 @@ PyObject* PyBSP::split_recursive(PyBSPObject* self, PyObject* args, PyObject* kw
         rnd = TCOD_random_new_from_seed(TCOD_RNG_MT, seed);
     }
 
+    // Increment generation BEFORE splitting - invalidates existing nodes
+    self->generation++;
+
     TCOD_bsp_split_recursive(self->root, rnd, depth, min_w, min_h, max_ratio, max_ratio);
 
     if (rnd) {
@@ -480,6 +525,9 @@ PyObject* PyBSP::clear(PyBSPObject* self, PyObject* Py_UNUSED(args))
         return nullptr;
     }
 
+    // Increment generation BEFORE clearing - invalidates existing nodes
+    self->generation++;
+
     TCOD_bsp_remove_sons(self->root);
 
     // Restore original bounds
@@ -487,6 +535,31 @@ PyObject* PyBSP::clear(PyBSPObject* self, PyObject* Py_UNUSED(args))
 
     Py_INCREF(self);
     return (PyObject*)self;
+}
+
+// Sequence protocol: len(bsp) returns leaf count
+Py_ssize_t PyBSP::len(PyBSPObject* self)
+{
+    if (!self->root) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP not initialized");
+        return -1;
+    }
+
+    int leaf_count = 0;
+    TCOD_bsp_traverse_pre_order(self->root, [](TCOD_bsp_t* node, void* data) -> bool {
+        if (TCOD_bsp_is_leaf(node)) {
+            (*(int*)data)++;
+        }
+        return true;
+    }, &leaf_count);
+
+    return (Py_ssize_t)leaf_count;
+}
+
+// __iter__ is shorthand for leaves()
+PyObject* PyBSP::iter(PyBSPObject* self)
+{
+    return PyBSP::leaves(self, nullptr);
 }
 
 // ==================== BSP Iteration ====================
@@ -527,6 +600,7 @@ PyObject* PyBSP::leaves(PyBSPObject* self, PyObject* Py_UNUSED(args))
 
     iter->index = 0;
     iter->bsp_owner = (PyObject*)self;
+    iter->generation = self->generation;  // Capture generation for validity check
     Py_INCREF(self);
 
     return (PyObject*)iter;
@@ -584,6 +658,7 @@ PyObject* PyBSP::traverse(PyBSPObject* self, PyObject* args, PyObject* kwds)
 
     iter->index = 0;
     iter->bsp_owner = (PyObject*)self;
+    iter->generation = self->generation;  // Capture generation for validity check
     Py_INCREF(self);
 
     return (PyObject*)iter;
@@ -633,13 +708,8 @@ PyObject* PyBSP::to_heightmap(PyBSPObject* self, PyObject* args, PyObject* kwds)
     int width = self->root->w;
     int height = self->root->h;
     if (size_obj != nullptr && size_obj != Py_None) {
-        if (!PyTuple_Check(size_obj) || PyTuple_Size(size_obj) != 2) {
-            PyErr_SetString(PyExc_TypeError, "size must be (width, height) tuple");
-            return nullptr;
-        }
-        width = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 0));
-        height = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 1));
-        if (PyErr_Occurred()) {
+        if (!PyPosition_FromObjectInt(size_obj, &width, &height)) {
+            PyErr_SetString(PyExc_TypeError, "size must be (width, height) tuple, list, or Vector");
             return nullptr;
         }
     }
@@ -751,6 +821,10 @@ PyObject* PyBSP::to_heightmap(PyBSPObject* self, PyObject* args, PyObject* kwds)
 PyGetSetDef PyBSPNode::getsetters[] = {
     {"bounds", (getter)PyBSPNode::get_bounds, NULL,
      MCRF_PROPERTY(bounds, "Node bounds as ((x, y), (w, h)). Read-only."), NULL},
+    {"pos", (getter)PyBSPNode::get_pos, NULL,
+     MCRF_PROPERTY(pos, "Top-left position (x, y). Read-only."), NULL},
+    {"size", (getter)PyBSPNode::get_size, NULL,
+     MCRF_PROPERTY(size, "Dimensions (width, height). Read-only."), NULL},
     {"level", (getter)PyBSPNode::get_level, NULL,
      MCRF_PROPERTY(level, "Depth in tree (0 for root). Read-only."), NULL},
     {"is_leaf", (getter)PyBSPNode::get_is_leaf, NULL,
@@ -792,6 +866,30 @@ PyMethodDef PyBSPNode::methods[] = {
 
 // ==================== BSPNode Implementation ====================
 
+// Validity check - returns false and sets error if node is stale
+bool PyBSPNode::checkValid(PyBSPNodeObject* self)
+{
+    if (!self->node) {
+        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid (null pointer)");
+        return false;
+    }
+
+    if (!self->bsp_owner) {
+        PyErr_SetString(PyExc_RuntimeError, "BSPNode has no parent BSP");
+        return false;
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    if (self->generation != bsp->generation) {
+        PyErr_SetString(PyExc_RuntimeError,
+            "BSPNode is stale: parent BSP was modified (clear() or split_recursive() called). "
+            "Re-fetch nodes from the BSP object.");
+        return false;
+    }
+
+    return true;
+}
+
 PyObject* PyBSPNode::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
     // BSPNode cannot be directly instantiated
@@ -817,18 +915,50 @@ void PyBSPNode::dealloc(PyBSPNodeObject* self)
 PyObject* PyBSPNode::repr(PyObject* obj)
 {
     PyBSPNodeObject* self = (PyBSPNodeObject*)obj;
+
+    // Check validity without raising error for repr
+    PyBSPObject* bsp = self->bsp_owner ? (PyBSPObject*)self->bsp_owner : nullptr;
+    bool is_valid = self->node && bsp && self->generation == bsp->generation;
+
     std::ostringstream ss;
 
-    if (self->node) {
+    if (is_valid) {
         const char* type = TCOD_bsp_is_leaf(self->node) ? "leaf" : "split";
         ss << "<BSPNode " << type << " at (" << self->node->x << ", " << self->node->y
            << ") size (" << self->node->w << " x " << self->node->h << ") level "
            << (int)self->node->level << ">";
     } else {
-        ss << "<BSPNode (invalid)>";
+        ss << "<BSPNode (invalid/stale)>";
     }
 
     return PyUnicode_FromString(ss.str().c_str());
+}
+
+// Rich comparison for BSPNode - compares underlying pointers
+PyObject* PyBSPNode::richcompare(PyObject* self, PyObject* other, int op)
+{
+    // Only support == and !=
+    if (op != Py_EQ && op != Py_NE) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    // Check if other is also a BSPNode
+    if (!PyObject_TypeCheck(other, &mcrfpydef::PyBSPNodeType)) {
+        if (op == Py_EQ) Py_RETURN_FALSE;
+        else Py_RETURN_TRUE;
+    }
+
+    PyBSPNodeObject* self_node = (PyBSPNodeObject*)self;
+    PyBSPNodeObject* other_node = (PyBSPNodeObject*)other;
+
+    // Compare wrapped pointers
+    bool equal = (self_node->node == other_node->node);
+
+    if (op == Py_EQ) {
+        return PyBool_FromLong(equal);
+    } else {
+        return PyBool_FromLong(!equal);
+    }
 }
 
 // Helper to create a BSPNode wrapper
@@ -846,6 +976,7 @@ PyObject* PyBSPNode::create(TCOD_bsp_t* node, PyObject* bsp_owner)
 
     py_node->node = node;
     py_node->bsp_owner = bsp_owner;
+    py_node->generation = ((PyBSPObject*)bsp_owner)->generation;
     Py_INCREF(bsp_owner);
 
     return (PyObject*)py_node;
@@ -854,42 +985,44 @@ PyObject* PyBSPNode::create(TCOD_bsp_t* node, PyObject* bsp_owner)
 // Property: bounds
 PyObject* PyBSPNode::get_bounds(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
     return Py_BuildValue("((ii)(ii))",
                          self->node->x, self->node->y,
                          self->node->w, self->node->h);
 }
 
+// Property: pos
+PyObject* PyBSPNode::get_pos(PyBSPNodeObject* self, void* closure)
+{
+    if (!checkValid(self)) return nullptr;
+    return Py_BuildValue("(ii)", self->node->x, self->node->y);
+}
+
+// Property: size
+PyObject* PyBSPNode::get_size(PyBSPNodeObject* self, void* closure)
+{
+    if (!checkValid(self)) return nullptr;
+    return Py_BuildValue("(ii)", self->node->w, self->node->h);
+}
+
 // Property: level
 PyObject* PyBSPNode::get_level(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
     return PyLong_FromLong(self->node->level);
 }
 
 // Property: is_leaf
 PyObject* PyBSPNode::get_is_leaf(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
     return PyBool_FromLong(TCOD_bsp_is_leaf(self->node));
 }
 
 // Property: split_horizontal
 PyObject* PyBSPNode::get_split_horizontal(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
     if (TCOD_bsp_is_leaf(self->node)) {
         Py_RETURN_NONE;
     }
@@ -899,10 +1032,7 @@ PyObject* PyBSPNode::get_split_horizontal(PyBSPNodeObject* self, void* closure)
 // Property: split_position
 PyObject* PyBSPNode::get_split_position(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
     if (TCOD_bsp_is_leaf(self->node)) {
         Py_RETURN_NONE;
     }
@@ -912,40 +1042,28 @@ PyObject* PyBSPNode::get_split_position(PyBSPNodeObject* self, void* closure)
 // Property: left
 PyObject* PyBSPNode::get_left(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
     return PyBSPNode::create(TCOD_bsp_left(self->node), self->bsp_owner);
 }
 
 // Property: right
 PyObject* PyBSPNode::get_right(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
     return PyBSPNode::create(TCOD_bsp_right(self->node), self->bsp_owner);
 }
 
 // Property: parent
 PyObject* PyBSPNode::get_parent(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
     return PyBSPNode::create(TCOD_bsp_father(self->node), self->bsp_owner);
 }
 
 // Property: sibling
 PyObject* PyBSPNode::get_sibling(PyBSPNodeObject* self, void* closure)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
 
     TCOD_bsp_t* parent = TCOD_bsp_father(self->node);
     if (!parent) {
@@ -965,10 +1083,7 @@ PyObject* PyBSPNode::get_sibling(PyBSPNodeObject* self, void* closure)
 // Method: contains(pos) -> bool
 PyObject* PyBSPNode::contains(PyBSPNodeObject* self, PyObject* args, PyObject* kwds)
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
 
     int x, y;
     if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
@@ -981,10 +1096,7 @@ PyObject* PyBSPNode::contains(PyBSPNodeObject* self, PyObject* args, PyObject* k
 // Method: center() -> (x, y)
 PyObject* PyBSPNode::center(PyBSPNodeObject* self, PyObject* Py_UNUSED(args))
 {
-    if (!self->node) {
-        PyErr_SetString(PyExc_RuntimeError, "BSPNode is invalid");
-        return nullptr;
-    }
+    if (!checkValid(self)) return nullptr;
 
     int cx = self->node->x + self->node->w / 2;
     int cy = self->node->y + self->node->h / 2;
@@ -1015,6 +1127,16 @@ PyObject* PyBSPIter::next(PyBSPIterObject* self)
     if (!self || !self->nodes) {
         PyErr_SetString(PyExc_RuntimeError, "Iterator is invalid");
         return NULL;
+    }
+
+    // Check for tree modification during iteration
+    if (self->bsp_owner) {
+        PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+        if (self->generation != bsp->generation) {
+            PyErr_SetString(PyExc_RuntimeError,
+                "BSP tree was modified during iteration (clear() or split_recursive() called)");
+            return NULL;
+        }
     }
 
     if (self->index >= self->nodes->size()) {
