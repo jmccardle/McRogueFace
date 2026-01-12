@@ -36,15 +36,17 @@ void PythonObjectCache::registerObject(uint64_t serial, PyObject* weakref) {
 
 PyObject* PythonObjectCache::lookup(uint64_t serial) {
     if (serial == 0) return nullptr;
-    
-    // No mutex needed for read - GIL protects PyWeakref_GetObject
+
+    // No mutex needed for read - GIL protects PyWeakref_GetRef
     auto it = cache.find(serial);
     if (it != cache.end()) {
-        PyObject* obj = PyWeakref_GetObject(it->second);
-        if (obj && obj != Py_None) {
-            Py_INCREF(obj);
+        PyObject* obj = nullptr;
+        int result = PyWeakref_GetRef(it->second, &obj);
+        if (result == 1 && obj) {
+            // obj is already a strong reference from PyWeakref_GetRef
             return obj;
         }
+        // result == 0: dead reference, result == -1: error
     }
     return nullptr;
 }
@@ -62,14 +64,18 @@ void PythonObjectCache::remove(uint64_t serial) {
 
 void PythonObjectCache::cleanup() {
     std::lock_guard<std::mutex> lock(serial_mutex);
-    
+
     auto it = cache.begin();
     while (it != cache.end()) {
-        PyObject* obj = PyWeakref_GetObject(it->second);
-        if (!obj || obj == Py_None) {
+        PyObject* obj = nullptr;
+        int result = PyWeakref_GetRef(it->second, &obj);
+        if (result <= 0) {
+            // Dead reference or error - remove from cache
             Py_DECREF(it->second);
             it = cache.erase(it);
         } else {
+            // Still alive - release the strong reference we obtained
+            Py_DECREF(obj);
             ++it;
         }
     }
