@@ -102,6 +102,13 @@ int PyHeightMap::init(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
 
+    if (width > GRID_MAX || height > GRID_MAX) {
+        PyErr_Format(PyExc_ValueError,
+            "HeightMap dimensions cannot exceed %d (got %dx%d)",
+            GRID_MAX, width, height);
+        return -1;
+    }
+
     // Clean up any existing heightmap
     if (self->heightmap) {
         TCOD_heightmap_delete(self->heightmap);
@@ -253,6 +260,11 @@ PyObject* PyHeightMap::clamp(PyHeightMapObject* self, PyObject* args, PyObject* 
         return nullptr;
     }
 
+    if (min_val > max_val) {
+        PyErr_SetString(PyExc_ValueError, "min must be less than or equal to max");
+        return nullptr;
+    }
+
     TCOD_heightmap_clamp(self->heightmap, min_val, max_val);
 
     // Return self for chaining
@@ -274,6 +286,11 @@ PyObject* PyHeightMap::normalize(PyHeightMapObject* self, PyObject* args, PyObje
 
     if (!self->heightmap) {
         PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    if (min_val > max_val) {
+        PyErr_SetString(PyExc_ValueError, "min must be less than or equal to max");
         return nullptr;
     }
 

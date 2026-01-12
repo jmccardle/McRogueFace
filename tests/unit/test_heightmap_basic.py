@@ -167,6 +167,71 @@ def test_invalid_size_type():
     print("PASS: test_invalid_size_type")
 
 
+def test_size_exceeds_grid_max():
+    """Size exceeding GRID_MAX (8192) raises ValueError"""
+    # Test width exceeds limit
+    try:
+        mcrfpy.HeightMap((10000, 100))
+        print("FAIL: test_size_exceeds_grid_max - should have raised ValueError for width=10000")
+        sys.exit(1)
+    except ValueError as e:
+        assert "8192" in str(e) or "cannot exceed" in str(e).lower()
+
+    # Test height exceeds limit
+    try:
+        mcrfpy.HeightMap((100, 10000))
+        print("FAIL: test_size_exceeds_grid_max - should have raised ValueError for height=10000")
+        sys.exit(1)
+    except ValueError as e:
+        assert "8192" in str(e) or "cannot exceed" in str(e).lower()
+
+    # Test both exceed limit (would cause integer overflow without validation)
+    try:
+        mcrfpy.HeightMap((65536, 65536))
+        print("FAIL: test_size_exceeds_grid_max - should have raised ValueError for 65536x65536")
+        sys.exit(1)
+    except ValueError:
+        pass
+
+    print("PASS: test_size_exceeds_grid_max")
+
+
+def test_clamp_min_greater_than_max():
+    """clamp() with min > max raises ValueError"""
+    hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
+    try:
+        hmap.clamp(min=1.0, max=0.0)
+        print("FAIL: test_clamp_min_greater_than_max - should have raised ValueError")
+        sys.exit(1)
+    except ValueError as e:
+        assert "min" in str(e).lower() and "max" in str(e).lower()
+    print("PASS: test_clamp_min_greater_than_max")
+
+
+def test_normalize_min_greater_than_max():
+    """normalize() with min > max raises ValueError"""
+    hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
+    try:
+        hmap.normalize(min=1.0, max=0.0)
+        print("FAIL: test_normalize_min_greater_than_max - should have raised ValueError")
+        sys.exit(1)
+    except ValueError as e:
+        assert "min" in str(e).lower() and "max" in str(e).lower()
+    print("PASS: test_normalize_min_greater_than_max")
+
+
+def test_max_valid_size():
+    """Size at GRID_MAX boundary works"""
+    # Test at the exact limit - this should work
+    hmap = mcrfpy.HeightMap((8192, 1))
+    assert hmap.size == (8192, 1)
+
+    hmap2 = mcrfpy.HeightMap((1, 8192))
+    assert hmap2.size == (1, 8192)
+
+    print("PASS: test_max_valid_size")
+
+
 def run_all_tests():
     """Run all tests"""
     print("Running HeightMap basic tests...")
@@ -189,6 +254,10 @@ def run_all_tests():
     test_repr()
     test_invalid_size()
     test_invalid_size_type()
+    test_size_exceeds_grid_max()
+    test_clamp_min_greater_than_max()
+    test_normalize_min_greater_than_max()
+    test_max_valid_size()
 
     print()
     print("All HeightMap basic tests PASSED!")
