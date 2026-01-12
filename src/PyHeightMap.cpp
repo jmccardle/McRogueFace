@@ -1,6 +1,7 @@
 #include "PyHeightMap.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
+#include "PyPositionHelper.h"  // Standardized position argument parsing
 #include <sstream>
 
 // Property definitions
@@ -8,6 +9,13 @@ PyGetSetDef PyHeightMap::getsetters[] = {
     {"size", (getter)PyHeightMap::get_size, NULL,
      MCRF_PROPERTY(size, "Dimensions (width, height) of the heightmap. Read-only."), NULL},
     {NULL}
+};
+
+// Mapping methods for subscript support (hmap[x, y])
+PyMappingMethods PyHeightMap::mapping_methods = {
+    .mp_length = nullptr,  // __len__ not needed
+    .mp_subscript = (binaryfunc)PyHeightMap::subscript,  // __getitem__
+    .mp_ass_subscript = nullptr  // __setitem__ (read-only for now)
 };
 
 // Method definitions
@@ -61,38 +69,38 @@ PyMethodDef PyHeightMap::methods[] = {
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
     // Query methods (#196)
-    {"get", (PyCFunction)PyHeightMap::get, METH_VARARGS,
+    {"get", (PyCFunction)PyHeightMap::get, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, get,
-         MCRF_SIG("(pos: tuple[int, int])", "float"),
+         MCRF_SIG("(x, y) or (pos)", "float"),
          MCRF_DESC("Get the height value at integer coordinates."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple")
+         MCRF_ARG("x, y", "Position as two ints, tuple, list, or Vector")
          MCRF_RETURNS("float: Height value at that position")
          MCRF_RAISES("IndexError", "Position is out of bounds")
      )},
-    {"get_interpolated", (PyCFunction)PyHeightMap::get_interpolated, METH_VARARGS,
+    {"get_interpolated", (PyCFunction)PyHeightMap::get_interpolated, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, get_interpolated,
-         MCRF_SIG("(pos: tuple[float, float])", "float"),
+         MCRF_SIG("(x, y) or (pos)", "float"),
          MCRF_DESC("Get interpolated height value at non-integer coordinates."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple with float coordinates")
+         MCRF_ARG("x, y", "Position as two floats, tuple, list, or Vector")
          MCRF_RETURNS("float: Bilinearly interpolated height value")
      )},
-    {"get_slope", (PyCFunction)PyHeightMap::get_slope, METH_VARARGS,
+    {"get_slope", (PyCFunction)PyHeightMap::get_slope, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, get_slope,
-         MCRF_SIG("(pos: tuple[int, int])", "float"),
+         MCRF_SIG("(x, y) or (pos)", "float"),
          MCRF_DESC("Get the slope at integer coordinates, from 0 (flat) to pi/2 (vertical)."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple")
+         MCRF_ARG("x, y", "Position as two ints, tuple, list, or Vector")
          MCRF_RETURNS("float: Slope angle in radians (0 to pi/2)")
          MCRF_RAISES("IndexError", "Position is out of bounds")
      )},
     {"get_normal", (PyCFunction)PyHeightMap::get_normal, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, get_normal,
-         MCRF_SIG("(pos: tuple[float, float], water_level: float = 0.0)", "tuple[float, float, float]"),
+         MCRF_SIG("(x, y, water_level=0.0) or (pos, water_level=0.0)", "tuple[float, float, float]"),
          MCRF_DESC("Get the normal vector at given coordinates for lighting calculations."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple with float coordinates")
+         MCRF_ARG("x, y", "Position as two floats, tuple, list, or Vector")
          MCRF_ARG("water_level", "Water level below which terrain is considered flat (default 0.0)")
          MCRF_RETURNS("tuple[float, float, float]: Normal vector (nx, ny, nz)")
      )},
@@ -107,8 +115,9 @@ PyMethodDef PyHeightMap::methods[] = {
          MCRF_SIG("(range: tuple[float, float])", "int"),
          MCRF_DESC("Count cells with values in the specified range (inclusive)."),
          MCRF_ARGS_START
-         MCRF_ARG("range", "Value range as (min, max) tuple")
+         MCRF_ARG("range", "Value range as (min, max) tuple or list")
          MCRF_RETURNS("int: Number of cells with values in range")
+         MCRF_RAISES("ValueError", "min > max")
      )},
     {NULL}
 };
@@ -353,29 +362,16 @@ PyObject* PyHeightMap::normalize(PyHeightMapObject* self, PyObject* args, PyObje
 
 // Query methods (#196)
 
-// Method: get(pos) -> float
-PyObject* PyHeightMap::get(PyHeightMapObject* self, PyObject* args)
+// Method: get(x, y) or get(pos) -> float
+PyObject* PyHeightMap::get(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    PyObject* pos_obj = nullptr;
-    if (!PyArg_ParseTuple(args, "O", &pos_obj)) {
-        return nullptr;
-    }
-
     if (!self->heightmap) {
         PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
         return nullptr;
     }
 
-    // Parse position tuple
-    if (!PyTuple_Check(pos_obj) || PyTuple_Size(pos_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a tuple of (x, y)");
-        return nullptr;
-    }
-
-    int x = (int)PyLong_AsLong(PyTuple_GetItem(pos_obj, 0));
-    int y = (int)PyLong_AsLong(PyTuple_GetItem(pos_obj, 1));
-
-    if (PyErr_Occurred()) {
+    int x, y;
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return nullptr;
     }
 
@@ -391,29 +387,16 @@ PyObject* PyHeightMap::get(PyHeightMapObject* self, PyObject* args)
     return PyFloat_FromDouble(value);
 }
 
-// Method: get_interpolated(pos) -> float
-PyObject* PyHeightMap::get_interpolated(PyHeightMapObject* self, PyObject* args)
+// Method: get_interpolated(x, y) or get_interpolated(pos) -> float
+PyObject* PyHeightMap::get_interpolated(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    PyObject* pos_obj = nullptr;
-    if (!PyArg_ParseTuple(args, "O", &pos_obj)) {
-        return nullptr;
-    }
-
     if (!self->heightmap) {
         PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
         return nullptr;
     }
 
-    // Parse position tuple (floats)
-    if (!PyTuple_Check(pos_obj) || PyTuple_Size(pos_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a tuple of (x, y)");
-        return nullptr;
-    }
-
-    float x = (float)PyFloat_AsDouble(PyTuple_GetItem(pos_obj, 0));
-    float y = (float)PyFloat_AsDouble(PyTuple_GetItem(pos_obj, 1));
-
-    if (PyErr_Occurred()) {
+    float x, y;
+    if (!PyPosition_ParseFloat(args, kwds, &x, &y)) {
         return nullptr;
     }
 
@@ -421,29 +404,16 @@ PyObject* PyHeightMap::get_interpolated(PyHeightMapObject* self, PyObject* args)
     return PyFloat_FromDouble(value);
 }
 
-// Method: get_slope(pos) -> float
-PyObject* PyHeightMap::get_slope(PyHeightMapObject* self, PyObject* args)
+// Method: get_slope(x, y) or get_slope(pos) -> float
+PyObject* PyHeightMap::get_slope(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    PyObject* pos_obj = nullptr;
-    if (!PyArg_ParseTuple(args, "O", &pos_obj)) {
-        return nullptr;
-    }
-
     if (!self->heightmap) {
         PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
         return nullptr;
     }
 
-    // Parse position tuple
-    if (!PyTuple_Check(pos_obj) || PyTuple_Size(pos_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a tuple of (x, y)");
-        return nullptr;
-    }
-
-    int x = (int)PyLong_AsLong(PyTuple_GetItem(pos_obj, 0));
-    int y = (int)PyLong_AsLong(PyTuple_GetItem(pos_obj, 1));
-
-    if (PyErr_Occurred()) {
+    int x, y;
+    if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return nullptr;
     }
 
@@ -459,33 +429,32 @@ PyObject* PyHeightMap::get_slope(PyHeightMapObject* self, PyObject* args)
     return PyFloat_FromDouble(slope);
 }
 
-// Method: get_normal(pos, water_level=0.0) -> tuple[float, float, float]
+// Method: get_normal(x, y, water_level=0.0) or get_normal(pos, water_level=0.0) -> tuple[float, float, float]
 PyObject* PyHeightMap::get_normal(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"pos", "water_level", nullptr};
-    PyObject* pos_obj = nullptr;
-    float water_level = 0.0f;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|f", const_cast<char**>(keywords),
-                                     &pos_obj, &water_level)) {
-        return nullptr;
-    }
-
     if (!self->heightmap) {
         PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
         return nullptr;
     }
 
-    // Parse position tuple (floats)
-    if (!PyTuple_Check(pos_obj) || PyTuple_Size(pos_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a tuple of (x, y)");
-        return nullptr;
+    // Check for water_level keyword argument
+    float water_level = 0.0f;
+    if (kwds) {
+        PyObject* wl_obj = PyDict_GetItemString(kwds, "water_level");
+        if (wl_obj) {
+            if (PyFloat_Check(wl_obj)) {
+                water_level = (float)PyFloat_AsDouble(wl_obj);
+            } else if (PyLong_Check(wl_obj)) {
+                water_level = (float)PyLong_AsLong(wl_obj);
+            } else {
+                PyErr_SetString(PyExc_TypeError, "water_level must be a number");
+                return nullptr;
+            }
+        }
     }
 
-    float x = (float)PyFloat_AsDouble(PyTuple_GetItem(pos_obj, 0));
-    float y = (float)PyFloat_AsDouble(PyTuple_GetItem(pos_obj, 1));
-
-    if (PyErr_Occurred()) {
+    float x, y;
+    if (!PyPosition_ParseFloat(args, kwds, &x, &y)) {
         return nullptr;
     }
 
@@ -522,19 +491,66 @@ PyObject* PyHeightMap::count_in_range(PyHeightMapObject* self, PyObject* args)
         return nullptr;
     }
 
-    // Parse range tuple
-    if (!PyTuple_Check(range_obj) || PyTuple_Size(range_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "range must be a tuple of (min, max)");
+    // Parse range from tuple or list
+    float min_val, max_val;
+    if (PyTuple_Check(range_obj) && PyTuple_Size(range_obj) == 2) {
+        PyObject* min_obj = PyTuple_GetItem(range_obj, 0);
+        PyObject* max_obj = PyTuple_GetItem(range_obj, 1);
+        if (PyFloat_Check(min_obj)) min_val = (float)PyFloat_AsDouble(min_obj);
+        else if (PyLong_Check(min_obj)) min_val = (float)PyLong_AsLong(min_obj);
+        else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return nullptr; }
+        if (PyFloat_Check(max_obj)) max_val = (float)PyFloat_AsDouble(max_obj);
+        else if (PyLong_Check(max_obj)) max_val = (float)PyLong_AsLong(max_obj);
+        else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return nullptr; }
+    } else if (PyList_Check(range_obj) && PyList_Size(range_obj) == 2) {
+        PyObject* min_obj = PyList_GetItem(range_obj, 0);
+        PyObject* max_obj = PyList_GetItem(range_obj, 1);
+        if (PyFloat_Check(min_obj)) min_val = (float)PyFloat_AsDouble(min_obj);
+        else if (PyLong_Check(min_obj)) min_val = (float)PyLong_AsLong(min_obj);
+        else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return nullptr; }
+        if (PyFloat_Check(max_obj)) max_val = (float)PyFloat_AsDouble(max_obj);
+        else if (PyLong_Check(max_obj)) max_val = (float)PyLong_AsLong(max_obj);
+        else { PyErr_SetString(PyExc_TypeError, "range values must be numeric"); return nullptr; }
+    } else {
+        PyErr_SetString(PyExc_TypeError, "range must be a tuple or list of (min, max)");
         return nullptr;
     }
-
-    float min_val = (float)PyFloat_AsDouble(PyTuple_GetItem(range_obj, 0));
-    float max_val = (float)PyFloat_AsDouble(PyTuple_GetItem(range_obj, 1));
 
     if (PyErr_Occurred()) {
         return nullptr;
     }
 
+    // Validate range
+    if (min_val > max_val) {
+        PyErr_SetString(PyExc_ValueError, "range min must be less than or equal to max");
+        return nullptr;
+    }
+
     int count = TCOD_heightmap_count_cells(self->heightmap, min_val, max_val);
     return PyLong_FromLong(count);
+}
+
+// Subscript: hmap[x, y] -> float (shorthand for get())
+PyObject* PyHeightMap::subscript(PyHeightMapObject* self, PyObject* key)
+{
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    int x, y;
+    if (!PyPosition_FromObjectInt(key, &x, &y)) {
+        return nullptr;
+    }
+
+    // Bounds check
+    if (x < 0 || x >= self->heightmap->w || y < 0 || y >= self->heightmap->h) {
+        PyErr_Format(PyExc_IndexError,
+            "Position (%d, %d) out of bounds for HeightMap of size (%d, %d)",
+            x, y, self->heightmap->w, self->heightmap->h);
+        return nullptr;
+    }
+
+    float value = TCOD_heightmap_get_value(self->heightmap, x, y);
+    return PyFloat_FromDouble(value);
 }

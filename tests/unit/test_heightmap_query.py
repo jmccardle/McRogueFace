@@ -45,18 +45,24 @@ def test_get_out_of_bounds():
     print("PASS: test_get_out_of_bounds")
 
 
-def test_get_invalid_type():
-    """get() raises TypeError for invalid position"""
-    hmap = mcrfpy.HeightMap((10, 10))
+def test_get_flexible_input():
+    """get() accepts tuple, list, Vector, and two args"""
+    hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    try:
-        hmap.get([5, 5])  # list instead of tuple
-        print("FAIL: test_get_invalid_type - should have raised TypeError")
-        sys.exit(1)
-    except TypeError:
-        pass
+    # Tuple works
+    assert abs(hmap.get((5, 5)) - 0.5) < 0.001
 
-    print("PASS: test_get_invalid_type")
+    # List works
+    assert abs(hmap.get([5, 5]) - 0.5) < 0.001
+
+    # Two args work (no tuple needed)
+    assert abs(hmap.get(5, 5) - 0.5) < 0.001
+
+    # Vector works
+    vec = mcrfpy.Vector(5, 5)
+    assert abs(hmap.get(vec) - 0.5) < 0.001
+
+    print("PASS: test_get_flexible_input")
 
 
 def test_get_interpolated_basic():
@@ -177,18 +183,75 @@ def test_count_in_range_exact():
     print("PASS: test_count_in_range_exact")
 
 
-def test_count_in_range_invalid():
-    """count_in_range() raises TypeError for invalid range"""
+def test_count_in_range_accepts_list():
+    """count_in_range() accepts list or tuple"""
+    hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
+
+    # Tuple works
+    count1 = hmap.count_in_range((0.0, 1.0))
+    assert count1 == 100
+
+    # List also works
+    count2 = hmap.count_in_range([0.0, 1.0])
+    assert count2 == 100
+
+    print("PASS: test_count_in_range_accepts_list")
+
+
+def test_count_in_range_invalid_range():
+    """count_in_range() raises ValueError when min > max"""
+    hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
+
+    try:
+        hmap.count_in_range((1.0, 0.0))  # min > max
+        print("FAIL: test_count_in_range_invalid_range - should have raised ValueError")
+        sys.exit(1)
+    except ValueError as e:
+        assert "min" in str(e).lower()
+
+    print("PASS: test_count_in_range_invalid_range")
+
+
+def test_subscript_basic():
+    """hmap[x, y] works as shorthand for get()"""
+    hmap = mcrfpy.HeightMap((10, 10), fill=0.75)
+
+    # Subscript with tuple
+    value = hmap[5, 5]
+    assert abs(value - 0.75) < 0.001
+
+    print("PASS: test_subscript_basic")
+
+
+def test_subscript_flexible():
+    """hmap[] accepts tuple, list, Vector"""
+    hmap = mcrfpy.HeightMap((10, 10), fill=0.25)
+
+    # Tuple
+    assert abs(hmap[(3, 4)] - 0.25) < 0.001
+
+    # List
+    assert abs(hmap[[3, 4]] - 0.25) < 0.001
+
+    # Vector
+    vec = mcrfpy.Vector(3, 4)
+    assert abs(hmap[vec] - 0.25) < 0.001
+
+    print("PASS: test_subscript_flexible")
+
+
+def test_subscript_out_of_bounds():
+    """hmap[] raises IndexError for out-of-bounds"""
     hmap = mcrfpy.HeightMap((10, 10))
 
     try:
-        hmap.count_in_range([0.0, 1.0])  # list instead of tuple
-        print("FAIL: test_count_in_range_invalid - should have raised TypeError")
+        _ = hmap[10, 5]
+        print("FAIL: test_subscript_out_of_bounds - should have raised IndexError")
         sys.exit(1)
-    except TypeError:
+    except IndexError:
         pass
 
-    print("PASS: test_count_in_range_invalid")
+    print("PASS: test_subscript_out_of_bounds")
 
 
 def run_all_tests():
@@ -199,7 +262,7 @@ def run_all_tests():
     test_get_basic()
     test_get_corners()
     test_get_out_of_bounds()
-    test_get_invalid_type()
+    test_get_flexible_input()
     test_get_interpolated_basic()
     test_get_interpolated_at_integers()
     test_get_slope_flat()
@@ -211,7 +274,11 @@ def run_all_tests():
     test_count_in_range_all()
     test_count_in_range_none()
     test_count_in_range_exact()
-    test_count_in_range_invalid()
+    test_count_in_range_accepts_list()
+    test_count_in_range_invalid_range()
+    test_subscript_basic()
+    test_subscript_flexible()
+    test_subscript_out_of_bounds()
 
     print()
     print("All HeightMap query method tests PASSED!")

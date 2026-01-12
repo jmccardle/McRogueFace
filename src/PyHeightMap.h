@@ -33,12 +33,18 @@ public:
     static PyObject* normalize(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
 
     // Query methods (#196)
-    static PyObject* get(PyHeightMapObject* self, PyObject* args);
-    static PyObject* get_interpolated(PyHeightMapObject* self, PyObject* args);
-    static PyObject* get_slope(PyHeightMapObject* self, PyObject* args);
+    static PyObject* get(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* get_interpolated(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* get_slope(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* get_normal(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* min_max(PyHeightMapObject* self, PyObject* Py_UNUSED(args));
     static PyObject* count_in_range(PyHeightMapObject* self, PyObject* args);
+
+    // Subscript support for hmap[x, y] syntax
+    static PyObject* subscript(PyHeightMapObject* self, PyObject* key);
+
+    // Mapping methods for subscript support
+    static PyMappingMethods mapping_methods;
 
     // Method and property definitions
     static PyMethodDef methods[];
@@ -53,6 +59,7 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)PyHeightMap::dealloc,
         .tp_repr = PyHeightMap::repr,
+        .tp_as_mapping = &PyHeightMap::mapping_methods,  // hmap[x, y] subscript
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR(
             "HeightMap(size: tuple[int, int], fill: float = 0.0)\n\n"
@@ -66,6 +73,7 @@ namespace mcrfpydef {
             "Example:\n"
             "    hmap = mcrfpy.HeightMap((100, 100))\n"
             "    hmap.fill(0.5).scale(2.0).clamp(0.0, 1.0)\n"
+            "    value = hmap[5, 5]  # Subscript shorthand for get()\n"
         ),
         .tp_methods = nullptr,  // Set in McRFPy_API.cpp before PyType_Ready
         .tp_getset = nullptr,   // Set in McRFPy_API.cpp before PyType_Ready
