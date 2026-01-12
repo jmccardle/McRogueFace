@@ -9,6 +9,7 @@
 #include "PyFOV.h"
 #include "PyPositionHelper.h"  // For standardized position argument parsing
 #include "PyVector.h"  // #179, #181 - For Vector return types
+#include "PyHeightMap.h"  // #199 - HeightMap application methods
 #include <algorithm>
 #include <cmath>    // #142 - for std::floor, std::isnan
 #include <cstring>  // #150 - for strcmp
@@ -1690,6 +1691,229 @@ PyObject* UIGrid::py_center_camera(PyUIGridObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
+// #199 - HeightMap application methods
+
+PyObject* UIGrid::py_apply_threshold(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
+    static const char* keywords[] = {"source", "range", "walkable", "transparent", nullptr};
+    PyObject* source_obj = nullptr;
+    PyObject* range_obj = nullptr;
+    PyObject* walkable_obj = Py_None;
+    PyObject* transparent_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|OO", const_cast<char**>(keywords),
+                                     &source_obj, &range_obj, &walkable_obj, &transparent_obj)) {
+        return nullptr;
+    }
+
+    // Validate source is a HeightMap
+    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!heightmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
+        return nullptr;
+    }
+    bool is_heightmap = PyObject_IsInstance(source_obj, heightmap_type);
+    Py_DECREF(heightmap_type);
+    if (!is_heightmap) {
+        PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return nullptr;
+    }
+    PyHeightMapObject* hmap = (PyHeightMapObject*)source_obj;
+
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Parse range tuple
+    if (!PyTuple_Check(range_obj) || PyTuple_Size(range_obj) != 2) {
+        PyErr_SetString(PyExc_TypeError, "range must be a tuple of (min, max)");
+        return nullptr;
+    }
+
+    float range_min = (float)PyFloat_AsDouble(PyTuple_GetItem(range_obj, 0));
+    float range_max = (float)PyFloat_AsDouble(PyTuple_GetItem(range_obj, 1));
+
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
+
+    // Check size match
+    if (hmap->heightmap->w != self->data->grid_w || hmap->heightmap->h != self->data->grid_h) {
+        PyErr_Format(PyExc_ValueError,
+            "HeightMap size (%d, %d) does not match Grid size (%d, %d)",
+            hmap->heightmap->w, hmap->heightmap->h, self->data->grid_w, self->data->grid_h);
+        return nullptr;
+    }
+
+    // Parse optional walkable/transparent booleans
+    bool set_walkable = (walkable_obj != Py_None);
+    bool set_transparent = (transparent_obj != Py_None);
+    bool walkable_value = false;
+    bool transparent_value = false;
+
+    if (set_walkable) {
+        walkable_value = PyObject_IsTrue(walkable_obj);
+    }
+    if (set_transparent) {
+        transparent_value = PyObject_IsTrue(transparent_obj);
+    }
+
+    // Apply threshold
+    for (int y = 0; y < self->data->grid_h; y++) {
+        for (int x = 0; x < self->data->grid_w; x++) {
+            float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
+            if (value >= range_min && value <= range_max) {
+                UIGridPoint& point = self->data->at(x, y);
+                if (set_walkable) {
+                    point.walkable = walkable_value;
+                }
+                if (set_transparent) {
+                    point.transparent = transparent_value;
+                }
+            }
+        }
+    }
+
+    // Sync TCOD map if it exists
+    if (self->data->getTCODMap()) {
+        self->data->syncTCODMap();
+    }
+
+    // Return self for chaining
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+PyObject* UIGrid::py_apply_ranges(PyUIGridObject* self, PyObject* args) {
+    PyObject* source_obj = nullptr;
+    PyObject* ranges_obj = nullptr;
+
+    if (!PyArg_ParseTuple(args, "OO", &source_obj, &ranges_obj)) {
+        return nullptr;
+    }
+
+    // Validate source is a HeightMap
+    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!heightmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
+        return nullptr;
+    }
+    bool is_heightmap = PyObject_IsInstance(source_obj, heightmap_type);
+    Py_DECREF(heightmap_type);
+    if (!is_heightmap) {
+        PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return nullptr;
+    }
+    PyHeightMapObject* hmap = (PyHeightMapObject*)source_obj;
+
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Validate ranges is a list
+    if (!PyList_Check(ranges_obj)) {
+        PyErr_SetString(PyExc_TypeError, "ranges must be a list");
+        return nullptr;
+    }
+
+    // Check size match
+    if (hmap->heightmap->w != self->data->grid_w || hmap->heightmap->h != self->data->grid_h) {
+        PyErr_Format(PyExc_ValueError,
+            "HeightMap size (%d, %d) does not match Grid size (%d, %d)",
+            hmap->heightmap->w, hmap->heightmap->h, self->data->grid_w, self->data->grid_h);
+        return nullptr;
+    }
+
+    // Parse all ranges first to catch errors early
+    struct RangeEntry {
+        float min, max;
+        bool set_walkable, set_transparent;
+        bool walkable_value, transparent_value;
+    };
+    std::vector<RangeEntry> entries;
+
+    Py_ssize_t num_ranges = PyList_Size(ranges_obj);
+    for (Py_ssize_t i = 0; i < num_ranges; i++) {
+        PyObject* entry = PyList_GetItem(ranges_obj, i);
+
+        if (!PyTuple_Check(entry) || PyTuple_Size(entry) != 2) {
+            PyErr_Format(PyExc_TypeError,
+                "ranges[%zd] must be a tuple of (range, properties_dict)", i);
+            return nullptr;
+        }
+
+        PyObject* range_tuple = PyTuple_GetItem(entry, 0);
+        PyObject* props_dict = PyTuple_GetItem(entry, 1);
+
+        if (!PyTuple_Check(range_tuple) || PyTuple_Size(range_tuple) != 2) {
+            PyErr_Format(PyExc_TypeError,
+                "ranges[%zd] range must be a tuple of (min, max)", i);
+            return nullptr;
+        }
+
+        if (!PyDict_Check(props_dict)) {
+            PyErr_Format(PyExc_TypeError,
+                "ranges[%zd] properties must be a dict", i);
+            return nullptr;
+        }
+
+        RangeEntry re;
+        re.min = (float)PyFloat_AsDouble(PyTuple_GetItem(range_tuple, 0));
+        re.max = (float)PyFloat_AsDouble(PyTuple_GetItem(range_tuple, 1));
+
+        if (PyErr_Occurred()) {
+            return nullptr;
+        }
+
+        // Parse walkable from dict
+        PyObject* walkable_val = PyDict_GetItemString(props_dict, "walkable");
+        re.set_walkable = (walkable_val != nullptr);
+        if (re.set_walkable) {
+            re.walkable_value = PyObject_IsTrue(walkable_val);
+        }
+
+        // Parse transparent from dict
+        PyObject* transparent_val = PyDict_GetItemString(props_dict, "transparent");
+        re.set_transparent = (transparent_val != nullptr);
+        if (re.set_transparent) {
+            re.transparent_value = PyObject_IsTrue(transparent_val);
+        }
+
+        entries.push_back(re);
+    }
+
+    // Apply all ranges in a single pass
+    for (int y = 0; y < self->data->grid_h; y++) {
+        for (int x = 0; x < self->data->grid_w; x++) {
+            float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
+            UIGridPoint& point = self->data->at(x, y);
+
+            // Check each range (first match wins)
+            for (const auto& re : entries) {
+                if (value >= re.min && value <= re.max) {
+                    if (re.set_walkable) {
+                        point.walkable = re.walkable_value;
+                    }
+                    if (re.set_transparent) {
+                        point.transparent = re.transparent_value;
+                    }
+                    break;  // First matching range wins
+                }
+            }
+        }
+    }
+
+    // Sync TCOD map if it exists
+    if (self->data->getTCODMap()) {
+        self->data->syncTCODMap();
+    }
+
+    // Return self for chaining
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
 PyMethodDef UIGrid::methods[] = {
     {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
@@ -1759,6 +1983,35 @@ PyMethodDef UIGrid::methods[] = {
      "    grid.center_camera()        # Center on middle of grid\n"
      "    grid.center_camera((5, 10)) # Center on tile (5, 10)\n"
      "    grid.center_camera((0, 0))  # Center on tile (0, 0)"},
+    // #199 - HeightMap application methods
+    {"apply_threshold", (PyCFunction)UIGrid::py_apply_threshold, METH_VARARGS | METH_KEYWORDS,
+     "apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid\n\n"
+     "Apply walkable/transparent properties where heightmap values are in range.\n\n"
+     "Args:\n"
+     "    source: HeightMap with values to check. Must match grid size.\n"
+     "    range: Tuple of (min, max) - cells with values in this range are affected.\n"
+     "    walkable: If not None, set walkable to this value for cells in range.\n"
+     "    transparent: If not None, set transparent to this value for cells in range.\n\n"
+     "Returns:\n"
+     "    Grid: self, for method chaining.\n\n"
+     "Raises:\n"
+     "    ValueError: If HeightMap size doesn't match grid size."},
+    {"apply_ranges", (PyCFunction)UIGrid::py_apply_ranges, METH_VARARGS,
+     "apply_ranges(source: HeightMap, ranges: list) -> Grid\n\n"
+     "Apply multiple thresholds in a single pass.\n\n"
+     "Args:\n"
+     "    source: HeightMap with values to check. Must match grid size.\n"
+     "    ranges: List of (range_tuple, properties_dict) tuples.\n"
+     "            range_tuple: (min, max) value range\n"
+     "            properties_dict: {'walkable': bool, 'transparent': bool}\n\n"
+     "Returns:\n"
+     "    Grid: self, for method chaining.\n\n"
+     "Example:\n"
+     "    grid.apply_ranges(terrain, [\n"
+     "        ((0.0, 0.3), {'walkable': False, 'transparent': True}),   # Water\n"
+     "        ((0.3, 0.8), {'walkable': True, 'transparent': True}),    # Land\n"
+     "        ((0.8, 1.0), {'walkable': False, 'transparent': False}),  # Mountains\n"
+     "    ])"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -1851,6 +2104,35 @@ PyMethodDef UIGrid_all_methods[] = {
      "    grid.center_camera()        # Center on middle of grid\n"
      "    grid.center_camera((5, 10)) # Center on tile (5, 10)\n"
      "    grid.center_camera((0, 0))  # Center on tile (0, 0)"},
+    // #199 - HeightMap application methods
+    {"apply_threshold", (PyCFunction)UIGrid::py_apply_threshold, METH_VARARGS | METH_KEYWORDS,
+     "apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid\n\n"
+     "Apply walkable/transparent properties where heightmap values are in range.\n\n"
+     "Args:\n"
+     "    source: HeightMap with values to check. Must match grid size.\n"
+     "    range: Tuple of (min, max) - cells with values in this range are affected.\n"
+     "    walkable: If not None, set walkable to this value for cells in range.\n"
+     "    transparent: If not None, set transparent to this value for cells in range.\n\n"
+     "Returns:\n"
+     "    Grid: self, for method chaining.\n\n"
+     "Raises:\n"
+     "    ValueError: If HeightMap size doesn't match grid size."},
+    {"apply_ranges", (PyCFunction)UIGrid::py_apply_ranges, METH_VARARGS,
+     "apply_ranges(source: HeightMap, ranges: list) -> Grid\n\n"
+     "Apply multiple thresholds in a single pass.\n\n"
+     "Args:\n"
+     "    source: HeightMap with values to check. Must match grid size.\n"
+     "    ranges: List of (range_tuple, properties_dict) tuples.\n"
+     "            range_tuple: (min, max) value range\n"
+     "            properties_dict: {'walkable': bool, 'transparent': bool}\n\n"
+     "Returns:\n"
+     "    Grid: self, for method chaining.\n\n"
+     "Example:\n"
+     "    grid.apply_ranges(terrain, [\n"
+     "        ((0.0, 0.3), {'walkable': False, 'transparent': True}),   # Water\n"
+     "        ((0.3, 0.8), {'walkable': True, 'transparent': True}),    # Land\n"
+     "        ((0.8, 1.0), {'walkable': False, 'transparent': False}),  # Mountains\n"
+     "    ])"},
     {NULL}  // Sentinel
 };
 

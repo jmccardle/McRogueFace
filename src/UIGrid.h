@@ -179,6 +179,10 @@ public:
     static PyObject* py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds);  // #115
     static PyObject* py_center_camera(PyUIGridObject* self, PyObject* args);  // #169
 
+    // #199 - HeightMap application methods
+    static PyObject* py_apply_threshold(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_apply_ranges(PyUIGridObject* self, PyObject* args);
+
     // #169 - Camera positioning
     void center_camera();  // Center on grid's middle tile
     void center_camera(float tile_x, float tile_y);  // Center on specific tile
