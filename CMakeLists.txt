@@ -16,7 +16,7 @@ endif()
 
 # Add include directories
 include_directories(${CMAKE_SOURCE_DIR}/deps)
-include_directories(${CMAKE_SOURCE_DIR}/deps/libtcod)
+include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/deps/libtcod)
 
 # Python includes: use different paths for Windows vs Linux
 if(MCRF_CROSS_WINDOWS)
@@ -29,7 +29,7 @@ if(MCRF_CROSS_WINDOWS)
     include_directories(${CMAKE_SOURCE_DIR}/deps/cpython/PC)  # For other Windows-specific headers
     # Also include SFML and libtcod Windows headers
     include_directories(${CMAKE_SOURCE_DIR}/__lib_windows/sfml/include)
-    include_directories(${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/include)
+    include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/include)
 else()
     # Native builds (Linux/Windows): use existing Python setup
     include_directories(${CMAKE_SOURCE_DIR}/deps/cpython)
