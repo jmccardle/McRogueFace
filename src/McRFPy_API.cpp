@@ -21,6 +21,7 @@
 #include "PyKeyboard.h"
 #include "PyMouse.h"
 #include "UIGridPathfinding.h"  // AStarPath and DijkstraMap types
+#include "PyHeightMap.h"  // Procedural generation heightmap (#193)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
@@ -415,6 +416,9 @@ PyObject* PyInit_mcrfpy()
         &mcrfpydef::PyAStarPathType,
         &mcrfpydef::PyDijkstraMapType,
 
+        /*procedural generation (#192)*/
+        &mcrfpydef::PyHeightMapType,
+
         nullptr};
 
     // Types that are used internally but NOT exported to module namespace (#189)
@@ -439,7 +443,11 @@ PyObject* PyInit_mcrfpy()
     // Set up PySceneType methods and getsetters
     PySceneType.tp_methods = PySceneClass::methods;
     PySceneType.tp_getset = PySceneClass::getsetters;
-    
+
+    // Set up PyHeightMapType methods and getsetters (#193)
+    mcrfpydef::PyHeightMapType.tp_methods = PyHeightMap::methods;
+    mcrfpydef::PyHeightMapType.tp_getset = PyHeightMap::getsetters;
+
     // Set up weakref support for all types that need it
     PyTimerType.tp_weaklistoffset = offsetof(PyTimerObject, weakreflist);
     PyUIFrameType.tp_weaklistoffset = offsetof(PyUIFrameObject, weakreflist);
