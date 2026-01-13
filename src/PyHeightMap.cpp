@@ -2,9 +2,12 @@
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "PyPositionHelper.h"  // Standardized position argument parsing
+#include "PyNoiseSource.h"     // For direct noise sampling (#209)
+#include "PyBSP.h"             // For direct BSP sampling (#209)
 #include <sstream>
 #include <cstdlib>  // For random seed handling
 #include <ctime>    // For time-based seeds
+#include <vector>   // For BSP node collection
 
 // Property definitions
 PyGetSetDef PyHeightMap::getsetters[] = {
@@ -219,6 +222,126 @@ PyMethodDef PyHeightMap::methods[] = {
          MCRF_DESC("Smooth the heightmap by averaging neighboring cells."),
          MCRF_ARGS_START
          MCRF_ARG("iterations", "Number of smoothing passes (default 1)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+     )},
+    // Combination operations (#194)
+    {"add", (PyCFunction)PyHeightMap::add, METH_VARARGS,
+     MCRF_METHOD(HeightMap, add,
+         MCRF_SIG("(other: HeightMap)", "HeightMap"),
+         MCRF_DESC("Add another heightmap's values to this one cell-by-cell."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "HeightMap with same dimensions to add")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_RAISES("ValueError", "Dimensions don't match")
+     )},
+    {"subtract", (PyCFunction)PyHeightMap::subtract, METH_VARARGS,
+     MCRF_METHOD(HeightMap, subtract,
+         MCRF_SIG("(other: HeightMap)", "HeightMap"),
+         MCRF_DESC("Subtract another heightmap's values from this one cell-by-cell."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "HeightMap with same dimensions to subtract")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_RAISES("ValueError", "Dimensions don't match")
+     )},
+    {"multiply", (PyCFunction)PyHeightMap::multiply, METH_VARARGS,
+     MCRF_METHOD(HeightMap, multiply,
+         MCRF_SIG("(other: HeightMap)", "HeightMap"),
+         MCRF_DESC("Multiply this heightmap by another cell-by-cell (useful for masking)."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "HeightMap with same dimensions to multiply by")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_RAISES("ValueError", "Dimensions don't match")
+     )},
+    {"lerp", (PyCFunction)PyHeightMap::lerp, METH_VARARGS,
+     MCRF_METHOD(HeightMap, lerp,
+         MCRF_SIG("(other: HeightMap, t: float)", "HeightMap"),
+         MCRF_DESC("Linear interpolation between this and another heightmap."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "HeightMap with same dimensions to interpolate towards")
+         MCRF_ARG("t", "Interpolation factor (0.0 = this, 1.0 = other)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_RAISES("ValueError", "Dimensions don't match")
+     )},
+    {"copy_from", (PyCFunction)PyHeightMap::copy_from, METH_VARARGS,
+     MCRF_METHOD(HeightMap, copy_from,
+         MCRF_SIG("(other: HeightMap)", "HeightMap"),
+         MCRF_DESC("Copy all values from another heightmap."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "HeightMap with same dimensions to copy from")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_RAISES("ValueError", "Dimensions don't match")
+     )},
+    {"max", (PyCFunction)PyHeightMap::hmap_max, METH_VARARGS,
+     MCRF_METHOD(HeightMap, max,
+         MCRF_SIG("(other: HeightMap)", "HeightMap"),
+         MCRF_DESC("Set each cell to the maximum of this and another heightmap."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "HeightMap with same dimensions")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_RAISES("ValueError", "Dimensions don't match")
+     )},
+    {"min", (PyCFunction)PyHeightMap::hmap_min, METH_VARARGS,
+     MCRF_METHOD(HeightMap, min,
+         MCRF_SIG("(other: HeightMap)", "HeightMap"),
+         MCRF_DESC("Set each cell to the minimum of this and another heightmap."),
+         MCRF_ARGS_START
+         MCRF_ARG("other", "HeightMap with same dimensions")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+         MCRF_RAISES("ValueError", "Dimensions don't match")
+     )},
+    // Direct source sampling (#209)
+    {"add_noise", (PyCFunction)PyHeightMap::add_noise, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, add_noise,
+         MCRF_SIG("(source: NoiseSource, world_origin: tuple = (0.0, 0.0), world_size: tuple = None, "
+                  "mode: str = 'fbm', octaves: int = 4, scale: float = 1.0)", "HeightMap"),
+         MCRF_DESC("Sample noise and add to current values. More efficient than creating intermediate HeightMap."),
+         MCRF_ARGS_START
+         MCRF_ARG("source", "2D NoiseSource to sample from")
+         MCRF_ARG("world_origin", "World coordinates of top-left (default: (0, 0))")
+         MCRF_ARG("world_size", "World area to sample (default: HeightMap size)")
+         MCRF_ARG("mode", "'flat', 'fbm', or 'turbulence' (default: 'fbm')")
+         MCRF_ARG("octaves", "Octaves for fbm/turbulence (default: 4)")
+         MCRF_ARG("scale", "Multiplier for sampled values (default: 1.0)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+     )},
+    {"multiply_noise", (PyCFunction)PyHeightMap::multiply_noise, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, multiply_noise,
+         MCRF_SIG("(source: NoiseSource, world_origin: tuple = (0.0, 0.0), world_size: tuple = None, "
+                  "mode: str = 'fbm', octaves: int = 4, scale: float = 1.0)", "HeightMap"),
+         MCRF_DESC("Sample noise and multiply with current values. Useful for applying noise-based masks."),
+         MCRF_ARGS_START
+         MCRF_ARG("source", "2D NoiseSource to sample from")
+         MCRF_ARG("world_origin", "World coordinates of top-left (default: (0, 0))")
+         MCRF_ARG("world_size", "World area to sample (default: HeightMap size)")
+         MCRF_ARG("mode", "'flat', 'fbm', or 'turbulence' (default: 'fbm')")
+         MCRF_ARG("octaves", "Octaves for fbm/turbulence (default: 4)")
+         MCRF_ARG("scale", "Multiplier for sampled values (default: 1.0)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+     )},
+    {"add_bsp", (PyCFunction)PyHeightMap::add_bsp, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, add_bsp,
+         MCRF_SIG("(bsp: BSP, select: str = 'leaves', nodes: list = None, "
+                  "shrink: int = 0, value: float = 1.0)", "HeightMap"),
+         MCRF_DESC("Add BSP node regions to heightmap. More efficient than creating intermediate HeightMap."),
+         MCRF_ARGS_START
+         MCRF_ARG("bsp", "BSP tree to sample from")
+         MCRF_ARG("select", "'leaves', 'all', or 'internal' (default: 'leaves')")
+         MCRF_ARG("nodes", "Override: specific BSPNodes only (default: None)")
+         MCRF_ARG("shrink", "Pixels to shrink from node bounds (default: 0)")
+         MCRF_ARG("value", "Value to add inside regions (default: 1.0)")
+         MCRF_RETURNS("HeightMap: self, for method chaining")
+     )},
+    {"multiply_bsp", (PyCFunction)PyHeightMap::multiply_bsp, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, multiply_bsp,
+         MCRF_SIG("(bsp: BSP, select: str = 'leaves', nodes: list = None, "
+                  "shrink: int = 0, value: float = 1.0)", "HeightMap"),
+         MCRF_DESC("Multiply by BSP regions. Effectively masks the heightmap to node interiors."),
+         MCRF_ARGS_START
+         MCRF_ARG("bsp", "BSP tree to sample from")
+         MCRF_ARG("select", "'leaves', 'all', or 'internal' (default: 'leaves')")
+         MCRF_ARG("nodes", "Override: specific BSPNodes only (default: None)")
+         MCRF_ARG("shrink", "Pixels to shrink from node bounds (default: 0)")
+         MCRF_ARG("value", "Value to multiply inside regions (default: 1.0)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
     {NULL}
@@ -1169,6 +1292,675 @@ PyObject* PyHeightMap::smooth(PyHeightMapObject* self, PyObject* args, PyObject*
     for (int i = 0; i < iterations; i++) {
         // Apply to all heights (minLevel=0, maxLevel=very high)
         TCOD_heightmap_kernel_transform(self->heightmap, kernel_size, dx, dy, weight, 0.0f, 1000000.0f);
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// =============================================================================
+// Combination operations (#194)
+// =============================================================================
+
+// Helper: Validate other HeightMap and check dimensions match
+static PyHeightMapObject* validateOtherHeightMap(PyHeightMapObject* self, PyObject* args, const char* method_name)
+{
+    PyObject* other_obj;
+    if (!PyArg_ParseTuple(args, "O", &other_obj)) {
+        return nullptr;
+    }
+
+    // Check that other is a HeightMap
+    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!heightmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
+        return nullptr;
+    }
+
+    int is_hmap = PyObject_IsInstance(other_obj, heightmap_type);
+    Py_DECREF(heightmap_type);
+
+    if (is_hmap < 0) {
+        return nullptr;  // Error in isinstance check
+    }
+    if (!is_hmap) {
+        PyErr_Format(PyExc_TypeError, "%s() requires a HeightMap argument", method_name);
+        return nullptr;
+    }
+
+    PyHeightMapObject* other = (PyHeightMapObject*)other_obj;
+
+    // Check both are initialized
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+    if (!other->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "Other HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Check dimensions match
+    if (self->heightmap->w != other->heightmap->w ||
+        self->heightmap->h != other->heightmap->h) {
+        PyErr_Format(PyExc_ValueError,
+            "%s() requires HeightMaps with same dimensions: self is (%d, %d), other is (%d, %d)",
+            method_name, self->heightmap->w, self->heightmap->h,
+            other->heightmap->w, other->heightmap->h);
+        return nullptr;
+    }
+
+    return other;
+}
+
+// Method: add(other) -> HeightMap
+PyObject* PyHeightMap::add(PyHeightMapObject* self, PyObject* args)
+{
+    PyHeightMapObject* other = validateOtherHeightMap(self, args, "add");
+    if (!other) return nullptr;
+
+    // TCOD_heightmap_add_hm adds hm1 + hm2 into out
+    // We want self = self + other, so we can use self as out
+    TCOD_heightmap_add_hm(self->heightmap, other->heightmap, self->heightmap);
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: subtract(other) -> HeightMap
+PyObject* PyHeightMap::subtract(PyHeightMapObject* self, PyObject* args)
+{
+    PyHeightMapObject* other = validateOtherHeightMap(self, args, "subtract");
+    if (!other) return nullptr;
+
+    // No direct TCOD function - do cell-by-cell
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            float v1 = TCOD_heightmap_get_value(self->heightmap, x, y);
+            float v2 = TCOD_heightmap_get_value(other->heightmap, x, y);
+            TCOD_heightmap_set_value(self->heightmap, x, y, v1 - v2);
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: multiply(other) -> HeightMap
+PyObject* PyHeightMap::multiply(PyHeightMapObject* self, PyObject* args)
+{
+    PyHeightMapObject* other = validateOtherHeightMap(self, args, "multiply");
+    if (!other) return nullptr;
+
+    // TCOD_heightmap_multiply_hm multiplies hm1 * hm2 into out
+    TCOD_heightmap_multiply_hm(self->heightmap, other->heightmap, self->heightmap);
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: lerp(other, t) -> HeightMap
+PyObject* PyHeightMap::lerp(PyHeightMapObject* self, PyObject* args)
+{
+    PyObject* other_obj;
+    float t;
+    if (!PyArg_ParseTuple(args, "Of", &other_obj, &t)) {
+        return nullptr;
+    }
+
+    // Create args tuple with just the other object for validation
+    PyObject* other_args = PyTuple_Pack(1, other_obj);
+    PyHeightMapObject* other = validateOtherHeightMap(self, other_args, "lerp");
+    Py_DECREF(other_args);
+    if (!other) return nullptr;
+
+    // TCOD_heightmap_lerp_hm lerps hm1 and hm2 into out with coef
+    // When coef=0, out=hm1. When coef=1, out=hm2
+    TCOD_heightmap_lerp_hm(self->heightmap, other->heightmap, self->heightmap, t);
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: copy_from(other) -> HeightMap
+PyObject* PyHeightMap::copy_from(PyHeightMapObject* self, PyObject* args)
+{
+    PyHeightMapObject* other = validateOtherHeightMap(self, args, "copy_from");
+    if (!other) return nullptr;
+
+    // TCOD_heightmap_copy copies source to dest
+    TCOD_heightmap_copy(other->heightmap, self->heightmap);
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: max(other) -> HeightMap
+PyObject* PyHeightMap::hmap_max(PyHeightMapObject* self, PyObject* args)
+{
+    PyHeightMapObject* other = validateOtherHeightMap(self, args, "max");
+    if (!other) return nullptr;
+
+    // No direct TCOD function - do cell-by-cell
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            float v1 = TCOD_heightmap_get_value(self->heightmap, x, y);
+            float v2 = TCOD_heightmap_get_value(other->heightmap, x, y);
+            TCOD_heightmap_set_value(self->heightmap, x, y, v1 > v2 ? v1 : v2);
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: min(other) -> HeightMap
+PyObject* PyHeightMap::hmap_min(PyHeightMapObject* self, PyObject* args)
+{
+    PyHeightMapObject* other = validateOtherHeightMap(self, args, "min");
+    if (!other) return nullptr;
+
+    // No direct TCOD function - do cell-by-cell
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            float v1 = TCOD_heightmap_get_value(self->heightmap, x, y);
+            float v2 = TCOD_heightmap_get_value(other->heightmap, x, y);
+            TCOD_heightmap_set_value(self->heightmap, x, y, v1 < v2 ? v1 : v2);
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// =============================================================================
+// Direct source sampling (#209)
+// =============================================================================
+
+// Enum for noise sampling mode
+enum class NoiseSampleMode { FLAT, FBM, TURBULENCE };
+
+// Helper: Parse noise sampling parameters
+static bool parseNoiseSampleParams(
+    PyObject* args, PyObject* kwds,
+    PyNoiseSourceObject** out_source,
+    float* out_origin_x, float* out_origin_y,
+    float* out_world_w, float* out_world_h,
+    NoiseSampleMode* out_mode,
+    int* out_octaves,
+    float* out_scale,
+    int hmap_w, int hmap_h,
+    const char* method_name)
+{
+    static const char* keywords[] = {"source", "world_origin", "world_size", "mode", "octaves", "scale", nullptr};
+    PyObject* source_obj = nullptr;
+    PyObject* origin_obj = nullptr;
+    PyObject* world_size_obj = nullptr;
+    const char* mode_str = "fbm";
+    int octaves = 4;
+    float scale = 1.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OOsif", const_cast<char**>(keywords),
+                                     &source_obj, &origin_obj, &world_size_obj, &mode_str, &octaves, &scale)) {
+        return false;
+    }
+
+    // Validate source is a NoiseSource
+    PyObject* noise_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "NoiseSource");
+    if (!noise_type) {
+        PyErr_SetString(PyExc_RuntimeError, "NoiseSource type not found in module");
+        return false;
+    }
+    int is_noise = PyObject_IsInstance(source_obj, noise_type);
+    Py_DECREF(noise_type);
+
+    if (is_noise < 0) return false;
+    if (!is_noise) {
+        PyErr_Format(PyExc_TypeError, "%s() requires a NoiseSource argument", method_name);
+        return false;
+    }
+
+    PyNoiseSourceObject* source = (PyNoiseSourceObject*)source_obj;
+
+    // Check NoiseSource is 2D
+    if (source->dimensions != 2) {
+        PyErr_Format(PyExc_ValueError,
+            "%s() requires a 2D NoiseSource, but source has %d dimensions",
+            method_name, source->dimensions);
+        return false;
+    }
+
+    // Check NoiseSource is initialized
+    if (!source->noise) {
+        PyErr_SetString(PyExc_RuntimeError, "NoiseSource not initialized");
+        return false;
+    }
+
+    // Parse world_origin (default: (0, 0))
+    float origin_x = 0.0f, origin_y = 0.0f;
+    if (origin_obj && origin_obj != Py_None) {
+        if (!PyTuple_Check(origin_obj) || PyTuple_Size(origin_obj) != 2) {
+            PyErr_SetString(PyExc_TypeError, "world_origin must be a tuple of (x, y)");
+            return false;
+        }
+        PyObject* ox = PyTuple_GetItem(origin_obj, 0);
+        PyObject* oy = PyTuple_GetItem(origin_obj, 1);
+        if (PyFloat_Check(ox)) origin_x = (float)PyFloat_AsDouble(ox);
+        else if (PyLong_Check(ox)) origin_x = (float)PyLong_AsLong(ox);
+        else { PyErr_SetString(PyExc_TypeError, "world_origin values must be numeric"); return false; }
+        if (PyFloat_Check(oy)) origin_y = (float)PyFloat_AsDouble(oy);
+        else if (PyLong_Check(oy)) origin_y = (float)PyLong_AsLong(oy);
+        else { PyErr_SetString(PyExc_TypeError, "world_origin values must be numeric"); return false; }
+    }
+
+    // Parse world_size (default: HeightMap size)
+    float world_w = (float)hmap_w, world_h = (float)hmap_h;
+    if (world_size_obj && world_size_obj != Py_None) {
+        if (!PyTuple_Check(world_size_obj) || PyTuple_Size(world_size_obj) != 2) {
+            PyErr_SetString(PyExc_TypeError, "world_size must be a tuple of (width, height)");
+            return false;
+        }
+        PyObject* ww = PyTuple_GetItem(world_size_obj, 0);
+        PyObject* wh = PyTuple_GetItem(world_size_obj, 1);
+        if (PyFloat_Check(ww)) world_w = (float)PyFloat_AsDouble(ww);
+        else if (PyLong_Check(ww)) world_w = (float)PyLong_AsLong(ww);
+        else { PyErr_SetString(PyExc_TypeError, "world_size values must be numeric"); return false; }
+        if (PyFloat_Check(wh)) world_h = (float)PyFloat_AsDouble(wh);
+        else if (PyLong_Check(wh)) world_h = (float)PyLong_AsLong(wh);
+        else { PyErr_SetString(PyExc_TypeError, "world_size values must be numeric"); return false; }
+    }
+
+    // Parse mode
+    NoiseSampleMode mode;
+    if (strcmp(mode_str, "flat") == 0) {
+        mode = NoiseSampleMode::FLAT;
+    } else if (strcmp(mode_str, "fbm") == 0) {
+        mode = NoiseSampleMode::FBM;
+    } else if (strcmp(mode_str, "turbulence") == 0) {
+        mode = NoiseSampleMode::TURBULENCE;
+    } else {
+        PyErr_Format(PyExc_ValueError,
+            "mode must be 'flat', 'fbm', or 'turbulence', got '%s'",
+            mode_str);
+        return false;
+    }
+
+    // Validate octaves
+    if (octaves < 1 || octaves > TCOD_NOISE_MAX_OCTAVES) {
+        PyErr_Format(PyExc_ValueError,
+            "octaves must be between 1 and %d, got %d",
+            TCOD_NOISE_MAX_OCTAVES, octaves);
+        return false;
+    }
+
+    // Set outputs
+    *out_source = source;
+    *out_origin_x = origin_x;
+    *out_origin_y = origin_y;
+    *out_world_w = world_w;
+    *out_world_h = world_h;
+    *out_mode = mode;
+    *out_octaves = octaves;
+    *out_scale = scale;
+
+    return true;
+}
+
+// Method: add_noise(source, ...) -> HeightMap
+PyObject* PyHeightMap::add_noise(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyNoiseSourceObject* source;
+    float origin_x, origin_y, world_w, world_h, scale;
+    NoiseSampleMode mode;
+    int octaves;
+
+    if (!parseNoiseSampleParams(args, kwds, &source,
+                                 &origin_x, &origin_y, &world_w, &world_h,
+                                 &mode, &octaves, &scale,
+                                 self->heightmap->w, self->heightmap->h, "add_noise")) {
+        return nullptr;
+    }
+
+    // Sample noise and add to heightmap
+    float coords[2];
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            coords[0] = origin_x + ((float)x / (float)self->heightmap->w) * world_w;
+            coords[1] = origin_y + ((float)y / (float)self->heightmap->h) * world_h;
+
+            float noise_value;
+            switch (mode) {
+                case NoiseSampleMode::FLAT:
+                    noise_value = TCOD_noise_get(source->noise, coords);
+                    break;
+                case NoiseSampleMode::FBM:
+                    noise_value = TCOD_noise_get_fbm(source->noise, coords, (float)octaves);
+                    break;
+                case NoiseSampleMode::TURBULENCE:
+                    noise_value = TCOD_noise_get_turbulence(source->noise, coords, (float)octaves);
+                    break;
+            }
+
+            float current = TCOD_heightmap_get_value(self->heightmap, x, y);
+            TCOD_heightmap_set_value(self->heightmap, x, y, current + noise_value * scale);
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: multiply_noise(source, ...) -> HeightMap
+PyObject* PyHeightMap::multiply_noise(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyNoiseSourceObject* source;
+    float origin_x, origin_y, world_w, world_h, scale;
+    NoiseSampleMode mode;
+    int octaves;
+
+    if (!parseNoiseSampleParams(args, kwds, &source,
+                                 &origin_x, &origin_y, &world_w, &world_h,
+                                 &mode, &octaves, &scale,
+                                 self->heightmap->w, self->heightmap->h, "multiply_noise")) {
+        return nullptr;
+    }
+
+    // Sample noise and multiply with heightmap
+    float coords[2];
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            coords[0] = origin_x + ((float)x / (float)self->heightmap->w) * world_w;
+            coords[1] = origin_y + ((float)y / (float)self->heightmap->h) * world_h;
+
+            float noise_value;
+            switch (mode) {
+                case NoiseSampleMode::FLAT:
+                    noise_value = TCOD_noise_get(source->noise, coords);
+                    break;
+                case NoiseSampleMode::FBM:
+                    noise_value = TCOD_noise_get_fbm(source->noise, coords, (float)octaves);
+                    break;
+                case NoiseSampleMode::TURBULENCE:
+                    noise_value = TCOD_noise_get_turbulence(source->noise, coords, (float)octaves);
+                    break;
+            }
+
+            float current = TCOD_heightmap_get_value(self->heightmap, x, y);
+            TCOD_heightmap_set_value(self->heightmap, x, y, current * (noise_value * scale));
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Helper: Collect BSP nodes based on select mode
+static bool collectBSPNodes(
+    PyBSPObject* bsp,
+    const char* select_str,
+    PyObject* nodes_list,
+    std::vector<TCOD_bsp_t*>& out_nodes,
+    const char* method_name)
+{
+    // If nodes list provided, use it directly
+    if (nodes_list && nodes_list != Py_None) {
+        if (!PyList_Check(nodes_list)) {
+            PyErr_Format(PyExc_TypeError, "%s() nodes must be a list of BSPNode", method_name);
+            return false;
+        }
+
+        PyObject* bspnode_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "BSPNode");
+        if (!bspnode_type) {
+            PyErr_SetString(PyExc_RuntimeError, "BSPNode type not found in module");
+            return false;
+        }
+
+        Py_ssize_t count = PyList_Size(nodes_list);
+        for (Py_ssize_t i = 0; i < count; i++) {
+            PyObject* item = PyList_GetItem(nodes_list, i);
+            int is_node = PyObject_IsInstance(item, bspnode_type);
+            if (is_node < 0) {
+                Py_DECREF(bspnode_type);
+                return false;
+            }
+            if (!is_node) {
+                Py_DECREF(bspnode_type);
+                PyErr_Format(PyExc_TypeError, "%s() nodes[%zd] is not a BSPNode", method_name, i);
+                return false;
+            }
+
+            PyBSPNodeObject* node = (PyBSPNodeObject*)item;
+            if (!PyBSPNode::checkValid(node)) {
+                Py_DECREF(bspnode_type);
+                return false;  // Error already set
+            }
+            out_nodes.push_back(node->node);
+        }
+        Py_DECREF(bspnode_type);
+        return true;
+    }
+
+    // Determine selection mode
+    enum class SelectMode { LEAVES, ALL, INTERNAL };
+    SelectMode select;
+    if (strcmp(select_str, "leaves") == 0) {
+        select = SelectMode::LEAVES;
+    } else if (strcmp(select_str, "all") == 0) {
+        select = SelectMode::ALL;
+    } else if (strcmp(select_str, "internal") == 0) {
+        select = SelectMode::INTERNAL;
+    } else {
+        PyErr_Format(PyExc_ValueError,
+            "%s() select must be 'leaves', 'all', or 'internal', got '%s'",
+            method_name, select_str);
+        return false;
+    }
+
+    // Collect nodes from BSP tree
+    // Use post-order traversal to collect all nodes
+    std::vector<TCOD_bsp_t*> stack;
+    stack.push_back(bsp->root);
+
+    while (!stack.empty()) {
+        TCOD_bsp_t* node = stack.back();
+        stack.pop_back();
+
+        bool is_leaf = TCOD_bsp_is_leaf(node);
+        bool include = false;
+
+        switch (select) {
+            case SelectMode::LEAVES:
+                include = is_leaf;
+                break;
+            case SelectMode::ALL:
+                include = true;
+                break;
+            case SelectMode::INTERNAL:
+                include = !is_leaf;
+                break;
+        }
+
+        if (include) {
+            out_nodes.push_back(node);
+        }
+
+        // Add children (if any) using libtcod functions
+        TCOD_bsp_t* left = TCOD_bsp_left(node);
+        TCOD_bsp_t* right = TCOD_bsp_right(node);
+        if (left) stack.push_back(left);
+        if (right) stack.push_back(right);
+    }
+
+    return true;
+}
+
+// Method: add_bsp(bsp, ...) -> HeightMap
+PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    static const char* keywords[] = {"bsp", "select", "nodes", "shrink", "value", nullptr};
+    PyObject* bsp_obj = nullptr;
+    const char* select_str = "leaves";
+    PyObject* nodes_obj = nullptr;
+    int shrink = 0;
+    float value = 1.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|sOif", const_cast<char**>(keywords),
+                                     &bsp_obj, &select_str, &nodes_obj, &shrink, &value)) {
+        return nullptr;
+    }
+
+    // Validate bsp is a BSP
+    PyObject* bsp_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "BSP");
+    if (!bsp_type) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP type not found in module");
+        return nullptr;
+    }
+    int is_bsp = PyObject_IsInstance(bsp_obj, bsp_type);
+    Py_DECREF(bsp_type);
+
+    if (is_bsp < 0) return nullptr;
+    if (!is_bsp) {
+        PyErr_SetString(PyExc_TypeError, "add_bsp() requires a BSP argument");
+        return nullptr;
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)bsp_obj;
+    if (!bsp->root) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP not initialized");
+        return nullptr;
+    }
+
+    // Collect nodes
+    std::vector<TCOD_bsp_t*> nodes;
+    if (!collectBSPNodes(bsp, select_str, nodes_obj, nodes, "add_bsp")) {
+        return nullptr;
+    }
+
+    // Add value to each node's region
+    for (TCOD_bsp_t* node : nodes) {
+        int x1 = node->x + shrink;
+        int y1 = node->y + shrink;
+        int x2 = node->x + node->w - shrink;
+        int y2 = node->y + node->h - shrink;
+
+        // Clamp to heightmap bounds and skip if shrunk to nothing
+        if (x1 >= x2 || y1 >= y2) continue;
+        if (x1 < 0) x1 = 0;
+        if (y1 < 0) y1 = 0;
+        if (x2 > self->heightmap->w) x2 = self->heightmap->w;
+        if (y2 > self->heightmap->h) y2 = self->heightmap->h;
+
+        for (int y = y1; y < y2; y++) {
+            for (int x = x1; x < x2; x++) {
+                float current = TCOD_heightmap_get_value(self->heightmap, x, y);
+                TCOD_heightmap_set_value(self->heightmap, x, y, current + value);
+            }
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: multiply_bsp(bsp, ...) -> HeightMap
+PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    static const char* keywords[] = {"bsp", "select", "nodes", "shrink", "value", nullptr};
+    PyObject* bsp_obj = nullptr;
+    const char* select_str = "leaves";
+    PyObject* nodes_obj = nullptr;
+    int shrink = 0;
+    float value = 1.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|sOif", const_cast<char**>(keywords),
+                                     &bsp_obj, &select_str, &nodes_obj, &shrink, &value)) {
+        return nullptr;
+    }
+
+    // Validate bsp is a BSP
+    PyObject* bsp_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "BSP");
+    if (!bsp_type) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP type not found in module");
+        return nullptr;
+    }
+    int is_bsp = PyObject_IsInstance(bsp_obj, bsp_type);
+    Py_DECREF(bsp_type);
+
+    if (is_bsp < 0) return nullptr;
+    if (!is_bsp) {
+        PyErr_SetString(PyExc_TypeError, "multiply_bsp() requires a BSP argument");
+        return nullptr;
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)bsp_obj;
+    if (!bsp->root) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP not initialized");
+        return nullptr;
+    }
+
+    // Collect nodes
+    std::vector<TCOD_bsp_t*> nodes;
+    if (!collectBSPNodes(bsp, select_str, nodes_obj, nodes, "multiply_bsp")) {
+        return nullptr;
+    }
+
+    // Create a mask: 0 everywhere, then set to 1 inside node regions
+    // Then multiply heightmap by mask
+    // Actually, for efficiency, we set cells OUTSIDE regions to 0
+
+    // First, create a "touched" array to track which cells are in regions
+    std::vector<bool> in_region(self->heightmap->w * self->heightmap->h, false);
+
+    for (TCOD_bsp_t* node : nodes) {
+        int x1 = node->x + shrink;
+        int y1 = node->y + shrink;
+        int x2 = node->x + node->w - shrink;
+        int y2 = node->y + node->h - shrink;
+
+        // Clamp and skip if invalid
+        if (x1 >= x2 || y1 >= y2) continue;
+        if (x1 < 0) x1 = 0;
+        if (y1 < 0) y1 = 0;
+        if (x2 > self->heightmap->w) x2 = self->heightmap->w;
+        if (y2 > self->heightmap->h) y2 = self->heightmap->h;
+
+        for (int y = y1; y < y2; y++) {
+            for (int x = x1; x < x2; x++) {
+                in_region[y * self->heightmap->w + x] = true;
+            }
+        }
+    }
+
+    // Now apply: multiply by value inside regions, by 0 outside
+    for (int y = 0; y < self->heightmap->h; y++) {
+        for (int x = 0; x < self->heightmap->w; x++) {
+            float current = TCOD_heightmap_get_value(self->heightmap, x, y);
+            if (in_region[y * self->heightmap->w + x]) {
+                TCOD_heightmap_set_value(self->heightmap, x, y, current * value);
+            } else {
+                TCOD_heightmap_set_value(self->heightmap, x, y, 0.0f);
+            }
+        }
     }
 
     Py_INCREF(self);

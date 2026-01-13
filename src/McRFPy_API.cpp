@@ -23,6 +23,7 @@
 #include "UIGridPathfinding.h"  // AStarPath and DijkstraMap types
 #include "PyHeightMap.h"  // Procedural generation heightmap (#193)
 #include "PyBSP.h"  // Procedural generation BSP (#202-206)
+#include "PyNoiseSource.h"  // Procedural generation noise (#207-208)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
@@ -420,6 +421,7 @@ PyObject* PyInit_mcrfpy()
         /*procedural generation (#192)*/
         &mcrfpydef::PyHeightMapType,
         &mcrfpydef::PyBSPType,
+        &mcrfpydef::PyNoiseSourceType,
 
         nullptr};
 
@@ -459,6 +461,10 @@ PyObject* PyInit_mcrfpy()
     mcrfpydef::PyBSPType.tp_getset = PyBSP::getsetters;
     mcrfpydef::PyBSPNodeType.tp_methods = PyBSPNode::methods;
     mcrfpydef::PyBSPNodeType.tp_getset = PyBSPNode::getsetters;
+
+    // Set up PyNoiseSourceType methods and getsetters (#207-208)
+    mcrfpydef::PyNoiseSourceType.tp_methods = PyNoiseSource::methods;
+    mcrfpydef::PyNoiseSourceType.tp_getset = PyNoiseSource::getsetters;
 
     // Set up weakref support for all types that need it
     PyTimerType.tp_weaklistoffset = offsetof(PyTimerObject, weakreflist);

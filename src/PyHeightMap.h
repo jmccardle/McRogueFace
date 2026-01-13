@@ -57,6 +57,21 @@ public:
     // Subscript support for hmap[x, y] syntax
     static PyObject* subscript(PyHeightMapObject* self, PyObject* key);
 
+    // Combination operations (#194) - mutate self, return self for chaining
+    static PyObject* add(PyHeightMapObject* self, PyObject* args);
+    static PyObject* subtract(PyHeightMapObject* self, PyObject* args);
+    static PyObject* multiply(PyHeightMapObject* self, PyObject* args);
+    static PyObject* lerp(PyHeightMapObject* self, PyObject* args);
+    static PyObject* copy_from(PyHeightMapObject* self, PyObject* args);
+    static PyObject* hmap_max(PyHeightMapObject* self, PyObject* args);  // 'max' conflicts with macro
+    static PyObject* hmap_min(PyHeightMapObject* self, PyObject* args);  // 'min' conflicts with macro
+
+    // Direct source sampling (#209) - sample from NoiseSource/BSP directly
+    static PyObject* add_noise(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* multiply_noise(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* add_bsp(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* multiply_bsp(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+
     // Mapping methods for subscript support
     static PyMappingMethods mapping_methods;
 
