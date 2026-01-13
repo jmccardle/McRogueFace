@@ -8,6 +8,210 @@
 #include <cstdlib>  // For random seed handling
 #include <ctime>    // For time-based seeds
 #include <vector>   // For BSP node collection
+#include <algorithm>  // For std::min
+
+// =============================================================================
+// Region Parameter System - standardized handling of pos, source_pos, size
+// =============================================================================
+
+// Region parameters for HeightMap operations
+struct HMRegion {
+    // Validated region coordinates
+    int dest_x, dest_y;       // Destination origin in self
+    int src_x, src_y;         // Source origin (for binary ops, 0 for scalar)
+    int width, height;        // Region dimensions
+
+    // Full heightmap dimensions (for iteration)
+    int dest_w, dest_h;
+    int src_w, src_h;
+
+    // Direct indexing helpers
+    inline int dest_idx(int x, int y) const {
+        return (dest_y + y) * dest_w + (dest_x + x);
+    }
+    inline int src_idx(int x, int y) const {
+        return (src_y + y) * src_w + (src_x + x);
+    }
+};
+
+// Parse optional position tuple, returning (0, 0) if None/not provided
+static bool parseOptionalPos(PyObject* pos_obj, int* out_x, int* out_y, const char* param_name) {
+    *out_x = 0;
+    *out_y = 0;
+
+    if (!pos_obj || pos_obj == Py_None) {
+        return true;  // Default to (0, 0)
+    }
+
+    // Try to parse as tuple/list of 2 ints
+    if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
+        PyObject* x_obj = PyTuple_GetItem(pos_obj, 0);
+        PyObject* y_obj = PyTuple_GetItem(pos_obj, 1);
+        if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
+            *out_x = (int)PyLong_AsLong(x_obj);
+            *out_y = (int)PyLong_AsLong(y_obj);
+            return true;
+        }
+    } else if (PyList_Check(pos_obj) && PyList_Size(pos_obj) == 2) {
+        PyObject* x_obj = PyList_GetItem(pos_obj, 0);
+        PyObject* y_obj = PyList_GetItem(pos_obj, 1);
+        if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
+            *out_x = (int)PyLong_AsLong(x_obj);
+            *out_y = (int)PyLong_AsLong(y_obj);
+            return true;
+        }
+    }
+
+    // Try PyPositionHelper for Vector support
+    if (PyPosition_FromObjectInt(pos_obj, out_x, out_y)) {
+        return true;
+    }
+
+    // Clear any error from PyPosition_FromObjectInt and set our own
+    PyErr_Clear();
+    PyErr_Format(PyExc_TypeError, "%s must be a (x, y) tuple, list, or Vector", param_name);
+    return false;
+}
+
+// Parse optional size tuple
+static bool parseOptionalSize(PyObject* size_obj, int* out_w, int* out_h, const char* param_name) {
+    *out_w = -1;  // -1 means "not specified"
+    *out_h = -1;
+
+    if (!size_obj || size_obj == Py_None) {
+        return true;
+    }
+
+    if (PyTuple_Check(size_obj) && PyTuple_Size(size_obj) == 2) {
+        PyObject* w_obj = PyTuple_GetItem(size_obj, 0);
+        PyObject* h_obj = PyTuple_GetItem(size_obj, 1);
+        if (PyLong_Check(w_obj) && PyLong_Check(h_obj)) {
+            *out_w = (int)PyLong_AsLong(w_obj);
+            *out_h = (int)PyLong_AsLong(h_obj);
+            if (*out_w <= 0 || *out_h <= 0) {
+                PyErr_Format(PyExc_ValueError, "%s dimensions must be positive", param_name);
+                return false;
+            }
+            return true;
+        }
+    } else if (PyList_Check(size_obj) && PyList_Size(size_obj) == 2) {
+        PyObject* w_obj = PyList_GetItem(size_obj, 0);
+        PyObject* h_obj = PyList_GetItem(size_obj, 1);
+        if (PyLong_Check(w_obj) && PyLong_Check(h_obj)) {
+            *out_w = (int)PyLong_AsLong(w_obj);
+            *out_h = (int)PyLong_AsLong(h_obj);
+            if (*out_w <= 0 || *out_h <= 0) {
+                PyErr_Format(PyExc_ValueError, "%s dimensions must be positive", param_name);
+                return false;
+            }
+            return true;
+        }
+    }
+
+    PyErr_Format(PyExc_TypeError, "%s must be a (width, height) tuple or list", param_name);
+    return false;
+}
+
+// Parse region parameters for binary operations (two heightmaps)
+// Returns true on success, sets Python error and returns false on failure
+static bool parseHMRegion(
+    TCOD_heightmap_t* dest,
+    TCOD_heightmap_t* src,      // Can be nullptr for scalar operations
+    PyObject* pos,              // (x, y) or None - destination position
+    PyObject* source_pos,       // (x, y) or None - source position
+    PyObject* size,             // (w, h) or None
+    HMRegion& out
+) {
+    // Store full dimensions
+    out.dest_w = dest->w;
+    out.dest_h = dest->h;
+    out.src_w = src ? src->w : dest->w;
+    out.src_h = src ? src->h : dest->h;
+
+    // Parse positions, default to (0, 0)
+    if (!parseOptionalPos(pos, &out.dest_x, &out.dest_y, "pos")) {
+        return false;
+    }
+    if (!parseOptionalPos(source_pos, &out.src_x, &out.src_y, "source_pos")) {
+        return false;
+    }
+
+    // Validate positions are within bounds
+    if (out.dest_x < 0 || out.dest_y < 0) {
+        PyErr_SetString(PyExc_ValueError, "pos coordinates cannot be negative");
+        return false;
+    }
+    if (out.dest_x >= out.dest_w || out.dest_y >= out.dest_h) {
+        PyErr_Format(PyExc_ValueError,
+            "pos (%d, %d) is out of bounds for destination of size (%d, %d)",
+            out.dest_x, out.dest_y, out.dest_w, out.dest_h);
+        return false;
+    }
+    if (src && (out.src_x < 0 || out.src_y < 0)) {
+        PyErr_SetString(PyExc_ValueError, "source_pos coordinates cannot be negative");
+        return false;
+    }
+    if (src && (out.src_x >= out.src_w || out.src_y >= out.src_h)) {
+        PyErr_Format(PyExc_ValueError,
+            "source_pos (%d, %d) is out of bounds for source of size (%d, %d)",
+            out.src_x, out.src_y, out.src_w, out.src_h);
+        return false;
+    }
+
+    // Calculate remaining space from each position
+    int dest_remaining_w = out.dest_w - out.dest_x;
+    int dest_remaining_h = out.dest_h - out.dest_y;
+    int src_remaining_w = src ? (out.src_w - out.src_x) : dest_remaining_w;
+    int src_remaining_h = src ? (out.src_h - out.src_y) : dest_remaining_h;
+
+    // Parse or infer size
+    int requested_w = -1, requested_h = -1;
+    if (!parseOptionalSize(size, &requested_w, &requested_h, "size")) {
+        return false;
+    }
+
+    if (requested_w > 0 && requested_h > 0) {
+        // Explicit size - must fit in both
+        if (requested_w > dest_remaining_w || requested_h > dest_remaining_h) {
+            PyErr_Format(PyExc_ValueError,
+                "size (%d, %d) exceeds available space in destination (%d, %d) from pos (%d, %d)",
+                requested_w, requested_h, dest_remaining_w, dest_remaining_h,
+                out.dest_x, out.dest_y);
+            return false;
+        }
+        if (src && (requested_w > src_remaining_w || requested_h > src_remaining_h)) {
+            PyErr_Format(PyExc_ValueError,
+                "size (%d, %d) exceeds available space in source (%d, %d) from source_pos (%d, %d)",
+                requested_w, requested_h, src_remaining_w, src_remaining_h,
+                out.src_x, out.src_y);
+            return false;
+        }
+        out.width = requested_w;
+        out.height = requested_h;
+    } else {
+        // Infer size: smaller of remaining space in each
+        out.width = std::min(dest_remaining_w, src_remaining_w);
+        out.height = std::min(dest_remaining_h, src_remaining_h);
+    }
+
+    // Final validation: non-zero region
+    if (out.width <= 0 || out.height <= 0) {
+        PyErr_SetString(PyExc_ValueError, "computed region has zero size");
+        return false;
+    }
+
+    return true;
+}
+
+// Parse region parameters for scalar operations (just destination region)
+static bool parseHMRegionScalar(
+    TCOD_heightmap_t* dest,
+    PyObject* pos,
+    PyObject* size,
+    HMRegion& out
+) {
+    return parseHMRegion(dest, nullptr, pos, nullptr, size, out);
+}
 
 // Property definitions
 PyGetSetDef PyHeightMap::getsetters[] = {
@@ -25,12 +229,14 @@ PyMappingMethods PyHeightMap::mapping_methods = {
 
 // Method definitions
 PyMethodDef PyHeightMap::methods[] = {
-    {"fill", (PyCFunction)PyHeightMap::fill, METH_VARARGS,
+    {"fill", (PyCFunction)PyHeightMap::fill, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, fill,
-         MCRF_SIG("(value: float)", "HeightMap"),
-         MCRF_DESC("Set all cells to the specified value."),
+         MCRF_SIG("(value: float, *, pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Set cells in region to the specified value."),
          MCRF_ARGS_START
-         MCRF_ARG("value", "The value to set for all cells")
+         MCRF_ARG("value", "The value to set")
+         MCRF_ARG("pos", "Region start (x, y) in destination (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) to fill (default: remaining space)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
     {"clear", (PyCFunction)PyHeightMap::clear, METH_NOARGS,
@@ -39,38 +245,46 @@ PyMethodDef PyHeightMap::methods[] = {
          MCRF_DESC("Set all cells to 0.0. Equivalent to fill(0.0)."),
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
-    {"add_constant", (PyCFunction)PyHeightMap::add_constant, METH_VARARGS,
+    {"add_constant", (PyCFunction)PyHeightMap::add_constant, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, add_constant,
-         MCRF_SIG("(value: float)", "HeightMap"),
-         MCRF_DESC("Add a constant value to every cell."),
+         MCRF_SIG("(value: float, *, pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Add a constant value to cells in region."),
          MCRF_ARGS_START
          MCRF_ARG("value", "The value to add to each cell")
+         MCRF_ARG("pos", "Region start (x, y) in destination (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: remaining space)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
-    {"scale", (PyCFunction)PyHeightMap::scale, METH_VARARGS,
+    {"scale", (PyCFunction)PyHeightMap::scale, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, scale,
-         MCRF_SIG("(factor: float)", "HeightMap"),
-         MCRF_DESC("Multiply every cell by a factor."),
+         MCRF_SIG("(factor: float, *, pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Multiply cells in region by a factor."),
          MCRF_ARGS_START
          MCRF_ARG("factor", "The multiplier for each cell")
+         MCRF_ARG("pos", "Region start (x, y) in destination (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: remaining space)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
     {"clamp", (PyCFunction)PyHeightMap::clamp, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, clamp,
-         MCRF_SIG("(min: float = 0.0, max: float = 1.0)", "HeightMap"),
-         MCRF_DESC("Clamp all values to the specified range."),
+         MCRF_SIG("(min: float = 0.0, max: float = 1.0, *, pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Clamp values in region to the specified range."),
          MCRF_ARGS_START
          MCRF_ARG("min", "Minimum value (default 0.0)")
          MCRF_ARG("max", "Maximum value (default 1.0)")
+         MCRF_ARG("pos", "Region start (x, y) in destination (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: remaining space)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
     {"normalize", (PyCFunction)PyHeightMap::normalize, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, normalize,
-         MCRF_SIG("(min: float = 0.0, max: float = 1.0)", "HeightMap"),
-         MCRF_DESC("Linearly rescale values so the current minimum becomes min and current maximum becomes max."),
+         MCRF_SIG("(min: float = 0.0, max: float = 1.0, *, pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Linearly rescale values in region. Current min becomes new min, current max becomes new max."),
          MCRF_ARGS_START
          MCRF_ARG("min", "Target minimum value (default 0.0)")
          MCRF_ARG("max", "Target maximum value (default 1.0)")
+         MCRF_ARG("pos", "Region start (x, y) in destination (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: remaining space)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
     // Query methods (#196)
@@ -224,70 +438,84 @@ PyMethodDef PyHeightMap::methods[] = {
          MCRF_ARG("iterations", "Number of smoothing passes (default 1)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
-    // Combination operations (#194)
-    {"add", (PyCFunction)PyHeightMap::add, METH_VARARGS,
+    // Combination operations (#194) - with region support
+    {"add", (PyCFunction)PyHeightMap::add, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, add,
-         MCRF_SIG("(other: HeightMap)", "HeightMap"),
-         MCRF_DESC("Add another heightmap's values to this one cell-by-cell."),
+         MCRF_SIG("(other: HeightMap, *, pos=None, source_pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Add another heightmap's values to this one in the specified region."),
          MCRF_ARGS_START
-         MCRF_ARG("other", "HeightMap with same dimensions to add")
+         MCRF_ARG("other", "HeightMap to add values from")
+         MCRF_ARG("pos", "Destination start (x, y) in self (default: (0, 0))")
+         MCRF_ARG("source_pos", "Source start (x, y) in other (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: max overlapping area)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_RAISES("ValueError", "Dimensions don't match")
      )},
-    {"subtract", (PyCFunction)PyHeightMap::subtract, METH_VARARGS,
+    {"subtract", (PyCFunction)PyHeightMap::subtract, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, subtract,
-         MCRF_SIG("(other: HeightMap)", "HeightMap"),
-         MCRF_DESC("Subtract another heightmap's values from this one cell-by-cell."),
+         MCRF_SIG("(other: HeightMap, *, pos=None, source_pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Subtract another heightmap's values from this one in the specified region."),
          MCRF_ARGS_START
-         MCRF_ARG("other", "HeightMap with same dimensions to subtract")
+         MCRF_ARG("other", "HeightMap to subtract values from")
+         MCRF_ARG("pos", "Destination start (x, y) in self (default: (0, 0))")
+         MCRF_ARG("source_pos", "Source start (x, y) in other (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: max overlapping area)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_RAISES("ValueError", "Dimensions don't match")
      )},
-    {"multiply", (PyCFunction)PyHeightMap::multiply, METH_VARARGS,
+    {"multiply", (PyCFunction)PyHeightMap::multiply, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, multiply,
-         MCRF_SIG("(other: HeightMap)", "HeightMap"),
-         MCRF_DESC("Multiply this heightmap by another cell-by-cell (useful for masking)."),
+         MCRF_SIG("(other: HeightMap, *, pos=None, source_pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Multiply this heightmap by another in the specified region (useful for masking)."),
          MCRF_ARGS_START
-         MCRF_ARG("other", "HeightMap with same dimensions to multiply by")
+         MCRF_ARG("other", "HeightMap to multiply by")
+         MCRF_ARG("pos", "Destination start (x, y) in self (default: (0, 0))")
+         MCRF_ARG("source_pos", "Source start (x, y) in other (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: max overlapping area)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_RAISES("ValueError", "Dimensions don't match")
      )},
-    {"lerp", (PyCFunction)PyHeightMap::lerp, METH_VARARGS,
+    {"lerp", (PyCFunction)PyHeightMap::lerp, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, lerp,
-         MCRF_SIG("(other: HeightMap, t: float)", "HeightMap"),
-         MCRF_DESC("Linear interpolation between this and another heightmap."),
+         MCRF_SIG("(other: HeightMap, t: float, *, pos=None, source_pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Linear interpolation between this and another heightmap in the specified region."),
          MCRF_ARGS_START
-         MCRF_ARG("other", "HeightMap with same dimensions to interpolate towards")
+         MCRF_ARG("other", "HeightMap to interpolate towards")
          MCRF_ARG("t", "Interpolation factor (0.0 = this, 1.0 = other)")
+         MCRF_ARG("pos", "Destination start (x, y) in self (default: (0, 0))")
+         MCRF_ARG("source_pos", "Source start (x, y) in other (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: max overlapping area)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_RAISES("ValueError", "Dimensions don't match")
      )},
-    {"copy_from", (PyCFunction)PyHeightMap::copy_from, METH_VARARGS,
+    {"copy_from", (PyCFunction)PyHeightMap::copy_from, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, copy_from,
-         MCRF_SIG("(other: HeightMap)", "HeightMap"),
-         MCRF_DESC("Copy all values from another heightmap."),
+         MCRF_SIG("(other: HeightMap, *, pos=None, source_pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Copy values from another heightmap into the specified region."),
          MCRF_ARGS_START
-         MCRF_ARG("other", "HeightMap with same dimensions to copy from")
+         MCRF_ARG("other", "HeightMap to copy from")
+         MCRF_ARG("pos", "Destination start (x, y) in self (default: (0, 0))")
+         MCRF_ARG("source_pos", "Source start (x, y) in other (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: max overlapping area)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_RAISES("ValueError", "Dimensions don't match")
      )},
-    {"max", (PyCFunction)PyHeightMap::hmap_max, METH_VARARGS,
+    {"max", (PyCFunction)PyHeightMap::hmap_max, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, max,
-         MCRF_SIG("(other: HeightMap)", "HeightMap"),
-         MCRF_DESC("Set each cell to the maximum of this and another heightmap."),
+         MCRF_SIG("(other: HeightMap, *, pos=None, source_pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Set each cell in region to the maximum of this and another heightmap."),
          MCRF_ARGS_START
-         MCRF_ARG("other", "HeightMap with same dimensions")
+         MCRF_ARG("other", "HeightMap to compare with")
+         MCRF_ARG("pos", "Destination start (x, y) in self (default: (0, 0))")
+         MCRF_ARG("source_pos", "Source start (x, y) in other (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: max overlapping area)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_RAISES("ValueError", "Dimensions don't match")
      )},
-    {"min", (PyCFunction)PyHeightMap::hmap_min, METH_VARARGS,
+    {"min", (PyCFunction)PyHeightMap::hmap_min, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, min,
-         MCRF_SIG("(other: HeightMap)", "HeightMap"),
-         MCRF_DESC("Set each cell to the minimum of this and another heightmap."),
+         MCRF_SIG("(other: HeightMap, *, pos=None, source_pos=None, size=None)", "HeightMap"),
+         MCRF_DESC("Set each cell in region to the minimum of this and another heightmap."),
          MCRF_ARGS_START
-         MCRF_ARG("other", "HeightMap with same dimensions")
+         MCRF_ARG("other", "HeightMap to compare with")
+         MCRF_ARG("pos", "Destination start (x, y) in self (default: (0, 0))")
+         MCRF_ARG("source_pos", "Source start (x, y) in other (default: (0, 0))")
+         MCRF_ARG("size", "Region (width, height) (default: max overlapping area)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_RAISES("ValueError", "Dimensions don't match")
      )},
     // Direct source sampling (#209)
     {"add_noise", (PyCFunction)PyHeightMap::add_noise, METH_VARARGS | METH_KEYWORDS,
@@ -320,11 +548,12 @@ PyMethodDef PyHeightMap::methods[] = {
      )},
     {"add_bsp", (PyCFunction)PyHeightMap::add_bsp, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, add_bsp,
-         MCRF_SIG("(bsp: BSP, select: str = 'leaves', nodes: list = None, "
+         MCRF_SIG("(bsp: BSP, *, pos=None, select: str = 'leaves', nodes: list = None, "
                   "shrink: int = 0, value: float = 1.0)", "HeightMap"),
          MCRF_DESC("Add BSP node regions to heightmap. More efficient than creating intermediate HeightMap."),
          MCRF_ARGS_START
          MCRF_ARG("bsp", "BSP tree to sample from")
+         MCRF_ARG("pos", "Where BSP origin maps to in HeightMap (default: origin-relative like to_heightmap)")
          MCRF_ARG("select", "'leaves', 'all', or 'internal' (default: 'leaves')")
          MCRF_ARG("nodes", "Override: specific BSPNodes only (default: None)")
          MCRF_ARG("shrink", "Pixels to shrink from node bounds (default: 0)")
@@ -333,11 +562,12 @@ PyMethodDef PyHeightMap::methods[] = {
      )},
     {"multiply_bsp", (PyCFunction)PyHeightMap::multiply_bsp, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, multiply_bsp,
-         MCRF_SIG("(bsp: BSP, select: str = 'leaves', nodes: list = None, "
+         MCRF_SIG("(bsp: BSP, *, pos=None, select: str = 'leaves', nodes: list = None, "
                   "shrink: int = 0, value: float = 1.0)", "HeightMap"),
          MCRF_DESC("Multiply by BSP regions. Effectively masks the heightmap to node interiors."),
          MCRF_ARGS_START
          MCRF_ARG("bsp", "BSP tree to sample from")
+         MCRF_ARG("pos", "Where BSP origin maps to in HeightMap (default: origin-relative like to_heightmap)")
          MCRF_ARG("select", "'leaves', 'all', or 'internal' (default: 'leaves')")
          MCRF_ARG("nodes", "Override: specific BSPNodes only (default: None)")
          MCRF_ARG("shrink", "Pixels to shrink from node bounds (default: 0)")
@@ -448,11 +678,16 @@ PyObject* PyHeightMap::get_size(PyHeightMapObject* self, void* closure)
     return Py_BuildValue("(ii)", self->heightmap->w, self->heightmap->h);
 }
 
-// Method: fill(value) -> HeightMap
-PyObject* PyHeightMap::fill(PyHeightMapObject* self, PyObject* args)
+// Method: fill(value, *, pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::fill(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
+    static const char* kwlist[] = {"value", "pos", "size", nullptr};
     float value;
-    if (!PyArg_ParseTuple(args, "f", &value)) {
+    PyObject* pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "f|OO", const_cast<char**>(kwlist),
+                                     &value, &pos, &size)) {
         return nullptr;
     }
 
@@ -461,13 +696,19 @@ PyObject* PyHeightMap::fill(PyHeightMapObject* self, PyObject* args)
         return nullptr;
     }
 
-    // Clear and then add the value (libtcod doesn't have a direct "set all" function)
-    TCOD_heightmap_clear(self->heightmap);
-    if (value != 0.0f) {
-        TCOD_heightmap_add(self->heightmap, value);
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+        return nullptr;
     }
 
-    // Return self for chaining
+    // Fill the region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            self->heightmap->values[region.dest_idx(x, y)] = value;
+        }
+    }
+
     Py_INCREF(self);
     return (PyObject*)self;
 }
@@ -487,11 +728,16 @@ PyObject* PyHeightMap::clear(PyHeightMapObject* self, PyObject* Py_UNUSED(args))
     return (PyObject*)self;
 }
 
-// Method: add_constant(value) -> HeightMap
-PyObject* PyHeightMap::add_constant(PyHeightMapObject* self, PyObject* args)
+// Method: add_constant(value, *, pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::add_constant(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
+    static const char* kwlist[] = {"value", "pos", "size", nullptr};
     float value;
-    if (!PyArg_ParseTuple(args, "f", &value)) {
+    PyObject* pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "f|OO", const_cast<char**>(kwlist),
+                                     &value, &pos, &size)) {
         return nullptr;
     }
 
@@ -500,18 +746,33 @@ PyObject* PyHeightMap::add_constant(PyHeightMapObject* self, PyObject* args)
         return nullptr;
     }
 
-    TCOD_heightmap_add(self->heightmap, value);
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+        return nullptr;
+    }
 
-    // Return self for chaining
+    // Add constant to region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            self->heightmap->values[region.dest_idx(x, y)] += value;
+        }
+    }
+
     Py_INCREF(self);
     return (PyObject*)self;
 }
 
-// Method: scale(factor) -> HeightMap
-PyObject* PyHeightMap::scale(PyHeightMapObject* self, PyObject* args)
+// Method: scale(factor, *, pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::scale(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
+    static const char* kwlist[] = {"factor", "pos", "size", nullptr};
     float factor;
-    if (!PyArg_ParseTuple(args, "f", &factor)) {
+    PyObject* pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "f|OO", const_cast<char**>(kwlist),
+                                     &factor, &pos, &size)) {
         return nullptr;
     }
 
@@ -520,22 +781,34 @@ PyObject* PyHeightMap::scale(PyHeightMapObject* self, PyObject* args)
         return nullptr;
     }
 
-    TCOD_heightmap_scale(self->heightmap, factor);
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+        return nullptr;
+    }
 
-    // Return self for chaining
+    // Scale region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            self->heightmap->values[region.dest_idx(x, y)] *= factor;
+        }
+    }
+
     Py_INCREF(self);
     return (PyObject*)self;
 }
 
-// Method: clamp(min=0.0, max=1.0) -> HeightMap
+// Method: clamp(min=0.0, max=1.0, *, pos=None, size=None) -> HeightMap
 PyObject* PyHeightMap::clamp(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"min", "max", nullptr};
+    static const char* kwlist[] = {"min", "max", "pos", "size", nullptr};
     float min_val = 0.0f;
     float max_val = 1.0f;
+    PyObject* pos = nullptr;
+    PyObject* size = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ff", const_cast<char**>(keywords),
-                                     &min_val, &max_val)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffOO", const_cast<char**>(kwlist),
+                                     &min_val, &max_val, &pos, &size)) {
         return nullptr;
     }
 
@@ -549,22 +822,36 @@ PyObject* PyHeightMap::clamp(PyHeightMapObject* self, PyObject* args, PyObject* 
         return nullptr;
     }
 
-    TCOD_heightmap_clamp(self->heightmap, min_val, max_val);
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+        return nullptr;
+    }
 
-    // Return self for chaining
+    // Clamp values in region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            float& val = self->heightmap->values[region.dest_idx(x, y)];
+            if (val < min_val) val = min_val;
+            else if (val > max_val) val = max_val;
+        }
+    }
+
     Py_INCREF(self);
     return (PyObject*)self;
 }
 
-// Method: normalize(min=0.0, max=1.0) -> HeightMap
+// Method: normalize(min=0.0, max=1.0, *, pos=None, size=None) -> HeightMap
 PyObject* PyHeightMap::normalize(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"min", "max", nullptr};
-    float min_val = 0.0f;
-    float max_val = 1.0f;
+    static const char* kwlist[] = {"min", "max", "pos", "size", nullptr};
+    float target_min = 0.0f;
+    float target_max = 1.0f;
+    PyObject* pos = nullptr;
+    PyObject* size = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ff", const_cast<char**>(keywords),
-                                     &min_val, &max_val)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ffOO", const_cast<char**>(kwlist),
+                                     &target_min, &target_max, &pos, &size)) {
         return nullptr;
     }
 
@@ -573,14 +860,48 @@ PyObject* PyHeightMap::normalize(PyHeightMapObject* self, PyObject* args, PyObje
         return nullptr;
     }
 
-    if (min_val > max_val) {
+    if (target_min > target_max) {
         PyErr_SetString(PyExc_ValueError, "min must be less than or equal to max");
         return nullptr;
     }
 
-    TCOD_heightmap_normalize(self->heightmap, min_val, max_val);
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegionScalar(self->heightmap, pos, size, region)) {
+        return nullptr;
+    }
 
-    // Return self for chaining
+    // Find min/max in region
+    float current_min = self->heightmap->values[region.dest_idx(0, 0)];
+    float current_max = current_min;
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            float val = self->heightmap->values[region.dest_idx(x, y)];
+            if (val < current_min) current_min = val;
+            if (val > current_max) current_max = val;
+        }
+    }
+
+    // Normalize values in region
+    float range = current_max - current_min;
+    if (range > 0.0f) {
+        float scale = (target_max - target_min) / range;
+        for (int y = 0; y < region.height; y++) {
+            for (int x = 0; x < region.width; x++) {
+                float& val = self->heightmap->values[region.dest_idx(x, y)];
+                val = target_min + (val - current_min) * scale;
+            }
+        }
+    } else {
+        // All values are the same - set to midpoint
+        float mid = (target_min + target_max) / 2.0f;
+        for (int y = 0; y < region.height; y++) {
+            for (int x = 0; x < region.width; x++) {
+                self->heightmap->values[region.dest_idx(x, y)] = mid;
+            }
+        }
+    }
+
     Py_INCREF(self);
     return (PyObject*)self;
 }
@@ -1299,17 +1620,12 @@ PyObject* PyHeightMap::smooth(PyHeightMapObject* self, PyObject* args, PyObject*
 }
 
 // =============================================================================
-// Combination operations (#194)
+// Combination operations (#194) - with region support
 // =============================================================================
 
-// Helper: Validate other HeightMap and check dimensions match
-static PyHeightMapObject* validateOtherHeightMap(PyHeightMapObject* self, PyObject* args, const char* method_name)
+// Helper: Validate other HeightMap (type check only, no dimension check)
+static PyHeightMapObject* validateOtherHeightMapType(PyObject* other_obj, const char* method_name)
 {
-    PyObject* other_obj;
-    if (!PyArg_ParseTuple(args, "O", &other_obj)) {
-        return nullptr;
-    }
-
     // Check that other is a HeightMap
     PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
     if (!heightmap_type) {
@@ -1330,123 +1646,47 @@ static PyHeightMapObject* validateOtherHeightMap(PyHeightMapObject* self, PyObje
 
     PyHeightMapObject* other = (PyHeightMapObject*)other_obj;
 
-    // Check both are initialized
-    if (!self->heightmap) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
-        return nullptr;
-    }
     if (!other->heightmap) {
         PyErr_SetString(PyExc_RuntimeError, "Other HeightMap not initialized");
-        return nullptr;
-    }
-
-    // Check dimensions match
-    if (self->heightmap->w != other->heightmap->w ||
-        self->heightmap->h != other->heightmap->h) {
-        PyErr_Format(PyExc_ValueError,
-            "%s() requires HeightMaps with same dimensions: self is (%d, %d), other is (%d, %d)",
-            method_name, self->heightmap->w, self->heightmap->h,
-            other->heightmap->w, other->heightmap->h);
         return nullptr;
     }
 
     return other;
 }
 
-// Method: add(other) -> HeightMap
-PyObject* PyHeightMap::add(PyHeightMapObject* self, PyObject* args)
+// Method: add(other, *, pos=None, source_pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::add(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    PyHeightMapObject* other = validateOtherHeightMap(self, args, "add");
-    if (!other) return nullptr;
-
-    // TCOD_heightmap_add_hm adds hm1 + hm2 into out
-    // We want self = self + other, so we can use self as out
-    TCOD_heightmap_add_hm(self->heightmap, other->heightmap, self->heightmap);
-
-    Py_INCREF(self);
-    return (PyObject*)self;
-}
-
-// Method: subtract(other) -> HeightMap
-PyObject* PyHeightMap::subtract(PyHeightMapObject* self, PyObject* args)
-{
-    PyHeightMapObject* other = validateOtherHeightMap(self, args, "subtract");
-    if (!other) return nullptr;
-
-    // No direct TCOD function - do cell-by-cell
-    for (int y = 0; y < self->heightmap->h; y++) {
-        for (int x = 0; x < self->heightmap->w; x++) {
-            float v1 = TCOD_heightmap_get_value(self->heightmap, x, y);
-            float v2 = TCOD_heightmap_get_value(other->heightmap, x, y);
-            TCOD_heightmap_set_value(self->heightmap, x, y, v1 - v2);
-        }
-    }
-
-    Py_INCREF(self);
-    return (PyObject*)self;
-}
-
-// Method: multiply(other) -> HeightMap
-PyObject* PyHeightMap::multiply(PyHeightMapObject* self, PyObject* args)
-{
-    PyHeightMapObject* other = validateOtherHeightMap(self, args, "multiply");
-    if (!other) return nullptr;
-
-    // TCOD_heightmap_multiply_hm multiplies hm1 * hm2 into out
-    TCOD_heightmap_multiply_hm(self->heightmap, other->heightmap, self->heightmap);
-
-    Py_INCREF(self);
-    return (PyObject*)self;
-}
-
-// Method: lerp(other, t) -> HeightMap
-PyObject* PyHeightMap::lerp(PyHeightMapObject* self, PyObject* args)
-{
+    static const char* kwlist[] = {"other", "pos", "source_pos", "size", nullptr};
     PyObject* other_obj;
-    float t;
-    if (!PyArg_ParseTuple(args, "Of", &other_obj, &t)) {
+    PyObject* pos = nullptr;
+    PyObject* source_pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OOO", const_cast<char**>(kwlist),
+                                     &other_obj, &pos, &source_pos, &size)) {
         return nullptr;
     }
 
-    // Create args tuple with just the other object for validation
-    PyObject* other_args = PyTuple_Pack(1, other_obj);
-    PyHeightMapObject* other = validateOtherHeightMap(self, other_args, "lerp");
-    Py_DECREF(other_args);
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "add");
     if (!other) return nullptr;
 
-    // TCOD_heightmap_lerp_hm lerps hm1 and hm2 into out with coef
-    // When coef=0, out=hm1. When coef=1, out=hm2
-    TCOD_heightmap_lerp_hm(self->heightmap, other->heightmap, self->heightmap, t);
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+        return nullptr;
+    }
 
-    Py_INCREF(self);
-    return (PyObject*)self;
-}
-
-// Method: copy_from(other) -> HeightMap
-PyObject* PyHeightMap::copy_from(PyHeightMapObject* self, PyObject* args)
-{
-    PyHeightMapObject* other = validateOtherHeightMap(self, args, "copy_from");
-    if (!other) return nullptr;
-
-    // TCOD_heightmap_copy copies source to dest
-    TCOD_heightmap_copy(other->heightmap, self->heightmap);
-
-    Py_INCREF(self);
-    return (PyObject*)self;
-}
-
-// Method: max(other) -> HeightMap
-PyObject* PyHeightMap::hmap_max(PyHeightMapObject* self, PyObject* args)
-{
-    PyHeightMapObject* other = validateOtherHeightMap(self, args, "max");
-    if (!other) return nullptr;
-
-    // No direct TCOD function - do cell-by-cell
-    for (int y = 0; y < self->heightmap->h; y++) {
-        for (int x = 0; x < self->heightmap->w; x++) {
-            float v1 = TCOD_heightmap_get_value(self->heightmap, x, y);
-            float v2 = TCOD_heightmap_get_value(other->heightmap, x, y);
-            TCOD_heightmap_set_value(self->heightmap, x, y, v1 > v2 ? v1 : v2);
+    // Add values in region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            self->heightmap->values[region.dest_idx(x, y)] +=
+                other->heightmap->values[region.src_idx(x, y)];
         }
     }
 
@@ -1454,18 +1694,244 @@ PyObject* PyHeightMap::hmap_max(PyHeightMapObject* self, PyObject* args)
     return (PyObject*)self;
 }
 
-// Method: min(other) -> HeightMap
-PyObject* PyHeightMap::hmap_min(PyHeightMapObject* self, PyObject* args)
+// Method: subtract(other, *, pos=None, source_pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::subtract(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
-    PyHeightMapObject* other = validateOtherHeightMap(self, args, "min");
+    static const char* kwlist[] = {"other", "pos", "source_pos", "size", nullptr};
+    PyObject* other_obj;
+    PyObject* pos = nullptr;
+    PyObject* source_pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OOO", const_cast<char**>(kwlist),
+                                     &other_obj, &pos, &source_pos, &size)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "subtract");
     if (!other) return nullptr;
 
-    // No direct TCOD function - do cell-by-cell
-    for (int y = 0; y < self->heightmap->h; y++) {
-        for (int x = 0; x < self->heightmap->w; x++) {
-            float v1 = TCOD_heightmap_get_value(self->heightmap, x, y);
-            float v2 = TCOD_heightmap_get_value(other->heightmap, x, y);
-            TCOD_heightmap_set_value(self->heightmap, x, y, v1 < v2 ? v1 : v2);
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+        return nullptr;
+    }
+
+    // Subtract values in region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            self->heightmap->values[region.dest_idx(x, y)] -=
+                other->heightmap->values[region.src_idx(x, y)];
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: multiply(other, *, pos=None, source_pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::multiply(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"other", "pos", "source_pos", "size", nullptr};
+    PyObject* other_obj;
+    PyObject* pos = nullptr;
+    PyObject* source_pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OOO", const_cast<char**>(kwlist),
+                                     &other_obj, &pos, &source_pos, &size)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "multiply");
+    if (!other) return nullptr;
+
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+        return nullptr;
+    }
+
+    // Multiply values in region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            self->heightmap->values[region.dest_idx(x, y)] *=
+                other->heightmap->values[region.src_idx(x, y)];
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: lerp(other, t, *, pos=None, source_pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::lerp(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"other", "t", "pos", "source_pos", "size", nullptr};
+    PyObject* other_obj;
+    float t;
+    PyObject* pos = nullptr;
+    PyObject* source_pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Of|OOO", const_cast<char**>(kwlist),
+                                     &other_obj, &t, &pos, &source_pos, &size)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "lerp");
+    if (!other) return nullptr;
+
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+        return nullptr;
+    }
+
+    // Lerp values in region: self = self * (1-t) + other * t
+    float one_minus_t = 1.0f - t;
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            float& dest = self->heightmap->values[region.dest_idx(x, y)];
+            float src = other->heightmap->values[region.src_idx(x, y)];
+            dest = dest * one_minus_t + src * t;
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: copy_from(other, *, pos=None, source_pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::copy_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"other", "pos", "source_pos", "size", nullptr};
+    PyObject* other_obj;
+    PyObject* pos = nullptr;
+    PyObject* source_pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OOO", const_cast<char**>(kwlist),
+                                     &other_obj, &pos, &source_pos, &size)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "copy_from");
+    if (!other) return nullptr;
+
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+        return nullptr;
+    }
+
+    // Copy values in region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            self->heightmap->values[region.dest_idx(x, y)] =
+                other->heightmap->values[region.src_idx(x, y)];
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: max(other, *, pos=None, source_pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::hmap_max(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"other", "pos", "source_pos", "size", nullptr};
+    PyObject* other_obj;
+    PyObject* pos = nullptr;
+    PyObject* source_pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OOO", const_cast<char**>(kwlist),
+                                     &other_obj, &pos, &source_pos, &size)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "max");
+    if (!other) return nullptr;
+
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+        return nullptr;
+    }
+
+    // Max values in region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            float& dest = self->heightmap->values[region.dest_idx(x, y)];
+            float src = other->heightmap->values[region.src_idx(x, y)];
+            if (src > dest) dest = src;
+        }
+    }
+
+    Py_INCREF(self);
+    return (PyObject*)self;
+}
+
+// Method: min(other, *, pos=None, source_pos=None, size=None) -> HeightMap
+PyObject* PyHeightMap::hmap_min(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"other", "pos", "source_pos", "size", nullptr};
+    PyObject* other_obj;
+    PyObject* pos = nullptr;
+    PyObject* source_pos = nullptr;
+    PyObject* size = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OOO", const_cast<char**>(kwlist),
+                                     &other_obj, &pos, &source_pos, &size)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "min");
+    if (!other) return nullptr;
+
+    // Parse region parameters
+    HMRegion region;
+    if (!parseHMRegion(self->heightmap, other->heightmap, pos, source_pos, size, region)) {
+        return nullptr;
+    }
+
+    // Min values in region
+    for (int y = 0; y < region.height; y++) {
+        for (int x = 0; x < region.width; x++) {
+            float& dest = self->heightmap->values[region.dest_idx(x, y)];
+            float src = other->heightmap->values[region.src_idx(x, y)];
+            if (src < dest) dest = src;
         }
     }
 
@@ -1804,7 +2270,7 @@ static bool collectBSPNodes(
     return true;
 }
 
-// Method: add_bsp(bsp, ...) -> HeightMap
+// Method: add_bsp(bsp, *, pos=None, select='leaves', nodes=None, shrink=0, value=1.0) -> HeightMap
 PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
     if (!self->heightmap) {
@@ -1812,15 +2278,16 @@ PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject
         return nullptr;
     }
 
-    static const char* keywords[] = {"bsp", "select", "nodes", "shrink", "value", nullptr};
+    static const char* keywords[] = {"bsp", "pos", "select", "nodes", "shrink", "value", nullptr};
     PyObject* bsp_obj = nullptr;
+    PyObject* pos_obj = nullptr;
     const char* select_str = "leaves";
     PyObject* nodes_obj = nullptr;
     int shrink = 0;
     float value = 1.0f;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|sOif", const_cast<char**>(keywords),
-                                     &bsp_obj, &select_str, &nodes_obj, &shrink, &value)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OsOif", const_cast<char**>(keywords),
+                                     &bsp_obj, &pos_obj, &select_str, &nodes_obj, &shrink, &value)) {
         return nullptr;
     }
 
@@ -1845,18 +2312,36 @@ PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject
         return nullptr;
     }
 
+    // Calculate offset for BSP coordinates
+    // Default (pos=None): origin-relative like to_heightmap (-bsp.orig_x, -bsp.orig_y)
+    // pos=(x, y): offset so BSP origin maps to (x, y) in heightmap
+    int offset_x, offset_y;
+    if (!pos_obj || pos_obj == Py_None) {
+        // Origin-relative: translate BSP to (0, 0)
+        offset_x = -bsp->orig_x;
+        offset_y = -bsp->orig_y;
+    } else {
+        // Custom position
+        int pos_x, pos_y;
+        if (!parseOptionalPos(pos_obj, &pos_x, &pos_y, "pos")) {
+            return nullptr;
+        }
+        offset_x = pos_x - bsp->orig_x;
+        offset_y = pos_y - bsp->orig_y;
+    }
+
     // Collect nodes
     std::vector<TCOD_bsp_t*> nodes;
     if (!collectBSPNodes(bsp, select_str, nodes_obj, nodes, "add_bsp")) {
         return nullptr;
     }
 
-    // Add value to each node's region
+    // Add value to each node's region (with offset)
     for (TCOD_bsp_t* node : nodes) {
-        int x1 = node->x + shrink;
-        int y1 = node->y + shrink;
-        int x2 = node->x + node->w - shrink;
-        int y2 = node->y + node->h - shrink;
+        int x1 = node->x + offset_x + shrink;
+        int y1 = node->y + offset_y + shrink;
+        int x2 = node->x + offset_x + node->w - shrink;
+        int y2 = node->y + offset_y + node->h - shrink;
 
         // Clamp to heightmap bounds and skip if shrunk to nothing
         if (x1 >= x2 || y1 >= y2) continue;
@@ -1864,6 +2349,8 @@ PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject
         if (y1 < 0) y1 = 0;
         if (x2 > self->heightmap->w) x2 = self->heightmap->w;
         if (y2 > self->heightmap->h) y2 = self->heightmap->h;
+        if (x1 >= self->heightmap->w || y1 >= self->heightmap->h) continue;
+        if (x2 <= 0 || y2 <= 0) continue;
 
         for (int y = y1; y < y2; y++) {
             for (int x = x1; x < x2; x++) {
@@ -1877,7 +2364,7 @@ PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject
     return (PyObject*)self;
 }
 
-// Method: multiply_bsp(bsp, ...) -> HeightMap
+// Method: multiply_bsp(bsp, *, pos=None, select='leaves', nodes=None, shrink=0, value=1.0) -> HeightMap
 PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
     if (!self->heightmap) {
@@ -1885,15 +2372,16 @@ PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyO
         return nullptr;
     }
 
-    static const char* keywords[] = {"bsp", "select", "nodes", "shrink", "value", nullptr};
+    static const char* keywords[] = {"bsp", "pos", "select", "nodes", "shrink", "value", nullptr};
     PyObject* bsp_obj = nullptr;
+    PyObject* pos_obj = nullptr;
     const char* select_str = "leaves";
     PyObject* nodes_obj = nullptr;
     int shrink = 0;
     float value = 1.0f;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|sOif", const_cast<char**>(keywords),
-                                     &bsp_obj, &select_str, &nodes_obj, &shrink, &value)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OsOif", const_cast<char**>(keywords),
+                                     &bsp_obj, &pos_obj, &select_str, &nodes_obj, &shrink, &value)) {
         return nullptr;
     }
 
@@ -1918,24 +2406,35 @@ PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyO
         return nullptr;
     }
 
+    // Calculate offset for BSP coordinates
+    int offset_x, offset_y;
+    if (!pos_obj || pos_obj == Py_None) {
+        // Origin-relative: translate BSP to (0, 0)
+        offset_x = -bsp->orig_x;
+        offset_y = -bsp->orig_y;
+    } else {
+        int pos_x, pos_y;
+        if (!parseOptionalPos(pos_obj, &pos_x, &pos_y, "pos")) {
+            return nullptr;
+        }
+        offset_x = pos_x - bsp->orig_x;
+        offset_y = pos_y - bsp->orig_y;
+    }
+
     // Collect nodes
     std::vector<TCOD_bsp_t*> nodes;
     if (!collectBSPNodes(bsp, select_str, nodes_obj, nodes, "multiply_bsp")) {
         return nullptr;
     }
 
-    // Create a mask: 0 everywhere, then set to 1 inside node regions
-    // Then multiply heightmap by mask
-    // Actually, for efficiency, we set cells OUTSIDE regions to 0
-
-    // First, create a "touched" array to track which cells are in regions
+    // Create a mask to track which cells are in regions
     std::vector<bool> in_region(self->heightmap->w * self->heightmap->h, false);
 
     for (TCOD_bsp_t* node : nodes) {
-        int x1 = node->x + shrink;
-        int y1 = node->y + shrink;
-        int x2 = node->x + node->w - shrink;
-        int y2 = node->y + node->h - shrink;
+        int x1 = node->x + offset_x + shrink;
+        int y1 = node->y + offset_y + shrink;
+        int x2 = node->x + offset_x + node->w - shrink;
+        int y2 = node->y + offset_y + node->h - shrink;
 
         // Clamp and skip if invalid
         if (x1 >= x2 || y1 >= y2) continue;
@@ -1943,6 +2442,8 @@ PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyO
         if (y1 < 0) y1 = 0;
         if (x2 > self->heightmap->w) x2 = self->heightmap->w;
         if (y2 > self->heightmap->h) y2 = self->heightmap->h;
+        if (x1 >= self->heightmap->w || y1 >= self->heightmap->h) continue;
+        if (x2 <= 0 || y2 <= 0) continue;
 
         for (int y = y1; y < y2; y++) {
             for (int x = x1; x < x2; x++) {
@@ -1951,7 +2452,7 @@ PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyO
         }
     }
 
-    // Now apply: multiply by value inside regions, by 0 outside
+    // Apply: multiply by value inside regions, by 0 outside
     for (int y = 0; y < self->heightmap->h; y++) {
         for (int x = 0; x < self->heightmap->w; x++) {
             float current = TCOD_heightmap_get_value(self->heightmap, x, y);

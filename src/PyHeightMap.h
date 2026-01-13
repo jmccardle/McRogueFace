@@ -24,11 +24,11 @@ public:
     // Properties
     static PyObject* get_size(PyHeightMapObject* self, void* closure);
 
-    // Scalar operations (all return self for chaining)
-    static PyObject* fill(PyHeightMapObject* self, PyObject* args);
+    // Scalar operations (all return self for chaining, support region parameters)
+    static PyObject* fill(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* clear(PyHeightMapObject* self, PyObject* Py_UNUSED(args));
-    static PyObject* add_constant(PyHeightMapObject* self, PyObject* args);
-    static PyObject* scale(PyHeightMapObject* self, PyObject* args);
+    static PyObject* add_constant(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* scale(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* clamp(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* normalize(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
 
@@ -57,14 +57,14 @@ public:
     // Subscript support for hmap[x, y] syntax
     static PyObject* subscript(PyHeightMapObject* self, PyObject* key);
 
-    // Combination operations (#194) - mutate self, return self for chaining
-    static PyObject* add(PyHeightMapObject* self, PyObject* args);
-    static PyObject* subtract(PyHeightMapObject* self, PyObject* args);
-    static PyObject* multiply(PyHeightMapObject* self, PyObject* args);
-    static PyObject* lerp(PyHeightMapObject* self, PyObject* args);
-    static PyObject* copy_from(PyHeightMapObject* self, PyObject* args);
-    static PyObject* hmap_max(PyHeightMapObject* self, PyObject* args);  // 'max' conflicts with macro
-    static PyObject* hmap_min(PyHeightMapObject* self, PyObject* args);  // 'min' conflicts with macro
+    // Combination operations (#194) - mutate self, return self for chaining, support region parameters
+    static PyObject* add(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* subtract(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* multiply(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* lerp(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* copy_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* hmap_max(PyHeightMapObject* self, PyObject* args, PyObject* kwds);  // 'max' conflicts with macro
+    static PyObject* hmap_min(PyHeightMapObject* self, PyObject* args, PyObject* kwds);  // 'min' conflicts with macro
 
     // Direct source sampling (#209) - sample from NoiseSource/BSP directly
     static PyObject* add_noise(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
