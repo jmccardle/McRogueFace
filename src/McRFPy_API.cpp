@@ -441,6 +441,8 @@ PyObject* PyInit_mcrfpy()
         /*BSP internal types - returned by BSP methods but not directly instantiable*/
         &mcrfpydef::PyBSPNodeType,
         &mcrfpydef::PyBSPIterType,
+        &mcrfpydef::PyBSPAdjacencyType,      // #210: BSP.adjacency wrapper
+        &mcrfpydef::PyBSPAdjacentTilesType,  // #210: BSPNode.adjacent_tiles wrapper
 
         nullptr};
     

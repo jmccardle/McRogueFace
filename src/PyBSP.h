@@ -4,10 +4,26 @@
 #include <libtcod.h>
 #include <vector>
 #include <cstdint>
+#include <unordered_map>
+#include <map>
+#include <SFML/System/Vector2.hpp>
 
 // Forward declarations
 class PyBSP;
 class PyBSPNode;
+class PyBSPAdjacency;
+class PyBSPAdjacentTiles;
+
+// Adjacency cache - computed lazily, invalidated on generation change (#210)
+struct BSPAdjacencyCache {
+    std::vector<std::vector<int>> graph;              // graph[i] = neighbor indices for leaf i
+    std::vector<TCOD_bsp_t*> leaf_pointers;           // leaf_pointers[i] = TCOD node for leaf i
+    std::unordered_map<TCOD_bsp_t*, int> ptr_to_index; // Reverse lookup: node ptr -> index
+    uint64_t generation;                               // Generation when computed
+    // Wall tile cache: key=(self_index, neighbor_index) - perspective matters!
+    // leaf0.adjacent_tiles[1] returns tiles on leaf0's edge, not symmetric with leaf1.adjacent_tiles[0]
+    std::map<std::pair<int,int>, std::vector<sf::Vector2i>> wall_tiles_cache;
+};
 
 // Maximum recursion depth to prevent memory exhaustion
 // 2^16 = 65536 potential leaf nodes, which is already excessive
@@ -20,6 +36,7 @@ typedef struct {
     int orig_x, orig_y;         // Original bounds for clear()
     int orig_w, orig_h;
     uint64_t generation;        // Incremented on structural changes (clear, split)
+    BSPAdjacencyCache* adjacency_cache;  // Lazy-computed adjacency graph (#210)
 } PyBSPObject;
 
 // Python object structure for BSPNode (lightweight reference)
@@ -39,6 +56,22 @@ typedef struct {
     uint64_t generation;              // Generation at iterator creation
 } PyBSPIterObject;
 
+// Python object for BSP.adjacency property (#210)
+typedef struct {
+    PyObject_HEAD
+    PyObject* bsp_owner;        // Reference to PyBSPObject
+    uint64_t generation;        // Generation at creation (for validity check)
+} PyBSPAdjacencyObject;
+
+// Python object for BSPNode.adjacent_tiles property (#210)
+typedef struct {
+    PyObject_HEAD
+    PyObject* bsp_owner;        // Reference to PyBSPObject
+    TCOD_bsp_t* node;           // The leaf node this belongs to
+    int leaf_index;             // This leaf's index in adjacency graph
+    uint64_t generation;        // Generation at creation (for validity check)
+} PyBSPAdjacentTilesObject;
+
 class PyBSP
 {
 public:
@@ -53,6 +86,7 @@ public:
     static PyObject* get_pos(PyBSPObject* self, void* closure);
     static PyObject* get_size(PyBSPObject* self, void* closure);
     static PyObject* get_root(PyBSPObject* self, void* closure);
+    static PyObject* get_adjacency(PyBSPObject* self, void* closure);  // #210
 
     // Splitting methods (#202)
     static PyObject* split_once(PyBSPObject* self, PyObject* args, PyObject* kwds);
@@ -65,6 +99,7 @@ public:
 
     // Query methods (#205)
     static PyObject* find(PyBSPObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* get_leaf(PyBSPObject* self, PyObject* args, PyObject* kwds);  // #210
 
     // HeightMap conversion (#206)
     static PyObject* to_heightmap(PyBSPObject* self, PyObject* args, PyObject* kwds);
@@ -106,6 +141,10 @@ public:
     static PyObject* get_parent(PyBSPNodeObject* self, void* closure);
     static PyObject* get_sibling(PyBSPNodeObject* self, void* closure);
 
+    // Adjacency properties (#210)
+    static PyObject* get_leaf_index(PyBSPNodeObject* self, void* closure);
+    static PyObject* get_adjacent_tiles(PyBSPNodeObject* self, void* closure);
+
     // Methods (#203)
     static PyObject* contains(PyBSPNodeObject* self, PyObject* args, PyObject* kwds);
     static PyObject* center(PyBSPNodeObject* self, PyObject* Py_UNUSED(args));
@@ -130,6 +169,39 @@ public:
     static PyObject* next(PyBSPIterObject* self);
     static int init(PyBSPIterObject* self, PyObject* args, PyObject* kwds);
     static PyObject* repr(PyObject* obj);
+};
+
+// BSP Adjacency wrapper class (#210)
+class PyBSPAdjacency
+{
+public:
+    static void dealloc(PyBSPAdjacencyObject* self);
+    static PyObject* repr(PyObject* obj);
+    static Py_ssize_t len(PyBSPAdjacencyObject* self);
+    static PyObject* getitem(PyBSPAdjacencyObject* self, Py_ssize_t index);
+    static PyObject* subscript(PyBSPAdjacencyObject* self, PyObject* key);
+    static PyObject* iter(PyBSPAdjacencyObject* self);
+    static bool checkValid(PyBSPAdjacencyObject* self);
+
+    static PySequenceMethods sequence_methods;
+    static PyMappingMethods mapping_methods;
+};
+
+// BSP Adjacent Tiles wrapper class (#210)
+class PyBSPAdjacentTiles
+{
+public:
+    static void dealloc(PyBSPAdjacentTilesObject* self);
+    static PyObject* repr(PyObject* obj);
+    static Py_ssize_t len(PyBSPAdjacentTilesObject* self);
+    static PyObject* subscript(PyBSPAdjacentTilesObject* self, PyObject* key);
+    static int contains(PyBSPAdjacentTilesObject* self, PyObject* key);
+    static PyObject* keys(PyBSPAdjacentTilesObject* self, PyObject* Py_UNUSED(args));
+    static bool checkValid(PyBSPAdjacentTilesObject* self);
+
+    static PyMappingMethods mapping_methods;
+    static PySequenceMethods sequence_methods;  // For 'in' operator
+    static PyMethodDef methods[];
 };
 
 // Traversal enum creation
@@ -234,6 +306,55 @@ namespace mcrfpydef {
         .tp_init = (initproc)PyBSPIter::init,
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject* {
             PyErr_SetString(PyExc_TypeError, "BSPIter cannot be instantiated directly");
+            return NULL;
+        },
+    };
+
+    // BSP Adjacency - internal type for BSP.adjacency property (#210)
+    inline PyTypeObject PyBSPAdjacencyType = {
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .tp_name = "mcrfpy.BSPAdjacency",
+        .tp_basicsize = sizeof(PyBSPAdjacencyObject),
+        .tp_itemsize = 0,
+        .tp_dealloc = (destructor)PyBSPAdjacency::dealloc,
+        .tp_repr = PyBSPAdjacency::repr,
+        .tp_as_sequence = &PyBSPAdjacency::sequence_methods,
+        .tp_as_mapping = &PyBSPAdjacency::mapping_methods,
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR(
+            "BSPAdjacency - Sequence of leaf neighbor tuples.\n\n"
+            "Accessed via BSP.adjacency property. adjacency[i] returns a tuple\n"
+            "of leaf indices that are adjacent to (share a wall with) leaf i.\n"
+        ),
+        .tp_iter = (getiterfunc)PyBSPAdjacency::iter,
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject* {
+            PyErr_SetString(PyExc_TypeError, "BSPAdjacency cannot be instantiated directly");
+            return NULL;
+        },
+    };
+
+    // BSP Adjacent Tiles - internal type for BSPNode.adjacent_tiles property (#210)
+    inline PyTypeObject PyBSPAdjacentTilesType = {
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .tp_name = "mcrfpy.BSPAdjacentTiles",
+        .tp_basicsize = sizeof(PyBSPAdjacentTilesObject),
+        .tp_itemsize = 0,
+        .tp_dealloc = (destructor)PyBSPAdjacentTiles::dealloc,
+        .tp_repr = PyBSPAdjacentTiles::repr,
+        .tp_as_sequence = &PyBSPAdjacentTiles::sequence_methods,  // For 'in' operator
+        .tp_as_mapping = &PyBSPAdjacentTiles::mapping_methods,
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR(
+            "BSPAdjacentTiles - Mapping of neighbor index to wall tile coordinates.\n\n"
+            "Accessed via BSPNode.adjacent_tiles property. adjacent_tiles[j] returns\n"
+            "a tuple of Vector coordinates representing tiles on THIS leaf's edge that\n"
+            "border neighbor j. Each Vector has integer x/y coordinates (use .int for tuple).\n"
+            "Raises KeyError if j is not an adjacent leaf.\n\n"
+            "Supports 'in' operator: `5 in leaf.adjacent_tiles` checks if leaf 5 is adjacent.\n"
+        ),
+        .tp_methods = PyBSPAdjacentTiles::methods,
+        .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject* {
+            PyErr_SetString(PyExc_TypeError, "BSPAdjacentTiles cannot be instantiated directly");
             return NULL;
         },
     };

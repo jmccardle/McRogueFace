@@ -3,9 +3,11 @@
 #include "McRFPy_Doc.h"
 #include "PyPositionHelper.h"
 #include "PyHeightMap.h"
+#include "PyVector.h"  // #210: For wall tile Vectors
 #include <sstream>
 #include <cstdlib>
 #include <ctime>
+#include <algorithm>  // #210: For std::min, std::max
 
 // Static storage for Traversal enum
 PyObject* PyTraversal::traversal_enum_class = nullptr;
@@ -18,6 +20,127 @@ enum TraversalOrder {
     TRAVERSAL_LEVEL_ORDER = 3,
     TRAVERSAL_INVERTED_LEVEL_ORDER = 4,
 };
+
+// ==================== Adjacency Helpers (#210) ====================
+
+// Check if two BSP leaf nodes share a wall segment (not just a corner)
+static bool are_adjacent(TCOD_bsp_t* a, TCOD_bsp_t* b) {
+    // a is left of b (vertical wall)
+    if (a->x + a->w == b->x) {
+        int overlap = std::min(a->y + a->h, b->y + b->h) - std::max(a->y, b->y);
+        if (overlap > 0) return true;
+    }
+    // b is left of a (vertical wall)
+    if (b->x + b->w == a->x) {
+        int overlap = std::min(a->y + a->h, b->y + b->h) - std::max(a->y, b->y);
+        if (overlap > 0) return true;
+    }
+    // a is above b (horizontal wall)
+    if (a->y + a->h == b->y) {
+        int overlap = std::min(a->x + a->w, b->x + b->w) - std::max(a->x, b->x);
+        if (overlap > 0) return true;
+    }
+    // b is above a (horizontal wall)
+    if (b->y + b->h == a->y) {
+        int overlap = std::min(a->x + a->w, b->x + b->w) - std::max(a->x, b->x);
+        if (overlap > 0) return true;
+    }
+    return false;
+}
+
+// Compute wall tiles for two adjacent leaves (from perspective of node a).
+// Returns coordinates of tiles on a's boundary that are suitable for corridor placement.
+// For a vertical wall (a left of b): returns a's rightmost column in the overlap range.
+// For a horizontal wall (a above b): returns a's bottommost row in the overlap range.
+// These are the tiles INSIDE leaf a that touch leaf b's boundary.
+static std::vector<sf::Vector2i> compute_wall_tiles(TCOD_bsp_t* a, TCOD_bsp_t* b) {
+    std::vector<sf::Vector2i> tiles;
+
+    // a is left of b (vertical wall at right edge of a)
+    if (a->x + a->w == b->x) {
+        int y_start = std::max(a->y, b->y);
+        int y_end = std::min(a->y + a->h, b->y + b->h);
+        int x = a->x + a->w - 1;  // Last column of a
+        for (int y = y_start; y < y_end; y++) {
+            tiles.push_back({x, y});
+        }
+        return tiles;
+    }
+    // b is left of a (vertical wall at left edge of a)
+    if (b->x + b->w == a->x) {
+        int y_start = std::max(a->y, b->y);
+        int y_end = std::min(a->y + a->h, b->y + b->h);
+        int x = a->x;  // First column of a
+        for (int y = y_start; y < y_end; y++) {
+            tiles.push_back({x, y});
+        }
+        return tiles;
+    }
+    // a is above b (horizontal wall at bottom edge of a)
+    if (a->y + a->h == b->y) {
+        int x_start = std::max(a->x, b->x);
+        int x_end = std::min(a->x + a->w, b->x + b->w);
+        int y = a->y + a->h - 1;  // Last row of a
+        for (int x = x_start; x < x_end; x++) {
+            tiles.push_back({x, y});
+        }
+        return tiles;
+    }
+    // b is above a (horizontal wall at top edge of a)
+    if (b->y + b->h == a->y) {
+        int x_start = std::max(a->x, b->x);
+        int x_end = std::min(a->x + a->w, b->x + b->w);
+        int y = a->y;  // First row of a
+        for (int x = x_start; x < x_end; x++) {
+            tiles.push_back({x, y});
+        }
+        return tiles;
+    }
+
+    return tiles;  // Empty if not adjacent
+}
+
+// Rebuild the adjacency cache for a BSP tree
+static void rebuild_adjacency_cache(PyBSPObject* self) {
+    // Delete old cache if exists
+    if (self->adjacency_cache) {
+        delete self->adjacency_cache;
+    }
+
+    self->adjacency_cache = new BSPAdjacencyCache();
+    self->adjacency_cache->generation = self->generation;
+
+    // Collect all leaves in level-order
+    TCOD_bsp_traverse_level_order(self->root, [](TCOD_bsp_t* node, void* data) -> bool {
+        auto cache = (BSPAdjacencyCache*)data;
+        if (TCOD_bsp_is_leaf(node)) {
+            int idx = (int)cache->leaf_pointers.size();
+            cache->leaf_pointers.push_back(node);
+            cache->ptr_to_index[node] = idx;
+            cache->graph.push_back({});  // Empty neighbor list
+        }
+        return true;
+    }, self->adjacency_cache);
+
+    // Build adjacency graph (O(n^2) pairwise check)
+    auto& cache = *self->adjacency_cache;
+    int n = (int)cache.leaf_pointers.size();
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            if (are_adjacent(cache.leaf_pointers[i], cache.leaf_pointers[j])) {
+                cache.graph[i].push_back(j);
+                cache.graph[j].push_back(i);
+            }
+        }
+    }
+}
+
+// Ensure adjacency cache is valid, rebuild if needed
+static void ensure_adjacency_cache(PyBSPObject* self) {
+    if (!self->adjacency_cache || self->adjacency_cache->generation != self->generation) {
+        rebuild_adjacency_cache(self);
+    }
+}
 
 // ==================== Traversal Enum ====================
 
@@ -193,6 +316,8 @@ PyGetSetDef PyBSP::getsetters[] = {
      MCRF_PROPERTY(size, "Dimensions (width, height). Read-only."), NULL},
     {"root", (getter)PyBSP::get_root, NULL,
      MCRF_PROPERTY(root, "Reference to the root BSPNode. Read-only."), NULL},
+    {"adjacency", (getter)PyBSP::get_adjacency, NULL,
+     MCRF_PROPERTY(adjacency, "Leaf adjacency graph. adjacency[i] returns tuple of neighbor indices. Read-only."), NULL},
     {NULL}
 };
 
@@ -268,6 +393,16 @@ PyMethodDef PyBSP::methods[] = {
          MCRF_ARG("value", "Value inside selected regions. Default: 1.0.")
          MCRF_RETURNS("HeightMap with selected regions filled")
      )},
+    {"get_leaf", (PyCFunction)PyBSP::get_leaf, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(BSP, get_leaf,
+         MCRF_SIG("(index: int)", "BSPNode"),
+         MCRF_DESC("Get a leaf node by its index (0 to len(bsp)-1). "
+                   "This is useful when working with adjacency data, which returns leaf indices."),
+         MCRF_ARGS_START
+         MCRF_ARG("index", "Leaf index (0 to len(bsp)-1). Negative indices supported.")
+         MCRF_RETURNS("BSPNode at the specified index")
+         MCRF_RAISES("IndexError", "If index is out of range")
+     )},
     {NULL}
 };
 
@@ -283,6 +418,7 @@ PyObject* PyBSP::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
         self->orig_w = 0;
         self->orig_h = 0;
         self->generation = 0;
+        self->adjacency_cache = nullptr;  // #210: Lazy-computed
     }
     return (PyObject*)self;
 }
@@ -330,6 +466,12 @@ int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
         TCOD_bsp_delete(self->root);
     }
 
+    // Clean up any existing adjacency cache (#210)
+    if (self->adjacency_cache) {
+        delete self->adjacency_cache;
+        self->adjacency_cache = nullptr;
+    }
+
     // Create new BSP with size
     self->root = TCOD_bsp_new_with_size(x, y, w, h);
     if (!self->root) {
@@ -349,6 +491,11 @@ int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
 
 void PyBSP::dealloc(PyBSPObject* self)
 {
+    // Clean up adjacency cache (#210)
+    if (self->adjacency_cache) {
+        delete self->adjacency_cache;
+        self->adjacency_cache = nullptr;
+    }
     if (self->root) {
         TCOD_bsp_delete(self->root);
         self->root = nullptr;
@@ -422,6 +569,29 @@ PyObject* PyBSP::get_root(PyBSPObject* self, void* closure)
     return PyBSPNode::create(self->root, (PyObject*)self);
 }
 
+// Property: adjacency (#210)
+PyObject* PyBSP::get_adjacency(PyBSPObject* self, void* closure)
+{
+    if (!self->root) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP not initialized");
+        return nullptr;
+    }
+
+    // Ensure cache is valid
+    ensure_adjacency_cache(self);
+
+    // Create and return adjacency wrapper
+    PyBSPAdjacencyObject* adj = (PyBSPAdjacencyObject*)
+        mcrfpydef::PyBSPAdjacencyType.tp_alloc(&mcrfpydef::PyBSPAdjacencyType, 0);
+    if (!adj) return nullptr;
+
+    adj->bsp_owner = (PyObject*)self;
+    adj->generation = self->generation;
+    Py_INCREF(self);
+
+    return (PyObject*)adj;
+}
+
 // Method: split_once(horizontal, position) -> BSP
 PyObject* PyBSP::split_once(PyBSPObject* self, PyObject* args, PyObject* kwds)
 {
@@ -439,8 +609,10 @@ PyObject* PyBSP::split_once(PyBSPObject* self, PyObject* args, PyObject* kwds)
         return nullptr;
     }
 
-    // Note: split_once only adds children, doesn't remove any nodes
-    // Root node pointer remains valid, so we don't increment generation
+    // Increment generation to invalidate adjacency cache and stale BSPNode references
+    // The tree structure changes, so any cached adjacency graph is now invalid
+    self->generation++;
+
     TCOD_bsp_split_once(self->root, horizontal ? true : false, position);
 
     Py_INCREF(self);
@@ -685,6 +857,40 @@ PyObject* PyBSP::find(PyBSPObject* self, PyObject* args, PyObject* kwds)
     return PyBSPNode::create(found, (PyObject*)self);
 }
 
+// Method: get_leaf(index) -> BSPNode (#210)
+PyObject* PyBSP::get_leaf(PyBSPObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = {"index", nullptr};
+    int index;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i", const_cast<char**>(keywords), &index)) {
+        return nullptr;
+    }
+
+    if (!self->root) {
+        PyErr_SetString(PyExc_RuntimeError, "BSP not initialized");
+        return nullptr;
+    }
+
+    // Ensure adjacency cache is valid (this builds leaf_pointers list)
+    ensure_adjacency_cache(self);
+
+    int n = (int)self->adjacency_cache->leaf_pointers.size();
+
+    // Handle negative indexing
+    if (index < 0) {
+        index += n;
+    }
+
+    if (index < 0 || index >= n) {
+        PyErr_SetString(PyExc_IndexError, "leaf index out of range");
+        return nullptr;
+    }
+
+    TCOD_bsp_t* leaf = self->adjacency_cache->leaf_pointers[index];
+    return PyBSPNode::create(leaf, (PyObject*)self);
+}
+
 // Method: to_heightmap(...) -> HeightMap
 PyObject* PyBSP::to_heightmap(PyBSPObject* self, PyObject* args, PyObject* kwds)
 {
@@ -841,6 +1047,13 @@ PyGetSetDef PyBSPNode::getsetters[] = {
      MCRF_PROPERTY(parent, "Parent node, or None if root. Read-only."), NULL},
     {"sibling", (getter)PyBSPNode::get_sibling, NULL,
      MCRF_PROPERTY(sibling, "Other child of parent, or None. Read-only."), NULL},
+    {"leaf_index", (getter)PyBSPNode::get_leaf_index, NULL,
+     MCRF_PROPERTY(leaf_index, "Leaf index (0..n-1) in adjacency graph, or None if not a leaf. Read-only."), NULL},
+    {"adjacent_tiles", (getter)PyBSPNode::get_adjacent_tiles, NULL,
+     MCRF_PROPERTY(adjacent_tiles, "Mapping of neighbor_index -> tuple of Vector wall tiles. "
+                   "Returns tiles on THIS leaf's boundary suitable for corridor placement. "
+                   "Each Vector has integer coordinates; use .int for (x, y) tuple. "
+                   "Only available for leaf nodes. Read-only."), NULL},
     {NULL}
 };
 
@@ -1080,6 +1293,69 @@ PyObject* PyBSPNode::get_sibling(PyBSPNodeObject* self, void* closure)
     }
 }
 
+// Property: leaf_index (#210)
+PyObject* PyBSPNode::get_leaf_index(PyBSPNodeObject* self, void* closure)
+{
+    if (!checkValid(self)) return nullptr;
+
+    // Only leaves have an index
+    if (!TCOD_bsp_is_leaf(self->node)) {
+        Py_RETURN_NONE;
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+
+    // Ensure cache is valid
+    ensure_adjacency_cache(bsp);
+
+    // Look up this node's index
+    auto it = bsp->adjacency_cache->ptr_to_index.find(self->node);
+    if (it == bsp->adjacency_cache->ptr_to_index.end()) {
+        // Should not happen if node is valid leaf
+        PyErr_SetString(PyExc_RuntimeError, "Leaf node not found in adjacency cache");
+        return nullptr;
+    }
+
+    return PyLong_FromLong(it->second);
+}
+
+// Property: adjacent_tiles (#210)
+PyObject* PyBSPNode::get_adjacent_tiles(PyBSPNodeObject* self, void* closure)
+{
+    if (!checkValid(self)) return nullptr;
+
+    // Only leaves have adjacent_tiles
+    if (!TCOD_bsp_is_leaf(self->node)) {
+        PyErr_SetString(PyExc_ValueError, "adjacent_tiles is only available for leaf nodes");
+        return nullptr;
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+
+    // Ensure cache is valid
+    ensure_adjacency_cache(bsp);
+
+    // Look up this node's index
+    auto it = bsp->adjacency_cache->ptr_to_index.find(self->node);
+    if (it == bsp->adjacency_cache->ptr_to_index.end()) {
+        PyErr_SetString(PyExc_RuntimeError, "Leaf node not found in adjacency cache");
+        return nullptr;
+    }
+
+    // Create adjacent_tiles wrapper
+    PyBSPAdjacentTilesObject* tiles = (PyBSPAdjacentTilesObject*)
+        mcrfpydef::PyBSPAdjacentTilesType.tp_alloc(&mcrfpydef::PyBSPAdjacentTilesType, 0);
+    if (!tiles) return nullptr;
+
+    tiles->bsp_owner = self->bsp_owner;
+    tiles->node = self->node;
+    tiles->leaf_index = it->second;
+    tiles->generation = bsp->generation;
+    Py_INCREF(self->bsp_owner);
+
+    return (PyObject*)tiles;
+}
+
 // Method: contains(pos) -> bool
 PyObject* PyBSPNode::contains(PyBSPNodeObject* self, PyObject* args, PyObject* kwds)
 {
@@ -1166,4 +1442,338 @@ PyObject* PyBSPIter::repr(PyObject* obj)
     }
 
     return PyUnicode_FromString(ss.str().c_str());
+}
+
+// ==================== PyBSPAdjacency Implementation (#210) ====================
+
+// Static method definitions
+PySequenceMethods PyBSPAdjacency::sequence_methods = {
+    .sq_length = (lenfunc)PyBSPAdjacency::len,
+    .sq_item = (ssizeargfunc)PyBSPAdjacency::getitem,
+};
+
+PyMappingMethods PyBSPAdjacency::mapping_methods = {
+    .mp_length = (lenfunc)PyBSPAdjacency::len,
+    .mp_subscript = (binaryfunc)PyBSPAdjacency::subscript,
+};
+
+bool PyBSPAdjacency::checkValid(PyBSPAdjacencyObject* self)
+{
+    if (!self->bsp_owner) {
+        PyErr_SetString(PyExc_RuntimeError, "BSPAdjacency has no parent BSP");
+        return false;
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    if (self->generation != bsp->generation) {
+        PyErr_SetString(PyExc_RuntimeError,
+            "BSPAdjacency is stale: parent BSP was modified. Re-access bsp.adjacency.");
+        return false;
+    }
+
+    return true;
+}
+
+void PyBSPAdjacency::dealloc(PyBSPAdjacencyObject* self)
+{
+    Py_XDECREF(self->bsp_owner);
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+PyObject* PyBSPAdjacency::repr(PyObject* obj)
+{
+    PyBSPAdjacencyObject* self = (PyBSPAdjacencyObject*)obj;
+
+    if (!self->bsp_owner) {
+        return PyUnicode_FromString("<BSPAdjacency (invalid)>");
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    if (self->generation != bsp->generation) {
+        return PyUnicode_FromString("<BSPAdjacency (stale)>");
+    }
+
+    ensure_adjacency_cache(bsp);
+    int n = (int)bsp->adjacency_cache->leaf_pointers.size();
+
+    std::ostringstream ss;
+    ss << "<BSPAdjacency with " << n << " leaves>";
+    return PyUnicode_FromString(ss.str().c_str());
+}
+
+Py_ssize_t PyBSPAdjacency::len(PyBSPAdjacencyObject* self)
+{
+    if (!checkValid(self)) return -1;
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    ensure_adjacency_cache(bsp);
+
+    return (Py_ssize_t)bsp->adjacency_cache->leaf_pointers.size();
+}
+
+PyObject* PyBSPAdjacency::getitem(PyBSPAdjacencyObject* self, Py_ssize_t index)
+{
+    if (!checkValid(self)) return nullptr;
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    ensure_adjacency_cache(bsp);
+
+    int n = (int)bsp->adjacency_cache->leaf_pointers.size();
+
+    // Handle negative indexing
+    if (index < 0) {
+        index += n;
+    }
+
+    if (index < 0 || index >= n) {
+        PyErr_SetString(PyExc_IndexError, "leaf index out of range");
+        return nullptr;
+    }
+
+    // Get neighbors for this leaf
+    const auto& neighbors = bsp->adjacency_cache->graph[index];
+
+    // Build tuple of neighbor indices
+    PyObject* result = PyTuple_New(neighbors.size());
+    if (!result) return nullptr;
+
+    for (size_t i = 0; i < neighbors.size(); i++) {
+        PyTuple_SET_ITEM(result, i, PyLong_FromLong(neighbors[i]));
+    }
+
+    return result;
+}
+
+PyObject* PyBSPAdjacency::subscript(PyBSPAdjacencyObject* self, PyObject* key)
+{
+    if (!PyLong_Check(key)) {
+        PyErr_SetString(PyExc_TypeError, "adjacency indices must be integers");
+        return nullptr;
+    }
+
+    Py_ssize_t index = PyLong_AsSsize_t(key);
+    if (index == -1 && PyErr_Occurred()) return nullptr;
+
+    return getitem(self, index);
+}
+
+PyObject* PyBSPAdjacency::iter(PyBSPAdjacencyObject* self)
+{
+    if (!checkValid(self)) return nullptr;
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    ensure_adjacency_cache(bsp);
+
+    // Create a list of tuples for iteration
+    int n = (int)bsp->adjacency_cache->leaf_pointers.size();
+    PyObject* list = PyList_New(n);
+    if (!list) return nullptr;
+
+    for (int i = 0; i < n; i++) {
+        const auto& neighbors = bsp->adjacency_cache->graph[i];
+        PyObject* tuple = PyTuple_New(neighbors.size());
+        if (!tuple) {
+            Py_DECREF(list);
+            return nullptr;
+        }
+        for (size_t j = 0; j < neighbors.size(); j++) {
+            PyTuple_SET_ITEM(tuple, j, PyLong_FromLong(neighbors[j]));
+        }
+        PyList_SET_ITEM(list, i, tuple);
+    }
+
+    // Return iterator over the list
+    PyObject* iter = PyObject_GetIter(list);
+    Py_DECREF(list);
+    return iter;
+}
+
+// ==================== PyBSPAdjacentTiles Implementation (#210) ====================
+
+// Static method definitions
+PyMappingMethods PyBSPAdjacentTiles::mapping_methods = {
+    .mp_length = (lenfunc)PyBSPAdjacentTiles::len,
+    .mp_subscript = (binaryfunc)PyBSPAdjacentTiles::subscript,
+};
+
+// Sequence methods for 'in' operator support
+PySequenceMethods PyBSPAdjacentTiles::sequence_methods = {
+    .sq_length = (lenfunc)PyBSPAdjacentTiles::len,
+    .sq_contains = (objobjproc)PyBSPAdjacentTiles::contains,
+};
+
+PyMethodDef PyBSPAdjacentTiles::methods[] = {
+    {"keys", (PyCFunction)PyBSPAdjacentTiles::keys, METH_NOARGS,
+     "Return tuple of adjacent neighbor indices."},
+    {NULL}
+};
+
+bool PyBSPAdjacentTiles::checkValid(PyBSPAdjacentTilesObject* self)
+{
+    if (!self->bsp_owner) {
+        PyErr_SetString(PyExc_RuntimeError, "BSPAdjacentTiles has no parent BSP");
+        return false;
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    if (self->generation != bsp->generation) {
+        PyErr_SetString(PyExc_RuntimeError,
+            "BSPAdjacentTiles is stale: parent BSP was modified. Re-access node.adjacent_tiles.");
+        return false;
+    }
+
+    return true;
+}
+
+void PyBSPAdjacentTiles::dealloc(PyBSPAdjacentTilesObject* self)
+{
+    Py_XDECREF(self->bsp_owner);
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+PyObject* PyBSPAdjacentTiles::repr(PyObject* obj)
+{
+    PyBSPAdjacentTilesObject* self = (PyBSPAdjacentTilesObject*)obj;
+
+    if (!self->bsp_owner) {
+        return PyUnicode_FromString("<BSPAdjacentTiles (invalid)>");
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    if (self->generation != bsp->generation) {
+        return PyUnicode_FromString("<BSPAdjacentTiles (stale)>");
+    }
+
+    ensure_adjacency_cache(bsp);
+    const auto& neighbors = bsp->adjacency_cache->graph[self->leaf_index];
+
+    std::ostringstream ss;
+    ss << "<BSPAdjacentTiles for leaf " << self->leaf_index
+       << " with " << neighbors.size() << " neighbors>";
+    return PyUnicode_FromString(ss.str().c_str());
+}
+
+Py_ssize_t PyBSPAdjacentTiles::len(PyBSPAdjacentTilesObject* self)
+{
+    if (!checkValid(self)) return -1;
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    ensure_adjacency_cache(bsp);
+
+    return (Py_ssize_t)bsp->adjacency_cache->graph[self->leaf_index].size();
+}
+
+PyObject* PyBSPAdjacentTiles::subscript(PyBSPAdjacentTilesObject* self, PyObject* key)
+{
+    if (!checkValid(self)) return nullptr;
+
+    if (!PyLong_Check(key)) {
+        PyErr_SetString(PyExc_TypeError, "adjacent_tiles keys must be integers (neighbor leaf index)");
+        return nullptr;
+    }
+
+    int neighbor_index = (int)PyLong_AsLong(key);
+    if (neighbor_index == -1 && PyErr_Occurred()) return nullptr;
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    ensure_adjacency_cache(bsp);
+
+    // Validate neighbor_index is in range
+    int n = (int)bsp->adjacency_cache->leaf_pointers.size();
+    if (neighbor_index < 0 || neighbor_index >= n) {
+        PyErr_Format(PyExc_KeyError, "%d", neighbor_index);
+        return nullptr;
+    }
+
+    // Check if neighbor_index is actually a neighbor
+    const auto& neighbors = bsp->adjacency_cache->graph[self->leaf_index];
+    bool is_neighbor = false;
+    for (int ni : neighbors) {
+        if (ni == neighbor_index) {
+            is_neighbor = true;
+            break;
+        }
+    }
+
+    if (!is_neighbor) {
+        PyErr_Format(PyExc_KeyError, "%d (not adjacent to leaf %d)", neighbor_index, self->leaf_index);
+        return nullptr;
+    }
+
+    // Get or compute wall tiles
+    // Key is (self, neighbor) - NOT symmetric! Each direction has different tiles.
+    auto& cache = *bsp->adjacency_cache;
+    auto cache_key = std::make_pair(self->leaf_index, neighbor_index);
+
+    auto it = cache.wall_tiles_cache.find(cache_key);
+    if (it == cache.wall_tiles_cache.end()) {
+        // Compute and cache - returns tiles on self's edge bordering neighbor
+        TCOD_bsp_t* this_node = cache.leaf_pointers[self->leaf_index];
+        TCOD_bsp_t* other_node = cache.leaf_pointers[neighbor_index];
+        cache.wall_tiles_cache[cache_key] = compute_wall_tiles(this_node, other_node);
+        it = cache.wall_tiles_cache.find(cache_key);
+    }
+
+    // Build tuple of Vector objects
+    const auto& tiles = it->second;
+    PyObject* result = PyTuple_New(tiles.size());
+    if (!result) return nullptr;
+
+    for (size_t i = 0; i < tiles.size(); i++) {
+        // Convert sf::Vector2i to Python Vector (sf::Vector2f)
+        PyVector vec(sf::Vector2f((float)tiles[i].x, (float)tiles[i].y));
+        PyObject* py_vec = vec.pyObject();
+        if (!py_vec) {
+            Py_DECREF(result);
+            return nullptr;
+        }
+        PyTuple_SET_ITEM(result, i, py_vec);
+    }
+
+    return result;
+}
+
+int PyBSPAdjacentTiles::contains(PyBSPAdjacentTilesObject* self, PyObject* key)
+{
+    if (!checkValid(self)) return -1;
+
+    if (!PyLong_Check(key)) {
+        return 0;  // Non-integer keys are not contained
+    }
+
+    int neighbor_index = (int)PyLong_AsLong(key);
+    if (neighbor_index == -1 && PyErr_Occurred()) {
+        PyErr_Clear();
+        return 0;
+    }
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    ensure_adjacency_cache(bsp);
+
+    const auto& neighbors = bsp->adjacency_cache->graph[self->leaf_index];
+    for (int ni : neighbors) {
+        if (ni == neighbor_index) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+PyObject* PyBSPAdjacentTiles::keys(PyBSPAdjacentTilesObject* self, PyObject* Py_UNUSED(args))
+{
+    if (!checkValid(self)) return nullptr;
+
+    PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
+    ensure_adjacency_cache(bsp);
+
+    const auto& neighbors = bsp->adjacency_cache->graph[self->leaf_index];
+
+    PyObject* result = PyTuple_New(neighbors.size());
+    if (!result) return nullptr;
+
+    for (size_t i = 0; i < neighbors.size(); i++) {
+        PyTuple_SET_ITEM(result, i, PyLong_FromLong(neighbors[i]));
+    }
+
+    return result;
 }
