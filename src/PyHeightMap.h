@@ -53,6 +53,7 @@ public:
     static PyObject* rain_erosion(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* dig_bezier(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* smooth(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* kernel_transform(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
 
     // Subscript support for hmap[x, y] syntax
     static PyObject* subscript(PyHeightMapObject* self, PyObject* key);
