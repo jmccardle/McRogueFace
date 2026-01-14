@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Test timer callback arguments with new Timer API (#173)
+Uses mcrfpy.step() for synchronous test execution.
 """
 import mcrfpy
 import sys
@@ -14,9 +15,6 @@ def new_style_callback(timer, runtime):
     print(f"Callback called with: timer={timer} (type: {type(timer)}), runtime={runtime} (type: {type(runtime)})")
     if hasattr(timer, 'once'):
         print(f"Got Timer object! once={timer.once}")
-    if call_count >= 2:
-        print("PASS")
-        sys.exit(0)
 
 # Set up the scene
 test_scene = mcrfpy.Scene("test_scene")
@@ -25,3 +23,14 @@ test_scene.activate()
 print("Testing new Timer callback signature (timer, runtime)...")
 timer = mcrfpy.Timer("test_timer", new_style_callback, 100)
 print(f"Timer created: {timer}")
+
+# Advance time to let timer fire - each step() processes timers once
+mcrfpy.step(0.15)  # First fire
+mcrfpy.step(0.15)  # Second fire
+
+if call_count >= 2:
+    print("PASS: Timer callback received correct arguments")
+    sys.exit(0)
+else:
+    print(f"FAIL: Expected at least 2 callbacks, got {call_count}")
+    sys.exit(1)

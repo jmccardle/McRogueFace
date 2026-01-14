@@ -210,7 +210,7 @@ def test_8_replace_completes_old():
         test_result("Replace completes old animation", False, str(e))
 
 
-def run_all_tests(timer, runtime):
+def run_all_tests():
     """Run all property locking tests"""
     print("\nRunning Animation Property Locking Tests...")
     print("-" * 50)
@@ -245,5 +245,8 @@ def run_all_tests(timer, runtime):
 test = mcrfpy.Scene("test")
 test.activate()
 
-# Start tests after a brief delay to allow scene to initialize
-mcrfpy.Timer("start", run_all_tests, 100, once=True)
+# Use mcrfpy.step() to advance simulation for scene initialization
+mcrfpy.step(0.1)  # Brief step to initialize scene
+
+# Run tests directly (no timer needed with step-based approach)
+run_all_tests()
