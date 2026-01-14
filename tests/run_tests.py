@@ -7,6 +7,8 @@ Usage:
     python3 tests/run_tests.py           # Run all tests
     python3 tests/run_tests.py unit      # Run only unit tests
     python3 tests/run_tests.py -v        # Verbose output
+    python3 tests/run_tests.py -q        # Quiet (no checksums)
+    python3 tests/run_tests.py --timeout=30  # Custom timeout
 """
 import os
 import subprocess
@@ -18,8 +20,9 @@ from pathlib import Path
 # Configuration
 TESTS_DIR = Path(__file__).parent
 BUILD_DIR = TESTS_DIR.parent / "build"
+LIB_DIR = TESTS_DIR.parent / "__lib"
 MCROGUEFACE = BUILD_DIR / "mcrogueface"
-TIMEOUT = 10  # seconds per test
+DEFAULT_TIMEOUT = 10  # seconds per test
 
 # Test directories to run (in order)
 TEST_DIRS = ['unit', 'integration', 'regression']
@@ -39,7 +42,7 @@ def get_screenshot_checksum(test_dir):
             checksums[png.name] = hashlib.md5(f.read()).hexdigest()[:8]
     return checksums
 
-def run_test(test_path, verbose=False):
+def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT):
     """Run a single test and return (passed, duration, output)."""
     start = time.time()
 
@@ -47,13 +50,19 @@ def run_test(test_path, verbose=False):
     for png in BUILD_DIR.glob("test_*.png"):
         png.unlink()
 
+    # Set up environment with library path
+    env = os.environ.copy()
+    existing_ld = env.get('LD_LIBRARY_PATH', '')
+    env['LD_LIBRARY_PATH'] = f"{LIB_DIR}:{existing_ld}" if existing_ld else str(LIB_DIR)
+
     try:
         result = subprocess.run(
             [str(MCROGUEFACE), '--headless', '--exec', str(test_path)],
             capture_output=True,
             text=True,
-            timeout=TIMEOUT,
-            cwd=str(BUILD_DIR)
+            timeout=timeout,
+            cwd=str(BUILD_DIR),
+            env=env
         )
         duration = time.time() - start
         passed = result.returncode == 0
@@ -66,7 +75,7 @@ def run_test(test_path, verbose=False):
         return passed, duration, output
 
     except subprocess.TimeoutExpired:
-        return False, TIMEOUT, "TIMEOUT"
+        return False, timeout, "TIMEOUT"
     except Exception as e:
         return False, 0, str(e)
 
@@ -79,6 +88,16 @@ def find_tests(directory):
 
 def main():
     verbose = '-v' in sys.argv or '--verbose' in sys.argv
+    quiet = '-q' in sys.argv or '--quiet' in sys.argv
+
+    # Parse --timeout=N
+    timeout = DEFAULT_TIMEOUT
+    for arg in sys.argv[1:]:
+        if arg.startswith('--timeout='):
+            try:
+                timeout = int(arg.split('=')[1])
+            except ValueError:
+                pass
 
     # Determine which directories to test
     dirs_to_test = []
@@ -89,7 +108,7 @@ def main():
         dirs_to_test = TEST_DIRS
 
     print(f"{BOLD}McRogueFace Test Runner{RESET}")
-    print(f"Testing: {', '.join(dirs_to_test)}")
+    print(f"Testing: {', '.join(dirs_to_test)} (timeout: {timeout}s)")
     print("=" * 60)
 
     results = {'pass': 0, 'fail': 0, 'total_time': 0}
@@ -104,7 +123,7 @@ def main():
 
         for test_path in tests:
             test_name = test_path.name
-            passed, duration, output = run_test(test_path, verbose)
+            passed, duration, output = run_test(test_path, verbose, timeout)
             results['total_time'] += duration
 
             if passed:
@@ -115,11 +134,12 @@ def main():
                 status = f"{RED}FAIL{RESET}"
                 failures.append((test_dir, test_name, output))
 
-            # Get screenshot checksums if any were generated
-            checksums = get_screenshot_checksum(BUILD_DIR)
+            # Get screenshot checksums if any were generated (skip in quiet mode)
             checksum_str = ""
-            if checksums:
-                checksum_str = f" [{', '.join(f'{k}:{v}' for k,v in checksums.items())}]"
+            if not quiet:
+                checksums = get_screenshot_checksum(BUILD_DIR)
+                if checksums:
+                    checksum_str = f" [{', '.join(f'{k}:{v}' for k,v in checksums.items())}]"
 
             print(f"  {status} {test_name} ({duration:.2f}s){checksum_str}")
 
