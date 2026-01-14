@@ -210,6 +210,31 @@ class FOV(IntEnum):
     RESTRICTIVE = 12
     SYMMETRIC_SHADOWCAST = 13
 
+class Alignment(IntEnum):
+    """Alignment positions for automatic child positioning relative to parent bounds.
+
+    When a drawable has an alignment set and is added to a parent, its position
+    is automatically calculated based on the parent's bounds. The position is
+    updated whenever the parent is resized.
+
+    Example:
+        parent = mcrfpy.Frame(pos=(0, 0), size=(400, 300))
+        child = mcrfpy.Caption(text="Centered!", align=mcrfpy.Alignment.CENTER)
+        parent.children.append(child)  # child is auto-positioned to center
+        parent.w = 800  # child position updates automatically
+
+    Set align=None to disable automatic positioning and use manual coordinates.
+    """
+    TOP_LEFT = 0
+    TOP_CENTER = 1
+    TOP_RIGHT = 2
+    CENTER_LEFT = 3
+    CENTER = 4
+    CENTER_RIGHT = 5
+    BOTTOM_LEFT = 6
+    BOTTOM_CENTER = 7
+    BOTTOM_RIGHT = 8
+
 # Classes
 
 class Color:
@@ -459,6 +484,16 @@ class Drawable:
     # Read-only hover state (#140)
     hovered: bool
 
+    # Alignment system - automatic positioning relative to parent
+    align: Optional[Alignment]
+    """Alignment relative to parent bounds. Set to None for manual positioning."""
+    margin: float
+    """General margin from edge when aligned (applies to both axes unless overridden)."""
+    horiz_margin: float
+    """Horizontal margin override (0 = use general margin)."""
+    vert_margin: float
+    """Vertical margin override (0 = use general margin)."""
+
     def get_bounds(self) -> Tuple[float, float, float, float]:
         """Get bounding box as (x, y, width, height)."""
         ...
@@ -483,7 +518,12 @@ class Frame(Drawable):
     def __init__(self, x: float = 0, y: float = 0, w: float = 0, h: float = 0,
                  fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
                  outline: float = 0, on_click: Optional[Callable] = None,
-                 children: Optional[List[UIElement]] = None) -> None: ...
+                 children: Optional[List[UIElement]] = None,
+                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
+                 name: Optional[str] = None, pos: Optional[Tuple[float, float]] = None,
+                 size: Optional[Tuple[float, float]] = None,
+                 align: Optional[Alignment] = None, margin: float = 0.0,
+                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
 
     w: float
     h: float
@@ -506,7 +546,12 @@ class Caption(Drawable):
     def __init__(self, text: str = '', x: float = 0, y: float = 0,
                  font: Optional[Font] = None, fill_color: Optional[Color] = None,
                  outline_color: Optional[Color] = None, outline: float = 0,
-                 on_click: Optional[Callable] = None) -> None: ...
+                 on_click: Optional[Callable] = None,
+                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
+                 name: Optional[str] = None, pos: Optional[Tuple[float, float]] = None,
+                 size: Optional[Tuple[float, float]] = None,
+                 align: Optional[Alignment] = None, margin: float = 0.0,
+                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
 
     text: str
     font: Font
@@ -528,7 +573,12 @@ class Sprite(Drawable):
     @overload
     def __init__(self, x: float = 0, y: float = 0, texture: Optional[Texture] = None,
                  sprite_index: int = 0, scale: float = 1.0,
-                 on_click: Optional[Callable] = None) -> None: ...
+                 on_click: Optional[Callable] = None,
+                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
+                 name: Optional[str] = None, pos: Optional[Tuple[float, float]] = None,
+                 size: Optional[Tuple[float, float]] = None,
+                 align: Optional[Alignment] = None, margin: float = 0.0,
+                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
 
     texture: Texture
     sprite_index: int
@@ -548,7 +598,12 @@ class Grid(Drawable):
     @overload
     def __init__(self, x: float = 0, y: float = 0, grid_size: Tuple[int, int] = (20, 20),
                  texture: Optional[Texture] = None, tile_width: int = 16, tile_height: int = 16,
-                 scale: float = 1.0, on_click: Optional[Callable] = None) -> None: ...
+                 scale: float = 1.0, on_click: Optional[Callable] = None,
+                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
+                 name: Optional[str] = None, pos: Optional[Tuple[float, float]] = None,
+                 size: Optional[Tuple[float, float]] = None,
+                 align: Optional[Alignment] = None, margin: float = 0.0,
+                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
 
     grid_size: Tuple[int, int]
     tile_width: int
@@ -576,7 +631,11 @@ class Line(Drawable):
     def __init__(self, start: Optional[Tuple[float, float]] = None,
                  end: Optional[Tuple[float, float]] = None,
                  thickness: float = 1.0, color: Optional[Color] = None,
-                 on_click: Optional[Callable] = None) -> None: ...
+                 on_click: Optional[Callable] = None,
+                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
+                 name: Optional[str] = None,
+                 align: Optional[Alignment] = None, margin: float = 0.0,
+                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
 
     start: Vector
     end: Vector
@@ -595,7 +654,11 @@ class Circle(Drawable):
     @overload
     def __init__(self, radius: float = 0, center: Optional[Tuple[float, float]] = None,
                  fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
-                 outline: float = 0, on_click: Optional[Callable] = None) -> None: ...
+                 outline: float = 0, on_click: Optional[Callable] = None,
+                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
+                 name: Optional[str] = None,
+                 align: Optional[Alignment] = None, margin: float = 0.0,
+                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
 
     radius: float
     center: Vector
@@ -616,7 +679,11 @@ class Arc(Drawable):
     def __init__(self, center: Optional[Tuple[float, float]] = None, radius: float = 0,
                  start_angle: float = 0, end_angle: float = 90,
                  color: Optional[Color] = None, thickness: float = 1.0,
-                 on_click: Optional[Callable] = None) -> None: ...
+                 on_click: Optional[Callable] = None,
+                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
+                 name: Optional[str] = None,
+                 align: Optional[Alignment] = None, margin: float = 0.0,
+                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
 
     center: Vector
     radius: float
