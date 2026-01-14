@@ -258,7 +258,11 @@ namespace mcrfpydef {
                             "    w (float): Width override. Default: auto-calculated\n"
                             "    h (float): Height override. Default: auto-calculated\n"
                             "    grid_w (int): Grid width override. Default: 2\n"
-                            "    grid_h (int): Grid height override. Default: 2\n\n"
+                            "    grid_h (int): Grid height override. Default: 2\n"
+                            "    align (Alignment): Alignment relative to parent. Default: None\n"
+                            "    margin (float): Margin from parent edge when aligned. Default: 0\n"
+                            "    horiz_margin (float): Horizontal margin override. Default: 0 (use margin)\n"
+                            "    vert_margin (float): Vertical margin override. Default: 0 (use margin)\n\n"
                             "Attributes:\n"
                             "    x, y (float): Position in pixels\n"
                             "    w, h (float): Size in pixels\n"
@@ -277,7 +281,11 @@ namespace mcrfpydef {
                             "    visible (bool): Visibility state\n"
                             "    opacity (float): Opacity value\n"
                             "    z_index (int): Rendering order\n"
-                            "    name (str): Element name"),
+                            "    name (str): Element name\n"
+                            "    align (Alignment): Alignment relative to parent (or None)\n"
+                            "    margin (float): General margin for alignment\n"
+                            "    horiz_margin (float): Horizontal margin override\n"
+                            "    vert_margin (float): Vertical margin override"),
         .tp_methods = UIGrid_all_methods,
         //.tp_members = UIGrid::members,
         .tp_getset = UIGrid::getsetters,

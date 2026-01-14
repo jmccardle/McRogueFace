@@ -123,10 +123,37 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
          MCRF_RETURNS("Animation object for monitoring progress") \
          MCRF_RAISES("ValueError", "If property name is not valid for this drawable type") \
          MCRF_NOTE("This is a convenience method that creates an Animation, starts it, and adds it to the AnimationManager.") \
+     )}, \
+    {"realign", (PyCFunction)UIDrawable::py_realign, METH_NOARGS, \
+     MCRF_METHOD(Drawable, realign, \
+         MCRF_SIG("()", "None"), \
+         MCRF_DESC("Reapply alignment relative to parent, useful for responsive layouts."), \
+         MCRF_NOTE("Call this to recalculate position after parent changes size. " \
+                   "For elements with align=None, this has no effect.") \
      )}
 
 // Legacy macro for backwards compatibility - same as UIDRAWABLE_METHODS
 #define UIDRAWABLE_METHODS_FULL UIDRAWABLE_METHODS
+
+// Macro for handling alignment in constructors
+// Usage: UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin)
+// Returns -1 on error (suitable for use in tp_init functions)
+#define UIDRAWABLE_PROCESS_ALIGNMENT(self_data, align_obj, margin, horiz_margin, vert_margin) \
+    do { \
+        if ((align_obj) && (align_obj) != Py_None) { \
+            AlignmentType _align; \
+            if (!PyAlignment::from_arg(align_obj, &_align)) { \
+                return -1; \
+            } \
+            if (!UIDrawable::validateMargins(_align, margin, horiz_margin, vert_margin)) { \
+                return -1; \
+            } \
+            (self_data)->align_type = _align; \
+            (self_data)->align_margin = margin; \
+            (self_data)->align_horiz_margin = horiz_margin; \
+            (self_data)->align_vert_margin = vert_margin; \
+        } \
+    } while (0)
 
 // Property getters/setters for visible and opacity
 template<typename T>
@@ -228,6 +255,31 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
          "Callback for mouse movement within bounds. " \
          "Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. " \
          "Performance note: Called frequently during movement - keep handlers fast." \
+     ), (void*)type_enum}
+
+// Alignment system - automatic positioning relative to parent bounds
+#define UIDRAWABLE_ALIGNMENT_GETSETTERS(type_enum) \
+    {"align", (getter)UIDrawable::get_align, (setter)UIDrawable::set_align, \
+     MCRF_PROPERTY(align, \
+         "Alignment relative to parent bounds (Alignment enum or None). " \
+         "When set, position is automatically calculated when parent is assigned or resized. " \
+         "Set to None to disable alignment and use manual positioning." \
+     ), (void*)type_enum}, \
+    {"margin", (getter)UIDrawable::get_margin, (setter)UIDrawable::set_margin, \
+     MCRF_PROPERTY(margin, \
+         "General margin from edge when aligned (float). " \
+         "Applied to both horizontal and vertical edges unless overridden. " \
+         "Invalid for CENTER alignment (raises ValueError)." \
+     ), (void*)type_enum}, \
+    {"horiz_margin", (getter)UIDrawable::get_horiz_margin, (setter)UIDrawable::set_horiz_margin, \
+     MCRF_PROPERTY(horiz_margin, \
+         "Horizontal margin override (float, 0 = use general margin). " \
+         "Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER)." \
+     ), (void*)type_enum}, \
+    {"vert_margin", (getter)UIDrawable::get_vert_margin, (setter)UIDrawable::set_vert_margin, \
+     MCRF_PROPERTY(vert_margin, \
+         "Vertical margin override (float, 0 = use general margin). " \
+         "Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER)." \
      ), (void*)type_enum}
 
 // UIEntity specializations are defined in UIEntity.cpp after UIEntity class is complete

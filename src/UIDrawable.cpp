@@ -14,6 +14,30 @@
 #include "PyEasing.h"
 #include "PySceneObject.h"  // #183: For scene parent lookup
 
+// Helper function to extract UIDrawable* from any Python UI object
+// Returns nullptr and sets Python error on failure
+static UIDrawable* extractDrawable(PyObject* self, PyObjectsEnum objtype) {
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            return ((PyUIFrameObject*)self)->data.get();
+        case PyObjectsEnum::UICAPTION:
+            return ((PyUICaptionObject*)self)->data.get();
+        case PyObjectsEnum::UISPRITE:
+            return ((PyUISpriteObject*)self)->data.get();
+        case PyObjectsEnum::UIGRID:
+            return ((PyUIGridObject*)self)->data.get();
+        case PyObjectsEnum::UILINE:
+            return ((PyUILineObject*)self)->data.get();
+        case PyObjectsEnum::UICIRCLE:
+            return ((PyUICircleObject*)self)->data.get();
+        case PyObjectsEnum::UIARC:
+            return ((PyUIArcObject*)self)->data.get();
+        default:
+            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
+            return nullptr;
+    }
+}
+
 UIDrawable::UIDrawable() : position(0.0f, 0.0f) { click_callable = NULL;  }
 
 UIDrawable::UIDrawable(const UIDrawable& other)
@@ -306,68 +330,16 @@ void UIDrawable::on_move_unregister()
 
 PyObject* UIDrawable::get_int(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-    
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     return PyLong_FromLong(drawable->z_index);
 }
 
 int UIDrawable::set_int(PyObject* self, PyObject* value, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return -1;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
 
     if (!PyLong_Check(value)) {
         PyErr_SetString(PyExc_TypeError, "z_index must be an integer");
@@ -406,68 +378,16 @@ void UIDrawable::notifyZIndexChanged() {
 
 PyObject* UIDrawable::get_name(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     return PyUnicode_FromString(drawable->name.c_str());
 }
 
 int UIDrawable::set_name(PyObject* self, PyObject* value, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return -1;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
 
     if (value == NULL || value == Py_None) {
         drawable->name = "";
@@ -524,34 +444,8 @@ void UIDrawable::updateRenderTexture() {
 PyObject* UIDrawable::get_float_member(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure) >> 8);
     int member = reinterpret_cast<intptr_t>(closure) & 0xFF;
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     switch (member) {
         case 0: // x
@@ -571,34 +465,8 @@ PyObject* UIDrawable::get_float_member(PyObject* self, void* closure) {
 int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure) >> 8);
     int member = reinterpret_cast<intptr_t>(closure) & 0xFF;
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return -1;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
 
     float val = 0.0f;
     if (PyFloat_Check(value)) {
@@ -640,34 +508,8 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
 
 PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     // Create a Python Vector object from position
     PyObject* module = PyImport_ImportModule("mcrfpy");
@@ -687,34 +529,8 @@ PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
 
 int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return -1;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
 
     // Accept tuple or Vector
     float x, y;
@@ -766,11 +582,21 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
 void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
     parent = new_parent;
     parent_scene.clear();  // #183: Clear scene parent when setting drawable parent
+
+    // Apply alignment when parent is set (if alignment is configured)
+    if (new_parent && align_type != AlignmentType::NONE) {
+        applyAlignment();
+    }
 }
 
 void UIDrawable::setParentScene(const std::string& scene_name) {
     parent.reset();        // #183: Clear drawable parent when setting scene parent
     parent_scene = scene_name;
+
+    // Apply alignment when scene parent is set (if alignment is configured)
+    if (!scene_name.empty() && align_type != AlignmentType::NONE) {
+        applyAlignment();
+    }
 }
 
 std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
@@ -893,34 +719,8 @@ void UIDrawable::markDirty() {
 // Python API - get parent drawable
 PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     // #183: Check for scene parent first
     if (!drawable->parent_scene.empty()) {
@@ -1126,34 +926,8 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
 // Python API - get global position (read-only)
 PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     sf::Vector2f global_pos = drawable->get_global_position();
 
@@ -1176,34 +950,8 @@ PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
 // #138, #188 - Python API for bounds property - returns (pos, size) as pair of Vectors
 PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     sf::FloatRect bounds = drawable->get_bounds();
 
@@ -1237,34 +985,8 @@ PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
 // #138, #188 - Python API for global_bounds property - returns (pos, size) as pair of Vectors
 PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     sf::FloatRect bounds = drawable->get_global_bounds();
 
@@ -1464,34 +1186,8 @@ int UIDrawable::set_on_exit(PyObject* self, PyObject* value, void* closure) {
 // #140 - Python API for hovered property (read-only)
 PyObject* UIDrawable::get_hovered(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
-    UIDrawable* drawable = nullptr;
-
-    switch (objtype) {
-        case PyObjectsEnum::UIFRAME:
-            drawable = ((PyUIFrameObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICAPTION:
-            drawable = ((PyUICaptionObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UISPRITE:
-            drawable = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UILINE:
-            drawable = ((PyUILineObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UICIRCLE:
-            drawable = ((PyUICircleObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIARC:
-            drawable = ((PyUIArcObject*)self)->data.get();
-            break;
-        default:
-            PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
-            return NULL;
-    }
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
 
     return PyBool_FromLong(drawable->hovered);
 }
@@ -1803,4 +1499,359 @@ void UIDrawable::refreshCallbackCache(PyObject* pyObj) {
     callback_cache.has_on_move = (attr && PyCallable_Check(attr) && attr != Py_None);
     Py_XDECREF(attr);
     PyErr_Clear();
+}
+
+// ============================================================================
+// Alignment System Implementation
+// ============================================================================
+
+void UIDrawable::applyAlignment() {
+    if (align_type == AlignmentType::NONE) return;
+
+    float pw, ph;  // Parent width/height
+    auto p = parent.lock();
+
+    if (p) {
+        // Parent is another UIDrawable (Frame, Grid, etc.)
+        sf::FloatRect parent_bounds = p->get_bounds();
+        pw = parent_bounds.width;
+        ph = parent_bounds.height;
+    } else if (!parent_scene.empty()) {
+        // Parent is a Scene - use window's game resolution
+        GameEngine* game = McRFPy_API::game;
+        if (!game) return;
+        sf::Vector2u resolution = game->getGameResolution();
+        pw = static_cast<float>(resolution.x);
+        ph = static_cast<float>(resolution.y);
+    } else {
+        return;  // No parent at all = can't align
+    }
+
+    sf::FloatRect self_bounds = get_bounds();
+    float cw = self_bounds.width, ch = self_bounds.height;
+
+    // Use specific margins if set (>= 0), otherwise inherit from general margin
+    // -1.0 means "inherit", any value >= 0 is an explicit override
+    float mx = (align_horiz_margin >= 0.0f) ? align_horiz_margin : align_margin;
+    float my = (align_vert_margin >= 0.0f) ? align_vert_margin : align_margin;
+
+    float x = 0, y = 0;
+    switch (align_type) {
+        case AlignmentType::TOP_LEFT:
+            x = mx;
+            y = my;
+            break;
+        case AlignmentType::TOP_CENTER:
+            x = (pw - cw) / 2.0f;
+            y = my;
+            break;
+        case AlignmentType::TOP_RIGHT:
+            x = pw - cw - mx;
+            y = my;
+            break;
+        case AlignmentType::CENTER_LEFT:
+            x = mx;
+            y = (ph - ch) / 2.0f;
+            break;
+        case AlignmentType::CENTER:
+            x = (pw - cw) / 2.0f;
+            y = (ph - ch) / 2.0f;
+            break;
+        case AlignmentType::CENTER_RIGHT:
+            x = pw - cw - mx;
+            y = (ph - ch) / 2.0f;
+            break;
+        case AlignmentType::BOTTOM_LEFT:
+            x = mx;
+            y = ph - ch - my;
+            break;
+        case AlignmentType::BOTTOM_CENTER:
+            x = (pw - cw) / 2.0f;
+            y = ph - ch - my;
+            break;
+        case AlignmentType::BOTTOM_RIGHT:
+            x = pw - cw - mx;
+            y = ph - ch - my;
+            break;
+        default:
+            return;
+    }
+
+    // For most drawables, position IS the bounding box top-left corner
+    // But for Circle and Arc, position is the center, so we need to adjust
+    float offset_x = 0.0f;
+    float offset_y = 0.0f;
+
+    // Check if this is a Circle or Arc (where position = center)
+    auto dtype = derived_type();
+    if (dtype == PyObjectsEnum::UICIRCLE || dtype == PyObjectsEnum::UIARC) {
+        // For these, position is the center, bounds.topLeft is position - radius
+        // So offset = position - bounds.topLeft = (radius, radius)
+        offset_x = position.x - self_bounds.left;
+        offset_y = position.y - self_bounds.top;
+    }
+
+    position = sf::Vector2f(x + offset_x, y + offset_y);
+    onPositionChanged();
+    markCompositeDirty();
+}
+
+void UIDrawable::setAlignment(AlignmentType align) {
+    align_type = align;
+    if (align != AlignmentType::NONE) {
+        applyAlignment();
+    }
+}
+
+void UIDrawable::realign() {
+    // Reapply alignment - useful for responsive layouts
+    if (align_type != AlignmentType::NONE) {
+        applyAlignment();
+    }
+}
+
+PyObject* UIDrawable::py_realign(PyObject* self, PyObject* args) {
+    PyObjectsEnum objtype = PyObjectsEnum::UIFRAME;  // Default, will be set by type check
+
+    // Determine the type from the Python object
+    PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+    PyObject* caption_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
+    PyObject* sprite_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
+    PyObject* grid_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+    PyObject* line_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line");
+    PyObject* circle_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle");
+    PyObject* arc_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc");
+
+    if (PyObject_IsInstance(self, frame_type)) objtype = PyObjectsEnum::UIFRAME;
+    else if (PyObject_IsInstance(self, caption_type)) objtype = PyObjectsEnum::UICAPTION;
+    else if (PyObject_IsInstance(self, sprite_type)) objtype = PyObjectsEnum::UISPRITE;
+    else if (PyObject_IsInstance(self, grid_type)) objtype = PyObjectsEnum::UIGRID;
+    else if (PyObject_IsInstance(self, line_type)) objtype = PyObjectsEnum::UILINE;
+    else if (PyObject_IsInstance(self, circle_type)) objtype = PyObjectsEnum::UICIRCLE;
+    else if (PyObject_IsInstance(self, arc_type)) objtype = PyObjectsEnum::UIARC;
+
+    Py_XDECREF(frame_type);
+    Py_XDECREF(caption_type);
+    Py_XDECREF(sprite_type);
+    Py_XDECREF(grid_type);
+    Py_XDECREF(line_type);
+    Py_XDECREF(circle_type);
+    Py_XDECREF(arc_type);
+
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    drawable->realign();
+    Py_RETURN_NONE;
+}
+
+bool UIDrawable::validateMargins(AlignmentType align, float margin, float horiz_margin, float vert_margin, bool set_error) {
+    // Calculate effective margins (-1 means inherit from general margin)
+    float eff_horiz = (horiz_margin >= 0.0f) ? horiz_margin : margin;
+    float eff_vert = (vert_margin >= 0.0f) ? vert_margin : margin;
+
+    // CENTER alignment doesn't support any margins
+    if (align == AlignmentType::CENTER) {
+        if (margin != 0.0f || eff_horiz != 0.0f || eff_vert != 0.0f) {
+            if (set_error) {
+                PyErr_SetString(PyExc_ValueError,
+                    "CENTER alignment does not support margins");
+            }
+            return false;
+        }
+    }
+
+    // Horizontally centered alignments don't support horiz_margin override
+    // (margin is applied vertically only)
+    if (align == AlignmentType::TOP_CENTER || align == AlignmentType::BOTTOM_CENTER) {
+        // If horiz_margin is explicitly set (not -1), it must be 0 or error
+        if (horiz_margin >= 0.0f && horiz_margin != 0.0f) {
+            if (set_error) {
+                PyErr_SetString(PyExc_ValueError,
+                    "TOP_CENTER and BOTTOM_CENTER alignments do not support horiz_margin");
+            }
+            return false;
+        }
+    }
+
+    // Vertically centered alignments don't support vert_margin override
+    // (margin is applied horizontally only)
+    if (align == AlignmentType::CENTER_LEFT || align == AlignmentType::CENTER_RIGHT) {
+        // If vert_margin is explicitly set (not -1), it must be 0 or error
+        if (vert_margin >= 0.0f && vert_margin != 0.0f) {
+            if (set_error) {
+                PyErr_SetString(PyExc_ValueError,
+                    "CENTER_LEFT and CENTER_RIGHT alignments do not support vert_margin");
+            }
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Python API: get align property
+PyObject* UIDrawable::get_align(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    if (drawable->align_type == AlignmentType::NONE) {
+        Py_RETURN_NONE;
+    }
+
+    // Return Alignment enum member
+    if (!PyAlignment::alignment_enum_class) {
+        PyErr_SetString(PyExc_RuntimeError, "Alignment enum not initialized");
+        return NULL;
+    }
+
+    PyObject* value = PyLong_FromLong(static_cast<int>(drawable->align_type));
+    if (!value) return NULL;
+
+    PyObject* result = PyObject_CallFunctionObjArgs(PyAlignment::alignment_enum_class, value, NULL);
+    Py_DECREF(value);
+    return result;
+}
+
+// Python API: set align property
+int UIDrawable::set_align(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    if (value == Py_None) {
+        drawable->align_type = AlignmentType::NONE;
+        return 0;
+    }
+
+    AlignmentType align;
+    if (!PyAlignment::from_arg(value, &align)) {
+        return -1;
+    }
+
+    // Validate margins for new alignment
+    if (!validateMargins(align, drawable->align_margin, drawable->align_horiz_margin, drawable->align_vert_margin)) {
+        return -1;
+    }
+
+    drawable->setAlignment(align);
+    return 0;
+}
+
+// Python API: get margin property
+PyObject* UIDrawable::get_margin(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    return PyFloat_FromDouble(drawable->align_margin);
+}
+
+// Python API: set margin property
+int UIDrawable::set_margin(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    float margin = 0.0f;
+    if (PyFloat_Check(value)) {
+        margin = static_cast<float>(PyFloat_AsDouble(value));
+    } else if (PyLong_Check(value)) {
+        margin = static_cast<float>(PyLong_AsLong(value));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "margin must be a number");
+        return -1;
+    }
+
+    // Validate margins for current alignment
+    if (drawable->align_type != AlignmentType::NONE) {
+        if (!validateMargins(drawable->align_type, margin, drawable->align_horiz_margin, drawable->align_vert_margin)) {
+            return -1;
+        }
+    }
+
+    drawable->align_margin = margin;
+    if (drawable->align_type != AlignmentType::NONE) {
+        drawable->applyAlignment();
+    }
+    return 0;
+}
+
+// Python API: get horiz_margin property
+PyObject* UIDrawable::get_horiz_margin(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    return PyFloat_FromDouble(drawable->align_horiz_margin);
+}
+
+// Python API: set horiz_margin property
+int UIDrawable::set_horiz_margin(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    float horiz_margin = 0.0f;
+    if (PyFloat_Check(value)) {
+        horiz_margin = static_cast<float>(PyFloat_AsDouble(value));
+    } else if (PyLong_Check(value)) {
+        horiz_margin = static_cast<float>(PyLong_AsLong(value));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "horiz_margin must be a number");
+        return -1;
+    }
+
+    // Validate margins for current alignment
+    if (drawable->align_type != AlignmentType::NONE) {
+        if (!validateMargins(drawable->align_type, drawable->align_margin, horiz_margin, drawable->align_vert_margin)) {
+            return -1;
+        }
+    }
+
+    drawable->align_horiz_margin = horiz_margin;
+    if (drawable->align_type != AlignmentType::NONE) {
+        drawable->applyAlignment();
+    }
+    return 0;
+}
+
+// Python API: get vert_margin property
+PyObject* UIDrawable::get_vert_margin(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    return PyFloat_FromDouble(drawable->align_vert_margin);
+}
+
+// Python API: set vert_margin property
+int UIDrawable::set_vert_margin(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    float vert_margin = 0.0f;
+    if (PyFloat_Check(value)) {
+        vert_margin = static_cast<float>(PyFloat_AsDouble(value));
+    } else if (PyLong_Check(value)) {
+        vert_margin = static_cast<float>(PyLong_AsLong(value));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "vert_margin must be a number");
+        return -1;
+    }
+
+    // Validate margins for current alignment
+    if (drawable->align_type != AlignmentType::NONE) {
+        if (!validateMargins(drawable->align_type, drawable->align_margin, drawable->align_horiz_margin, vert_margin)) {
+            return -1;
+        }
+    }
+
+    drawable->align_vert_margin = vert_margin;
+    if (drawable->align_type != AlignmentType::NONE) {
+        drawable->applyAlignment();
+    }
+    return 0;
 }

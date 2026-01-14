@@ -115,7 +115,11 @@ namespace mcrfpydef {
                             "    w (float): Width override. Default: 0\n"
                             "    h (float): Height override. Default: 0\n"
                             "    clip_children (bool): Whether to clip children to frame bounds. Default: False\n"
-                            "    cache_subtree (bool): Cache rendering to texture for performance. Default: False\n\n"
+                            "    cache_subtree (bool): Cache rendering to texture for performance. Default: False\n"
+                            "    align (Alignment): Alignment relative to parent. Default: None (manual positioning)\n"
+                            "    margin (float): Margin from parent edge when aligned. Default: 0\n"
+                            "    horiz_margin (float): Horizontal margin override. Default: 0 (use margin)\n"
+                            "    vert_margin (float): Vertical margin override. Default: 0 (use margin)\n\n"
                             "Attributes:\n"
                             "    x, y (float): Position in pixels\n"
                             "    w, h (float): Size in pixels\n"
@@ -129,7 +133,11 @@ namespace mcrfpydef {
                             "    z_index (int): Rendering order\n"
                             "    name (str): Element name\n"
                             "    clip_children (bool): Whether to clip children to frame bounds\n"
-                            "    cache_subtree (bool): Cache subtree rendering to texture"),
+                            "    cache_subtree (bool): Cache subtree rendering to texture\n"
+                            "    align (Alignment): Alignment relative to parent (or None)\n"
+                            "    margin (float): General margin for alignment\n"
+                            "    horiz_margin (float): Horizontal margin override\n"
+                            "    vert_margin (float): Vertical margin override"),
         .tp_methods = UIFrame_methods,
         //.tp_members = PyUIFrame_members,
         .tp_getset = UIFrame::getsetters,

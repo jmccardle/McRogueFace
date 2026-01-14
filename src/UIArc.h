@@ -76,6 +76,7 @@ public:
     sf::FloatRect get_bounds() const override;
     void move(float dx, float dy) override;
     void resize(float w, float h) override;
+    void onPositionChanged() override;
 
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
@@ -140,7 +141,11 @@ namespace mcrfpydef {
             "    visible (bool): Visibility state. Default: True\n"
             "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
             "    z_index (int): Rendering order. Default: 0\n"
-            "    name (str): Element name for finding. Default: None\n\n"
+            "    name (str): Element name for finding. Default: None\n"
+            "    align (Alignment): Alignment relative to parent. Default: None\n"
+            "    margin (float): Margin from parent edge when aligned. Default: 0\n"
+            "    horiz_margin (float): Horizontal margin override. Default: 0 (use margin)\n"
+            "    vert_margin (float): Vertical margin override. Default: 0 (use margin)\n\n"
             "Attributes:\n"
             "    center (Vector): Center position\n"
             "    radius (float): Arc radius\n"
@@ -152,6 +157,10 @@ namespace mcrfpydef {
             "    opacity (float): Opacity value\n"
             "    z_index (int): Rendering order\n"
             "    name (str): Element name\n"
+            "    align (Alignment): Alignment relative to parent (or None)\n"
+            "    margin (float): General margin for alignment\n"
+            "    horiz_margin (float): Horizontal margin override\n"
+            "    vert_margin (float): Vertical margin override\n"
         ),
         .tp_methods = UIArc_methods,
         .tp_getset = UIArc::getsetters,

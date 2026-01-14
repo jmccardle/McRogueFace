@@ -3,6 +3,7 @@
 #include "PyVector.h"
 #include "PythonObjectCache.h"
 #include "UIFrame.h"  // #144: For snapshot= parameter
+#include "PyAlignment.h"
 // UIDrawable methods now in UIBase.h
 
 UIDrawable* UISprite::click_at(sf::Vector2f point)
@@ -355,6 +356,7 @@ PyGetSetDef UISprite::getsetters[] = {
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UISPRITE},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UISPRITE),
+    UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UISPRITE),
     {NULL}
 };
 
@@ -388,6 +390,10 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f;
     PyObject* snapshot = nullptr;  // #144: snapshot parameter
+    PyObject* align_obj = nullptr;  // Alignment enum or None
+    float margin = 0.0f;
+    float horiz_margin = -1.0f;
+    float vert_margin = -1.0f;
 
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
@@ -395,14 +401,16 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
         // Keyword-only args
         "scale", "scale_x", "scale_y", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y", "snapshot",
+        "align", "margin", "horiz_margin", "vert_margin",
         nullptr
     };
 
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOifffOifizffO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOifffOifizffOOfff", const_cast<char**>(kwlist),
                                      &pos_obj, &texture, &sprite_index,  // Positional
                                      &scale, &scale_x, &scale_y, &click_handler,
-                                     &visible, &opacity, &z_index, &name, &x, &y, &snapshot)) {
+                                     &visible, &opacity, &z_index, &name, &x, &y, &snapshot,
+                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
         return -1;
     }
     
@@ -511,6 +519,9 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     if (name) {
         self->data->name = std::string(name);
     }
+
+    // Process alignment arguments
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
 
     // Handle click handler
     if (click_handler && click_handler != Py_None) {

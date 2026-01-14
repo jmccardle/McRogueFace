@@ -1,6 +1,7 @@
 #include "UIArc.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
+#include "PyAlignment.h"
 #include <cmath>
 #include <sstream>
 
@@ -203,6 +204,12 @@ void UIArc::resize(float w, float h) {
     // Resize by adjusting radius to fit in the given dimensions
     radius = std::min(w, h) / 2.0f - thickness / 2.0f;
     if (radius < 0) radius = 0;
+    vertices_dirty = true;
+}
+
+void UIArc::onPositionChanged() {
+    // Sync center from position (for alignment system)
+    center = position;
     vertices_dirty = true;
 }
 
@@ -443,6 +450,7 @@ PyGetSetDef UIArc::getsetters[] = {
      "Position as a Vector (same as center).", (void*)PyObjectsEnum::UIARC},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIARC),
+    UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIARC),
     {NULL}
 };
 
@@ -481,17 +489,23 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
     float opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
+    PyObject* align_obj = nullptr;  // Alignment enum or None
+    float margin = 0.0f;
+    float horiz_margin = -1.0f;
+    float vert_margin = -1.0f;
 
     static const char* kwlist[] = {
         "center", "radius", "start_angle", "end_angle", "color", "thickness",
         "on_click", "visible", "opacity", "z_index", "name",
+        "align", "margin", "horiz_margin", "vert_margin",
         nullptr
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfffOfOifiz", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfffOfOifizOfff", const_cast<char**>(kwlist),
                                      &center_obj, &radius, &start_angle, &end_angle,
                                      &color_obj, &thickness,
-                                     &click_handler, &visible, &opacity, &z_index, &name)) {
+                                     &click_handler, &visible, &opacity, &z_index, &name,
+                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
         return -1;
     }
 
@@ -545,6 +559,9 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
     if (name) {
         self->data->name = name;
     }
+
+    // Process alignment arguments
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
 
     // Register in Python object cache
     if (self->data->serial_number == 0) {

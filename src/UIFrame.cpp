@@ -7,6 +7,7 @@
 #include "UIGrid.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
+#include "PyAlignment.h"
 // UIDrawable methods now in UIBase.h
 
 UIDrawable* UIFrame::click_at(sf::Vector2f point)
@@ -84,6 +85,15 @@ void UIFrame::move(float dx, float dy)
 void UIFrame::resize(float w, float h)
 {
     box.setSize(sf::Vector2f(w, h));
+
+    // Notify aligned children to recalculate their positions
+    if (children) {
+        for (auto& child : *children) {
+            if (child->getAlignment() != AlignmentType::NONE) {
+                child->applyAlignment();
+            }
+        }
+    }
 }
 
 void UIFrame::onPositionChanged()
@@ -458,6 +468,7 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"cache_subtree", (getter)UIFrame::get_cache_subtree, (setter)UIFrame::set_cache_subtree, "#144: Cache subtree rendering to texture for performance", NULL},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIFRAME),
+    UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIFRAME),
     {NULL}
 };
 
@@ -504,6 +515,10 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
     int clip_children = 0;
     int cache_subtree = 0;  // #144: texture caching
+    PyObject* align_obj = nullptr;  // Alignment enum or None
+    float margin = 0.0f;
+    float horiz_margin = -1.0f;
+    float vert_margin = -1.0f;
 
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
@@ -511,14 +526,16 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
         // Keyword-only args
         "fill_color", "outline_color", "outline", "children", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "clip_children", "cache_subtree",
+        "align", "margin", "horiz_margin", "vert_margin",
         nullptr
     };
-    
+
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOfOOifizffffii", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOfOOifizffffiiOfff", const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj,  // Positional
                                      &fill_color, &outline_color, &outline, &children_arg, &click_handler,
-                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &clip_children, &cache_subtree)) {
+                                     &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &clip_children, &cache_subtree,
+                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
         return -1;
     }
     
@@ -617,6 +634,9 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     if (name) {
         self->data->name = std::string(name);
     }
+
+    // Process alignment arguments
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
     
     // Handle click handler
     if (click_handler && click_handler != Py_None) {
@@ -673,6 +693,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
             Py_DECREF(grid_type);
             
             if (drawable) {
+                drawable->setParent(self->data);  // Set parent before adding (enables alignment)
                 self->data->children->push_back(drawable);
                 self->data->children_need_sort = true;
             }

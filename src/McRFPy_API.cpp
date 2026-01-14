@@ -13,6 +13,7 @@
 #include "PyFOV.h"
 #include "PyTransition.h"
 #include "PyEasing.h"
+#include "PyAlignment.h"
 #include "PyKey.h"
 #include "PyMouseButton.h"
 #include "PyInputState.h"
@@ -599,6 +600,13 @@ PyObject* PyInit_mcrfpy()
     // Add InputState enum class for input event states (pressed/released)
     PyObject* input_state_class = PyInputState::create_enum_class(m);
     if (!input_state_class) {
+        // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add Alignment enum class for automatic child positioning
+    PyObject* alignment_class = PyAlignment::create_enum_class(m);
+    if (!alignment_class) {
         // If enum creation fails, continue without it (non-fatal)
         PyErr_Clear();
     }

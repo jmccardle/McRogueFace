@@ -12,6 +12,7 @@
 #include "PyColor.h"
 #include "PyVector.h"
 #include "PyFont.h"
+#include "PyAlignment.h"
 
 #include "Resources.h"
 #include "UIBase.h"
@@ -133,7 +134,39 @@ public:
     // Python API for hit testing (#138)
     static PyObject* get_bounds_py(PyObject* self, void* closure);
     static PyObject* get_global_bounds_py(PyObject* self, void* closure);
-    
+
+    // Alignment system - position children relative to parent bounds
+    AlignmentType align_type = AlignmentType::NONE;
+    float align_margin = 0.0f;         // General margin for all edges
+    float align_horiz_margin = -1.0f;  // Horizontal margin override (-1 = use align_margin)
+    float align_vert_margin = -1.0f;   // Vertical margin override (-1 = use align_margin)
+
+    // Apply alignment: recalculate position from parent bounds
+    void applyAlignment();
+
+    // User-callable realignment: reapply alignment to self (useful for responsive layouts)
+    void realign();
+
+    // Python API: realign method
+    static PyObject* py_realign(PyObject* self, PyObject* args);
+
+    // Setters that trigger realignment
+    void setAlignment(AlignmentType align);
+    AlignmentType getAlignment() const { return align_type; }
+
+    // Python API for alignment properties
+    static PyObject* get_align(PyObject* self, void* closure);
+    static int set_align(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_margin(PyObject* self, void* closure);
+    static int set_margin(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_horiz_margin(PyObject* self, void* closure);
+    static int set_horiz_margin(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_vert_margin(PyObject* self, void* closure);
+    static int set_vert_margin(PyObject* self, PyObject* value, void* closure);
+
+    // Validate margin settings (raises ValueError for invalid combinations)
+    static bool validateMargins(AlignmentType align, float margin, float horiz_margin, float vert_margin, bool set_error = true);
+
     // New properties for Phase 1
     bool visible = true;      // #87 - visibility flag
     float opacity = 1.0f;     // #88 - opacity (0.0 = transparent, 1.0 = opaque)

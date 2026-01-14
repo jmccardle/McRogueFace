@@ -3,6 +3,7 @@
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
+#include "PyAlignment.h"
 #include "PyTypeCache.h"  // Thread-safe cached Python types
 #include "UIEntity.h"
 #include "Profiler.h"
@@ -496,6 +497,15 @@ void UIGrid::resize(float w, float h)
         renderTexture.create(static_cast<unsigned int>(w), static_cast<unsigned int>(h));
         output.setTexture(renderTexture.getTexture());
     }
+
+    // Notify aligned children to recalculate their positions
+    if (children) {
+        for (auto& child : *children) {
+            if (child->getAlignment() != AlignmentType::NONE) {
+                child->applyAlignment();
+            }
+        }
+    }
 }
 
 void UIGrid::onPositionChanged()
@@ -674,6 +684,10 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
     int grid_w = 2, grid_h = 2;  // Default to 2x2 grid
+    PyObject* align_obj = nullptr;  // Alignment enum or None
+    float margin = 0.0f;
+    float horiz_margin = -1.0f;
+    float vert_margin = -1.0f;
 
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
@@ -682,15 +696,17 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         "fill_color", "on_click", "center_x", "center_y", "zoom",
         "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "grid_w", "grid_h",
         "layers",  // #150 - layers dict parameter
+        "align", "margin", "horiz_margin", "vert_margin",
         nullptr
     };
 
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOfffifizffffiiO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOfffifizffffiiOOfff", const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj, &grid_size_obj, &textureObj,  // Positional
                                      &fill_color, &click_handler, &center_x, &center_y, &zoom,
                                      &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &grid_w, &grid_h,
-                                     &layers_obj)) {
+                                     &layers_obj,
+                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
         return -1;
     }
     
@@ -813,7 +829,10 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     if (name) {
         self->data->name = std::string(name);
     }
-    
+
+    // Process alignment arguments
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
+
     // Handle fill_color
     if (fill_color && fill_color != Py_None) {
         PyColorObject* color_obj = PyColor::from_arg(fill_color);
@@ -2188,6 +2207,7 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIGRID},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIGRID),
+    UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIGRID),
     // #142 - Grid cell mouse events
     {"on_cell_enter", (getter)UIGrid::get_on_cell_enter, (setter)UIGrid::set_on_cell_enter,
      "Callback when mouse enters a grid cell. Called with (cell_pos: Vector).", NULL},

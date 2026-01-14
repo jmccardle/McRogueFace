@@ -4,6 +4,7 @@
 #include "PyVector.h"
 #include "PyColor.h"
 #include "PythonObjectCache.h"
+#include "PyAlignment.h"
 #include <cmath>
 
 UILine::UILine()
@@ -465,6 +466,7 @@ PyGetSetDef UILine::getsetters[] = {
      (void*)PyObjectsEnum::UILINE},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UILINE),
+    UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UILINE),
     {NULL}
 };
 
@@ -497,16 +499,22 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     float opacity = 1.0f;
     int z_index = 0;
     const char* name = nullptr;
+    PyObject* align_obj = nullptr;  // Alignment enum or None
+    float margin = 0.0f;
+    float horiz_margin = -1.0f;
+    float vert_margin = -1.0f;
 
     static const char* kwlist[] = {
         "start", "end", "thickness", "color",
         "on_click", "visible", "opacity", "z_index", "name",
+        "align", "margin", "horiz_margin", "vert_margin",
         nullptr
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOfOOifiz", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOfOOifizOfff", const_cast<char**>(kwlist),
                                      &start_obj, &end_obj, &thickness, &color_obj,
-                                     &click_handler, &visible, &opacity, &z_index, &name)) {
+                                     &click_handler, &visible, &opacity, &z_index, &name,
+                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
         return -1;
     }
 
@@ -564,6 +572,9 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     if (name) {
         self->data->name = std::string(name);
     }
+
+    // Process alignment arguments
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
 
     // Handle click handler
     if (click_handler && click_handler != Py_None) {

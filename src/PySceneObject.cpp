@@ -500,6 +500,30 @@ PyGetSetDef PySceneClass::getsetters[] = {
     {NULL}
 };
 
+// Scene.realign() - recalculate alignment for all children
+static PyObject* PySceneClass_realign(PySceneObject* self, PyObject* args)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "No game engine");
+        return NULL;
+    }
+
+    auto scene = game->getScene(self->name);
+    if (!scene || !scene->ui_elements) {
+        Py_RETURN_NONE;
+    }
+
+    // Iterate through all UI elements and realign those with alignment set
+    for (auto& drawable : *scene->ui_elements) {
+        if (drawable && drawable->align_type != AlignmentType::NONE) {
+            drawable->applyAlignment();
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
 // Methods
 PyMethodDef PySceneClass::methods[] = {
     {"activate", (PyCFunction)activate, METH_VARARGS | METH_KEYWORDS,
@@ -520,6 +544,13 @@ PyMethodDef PySceneClass::methods[] = {
          MCRF_ARG("callback", "Function that receives (key: str, pressed: bool) when keyboard events occur")
          MCRF_RETURNS("None")
          MCRF_NOTE("Alternative to setting on_key property. Handler is called for both key press and release events.")
+     )},
+    {"realign", (PyCFunction)PySceneClass_realign, METH_NOARGS,
+     MCRF_METHOD(SceneClass, realign,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Recalculate alignment for all children with alignment set."),
+         MCRF_NOTE("Call this after window resize or when game_resolution changes. "
+                   "For responsive layouts, connect this to on_resize callback.")
      )},
     {NULL}
 };

@@ -4,6 +4,7 @@
 #include "PyVector.h"
 #include "PyFont.h"
 #include "PythonObjectCache.h"
+#include "PyAlignment.h"
 // UIDrawable methods now in UIBase.h
 #include <algorithm>
 
@@ -310,6 +311,7 @@ PyGetSetDef UICaption::getsetters[] = {
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UICAPTION},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICAPTION),
+    UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UICAPTION),
     {NULL}
 };
 
@@ -350,21 +352,27 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     int z_index = 0;
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f;
-    
+    PyObject* align_obj = nullptr;  // Alignment enum or None
+    float margin = 0.0f;
+    float horiz_margin = -1.0f;
+    float vert_margin = -1.0f;
+
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
         "pos", "font", "text",  // Positional args (as per spec)
         // Keyword-only args
         "fill_color", "outline_color", "outline", "font_size", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y",
+        "align", "margin", "horiz_margin", "vert_margin",
         nullptr
     };
-    
+
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOzOOffOifizff", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOzOOffOifizffOfff", const_cast<char**>(kwlist),
                                      &pos_obj, &font, &text,  // Positional
                                      &fill_color, &outline_color, &outline, &font_size, &click_handler,
-                                     &visible, &opacity, &z_index, &name, &x, &y)) {
+                                     &visible, &opacity, &z_index, &name, &x, &y,
+                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
         return -1;
     }
     
@@ -463,7 +471,10 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     if (name) {
         self->data->name = std::string(name);
     }
-    
+
+    // Process alignment arguments
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
+
     // Handle click handler
     if (click_handler && click_handler != Py_None) {
         if (!PyCallable_Check(click_handler)) {
@@ -472,7 +483,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         }
         self->data->click_register(click_handler);
     }
-    
+
     // Initialize weak reference list
     self->weakreflist = NULL;
     

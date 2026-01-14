@@ -4,6 +4,7 @@
 #include "PyVector.h"
 #include "PyColor.h"
 #include "PythonObjectCache.h"
+#include "PyAlignment.h"
 #include <cmath>
 
 UICircle::UICircle()
@@ -395,6 +396,7 @@ PyGetSetDef UICircle::getsetters[] = {
      "Position as a Vector (same as center).", (void*)PyObjectsEnum::UICIRCLE},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICIRCLE),
+    UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UICIRCLE),
     {NULL}
 };
 
@@ -418,7 +420,8 @@ PyObject* UICircle::repr(PyUICircleObject* self) {
 int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {
         "radius", "center", "fill_color", "outline_color", "outline",
-        "on_click", "visible", "opacity", "z_index", "name", NULL
+        "on_click", "visible", "opacity", "z_index", "name",
+        "align", "margin", "horiz_margin", "vert_margin", NULL
     };
 
     float radius = 10.0f;
@@ -433,10 +436,15 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     float opacity_val = 1.0f;
     int z_index = 0;
     const char* name = NULL;
+    PyObject* align_obj = NULL;  // Alignment enum or None
+    float margin = 0.0f;
+    float horiz_margin = -1.0f;
+    float vert_margin = -1.0f;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|fOOOfOpfis", (char**)kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|fOOOfOpfisOfff", (char**)kwlist,
             &radius, &center_obj, &fill_color_obj, &outline_color_obj, &outline,
-            &click_obj, &visible, &opacity_val, &z_index, &name)) {
+            &click_obj, &visible, &opacity_val, &z_index, &name,
+            &align_obj, &margin, &horiz_margin, &vert_margin)) {
         return -1;
     }
 
@@ -511,6 +519,9 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     if (name) {
         self->data->name = name;
     }
+
+    // Process alignment arguments
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
 
     // Register in Python object cache
     if (self->data->serial_number == 0) {

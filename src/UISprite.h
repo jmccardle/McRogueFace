@@ -121,7 +121,11 @@ namespace mcrfpydef {
                             "    z_index (int): Rendering order. Default: 0\n"
                             "    name (str): Element name for finding. Default: None\n"
                             "    x (float): X position override. Default: 0\n"
-                            "    y (float): Y position override. Default: 0\n\n"
+                            "    y (float): Y position override. Default: 0\n"
+                            "    align (Alignment): Alignment relative to parent. Default: None\n"
+                            "    margin (float): Margin from parent edge when aligned. Default: 0\n"
+                            "    horiz_margin (float): Horizontal margin override. Default: 0 (use margin)\n"
+                            "    vert_margin (float): Vertical margin override. Default: 0 (use margin)\n\n"
                             "Attributes:\n"
                             "    x, y (float): Position in pixels\n"
                             "    pos (Vector): Position as a Vector object\n"
@@ -134,7 +138,11 @@ namespace mcrfpydef {
                             "    opacity (float): Opacity value\n"
                             "    z_index (int): Rendering order\n"
                             "    name (str): Element name\n"
-                            "    w, h (float): Read-only computed size based on texture and scale"),
+                            "    w, h (float): Read-only computed size based on texture and scale\n"
+                            "    align (Alignment): Alignment relative to parent (or None)\n"
+                            "    margin (float): General margin for alignment\n"
+                            "    horiz_margin (float): Horizontal margin override\n"
+                            "    vert_margin (float): Vertical margin override"),
         .tp_methods = UISprite_methods,
         //.tp_members = PyUIFrame_members,
         .tp_getset = UISprite::getsetters,
