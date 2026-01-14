@@ -89,29 +89,27 @@ The following tests have been converted to use `mcrfpy.step()`:
 - test_animation_removal.py
 - test_timer_callback.py
 - test_timer_once.py
+- test_simple_callback.py
+- test_empty_animation_manager.py
+- test_frame_clipping.py
+- test_frame_clipping_advanced.py
+- test_grid_children.py
+- test_color_helpers.py
+- test_no_arg_constructors.py
+- test_properties_quick.py
+- test_simple_drawable.py
+- test_python_object_cache.py
+- WORKING_automation_test_example.py
 
 ## Remaining Timeout Failures
 
 These tests still use Timer-based async patterns:
-- WORKING_automation_test_example.py
 - benchmark_logging_test.py
 - keypress_scene_validation_test.py
-- test_empty_animation_manager.py
-- test_simple_callback.py
 
 **Headless mode tests:**
 - test_headless_detection.py
 - test_headless_modes.py
-
-**Other timing-dependent:**
-- test_color_helpers.py
-- test_frame_clipping.py
-- test_frame_clipping_advanced.py
-- test_grid_children.py
-- test_no_arg_constructors.py
-- test_properties_quick.py
-- test_python_object_cache.py
-- test_simple_drawable.py
 
 ## Running Tests
 
