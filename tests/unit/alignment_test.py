@@ -46,10 +46,12 @@ print("Test 3: Checking margin properties...")
 try:
     frame = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
 
-    # Check default margins are 0
-    assert frame.margin == 0, f"Expected margin=0, got {frame.margin}"
-    assert frame.horiz_margin == 0, f"Expected horiz_margin=0, got {frame.horiz_margin}"
-    assert frame.vert_margin == 0, f"Expected vert_margin=0, got {frame.vert_margin}"
+    # Check default margins:
+    # - margin returns 0 when both horiz/vert are unset (effective default)
+    # - horiz_margin/vert_margin return -1 (sentinel for "not set")
+    assert frame.margin == 0.0, f"Expected margin=0 (effective default), got {frame.margin}"
+    assert frame.horiz_margin == -1.0, f"Expected horiz_margin=-1 (unset), got {frame.horiz_margin}"
+    assert frame.vert_margin == -1.0, f"Expected vert_margin=-1 (unset), got {frame.vert_margin}"
 
     # Set margins when no alignment
     frame.margin = 10.0
