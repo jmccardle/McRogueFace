@@ -3,6 +3,8 @@
 #include "UIEntity.h"
 #include "PyVector.h"
 #include "McRFPy_API.h"
+#include "PyHeightMap.h"
+#include "PyPositionHelper.h"
 
 //=============================================================================
 // DijkstraMap Implementation
@@ -12,6 +14,8 @@ DijkstraMap::DijkstraMap(TCODMap* map, int root_x, int root_y, float diag_cost)
     : tcod_map(map)
     , root(root_x, root_y)
     , diagonal_cost(diag_cost)
+    , map_width(map ? map->getWidth() : 0)
+    , map_height(map ? map->getHeight() : 0)
 {
     tcod_dijkstra = new TCODDijkstra(tcod_map, diagonal_cost);
     tcod_dijkstra->compute(root_x, root_y);  // Compute immediately at creation
@@ -27,6 +31,14 @@ DijkstraMap::~DijkstraMap() {
 float DijkstraMap::getDistance(int x, int y) const {
     if (!tcod_dijkstra) return -1.0f;
     return tcod_dijkstra->getDistance(x, y);
+}
+
+int DijkstraMap::getWidth() const {
+    return map_width;
+}
+
+int DijkstraMap::getHeight() const {
+    return map_height;
 }
 
 std::vector<sf::Vector2i> DijkstraMap::getPathFrom(int x, int y) const {
@@ -124,8 +136,6 @@ bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
                 *x = PyLong_AsLong(x_long);
                 *y = PyLong_AsLong(y_long);
                 ok = !PyErr_Occurred();
-                Py_DECREF(x_long);
-                Py_DECREF(y_long);
             }
             Py_XDECREF(x_long);
             Py_XDECREF(y_long);
@@ -383,6 +393,83 @@ PyObject* UIGridPathfinding::DijkstraMap_get_root(PyDijkstraMapObject* self, voi
     return PyVector(sf::Vector2f(static_cast<float>(root.x), static_cast<float>(root.y))).pyObject();
 }
 
+PyObject* UIGridPathfinding::DijkstraMap_to_heightmap(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"size", "unreachable", nullptr};
+    PyObject* size_obj = nullptr;
+    float unreachable = -1.0f;  // Value for cells that can't reach root (distinct from 0 = root)
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Of", const_cast<char**>(kwlist),
+                                     &size_obj, &unreachable)) {
+        return nullptr;
+    }
+
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "DijkstraMap is invalid");
+        return nullptr;
+    }
+
+    // Determine output size (default to dijkstra dimensions)
+    int width = self->data->getWidth();
+    int height = self->data->getHeight();
+
+    if (width <= 0 || height <= 0) {
+        PyErr_SetString(PyExc_RuntimeError, "DijkstraMap has invalid dimensions");
+        return nullptr;
+    }
+
+    if (size_obj && size_obj != Py_None) {
+        if (!PyPosition_FromObjectInt(size_obj, &width, &height)) {
+            PyErr_SetString(PyExc_TypeError, "size must be (width, height) tuple, list, or Vector");
+            return nullptr;
+        }
+        if (width <= 0 || height <= 0) {
+            PyErr_SetString(PyExc_ValueError, "size values must be positive");
+            return nullptr;
+        }
+    }
+
+    // Create HeightMap via Python API (same pattern as BSP.to_heightmap)
+    PyObject* hmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!hmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
+        return nullptr;
+    }
+
+    PyObject* size_tuple = Py_BuildValue("(ii)", width, height);
+    PyObject* hmap_args = PyTuple_Pack(1, size_tuple);
+    Py_DECREF(size_tuple);
+
+    PyHeightMapObject* hmap = (PyHeightMapObject*)PyObject_Call(hmap_type, hmap_args, nullptr);
+    Py_DECREF(hmap_args);
+    Py_DECREF(hmap_type);
+
+    if (!hmap) {
+        return nullptr;
+    }
+
+    // Get the dijkstra dimensions for bounds checking
+    int dijkstra_w = self->data->getWidth();
+    int dijkstra_h = self->data->getHeight();
+
+    // Fill heightmap with distance values
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            float dist;
+            if (x < dijkstra_w && y < dijkstra_h) {
+                dist = self->data->getDistance(x, y);
+                if (dist < 0) {
+                    dist = unreachable;  // Unreachable cell
+                }
+            } else {
+                dist = unreachable;  // Outside dijkstra bounds
+            }
+            TCOD_heightmap_set_value(hmap->heightmap, x, y, dist);
+        }
+    }
+
+    return (PyObject*)hmap;
+}
+
 //=============================================================================
 // Grid Factory Methods
 //=============================================================================
@@ -638,6 +725,17 @@ PyMethodDef PyDijkstraMap_methods[] = {
      "    pos: Current position as Vector, Entity, or (x, y) tuple.\n\n"
      "Returns:\n"
      "    Next position as Vector, or None if at root or unreachable."},
+
+    {"to_heightmap", (PyCFunction)UIGridPathfinding::DijkstraMap_to_heightmap, METH_VARARGS | METH_KEYWORDS,
+     "to_heightmap(size=None, unreachable=-1.0) -> HeightMap\n\n"
+     "Convert distance field to a HeightMap.\n\n"
+     "Each cell's height equals its pathfinding distance from the root.\n"
+     "Useful for visualization, procedural terrain, or influence mapping.\n\n"
+     "Args:\n"
+     "    size: Optional (width, height) tuple. Defaults to dijkstra dimensions.\n"
+     "    unreachable: Value for cells that cannot reach root (default -1.0).\n\n"
+     "Returns:\n"
+     "    HeightMap with distance values as heights."},
 
     {NULL}
 };

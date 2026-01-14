@@ -44,12 +44,16 @@ public:
     // Accessors
     sf::Vector2i getRoot() const { return root; }
     float getDiagonalCost() const { return diagonal_cost; }
+    int getWidth() const;
+    int getHeight() const;
 
 private:
     TCODDijkstra* tcod_dijkstra;  // Owned by this object
     TCODMap* tcod_map;            // Borrowed from Grid
     sf::Vector2i root;
     float diagonal_cost;
+    int map_width;                // Cached from TCODMap at construction
+    int map_height;
 };
 
 struct PyDijkstraMapObject {
@@ -106,6 +110,7 @@ namespace UIGridPathfinding {
     PyObject* DijkstraMap_distance(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
     PyObject* DijkstraMap_path_from(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
     PyObject* DijkstraMap_step_from(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
+    PyObject* DijkstraMap_to_heightmap(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
 
     // Properties
     PyObject* DijkstraMap_get_root(PyDijkstraMapObject* self, void* closure);
