@@ -111,7 +111,7 @@ def pytest_collect_file(parent, file_path):
     except ValueError:
         return None
 
-    if rel_path.parts and rel_path.parts[0] in ('unit', 'integration', 'regression'):
+    if rel_path.parts and rel_path.parts[0] in ('unit', 'integration', 'regression', 'docs', 'demo'):
         if file_path.suffix == '.py' and file_path.name not in ('__init__.py', 'conftest.py'):
             return McRFTestFile.from_parent(parent, path=file_path)
     return None
@@ -121,7 +121,7 @@ def pytest_ignore_collect(collection_path, config):
     """Prevent pytest from trying to import test scripts as Python modules."""
     try:
         rel_path = collection_path.relative_to(TESTS_DIR)
-        if rel_path.parts and rel_path.parts[0] in ('unit', 'integration', 'regression'):
+        if rel_path.parts and rel_path.parts[0] in ('unit', 'integration', 'regression', 'docs', 'demo'):
             # Let our custom collector handle these, don't import them
             return False  # Don't ignore - we'll collect them our way
     except ValueError:
