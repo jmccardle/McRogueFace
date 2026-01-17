@@ -780,6 +780,14 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         return -1;
     }
 
+    // #212 - Validate against GRID_MAX
+    if (grid_w > GRID_MAX || grid_h > GRID_MAX) {
+        PyErr_Format(PyExc_ValueError,
+            "Grid dimensions cannot exceed %d (got %dx%d)",
+            GRID_MAX, grid_w, grid_h);
+        return -1;
+    }
+
     // Handle texture argument
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
     if (textureObj && textureObj != Py_None) {
@@ -1588,14 +1596,22 @@ PyObject* UIGrid::py_layer(PyUIGridObject* self, PyObject* args) {
 }
 
 // #115 - Spatial hash query for entities in radius
+// #216 - Updated to use position tuple/Vector instead of x, y
 PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* kwlist[] = {"x", "y", "radius", NULL};
-    float x, y, radius;
+    static const char* kwlist[] = {"pos", "radius", NULL};
+    PyObject* pos_obj;
+    float radius;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "fff", const_cast<char**>(kwlist),
-                                     &x, &y, &radius)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Of", const_cast<char**>(kwlist),
+                                     &pos_obj, &radius)) {
         return NULL;
+    }
+
+    // Parse position from tuple, Vector, or other 2-element sequence
+    float x, y;
+    if (!PyPosition_FromObject(pos_obj, &x, &y)) {
+        return NULL;  // Error already set by helper
     }
 
     if (radius < 0) {
@@ -1985,11 +2001,10 @@ PyMethodDef UIGrid::methods[] = {
     {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
      "layer(z_index: int) -> ColorLayer | TileLayer | None"},
     {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
-     "entities_in_radius(x: float, y: float, radius: float) -> list[Entity]\n\n"
+     "entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]\n\n"
      "Query entities within radius using spatial hash (O(k) where k = nearby entities).\n\n"
      "Args:\n"
-     "    x: Center X coordinate\n"
-     "    y: Center Y coordinate\n"
+     "    pos: Center position as (x, y) tuple, Vector, or other 2-element sequence\n"
      "    radius: Search radius\n\n"
      "Returns:\n"
      "    List of Entity objects within the radius."},
@@ -2106,11 +2121,10 @@ PyMethodDef UIGrid_all_methods[] = {
      "Returns:\n"
      "    The layer with the specified z_index, or None if not found."},
     {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
-     "entities_in_radius(x: float, y: float, radius: float) -> list[Entity]\n\n"
+     "entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]\n\n"
      "Query entities within radius using spatial hash (O(k) where k = nearby entities).\n\n"
      "Args:\n"
-     "    x: Center X coordinate\n"
-     "    y: Center Y coordinate\n"
+     "    pos: Center position as (x, y) tuple, Vector, or other 2-element sequence\n"
      "    radius: Search radius\n\n"
      "Returns:\n"
      "    List of Entity objects within the radius."},

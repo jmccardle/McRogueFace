@@ -1042,9 +1042,10 @@ PyObject* UIEntity::repr(PyUIEntityObject* self) {
     std::ostringstream ss;
     if (!self->data) ss << "<Entity (invalid internal object)>";
     else {
-        // #176 - Use grid_x/grid_y naming to reflect tile coordinates
-        ss << "<Entity (grid_x=" << static_cast<int>(self->data->position.x)
-           << ", grid_y=" << static_cast<int>(self->data->position.y)
+        // #217 - Show actual float position (draw_pos) to avoid confusion
+        // Position is stored in tile coordinates; use draw_pos for float values
+        ss << "<Entity (draw_pos=(" << self->data->position.x
+           << ", " << self->data->position.y << ")"
            << ", sprite_index=" << self->data->sprite.getSpriteIndex() << ")>";
     }
     std::string repr_str = ss.str();

@@ -118,6 +118,14 @@ static bool ParseColorArg(PyObject* obj, sf::Color& out_color, const char* arg_n
 
         if (PyErr_Occurred()) return false;
 
+        // #213 - Validate color component range (0-255)
+        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
+            PyErr_Format(PyExc_ValueError,
+                "%s color components must be in range 0-255, got (%d, %d, %d, %d)",
+                arg_name, r, g, b, a);
+            return false;
+        }
+
         out_color = sf::Color(r, g, b, a);
         return true;
     }
@@ -818,6 +826,14 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
         grid_x = PyLong_AsLong(PyTuple_GetItem(grid_size_obj, 0));
         grid_y = PyLong_AsLong(PyTuple_GetItem(grid_size_obj, 1));
         if (PyErr_Occurred()) return -1;
+
+        // #212 - Validate against GRID_MAX
+        if (grid_x > GRID_MAX || grid_y > GRID_MAX) {
+            PyErr_Format(PyExc_ValueError,
+                "ColorLayer dimensions cannot exceed %d (got %dx%d)",
+                GRID_MAX, grid_x, grid_y);
+            return -1;
+        }
     }
 
     // Create the layer (will be attached to grid via add_layer)
@@ -897,6 +913,14 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
             Py_DECREF(color_type);
             return NULL;
         }
+        // #213 - Validate color component range
+        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
+            Py_DECREF(color_type);
+            PyErr_Format(PyExc_ValueError,
+                "color components must be in range 0-255, got (%d, %d, %d, %d)",
+                r, g, b, a);
+            return NULL;
+        }
         color = sf::Color(r, g, b, a);
     } else {
         Py_DECREF(color_type);
@@ -936,6 +960,14 @@ PyObject* PyGridLayerAPI::ColorLayer_fill(PyColorLayerObject* self, PyObject* ar
         int r, g, b, a = 255;
         if (!PyArg_ParseTuple(color_obj, "iii|i", &r, &g, &b, &a)) {
             Py_DECREF(color_type);
+            return NULL;
+        }
+        // #213 - Validate color component range
+        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
+            Py_DECREF(color_type);
+            PyErr_Format(PyExc_ValueError,
+                "color components must be in range 0-255, got (%d, %d, %d, %d)",
+                r, g, b, a);
             return NULL;
         }
         color = sf::Color(r, g, b, a);
@@ -1003,6 +1035,14 @@ PyObject* PyGridLayerAPI::ColorLayer_fill_rect(PyColorLayerObject* self, PyObjec
         int r, g, b, a = 255;
         if (!PyArg_ParseTuple(color_obj, "iii|i", &r, &g, &b, &a)) {
             Py_DECREF(color_type);
+            return NULL;
+        }
+        // #213 - Validate color component range
+        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
+            Py_DECREF(color_type);
+            PyErr_Format(PyExc_ValueError,
+                "color components must be in range 0-255, got (%d, %d, %d, %d)",
+                r, g, b, a);
             return NULL;
         }
         color = sf::Color(r, g, b, a);
@@ -1253,6 +1293,12 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_hmap_threshold(PyColorLayerObject* se
         return NULL;
     }
 
+    // #214 - Check for null heightmap pointer
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
+        return NULL;
+    }
+
     if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
         return NULL;
     }
@@ -1310,6 +1356,12 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_gradient(PyColorLayerObject* self, Py
     PyHeightMapObject* hmap;
     if (!IsHeightMapObject(source_obj, &hmap)) {
         PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return NULL;
+    }
+
+    // #214 - Check for null heightmap pointer
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
         return NULL;
     }
 
@@ -1372,6 +1424,12 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_ranges(PyColorLayerObject* self, PyOb
     PyHeightMapObject* hmap;
     if (!IsHeightMapObject(source_obj, &hmap)) {
         PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return NULL;
+    }
+
+    // #214 - Check for null heightmap pointer
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
         return NULL;
     }
 
@@ -1666,6 +1724,14 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
         grid_x = PyLong_AsLong(PyTuple_GetItem(grid_size_obj, 0));
         grid_y = PyLong_AsLong(PyTuple_GetItem(grid_size_obj, 1));
         if (PyErr_Occurred()) return -1;
+
+        // #212 - Validate against GRID_MAX
+        if (grid_x > GRID_MAX || grid_y > GRID_MAX) {
+            PyErr_Format(PyExc_ValueError,
+                "TileLayer dimensions cannot exceed %d (got %dx%d)",
+                GRID_MAX, grid_x, grid_y);
+            return -1;
+        }
     }
 
     // Create the layer
@@ -1801,6 +1867,12 @@ PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyO
         return NULL;
     }
 
+    // #214 - Check for null heightmap pointer
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
+        return NULL;
+    }
+
     if (!ValidateHeightMapSize(hmap, self->data->grid_x, self->data->grid_y)) {
         return NULL;
     }
@@ -1848,6 +1920,12 @@ PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObje
     PyHeightMapObject* hmap;
     if (!IsHeightMapObject(source_obj, &hmap)) {
         PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
+        return NULL;
+    }
+
+    // #214 - Check for null heightmap pointer
+    if (!hmap->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap is not initialized");
         return NULL;
     }
 
