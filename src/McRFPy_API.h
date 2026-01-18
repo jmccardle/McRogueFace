@@ -79,7 +79,7 @@ public:
     // Scene lifecycle management for Python Scene objects
     static void triggerSceneChange(const std::string& from_scene, const std::string& to_scene);
     static void updatePythonScenes(float dt);
-    static void triggerResize(int width, int height);
+    static void triggerResize(sf::Vector2u new_size);
     static void triggerKeyEvent(const std::string& key, const std::string& action);
 
     // #151: Module-level scene property accessors

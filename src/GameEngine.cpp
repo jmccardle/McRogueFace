@@ -421,7 +421,7 @@ void GameEngine::processEvent(const sf::Event& event)
         updateViewport();
         
         // Notify Python scenes about the resize
-        McRFPy_API::triggerResize(event.size.width, event.size.height);
+        McRFPy_API::triggerResize(sf::Vector2u(event.size.width, event.size.height));
     }
 
     else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::MouseButtonPressed || event.type == sf::Event::MouseWheelScrolled) actionType = "start";

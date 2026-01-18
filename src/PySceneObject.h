@@ -27,7 +27,6 @@ public:
     
     // Scene methods
     static PyObject* activate(PySceneObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* register_keyboard(PySceneObject* self, PyObject* args);
     
     // Properties
     static PyObject* get_name(PySceneObject* self, void* closure);
@@ -38,7 +37,7 @@ public:
     static void call_on_exit(PySceneObject* self);
     static void call_on_key(PySceneObject* self, const std::string& key, const std::string& action);
     static void call_update(PySceneObject* self, float dt);
-    static void call_on_resize(PySceneObject* self, int width, int height);
+    static void call_on_resize(PySceneObject* self, sf::Vector2u new_size);
 
     // #183: Lookup scene by name (returns new reference or nullptr)
     static PyObject* get_scene_by_name(const std::string& name);
@@ -77,7 +76,7 @@ namespace mcrfpydef {
             "    on_exit(): Called when scene is deactivated (another scene activates).\n"
             "    on_key(key: str, action: str): Called for keyboard events (subclass method).\n"
             "    update(dt: float): Called every frame with delta time in seconds.\n"
-            "    on_resize(width: int, height: int): Called when window is resized.\n\n"
+            "    on_resize(new_size: Vector): Called when window is resized.\n\n"
             "Example:\n"
             "    # Basic usage (replacing module functions):\n"
             "    scene = mcrfpy.Scene('main_menu')\n"

@@ -136,35 +136,6 @@ static PyObject* PySceneClass_get_children(PySceneObject* self, void* closure)
     return result;
 }
 
-PyObject* PySceneClass::register_keyboard(PySceneObject* self, PyObject* args)
-{
-    PyObject* callable;
-    if (!PyArg_ParseTuple(args, "O", &callable)) {
-        return NULL;
-    }
-
-    if (!PyCallable_Check(callable)) {
-        PyErr_SetString(PyExc_TypeError, "Argument must be callable");
-        return NULL;
-    }
-
-    // Store the callable
-    Py_INCREF(callable);
-
-    // Get the current scene and set its key_callable
-    GameEngine* game = McRFPy_API::game;
-    if (game) {
-        // We need to be on the right scene first
-        std::string old_scene = game->scene;
-        game->scene = self->name;
-        game->currentScene()->key_callable = std::make_unique<PyKeyCallable>(callable);
-        game->scene = old_scene;
-    }
-
-    Py_DECREF(callable);
-    Py_RETURN_NONE;
-}
-
 // on_key property getter
 static PyObject* PySceneClass_get_on_key(PySceneObject* self, void* closure)
 {
@@ -458,11 +429,30 @@ void PySceneClass::call_update(PySceneObject* self, float dt)
     }
 }
 
-void PySceneClass::call_on_resize(PySceneObject* self, int width, int height)
+void PySceneClass::call_on_resize(PySceneObject* self, sf::Vector2u new_size)
 {
     PyObject* method = PyObject_GetAttrString((PyObject*)self, "on_resize");
     if (method && PyCallable_Check(method)) {
-        PyObject* result = PyObject_CallFunction(method, "ii", width, height);
+        // Create a Vector object to pass
+        auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+        if (!type) {
+            PyErr_Print();
+            Py_DECREF(method);
+            return;
+        }
+        PyObject* args = Py_BuildValue("(ff)", (float)new_size.x, (float)new_size.y);
+        PyObject* vector = PyObject_CallObject((PyObject*)type, args);
+        Py_DECREF(type);
+        Py_DECREF(args);
+
+        if (!vector) {
+            PyErr_Print();
+            Py_DECREF(method);
+            return;
+        }
+
+        PyObject* result = PyObject_CallFunctionObjArgs(method, vector, NULL);
+        Py_DECREF(vector);
         if (result) {
             Py_DECREF(result);
         } else {
@@ -536,15 +526,6 @@ PyMethodDef PySceneClass::methods[] = {
          MCRF_RETURNS("None")
          MCRF_NOTE("Deactivates the current scene and activates this one. Lifecycle callbacks (on_exit, on_enter) are triggered.")
      )},
-    {"register_keyboard", (PyCFunction)register_keyboard, METH_VARARGS,
-     MCRF_METHOD(SceneClass, register_keyboard,
-         MCRF_SIG("(callback: callable)", "None"),
-         MCRF_DESC("Register a keyboard event handler function."),
-         MCRF_ARGS_START
-         MCRF_ARG("callback", "Function that receives (key: str, pressed: bool) when keyboard events occur")
-         MCRF_RETURNS("None")
-         MCRF_NOTE("Alternative to setting on_key property. Handler is called for both key press and release events.")
-     )},
     {"realign", (PyCFunction)PySceneClass_realign, METH_NOARGS,
      MCRF_METHOD(SceneClass, realign,
          MCRF_SIG("()", "None"),
@@ -596,14 +577,14 @@ void McRFPy_API::updatePythonScenes(float dt)
 }
 
 // Helper function to trigger resize events on Python scenes
-void McRFPy_API::triggerResize(int width, int height)
+void McRFPy_API::triggerResize(sf::Vector2u new_size)
 {
     GameEngine* game = McRFPy_API::game;
     if (!game) return;
 
     // Only notify the active scene
     if (python_scenes.count(game->scene) > 0) {
-        PySceneClass::call_on_resize(python_scenes[game->scene], width, height);
+        PySceneClass::call_on_resize(python_scenes[game->scene], new_size);
     }
 }
 
