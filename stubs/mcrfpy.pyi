@@ -4,278 +4,34 @@ Core game engine interface for creating roguelike games with Python.
 """
 
 from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload
-from enum import IntEnum
 
 # Type aliases
 UIElement = Union['Frame', 'Caption', 'Sprite', 'Grid', 'Line', 'Circle', 'Arc']
 Transition = Union[str, None]
 
-# Enums
-
-class Key(IntEnum):
-    """Keyboard key codes.
-
-    These enum values compare equal to their legacy string equivalents
-    for backwards compatibility:
-        Key.ESCAPE == 'Escape'  # True
-        Key.LEFT_SHIFT == 'LShift'  # True
-    """
-    # Letters
-    A = 0
-    B = 1
-    C = 2
-    D = 3
-    E = 4
-    F = 5
-    G = 6
-    H = 7
-    I = 8
-    J = 9
-    K = 10
-    L = 11
-    M = 12
-    N = 13
-    O = 14
-    P = 15
-    Q = 16
-    R = 17
-    S = 18
-    T = 19
-    U = 20
-    V = 21
-    W = 22
-    X = 23
-    Y = 24
-    Z = 25
-    # Number row
-    NUM_0 = 26
-    NUM_1 = 27
-    NUM_2 = 28
-    NUM_3 = 29
-    NUM_4 = 30
-    NUM_5 = 31
-    NUM_6 = 32
-    NUM_7 = 33
-    NUM_8 = 34
-    NUM_9 = 35
-    # Control keys
-    ESCAPE = 36
-    LEFT_CONTROL = 37
-    LEFT_SHIFT = 38
-    LEFT_ALT = 39
-    LEFT_SYSTEM = 40
-    RIGHT_CONTROL = 41
-    RIGHT_SHIFT = 42
-    RIGHT_ALT = 43
-    RIGHT_SYSTEM = 44
-    MENU = 45
-    # Punctuation
-    LEFT_BRACKET = 46
-    RIGHT_BRACKET = 47
-    SEMICOLON = 48
-    COMMA = 49
-    PERIOD = 50
-    APOSTROPHE = 51
-    SLASH = 52
-    BACKSLASH = 53
-    GRAVE = 54
-    EQUAL = 55
-    HYPHEN = 56
-    # Whitespace/editing
-    SPACE = 57
-    ENTER = 58
-    BACKSPACE = 59
-    TAB = 60
-    # Navigation
-    PAGE_UP = 61
-    PAGE_DOWN = 62
-    END = 63
-    HOME = 64
-    INSERT = 65
-    DELETE = 66
-    # Numpad operators
-    ADD = 67
-    SUBTRACT = 68
-    MULTIPLY = 69
-    DIVIDE = 70
-    # Arrows
-    LEFT = 71
-    RIGHT = 72
-    UP = 73
-    DOWN = 74
-    # Numpad numbers
-    NUMPAD_0 = 75
-    NUMPAD_1 = 76
-    NUMPAD_2 = 77
-    NUMPAD_3 = 78
-    NUMPAD_4 = 79
-    NUMPAD_5 = 80
-    NUMPAD_6 = 81
-    NUMPAD_7 = 82
-    NUMPAD_8 = 83
-    NUMPAD_9 = 84
-    # Function keys
-    F1 = 85
-    F2 = 86
-    F3 = 87
-    F4 = 88
-    F5 = 89
-    F6 = 90
-    F7 = 91
-    F8 = 92
-    F9 = 93
-    F10 = 94
-    F11 = 95
-    F12 = 96
-    F13 = 97
-    F14 = 98
-    F15 = 99
-    # Misc
-    PAUSE = 100
-    UNKNOWN = -1
-
-class MouseButton(IntEnum):
-    """Mouse button codes.
-
-    These enum values compare equal to their legacy string equivalents
-    for backwards compatibility:
-        MouseButton.LEFT == 'left'  # True
-        MouseButton.RIGHT == 'right'  # True
-    """
-    LEFT = 0
-    RIGHT = 1
-    MIDDLE = 2
-    X1 = 3
-    X2 = 4
-
-class InputState(IntEnum):
-    """Input event states (pressed/released).
-
-    These enum values compare equal to their legacy string equivalents
-    for backwards compatibility:
-        InputState.PRESSED == 'start'  # True
-        InputState.RELEASED == 'end'  # True
-    """
-    PRESSED = 0
-    RELEASED = 1
-
-class Easing(IntEnum):
-    """Easing functions for animations."""
-    LINEAR = 0
-    EASE_IN = 1
-    EASE_OUT = 2
-    EASE_IN_OUT = 3
-    EASE_IN_QUAD = 4
-    EASE_OUT_QUAD = 5
-    EASE_IN_OUT_QUAD = 6
-    EASE_IN_CUBIC = 7
-    EASE_OUT_CUBIC = 8
-    EASE_IN_OUT_CUBIC = 9
-    EASE_IN_QUART = 10
-    EASE_OUT_QUART = 11
-    EASE_IN_OUT_QUART = 12
-    EASE_IN_SINE = 13
-    EASE_OUT_SINE = 14
-    EASE_IN_OUT_SINE = 15
-    EASE_IN_EXPO = 16
-    EASE_OUT_EXPO = 17
-    EASE_IN_OUT_EXPO = 18
-    EASE_IN_CIRC = 19
-    EASE_OUT_CIRC = 20
-    EASE_IN_OUT_CIRC = 21
-    EASE_IN_ELASTIC = 22
-    EASE_OUT_ELASTIC = 23
-    EASE_IN_OUT_ELASTIC = 24
-    EASE_IN_BACK = 25
-    EASE_OUT_BACK = 26
-    EASE_IN_OUT_BACK = 27
-    EASE_IN_BOUNCE = 28
-    EASE_OUT_BOUNCE = 29
-    EASE_IN_OUT_BOUNCE = 30
-
-class FOV(IntEnum):
-    """Field of view algorithms for visibility calculations."""
-    BASIC = 0
-    DIAMOND = 1
-    SHADOW = 2
-    PERMISSIVE_0 = 3
-    PERMISSIVE_1 = 4
-    PERMISSIVE_2 = 5
-    PERMISSIVE_3 = 6
-    PERMISSIVE_4 = 7
-    PERMISSIVE_5 = 8
-    PERMISSIVE_6 = 9
-    PERMISSIVE_7 = 10
-    PERMISSIVE_8 = 11
-    RESTRICTIVE = 12
-    SYMMETRIC_SHADOWCAST = 13
-
-class Alignment(IntEnum):
-    """Alignment positions for automatic child positioning relative to parent bounds.
-
-    When a drawable has an alignment set and is added to a parent, its position
-    is automatically calculated based on the parent's bounds. The position is
-    updated whenever the parent is resized.
-
-    Example:
-        parent = mcrfpy.Frame(pos=(0, 0), size=(400, 300))
-        child = mcrfpy.Caption(text="Centered!", align=mcrfpy.Alignment.CENTER)
-        parent.children.append(child)  # child is auto-positioned to center
-        parent.w = 800  # child position updates automatically
-
-    Set align=None to disable automatic positioning and use manual coordinates.
-    """
-    TOP_LEFT = 0
-    TOP_CENTER = 1
-    TOP_RIGHT = 2
-    CENTER_LEFT = 3
-    CENTER = 4
-    CENTER_RIGHT = 5
-    BOTTOM_LEFT = 6
-    BOTTOM_CENTER = 7
-    BOTTOM_RIGHT = 8
-
 # Classes
 
 class Color:
-    """RGBA color representation.
-
-    Note:
-        When accessing colors from UI elements (e.g., frame.fill_color),
-        you receive a COPY of the color. Modifying it doesn't affect the
-        original. To change a component:
-
-            # This does NOT work:
-            frame.fill_color.r = 255  # Modifies a temporary copy
-
-            # Do this instead:
-            c = frame.fill_color
-            c.r = 255
-            frame.fill_color = c
-
-            # Or use Animation for sub-properties:
-            anim = mcrfpy.Animation('fill_color.r', 255, 0.5, 'linear')
-            anim.start(frame)
-    """
-
+    """SFML Color Object for RGBA colors."""
+    
     r: int
     g: int
     b: int
     a: int
-
+    
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, r: int, g: int, b: int, a: int = 255) -> None: ...
-
+    
     def from_hex(self, hex_string: str) -> 'Color':
         """Create color from hex string (e.g., '#FF0000' or 'FF0000')."""
         ...
-
+    
     def to_hex(self) -> str:
         """Convert color to hex string format."""
         ...
-
+    
     def lerp(self, other: 'Color', t: float) -> 'Color':
         """Linear interpolation between two colors."""
         ...
@@ -311,159 +67,11 @@ class Texture:
 
 class Font:
     """SFML Font Object for text rendering."""
-
+    
     def __init__(self, filename: str) -> None: ...
-
+    
     filename: str
     family: str
-
-class Sound:
-    """Sound effect object for short audio clips.
-
-    Sounds are loaded entirely into memory, making them suitable for
-    short sound effects that need to be played with minimal latency.
-    Multiple Sound instances can play simultaneously.
-    """
-
-    def __init__(self, filename: str) -> None:
-        """Load a sound effect from a file.
-
-        Args:
-            filename: Path to the sound file (WAV, OGG, FLAC supported)
-
-        Raises:
-            RuntimeError: If the file cannot be loaded
-        """
-        ...
-
-    volume: float
-    """Volume level from 0 (silent) to 100 (full volume)."""
-
-    loop: bool
-    """Whether the sound loops when it reaches the end."""
-
-    playing: bool
-    """True if the sound is currently playing (read-only)."""
-
-    duration: float
-    """Total duration of the sound in seconds (read-only)."""
-
-    source: str
-    """Filename path used to load this sound (read-only)."""
-
-    def play(self) -> None:
-        """Start or resume playing the sound."""
-        ...
-
-    def pause(self) -> None:
-        """Pause the sound. Use play() to resume."""
-        ...
-
-    def stop(self) -> None:
-        """Stop playing and reset to the beginning."""
-        ...
-
-class Music:
-    """Streaming music object for longer audio tracks.
-
-    Music is streamed from disk rather than loaded entirely into memory,
-    making it suitable for longer audio tracks like background music.
-    """
-
-    def __init__(self, filename: str) -> None:
-        """Load a music track from a file.
-
-        Args:
-            filename: Path to the music file (WAV, OGG, FLAC supported)
-
-        Raises:
-            RuntimeError: If the file cannot be loaded
-        """
-        ...
-
-    volume: float
-    """Volume level from 0 (silent) to 100 (full volume)."""
-
-    loop: bool
-    """Whether the music loops when it reaches the end."""
-
-    playing: bool
-    """True if the music is currently playing (read-only)."""
-
-    duration: float
-    """Total duration of the music in seconds (read-only)."""
-
-    position: float
-    """Current playback position in seconds. Can be set to seek."""
-
-    source: str
-    """Filename path used to load this music (read-only)."""
-
-    def play(self) -> None:
-        """Start or resume playing the music."""
-        ...
-
-    def pause(self) -> None:
-        """Pause the music. Use play() to resume."""
-        ...
-
-    def stop(self) -> None:
-        """Stop playing and reset to the beginning."""
-        ...
-
-class Keyboard:
-    """Keyboard state singleton for checking modifier keys.
-
-    Access via mcrfpy.keyboard (singleton instance).
-    Queries real-time keyboard state from SFML.
-    """
-
-    shift: bool
-    """True if either Shift key is currently pressed (read-only)."""
-
-    ctrl: bool
-    """True if either Control key is currently pressed (read-only)."""
-
-    alt: bool
-    """True if either Alt key is currently pressed (read-only)."""
-
-    system: bool
-    """True if either System key (Win/Cmd) is currently pressed (read-only)."""
-
-class Mouse:
-    """Mouse state singleton for reading button/position state and controlling cursor.
-
-    Access via mcrfpy.mouse (singleton instance).
-    Queries real-time mouse state from SFML. In headless mode, returns
-    simulated position from mcrfpy.automation calls.
-    """
-
-    # Position (read-only)
-    x: int
-    """Current mouse X position in window coordinates (read-only)."""
-
-    y: int
-    """Current mouse Y position in window coordinates (read-only)."""
-
-    pos: Vector
-    """Current mouse position as Vector (read-only)."""
-
-    # Button state (read-only)
-    left: bool
-    """True if left mouse button is currently pressed (read-only)."""
-
-    right: bool
-    """True if right mouse button is currently pressed (read-only)."""
-
-    middle: bool
-    """True if middle mouse button is currently pressed (read-only)."""
-
-    # Cursor control (read-write)
-    visible: bool
-    """Whether the mouse cursor is visible (default: True)."""
-
-    grabbed: bool
-    """Whether the mouse cursor is confined to the window (default: False)."""
 
 class Drawable:
     """Base class for all drawable UI elements."""
@@ -483,16 +91,6 @@ class Drawable:
 
     # Read-only hover state (#140)
     hovered: bool
-
-    # Alignment system - automatic positioning relative to parent
-    align: Optional[Alignment]
-    """Alignment relative to parent bounds. Set to None for manual positioning."""
-    margin: float
-    """General margin from edge when aligned (applies to both axes unless overridden)."""
-    horiz_margin: float
-    """Horizontal margin override (0 = use general margin)."""
-    vert_margin: float
-    """Vertical margin override (0 = use general margin)."""
 
     def get_bounds(self) -> Tuple[float, float, float, float]:
         """Get bounding box as (x, y, width, height)."""
@@ -518,12 +116,7 @@ class Frame(Drawable):
     def __init__(self, x: float = 0, y: float = 0, w: float = 0, h: float = 0,
                  fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
                  outline: float = 0, on_click: Optional[Callable] = None,
-                 children: Optional[List[UIElement]] = None,
-                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
-                 name: Optional[str] = None, pos: Optional[Tuple[float, float]] = None,
-                 size: Optional[Tuple[float, float]] = None,
-                 align: Optional[Alignment] = None, margin: float = 0.0,
-                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
+                 children: Optional[List[UIElement]] = None) -> None: ...
 
     w: float
     h: float
@@ -546,12 +139,7 @@ class Caption(Drawable):
     def __init__(self, text: str = '', x: float = 0, y: float = 0,
                  font: Optional[Font] = None, fill_color: Optional[Color] = None,
                  outline_color: Optional[Color] = None, outline: float = 0,
-                 on_click: Optional[Callable] = None,
-                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
-                 name: Optional[str] = None, pos: Optional[Tuple[float, float]] = None,
-                 size: Optional[Tuple[float, float]] = None,
-                 align: Optional[Alignment] = None, margin: float = 0.0,
-                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
+                 on_click: Optional[Callable] = None) -> None: ...
 
     text: str
     font: Font
@@ -573,12 +161,7 @@ class Sprite(Drawable):
     @overload
     def __init__(self, x: float = 0, y: float = 0, texture: Optional[Texture] = None,
                  sprite_index: int = 0, scale: float = 1.0,
-                 on_click: Optional[Callable] = None,
-                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
-                 name: Optional[str] = None, pos: Optional[Tuple[float, float]] = None,
-                 size: Optional[Tuple[float, float]] = None,
-                 align: Optional[Alignment] = None, margin: float = 0.0,
-                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
+                 on_click: Optional[Callable] = None) -> None: ...
 
     texture: Texture
     sprite_index: int
@@ -598,12 +181,7 @@ class Grid(Drawable):
     @overload
     def __init__(self, x: float = 0, y: float = 0, grid_size: Tuple[int, int] = (20, 20),
                  texture: Optional[Texture] = None, tile_width: int = 16, tile_height: int = 16,
-                 scale: float = 1.0, on_click: Optional[Callable] = None,
-                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
-                 name: Optional[str] = None, pos: Optional[Tuple[float, float]] = None,
-                 size: Optional[Tuple[float, float]] = None,
-                 align: Optional[Alignment] = None, margin: float = 0.0,
-                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
+                 scale: float = 1.0, on_click: Optional[Callable] = None) -> None: ...
 
     grid_size: Tuple[int, int]
     tile_width: int
@@ -631,11 +209,7 @@ class Line(Drawable):
     def __init__(self, start: Optional[Tuple[float, float]] = None,
                  end: Optional[Tuple[float, float]] = None,
                  thickness: float = 1.0, color: Optional[Color] = None,
-                 on_click: Optional[Callable] = None,
-                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
-                 name: Optional[str] = None,
-                 align: Optional[Alignment] = None, margin: float = 0.0,
-                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
+                 on_click: Optional[Callable] = None) -> None: ...
 
     start: Vector
     end: Vector
@@ -654,11 +228,7 @@ class Circle(Drawable):
     @overload
     def __init__(self, radius: float = 0, center: Optional[Tuple[float, float]] = None,
                  fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
-                 outline: float = 0, on_click: Optional[Callable] = None,
-                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
-                 name: Optional[str] = None,
-                 align: Optional[Alignment] = None, margin: float = 0.0,
-                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
+                 outline: float = 0, on_click: Optional[Callable] = None) -> None: ...
 
     radius: float
     center: Vector
@@ -679,11 +249,7 @@ class Arc(Drawable):
     def __init__(self, center: Optional[Tuple[float, float]] = None, radius: float = 0,
                  start_angle: float = 0, end_angle: float = 90,
                  color: Optional[Color] = None, thickness: float = 1.0,
-                 on_click: Optional[Callable] = None,
-                 visible: bool = True, opacity: float = 1.0, z_index: int = 0,
-                 name: Optional[str] = None,
-                 align: Optional[Alignment] = None, margin: float = 0.0,
-                 horiz_margin: float = 0.0, vert_margin: float = 0.0) -> None: ...
+                 on_click: Optional[Callable] = None) -> None: ...
 
     center: Vector
     radius: float
@@ -855,133 +421,60 @@ class Window:
         ...
 
 class Animation:
-    """Animation for interpolating UI properties over time.
-
-    Create an animation targeting a specific property, then call start() on a
-    UI element to begin the animation. The AnimationManager handles updates
-    automatically.
-
-    Example:
-        # Move a frame to x=500 over 2 seconds with easing
-        anim = mcrfpy.Animation('x', 500.0, 2.0, 'easeInOut')
-        anim.start(my_frame)
-
-        # Animate color with completion callback
-        def on_done(anim, target):
-            print('Fade complete!')
-        fade = mcrfpy.Animation('fill_color.a', 0, 1.0, callback=on_done)
-        fade.start(my_sprite)
-    """
-
-    @property
-    def property(self) -> str:
-        """Target property name being animated (read-only)."""
+    """Animation object for animating UI properties."""
+    
+    target: Any
+    property: str
+    duration: float
+    easing: str
+    loop: bool
+    on_complete: Optional[Callable]
+    
+    def __init__(self, target: Any, property: str, start_value: Any, end_value: Any,
+                 duration: float, easing: str = 'linear', loop: bool = False,
+                 on_complete: Optional[Callable] = None) -> None: ...
+    
+    def start(self) -> None:
+        """Start the animation."""
         ...
-
-    @property
-    def duration(self) -> float:
-        """Animation duration in seconds (read-only)."""
-        ...
-
-    @property
-    def elapsed(self) -> float:
-        """Time elapsed since animation started in seconds (read-only)."""
-        ...
-
-    @property
-    def is_complete(self) -> bool:
-        """Whether the animation has finished (read-only)."""
-        ...
-
-    @property
-    def is_delta(self) -> bool:
-        """Whether animation uses delta/additive mode (read-only)."""
-        ...
-
-    def __init__(self,
-                 property: str,
-                 target: Union[float, int, Tuple[float, float], Tuple[int, int, int], Tuple[int, int, int, int], List[int], str],
-                 duration: float,
-                 easing: str = 'linear',
-                 delta: bool = False,
-                 callback: Optional[Callable[['Animation', Any], None]] = None) -> None:
-        """Create an animation for a UI property.
-
-        Args:
-            property: Property name to animate. Common properties:
-                - Position/Size: 'x', 'y', 'w', 'h', 'pos', 'size'
-                - Appearance: 'fill_color', 'outline_color', 'opacity'
-                - Sprite: 'sprite_index', 'scale'
-                - Grid: 'center', 'zoom'
-                - Sub-properties: 'fill_color.r', 'fill_color.g', etc.
-            target: Target value. Type depends on property:
-                - float: For x, y, w, h, scale, opacity, zoom
-                - int: For sprite_index
-                - (r, g, b) or (r, g, b, a): For colors
-                - (x, y): For pos, size, center
-                - [int, ...]: For sprite animation sequences
-                - str: For text animation
-            duration: Animation duration in seconds.
-            easing: Easing function. Options: 'linear', 'easeIn', 'easeOut',
-                'easeInOut', 'easeInQuad', 'easeOutQuad', 'easeInOutQuad',
-                'easeInCubic', 'easeOutCubic', 'easeInOutCubic',
-                'easeInElastic', 'easeOutElastic', 'easeInOutElastic',
-                'easeInBounce', 'easeOutBounce', 'easeInOutBounce', and more.
-            delta: If True, target value is added to start value.
-            callback: Function(animation, target) called on completion.
-        """
-        ...
-
-    def start(self, target: UIElement, conflict_mode: str = 'replace') -> None:
-        """Start the animation on a UI element.
-
-        Args:
-            target: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)
-            conflict_mode: How to handle if property is already animating:
-                - 'replace': Stop existing animation, start new one (default)
-                - 'queue': Wait for existing animation to complete
-                - 'error': Raise RuntimeError if property is busy
-        """
-        ...
-
+    
     def update(self, dt: float) -> bool:
-        """Update animation by time delta. Returns True if still running.
-
-        Note: Normally called automatically by AnimationManager.
-        """
+        """Update animation, returns True if still running."""
         ...
-
+    
     def get_current_value(self) -> Any:
         """Get the current interpolated value."""
         ...
 
-    def complete(self) -> None:
-        """Complete the animation immediately, jumping to final value."""
-        ...
-
-    def hasValidTarget(self) -> bool:
-        """Check if the animation target still exists."""
-        ...
-
-    def __repr__(self) -> str:
-        """Return string representation showing property, duration, and status."""
-        ...
-
-# Module-level attributes
-
-__version__: str
-"""McRogueFace version string (e.g., '1.0.0')."""
-
-keyboard: Keyboard
-"""Keyboard state singleton for checking modifier keys."""
-
-mouse: Mouse
-"""Mouse state singleton for reading button/position state and controlling cursor."""
-
-window: Window
-"""Window singleton for controlling window properties."""
-
 # Module functions
+
+def createSoundBuffer(filename: str) -> int:
+    """Load a sound effect from a file and return its buffer ID."""
+    ...
+
+def loadMusic(filename: str) -> None:
+    """Load and immediately play background music from a file."""
+    ...
+
+def setMusicVolume(volume: int) -> None:
+    """Set the global music volume (0-100)."""
+    ...
+
+def setSoundVolume(volume: int) -> None:
+    """Set the global sound effects volume (0-100)."""
+    ...
+
+def playSound(buffer_id: int) -> None:
+    """Play a sound effect using a previously loaded buffer."""
+    ...
+
+def getMusicVolume() -> int:
+    """Get the current music volume level (0-100)."""
+    ...
+
+def getSoundVolume() -> int:
+    """Get the current sound effects volume level (0-100)."""
+    ...
 
 def sceneUI(scene: Optional[str] = None) -> UICollection:
     """Get all UI elements for a scene."""

@@ -9,6 +9,7 @@
 #include <ctime>    // For time-based seeds
 #include <vector>   // For BSP node collection
 #include <algorithm>  // For std::min
+#include <cfloat>     // For FLT_MAX
 
 // =============================================================================
 // Region Parameter System - standardized handling of pos, source_pos, size
@@ -224,7 +225,7 @@ PyGetSetDef PyHeightMap::getsetters[] = {
 PyMappingMethods PyHeightMap::mapping_methods = {
     .mp_length = nullptr,  // __len__ not needed
     .mp_subscript = (binaryfunc)PyHeightMap::subscript,  // __getitem__
-    .mp_ass_subscript = nullptr  // __setitem__ (read-only for now)
+    .mp_ass_subscript = (objobjargproc)PyHeightMap::subscript_assign  // __setitem__
 };
 
 // Method definitions
@@ -438,16 +439,58 @@ PyMethodDef PyHeightMap::methods[] = {
          MCRF_ARG("iterations", "Number of smoothing passes (default 1)")
          MCRF_RETURNS("HeightMap: self, for method chaining")
      )},
-    {"kernel_transform", (PyCFunction)PyHeightMap::kernel_transform, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(HeightMap, kernel_transform,
-         MCRF_SIG("(weights: dict[tuple[int, int], float], *, min: float = 0.0, max: float = 1e6)", "HeightMap"),
-         MCRF_DESC("Apply a convolution kernel to the heightmap. Keys are (dx, dy) offsets, values are weights."),
+    // Convolution methods (libtcod 2.2.2+)
+    {"sparse_kernel", (PyCFunction)PyHeightMap::sparse_kernel, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, sparse_kernel,
+         MCRF_SIG("(weights: dict[tuple[int, int], float], *, min_level: float = -inf, max_level: float = inf)", "HeightMap"),
+         MCRF_DESC("Apply sparse convolution kernel, returning a NEW HeightMap with results."),
          MCRF_ARGS_START
          MCRF_ARG("weights", "Dict mapping (dx, dy) offsets to weight values")
-         MCRF_ARG("min", "Only transform cells with value >= min (default: 0.0)")
-         MCRF_ARG("max", "Only transform cells with value <= max (default: 1e6)")
-         MCRF_RETURNS("HeightMap: self, for method chaining")
-         MCRF_NOTE("Use for edge detection, blur, sharpen, and other convolution effects")
+         MCRF_ARG("min_level", "Only transform cells with value >= min_level (default: -inf)")
+         MCRF_ARG("max_level", "Only transform cells with value <= max_level (default: inf)")
+         MCRF_RETURNS("HeightMap: new heightmap with convolution result")
+     )},
+    {"sparse_kernel_from", (PyCFunction)PyHeightMap::sparse_kernel_from, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, sparse_kernel_from,
+         MCRF_SIG("(source: HeightMap, weights: dict[tuple[int, int], float], *, min_level: float = -inf, max_level: float = inf)", "None"),
+         MCRF_DESC("Apply sparse convolution from source heightmap into self (for reusing destination buffers)."),
+         MCRF_ARGS_START
+         MCRF_ARG("source", "Source HeightMap to convolve from")
+         MCRF_ARG("weights", "Dict mapping (dx, dy) offsets to weight values")
+         MCRF_ARG("min_level", "Only transform cells with value >= min_level (default: -inf)")
+         MCRF_ARG("max_level", "Only transform cells with value <= max_level (default: inf)")
+         MCRF_RETURNS("None")
+     )},
+    {"kernel3", (PyCFunction)PyHeightMap::kernel3, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, kernel3,
+         MCRF_SIG("(weights: Sequence[float], *, normalize: bool = True)", "HeightMap"),
+         MCRF_DESC("Apply 3x3 convolution kernel, returning a NEW HeightMap with results."),
+         MCRF_ARGS_START
+         MCRF_ARG("weights", "9 floats as flat list [w0..w8] or nested [[r0],[r1],[r2]]")
+         MCRF_ARG("normalize", "Divide result by sum of weights (default: True)")
+         MCRF_RETURNS("HeightMap: new heightmap with convolution result")
+         MCRF_NOTE("Kernel layout: [0,1,2] = top row, [3,4,5] = middle, [6,7,8] = bottom")
+     )},
+    {"kernel3_from", (PyCFunction)PyHeightMap::kernel3_from, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, kernel3_from,
+         MCRF_SIG("(source: HeightMap, weights: Sequence[float], *, normalize: bool = True)", "None"),
+         MCRF_DESC("Apply 3x3 convolution from source heightmap into self (for reusing destination buffers)."),
+         MCRF_ARGS_START
+         MCRF_ARG("source", "Source HeightMap to convolve from")
+         MCRF_ARG("weights", "9 floats as flat list [w0..w8] or nested [[r0],[r1],[r2]]")
+         MCRF_ARG("normalize", "Divide result by sum of weights (default: True)")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Kernel layout: [0,1,2] = top row, [3,4,5] = middle, [6,7,8] = bottom")
+     )},
+    {"gradients", (PyCFunction)PyHeightMap::gradients, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(HeightMap, gradients,
+         MCRF_SIG("(dx=True, dy=True)", "HeightMap | tuple[HeightMap, HeightMap] | None"),
+         MCRF_DESC("Compute gradient (partial derivatives) of the heightmap."),
+         MCRF_ARGS_START
+         MCRF_ARG("dx", "HeightMap to write dx into, True to create new, False to skip")
+         MCRF_ARG("dy", "HeightMap to write dy into, True to create new, False to skip")
+         MCRF_RETURNS("Depends on args: (dx, dy) tuple, single HeightMap, or None")
+         MCRF_NOTE("Pass existing HeightMaps for dx/dy to reuse buffers in hot loops")
      )},
     // Combination operations (#194) - with region support
     {"add", (PyCFunction)PyHeightMap::add, METH_VARARGS | METH_KEYWORDS,
@@ -1112,6 +1155,48 @@ PyObject* PyHeightMap::subscript(PyHeightMapObject* self, PyObject* key)
     return PyFloat_FromDouble(value);
 }
 
+// Subscript assign: hmap[x, y] = value (shorthand for set)
+int PyHeightMap::subscript_assign(PyHeightMapObject* self, PyObject* key, PyObject* value)
+{
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return -1;
+    }
+
+    // Handle deletion (not supported)
+    if (value == nullptr) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete HeightMap elements");
+        return -1;
+    }
+
+    int x, y;
+    if (!PyPosition_FromObjectInt(key, &x, &y)) {
+        return -1;
+    }
+
+    // Bounds check
+    if (x < 0 || x >= self->heightmap->w || y < 0 || y >= self->heightmap->h) {
+        PyErr_Format(PyExc_IndexError,
+            "Position (%d, %d) out of bounds for HeightMap of size (%d, %d)",
+            x, y, self->heightmap->w, self->heightmap->h);
+        return -1;
+    }
+
+    // Parse value as float
+    float fval;
+    if (PyFloat_Check(value)) {
+        fval = static_cast<float>(PyFloat_AsDouble(value));
+    } else if (PyLong_Check(value)) {
+        fval = static_cast<float>(PyLong_AsLong(value));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "value must be numeric (int or float)");
+        return -1;
+    }
+
+    TCOD_heightmap_set_value(self->heightmap, x, y, fval);
+    return 0;  // Success
+}
+
 // Threshold operations (#197) - return NEW HeightMaps
 
 // Helper: Parse range from tuple or list
@@ -1147,6 +1232,9 @@ static bool ParseRange(PyObject* range_obj, float* min_val, float* max_val)
 
     return !PyErr_Occurred();
 }
+
+// Forward declaration for helper used by convolution methods
+static PyHeightMapObject* validateOtherHeightMapType(PyObject* other_obj, const char* method_name);
 
 // Helper: Create a new HeightMap object with same dimensions
 static PyHeightMapObject* CreateNewHeightMap(int width, int height)
@@ -1630,14 +1718,219 @@ PyObject* PyHeightMap::smooth(PyHeightMapObject* self, PyObject* args, PyObject*
     return (PyObject*)self;
 }
 
-// kernel_transform - apply custom convolution kernel (#198)
-PyObject* PyHeightMap::kernel_transform(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+// =============================================================================
+// Convolution methods (libtcod 2.2.2+)
+// =============================================================================
+
+// Helper: Parse weights dict into arrays for sparse kernel
+// Returns kernel_size on success, -1 on error
+static Py_ssize_t ParseWeightsDict(PyObject* weights_dict,
+                                    std::vector<int>& dx,
+                                    std::vector<int>& dy,
+                                    std::vector<float>& weight)
+{
+    if (!PyDict_Check(weights_dict)) {
+        PyErr_SetString(PyExc_TypeError, "weights must be a dict");
+        return -1;
+    }
+
+    Py_ssize_t kernel_size = PyDict_Size(weights_dict);
+    if (kernel_size <= 0) {
+        PyErr_SetString(PyExc_ValueError, "weights dict cannot be empty");
+        return -1;
+    }
+
+    dx.resize(kernel_size);
+    dy.resize(kernel_size);
+    weight.resize(kernel_size);
+
+    PyObject* key;
+    PyObject* value;
+    Py_ssize_t pos = 0;
+    Py_ssize_t idx = 0;
+
+    while (PyDict_Next(weights_dict, &pos, &key, &value)) {
+        int key_dx = 0, key_dy = 0;
+
+        if (PyTuple_Check(key) && PyTuple_Size(key) == 2) {
+            PyObject* x_obj = PyTuple_GetItem(key, 0);
+            PyObject* y_obj = PyTuple_GetItem(key, 1);
+            if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
+                PyErr_SetString(PyExc_TypeError, "weights keys must be (int, int) tuples");
+                return -1;
+            }
+            key_dx = PyLong_AsLong(x_obj);
+            key_dy = PyLong_AsLong(y_obj);
+        } else if (PyList_Check(key) && PyList_Size(key) == 2) {
+            PyObject* x_obj = PyList_GetItem(key, 0);
+            PyObject* y_obj = PyList_GetItem(key, 1);
+            if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
+                PyErr_SetString(PyExc_TypeError, "weights keys must be [int, int] lists");
+                return -1;
+            }
+            key_dx = PyLong_AsLong(x_obj);
+            key_dy = PyLong_AsLong(y_obj);
+        } else if (PyObject_HasAttrString(key, "x") && PyObject_HasAttrString(key, "y")) {
+            PyObject* x_attr = PyObject_GetAttrString(key, "x");
+            PyObject* y_attr = PyObject_GetAttrString(key, "y");
+            if (!x_attr || !y_attr) {
+                Py_XDECREF(x_attr);
+                Py_XDECREF(y_attr);
+                PyErr_SetString(PyExc_TypeError, "weights keys must be (dx, dy) tuples, lists, or Vectors");
+                return -1;
+            }
+            key_dx = static_cast<int>(PyFloat_Check(x_attr) ? PyFloat_AsDouble(x_attr) : PyLong_AsLong(x_attr));
+            key_dy = static_cast<int>(PyFloat_Check(y_attr) ? PyFloat_AsDouble(y_attr) : PyLong_AsLong(y_attr));
+            Py_DECREF(x_attr);
+            Py_DECREF(y_attr);
+        } else {
+            PyErr_SetString(PyExc_TypeError, "weights keys must be (dx, dy) tuples, lists, or Vectors");
+            return -1;
+        }
+
+        float w = 0.0f;
+        if (PyFloat_Check(value)) {
+            w = static_cast<float>(PyFloat_AsDouble(value));
+        } else if (PyLong_Check(value)) {
+            w = static_cast<float>(PyLong_AsLong(value));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "weights values must be numeric (int or float)");
+            return -1;
+        }
+
+        dx[idx] = key_dx;
+        dy[idx] = key_dy;
+        weight[idx] = w;
+        idx++;
+    }
+
+    return kernel_size;
+}
+
+// Helper: Parse 3x3 kernel from flat or nested sequence
+// Returns true on success, sets error and returns false on failure
+static bool ParseKernel3(PyObject* weights_obj, float kernel[9])
+{
+    // Check if it's a sequence
+    if (!PySequence_Check(weights_obj)) {
+        PyErr_SetString(PyExc_TypeError, "weights must be a sequence (list or tuple)");
+        return false;
+    }
+
+    Py_ssize_t len = PySequence_Size(weights_obj);
+
+    if (len == 9) {
+        // Flat format: [w0, w1, w2, w3, w4, w5, w6, w7, w8]
+        for (int i = 0; i < 9; i++) {
+            PyObject* item = PySequence_GetItem(weights_obj, i);
+            if (!item) return false;
+
+            if (PyFloat_Check(item)) {
+                kernel[i] = static_cast<float>(PyFloat_AsDouble(item));
+            } else if (PyLong_Check(item)) {
+                kernel[i] = static_cast<float>(PyLong_AsLong(item));
+            } else {
+                Py_DECREF(item);
+                PyErr_SetString(PyExc_TypeError, "kernel weights must be numeric");
+                return false;
+            }
+            Py_DECREF(item);
+        }
+        return true;
+    } else if (len == 3) {
+        // Nested format: [[r0], [r1], [r2]] where each row has 3 elements
+        for (int row = 0; row < 3; row++) {
+            PyObject* row_obj = PySequence_GetItem(weights_obj, row);
+            if (!row_obj) return false;
+
+            if (!PySequence_Check(row_obj) || PySequence_Size(row_obj) != 3) {
+                Py_DECREF(row_obj);
+                PyErr_SetString(PyExc_TypeError, "nested kernel must have 3 rows of 3 elements each");
+                return false;
+            }
+
+            for (int col = 0; col < 3; col++) {
+                PyObject* item = PySequence_GetItem(row_obj, col);
+                if (!item) {
+                    Py_DECREF(row_obj);
+                    return false;
+                }
+
+                if (PyFloat_Check(item)) {
+                    kernel[row * 3 + col] = static_cast<float>(PyFloat_AsDouble(item));
+                } else if (PyLong_Check(item)) {
+                    kernel[row * 3 + col] = static_cast<float>(PyLong_AsLong(item));
+                } else {
+                    Py_DECREF(item);
+                    Py_DECREF(row_obj);
+                    PyErr_SetString(PyExc_TypeError, "kernel weights must be numeric");
+                    return false;
+                }
+                Py_DECREF(item);
+            }
+            Py_DECREF(row_obj);
+        }
+        return true;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "weights must be 9 elements (flat) or 3x3 nested");
+        return false;
+    }
+}
+
+// sparse_kernel_from - apply sparse convolution from source into self
+PyObject* PyHeightMap::sparse_kernel_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    PyObject* source_obj = nullptr;
+    PyObject* weights_dict = nullptr;
+    float min_level = -FLT_MAX;
+    float max_level = FLT_MAX;
+
+    static const char* kwlist[] = {"source", "weights", "min_level", "max_level", nullptr};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|ff", const_cast<char**>(kwlist),
+                                     &source_obj, &weights_dict, &min_level, &max_level)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Validate source
+    PyHeightMapObject* source = validateOtherHeightMapType(source_obj, "sparse_kernel_from");
+    if (!source) return nullptr;
+
+    // Check dimensions match
+    if (source->heightmap->w != self->heightmap->w ||
+        source->heightmap->h != self->heightmap->h) {
+        PyErr_SetString(PyExc_ValueError, "source and destination HeightMaps must have same dimensions");
+        return nullptr;
+    }
+
+    // Parse weights
+    std::vector<int> dx, dy;
+    std::vector<float> weight;
+    Py_ssize_t kernel_size = ParseWeightsDict(weights_dict, dx, dy, weight);
+    if (kernel_size < 0) return nullptr;
+
+    // Apply the kernel transform
+    TCOD_heightmap_kernel_transform_hm(source->heightmap, self->heightmap,
+                                        static_cast<int>(kernel_size),
+                                        dx.data(), dy.data(), weight.data(),
+                                        min_level, max_level);
+
+    Py_RETURN_NONE;
+}
+
+// sparse_kernel - apply sparse convolution, return new HeightMap
+PyObject* PyHeightMap::sparse_kernel(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
     PyObject* weights_dict = nullptr;
-    float min_level = 0.0f;
-    float max_level = 1000000.0f;
+    float min_level = -FLT_MAX;
+    float max_level = FLT_MAX;
 
-    static const char* kwlist[] = {"weights", "min", "max", nullptr};
+    static const char* kwlist[] = {"weights", "min_level", "max_level", nullptr};
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|ff", const_cast<char**>(kwlist),
                                      &weights_dict, &min_level, &max_level)) {
@@ -1649,93 +1942,200 @@ PyObject* PyHeightMap::kernel_transform(PyHeightMapObject* self, PyObject* args,
         return nullptr;
     }
 
-    if (!PyDict_Check(weights_dict)) {
-        PyErr_SetString(PyExc_TypeError, "weights must be a dict");
+    // Create new HeightMap for result
+    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
+    if (!result) return nullptr;
+
+    // Parse weights
+    std::vector<int> dx, dy;
+    std::vector<float> weight;
+    Py_ssize_t kernel_size = ParseWeightsDict(weights_dict, dx, dy, weight);
+    if (kernel_size < 0) {
+        Py_DECREF(result);
         return nullptr;
-    }
-
-    Py_ssize_t kernel_size = PyDict_Size(weights_dict);
-    if (kernel_size <= 0) {
-        PyErr_SetString(PyExc_ValueError, "weights dict cannot be empty");
-        return nullptr;
-    }
-
-    // Allocate arrays for the kernel
-    std::vector<int> dx(kernel_size);
-    std::vector<int> dy(kernel_size);
-    std::vector<float> weight(kernel_size);
-
-    // Iterate through the dict
-    PyObject* key;
-    PyObject* value;
-    Py_ssize_t pos = 0;
-    Py_ssize_t idx = 0;
-
-    while (PyDict_Next(weights_dict, &pos, &key, &value)) {
-        // Parse the key as (dx, dy) - can be tuple, list, or Vector
-        int key_dx = 0, key_dy = 0;
-
-        if (PyTuple_Check(key) && PyTuple_Size(key) == 2) {
-            PyObject* x_obj = PyTuple_GetItem(key, 0);
-            PyObject* y_obj = PyTuple_GetItem(key, 1);
-            if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-                PyErr_SetString(PyExc_TypeError, "weights keys must be (int, int) tuples");
-                return nullptr;
-            }
-            key_dx = PyLong_AsLong(x_obj);
-            key_dy = PyLong_AsLong(y_obj);
-        } else if (PyList_Check(key) && PyList_Size(key) == 2) {
-            PyObject* x_obj = PyList_GetItem(key, 0);
-            PyObject* y_obj = PyList_GetItem(key, 1);
-            if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-                PyErr_SetString(PyExc_TypeError, "weights keys must be [int, int] lists");
-                return nullptr;
-            }
-            key_dx = PyLong_AsLong(x_obj);
-            key_dy = PyLong_AsLong(y_obj);
-        } else if (PyObject_HasAttrString(key, "x") && PyObject_HasAttrString(key, "y")) {
-            // Vector-like object
-            PyObject* x_attr = PyObject_GetAttrString(key, "x");
-            PyObject* y_attr = PyObject_GetAttrString(key, "y");
-            if (!x_attr || !y_attr) {
-                Py_XDECREF(x_attr);
-                Py_XDECREF(y_attr);
-                PyErr_SetString(PyExc_TypeError, "weights keys must be (dx, dy) tuples, lists, or Vectors");
-                return nullptr;
-            }
-            key_dx = static_cast<int>(PyFloat_Check(x_attr) ? PyFloat_AsDouble(x_attr) : PyLong_AsLong(x_attr));
-            key_dy = static_cast<int>(PyFloat_Check(y_attr) ? PyFloat_AsDouble(y_attr) : PyLong_AsLong(y_attr));
-            Py_DECREF(x_attr);
-            Py_DECREF(y_attr);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "weights keys must be (dx, dy) tuples, lists, or Vectors");
-            return nullptr;
-        }
-
-        // Parse the value as float
-        float w = 0.0f;
-        if (PyFloat_Check(value)) {
-            w = static_cast<float>(PyFloat_AsDouble(value));
-        } else if (PyLong_Check(value)) {
-            w = static_cast<float>(PyLong_AsLong(value));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "weights values must be numeric (int or float)");
-            return nullptr;
-        }
-
-        dx[idx] = key_dx;
-        dy[idx] = key_dy;
-        weight[idx] = w;
-        idx++;
     }
 
     // Apply the kernel transform
-    TCOD_heightmap_kernel_transform(self->heightmap, static_cast<int>(kernel_size),
-                                     dx.data(), dy.data(), weight.data(),
-                                     min_level, max_level);
+    TCOD_heightmap_kernel_transform_hm(self->heightmap, result->heightmap,
+                                        static_cast<int>(kernel_size),
+                                        dx.data(), dy.data(), weight.data(),
+                                        min_level, max_level);
 
-    Py_INCREF(self);
-    return (PyObject*)self;
+    return (PyObject*)result;
+}
+
+// kernel3_from - apply 3x3 convolution from source into self
+PyObject* PyHeightMap::kernel3_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    PyObject* source_obj = nullptr;
+    PyObject* weights_obj = nullptr;
+    int normalize = 1;  // Python bool
+
+    static const char* kwlist[] = {"source", "weights", "normalize", nullptr};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|p", const_cast<char**>(kwlist),
+                                     &source_obj, &weights_obj, &normalize)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Validate source
+    PyHeightMapObject* source = validateOtherHeightMapType(source_obj, "kernel3_from");
+    if (!source) return nullptr;
+
+    // Check dimensions match
+    if (source->heightmap->w != self->heightmap->w ||
+        source->heightmap->h != self->heightmap->h) {
+        PyErr_SetString(PyExc_ValueError, "source and destination HeightMaps must have same dimensions");
+        return nullptr;
+    }
+
+    // Parse kernel
+    float kernel[9];
+    if (!ParseKernel3(weights_obj, kernel)) return nullptr;
+
+    // Apply convolution
+    TCOD_heightmap_convolve3x3(source->heightmap, self->heightmap, kernel, normalize != 0);
+
+    Py_RETURN_NONE;
+}
+
+// kernel3 - apply 3x3 convolution, return new HeightMap
+PyObject* PyHeightMap::kernel3(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    PyObject* weights_obj = nullptr;
+    int normalize = 1;
+
+    static const char* kwlist[] = {"weights", "normalize", nullptr};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|p", const_cast<char**>(kwlist),
+                                     &weights_obj, &normalize)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    // Create new HeightMap for result
+    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
+    if (!result) return nullptr;
+
+    // Parse kernel
+    float kernel[9];
+    if (!ParseKernel3(weights_obj, kernel)) {
+        Py_DECREF(result);
+        return nullptr;
+    }
+
+    // Apply convolution
+    TCOD_heightmap_convolve3x3(self->heightmap, result->heightmap, kernel, normalize != 0);
+
+    return (PyObject*)result;
+}
+
+// gradients - compute partial derivatives
+// Usage:
+//   source.gradients(dx_hm, dy_hm) - write to existing HeightMaps, return None
+//   dx, dy = source.gradients()   - create new HeightMaps, return tuple
+//   dx = source.gradients(dy=False) - skip dy, return single HeightMap
+PyObject* PyHeightMap::gradients(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
+{
+    PyObject* dx_arg = Py_True;
+    PyObject* dy_arg = Py_True;
+
+    static const char* kwlist[] = {"dx", "dy", nullptr};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", const_cast<char**>(kwlist),
+                                     &dx_arg, &dy_arg)) {
+        return nullptr;
+    }
+
+    if (!self->heightmap) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
+        return nullptr;
+    }
+
+    int w = self->heightmap->w;
+    int h = self->heightmap->h;
+
+    // Determine what to do with dx
+    PyHeightMapObject* dx_hm = nullptr;
+    bool dx_return_new = false;
+    bool dx_skip = false;
+
+    if (dx_arg == Py_True) {
+        // Create new HeightMap for dx
+        dx_hm = CreateNewHeightMap(w, h);
+        if (!dx_hm) return nullptr;
+        dx_return_new = true;
+    } else if (dx_arg == Py_False || dx_arg == Py_None) {
+        // Skip dx
+        dx_skip = true;
+    } else {
+        // Should be a HeightMap to write into
+        dx_hm = validateOtherHeightMapType(dx_arg, "gradients");
+        if (!dx_hm) return nullptr;
+        if (dx_hm->heightmap->w != w || dx_hm->heightmap->h != h) {
+            PyErr_SetString(PyExc_ValueError, "dx HeightMap must have same dimensions as source");
+            return nullptr;
+        }
+    }
+
+    // Determine what to do with dy
+    PyHeightMapObject* dy_hm = nullptr;
+    bool dy_return_new = false;
+    bool dy_skip = false;
+
+    if (dy_arg == Py_True) {
+        // Create new HeightMap for dy
+        dy_hm = CreateNewHeightMap(w, h);
+        if (!dy_hm) {
+            if (dx_return_new) Py_DECREF(dx_hm);
+            return nullptr;
+        }
+        dy_return_new = true;
+    } else if (dy_arg == Py_False || dy_arg == Py_None) {
+        // Skip dy
+        dy_skip = true;
+    } else {
+        // Should be a HeightMap to write into
+        dy_hm = validateOtherHeightMapType(dy_arg, "gradients");
+        if (!dy_hm) {
+            if (dx_return_new) Py_DECREF(dx_hm);
+            return nullptr;
+        }
+        if (dy_hm->heightmap->w != w || dy_hm->heightmap->h != h) {
+            if (dx_return_new) Py_DECREF(dx_hm);
+            PyErr_SetString(PyExc_ValueError, "dy HeightMap must have same dimensions as source");
+            return nullptr;
+        }
+    }
+
+    // Call the gradient function
+    TCOD_heightmap_gradient(self->heightmap,
+                            dx_skip ? nullptr : dx_hm->heightmap,
+                            dy_skip ? nullptr : dy_hm->heightmap);
+
+    // Build return value
+    if (dx_return_new && dy_return_new) {
+        // Return tuple of (dx, dy)
+        return Py_BuildValue("(OO)", dx_hm, dy_hm);
+    } else if (dx_return_new) {
+        // Return just dx
+        return (PyObject*)dx_hm;
+    } else if (dy_return_new) {
+        // Return just dy
+        return (PyObject*)dy_hm;
+    } else {
+        // Nothing to return
+        Py_RETURN_NONE;
+    }
 }
 
 // =============================================================================

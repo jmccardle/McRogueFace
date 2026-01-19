@@ -53,10 +53,17 @@ public:
     static PyObject* rain_erosion(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* dig_bezier(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* smooth(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* kernel_transform(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+
+    // Correct convolution methods (using new libtcod functions)
+    static PyObject* sparse_kernel(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* sparse_kernel_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* kernel3(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* kernel3_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* gradients(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
 
     // Subscript support for hmap[x, y] syntax
     static PyObject* subscript(PyHeightMapObject* self, PyObject* key);
+    static int subscript_assign(PyHeightMapObject* self, PyObject* key, PyObject* value);
 
     // Combination operations (#194) - mutate self, return self for chaining, support region parameters
     static PyObject* add(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
