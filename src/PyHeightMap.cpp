@@ -1915,7 +1915,7 @@ PyObject* PyHeightMap::sparse_kernel_from(PyHeightMapObject* self, PyObject* arg
     if (kernel_size < 0) return nullptr;
 
     // Apply the kernel transform
-    TCOD_heightmap_kernel_transform_hm(source->heightmap, self->heightmap,
+    TCOD_heightmap_kernel_transform_out(source->heightmap, self->heightmap,
                                         static_cast<int>(kernel_size),
                                         dx.data(), dy.data(), weight.data(),
                                         min_level, max_level);
@@ -1956,7 +1956,7 @@ PyObject* PyHeightMap::sparse_kernel(PyHeightMapObject* self, PyObject* args, Py
     }
 
     // Apply the kernel transform
-    TCOD_heightmap_kernel_transform_hm(self->heightmap, result->heightmap,
+    TCOD_heightmap_kernel_transform_out(self->heightmap, result->heightmap,
                                         static_cast<int>(kernel_size),
                                         dx.data(), dy.data(), weight.data(),
                                         min_level, max_level);
