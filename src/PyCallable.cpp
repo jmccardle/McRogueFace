@@ -2,6 +2,8 @@
 #include "McRFPy_API.h"
 #include "GameEngine.h"
 #include "PyVector.h"
+#include "PyMouseButton.h"
+#include "PyInputState.h"
 
 PyCallable::PyCallable(PyObject* _target)
 {
@@ -66,9 +68,45 @@ void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::strin
         PyErr_Clear();
         return;
     }
-    PyObject* args = Py_BuildValue("(Oss)", pos, button.c_str(), action.c_str());
-    Py_DECREF(pos);  // Py_BuildValue increments the refcount
+
+    // Convert button string to MouseButton enum (#222)
+    int button_val = 0;  // Default to LEFT
+    if (button == "left") button_val = 0;
+    else if (button == "right") button_val = 1;
+    else if (button == "middle") button_val = 2;
+    else if (button == "x1") button_val = 3;
+    else if (button == "x2") button_val = 4;
+
+    PyObject* button_enum = nullptr;
+    if (PyMouseButton::mouse_button_enum_class) {
+        button_enum = PyObject_CallFunction(PyMouseButton::mouse_button_enum_class, "i", button_val);
+    }
+    if (!button_enum) {
+        // Fallback to string if enum creation fails
+        PyErr_Clear();
+        button_enum = PyUnicode_FromString(button.c_str());
+    }
+
+    // Convert action string to InputState enum (#222)
+    int action_val = (action == "start") ? 0 : 1;  // PRESSED=0, RELEASED=1
+
+    PyObject* action_enum = nullptr;
+    if (PyInputState::input_state_enum_class) {
+        action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
+    }
+    if (!action_enum) {
+        // Fallback to string if enum creation fails
+        PyErr_Clear();
+        action_enum = PyUnicode_FromString(action.c_str());
+    }
+
+    PyObject* args = Py_BuildValue("(OOO)", pos, button_enum, action_enum);
+    Py_DECREF(pos);
+    Py_DECREF(button_enum);
+    Py_DECREF(action_enum);
+
     PyObject* retval = PyCallable::call(args, NULL);
+    Py_DECREF(args);
     if (!retval)
     {
         std::cerr << "Click callback raised an exception:" << std::endl;
@@ -83,6 +121,9 @@ void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::strin
     {
         std::cout << "ClickCallable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
         std::cout << PyUnicode_AsUTF8(PyObject_Repr(retval)) << std::endl;
+        Py_DECREF(retval);
+    } else {
+        Py_DECREF(retval);
     }
 }
 
