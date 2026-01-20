@@ -1,7 +1,7 @@
 #include "McRFPy_API.h"
 #include "UIDrawable.h"
 #include "McRFPy_Automation.h"
-#include "McRFPy_Libtcod.h"
+// Note: McRFPy_Libtcod.h removed in #215 - functionality moved to mcrfpy.bresenham()
 #include "McRFPy_Doc.h"
 #include "PyTypeCache.h"  // Thread-safe cached Python types
 #include "platform.h"
@@ -26,6 +26,7 @@
 #include "PyBSP.h"  // Procedural generation BSP (#202-206)
 #include "PyNoiseSource.h"  // Procedural generation noise (#207-208)
 #include "PyLock.h"  // Thread synchronization (#219)
+#include "PyVector.h"  // For bresenham Vector support (#215)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
@@ -302,6 +303,21 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("Use with `with mcrfpy.lock():` to safely modify UI objects from a background thread. "
                    "The context manager blocks until the render loop reaches a safe point between frames. "
                    "Without this, modifying UI from threads may cause visual glitches or crashes.")
+     )},
+
+    // #215: Bresenham line algorithm (replaces mcrfpy.libtcod.line)
+    {"bresenham", (PyCFunction)McRFPy_API::_bresenham, METH_VARARGS | METH_KEYWORDS,
+     MCRF_FUNCTION(bresenham,
+         MCRF_SIG("(start, end, *, include_start=True, include_end=True)", "list[tuple[int, int]]"),
+         MCRF_DESC("Compute grid cells along a line using Bresenham's algorithm."),
+         MCRF_ARGS_START
+         MCRF_ARG("start", "(x, y) tuple or Vector - starting point")
+         MCRF_ARG("end", "(x, y) tuple or Vector - ending point")
+         MCRF_ARG("include_start", "Include the starting point in results (default: True)")
+         MCRF_ARG("include_end", "Include the ending point in results (default: True)")
+         MCRF_RETURNS("list[tuple[int, int]]: List of (x, y) grid coordinates along the line")
+         MCRF_NOTE("Useful for line-of-sight checks, projectile paths, and drawing lines on grids. "
+                   "The algorithm ensures minimal grid traversal between two points.")
      )},
 
     {NULL, NULL, 0, NULL}
@@ -638,16 +654,10 @@ PyObject* PyInit_mcrfpy()
         PyObject* sys_modules = PyImport_GetModuleDict();
         PyDict_SetItemString(sys_modules, "mcrfpy.automation", automation_module);
     }
-    
-    // Add libtcod submodule
-    PyObject* libtcod_module = McRFPy_Libtcod::init_libtcod_module();
-    if (libtcod_module != NULL) {
-        PyModule_AddObject(m, "libtcod", libtcod_module);
 
-        // Also add to sys.modules for proper import behavior
-        PyObject* sys_modules = PyImport_GetModuleDict();
-        PyDict_SetItemString(sys_modules, "mcrfpy.libtcod", libtcod_module);
-    }
+    // Note: mcrfpy.libtcod submodule removed in #215
+    // - line() functionality replaced by mcrfpy.bresenham()
+    // - compute_fov() redundant with Grid.compute_fov()
 
     // Initialize PyTypeCache for thread-safe type lookups
     // This must be done after all types are added to the module
@@ -1522,6 +1532,108 @@ PyObject* McRFPy_API::_setDevConsole(PyObject* self, PyObject* args) {
 
     ImGuiConsole::setEnabled(enabled);
     Py_RETURN_NONE;
+}
+
+// #215: Bresenham line algorithm implementation
+// Helper to extract (x, y) from tuple, list, or Vector
+static bool extract_point(PyObject* obj, int* x, int* y, const char* arg_name) {
+    // Try tuple/list first
+    if (PySequence_Check(obj) && PySequence_Size(obj) == 2) {
+        PyObject* x_obj = PySequence_GetItem(obj, 0);
+        PyObject* y_obj = PySequence_GetItem(obj, 1);
+
+        bool ok = false;
+        if (x_obj && y_obj && PyNumber_Check(x_obj) && PyNumber_Check(y_obj)) {
+            PyObject* x_long = PyNumber_Long(x_obj);
+            PyObject* y_long = PyNumber_Long(y_obj);
+            if (x_long && y_long) {
+                *x = PyLong_AsLong(x_long);
+                *y = PyLong_AsLong(y_long);
+                ok = !PyErr_Occurred();
+            }
+            Py_XDECREF(x_long);
+            Py_XDECREF(y_long);
+        }
+
+        Py_XDECREF(x_obj);
+        Py_XDECREF(y_obj);
+
+        if (ok) return true;
+    }
+
+    // Try Vector type
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (vector_type && PyObject_IsInstance(obj, vector_type)) {
+        Py_DECREF(vector_type);
+        PyVectorObject* vec = (PyVectorObject*)obj;
+        *x = static_cast<int>(vec->data.x);
+        *y = static_cast<int>(vec->data.y);
+        return true;
+    }
+    Py_XDECREF(vector_type);
+
+    PyErr_Format(PyExc_TypeError,
+        "%s: expected (x, y) tuple or Vector, got %s",
+        arg_name, Py_TYPE(obj)->tp_name);
+    return false;
+}
+
+PyObject* McRFPy_API::_bresenham(PyObject* self, PyObject* args, PyObject* kwargs) {
+    static const char* kwlist[] = {"start", "end", "include_start", "include_end", NULL};
+    PyObject* start_obj = NULL;
+    PyObject* end_obj = NULL;
+    int include_start = 1;  // Default: True
+    int include_end = 1;    // Default: True
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|pp",
+                                     const_cast<char**>(kwlist),
+                                     &start_obj, &end_obj,
+                                     &include_start, &include_end)) {
+        return NULL;
+    }
+
+    int x1, y1, x2, y2;
+    if (!extract_point(start_obj, &x1, &y1, "start")) return NULL;
+    if (!extract_point(end_obj, &x2, &y2, "end")) return NULL;
+
+    // Build result list using TCOD's Bresenham implementation
+    PyObject* result = PyList_New(0);
+    if (!result) return NULL;
+
+    // Add start point if requested
+    if (include_start) {
+        PyObject* pos = Py_BuildValue("(ii)", x1, y1);
+        if (!pos) { Py_DECREF(result); return NULL; }
+        PyList_Append(result, pos);
+        Py_DECREF(pos);
+    }
+
+    // Use TCOD's line algorithm for intermediate points
+    TCODLine::init(x1, y1, x2, y2);
+    int x, y;
+
+    // Step through the line - TCODLine::step returns false until reaching endpoint
+    while (!TCODLine::step(&x, &y)) {
+        // Skip start point (already handled above if include_start)
+        if (x == x1 && y == y1) continue;
+        // Skip end point (handle below based on include_end)
+        if (x == x2 && y == y2) continue;
+
+        PyObject* pos = Py_BuildValue("(ii)", x, y);
+        if (!pos) { Py_DECREF(result); return NULL; }
+        PyList_Append(result, pos);
+        Py_DECREF(pos);
+    }
+
+    // Add end point if requested (and it's different from start)
+    if (include_end && (x1 != x2 || y1 != y2)) {
+        PyObject* pos = Py_BuildValue("(ii)", x2, y2);
+        if (!pos) { Py_DECREF(result); return NULL; }
+        PyList_Append(result, pos);
+        Py_DECREF(pos);
+    }
+
+    return result;
 }
 
 // Benchmark logging implementation (#104)

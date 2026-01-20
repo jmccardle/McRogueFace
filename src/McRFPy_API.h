@@ -76,6 +76,9 @@ public:
     // Developer console
     static PyObject* _setDevConsole(PyObject*, PyObject*);
 
+    // #215: Bresenham line algorithm (replaces mcrfpy.libtcod.line)
+    static PyObject* _bresenham(PyObject*, PyObject*, PyObject*);
+
     // Scene lifecycle management for Python Scene objects
     static void triggerSceneChange(const std::string& from_scene, const std::string& to_scene);
     static void updatePythonScenes(float dt);
