@@ -25,6 +25,7 @@
 #include "PyHeightMap.h"  // Procedural generation heightmap (#193)
 #include "PyBSP.h"  // Procedural generation BSP (#202-206)
 #include "PyNoiseSource.h"  // Procedural generation noise (#207-208)
+#include "PyLock.h"  // Thread synchronization (#219)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
@@ -292,6 +293,17 @@ static PyMethodDef mcrfpyMethods[] = {
     {"__getattr__", mcrfpy_module_getattr, METH_VARARGS,
      "Module-level __getattr__ for dynamic properties (current_scene, scenes)"},
 
+    // #219: Thread synchronization
+    {"lock", PyLock::lock, METH_NOARGS,
+     MCRF_FUNCTION(lock,
+         MCRF_SIG("()", "_LockContext"),
+         MCRF_DESC("Get a context manager for thread-safe UI updates from background threads."),
+         MCRF_RETURNS("_LockContext: A context manager that blocks until safe to modify UI")
+         MCRF_NOTE("Use with `with mcrfpy.lock():` to safely modify UI objects from a background thread. "
+                   "The context manager blocks until the render loop reaches a safe point between frames. "
+                   "Without this, modifying UI from threads may cause visual glitches or crashes.")
+     )},
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -479,7 +491,13 @@ PyObject* PyInit_mcrfpy()
     PyUILineType.tp_weaklistoffset = offsetof(PyUILineObject, weakreflist);
     PyUICircleType.tp_weaklistoffset = offsetof(PyUICircleObject, weakreflist);
     PyUIArcType.tp_weaklistoffset = offsetof(PyUIArcObject, weakreflist);
-    
+
+    // #219 - Initialize PyLock context manager type
+    if (PyLock::init() < 0) {
+        std::cout << "ERROR: PyLock::init() failed" << std::endl;
+        return NULL;
+    }
+
     // Process exported types - PyType_Ready AND add to module
     int i = 0;
     auto t = exported_types[i];

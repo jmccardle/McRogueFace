@@ -10,6 +10,48 @@
 #include "imgui.h"
 #include "imgui-SFML.h"
 #include <cmath>
+#include <Python.h>
+
+// #219 - FrameLock implementation for thread-safe UI updates
+
+void FrameLock::acquire() {
+    waiting++;
+    std::unique_lock<std::mutex> lock(mtx);
+
+    // Release GIL while waiting for safe window
+    Py_BEGIN_ALLOW_THREADS
+    cv.wait(lock, [this]{ return safe_window; });
+    Py_END_ALLOW_THREADS
+
+    waiting--;
+    active++;
+}
+
+void FrameLock::release() {
+    std::unique_lock<std::mutex> lock(mtx);
+    active--;
+    if (active == 0) {
+        cv.notify_all();  // Wake up closeWindow() if it's waiting
+    }
+}
+
+void FrameLock::openWindow() {
+    std::lock_guard<std::mutex> lock(mtx);
+    safe_window = true;
+    cv.notify_all();  // Wake up all waiting threads
+}
+
+void FrameLock::closeWindow() {
+    std::unique_lock<std::mutex> lock(mtx);
+    // First wait for all waiting threads to have entered the critical section
+    // (or confirm none were waiting). This prevents the race where we set
+    // safe_window=false before a waiting thread can check the condition.
+    cv.wait(lock, [this]{ return waiting == 0; });
+    // Then wait for all active threads to finish their critical sections
+    cv.wait(lock, [this]{ return active == 0; });
+    // Now safe to close the window
+    safe_window = false;
+}
 
 GameEngine::GameEngine() : GameEngine(McRogueFaceConfig{})
 {
@@ -18,6 +60,9 @@ GameEngine::GameEngine() : GameEngine(McRogueFaceConfig{})
 GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     : config(cfg), headless(cfg.headless)
 {
+    // #219 - Store main thread ID for lock() thread detection
+    main_thread_id = std::this_thread::get_id();
+
     Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
     Resources::game = this;
     window_title = "McRogueFace Engine";
@@ -307,15 +352,30 @@ void GameEngine::run()
         metrics.workTime = clock.getElapsedTime().asSeconds() * 1000.0f;
 
         // Display the frame
+        // #219 - Release GIL during display() to allow background threads to run
         if (headless) {
+            Py_BEGIN_ALLOW_THREADS
             headless_renderer->display();
+            Py_END_ALLOW_THREADS
             // Take screenshot if requested
             if (config.take_screenshot) {
                 headless_renderer->saveScreenshot(config.screenshot_path.empty() ? "screenshot.png" : config.screenshot_path);
                 config.take_screenshot = false; // Only take one screenshot
             }
         } else {
+            Py_BEGIN_ALLOW_THREADS
             window->display();
+            Py_END_ALLOW_THREADS
+        }
+
+        // #219 - Safe window for background threads to modify UI
+        // This runs AFTER display() but BEFORE the next frame's processing
+        if (frameLock.hasWaiting()) {
+            frameLock.openWindow();
+            // Release GIL so waiting threads can proceed with their mcrfpy.lock() blocks
+            Py_BEGIN_ALLOW_THREADS
+            frameLock.closeWindow();  // Wait for all lock holders to complete
+            Py_END_ALLOW_THREADS
         }
         
         currentFrame++;

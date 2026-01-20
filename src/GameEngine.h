@@ -13,6 +13,10 @@
 #include "ImGuiConsole.h"
 #include <memory>
 #include <sstream>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
+#include <thread>
 
 /**
  * @brief Performance profiling metrics structure
@@ -79,6 +83,59 @@ struct ProfilingMetrics {
     }
 };
 
+/**
+ * @brief Thread synchronization primitive for safe UI updates from background threads (#219)
+ *
+ * Allows background Python threads to safely update UI objects by waiting for
+ * a "safe window" between frames when the render loop is not iterating the scene graph.
+ *
+ * Usage from Python:
+ *   with mcrfpy.lock():
+ *       frame.x = new_value  # Safe to modify UI here
+ */
+class FrameLock {
+private:
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool safe_window = false;
+    std::atomic<int> waiting{0};
+    std::atomic<int> active{0};
+
+public:
+    /**
+     * @brief Acquire the lock, blocking until safe window opens
+     *
+     * Called by mcrfpy.lock().__enter__. Releases GIL while waiting.
+     */
+    void acquire();
+
+    /**
+     * @brief Release the lock
+     *
+     * Called by mcrfpy.lock().__exit__
+     */
+    void release();
+
+    /**
+     * @brief Open the safe window, allowing waiting threads to proceed
+     *
+     * Called by render loop between frames
+     */
+    void openWindow();
+
+    /**
+     * @brief Close the safe window, waiting for all active threads to finish
+     *
+     * Called by render loop before resuming rendering
+     */
+    void closeWindow();
+
+    /**
+     * @brief Check if any threads are waiting for the lock
+     */
+    bool hasWaiting() const { return waiting.load() > 0; }
+};
+
 class GameEngine
 {
 public:
@@ -135,6 +192,10 @@ private:
     // ImGui console overlay
     ImGuiConsole console;
     bool imguiInitialized = false;
+
+    // #219 - Thread synchronization for background Python threads
+    FrameLock frameLock;
+    std::thread::id main_thread_id;  // For detecting if lock() is called from main thread
 
     void updateViewport();
 
@@ -197,6 +258,10 @@ public:
     float step(float dt = -1.0f);  // Advance simulation; dt<0 means advance to next event
     int getSimulationTime() const { return simulation_time; }
     void renderScene();  // Force render current scene (for synchronous screenshot)
+
+    // #219 - Thread synchronization for background threads
+    FrameLock& getFrameLock() { return frameLock; }
+    bool isMainThread() const { return std::this_thread::get_id() == main_thread_id; }
 
     // global textures for scripts to access
     std::vector<IndexTexture> textures;
