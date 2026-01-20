@@ -2177,6 +2177,7 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"grid_h", (getter)UIGrid::get_grid_h, NULL, "Grid height in cells", NULL},
     {"position", (getter)UIGrid::get_position, (setter)UIGrid::set_position, "Position of the grid (x, y)", NULL},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position of the grid as Vector", (void*)PyObjectsEnum::UIGRID},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in parent grid's tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UIGRID},
     {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size, "Size of the grid as Vector (width, height)", NULL},
     {"center", (getter)UIGrid::get_center, (setter)UIGrid::set_center, "Grid coordinate at the center of the Grid's view (pan)", NULL},
 
@@ -2381,6 +2382,13 @@ std::optional<sf::Vector2i> UIGrid::screenToCell(sf::Vector2f screen_pos) const 
     }
 
     return sf::Vector2i(cell_x, cell_y);
+}
+
+// #221 - Get effective cell size (texture size * zoom)
+sf::Vector2f UIGrid::getEffectiveCellSize() const {
+    float cell_w = ptex ? static_cast<float>(ptex->sprite_width) : static_cast<float>(DEFAULT_CELL_WIDTH);
+    float cell_h = ptex ? static_cast<float>(ptex->sprite_height) : static_cast<float>(DEFAULT_CELL_HEIGHT);
+    return sf::Vector2f(cell_w * zoom, cell_h * zoom);
 }
 
 // #142 - Update cell hover state and fire callbacks

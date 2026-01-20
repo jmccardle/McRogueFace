@@ -285,6 +285,8 @@ PyGetSetDef UICaption::getsetters[] = {
     {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "X coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 0)},
     {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "Y coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 1)},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "(x, y) vector", (void*)PyObjectsEnum::UICAPTION},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UICAPTION},
+    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UICAPTION},
     {"size", (getter)UICaption::get_size, NULL, "Text dimensions as Vector (read-only)", NULL},
     {"w", (getter)UICaption::get_w, NULL, "Text width in pixels (read-only)", NULL},
     {"h", (getter)UICaption::get_h, NULL, "Text height in pixels (read-only)", NULL},

@@ -135,6 +135,9 @@ public:
     // #142 - Cell coordinate conversion (screen pos -> cell coords)
     std::optional<sf::Vector2i> screenToCell(sf::Vector2f screen_pos) const;
 
+    // #221 - Get effective cell size (texture size * zoom)
+    sf::Vector2f getEffectiveCellSize() const;
+
     // #142 - Update cell hover state (called from PyScene)
     void updateCellHover(sf::Vector2f mousepos);
     

@@ -394,6 +394,8 @@ PyGetSetDef UICircle::getsetters[] = {
      "Name for finding this element.", (void*)PyObjectsEnum::UICIRCLE},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
      "Position as a Vector (same as center).", (void*)PyObjectsEnum::UICIRCLE},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UICIRCLE},
+    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UICIRCLE},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICIRCLE),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UICIRCLE),

@@ -92,6 +92,12 @@ public:
     static int set_float_member(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_pos(PyObject* self, void* closure);
     static int set_pos(PyObject* self, PyObject* value, void* closure);
+
+    // #221 - Grid coordinate properties (only valid when parent is UIGrid)
+    static PyObject* get_grid_pos(PyObject* self, void* closure);
+    static int set_grid_pos(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_grid_size(PyObject* self, void* closure);
+    static int set_grid_size(PyObject* self, PyObject* value, void* closure);
     
     // Z-order for rendering (lower values rendered first, higher values on top)
     int z_index = 0;

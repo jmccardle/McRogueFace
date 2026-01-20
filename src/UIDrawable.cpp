@@ -578,6 +578,228 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
     return 0;
 }
 
+// #221 - Grid coordinate properties (only valid when parent is UIGrid)
+PyObject* UIDrawable::get_grid_pos(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    // Check if parent is a UIGrid
+    auto parent_ptr = drawable->getParent();
+    if (!parent_ptr) {
+        PyErr_SetString(PyExc_RuntimeError, "drawable is not a child of a Grid");
+        return NULL;
+    }
+
+    UIGrid* grid = dynamic_cast<UIGrid*>(parent_ptr.get());
+    if (!grid) {
+        PyErr_SetString(PyExc_RuntimeError, "drawable is not a direct child of a Grid");
+        return NULL;
+    }
+
+    // Calculate grid position from pixel position
+    sf::Vector2f cell_size = grid->getEffectiveCellSize();
+    float grid_x = drawable->position.x / cell_size.x;
+    float grid_y = drawable->position.y / cell_size.y;
+
+    // Return as Vector
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) return NULL;
+
+    PyObject* args = Py_BuildValue("(ff)", grid_x, grid_y);
+    PyObject* result = PyObject_CallObject(vector_type, args);
+    Py_DECREF(vector_type);
+    Py_DECREF(args);
+
+    return result;
+}
+
+int UIDrawable::set_grid_pos(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    // Check if parent is a UIGrid
+    auto parent_ptr = drawable->getParent();
+    if (!parent_ptr) {
+        PyErr_SetString(PyExc_RuntimeError, "drawable is not a child of a Grid");
+        return -1;
+    }
+
+    UIGrid* grid = dynamic_cast<UIGrid*>(parent_ptr.get());
+    if (!grid) {
+        PyErr_SetString(PyExc_RuntimeError, "drawable is not a direct child of a Grid");
+        return -1;
+    }
+
+    // Parse the grid position value
+    float grid_x, grid_y;
+    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
+        PyObject* x_obj = PyTuple_GetItem(value, 0);
+        PyObject* y_obj = PyTuple_GetItem(value, 1);
+
+        if (PyFloat_Check(x_obj) || PyLong_Check(x_obj)) {
+            grid_x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : static_cast<float>(PyLong_AsLong(x_obj));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "grid_pos x must be a number");
+            return -1;
+        }
+
+        if (PyFloat_Check(y_obj) || PyLong_Check(y_obj)) {
+            grid_y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : static_cast<float>(PyLong_AsLong(y_obj));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "grid_pos y must be a number");
+            return -1;
+        }
+    } else if (PyObject_HasAttrString(value, "x") && PyObject_HasAttrString(value, "y")) {
+        // Vector-like object
+        PyObject* x_attr = PyObject_GetAttrString(value, "x");
+        PyObject* y_attr = PyObject_GetAttrString(value, "y");
+
+        if (x_attr && (PyFloat_Check(x_attr) || PyLong_Check(x_attr))) {
+            grid_x = PyFloat_Check(x_attr) ? PyFloat_AsDouble(x_attr) : static_cast<float>(PyLong_AsLong(x_attr));
+        } else {
+            Py_XDECREF(x_attr);
+            Py_XDECREF(y_attr);
+            PyErr_SetString(PyExc_TypeError, "grid_pos x must be a number");
+            return -1;
+        }
+
+        if (y_attr && (PyFloat_Check(y_attr) || PyLong_Check(y_attr))) {
+            grid_y = PyFloat_Check(y_attr) ? PyFloat_AsDouble(y_attr) : static_cast<float>(PyLong_AsLong(y_attr));
+        } else {
+            Py_XDECREF(x_attr);
+            Py_XDECREF(y_attr);
+            PyErr_SetString(PyExc_TypeError, "grid_pos y must be a number");
+            return -1;
+        }
+
+        Py_DECREF(x_attr);
+        Py_DECREF(y_attr);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "grid_pos must be a tuple (x, y) or Vector");
+        return -1;
+    }
+
+    // Convert grid position to pixel position
+    sf::Vector2f cell_size = grid->getEffectiveCellSize();
+    drawable->position.x = grid_x * cell_size.x;
+    drawable->position.y = grid_y * cell_size.y;
+    drawable->onPositionChanged();
+
+    return 0;
+}
+
+PyObject* UIDrawable::get_grid_size(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    // Check if parent is a UIGrid
+    auto parent_ptr = drawable->getParent();
+    if (!parent_ptr) {
+        PyErr_SetString(PyExc_RuntimeError, "drawable is not a child of a Grid");
+        return NULL;
+    }
+
+    UIGrid* grid = dynamic_cast<UIGrid*>(parent_ptr.get());
+    if (!grid) {
+        PyErr_SetString(PyExc_RuntimeError, "drawable is not a direct child of a Grid");
+        return NULL;
+    }
+
+    // Calculate grid size from pixel size
+    sf::FloatRect bounds = drawable->get_bounds();
+    sf::Vector2f cell_size = grid->getEffectiveCellSize();
+    float grid_w = bounds.width / cell_size.x;
+    float grid_h = bounds.height / cell_size.y;
+
+    // Return as Vector
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) return NULL;
+
+    PyObject* args = Py_BuildValue("(ff)", grid_w, grid_h);
+    PyObject* result = PyObject_CallObject(vector_type, args);
+    Py_DECREF(vector_type);
+    Py_DECREF(args);
+
+    return result;
+}
+
+int UIDrawable::set_grid_size(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    // Check if parent is a UIGrid
+    auto parent_ptr = drawable->getParent();
+    if (!parent_ptr) {
+        PyErr_SetString(PyExc_RuntimeError, "drawable is not a child of a Grid");
+        return -1;
+    }
+
+    UIGrid* grid = dynamic_cast<UIGrid*>(parent_ptr.get());
+    if (!grid) {
+        PyErr_SetString(PyExc_RuntimeError, "drawable is not a direct child of a Grid");
+        return -1;
+    }
+
+    // Parse the grid size value
+    float grid_w, grid_h;
+    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
+        PyObject* w_obj = PyTuple_GetItem(value, 0);
+        PyObject* h_obj = PyTuple_GetItem(value, 1);
+
+        if (PyFloat_Check(w_obj) || PyLong_Check(w_obj)) {
+            grid_w = PyFloat_Check(w_obj) ? PyFloat_AsDouble(w_obj) : static_cast<float>(PyLong_AsLong(w_obj));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "grid_size width must be a number");
+            return -1;
+        }
+
+        if (PyFloat_Check(h_obj) || PyLong_Check(h_obj)) {
+            grid_h = PyFloat_Check(h_obj) ? PyFloat_AsDouble(h_obj) : static_cast<float>(PyLong_AsLong(h_obj));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "grid_size height must be a number");
+            return -1;
+        }
+    } else if (PyObject_HasAttrString(value, "x") && PyObject_HasAttrString(value, "y")) {
+        // Vector-like object
+        PyObject* x_attr = PyObject_GetAttrString(value, "x");
+        PyObject* y_attr = PyObject_GetAttrString(value, "y");
+
+        if (x_attr && (PyFloat_Check(x_attr) || PyLong_Check(x_attr))) {
+            grid_w = PyFloat_Check(x_attr) ? PyFloat_AsDouble(x_attr) : static_cast<float>(PyLong_AsLong(x_attr));
+        } else {
+            Py_XDECREF(x_attr);
+            Py_XDECREF(y_attr);
+            PyErr_SetString(PyExc_TypeError, "grid_size width must be a number");
+            return -1;
+        }
+
+        if (y_attr && (PyFloat_Check(y_attr) || PyLong_Check(y_attr))) {
+            grid_h = PyFloat_Check(y_attr) ? PyFloat_AsDouble(y_attr) : static_cast<float>(PyLong_AsLong(y_attr));
+        } else {
+            Py_XDECREF(x_attr);
+            Py_XDECREF(y_attr);
+            PyErr_SetString(PyExc_TypeError, "grid_size height must be a number");
+            return -1;
+        }
+
+        Py_DECREF(x_attr);
+        Py_DECREF(y_attr);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple (w, h) or Vector");
+        return -1;
+    }
+
+    // Convert grid size to pixel size and resize
+    sf::Vector2f cell_size = grid->getEffectiveCellSize();
+    drawable->resize(grid_w * cell_size.x, grid_h * cell_size.y);
+
+    return 0;
+}
+
 // #122 - Parent-child hierarchy implementation
 void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
     parent = new_parent;
