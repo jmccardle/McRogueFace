@@ -27,6 +27,16 @@ public:
     // Input handling
     bool wantsKeyboardInput() const;  // Returns true if ImGui wants keyboard
 
+    // Font management - reload ImGui font at specified pixel size
+    static void reloadFont(float size);
+    static float getCurrentFontSize() { return s_currentFontSize; }
+
+    // Settings persistence via imgui.ini
+    static void registerSettingsHandler();
+
+    // Allow settings handler callbacks to access font size
+    static float s_currentFontSize;  // Track current loaded font size
+
 private:
     void executeCommand(const std::string& command);
     void addOutput(const std::string& text, bool isError = false);
@@ -40,7 +50,6 @@ private:
     bool editorVisible = false;   // Multi-line editor window
     bool consoleLocked = false;   // Prevent console dragging
     bool editorLocked = false;    // Prevent editor dragging
-    float fontScale = 1.0f;       // Text size multiplier (0.5 - 2.0)
 
     // Input buffers
     char inputBuffer[1024] = {0};

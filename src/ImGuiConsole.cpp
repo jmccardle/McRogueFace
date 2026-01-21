@@ -1,5 +1,7 @@
 #include "ImGuiConsole.h"
 #include "imgui.h"
+#include "imgui_internal.h"  // For ImGuiSettingsHandler, ImHashStr, MarkIniSettingsDirty
+#include "imgui-SFML.h"
 #include "McRFPy_API.h"
 #include <Python.h>
 #include <sstream>
@@ -8,6 +10,74 @@
 
 // Static member initialization
 bool ImGuiConsole::enabled = true;
+float ImGuiConsole::s_currentFontSize = 16.0f;
+
+void ImGuiConsole::reloadFont(float size) {
+    // Clamp size to reasonable bounds
+    size = std::max(8.0f, std::min(32.0f, size));
+
+    ImGuiIO& io = ImGui::GetIO();
+
+    // Clear existing fonts
+    io.Fonts->Clear();
+
+    // Load JetBrains Mono at the new size
+    io.Fonts->AddFontFromFileTTF("./assets/JetbrainsMono.ttf", size);
+
+    // Rebuild the font texture
+    if (!ImGui::SFML::UpdateFontTexture()) {
+        // Font texture update failed - revert to default
+        io.Fonts->Clear();
+        io.Fonts->AddFontDefault();
+        (void)ImGui::SFML::UpdateFontTexture();  // Cast to void - can't fail on default font
+        return;
+    }
+
+    s_currentFontSize = size;
+
+    // Mark imgui.ini as dirty so font size gets saved
+    ImGui::MarkIniSettingsDirty();
+}
+
+// Settings handler callbacks for imgui.ini persistence
+static void* ConsoleSettingsHandler_ReadOpen(ImGuiContext*, ImGuiSettingsHandler*, const char* name) {
+    // We only have one console, so just return a non-null pointer
+    if (strcmp(name, "Main") == 0) {
+        return (void*)1;  // Non-null to indicate valid entry
+    }
+    return nullptr;
+}
+
+static void ConsoleSettingsHandler_ReadLine(ImGuiContext*, ImGuiSettingsHandler*, void* entry, const char* line) {
+    float size;
+    if (sscanf(line, "FontSize=%f", &size) == 1) {
+        // Don't reload font here - just store the value
+        // Font will be loaded after settings are applied
+        ImGuiConsole::s_currentFontSize = std::max(8.0f, std::min(32.0f, size));
+    }
+}
+
+static void ConsoleSettingsHandler_ApplyAll(ImGuiContext*, ImGuiSettingsHandler*) {
+    // After all settings are read, reload the font at the saved size
+    ImGuiConsole::reloadFont(ImGuiConsole::s_currentFontSize);
+}
+
+static void ConsoleSettingsHandler_WriteAll(ImGuiContext*, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
+    buf->appendf("[%s][Main]\n", handler->TypeName);
+    buf->appendf("FontSize=%.0f\n", ImGuiConsole::s_currentFontSize);
+    buf->append("\n");
+}
+
+void ImGuiConsole::registerSettingsHandler() {
+    ImGuiSettingsHandler ini_handler;
+    ini_handler.TypeName = "Console";
+    ini_handler.TypeHash = ImHashStr("Console");
+    ini_handler.ReadOpenFn = ConsoleSettingsHandler_ReadOpen;
+    ini_handler.ReadLineFn = ConsoleSettingsHandler_ReadLine;
+    ini_handler.ApplyAllFn = ConsoleSettingsHandler_ApplyAll;
+    ini_handler.WriteAllFn = ConsoleSettingsHandler_WriteAll;
+    ImGui::GetCurrentContext()->SettingsHandlers.push_back(ini_handler);
+}
 
 ImGuiConsole::ImGuiConsole() {
     addOutput("McRogueFace Python Console", false);
@@ -161,23 +231,27 @@ void ImGuiConsole::render() {
         return;
     }
 
-    // Apply font scale
-    ImGui::SetWindowFontScale(fontScale);
-
     // Menu bar with toolbar buttons
     if (ImGui::BeginMenuBar()) {
-        // Font size controls
+        // Font size controls (adjust by 2 pixels, reload font)
+        // Use static s_currentFontSize since font is shared across all ImGui
         if (ImGui::SmallButton("-")) {
-            fontScale = std::max(0.5f, fontScale - 0.1f);
+            float newSize = std::max(8.0f, s_currentFontSize - 2.0f);
+            if (newSize != s_currentFontSize) {
+                reloadFont(newSize);
+            }
         }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Decrease text size");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Decrease font size");
 
-        ImGui::Text("%.0f%%", fontScale * 100);
+        ImGui::Text("%.0fpx", s_currentFontSize);
 
         if (ImGui::SmallButton("+")) {
-            fontScale = std::min(2.0f, fontScale + 0.1f);
+            float newSize = std::min(32.0f, s_currentFontSize + 2.0f);
+            if (newSize != s_currentFontSize) {
+                reloadFont(newSize);
+            }
         }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Increase text size");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Increase font size");
 
         ImGui::Separator();
 
@@ -330,9 +404,6 @@ void ImGuiConsole::renderCodeEditor() {
         ImGui::End();
         return;
     }
-
-    // Apply same font scale as console
-    ImGui::SetWindowFontScale(fontScale);
 
     // Menu bar
     if (ImGui::BeginMenuBar()) {

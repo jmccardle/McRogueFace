@@ -83,6 +83,10 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         // Initialize ImGui for the window
         if (ImGui::SFML::Init(*window)) {
             imguiInitialized = true;
+            // Register settings handler before .ini is loaded (happens on first frame)
+            ImGuiConsole::registerSettingsHandler();
+            // Load JetBrains Mono for crisp console text (will be overridden by .ini if present)
+            ImGuiConsole::reloadFont(16.0f);
         }
     }
 
