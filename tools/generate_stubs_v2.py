@@ -183,30 +183,127 @@ class Sprite(Drawable):
     h: float  # Read-only, computed from texture
 
 class Grid(Drawable):
-    """Grid(x=0, y=0, grid_size=(20, 20), texture=None, tile_width=16, tile_height=16, scale=1.0, on_click=None)
+    """Grid(pos=(0,0), size=(0,0), grid_size=(2,2), texture=None, ...)
 
     A grid-based tilemap UI element for rendering tile-based levels and game worlds.
+    Supports layers, FOV, pathfinding, and entity management.
     """
 
     @overload
     def __init__(self) -> None: ...
     @overload
-    def __init__(self, x: float = 0, y: float = 0, grid_size: Tuple[int, int] = (20, 20),
-                 texture: Optional[Texture] = None, tile_width: int = 16, tile_height: int = 16,
-                 scale: float = 1.0, on_click: Optional[Callable] = None) -> None: ...
+    def __init__(self, pos: Tuple[float, float] = (0, 0),
+                 size: Tuple[float, float] = (0, 0),
+                 grid_size: Tuple[int, int] = (2, 2),
+                 texture: Optional[Texture] = None,
+                 fill_color: Optional[Color] = None,
+                 on_click: Optional[Callable] = None,
+                 center_x: float = 0, center_y: float = 0, zoom: float = 1.0,
+                 visible: bool = True, opacity: float = 1.0,
+                 z_index: int = 0, name: str = '') -> None: ...
 
-    grid_size: Tuple[int, int]
-    tile_width: int
-    tile_height: int
-    texture: Texture
-    scale: float
-    points: List[List['GridPoint']]
-    entities: 'EntityCollection'
-    background_color: Color
-    on_click: Optional[Callable[[int, int, int], None]]
+    # Dimensions
+    grid_size: Tuple[int, int]  # Read-only (grid_w, grid_h)
+    grid_w: int  # Read-only
+    grid_h: int  # Read-only
+
+    # Position and size
+    position: Tuple[float, float]
+    size: Vector
+    w: float
+    h: float
+
+    # Camera/viewport
+    center: Vector  # Viewport center point (pan position)
+    center_x: float
+    center_y: float
+    zoom: float  # Scale factor for rendering
+
+    # Collections
+    entities: 'EntityCollection'  # Entities on this grid
+    children: 'UICollection'  # UI overlays (speech bubbles, effects)
+    layers: List[Union['ColorLayer', 'TileLayer']]  # Grid layers sorted by z_index
+
+    # Appearance
+    texture: Texture  # Read-only
+    fill_color: Color  # Background fill color
+
+    # Perspective/FOV
+    perspective: Optional['Entity']  # Entity for FOV rendering (None = omniscient)
+    perspective_enabled: bool  # Whether to use perspective-based FOV
+    fov: 'FOV'  # FOV algorithm enum
+    fov_radius: int  # Default FOV radius
+
+    # Cell-level mouse events
+    on_cell_enter: Optional[Callable[['Vector'], None]]
+    on_cell_exit: Optional[Callable[['Vector'], None]]
+    on_cell_click: Optional[Callable[['Vector'], None]]
+    hovered_cell: Optional[Tuple[int, int]]  # Read-only
 
     def at(self, x: int, y: int) -> 'GridPoint':
         """Get grid point at tile coordinates."""
+        ...
+
+    def center_camera(self, pos: Optional[Tuple[float, float]] = None) -> None:
+        """Center the camera on a tile coordinate."""
+        ...
+
+    # FOV methods
+    def compute_fov(self, pos: Tuple[int, int], radius: int = 0,
+                    light_walls: bool = True, algorithm: Optional['FOV'] = None) -> None:
+        """Compute field of view from a position."""
+        ...
+
+    def is_in_fov(self, pos: Tuple[int, int]) -> bool:
+        """Check if a cell is in the field of view."""
+        ...
+
+    # Pathfinding methods
+    def find_path(self, start: Union[Tuple[int, int], 'Vector', 'Entity'],
+                  end: Union[Tuple[int, int], 'Vector', 'Entity'],
+                  diagonal_cost: float = 1.41) -> Optional['AStarPath']:
+        """Compute A* path between two points."""
+        ...
+
+    def get_dijkstra_map(self, root: Union[Tuple[int, int], 'Vector', 'Entity'],
+                         diagonal_cost: float = 1.41) -> 'DijkstraMap':
+        """Get or create a Dijkstra distance map for a root position."""
+        ...
+
+    def clear_dijkstra_maps(self) -> None:
+        """Clear all cached Dijkstra maps."""
+        ...
+
+    # Layer methods
+    def add_layer(self, type: str, z_index: int = -1,
+                  texture: Optional[Texture] = None) -> Union['ColorLayer', 'TileLayer']:
+        """Add a new layer to the grid."""
+        ...
+
+    def remove_layer(self, layer: Union['ColorLayer', 'TileLayer']) -> None:
+        """Remove a layer from the grid."""
+        ...
+
+    def layer(self, z_index: int) -> Optional[Union['ColorLayer', 'TileLayer']]:
+        """Get layer by z_index."""
+        ...
+
+    # Spatial queries
+    def entities_in_radius(self, pos: Union[Tuple[float, float], 'Vector'],
+                           radius: float) -> List['Entity']:
+        """Query entities within radius using spatial hash."""
+        ...
+
+    # HeightMap application
+    def apply_threshold(self, source: 'HeightMap', range: Tuple[float, float],
+                        walkable: Optional[bool] = None,
+                        transparent: Optional[bool] = None) -> 'Grid':
+        """Apply walkable/transparent properties where heightmap values are in range."""
+        ...
+
+    def apply_ranges(self, source: 'HeightMap',
+                     ranges: List[Tuple[Tuple[float, float], Dict[str, bool]]]) -> 'Grid':
+        """Apply multiple thresholds in a single pass."""
         ...
 
 class Line(Drawable):
@@ -272,17 +369,232 @@ class Arc(Drawable):
     on_click: Optional[Callable[[float, float, int], None]]
 
 class GridPoint:
-    """Grid point representing a single tile."""
-    
-    texture_index: int
-    solid: bool
-    color: Color
+    """Grid point representing a single tile's properties.
+
+    Accessed via Grid.at(x, y). Controls walkability and transparency
+    for pathfinding and FOV calculations.
+    """
+
+    walkable: bool  # Whether entities can walk through this cell
+    transparent: bool  # Whether light/sight passes through this cell
+    entities: List['Entity']  # Read-only list of entities at this cell
+    grid_pos: Tuple[int, int]  # Read-only (x, y) position in grid
 
 class GridPointState:
-    """State information for a grid point."""
-    
-    texture_index: int
-    color: Color
+    """Per-entity visibility state for a grid cell.
+
+    Tracks what an entity has seen/discovered. Accessed via entity perspective system.
+    """
+
+    visible: bool  # Currently visible in FOV
+    discovered: bool  # Has been seen at least once
+    point: Optional['GridPoint']  # The GridPoint at this position (None if not discovered)
+
+class ColorLayer:
+    """A color overlay layer for Grid.
+
+    Provides per-cell color values for tinting, fog of war, etc.
+    """
+
+    z_index: int
+    grid: 'Grid'  # Read-only parent grid
+
+    def fill(self, color: Color) -> None:
+        """Fill entire layer with a single color."""
+        ...
+
+    def set_color(self, pos: Tuple[int, int], color: Color) -> None:
+        """Set color at a specific cell."""
+        ...
+
+    def get_color(self, pos: Tuple[int, int]) -> Color:
+        """Get color at a specific cell."""
+        ...
+
+class TileLayer:
+    """A tile sprite layer for Grid.
+
+    Provides per-cell tile indices for multi-layer tile rendering.
+    """
+
+    z_index: int
+    grid: 'Grid'  # Read-only parent grid
+    texture: Optional[Texture]
+
+    def fill(self, tile_index: int) -> None:
+        """Fill entire layer with a single tile index."""
+        ...
+
+    def set_tile(self, pos: Tuple[int, int], tile_index: int) -> None:
+        """Set tile index at a specific cell."""
+        ...
+
+    def get_tile(self, pos: Tuple[int, int]) -> int:
+        """Get tile index at a specific cell."""
+        ...
+
+class FOV:
+    """Field of view algorithm enum.
+
+    Available algorithms:
+    - FOV.BASIC: Simple raycasting
+    - FOV.DIAMOND: Diamond-shaped FOV
+    - FOV.SHADOW: Shadow casting (recommended)
+    - FOV.PERMISSIVE_0 through FOV.PERMISSIVE_8: Permissive algorithms
+    - FOV.RESTRICTIVE: Restrictive precise angle shadowcasting
+    """
+
+    BASIC: 'FOV'
+    DIAMOND: 'FOV'
+    SHADOW: 'FOV'
+    PERMISSIVE_0: 'FOV'
+    PERMISSIVE_1: 'FOV'
+    PERMISSIVE_2: 'FOV'
+    PERMISSIVE_3: 'FOV'
+    PERMISSIVE_4: 'FOV'
+    PERMISSIVE_5: 'FOV'
+    PERMISSIVE_6: 'FOV'
+    PERMISSIVE_7: 'FOV'
+    PERMISSIVE_8: 'FOV'
+    RESTRICTIVE: 'FOV'
+
+class AStarPath:
+    """A* pathfinding result.
+
+    Returned by Grid.find_path(). Can be iterated or walked step-by-step.
+    """
+
+    def __iter__(self) -> Any: ...
+    def __len__(self) -> int: ...
+
+    def walk(self) -> Optional[Tuple[int, int]]:
+        """Get next step in path, or None if complete."""
+        ...
+
+    def reverse(self) -> 'AStarPath':
+        """Return a reversed copy of the path."""
+        ...
+
+class DijkstraMap:
+    """Dijkstra distance map for pathfinding.
+
+    Created by Grid.get_dijkstra_map(). Provides distance queries
+    and path finding from the root position.
+    """
+
+    root: Tuple[int, int]  # Read-only root position
+
+    def get_distance(self, pos: Tuple[int, int]) -> float:
+        """Get distance from root to position (-1 if unreachable)."""
+        ...
+
+    def get_path(self, pos: Tuple[int, int]) -> Optional[List[Tuple[int, int]]]:
+        """Get path from position to root."""
+        ...
+
+class HeightMap:
+    """2D height field for terrain generation.
+
+    Used for procedural generation and applying terrain to grids.
+    """
+
+    width: int  # Read-only
+    height: int  # Read-only
+
+    def __init__(self, width: int, height: int) -> None: ...
+
+    def get(self, x: int, y: int) -> float:
+        """Get height value at position."""
+        ...
+
+    def set(self, x: int, y: int, value: float) -> None:
+        """Set height value at position."""
+        ...
+
+    def fill(self, value: float) -> 'HeightMap':
+        """Fill entire heightmap with a value."""
+        ...
+
+    def clear(self) -> 'HeightMap':
+        """Clear heightmap to 0."""
+        ...
+
+    def normalize(self, min_val: float = 0.0, max_val: float = 1.0) -> 'HeightMap':
+        """Normalize values to range."""
+        ...
+
+    def add_hill(self, center: Tuple[float, float], radius: float, height: float) -> 'HeightMap':
+        """Add a hill at position."""
+        ...
+
+    def add_fbm(self, noise: 'NoiseSource', mulx: float = 1.0, muly: float = 1.0,
+                addx: float = 0.0, addy: float = 0.0, octaves: int = 4,
+                delta: float = 1.0, scale: float = 1.0) -> 'HeightMap':
+        """Add fractal Brownian motion noise."""
+        ...
+
+    def scale(self, factor: float) -> 'HeightMap':
+        """Scale all values by factor."""
+        ...
+
+    def clamp(self, min_val: float, max_val: float) -> 'HeightMap':
+        """Clamp values to range."""
+        ...
+
+class NoiseSource:
+    """Coherent noise generator for procedural generation.
+
+    Supports various noise types: PERLIN, SIMPLEX, WAVELET, etc.
+    """
+
+    def __init__(self, type: str = 'SIMPLEX', seed: Optional[int] = None) -> None: ...
+
+    def get(self, x: float, y: float, z: float = 0.0) -> float:
+        """Get noise value at position."""
+        ...
+
+class BSP:
+    """Binary space partitioning for dungeon generation.
+
+    Recursively subdivides a rectangle into rooms.
+    """
+
+    x: int
+    y: int
+    width: int
+    height: int
+    level: int
+    horizontal: bool
+    position: int
+
+    def __init__(self, x: int, y: int, width: int, height: int) -> None: ...
+
+    def split_recursive(self, randomizer: Optional[Any] = None, nb: int = 8,
+                        minHSize: int = 4, minVSize: int = 4,
+                        maxHRatio: float = 1.5, maxVRatio: float = 1.5) -> None:
+        """Recursively split the BSP tree."""
+        ...
+
+    def traverse(self, callback: Callable[['BSP'], bool],
+                 order: str = 'PRE_ORDER') -> None:
+        """Traverse BSP tree calling callback for each node."""
+        ...
+
+    def is_leaf(self) -> bool:
+        """Check if this is a leaf node (no children)."""
+        ...
+
+    def contains(self, x: int, y: int) -> bool:
+        """Check if point is within this node's bounds."""
+        ...
+
+    def get_left(self) -> Optional['BSP']:
+        """Get left child node."""
+        ...
+
+    def get_right(self) -> Optional['BSP']:
+        """Get right child node."""
+        ...
 
 class Entity(Drawable):
     """Entity(grid_x=0, grid_y=0, texture=None, sprite_index=0, name='')
