@@ -82,7 +82,7 @@ class COSEntity():  #mcrfpy.Entity): # Fake mcrfpy.Entity integration; engine bu
         pass
 
     def try_move(self, dx, dy, test=False):
-        x_max, y_max = self.grid.grid_size
+        x_max, y_max = int(self.grid.grid_size.x), int(self.grid.grid_size.y)
         tx, ty = int(self.draw_pos.x + dx), int(self.draw_pos.y + dy)
         #for e in iterable_entities(self.grid):
 

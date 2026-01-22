@@ -22,7 +22,7 @@ class TileInfo:
     @staticmethod
     def from_grid(grid, xy:tuple):
         values = {}
-        x_max, y_max = grid.grid_size
+        x_max, y_max = int(grid.grid_size.x), int(grid.grid_size.y)
         for d in deltas:
             tx, ty = d[0] + xy[0], d[1] + xy[1]
             if tx < 0 or tx >= x_max or ty < 0 or ty >= y_max:
@@ -71,7 +71,7 @@ def special_rule_verify(rule, grid, xy, unverified_tiles, pass_unverified=False)
     tx, ty = xy[0] + dxy[0], xy[1] + dxy[1]
     #print(f"Special rule: {cardinal} {allowed_tile} {type(allowed_tile)} -> ({tx}, {ty}) [{grid.at((tx, ty)).tilesprite}]{'*' if (tx, ty) in unverified_tiles else ''}")
     if (tx, ty) in unverified_tiles and cardinal in "nsew": return pass_unverified
-    x_max, y_max = grid.grid_size
+    x_max, y_max = int(grid.grid_size.x), int(grid.grid_size.y)
     if tx < 0 or tx >= x_max or ty < 0 or ty >= y_max:
         return False
     return grid.at((tx, ty)).tilesprite == allowed_tile
@@ -107,7 +107,7 @@ def find_possible_tiles(grid, x, y, unverified_tiles=None, pass_unverified=False
     return list(set(list(possible)))
 
 def wfc_first_pass(grid):
-    w, h = grid.grid_size
+    w, h = int(grid.grid_size.x), int(grid.grid_size.y)
     possibilities = {}
     for x in range(0, w):
         for y in range(0, h):
@@ -122,7 +122,7 @@ def wfc_first_pass(grid):
     return possibilities
 
 def wfc_pass(grid, possibilities=None):
-    w, h = grid.grid_size
+    w, h = int(grid.grid_size.x), int(grid.grid_size.y)
     if possibilities is None:
         #print("first pass results:")
         possibilities = wfc_first_pass(grid)

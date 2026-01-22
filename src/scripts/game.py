@@ -22,28 +22,47 @@ class Resources:
         self.sfx_volume = 100
         self.master_volume = 100
 
-        # load the music/sfx files here
+        # Load the music/sfx files using new Sound API
         self.splats = []
         for i in range(1, 10):
-            mcrfpy.createSoundBuffer(f"assets/sfx/splat{i}.ogg")
+            try:
+                sound = mcrfpy.Sound(f"assets/sfx/splat{i}.ogg")
+                self.splats.append(sound)
+            except RuntimeError:
+                pass  # Sound file not found, skip
 
+        self.music = None  # Will hold Music object when loaded
 
     def play_sfx(self, sfx_id):
         if self.sfx_enabled and self.sfx_volume and self.master_volume:
-            mcrfpy.setSoundVolume(self.master_volume/100 * self.sfx_volume)
-            mcrfpy.playSound(sfx_id)
+            if sfx_id < len(self.splats):
+                sound = self.splats[sfx_id]
+                sound.volume = self.master_volume / 100 * self.sfx_volume
+                sound.play()
 
-    def play_music(self, track_id):
+    def play_music(self, track_path):
         if self.music_enabled and self.music_volume and self.master_volume:
-            mcrfpy.setMusicVolume(self.master_volume/100 * self.music_volume)
-            mcrfpy.playMusic(...)
+            try:
+                self.music = mcrfpy.Music(track_path)
+                self.music.volume = self.master_volume / 100 * self.music_volume
+                self.music.play()
+            except RuntimeError:
+                pass  # Music file not found
+
+    def set_music_volume(self, volume):
+        self.music_volume = volume
+        if self.music:
+            self.music.volume = self.master_volume / 100 * self.music_volume
+
+    def set_sfx_volume(self, volume):
+        self.sfx_volume = volume
 
 resources = Resources()
 
 class Crypt:
     def __init__(self):
-        play = mcrfpy.Scene("play")
-        self.ui = mcrfpy.sceneUI("play")
+        self.scene = mcrfpy.Scene("play")
+        self.ui = self.scene.children
 
         entity_frame = mcrfpy.Frame(pos=(815, 10), size=(194, 595), fill_color=frame_color)
         inventory_frame = mcrfpy.Frame(pos=(10, 610), size=(800, 143), fill_color=frame_color)
@@ -244,8 +263,8 @@ class Crypt:
 
     def start(self):
         resources.play_sfx(1)
-        play.activate()
-        play.on_key = self.cos_keys
+        self.scene.activate()
+        self.scene.on_key = self.cos_keys
 
     def add_entity(self, e:ce.COSEntity):
         self.entities.append(e)
@@ -402,7 +421,7 @@ class Crypt:
         self.grid = self.level.grid
         self.grid.zoom = 2.0
         # Center the camera on the middle of the grid (pixel coordinates: cells * tile_size / 2)
-        gw, gh = self.grid.grid_size
+        gw, gh = int(self.grid.grid_size.x), int(self.grid.grid_size.y)
         self.grid.center = (gw * 16 / 2, gh * 16 / 2)
         # TODO, make an entity mover function
         #self.add_entity(self.player)
@@ -463,12 +482,12 @@ class SweetButton:
         """Helper func for when graphics changes or glitches make the button stuck down"""
         self.main_button.x, self.main_button.y = (self.shadow_offset, self.shadow_offset)
 
-    def do_click(self, x, y, mousebtn, event):
-        if event == "start":
+    def do_click(self, pos, button, action):
+        if action == "start":
             self.main_button.x, self.main_button.y = (0, 0)
-        elif event == "end":
+        elif action == "end":
             self.main_button.x, self.main_button.y = (self.shadow_offset, self.shadow_offset)
-        result = self.click(self, (x, y, mousebtn, event))
+        result = self.click(self, (pos.x, pos.y, button, action))
         if result: # return True from event function to instantly un-pop
             self.main_button.x, self.main_button.y = (self.shadow_offset, self.shadow_offset)
 
@@ -490,9 +509,9 @@ class SweetButton:
 
 class MainMenu:
     def __init__(self):
-        menu = mcrfpy.Scene("menu")
-        self.ui = mcrfpy.sceneUI("menu")
-        menu.activate()
+        self.scene = mcrfpy.Scene("menu")
+        self.ui = self.scene.children
+        self.scene.activate()
         self.crypt = None
 
         components = []
@@ -501,7 +520,7 @@ class MainMenu:
         self.grid = self.demo.grid
         self.grid.zoom = 1.75
         # Center the camera on the middle of the grid (pixel coordinates: cells * tile_size / 2)
-        gw, gh = self.grid.grid_size
+        gw, gh = int(self.grid.grid_size.x), int(self.grid.grid_size.y)
         self.grid.center = (gw * 16 / 2, gh * 16 / 2)
         coords = self.demo.generate(
                 [("boulder", "boulder", "rat", "cyclops", "boulder"), ("spawn"), ("rat", "big rat"), ("button", "boulder", "exit")]
@@ -538,14 +557,14 @@ class MainMenu:
         #self.create_level(self.depth)
         for e in self.entities:
             self.grid.entities.append(e._entity)
-        def just_wiggle(*args):
+        def just_wiggle(timer, runtime):
             try:
                 self.player.try_move(*random.choice(((1, 0),(-1, 0),(0, 1),(0, -1))))
                 for e in self.entities:
                     e.act()
             except:
                 pass
-        mcrfpy.setTimer("demo_motion", just_wiggle, 100)
+        self.demo_timer = mcrfpy.Timer("demo_motion", just_wiggle, 100)
         components.append(
                 self.demo.grid
                 )
@@ -605,22 +624,22 @@ class MainMenu:
 
     def toast_say(self, txt, delay=10):
         "kick off a toast event"
-        if self.toast_event is not None:
-            mcrfpy.delTimer("toast_timer")
+        if self.toast_event is not None and hasattr(self, 'toast_timer'):
+            self.toast_timer.stop()
         self.toast.text = txt
         self.toast_event = 350
         self.toast.fill_color = (255, 255, 255, 255)
         self.toast.outline = 2
         self.toast.outline_color = (0, 0, 0, 255)
-        mcrfpy.setTimer("toast_timer", self.toast_callback, 100)
+        self.toast_timer = mcrfpy.Timer("toast_timer", self.toast_callback, 100)
 
-    def toast_callback(self, *args):
+    def toast_callback(self, timer, runtime):
         "fade out the toast text"
         self.toast_event -= 5
         if self.toast_event < 0:
             self.toast_event = None
-            mcrfpy.delTimer("toast_timer")
-            mcrfpy.text = ""
+            self.toast_timer.stop()
+            self.toast.text = ""
             return
         a = min(self.toast_event, 255)
         self.toast.fill_color = (255, 255, 255, a)
@@ -632,9 +651,8 @@ class MainMenu:
     def play(self, sweet_btn, args):
         #if args[3] == "start": return # DRAMATIC on release action!
         if args[3] == "end": return
-        mcrfpy.delTimer("demo_motion")  # Clean up the demo timer
+        self.demo_timer.stop()  # Clean up the demo timer
         self.crypt = Crypt()
-        #mcrfpy.setScene("play")
         self.crypt.start()
 
     def scale(self, sweet_btn, args, window_scale=None):
@@ -658,26 +676,25 @@ class MainMenu:
         resources.music_enabled = not resources.music_enabled
         print(f"music: {resources.music_enabled}")
         if resources.music_enabled:
-            mcrfpy.setMusicVolume(self.music_volume)
+            resources.set_music_volume(resources.music_volume)
             sweet_btn.text = "Music is ON"
             sweet_btn.sprite_number = 12
         else:
             self.toast_say("Use your volume keys or\nlook in Settings for a volume meter.")
-            mcrfpy.setMusicVolume(0)
+            resources.set_music_volume(0)
             sweet_btn.text = "Music is OFF"
             sweet_btn.sprite_number = 17
 
     def sfx_toggle(self, sweet_btn, args):
         if args[3] == "end": return
         resources.sfx_enabled = not resources.sfx_enabled
-        #print(f"sfx: {resources.sfx_enabled}")
         if resources.sfx_enabled:
-            mcrfpy.setSoundVolume(self.sfx_volume)
+            resources.set_sfx_volume(resources.sfx_volume)
             sweet_btn.text = "SFX are ON"
             sweet_btn.sprite_number = 0
         else:
             self.toast_say("Use your volume keys or\nlook in Settings for a volume meter.")
-            mcrfpy.setSoundVolume(0)
+            resources.set_sfx_volume(0)
             sweet_btn.text = "SFX are OFF"
             sweet_btn.sprite_number = 17
 

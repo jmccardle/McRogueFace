@@ -156,14 +156,10 @@ PyObject* PyTimer::stop(PyTimerObject* self, PyObject* Py_UNUSED(ignored)) {
         return nullptr;
     }
 
-    // Remove from game engine map (but preserve the Timer data!)
-    if (Resources::game && !self->name.empty()) {
-        auto it = Resources::game->timers.find(self->name);
-        if (it != Resources::game->timers.end() && it->second == self->data) {
-            Resources::game->timers.erase(it);
-        }
-    }
-
+    // Just mark as stopped - do NOT erase from map here!
+    // Removing from the map during iteration (e.g., from a timer callback)
+    // would invalidate iterators in testTimers(). The stopped flag tells
+    // testTimers() to safely remove this timer on its next pass.
     self->data->stop();
     // NOTE: We do NOT reset self->data here - the timer can be restarted
     Py_RETURN_NONE;
