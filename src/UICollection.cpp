@@ -126,6 +126,18 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
     if (type) {
         Py_DECREF(type);
     }
+
+    // Re-register in cache if the object has a serial number
+    // This handles the case where the original Python wrapper was GC'd
+    // but the C++ object persists (e.g., inline-created objects added to collections)
+    if (obj && drawable->serial_number != 0) {
+        PyObject* weakref = PyWeakref_NewRef(obj, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(drawable->serial_number, weakref);
+            Py_DECREF(weakref);
+        }
+    }
+
     return obj;
 }
 

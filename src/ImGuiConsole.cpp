@@ -381,9 +381,9 @@ void ImGuiConsole::render() {
     }
     ImGui::PopItemWidth();
 
-    // Keep focus on input
+    // Keep focus on input only after executing a command
     ImGui::SetItemDefaultFocus();
-    if (reclaimFocus || (visible && !ImGui::IsAnyItemActive())) {
+    if (reclaimFocus) {
         ImGui::SetKeyboardFocusHere(-1);
     }
 

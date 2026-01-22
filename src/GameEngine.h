@@ -11,6 +11,7 @@
 #include "SceneTransition.h"
 #include "Profiler.h"
 #include "ImGuiConsole.h"
+#include "ImGuiSceneExplorer.h"
 #include <memory>
 #include <sstream>
 #include <mutex>
@@ -191,6 +192,7 @@ private:
 
     // ImGui console overlay
     ImGuiConsole console;
+    ImGuiSceneExplorer sceneExplorer;
     bool imguiInitialized = false;
 
     // #219 - Thread synchronization for background Python threads
@@ -214,6 +216,7 @@ public:
     ~GameEngine();
     Scene* currentScene();
     Scene* getScene(const std::string& name);  // #118: Get scene by name
+    std::vector<std::string> getSceneNames() const;  // #136: Get all scene names for explorer
     void changeScene(std::string);
     void changeScene(std::string sceneName, TransitionType transitionType, float duration);
     void createScene(std::string);

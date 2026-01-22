@@ -130,6 +130,18 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
 
     o->data = std::static_pointer_cast<UIEntity>(target);
     o->weakreflist = NULL;
+
+    // Re-register in cache if the entity has a serial number
+    // This handles the case where the original Python wrapper was GC'd
+    // but the C++ object persists (e.g., inline-created objects added to collections)
+    if (target->serial_number != 0) {
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)o, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(target->serial_number, weakref);
+            Py_DECREF(weakref);
+        }
+    }
+
     return (PyObject*)o;
 }
 

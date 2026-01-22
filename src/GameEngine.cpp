@@ -202,6 +202,16 @@ Scene* GameEngine::getScene(const std::string& name) {
     auto it = scenes.find(name);
     return (it != scenes.end()) ? it->second : nullptr;
 }
+
+std::vector<std::string> GameEngine::getSceneNames() const {
+    std::vector<std::string> names;
+    names.reserve(scenes.size());
+    for (const auto& [name, scene] : scenes) {
+        names.push_back(name);
+    }
+    return names;
+}
+
 void GameEngine::changeScene(std::string s)
 {
     changeScene(s, TransitionType::None, 0.0f);
@@ -346,9 +356,10 @@ void GameEngine::run()
             profilerOverlay->render(*render_target);
         }
 
-        // Render ImGui console overlay
+        // Render ImGui overlays (console and scene explorer)
         if (imguiInitialized && !headless) {
             console.render();
+            sceneExplorer.render(*this);
             ImGui::SFML::Render(*window);
         }
 
@@ -548,6 +559,12 @@ void GameEngine::sUserInput()
         if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Grave) {
             console.toggle();
             continue;  // Don't pass grave key to game
+        }
+
+        // Handle F4 for scene explorer toggle
+        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F4) {
+            sceneExplorer.toggle();
+            continue;  // Don't pass F4 to game
         }
 
         // If console wants keyboard, don't pass keyboard events to game
