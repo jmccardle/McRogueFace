@@ -8,32 +8,63 @@ A Python-powered 2D game engine for creating roguelike games, built with C++ and
 * Simple GUI element system allows keyboard and mouse input, composition
 * No compilation or installation necessary. The runtime is a full Python environment; "Zip And Ship"
 
-![ Image ]()
-
-**Pre-Alpha Release Demo**: my 7DRL 2025 entry *"Crypt of Sokoban"* - a prototype with buttons, boulders, enemies, and items.
+📖 **[Full Documentation & Tutorials](https://mcrogueface.github.io/)** - Quickstart guide, API reference, and cookbook
 
 ## Quick Start
 
-**Download**: 
+**Download** the [latest release](https://github.com/jmccardle/McRogueFace/releases/latest):
+- **Windows**: `McRogueFace-*-Win.zip`
+- **Linux**: `McRogueFace-*-Linux.tar.bz2`
 
-- The entire McRogueFace visual framework:
-  - **Sprite**: an image file or one sprite from a shared sprite sheet
-  - **Caption**: load a font, display text
-  - **Frame**: A rectangle; put other things on it to move or manage GUIs as modules
-  - **Grid**: A 2D array of tiles with zoom + position control
-  - **Entity**: Lives on a Grid, displays a sprite, and can have a perspective or move along a path
-  - **Animation**: Change any property on any of the above over time
+Extract and run `mcrogueface` (or `mcrogueface.exe` on Windows) to see the demo game.
 
-```bash
-# Clone and build
-git clone <wherever you found this repo>
-cd McRogueFace
-make
+### Your First Game
 
-# Run the example game
-cd build
-./mcrogueface
+Create `scripts/game.py` (or edit the existing one):
+
+```python
+import mcrfpy
+
+# Create and activate a scene
+scene = mcrfpy.Scene("game")
+scene.activate()
+
+# Load a sprite sheet
+texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
+
+# Create a tile grid
+grid = mcrfpy.Grid(grid_size=(20, 15), texture=texture, pos=(50, 50), size=(640, 480))
+grid.zoom = 2.0
+scene.children.append(grid)
+
+# Add a player entity
+player = mcrfpy.Entity(pos=(10, 7), texture=texture, sprite_index=84)
+grid.entities.append(player)
+
+# Handle keyboard input
+def on_key(key, state):
+    if state != "start":
+        return
+    x, y = int(player.x), int(player.y)
+    if key == "W": y -= 1
+    elif key == "S": y += 1
+    elif key == "A": x -= 1
+    elif key == "D": x += 1
+    player.x, player.y = x, y
+
+scene.on_key = on_key
 ```
+
+Run `mcrogueface` and you have a movable character!
+
+### Visual Framework
+
+- **Sprite**: Single image or sprite from a shared sheet
+- **Caption**: Text rendering with fonts
+- **Frame**: Container rectangle for composing UIs
+- **Grid**: 2D tile array with zoom and camera control
+- **Entity**: Grid-based game object with sprite and pathfinding
+- **Animation**: Interpolate any property over time with easing
 
 ## Building from Source
 
@@ -72,24 +103,38 @@ cd McRogueFace
 - **Windows**: Supported (see build guide for details)
 - **macOS**: Untested
 
-## Example: Creating a Simple Scene
+## Example: Main Menu with Buttons
 
 ```python
 import mcrfpy
 
-# Create a new scene
-intro = mcrfpy.Scene("intro")
+# Create a scene
+scene = mcrfpy.Scene("menu")
 
-# Add a text caption
-caption = mcrfpy.Caption((50, 50), "Welcome to McRogueFace!")
-caption.size = 48 
-caption.fill_color = (255, 255, 255)
+# Add a background frame
+bg = mcrfpy.Frame(pos=(0, 0), size=(1024, 768),
+                  fill_color=mcrfpy.Color(20, 20, 40))
+scene.children.append(bg)
 
-# Add to scene
-intro.children.append(caption)
+# Add a title
+title = mcrfpy.Caption(pos=(312, 100), text="My Roguelike",
+                       fill_color=mcrfpy.Color(255, 255, 100))
+title.font_size = 48
+scene.children.append(title)
 
-# Switch to the scene
-intro.activate()
+# Create a button
+button = mcrfpy.Frame(pos=(362, 300), size=(300, 80),
+                      fill_color=mcrfpy.Color(50, 150, 50))
+button_text = mcrfpy.Caption(pos=(90, 25), text="Start Game")
+button.children.append(button_text)
+
+def on_click(x, y, btn):
+    print("Game starting!")
+
+button.on_click = on_click
+scene.children.append(button)
+
+scene.activate()
 ```
 
 ## Documentation
@@ -121,28 +166,27 @@ In the repository root:
 
 - C++17 compiler (GCC 7+ or Clang 5+)
 - CMake 3.14+
-- Python 3.12+
+- Python 3.14 (embedded)
 - SFML 2.6
 - Linux or Windows (macOS untested)
+
+See [BUILD_FROM_SOURCE.md](BUILD_FROM_SOURCE.md) for detailed compilation instructions.
 
 ## Project Structure
 
 ```
 McRogueFace/
 ├── assets/        # Sprites, fonts, audio
-├── build/         # Build output directory: zip + ship
-│   ├─ (*)assets/  # (copied location of assets) 
-│   ├─ (*)scripts/ # (copied location of src/scripts)
-│   └─ lib/        # SFML, TCOD libraries,  Python + standard library / modules
-├── deps/          # Python, SFML, and libtcod imports can be tossed in here to build
-│   └─ platform/   # windows, linux subdirectories for OS-specific cpython config
-├── docs/          # generated HTML, markdown docs
-│   └─ stubs/      # .pyi files for editor integration
-├── modules/       # git submodules, to build all of McRogueFace's dependencies from source
+├── build/         # Build output: this is what you distribute
+│   ├── assets/    # (copied from assets/)
+│   ├── scripts/   # (copied from src/scripts/)
+│   └── lib/       # Python stdlib and extension modules
+├── docs/          # Generated HTML, markdown API docs
 ├── src/           # C++ engine source
-│   └─ scripts/    # Python game scripts (copied during build)
-└── tests/         # Automated test suite
-└── tools/         # For the McRogueFace ecosystem: docs generation
+│   └── scripts/   # Python game scripts
+├── stubs/         # .pyi type stubs for IDE integration
+├── tests/         # Automated test suite
+└── tools/         # Documentation generation scripts
 ```
 
 If you are building McRogueFace to implement game logic or scene configuration in C++, you'll have to compile the project.
@@ -177,6 +221,6 @@ This project is licensed under the MIT License - see LICENSE file for details.
 
 ## Acknowledgments
 
-- Developed for 7-Day Roguelike 2023, 2024, 2025 - here's to many more
+- Developed for 7-Day Roguelike 2023, 2024, 2025, 2026 - here's to many more
 - Built with [SFML](https://www.sfml-dev.org/), [libtcod](https://github.com/libtcod/libtcod), and Python
 - Inspired by David Churchill's COMP4300 game engine lectures
