@@ -124,6 +124,13 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
             }
         }
 
+        // Fall back to standard rendering if texture not available (e.g., zero size)
+        if (!use_render_texture) {
+            use_texture = false;  // Force standard path for this render call
+        }
+    }
+
+    if (use_texture) {
         // Update RenderTexture if dirty
         if (use_render_texture && render_dirty) {
             // Clear the RenderTexture
@@ -158,7 +165,8 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
         // Draw the RenderTexture sprite (single blit!)
         if (use_render_texture) {
-            render_sprite.setPosition(offset + box.getPosition());
+            // Use `position` instead of box.getPosition() - box was set to (0,0) for texture rendering
+            render_sprite.setPosition(offset + position);
             target.draw(render_sprite);
         }
     } else {
@@ -389,13 +397,19 @@ int UIFrame::set_clip_children(PyUIFrameObject* self, PyObject* value, void* clo
         PyErr_SetString(PyExc_TypeError, "clip_children must be a boolean");
         return -1;
     }
-    
+
     bool new_clip = PyObject_IsTrue(value);
     if (new_clip != self->data->clip_children) {
         self->data->clip_children = new_clip;
+
+        // Disable texture if no longer needed (and cache_subtree isn't using it)
+        if (!new_clip && !self->data->cache_subtree) {
+            self->data->disableRenderTexture();
+        }
+
         self->data->markDirty();  // Mark as needing redraw
     }
-    
+
     return 0;
 }
 
@@ -423,7 +437,11 @@ int UIFrame::set_cache_subtree(PyUIFrameObject* self, PyObject* value, void* clo
                 self->data->enableRenderTexture(static_cast<unsigned int>(size.x),
                                                 static_cast<unsigned int>(size.y));
             }
+        } else if (!self->data->clip_children) {
+            // Disable texture if clip_children also doesn't need it
+            self->data->disableRenderTexture();
         }
+
         self->data->markDirty();  // Mark as needing redraw
     }
 

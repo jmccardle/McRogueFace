@@ -248,6 +248,12 @@ protected:
     // Enable RenderTexture for this drawable
     void enableRenderTexture(unsigned int width, unsigned int height);
     void updateRenderTexture();
+
+    // Disable RenderTexture for this drawable (public for property setters)
+public:
+    void disableRenderTexture();
+
+protected:
     
 public:
     // #144: Dirty flag system - content vs composite

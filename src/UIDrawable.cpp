@@ -419,8 +419,17 @@ void UIDrawable::enableRenderTexture(unsigned int width, unsigned int height) {
         }
         render_sprite.setTexture(render_texture->getTexture());
     }
-    
+
     use_render_texture = true;
+    render_dirty = true;
+}
+
+void UIDrawable::disableRenderTexture() {
+    if (!use_render_texture) return;
+
+    render_texture.reset();
+    render_sprite = sf::Sprite();  // Clear stale texture reference
+    use_render_texture = false;
     render_dirty = true;
 }
 
@@ -907,14 +916,14 @@ bool UIDrawable::contains_point(float x, float y) const {
 
 // #144: Content dirty - texture needs rebuild
 void UIDrawable::markContentDirty() {
-    if (render_dirty) return;  // Already dirty, no need to propagate
-
+    bool was_dirty = render_dirty;
     render_dirty = true;
     composite_dirty = true;  // If content changed, composite also needs update
 
     // Propagate to parent - parent's composite is dirty (child content changed)
+    // Propagate if: we weren't already dirty, OR parent was cleared (rendered) since last propagation
     auto p = parent.lock();
-    if (p) {
+    if (p && (!was_dirty || !p->render_dirty)) {
         p->markContentDirty();  // Parent also needs to rebuild to include our changes
     }
 }
