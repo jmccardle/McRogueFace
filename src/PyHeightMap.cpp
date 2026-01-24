@@ -442,56 +442,35 @@ PyMethodDef PyHeightMap::methods[] = {
     // Convolution methods (libtcod 2.2.2+)
     {"sparse_kernel", (PyCFunction)PyHeightMap::sparse_kernel, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, sparse_kernel,
-         MCRF_SIG("(weights: dict[tuple[int, int], float], *, min_level: float = -inf, max_level: float = inf)", "HeightMap"),
+         MCRF_SIG("(weights: dict[tuple[int, int], float])", "HeightMap"),
          MCRF_DESC("Apply sparse convolution kernel, returning a NEW HeightMap with results."),
          MCRF_ARGS_START
          MCRF_ARG("weights", "Dict mapping (dx, dy) offsets to weight values")
-         MCRF_ARG("min_level", "Only transform cells with value >= min_level (default: -inf)")
-         MCRF_ARG("max_level", "Only transform cells with value <= max_level (default: inf)")
          MCRF_RETURNS("HeightMap: new heightmap with convolution result")
      )},
     {"sparse_kernel_from", (PyCFunction)PyHeightMap::sparse_kernel_from, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, sparse_kernel_from,
-         MCRF_SIG("(source: HeightMap, weights: dict[tuple[int, int], float], *, min_level: float = -inf, max_level: float = inf)", "None"),
+         MCRF_SIG("(source: HeightMap, weights: dict[tuple[int, int], float])", "None"),
          MCRF_DESC("Apply sparse convolution from source heightmap into self (for reusing destination buffers)."),
          MCRF_ARGS_START
          MCRF_ARG("source", "Source HeightMap to convolve from")
          MCRF_ARG("weights", "Dict mapping (dx, dy) offsets to weight values")
-         MCRF_ARG("min_level", "Only transform cells with value >= min_level (default: -inf)")
-         MCRF_ARG("max_level", "Only transform cells with value <= max_level (default: inf)")
          MCRF_RETURNS("None")
      )},
-    {"kernel3", (PyCFunction)PyHeightMap::kernel3, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(HeightMap, kernel3,
-         MCRF_SIG("(weights: Sequence[float], *, normalize: bool = True)", "HeightMap"),
-         MCRF_DESC("Apply 3x3 convolution kernel, returning a NEW HeightMap with results."),
-         MCRF_ARGS_START
-         MCRF_ARG("weights", "9 floats as flat list [w0..w8] or nested [[r0],[r1],[r2]]")
-         MCRF_ARG("normalize", "Divide result by sum of weights (default: True)")
-         MCRF_RETURNS("HeightMap: new heightmap with convolution result")
-         MCRF_NOTE("Kernel layout: [0,1,2] = top row, [3,4,5] = middle, [6,7,8] = bottom")
-     )},
-    {"kernel3_from", (PyCFunction)PyHeightMap::kernel3_from, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(HeightMap, kernel3_from,
-         MCRF_SIG("(source: HeightMap, weights: Sequence[float], *, normalize: bool = True)", "None"),
-         MCRF_DESC("Apply 3x3 convolution from source heightmap into self (for reusing destination buffers)."),
-         MCRF_ARGS_START
-         MCRF_ARG("source", "Source HeightMap to convolve from")
-         MCRF_ARG("weights", "9 floats as flat list [w0..w8] or nested [[r0],[r1],[r2]]")
-         MCRF_ARG("normalize", "Divide result by sum of weights (default: True)")
-         MCRF_RETURNS("None")
-         MCRF_NOTE("Kernel layout: [0,1,2] = top row, [3,4,5] = middle, [6,7,8] = bottom")
-     )},
-    {"gradients", (PyCFunction)PyHeightMap::gradients, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(HeightMap, gradients,
-         MCRF_SIG("(dx=True, dy=True)", "HeightMap | tuple[HeightMap, HeightMap] | None"),
-         MCRF_DESC("Compute gradient (partial derivatives) of the heightmap."),
-         MCRF_ARGS_START
-         MCRF_ARG("dx", "HeightMap to write dx into, True to create new, False to skip")
-         MCRF_ARG("dy", "HeightMap to write dy into, True to create new, False to skip")
-         MCRF_RETURNS("Depends on args: (dx, dy) tuple, single HeightMap, or None")
-         MCRF_NOTE("Pass existing HeightMaps for dx/dy to reuse buffers in hot loops")
-     )},
+    // NOTE: kernel3 and kernel3_from removed - TCOD_heightmap_convolve3x3 was removed from libtcod.
+    // Use sparse_kernel/sparse_kernel_from with a 3x3 dict instead.
+
+    // NOTE: gradients method waiting for jmccardle:feature/heightmap-gradients to be merged into libtcod:main
+    // {"gradients", (PyCFunction)PyHeightMap::gradients, METH_VARARGS | METH_KEYWORDS,
+    //  MCRF_METHOD(HeightMap, gradients,
+    //      MCRF_SIG("(dx=True, dy=True)", "HeightMap | tuple[HeightMap, HeightMap] | None"),
+    //      MCRF_DESC("Compute gradient (partial derivatives) of the heightmap."),
+    //      MCRF_ARGS_START
+    //      MCRF_ARG("dx", "HeightMap to write dx into, True to create new, False to skip")
+    //      MCRF_ARG("dy", "HeightMap to write dy into, True to create new, False to skip")
+    //      MCRF_RETURNS("Depends on args: (dx, dy) tuple, single HeightMap, or None")
+    //      MCRF_NOTE("Pass existing HeightMaps for dx/dy to reuse buffers in hot loops")
+    //  )},
     // Combination operations (#194) - with region support
     {"add", (PyCFunction)PyHeightMap::add, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(HeightMap, add,
@@ -1807,88 +1786,16 @@ static Py_ssize_t ParseWeightsDict(PyObject* weights_dict,
     return kernel_size;
 }
 
-// Helper: Parse 3x3 kernel from flat or nested sequence
-// Returns true on success, sets error and returns false on failure
-static bool ParseKernel3(PyObject* weights_obj, float kernel[9])
-{
-    // Check if it's a sequence
-    if (!PySequence_Check(weights_obj)) {
-        PyErr_SetString(PyExc_TypeError, "weights must be a sequence (list or tuple)");
-        return false;
-    }
-
-    Py_ssize_t len = PySequence_Size(weights_obj);
-
-    if (len == 9) {
-        // Flat format: [w0, w1, w2, w3, w4, w5, w6, w7, w8]
-        for (int i = 0; i < 9; i++) {
-            PyObject* item = PySequence_GetItem(weights_obj, i);
-            if (!item) return false;
-
-            if (PyFloat_Check(item)) {
-                kernel[i] = static_cast<float>(PyFloat_AsDouble(item));
-            } else if (PyLong_Check(item)) {
-                kernel[i] = static_cast<float>(PyLong_AsLong(item));
-            } else {
-                Py_DECREF(item);
-                PyErr_SetString(PyExc_TypeError, "kernel weights must be numeric");
-                return false;
-            }
-            Py_DECREF(item);
-        }
-        return true;
-    } else if (len == 3) {
-        // Nested format: [[r0], [r1], [r2]] where each row has 3 elements
-        for (int row = 0; row < 3; row++) {
-            PyObject* row_obj = PySequence_GetItem(weights_obj, row);
-            if (!row_obj) return false;
-
-            if (!PySequence_Check(row_obj) || PySequence_Size(row_obj) != 3) {
-                Py_DECREF(row_obj);
-                PyErr_SetString(PyExc_TypeError, "nested kernel must have 3 rows of 3 elements each");
-                return false;
-            }
-
-            for (int col = 0; col < 3; col++) {
-                PyObject* item = PySequence_GetItem(row_obj, col);
-                if (!item) {
-                    Py_DECREF(row_obj);
-                    return false;
-                }
-
-                if (PyFloat_Check(item)) {
-                    kernel[row * 3 + col] = static_cast<float>(PyFloat_AsDouble(item));
-                } else if (PyLong_Check(item)) {
-                    kernel[row * 3 + col] = static_cast<float>(PyLong_AsLong(item));
-                } else {
-                    Py_DECREF(item);
-                    Py_DECREF(row_obj);
-                    PyErr_SetString(PyExc_TypeError, "kernel weights must be numeric");
-                    return false;
-                }
-                Py_DECREF(item);
-            }
-            Py_DECREF(row_obj);
-        }
-        return true;
-    } else {
-        PyErr_SetString(PyExc_ValueError, "weights must be 9 elements (flat) or 3x3 nested");
-        return false;
-    }
-}
-
 // sparse_kernel_from - apply sparse convolution from source into self
 PyObject* PyHeightMap::sparse_kernel_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
     PyObject* source_obj = nullptr;
     PyObject* weights_dict = nullptr;
-    float min_level = -FLT_MAX;
-    float max_level = FLT_MAX;
 
-    static const char* kwlist[] = {"source", "weights", "min_level", "max_level", nullptr};
+    static const char* kwlist[] = {"source", "weights", nullptr};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|ff", const_cast<char**>(kwlist),
-                                     &source_obj, &weights_dict, &min_level, &max_level)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", const_cast<char**>(kwlist),
+                                     &source_obj, &weights_dict)) {
         return nullptr;
     }
 
@@ -1915,10 +1822,11 @@ PyObject* PyHeightMap::sparse_kernel_from(PyHeightMapObject* self, PyObject* arg
     if (kernel_size < 0) return nullptr;
 
     // Apply the kernel transform
+    // NOTE: mask parameter added in libtcod feature/heightmap-convolution, pass nullptr for now
     TCOD_heightmap_kernel_transform_out(source->heightmap, self->heightmap,
                                         static_cast<int>(kernel_size),
                                         dx.data(), dy.data(), weight.data(),
-                                        min_level, max_level);
+                                        nullptr);
 
     Py_RETURN_NONE;
 }
@@ -1927,13 +1835,11 @@ PyObject* PyHeightMap::sparse_kernel_from(PyHeightMapObject* self, PyObject* arg
 PyObject* PyHeightMap::sparse_kernel(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
 {
     PyObject* weights_dict = nullptr;
-    float min_level = -FLT_MAX;
-    float max_level = FLT_MAX;
 
-    static const char* kwlist[] = {"weights", "min_level", "max_level", nullptr};
+    static const char* kwlist[] = {"weights", nullptr};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|ff", const_cast<char**>(kwlist),
-                                     &weights_dict, &min_level, &max_level)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", const_cast<char**>(kwlist),
+                                     &weights_dict)) {
         return nullptr;
     }
 
@@ -1956,89 +1862,17 @@ PyObject* PyHeightMap::sparse_kernel(PyHeightMapObject* self, PyObject* args, Py
     }
 
     // Apply the kernel transform
+    // NOTE: mask parameter added in libtcod feature/heightmap-convolution, pass nullptr for now
     TCOD_heightmap_kernel_transform_out(self->heightmap, result->heightmap,
                                         static_cast<int>(kernel_size),
                                         dx.data(), dy.data(), weight.data(),
-                                        min_level, max_level);
+                                        nullptr);
 
     return (PyObject*)result;
 }
 
-// kernel3_from - apply 3x3 convolution from source into self
-PyObject* PyHeightMap::kernel3_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
-{
-    PyObject* source_obj = nullptr;
-    PyObject* weights_obj = nullptr;
-    int normalize = 1;  // Python bool
-
-    static const char* kwlist[] = {"source", "weights", "normalize", nullptr};
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|p", const_cast<char**>(kwlist),
-                                     &source_obj, &weights_obj, &normalize)) {
-        return nullptr;
-    }
-
-    if (!self->heightmap) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
-        return nullptr;
-    }
-
-    // Validate source
-    PyHeightMapObject* source = validateOtherHeightMapType(source_obj, "kernel3_from");
-    if (!source) return nullptr;
-
-    // Check dimensions match
-    if (source->heightmap->w != self->heightmap->w ||
-        source->heightmap->h != self->heightmap->h) {
-        PyErr_SetString(PyExc_ValueError, "source and destination HeightMaps must have same dimensions");
-        return nullptr;
-    }
-
-    // Parse kernel
-    float kernel[9];
-    if (!ParseKernel3(weights_obj, kernel)) return nullptr;
-
-    // Apply convolution
-    TCOD_heightmap_convolve3x3(source->heightmap, self->heightmap, kernel, normalize != 0);
-
-    Py_RETURN_NONE;
-}
-
-// kernel3 - apply 3x3 convolution, return new HeightMap
-PyObject* PyHeightMap::kernel3(PyHeightMapObject* self, PyObject* args, PyObject* kwds)
-{
-    PyObject* weights_obj = nullptr;
-    int normalize = 1;
-
-    static const char* kwlist[] = {"weights", "normalize", nullptr};
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|p", const_cast<char**>(kwlist),
-                                     &weights_obj, &normalize)) {
-        return nullptr;
-    }
-
-    if (!self->heightmap) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap not initialized");
-        return nullptr;
-    }
-
-    // Create new HeightMap for result
-    PyHeightMapObject* result = CreateNewHeightMap(self->heightmap->w, self->heightmap->h);
-    if (!result) return nullptr;
-
-    // Parse kernel
-    float kernel[9];
-    if (!ParseKernel3(weights_obj, kernel)) {
-        Py_DECREF(result);
-        return nullptr;
-    }
-
-    // Apply convolution
-    TCOD_heightmap_convolve3x3(self->heightmap, result->heightmap, kernel, normalize != 0);
-
-    return (PyObject*)result;
-}
-
+// NOTE: gradients method waiting for jmccardle:feature/heightmap-gradients to be merged into libtcod:main
+/*
 // gradients - compute partial derivatives
 // Usage:
 //   source.gradients(dx_hm, dy_hm) - write to existing HeightMaps, return None
@@ -2137,6 +1971,7 @@ PyObject* PyHeightMap::gradients(PyHeightMapObject* self, PyObject* args, PyObje
         Py_RETURN_NONE;
     }
 }
+*/
 
 // =============================================================================
 // Combination operations (#194) - with region support

@@ -57,9 +57,8 @@ public:
     // Correct convolution methods (using new libtcod functions)
     static PyObject* sparse_kernel(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* sparse_kernel_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* kernel3(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* kernel3_from(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
-    static PyObject* gradients(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
+    // NOTE: gradients waiting for jmccardle:feature/heightmap-gradients to be merged into libtcod:main
+    // static PyObject* gradients(PyHeightMapObject* self, PyObject* args, PyObject* kwds);
 
     // Subscript support for hmap[x, y] syntax
     static PyObject* subscript(PyHeightMapObject* self, PyObject* key);
