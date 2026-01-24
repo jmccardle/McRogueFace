@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2025-12-28" "McRogueFace dev" ""
+.TH "MCRFPY" "3" "2026-01-23" "McRogueFace 0.2.1-prerelease-7drl2026-15-g3fea641" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2025-12-28 14:29:42\f[R]
+\f[I]Generated on 2026-01-23 20:45:13\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -29,9 +29,15 @@ Functions
 Classes
 .RS 2
 .IP \[bu] 2
+AStarPath
+.IP \[bu] 2
+Alignment
+.IP \[bu] 2
 Animation
 .IP \[bu] 2
 Arc
+.IP \[bu] 2
+BSP
 .IP \[bu] 2
 Caption
 .IP \[bu] 2
@@ -41,11 +47,13 @@ Color
 .IP \[bu] 2
 ColorLayer
 .IP \[bu] 2
+DijkstraMap
+.IP \[bu] 2
 Drawable
 .IP \[bu] 2
-Entity
+Easing
 .IP \[bu] 2
-EntityCollection
+Entity
 .IP \[bu] 2
 FOV
 .IP \[bu] 2
@@ -55,13 +63,27 @@ Frame
 .IP \[bu] 2
 Grid
 .IP \[bu] 2
-GridPoint
+HeightMap
 .IP \[bu] 2
-GridPointState
+InputState
+.IP \[bu] 2
+Key
+.IP \[bu] 2
+Keyboard
 .IP \[bu] 2
 Line
 .IP \[bu] 2
+Mouse
+.IP \[bu] 2
+MouseButton
+.IP \[bu] 2
+Music
+.IP \[bu] 2
+NoiseSource
+.IP \[bu] 2
 Scene
+.IP \[bu] 2
+Sound
 .IP \[bu] 2
 Sprite
 .IP \[bu] 2
@@ -71,11 +93,9 @@ TileLayer
 .IP \[bu] 2
 Timer
 .IP \[bu] 2
-UICollection
+Transition
 .IP \[bu] 2
-UICollectionIter
-.IP \[bu] 2
-UIEntityCollectionIter
+Traversal
 .IP \[bu] 2
 Vector
 .IP \[bu] 2
@@ -84,44 +104,22 @@ Window
 .IP \[bu] 2
 Constants
 .SS Functions
-.SS \f[V]createScene(name: str) -> None\f[R]
+.SS \f[V]bresenham(start, end, *, include_start=True, include_end=True) -> list[tuple[int, int]]\f[R]
 .PP
-Create a new empty scene.
-.PP
-Note:
-.PP
-\f[B]Arguments:\f[R] - \f[V]name\f[R]: Unique name for the new scene
-.PP
-\f[B]Returns:\f[R] None
-.PP
-\f[B]Raises:\f[R] ValueError: If a scene with this name already exists
-The scene is created but not made active.
-Use setScene() to switch to it.
-.SS \f[V]createSoundBuffer(filename: str) -> int\f[R]
-.PP
-Load a sound effect from a file and return its buffer ID.
-.PP
-\f[B]Arguments:\f[R] - \f[V]filename\f[R]: Path to the sound file (WAV,
-OGG, FLAC)
-.PP
-\f[B]Returns:\f[R] int: Buffer ID for use with playSound()
-.PP
-\f[B]Raises:\f[R] RuntimeError: If the file cannot be loaded
-.SS \f[V]currentScene() -> str\f[R]
-.PP
-Get the name of the currently active scene.
-.PP
-\f[B]Returns:\f[R] str: Name of the current scene
-.SS \f[V]delTimer(name: str) -> None\f[R]
-.PP
-Stop and remove a timer.
+Compute grid cells along a line using Bresenham\[cq]s algorithm.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]name\f[R]: Timer identifier to remove
+\f[B]Arguments:\f[R] - \f[V]start\f[R]: (x, y) tuple or Vector -
+starting point - \f[V]end\f[R]: (x, y) tuple or Vector - ending point -
+\f[V]include_start\f[R]: Include the starting point in results (default:
+True) - \f[V]include_end\f[R]: Include the ending point in results
+(default: True)
 .PP
-\f[B]Returns:\f[R] None No error is raised if the timer doesn\[cq]t
-exist.
+\f[B]Returns:\f[R] list[tuple[int, int]]: List of (x, y) grid
+coordinates along the line Useful for line-of-sight checks, projectile
+paths, and drawing lines on grids.
+The algorithm ensures minimal grid traversal between two points.
 .SS \f[V]end_benchmark() -> str\f[R]
 .PP
 Stop benchmark capture and write data to JSON file.
@@ -172,37 +170,20 @@ frame duration in seconds), avg_frame_time (average frame time), fps
 (frames per second), draw_calls (number of draw calls), ui_elements
 (total UI element count), visible_elements (visible element count),
 current_frame (frame counter), runtime (total runtime in seconds)
-.SS \f[V]getMusicVolume() -> int\f[R]
+.SS \f[V]lock() -> _LockContext\f[R]
 .PP
-Get the current music volume level.
-.PP
-\f[B]Returns:\f[R] int: Current volume (0-100)
-.SS \f[V]getSoundVolume() -> int\f[R]
-.PP
-Get the current sound effects volume level.
-.PP
-\f[B]Returns:\f[R] int: Current volume (0-100)
-.SS \f[V]keypressScene(handler: callable) -> None\f[R]
-.PP
-Set the keyboard event handler for the current scene.
+Get a context manager for thread-safe UI updates from background
+threads.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]handler\f[R]: Callable that receives
-(key_name: str, is_pressed: bool)
-.PP
-\f[B]Returns:\f[R] None
-.SS \f[V]loadMusic(filename: str) -> None\f[R]
-.PP
-Load and immediately play background music from a file.
-.PP
-Note:
-.PP
-\f[B]Arguments:\f[R] - \f[V]filename\f[R]: Path to the music file (WAV,
-OGG, FLAC)
-.PP
-\f[B]Returns:\f[R] None Only one music track can play at a time.
-Loading new music stops the current track.
+\f[B]Returns:\f[R] _LockContext: A context manager that blocks until
+safe to modify UI Use with \f[V]with mcrfpy.lock():\f[R] to safely
+modify UI objects from a background thread.
+The context manager blocks until the render loop reaches a safe point
+between frames.
+Without this, modifying UI from threads may cause visual glitches or
+crashes.
 .SS \f[V]log_benchmark(message: str) -> None\f[R]
 .PP
 Add a log message to the current benchmark frame.
@@ -216,27 +197,6 @@ current frame
 .PP
 \f[B]Raises:\f[R] RuntimeError: If no benchmark is currently running
 Messages appear in the `logs' array of each frame in the output JSON.
-.SS \f[V]playSound(buffer_id: int) -> None\f[R]
-.PP
-Play a sound effect using a previously loaded buffer.
-.PP
-\f[B]Arguments:\f[R] - \f[V]buffer_id\f[R]: Sound buffer ID returned by
-createSoundBuffer()
-.PP
-\f[B]Returns:\f[R] None
-.PP
-\f[B]Raises:\f[R] RuntimeError: If the buffer ID is invalid
-.SS \f[V]sceneUI(scene: str = None) -> list\f[R]
-.PP
-Get all UI elements for a scene.
-.PP
-\f[B]Arguments:\f[R] - \f[V]scene\f[R]: Scene name.
-If None, uses current scene
-.PP
-\f[B]Returns:\f[R] list: All UI elements (Frame, Caption, Sprite, Grid)
-in the scene
-.PP
-\f[B]Raises:\f[R] KeyError: If the specified scene doesn\[cq]t exist
 .SS \f[V]setDevConsole(enabled: bool) -> None\f[R]
 .PP
 Enable or disable the developer console overlay.
@@ -249,14 +209,6 @@ Note:
 \f[B]Returns:\f[R] None When disabled, the grave/tilde key will not open
 the console.
 Use this to ship games without debug features.
-.SS \f[V]setMusicVolume(volume: int) -> None\f[R]
-.PP
-Set the global music volume.
-.PP
-\f[B]Arguments:\f[R] - \f[V]volume\f[R]: Volume level from 0 (silent) to
-100 (full volume)
-.PP
-\f[B]Returns:\f[R] None
 .SS \f[V]setScale(multiplier: float) -> None\f[R]
 .PP
 Scale the game window size.
@@ -269,40 +221,6 @@ double size)
 \f[B]Returns:\f[R] None The internal resolution remains 1024x768, but
 the window is scaled.
 This is deprecated - use Window.resolution instead.
-.SS \f[V]setScene(scene: str, transition: str = None, duration: float = 0.0) -> None\f[R]
-.PP
-Switch to a different scene with optional transition effect.
-.PP
-\f[B]Arguments:\f[R] - \f[V]scene\f[R]: Name of the scene to switch to -
-\f[V]transition\f[R]: Transition type (`fade', `slide_left',
-`slide_right', `slide_up', `slide_down') - \f[V]duration\f[R]:
-Transition duration in seconds (default: 0.0 for instant)
-.PP
-\f[B]Returns:\f[R] None
-.PP
-\f[B]Raises:\f[R] KeyError: If the scene doesn\[cq]t exist ValueError:
-If the transition type is invalid
-.SS \f[V]setSoundVolume(volume: int) -> None\f[R]
-.PP
-Set the global sound effects volume.
-.PP
-\f[B]Arguments:\f[R] - \f[V]volume\f[R]: Volume level from 0 (silent) to
-100 (full volume)
-.PP
-\f[B]Returns:\f[R] None
-.SS \f[V]setTimer(name: str, handler: callable, interval: int) -> None\f[R]
-.PP
-Create or update a recurring timer.
-.PP
-Note:
-.PP
-\f[B]Arguments:\f[R] - \f[V]name\f[R]: Unique identifier for the timer -
-\f[V]handler\f[R]: Function called with (runtime: float) parameter -
-\f[V]interval\f[R]: Time between calls in milliseconds
-.PP
-\f[B]Returns:\f[R] None If a timer with this name exists, it will be
-replaced.
-The handler receives the total runtime in seconds as its argument.
 .SS \f[V]start_benchmark() -> None\f[R]
 .PP
 Start capturing benchmark data to a file.
@@ -329,9 +247,216 @@ In windowed mode, this is a no-op and returns 0.0.
 Use this for deterministic simulation control in headless/testing
 scenarios.
 .SS Classes
+.SS AStarPath
+.PP
+A computed A* path result, consumed step by step.
+.PP
+Created by Grid.find_path().
+Cannot be instantiated directly.
+.PP
+Use walk() to get and consume each step, or iterate directly.
+Use peek() to see the next step without consuming it.
+Use bool(path) or len(path) to check if steps remain.
+.PP
+Properties: origin (Vector): Starting position (read-only) destination
+(Vector): Ending position (read-only) remaining (int): Steps remaining
+(read-only)
+.PP
+Example: path = grid.find_path(start, end) if path: while path: next_pos
+= path.walk() entity.pos = next_pos
+.PP
+\f[B]Properties:\f[R] - \f[V]destination\f[R] \f[I](read-only)\f[R]:
+Ending position of the path (Vector, read-only).
+- \f[V]origin\f[R] \f[I](read-only)\f[R]: Starting position of the path
+(Vector, read-only).
+- \f[V]remaining\f[R] \f[I](read-only)\f[R]: Number of steps remaining
+in the path (int, read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]peek() -> Vector\f[R]
+.PP
+See next step without consuming it.
+.PP
+\f[B]Returns:\f[R] Next position as Vector.
+.PP
+\f[B]Raises:\f[R] IndexError: If path is exhausted.
+.SS \f[V]walk() -> Vector\f[R]
+.PP
+Get and consume next step in the path.
+.PP
+\f[B]Returns:\f[R] Next position as Vector.
+.PP
+\f[B]Raises:\f[R] IndexError: If path is exhausted.
+.SS Alignment
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+Alignment enum for positioning UI elements relative to parent bounds.
+.PP
+Values: TOP_LEFT, TOP_CENTER, TOP_RIGHT CENTER_LEFT, CENTER,
+CENTER_RIGHT BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT
+.PP
+Margin Validation Rules: Margins define distance from parent edge when
+aligned.
+.IP
+.nf
+\f[C]
+- CENTER: No margins allowed (raises ValueError if margin != 0)
+- TOP_CENTER, BOTTOM_CENTER: Only vert_margin applies (horiz_margin raises ValueError)
+- CENTER_LEFT, CENTER_RIGHT: Only horiz_margin applies (vert_margin raises ValueError)
+- Corner alignments (TOP_LEFT, etc.): All margins valid
+\f[R]
+.fi
+.PP
+Properties: align: Alignment value or None to disable margin: General
+margin for all applicable edges horiz_margin: Override for horizontal
+edge (0 = use general margin) vert_margin: Override for vertical edge (0
+= use general margin)
+.PP
+Example: # Center a panel in the scene panel = Frame(size=(200, 100),
+align=Alignment.CENTER) scene.children.append(panel)
+.IP
+.nf
+\f[C]
+# Place button in bottom-right with 10px margin
+button = Frame(size=(80, 30), align=Alignment.BOTTOM_RIGHT, margin=10)
+panel.children.append(button)
+\f[R]
+.fi
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
 .SS Animation
 .PP
-Animation object for animating UI properties
+Animation(property: str, target: Any, duration: float, easing: str =
+`linear', delta: bool = False, callback: Callable = None)
+.PP
+Create an animation that interpolates a property value over time.
+.PP
+Args: property: Property name to animate.
+Valid properties depend on target type: - Position/Size: `x', `y', `w',
+`h', `pos', `size' - Appearance: `fill_color', `outline_color',
+`outline', `opacity' - Sprite: `sprite_index', `sprite_number', `scale'
+- Grid: `center', `zoom' - Caption: `text' - Sub-properties:
+`fill_color.r', `fill_color.g', `fill_color.b', `fill_color.a' target:
+Target value for the animation.
+Type depends on property: - float: For numeric properties (x, y, w, h,
+scale, opacity, zoom) - int: For integer properties (sprite_index) -
+tuple (r, g, b[, a]): For color properties - tuple (x, y): For vector
+properties (pos, size, center) - list[int]: For sprite animation
+sequences - str: For text animation duration: Animation duration in
+seconds.
+easing: Easing function name.
+Options: - `linear' (default) - `easeIn', `easeOut', `easeInOut' -
+`easeInQuad', `easeOutQuad', `easeInOutQuad' - `easeInCubic',
+`easeOutCubic', `easeInOutCubic' - `easeInQuart', `easeOutQuart',
+`easeInOutQuart' - `easeInSine', `easeOutSine', `easeInOutSine' -
+`easeInExpo', `easeOutExpo', `easeInOutExpo' - `easeInCirc',
+`easeOutCirc', `easeInOutCirc' - `easeInElastic', `easeOutElastic',
+`easeInOutElastic' - `easeInBack', `easeOutBack', `easeInOutBack' -
+`easeInBounce', `easeOutBounce', `easeInOutBounce' delta: If True,
+target is relative to start value (additive).
+Default False.
+callback: Function(animation, target) called when animation completes.
+.PP
+Example: # Move a frame from current position to x=500 over 2 seconds
+anim = mcrfpy.Animation(`x', 500.0, 2.0, `easeInOut')
+anim.start(my_frame)
+.IP
+.nf
+\f[C]
+# Fade out with callback
+def on_done(anim, target):
+    print(\[aq]Animation complete!\[aq])
+fade = mcrfpy.Animation(\[aq]fill_color.a\[aq], 0, 1.0, callback=on_done)
+fade.start(my_sprite)
+
+# Animate through sprite frames
+walk_cycle = mcrfpy.Animation(\[aq]sprite_index\[aq], [0,1,2,3,2,1], 0.5, \[aq]linear\[aq])
+walk_cycle.start(my_entity)
+\f[R]
+.fi
+.PP
+\f[B]Properties:\f[R] - \f[V]duration\f[R] \f[I](read-only)\f[R]:
+Animation duration in seconds (float, read-only).
+Total time for the animation to complete.
+- \f[V]elapsed\f[R] \f[I](read-only)\f[R]: Elapsed time in seconds
+(float, read-only).
+Time since the animation started.
+- \f[V]is_complete\f[R] \f[I](read-only)\f[R]: Whether animation is
+complete (bool, read-only).
+True when elapsed >= duration or complete() was called.
+- \f[V]is_delta\f[R] \f[I](read-only)\f[R]: Whether animation uses delta
+mode (bool, read-only).
+In delta mode, the target value is added to the starting value.
+- \f[V]property\f[R] \f[I](read-only)\f[R]: Target property name (str,
+read-only).
+The property being animated (e.g., `pos', `opacity', `sprite_index').
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]complete() -> None\f[R]
@@ -416,40 +541,254 @@ Default: None visible (bool): Visibility state.
 Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 z_index (int): Rendering order.
 Default: 0 name (str): Element name for finding.
-Default: None
+Default: None align (Alignment): Alignment relative to parent.
+Default: None margin (float): Margin from parent edge when aligned.
+Default: 0 horiz_margin (float): Horizontal margin override.
+Default: 0 (use margin) vert_margin (float): Vertical margin override.
+Default: 0 (use margin)
 .PP
 Attributes: center (Vector): Center position radius (float): Arc radius
 start_angle (float): Starting angle in degrees end_angle (float): Ending
 angle in degrees color (Color): Arc color thickness (float): Line
 thickness visible (bool): Visibility state opacity (float): Opacity
-value z_index (int): Rendering order name (str): Element name
+value z_index (int): Rendering order name (str): Element name align
+(Alignment): Alignment relative to parent (or None) margin (float):
+General margin for alignment horiz_margin (float): Horizontal margin
+override vert_margin (float): Vertical margin override
+.PP
+\f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
+bounds (Alignment enum or None).
+When set, position is automatically calculated when parent is assigned
+or resized.
+Set to None to disable alignment and use manual positioning.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]center\f[R]: Center position of the arc - \f[V]color\f[R]: Arc
+color - \f[V]end_angle\f[R]: Ending angle in degrees -
+\f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors in
+screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
+parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
+(only when parent is Grid) - \f[V]horiz_margin\f[R]: Horizontal margin
+override (float, 0 = use general margin).
+Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
+CENTER).
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]margin\f[R]: General margin from edge when aligned (float).
+Applied to both horizontal and vertical edges unless overridden.
+Invalid for CENTER alignment (raises ValueError).
+- \f[V]name\f[R]: Name for finding this element.
+- \f[V]on_click\f[R]: Callable executed when arc is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]parent\f[R]: Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]pos\f[R]: Position as a Vector (same as center).
+- \f[V]radius\f[R]: Arc radius in pixels - \f[V]start_angle\f[R]:
+Starting angle in degrees - \f[V]thickness\f[R]: Line thickness -
+\f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use general
+margin).
+Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
+CENTER).
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+first).
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]get_bounds() -> tuple\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
-Get the bounding rectangle of this drawable element.
+Create and start an animation on this drawable\[cq]s property.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]callback\f[R]: Optional callable invoked when
+animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS BSP
+.PP
+BSP(pos: tuple[int, int], size: tuple[int, int])
+.PP
+Binary Space Partitioning tree for procedural dungeon generation.
+.PP
+BSP recursively divides a rectangular region into smaller sub-regions,
+creating a tree structure perfect for generating dungeon rooms and
+corridors.
+.PP
+Args: pos: (x, y) - Top-left position of the root region.
+size: (w, h) - Width and height of the root region.
+.PP
+Properties: pos (tuple[int, int]): Read-only.
+Top-left position (x, y).
+size (tuple[int, int]): Read-only.
+Dimensions (width, height).
+bounds ((pos), (size)): Read-only.
+Combined position and size.
+root (BSPNode): Read-only.
+Reference to the root node.
+.PP
+Iteration: for leaf in bsp: # Iterates over leaf nodes (rooms) len(bsp)
+# Returns number of leaf nodes
+.PP
+Example: bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 50))
+bsp.split_recursive(depth=4, min_size=(8, 8)) for leaf in bsp:
+print(f\[cq]Room at {leaf.pos}, size {leaf.size}\[cq])
+.PP
+\f[B]Properties:\f[R] - \f[V]adjacency\f[R] \f[I](read-only)\f[R]: Leaf
+adjacency graph.
+adjacency[i] returns tuple of neighbor indices.
+Read-only.
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Root node bounds as ((x, y),
+(w, h)).
+Read-only.
+- \f[V]pos\f[R] \f[I](read-only)\f[R]: Top-left position (x, y).
+Read-only.
+- \f[V]root\f[R] \f[I](read-only)\f[R]: Reference to the root BSPNode.
+Read-only.
+- \f[V]size\f[R] \f[I](read-only)\f[R]: Dimensions (width, height).
+Read-only.
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]clear() -> BSP\f[R]
+.PP
+Remove all children, keeping only the root node with original bounds.
+WARNING: Invalidates all existing BSPNode references from this tree.
+.PP
+\f[B]Returns:\f[R] BSP: self, for method chaining
+.SS \f[V]find(pos: tuple[int, int]) -> BSPNode | None\f[R]
+.PP
+Find the smallest (deepest) node containing the position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
+Vector
+.PP
+\f[B]Returns:\f[R] BSPNode if found, None if position is outside bounds
+.SS \f[V]get_leaf(index: int) -> BSPNode\f[R]
+.PP
+Get a leaf node by its index (0 to len(bsp)-1).
+This is useful when working with adjacency data, which returns leaf
+indices.
+.PP
+\f[B]Arguments:\f[R] - \f[V]index\f[R]: Leaf index (0 to len(bsp)-1).
+Negative indices supported.
+.PP
+\f[B]Returns:\f[R] BSPNode at the specified index
+.PP
+\f[B]Raises:\f[R] IndexError: If index is out of range
+.SS \f[V]leaves() -> Iterator[BSPNode]\f[R]
+.PP
+Iterate all leaf nodes (the actual rooms).
+Same as iterating the BSP directly.
+.PP
+\f[B]Returns:\f[R] Iterator yielding BSPNode objects
+.SS \f[V]split_once(horizontal: bool, position: int) -> BSP\f[R]
+.PP
+Split the root node once at the specified position.
+horizontal=True creates a horizontal divider, producing top/bottom
+rooms.
+horizontal=False creates a vertical divider, producing left/right rooms.
+.PP
+\f[B]Arguments:\f[R] - \f[V]horizontal\f[R]: True for horizontal divider
+(top/bottom), False for vertical (left/right) - \f[V]position\f[R]:
+Split coordinate (y for horizontal, x for vertical)
+.PP
+\f[B]Returns:\f[R] BSP: self, for method chaining
+.SS \f[V]split_recursive(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int = None) -> BSP\f[R]
+.PP
+Recursively split to the specified depth.
+WARNING: Invalidates all existing BSPNode references from this tree.
+.PP
+\f[B]Arguments:\f[R] - \f[V]depth\f[R]: Maximum recursion depth (1-16).
+Creates up to 2\[ha]depth leaves.
+- \f[V]min_size\f[R]: Minimum (width, height) for a node to be split.
+- \f[V]max_ratio\f[R]: Maximum aspect ratio before forcing split
+direction.
+Default: 1.5.
+- \f[V]seed\f[R]: Random seed.
+None for random.
+.PP
+\f[B]Returns:\f[R] BSP: self, for method chaining
+.SS \f[V]to_heightmap(size: tuple[int, int] = None, select: str = \[aq]leaves\[aq], shrink: int = 0, value: float = 1.0) -> HeightMap\f[R]
+.PP
+Convert BSP node selection to a HeightMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]size\f[R]: Output size (width, height).
+Default: bounds size.
+- \f[V]select\f[R]: `leaves', `all', or `internal'.
+Default: `leaves'.
+- \f[V]shrink\f[R]: Pixels to shrink from each node\[cq]s bounds.
+Default: 0.
+- \f[V]value\f[R]: Value inside selected regions.
+Default: 1.0.
+.PP
+\f[B]Returns:\f[R] HeightMap with selected regions filled
+.SS \f[V]traverse(order: Traversal = Traversal.LEVEL_ORDER) -> Iterator[BSPNode]\f[R]
+.PP
+Iterate all nodes in the specified order.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]order\f[R]: Traversal order from Traversal
+enum.
+Default: LEVEL_ORDER.
+.PP
+\f[B]Returns:\f[R] Iterator yielding BSPNode objects Orders: PRE_ORDER,
+IN_ORDER, POST_ORDER, LEVEL_ORDER, INVERTED_LEVEL_ORDER
 .SS Caption
 .PP
 \f[I]Inherits from: Drawable\f[R]
@@ -475,7 +814,11 @@ Default: 1.0 z_index (int): Rendering order.
 Default: 0 name (str): Element name for finding.
 Default: None x (float): X position override.
 Default: 0 y (float): Y position override.
-Default: 0
+Default: 0 align (Alignment): Alignment relative to parent.
+Default: None margin (float): Margin from parent edge when aligned.
+Default: 0 horiz_margin (float): Horizontal margin override.
+Default: 0 (use margin) vert_margin (float): Vertical margin override.
+Default: 0 (use margin)
 .PP
 Attributes: text (str): The displayed text content x, y (float):
 Position in pixels pos (Vector): Position as a Vector object font
@@ -484,34 +827,124 @@ fill_color, outline_color (Color): Text appearance outline (float):
 Outline thickness click (callable): Click event handler visible (bool):
 Visibility state opacity (float): Opacity value z_index (int): Rendering
 order name (str): Element name w, h (float): Read-only computed size
-based on text and font
+based on text and font align (Alignment): Alignment relative to parent
+(or None) margin (float): General margin for alignment horiz_margin
+(float): Horizontal margin override vert_margin (float): Vertical margin
+override
+.PP
+\f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
+bounds (Alignment enum or None).
+When set, position is automatically calculated when parent is assigned
+or resized.
+Set to None to disable alignment and use manual positioning.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]fill_color\f[R]: Fill color of the text.
+Returns a copy; modifying components requires reassignment.
+For animation, use `fill_color.r', `fill_color.g', etc.
+- \f[V]font_size\f[R]: Font size (integer) in points -
+\f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors in
+screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
+parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
+(only when parent is Grid) - \f[V]h\f[R] \f[I](read-only)\f[R]: Text
+height in pixels (read-only) - \f[V]horiz_margin\f[R]: Horizontal margin
+override (float, 0 = use general margin).
+Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
+CENTER).
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]margin\f[R]: General margin from edge when aligned (float).
+Applied to both horizontal and vertical edges unless overridden.
+Invalid for CENTER alignment (raises ValueError).
+- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
+Callable executed when object is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]outline\f[R]: Thickness of the border - \f[V]outline_color\f[R]:
+Outline color of the text.
+Returns a copy; modifying components requires reassignment.
+For animation, use `outline_color.r', `outline_color.g', etc.
+- \f[V]parent\f[R]: Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]pos\f[R]: (x, y) vector - \f[V]size\f[R] \f[I](read-only)\f[R]:
+Text dimensions as Vector (read-only) - \f[V]text\f[R]: The text
+displayed - \f[V]vert_margin\f[R]: Vertical margin override (float, 0 =
+use general margin).
+Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
+CENTER).
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]w\f[R] \f[I](read-only)\f[R]: Text width in pixels (read-only) -
+\f[V]x\f[R]: X coordinate of top-left corner - \f[V]y\f[R]: Y coordinate
+of top-left corner - \f[V]z_index\f[R]: Z-order for rendering (lower
+values rendered first).
+Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]get_bounds() -> tuple\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
-Get the bounding rectangle of this drawable element.
+Create and start an animation on this drawable\[cq]s property.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]callback\f[R]: Optional callable invoked when
+animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
 .SS Circle
 .PP
 \f[I]Inherits from: Drawable\f[R]
@@ -533,43 +966,163 @@ Default: None visible (bool): Visibility state.
 Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 z_index (int): Rendering order.
 Default: 0 name (str): Element name for finding.
-Default: None
+Default: None align (Alignment): Alignment relative to parent.
+Default: None margin (float): Margin from parent edge when aligned.
+Default: 0 horiz_margin (float): Horizontal margin override.
+Default: 0 (use margin) vert_margin (float): Vertical margin override.
+Default: 0 (use margin)
 .PP
 Attributes: radius (float): Circle radius center (Vector): Center
 position fill_color (Color): Fill color outline_color (Color): Outline
 color outline (float): Outline thickness visible (bool): Visibility
 state opacity (float): Opacity value z_index (int): Rendering order name
-(str): Element name
+(str): Element name align (Alignment): Alignment relative to parent (or
+None) margin (float): General margin for alignment horiz_margin (float):
+Horizontal margin override vert_margin (float): Vertical margin override
+.PP
+\f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
+bounds (Alignment enum or None).
+When set, position is automatically calculated when parent is assigned
+or resized.
+Set to None to disable alignment and use manual positioning.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]center\f[R]: Center position of the circle -
+\f[V]fill_color\f[R]: Fill color of the circle -
+\f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors in
+screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
+parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
+(only when parent is Grid) - \f[V]horiz_margin\f[R]: Horizontal margin
+override (float, 0 = use general margin).
+Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
+CENTER).
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]margin\f[R]: General margin from edge when aligned (float).
+Applied to both horizontal and vertical edges unless overridden.
+Invalid for CENTER alignment (raises ValueError).
+- \f[V]name\f[R]: Name for finding this element.
+- \f[V]on_click\f[R]: Callable executed when circle is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]outline\f[R]: Outline thickness (0 for no outline) -
+\f[V]outline_color\f[R]: Outline color of the circle - \f[V]parent\f[R]:
+Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]pos\f[R]: Position as a Vector (same as center).
+- \f[V]radius\f[R]: Circle radius in pixels - \f[V]vert_margin\f[R]:
+Vertical margin override (float, 0 = use general margin).
+Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
+CENTER).
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+first).
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]get_bounds() -> tuple\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
-Get the bounding rectangle of this drawable element.
+Create and start an animation on this drawable\[cq]s property.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]callback\f[R]: Optional callable invoked when
+animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
 .SS Color
 .PP
-SFML Color Object
+Color(r: int = 0, g: int = 0, b: int = 0, a: int = 255)
+.PP
+RGBA color representation.
+.PP
+Args: r: Red component (0-255) g: Green component (0-255) b: Blue
+component (0-255) a: Alpha component (0-255, default 255 = opaque)
+.PP
+Note: When accessing colors from UI elements (e.g., frame.fill_color),
+you receive a COPY of the color.
+Modifying it doesn\[cq]t affect the original.
+To change a component:
+.IP
+.nf
+\f[C]
+    # This does NOT work:
+    frame.fill_color.r = 255  # Modifies a temporary copy
+
+    # Do this instead:
+    c = frame.fill_color
+    c.r = 255
+    frame.fill_color = c
+
+    # Or use Animation for sub-properties:
+    anim = mcrfpy.Animation(\[aq]fill_color.r\[aq], 255, 0.5, \[aq]linear\[aq])
+    anim.start(frame)
+\f[R]
+.fi
+.PP
+\f[B]Properties:\f[R] - \f[V]a\f[R]: Alpha component (0-255, where
+0=transparent, 255=opaque).
+Automatically clamped to valid range.
+- \f[V]b\f[R]: Blue component (0-255).
+Automatically clamped to valid range.
+- \f[V]g\f[R]: Green component (0-255).
+Automatically clamped to valid range.
+- \f[V]r\f[R]: Red component (0-255).
+Automatically clamped to valid range.
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]from_hex(hex_string: str) -> Color\f[R]
@@ -612,27 +1165,85 @@ Note:
 .PP
 ColorLayer(z_index=-1, grid_size=None)
 .PP
-A grid layer that stores RGBA colors per cell.
+A grid layer that stores RGBA colors per cell for background/overlay
+effects.
 .PP
-Args: z_index (int): Render order.
-Negative = below entities.
-Default: -1 grid_size (tuple): Dimensions as (width, height).
-Default: parent grid size
+ColorLayers are typically created via Grid.add_layer(`color', \&...)
+rather than instantiated directly.
+When attached to a Grid, the layer inherits rendering parameters and can
+participate in FOV (field of view) calculations.
 .PP
-Attributes: z_index (int): Layer z-order relative to entities visible
-(bool): Whether layer is rendered grid_size (tuple): Layer dimensions
-(read-only)
+Args: z_index (int): Render order relative to entities.
+Negative values render below entities (as backgrounds), positive values
+render above entities (as overlays).
+Default: -1 (background) grid_size (tuple): Dimensions as (width,
+height).
+If None, the layer will inherit the parent Grid\[cq]s dimensions when
+attached.
+Default: None
 .PP
-Methods: at(x, y): Get color at cell position set(x, y, color): Set
-color at cell position fill(color): Fill entire layer with color
+Attributes: z_index (int): Layer z-order relative to entities
+(read/write) visible (bool): Whether layer is rendered (read/write)
+grid_size (tuple): Layer dimensions as (width, height) (read-only)
+.PP
+Methods: at(x, y) -> Color: Get the color at cell position (x, y) set(x,
+y, color): Set the color at cell position (x, y) fill(color): Fill the
+entire layer with a single color fill_rect(x, y, w, h, color): Fill a
+rectangular region with a color draw_fov(\&...): Draw FOV-based
+visibility colors apply_perspective(entity, \&...): Bind layer to entity
+for automatic FOV updates
+.PP
+Example: grid = mcrfpy.Grid(grid_size=(20, 15), texture=my_texture,
+pos=(50, 50), size=(640, 480)) layer = grid.add_layer(`color',
+z_index=-1) layer.fill(mcrfpy.Color(40, 40, 40)) # Dark gray background
+layer.set(5, 5, mcrfpy.Color(255, 0, 0, 128)) # Semi-transparent red
+cell
+.PP
+\f[B]Properties:\f[R] - \f[V]grid_size\f[R]: Layer dimensions as (width,
+height) tuple.
+- \f[V]visible\f[R]: Whether the layer is rendered.
+- \f[V]z_index\f[R]: Layer z-order.
+Negative values render below entities.
 .PP
 \f[B]Methods:\f[R]
+.SS \f[V]apply_gradient(source, range, color_low, color_high) -> ColorLayer\f[R]
+.PP
+Interpolate between colors based on HeightMap value within range.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]color_low\f[R]: Color at range minimum -
+\f[V]color_high\f[R]: Color at range maximum
+.PP
+\f[B]Returns:\f[R] self for method chaining Uses the original HeightMap
+value for interpolation, not binary.
+This allows smooth color transitions within a value range.
 .SS \f[V]apply_perspective(entity, visible=None, discovered=None, unknown=None)\f[R]
 .PP
 Bind this layer to an entity for automatic FOV updates.
-.SS \f[V]at(x, y) -> Color\f[R]
+.SS \f[V]apply_ranges(source, ranges) -> ColorLayer\f[R]
 .PP
-Get the color at cell position (x, y).
+Apply multiple color assignments in a single pass.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] self for method chaining Later ranges override
+earlier ones if overlapping.
+Cells not matching any range are left unchanged.
+.SS \f[V]apply_threshold(source, range, color) -> ColorLayer\f[R]
+.PP
+Set fixed color for cells where HeightMap value is within range.
+.PP
+\f[B]Arguments:\f[R] - \f[V]color\f[R]: Color or (r, g, b[, a]) tuple to
+set for cells in range
+.PP
+\f[B]Returns:\f[R] self for method chaining
+.SS \f[V]at(pos) -> Color\f[R]
+.PP
+at(x, y) -> Color Get the color at cell position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
+Vector
 .SS \f[V]clear_perspective()\f[R]
 .PP
 Remove the perspective binding from this layer.
@@ -650,43 +1261,184 @@ Fill a rectangular region with a color.
 .PP
 \f[B]Arguments:\f[R] - \f[V]color\f[R]: Color object or (r, g, b[, a])
 tuple
-.SS \f[V]set(x, y, color)\f[R]
+.SS \f[V]set(pos, color)\f[R]
 .PP
-Set the color at cell position (x, y).
+Set the color at cell position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
+Vector - \f[V]color\f[R]: Color object or (r, g, b[, a]) tuple
 .SS \f[V]update_perspective()\f[R]
 .PP
 Redraw FOV based on the bound entity\[cq]s current position.
 Call this after the entity moves to update the visibility layer.
+.SS DijkstraMap
+.PP
+A Dijkstra distance map from a fixed root position.
+.PP
+Created by Grid.get_dijkstra_map().
+Cannot be instantiated directly.
+.PP
+Grid caches these maps - multiple requests for the same root return the
+same map.
+Call Grid.clear_dijkstra_maps() after changing grid walkability to
+invalidate the cache.
+.PP
+Properties: root (Vector): Root position (read-only)
+.PP
+Methods: distance(pos) -> float | None: Get distance to root
+path_from(pos) -> AStarPath: Get full path to root step_from(pos) ->
+Vector | None: Get single step toward root
+.PP
+Example: dijkstra = grid.get_dijkstra_map(player.pos) for enemy in
+enemies: dist = dijkstra.distance(enemy.pos) if dist and dist < 10: step
+= dijkstra.step_from(enemy.pos) if step: enemy.pos = step
+.PP
+\f[B]Properties:\f[R] - \f[V]root\f[R] \f[I](read-only)\f[R]: Root
+position that distances are measured from (Vector, read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]distance(pos) -> float | None\f[R]
+.PP
+Get distance from position to root.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as Vector, Entity, or (x,
+y) tuple.
+.PP
+\f[B]Returns:\f[R] Float distance, or None if position is unreachable.
+.SS \f[V]path_from(pos) -> AStarPath\f[R]
+.PP
+Get full path from position to root.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Starting position as Vector,
+Entity, or (x, y) tuple.
+.PP
+\f[B]Returns:\f[R] AStarPath from pos toward root.
+.SS \f[V]step_from(pos) -> Vector | None\f[R]
+.PP
+Get single step from position toward root.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Current position as Vector,
+Entity, or (x, y) tuple.
+.PP
+\f[B]Returns:\f[R] Next position as Vector, or None if at root or
+unreachable.
+.SS \f[V]to_heightmap(size=None, unreachable=-1.0) -> HeightMap\f[R]
+.PP
+Convert distance field to a HeightMap.
+Each cell\[cq]s height equals its pathfinding distance from the root.
+Useful for visualization, procedural terrain, or influence mapping.
+.PP
+\f[B]Arguments:\f[R] - \f[V]size\f[R]: Optional (width, height) tuple.
+Defaults to dijkstra dimensions.
+- \f[V]unreachable\f[R]: Value for cells that cannot reach root (default
+-1.0).
+.PP
+\f[B]Returns:\f[R] HeightMap with distance values as heights.
 .SS Drawable
 .PP
 Base class for all drawable UI elements
 .PP
+\f[B]Properties:\f[R] - \f[V]on_click\f[R]: Callable executed when
+object is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+first).
+Automatically triggers scene resort when changed.
+.PP
 \f[B]Methods:\f[R]
-.SS \f[V]get_bounds() -> tuple\f[R]
-.PP
-Get the bounding rectangle of this drawable element.
-.PP
-Note:
-.PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS Easing
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
 .SS Entity
 .PP
 Entity(grid_pos=None, texture=None, sprite_index=0, **kwargs)
@@ -703,60 +1455,108 @@ Keyword Args: grid (Grid): Grid to attach entity to.
 Default: None visible (bool): Visibility state.
 Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 name (str): Element name for finding.
-Default: None x (float): X grid position override.
-Default: 0 y (float): Y grid position override.
+Default: None x (float): X grid position override (tile coords).
+Default: 0 y (float): Y grid position override (tile coords).
 Default: 0
 .PP
-Attributes: pos (tuple): Grid position as (x, y) tuple x, y (float):
-Grid position coordinates draw_pos (tuple): Pixel position for rendering
+Attributes: pos (Vector): Pixel position relative to grid (requires grid
+attachment) x, y (float): Pixel position components (requires grid
+attachment) grid_pos (Vector): Integer tile coordinates (logical game
+position) grid_x, grid_y (int): Integer tile coordinate components
+draw_pos (Vector): Fractional tile position for smooth animation
 gridstate (GridPointState): Visibility state for grid points
 sprite_index (int): Current sprite index visible (bool): Visibility
 state opacity (float): Opacity value name (str): Element name
 .PP
+\f[B]Properties:\f[R] - \f[V]draw_pos\f[R]: Fractional tile position for
+rendering (Vector).
+Use for smooth animation between grid cells.
+- \f[V]grid\f[R]: Grid this entity belongs to.
+Get: Returns the Grid or None.
+Set: Assign a Grid to move entity, or None to remove from grid.
+- \f[V]grid_pos\f[R]: Grid position as integer tile coordinates
+(Vector).
+The logical cell this entity occupies.
+- \f[V]grid_x\f[R]: Grid X position as integer tile coordinate.
+- \f[V]grid_y\f[R]: Grid Y position as integer tile coordinate.
+- \f[V]gridstate\f[R]: Grid point states for the entity -
+\f[V]name\f[R]: Name for finding elements - \f[V]opacity\f[R]: Opacity
+(0.0 = transparent, 1.0 = opaque) - \f[V]pos\f[R]: Pixel position
+relative to grid (Vector).
+Computed as draw_pos * tile_size.
+Requires entity to be attached to a grid.
+- \f[V]sprite_index\f[R]: Sprite index on the texture on the display -
+\f[V]sprite_number\f[R]: Sprite index (DEPRECATED: use sprite_index
+instead) - \f[V]visible\f[R]: Visibility flag - \f[V]x\f[R]: Pixel X
+position relative to grid.
+Requires entity to be attached to a grid.
+- \f[V]y\f[R]: Pixel Y position relative to grid.
+Requires entity to be attached to a grid.
+.PP
 \f[B]Methods:\f[R]
-.SS \f[V]at(...)\f[R]
-.SS \f[V]die(...)\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
-Remove this entity from its grid
-.SS \f[V]get_bounds() -> tuple\f[R]
-.PP
-Get the bounding rectangle of this drawable element.
+Create and start an animation on this entity\[cq]s property.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate: `draw_x', `draw_y' (tile coords), `sprite_scale',
+`sprite_index' - \f[V]target\f[R]: Target value - float or int depending
+on property - \f[V]duration\f[R]: Animation duration in seconds -
+\f[V]easing\f[R]: Easing function: Easing enum value, string name, or
+None for linear - \f[V]delta\f[R]: If True, target is relative to
+current value; if False, target is absolute - \f[V]callback\f[R]:
+Optional callable invoked when animation completes -
+\f[V]conflict_mode\f[R]: `replace' (default), `queue', or `error' if
+property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for Entity
+(draw_x, draw_y, sprite_scale, sprite_index) Use `draw_x'/`draw_y' to
+animate tile coordinates for smooth movement between grid cells.
+.SS \f[V]at(x, y) or at(pos) -> GridPointState\f[R]
+.PP
+Get the grid point state at the specified position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Grid coordinates as tuple, list,
+or Vector
+.PP
+\f[B]Returns:\f[R] GridPointState for the entity\[cq]s view of that grid
+cell.
+.SS \f[V]die(...)\f[R]
+.PP
+Remove this entity from its grid
 .SS \f[V]index(...)\f[R]
 .PP
 Return the index of this entity in its grid\[cq]s entity collection
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
-.SS \f[V]path_to(x: int, y: int) -> bool\f[R]
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]path_to(x, y) or path_to(target) -> list\f[R]
 .PP
-Find and follow path to target position using A* pathfinding.
+Find a path to the target position using Dijkstra pathfinding.
 .PP
-\f[B]Arguments:\f[R] - \f[V]x\f[R]: Target X coordinate - \f[V]y\f[R]:
-Target Y coordinate
+\f[B]Arguments:\f[R] - \f[V]target\f[R]: Target coordinates as tuple,
+list, or Vector
 .PP
-\f[B]Returns:\f[R] True if a path was found and the entity started
-moving, False otherwise The entity will automatically move along the
-path over multiple frames.
-Call this again to change the target or repath.
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+\f[B]Returns:\f[R] List of (x, y) tuples representing the path.
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
 .SS \f[V]update_visibility() -> None\f[R]
 .PP
 Update entity\[cq]s visibility state based on current FOV.
@@ -771,44 +1571,15 @@ Get list of other entities visible from this entity\[cq]s position.
 \f[B]Returns:\f[R] List of Entity objects that are within field of view.
 Computes FOV from this entity\[cq]s position and returns all other
 entities whose positions fall within the visible area.
-.SS EntityCollection
-.PP
-Iterable, indexable collection of Entities
-.PP
-\f[B]Methods:\f[R]
-.SS \f[V]append(entity)\f[R]
-.PP
-Add an entity to the end of the collection.
-.SS \f[V]count(entity) -> int\f[R]
-.PP
-Count occurrences of entity in the collection.
-.SS \f[V]extend(iterable)\f[R]
-.PP
-Add all entities from an iterable to the collection.
-.SS \f[V]find(name) -> entity or list\f[R]
-.PP
-Find entities by name.
-.PP
-\f[B]Returns:\f[R] Single entity if exact match, list if wildcard, None
-if not found.
-.SS \f[V]index(entity) -> int\f[R]
-.PP
-Return index of first occurrence of entity.
-Raises ValueError if not found.
-.SS \f[V]insert(index, entity)\f[R]
-.PP
-Insert entity at index.
-Like list.insert(), indices past the end append.
-.SS \f[V]pop([index]) -> entity\f[R]
-.PP
-Remove and return entity at index (default: last entity).
-.SS \f[V]remove(entity)\f[R]
-.PP
-Remove first occurrence of entity.
-Raises ValueError if not found.
 .SS FOV
 .PP
 \f[I]Inherits from: IntEnum\f[R]
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]as_integer_ratio(...)\f[R]
@@ -875,6 +1646,13 @@ raised.
 .PP
 SFML Font Object
 .PP
+\f[B]Properties:\f[R] - \f[V]family\f[R] \f[I](read-only)\f[R]: Font
+family name (str, read-only).
+Retrieved from font metadata.
+- \f[V]source\f[R] \f[I](read-only)\f[R]: Source filename path (str,
+read-only).
+The path used to load this font.
+.PP
 \f[B]Methods:\f[R]
 .SS Frame
 .PP
@@ -905,7 +1683,12 @@ Default: 0 clip_children (bool): Whether to clip children to frame
 bounds.
 Default: False cache_subtree (bool): Cache rendering to texture for
 performance.
-Default: False
+Default: False align (Alignment): Alignment relative to parent.
+Default: None (manual positioning) margin (float): Margin from parent
+edge when aligned.
+Default: 0 horiz_margin (float): Horizontal margin override.
+Default: 0 (use margin) vert_margin (float): Vertical margin override.
+Default: 0 (use margin)
 .PP
 Attributes: x, y (float): Position in pixels w, h (float): Size in
 pixels pos (Vector): Position as a Vector object fill_color,
@@ -915,33 +1698,122 @@ Collection of child drawable elements visible (bool): Visibility state
 opacity (float): Opacity value z_index (int): Rendering order name
 (str): Element name clip_children (bool): Whether to clip children to
 frame bounds cache_subtree (bool): Cache subtree rendering to texture
+align (Alignment): Alignment relative to parent (or None) margin
+(float): General margin for alignment horiz_margin (float): Horizontal
+margin override vert_margin (float): Vertical margin override
+.PP
+\f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
+bounds (Alignment enum or None).
+When set, position is automatically calculated when parent is assigned
+or resized.
+Set to None to disable alignment and use manual positioning.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]cache_subtree\f[R]: #144: Cache subtree rendering to texture for
+performance - \f[V]children\f[R]: UICollection of objects on top of this
+one - \f[V]clip_children\f[R]: Whether to clip children to frame bounds
+- \f[V]fill_color\f[R]: Fill color of the rectangle.
+Returns a copy; modifying components requires reassignment.
+For animation, use `fill_color.r', `fill_color.g', etc.
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
+parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
+(only when parent is Grid) - \f[V]h\f[R]: height of the rectangle -
+\f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+general margin).
+Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
+CENTER).
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]margin\f[R]: General margin from edge when aligned (float).
+Applied to both horizontal and vertical edges unless overridden.
+Invalid for CENTER alignment (raises ValueError).
+- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
+Callable executed when object is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]outline\f[R]: Thickness of the border - \f[V]outline_color\f[R]:
+Outline color of the rectangle.
+Returns a copy; modifying components requires reassignment.
+For animation, use `outline_color.r', `outline_color.g', etc.
+- \f[V]parent\f[R]: Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]pos\f[R]: Position as a Vector - \f[V]vert_margin\f[R]: Vertical
+margin override (float, 0 = use general margin).
+Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
+CENTER).
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]w\f[R]: width of the rectangle - \f[V]x\f[R]: X coordinate of
+top-left corner - \f[V]y\f[R]: Y coordinate of top-left corner -
+\f[V]z_index\f[R]: Z-order for rendering (lower values rendered first).
+Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]get_bounds() -> tuple\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
-Get the bounding rectangle of this drawable element.
+Create and start an animation on this drawable\[cq]s property.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]callback\f[R]: Optional callable invoked when
+animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
 .SS Grid
 .PP
 \f[I]Inherits from: Drawable\f[R]
@@ -953,7 +1825,7 @@ A grid-based UI element for tile-based rendering and entity management.
 Args: pos (tuple, optional): Position as (x, y) tuple.
 Default: (0, 0) size (tuple, optional): Size as (width, height) tuple.
 Default: auto-calculated from grid_size grid_size (tuple, optional):
-Grid dimensions as (grid_x, grid_y) tuple.
+Grid dimensions as (grid_w, grid_h) tuple.
 Default: (2, 2) texture (Texture, optional): Texture containing tile
 sprites.
 Default: default texture
@@ -973,21 +1845,117 @@ Default: None x (float): X position override.
 Default: 0 y (float): Y position override.
 Default: 0 w (float): Width override.
 Default: auto-calculated h (float): Height override.
-Default: auto-calculated grid_x (int): Grid width override.
-Default: 2 grid_y (int): Grid height override.
-Default: 2
+Default: auto-calculated grid_w (int): Grid width override.
+Default: 2 grid_h (int): Grid height override.
+Default: 2 align (Alignment): Alignment relative to parent.
+Default: None margin (float): Margin from parent edge when aligned.
+Default: 0 horiz_margin (float): Horizontal margin override.
+Default: 0 (use margin) vert_margin (float): Vertical margin override.
+Default: 0 (use margin)
 .PP
 Attributes: x, y (float): Position in pixels w, h (float): Size in
-pixels pos (Vector): Position as a Vector object size (tuple): Size as
-(width, height) tuple center (tuple): Center point as (x, y) tuple
+pixels pos (Vector): Position as a Vector object size (Vector): Size as
+(width, height) Vector center (Vector): Center point as (x, y) Vector
 center_x, center_y (float): Center point coordinates zoom (float): Zoom
-level for rendering grid_size (tuple): Grid dimensions (width, height)
-in tiles grid_x, grid_y (int): Grid dimensions texture (Texture): Tile
+level for rendering grid_size (Vector): Grid dimensions (width, height)
+in tiles grid_w, grid_h (int): Grid dimensions texture (Texture): Tile
 texture atlas fill_color (Color): Background color entities
 (EntityCollection): Collection of entities in the grid perspective
 (int): Entity perspective index click (callable): Click event handler
 visible (bool): Visibility state opacity (float): Opacity value z_index
-(int): Rendering order name (str): Element name
+(int): Rendering order name (str): Element name align (Alignment):
+Alignment relative to parent (or None) margin (float): General margin
+for alignment horiz_margin (float): Horizontal margin override
+vert_margin (float): Vertical margin override
+.PP
+\f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
+bounds (Alignment enum or None).
+When set, position is automatically calculated when parent is assigned
+or resized.
+Set to None to disable alignment and use manual positioning.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]center\f[R]: Grid coordinate at the center of the Grid\[cq]s view
+(pan) - \f[V]center_x\f[R]: center of the view X-coordinate -
+\f[V]center_y\f[R]: center of the view Y-coordinate -
+\f[V]children\f[R]: UICollection of UIDrawable children (speech bubbles,
+effects, overlays) - \f[V]entities\f[R]: EntityCollection of entities on
+this grid - \f[V]fill_color\f[R]: Background fill color of the grid.
+Returns a copy; modifying components requires reassignment.
+For animation, use `fill_color.r', `fill_color.g', etc.
+- \f[V]fov\f[R]: FOV algorithm for this grid (mcrfpy.FOV enum).
+Used by entity.updateVisibility() and layer methods when fov=None.
+- \f[V]fov_radius\f[R]: Default FOV radius for this grid.
+Used when radius not specified.
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_h\f[R]: Grid height in cells - \f[V]grid_pos\f[R]: Position
+in parent grid\[cq]s tile coordinates (only when parent is Grid) -
+\f[V]grid_size\f[R]: Grid dimensions (grid_w, grid_h) -
+\f[V]grid_w\f[R]: Grid width in cells - \f[V]h\f[R]: visible widget
+height - \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 =
+use general margin).
+Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
+CENTER).
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]hovered_cell\f[R]: Currently hovered cell as (x, y) tuple, or
+None if not hovering.
+- \f[V]layers\f[R]: List of grid layers (ColorLayer, TileLayer) sorted
+by z_index - \f[V]margin\f[R]: General margin from edge when aligned
+(float).
+Applied to both horizontal and vertical edges unless overridden.
+Invalid for CENTER alignment (raises ValueError).
+- \f[V]name\f[R]: Name for finding elements - \f[V]on_cell_click\f[R]:
+Callback when a grid cell is clicked.
+Called with (cell_pos: Vector).
+- \f[V]on_cell_enter\f[R]: Callback when mouse enters a grid cell.
+Called with (cell_pos: Vector).
+- \f[V]on_cell_exit\f[R]: Callback when mouse exits a grid cell.
+Called with (cell_pos: Vector).
+- \f[V]on_click\f[R]: Callable executed when object is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]parent\f[R]: Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]perspective\f[R]: Entity whose perspective to use for FOV
+rendering (None for omniscient view).
+Setting an entity automatically enables perspective mode.
+- \f[V]perspective_enabled\f[R]: Whether to use perspective-based FOV
+rendering.
+When True with no valid entity, all cells appear undiscovered.
+- \f[V]pos\f[R]: Position of the grid as Vector - \f[V]position\f[R]:
+Position of the grid (x, y) - \f[V]size\f[R]: Size of the grid as Vector
+(width, height) - \f[V]texture\f[R]: Texture of the grid -
+\f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use general
+margin).
+Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
+CENTER).
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]w\f[R]: visible widget width - \f[V]x\f[R]: top-left corner
+X-coordinate - \f[V]y\f[R]: top-left corner Y-coordinate -
+\f[V]z_index\f[R]: Z-order for rendering (lower values rendered first).
+Automatically triggers scene resort when changed.
+- \f[V]zoom\f[R]: zoom factor for displaying the Grid
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer\f[R]
@@ -1001,90 +1969,116 @@ Default: -1 - \f[V]texture\f[R]: Texture for tile layers.
 Required for `tile' type.
 .PP
 \f[B]Returns:\f[R] The created ColorLayer or TileLayer object.
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.PP
+Create and start an animation on this drawable\[cq]s property.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]callback\f[R]: Optional callable invoked when
+animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]apply_ranges(source: HeightMap, ranges: list) -> Grid\f[R]
+.PP
+Apply multiple thresholds in a single pass.
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: HeightMap with values to check.
+Must match grid size.
+- \f[V]ranges\f[R]: List of (range_tuple, properties_dict) tuples.
+- \f[V]range_tuple\f[R]: (min, max) value range -
+\f[V]properties_dict\f[R]: {`walkable': bool, `transparent': bool}
+.PP
+\f[B]Returns:\f[R] Grid: self, for method chaining.
+.SS \f[V]apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid\f[R]
+.PP
+Apply walkable/transparent properties where heightmap values are in
+range.
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: HeightMap with values to check.
+Must match grid size.
+- \f[V]range\f[R]: Tuple of (min, max) - cells with values in this range
+are affected.
+- \f[V]walkable\f[R]: If not None, set walkable to this value for cells
+in range.
+- \f[V]transparent\f[R]: If not None, set transparent to this value for
+cells in range.
+.PP
+\f[B]Returns:\f[R] Grid: self, for method chaining.
+.PP
+\f[B]Raises:\f[R] ValueError: If HeightMap size doesn\[cq]t match grid
+size.
 .SS \f[V]at(...)\f[R]
-.SS \f[V]compute_astar_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\f[R]
+.SS \f[V]center_camera(pos: tuple = None) -> None\f[R]
 .PP
-Compute A* path between two points.
+Center the camera on a tile coordinate.
 .PP
-\f[B]Arguments:\f[R] - \f[V]x1\f[R]: Starting X coordinate -
-\f[V]y1\f[R]: Starting Y coordinate - \f[V]x2\f[R]: Target X coordinate
-- \f[V]y2\f[R]: Target Y coordinate - \f[V]diagonal_cost\f[R]: Cost of
-diagonal movement (default: 1.41)
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Optional (tile_x, tile_y) tuple.
+If None, centers on grid\[cq]s middle tile.
+.SS \f[V]clear_dijkstra_maps() -> None\f[R]
 .PP
-\f[B]Returns:\f[R] List of (x, y) tuples representing the path, empty
-list if no path exists Alternative A* implementation.
-Prefer find_path() for consistency.
-.SS \f[V]compute_dijkstra(root_x: int, root_y: int, diagonal_cost: float = 1.41) -> None\f[R]
-.PP
-Compute Dijkstra map from root position.
-.PP
-\f[B]Arguments:\f[R] - \f[V]root_x\f[R]: X coordinate of the root/target
-- \f[V]root_y\f[R]: Y coordinate of the root/target -
-\f[V]diagonal_cost\f[R]: Cost of diagonal movement (default: 1.41)
-.SS \f[V]compute_fov(x: int, y: int, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\f[R]
+Clear all cached Dijkstra maps.
+Call this after modifying grid cell walkability to ensure pathfinding
+uses updated walkability data.
+.SS \f[V]compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\f[R]
 .PP
 Compute field of view from a position.
 .PP
-\f[B]Arguments:\f[R] - \f[V]x\f[R]: X coordinate of the viewer -
-\f[V]y\f[R]: Y coordinate of the viewer - \f[V]radius\f[R]: Maximum view
-distance (0 = unlimited) - \f[V]light_walls\f[R]: Whether walls are lit
-when visible - \f[V]algorithm\f[R]: FOV algorithm to use (FOV_BASIC,
-FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)
-.SS \f[V]entities_in_radius(x: float, y: float, radius: float) -> list[Entity]\f[R]
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
+Vector - \f[V]radius\f[R]: Maximum view distance (0 = unlimited) -
+\f[V]light_walls\f[R]: Whether walls are lit when visible -
+\f[V]algorithm\f[R]: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND,
+FOV_SHADOW, FOV_PERMISSIVE_0-8)
+.SS \f[V]entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]\f[R]
 .PP
 Query entities within radius using spatial hash (O(k) where k = nearby
 entities).
 .PP
-\f[B]Arguments:\f[R] - \f[V]x\f[R]: Center X coordinate - \f[V]y\f[R]:
-Center Y coordinate - \f[V]radius\f[R]: Search radius
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Center position as (x, y) tuple,
+Vector, or other 2-element sequence - \f[V]radius\f[R]: Search radius
 .PP
 \f[B]Returns:\f[R] List of Entity objects within the radius.
-.SS \f[V]find_path(x1: int, y1: int, x2: int, y2: int, diagonal_cost: float = 1.41) -> List[Tuple[int, int]]\f[R]
+.SS \f[V]find_path(start, end, diagonal_cost: float = 1.41) -> AStarPath | None\f[R]
 .PP
-Find A* path between two points.
+Compute A* path between two points.
 .PP
-\f[B]Arguments:\f[R] - \f[V]x1\f[R]: Starting X coordinate -
-\f[V]y1\f[R]: Starting Y coordinate - \f[V]x2\f[R]: Target X coordinate
-- \f[V]y2\f[R]: Target Y coordinate - \f[V]diagonal_cost\f[R]: Cost of
-diagonal movement (default: 1.41)
+\f[B]Arguments:\f[R] - \f[V]start\f[R]: Starting position as Vector,
+Entity, or (x, y) tuple - \f[V]end\f[R]: Target position as Vector,
+Entity, or (x, y) tuple - \f[V]diagonal_cost\f[R]: Cost of diagonal
+movement (default: 1.41)
 .PP
-\f[B]Returns:\f[R] List of (x, y) tuples representing the path, empty
-list if no path exists Uses A* algorithm with walkability from grid
-cells.
-.SS \f[V]get_bounds() -> tuple\f[R]
+\f[B]Returns:\f[R] AStarPath object if path exists, None otherwise.
+The returned AStarPath can be iterated or walked step-by-step.
+.SS \f[V]get_dijkstra_map(root, diagonal_cost: float = 1.41) -> DijkstraMap\f[R]
 .PP
-Get the bounding rectangle of this drawable element.
+Get or create a Dijkstra distance map for a root position.
 .PP
-Note:
+\f[B]Arguments:\f[R] - \f[V]root\f[R]: Root position as Vector, Entity,
+or (x, y) tuple - \f[V]diagonal_cost\f[R]: Cost of diagonal movement
+(default: 1.41)
 .PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
-.SS \f[V]get_dijkstra_distance(x: int, y: int) -> Optional[float]\f[R]
-.PP
-Get distance from Dijkstra root to position.
-.PP
-\f[B]Arguments:\f[R] - \f[V]x\f[R]: X coordinate to query - \f[V]y\f[R]:
-Y coordinate to query
-.PP
-\f[B]Returns:\f[R] Distance as float, or None if position is unreachable
-or invalid Must call compute_dijkstra() first.
-.SS \f[V]get_dijkstra_path(x: int, y: int) -> List[Tuple[int, int]]\f[R]
-.PP
-Get path from position to Dijkstra root.
-.PP
-\f[B]Arguments:\f[R] - \f[V]x\f[R]: Starting X coordinate - \f[V]y\f[R]:
-Starting Y coordinate
-.PP
-\f[B]Returns:\f[R] List of (x, y) tuples representing path to root,
-empty if unreachable Must call compute_dijkstra() first.
-Path includes start but not root position.
-.SS \f[V]is_in_fov(x: int, y: int) -> bool\f[R]
+\f[B]Returns:\f[R] DijkstraMap object for querying distances and paths.
+Grid caches DijkstraMaps by root position.
+Multiple requests for the same root return the same cached map.
+Call clear_dijkstra_maps() after changing grid walkability to invalidate
+the cache.
+.SS \f[V]is_in_fov(pos) -> bool\f[R]
 .PP
 Check if a cell is in the field of view.
 .PP
-\f[B]Arguments:\f[R] - \f[V]x\f[R]: X coordinate to check - \f[V]y\f[R]:
-Y coordinate to check
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
+Vector
 .PP
 \f[B]Returns:\f[R] True if the cell is visible, False otherwise Must
 call compute_fov() first to calculate visibility.
@@ -1097,35 +2091,580 @@ find.
 .PP
 \f[B]Returns:\f[R] The layer with the specified z_index, or None if not
 found.
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
 .SS \f[V]remove_layer(layer: ColorLayer | TileLayer) -> None\f[R]
 .PP
 Remove a layer from the grid.
 .PP
 \f[B]Arguments:\f[R] - \f[V]layer\f[R]: The layer to remove.
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
-.SS GridPoint
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS HeightMap
 .PP
-UIGridPoint object
+HeightMap(size: tuple[int, int], fill: float = 0.0)
+.PP
+A 2D grid of float values for procedural generation.
+.PP
+HeightMap is the universal canvas for procedural generation.
+It stores float values that can be manipulated, combined, and applied to
+Grid and Layer objects.
+.PP
+Args: size: (width, height) dimensions of the heightmap.
+Immutable after creation.
+fill: Initial value for all cells.
+Default 0.0.
+.PP
+Example: hmap = mcrfpy.HeightMap((100, 100))
+hmap.fill(0.5).scale(2.0).clamp(0.0, 1.0) value = hmap[5, 5] # Subscript
+shorthand for get()
+.PP
+\f[B]Properties:\f[R] - \f[V]size\f[R] \f[I](read-only)\f[R]: Dimensions
+(width, height) of the heightmap.
+Read-only.
 .PP
 \f[B]Methods:\f[R]
-.SS GridPointState
+.SS \f[V]add(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap\f[R]
 .PP
-UIGridPointState object
+Add another heightmap\[cq]s values to this one in the specified region.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: HeightMap to add values from -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]add_bsp(bsp: BSP, *, pos=None, select: str = \[aq]leaves\[aq], nodes: list = None, shrink: int = 0, value: float = 1.0) -> HeightMap\f[R]
+.PP
+Add BSP node regions to heightmap.
+More efficient than creating intermediate HeightMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]bsp\f[R]: BSP tree to sample from -
+\f[V]pos\f[R]: Where BSP origin maps to in HeightMap (default:
+origin-relative like to_heightmap) - \f[V]select\f[R]: `leaves', `all',
+or `internal' (default: `leaves') - \f[V]nodes\f[R]: Override: specific
+BSPNodes only (default: None) - \f[V]shrink\f[R]: Pixels to shrink from
+node bounds (default: 0) - \f[V]value\f[R]: Value to add inside regions
+(default: 1.0)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]add_constant(value: float, *, pos=None, size=None) -> HeightMap\f[R]
+.PP
+Add a constant value to cells in region.
+.PP
+\f[B]Arguments:\f[R] - \f[V]value\f[R]: The value to add to each cell -
+\f[V]pos\f[R]: Region start (x, y) in destination (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: remaining space)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]add_hill(center, radius: float, height: float) -> HeightMap\f[R]
+.PP
+Add a smooth hill at the specified position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]center\f[R]: Center position as (x, y)
+tuple, list, or Vector - \f[V]radius\f[R]: Radius of the hill in cells -
+\f[V]height\f[R]: Height of the hill peak
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]add_noise(source: NoiseSource, world_origin: tuple = (0.0, 0.0), world_size: tuple = None, mode: str = \[aq]fbm\[aq], octaves: int = 4, scale: float = 1.0) -> HeightMap\f[R]
+.PP
+Sample noise and add to current values.
+More efficient than creating intermediate HeightMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: 2D NoiseSource to sample from -
+\f[V]world_origin\f[R]: World coordinates of top-left (default: (0, 0))
+- \f[V]world_size\f[R]: World area to sample (default: HeightMap size) -
+\f[V]mode\f[R]: `flat', `fbm', or `turbulence' (default: `fbm') -
+\f[V]octaves\f[R]: Octaves for fbm/turbulence (default: 4) -
+\f[V]scale\f[R]: Multiplier for sampled values (default: 1.0)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]add_voronoi(num_points: int, coefficients: tuple = (1.0, -0.5), seed: int = None) -> HeightMap\f[R]
+.PP
+Add Voronoi-based terrain features.
+.PP
+\f[B]Arguments:\f[R] - \f[V]num_points\f[R]: Number of Voronoi seed
+points - \f[V]coefficients\f[R]: Coefficients for distance calculations
+(default: (1.0, -0.5)) - \f[V]seed\f[R]: Random seed (None for random)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]clamp(min: float = 0.0, max: float = 1.0, *, pos=None, size=None) -> HeightMap\f[R]
+.PP
+Clamp values in region to the specified range.
+.PP
+\f[B]Arguments:\f[R] - \f[V]min\f[R]: Minimum value (default 0.0) -
+\f[V]max\f[R]: Maximum value (default 1.0) - \f[V]pos\f[R]: Region start
+(x, y) in destination (default: (0, 0)) - \f[V]size\f[R]: Region (width,
+height) (default: remaining space)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]clear() -> HeightMap\f[R]
+.PP
+Set all cells to 0.0.
+Equivalent to fill(0.0).
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]copy_from(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap\f[R]
+.PP
+Copy values from another heightmap into the specified region.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: HeightMap to copy from -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]count_in_range(range: tuple[float, float]) -> int\f[R]
+.PP
+Count cells with values in the specified range (inclusive).
+.PP
+\f[B]Arguments:\f[R] - \f[V]range\f[R]: Value range as (min, max) tuple
+or list
+.PP
+\f[B]Returns:\f[R] int: Number of cells with values in range
+.PP
+\f[B]Raises:\f[R] ValueError: min > max
+.SS \f[V]dig_bezier(points: tuple, start_radius: float, end_radius: float, start_height: float, end_height: float) -> HeightMap\f[R]
+.PP
+Construct a canal along a cubic Bezier curve with specified heights.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]points\f[R]: Four control points as
+((x0,y0), (x1,y1), (x2,y2), (x3,y3)) - \f[V]start_radius\f[R]: Radius at
+start of path - \f[V]end_radius\f[R]: Radius at end of path -
+\f[V]start_height\f[R]: Target height at start of path -
+\f[V]end_height\f[R]: Target height at end of path
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining Only lowers
+cells; cells below target height are unchanged
+.SS \f[V]dig_hill(center, radius: float, target_height: float) -> HeightMap\f[R]
+.PP
+Construct a pit or crater with the specified center height.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]center\f[R]: Center position as (x, y)
+tuple, list, or Vector - \f[V]radius\f[R]: Radius of the crater in cells
+- \f[V]target_height\f[R]: Height at the center of the pit
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining Only lowers
+cells; cells below target_height are unchanged
+.SS \f[V]fill(value: float, *, pos=None, size=None) -> HeightMap\f[R]
+.PP
+Set cells in region to the specified value.
+.PP
+\f[B]Arguments:\f[R] - \f[V]value\f[R]: The value to set -
+\f[V]pos\f[R]: Region start (x, y) in destination (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) to fill (default: remaining
+space)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]get(x, y) or (pos) -> float\f[R]
+.PP
+Get the height value at integer coordinates.
+.PP
+\f[B]Returns:\f[R] float: Height value at that position
+.PP
+\f[B]Raises:\f[R] IndexError: Position is out of bounds
+.SS \f[V]get_interpolated(x, y) or (pos) -> float\f[R]
+.PP
+Get interpolated height value at non-integer coordinates.
+.PP
+\f[B]Returns:\f[R] float: Bilinearly interpolated height value
+.SS \f[V]get_normal(x, y, water_level=0.0) or (pos, water_level=0.0) -> tuple[float, float, float]\f[R]
+.PP
+Get the normal vector at given coordinates for lighting calculations.
+.PP
+\f[B]Arguments:\f[R] - \f[V]water_level\f[R]: Water level below which
+terrain is considered flat (default 0.0)
+.PP
+\f[B]Returns:\f[R] tuple[float, float, float]: Normal vector (nx, ny,
+nz)
+.SS \f[V]get_slope(x, y) or (pos) -> float\f[R]
+.PP
+Get the slope at integer coordinates, from 0 (flat) to pi/2 (vertical).
+.PP
+\f[B]Returns:\f[R] float: Slope angle in radians (0 to pi/2)
+.PP
+\f[B]Raises:\f[R] IndexError: Position is out of bounds
+.SS \f[V]inverse() -> HeightMap\f[R]
+.PP
+Return NEW HeightMap with (1.0 - value) for each cell.
+.PP
+\f[B]Returns:\f[R] HeightMap: New inverted HeightMap (original is
+unchanged)
+.SS \f[V]lerp(other: HeightMap, t: float, *, pos=None, source_pos=None, size=None) -> HeightMap\f[R]
+.PP
+Linear interpolation between this and another heightmap in the specified
+region.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: HeightMap to interpolate towards
+- \f[V]t\f[R]: Interpolation factor (0.0 = this, 1.0 = other) -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]max(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap\f[R]
+.PP
+Set each cell in region to the maximum of this and another heightmap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: HeightMap to compare with -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]mid_point_displacement(roughness: float = 0.5, seed: int = None) -> HeightMap\f[R]
+.PP
+Generate terrain using midpoint displacement algorithm (diamond-square).
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]roughness\f[R]: Controls terrain roughness
+(0.0-1.0, default 0.5) - \f[V]seed\f[R]: Random seed (None for random)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining Works best with
+power-of-2+1 dimensions (e.g., 65x65, 129x129)
+.SS \f[V]min(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap\f[R]
+.PP
+Set each cell in region to the minimum of this and another heightmap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: HeightMap to compare with -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]min_max() -> tuple[float, float]\f[R]
+.PP
+Get the minimum and maximum height values in the map.
+.PP
+\f[B]Returns:\f[R] tuple[float, float]: (min_value, max_value)
+.SS \f[V]multiply(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap\f[R]
+.PP
+Multiply this heightmap by another in the specified region (useful for
+masking).
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: HeightMap to multiply by -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]multiply_bsp(bsp: BSP, *, pos=None, select: str = \[aq]leaves\[aq], nodes: list = None, shrink: int = 0, value: float = 1.0) -> HeightMap\f[R]
+.PP
+Multiply by BSP regions.
+Effectively masks the heightmap to node interiors.
+.PP
+\f[B]Arguments:\f[R] - \f[V]bsp\f[R]: BSP tree to sample from -
+\f[V]pos\f[R]: Where BSP origin maps to in HeightMap (default:
+origin-relative like to_heightmap) - \f[V]select\f[R]: `leaves', `all',
+or `internal' (default: `leaves') - \f[V]nodes\f[R]: Override: specific
+BSPNodes only (default: None) - \f[V]shrink\f[R]: Pixels to shrink from
+node bounds (default: 0) - \f[V]value\f[R]: Value to multiply inside
+regions (default: 1.0)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]multiply_noise(source: NoiseSource, world_origin: tuple = (0.0, 0.0), world_size: tuple = None, mode: str = \[aq]fbm\[aq], octaves: int = 4, scale: float = 1.0) -> HeightMap\f[R]
+.PP
+Sample noise and multiply with current values.
+Useful for applying noise-based masks.
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: 2D NoiseSource to sample from -
+\f[V]world_origin\f[R]: World coordinates of top-left (default: (0, 0))
+- \f[V]world_size\f[R]: World area to sample (default: HeightMap size) -
+\f[V]mode\f[R]: `flat', `fbm', or `turbulence' (default: `fbm') -
+\f[V]octaves\f[R]: Octaves for fbm/turbulence (default: 4) -
+\f[V]scale\f[R]: Multiplier for sampled values (default: 1.0)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]normalize(min: float = 0.0, max: float = 1.0, *, pos=None, size=None) -> HeightMap\f[R]
+.PP
+Linearly rescale values in region.
+Current min becomes new min, current max becomes new max.
+.PP
+\f[B]Arguments:\f[R] - \f[V]min\f[R]: Target minimum value (default 0.0)
+- \f[V]max\f[R]: Target maximum value (default 1.0) - \f[V]pos\f[R]:
+Region start (x, y) in destination (default: (0, 0)) - \f[V]size\f[R]:
+Region (width, height) (default: remaining space)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]rain_erosion(drops: int, erosion: float = 0.1, sedimentation: float = 0.05, seed: int = None) -> HeightMap\f[R]
+.PP
+Simulate rain erosion on the terrain.
+.PP
+\f[B]Arguments:\f[R] - \f[V]drops\f[R]: Number of rain drops to simulate
+- \f[V]erosion\f[R]: Erosion coefficient (default 0.1) -
+\f[V]sedimentation\f[R]: Sedimentation coefficient (default 0.05) -
+\f[V]seed\f[R]: Random seed (None for random)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]scale(factor: float, *, pos=None, size=None) -> HeightMap\f[R]
+.PP
+Multiply cells in region by a factor.
+.PP
+\f[B]Arguments:\f[R] - \f[V]factor\f[R]: The multiplier for each cell -
+\f[V]pos\f[R]: Region start (x, y) in destination (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: remaining space)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]smooth(iterations: int = 1) -> HeightMap\f[R]
+.PP
+Smooth the heightmap by averaging neighboring cells.
+.PP
+\f[B]Arguments:\f[R] - \f[V]iterations\f[R]: Number of smoothing passes
+(default 1)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]sparse_kernel(weights: dict[tuple[int, int], float]) -> HeightMap\f[R]
+.PP
+Apply sparse convolution kernel, returning a NEW HeightMap with results.
+.PP
+\f[B]Arguments:\f[R] - \f[V]weights\f[R]: Dict mapping (dx, dy) offsets
+to weight values
+.PP
+\f[B]Returns:\f[R] HeightMap: new heightmap with convolution result
+.SS \f[V]sparse_kernel_from(source: HeightMap, weights: dict[tuple[int, int], float]) -> None\f[R]
+.PP
+Apply sparse convolution from source heightmap into self (for reusing
+destination buffers).
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: Source HeightMap to convolve
+from - \f[V]weights\f[R]: Dict mapping (dx, dy) offsets to weight values
+.PP
+\f[B]Returns:\f[R] None
+.SS \f[V]subtract(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap\f[R]
+.PP
+Subtract another heightmap\[cq]s values from this one in the specified
+region.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: HeightMap to subtract values
+from - \f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0))
+- \f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] HeightMap: self, for method chaining
+.SS \f[V]threshold(range: tuple[float, float]) -> HeightMap\f[R]
+.PP
+Return NEW HeightMap with original values where in range, 0.0 elsewhere.
+.PP
+\f[B]Arguments:\f[R] - \f[V]range\f[R]: Value range as (min, max) tuple
+or list, inclusive
+.PP
+\f[B]Returns:\f[R] HeightMap: New HeightMap (original is unchanged)
+.PP
+\f[B]Raises:\f[R] ValueError: min > max
+.SS \f[V]threshold_binary(range: tuple[float, float], value: float = 1.0) -> HeightMap\f[R]
+.PP
+Return NEW HeightMap with uniform value where in range, 0.0 elsewhere.
+.PP
+\f[B]Arguments:\f[R] - \f[V]range\f[R]: Value range as (min, max) tuple
+or list, inclusive - \f[V]value\f[R]: Value to set for cells in range
+(default 1.0)
+.PP
+\f[B]Returns:\f[R] HeightMap: New HeightMap (original is unchanged)
+.PP
+\f[B]Raises:\f[R] ValueError: min > max
+.SS InputState
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+Enum representing input event states (pressed/released).
+.PP
+Values: PRESSED: Key or button was pressed (legacy: `start') RELEASED:
+Key or button was released (legacy: `end')
+.PP
+These enum values compare equal to their legacy string equivalents for
+backwards compatibility: InputState.PRESSED == `start' # True
+InputState.RELEASED == `end' # True
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
+.SS Key
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+Enum representing keyboard keys.
+.PP
+Values map to SFML\[cq]s sf::Keyboard::Key enum.
+.PP
+Categories: Letters: A-Z Numbers: NUM_0 through NUM_9 (top row) Numpad:
+NUMPAD_0 through NUMPAD_9 Function: F1 through F15 Modifiers:
+LEFT_SHIFT, RIGHT_SHIFT, LEFT_CONTROL, etc.
+Navigation: LEFT, RIGHT, UP, DOWN, HOME, END, PAGE_UP, PAGE_DOWN
+Editing: ENTER, BACKSPACE, DELETE, INSERT, TAB, SPACE Symbols: COMMA,
+PERIOD, SLASH, SEMICOLON, etc.
+.PP
+These enum values compare equal to their legacy string equivalents for
+backwards compatibility: Key.ESCAPE == `Escape' # True Key.LEFT_SHIFT ==
+`LShift' # True
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
+.SS Keyboard
+.PP
+Keyboard state singleton for checking modifier keys
+.PP
+\f[B]Properties:\f[R] - \f[V]alt\f[R] \f[I](read-only)\f[R]: True if
+either Alt key is currently pressed (read-only).
+- \f[V]ctrl\f[R] \f[I](read-only)\f[R]: True if either Control key is
+currently pressed (read-only).
+- \f[V]shift\f[R] \f[I](read-only)\f[R]: True if either Shift key is
+currently pressed (read-only).
+- \f[V]system\f[R] \f[I](read-only)\f[R]: True if either System key
+(Win/Cmd) is currently pressed (read-only).
 .PP
 \f[B]Methods:\f[R]
 .SS Line
@@ -1147,64 +2686,475 @@ Default: None visible (bool): Visibility state.
 Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 z_index (int): Rendering order.
 Default: 0 name (str): Element name for finding.
-Default: None
+Default: None align (Alignment): Alignment relative to parent.
+Default: None margin (float): Margin from parent edge when aligned.
+Default: 0 horiz_margin (float): Horizontal margin override.
+Default: 0 (use margin) vert_margin (float): Vertical margin override.
+Default: 0 (use margin)
 .PP
 Attributes: start (Vector): Starting point end (Vector): Ending point
 thickness (float): Line thickness color (Color): Line color visible
 (bool): Visibility state opacity (float): Opacity value z_index (int):
-Rendering order name (str): Element name
+Rendering order name (str): Element name align (Alignment): Alignment
+relative to parent (or None) margin (float): General margin for
+alignment horiz_margin (float): Horizontal margin override vert_margin
+(float): Vertical margin override
+.PP
+\f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
+bounds (Alignment enum or None).
+When set, position is automatically calculated when parent is assigned
+or resized.
+Set to None to disable alignment and use manual positioning.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]color\f[R]: Line color as a Color object.
+- \f[V]end\f[R]: Ending point of the line as a Vector.
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
+parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
+(only when parent is Grid) - \f[V]horiz_margin\f[R]: Horizontal margin
+override (float, 0 = use general margin).
+Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
+CENTER).
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]margin\f[R]: General margin from edge when aligned (float).
+Applied to both horizontal and vertical edges unless overridden.
+Invalid for CENTER alignment (raises ValueError).
+- \f[V]name\f[R]: Name for finding this element.
+- \f[V]on_click\f[R]: Callable executed when line is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]parent\f[R]: Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]pos\f[R]: Position as a Vector (midpoint of line).
+- \f[V]start\f[R]: Starting point of the line as a Vector.
+- \f[V]thickness\f[R]: Line thickness in pixels.
+- \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
+general margin).
+Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
+CENTER).
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+first).
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]get_bounds() -> tuple\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
-Get the bounding rectangle of this drawable element.
+Create and start an animation on this drawable\[cq]s property.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]callback\f[R]: Optional callable invoked when
+animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
-.SS Scene
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS Mouse
 .PP
-Base class for object-oriented scenes
+Mouse state singleton for reading button/position state and controlling
+cursor visibility
+.PP
+\f[B]Properties:\f[R] - \f[V]grabbed\f[R]: Whether the mouse cursor is
+confined to the window (default: False).
+- \f[V]left\f[R] \f[I](read-only)\f[R]: True if left mouse button is
+currently pressed (read-only).
+- \f[V]middle\f[R] \f[I](read-only)\f[R]: True if middle mouse button is
+currently pressed (read-only).
+- \f[V]pos\f[R] \f[I](read-only)\f[R]: Current mouse position as Vector
+(read-only).
+- \f[V]right\f[R] \f[I](read-only)\f[R]: True if right mouse button is
+currently pressed (read-only).
+- \f[V]visible\f[R]: Whether the mouse cursor is visible (default:
+True).
+- \f[V]x\f[R] \f[I](read-only)\f[R]: Current mouse X position in window
+coordinates (read-only).
+- \f[V]y\f[R] \f[I](read-only)\f[R]: Current mouse Y position in window
+coordinates (read-only).
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]activate() -> None\f[R]
+.SS MouseButton
 .PP
-Make this the active scene.
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+Enum representing mouse buttons.
+.PP
+Values: LEFT: Left mouse button (legacy: `left') RIGHT: Right mouse
+button (legacy: `right') MIDDLE: Middle mouse button / scroll wheel
+click (legacy: `middle') X1: Extra mouse button 1 (legacy: `x1') X2:
+Extra mouse button 2 (legacy: `x2')
+.PP
+These enum values compare equal to their legacy string equivalents for
+backwards compatibility: MouseButton.LEFT == `left' # True
+MouseButton.RIGHT == `right' # True
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
+.SS Music
+.PP
+Streaming music object for longer audio tracks
+.PP
+\f[B]Properties:\f[R] - \f[V]duration\f[R] \f[I](read-only)\f[R]: Total
+duration of the music in seconds (read-only).
+- \f[V]loop\f[R]: Whether the music loops when it reaches the end.
+- \f[V]playing\f[R] \f[I](read-only)\f[R]: True if the music is
+currently playing (read-only).
+- \f[V]position\f[R]: Current playback position in seconds.
+Can be set to seek.
+- \f[V]source\f[R] \f[I](read-only)\f[R]: Filename path used to load
+this music (read-only).
+- \f[V]volume\f[R]: Volume level from 0 (silent) to 100 (full volume).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]pause() -> None\f[R]
+.PP
+Pause the music.
+Use play() to resume from the paused position.
+.SS \f[V]play() -> None\f[R]
+.PP
+Start or resume playing the music.
+.SS \f[V]stop() -> None\f[R]
+.PP
+Stop playing and reset to the beginning.
+.SS NoiseSource
+.PP
+NoiseSource(dimensions: int = 2, algorithm: str = `simplex', hurst:
+float = 0.5, lacunarity: float = 2.0, seed: int = None)
+.PP
+A configured noise generator for procedural generation.
+.PP
+NoiseSource wraps libtcod\[cq]s noise generator, providing coherent
+noise values that can be used for terrain generation, textures, and
+other procedural content.
+The same coordinates always produce the same value (deterministic).
+.PP
+Args: dimensions: Number of input dimensions (1-4).
+Default: 2.
+algorithm: Noise algorithm - `simplex', `perlin', or `wavelet'.
+Default: `simplex'.
+hurst: Fractal Hurst exponent for fbm/turbulence (0.0-1.0).
+Default: 0.5.
+lacunarity: Frequency multiplier between octaves.
+Default: 2.0.
+seed: Random seed for reproducibility.
+None for random seed.
+.PP
+Properties: dimensions (int): Read-only.
+Number of input dimensions.
+algorithm (str): Read-only.
+Noise algorithm name.
+hurst (float): Read-only.
+Hurst exponent.
+lacunarity (float): Read-only.
+Lacunarity value.
+seed (int): Read-only.
+Seed used (even if originally None).
+.PP
+Example: noise = mcrfpy.NoiseSource(dimensions=2, algorithm=`simplex',
+seed=42) value = noise.get((10.5, 20.3)) # Returns -1.0 to 1.0 fbm_val =
+noise.fbm((10.5, 20.3), octaves=6)
+.PP
+\f[B]Properties:\f[R] - \f[V]algorithm\f[R] \f[I](read-only)\f[R]: Noise
+algorithm name (`simplex', `perlin', or `wavelet').
+Read-only.
+- \f[V]dimensions\f[R] \f[I](read-only)\f[R]: Number of input dimensions
+(1-4).
+Read-only.
+- \f[V]hurst\f[R] \f[I](read-only)\f[R]: Hurst exponent for
+fbm/turbulence.
+Read-only.
+- \f[V]lacunarity\f[R] \f[I](read-only)\f[R]: Frequency multiplier
+between octaves.
+Read-only.
+- \f[V]seed\f[R] \f[I](read-only)\f[R]: Random seed used (even if
+originally None).
+Read-only.
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]fbm(pos: tuple[float, ...], octaves: int = 4) -> float\f[R]
+.PP
+Get fractal brownian motion value at coordinates.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position tuple with length
+matching dimensions - \f[V]octaves\f[R]: Number of noise octaves to
+combine (default: 4)
+.PP
+\f[B]Returns:\f[R] float: FBM noise value in range [-1.0, 1.0]
+.PP
+\f[B]Raises:\f[R] ValueError: Position tuple length doesn\[cq]t match
+dimensions
+.SS \f[V]get(pos: tuple[float, ...]) -> float\f[R]
+.PP
+Get flat noise value at coordinates.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position tuple with length
+matching dimensions
+.PP
+\f[B]Returns:\f[R] float: Noise value in range [-1.0, 1.0]
+.PP
+\f[B]Raises:\f[R] ValueError: Position tuple length doesn\[cq]t match
+dimensions
+.SS \f[V]sample(size: tuple[int, int], world_origin: tuple[float, float] = (0.0, 0.0), world_size: tuple[float, float] = None, mode: str = \[aq]fbm\[aq], octaves: int = 4) -> HeightMap\f[R]
+.PP
+Sample noise into a HeightMap for batch processing.
 .PP
 Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]size\f[R]: Output dimensions in cells as
+(width, height) - \f[V]world_origin\f[R]: World coordinates of top-left
+corner (default: (0, 0)) - \f[V]world_size\f[R]: World area to sample
+(default: same as size) - \f[V]mode\f[R]: Sampling mode: `flat', `fbm',
+or `turbulence' (default: `fbm') - \f[V]octaves\f[R]: Octaves for
+fbm/turbulence modes (default: 4)
+.PP
+\f[B]Returns:\f[R] HeightMap: New HeightMap filled with sampled noise
+values Requires dimensions=2.
+Values are in range [-1.0, 1.0].
+.SS \f[V]turbulence(pos: tuple[float, ...], octaves: int = 4) -> float\f[R]
+.PP
+Get turbulence (absolute fbm) value at coordinates.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position tuple with length
+matching dimensions - \f[V]octaves\f[R]: Number of noise octaves to
+combine (default: 4)
+.PP
+\f[B]Returns:\f[R] float: Turbulence noise value in range [-1.0, 1.0]
+.PP
+\f[B]Raises:\f[R] ValueError: Position tuple length doesn\[cq]t match
+dimensions
+.SS Scene
+.PP
+Scene(name: str)
+.PP
+Object-oriented scene management with lifecycle callbacks.
+.PP
+This is the recommended approach for scene management, replacing
+module-level functions like createScene(), setScene(), and sceneUI().
+Key advantage: you can set on_key handlers on ANY scene, not just the
+currently active one.
+.PP
+Args: name: Unique identifier for this scene.
+Used for scene transitions.
+.PP
+Properties: name (str, read-only): Scene\[cq]s unique identifier.
+active (bool, read-only): Whether this scene is currently displayed.
+children (UICollection, read-only): UI elements in this scene.
+Modify to add/remove elements.
+on_key (callable): Keyboard handler.
+Set on ANY scene, regardless of which is active!
+pos (Vector): Position offset for all UI elements.
+visible (bool): Whether the scene renders.
+opacity (float): Scene transparency (0.0-1.0).
+.PP
+Lifecycle Callbacks (override in subclass): on_enter(): Called when
+scene becomes active via activate().
+on_exit(): Called when scene is deactivated (another scene activates).
+on_key(key: str, action: str): Called for keyboard events (subclass
+method).
+update(dt: float): Called every frame with delta time in seconds.
+on_resize(new_size: Vector): Called when window is resized.
+.PP
+Example: # Basic usage (replacing module functions): scene =
+mcrfpy.Scene(`main_menu')
+scene.children.append(mcrfpy.Caption(text=`Welcome', pos=(100, 100)))
+scene.on_key = lambda key, action: print(f\[cq]Key: {key}\[cq])
+scene.activate() # Switch to this scene
+.IP
+.nf
+\f[C]
+# Subclassing for lifecycle:
+class GameScene(mcrfpy.Scene):
+    def on_enter(self):
+        print(\[aq]Game started!\[aq])
+    def update(self, dt):
+        self.player.move(dt)
+\f[R]
+.fi
+.PP
+\f[B]Properties:\f[R] - \f[V]active\f[R] \f[I](read-only)\f[R]: Whether
+this scene is currently active (bool, read-only).
+Only one scene can be active at a time.
+- \f[V]children\f[R] \f[I](read-only)\f[R]: UI element collection for
+this scene (UICollection, read-only).
+Use to add, remove, or iterate over UI elements.
+Changes are reflected immediately.
+- \f[V]name\f[R] \f[I](read-only)\f[R]: Scene name (str, read-only).
+Unique identifier for this scene.
+- \f[V]on_key\f[R]: Keyboard event handler (callable or None).
+Function receives (key: str, action: str) for keyboard events.
+Set to None to remove the handler.
+- \f[V]opacity\f[R]: Scene opacity (0.0-1.0).
+Applied to all UI elements during rendering.
+- \f[V]pos\f[R]: Scene position offset (Vector).
+Applied to all UI elements during rendering.
+- \f[V]visible\f[R]: Scene visibility (bool).
+If False, scene is not rendered.
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]activate(transition: Transition = None, duration: float = None) -> None\f[R]
+.PP
+Make this the active scene with optional transition effect.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]transition\f[R]: Transition type
+(mcrfpy.Transition enum).
+Defaults to mcrfpy.default_transition - \f[V]duration\f[R]: Transition
+duration in seconds.
+Defaults to mcrfpy.default_transition_duration
 .PP
 \f[B]Returns:\f[R] None Deactivates the current scene and activates this
 one.
-Scene transitions and lifecycle callbacks are triggered.
-.SS \f[V]register_keyboard(callback: callable) -> None\f[R]
+Lifecycle callbacks (on_exit, on_enter) are triggered.
+.SS \f[V]realign() -> None\f[R]
 .PP
-Register a keyboard event handler function.
+Recalculate alignment for all children with alignment set.
 .PP
-Note:
+Note: Call this after window resize or when game_resolution changes.
+For responsive layouts, connect this to on_resize callback.
+.SS Sound
 .PP
-\f[B]Arguments:\f[R] - \f[V]callback\f[R]: Function that receives (key:
-str, pressed: bool) when keyboard events occur
+Sound effect object for short audio clips
 .PP
-\f[B]Returns:\f[R] None Alternative to setting on_key property.
-Handler is called for both key press and release events.
+\f[B]Properties:\f[R] - \f[V]duration\f[R] \f[I](read-only)\f[R]: Total
+duration of the sound in seconds (read-only).
+- \f[V]loop\f[R]: Whether the sound loops when it reaches the end.
+- \f[V]playing\f[R] \f[I](read-only)\f[R]: True if the sound is
+currently playing (read-only).
+- \f[V]source\f[R] \f[I](read-only)\f[R]: Filename path used to load
+this sound (read-only).
+- \f[V]volume\f[R]: Volume level from 0 (silent) to 100 (full volume).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]pause() -> None\f[R]
+.PP
+Pause the sound.
+Use play() to resume from the paused position.
+.SS \f[V]play() -> None\f[R]
+.PP
+Start or resume playing the sound.
+.SS \f[V]stop() -> None\f[R]
+.PP
+Stop playing and reset to the beginning.
 .SS Sprite
 .PP
 \f[I]Inherits from: Drawable\f[R]
@@ -1230,7 +3180,11 @@ Default: 1.0 z_index (int): Rendering order.
 Default: 0 name (str): Element name for finding.
 Default: None x (float): X position override.
 Default: 0 y (float): Y position override.
-Default: 0
+Default: 0 align (Alignment): Alignment relative to parent.
+Default: None margin (float): Margin from parent edge when aligned.
+Default: 0 horiz_margin (float): Horizontal margin override.
+Default: 0 (use margin) vert_margin (float): Vertical margin override.
+Default: 0 (use margin)
 .PP
 Attributes: x, y (float): Position in pixels pos (Vector): Position as a
 Vector object texture (Texture): The texture being displayed
@@ -1239,77 +3193,229 @@ Uniform scale factor scale_x, scale_y (float): Individual scale factors
 click (callable): Click event handler visible (bool): Visibility state
 opacity (float): Opacity value z_index (int): Rendering order name
 (str): Element name w, h (float): Read-only computed size based on
-texture and scale
+texture and scale align (Alignment): Alignment relative to parent (or
+None) margin (float): General margin for alignment horiz_margin (float):
+Horizontal margin override vert_margin (float): Vertical margin override
+.PP
+\f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
+bounds (Alignment enum or None).
+When set, position is automatically calculated when parent is assigned
+or resized.
+Set to None to disable alignment and use manual positioning.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
+parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
+(only when parent is Grid) - \f[V]horiz_margin\f[R]: Horizontal margin
+override (float, 0 = use general margin).
+Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
+CENTER).
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]margin\f[R]: General margin from edge when aligned (float).
+Applied to both horizontal and vertical edges unless overridden.
+Invalid for CENTER alignment (raises ValueError).
+- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
+Callable executed when object is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]parent\f[R]: Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]pos\f[R]: Position as a Vector - \f[V]scale\f[R]: Uniform size
+factor - \f[V]scale_x\f[R]: Horizontal scale factor - \f[V]scale_y\f[R]:
+Vertical scale factor - \f[V]sprite_index\f[R]: Which sprite on the
+texture is shown - \f[V]sprite_number\f[R]: Sprite index (DEPRECATED:
+use sprite_index instead) - \f[V]texture\f[R]: Texture object -
+\f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use general
+margin).
+Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
+CENTER).
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]x\f[R]: X coordinate of top-left corner - \f[V]y\f[R]: Y
+coordinate of top-left corner - \f[V]z_index\f[R]: Z-order for rendering
+(lower values rendered first).
+Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]get_bounds() -> tuple\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
-Get the bounding rectangle of this drawable element.
+Create and start an animation on this drawable\[cq]s property.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] tuple: (x, y, width, height) representing the
-element\[cq]s bounds The bounds are in screen coordinates and account
-for current position and size.
-.SS \f[V]move(dx: float, dy: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]callback\f[R]: Optional callable invoked when
+animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels -
-\f[V]dy\f[R]: Vertical offset in pixels
-.SS \f[V]resize(width: float, height: float) -> None\f[R]
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
 .PP
 Note:
 .PP
-\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels -
-\f[V]height\f[R]: New height in pixels
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
 .SS Texture
 .PP
 SFML Texture Object
+.PP
+\f[B]Properties:\f[R] - \f[V]sheet_height\f[R] \f[I](read-only)\f[R]:
+Number of sprite rows in the texture sheet (int, read-only).
+Calculated as texture_height / sprite_height.
+- \f[V]sheet_width\f[R] \f[I](read-only)\f[R]: Number of sprite columns
+in the texture sheet (int, read-only).
+Calculated as texture_width / sprite_width.
+- \f[V]source\f[R] \f[I](read-only)\f[R]: Source filename path (str,
+read-only).
+The path used to load this texture.
+- \f[V]sprite_count\f[R] \f[I](read-only)\f[R]: Total number of sprites
+in the texture sheet (int, read-only).
+Equals sheet_width * sheet_height.
+- \f[V]sprite_height\f[R] \f[I](read-only)\f[R]: Height of each sprite
+in pixels (int, read-only).
+Specified during texture initialization.
+- \f[V]sprite_width\f[R] \f[I](read-only)\f[R]: Width of each sprite in
+pixels (int, read-only).
+Specified during texture initialization.
 .PP
 \f[B]Methods:\f[R]
 .SS TileLayer
 .PP
 TileLayer(z_index=-1, texture=None, grid_size=None)
 .PP
-A grid layer that stores sprite indices per cell.
+A grid layer that stores sprite indices per cell for tile-based
+rendering.
 .PP
-Args: z_index (int): Render order.
-Negative = below entities.
-Default: -1 texture (Texture): Sprite atlas for tile rendering.
+TileLayers are typically created via Grid.add_layer(`tile', \&...)
+rather than instantiated directly.
+Each cell stores an integer index into the layer\[cq]s sprite atlas
+texture.
+An index of -1 means no tile (transparent/empty).
+.PP
+Args: z_index (int): Render order relative to entities.
+Negative values render below entities (as backgrounds), positive values
+render above entities (as overlays).
+Default: -1 (background) texture (Texture): Sprite atlas containing tile
+images.
+The texture\[cq]s sprite_size determines individual tile dimensions.
+Required for rendering; can be set after creation.
 Default: None grid_size (tuple): Dimensions as (width, height).
-Default: parent grid size
+If None, the layer will inherit the parent Grid\[cq]s dimensions when
+attached.
+Default: None
 .PP
-Attributes: z_index (int): Layer z-order relative to entities visible
-(bool): Whether layer is rendered texture (Texture): Tile sprite atlas
-grid_size (tuple): Layer dimensions (read-only)
+Attributes: z_index (int): Layer z-order relative to entities
+(read/write) visible (bool): Whether layer is rendered (read/write)
+texture (Texture): Sprite atlas for tile images (read/write) grid_size
+(tuple): Layer dimensions as (width, height) (read-only)
 .PP
-Methods: at(x, y): Get tile index at cell position set(x, y, index): Set
-tile index at cell position fill(index): Fill entire layer with tile
-index
+Methods: at(x, y) -> int: Get the tile index at cell position (x, y)
+set(x, y, index): Set the tile index at cell position (x, y)
+fill(index): Fill the entire layer with a single tile index fill_rect(x,
+y, w, h, index): Fill a rectangular region with a tile index
+.PP
+Tile Index Values: -1: No tile (transparent/empty cell) 0+: Index into
+the texture\[cq]s sprite atlas (row-major order)
+.PP
+Example: grid = mcrfpy.Grid(grid_size=(20, 15), texture=my_texture,
+pos=(50, 50), size=(640, 480)) layer = grid.add_layer(`tile', z_index=1,
+texture=overlay_texture) layer.fill(-1) # Clear layer (all transparent)
+layer.set(5, 5, 42) # Place tile index 42 at position (5, 5)
+layer.fill_rect(0, 0, 20, 1, 10) # Top row filled with tile 10
+.PP
+\f[B]Properties:\f[R] - \f[V]grid_size\f[R]: Layer dimensions as (width,
+height) tuple.
+- \f[V]texture\f[R]: Texture atlas for tile sprites.
+- \f[V]visible\f[R]: Whether the layer is rendered.
+- \f[V]z_index\f[R]: Layer z-order.
+Negative values render below entities.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]at(x, y) -> int\f[R]
+.SS \f[V]apply_ranges(source, ranges) -> TileLayer\f[R]
 .PP
-Get the tile index at cell position (x, y).
+Apply multiple tile assignments in a single pass.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] self for method chaining Later ranges override
+earlier ones if overlapping.
+Cells not matching any range are left unchanged.
+.SS \f[V]apply_threshold(source, range, tile) -> TileLayer\f[R]
+.PP
+Set tile index for cells where HeightMap value is within range.
+.PP
+\f[B]Returns:\f[R] self for method chaining
+.SS \f[V]at(pos) -> int\f[R]
+.PP
+at(x, y) -> int Get the tile index at cell position.
 Returns -1 if no tile.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
+Vector
 .SS \f[V]fill(index)\f[R]
 .PP
 Fill the entire layer with the specified tile index.
 .SS \f[V]fill_rect(pos, size, index)\f[R]
 .PP
 Fill a rectangular region with a tile index.
-.SS \f[V]set(x, y, index)\f[R]
+.SS \f[V]set(pos, index)\f[R]
 .PP
-Set the tile index at cell position (x, y).
+Set the tile index at cell position.
 Use -1 for no tile.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
+Vector - \f[V]index\f[R]: Tile index (-1 for no tile)
 .SS Timer
 .PP
-Timer(name, callback, interval, once=False)
+Timer(name, callback, interval, once=False, start=True)
 .PP
 Create a timer that calls a function at regular intervals.
 .PP
@@ -1317,40 +3423,61 @@ Args: name (str): Unique identifier for the timer callback (callable):
 Function to call - receives (timer, runtime) args interval (int): Time
 between calls in milliseconds once (bool): If True, timer stops after
 first call.
-Default: False
+Default: False start (bool): If True, timer starts immediately.
+Default: True
 .PP
 Attributes: interval (int): Time between calls in milliseconds remaining
 (int): Time until next call in milliseconds (read-only) paused (bool):
-Whether timer is paused (read-only) active (bool): Whether timer is
-active and not paused (read-only) callback (callable): The callback
-function once (bool): Whether timer stops after firing once
+Whether timer is paused (read-only) stopped (bool): Whether timer is
+stopped (read-only) active (bool): Running state (read-write).
+Set True to start, False to pause callback (callable): The callback
+function (preserved when stopped) once (bool): Whether timer stops after
+firing once
 .PP
-Methods: pause(): Pause the timer, preserving time remaining resume():
-Resume a paused timer cancel(): Stop and remove the timer restart():
-Reset timer to start from beginning
+Methods: start(): Start the timer, adding to engine tick loop stop():
+Stop the timer (removes from engine, preserves callback) pause(): Pause
+the timer, preserving time remaining resume(): Resume a paused timer
+restart(): Reset timer and ensure it\[cq]s running
 .PP
 Example: def on_timer(timer, runtime): print(f\[cq]Timer {timer} fired
-at {runtime}ms\[cq]) if runtime > 5000: timer.cancel()
+at {runtime}ms\[cq]) if runtime > 5000: timer.stop() # Stop but can
+restart later
 .IP
 .nf
 \f[C]
 timer = mcrfpy.Timer(\[aq]my_timer\[aq], on_timer, 1000)
 timer.pause()  # Pause timer
 timer.resume() # Resume timer
-timer.once = True  # Make it one-shot
+timer.stop()   # Stop completely
+timer.start()  # Restart from beginning
 \f[R]
 .fi
 .PP
+\f[B]Properties:\f[R] - \f[V]active\f[R]: Running state (bool,
+read-write).
+True if running (not paused, not stopped).
+Set True to start/resume, False to pause.
+- \f[V]callback\f[R]: The callback function (callable).
+Preserved when stopped, allowing timer restart.
+- \f[V]interval\f[R]: Timer interval in milliseconds (int).
+Must be positive.
+Can be changed while timer is running.
+- \f[V]name\f[R] \f[I](read-only)\f[R]: Timer name (str, read-only).
+Unique identifier for this timer.
+- \f[V]once\f[R]: Whether the timer stops after firing once (bool).
+One-shot timers can be restarted.
+- \f[V]paused\f[R] \f[I](read-only)\f[R]: Whether the timer is paused
+(bool, read-only).
+Paused timers preserve their remaining time.
+- \f[V]remaining\f[R] \f[I](read-only)\f[R]: Time remaining until next
+trigger in milliseconds (int, read-only).
+Full interval when stopped.
+- \f[V]stopped\f[R] \f[I](read-only)\f[R]: Whether the timer is stopped
+(bool, read-only).
+Stopped timers are not in the engine tick loop but preserve their
+callback.
+.PP
 \f[B]Methods:\f[R]
-.SS \f[V]cancel() -> None\f[R]
-.PP
-Cancel the timer and remove it from the timer system.
-.PP
-Note:
-.PP
-\f[B]Returns:\f[R] None The timer will no longer fire and cannot be
-restarted.
-The callback will not be called again.
 .SS \f[V]pause() -> None\f[R]
 .PP
 Pause the timer, preserving the time remaining until next trigger.
@@ -1361,12 +3488,13 @@ Note:
 Time spent paused does not count toward the interval.
 .SS \f[V]restart() -> None\f[R]
 .PP
-Restart the timer from the beginning.
+Restart the timer from the beginning and ensure it\[cq]s running.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] None Resets the timer to fire after a full interval
-from now, regardless of remaining time.
+\f[B]Returns:\f[R] None Resets progress and adds timer to engine if
+stopped.
+Equivalent to stop() followed by start().
 .SS \f[V]resume() -> None\f[R]
 .PP
 Resume a paused timer from where it left off.
@@ -1375,61 +3503,174 @@ Note:
 .PP
 \f[B]Returns:\f[R] None Has no effect if the timer is not paused.
 Timer will fire after the remaining time elapses.
-.SS UICollection
+.SS \f[V]start() -> None\f[R]
 .PP
-Iterable, indexable collection of UI objects
+Start the timer, adding it to the engine tick loop.
 .PP
-\f[B]Methods:\f[R]
-.SS \f[V]append(element)\f[R]
+Note:
 .PP
-Add an element to the end of the collection.
-.SS \f[V]count(element) -> int\f[R]
+\f[B]Returns:\f[R] None Resets progress and begins counting toward the
+next fire.
+If another timer has this name, it will be stopped.
+.SS \f[V]stop() -> None\f[R]
 .PP
-Count occurrences of element in the collection.
-.SS \f[V]extend(iterable)\f[R]
+Stop the timer and remove it from the engine tick loop.
 .PP
-Add all elements from an iterable to the collection.
-.SS \f[V]find(name, recursive=False) -> element or list\f[R]
+Note:
 .PP
-Find elements by name.
+\f[B]Returns:\f[R] None The callback is preserved, so the timer can be
+restarted with start() or restart().
+.SS Transition
 .PP
-\f[B]Returns:\f[R] Single element if exact match, list if wildcard, None
-if not found.
-.SS \f[V]index(element) -> int\f[R]
+\f[I]Inherits from: IntEnum\f[R]
 .PP
-Return index of first occurrence of element.
-Raises ValueError if not found.
-.SS \f[V]insert(index, element)\f[R]
-.PP
-Insert element at index.
-Like list.insert(), indices past the end append.
-.PP
-Note: If using z_index for sorting, insertion order may not persist
-after the next render.
-Use name-based .find() for stable element access.
-.SS \f[V]pop([index]) -> element\f[R]
-.PP
-Remove and return element at index (default: last element).
-.PP
-Note: If using z_index for sorting, indices may shift after render.
-Use name-based .find() for stable element access.
-.SS \f[V]remove(element)\f[R]
-.PP
-Remove first occurrence of element.
-Raises ValueError if not found.
-.SS UICollectionIter
-.PP
-Iterator for a collection of UI objects
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
 .PP
 \f[B]Methods:\f[R]
-.SS UIEntityCollectionIter
+.SS \f[V]as_integer_ratio(...)\f[R]
 .PP
-Iterator for a collection of UI objects
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
+.SS Traversal
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
 .PP
 \f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
 .SS Vector
 .PP
 SFML Vector Object
+.PP
+\f[B]Properties:\f[R] - \f[V]int\f[R] \f[I](read-only)\f[R]: Integer
+tuple (floor of x and y) for use as dict keys.
+Read-only.
+- \f[V]x\f[R]: X coordinate of the vector (float) - \f[V]y\f[R]: Y
+coordinate of the vector (float)
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]angle() -> float\f[R]
@@ -1491,6 +3732,25 @@ an exception
 .SS Window
 .PP
 Window singleton for accessing and modifying the game window properties
+.PP
+\f[B]Properties:\f[R] - \f[V]framerate_limit\f[R]: Frame rate limit in
+FPS (int, 0 for unlimited).
+Caps maximum frame rate.
+- \f[V]fullscreen\f[R]: Window fullscreen state (bool).
+Setting this recreates the window.
+- \f[V]game_resolution\f[R]: Fixed game resolution as (width, height)
+tuple.
+Enables resolution-independent rendering with scaling.
+- \f[V]resolution\f[R]: Window resolution as (width, height) tuple.
+Setting this recreates the window.
+- \f[V]scaling_mode\f[R]: Viewport scaling mode (str): `center' (no
+scaling), `stretch' (fill window), or `fit' (maintain aspect ratio).
+- \f[V]title\f[R]: Window title string (str).
+Displayed in the window title bar.
+- \f[V]visible\f[R]: Window visibility state (bool).
+Hidden windows still process events.
+- \f[V]vsync\f[R]: Vertical sync enabled state (bool).
+Prevents screen tearing but may limit framerate.
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]center() -> None\f[R]
