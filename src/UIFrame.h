@@ -32,6 +32,11 @@ public:
     bool children_need_sort = true;  // Dirty flag for z_index sorting optimization
     bool clip_children = false;  // Whether to clip children to frame bounds
     bool cache_subtree = false;  // #144: Whether to cache subtree rendering to texture
+
+    // Shader POC (#106)
+    std::unique_ptr<sf::Shader> shader;
+    bool shader_enabled = false;
+    void initializeTestShader();  // Load hardcoded test shader
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     void move(sf::Vector2f);
     PyObjectsEnum derived_type() override final;
@@ -55,6 +60,8 @@ public:
     static int set_clip_children(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyObject* get_cache_subtree(PyUIFrameObject* self, void* closure);
     static int set_cache_subtree(PyUIFrameObject* self, PyObject* value, void* closure);
+    static PyObject* get_shader_enabled(PyUIFrameObject* self, void* closure);
+    static int set_shader_enabled(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIFrameObject* self);
     static int init(PyUIFrameObject* self, PyObject* args, PyObject* kwds);
