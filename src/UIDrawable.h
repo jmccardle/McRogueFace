@@ -16,6 +16,12 @@
 
 #include "Resources.h"
 #include "UIBase.h"
+
+// Forward declarations for shader support (#106)
+class UniformCollection;
+// PyShaderObject is a typedef, forward declare as a struct with explicit typedef
+typedef struct PyShaderObjectStruct PyShaderObject;
+
 class UIFrame; class UICaption; class UISprite; class UIEntity; class UIGrid;
 
 enum PyObjectsEnum : int
@@ -205,6 +211,12 @@ public:
     // Check if a property name is valid for animation on this drawable type
     virtual bool hasProperty(const std::string& name) const { return false; }
 
+    // #106: Shader uniform property helpers for animation support
+    // These methods handle "shader.uniform_name" property paths
+    bool setShaderProperty(const std::string& name, float value);
+    bool getShaderProperty(const std::string& name, float& value) const;
+    bool hasShaderProperty(const std::string& name) const;
+
     // Note: animate_helper is now a free function (UIDrawable_animate_impl) declared in UIBase.h
     // to avoid incomplete type issues with template instantiation.
 
@@ -253,8 +265,22 @@ protected:
 public:
     void disableRenderTexture();
 
+    // Shader support (#106)
+    std::shared_ptr<PyShaderObject> shader;
+    std::unique_ptr<UniformCollection> uniforms;
+    bool shader_dynamic = false;  // True if shader uses time-varying effects
+
+    // Mark this drawable as having dynamic shader effects
+    // Propagates up to parent to invalidate caches
+    void markShaderDynamic();
+
+    // Python API for shader properties
+    static PyObject* get_shader(PyObject* self, void* closure);
+    static int set_shader(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_uniforms(PyObject* self, void* closure);
+
 protected:
-    
+
 public:
     // #144: Dirty flag system - content vs composite
     // content_dirty: THIS drawable's texture needs rebuild (color/text/sprite changed)

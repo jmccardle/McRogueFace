@@ -1,6 +1,8 @@
 #pragma once
 #include "UIEntity.h"
 #include "UIBase.h"
+#include "PyShader.h"  // #106: Shader support
+#include "PyUniformCollection.h"  // #106: Uniform collection support
 
 // UIEntity-specific property implementations
 // These delegate to the wrapped sprite member
@@ -72,4 +74,73 @@ static int UIEntity_set_name(PyUIEntityObject* self, PyObject* value, void* clos
     
     self->data->sprite.name = name_str;
     return 0;
+}
+
+// #106: Shader property - delegate to sprite
+static PyObject* UIEntity_get_shader(PyUIEntityObject* self, void* closure)
+{
+    auto& shader_ptr = self->data->sprite.shader;
+    if (!shader_ptr) {
+        Py_RETURN_NONE;
+    }
+    // Return the PyShaderObject (which is also a PyObject)
+    Py_INCREF((PyObject*)shader_ptr.get());
+    return (PyObject*)shader_ptr.get();
+}
+
+static int UIEntity_set_shader(PyUIEntityObject* self, PyObject* value, void* closure)
+{
+    if (value == Py_None || value == NULL) {
+        self->data->sprite.shader.reset();
+        self->data->sprite.shader_dynamic = false;
+        return 0;
+    }
+
+    // Check if value is a Shader object
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyShaderType)) {
+        PyErr_SetString(PyExc_TypeError, "shader must be a Shader object or None");
+        return -1;
+    }
+
+    PyShaderObject* shader_obj = (PyShaderObject*)value;
+
+    // Store a shared_ptr to the PyShaderObject
+    // We need to increment the refcount since we're storing a reference
+    Py_INCREF(value);
+    self->data->sprite.shader = std::shared_ptr<PyShaderObject>(shader_obj, [](PyShaderObject* p) {
+        Py_DECREF((PyObject*)p);
+    });
+
+    // Initialize uniforms collection if needed
+    if (!self->data->sprite.uniforms) {
+        self->data->sprite.uniforms = std::make_unique<UniformCollection>();
+    }
+
+    // Propagate dynamic flag
+    if (shader_obj->dynamic) {
+        self->data->sprite.markShaderDynamic();
+    }
+
+    return 0;
+}
+
+// #106: Uniforms property - delegate to sprite's uniforms collection
+static PyObject* UIEntity_get_uniforms(PyUIEntityObject* self, void* closure)
+{
+    // Initialize uniforms collection if needed
+    if (!self->data->sprite.uniforms) {
+        self->data->sprite.uniforms = std::make_unique<UniformCollection>();
+    }
+
+    // Create a Python wrapper for the uniforms collection
+    PyUniformCollectionObject* uniforms_obj = (PyUniformCollectionObject*)mcrfpydef::PyUniformCollectionType.tp_alloc(&mcrfpydef::PyUniformCollectionType, 0);
+    if (!uniforms_obj) {
+        return NULL;
+    }
+
+    // The collection is owned by the sprite, we just provide a view
+    uniforms_obj->collection = self->data->sprite.uniforms.get();
+    uniforms_obj->weakreflist = NULL;
+
+    return (PyObject*)uniforms_obj;
 }

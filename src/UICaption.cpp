@@ -5,6 +5,8 @@
 #include "PyFont.h"
 #include "PythonObjectCache.h"
 #include "PyAlignment.h"
+#include "PyShader.h"  // #106: Shader support
+#include "PyUniformCollection.h"  // #106: Uniform collection support
 // UIDrawable methods now in UIBase.h
 #include <algorithm>
 
@@ -34,17 +36,50 @@ void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
     // Check visibility
     if (!visible) return;
-    
+
     // Apply opacity
     auto color = text.getFillColor();
     color.a = static_cast<sf::Uint8>(255 * opacity);
     text.setFillColor(color);
-    
-    text.move(offset);
-    //Resources::game->getWindow().draw(text);
-    target.draw(text);
-    text.move(-offset);
-    
+
+    // #106: Shader rendering path
+    if (shader && shader->shader) {
+        // Get the text bounds for rendering
+        auto bounds = text.getGlobalBounds();
+        sf::Vector2f screen_pos = offset + position;
+
+        // Get or create intermediate texture
+        auto& intermediate = GameEngine::getShaderIntermediate();
+        intermediate.clear(sf::Color::Transparent);
+
+        // Render text at origin in intermediate texture
+        sf::Text temp_text = text;
+        temp_text.setPosition(0, 0);  // Render at origin of intermediate texture
+        intermediate.draw(temp_text);
+        intermediate.display();
+
+        // Create result sprite from intermediate texture
+        sf::Sprite result_sprite(intermediate.getTexture());
+        result_sprite.setPosition(screen_pos);
+
+        // Apply engine uniforms
+        sf::Vector2f resolution(bounds.width, bounds.height);
+        PyShader::applyEngineUniforms(*shader->shader, resolution);
+
+        // Apply user uniforms
+        if (uniforms) {
+            uniforms->applyTo(*shader->shader);
+        }
+
+        // Draw with shader
+        target.draw(result_sprite, shader->shader.get());
+    } else {
+        // Standard rendering path (no shader)
+        text.move(offset);
+        target.draw(text);
+        text.move(-offset);
+    }
+
     // Restore original alpha
     color.a = 255;
     text.setFillColor(color);
@@ -314,6 +349,7 @@ PyGetSetDef UICaption::getsetters[] = {
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICAPTION),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UICAPTION),
+    UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UICAPTION),
     {NULL}
 };
 
@@ -595,6 +631,10 @@ bool UICaption::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Z-order change affects parent
         return true;
     }
+    // #106: Check for shader uniform properties
+    if (setShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -674,6 +714,10 @@ bool UICaption::getProperty(const std::string& name, float& value) const {
         value = static_cast<float>(z_index);
         return true;
     }
+    // #106: Check for shader uniform properties
+    if (getShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -713,6 +757,10 @@ bool UICaption::hasProperty(const std::string& name) const {
     }
     // String properties
     if (name == "text") {
+        return true;
+    }
+    // #106: Check for shader uniform properties
+    if (hasShaderProperty(name)) {
         return true;
     }
     return false;

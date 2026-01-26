@@ -4,6 +4,8 @@
 #include "PythonObjectCache.h"
 #include "UIFrame.h"  // #144: For snapshot= parameter
 #include "PyAlignment.h"
+#include "PyShader.h"  // #106: Shader support
+#include "PyUniformCollection.h"  // #106: Uniform collection support
 // UIDrawable methods now in UIBase.h
 
 UIDrawable* UISprite::click_at(sf::Vector2f point)
@@ -81,16 +83,50 @@ void UISprite::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
     // Check visibility
     if (!visible) return;
-    
+
     // Apply opacity
     auto color = sprite.getColor();
     color.a = static_cast<sf::Uint8>(255 * opacity);
     sprite.setColor(color);
-    
-    sprite.move(offset);
-    target.draw(sprite);
-    sprite.move(-offset);
-    
+
+    // #106: Shader rendering path
+    if (shader && shader->shader) {
+        // Get the sprite bounds for rendering
+        auto bounds = sprite.getGlobalBounds();
+        sf::Vector2f screen_pos = offset + position;
+
+        // Get or create intermediate texture
+        auto& intermediate = GameEngine::getShaderIntermediate();
+        intermediate.clear(sf::Color::Transparent);
+
+        // Render sprite at origin in intermediate texture
+        sf::Sprite temp_sprite = sprite;
+        temp_sprite.setPosition(0, 0);  // Render at origin of intermediate texture
+        intermediate.draw(temp_sprite);
+        intermediate.display();
+
+        // Create result sprite from intermediate texture
+        sf::Sprite result_sprite(intermediate.getTexture());
+        result_sprite.setPosition(screen_pos);
+
+        // Apply engine uniforms
+        sf::Vector2f resolution(bounds.width, bounds.height);
+        PyShader::applyEngineUniforms(*shader->shader, resolution);
+
+        // Apply user uniforms
+        if (uniforms) {
+            uniforms->applyTo(*shader->shader);
+        }
+
+        // Draw with shader
+        target.draw(result_sprite, shader->shader.get());
+    } else {
+        // Standard rendering path (no shader)
+        sprite.move(offset);
+        target.draw(sprite);
+        sprite.move(-offset);
+    }
+
     // Restore original alpha
     color.a = 255;
     sprite.setColor(color);
@@ -359,6 +395,7 @@ PyGetSetDef UISprite::getsetters[] = {
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UISPRITE),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UISPRITE),
+    UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UISPRITE),
     {NULL}
 };
 
@@ -591,6 +628,10 @@ bool UISprite::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Z-order change affects parent
         return true;
     }
+    // #106: Check for shader uniform properties
+    if (setShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -633,6 +674,10 @@ bool UISprite::getProperty(const std::string& name, float& value) const {
         value = static_cast<float>(z_index);
         return true;
     }
+    // #106: Check for shader uniform properties
+    if (getShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -657,6 +702,10 @@ bool UISprite::hasProperty(const std::string& name) const {
     }
     // Int properties
     if (name == "sprite_index" || name == "sprite_number") {
+        return true;
+    }
+    // #106: Check for shader uniform properties
+    if (hasShaderProperty(name)) {
         return true;
     }
     return false;

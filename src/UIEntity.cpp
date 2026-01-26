@@ -12,6 +12,8 @@
 #include "PyAnimation.h"
 #include "PyEasing.h"
 #include "PyPositionHelper.h"
+#include "PyShader.h"  // #106: Shader support
+#include "PyUniformCollection.h"  // #106: Uniform collection support
 // UIDrawable methods now in UIBase.h
 #include "UIEntityPyMethods.h"
 
@@ -1035,6 +1037,14 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"visible", (getter)UIEntity_get_visible, (setter)UIEntity_set_visible, "Visibility flag", NULL},
     {"opacity", (getter)UIEntity_get_opacity, (setter)UIEntity_set_opacity, "Opacity (0.0 = transparent, 1.0 = opaque)", NULL},
     {"name", (getter)UIEntity_get_name, (setter)UIEntity_set_name, "Name for finding elements", NULL},
+    {"shader", (getter)UIEntity_get_shader, (setter)UIEntity_set_shader,
+     "Shader for GPU visual effects (Shader or None). "
+     "When set, the entity is rendered through the shader program. "
+     "Set to None to disable shader effects.", NULL},
+    {"uniforms", (getter)UIEntity_get_uniforms, NULL,
+     "Collection of shader uniforms (read-only access to collection). "
+     "Set uniforms via dict-like syntax: entity.uniforms['name'] = value. "
+     "Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.", NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -1073,6 +1083,10 @@ bool UIEntity::setProperty(const std::string& name, float value) {
         if (grid) grid->markDirty();  // #144 - Content change
         return true;
     }
+    // #106: Shader uniform properties - delegate to sprite
+    if (sprite.setShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -1098,6 +1112,10 @@ bool UIEntity::getProperty(const std::string& name, float& value) const {
         value = sprite.getScale().x;  // Assuming uniform scale
         return true;
     }
+    // #106: Shader uniform properties - delegate to sprite
+    if (sprite.getShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -1108,6 +1126,10 @@ bool UIEntity::hasProperty(const std::string& name) const {
     }
     // Int properties
     if (name == "sprite_index" || name == "sprite_number") {
+        return true;
+    }
+    // #106: Shader uniform properties - delegate to sprite
+    if (sprite.hasShaderProperty(name)) {
         return true;
     }
     return false;

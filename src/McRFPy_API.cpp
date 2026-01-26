@@ -27,6 +27,9 @@
 #include "PyNoiseSource.h"  // Procedural generation noise (#207-208)
 #include "PyLock.h"  // Thread synchronization (#219)
 #include "PyVector.h"  // For bresenham Vector support (#215)
+#include "PyShader.h"  // Shader support (#106)
+#include "PyUniformBinding.h"  // Shader uniform bindings (#106)
+#include "PyUniformCollection.h"  // Shader uniform collection (#106)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #include "ImGuiConsole.h"
@@ -452,6 +455,11 @@ PyObject* PyInit_mcrfpy()
         &mcrfpydef::PyBSPType,
         &mcrfpydef::PyNoiseSourceType,
 
+        /*shaders (#106)*/
+        &mcrfpydef::PyShaderType,
+        &mcrfpydef::PyPropertyBindingType,
+        &mcrfpydef::PyCallableBindingType,
+
         nullptr};
 
     // Types that are used internally but NOT exported to module namespace (#189)
@@ -472,6 +480,9 @@ PyObject* PyInit_mcrfpy()
         &mcrfpydef::PyBSPIterType,
         &mcrfpydef::PyBSPAdjacencyType,      // #210: BSP.adjacency wrapper
         &mcrfpydef::PyBSPAdjacentTilesType,  // #210: BSPNode.adjacent_tiles wrapper
+
+        /*shader uniform collection - returned by drawable.uniforms but not directly instantiable (#106)*/
+        &mcrfpydef::PyUniformCollectionType,
 
         nullptr};
     
@@ -496,6 +507,17 @@ PyObject* PyInit_mcrfpy()
     // Set up PyNoiseSourceType methods and getsetters (#207-208)
     mcrfpydef::PyNoiseSourceType.tp_methods = PyNoiseSource::methods;
     mcrfpydef::PyNoiseSourceType.tp_getset = PyNoiseSource::getsetters;
+
+    // Set up PyShaderType methods and getsetters (#106)
+    mcrfpydef::PyShaderType.tp_methods = PyShader::methods;
+    mcrfpydef::PyShaderType.tp_getset = PyShader::getsetters;
+
+    // Set up PyPropertyBindingType and PyCallableBindingType getsetters (#106)
+    mcrfpydef::PyPropertyBindingType.tp_getset = PyPropertyBindingType::getsetters;
+    mcrfpydef::PyCallableBindingType.tp_getset = PyCallableBindingType::getsetters;
+
+    // Set up PyUniformCollectionType methods (#106)
+    mcrfpydef::PyUniformCollectionType.tp_methods = ::PyUniformCollectionType::methods;
 
     // Set up weakref support for all types that need it
     PyTimerType.tp_weaklistoffset = offsetof(PyTimerObject, weakreflist);

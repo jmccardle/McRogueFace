@@ -8,6 +8,8 @@
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
 #include "PyAlignment.h"
+#include "PyShader.h"  // #106: Shader support
+#include "PyUniformCollection.h"  // #106: Uniform collection
 #include <iostream>  // #106: for shader error output
 // UIDrawable methods now in UIBase.h
 
@@ -110,11 +112,11 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // TODO: Apply opacity when SFML supports it on shapes
 
-    // #144: Use RenderTexture for clipping OR texture caching OR shaders
+    // #144: Use RenderTexture for clipping OR texture caching OR shaders (#106)
     // clip_children: requires texture for clipping effect (only when has children)
     // cache_subtree: uses texture for performance (always, even without children)
-    // shader_enabled: requires texture for shader post-processing
-    bool use_texture = (clip_children && !children->empty()) || cache_subtree || shader_enabled;
+    // shader: requires texture for shader post-processing
+    bool use_texture = (clip_children && !children->empty()) || cache_subtree || (shader && shader->shader);
 
     if (use_texture) {
         // Enable RenderTexture if not already enabled
@@ -170,13 +172,19 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
             // Use `position` instead of box.getPosition() - box was set to (0,0) for texture rendering
             render_sprite.setPosition(offset + position);
 
-            // #106 POC: Apply shader if enabled
-            if (shader_enabled && shader) {
-                // Update time uniform for animated effects
-                static sf::Clock shader_clock;
-                shader->setUniform("time", shader_clock.getElapsedTime().asSeconds());
-                shader->setUniform("texture", sf::Shader::CurrentTexture);
-                target.draw(render_sprite, shader.get());
+            // #106: Apply shader if set
+            if (shader && shader->shader) {
+                // Apply engine uniforms (time, resolution, mouse, texture)
+                sf::Vector2f resolution(render_sprite.getLocalBounds().width,
+                                        render_sprite.getLocalBounds().height);
+                PyShader::applyEngineUniforms(*shader->shader, resolution);
+
+                // Apply user-defined uniforms
+                if (uniforms) {
+                    uniforms->applyTo(*shader->shader);
+                }
+
+                target.draw(render_sprite, shader->shader.get());
             } else {
                 target.draw(render_sprite);
             }
@@ -462,87 +470,6 @@ int UIFrame::set_cache_subtree(PyUIFrameObject* self, PyObject* value, void* clo
 }
 
 // #106 - Shader POC: shader_enabled property
-PyObject* UIFrame::get_shader_enabled(PyUIFrameObject* self, void* closure)
-{
-    return PyBool_FromLong(self->data->shader_enabled);
-}
-
-int UIFrame::set_shader_enabled(PyUIFrameObject* self, PyObject* value, void* closure)
-{
-    if (!PyBool_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "shader_enabled must be a boolean");
-        return -1;
-    }
-
-    bool new_shader = PyObject_IsTrue(value);
-    if (new_shader != self->data->shader_enabled) {
-        self->data->shader_enabled = new_shader;
-
-        if (new_shader) {
-            // Initialize the test shader if not already done
-            if (!self->data->shader) {
-                self->data->initializeTestShader();
-            }
-            // Shader requires RenderTexture - enable it
-            auto size = self->data->box.getSize();
-            if (size.x > 0 && size.y > 0) {
-                self->data->enableRenderTexture(static_cast<unsigned int>(size.x),
-                                                static_cast<unsigned int>(size.y));
-            }
-        }
-        // Note: we don't disable RenderTexture when shader disabled -
-        // clip_children or cache_subtree may still need it
-
-        self->data->markDirty();
-    }
-
-    return 0;
-}
-
-// #106 - Initialize test shader (hardcoded glow/brightness effect)
-void UIFrame::initializeTestShader()
-{
-    // Check if shaders are available
-    if (!sf::Shader::isAvailable()) {
-        std::cerr << "Shaders are not available on this system!" << std::endl;
-        return;
-    }
-
-    shader = std::make_unique<sf::Shader>();
-
-    // Simple color inversion + wave distortion shader for POC
-    // This makes it obvious the shader is working
-    const std::string fragmentShader = R"(
-        uniform sampler2D texture;
-        uniform float time;
-
-        void main() {
-            vec2 uv = gl_TexCoord[0].xy;
-
-            // Subtle wave distortion based on time
-            uv.x += sin(uv.y * 10.0 + time * 2.0) * 0.01;
-            uv.y += cos(uv.x * 10.0 + time * 2.0) * 0.01;
-
-            vec4 color = texture2D(texture, uv);
-
-            // Glow effect: boost brightness and add slight color shift
-            float glow = 0.2 + 0.1 * sin(time * 3.0);
-            color.rgb = color.rgb * (1.0 + glow);
-
-            // Slight hue shift for visual interest
-            color.r += 0.1 * sin(time);
-            color.b += 0.1 * cos(time);
-
-            gl_FragColor = color;
-        }
-    )";
-
-    if (!shader->loadFromMemory(fragmentShader, sf::Shader::Fragment)) {
-        std::cerr << "Failed to load test shader!" << std::endl;
-        shader.reset();
-    }
-}
-
 // Define the PyObjectType alias for the macros
 typedef PyUIFrameObject PyObjectType;
 
@@ -581,10 +508,10 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UIFRAME},
     {"clip_children", (getter)UIFrame::get_clip_children, (setter)UIFrame::set_clip_children, "Whether to clip children to frame bounds", NULL},
     {"cache_subtree", (getter)UIFrame::get_cache_subtree, (setter)UIFrame::set_cache_subtree, "#144: Cache subtree rendering to texture for performance", NULL},
-    {"shader_enabled", (getter)UIFrame::get_shader_enabled, (setter)UIFrame::set_shader_enabled, "#106 POC: Enable test shader effect", NULL},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIFRAME),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIFRAME),
+    UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UIFRAME),
     {NULL}
 };
 
@@ -930,6 +857,10 @@ bool UIFrame::setProperty(const std::string& name, float value) {
         markDirty();
         return true;
     }
+    // #106: Check for shader uniform properties
+    if (setShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -1006,6 +937,10 @@ bool UIFrame::getProperty(const std::string& name, float& value) const {
         value = box.getOutlineColor().a;
         return true;
     }
+    // #106: Check for shader uniform properties
+    if (getShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -1047,6 +982,10 @@ bool UIFrame::hasProperty(const std::string& name) const {
     }
     // Vector2f properties
     if (name == "position" || name == "size") {
+        return true;
+    }
+    // #106: Check for shader uniform properties
+    if (hasShaderProperty(name)) {
         return true;
     }
     return false;

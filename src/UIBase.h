@@ -282,4 +282,19 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
          "Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER)." \
      ), (void*)type_enum}
 
+// #106: Shader support - GPU-accelerated visual effects
+#define UIDRAWABLE_SHADER_GETSETTERS(type_enum) \
+    {"shader", (getter)UIDrawable::get_shader, (setter)UIDrawable::set_shader, \
+     MCRF_PROPERTY(shader, \
+         "Shader for GPU visual effects (Shader or None). " \
+         "When set, the drawable is rendered through the shader program. " \
+         "Set to None to disable shader effects." \
+     ), (void*)type_enum}, \
+    {"uniforms", (getter)UIDrawable::get_uniforms, NULL, \
+     MCRF_PROPERTY(uniforms, \
+         "Collection of shader uniforms (read-only access to collection). " \
+         "Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. " \
+         "Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding." \
+     ), (void*)type_enum}
+
 // UIEntity specializations are defined in UIEntity.cpp after UIEntity class is complete

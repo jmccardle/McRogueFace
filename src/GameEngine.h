@@ -185,6 +185,10 @@ private:
     sf::View gameView;                        // View for the game content
     ViewportMode viewportMode = ViewportMode::Fit;
 
+    // Shader intermediate texture (#106) - shared texture for shader rendering
+    static std::unique_ptr<sf::RenderTexture> shaderIntermediate;
+    static bool shaderIntermediateInitialized;
+
     // Profiling overlay
     bool showProfilerOverlay = false;         // F3 key toggles this
     int overlayUpdateCounter = 0;             // Only update overlay every N frames
@@ -256,6 +260,11 @@ public:
     ViewportMode getViewportMode() const { return viewportMode; }
     std::string getViewportModeString() const;
     sf::Vector2f windowToGameCoords(const sf::Vector2f& windowPos) const;
+
+    // Shader system (#106) - shared intermediate texture for shader rendering
+    static sf::RenderTexture& getShaderIntermediate();
+    static void initShaderIntermediate(unsigned int width, unsigned int height);
+    static bool isShaderIntermediateReady() { return shaderIntermediateInitialized; }
 
     // #153 - Headless simulation control
     float step(float dt = -1.0f);  // Advance simulation; dt<0 means advance to next event

@@ -11,6 +11,8 @@
 #include "PyPositionHelper.h"  // For standardized position argument parsing
 #include "PyVector.h"  // #179, #181 - For Vector return types
 #include "PyHeightMap.h"  // #199 - HeightMap application methods
+#include "PyShader.h"  // #106: Shader support
+#include "PyUniformCollection.h"  // #106: Uniform collection support
 #include <algorithm>
 #include <cmath>    // #142 - for std::floor, std::isnan
 #include <cstring>  // #150 - for strcmp
@@ -351,9 +353,21 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // render to window
     renderTexture.display();
-    //Resources::game->getWindow().draw(output);
-    target.draw(output);
 
+    // #106: Apply shader if set
+    if (shader && shader->shader) {
+        sf::Vector2f resolution(box.getSize().x, box.getSize().y);
+        PyShader::applyEngineUniforms(*shader->shader, resolution);
+
+        // Apply user uniforms
+        if (uniforms) {
+            uniforms->applyTo(*shader->shader);
+        }
+
+        target.draw(output, shader->shader.get());
+    } else {
+        target.draw(output);
+    }
 }
 
 UIGridPoint& UIGrid::at(int x, int y)
@@ -2232,6 +2246,7 @@ PyGetSetDef UIGrid::getsetters[] = {
      "Callback when a grid cell is clicked. Called with (cell_pos: Vector).", NULL},
     {"hovered_cell", (getter)UIGrid::get_hovered_cell, NULL,
      "Currently hovered cell as (x, y) tuple, or None if not hovering.", NULL},
+    UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UIGRID),
     {NULL}  /* Sentinel */
 };
 
@@ -2517,6 +2532,10 @@ bool UIGrid::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Content change
         return true;
     }
+    // #106: Shader uniform properties
+    if (setShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -2592,6 +2611,10 @@ bool UIGrid::getProperty(const std::string& name, float& value) const {
         value = static_cast<float>(fill_color.a);
         return true;
     }
+    // #106: Shader uniform properties
+    if (getShaderProperty(name, value)) {
+        return true;
+    }
     return false;
 }
 
@@ -2623,6 +2646,10 @@ bool UIGrid::hasProperty(const std::string& name) const {
     }
     // Vector2f properties
     if (name == "position" || name == "size" || name == "center") {
+        return true;
+    }
+    // #106: Shader uniform properties
+    if (hasShaderProperty(name)) {
         return true;
     }
     return false;

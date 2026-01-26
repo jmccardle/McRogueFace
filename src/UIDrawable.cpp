@@ -13,6 +13,8 @@
 #include "PyAnimation.h"
 #include "PyEasing.h"
 #include "PySceneObject.h"  // #183: For scene parent lookup
+#include "PyShader.h"  // #106: Shader support
+#include "PyUniformCollection.h"  // #106: Uniform collection support
 
 // Helper function to extract UIDrawable* from any Python UI object
 // Returns nullptr and sets Python error on failure
@@ -945,6 +947,195 @@ void UIDrawable::markCompositeDirty() {
 // Legacy method - calls markContentDirty for backwards compatibility
 void UIDrawable::markDirty() {
     markContentDirty();
+}
+
+// #106 - Shader support
+void UIDrawable::markShaderDynamic() {
+    shader_dynamic = true;
+
+    // Propagate to parent to invalidate caches
+    auto p = parent.lock();
+    if (p) {
+        p->markShaderDynamic();
+    }
+}
+
+// #106: Shader uniform property helpers for animation support
+bool UIDrawable::setShaderProperty(const std::string& name, float value) {
+    // Check if name starts with "shader."
+    if (name.compare(0, 7, "shader.") != 0) {
+        return false;
+    }
+
+    // Extract the uniform name after "shader."
+    std::string uniform_name = name.substr(7);
+    if (uniform_name.empty()) {
+        return false;
+    }
+
+    // Initialize uniforms collection if needed
+    if (!uniforms) {
+        uniforms = std::make_unique<UniformCollection>();
+    }
+
+    // Set the uniform value
+    uniforms->setFloat(uniform_name, value);
+    markDirty();
+    return true;
+}
+
+bool UIDrawable::getShaderProperty(const std::string& name, float& value) const {
+    // Check if name starts with "shader."
+    if (name.compare(0, 7, "shader.") != 0) {
+        return false;
+    }
+
+    // Extract the uniform name after "shader."
+    std::string uniform_name = name.substr(7);
+    if (uniform_name.empty() || !uniforms) {
+        return false;
+    }
+
+    // Try to get the value from uniforms
+    const auto* entry = uniforms->getEntry(uniform_name);
+    if (!entry) {
+        return false;
+    }
+
+    // UniformEntry is variant<UniformValue, shared_ptr<PropertyBinding>, shared_ptr<CallableBinding>>
+    // UniformValue is variant<float, vec2, vec3, vec4>
+    // So we need to check for UniformValue first, then extract the float from it
+
+    // Try to extract static UniformValue from the entry
+    if (const auto* uval = std::get_if<UniformValue>(entry)) {
+        // Now try to extract float from UniformValue
+        if (const float* fval = std::get_if<float>(uval)) {
+            value = *fval;
+            return true;
+        }
+        // Could be vec2/vec3/vec4 - not a float, return false
+        return false;
+    }
+
+    // For bindings, evaluate and return
+    if (const auto* prop_binding = std::get_if<std::shared_ptr<PropertyBinding>>(entry)) {
+        auto opt_val = (*prop_binding)->evaluate();
+        if (opt_val) {
+            value = *opt_val;
+            return true;
+        }
+    } else if (const auto* call_binding = std::get_if<std::shared_ptr<CallableBinding>>(entry)) {
+        auto opt_val = (*call_binding)->evaluate();
+        if (opt_val) {
+            value = *opt_val;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool UIDrawable::hasShaderProperty(const std::string& name) const {
+    // Check if name starts with "shader."
+    if (name.compare(0, 7, "shader.") != 0) {
+        return false;
+    }
+
+    // Shader uniforms are always valid property names (they'll be created on set)
+    return true;
+}
+
+// Python API for shader property
+PyObject* UIDrawable::get_shader(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    if (!drawable->shader) {
+        Py_RETURN_NONE;
+    }
+
+    // Return the shader object (increment reference)
+    Py_INCREF(drawable->shader.get());
+    return (PyObject*)drawable->shader.get();
+}
+
+int UIDrawable::set_shader(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    if (value == Py_None) {
+        // Clear shader
+        drawable->shader.reset();
+        drawable->shader_dynamic = false;
+        drawable->markDirty();
+        return 0;
+    }
+
+    // Check if it's a Shader object
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyShaderType)) {
+        PyErr_SetString(PyExc_TypeError, "shader must be a Shader object or None");
+        return -1;
+    }
+
+    PyShaderObject* shader_obj = (PyShaderObject*)value;
+    if (!shader_obj->shader) {
+        PyErr_SetString(PyExc_ValueError, "Shader is not valid (compilation failed?)");
+        return -1;
+    }
+
+    // Store the shader
+    drawable->shader = std::shared_ptr<PyShaderObject>(shader_obj, [](PyShaderObject* p) {
+        // Custom deleter that doesn't delete the Python object
+        // The Python reference counting handles that
+    });
+    Py_INCREF(shader_obj);  // Keep the Python object alive
+
+    // Create uniforms collection if needed
+    if (!drawable->uniforms) {
+        drawable->uniforms = std::make_unique<UniformCollection>();
+    }
+
+    // Set dynamic flag if shader is dynamic
+    if (shader_obj->dynamic) {
+        drawable->markShaderDynamic();
+    }
+
+    // Enable RenderTexture for shader rendering (if not already enabled)
+    auto bounds = drawable->get_bounds();
+    if (bounds.width > 0 && bounds.height > 0) {
+        drawable->enableRenderTexture(
+            static_cast<unsigned int>(bounds.width),
+            static_cast<unsigned int>(bounds.height)
+        );
+    }
+
+    drawable->markDirty();
+    return 0;
+}
+
+PyObject* UIDrawable::get_uniforms(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    // Create uniforms collection if needed
+    if (!drawable->uniforms) {
+        drawable->uniforms = std::make_unique<UniformCollection>();
+    }
+
+    // Create and return a Python wrapper for the collection
+    PyUniformCollectionObject* collection = (PyUniformCollectionObject*)
+        mcrfpydef::PyUniformCollectionType.tp_alloc(&mcrfpydef::PyUniformCollectionType, 0);
+
+    if (!collection) return NULL;
+
+    collection->collection = drawable->uniforms.get();
+    collection->weakreflist = NULL;
+    // Note: owner weak_ptr could be set here if we had access to shared_ptr
+
+    return (PyObject*)collection;
 }
 
 // Python API - get parent drawable

@@ -12,6 +12,10 @@
 #include <cmath>
 #include <Python.h>
 
+// Static member definitions for shader intermediate texture (#106)
+std::unique_ptr<sf::RenderTexture> GameEngine::shaderIntermediate;
+bool GameEngine::shaderIntermediateInitialized = false;
+
 // #219 - FrameLock implementation for thread-safe UI updates
 
 void FrameLock::acquire() {
@@ -716,6 +720,37 @@ sf::Vector2f GameEngine::windowToGameCoords(const sf::Vector2f& windowPos) const
 
     // Convert window coordinates to game coordinates using the view
     return render_target->mapPixelToCoords(sf::Vector2i(windowPos), gameView);
+}
+
+// #106 - Shader intermediate texture: shared texture for shader rendering
+void GameEngine::initShaderIntermediate(unsigned int width, unsigned int height) {
+    if (!sf::Shader::isAvailable()) {
+        std::cerr << "GameEngine: Shaders not available, skipping intermediate texture init" << std::endl;
+        return;
+    }
+
+    if (!shaderIntermediate) {
+        shaderIntermediate = std::make_unique<sf::RenderTexture>();
+    }
+
+    if (!shaderIntermediate->create(width, height)) {
+        std::cerr << "GameEngine: Failed to create shader intermediate texture ("
+                  << width << "x" << height << ")" << std::endl;
+        shaderIntermediate.reset();
+        shaderIntermediateInitialized = false;
+        return;
+    }
+
+    shaderIntermediate->setSmooth(false);  // Pixel-perfect rendering
+    shaderIntermediateInitialized = true;
+}
+
+sf::RenderTexture& GameEngine::getShaderIntermediate() {
+    if (!shaderIntermediateInitialized) {
+        // Initialize with default resolution if not already done
+        initShaderIntermediate(1024, 768);
+    }
+    return *shaderIntermediate;
 }
 
 // #153 - Headless simulation control: step() advances simulation time
