@@ -145,28 +145,59 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // TODO: Apply opacity to output sprite
 
-    output.setPosition(box.getPosition() + offset); // output sprite can move; update position when drawing
-    // output size can change; update size when drawing
-    output.setTextureRect(
-         sf::IntRect(0, 0,
-         box.getSize().x, box.getSize().y));
-    renderTexture.clear(fill_color);
-    
     // Get cell dimensions - use texture if available, otherwise defaults
     int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
     int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-    
-    // sprites that are visible according to zoom, center_x, center_y, and box width
+
+    // Determine if we need camera rotation handling
+    bool has_camera_rotation = (camera_rotation != 0.0f);
+    float grid_w_px = box.getSize().x;
+    float grid_h_px = box.getSize().y;
+
+    // Calculate AABB for rotated view (if camera rotation is active)
+    float rad = camera_rotation * (M_PI / 180.0f);
+    float cos_r = std::cos(rad);
+    float sin_r = std::sin(rad);
+    float abs_cos = std::abs(cos_r);
+    float abs_sin = std::abs(sin_r);
+
+    // AABB dimensions of the rotated viewport
+    float aabb_w = grid_w_px * abs_cos + grid_h_px * abs_sin;
+    float aabb_h = grid_w_px * abs_sin + grid_h_px * abs_cos;
+
+    // Choose which texture to render to
+    sf::RenderTexture* activeTexture = &renderTexture;
+
+    if (has_camera_rotation) {
+        // Ensure rotation texture is large enough
+        unsigned int needed_size = static_cast<unsigned int>(std::max(aabb_w, aabb_h) + 1);
+        if (rotationTextureSize < needed_size) {
+            rotationTexture.create(needed_size, needed_size);
+            rotationTextureSize = needed_size;
+        }
+        activeTexture = &rotationTexture;
+        activeTexture->clear(fill_color);
+    } else {
+        output.setPosition(box.getPosition() + offset);
+        output.setTextureRect(sf::IntRect(0, 0, grid_w_px, grid_h_px));
+        renderTexture.clear(fill_color);
+    }
+
+    // Calculate visible tile range
+    // For camera rotation, use AABB dimensions; otherwise use grid dimensions
+    float render_w = has_camera_rotation ? aabb_w : grid_w_px;
+    float render_h = has_camera_rotation ? aabb_h : grid_h_px;
+
     float center_x_sq = center_x / cell_width;
     float center_y_sq = center_y / cell_height;
 
-    float width_sq = box.getSize().x / (cell_width * zoom);
-    float height_sq = box.getSize().y / (cell_height * zoom);
+    float width_sq = render_w / (cell_width * zoom);
+    float height_sq = render_h / (cell_height * zoom);
     float left_edge = center_x_sq - (width_sq / 2.0);
     float top_edge = center_y_sq - (height_sq / 2.0);
 
-    int left_spritepixels = center_x - (box.getSize().x / 2.0 / zoom);
-    int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
+    int left_spritepixels = center_x - (render_w / 2.0 / zoom);
+    int top_spritepixels = center_y - (render_h / 2.0 / zoom);
 
     int x_limit = left_edge + width_sq + 2;
     if (x_limit > grid_w) x_limit = grid_w;
@@ -179,7 +210,7 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     sortLayers();
     for (auto& layer : layers) {
         if (layer->z_index >= 0) break;  // Stop at layers that go above entities
-        layer->render(renderTexture, left_spritepixels, top_spritepixels,
+        layer->render(*activeTexture, left_spritepixels, top_spritepixels,
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }
 
@@ -205,9 +236,7 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
             auto pixel_pos = sf::Vector2f(
                 (e->position.x*cell_width - left_spritepixels) * zoom,
                 (e->position.y*cell_height - top_spritepixels) * zoom );
-            //drawent.setPosition(pixel_pos);
-            //renderTexture.draw(drawent);
-            drawent.render(pixel_pos, renderTexture);
+            drawent.render(pixel_pos, *activeTexture);
 
             entitiesRendered++;
         }
@@ -220,7 +249,7 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     // #147 - Render dynamic layers with z_index >= 0 (above entities)
     for (auto& layer : layers) {
         if (layer->z_index < 0) continue;  // Skip layers below entities
-        layer->render(renderTexture, left_spritepixels, top_spritepixels,
+        layer->render(*activeTexture, left_spritepixels, top_spritepixels,
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }
 
@@ -252,7 +281,7 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                 (child->position.y - top_spritepixels) * zoom
             );
 
-            child->render(pixel_pos, renderTexture);
+            child->render(pixel_pos, *activeTexture);
         }
     }
 
@@ -294,11 +323,11 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                         if (!state.discovered) {
                             // Never seen - black
                             overlay.setFillColor(sf::Color(0, 0, 0, 255));
-                            renderTexture.draw(overlay);
+                            activeTexture->draw(overlay);
                         } else if (!state.visible) {
                             // Discovered but not currently visible - dark gray
                             overlay.setFillColor(sf::Color(32, 32, 40, 192));
-                            renderTexture.draw(overlay);
+                            activeTexture->draw(overlay);
                         }
                         // If visible and discovered, no overlay (fully visible)
                     }
@@ -324,7 +353,7 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                     
                     overlay.setPosition(pixel_pos);
                     overlay.setFillColor(sf::Color(0, 0, 0, 255));
-                    renderTexture.draw(overlay);
+                    activeTexture->draw(overlay);
                 }
             }
         }
@@ -351,8 +380,51 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     renderTexture.draw(lineb, 2, sf::Lines);
     */
 
-    // render to window
-    renderTexture.display();
+    // Finalize the active texture
+    activeTexture->display();
+
+    // If camera rotation was used, rotate and blit to the grid's renderTexture
+    if (has_camera_rotation) {
+        // Clear the final renderTexture with fill color
+        renderTexture.clear(fill_color);
+
+        // Create sprite from the larger rotated texture
+        sf::Sprite rotatedSprite(rotationTexture.getTexture());
+
+        // Set origin to center of the rendered content
+        float tex_center_x = aabb_w / 2.0f;
+        float tex_center_y = aabb_h / 2.0f;
+        rotatedSprite.setOrigin(tex_center_x, tex_center_y);
+
+        // Apply rotation
+        rotatedSprite.setRotation(camera_rotation);
+
+        // Position so the rotated center lands at the viewport center
+        rotatedSprite.setPosition(grid_w_px / 2.0f, grid_h_px / 2.0f);
+
+        // Set texture rect to only use the AABB portion (texture may be larger)
+        rotatedSprite.setTextureRect(sf::IntRect(0, 0, static_cast<int>(aabb_w), static_cast<int>(aabb_h)));
+
+        // Draw to the grid's renderTexture (which clips to grid bounds)
+        renderTexture.draw(rotatedSprite);
+        renderTexture.display();
+
+        // Set up output sprite
+        output.setPosition(box.getPosition() + offset);
+        output.setTextureRect(sf::IntRect(0, 0, grid_w_px, grid_h_px));
+    }
+
+    // Apply viewport rotation (UIDrawable::rotation) to the entire grid widget
+    if (rotation != 0.0f) {
+        output.setOrigin(origin);
+        output.setRotation(rotation);
+        // Adjust position to account for origin offset
+        output.setPosition(box.getPosition() + offset + origin);
+    } else {
+        output.setOrigin(0, 0);
+        output.setRotation(0);
+        // Position already set above
+    }
 
     // #106: Apply shader if set
     if (shader && shader->shader) {
@@ -1046,6 +1118,8 @@ PyObject* UIGrid::get_float_member(PyUIGridObject* self, void* closure)
         return PyFloat_FromDouble(self->data->center_y);
     else if (member_ptr == 6) // zoom
         return PyFloat_FromDouble(self->data->zoom);
+    else if (member_ptr == 7) // camera_rotation
+        return PyFloat_FromDouble(self->data->camera_rotation);
     else
     {
         PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
@@ -1100,6 +1174,8 @@ int UIGrid::set_float_member(PyUIGridObject* self, PyObject* value, void* closur
         self->data->center_y = val;
     else if (member_ptr == 6) // zoom
         self->data->zoom = val;
+    else if (member_ptr == 7) // camera_rotation
+        self->data->camera_rotation = val;
     return 0;
 }
 // TODO (7DRL Day 2, item 5.) return Texture object
@@ -2206,6 +2282,7 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"center_x", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "center of the view X-coordinate", (void*)4},
     {"center_y", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "center of the view Y-coordinate", (void*)5},
     {"zoom", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "zoom factor for displaying the Grid", (void*)6},
+    {"camera_rotation", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "Rotation of grid contents around camera center (degrees). The grid widget stays axis-aligned; only the view into the world rotates.", (void*)7},
 
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
@@ -2237,6 +2314,7 @@ PyGetSetDef UIGrid::getsetters[] = {
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIGRID),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIGRID),
+    UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UIGRID),
     // #142 - Grid cell mouse events
     {"on_cell_enter", (getter)UIGrid::get_on_cell_enter, (setter)UIGrid::set_on_cell_enter,
      "Callback when mouse enters a grid cell. Called with (cell_pos: Vector).", NULL},
@@ -2507,6 +2585,26 @@ bool UIGrid::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - View change affects content
         return true;
     }
+    else if (name == "camera_rotation") {
+        camera_rotation = value;
+        markDirty();  // View rotation affects content
+        return true;
+    }
+    else if (name == "rotation") {
+        rotation = value;
+        markCompositeDirty();  // Viewport rotation doesn't affect internal content
+        return true;
+    }
+    else if (name == "origin_x") {
+        origin.x = value;
+        markCompositeDirty();
+        return true;
+    }
+    else if (name == "origin_y") {
+        origin.y = value;
+        markCompositeDirty();
+        return true;
+    }
     else if (name == "z_index") {
         z_index = static_cast<int>(value);
         markDirty();  // #144 - Z-order change affects parent
@@ -2559,6 +2657,11 @@ bool UIGrid::setProperty(const std::string& name, const sf::Vector2f& value) {
         markDirty();  // #144 - View change affects content
         return true;
     }
+    else if (name == "origin") {
+        origin = value;
+        markCompositeDirty();
+        return true;
+    }
     return false;
 }
 
@@ -2589,6 +2692,22 @@ bool UIGrid::getProperty(const std::string& name, float& value) const {
     }
     else if (name == "zoom") {
         value = zoom;
+        return true;
+    }
+    else if (name == "camera_rotation") {
+        value = camera_rotation;
+        return true;
+    }
+    else if (name == "rotation") {
+        value = rotation;
+        return true;
+    }
+    else if (name == "origin_x") {
+        value = origin.x;
+        return true;
+    }
+    else if (name == "origin_y") {
+        value = origin.y;
         return true;
     }
     else if (name == "z_index") {
@@ -2631,6 +2750,10 @@ bool UIGrid::getProperty(const std::string& name, sf::Vector2f& value) const {
         value = sf::Vector2f(center_x, center_y);
         return true;
     }
+    else if (name == "origin") {
+        value = origin;
+        return true;
+    }
     return false;
 }
 
@@ -2639,13 +2762,14 @@ bool UIGrid::hasProperty(const std::string& name) const {
     if (name == "x" || name == "y" ||
         name == "w" || name == "h" || name == "width" || name == "height" ||
         name == "center_x" || name == "center_y" || name == "zoom" ||
-        name == "z_index" ||
+        name == "camera_rotation" || name == "rotation" ||
+        name == "origin_x" || name == "origin_y" || name == "z_index" ||
         name == "fill_color.r" || name == "fill_color.g" ||
         name == "fill_color.b" || name == "fill_color.a") {
         return true;
     }
     // Vector2f properties
-    if (name == "position" || name == "size" || name == "center") {
+    if (name == "position" || name == "size" || name == "center" || name == "origin") {
         return true;
     }
     // #106: Shader uniform properties

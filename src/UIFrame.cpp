@@ -15,14 +15,30 @@
 
 UIDrawable* UIFrame::click_at(sf::Vector2f point)
 {
-    // Check bounds first (optimization)
-    float x = position.x, y = position.y, w = box.getSize().x, h = box.getSize().y;
-    if (point.x < x || point.y < y || point.x >= x+w || point.y >= y+h) {
-        return nullptr;
+    float w = box.getSize().x, h = box.getSize().y;
+
+    // Transform click point to local coordinates accounting for rotation
+    sf::Vector2f localPoint;
+    if (rotation != 0.0f) {
+        // Build transform: translate to position, then rotate around origin
+        sf::Transform transform;
+        transform.translate(position);
+        transform.translate(origin);
+        transform.rotate(rotation);
+        transform.translate(-origin);
+
+        // Apply inverse transform to get local coordinates
+        sf::Transform inverse = transform.getInverse();
+        localPoint = inverse.transformPoint(point);
+    } else {
+        // No rotation - simple subtraction
+        localPoint = point - position;
     }
 
-    // Transform to local coordinates for children
-    sf::Vector2f localPoint = point - position;
+    // Check if local point is within bounds (0,0 to w,h in local space)
+    if (localPoint.x < 0 || localPoint.y < 0 || localPoint.x >= w || localPoint.y >= h) {
+        return nullptr;
+    }
 
     // Check children in reverse order (top to bottom, highest z-index first)
     for (auto it = children->rbegin(); it != children->rend(); ++it) {
@@ -140,8 +156,10 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
             // Clear the RenderTexture
             render_texture->clear(sf::Color::Transparent);
 
-            // Draw the frame box to RenderTexture
+            // Draw the frame box to RenderTexture (without rotation - that's applied to the final sprite)
             box.setPosition(0, 0);  // Render at origin in texture
+            box.setOrigin(0, 0);    // No origin offset in texture
+            box.setRotation(0);     // No rotation in texture
             render_texture->draw(box);
 
             // Sort children by z_index if needed
@@ -172,6 +190,10 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
             // Use `position` instead of box.getPosition() - box was set to (0,0) for texture rendering
             render_sprite.setPosition(offset + position);
 
+            // Apply rotation to the rendered sprite (children rotate with parent)
+            render_sprite.setOrigin(origin);
+            render_sprite.setRotation(rotation);
+
             // #106: Apply shader if set
             if (shader && shader->shader) {
                 // Apply engine uniforms (time, resolution, mouse, texture)
@@ -193,6 +215,8 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
         // Standard rendering without caching
         // Restore box position from `position` - may have been set to (0,0) by previous texture render
         box.setPosition(offset + position);
+        box.setOrigin(origin);
+        box.setRotation(rotation);
         target.draw(box);
         box.setPosition(position);  // Restore to canonical position
 
@@ -205,6 +229,9 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
             children_need_sort = false;
         }
 
+        // Render children - note: in non-texture mode, children don't automatically
+        // rotate with parent. Use clip_children=True or cache_subtree=True if you need
+        // children to rotate with the frame.
         for (auto drawable : *children) {
             drawable->render(offset + position, target);  // Use `position` as source of truth
         }
@@ -512,6 +539,7 @@ PyGetSetDef UIFrame::getsetters[] = {
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIFRAME),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIFRAME),
     UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UIFRAME),
+    UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UIFRAME),
     {NULL}
 };
 
@@ -856,6 +884,21 @@ bool UIFrame::setProperty(const std::string& name, float value) {
         box.setOutlineColor(color);
         markDirty();
         return true;
+    } else if (name == "rotation") {
+        rotation = value;
+        box.setRotation(rotation);
+        markDirty();
+        return true;
+    } else if (name == "origin_x") {
+        origin.x = value;
+        box.setOrigin(origin);
+        markDirty();
+        return true;
+    } else if (name == "origin_y") {
+        origin.y = value;
+        box.setOrigin(origin);
+        markDirty();
+        return true;
     }
     // #106: Check for shader uniform properties
     if (setShaderProperty(name, value)) {
@@ -887,9 +930,14 @@ bool UIFrame::setProperty(const std::string& name, const sf::Vector2f& value) {
         box.setSize(value);
         if (use_render_texture) {
             // Need to recreate RenderTexture with new size
-            enableRenderTexture(static_cast<unsigned int>(value.x), 
+            enableRenderTexture(static_cast<unsigned int>(value.x),
                               static_cast<unsigned int>(value.y));
         }
+        markDirty();
+        return true;
+    } else if (name == "origin") {
+        origin = value;
+        box.setOrigin(origin);
         markDirty();
         return true;
     }
@@ -936,6 +984,15 @@ bool UIFrame::getProperty(const std::string& name, float& value) const {
     } else if (name == "outline_color.a") {
         value = box.getOutlineColor().a;
         return true;
+    } else if (name == "rotation") {
+        value = rotation;
+        return true;
+    } else if (name == "origin_x") {
+        value = origin.x;
+        return true;
+    } else if (name == "origin_y") {
+        value = origin.y;
+        return true;
     }
     // #106: Check for shader uniform properties
     if (getShaderProperty(name, value)) {
@@ -962,6 +1019,9 @@ bool UIFrame::getProperty(const std::string& name, sf::Vector2f& value) const {
     } else if (name == "size") {
         value = box.getSize();
         return true;
+    } else if (name == "origin") {
+        value = origin;
+        return true;
     }
     return false;
 }
@@ -973,7 +1033,8 @@ bool UIFrame::hasProperty(const std::string& name) const {
         name == "fill_color.r" || name == "fill_color.g" ||
         name == "fill_color.b" || name == "fill_color.a" ||
         name == "outline_color.r" || name == "outline_color.g" ||
-        name == "outline_color.b" || name == "outline_color.a") {
+        name == "outline_color.b" || name == "outline_color.a" ||
+        name == "rotation" || name == "origin_x" || name == "origin_y") {
         return true;
     }
     // Color properties
@@ -981,7 +1042,7 @@ bool UIFrame::hasProperty(const std::string& name) const {
         return true;
     }
     // Vector2f properties
-    if (name == "position" || name == "size") {
+    if (name == "position" || name == "size" || name == "origin") {
         return true;
     }
     // #106: Check for shader uniform properties

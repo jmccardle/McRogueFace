@@ -79,10 +79,15 @@ public:
     //int grid_size; // grid sizes are implied by IndexTexture now
     sf::RectangleShape box;
     float center_x, center_y, zoom;
+    float camera_rotation = 0.0f;  // Rotation of grid contents around camera center (degrees)
     //IndexTexture* itex;
     std::shared_ptr<PyTexture> getTexture();
     sf::Sprite sprite, output;
     sf::RenderTexture renderTexture;
+
+    // Intermediate texture for camera_rotation (larger than viewport to hold rotated content)
+    sf::RenderTexture rotationTexture;
+    unsigned int rotationTextureSize = 0;  // Track current allocation size
 
     // #123 - Chunk-based storage for large grid support
     std::unique_ptr<ChunkManager> chunk_manager;
@@ -181,6 +186,8 @@ public:
     // py_clear_dijkstra_maps -> UIGridPathfinding::Grid_clear_dijkstra_maps
     static PyObject* py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds);  // #115
     static PyObject* py_center_camera(PyUIGridObject* self, PyObject* args);  // #169
+    static PyObject* get_camera_rotation(PyUIGridObject* self, void* closure);
+    static int set_camera_rotation(PyUIGridObject* self, PyObject* value, void* closure);
 
     // #199 - HeightMap application methods
     static PyObject* py_apply_threshold(PyUIGridObject* self, PyObject* args, PyObject* kwds);

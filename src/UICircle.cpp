@@ -115,6 +115,12 @@ void UICircle::render(sf::Vector2f offset, sf::RenderTarget& target) {
     // Apply position and offset
     shape.setPosition(position + offset);
 
+    // Apply rotation (using UIDrawable::origin as offset from circle center)
+    // The shape already has its origin at center (radius, radius)
+    // UIDrawable::origin provides additional offset from that center
+    shape.setOrigin(radius + origin.x, radius + origin.y);
+    shape.setRotation(rotation);
+
     // Apply opacity to colors
     sf::Color render_fill = fill_color;
     render_fill.a = static_cast<sf::Uint8>(fill_color.a * opacity);
@@ -131,9 +137,30 @@ UIDrawable* UICircle::click_at(sf::Vector2f point) {
     // #184: Also check for Python subclass (might have on_click method)
     if (!click_callable && !is_python_subclass) return nullptr;
 
+    // Calculate the actual circle center accounting for rotation around origin
+    // In render(), the circle is drawn at position with origin offset (radius + origin.x/y)
+    // So the visual center moves when rotated around a non-default origin
+    sf::Vector2f circleCenter = position;
+
+    if (rotation != 0.0f && (origin.x != 0.0f || origin.y != 0.0f)) {
+        // The circle center in local space (relative to position) is at (0, 0)
+        // With rotation around (origin.x, origin.y), the center moves
+        float rad = rotation * 3.14159265f / 180.0f;
+        float cos_r = std::cos(rad);
+        float sin_r = std::sin(rad);
+
+        // Rotate (0,0) around origin
+        float dx = -origin.x;
+        float dy = -origin.y;
+        float rotatedX = dx * cos_r - dy * sin_r + origin.x;
+        float rotatedY = dx * sin_r + dy * cos_r + origin.y;
+
+        circleCenter = position + sf::Vector2f(rotatedX, rotatedY);
+    }
+
     // Check if point is within the circle (including outline)
-    float dx = point.x - position.x;
-    float dy = point.y - position.y;
+    float dx = point.x - circleCenter.x;
+    float dy = point.y - circleCenter.y;
     float distance = std::sqrt(dx * dx + dy * dy);
 
     float effective_radius = radius + outline_thickness;
@@ -188,6 +215,21 @@ bool UICircle::setProperty(const std::string& name, float value) {
         position.y = value;
         markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
+    } else if (name == "rotation") {
+        rotation = value;
+        shape.setRotation(rotation);
+        markDirty();
+        return true;
+    } else if (name == "origin_x") {
+        origin.x = value;
+        shape.setOrigin(radius + origin.x, radius + origin.y);
+        markDirty();
+        return true;
+    } else if (name == "origin_y") {
+        origin.y = value;
+        shape.setOrigin(radius + origin.x, radius + origin.y);
+        markDirty();
+        return true;
     }
     return false;
 }
@@ -227,6 +269,15 @@ bool UICircle::getProperty(const std::string& name, float& value) const {
     } else if (name == "y") {
         value = position.y;
         return true;
+    } else if (name == "rotation") {
+        value = rotation;
+        return true;
+    } else if (name == "origin_x") {
+        value = origin.x;
+        return true;
+    } else if (name == "origin_y") {
+        value = origin.y;
+        return true;
     }
     return false;
 }
@@ -253,7 +304,8 @@ bool UICircle::getProperty(const std::string& name, sf::Vector2f& value) const {
 bool UICircle::hasProperty(const std::string& name) const {
     // Float properties
     if (name == "radius" || name == "outline" ||
-        name == "x" || name == "y") {
+        name == "x" || name == "y" ||
+        name == "rotation" || name == "origin_x" || name == "origin_y") {
         return true;
     }
     // Color properties
@@ -261,7 +313,7 @@ bool UICircle::hasProperty(const std::string& name) const {
         return true;
     }
     // Vector2f properties
-    if (name == "center" || name == "position") {
+    if (name == "center" || name == "position" || name == "origin") {
         return true;
     }
     return false;
@@ -399,6 +451,7 @@ PyGetSetDef UICircle::getsetters[] = {
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICIRCLE),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UICIRCLE),
+    UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UICIRCLE),
     {NULL}
 };
 

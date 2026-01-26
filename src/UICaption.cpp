@@ -25,11 +25,40 @@ UICaption::UICaption()
 UIDrawable* UICaption::click_at(sf::Vector2f point)
 {
     // #184: Also check for Python subclass (might have on_click method)
-    if (click_callable || is_python_subclass)
-    {
-        if (text.getGlobalBounds().contains(point)) return this;
+    if (!click_callable && !is_python_subclass) return nullptr;
+
+    // Get text dimensions from local bounds
+    sf::FloatRect localBounds = text.getLocalBounds();
+    float w = localBounds.width;
+    float h = localBounds.height;
+    // Account for text origin offset (SFML text has non-zero left/top in local bounds)
+    float textOffsetX = localBounds.left;
+    float textOffsetY = localBounds.top;
+
+    // Transform click point to local coordinates accounting for rotation
+    sf::Vector2f localPoint;
+    if (rotation != 0.0f) {
+        // Build transform: translate to position, then rotate around origin
+        sf::Transform transform;
+        transform.translate(position);
+        transform.translate(origin);
+        transform.rotate(rotation);
+        transform.translate(-origin);
+
+        // Apply inverse transform to get local coordinates
+        sf::Transform inverse = transform.getInverse();
+        localPoint = inverse.transformPoint(point);
+    } else {
+        // No rotation - simple subtraction
+        localPoint = point - position;
     }
-    return NULL;
+
+    // Check if local point is within bounds (accounting for text offset)
+    if (localPoint.x >= textOffsetX && localPoint.y >= textOffsetY &&
+        localPoint.x < textOffsetX + w && localPoint.y < textOffsetY + h) {
+        return this;
+    }
+    return nullptr;
 }
 
 void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
@@ -41,6 +70,10 @@ void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
     auto color = text.getFillColor();
     color.a = static_cast<sf::Uint8>(255 * opacity);
     text.setFillColor(color);
+
+    // Apply rotation and origin
+    text.setOrigin(origin);
+    text.setRotation(rotation);
 
     // #106: Shader rendering path
     if (shader && shader->shader) {
@@ -350,6 +383,7 @@ PyGetSetDef UICaption::getsetters[] = {
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICAPTION),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UICAPTION),
     UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UICAPTION),
+    UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UICAPTION),
     {NULL}
 };
 
@@ -631,6 +665,24 @@ bool UICaption::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Z-order change affects parent
         return true;
     }
+    else if (name == "rotation") {
+        rotation = value;
+        text.setRotation(rotation);
+        markDirty();
+        return true;
+    }
+    else if (name == "origin_x") {
+        origin.x = value;
+        text.setOrigin(origin);
+        markDirty();
+        return true;
+    }
+    else if (name == "origin_y") {
+        origin.y = value;
+        text.setOrigin(origin);
+        markDirty();
+        return true;
+    }
     // #106: Check for shader uniform properties
     if (setShaderProperty(name, value)) {
         return true;
@@ -714,6 +766,18 @@ bool UICaption::getProperty(const std::string& name, float& value) const {
         value = static_cast<float>(z_index);
         return true;
     }
+    else if (name == "rotation") {
+        value = rotation;
+        return true;
+    }
+    else if (name == "origin_x") {
+        value = origin.x;
+        return true;
+    }
+    else if (name == "origin_y") {
+        value = origin.y;
+        return true;
+    }
     // #106: Check for shader uniform properties
     if (getShaderProperty(name, value)) {
         return true;
@@ -748,7 +812,8 @@ bool UICaption::hasProperty(const std::string& name) const {
         name == "fill_color.r" || name == "fill_color.g" ||
         name == "fill_color.b" || name == "fill_color.a" ||
         name == "outline_color.r" || name == "outline_color.g" ||
-        name == "outline_color.b" || name == "outline_color.a") {
+        name == "outline_color.b" || name == "outline_color.a" ||
+        name == "rotation" || name == "origin_x" || name == "origin_y") {
         return true;
     }
     // Color properties
@@ -757,6 +822,10 @@ bool UICaption::hasProperty(const std::string& name) const {
     }
     // String properties
     if (name == "text") {
+        return true;
+    }
+    // Vector2f properties
+    if (name == "origin") {
         return true;
     }
     // #106: Check for shader uniform properties

@@ -46,6 +46,9 @@ UIDrawable::UIDrawable(const UIDrawable& other)
     : z_index(other.z_index),
       name(other.name),
       position(other.position),
+      rotation(other.rotation),
+      origin(other.origin),
+      rotate_with_camera(other.rotate_with_camera),
       visible(other.visible),
       opacity(other.opacity),
       hovered(false),  // Don't copy hover state
@@ -82,6 +85,9 @@ UIDrawable& UIDrawable::operator=(const UIDrawable& other) {
         z_index = other.z_index;
         name = other.name;
         position = other.position;
+        rotation = other.rotation;
+        origin = other.origin;
+        rotate_with_camera = other.rotate_with_camera;
         visible = other.visible;
         opacity = other.opacity;
         hovered = false;  // Don't copy hover state
@@ -128,6 +134,9 @@ UIDrawable::UIDrawable(UIDrawable&& other) noexcept
     : z_index(other.z_index),
       name(std::move(other.name)),
       position(other.position),
+      rotation(other.rotation),
+      origin(other.origin),
+      rotate_with_camera(other.rotate_with_camera),
       visible(other.visible),
       opacity(other.opacity),
       hovered(other.hovered),
@@ -157,6 +166,9 @@ UIDrawable& UIDrawable::operator=(UIDrawable&& other) noexcept {
         z_index = other.z_index;
         name = std::move(other.name);
         position = other.position;
+        rotation = other.rotation;
+        origin = other.origin;
+        rotate_with_camera = other.rotate_with_camera;
         visible = other.visible;
         opacity = other.opacity;
         hovered = other.hovered;  // #140
@@ -586,6 +598,132 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
     
     drawable->position = sf::Vector2f(x, y);
     drawable->onPositionChanged();
+    return 0;
+}
+
+// Rotation property getter/setter
+PyObject* UIDrawable::get_rotation(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    return PyFloat_FromDouble(drawable->rotation);
+}
+
+int UIDrawable::set_rotation(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    float val = 0.0f;
+    if (PyFloat_Check(value)) {
+        val = PyFloat_AsDouble(value);
+    } else if (PyLong_Check(value)) {
+        val = static_cast<float>(PyLong_AsLong(value));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "rotation must be a number (int or float)");
+        return -1;
+    }
+
+    drawable->rotation = val;
+    drawable->markDirty();
+    return 0;
+}
+
+// Origin property getter/setter
+PyObject* UIDrawable::get_origin(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    // Create a Python Vector object from origin
+    PyObject* module = PyImport_ImportModule("mcrfpy");
+    if (!module) return NULL;
+
+    PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
+    Py_DECREF(module);
+    if (!vector_type) return NULL;
+
+    PyObject* args = Py_BuildValue("(ff)", drawable->origin.x, drawable->origin.y);
+    PyObject* result = PyObject_CallObject(vector_type, args);
+    Py_DECREF(vector_type);
+    Py_DECREF(args);
+
+    return result;
+}
+
+int UIDrawable::set_origin(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    // Accept tuple or Vector
+    float x, y;
+    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
+        PyObject* x_obj = PyTuple_GetItem(value, 0);
+        PyObject* y_obj = PyTuple_GetItem(value, 1);
+
+        if (PyFloat_Check(x_obj) || PyLong_Check(x_obj)) {
+            x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : static_cast<float>(PyLong_AsLong(x_obj));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "origin x must be a number");
+            return -1;
+        }
+
+        if (PyFloat_Check(y_obj) || PyLong_Check(y_obj)) {
+            y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : static_cast<float>(PyLong_AsLong(y_obj));
+        } else {
+            PyErr_SetString(PyExc_TypeError, "origin y must be a number");
+            return -1;
+        }
+    } else {
+        // Try to get as Vector
+        PyObject* module = PyImport_ImportModule("mcrfpy");
+        if (!module) return -1;
+
+        PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
+        Py_DECREF(module);
+        if (!vector_type) return -1;
+
+        int is_vector = PyObject_IsInstance(value, vector_type);
+        Py_DECREF(vector_type);
+
+        if (is_vector) {
+            PyVectorObject* vec = (PyVectorObject*)value;
+            x = vec->data.x;
+            y = vec->data.y;
+        } else {
+            PyErr_SetString(PyExc_TypeError, "origin must be a tuple (x, y) or Vector");
+            return -1;
+        }
+    }
+
+    drawable->origin = sf::Vector2f(x, y);
+    drawable->markDirty();
+    return 0;
+}
+
+// rotate_with_camera property getter/setter
+PyObject* UIDrawable::get_rotate_with_camera(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+
+    return PyBool_FromLong(drawable->rotate_with_camera);
+}
+
+int UIDrawable::set_rotate_with_camera(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+
+    if (!PyBool_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "rotate_with_camera must be a boolean");
+        return -1;
+    }
+
+    drawable->rotate_with_camera = PyObject_IsTrue(value);
+    drawable->markDirty();
     return 0;
 }
 

@@ -282,6 +282,25 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
          "Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER)." \
      ), (void*)type_enum}
 
+// Rotation support - rotation angle and transform origin
+#define UIDRAWABLE_ROTATION_GETSETTERS(type_enum) \
+    {"rotation", (getter)UIDrawable::get_rotation, (setter)UIDrawable::set_rotation, \
+     MCRF_PROPERTY(rotation, \
+         "Rotation angle in degrees (clockwise around origin). " \
+         "Animatable property." \
+     ), (void*)type_enum}, \
+    {"origin", (getter)UIDrawable::get_origin, (setter)UIDrawable::set_origin, \
+     MCRF_PROPERTY(origin, \
+         "Transform origin as Vector (pivot point for rotation). " \
+         "Default (0,0) is top-left; set to (w/2, h/2) to rotate around center." \
+     ), (void*)type_enum}, \
+    {"rotate_with_camera", (getter)UIDrawable::get_rotate_with_camera, (setter)UIDrawable::set_rotate_with_camera, \
+     MCRF_PROPERTY(rotate_with_camera, \
+         "Whether to rotate visually with parent Grid's camera_rotation (bool). " \
+         "False (default): stay screen-aligned. True: tilt with camera. " \
+         "Only affects children of UIGrid; ignored for other parents." \
+     ), (void*)type_enum}
+
 // #106: Shader support - GPU-accelerated visual effects
 #define UIDRAWABLE_SHADER_GETSETTERS(type_enum) \
     {"shader", (getter)UIDrawable::get_shader, (setter)UIDrawable::set_shader, \

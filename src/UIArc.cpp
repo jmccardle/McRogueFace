@@ -134,9 +134,13 @@ void UIArc::render(sf::Vector2f offset, sf::RenderTarget& target) {
         rebuildVertices();
     }
 
-    // Apply offset by creating a transformed copy
+    // Apply offset and rotation by creating a transform
     sf::Transform transform;
     transform.translate(offset);
+    // Apply rotation around origin
+    transform.translate(origin);
+    transform.rotate(rotation);
+    transform.translate(-origin);
     target.draw(vertices, transform);
 }
 
@@ -146,9 +150,25 @@ UIDrawable* UIArc::click_at(sf::Vector2f point) {
     // #184: Also check for Python subclass (might have on_click method)
     if (!click_callable && !is_python_subclass) return nullptr;
 
-    // Calculate distance from center
-    float dx = point.x - center.x;
-    float dy = point.y - center.y;
+    // Transform click point to local coordinates accounting for rotation
+    sf::Vector2f localPoint;
+    if (rotation != 0.0f) {
+        // Build transform: rotate around origin (matches render transform)
+        sf::Transform transform;
+        transform.translate(origin);
+        transform.rotate(rotation);
+        transform.translate(-origin);
+
+        // Apply inverse transform to get local coordinates
+        sf::Transform inverse = transform.getInverse();
+        localPoint = inverse.transformPoint(point);
+    } else {
+        localPoint = point;
+    }
+
+    // Calculate distance from center in local (unrotated) space
+    float dx = localPoint.x - center.x;
+    float dy = localPoint.y - center.y;
     float dist = std::sqrt(dx * dx + dy * dy);
 
     // Check if within the arc's radial range
@@ -249,6 +269,21 @@ bool UIArc::setProperty(const std::string& name, float value) {
         markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
+    else if (name == "rotation") {
+        rotation = value;
+        markDirty();
+        return true;
+    }
+    else if (name == "origin_x") {
+        origin.x = value;
+        markDirty();
+        return true;
+    }
+    else if (name == "origin_y") {
+        origin.y = value;
+        markDirty();
+        return true;
+    }
     return false;
 }
 
@@ -295,6 +330,18 @@ bool UIArc::getProperty(const std::string& name, float& value) const {
         value = center.y;
         return true;
     }
+    else if (name == "rotation") {
+        value = rotation;
+        return true;
+    }
+    else if (name == "origin_x") {
+        value = origin.x;
+        return true;
+    }
+    else if (name == "origin_y") {
+        value = origin.y;
+        return true;
+    }
     return false;
 }
 
@@ -317,7 +364,8 @@ bool UIArc::getProperty(const std::string& name, sf::Vector2f& value) const {
 bool UIArc::hasProperty(const std::string& name) const {
     // Float properties
     if (name == "radius" || name == "start_angle" || name == "end_angle" ||
-        name == "thickness" || name == "x" || name == "y") {
+        name == "thickness" || name == "x" || name == "y" ||
+        name == "rotation" || name == "origin_x" || name == "origin_y") {
         return true;
     }
     // Color properties
@@ -453,6 +501,7 @@ PyGetSetDef UIArc::getsetters[] = {
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIARC),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIARC),
+    UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UIARC),
     {NULL}
 };
 

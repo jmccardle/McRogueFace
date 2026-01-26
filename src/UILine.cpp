@@ -134,12 +134,32 @@ void UILine::render(sf::Vector2f offset, sf::RenderTarget& target) {
     line_shape.setFillColor(render_color);
     line_shape.setOutlineThickness(0);
 
+    // Apply rotation around origin
+    line_shape.setOrigin(origin);
+    line_shape.setRotation(rotation);
+
     target.draw(line_shape);
 }
 
 UIDrawable* UILine::click_at(sf::Vector2f point) {
     // #184: Also check for Python subclass (might have on_click method)
     if (!click_callable && !is_python_subclass) return nullptr;
+
+    // Transform click point to local coordinates accounting for rotation
+    sf::Vector2f localPoint;
+    if (rotation != 0.0f) {
+        // Build transform: rotate around origin
+        sf::Transform transform;
+        transform.translate(origin);
+        transform.rotate(rotation);
+        transform.translate(-origin);
+
+        // Apply inverse transform to get local coordinates
+        sf::Transform inverse = transform.getInverse();
+        localPoint = inverse.transformPoint(point);
+    } else {
+        localPoint = point;
+    }
 
     // Check if point is close enough to the line
     // Using a simple bounding box check plus distance-to-line calculation
@@ -149,11 +169,12 @@ UIDrawable* UILine::click_at(sf::Vector2f point) {
     bounds.width += thickness * 2;
     bounds.height += thickness * 2;
 
-    if (!bounds.contains(point)) return nullptr;
+    // For rotated lines, skip the bounds check (it's an optimization, not required)
+    if (rotation == 0.0f && !bounds.contains(localPoint)) return nullptr;
 
     // Calculate distance from point to line segment
     sf::Vector2f line_vec = end_pos - start_pos;
-    sf::Vector2f point_vec = point - start_pos;
+    sf::Vector2f point_vec = localPoint - start_pos;
 
     float line_len_sq = line_vec.x * line_vec.x + line_vec.y * line_vec.y;
     float t = 0.0f;
@@ -164,7 +185,7 @@ UIDrawable* UILine::click_at(sf::Vector2f point) {
     }
 
     sf::Vector2f closest = start_pos + t * line_vec;
-    sf::Vector2f diff = point - closest;
+    sf::Vector2f diff = localPoint - closest;
     float distance = std::sqrt(diff.x * diff.x + diff.y * diff.y);
 
     // Click is valid if within thickness + some margin
@@ -248,6 +269,21 @@ bool UILine::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Content change
         return true;
     }
+    else if (name == "rotation") {
+        rotation = value;
+        markDirty();
+        return true;
+    }
+    else if (name == "origin_x") {
+        origin.x = value;
+        markDirty();
+        return true;
+    }
+    else if (name == "origin_y") {
+        origin.y = value;
+        markDirty();
+        return true;
+    }
     return false;
 }
 
@@ -306,6 +342,18 @@ bool UILine::getProperty(const std::string& name, float& value) const {
         value = end_pos.y;
         return true;
     }
+    else if (name == "rotation") {
+        value = rotation;
+        return true;
+    }
+    else if (name == "origin_x") {
+        value = origin.x;
+        return true;
+    }
+    else if (name == "origin_y") {
+        value = origin.y;
+        return true;
+    }
     return false;
 }
 
@@ -333,7 +381,8 @@ bool UILine::hasProperty(const std::string& name) const {
     // Float properties
     if (name == "thickness" || name == "x" || name == "y" ||
         name == "start_x" || name == "start_y" ||
-        name == "end_x" || name == "end_y") {
+        name == "end_x" || name == "end_y" ||
+        name == "rotation" || name == "origin_x" || name == "origin_y") {
         return true;
     }
     // Color properties
@@ -341,7 +390,7 @@ bool UILine::hasProperty(const std::string& name) const {
         return true;
     }
     // Vector2f properties
-    if (name == "start" || name == "end") {
+    if (name == "start" || name == "end" || name == "origin") {
         return true;
     }
     return false;
@@ -469,6 +518,7 @@ PyGetSetDef UILine::getsetters[] = {
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UILINE),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UILINE),
+    UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UILINE),
     {NULL}
 };
 

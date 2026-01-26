@@ -99,6 +99,14 @@ public:
     static PyObject* get_pos(PyObject* self, void* closure);
     static int set_pos(PyObject* self, PyObject* value, void* closure);
 
+    // Rotation getters/setters for Python API
+    static PyObject* get_rotation(PyObject* self, void* closure);
+    static int set_rotation(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_origin(PyObject* self, void* closure);
+    static int set_origin(PyObject* self, PyObject* value, void* closure);
+    static PyObject* get_rotate_with_camera(PyObject* self, void* closure);
+    static int set_rotate_with_camera(PyObject* self, PyObject* value, void* closure);
+
     // #221 - Grid coordinate properties (only valid when parent is UIGrid)
     static PyObject* get_grid_pos(PyObject* self, void* closure);
     static int set_grid_pos(PyObject* self, PyObject* value, void* closure);
@@ -116,6 +124,16 @@ public:
 
     // Position in pixel coordinates (moved from derived classes)
     sf::Vector2f position;
+
+    // Rotation in degrees (clockwise around origin)
+    float rotation = 0.0f;
+
+    // Transform origin point (relative to position, pivot for rotation/scale)
+    sf::Vector2f origin;
+
+    // Whether to rotate visually with parent Grid's camera_rotation
+    // Only affects children of UIGrid; ignored for other parents
+    bool rotate_with_camera = false;
 
     // Parent-child hierarchy (#122)
     std::weak_ptr<UIDrawable> parent;

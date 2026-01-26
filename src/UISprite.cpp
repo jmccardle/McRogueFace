@@ -11,11 +11,36 @@
 UIDrawable* UISprite::click_at(sf::Vector2f point)
 {
     // #184: Also check for Python subclass (might have on_click method)
-    if (click_callable || is_python_subclass)
-    {
-        if(sprite.getGlobalBounds().contains(point)) return this;
+    if (!click_callable && !is_python_subclass) return nullptr;
+
+    // Get sprite dimensions from local bounds
+    sf::FloatRect localBounds = sprite.getLocalBounds();
+    float w = localBounds.width * sprite.getScale().x;
+    float h = localBounds.height * sprite.getScale().y;
+
+    // Transform click point to local coordinates accounting for rotation
+    sf::Vector2f localPoint;
+    if (rotation != 0.0f) {
+        // Build transform: translate to position, then rotate around origin
+        sf::Transform transform;
+        transform.translate(position);
+        transform.translate(origin);
+        transform.rotate(rotation);
+        transform.translate(-origin);
+
+        // Apply inverse transform to get local coordinates
+        sf::Transform inverse = transform.getInverse();
+        localPoint = inverse.transformPoint(point);
+    } else {
+        // No rotation - simple subtraction
+        localPoint = point - position;
     }
-    return NULL;
+
+    // Check if local point is within bounds (0,0 to w,h in local space)
+    if (localPoint.x >= 0 && localPoint.y >= 0 && localPoint.x < w && localPoint.y < h) {
+        return this;
+    }
+    return nullptr;
 }
 
 UISprite::UISprite() 
@@ -88,6 +113,10 @@ void UISprite::render(sf::Vector2f offset, sf::RenderTarget& target)
     auto color = sprite.getColor();
     color.a = static_cast<sf::Uint8>(255 * opacity);
     sprite.setColor(color);
+
+    // Apply rotation and origin
+    sprite.setOrigin(origin);
+    sprite.setRotation(rotation);
 
     // #106: Shader rendering path
     if (shader && shader->shader) {
@@ -396,6 +425,7 @@ PyGetSetDef UISprite::getsetters[] = {
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UISPRITE),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UISPRITE),
     UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UISPRITE),
+    UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UISPRITE),
     {NULL}
 };
 
@@ -628,6 +658,24 @@ bool UISprite::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Z-order change affects parent
         return true;
     }
+    else if (name == "rotation") {
+        rotation = value;
+        sprite.setRotation(rotation);
+        markDirty();
+        return true;
+    }
+    else if (name == "origin_x") {
+        origin.x = value;
+        sprite.setOrigin(origin);
+        markDirty();
+        return true;
+    }
+    else if (name == "origin_y") {
+        origin.y = value;
+        sprite.setOrigin(origin);
+        markDirty();
+        return true;
+    }
     // #106: Check for shader uniform properties
     if (setShaderProperty(name, value)) {
         return true;
@@ -674,6 +722,18 @@ bool UISprite::getProperty(const std::string& name, float& value) const {
         value = static_cast<float>(z_index);
         return true;
     }
+    else if (name == "rotation") {
+        value = rotation;
+        return true;
+    }
+    else if (name == "origin_x") {
+        value = origin.x;
+        return true;
+    }
+    else if (name == "origin_y") {
+        value = origin.y;
+        return true;
+    }
     // #106: Check for shader uniform properties
     if (getShaderProperty(name, value)) {
         return true;
@@ -697,11 +757,16 @@ bool UISprite::hasProperty(const std::string& name) const {
     // Float properties
     if (name == "x" || name == "y" ||
         name == "scale" || name == "scale_x" || name == "scale_y" ||
-        name == "z_index") {
+        name == "z_index" ||
+        name == "rotation" || name == "origin_x" || name == "origin_y") {
         return true;
     }
     // Int properties
     if (name == "sprite_index" || name == "sprite_number") {
+        return true;
+    }
+    // Vector2f properties
+    if (name == "origin") {
         return true;
     }
     // #106: Check for shader uniform properties
