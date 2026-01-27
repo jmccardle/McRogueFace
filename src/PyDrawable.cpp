@@ -10,10 +10,11 @@ static PyObject* PyDrawable_get_click(PyDrawableObject* self, void* closure)
         Py_RETURN_NONE;
 
     PyObject* ptr = self->data->click_callable->borrow();
-    if (ptr && ptr != Py_None)
+    if (ptr && ptr != Py_None) {
+        Py_INCREF(ptr);  // Return new reference, not borrowed
         return ptr;
-    else
-        Py_RETURN_NONE;
+    }
+    Py_RETURN_NONE;
 }
 
 // Click property setter

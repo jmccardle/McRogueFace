@@ -259,10 +259,11 @@ PyObject* UIDrawable::get_click(PyObject* self, void* closure) {
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _get_click");
             return NULL;
     }
-    if (ptr && ptr != Py_None)
+    if (ptr && ptr != Py_None) {
+        Py_INCREF(ptr);  // Return new reference, not borrowed
         return ptr;
-    else
-        return Py_None;
+    }
+    Py_RETURN_NONE;
 }
 
 int UIDrawable::set_click(PyObject* self, PyObject* value, void* closure) {
@@ -1615,10 +1616,11 @@ PyObject* UIDrawable::get_on_enter(PyObject* self, void* closure) {
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_enter");
             return NULL;
     }
-    if (ptr && ptr != Py_None)
+    if (ptr && ptr != Py_None) {
+        Py_INCREF(ptr);  // Return new reference, not borrowed
         return ptr;
-    else
-        Py_RETURN_NONE;
+    }
+    Py_RETURN_NONE;
 }
 
 int UIDrawable::set_on_enter(PyObject* self, PyObject* value, void* closure) {
@@ -1698,10 +1700,11 @@ PyObject* UIDrawable::get_on_exit(PyObject* self, void* closure) {
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_exit");
             return NULL;
     }
-    if (ptr && ptr != Py_None)
+    if (ptr && ptr != Py_None) {
+        Py_INCREF(ptr);  // Return new reference, not borrowed
         return ptr;
-    else
-        Py_RETURN_NONE;
+    }
+    Py_RETURN_NONE;
 }
 
 int UIDrawable::set_on_exit(PyObject* self, PyObject* value, void* closure) {
@@ -1790,10 +1793,11 @@ PyObject* UIDrawable::get_on_move(PyObject* self, void* closure) {
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_move");
             return NULL;
     }
-    if (ptr && ptr != Py_None)
+    if (ptr && ptr != Py_None) {
+        Py_INCREF(ptr);  // Return new reference, not borrowed
         return ptr;
-    else
-        Py_RETURN_NONE;
+    }
+    Py_RETURN_NONE;
 }
 
 int UIDrawable::set_on_move(PyObject* self, PyObject* value, void* closure) {
