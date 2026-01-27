@@ -118,14 +118,21 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self) {
             PyUIArcObject* obj = (PyUIArcObject*)self;
+            PyObject_GC_UnTrack(self);
             if (obj->weakreflist != NULL) {
                 PyObject_ClearWeakRefs(self);
+            }
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
             }
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)UIArc::repr,
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR(
             "Arc(center=None, radius=0, start_angle=0, end_angle=90, color=None, thickness=1, **kwargs)\n\n"
             "An arc UI element for drawing curved line segments.\n\n"
@@ -162,6 +169,38 @@ namespace mcrfpydef {
             "    horiz_margin (float): Horizontal margin override\n"
             "    vert_margin (float): Vertical margin override\n"
         ),
+        .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+            PyUIArcObject* obj = (PyUIArcObject*)self;
+            if (obj->data) {
+                if (obj->data->click_callable) {
+                    PyObject* cb = obj->data->click_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_enter_callable) {
+                    PyObject* cb = obj->data->on_enter_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_exit_callable) {
+                    PyObject* cb = obj->data->on_exit_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_move_callable) {
+                    PyObject* cb = obj->data->on_move_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+            }
+            return 0;
+        },
+        .tp_clear = [](PyObject* self) -> int {
+            PyUIArcObject* obj = (PyUIArcObject*)self;
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
+            }
+            return 0;
+        },
         .tp_methods = UIArc_methods,
         .tp_getset = UIArc::getsetters,
         .tp_base = &mcrfpydef::PyDrawableType,

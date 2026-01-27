@@ -104,14 +104,21 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self) {
             PyUILineObject* obj = (PyUILineObject*)self;
+            PyObject_GC_UnTrack(self);
             if (obj->weakreflist != NULL) {
                 PyObject_ClearWeakRefs(self);
+            }
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
             }
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)UILine::repr,
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR(
             "Line(start=None, end=None, thickness=1.0, color=None, **kwargs)\n\n"
             "A line UI element for drawing straight lines between two points.\n\n"
@@ -144,6 +151,38 @@ namespace mcrfpydef {
             "    horiz_margin (float): Horizontal margin override\n"
             "    vert_margin (float): Vertical margin override\n"
         ),
+        .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+            PyUILineObject* obj = (PyUILineObject*)self;
+            if (obj->data) {
+                if (obj->data->click_callable) {
+                    PyObject* cb = obj->data->click_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_enter_callable) {
+                    PyObject* cb = obj->data->on_enter_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_exit_callable) {
+                    PyObject* cb = obj->data->on_exit_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_move_callable) {
+                    PyObject* cb = obj->data->on_move_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+            }
+            return 0;
+        },
+        .tp_clear = [](PyObject* self) -> int {
+            PyUILineObject* obj = (PyUILineObject*)self;
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
+            }
+            return 0;
+        },
         .tp_methods = UILine_methods,
         .tp_getset = UILine::getsetters,
         .tp_base = &mcrfpydef::PyDrawableType,

@@ -107,14 +107,21 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self) {
             PyUICircleObject* obj = (PyUICircleObject*)self;
+            PyObject_GC_UnTrack(self);
             if (obj->weakreflist != NULL) {
                 PyObject_ClearWeakRefs(self);
+            }
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
             }
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)UICircle::repr,
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR(
             "Circle(radius=0, center=None, fill_color=None, outline_color=None, outline=0, **kwargs)\n\n"
             "A circle UI element for drawing filled or outlined circles.\n\n"
@@ -149,6 +156,38 @@ namespace mcrfpydef {
             "    horiz_margin (float): Horizontal margin override\n"
             "    vert_margin (float): Vertical margin override\n"
         ),
+        .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+            PyUICircleObject* obj = (PyUICircleObject*)self;
+            if (obj->data) {
+                if (obj->data->click_callable) {
+                    PyObject* cb = obj->data->click_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_enter_callable) {
+                    PyObject* cb = obj->data->on_enter_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_exit_callable) {
+                    PyObject* cb = obj->data->on_exit_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+                if (obj->data->on_move_callable) {
+                    PyObject* cb = obj->data->on_move_callable->borrow();
+                    if (cb && cb != Py_None) Py_VISIT(cb);
+                }
+            }
+            return 0;
+        },
+        .tp_clear = [](PyObject* self) -> int {
+            PyUICircleObject* obj = (PyUICircleObject*)self;
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
+            }
+            return 0;
+        },
         .tp_methods = UICircle_methods,
         .tp_getset = UICircle::getsetters,
         .tp_base = &mcrfpydef::PyDrawableType,

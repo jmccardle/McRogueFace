@@ -235,16 +235,29 @@ namespace mcrfpydef {
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUIGridObject* obj = (PyUIGridObject*)self;
+            // Untrack from GC before destroying
+            PyObject_GC_UnTrack(self);
             // Clear weak references
             if (obj->weakreflist != NULL) {
                 PyObject_ClearWeakRefs(self);
+            }
+            // Clear Python references to break cycles
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
+                // Grid-specific cell callbacks
+                obj->data->on_cell_enter_callable.reset();
+                obj->data->on_cell_exit_callable.reset();
+                obj->data->on_cell_click_callable.reset();
             }
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)UIGrid::repr,
         .tp_as_mapping = &UIGrid::mpmethods,  // Enable grid[x, y] subscript access
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR("Grid(pos=None, size=None, grid_size=None, texture=None, **kwargs)\n\n"
                             "A grid-based UI element for tile-based rendering and entity management.\n\n"
                             "Args:\n"
@@ -296,6 +309,57 @@ namespace mcrfpydef {
                             "    margin (float): General margin for alignment\n"
                             "    horiz_margin (float): Horizontal margin override\n"
                             "    vert_margin (float): Vertical margin override"),
+        // tp_traverse visits Python object references for GC cycle detection
+        .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+            PyUIGridObject* obj = (PyUIGridObject*)self;
+            if (obj->data) {
+                // Base class callbacks
+                if (obj->data->click_callable) {
+                    PyObject* callback = obj->data->click_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                if (obj->data->on_enter_callable) {
+                    PyObject* callback = obj->data->on_enter_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                if (obj->data->on_exit_callable) {
+                    PyObject* callback = obj->data->on_exit_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                if (obj->data->on_move_callable) {
+                    PyObject* callback = obj->data->on_move_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                // Grid-specific cell callbacks
+                if (obj->data->on_cell_enter_callable) {
+                    PyObject* callback = obj->data->on_cell_enter_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                if (obj->data->on_cell_exit_callable) {
+                    PyObject* callback = obj->data->on_cell_exit_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                if (obj->data->on_cell_click_callable) {
+                    PyObject* callback = obj->data->on_cell_click_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+            }
+            return 0;
+        },
+        // tp_clear breaks reference cycles by clearing Python references
+        .tp_clear = [](PyObject* self) -> int {
+            PyUIGridObject* obj = (PyUIGridObject*)self;
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
+                obj->data->on_cell_enter_callable.reset();
+                obj->data->on_cell_exit_callable.reset();
+                obj->data->on_cell_click_callable.reset();
+            }
+            return 0;
+        },
         .tp_methods = UIGrid_all_methods,
         //.tp_members = UIGrid::members,
         .tp_getset = UIGrid::getsetters,

@@ -59,13 +59,21 @@ namespace mcrfpydef {
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUICaptionObject* obj = (PyUICaptionObject*)self;
+            // Untrack from GC before destroying
+            PyObject_GC_UnTrack(self);
             // Clear weak references
             if (obj->weakreflist != NULL) {
                 PyObject_ClearWeakRefs(self);
             }
-            // TODO - reevaluate with PyFont usage; UICaption does not own the font
-            // release reference to font object
-            if (obj->font) Py_DECREF(obj->font);
+            // Clear Python references to break cycles
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
+            }
+            // Release reference to font object
+            Py_CLEAR(obj->font);
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
@@ -73,7 +81,7 @@ namespace mcrfpydef {
         //.tp_hash = NULL,
         //.tp_iter
         //.tp_iternext
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR("Caption(pos=None, font=None, text='', **kwargs)\n\n"
                             "A text display UI element with customizable font and styling.\n\n"
                             "Args:\n"
@@ -114,6 +122,42 @@ namespace mcrfpydef {
                             "    margin (float): General margin for alignment\n"
                             "    horiz_margin (float): Horizontal margin override\n"
                             "    vert_margin (float): Vertical margin override"),
+        // tp_traverse visits Python object references for GC cycle detection
+        .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+            PyUICaptionObject* obj = (PyUICaptionObject*)self;
+            Py_VISIT(obj->font);
+            if (obj->data) {
+                if (obj->data->click_callable) {
+                    PyObject* callback = obj->data->click_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                if (obj->data->on_enter_callable) {
+                    PyObject* callback = obj->data->on_enter_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                if (obj->data->on_exit_callable) {
+                    PyObject* callback = obj->data->on_exit_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+                if (obj->data->on_move_callable) {
+                    PyObject* callback = obj->data->on_move_callable->borrow();
+                    if (callback && callback != Py_None) Py_VISIT(callback);
+                }
+            }
+            return 0;
+        },
+        // tp_clear breaks reference cycles by clearing Python references
+        .tp_clear = [](PyObject* self) -> int {
+            PyUICaptionObject* obj = (PyUICaptionObject*)self;
+            Py_CLEAR(obj->font);
+            if (obj->data) {
+                obj->data->click_unregister();
+                obj->data->on_enter_unregister();
+                obj->data->on_exit_unregister();
+                obj->data->on_move_unregister();
+            }
+            return 0;
+        },
         .tp_methods = UICaption_methods,
         //.tp_members = PyUIFrame_members,
         .tp_getset = UICaption::getsetters,
