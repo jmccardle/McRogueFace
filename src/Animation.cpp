@@ -5,6 +5,14 @@
 #include "McRFPy_API.h"
 #include "GameEngine.h"
 #include "PythonObjectCache.h"
+// #229 - Includes for animation callback target conversion
+#include "UIFrame.h"
+#include "UICaption.h"
+#include "UISprite.h"
+#include "UIGrid.h"
+#include "UILine.h"
+#include "UICircle.h"
+#include "UIArc.h"
 #include <cmath>
 #include <algorithm>
 #include <unordered_map>
@@ -395,26 +403,239 @@ void Animation::applyValue(UIEntity* entity, const AnimationValue& value) {
     }, value);
 }
 
+// #229 - Helper to convert UIDrawable target to Python object
+static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
+    if (!drawable) {
+        Py_RETURN_NONE;
+    }
+
+    // Check cache first
+    if (drawable->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+        if (cached) {
+            return cached;  // Already INCREF'd by lookup
+        }
+    }
+
+    PyTypeObject* type = nullptr;
+    PyObject* obj = nullptr;
+
+    switch (drawable->derived_type()) {
+        case PyObjectsEnum::UIFRAME:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+            if (!type) return nullptr;
+            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICAPTION:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
+            if (!type) return nullptr;
+            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICaption>(drawable);
+                pyObj->font = nullptr;
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UISPRITE:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
+            if (!type) return nullptr;
+            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UISprite>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIGRID:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+            if (!type) return nullptr;
+            auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UILINE:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line");
+            if (!type) return nullptr;
+            auto pyObj = (PyUILineObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UILine>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICIRCLE:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle");
+            if (!type) return nullptr;
+            auto pyObj = (PyUICircleObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICircle>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIARC:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc");
+            if (!type) return nullptr;
+            auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIArc>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        default:
+            Py_RETURN_NONE;
+    }
+
+    if (type) {
+        Py_DECREF(type);
+    }
+
+    return obj ? obj : Py_None;
+}
+
+// #229 - Helper to convert UIEntity target to Python object
+static PyObject* convertEntityToPython(std::shared_ptr<UIEntity> entity) {
+    if (!entity) {
+        Py_RETURN_NONE;
+    }
+
+    // Check cache first
+    if (entity->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(entity->serial_number);
+        if (cached) {
+            return cached;  // Already INCREF'd by lookup
+        }
+    }
+
+    PyTypeObject* type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+    if (!type) {
+        Py_RETURN_NONE;
+    }
+
+    auto pyObj = (PyUIEntityObject*)type->tp_alloc(type, 0);
+    Py_DECREF(type);
+
+    if (!pyObj) {
+        Py_RETURN_NONE;
+    }
+
+    pyObj->data = entity;
+    pyObj->weakreflist = NULL;
+
+    return (PyObject*)pyObj;
+}
+
+// #229 - Helper to convert AnimationValue to Python object
+static PyObject* animationValueToPython(const AnimationValue& value) {
+    return std::visit([](const auto& val) -> PyObject* {
+        using T = std::decay_t<decltype(val)>;
+
+        if constexpr (std::is_same_v<T, float>) {
+            return PyFloat_FromDouble(val);
+        }
+        else if constexpr (std::is_same_v<T, int>) {
+            return PyLong_FromLong(val);
+        }
+        else if constexpr (std::is_same_v<T, std::vector<int>>) {
+            // Sprite frame list - return current frame as int
+            // (the interpolate function returns the current frame)
+            if (!val.empty()) {
+                return PyLong_FromLong(val.back());
+            }
+            return PyLong_FromLong(0);
+        }
+        else if constexpr (std::is_same_v<T, sf::Color>) {
+            return Py_BuildValue("(iiii)", val.r, val.g, val.b, val.a);
+        }
+        else if constexpr (std::is_same_v<T, sf::Vector2f>) {
+            return Py_BuildValue("(ff)", val.x, val.y);
+        }
+        else if constexpr (std::is_same_v<T, std::string>) {
+            return PyUnicode_FromString(val.c_str());
+        }
+
+        Py_RETURN_NONE;
+    }, value);
+}
+
 void Animation::triggerCallback() {
     if (!pythonCallback) return;
-    
+
     // Ensure we only trigger once
     if (callbackTriggered) return;
     callbackTriggered = true;
-    
+
     PyGILState_STATE gstate = PyGILState_Ensure();
-    
-    // TODO: In future, create PyAnimation wrapper for this animation
-    // For now, pass None for both parameters
-    PyObject* args = PyTuple_New(2);
-    Py_INCREF(Py_None);
-    Py_INCREF(Py_None);
-    PyTuple_SetItem(args, 0, Py_None); // animation parameter
-    PyTuple_SetItem(args, 1, Py_None); // target parameter
-    
+
+    // #229 - Pass (target, property, final_value) instead of (None, None)
+    // Convert target to Python object
+    PyObject* targetObj = nullptr;
+    if (auto drawable = targetWeak.lock()) {
+        targetObj = convertDrawableToPython(drawable);
+    } else if (auto entity = entityTargetWeak.lock()) {
+        targetObj = convertEntityToPython(entity);
+    }
+
+    // If target conversion failed, use None
+    if (!targetObj) {
+        targetObj = Py_None;
+        Py_INCREF(targetObj);
+    }
+
+    // Property name
+    PyObject* propertyObj = PyUnicode_FromString(targetProperty.c_str());
+    if (!propertyObj) {
+        Py_DECREF(targetObj);
+        PyGILState_Release(gstate);
+        return;
+    }
+
+    // Final value (interpolated at t=1.0)
+    PyObject* valueObj = animationValueToPython(interpolate(1.0f));
+    if (!valueObj) {
+        Py_DECREF(targetObj);
+        Py_DECREF(propertyObj);
+        PyGILState_Release(gstate);
+        return;
+    }
+
+    PyObject* args = Py_BuildValue("(OOO)", targetObj, propertyObj, valueObj);
+    Py_DECREF(targetObj);
+    Py_DECREF(propertyObj);
+    Py_DECREF(valueObj);
+
+    if (!args) {
+        PyGILState_Release(gstate);
+        return;
+    }
+
     PyObject* result = PyObject_CallObject(pythonCallback, args);
     Py_DECREF(args);
-    
+
     if (!result) {
         std::cerr << "Animation callback raised an exception:" << std::endl;
         PyErr_Print();
@@ -427,7 +648,7 @@ void Animation::triggerCallback() {
     } else {
         Py_DECREF(result);
     }
-    
+
     PyGILState_Release(gstate);
 }
 

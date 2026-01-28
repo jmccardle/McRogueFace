@@ -10,11 +10,13 @@ print("=" * 30)
 # Global state to track callback
 callback_count = 0
 
-def my_callback(anim, target):
+# #229 - Animation callbacks now receive (target, property, value) instead of (anim, target)
+def my_callback(target, prop, value):
     """Simple callback that prints when animation completes"""
     global callback_count
     callback_count += 1
     print(f"Animation completed! Callback #{callback_count}")
+    print(f"  Target: {type(target).__name__}, Property: {prop}, Value: {value}")
 
 # Create scene
 callback_demo = mcrfpy.Scene("callback_demo")
