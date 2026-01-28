@@ -5,6 +5,9 @@ Test monkey-patching support for UIDrawable subclass callbacks (#184)
 This tests that users can dynamically add callback methods at runtime
 (monkey-patching) and have them work correctly with the callback cache
 invalidation system.
+
+Callback signature: (pos: Vector, button: MouseButton, action: InputState)
+This matches property callbacks for consistency.
 """
 import mcrfpy
 import sys
@@ -19,6 +22,12 @@ def test_passed(name):
 def test_failed(name, error):
     results.append((name, False, str(error)))
     print(f"  FAIL: {name}: {error}")
+
+
+# Helper to create typed callback arguments
+def make_click_args(x=0.0, y=0.0):
+    """Create properly typed callback arguments for testing."""
+    return (mcrfpy.Vector(x, y), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
 
 
 # ==============================================================================
@@ -38,8 +47,8 @@ class PartialFrame(mcrfpy.Frame):
         super().__init__(*args, **kwargs)
         self.call_log = []
 
-    def on_click(self, x, y, button, action):
-        self.call_log.append(('click', x, y))
+    def on_click(self, pos, button, action):
+        self.call_log.append(('click', pos.x, pos.y))
 
 
 # ==============================================================================
@@ -59,8 +68,8 @@ try:
         "EmptyFrame should not have on_click in its own __dict__ initially"
 
     # Add on_click method to class dynamically
-    def dynamic_on_click(self, x, y, button, action):
-        self.call_log.append(('dynamic_click', x, y))
+    def dynamic_on_click(self, pos, button, action):
+        self.call_log.append(('dynamic_click', pos.x, pos.y))
 
     EmptyFrame.on_click = dynamic_on_click
 
@@ -68,13 +77,13 @@ try:
     assert 'on_click' in EmptyFrame.__dict__, "EmptyFrame should now have on_click in __dict__"
 
     # Test calling the method directly
-    frame1.on_click(10.0, 20.0, "left", "start")
+    frame1.on_click(*make_click_args(10.0, 20.0))
     assert ('dynamic_click', 10.0, 20.0) in frame1.call_log, \
         f"Dynamic method should have been called, log: {frame1.call_log}"
 
     # Create new instance - should also have the method
     frame2 = EmptyFrame(pos=(0, 0), size=(100, 100))
-    frame2.on_click(30.0, 40.0, "left", "start")
+    frame2.on_click(*make_click_args(30.0, 40.0))
     assert ('dynamic_click', 30.0, 40.0) in frame2.call_log, \
         f"New instance should have dynamic method, log: {frame2.call_log}"
 
@@ -87,20 +96,20 @@ try:
     frame = PartialFrame(pos=(0, 0), size=(100, 100))
 
     # Call original method
-    frame.on_click(1.0, 2.0, "left", "start")
+    frame.on_click(*make_click_args(1.0, 2.0))
     assert ('click', 1.0, 2.0) in frame.call_log, \
         f"Original method should work, log: {frame.call_log}"
 
     frame.call_log.clear()
 
     # Replace the method
-    def new_on_click(self, x, y, button, action):
-        self.call_log.append(('replaced_click', x, y))
+    def new_on_click(self, pos, button, action):
+        self.call_log.append(('replaced_click', pos.x, pos.y))
 
     PartialFrame.on_click = new_on_click
 
     # Call again - should use new method
-    frame.on_click(3.0, 4.0, "left", "start")
+    frame.on_click(*make_click_args(3.0, 4.0))
     assert ('replaced_click', 3.0, 4.0) in frame.call_log, \
         f"Replaced method should work, log: {frame.call_log}"
 
@@ -119,20 +128,17 @@ try:
     frame_a = FreshFrame(pos=(0, 0), size=(100, 100))
     frame_b = FreshFrame(pos=(0, 0), size=(100, 100))
 
-    # Add method to instance only
-    def instance_on_click(x, y, button, action):
-        frame_a.instance_log.append(('instance_click', x, y))
+    # Add method to instance only (property callback style - no self)
+    def instance_on_click(pos, button, action):
+        frame_a.instance_log.append(('instance_click', pos.x, pos.y))
 
     frame_a.on_click = instance_on_click
 
     # frame_a should have the method
     assert hasattr(frame_a, 'on_click'), "frame_a should have on_click"
 
-    # frame_b should NOT have the method (unless inherited from class)
-    # Actually, both will have on_click now since it's an instance attribute
-
     # Verify instance method works
-    frame_a.on_click(5.0, 6.0, "left", "start")
+    frame_a.on_click(*make_click_args(5.0, 6.0))
     assert ('instance_click', 5.0, 6.0) in frame_a.instance_log, \
         f"Instance method should work, log: {frame_a.instance_log}"
 
@@ -150,7 +156,7 @@ try:
     initial_gen = getattr(TrackedFrame, '_mcrf_callback_gen', 0)
 
     # Add a callback method
-    def tracked_on_enter(self, x, y, button, action):
+    def tracked_on_enter(self, pos, button, action):
         pass
 
     TrackedFrame.on_enter = tracked_on_enter
@@ -174,30 +180,30 @@ try:
     frame = MultiCallbackFrame(pos=(0, 0), size=(100, 100))
 
     # Add on_click
-    def multi_on_click(self, x, y, button, action):
+    def multi_on_click(self, pos, button, action):
         self.events.append('click')
     MultiCallbackFrame.on_click = multi_on_click
 
     # Add on_enter
-    def multi_on_enter(self, x, y, button, action):
+    def multi_on_enter(self, pos, button, action):
         self.events.append('enter')
     MultiCallbackFrame.on_enter = multi_on_enter
 
     # Add on_exit
-    def multi_on_exit(self, x, y, button, action):
+    def multi_on_exit(self, pos, button, action):
         self.events.append('exit')
     MultiCallbackFrame.on_exit = multi_on_exit
 
     # Add on_move
-    def multi_on_move(self, x, y, button, action):
+    def multi_on_move(self, pos, button, action):
         self.events.append('move')
     MultiCallbackFrame.on_move = multi_on_move
 
     # Call all methods
-    frame.on_click(0, 0, "left", "start")
-    frame.on_enter(0, 0, "enter", "start")
-    frame.on_exit(0, 0, "exit", "start")
-    frame.on_move(0, 0, "move", "start")
+    frame.on_click(*make_click_args())
+    frame.on_enter(*make_click_args())
+    frame.on_exit(*make_click_args())
+    frame.on_move(*make_click_args())
 
     assert frame.events == ['click', 'enter', 'exit', 'move'], \
         f"All callbacks should fire, got: {frame.events}"
@@ -213,7 +219,7 @@ try:
             super().__init__(*args, **kwargs)
             self.clicked = False
 
-        def on_click(self, x, y, button, action):
+        def on_click(self, pos, button, action):
             self.clicked = True
 
     frame = DeletableFrame(pos=(0, 0), size=(100, 100))
@@ -222,7 +228,7 @@ try:
     assert 'on_click' in DeletableFrame.__dict__, "Should have on_click in __dict__ initially"
 
     # Call it
-    frame.on_click(0, 0, "left", "start")
+    frame.on_click(*make_click_args())
     assert frame.clicked, "Method should work"
 
     # Delete the method from subclass
@@ -246,13 +252,13 @@ try:
             self.method_called = False
             self.property_called = False
 
-        def on_click(self, x, y, button, action):
+        def on_click(self, pos, button, action):
             self.method_called = True
 
     frame = MixedFrame(pos=(0, 0), size=(100, 100))
 
-    # Set property callback
-    def prop_callback(x, y, button, action):
+    # Set property callback (no self parameter)
+    def prop_callback(pos, button, action):
         frame.property_called = True
 
     frame.click = prop_callback
@@ -264,11 +270,11 @@ try:
     assert hasattr(frame, 'on_click'), "on_click method should exist"
 
     # Can call method directly
-    frame.on_click(0, 0, "left", "start")
+    frame.on_click(*make_click_args())
     assert frame.method_called, "Method should be callable directly"
 
     # Can call property callback
-    frame.click(0, 0, "left", "start")
+    frame.click(*make_click_args())
     assert frame.property_called, "Property callback should be callable"
 
     test_passed("Property callback and method coexist")
@@ -282,16 +288,16 @@ try:
             super().__init__(*args, **kwargs)
             self.clicks = []
 
-        def on_click(self, x, y, button, action):
+        def on_click(self, pos, button, action):
             self.clicks.append('base')
 
     class DerivedClickable(BaseClickable):
-        def on_click(self, x, y, button, action):
-            super().on_click(x, y, button, action)
+        def on_click(self, pos, button, action):
+            super().on_click(pos, button, action)
             self.clicks.append('derived')
 
     frame = DerivedClickable(pos=(0, 0), size=(100, 100))
-    frame.on_click(0, 0, "left", "start")
+    frame.on_click(*make_click_args())
 
     assert frame.clicks == ['base', 'derived'], \
         f"Inheritance chain should work, got: {frame.clicks}"

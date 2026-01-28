@@ -6,6 +6,9 @@
 #include "UIGrid.h"
 #include "McRFPy_Automation.h"  // #111 - For simulated mouse position
 #include "PythonObjectCache.h"  // #184 - For subclass callback support
+#include "McRFPy_API.h"         // For Vector type access
+#include "PyMouseButton.h"      // For MouseButton enum
+#include "PyInputState.h"       // For InputState enum
 #include <algorithm>
 #include <functional>
 
@@ -15,6 +18,7 @@
 
 // Try to call a Python method on a UIDrawable subclass
 // Returns true if a method was found and called, false otherwise
+// Signature matches property callbacks: (Vector, MouseButton, InputState)
 static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
                                  sf::Vector2f mousepos, const char* button, const char* action) {
     if (!drawable->is_python_subclass) return false;
@@ -45,14 +49,69 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
         return false;
     }
 
-    // Get and call the method
+    // Get the method
     PyObject* method = PyObject_GetAttrString(pyObj, method_name);
     bool called = false;
 
     if (method && PyCallable_Check(method) && method != Py_None) {
-        // Call with (x, y, button, action) signature
-        PyObject* result = PyObject_CallFunction(method, "ffss",
-            mousepos.x, mousepos.y, button, action);
+        // Create Vector object for position (matches property callback signature)
+        PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+        if (!vector_type) {
+            PyErr_Print();
+            PyErr_Clear();
+            Py_XDECREF(method);
+            Py_DECREF(pyObj);
+            return false;
+        }
+        PyObject* pos = PyObject_CallFunction(vector_type, "ff", mousepos.x, mousepos.y);
+        Py_DECREF(vector_type);
+        if (!pos) {
+            PyErr_Print();
+            PyErr_Clear();
+            Py_XDECREF(method);
+            Py_DECREF(pyObj);
+            return false;
+        }
+
+        // Convert button string to MouseButton enum
+        int button_val = 0;
+        if (strcmp(button, "left") == 0) button_val = 0;
+        else if (strcmp(button, "right") == 0) button_val = 1;
+        else if (strcmp(button, "middle") == 0) button_val = 2;
+        else if (strcmp(button, "x1") == 0) button_val = 3;
+        else if (strcmp(button, "x2") == 0) button_val = 4;
+        // For hover events, button might be "enter", "exit", "move" - use LEFT as default
+
+        PyObject* button_enum = nullptr;
+        if (PyMouseButton::mouse_button_enum_class) {
+            button_enum = PyObject_CallFunction(PyMouseButton::mouse_button_enum_class, "i", button_val);
+        }
+        if (!button_enum) {
+            PyErr_Clear();
+            button_enum = PyLong_FromLong(button_val);  // Fallback to int
+        }
+
+        // Convert action string to InputState enum
+        int action_val = (strcmp(action, "start") == 0) ? 0 : 1;  // PRESSED=0, RELEASED=1
+
+        PyObject* action_enum = nullptr;
+        if (PyInputState::input_state_enum_class) {
+            action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
+        }
+        if (!action_enum) {
+            PyErr_Clear();
+            action_enum = PyLong_FromLong(action_val);  // Fallback to int
+        }
+
+        // Call with (Vector, MouseButton, InputState) signature
+        PyObject* args = Py_BuildValue("(OOO)", pos, button_enum, action_enum);
+        Py_DECREF(pos);
+        Py_DECREF(button_enum);
+        Py_DECREF(action_enum);
+
+        PyObject* result = PyObject_Call(method, args, NULL);
+        Py_DECREF(args);
+
         if (result) {
             Py_DECREF(result);
             called = true;

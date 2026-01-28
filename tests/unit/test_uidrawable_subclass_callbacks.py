@@ -5,6 +5,9 @@ Test UIDrawable subclass callback methods (#184)
 This tests the ability to define callback methods (on_click, on_enter,
 on_exit, on_move) directly in Python subclasses of UIDrawable types
 (Frame, Caption, Sprite, Grid, Line, Circle, Arc).
+
+Callback signature: (pos: Vector, button: MouseButton, action: InputState)
+This matches property callbacks for consistency.
 """
 import mcrfpy
 import sys
@@ -31,9 +34,9 @@ class ClickableFrame(mcrfpy.Frame):
         self.click_count = 0
         self.last_click_args = None
 
-    def on_click(self, x, y, button, action):
+    def on_click(self, pos, button, action):
         self.click_count += 1
-        self.last_click_args = (x, y, button, action)
+        self.last_click_args = (pos, button, action)
 
 
 # ==============================================================================
@@ -45,14 +48,14 @@ class HoverFrame(mcrfpy.Frame):
         super().__init__(*args, **kwargs)
         self.events = []
 
-    def on_enter(self, x, y, button, action):
-        self.events.append(('enter', x, y))
+    def on_enter(self, pos, button, action):
+        self.events.append(('enter', pos.x, pos.y))
 
-    def on_exit(self, x, y, button, action):
-        self.events.append(('exit', x, y))
+    def on_exit(self, pos, button, action):
+        self.events.append(('exit', pos.x, pos.y))
 
-    def on_move(self, x, y, button, action):
-        self.events.append(('move', x, y))
+    def on_move(self, pos, button, action):
+        self.events.append(('move', pos.x, pos.y))
 
 
 # ==============================================================================
@@ -64,7 +67,7 @@ class ClickableCaption(mcrfpy.Caption):
         super().__init__(*args, **kwargs)
         self.clicked = False
 
-    def on_click(self, x, y, button, action):
+    def on_click(self, pos, button, action):
         self.clicked = True
 
 
@@ -77,7 +80,7 @@ class ClickableSprite(mcrfpy.Sprite):
         super().__init__(*args, **kwargs)
         self.clicked = False
 
-    def on_click(self, x, y, button, action):
+    def on_click(self, pos, button, action):
         self.clicked = True
 
 
@@ -90,7 +93,7 @@ class ClickableGrid(mcrfpy.Grid):
         super().__init__(*args, **kwargs)
         self.clicked = False
 
-    def on_click(self, x, y, button, action):
+    def on_click(self, pos, button, action):
         self.clicked = True
 
 
@@ -103,7 +106,7 @@ class ClickableCircle(mcrfpy.Circle):
         super().__init__(*args, **kwargs)
         self.clicked = False
 
-    def on_click(self, x, y, button, action):
+    def on_click(self, pos, button, action):
         self.clicked = True
 
 
@@ -116,7 +119,7 @@ class ClickableLine(mcrfpy.Line):
         super().__init__(*args, **kwargs)
         self.clicked = False
 
-    def on_click(self, x, y, button, action):
+    def on_click(self, pos, button, action):
         self.clicked = True
 
 
@@ -129,7 +132,7 @@ class ClickableArc(mcrfpy.Arc):
         super().__init__(*args, **kwargs)
         self.clicked = False
 
-    def on_click(self, x, y, button, action):
+    def on_click(self, pos, button, action):
         self.clicked = True
 
 
@@ -143,7 +146,7 @@ class FrameWithBoth(mcrfpy.Frame):
         self.method_called = False
         self.property_called = False
 
-    def on_click(self, x, y, button, action):
+    def on_click(self, pos, button, action):
         self.method_called = True
 
 
@@ -240,26 +243,32 @@ try:
 except Exception as e:
     test_failed("Base types are NOT marked as subclasses", e)
 
-# Test 10: Verify subclass methods are callable
+# Test 10: Verify subclass methods are callable with typed arguments
 try:
     frame = ClickableFrame(pos=(100, 100), size=(100, 100))
     # Verify method exists and is callable
     assert hasattr(frame, 'on_click'), "ClickableFrame should have on_click method"
     assert callable(frame.on_click), "on_click should be callable"
-    # Manually call to verify it works
-    frame.on_click(50.0, 50.0, "left", "start")
+    # Manually call with proper typed objects to verify it works
+    pos = mcrfpy.Vector(50.0, 50.0)
+    button = mcrfpy.MouseButton.LEFT
+    action = mcrfpy.InputState.PRESSED
+    frame.on_click(pos, button, action)
     assert frame.click_count == 1, f"click_count should be 1, got {frame.click_count}"
-    assert frame.last_click_args == (50.0, 50.0, "left", "start"), f"last_click_args mismatch: {frame.last_click_args}"
+    assert frame.last_click_args[0].x == 50.0, f"pos.x mismatch: {frame.last_click_args[0].x}"
+    assert frame.last_click_args[0].y == 50.0, f"pos.y mismatch: {frame.last_click_args[0].y}"
+    assert frame.last_click_args[1] == mcrfpy.MouseButton.LEFT, f"button mismatch: {frame.last_click_args[1]}"
+    assert frame.last_click_args[2] == mcrfpy.InputState.PRESSED, f"action mismatch: {frame.last_click_args[2]}"
     test_passed("Subclass methods are callable and work")
 except Exception as e:
     test_failed("Subclass methods are callable and work", e)
 
-# Test 11: Verify HoverFrame methods work
+# Test 11: Verify HoverFrame methods work with typed arguments
 try:
     hover = HoverFrame(pos=(250, 100), size=(100, 100))
-    hover.on_enter(10.0, 20.0, "enter", "start")
-    hover.on_exit(30.0, 40.0, "exit", "start")
-    hover.on_move(50.0, 60.0, "move", "start")
+    hover.on_enter(mcrfpy.Vector(10.0, 20.0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
+    hover.on_exit(mcrfpy.Vector(30.0, 40.0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
+    hover.on_move(mcrfpy.Vector(50.0, 60.0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
     assert len(hover.events) == 3, f"Should have 3 events, got {len(hover.events)}"
     assert hover.events[0] == ('enter', 10.0, 20.0), f"Event mismatch: {hover.events[0]}"
     assert hover.events[1] == ('exit', 30.0, 40.0), f"Event mismatch: {hover.events[1]}"
@@ -272,7 +281,7 @@ except Exception as e:
 try:
     both = FrameWithBoth(pos=(400, 250), size=(100, 100))
     property_was_called = [False]
-    def property_callback(x, y, btn, action):
+    def property_callback(pos, btn, action):
         property_was_called[0] = True
     both.click = property_callback  # Assign to property
     # Property callback should be set
@@ -288,7 +297,7 @@ try:
     frame = ClickableFrame(pos=(100, 100), size=(100, 100))
     frame.custom_attr = "test_value"
     assert frame.custom_attr == "test_value", "Custom attribute should persist"
-    frame.on_click(0, 0, "left", "start")
+    frame.on_click(mcrfpy.Vector(0, 0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
     assert frame.click_count == 1, "Click count should be 1"
     # Verify frame is still usable after attribute access
     assert frame.x == 100, f"Frame x should be 100, got {frame.x}"
