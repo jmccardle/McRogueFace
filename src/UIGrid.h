@@ -84,6 +84,10 @@ public:
     std::shared_ptr<PyTexture> getTexture();
     sf::Sprite sprite, output;
     sf::RenderTexture renderTexture;
+    sf::Vector2u renderTextureSize{0, 0};  // Track current allocation for resize detection
+
+    // Helper to ensure renderTexture matches game resolution
+    void ensureRenderTextureSize();
 
     // Intermediate texture for camera_rotation (larger than viewport to hold rotated content)
     sf::RenderTexture rotationTexture;
@@ -131,9 +135,10 @@ public:
     TCOD_fov_algorithm_t fov_algorithm;           // Default FOV algorithm (from mcrfpy.default_fov)
     int fov_radius;                               // Default FOV radius
 
-    // #142 - Grid cell mouse events
-    std::unique_ptr<PyClickCallable> on_cell_enter_callable;
-    std::unique_ptr<PyClickCallable> on_cell_exit_callable;
+    // #142, #230 - Grid cell mouse events
+    // Cell hover callbacks take only (cell_pos); cell click still takes (cell_pos, button, action)
+    std::unique_ptr<PyCellHoverCallable> on_cell_enter_callable;
+    std::unique_ptr<PyCellHoverCallable> on_cell_exit_callable;
     std::unique_ptr<PyClickCallable> on_cell_click_callable;
     std::optional<sf::Vector2i> hovered_cell;  // Currently hovered cell or nullopt
     std::optional<sf::Vector2i> last_clicked_cell;  // Cell clicked during click_at
@@ -158,11 +163,13 @@ public:
     // Now takes button/action for consistent callback signatures
     void updateCellHover(sf::Vector2f mousepos, const std::string& button, const std::string& action);
 
-    // Fire cell callbacks with full signature (cell_pos, button, action)
+    // Fire cell callbacks
+    // #230: Cell hover callbacks (enter/exit) now take only (cell_pos)
+    // Cell click still takes (cell_pos, button, action)
     // Returns true if a callback was fired
     bool fireCellClick(sf::Vector2i cell, const std::string& button, const std::string& action);
-    bool fireCellEnter(sf::Vector2i cell, const std::string& button, const std::string& action);
-    bool fireCellExit(sf::Vector2i cell, const std::string& button, const std::string& action);
+    bool fireCellEnter(sf::Vector2i cell);
+    bool fireCellExit(sf::Vector2i cell);
 
     // Refresh cell callback cache for subclass method support
     void refreshCellCallbackCache(PyObject* pyObj);

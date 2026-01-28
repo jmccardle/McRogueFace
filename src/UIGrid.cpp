@@ -40,8 +40,9 @@ UIGrid::UIGrid()
     box.setPosition(position);      // Sync box position
     box.setFillColor(sf::Color(0, 0, 0, 0));
 
-    // Initialize render texture (small default size)
+    // #228 - Initialize render texture to game resolution (small default until game init)
     renderTexture.create(1, 1);
+    renderTextureSize = {1, 1};
 
     // Initialize output sprite
     output.setTextureRect(sf::IntRect(0, 0, 0, 0));
@@ -76,8 +77,8 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
     box.setPosition(position);    // Sync box position
 
     box.setFillColor(sf::Color(0,0,0,0));
-    // create renderTexture with maximum theoretical size; sprite can resize to show whatever amount needs to be rendered
-    renderTexture.create(1920, 1080); // TODO - renderTexture should be window size; above 1080p this will cause rendering errors
+    // #228 - create renderTexture sized to game resolution (dynamically resized as needed)
+    ensureRenderTextureSize();
 
     // Only initialize sprite if texture is available
     if (ptex) {
@@ -144,6 +145,9 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // Check visibility
     if (!visible) return;
+
+    // #228 - Ensure renderTexture matches current game resolution
+    ensureRenderTextureSize();
 
     // TODO: Apply opacity to output sprite
 
@@ -461,6 +465,26 @@ UIGrid::~UIGrid()
     if (tcod_map) {
         delete tcod_map;
         tcod_map = nullptr;
+    }
+}
+
+void UIGrid::ensureRenderTextureSize()
+{
+    // Get game resolution (or use sensible defaults during early init)
+    sf::Vector2u resolution{1920, 1080};
+    if (Resources::game) {
+        resolution = Resources::game->getGameResolution();
+    }
+
+    // Clamp to reasonable maximum (SFML texture size limits)
+    unsigned int required_w = std::min(resolution.x, 4096u);
+    unsigned int required_h = std::min(resolution.y, 4096u);
+
+    // Only recreate if size changed
+    if (renderTextureSize.x != required_w || renderTextureSize.y != required_h) {
+        renderTexture.create(required_w, required_h);
+        renderTextureSize = {required_w, required_h};
+        output.setTexture(renderTexture.getTexture());
     }
 }
 
@@ -2339,11 +2363,12 @@ PyObject* UIGrid::get_on_cell_enter(PyUIGridObject* self, void* closure) {
     Py_RETURN_NONE;
 }
 
+// #230 - Cell hover callbacks now use PyCellHoverCallable (position-only)
 int UIGrid::set_on_cell_enter(PyUIGridObject* self, PyObject* value, void* closure) {
     if (value == Py_None) {
         self->data->on_cell_enter_callable.reset();
     } else {
-        self->data->on_cell_enter_callable = std::make_unique<PyClickCallable>(value);
+        self->data->on_cell_enter_callable = std::make_unique<PyCellHoverCallable>(value);
     }
     return 0;
 }
@@ -2357,11 +2382,12 @@ PyObject* UIGrid::get_on_cell_exit(PyUIGridObject* self, void* closure) {
     Py_RETURN_NONE;
 }
 
+// #230 - Cell hover callbacks now use PyCellHoverCallable (position-only)
 int UIGrid::set_on_cell_exit(PyUIGridObject* self, PyObject* value, void* closure) {
     if (value == Py_None) {
         self->data->on_cell_exit_callable.reset();
     } else {
-        self->data->on_cell_exit_callable = std::make_unique<PyClickCallable>(value);
+        self->data->on_cell_exit_callable = std::make_unique<PyCellHoverCallable>(value);
     }
     return 0;
 }
@@ -2553,6 +2579,26 @@ static PyObject* createCellCallbackArgs(sf::Vector2i cell, const std::string& bu
     return args;
 }
 
+// #230 - Helper to create cell hover callback arguments: (Vector) only
+static PyObject* createCellHoverArgs(sf::Vector2i cell) {
+    // Create Vector object for cell position
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) {
+        PyErr_Print();
+        return nullptr;
+    }
+    PyObject* cell_pos = PyObject_CallFunction(vector_type, "ii", cell.x, cell.y);
+    Py_DECREF(vector_type);
+    if (!cell_pos) {
+        PyErr_Print();
+        return nullptr;
+    }
+
+    PyObject* args = Py_BuildValue("(O)", cell_pos);
+    Py_DECREF(cell_pos);
+    return args;
+}
+
 // Fire cell click callback with full signature (cell_pos, button, action)
 bool UIGrid::fireCellClick(sf::Vector2i cell, const std::string& button, const std::string& action) {
     // Try property-assigned callback first
@@ -2604,23 +2650,12 @@ bool UIGrid::fireCellClick(sf::Vector2i cell, const std::string& button, const s
     return false;
 }
 
-// Fire cell enter callback with full signature (cell_pos, button, action)
-bool UIGrid::fireCellEnter(sf::Vector2i cell, const std::string& button, const std::string& action) {
-    // Try property-assigned callback first
+// #230 - Fire cell enter callback with position-only signature (cell_pos)
+bool UIGrid::fireCellEnter(sf::Vector2i cell) {
+    // Try property-assigned callback first (now PyCellHoverCallable)
     if (on_cell_enter_callable && !on_cell_enter_callable->isNone()) {
-        PyObject* args = createCellCallbackArgs(cell, button, action);
-        if (args) {
-            PyObject* result = PyObject_CallObject(on_cell_enter_callable->borrow(), args);
-            Py_DECREF(args);
-            if (!result) {
-                std::cerr << "Cell enter callback raised an exception:" << std::endl;
-                PyErr_Print();
-                PyErr_Clear();
-            } else {
-                Py_DECREF(result);
-            }
-            return true;
-        }
+        on_cell_enter_callable->call(cell);
+        return true;
     }
 
     // Try Python subclass method
@@ -2631,7 +2666,8 @@ bool UIGrid::fireCellEnter(sf::Vector2i cell, const std::string& button, const s
             if (cell_callback_cache.has_on_cell_enter) {
                 PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_enter");
                 if (method && PyCallable_Check(method)) {
-                    PyObject* args = createCellCallbackArgs(cell, button, action);
+                    // #230: Cell hover takes only (cell_pos)
+                    PyObject* args = createCellHoverArgs(cell);
                     if (args) {
                         PyObject* result = PyObject_CallObject(method, args);
                         Py_DECREF(args);
@@ -2655,23 +2691,12 @@ bool UIGrid::fireCellEnter(sf::Vector2i cell, const std::string& button, const s
     return false;
 }
 
-// Fire cell exit callback with full signature (cell_pos, button, action)
-bool UIGrid::fireCellExit(sf::Vector2i cell, const std::string& button, const std::string& action) {
-    // Try property-assigned callback first
+// #230 - Fire cell exit callback with position-only signature (cell_pos)
+bool UIGrid::fireCellExit(sf::Vector2i cell) {
+    // Try property-assigned callback first (now PyCellHoverCallable)
     if (on_cell_exit_callable && !on_cell_exit_callable->isNone()) {
-        PyObject* args = createCellCallbackArgs(cell, button, action);
-        if (args) {
-            PyObject* result = PyObject_CallObject(on_cell_exit_callable->borrow(), args);
-            Py_DECREF(args);
-            if (!result) {
-                std::cerr << "Cell exit callback raised an exception:" << std::endl;
-                PyErr_Print();
-                PyErr_Clear();
-            } else {
-                Py_DECREF(result);
-            }
-            return true;
-        }
+        on_cell_exit_callable->call(cell);
+        return true;
     }
 
     // Try Python subclass method
@@ -2682,7 +2707,8 @@ bool UIGrid::fireCellExit(sf::Vector2i cell, const std::string& button, const st
             if (cell_callback_cache.has_on_cell_exit) {
                 PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_exit");
                 if (method && PyCallable_Check(method)) {
-                    PyObject* args = createCellCallbackArgs(cell, button, action);
+                    // #230: Cell hover takes only (cell_pos)
+                    PyObject* args = createCellHoverArgs(cell);
                     if (args) {
                         PyObject* result = PyObject_CallObject(method, args);
                         Py_DECREF(args);
@@ -2707,19 +2733,23 @@ bool UIGrid::fireCellExit(sf::Vector2i cell, const std::string& button, const st
 }
 
 // #142 - Update cell hover state and fire callbacks
+// #230 - Cell hover callbacks now take only (cell_pos), no button/action
 void UIGrid::updateCellHover(sf::Vector2f mousepos, const std::string& button, const std::string& action) {
+    (void)button;  // #230 - No longer used for hover callbacks
+    (void)action;  // #230 - No longer used for hover callbacks
+
     auto new_cell = screenToCell(mousepos);
 
     // Check if cell changed
     if (new_cell != hovered_cell) {
         // Fire exit callback for old cell
         if (hovered_cell.has_value()) {
-            fireCellExit(hovered_cell.value(), button, action);
+            fireCellExit(hovered_cell.value());
         }
 
         // Fire enter callback for new cell
         if (new_cell.has_value()) {
-            fireCellEnter(new_cell.value(), button, action);
+            fireCellEnter(new_cell.value());
         }
 
         hovered_cell = new_cell;
