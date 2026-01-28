@@ -195,12 +195,41 @@ void PyScene::do_mouse_input(std::string button, std::string type)
             // #184: Try property-assigned callable first (fast path)
             if (target->click_callable && !target->click_callable->isNone()) {
                 target->click_callable->call(mousepos, button, type);
+
+                // Also fire grid cell click if applicable
+                if (target->derived_type() == PyObjectsEnum::UIGRID) {
+                    auto grid = static_cast<UIGrid*>(target);
+                    if (grid->last_clicked_cell.has_value()) {
+                        grid->fireCellClick(grid->last_clicked_cell.value(), button, type);
+                        grid->last_clicked_cell = std::nullopt;
+                    }
+                }
                 return; // Stop after first handler
             }
 
             // #184: Try Python subclass method
             if (tryCallPythonMethod(target, "on_click", mousepos, button.c_str(), type.c_str())) {
+                // Also fire grid cell click if applicable
+                if (target->derived_type() == PyObjectsEnum::UIGRID) {
+                    auto grid = static_cast<UIGrid*>(target);
+                    if (grid->last_clicked_cell.has_value()) {
+                        grid->fireCellClick(grid->last_clicked_cell.value(), button, type);
+                        grid->last_clicked_cell = std::nullopt;
+                    }
+                }
                 return; // Stop after first handler
+            }
+
+            // Fire grid cell click even if no on_click handler (but has cell click handler)
+            if (target->derived_type() == PyObjectsEnum::UIGRID) {
+                auto grid = static_cast<UIGrid*>(target);
+                if (grid->last_clicked_cell.has_value()) {
+                    bool handled = grid->fireCellClick(grid->last_clicked_cell.value(), button, type);
+                    grid->last_clicked_cell = std::nullopt;
+                    if (handled) {
+                        return; // Stop after handling cell click
+                    }
+                }
             }
 
             // Element claimed the click but had no handler - still stop propagation
@@ -286,7 +315,8 @@ void PyScene::do_mouse_hover(int x, int y)
             auto grid = static_cast<UIGrid*>(drawable);
 
             // #142 - Update cell hover tracking for grid
-            grid->updateCellHover(mousepos);
+            // Pass "none" for button and "move" for action during hover
+            grid->updateCellHover(mousepos, "none", "move");
 
             if (grid->children) {
                 for (auto& child : *grid->children) {

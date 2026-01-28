@@ -13,6 +13,8 @@
 #include "PyHeightMap.h"  // #199 - HeightMap application methods
 #include "PyShader.h"  // #106: Shader support
 #include "PyUniformCollection.h"  // #106: Uniform collection support
+#include "PyMouseButton.h"  // For MouseButton enum
+#include "PyInputState.h"   // For InputState enum
 #include <algorithm>
 #include <cmath>    // #142 - for std::floor, std::isnan
 #include <cstring>  // #150 - for strcmp
@@ -681,69 +683,20 @@ UIDrawable* UIGrid::click_at(sf::Vector2f point)
     }
     
     // No entity handled it, check if grid itself has handler
-    // #184: Also check for Python subclass (might have on_click method)
-    if (click_callable || is_python_subclass) {
-        // #142 - Fire on_cell_click if we have the callback and clicked on a valid cell
-        if (on_cell_click_callable) {
-            int cell_x = static_cast<int>(std::floor(grid_x));
-            int cell_y = static_cast<int>(std::floor(grid_y));
+    // #184: Also check for Python subclass (might have on_click or on_cell_click method)
 
-            // Only fire if within valid grid bounds
-            if (cell_x >= 0 && cell_x < this->grid_w && cell_y >= 0 && cell_y < this->grid_h) {
-                // Create Vector object for cell position - must fetch finalized type from module
-                PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-                if (vector_type) {
-                    PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)cell_x, (float)cell_y);
-                    Py_DECREF(vector_type);
-                    if (cell_pos) {
-                        PyObject* args = Py_BuildValue("(O)", cell_pos);
-                        Py_DECREF(cell_pos);
-                        PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
-                        Py_DECREF(args);
-                        if (!result) {
-                            std::cerr << "Cell click callback raised an exception:" << std::endl;
-                            PyErr_Print();
-                            PyErr_Clear();
-                        } else {
-                            Py_DECREF(result);
-                        }
-                    }
-                }
-            }
-        }
-        return this;
+    // Store clicked cell for later callback firing (with button/action from PyScene)
+    int cell_x = static_cast<int>(std::floor(grid_x));
+    int cell_y = static_cast<int>(std::floor(grid_y));
+    if (cell_x >= 0 && cell_x < this->grid_w && cell_y >= 0 && cell_y < this->grid_h) {
+        last_clicked_cell = sf::Vector2i(cell_x, cell_y);
+    } else {
+        last_clicked_cell = std::nullopt;
     }
 
-    // #142 - Even without click_callable, fire on_cell_click if present
-    // Note: We fire the callback but DON'T return this, because PyScene::do_mouse_input
-    // would try to call click_callable which doesn't exist
-    if (on_cell_click_callable) {
-        int cell_x = static_cast<int>(std::floor(grid_x));
-        int cell_y = static_cast<int>(std::floor(grid_y));
-
-        // Only fire if within valid grid bounds
-        if (cell_x >= 0 && cell_x < this->grid_w && cell_y >= 0 && cell_y < this->grid_h) {
-            // Create Vector object for cell position - must fetch finalized type from module
-            PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-            if (vector_type) {
-                PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)cell_x, (float)cell_y);
-                Py_DECREF(vector_type);
-                if (cell_pos) {
-                    PyObject* args = Py_BuildValue("(O)", cell_pos);
-                    Py_DECREF(cell_pos);
-                    PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
-                    Py_DECREF(args);
-                    if (!result) {
-                        std::cerr << "Cell click callback raised an exception:" << std::endl;
-                        PyErr_Print();
-                        PyErr_Clear();
-                    } else {
-                        Py_DECREF(result);
-                    }
-                }
-            }
-            // Don't return this - no click_callable to call
-        }
+    // Return this if we have any handler (property callback, subclass method, or cell callback)
+    if (click_callable || is_python_subclass || on_cell_click_callable) {
+        return this;
     }
 
     return nullptr;
@@ -2484,56 +2437,289 @@ sf::Vector2f UIGrid::getEffectiveCellSize() const {
     return sf::Vector2f(cell_w * zoom, cell_h * zoom);
 }
 
+// Helper function to convert button string to MouseButton enum value
+static int buttonStringToEnum(const std::string& button) {
+    if (button == "left") return 0;       // MouseButton.LEFT
+    if (button == "right") return 1;      // MouseButton.RIGHT
+    if (button == "middle") return 2;     // MouseButton.MIDDLE
+    if (button == "wheel_up") return 3;   // MouseButton.WHEEL_UP
+    if (button == "wheel_down") return 4; // MouseButton.WHEEL_DOWN
+    return 0; // Default to LEFT
+}
+
+// Helper function to convert action string to InputState enum value
+static int actionStringToEnum(const std::string& action) {
+    if (action == "start" || action == "pressed") return 0;   // InputState.PRESSED
+    if (action == "end" || action == "released") return 1;    // InputState.RELEASED
+    return 0; // Default to PRESSED
+}
+
+// #142 - Refresh cell callback cache for Python subclass method support
+void UIGrid::refreshCellCallbackCache(PyObject* pyObj) {
+    if (!pyObj || !is_python_subclass) {
+        cell_callback_cache.valid = false;
+        return;
+    }
+
+    // Get the class's callback generation counter
+    PyObject* cls = (PyObject*)Py_TYPE(pyObj);
+    uint32_t current_gen = 0;
+    PyObject* gen_obj = PyObject_GetAttrString(cls, "_mcrf_callback_gen");
+    if (gen_obj) {
+        current_gen = static_cast<uint32_t>(PyLong_AsUnsignedLong(gen_obj));
+        Py_DECREF(gen_obj);
+    } else {
+        PyErr_Clear();
+    }
+
+    // Check if cache is still valid
+    if (cell_callback_cache.valid && cell_callback_cache.generation == current_gen) {
+        return; // Cache is fresh
+    }
+
+    // Refresh cache - check for each cell callback method
+    cell_callback_cache.has_on_cell_click = false;
+    cell_callback_cache.has_on_cell_enter = false;
+    cell_callback_cache.has_on_cell_exit = false;
+
+    // Check class hierarchy for each method
+    PyTypeObject* type = Py_TYPE(pyObj);
+    while (type && type != &mcrfpydef::PyUIGridType && type != &PyBaseObject_Type) {
+        if (type->tp_dict) {
+            if (!cell_callback_cache.has_on_cell_click) {
+                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_click");
+                if (method && PyCallable_Check(method)) {
+                    cell_callback_cache.has_on_cell_click = true;
+                }
+            }
+            if (!cell_callback_cache.has_on_cell_enter) {
+                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_enter");
+                if (method && PyCallable_Check(method)) {
+                    cell_callback_cache.has_on_cell_enter = true;
+                }
+            }
+            if (!cell_callback_cache.has_on_cell_exit) {
+                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_exit");
+                if (method && PyCallable_Check(method)) {
+                    cell_callback_cache.has_on_cell_exit = true;
+                }
+            }
+        }
+        type = type->tp_base;
+    }
+
+    cell_callback_cache.generation = current_gen;
+    cell_callback_cache.valid = true;
+}
+
+// Helper to create typed cell callback arguments: (Vector, MouseButton, InputState)
+static PyObject* createCellCallbackArgs(sf::Vector2i cell, const std::string& button, const std::string& action) {
+    // Create Vector object for cell position
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) {
+        PyErr_Print();
+        return nullptr;
+    }
+    PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)cell.x, (float)cell.y);
+    Py_DECREF(vector_type);
+    if (!cell_pos) {
+        PyErr_Print();
+        return nullptr;
+    }
+
+    // Create MouseButton enum
+    int button_val = buttonStringToEnum(button);
+    PyObject* button_enum = PyObject_CallFunction(PyMouseButton::mouse_button_enum_class, "i", button_val);
+    if (!button_enum) {
+        Py_DECREF(cell_pos);
+        PyErr_Print();
+        return nullptr;
+    }
+
+    // Create InputState enum
+    int action_val = actionStringToEnum(action);
+    PyObject* action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
+    if (!action_enum) {
+        Py_DECREF(cell_pos);
+        Py_DECREF(button_enum);
+        PyErr_Print();
+        return nullptr;
+    }
+
+    PyObject* args = Py_BuildValue("(OOO)", cell_pos, button_enum, action_enum);
+    Py_DECREF(cell_pos);
+    Py_DECREF(button_enum);
+    Py_DECREF(action_enum);
+    return args;
+}
+
+// Fire cell click callback with full signature (cell_pos, button, action)
+bool UIGrid::fireCellClick(sf::Vector2i cell, const std::string& button, const std::string& action) {
+    // Try property-assigned callback first
+    if (on_cell_click_callable && !on_cell_click_callable->isNone()) {
+        PyObject* args = createCellCallbackArgs(cell, button, action);
+        if (args) {
+            PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
+            Py_DECREF(args);
+            if (!result) {
+                std::cerr << "Cell click callback raised an exception:" << std::endl;
+                PyErr_Print();
+                PyErr_Clear();
+            } else {
+                Py_DECREF(result);
+            }
+            return true;
+        }
+    }
+
+    // Try Python subclass method
+    if (is_python_subclass) {
+        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        if (pyObj) {
+            refreshCellCallbackCache(pyObj);
+            if (cell_callback_cache.has_on_cell_click) {
+                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_click");
+                if (method && PyCallable_Check(method)) {
+                    PyObject* args = createCellCallbackArgs(cell, button, action);
+                    if (args) {
+                        PyObject* result = PyObject_CallObject(method, args);
+                        Py_DECREF(args);
+                        Py_DECREF(method);
+                        Py_DECREF(pyObj);
+                        if (!result) {
+                            std::cerr << "Cell click method raised an exception:" << std::endl;
+                            PyErr_Print();
+                            PyErr_Clear();
+                        } else {
+                            Py_DECREF(result);
+                        }
+                        return true;
+                    }
+                }
+                Py_XDECREF(method);
+            }
+            Py_DECREF(pyObj);
+        }
+    }
+    return false;
+}
+
+// Fire cell enter callback with full signature (cell_pos, button, action)
+bool UIGrid::fireCellEnter(sf::Vector2i cell, const std::string& button, const std::string& action) {
+    // Try property-assigned callback first
+    if (on_cell_enter_callable && !on_cell_enter_callable->isNone()) {
+        PyObject* args = createCellCallbackArgs(cell, button, action);
+        if (args) {
+            PyObject* result = PyObject_CallObject(on_cell_enter_callable->borrow(), args);
+            Py_DECREF(args);
+            if (!result) {
+                std::cerr << "Cell enter callback raised an exception:" << std::endl;
+                PyErr_Print();
+                PyErr_Clear();
+            } else {
+                Py_DECREF(result);
+            }
+            return true;
+        }
+    }
+
+    // Try Python subclass method
+    if (is_python_subclass) {
+        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        if (pyObj) {
+            refreshCellCallbackCache(pyObj);
+            if (cell_callback_cache.has_on_cell_enter) {
+                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_enter");
+                if (method && PyCallable_Check(method)) {
+                    PyObject* args = createCellCallbackArgs(cell, button, action);
+                    if (args) {
+                        PyObject* result = PyObject_CallObject(method, args);
+                        Py_DECREF(args);
+                        Py_DECREF(method);
+                        Py_DECREF(pyObj);
+                        if (!result) {
+                            std::cerr << "Cell enter method raised an exception:" << std::endl;
+                            PyErr_Print();
+                            PyErr_Clear();
+                        } else {
+                            Py_DECREF(result);
+                        }
+                        return true;
+                    }
+                }
+                Py_XDECREF(method);
+            }
+            Py_DECREF(pyObj);
+        }
+    }
+    return false;
+}
+
+// Fire cell exit callback with full signature (cell_pos, button, action)
+bool UIGrid::fireCellExit(sf::Vector2i cell, const std::string& button, const std::string& action) {
+    // Try property-assigned callback first
+    if (on_cell_exit_callable && !on_cell_exit_callable->isNone()) {
+        PyObject* args = createCellCallbackArgs(cell, button, action);
+        if (args) {
+            PyObject* result = PyObject_CallObject(on_cell_exit_callable->borrow(), args);
+            Py_DECREF(args);
+            if (!result) {
+                std::cerr << "Cell exit callback raised an exception:" << std::endl;
+                PyErr_Print();
+                PyErr_Clear();
+            } else {
+                Py_DECREF(result);
+            }
+            return true;
+        }
+    }
+
+    // Try Python subclass method
+    if (is_python_subclass) {
+        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        if (pyObj) {
+            refreshCellCallbackCache(pyObj);
+            if (cell_callback_cache.has_on_cell_exit) {
+                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_exit");
+                if (method && PyCallable_Check(method)) {
+                    PyObject* args = createCellCallbackArgs(cell, button, action);
+                    if (args) {
+                        PyObject* result = PyObject_CallObject(method, args);
+                        Py_DECREF(args);
+                        Py_DECREF(method);
+                        Py_DECREF(pyObj);
+                        if (!result) {
+                            std::cerr << "Cell exit method raised an exception:" << std::endl;
+                            PyErr_Print();
+                            PyErr_Clear();
+                        } else {
+                            Py_DECREF(result);
+                        }
+                        return true;
+                    }
+                }
+                Py_XDECREF(method);
+            }
+            Py_DECREF(pyObj);
+        }
+    }
+    return false;
+}
+
 // #142 - Update cell hover state and fire callbacks
-void UIGrid::updateCellHover(sf::Vector2f mousepos) {
+void UIGrid::updateCellHover(sf::Vector2f mousepos, const std::string& button, const std::string& action) {
     auto new_cell = screenToCell(mousepos);
 
     // Check if cell changed
     if (new_cell != hovered_cell) {
         // Fire exit callback for old cell
-        if (hovered_cell.has_value() && on_cell_exit_callable) {
-            // Create Vector object for cell position - must fetch finalized type from module
-            PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-            if (vector_type) {
-                PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)hovered_cell->x, (float)hovered_cell->y);
-                Py_DECREF(vector_type);
-                if (cell_pos) {
-                    PyObject* args = Py_BuildValue("(O)", cell_pos);
-                    Py_DECREF(cell_pos);
-                    PyObject* result = PyObject_CallObject(on_cell_exit_callable->borrow(), args);
-                    Py_DECREF(args);
-                    if (!result) {
-                        std::cerr << "Cell exit callback raised an exception:" << std::endl;
-                        PyErr_Print();
-                        PyErr_Clear();
-                    } else {
-                        Py_DECREF(result);
-                    }
-                }
-            }
+        if (hovered_cell.has_value()) {
+            fireCellExit(hovered_cell.value(), button, action);
         }
 
         // Fire enter callback for new cell
-        if (new_cell.has_value() && on_cell_enter_callable) {
-            // Create Vector object for cell position - must fetch finalized type from module
-            PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-            if (vector_type) {
-                PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)new_cell->x, (float)new_cell->y);
-                Py_DECREF(vector_type);
-                if (cell_pos) {
-                    PyObject* args = Py_BuildValue("(O)", cell_pos);
-                    Py_DECREF(cell_pos);
-                    PyObject* result = PyObject_CallObject(on_cell_enter_callable->borrow(), args);
-                    Py_DECREF(args);
-                    if (!result) {
-                        std::cerr << "Cell enter callback raised an exception:" << std::endl;
-                        PyErr_Print();
-                        PyErr_Clear();
-                    } else {
-                        Py_DECREF(result);
-                    }
-                }
-            }
+        if (new_cell.has_value()) {
+            fireCellEnter(new_cell.value(), button, action);
         }
 
         hovered_cell = new_cell;

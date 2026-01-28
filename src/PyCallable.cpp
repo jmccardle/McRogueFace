@@ -4,6 +4,7 @@
 #include "PyVector.h"
 #include "PyMouseButton.h"
 #include "PyInputState.h"
+#include "PyKey.h"
 
 PyCallable::PyCallable(PyObject* _target)
 {
@@ -143,7 +144,32 @@ PyKeyCallable::PyKeyCallable()
 void PyKeyCallable::call(std::string key, std::string action)
 {
     if (target == Py_None || target == NULL) return;
-    PyObject* args = Py_BuildValue("(ss)", key.c_str(), action.c_str());
+
+    // Convert key string to Key enum
+    sf::Keyboard::Key sfml_key = PyKey::from_legacy_string(key.c_str());
+    PyObject* key_enum = PyObject_CallFunction(PyKey::key_enum_class, "i", static_cast<int>(sfml_key));
+    if (!key_enum) {
+        std::cerr << "Failed to create Key enum for key: " << key << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+        return;
+    }
+
+    // Convert action string to InputState enum
+    int action_val = (action == "start" || action == "pressed") ? 0 : 1;  // PRESSED = 0, RELEASED = 1
+    PyObject* action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
+    if (!action_enum) {
+        Py_DECREF(key_enum);
+        std::cerr << "Failed to create InputState enum for action: " << action << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+        return;
+    }
+
+    PyObject* args = Py_BuildValue("(OO)", key_enum, action_enum);
+    Py_DECREF(key_enum);
+    Py_DECREF(action_enum);
+
     PyObject* retval = PyCallable::call(args, NULL);
     if (!retval)
     {

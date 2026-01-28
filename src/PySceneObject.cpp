@@ -4,6 +4,8 @@
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "PyTransition.h"
+#include "PyKey.h"
+#include "PyInputState.h"
 #include <iostream>
 
 // Static map to store Python scene objects by name
@@ -390,12 +392,38 @@ void PySceneClass::call_on_key(PySceneObject* self, const std::string& key, cons
 
     // Look for on_key attribute on the Python object
     // This handles both:
-    // 1. Subclass methods: class MyScene(Scene): def on_key(self, k, s): ...
-    // 2. Instance attributes: ts.on_key = lambda k, s: ...  (when subclass shadows property)
+    // 1. Subclass methods: class MyScene(Scene): def on_key(self, key, action): ...
+    // 2. Instance attributes: ts.on_key = lambda k, a: ...  (when subclass shadows property)
     PyObject* attr = PyObject_GetAttrString((PyObject*)self, "on_key");
     if (attr && PyCallable_Check(attr) && attr != Py_None) {
-        // Call it - works for both bound methods and regular callables
-        PyObject* result = PyObject_CallFunction(attr, "ss", key.c_str(), action.c_str());
+        // Convert key string to Key enum
+        sf::Keyboard::Key sfml_key = PyKey::from_legacy_string(key.c_str());
+        PyObject* key_enum = PyObject_CallFunction(PyKey::key_enum_class, "i", static_cast<int>(sfml_key));
+        if (!key_enum) {
+            std::cerr << "Failed to create Key enum for key: " << key << std::endl;
+            PyErr_Print();
+            Py_DECREF(attr);
+            PyGILState_Release(gstate);
+            return;
+        }
+
+        // Convert action string to InputState enum
+        int action_val = (action == "start" || action == "pressed") ? 0 : 1;  // PRESSED = 0, RELEASED = 1
+        PyObject* action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
+        if (!action_enum) {
+            std::cerr << "Failed to create InputState enum for action: " << action << std::endl;
+            Py_DECREF(key_enum);
+            PyErr_Print();
+            Py_DECREF(attr);
+            PyGILState_Release(gstate);
+            return;
+        }
+
+        // Call it with typed args - works for both bound methods and regular callables
+        PyObject* result = PyObject_CallFunctionObjArgs(attr, key_enum, action_enum, NULL);
+        Py_DECREF(key_enum);
+        Py_DECREF(action_enum);
+
         if (result) {
             Py_DECREF(result);
         } else {
@@ -485,7 +513,7 @@ PyGetSetDef PySceneClass::getsetters[] = {
          "Use to add, remove, or iterate over UI elements. Changes are reflected immediately."), NULL},
     {"on_key", (getter)PySceneClass_get_on_key, (setter)PySceneClass_set_on_key,
      MCRF_PROPERTY(on_key, "Keyboard event handler (callable or None). "
-         "Function receives (key: str, action: str) for keyboard events. "
+         "Function receives (key: Key, action: InputState) for keyboard events. "
          "Set to None to remove the handler."), NULL},
     {NULL}
 };

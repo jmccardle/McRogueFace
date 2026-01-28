@@ -136,6 +136,17 @@ public:
     std::unique_ptr<PyClickCallable> on_cell_exit_callable;
     std::unique_ptr<PyClickCallable> on_cell_click_callable;
     std::optional<sf::Vector2i> hovered_cell;  // Currently hovered cell or nullopt
+    std::optional<sf::Vector2i> last_clicked_cell;  // Cell clicked during click_at
+
+    // Grid-specific cell callback cache (separate from UIDrawable::CallbackCache)
+    struct CellCallbackCache {
+        uint32_t generation = 0;
+        bool valid = false;
+        bool has_on_cell_click = false;
+        bool has_on_cell_enter = false;
+        bool has_on_cell_exit = false;
+    };
+    CellCallbackCache cell_callback_cache;
 
     // #142 - Cell coordinate conversion (screen pos -> cell coords)
     std::optional<sf::Vector2i> screenToCell(sf::Vector2f screen_pos) const;
@@ -144,7 +155,17 @@ public:
     sf::Vector2f getEffectiveCellSize() const;
 
     // #142 - Update cell hover state (called from PyScene)
-    void updateCellHover(sf::Vector2f mousepos);
+    // Now takes button/action for consistent callback signatures
+    void updateCellHover(sf::Vector2f mousepos, const std::string& button, const std::string& action);
+
+    // Fire cell callbacks with full signature (cell_pos, button, action)
+    // Returns true if a callback was fired
+    bool fireCellClick(sf::Vector2i cell, const std::string& button, const std::string& action);
+    bool fireCellEnter(sf::Vector2i cell, const std::string& button, const std::string& action);
+    bool fireCellExit(sf::Vector2i cell, const std::string& button, const std::string& action);
+
+    // Refresh cell callback cache for subclass method support
+    void refreshCellCallbackCache(PyObject* pyObj);
     
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
