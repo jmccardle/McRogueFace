@@ -49,9 +49,10 @@ def test_callback_refcount():
         errors.append(f"on_click returned non-callable after repeated access: {type(final_cb)}")
 
     # Test on_enter, on_exit, on_move
-    frame.on_enter = lambda pos, button, action: None
-    frame.on_exit = lambda pos, button, action: None
-    frame.on_move = lambda pos, button, action: None
+    # #230 - Hover callbacks now take only (pos)
+    frame.on_enter = lambda pos: None
+    frame.on_exit = lambda pos: None
+    frame.on_move = lambda pos: None
 
     for name in ['on_enter', 'on_exit', 'on_move']:
         for i in range(5):

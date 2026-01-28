@@ -45,9 +45,9 @@ public:
 
     // Mouse input handling - callable objects for click, enter, exit, move events
     std::unique_ptr<PyClickCallable> click_callable;
-    std::unique_ptr<PyClickCallable> on_enter_callable;   // #140
-    std::unique_ptr<PyClickCallable> on_exit_callable;    // #140
-    std::unique_ptr<PyClickCallable> on_move_callable;    // #141
+    std::unique_ptr<PyHoverCallable> on_enter_callable;   // #140, #230 - position-only
+    std::unique_ptr<PyHoverCallable> on_exit_callable;    // #140, #230 - position-only
+    std::unique_ptr<PyHoverCallable> on_move_callable;    // #141, #230 - position-only
 
     virtual UIDrawable* click_at(sf::Vector2f point) = 0;
     void click_register(PyObject*);

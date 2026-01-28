@@ -127,6 +127,81 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
     return called;
 }
 
+// #230: Overload for hover events that take only position (no button/action)
+static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
+                                 sf::Vector2f mousepos) {
+    if (!drawable->is_python_subclass) return false;
+
+    PyObject* pyObj = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+    if (!pyObj) return false;
+
+    // Check and refresh cache if needed
+    PyObject* type = (PyObject*)Py_TYPE(pyObj);
+    if (!drawable->isCallbackCacheValid(type)) {
+        drawable->refreshCallbackCache(pyObj);
+    }
+
+    // Check if this method exists in the cache
+    bool has_method = false;
+    if (strcmp(method_name, "on_enter") == 0) {
+        has_method = drawable->callback_cache.has_on_enter;
+    } else if (strcmp(method_name, "on_exit") == 0) {
+        has_method = drawable->callback_cache.has_on_exit;
+    } else if (strcmp(method_name, "on_move") == 0) {
+        has_method = drawable->callback_cache.has_on_move;
+    }
+
+    if (!has_method) {
+        Py_DECREF(pyObj);
+        return false;
+    }
+
+    // Get the method
+    PyObject* method = PyObject_GetAttrString(pyObj, method_name);
+    bool called = false;
+
+    if (method && PyCallable_Check(method) && method != Py_None) {
+        // Create Vector object for position
+        PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+        if (!vector_type) {
+            PyErr_Print();
+            PyErr_Clear();
+            Py_XDECREF(method);
+            Py_DECREF(pyObj);
+            return false;
+        }
+        PyObject* pos = PyObject_CallFunction(vector_type, "ff", mousepos.x, mousepos.y);
+        Py_DECREF(vector_type);
+        if (!pos) {
+            PyErr_Print();
+            PyErr_Clear();
+            Py_XDECREF(method);
+            Py_DECREF(pyObj);
+            return false;
+        }
+
+        // #230: Call with just (Vector) signature for hover events
+        PyObject* args = Py_BuildValue("(O)", pos);
+        Py_DECREF(pos);
+
+        PyObject* result = PyObject_Call(method, args, NULL);
+        Py_DECREF(args);
+
+        if (result) {
+            Py_DECREF(result);
+            called = true;
+        } else {
+            PyErr_Print();
+        }
+    }
+
+    PyErr_Clear();
+    Py_XDECREF(method);
+    Py_DECREF(pyObj);
+
+    return called;
+}
+
 // Check if a UIDrawable can potentially handle an event
 // (has either a callable property OR is a Python subclass that might have a method)
 static bool canHandleEvent(UIDrawable* drawable, const char* event_type) {
@@ -274,30 +349,33 @@ void PyScene::do_mouse_hover(int x, int y)
             // Mouse entered
             drawable->hovered = true;
             // #184: Try property-assigned callable first, then Python subclass method
+            // #230: Hover callbacks now take only (pos)
             if (drawable->on_enter_callable && !drawable->on_enter_callable->isNone()) {
-                drawable->on_enter_callable->call(mousepos, "enter", "start");
+                drawable->on_enter_callable->call(mousepos);
             } else if (drawable->is_python_subclass) {
-                tryCallPythonMethod(drawable, "on_enter", mousepos, "enter", "start");
+                tryCallPythonMethod(drawable, "on_enter", mousepos);
             }
         } else if (!is_inside && was_hovered) {
             // Mouse exited
             drawable->hovered = false;
             // #184: Try property-assigned callable first, then Python subclass method
+            // #230: Hover callbacks now take only (pos)
             if (drawable->on_exit_callable && !drawable->on_exit_callable->isNone()) {
-                drawable->on_exit_callable->call(mousepos, "exit", "start");
+                drawable->on_exit_callable->call(mousepos);
             } else if (drawable->is_python_subclass) {
-                tryCallPythonMethod(drawable, "on_exit", mousepos, "exit", "start");
+                tryCallPythonMethod(drawable, "on_exit", mousepos);
             }
         }
 
         // #141 - Fire on_move if mouse is inside and has a move/on_move callback
         // #184: Try property-assigned callable first, then Python subclass method
+        // #230: Hover callbacks now take only (pos)
         // Check is_python_subclass before function call to avoid overhead on hot path
         if (is_inside) {
             if (drawable->on_move_callable && !drawable->on_move_callable->isNone()) {
-                drawable->on_move_callable->call(mousepos, "move", "start");
+                drawable->on_move_callable->call(mousepos);
             } else if (drawable->is_python_subclass) {
-                tryCallPythonMethod(drawable, "on_move", mousepos, "move", "start");
+                tryCallPythonMethod(drawable, "on_move", mousepos);
             }
         }
 

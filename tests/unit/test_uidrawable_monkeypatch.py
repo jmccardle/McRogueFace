@@ -26,8 +26,13 @@ def test_failed(name, error):
 
 # Helper to create typed callback arguments
 def make_click_args(x=0.0, y=0.0):
-    """Create properly typed callback arguments for testing."""
+    """Create properly typed callback arguments for testing on_click."""
     return (mcrfpy.Vector(x, y), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
+
+# #230 - Hover callbacks now only receive position
+def make_hover_args(x=0.0, y=0.0):
+    """Create properly typed callback arguments for testing on_enter/on_exit/on_move."""
+    return (mcrfpy.Vector(x, y),)
 
 
 # ==============================================================================
@@ -156,7 +161,8 @@ try:
     initial_gen = getattr(TrackedFrame, '_mcrf_callback_gen', 0)
 
     # Add a callback method
-    def tracked_on_enter(self, pos, button, action):
+    # #230 - Hover callbacks now only receive (pos)
+    def tracked_on_enter(self, pos):
         pass
 
     TrackedFrame.on_enter = tracked_on_enter
@@ -184,26 +190,26 @@ try:
         self.events.append('click')
     MultiCallbackFrame.on_click = multi_on_click
 
-    # Add on_enter
-    def multi_on_enter(self, pos, button, action):
+    # Add on_enter - #230: now only takes (pos)
+    def multi_on_enter(self, pos):
         self.events.append('enter')
     MultiCallbackFrame.on_enter = multi_on_enter
 
-    # Add on_exit
-    def multi_on_exit(self, pos, button, action):
+    # Add on_exit - #230: now only takes (pos)
+    def multi_on_exit(self, pos):
         self.events.append('exit')
     MultiCallbackFrame.on_exit = multi_on_exit
 
-    # Add on_move
-    def multi_on_move(self, pos, button, action):
+    # Add on_move - #230: now only takes (pos)
+    def multi_on_move(self, pos):
         self.events.append('move')
     MultiCallbackFrame.on_move = multi_on_move
 
     # Call all methods
     frame.on_click(*make_click_args())
-    frame.on_enter(*make_click_args())
-    frame.on_exit(*make_click_args())
-    frame.on_move(*make_click_args())
+    frame.on_enter(*make_hover_args())
+    frame.on_exit(*make_hover_args())
+    frame.on_move(*make_hover_args())
 
     assert frame.events == ['click', 'enter', 'exit', 'move'], \
         f"All callbacks should fire, got: {frame.events}"

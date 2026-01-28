@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Test UIDrawable subclass callback methods (#184)
+Test UIDrawable subclass callback methods (#184, #230)
 
 This tests the ability to define callback methods (on_click, on_enter,
 on_exit, on_move) directly in Python subclasses of UIDrawable types
 (Frame, Caption, Sprite, Grid, Line, Circle, Arc).
 
-Callback signature: (pos: Vector, button: MouseButton, action: InputState)
-This matches property callbacks for consistency.
+Callback signatures:
+- on_click: (pos: Vector, button: MouseButton, action: InputState)
+- on_enter/on_exit/on_move: (pos: Vector) - #230: simplified to position-only
 """
 import mcrfpy
 import sys
@@ -41,6 +42,7 @@ class ClickableFrame(mcrfpy.Frame):
 
 # ==============================================================================
 # Test 2: Frame subclass with all hover callbacks
+# #230: Hover callbacks now take only (pos), not (pos, button, action)
 # ==============================================================================
 class HoverFrame(mcrfpy.Frame):
     """Frame subclass with on_enter, on_exit, on_move"""
@@ -48,13 +50,13 @@ class HoverFrame(mcrfpy.Frame):
         super().__init__(*args, **kwargs)
         self.events = []
 
-    def on_enter(self, pos, button, action):
+    def on_enter(self, pos):
         self.events.append(('enter', pos.x, pos.y))
 
-    def on_exit(self, pos, button, action):
+    def on_exit(self, pos):
         self.events.append(('exit', pos.x, pos.y))
 
-    def on_move(self, pos, button, action):
+    def on_move(self, pos):
         self.events.append(('move', pos.x, pos.y))
 
 
@@ -264,11 +266,12 @@ except Exception as e:
     test_failed("Subclass methods are callable and work", e)
 
 # Test 11: Verify HoverFrame methods work with typed arguments
+# #230: Hover callbacks now take only (pos)
 try:
     hover = HoverFrame(pos=(250, 100), size=(100, 100))
-    hover.on_enter(mcrfpy.Vector(10.0, 20.0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
-    hover.on_exit(mcrfpy.Vector(30.0, 40.0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
-    hover.on_move(mcrfpy.Vector(50.0, 60.0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
+    hover.on_enter(mcrfpy.Vector(10.0, 20.0))
+    hover.on_exit(mcrfpy.Vector(30.0, 40.0))
+    hover.on_move(mcrfpy.Vector(50.0, 60.0))
     assert len(hover.events) == 3, f"Should have 3 events, got {len(hover.events)}"
     assert hover.events[0] == ('enter', 10.0, 20.0), f"Event mismatch: {hover.events[0]}"
     assert hover.events[1] == ('exit', 30.0, 40.0), f"Event mismatch: {hover.events[1]}"

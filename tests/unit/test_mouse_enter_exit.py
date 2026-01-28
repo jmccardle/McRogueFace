@@ -21,11 +21,11 @@ def test_callback_assignment():
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
     ui.append(frame)
 
-    # Callbacks receive (x, y, button, action) - 4 arguments
-    def on_enter_cb(x, y, button, action):
+    # #230 - Hover callbacks now receive only (pos) - 1 argument
+    def on_enter_cb(pos):
         pass
 
-    def on_exit_cb(x, y, button, action):
+    def on_exit_cb(pos):
         pass
 
     # Test assignment
@@ -87,7 +87,8 @@ def test_all_types_have_events():
         ("Grid", mcrfpy.Grid(grid_size=(5, 5), pos=(0, 0), size=(100, 100))),
     ]
 
-    def dummy_cb(x, y, button, action):
+    # #230 - Hover callbacks now receive only (pos)
+    def dummy_cb(pos):
         pass
 
     for name, obj in types_to_test:
@@ -129,15 +130,16 @@ def test_enter_exit_simulation():
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
     ui.append(frame)
 
-    def on_enter(x, y, button, action):
+    # #230 - Hover callbacks now receive only (pos)
+    def on_enter(pos):
         global enter_count, enter_positions
         enter_count += 1
-        enter_positions.append((x, y))
+        enter_positions.append((pos.x, pos.y))
 
-    def on_exit(x, y, button, action):
+    def on_exit(pos):
         global exit_count, exit_positions
         exit_count += 1
-        exit_positions.append((x, y))
+        exit_positions.append((pos.x, pos.y))
 
     frame.on_enter = on_enter
     frame.on_exit = on_exit

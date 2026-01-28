@@ -60,16 +60,16 @@ UIDrawable::UIDrawable(const UIDrawable& other)
     if (other.click_callable) {
         click_callable = std::make_unique<PyClickCallable>(*other.click_callable);
     }
-    // #140 - Deep copy enter/exit callables
+    // #140, #230 - Deep copy enter/exit callables (now PyHoverCallable)
     if (other.on_enter_callable) {
-        on_enter_callable = std::make_unique<PyClickCallable>(*other.on_enter_callable);
+        on_enter_callable = std::make_unique<PyHoverCallable>(*other.on_enter_callable);
     }
     if (other.on_exit_callable) {
-        on_exit_callable = std::make_unique<PyClickCallable>(*other.on_exit_callable);
+        on_exit_callable = std::make_unique<PyHoverCallable>(*other.on_exit_callable);
     }
-    // #141 - Deep copy move callable
+    // #141, #230 - Deep copy move callable (now PyHoverCallable)
     if (other.on_move_callable) {
-        on_move_callable = std::make_unique<PyClickCallable>(*other.on_move_callable);
+        on_move_callable = std::make_unique<PyHoverCallable>(*other.on_move_callable);
     }
 
     // Deep copy render texture if needed
@@ -100,20 +100,20 @@ UIDrawable& UIDrawable::operator=(const UIDrawable& other) {
         } else {
             click_callable.reset();
         }
-        // #140 - Deep copy enter/exit callables
+        // #140, #230 - Deep copy enter/exit callables (now PyHoverCallable)
         if (other.on_enter_callable) {
-            on_enter_callable = std::make_unique<PyClickCallable>(*other.on_enter_callable);
+            on_enter_callable = std::make_unique<PyHoverCallable>(*other.on_enter_callable);
         } else {
             on_enter_callable.reset();
         }
         if (other.on_exit_callable) {
-            on_exit_callable = std::make_unique<PyClickCallable>(*other.on_exit_callable);
+            on_exit_callable = std::make_unique<PyHoverCallable>(*other.on_exit_callable);
         } else {
             on_exit_callable.reset();
         }
-        // #141 - Deep copy move callable
+        // #141, #230 - Deep copy move callable (now PyHoverCallable)
         if (other.on_move_callable) {
-            on_move_callable = std::make_unique<PyClickCallable>(*other.on_move_callable);
+            on_move_callable = std::make_unique<PyHoverCallable>(*other.on_move_callable);
         } else {
             on_move_callable.reset();
         }
@@ -311,10 +311,10 @@ void UIDrawable::click_register(PyObject* callable)
     click_callable = std::make_unique<PyClickCallable>(callable);
 }
 
-// #140 - Mouse enter/exit callback registration
+// #140, #230 - Mouse enter/exit callback registration (now PyHoverCallable)
 void UIDrawable::on_enter_register(PyObject* callable)
 {
-    on_enter_callable = std::make_unique<PyClickCallable>(callable);
+    on_enter_callable = std::make_unique<PyHoverCallable>(callable);
 }
 
 void UIDrawable::on_enter_unregister()
@@ -324,7 +324,7 @@ void UIDrawable::on_enter_unregister()
 
 void UIDrawable::on_exit_register(PyObject* callable)
 {
-    on_exit_callable = std::make_unique<PyClickCallable>(callable);
+    on_exit_callable = std::make_unique<PyHoverCallable>(callable);
 }
 
 void UIDrawable::on_exit_unregister()
@@ -332,10 +332,10 @@ void UIDrawable::on_exit_unregister()
     on_exit_callable.reset();
 }
 
-// #141 - Mouse move callback registration
+// #141, #230 - Mouse move callback registration (now PyHoverCallable)
 void UIDrawable::on_move_register(PyObject* callable)
 {
-    on_move_callable = std::make_unique<PyClickCallable>(callable);
+    on_move_callable = std::make_unique<PyHoverCallable>(callable);
 }
 
 void UIDrawable::on_move_unregister()

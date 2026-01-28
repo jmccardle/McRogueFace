@@ -25,7 +25,8 @@ def test_click_callback_signature(pos, button, action):
         results.append(("on_click button/action are strings", False))
         print(f"FAIL: button={type(button).__name__}, action={type(action).__name__}")
 
-def test_on_enter_callback_signature(pos, button, action):
+# #230 - Hover callbacks now receive only (pos), not (pos, button, action)
+def test_on_enter_callback_signature(pos):
     """Test on_enter callback receives Vector."""
     if isinstance(pos, mcrfpy.Vector):
         results.append(("on_enter pos is Vector", True))
@@ -34,7 +35,7 @@ def test_on_enter_callback_signature(pos, button, action):
         results.append(("on_enter pos is Vector", False))
         print(f"FAIL: on_enter receives {type(pos).__name__} instead of Vector")
 
-def test_on_exit_callback_signature(pos, button, action):
+def test_on_exit_callback_signature(pos):
     """Test on_exit callback receives Vector."""
     if isinstance(pos, mcrfpy.Vector):
         results.append(("on_exit pos is Vector", True))
@@ -43,7 +44,7 @@ def test_on_exit_callback_signature(pos, button, action):
         results.append(("on_exit pos is Vector", False))
         print(f"FAIL: on_exit receives {type(pos).__name__} instead of Vector")
 
-def test_on_move_callback_signature(pos, button, action):
+def test_on_move_callback_signature(pos):
     """Test on_move callback receives Vector."""
     if isinstance(pos, mcrfpy.Vector):
         results.append(("on_move pos is Vector", True))
@@ -52,8 +53,9 @@ def test_on_move_callback_signature(pos, button, action):
         results.append(("on_move pos is Vector", False))
         print(f"FAIL: on_move receives {type(pos).__name__} instead of Vector")
 
-def test_cell_click_callback_signature(cell_pos):
-    """Test on_cell_click callback receives Vector."""
+# #230 - Cell click still receives (cell_pos, button, action)
+def test_cell_click_callback_signature(cell_pos, button, action):
+    """Test on_cell_click callback receives Vector, MouseButton, InputState."""
     if isinstance(cell_pos, mcrfpy.Vector):
         results.append(("on_cell_click pos is Vector", True))
         print(f"PASS: on_cell_click receives Vector: {cell_pos}")
@@ -61,6 +63,7 @@ def test_cell_click_callback_signature(cell_pos):
         results.append(("on_cell_click pos is Vector", False))
         print(f"FAIL: on_cell_click receives {type(cell_pos).__name__} instead of Vector")
 
+# #230 - Cell hover callbacks now receive only (cell_pos)
 def test_cell_enter_callback_signature(cell_pos):
     """Test on_cell_enter callback receives Vector."""
     if isinstance(cell_pos, mcrfpy.Vector):
@@ -119,11 +122,15 @@ def run_test(runtime):
     print("\n--- Simulating callback calls ---")
 
     # Test that the callbacks are set up correctly
+    # on_click still takes (pos, button, action)
     test_click_callback_signature(mcrfpy.Vector(150, 150), "left", "start")
-    test_on_enter_callback_signature(mcrfpy.Vector(100, 100), "enter", "start")
-    test_on_exit_callback_signature(mcrfpy.Vector(300, 300), "exit", "start")
-    test_on_move_callback_signature(mcrfpy.Vector(125, 175), "move", "start")
-    test_cell_click_callback_signature(mcrfpy.Vector(5, 3))
+    # #230 - Hover callbacks now take only (pos)
+    test_on_enter_callback_signature(mcrfpy.Vector(100, 100))
+    test_on_exit_callback_signature(mcrfpy.Vector(300, 300))
+    test_on_move_callback_signature(mcrfpy.Vector(125, 175))
+    # #230 - on_cell_click still takes (cell_pos, button, action)
+    test_cell_click_callback_signature(mcrfpy.Vector(5, 3), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
+    # #230 - Cell hover callbacks now take only (cell_pos)
     test_cell_enter_callback_signature(mcrfpy.Vector(2, 7))
     test_cell_exit_callback_signature(mcrfpy.Vector(8, 1))
 
@@ -147,4 +154,4 @@ def run_test(runtime):
         sys.exit(1)
 
 # Run the test
-mcrfpy.setTimer("test", run_test, 100)
+mcrfpy.Timer("test", run_test, 100)

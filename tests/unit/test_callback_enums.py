@@ -61,13 +61,14 @@ try:
             assert isinstance(cell_pos, mcrfpy.Vector), f"cell_pos should be Vector, got {type(cell_pos)}"
             self.cell_events.append(('click', cell_pos.x, cell_pos.y, button, action))
 
-        def on_cell_enter(self, cell_pos, button, action):
+        # #230 - Cell hover callbacks now only receive (cell_pos)
+        def on_cell_enter(self, cell_pos):
             assert isinstance(cell_pos, mcrfpy.Vector), f"cell_pos should be Vector, got {type(cell_pos)}"
-            self.cell_events.append(('enter', cell_pos.x, cell_pos.y, button, action))
+            self.cell_events.append(('enter', cell_pos.x, cell_pos.y))
 
-        def on_cell_exit(self, cell_pos, button, action):
+        def on_cell_exit(self, cell_pos):
             assert isinstance(cell_pos, mcrfpy.Vector), f"cell_pos should be Vector, got {type(cell_pos)}"
-            self.cell_events.append(('exit', cell_pos.x, cell_pos.y, button, action))
+            self.cell_events.append(('exit', cell_pos.x, cell_pos.y))
 
     texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
     grid = GridWithCellCallbacks(grid_size=(5, 5), texture=texture, pos=(0, 0), size=(100, 100))
@@ -78,8 +79,9 @@ try:
 
     # Manually call methods to verify signature works
     grid.on_cell_click(mcrfpy.Vector(1.0, 2.0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
-    grid.on_cell_enter(mcrfpy.Vector(3.0, 4.0), mcrfpy.MouseButton.RIGHT, mcrfpy.InputState.RELEASED)
-    grid.on_cell_exit(mcrfpy.Vector(5.0, 6.0), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
+    # #230 - Cell hover callbacks now only receive (cell_pos)
+    grid.on_cell_enter(mcrfpy.Vector(3.0, 4.0))
+    grid.on_cell_exit(mcrfpy.Vector(5.0, 6.0))
 
     assert len(grid.cell_events) == 3, f"Should have 3 events, got {len(grid.cell_events)}"
     assert grid.cell_events[0][0] == 'click', "First event should be click"

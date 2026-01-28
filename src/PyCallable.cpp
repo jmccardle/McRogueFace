@@ -186,3 +186,123 @@ void PyKeyCallable::call(std::string key, std::string action)
         std::cout << "KeyCallable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
     }
 }
+
+// #230 - PyHoverCallable implementation (position-only for on_enter/on_exit/on_move)
+PyHoverCallable::PyHoverCallable(PyObject* _target)
+: PyCallable(_target)
+{}
+
+PyHoverCallable::PyHoverCallable()
+: PyCallable(Py_None)
+{}
+
+void PyHoverCallable::call(sf::Vector2f mousepos)
+{
+    if (target == Py_None || target == NULL) return;
+
+    // Create a Vector object for the position
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) {
+        std::cerr << "Failed to get Vector type for hover callback" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+        return;
+    }
+    PyObject* pos = PyObject_CallFunction(vector_type, "ff", mousepos.x, mousepos.y);
+    Py_DECREF(vector_type);
+    if (!pos) {
+        std::cerr << "Failed to create Vector object for hover callback" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+        return;
+    }
+
+    // #230 - Hover callbacks take only (pos), not (pos, button, action)
+    PyObject* args = Py_BuildValue("(O)", pos);
+    Py_DECREF(pos);
+
+    PyObject* retval = PyCallable::call(args, NULL);
+    Py_DECREF(args);
+    if (!retval)
+    {
+        std::cerr << "Hover callback raised an exception:" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+
+        // Check if we should exit on exception
+        if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+            McRFPy_API::signalPythonException();
+        }
+    } else if (retval != Py_None)
+    {
+        std::cout << "HoverCallable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
+        Py_DECREF(retval);
+    } else {
+        Py_DECREF(retval);
+    }
+}
+
+PyObject* PyHoverCallable::borrow()
+{
+    return target;
+}
+
+// #230 - PyCellHoverCallable implementation (cell position-only for on_cell_enter/on_cell_exit)
+PyCellHoverCallable::PyCellHoverCallable(PyObject* _target)
+: PyCallable(_target)
+{}
+
+PyCellHoverCallable::PyCellHoverCallable()
+: PyCallable(Py_None)
+{}
+
+void PyCellHoverCallable::call(sf::Vector2i cellpos)
+{
+    if (target == Py_None || target == NULL) return;
+
+    // Create a Vector object for the cell position
+    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    if (!vector_type) {
+        std::cerr << "Failed to get Vector type for cell hover callback" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+        return;
+    }
+    PyObject* pos = PyObject_CallFunction(vector_type, "ii", cellpos.x, cellpos.y);
+    Py_DECREF(vector_type);
+    if (!pos) {
+        std::cerr << "Failed to create Vector object for cell hover callback" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+        return;
+    }
+
+    // #230 - Cell hover callbacks take only (cell_pos), not (cell_pos, button, action)
+    PyObject* args = Py_BuildValue("(O)", pos);
+    Py_DECREF(pos);
+
+    PyObject* retval = PyCallable::call(args, NULL);
+    Py_DECREF(args);
+    if (!retval)
+    {
+        std::cerr << "Cell hover callback raised an exception:" << std::endl;
+        PyErr_Print();
+        PyErr_Clear();
+
+        // Check if we should exit on exception
+        if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+            McRFPy_API::signalPythonException();
+        }
+    } else if (retval != Py_None)
+    {
+        std::cout << "CellHoverCallable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
+        Py_DECREF(retval);
+    } else {
+        Py_DECREF(retval);
+    }
+}
+
+PyObject* PyCellHoverCallable::borrow()
+{
+    return target;
+}
