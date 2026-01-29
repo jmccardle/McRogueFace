@@ -70,13 +70,15 @@ void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::strin
         return;
     }
 
-    // Convert button string to MouseButton enum (#222)
+    // Convert button string to MouseButton enum (#222, #232)
     int button_val = 0;  // Default to LEFT
     if (button == "left") button_val = 0;
     else if (button == "right") button_val = 1;
     else if (button == "middle") button_val = 2;
     else if (button == "x1") button_val = 3;
     else if (button == "x2") button_val = 4;
+    else if (button == "wheel_up") button_val = 10;   // SCROLL_UP
+    else if (button == "wheel_down") button_val = 11; // SCROLL_DOWN
 
     PyObject* button_enum = nullptr;
     if (PyMouseButton::mouse_button_enum_class) {

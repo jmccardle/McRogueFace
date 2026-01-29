@@ -73,13 +73,15 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
             return false;
         }
 
-        // Convert button string to MouseButton enum
+        // Convert button string to MouseButton enum (#231, #232)
         int button_val = 0;
         if (strcmp(button, "left") == 0) button_val = 0;
         else if (strcmp(button, "right") == 0) button_val = 1;
         else if (strcmp(button, "middle") == 0) button_val = 2;
         else if (strcmp(button, "x1") == 0) button_val = 3;
         else if (strcmp(button, "x2") == 0) button_val = 4;
+        else if (strcmp(button, "wheel_up") == 0) button_val = 10;   // SCROLL_UP
+        else if (strcmp(button, "wheel_down") == 0) button_val = 11; // SCROLL_DOWN
         // For hover events, button might be "enter", "exit", "move" - use LEFT as default
 
         PyObject* button_enum = nullptr;
@@ -227,6 +229,7 @@ PyScene::PyScene(GameEngine* g) : Scene(g)
     // mouse events
     registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Left, "left");
     registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Right, "right");
+    registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Middle, "middle");
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_DEL, "wheel_up");
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NEG + ActionCode::WHEEL_DEL, "wheel_down");
 
@@ -318,7 +321,8 @@ void PyScene::do_mouse_input(std::string button, std::string type)
 
 void PyScene::doAction(std::string name, std::string type)
 {
-    if (name.compare("left") == 0 || name.compare("right") == 0 || name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0) {
+    if (name.compare("left") == 0 || name.compare("right") == 0 || name.compare("middle") == 0 ||
+        name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0) {
         do_mouse_input(name, type);
     }
     else if ACTIONONCE("debug_menu") {

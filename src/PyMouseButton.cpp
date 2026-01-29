@@ -11,12 +11,18 @@ struct MouseButtonEntry {
     const char* legacy;     // Legacy string name for backwards compatibility
 };
 
+// Custom values for scroll wheel (beyond sf::Mouse::Button range)
+static const int SCROLL_UP_VALUE = 10;
+static const int SCROLL_DOWN_VALUE = 11;
+
 static const MouseButtonEntry mouse_button_table[] = {
     {"LEFT", sf::Mouse::Left, "left"},
     {"RIGHT", sf::Mouse::Right, "right"},
     {"MIDDLE", sf::Mouse::Middle, "middle"},
     {"X1", sf::Mouse::XButton1, "x1"},
     {"X2", sf::Mouse::XButton2, "x2"},
+    {"SCROLL_UP", SCROLL_UP_VALUE, "wheel_up"},
+    {"SCROLL_DOWN", SCROLL_DOWN_VALUE, "wheel_down"},
 };
 
 static const int NUM_MOUSE_BUTTON_ENTRIES = sizeof(mouse_button_table) / sizeof(mouse_button_table[0]);
@@ -36,7 +42,7 @@ PyObject* PyMouseButton::create_enum_class(PyObject* module) {
     code << "from enum import IntEnum\n\n";
 
     code << "class MouseButton(IntEnum):\n";
-    code << "    \"\"\"Enum representing mouse buttons.\n";
+    code << "    \"\"\"Enum representing mouse buttons and scroll wheel.\n";
     code << "    \n";
     code << "    Values:\n";
     code << "        LEFT: Left mouse button (legacy: 'left')\n";
@@ -44,11 +50,14 @@ PyObject* PyMouseButton::create_enum_class(PyObject* module) {
     code << "        MIDDLE: Middle mouse button / scroll wheel click (legacy: 'middle')\n";
     code << "        X1: Extra mouse button 1 (legacy: 'x1')\n";
     code << "        X2: Extra mouse button 2 (legacy: 'x2')\n";
+    code << "        SCROLL_UP: Scroll wheel up (legacy: 'wheel_up')\n";
+    code << "        SCROLL_DOWN: Scroll wheel down (legacy: 'wheel_down')\n";
     code << "    \n";
     code << "    These enum values compare equal to their legacy string equivalents\n";
     code << "    for backwards compatibility:\n";
     code << "        MouseButton.LEFT == 'left'  # True\n";
     code << "        MouseButton.RIGHT == 'right'  # True\n";
+    code << "        MouseButton.SCROLL_UP == 'wheel_up'  # True\n";
     code << "    \"\"\"\n";
 
     // Add enum members
@@ -151,12 +160,13 @@ int PyMouseButton::from_arg(PyObject* arg, sf::Mouse::Button* out_button) {
         if (val == -1 && PyErr_Occurred()) {
             return 0;
         }
-        if (val >= 0 && val < NUM_MOUSE_BUTTON_ENTRIES) {
+        // Valid values: 0-4 (mouse buttons) or 10-11 (scroll wheel)
+        if ((val >= 0 && val <= 4) || val == SCROLL_UP_VALUE || val == SCROLL_DOWN_VALUE) {
             *out_button = static_cast<sf::Mouse::Button>(val);
             return 1;
         }
         PyErr_Format(PyExc_ValueError,
-            "Invalid MouseButton value: %ld. Must be 0-4.", val);
+            "Invalid MouseButton value: %ld.", val);
         return 0;
     }
 
@@ -166,13 +176,14 @@ int PyMouseButton::from_arg(PyObject* arg, sf::Mouse::Button* out_button) {
         if (val == -1 && PyErr_Occurred()) {
             return 0;
         }
-        if (val >= 0 && val < NUM_MOUSE_BUTTON_ENTRIES) {
+        // Check if it's a valid mouse button (0-4) or scroll value (10-11)
+        if ((val >= 0 && val <= 4) || val == SCROLL_UP_VALUE || val == SCROLL_DOWN_VALUE) {
             *out_button = static_cast<sf::Mouse::Button>(val);
             return 1;
         }
         PyErr_Format(PyExc_ValueError,
             "Invalid MouseButton value: %ld. Must be 0 (LEFT), 1 (RIGHT), 2 (MIDDLE), "
-            "3 (X1), or 4 (X2).", val);
+            "3 (X1), 4 (X2), 10 (SCROLL_UP), or 11 (SCROLL_DOWN).", val);
         return 0;
     }
 
