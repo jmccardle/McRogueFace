@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2026-01-23 20:45:13</em></p>
+        <p><em>Generated on 2026-01-28 19:16:58</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -122,6 +122,7 @@
                         <li><a href="#Animation">Animation</a></li>
                         <li><a href="#Arc">Arc</a></li>
                         <li><a href="#BSP">BSP</a></li>
+                        <li><a href="#CallableBinding">CallableBinding</a></li>
                         <li><a href="#Caption">Caption</a></li>
                         <li><a href="#Circle">Circle</a></li>
                         <li><a href="#Color">Color</a></li>
@@ -143,7 +144,9 @@
                         <li><a href="#MouseButton">MouseButton</a></li>
                         <li><a href="#Music">Music</a></li>
                         <li><a href="#NoiseSource">NoiseSource</a></li>
+                        <li><a href="#PropertyBinding">PropertyBinding</a></li>
                         <li><a href="#Scene">Scene</a></li>
+                        <li><a href="#Shader">Shader</a></li>
                         <li><a href="#Sound">Sound</a></li>
                         <li><a href="#Sprite">Sprite</a></li>
                         <li><a href="#Texture">Texture</a></li>
@@ -630,9 +633,12 @@ Attributes:
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
                 <li><span class='property-name'>pos</span>: Position as a Vector (same as center).</li>
                 <li><span class='property-name'>radius</span>: Arc radius in pixels</li>
+                <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
+                <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>start_angle</span>: Starting angle in degrees</li>
                 <li><span class='property-name'>thickness</span>: Line thickness</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
@@ -808,6 +814,33 @@ Note:</p>
         </div>
 
         <div class="method-section">
+            <h3 id="CallableBinding"><span class="class-name">CallableBinding</span></h3>
+            <p>CallableBinding(callable: Callable[[], float])
+
+A binding that calls a Python function to get its value.
+
+Args:
+    callable: A function that takes no arguments and returns a float
+
+The callable is invoked every frame when the shader is rendered.
+Keep the callable lightweight to avoid performance issues.
+
+Example:
+    player_health = 100
+    frame.uniforms[&#x27;health_pct&#x27;] = mcrfpy.CallableBinding(
+        lambda: player_health / 100.0
+    )
+</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>callable</span> (read-only): The Python callable (read-only).</li>
+                <li><span class='property-name'>is_valid</span> (read-only): True if the callable is still valid (bool, read-only).</li>
+                <li><span class='property-name'>value</span> (read-only): Current value from calling the callable (float, read-only). Returns None on error.</li>
+            </ul>
+            <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
             <h3 id="Caption"><span class="class-name">Caption</span></h3>
             <p><em>Inherits from: Drawable</em></p>
             <p>Caption(pos=None, font=None, text=&#x27;&#x27;, **kwargs)
@@ -874,12 +907,17 @@ Attributes:
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>outline</span>: Thickness of the border</li>
                 <li><span class='property-name'>outline_color</span>: Outline color of the text. Returns a copy; modifying components requires reassignment. For animation, use &#x27;outline_color.r&#x27;, &#x27;outline_color.g&#x27;, etc.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
                 <li><span class='property-name'>pos</span>: (x, y) vector</li>
+                <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
+                <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
+                <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
                 <li><span class='property-name'>size</span> (read-only): Text dimensions as Vector (read-only)</li>
                 <li><span class='property-name'>text</span>: The text displayed</li>
+                <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
                 <li><span class='property-name'>w</span> (read-only): Text width in pixels (read-only)</li>
@@ -999,11 +1037,14 @@ Attributes:
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>outline</span>: Outline thickness (0 for no outline)</li>
                 <li><span class='property-name'>outline_color</span>: Outline color of the circle</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
                 <li><span class='property-name'>pos</span>: Position as a Vector (same as center).</li>
                 <li><span class='property-name'>radius</span>: Circle radius in pixels</li>
+                <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
+                <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
                 <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first).</li>
@@ -1501,8 +1542,10 @@ Attributes:
                 <li><span class='property-name'>name</span>: Name for finding elements</li>
                 <li><span class='property-name'>opacity</span>: Opacity (0.0 = transparent, 1.0 = opaque)</li>
                 <li><span class='property-name'>pos</span>: Pixel position relative to grid (Vector). Computed as draw_pos * tile_size. Requires entity to be attached to a grid.</li>
+                <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the entity is rendered through the shader program. Set to None to disable shader effects.</li>
                 <li><span class='property-name'>sprite_index</span>: Sprite index on the texture on the display</li>
                 <li><span class='property-name'>sprite_number</span>: Sprite index (DEPRECATED: use sprite_index instead)</li>
+                <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: entity.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>visible</span>: Visibility flag</li>
                 <li><span class='property-name'>x</span>: Pixel X position relative to grid. Requires entity to be attached to a grid.</li>
                 <li><span class='property-name'>y</span>: Pixel Y position relative to grid. Requires entity to be attached to a grid.</li>
@@ -1768,10 +1811,15 @@ Attributes:
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>outline</span>: Thickness of the border</li>
                 <li><span class='property-name'>outline_color</span>: Outline color of the rectangle. Returns a copy; modifying components requires reassignment. For animation, use &#x27;outline_color.r&#x27;, &#x27;outline_color.g&#x27;, etc.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
                 <li><span class='property-name'>pos</span>: Position as a Vector</li>
+                <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
+                <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
+                <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
+                <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
                 <li><span class='property-name'>w</span>: width of the rectangle</li>
@@ -1894,6 +1942,7 @@ Attributes:
             <ul>
                 <li><span class='property-name'>align</span>: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.</li>
                 <li><span class='property-name'>bounds</span>: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).</li>
+                <li><span class='property-name'>camera_rotation</span>: Rotation of grid contents around camera center (degrees). The grid widget stays axis-aligned; only the view into the world rotates.</li>
                 <li><span class='property-name'>center</span>: Grid coordinate at the center of the Grid&#x27;s view (pan)</li>
                 <li><span class='property-name'>center_x</span>: center of the view X-coordinate</li>
                 <li><span class='property-name'>center_y</span>: center of the view Y-coordinate</li>
@@ -1923,13 +1972,18 @@ Attributes:
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
                 <li><span class='property-name'>perspective</span>: Entity whose perspective to use for FOV rendering (None for omniscient view). Setting an entity automatically enables perspective mode.</li>
                 <li><span class='property-name'>perspective_enabled</span>: Whether to use perspective-based FOV rendering. When True with no valid entity, all cells appear undiscovered.</li>
                 <li><span class='property-name'>pos</span>: Position of the grid as Vector</li>
                 <li><span class='property-name'>position</span>: Position of the grid (x, y)</li>
+                <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
+                <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
+                <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
                 <li><span class='property-name'>size</span>: Size of the grid as Vector (width, height)</li>
                 <li><span class='property-name'>texture</span>: Texture of the grid</li>
+                <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
                 <li><span class='property-name'>w</span>: visible widget width</li>
@@ -2798,8 +2852,11 @@ Attributes:
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
                 <li><span class='property-name'>pos</span>: Position as a Vector (midpoint of line).</li>
+                <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
+                <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>start</span>: Starting point of the line as a Vector.</li>
                 <li><span class='property-name'>thickness</span>: Line thickness in pixels.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
@@ -3097,6 +3154,34 @@ Note:</p>
         </div>
 
         <div class="method-section">
+            <h3 id="PropertyBinding"><span class="class-name">PropertyBinding</span></h3>
+            <p>PropertyBinding(target: UIDrawable, property: str)
+
+A binding that reads a property value from a UI drawable.
+
+Args:
+    target: The drawable to read the property from
+    property: Name of the property to read (e.g., &#x27;x&#x27;, &#x27;opacity&#x27;)
+
+Use this to create dynamic shader uniforms that follow a drawable&#x27;s
+properties. The binding automatically handles cases where the target
+is destroyed.
+
+Example:
+    other_frame = mcrfpy.Frame(pos=(100, 100))
+    frame.uniforms[&#x27;offset_x&#x27;] = mcrfpy.PropertyBinding(other_frame, &#x27;x&#x27;)
+</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>is_valid</span> (read-only): True if the binding target still exists and property is valid (bool, read-only).</li>
+                <li><span class='property-name'>property</span> (read-only): The property name being read (str, read-only).</li>
+                <li><span class='property-name'>target</span> (read-only): The drawable this binding reads from (read-only).</li>
+                <li><span class='property-name'>value</span> (read-only): Current value of the binding (float, read-only). Returns None if invalid.</li>
+            </ul>
+            <h4>Methods:</h4>
+        </div>
+
+        <div class="method-section">
             <h3 id="Scene"><span class="class-name">Scene</span></h3>
             <p>Scene(name: str)
 
@@ -3144,7 +3229,7 @@ Example:
                 <li><span class='property-name'>active</span> (read-only): Whether this scene is currently active (bool, read-only). Only one scene can be active at a time.</li>
                 <li><span class='property-name'>children</span> (read-only): UI element collection for this scene (UICollection, read-only). Use to add, remove, or iterate over UI elements. Changes are reflected immediately.</li>
                 <li><span class='property-name'>name</span> (read-only): Scene name (str, read-only). Unique identifier for this scene.</li>
-                <li><span class='property-name'>on_key</span>: Keyboard event handler (callable or None). Function receives (key: str, action: str) for keyboard events. Set to None to remove the handler.</li>
+                <li><span class='property-name'>on_key</span>: Keyboard event handler (callable or None). Function receives (key: Key, action: InputState) for keyboard events. Set to None to remove the handler.</li>
                 <li><span class='property-name'>opacity</span>: Scene opacity (0.0-1.0). Applied to all UI elements during rendering.</li>
                 <li><span class='property-name'>pos</span>: Scene position offset (Vector). Applied to all UI elements during rendering.</li>
                 <li><span class='property-name'>visible</span>: Scene visibility (bool). If False, scene is not rendered.</li>
@@ -3169,6 +3254,60 @@ Note:</p>
 
 Note:
     Call this after window resize or when game_resolution changes. For responsive layouts, connect this to on_resize callback.</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Shader"><span class="class-name">Shader</span></h3>
+            <p>Shader(fragment_source: str, dynamic: bool = False)
+
+A GPU shader program for visual effects.
+
+Args:
+    fragment_source: GLSL fragment shader source code
+    dynamic: If True, shader uses time-varying effects and will
+             invalidate parent caches each frame
+
+Shaders enable GPU-accelerated visual effects like glow, distortion,
+color manipulation, and more. Assign to drawable.shader to apply.
+
+Engine-provided uniforms (automatically available):
+    - float time: Seconds since engine start
+    - float delta_time: Seconds since last frame
+    - vec2 resolution: Texture size in pixels
+    - vec2 mouse: Mouse position in window coordinates
+
+Example:
+    shader = mcrfpy.Shader(&#x27;&#x27;&#x27;
+        uniform sampler2D texture;
+        uniform float time;
+        void main() {
+            vec2 uv = gl_TexCoord[0].xy;
+            vec4 color = texture2D(texture, uv);
+            color.rgb *= 0.5 + 0.5 * sin(time);
+            gl_FragColor = color;
+        }
+    &#x27;&#x27;&#x27;, dynamic=True)
+    frame.shader = shader
+</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>dynamic</span>: Whether this shader uses time-varying effects (bool). Dynamic shaders invalidate parent caches each frame.</li>
+                <li><span class='property-name'>is_valid</span> (read-only): True if the shader compiled successfully (bool, read-only).</li>
+                <li><span class='property-name'>source</span> (read-only): The GLSL fragment shader source code (str, read-only).</li>
+            </ul>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">set_uniform(name: str, value: float|tuple) -> None</code></h5>
+                <p>Set a custom uniform value on this shader.
+
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>name</span>: Uniform variable name in the shader</div>
+                    <div><span class='arg-name'>value</span>: Float, vec2 (2-tuple), vec3 (3-tuple), or vec4 (4-tuple)</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> ValueError: If uniform type cannot be determined Engine uniforms (time, resolution, etc.) are set automatically</p>
             </div>
         </div>
 
@@ -3263,14 +3402,19 @@ Attributes:
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
+                <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
                 <li><span class='property-name'>pos</span>: Position as a Vector</li>
+                <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
+                <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>scale</span>: Uniform size factor</li>
                 <li><span class='property-name'>scale_x</span>: Horizontal scale factor</li>
                 <li><span class='property-name'>scale_y</span>: Vertical scale factor</li>
+                <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
                 <li><span class='property-name'>sprite_index</span>: Which sprite on the texture is shown</li>
                 <li><span class='property-name'>sprite_number</span>: Sprite index (DEPRECATED: use sprite_index instead)</li>
                 <li><span class='property-name'>texture</span>: Texture object</li>
+                <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
                 <li><span class='property-name'>x</span>: X coordinate of top-left corner</li>

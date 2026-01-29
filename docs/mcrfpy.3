@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2026-01-23" "McRogueFace 0.2.1-prerelease-7drl2026-15-g3fea641" ""
+.TH "MCRFPY" "3" "2026-01-28" "McRogueFace 0.2.2-prerelease-7drl2026-12-g55f6ea9" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2026-01-23 20:45:13\f[R]
+\f[I]Generated on 2026-01-28 19:16:58\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -38,6 +38,8 @@ Animation
 Arc
 .IP \[bu] 2
 BSP
+.IP \[bu] 2
+CallableBinding
 .IP \[bu] 2
 Caption
 .IP \[bu] 2
@@ -81,7 +83,11 @@ Music
 .IP \[bu] 2
 NoiseSource
 .IP \[bu] 2
+PropertyBinding
+.IP \[bu] 2
 Scene
+.IP \[bu] 2
+Shader
 .IP \[bu] 2
 Sound
 .IP \[bu] 2
@@ -599,14 +605,25 @@ Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
 Automatically clamped to valid range [0.0, 1.0].
+- \f[V]origin\f[R]: Transform origin as Vector (pivot point for
+rotation).
+Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - \f[V]pos\f[R]: Position as a Vector (same as center).
-- \f[V]radius\f[R]: Arc radius in pixels - \f[V]start_angle\f[R]:
-Starting angle in degrees - \f[V]thickness\f[R]: Line thickness -
-\f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use general
-margin).
+- \f[V]radius\f[R]: Arc radius in pixels - \f[V]rotate_with_camera\f[R]:
+Whether to rotate visually with parent Grid\[cq]s camera_rotation
+(bool).
+False (default): stay screen-aligned.
+True: tilt with camera.
+Only affects children of UIGrid; ignored for other parents.
+- \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
+origin).
+Animatable property.
+- \f[V]start_angle\f[R]: Starting angle in degrees -
+\f[V]thickness\f[R]: Line thickness - \f[V]vert_margin\f[R]: Vertical
+margin override (float, 0 = use general margin).
 Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
@@ -789,6 +806,29 @@ Default: LEVEL_ORDER.
 .PP
 \f[B]Returns:\f[R] Iterator yielding BSPNode objects Orders: PRE_ORDER,
 IN_ORDER, POST_ORDER, LEVEL_ORDER, INVERTED_LEVEL_ORDER
+.SS CallableBinding
+.PP
+CallableBinding(callable: Callable[[], float])
+.PP
+A binding that calls a Python function to get its value.
+.PP
+Args: callable: A function that takes no arguments and returns a float
+.PP
+The callable is invoked every frame when the shader is rendered.
+Keep the callable lightweight to avoid performance issues.
+.PP
+Example: player_health = 100 frame.uniforms[`health_pct'] =
+mcrfpy.CallableBinding( lambda: player_health / 100.0 )
+.PP
+\f[B]Properties:\f[R] - \f[V]callable\f[R] \f[I](read-only)\f[R]: The
+Python callable (read-only).
+- \f[V]is_valid\f[R] \f[I](read-only)\f[R]: True if the callable is
+still valid (bool, read-only).
+- \f[V]value\f[R] \f[I](read-only)\f[R]: Current value from calling the
+callable (float, read-only).
+Returns None on error.
+.PP
+\f[B]Methods:\f[R]
 .SS Caption
 .PP
 \f[I]Inherits from: Drawable\f[R]
@@ -878,6 +918,9 @@ Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
 Automatically clamped to valid range [0.0, 1.0].
+- \f[V]origin\f[R]: Transform origin as Vector (pivot point for
+rotation).
+Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]outline\f[R]: Thickness of the border - \f[V]outline_color\f[R]:
 Outline color of the text.
 Returns a copy; modifying components requires reassignment.
@@ -885,10 +928,25 @@ For animation, use `outline_color.r', `outline_color.g', etc.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: (x, y) vector - \f[V]size\f[R] \f[I](read-only)\f[R]:
-Text dimensions as Vector (read-only) - \f[V]text\f[R]: The text
-displayed - \f[V]vert_margin\f[R]: Vertical margin override (float, 0 =
-use general margin).
+- \f[V]pos\f[R]: (x, y) vector - \f[V]rotate_with_camera\f[R]: Whether
+to rotate visually with parent Grid\[cq]s camera_rotation (bool).
+False (default): stay screen-aligned.
+True: tilt with camera.
+Only affects children of UIGrid; ignored for other parents.
+- \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
+origin).
+Animatable property.
+- \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
+When set, the drawable is rendered through the shader program.
+Set to None to disable shader effects.
+- \f[V]size\f[R] \f[I](read-only)\f[R]: Text dimensions as Vector
+(read-only) - \f[V]text\f[R]: The text displayed - \f[V]uniforms\f[R]
+\f[I](read-only)\f[R]: Collection of shader uniforms (read-only access
+to collection).
+Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
+Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
+- \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
+general margin).
 Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
@@ -1023,14 +1081,26 @@ Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
 Automatically clamped to valid range [0.0, 1.0].
+- \f[V]origin\f[R]: Transform origin as Vector (pivot point for
+rotation).
+Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]outline\f[R]: Outline thickness (0 for no outline) -
 \f[V]outline_color\f[R]: Outline color of the circle - \f[V]parent\f[R]:
 Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - \f[V]pos\f[R]: Position as a Vector (same as center).
-- \f[V]radius\f[R]: Circle radius in pixels - \f[V]vert_margin\f[R]:
-Vertical margin override (float, 0 = use general margin).
+- \f[V]radius\f[R]: Circle radius in pixels -
+\f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+Grid\[cq]s camera_rotation (bool).
+False (default): stay screen-aligned.
+True: tilt with camera.
+Only affects children of UIGrid; ignored for other parents.
+- \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
+origin).
+Animatable property.
+- \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
+general margin).
 Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
@@ -1485,10 +1555,17 @@ The logical cell this entity occupies.
 relative to grid (Vector).
 Computed as draw_pos * tile_size.
 Requires entity to be attached to a grid.
+- \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
+When set, the entity is rendered through the shader program.
+Set to None to disable shader effects.
 - \f[V]sprite_index\f[R]: Sprite index on the texture on the display -
 \f[V]sprite_number\f[R]: Sprite index (DEPRECATED: use sprite_index
-instead) - \f[V]visible\f[R]: Visibility flag - \f[V]x\f[R]: Pixel X
-position relative to grid.
+instead) - \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of
+shader uniforms (read-only access to collection).
+Set uniforms via dict-like syntax: entity.uniforms[`name'] = value.
+Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
+- \f[V]visible\f[R]: Visibility flag - \f[V]x\f[R]: Pixel X position
+relative to grid.
 Requires entity to be attached to a grid.
 - \f[V]y\f[R]: Pixel Y position relative to grid.
 Requires entity to be attached to a grid.
@@ -1750,6 +1827,9 @@ Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
 Automatically clamped to valid range [0.0, 1.0].
+- \f[V]origin\f[R]: Transform origin as Vector (pivot point for
+rotation).
+Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]outline\f[R]: Thickness of the border - \f[V]outline_color\f[R]:
 Outline color of the rectangle.
 Returns a copy; modifying components requires reassignment.
@@ -1757,8 +1837,24 @@ For animation, use `outline_color.r', `outline_color.g', etc.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: Position as a Vector - \f[V]vert_margin\f[R]: Vertical
-margin override (float, 0 = use general margin).
+- \f[V]pos\f[R]: Position as a Vector - \f[V]rotate_with_camera\f[R]:
+Whether to rotate visually with parent Grid\[cq]s camera_rotation
+(bool).
+False (default): stay screen-aligned.
+True: tilt with camera.
+Only affects children of UIGrid; ignored for other parents.
+- \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
+origin).
+Animatable property.
+- \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
+When set, the drawable is rendered through the shader program.
+Set to None to disable shader effects.
+- \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
+uniforms (read-only access to collection).
+Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
+Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
+- \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
+general margin).
 Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
@@ -1875,6 +1971,10 @@ or resized.
 Set to None to disable alignment and use manual positioning.
 - \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
 Returns (Vector(x, y), Vector(width, height)).
+- \f[V]camera_rotation\f[R]: Rotation of grid contents around camera
+center (degrees).
+The grid widget stays axis-aligned; only the view into the world
+rotates.
 - \f[V]center\f[R]: Grid coordinate at the center of the Grid\[cq]s view
 (pan) - \f[V]center_x\f[R]: center of the view X-coordinate -
 \f[V]center_y\f[R]: center of the view Y-coordinate -
@@ -1933,6 +2033,9 @@ Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
 Automatically clamped to valid range [0.0, 1.0].
+- \f[V]origin\f[R]: Transform origin as Vector (pivot point for
+rotation).
+Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -1943,10 +2046,25 @@ Setting an entity automatically enables perspective mode.
 rendering.
 When True with no valid entity, all cells appear undiscovered.
 - \f[V]pos\f[R]: Position of the grid as Vector - \f[V]position\f[R]:
-Position of the grid (x, y) - \f[V]size\f[R]: Size of the grid as Vector
-(width, height) - \f[V]texture\f[R]: Texture of the grid -
-\f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use general
-margin).
+Position of the grid (x, y) - \f[V]rotate_with_camera\f[R]: Whether to
+rotate visually with parent Grid\[cq]s camera_rotation (bool).
+False (default): stay screen-aligned.
+True: tilt with camera.
+Only affects children of UIGrid; ignored for other parents.
+- \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
+origin).
+Animatable property.
+- \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
+When set, the drawable is rendered through the shader program.
+Set to None to disable shader effects.
+- \f[V]size\f[R]: Size of the grid as Vector (width, height) -
+\f[V]texture\f[R]: Texture of the grid - \f[V]uniforms\f[R]
+\f[I](read-only)\f[R]: Collection of shader uniforms (read-only access
+to collection).
+Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
+Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
+- \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
+general margin).
 Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
@@ -2743,10 +2861,21 @@ Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
 Automatically clamped to valid range [0.0, 1.0].
+- \f[V]origin\f[R]: Transform origin as Vector (pivot point for
+rotation).
+Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - \f[V]pos\f[R]: Position as a Vector (midpoint of line).
+- \f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+Grid\[cq]s camera_rotation (bool).
+False (default): stay screen-aligned.
+True: tilt with camera.
+Only affects children of UIGrid; ignored for other parents.
+- \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
+origin).
+Animatable property.
 - \f[V]start\f[R]: Starting point of the line as a Vector.
 - \f[V]thickness\f[R]: Line thickness in pixels.
 - \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
@@ -3041,6 +3170,34 @@ combine (default: 4)
 .PP
 \f[B]Raises:\f[R] ValueError: Position tuple length doesn\[cq]t match
 dimensions
+.SS PropertyBinding
+.PP
+PropertyBinding(target: UIDrawable, property: str)
+.PP
+A binding that reads a property value from a UI drawable.
+.PP
+Args: target: The drawable to read the property from property: Name of
+the property to read (e.g., `x', `opacity')
+.PP
+Use this to create dynamic shader uniforms that follow a drawable\[cq]s
+properties.
+The binding automatically handles cases where the target is destroyed.
+.PP
+Example: other_frame = mcrfpy.Frame(pos=(100, 100))
+frame.uniforms[`offset_x'] = mcrfpy.PropertyBinding(other_frame, `x')
+.PP
+\f[B]Properties:\f[R] - \f[V]is_valid\f[R] \f[I](read-only)\f[R]: True
+if the binding target still exists and property is valid (bool,
+read-only).
+- \f[V]property\f[R] \f[I](read-only)\f[R]: The property name being read
+(str, read-only).
+- \f[V]target\f[R] \f[I](read-only)\f[R]: The drawable this binding
+reads from (read-only).
+- \f[V]value\f[R] \f[I](read-only)\f[R]: Current value of the binding
+(float, read-only).
+Returns None if invalid.
+.PP
+\f[B]Methods:\f[R]
 .SS Scene
 .PP
 Scene(name: str)
@@ -3100,7 +3257,7 @@ Changes are reflected immediately.
 - \f[V]name\f[R] \f[I](read-only)\f[R]: Scene name (str, read-only).
 Unique identifier for this scene.
 - \f[V]on_key\f[R]: Keyboard event handler (callable or None).
-Function receives (key: str, action: str) for keyboard events.
+Function receives (key: Key, action: InputState) for keyboard events.
 Set to None to remove the handler.
 - \f[V]opacity\f[R]: Scene opacity (0.0-1.0).
 Applied to all UI elements during rendering.
@@ -3131,6 +3288,53 @@ Recalculate alignment for all children with alignment set.
 .PP
 Note: Call this after window resize or when game_resolution changes.
 For responsive layouts, connect this to on_resize callback.
+.SS Shader
+.PP
+Shader(fragment_source: str, dynamic: bool = False)
+.PP
+A GPU shader program for visual effects.
+.PP
+Args: fragment_source: GLSL fragment shader source code dynamic: If
+True, shader uses time-varying effects and will invalidate parent caches
+each frame
+.PP
+Shaders enable GPU-accelerated visual effects like glow, distortion,
+color manipulation, and more.
+Assign to drawable.shader to apply.
+.PP
+Engine-provided uniforms (automatically available): - float time:
+Seconds since engine start - float delta_time: Seconds since last frame
+- vec2 resolution: Texture size in pixels - vec2 mouse: Mouse position
+in window coordinates
+.PP
+Example: shader = mcrfpy.Shader(\[cq]\[cq]\[cq] uniform sampler2D
+texture; uniform float time; void main() { vec2 uv = gl_TexCoord[0].xy;
+vec4 color = texture2D(texture, uv); color.rgb \f[I]= 0.5 + 0.5 \f[R]
+sin(time); gl_FragColor = color; } \[cq]\[cq]\[cq], dynamic=True)
+frame.shader = shader
+.PP
+\f[B]Properties:\f[R] - \f[V]dynamic\f[R]: Whether this shader uses
+time-varying effects (bool).
+Dynamic shaders invalidate parent caches each frame.
+- \f[V]is_valid\f[R] \f[I](read-only)\f[R]: True if the shader compiled
+successfully (bool, read-only).
+- \f[V]source\f[R] \f[I](read-only)\f[R]: The GLSL fragment shader
+source code (str, read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]set_uniform(name: str, value: float|tuple) -> None\f[R]
+.PP
+Set a custom uniform value on this shader.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]name\f[R]: Uniform variable name in the
+shader - \f[V]value\f[R]: Float, vec2 (2-tuple), vec3 (3-tuple), or vec4
+(4-tuple)
+.PP
+\f[B]Raises:\f[R] ValueError: If uniform type cannot be determined
+Engine uniforms (time, resolution, etc.)
+are set automatically
 .SS Sound
 .PP
 Sound effect object for short audio clips
@@ -3238,16 +3442,35 @@ Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
 Automatically clamped to valid range [0.0, 1.0].
+- \f[V]origin\f[R]: Transform origin as Vector (pivot point for
+rotation).
+Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: Position as a Vector - \f[V]scale\f[R]: Uniform size
-factor - \f[V]scale_x\f[R]: Horizontal scale factor - \f[V]scale_y\f[R]:
-Vertical scale factor - \f[V]sprite_index\f[R]: Which sprite on the
-texture is shown - \f[V]sprite_number\f[R]: Sprite index (DEPRECATED:
-use sprite_index instead) - \f[V]texture\f[R]: Texture object -
-\f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use general
-margin).
+- \f[V]pos\f[R]: Position as a Vector - \f[V]rotate_with_camera\f[R]:
+Whether to rotate visually with parent Grid\[cq]s camera_rotation
+(bool).
+False (default): stay screen-aligned.
+True: tilt with camera.
+Only affects children of UIGrid; ignored for other parents.
+- \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
+origin).
+Animatable property.
+- \f[V]scale\f[R]: Uniform size factor - \f[V]scale_x\f[R]: Horizontal
+scale factor - \f[V]scale_y\f[R]: Vertical scale factor -
+\f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
+When set, the drawable is rendered through the shader program.
+Set to None to disable shader effects.
+- \f[V]sprite_index\f[R]: Which sprite on the texture is shown -
+\f[V]sprite_number\f[R]: Sprite index (DEPRECATED: use sprite_index
+instead) - \f[V]texture\f[R]: Texture object - \f[V]uniforms\f[R]
+\f[I](read-only)\f[R]: Collection of shader uniforms (read-only access
+to collection).
+Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
+Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
+- \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
+general margin).
 Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).

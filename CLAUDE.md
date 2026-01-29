@@ -309,12 +309,12 @@ McRogueFace is a C++ game engine with Python scripting support, designed for cre
 
 ### Key Python API (`mcrfpy` module)
 The C++ engine exposes these primary functions to Python:
-- Scene Management: `Scene("name")` object
+- Scene Management: `Scene("name")` object with `scene.on_key` for keyboard events
 - Entity Creation: `Entity()` with position and sprite properties
-- Grid Management: `Grid()` for tilemap rendering
-- Input Handling: `keypressScene()` for keyboard events
+- Grid Management: `Grid()` for tilemap rendering with cell callbacks
+- Input Handling: `scene.on_key = handler` receives `(Key, InputState)` enums
 - Audio: `createSoundBuffer()`, `playSound()`, `setVolume()`
-- Timers: `Timer("name")` object for event scheduling
+- Timers: `Timer("name", callback, interval)` object for event scheduling
 
 ## Development Workflow
 
@@ -322,7 +322,7 @@ The C++ engine exposes these primary functions to Python:
 After building, the executable expects:
 - `assets/` directory with sprites, fonts, and audio
 - `scripts/` directory with Python game files
-- Python 3.12 shared libraries in `./lib/`
+- Python 3.14 shared libraries in `./lib/`
 
 ### Modifying Game Logic
 - Game scripts are in `src/scripts/`
@@ -591,6 +591,11 @@ demo_scene = mcrfpy.Scene("demo")
 # preferred: create animations directly against the targeted object; use Enum of easing functions
 frame.animate("x", 500.0, 2.0, mcrfpy.Easing.EASE_IN_OUT)
 
+# Animation callbacks (#229) receive (target, property, final_value):
+def on_anim_complete(target, prop, value):
+    print(f"{type(target).__name__}.{prop} reached {value}")
+frame.animate("x", 500.0, 2.0, mcrfpy.Easing.EASE_IN_OUT, callback=on_anim_complete)
+
 # Caption: use keyword arguments to avoid positional conflicts
 cap = mcrfpy.Caption(text="Hello", pos=(100, 100))
 
@@ -601,10 +606,27 @@ grid.center = (120, 80)  # pixels: (cells * cell_size / 2)
 # set grid.center to focus on that position. To position the camera in tile coordinates, use grid.center_camera():
 grid.center_camera((14.5, 8.5)) # offset of 0.5 tiles to point at the middle of the tile
 
-# Keyboard handler: key names are "Num1", "Num2", "Escape", "Q", etc.
-def on_key(key, state):
-    if key == "Num1" and state == "start":
+# Keyboard handler (#184): receives Key and InputState enums
+def on_key(key, action):
+    if key == mcrfpy.Key.Num1 and action == mcrfpy.InputState.PRESSED:
         demo_scene.activate()
+scene.on_key = on_key
+
+# Mouse callbacks (#230):
+# on_click receives (pos: Vector, button: MouseButton, action: InputState)
+def on_click(pos, button, action):
+    if button == mcrfpy.MouseButton.LEFT and action == mcrfpy.InputState.PRESSED:
+        print(f"Clicked at {pos.x}, {pos.y}")
+frame.on_click = on_click
+
+# Hover callbacks (#230) receive only position:
+def on_enter(pos):
+    print(f"Entered at {pos.x}, {pos.y}")
+frame.on_enter = on_enter  # Also: on_exit, on_move
+
+# Grid cell callbacks (#230):
+# on_cell_click receives (cell_pos: Vector, button: MouseButton, action: InputState)
+# on_cell_enter/on_cell_exit receive only (cell_pos: Vector)
 ```
 
 ## Development Best Practices

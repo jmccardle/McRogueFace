@@ -9,6 +9,88 @@ from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload
 UIElement = Union['Frame', 'Caption', 'Sprite', 'Grid', 'Line', 'Circle', 'Arc']
 Transition = Union[str, None]
 
+# Enums
+
+class Key:
+    """Keyboard key codes enum.
+
+    All standard keyboard keys are available as class attributes:
+    A-Z, Num0-Num9, F1-F15, Arrow keys, modifiers, etc.
+    """
+    A: 'Key'
+    B: 'Key'
+    C: 'Key'
+    # ... (all letters A-Z)
+    Num0: 'Key'
+    Num1: 'Key'
+    Num2: 'Key'
+    # ... (Num0-Num9)
+    ESCAPE: 'Key'
+    ENTER: 'Key'
+    SPACE: 'Key'
+    TAB: 'Key'
+    BACKSPACE: 'Key'
+    DELETE: 'Key'
+    UP: 'Key'
+    DOWN: 'Key'
+    LEFT: 'Key'
+    RIGHT: 'Key'
+    LSHIFT: 'Key'
+    RSHIFT: 'Key'
+    LCTRL: 'Key'
+    RCTRL: 'Key'
+    LALT: 'Key'
+    RALT: 'Key'
+    # ... (additional keys)
+
+class MouseButton:
+    """Mouse button enum for click callbacks."""
+    LEFT: 'MouseButton'
+    RIGHT: 'MouseButton'
+    MIDDLE: 'MouseButton'
+
+class InputState:
+    """Input action state enum for callbacks."""
+    PRESSED: 'InputState'
+    RELEASED: 'InputState'
+
+class Easing:
+    """Animation easing function enum.
+
+    Available easing functions for smooth animations.
+    """
+    LINEAR: 'Easing'
+    EASE_IN: 'Easing'
+    EASE_OUT: 'Easing'
+    EASE_IN_OUT: 'Easing'
+    EASE_IN_QUAD: 'Easing'
+    EASE_OUT_QUAD: 'Easing'
+    EASE_IN_OUT_QUAD: 'Easing'
+    EASE_IN_CUBIC: 'Easing'
+    EASE_OUT_CUBIC: 'Easing'
+    EASE_IN_OUT_CUBIC: 'Easing'
+    EASE_IN_QUART: 'Easing'
+    EASE_OUT_QUART: 'Easing'
+    EASE_IN_OUT_QUART: 'Easing'
+    EASE_IN_SINE: 'Easing'
+    EASE_OUT_SINE: 'Easing'
+    EASE_IN_OUT_SINE: 'Easing'
+    EASE_IN_EXPO: 'Easing'
+    EASE_OUT_EXPO: 'Easing'
+    EASE_IN_OUT_EXPO: 'Easing'
+    EASE_IN_CIRC: 'Easing'
+    EASE_OUT_CIRC: 'Easing'
+    EASE_IN_OUT_CIRC: 'Easing'
+    EASE_IN_ELASTIC: 'Easing'
+    EASE_OUT_ELASTIC: 'Easing'
+    EASE_IN_OUT_ELASTIC: 'Easing'
+    EASE_IN_BACK: 'Easing'
+    EASE_OUT_BACK: 'Easing'
+    EASE_IN_OUT_BACK: 'Easing'
+    EASE_IN_BOUNCE: 'Easing'
+    EASE_OUT_BOUNCE: 'Easing'
+    EASE_IN_OUT_BOUNCE: 'Easing'
+
 # Classes
 
 class Color:
@@ -83,11 +165,13 @@ class Drawable:
     name: str
     pos: Vector
 
-    # Mouse event callbacks (#140, #141)
-    on_click: Optional[Callable[[float, float, int, str], None]]
-    on_enter: Optional[Callable[[float, float, int, str], None]]
-    on_exit: Optional[Callable[[float, float, int, str], None]]
-    on_move: Optional[Callable[[float, float, int, str], None]]
+    # Mouse event callbacks (#140, #141, #230)
+    # on_click receives (pos: Vector, button: MouseButton, action: InputState)
+    on_click: Optional[Callable[['Vector', 'MouseButton', 'InputState'], None]]
+    # Hover callbacks receive only position per #230
+    on_enter: Optional[Callable[['Vector'], None]]
+    on_exit: Optional[Callable[['Vector'], None]]
+    on_move: Optional[Callable[['Vector'], None]]
 
     # Read-only hover state (#140)
     hovered: bool
@@ -222,10 +306,12 @@ class Grid(Drawable):
     fov: 'FOV'  # FOV algorithm enum
     fov_radius: int  # Default FOV radius
 
-    # Cell-level mouse events
+    # Cell-level mouse events (#230)
+    # on_cell_click receives (cell_pos: Vector, button: MouseButton, action: InputState)
+    on_cell_click: Optional[Callable[['Vector', 'MouseButton', 'InputState'], None]]
+    # Cell hover callbacks receive only position per #230
     on_cell_enter: Optional[Callable[['Vector'], None]]
     on_cell_exit: Optional[Callable[['Vector'], None]]
-    on_cell_click: Optional[Callable[['Vector'], None]]
     hovered_cell: Optional[Tuple[int, int]]  # Read-only
 
     def at(self, x: int, y: int) -> 'GridPoint':
@@ -655,7 +741,8 @@ class Scene:
 
     name: str
     children: UICollection  # #151: UI elements collection (read-only alias for get_ui())
-    on_key: Optional[Callable[[str, str], None]]  # Keyboard handler (key, action)
+    # Keyboard handler receives (key: Key, action: InputState) per #184
+    on_key: Optional[Callable[['Key', 'InputState'], None]]
 
     def __init__(self, name: str) -> None: ...
 
@@ -733,27 +820,31 @@ class Window:
         ...
 
 class Animation:
-    """Animation object for animating UI properties."""
-    
-    target: Any
+    """Animation object for animating UI properties.
+
+    Note: The preferred way to create animations is via the .animate() method
+    on drawable objects:
+        frame.animate("x", 500.0, 2.0, mcrfpy.Easing.EASE_IN_OUT)
+
+    Animation callbacks (#229) receive (target, property, final_value):
+        def on_complete(target, prop, value):
+            print(f"{type(target).__name__}.{prop} = {value}")
+    """
+
     property: str
     duration: float
-    easing: str
-    loop: bool
-    on_complete: Optional[Callable]
-    
-    def __init__(self, target: Any, property: str, start_value: Any, end_value: Any,
-                 duration: float, easing: str = 'linear', loop: bool = False,
-                 on_complete: Optional[Callable] = None) -> None: ...
-    
-    def start(self) -> None:
-        """Start the animation."""
+    easing: 'Easing'
+    # Callback receives (target: Any, property: str, final_value: Any) per #229
+    callback: Optional[Callable[[Any, str, Any], None]]
+
+    def __init__(self, property: str, end_value: Any, duration: float,
+                 easing: Union[str, 'Easing'] = 'linear',
+                 callback: Optional[Callable[[Any, str, Any], None]] = None) -> None: ...
+
+    def start(self, target: Any) -> None:
+        """Start the animation on a target object."""
         ...
-    
-    def update(self, dt: float) -> bool:
-        """Update animation, returns True if still running."""
-        ...
-    
+
     def get_current_value(self) -> Any:
         """Get the current interpolated value."""
         ...
@@ -805,15 +896,25 @@ def createScene(name: str) -> None:
     ...
 
 def keypressScene(handler: Callable[[str, bool], None]) -> None:
-    """Set the keyboard event handler for the current scene."""
+    """Set the keyboard event handler for the current scene.
+
+    DEPRECATED: Use scene.on_key = handler instead.
+    The new handler receives (key: Key, action: InputState) enums.
+    """
     ...
 
 def setTimer(name: str, handler: Callable[[float], None], interval: int) -> None:
-    """Create or update a recurring timer."""
+    """Create or update a recurring timer.
+
+    DEPRECATED: Use Timer(name, callback, interval) object instead.
+    """
     ...
 
 def delTimer(name: str) -> None:
-    """Stop and remove a timer."""
+    """Stop and remove a timer.
+
+    DEPRECATED: Use timer.cancel() method instead.
+    """
     ...
 
 def exit() -> None:

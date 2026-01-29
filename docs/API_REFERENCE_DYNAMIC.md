@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-01-23 20:45:13*
+*Generated on 2026-01-28 19:16:58*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -13,6 +13,7 @@
   - [Animation](#animation)
   - [Arc](#arc)
   - [BSP](#bsp)
+  - [CallableBinding](#callablebinding)
   - [Caption](#caption)
   - [Circle](#circle)
   - [Color](#color)
@@ -34,7 +35,9 @@
   - [MouseButton](#mousebutton)
   - [Music](#music)
   - [NoiseSource](#noisesource)
+  - [PropertyBinding](#propertybinding)
   - [Scene](#scene)
+  - [Shader](#shader)
   - [Sound](#sound)
   - [Sprite](#sprite)
   - [Texture](#texture)
@@ -508,9 +511,12 @@ Attributes:
 - `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
 - `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - `pos`: Position as a Vector (same as center).
 - `radius`: Arc radius in pixels
+- `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
+- `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `start_angle`: Starting angle in degrees
 - `thickness`: Line thickness
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
@@ -682,6 +688,32 @@ Note:
 
 **Returns:** Iterator yielding BSPNode objects Orders: PRE_ORDER, IN_ORDER, POST_ORDER, LEVEL_ORDER, INVERTED_LEVEL_ORDER
 
+### CallableBinding
+
+CallableBinding(callable: Callable[[], float])
+
+A binding that calls a Python function to get its value.
+
+Args:
+    callable: A function that takes no arguments and returns a float
+
+The callable is invoked every frame when the shader is rendered.
+Keep the callable lightweight to avoid performance issues.
+
+Example:
+    player_health = 100
+    frame.uniforms['health_pct'] = mcrfpy.CallableBinding(
+        lambda: player_health / 100.0
+    )
+
+
+**Properties:**
+- `callable` *(read-only)*: The Python callable (read-only).
+- `is_valid` *(read-only)*: True if the callable is still valid (bool, read-only).
+- `value` *(read-only)*: Current value from calling the callable (float, read-only). Returns None on error.
+
+**Methods:**
+
 ### Caption
 
 *Inherits from: Drawable*
@@ -750,12 +782,17 @@ Attributes:
 - `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
 - `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `outline`: Thickness of the border
 - `outline_color`: Outline color of the text. Returns a copy; modifying components requires reassignment. For animation, use 'outline_color.r', 'outline_color.g', etc.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - `pos`: (x, y) vector
+- `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
+- `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
+- `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
 - `size` *(read-only)*: Text dimensions as Vector (read-only)
 - `text`: The text displayed
+- `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
 - `w` *(read-only)*: Text width in pixels (read-only)
@@ -873,11 +910,14 @@ Attributes:
 - `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
 - `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `outline`: Outline thickness (0 for no outline)
 - `outline_color`: Outline color of the circle
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - `pos`: Position as a Vector (same as center).
 - `radius`: Circle radius in pixels
+- `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
+- `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
 - `z_index`: Z-order for rendering (lower values rendered first).
@@ -1351,8 +1391,10 @@ Attributes:
 - `name`: Name for finding elements
 - `opacity`: Opacity (0.0 = transparent, 1.0 = opaque)
 - `pos`: Pixel position relative to grid (Vector). Computed as draw_pos * tile_size. Requires entity to be attached to a grid.
+- `shader`: Shader for GPU visual effects (Shader or None). When set, the entity is rendered through the shader program. Set to None to disable shader effects.
 - `sprite_index`: Sprite index on the texture on the display
 - `sprite_number`: Sprite index (DEPRECATED: use sprite_index instead)
+- `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: entity.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `visible`: Visibility flag
 - `x`: Pixel X position relative to grid. Requires entity to be attached to a grid.
 - `y`: Pixel Y position relative to grid. Requires entity to be attached to a grid.
@@ -1605,10 +1647,15 @@ Attributes:
 - `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
 - `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `outline`: Thickness of the border
 - `outline_color`: Outline color of the rectangle. Returns a copy; modifying components requires reassignment. For animation, use 'outline_color.r', 'outline_color.g', etc.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - `pos`: Position as a Vector
+- `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
+- `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
+- `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
+- `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
 - `w`: width of the rectangle
@@ -1729,6 +1776,7 @@ Attributes:
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
 - `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `camera_rotation`: Rotation of grid contents around camera center (degrees). The grid widget stays axis-aligned; only the view into the world rotates.
 - `center`: Grid coordinate at the center of the Grid's view (pan)
 - `center_x`: center of the view X-coordinate
 - `center_y`: center of the view Y-coordinate
@@ -1758,13 +1806,18 @@ Attributes:
 - `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
 - `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - `perspective`: Entity whose perspective to use for FOV rendering (None for omniscient view). Setting an entity automatically enables perspective mode.
 - `perspective_enabled`: Whether to use perspective-based FOV rendering. When True with no valid entity, all cells appear undiscovered.
 - `pos`: Position of the grid as Vector
 - `position`: Position of the grid (x, y)
+- `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
+- `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
+- `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
 - `size`: Size of the grid as Vector (width, height)
 - `texture`: Texture of the grid
+- `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
 - `w`: visible widget width
@@ -2615,8 +2668,11 @@ Attributes:
 - `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
 - `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - `pos`: Position as a Vector (midpoint of line).
+- `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
+- `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `start`: Starting point of the line as a Vector.
 - `thickness`: Line thickness in pixels.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
@@ -2900,6 +2956,33 @@ Get turbulence (absolute fbm) value at coordinates.
 
 **Raises:** ValueError: Position tuple length doesn't match dimensions
 
+### PropertyBinding
+
+PropertyBinding(target: UIDrawable, property: str)
+
+A binding that reads a property value from a UI drawable.
+
+Args:
+    target: The drawable to read the property from
+    property: Name of the property to read (e.g., 'x', 'opacity')
+
+Use this to create dynamic shader uniforms that follow a drawable's
+properties. The binding automatically handles cases where the target
+is destroyed.
+
+Example:
+    other_frame = mcrfpy.Frame(pos=(100, 100))
+    frame.uniforms['offset_x'] = mcrfpy.PropertyBinding(other_frame, 'x')
+
+
+**Properties:**
+- `is_valid` *(read-only)*: True if the binding target still exists and property is valid (bool, read-only).
+- `property` *(read-only)*: The property name being read (str, read-only).
+- `target` *(read-only)*: The drawable this binding reads from (read-only).
+- `value` *(read-only)*: Current value of the binding (float, read-only). Returns None if invalid.
+
+**Methods:**
+
 ### Scene
 
 Scene(name: str)
@@ -2948,7 +3031,7 @@ Example:
 - `active` *(read-only)*: Whether this scene is currently active (bool, read-only). Only one scene can be active at a time.
 - `children` *(read-only)*: UI element collection for this scene (UICollection, read-only). Use to add, remove, or iterate over UI elements. Changes are reflected immediately.
 - `name` *(read-only)*: Scene name (str, read-only). Unique identifier for this scene.
-- `on_key`: Keyboard event handler (callable or None). Function receives (key: str, action: str) for keyboard events. Set to None to remove the handler.
+- `on_key`: Keyboard event handler (callable or None). Function receives (key: Key, action: InputState) for keyboard events. Set to None to remove the handler.
 - `opacity`: Scene opacity (0.0-1.0). Applied to all UI elements during rendering.
 - `pos`: Scene position offset (Vector). Applied to all UI elements during rendering.
 - `visible`: Scene visibility (bool). If False, scene is not rendered.
@@ -2973,6 +3056,59 @@ Recalculate alignment for all children with alignment set.
 
 Note:
     Call this after window resize or when game_resolution changes. For responsive layouts, connect this to on_resize callback.
+
+### Shader
+
+Shader(fragment_source: str, dynamic: bool = False)
+
+A GPU shader program for visual effects.
+
+Args:
+    fragment_source: GLSL fragment shader source code
+    dynamic: If True, shader uses time-varying effects and will
+             invalidate parent caches each frame
+
+Shaders enable GPU-accelerated visual effects like glow, distortion,
+color manipulation, and more. Assign to drawable.shader to apply.
+
+Engine-provided uniforms (automatically available):
+    - float time: Seconds since engine start
+    - float delta_time: Seconds since last frame
+    - vec2 resolution: Texture size in pixels
+    - vec2 mouse: Mouse position in window coordinates
+
+Example:
+    shader = mcrfpy.Shader('''
+        uniform sampler2D texture;
+        uniform float time;
+        void main() {
+            vec2 uv = gl_TexCoord[0].xy;
+            vec4 color = texture2D(texture, uv);
+            color.rgb *= 0.5 + 0.5 * sin(time);
+            gl_FragColor = color;
+        }
+    ''', dynamic=True)
+    frame.shader = shader
+
+
+**Properties:**
+- `dynamic`: Whether this shader uses time-varying effects (bool). Dynamic shaders invalidate parent caches each frame.
+- `is_valid` *(read-only)*: True if the shader compiled successfully (bool, read-only).
+- `source` *(read-only)*: The GLSL fragment shader source code (str, read-only).
+
+**Methods:**
+
+#### `set_uniform(name: str, value: float|tuple) -> None`
+
+Set a custom uniform value on this shader.
+
+Note:
+
+**Arguments:**
+- `name`: Uniform variable name in the shader
+- `value`: Float, vec2 (2-tuple), vec3 (3-tuple), or vec4 (4-tuple)
+
+**Raises:** ValueError: If uniform type cannot be determined Engine uniforms (time, resolution, etc.) are set automatically
 
 ### Sound
 
@@ -3062,14 +3198,19 @@ Attributes:
 - `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
 - `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - `pos`: Position as a Vector
+- `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
+- `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `scale`: Uniform size factor
 - `scale_x`: Horizontal scale factor
 - `scale_y`: Vertical scale factor
+- `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
 - `sprite_index`: Which sprite on the texture is shown
 - `sprite_number`: Sprite index (DEPRECATED: use sprite_index instead)
 - `texture`: Texture object
+- `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
 - `x`: X coordinate of top-left corner
