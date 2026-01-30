@@ -86,8 +86,17 @@ def serialize_entity(entity) -> Dict[str, Any]:
     return data
 
 
-def serialize_grid(grid) -> Dict[str, Any]:
-    """Serialize a Grid element with its entities."""
+def serialize_grid(grid, respect_perspective: bool = True) -> Dict[str, Any]:
+    """Serialize a Grid element with its entities.
+
+    Args:
+        grid: The Grid element to serialize
+        respect_perspective: If True and grid has a perspective entity,
+            only include entities visible to that entity's FOV
+
+    Returns:
+        Dictionary representation of the grid
+    """
     bounds = get_bounds(grid)
 
     # Get grid dimensions
@@ -106,10 +115,27 @@ def serialize_grid(grid) -> Dict[str, Any]:
     center = getattr(grid, 'center', None)
     zoom = float(getattr(grid, 'zoom', 1.0))
 
-    # Serialize entities
+    # Check for perspective (player POV)
+    perspective_entity = getattr(grid, 'perspective', None)
+    perspective_enabled = bool(getattr(grid, 'perspective_enabled', False))
+    has_perspective = perspective_entity is not None and perspective_enabled
+
+    # Serialize entities, optionally filtering by FOV
     entities = []
+    hidden_count = 0
     try:
         for entity in grid.entities:
+            # Check if entity is visible from perspective
+            if has_perspective and respect_perspective:
+                try:
+                    entity_pos = (int(entity.grid_x), int(entity.grid_y))
+                    in_fov = grid.is_in_fov(entity_pos)
+                    if not in_fov:
+                        hidden_count += 1
+                        continue  # Skip entities not in FOV
+                except Exception:
+                    pass  # If FOV check fails, include the entity
+
             entities.append(serialize_entity(entity))
     except Exception:
         pass
@@ -129,23 +155,42 @@ def serialize_grid(grid) -> Dict[str, Any]:
         "has_cell_enter": getattr(grid, 'on_cell_enter', None) is not None,
     }
 
+    # Add perspective info
+    if has_perspective:
+        data["perspective"] = {
+            "enabled": True,
+            "entity_name": getattr(perspective_entity, 'name', None) or "",
+            "entity_pos": {
+                "x": float(getattr(perspective_entity, 'grid_x', 0)),
+                "y": float(getattr(perspective_entity, 'grid_y', 0))
+            },
+            "fov_radius": int(getattr(grid, 'fov_radius', 0)),
+            "hidden_entities": hidden_count,
+            "note": "Entities filtered by FOV - only showing what perspective entity can see"
+        }
+    else:
+        data["perspective"] = {
+            "enabled": False,
+            "note": "No perspective set - showing all entities (omniscient view)"
+        }
+
     # Add cell size estimate if texture available
     texture = getattr(grid, 'texture', None)
     if texture:
-        # Texture dimensions divided by sprite count would give cell size
-        # but this is an approximation
         data["has_texture"] = True
 
     return data
 
 
-def serialize_element(element, depth: int = 0, max_depth: int = 10) -> Dict[str, Any]:
+def serialize_element(element, depth: int = 0, max_depth: int = 10,
+                      respect_perspective: bool = True) -> Dict[str, Any]:
     """Serialize a UI element to a dictionary.
 
     Args:
         element: The UI element to serialize
         depth: Current recursion depth
         max_depth: Maximum recursion depth for children
+        respect_perspective: If True, filter grid entities by perspective FOV
 
     Returns:
         Dictionary representation of the element
@@ -155,7 +200,7 @@ def serialize_element(element, depth: int = 0, max_depth: int = 10) -> Dict[str,
 
     # Special handling for Grid
     if element_type == "Grid":
-        return serialize_grid(element)
+        return serialize_grid(element, respect_perspective=respect_perspective)
 
     data = {
         "type": element_type,
@@ -195,7 +240,8 @@ def serialize_element(element, depth: int = 0, max_depth: int = 10) -> Dict[str,
         children = []
         try:
             for child in element.children:
-                children.append(serialize_element(child, depth + 1, max_depth))
+                children.append(serialize_element(child, depth + 1, max_depth,
+                                                  respect_perspective))
         except Exception:
             pass
         data["children"] = children
@@ -204,8 +250,12 @@ def serialize_element(element, depth: int = 0, max_depth: int = 10) -> Dict[str,
     return data
 
 
-def serialize_scene() -> Dict[str, Any]:
+def serialize_scene(respect_perspective: bool = True) -> Dict[str, Any]:
     """Serialize the entire current scene graph.
+
+    Args:
+        respect_perspective: If True, filter grid entities by perspective FOV.
+                            If False, show all entities (omniscient view).
 
     Returns:
         Dictionary with scene name, viewport info, and all elements
@@ -224,7 +274,8 @@ def serialize_scene() -> Dict[str, Any]:
     try:
         if scene:
             for element in scene.children:
-                elements.append(serialize_element(element))
+                elements.append(serialize_element(element,
+                                                  respect_perspective=respect_perspective))
     except Exception as e:
         pass
 
@@ -233,7 +284,8 @@ def serialize_scene() -> Dict[str, Any]:
         "timestamp": time.time(),
         "viewport": {"width": width, "height": height},
         "element_count": len(elements),
-        "elements": elements
+        "elements": elements,
+        "perspective_mode": "respect_fov" if respect_perspective else "omniscient"
     }
 
 

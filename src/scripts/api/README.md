@@ -30,14 +30,44 @@ Returns the current scene graph with all UI elements.
 
 ```bash
 curl http://localhost:8765/scene
+
+# Omniscient mode (see all entities, ignoring FOV)
+curl "http://localhost:8765/scene?omniscient=true"
 ```
 
-Response includes:
+**Query Parameters:**
+- `omniscient`: If `true`, show all entities regardless of FOV. Default is `false` (respect perspective).
+
+**Response includes:**
 - Scene name
 - Viewport dimensions
 - All UI elements with type, bounds, visibility, interactivity
 - Nested children
 - Type-specific properties (text for Caption, grid_size for Grid, etc.)
+- `perspective_mode`: Either "respect_fov" or "omniscient"
+
+**Grid Perspective Support:**
+
+When a Grid has a `perspective` entity set (typically the player), the API respects
+field-of-view by default. Only entities visible to the perspective entity are returned.
+
+```json
+{
+  "type": "Grid",
+  "entities": [...],  // Only entities in FOV
+  "perspective": {
+    "enabled": true,
+    "entity_name": "player",
+    "entity_pos": {"x": 5, "y": 5},
+    "fov_radius": 10,
+    "hidden_entities": 3,
+    "note": "Entities filtered by FOV - only showing what perspective entity can see"
+  }
+}
+```
+
+Use `?omniscient=true` to bypass FOV filtering and see all entities (useful for
+debugging or when partial information isn't needed).
 
 ### GET /affordances
 Returns only interactive elements with semantic labels.

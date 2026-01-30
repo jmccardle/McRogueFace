@@ -92,7 +92,7 @@ class GameAPIHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
 
             if path == '/scene':
-                self.handle_scene()
+                self.handle_scene(query)
             elif path == '/affordances':
                 self.handle_affordances()
             elif path == '/screenshot':
@@ -145,16 +145,26 @@ class GameAPIHandler(BaseHTTPRequestHandler):
             "timestamp": time.time()
         })
 
-    def handle_scene(self) -> None:
-        """Return the current scene graph with semantic annotations."""
+    def handle_scene(self, query: Dict) -> None:
+        """Return the current scene graph with semantic annotations.
+
+        Query parameters:
+            omniscient: If 'true', show all entities regardless of FOV.
+                        Default is to respect perspective (show only what
+                        the perspective entity can see).
+        """
+        # Check if client wants omniscient (all-seeing) view
+        omniscient = query.get('omniscient', ['false'])[0].lower() == 'true'
+        respect_perspective = not omniscient
+
         try:
             # Try to use lock for thread safety, but fall back if not available
             try:
                 with mcrfpy.lock():
-                    scene_data = serialize_scene()
+                    scene_data = serialize_scene(respect_perspective=respect_perspective)
             except (RuntimeError, AttributeError):
                 # Lock not available (e.g., main thread or headless mode issue)
-                scene_data = serialize_scene()
+                scene_data = serialize_scene(respect_perspective=respect_perspective)
             self.send_json(scene_data)
         except Exception as e:
             self.send_error_json(f"Scene introspection failed: {str(e)}", 500)
