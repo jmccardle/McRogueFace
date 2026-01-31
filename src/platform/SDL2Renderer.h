@@ -154,6 +154,14 @@ public:
     FontAtlas();
     ~FontAtlas();
 
+    // Move semantics - transfer ownership of GPU resources
+    FontAtlas(FontAtlas&& other) noexcept;
+    FontAtlas& operator=(FontAtlas&& other) noexcept;
+
+    // Disable copy - texture resources can't be shared
+    FontAtlas(const FontAtlas&) = delete;
+    FontAtlas& operator=(const FontAtlas&) = delete;
+
     // Load font data
     bool load(const unsigned char* fontData, size_t dataSize, float fontSize);
 

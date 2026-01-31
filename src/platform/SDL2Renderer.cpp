@@ -96,7 +96,7 @@ void main() {
 }
 )";
 
-// Text shader is same as sprite for now
+// Text shader - uses alpha from texture, color from vertex
 static const char* TEXT_VERTEX_SHADER = SPRITE_VERTEX_SHADER;
 static const char* TEXT_FRAGMENT_SHADER = R"(
 #ifdef GL_ES
@@ -107,9 +107,11 @@ varying vec2 v_texcoord;
 uniform sampler2D u_texture;
 
 void main() {
-    // Text rendering: use texture alpha as coverage
-    float alpha = texture2D(u_texture, v_texcoord).a;
-    gl_FragColor = vec4(v_color.rgb, v_color.a * alpha);
+    // Font atlas stores glyph alpha in texture alpha channel
+    // RGB is white (255,255,255), alpha varies per glyph pixel
+    vec4 texSample = texture2D(u_texture, v_texcoord);
+    // Use vertex color for RGB, texture alpha for transparency
+    gl_FragColor = vec4(v_color.rgb, v_color.a * texSample.a);
 }
 )";
 
@@ -1861,6 +1863,46 @@ bool Shader::isAvailable() {
 // =============================================================================
 
 FontAtlas::FontAtlas() = default;
+
+FontAtlas::FontAtlas(FontAtlas&& other) noexcept
+    : textureId_(other.textureId_)
+    , fontSize_(other.fontSize_)
+    , ascent_(other.ascent_)
+    , descent_(other.descent_)
+    , lineHeight_(other.lineHeight_)
+    , glyphCache_(std::move(other.glyphCache_))
+    , stbFontInfo_(other.stbFontInfo_)
+{
+    // Clear source to prevent double-deletion
+    other.textureId_ = 0;
+    other.stbFontInfo_ = nullptr;
+}
+
+FontAtlas& FontAtlas::operator=(FontAtlas&& other) noexcept {
+    if (this != &other) {
+        // Clean up existing resources
+        if (textureId_) {
+            SDL2Renderer::getInstance().deleteTexture(textureId_);
+        }
+        if (stbFontInfo_) {
+            delete static_cast<stbtt_fontinfo*>(stbFontInfo_);
+        }
+
+        // Transfer ownership
+        textureId_ = other.textureId_;
+        fontSize_ = other.fontSize_;
+        ascent_ = other.ascent_;
+        descent_ = other.descent_;
+        lineHeight_ = other.lineHeight_;
+        glyphCache_ = std::move(other.glyphCache_);
+        stbFontInfo_ = other.stbFontInfo_;
+
+        // Clear source to prevent double-deletion
+        other.textureId_ = 0;
+        other.stbFontInfo_ = nullptr;
+    }
+    return *this;
+}
 
 FontAtlas::~FontAtlas() {
     if (textureId_) {
