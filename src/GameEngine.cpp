@@ -295,149 +295,37 @@ void GameEngine::setWindowScale(float multiplier)
     }
 }
 
+// Emscripten callback support
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+// Static callback for emscripten_set_main_loop_arg
+static void emscriptenMainLoopCallback(void* arg) {
+    GameEngine* engine = static_cast<GameEngine*>(arg);
+    if (!engine->isRunning()) {
+        emscripten_cancel_main_loop();
+        engine->cleanup();
+        return;
+    }
+    engine->doFrame();
+}
+#endif
+
 void GameEngine::run()
 {
     //std::cout << "GameEngine::run() starting main loop..." << std::endl;
-    float fps = 0.0;
     frameTime = 0.016f; // Initialize to ~60 FPS
     clock.restart();
+
+#ifdef __EMSCRIPTEN__
+    // Browser: use callback-based loop (non-blocking)
+    // 0 = use requestAnimationFrame, 1 = simulate infinite loop
+    emscripten_set_main_loop_arg(emscriptenMainLoopCallback, this, 0, 1);
+#else
+    // Desktop: traditional blocking loop
     while (running)
     {
-        // Reset per-frame metrics
-        metrics.resetPerFrame();
-        
-        currentScene()->update();
-        testTimers();
-        
-        // Update Python scenes
-        {
-            ScopedTimer pyTimer(metrics.pythonScriptTime);
-            McRFPy_API::updatePythonScenes(frameTime);
-        }
-        
-        // Update animations (only if frameTime is valid)
-        if (frameTime > 0.0f && frameTime < 1.0f) {
-            ScopedTimer animTimer(metrics.animationTime);
-            AnimationManager::getInstance().update(frameTime);
-        }
-        
-        if (!headless) {
-            sUserInput();
-
-#ifndef MCRF_HEADLESS
-            // Update ImGui
-            if (imguiInitialized) {
-                ImGui::SFML::Update(*window, clock.getElapsedTime());
-            }
-#endif
-        }
-        if (!paused)
-        {
-        }
-        
-        // Handle scene transitions
-        if (transition.type != TransitionType::None)
-        {
-            transition.update(frameTime);
-            
-            if (transition.isComplete())
-            {
-                // Transition complete - finalize scene change
-                scene = transition.toScene;
-                transition.type = TransitionType::None;
-                
-                // Trigger Python scene lifecycle events
-                McRFPy_API::triggerSceneChange(transition.fromScene, transition.toScene);
-            }
-            else
-            {
-                // Render transition
-                render_target->clear();
-                transition.render(*render_target);
-            }
-        }
-        else
-        {
-            // Normal scene rendering
-            currentScene()->render();
-        }
-        
-        // Update and render profiler overlay (if enabled)
-        if (profilerOverlay && !headless) {
-            profilerOverlay->update(metrics);
-            profilerOverlay->render(*render_target);
-        }
-
-#ifndef MCRF_HEADLESS
-        // Render ImGui overlays (console and scene explorer)
-        if (imguiInitialized && !headless) {
-            console.render();
-            sceneExplorer.render(*this);
-            ImGui::SFML::Render(*window);
-        }
-#endif
-
-        // Record work time before display (which may block for vsync/framerate limit)
-        metrics.workTime = clock.getElapsedTime().asSeconds() * 1000.0f;
-
-        // Display the frame
-        // #219 - Release GIL during display() to allow background threads to run
-        if (headless) {
-            Py_BEGIN_ALLOW_THREADS
-            headless_renderer->display();
-            Py_END_ALLOW_THREADS
-            // Take screenshot if requested
-            if (config.take_screenshot) {
-                headless_renderer->saveScreenshot(config.screenshot_path.empty() ? "screenshot.png" : config.screenshot_path);
-                config.take_screenshot = false; // Only take one screenshot
-            }
-        } else {
-            Py_BEGIN_ALLOW_THREADS
-            window->display();
-            Py_END_ALLOW_THREADS
-        }
-
-        // #219 - Safe window for background threads to modify UI
-        // This runs AFTER display() but BEFORE the next frame's processing
-        if (frameLock.hasWaiting()) {
-            frameLock.openWindow();
-            // Release GIL so waiting threads can proceed with their mcrfpy.lock() blocks
-            Py_BEGIN_ALLOW_THREADS
-            frameLock.closeWindow();  // Wait for all lock holders to complete
-            Py_END_ALLOW_THREADS
-        }
-        
-        currentFrame++;
-        frameTime = clock.restart().asSeconds();
-        fps = 1 / frameTime;
-        
-        // Update profiling metrics
-        metrics.updateFrameTime(frameTime * 1000.0f); // Convert to milliseconds
-
-        // Record frame data for benchmark logging (if running)
-        g_benchmarkLogger.recordFrame(metrics);
-
-        int whole_fps = metrics.fps;
-        int tenth_fps = (metrics.fps * 10) % 10;
-        
-        if (!headless && window) {
-            window->setTitle(window_title);
-        }
-        
-        // In windowed mode, check if window was closed
-        if (!headless && window && !window->isOpen()) {
-            running = false;
-        }
-
-        // In headless exec mode, auto-exit when no timers remain
-        if (config.auto_exit_after_exec && timers.empty()) {
-            running = false;
-        }
-
-        // Check if a Python exception has signaled exit
-        if (McRFPy_API::shouldExit()) {
-            running = false;
-        }
+        doFrame();
     }
 
     // Clean up before exiting the run loop
@@ -447,6 +335,147 @@ void GameEngine::run()
     // This is a pragmatic workaround - proper cleanup would require careful
     // attention to shared_ptr cycles and Python GC interaction
     std::_Exit(0);
+#endif
+}
+
+void GameEngine::doFrame()
+{
+    // Reset per-frame metrics
+    metrics.resetPerFrame();
+
+    currentScene()->update();
+    testTimers();
+
+    // Update Python scenes
+    {
+        ScopedTimer pyTimer(metrics.pythonScriptTime);
+        McRFPy_API::updatePythonScenes(frameTime);
+    }
+
+    // Update animations (only if frameTime is valid)
+    if (frameTime > 0.0f && frameTime < 1.0f) {
+        ScopedTimer animTimer(metrics.animationTime);
+        AnimationManager::getInstance().update(frameTime);
+    }
+
+    if (!headless) {
+        sUserInput();
+
+#ifndef MCRF_HEADLESS
+        // Update ImGui
+        if (imguiInitialized) {
+            ImGui::SFML::Update(*window, clock.getElapsedTime());
+        }
+#endif
+    }
+    if (!paused)
+    {
+    }
+
+    // Handle scene transitions
+    if (transition.type != TransitionType::None)
+    {
+        transition.update(frameTime);
+
+        if (transition.isComplete())
+        {
+            // Transition complete - finalize scene change
+            scene = transition.toScene;
+            transition.type = TransitionType::None;
+
+            // Trigger Python scene lifecycle events
+            McRFPy_API::triggerSceneChange(transition.fromScene, transition.toScene);
+        }
+        else
+        {
+            // Render transition
+            render_target->clear();
+            transition.render(*render_target);
+        }
+    }
+    else
+    {
+        // Normal scene rendering
+        currentScene()->render();
+    }
+
+    // Update and render profiler overlay (if enabled)
+    if (profilerOverlay && !headless) {
+        profilerOverlay->update(metrics);
+        profilerOverlay->render(*render_target);
+    }
+
+#ifndef MCRF_HEADLESS
+    // Render ImGui overlays (console and scene explorer)
+    if (imguiInitialized && !headless) {
+        console.render();
+        sceneExplorer.render(*this);
+        ImGui::SFML::Render(*window);
+    }
+#endif
+
+    // Record work time before display (which may block for vsync/framerate limit)
+    metrics.workTime = clock.getElapsedTime().asSeconds() * 1000.0f;
+
+    // Display the frame
+    // #219 - Release GIL during display() to allow background threads to run
+    if (headless) {
+        Py_BEGIN_ALLOW_THREADS
+        headless_renderer->display();
+        Py_END_ALLOW_THREADS
+        // Take screenshot if requested
+        if (config.take_screenshot) {
+            headless_renderer->saveScreenshot(config.screenshot_path.empty() ? "screenshot.png" : config.screenshot_path);
+            config.take_screenshot = false; // Only take one screenshot
+        }
+    } else {
+        Py_BEGIN_ALLOW_THREADS
+        window->display();
+        Py_END_ALLOW_THREADS
+    }
+
+    // #219 - Safe window for background threads to modify UI
+    // This runs AFTER display() but BEFORE the next frame's processing
+    if (frameLock.hasWaiting()) {
+        frameLock.openWindow();
+        // Release GIL so waiting threads can proceed with their mcrfpy.lock() blocks
+        Py_BEGIN_ALLOW_THREADS
+        frameLock.closeWindow();  // Wait for all lock holders to complete
+        Py_END_ALLOW_THREADS
+    }
+
+    currentFrame++;
+    frameTime = clock.restart().asSeconds();
+    float fps = 1 / frameTime;
+
+    // Update profiling metrics
+    metrics.updateFrameTime(frameTime * 1000.0f); // Convert to milliseconds
+
+    // Record frame data for benchmark logging (if running)
+    g_benchmarkLogger.recordFrame(metrics);
+
+    int whole_fps = metrics.fps;
+    int tenth_fps = (metrics.fps * 10) % 10;
+    (void)whole_fps; (void)tenth_fps; (void)fps; // Suppress unused variable warnings
+
+    if (!headless && window) {
+        window->setTitle(window_title);
+    }
+
+    // In windowed mode, check if window was closed
+    if (!headless && window && !window->isOpen()) {
+        running = false;
+    }
+
+    // In headless exec mode, auto-exit when no timers remain
+    if (config.auto_exit_after_exec && timers.empty()) {
+        running = false;
+    }
+
+    // Check if a Python exception has signaled exit
+    if (McRFPy_API::shouldExit()) {
+        running = false;
+    }
 }
 
 std::shared_ptr<Timer> GameEngine::getTimer(const std::string& name)

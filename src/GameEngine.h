@@ -235,6 +235,8 @@ public:
     sf::RenderTarget & getRenderTarget();
     sf::RenderTarget* getRenderTargetPtr() { return render_target; }
     void run();
+    void doFrame();  // Single frame update - extracted for Emscripten callback support
+    bool isRunning() const { return running; }  // Check if engine should continue running
     void sUserInput();
     void cleanup(); // Clean up Python references before destruction
     void executeStartupScripts(); // Execute --exec scripts (called once after final engine setup)

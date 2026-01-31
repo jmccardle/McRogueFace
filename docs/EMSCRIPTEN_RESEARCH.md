@@ -725,7 +725,32 @@ grid = mcrfpy.Grid(grid_size=(10,10))  # ✅
 
 ### Remaining Steps for Emscripten
 
-1. **Main loop extraction** - Extract `GameEngine::doFrame()` for callback-based loop
+1. ✅ **Main loop extraction** - `GameEngine::doFrame()` extracted with Emscripten callback support
+   - `run()` now uses `#ifdef __EMSCRIPTEN__` to choose between callback and blocking loop
+   - `emscripten_set_main_loop_arg()` integration ready
 2. **Emscripten toolchain** - Add CMake toolchain file for emcc
 3. **VRSFML integration** - Replace stubs with actual WebGL rendering
 4. **Python-in-WASM** - Test CPython/Pyodide integration (highest risk)
+
+### Main Loop Architecture
+
+The game loop now supports both desktop (blocking) and browser (callback) modes:
+
+```cpp
+// GameEngine::run() - build-time conditional
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop_arg(emscriptenMainLoopCallback, this, 0, 1);
+#else
+    while (running) { doFrame(); }
+#endif
+
+// GameEngine::doFrame() - same code runs in both modes
+void GameEngine::doFrame() {
+    metrics.resetPerFrame();
+    currentScene()->update();
+    testTimers();
+    // ... animations, input, rendering ...
+    currentFrame++;
+    frameTime = clock.restart().asSeconds();
+}
+```
