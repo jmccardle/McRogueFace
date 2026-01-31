@@ -26,12 +26,16 @@
 #include <GL/gl.h>
 #endif
 
-// stb libraries for image/font loading (from deps/stb/)
+// stb_image for image loading (from deps/stb/)
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include <stb_truetype.h>
+// FreeType for font loading and text rendering with proper outline support
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_GLYPH_H
+#include FT_STROKER_H
+#include FT_OUTLINE_H
 
 namespace sf {
 
@@ -1205,12 +1209,29 @@ bool Image::saveToFile(const std::string& filename) const {
 }
 
 // =============================================================================
-// Font Implementation
+// Font Implementation (FreeType-based)
 // =============================================================================
 
+Font::~Font() {
+    if (ftStroker_) {
+        FT_Stroker_Done(static_cast<FT_Stroker>(ftStroker_));
+        ftStroker_ = nullptr;
+    }
+    if (ftFace_) {
+        FT_Done_Face(static_cast<FT_Face>(ftFace_));
+        ftFace_ = nullptr;
+    }
+    if (ftLibrary_) {
+        FT_Done_FreeType(static_cast<FT_Library>(ftLibrary_));
+        ftLibrary_ = nullptr;
+    }
+}
+
 bool Font::loadFromFile(const std::string& filename) {
+    // Read file into memory first (FreeType needs persistent data)
     FILE* file = fopen(filename.c_str(), "rb");
     if (!file) {
+        std::cerr << "Font: Failed to open file: " << filename << std::endl;
         return false;
     }
 
@@ -1222,13 +1243,81 @@ bool Font::loadFromFile(const std::string& filename) {
     fread(fontData_.data(), 1, size, file);
     fclose(file);
 
+    // Initialize FreeType library
+    FT_Library library;
+    if (FT_Init_FreeType(&library) != 0) {
+        std::cerr << "Font: Failed to initialize FreeType library" << std::endl;
+        return false;
+    }
+    ftLibrary_ = library;
+
+    // Create face from memory (font data must persist!)
+    FT_Face face;
+    if (FT_New_Memory_Face(library, fontData_.data(), fontData_.size(), 0, &face) != 0) {
+        std::cerr << "Font: Failed to create FreeType face from: " << filename << std::endl;
+        FT_Done_FreeType(library);
+        ftLibrary_ = nullptr;
+        return false;
+    }
+    ftFace_ = face;
+
+    // Select Unicode charmap
+    FT_Select_Charmap(face, FT_ENCODING_UNICODE);
+
+    // Create stroker for outline rendering
+    FT_Stroker stroker;
+    if (FT_Stroker_New(library, &stroker) != 0) {
+        std::cerr << "Font: Failed to create FreeType stroker" << std::endl;
+        FT_Done_Face(face);
+        FT_Done_FreeType(library);
+        ftFace_ = nullptr;
+        ftLibrary_ = nullptr;
+        return false;
+    }
+    ftStroker_ = stroker;
+
     loaded_ = true;
+    std::cout << "Font: Loaded " << filename << " with FreeType" << std::endl;
     return true;
 }
 
 bool Font::loadFromMemory(const void* data, size_t sizeInBytes) {
     fontData_.resize(sizeInBytes);
     memcpy(fontData_.data(), data, sizeInBytes);
+
+    // Initialize FreeType library
+    FT_Library library;
+    if (FT_Init_FreeType(&library) != 0) {
+        std::cerr << "Font: Failed to initialize FreeType library" << std::endl;
+        return false;
+    }
+    ftLibrary_ = library;
+
+    // Create face from memory
+    FT_Face face;
+    if (FT_New_Memory_Face(library, fontData_.data(), fontData_.size(), 0, &face) != 0) {
+        std::cerr << "Font: Failed to create FreeType face from memory" << std::endl;
+        FT_Done_FreeType(library);
+        ftLibrary_ = nullptr;
+        return false;
+    }
+    ftFace_ = face;
+
+    // Select Unicode charmap
+    FT_Select_Charmap(face, FT_ENCODING_UNICODE);
+
+    // Create stroker for outline rendering
+    FT_Stroker stroker;
+    if (FT_Stroker_New(library, &stroker) != 0) {
+        std::cerr << "Font: Failed to create FreeType stroker" << std::endl;
+        FT_Done_Face(face);
+        FT_Done_FreeType(library);
+        ftFace_ = nullptr;
+        ftLibrary_ = nullptr;
+        return false;
+    }
+    ftStroker_ = stroker;
+
     loaded_ = true;
     return true;
 }
@@ -1599,7 +1688,7 @@ void Sprite::draw(RenderTarget& target, RenderStates states) const {
         texture_->getNativeHandle(), SDL2Renderer::ShaderType::Sprite);
 }
 
-// Static cache for font atlases - keyed by (font data pointer, character size)
+// Static cache for font atlases - keyed by (font pointer, character size)
 static std::map<std::pair<const Font*, unsigned int>, FontAtlas> s_fontAtlasCache;
 
 void Text::draw(RenderTarget& target, RenderStates states) const {
@@ -1610,17 +1699,24 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
     auto it = s_fontAtlasCache.find(key);
     if (it == s_fontAtlasCache.end()) {
         FontAtlas atlas;
-        if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
-            return;  // Failed to create atlas
+        // Use the new Font-based loader if FreeType is available, fall back to legacy
+        if (font_->getFTFace()) {
+            if (!atlas.load(font_, static_cast<float>(characterSize_))) {
+                return;  // Failed to create atlas
+            }
+        } else {
+            if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
+                return;  // Failed to create atlas
+            }
         }
         it = s_fontAtlasCache.emplace(key, std::move(atlas)).first;
     }
-    const FontAtlas& atlas = it->second;
+    FontAtlas& atlas = it->second;  // Non-const for on-demand glyph loading
 
     Transform combined = states.transform * getTransform();
 
-    // Helper lambda to build glyph geometry with a given color and offset
-    auto buildGlyphs = [&](const Color& color, float offsetX, float offsetY,
+    // Helper lambda to build glyph geometry with a given color and outline thickness
+    auto buildGlyphs = [&](const Color& color, float outlineThickness,
                            std::vector<float>& verts, std::vector<float>& uvs, std::vector<float>& cols) {
         float x = 0;
         float y = atlas.getAscent();
@@ -1640,15 +1736,34 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
             }
 
             FontAtlas::GlyphInfo glyph;
-            if (!atlas.getGlyph(static_cast<uint32_t>(c), glyph)) {
-                if (!atlas.getGlyph(' ', glyph)) {
-                    continue;
-                }
+            // Use stroked glyph lookup for outlines, regular for fill
+            bool found = false;
+            if (outlineThickness > 0) {
+                found = atlas.getGlyph(static_cast<uint32_t>(c), outlineThickness, glyph);
+            } else {
+                found = atlas.getGlyph(static_cast<uint32_t>(c), glyph);
             }
 
-            // Calculate quad corners with offset
-            float x0 = x + glyph.xoff + offsetX;
-            float y0 = y + glyph.yoff + offsetY;
+            if (!found) {
+                // Try space as fallback
+                if (outlineThickness > 0) {
+                    found = atlas.getGlyph(' ', outlineThickness, glyph);
+                } else {
+                    found = atlas.getGlyph(' ', glyph);
+                }
+                if (!found) continue;
+            }
+
+            if (glyph.width == 0 || glyph.height == 0) {
+                // Invisible character (space), just advance
+                x += glyph.xadvance;
+                continue;
+            }
+
+            // Calculate quad corners
+            // For stroked glyphs, the bitmap is larger and offset differently
+            float x0 = x + glyph.xoff;
+            float y0 = y + glyph.yoff;
             float x1 = x0 + glyph.width;
             float y1 = y0 + glyph.height;
 
@@ -1676,21 +1791,12 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
         }
     };
 
-    // Draw outline first (if any)
+    // Draw outline first using stroked glyphs (if any)
     if (outlineThickness_ > 0 && outlineColor_.a > 0) {
         std::vector<float> outlineVerts, outlineUVs, outlineCols;
 
-        // Draw at 8 positions around each glyph for outline effect
-        float t = outlineThickness_;
-        float offsets[][2] = {
-            {-t, -t}, {0, -t}, {t, -t},
-            {-t,  0},          {t,  0},
-            {-t,  t}, {0,  t}, {t,  t}
-        };
-
-        for (auto& off : offsets) {
-            buildGlyphs(outlineColor_, off[0], off[1], outlineVerts, outlineUVs, outlineCols);
-        }
+        // Use FreeType stroker for proper vector-based outlines
+        buildGlyphs(outlineColor_, outlineThickness_, outlineVerts, outlineUVs, outlineCols);
 
         if (!outlineVerts.empty()) {
             SDL2Renderer::getInstance().drawTriangles(
@@ -1702,9 +1808,9 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
         }
     }
 
-    // Draw fill text on top
+    // Draw fill text on top using regular (non-stroked) glyphs
     std::vector<float> vertices, texcoords, colors;
-    buildGlyphs(fillColor_, 0, 0, vertices, texcoords, colors);
+    buildGlyphs(fillColor_, 0.0f, vertices, texcoords, colors);
 
     if (!vertices.empty()) {
         SDL2Renderer::getInstance().drawTriangles(
@@ -1726,8 +1832,15 @@ FloatRect Text::getLocalBounds() const {
     auto it = s_fontAtlasCache.find(key);
     if (it == s_fontAtlasCache.end()) {
         FontAtlas atlas;
-        if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
-            return FloatRect(0, 0, 0, 0);
+        // Use the new Font-based loader if FreeType is available
+        if (font_->getFTFace()) {
+            if (!atlas.load(font_, static_cast<float>(characterSize_))) {
+                return FloatRect(0, 0, 0, 0);
+            }
+        } else {
+            if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
+                return FloatRect(0, 0, 0, 0);
+            }
         }
         it = s_fontAtlasCache.emplace(key, std::move(atlas)).first;
     }
@@ -1863,7 +1976,7 @@ bool Shader::isAvailable() {
 }
 
 // =============================================================================
-// FontAtlas Implementation
+// FontAtlas Implementation (FreeType-based)
 // =============================================================================
 
 FontAtlas::FontAtlas() = default;
@@ -1874,12 +1987,17 @@ FontAtlas::FontAtlas(FontAtlas&& other) noexcept
     , ascent_(other.ascent_)
     , descent_(other.descent_)
     , lineHeight_(other.lineHeight_)
+    , font_(other.font_)
+    , atlasPixels_(std::move(other.atlasPixels_))
+    , atlasX_(other.atlasX_)
+    , atlasY_(other.atlasY_)
+    , atlasRowHeight_(other.atlasRowHeight_)
     , glyphCache_(std::move(other.glyphCache_))
-    , stbFontInfo_(other.stbFontInfo_)
+    , simpleGlyphCache_(std::move(other.simpleGlyphCache_))
 {
     // Clear source to prevent double-deletion
     other.textureId_ = 0;
-    other.stbFontInfo_ = nullptr;
+    other.font_ = nullptr;
 }
 
 FontAtlas& FontAtlas::operator=(FontAtlas&& other) noexcept {
@@ -1888,9 +2006,6 @@ FontAtlas& FontAtlas::operator=(FontAtlas&& other) noexcept {
         if (textureId_) {
             SDL2Renderer::getInstance().deleteTexture(textureId_);
         }
-        if (stbFontInfo_) {
-            delete static_cast<stbtt_fontinfo*>(stbFontInfo_);
-        }
 
         // Transfer ownership
         textureId_ = other.textureId_;
@@ -1898,12 +2013,17 @@ FontAtlas& FontAtlas::operator=(FontAtlas&& other) noexcept {
         ascent_ = other.ascent_;
         descent_ = other.descent_;
         lineHeight_ = other.lineHeight_;
+        font_ = other.font_;
+        atlasPixels_ = std::move(other.atlasPixels_);
+        atlasX_ = other.atlasX_;
+        atlasY_ = other.atlasY_;
+        atlasRowHeight_ = other.atlasRowHeight_;
         glyphCache_ = std::move(other.glyphCache_);
-        stbFontInfo_ = other.stbFontInfo_;
+        simpleGlyphCache_ = std::move(other.simpleGlyphCache_);
 
         // Clear source to prevent double-deletion
         other.textureId_ = 0;
-        other.stbFontInfo_ = nullptr;
+        other.font_ = nullptr;
     }
     return *this;
 }
@@ -1912,104 +2032,358 @@ FontAtlas::~FontAtlas() {
     if (textureId_) {
         SDL2Renderer::getInstance().deleteTexture(textureId_);
     }
-    if (stbFontInfo_) {
-        delete static_cast<stbtt_fontinfo*>(stbFontInfo_);
-    }
 }
 
-bool FontAtlas::load(const unsigned char* fontData, size_t dataSize, float fontSize) {
-    fontSize_ = fontSize;
+uint64_t FontAtlas::makeKey(uint32_t codepoint, float outlineThickness) {
+    // Quantize outline thickness to 0.5px increments for cache key
+    uint32_t outlineKey = static_cast<uint32_t>(outlineThickness * 2.0f);
+    return (static_cast<uint64_t>(outlineKey) << 32) | codepoint;
+}
 
-    stbtt_fontinfo* info = new stbtt_fontinfo();
-    if (!stbtt_InitFont(info, fontData, 0)) {
-        delete info;
+bool FontAtlas::load(const Font* font, float fontSize) {
+    if (!font || !font->isLoaded() || !font->getFTFace()) {
+        std::cerr << "FontAtlas: Invalid font or font not loaded" << std::endl;
         return false;
     }
 
-    stbFontInfo_ = info;
+    font_ = font;
+    fontSize_ = fontSize;
 
-    // Get font metrics
-    int ascent, descent, lineGap;
-    stbtt_GetFontVMetrics(info, &ascent, &descent, &lineGap);
+    FT_Face face = static_cast<FT_Face>(font->getFTFace());
 
-    float scale = stbtt_ScaleForPixelHeight(info, fontSize);
-    ascent_ = ascent * scale;
-    descent_ = descent * scale;
-    lineHeight_ = (ascent - descent + lineGap) * scale;
-
-    // Create glyph atlas (simple ASCII for now)
-    const int atlasSize = 512;
-    std::vector<unsigned char> atlasPixels(atlasSize * atlasSize, 0);
-
-    int x = 1, y = 1;
-    int rowHeight = 0;
-
-    for (uint32_t c = 32; c < 128; ++c) {
-        int advance, lsb;
-        stbtt_GetCodepointHMetrics(info, c, &advance, &lsb);
-
-        int x0, y0, x1, y1;
-        stbtt_GetCodepointBitmapBox(info, c, scale, scale, &x0, &y0, &x1, &y1);
-
-        int w = x1 - x0;
-        int h = y1 - y0;
-
-        if (x + w + 1 >= atlasSize) {
-            x = 1;
-            y += rowHeight + 1;
-            rowHeight = 0;
-        }
-
-        if (y + h + 1 >= atlasSize) {
-            break;  // Atlas full
-        }
-
-        // Render glyph to atlas
-        stbtt_MakeCodepointBitmap(info, &atlasPixels[y * atlasSize + x], w, h, atlasSize, scale, scale, c);
-
-        GlyphInfo glyph;
-        glyph.u0 = x / (float)atlasSize;
-        glyph.v0 = y / (float)atlasSize;
-        glyph.u1 = (x + w) / (float)atlasSize;
-        glyph.v1 = (y + h) / (float)atlasSize;
-        glyph.xoff = x0;
-        glyph.yoff = y0;
-        glyph.xadvance = advance * scale;
-        glyph.width = w;
-        glyph.height = h;
-
-        glyphCache_[c] = glyph;
-
-        x += w + 1;
-        rowHeight = std::max(rowHeight, h);
+    // Set pixel size
+    if (FT_Set_Pixel_Sizes(face, 0, static_cast<FT_UInt>(fontSize)) != 0) {
+        std::cerr << "FontAtlas: Failed to set pixel size" << std::endl;
+        return false;
     }
 
-    // Convert single-channel to RGBA
-    std::vector<unsigned char> rgbaPixels(atlasSize * atlasSize * 4);
-    for (int i = 0; i < atlasSize * atlasSize; ++i) {
+    // Get font metrics (in 26.6 fixed-point format)
+    ascent_ = face->size->metrics.ascender / 64.0f;
+    descent_ = face->size->metrics.descender / 64.0f;
+    lineHeight_ = face->size->metrics.height / 64.0f;
+
+    // Initialize atlas
+    atlasPixels_.resize(ATLAS_SIZE * ATLAS_SIZE, 0);
+    atlasX_ = 1;
+    atlasY_ = 1;
+    atlasRowHeight_ = 0;
+
+    // Pre-load ASCII glyphs without outline (directly, not via loadGlyph to avoid texture updates)
+    for (uint32_t c = 32; c < 128; ++c) {
+        FT_UInt glyphIndex = FT_Get_Char_Index(face, c);
+        if (glyphIndex == 0) continue;
+
+        if (FT_Load_Glyph(face, glyphIndex, FT_LOAD_RENDER) != 0) continue;
+
+        FT_Bitmap& bitmap = face->glyph->bitmap;
+        int w = bitmap.width;
+        int h = bitmap.rows;
+
+        GlyphInfo info;
+        if (w == 0 || h == 0) {
+            info.u0 = info.v0 = info.u1 = info.v1 = 0;
+            info.xoff = 0;
+            info.yoff = 0;
+            info.xadvance = face->glyph->advance.x / 64.0f;
+            info.width = 0;
+            info.height = 0;
+        } else {
+            if (atlasX_ + w + 1 >= ATLAS_SIZE) {
+                atlasX_ = 1;
+                atlasY_ += atlasRowHeight_ + 1;
+                atlasRowHeight_ = 0;
+            }
+            if (atlasY_ + h + 1 >= ATLAS_SIZE) break;
+
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    atlasPixels_[(atlasY_ + y) * ATLAS_SIZE + atlasX_ + x] = bitmap.buffer[y * bitmap.pitch + x];
+                }
+            }
+
+            info.u0 = atlasX_ / (float)ATLAS_SIZE;
+            info.v0 = atlasY_ / (float)ATLAS_SIZE;
+            info.u1 = (atlasX_ + w) / (float)ATLAS_SIZE;
+            info.v1 = (atlasY_ + h) / (float)ATLAS_SIZE;
+            info.xoff = face->glyph->bitmap_left;
+            info.yoff = -face->glyph->bitmap_top;
+            info.xadvance = face->glyph->advance.x / 64.0f;
+            info.width = w;
+            info.height = h;
+
+            atlasX_ += w + 1;
+            atlasRowHeight_ = std::max(atlasRowHeight_, h);
+        }
+
+        simpleGlyphCache_[c] = info;
+        glyphCache_[makeKey(c, 0.0f)] = info;
+    }
+
+    // Convert single-channel to RGBA and create texture ONCE
+    std::vector<unsigned char> rgbaPixels(ATLAS_SIZE * ATLAS_SIZE * 4);
+    for (int i = 0; i < ATLAS_SIZE * ATLAS_SIZE; ++i) {
         rgbaPixels[i * 4 + 0] = 255;
         rgbaPixels[i * 4 + 1] = 255;
         rgbaPixels[i * 4 + 2] = 255;
-        rgbaPixels[i * 4 + 3] = atlasPixels[i];
+        rgbaPixels[i * 4 + 3] = atlasPixels_[i];
     }
 
-    textureId_ = SDL2Renderer::getInstance().createTexture(atlasSize, atlasSize, rgbaPixels.data());
+    textureId_ = SDL2Renderer::getInstance().createTexture(ATLAS_SIZE, ATLAS_SIZE, rgbaPixels.data());
 
-    // Debug: Check if any glyph pixels were actually rendered
-    int nonZeroPixels = 0;
-    for (int i = 0; i < atlasSize * atlasSize; ++i) {
-        if (atlasPixels[i] > 0) nonZeroPixels++;
-    }
-    std::cout << "FontAtlas: created " << atlasSize << "x" << atlasSize
-              << " atlas with " << glyphCache_.size() << " glyphs, "
-              << nonZeroPixels << " non-zero pixels, textureId=" << textureId_ << std::endl;
+    std::cout << "FontAtlas: created " << ATLAS_SIZE << "x" << ATLAS_SIZE
+              << " atlas with " << simpleGlyphCache_.size() << " glyphs, textureId=" << textureId_ << std::endl;
 
     return true;
 }
 
-bool FontAtlas::getGlyph(uint32_t codepoint, GlyphInfo& info) const {
-    auto it = glyphCache_.find(codepoint);
+// Legacy interface using raw font data - creates temporary FreeType objects
+// Note: This path doesn't support on-demand stroked glyph loading since FreeType
+// objects are freed after initialization. Use Font-based load() for full features.
+bool FontAtlas::load(const unsigned char* fontData, size_t dataSize, float fontSize) {
+    fontSize_ = fontSize;
+
+    // Initialize FreeType for this atlas
+    FT_Library library;
+    if (FT_Init_FreeType(&library) != 0) {
+        std::cerr << "FontAtlas: Failed to initialize FreeType" << std::endl;
+        return false;
+    }
+
+    FT_Face face;
+    if (FT_New_Memory_Face(library, fontData, dataSize, 0, &face) != 0) {
+        std::cerr << "FontAtlas: Failed to create FreeType face" << std::endl;
+        FT_Done_FreeType(library);
+        return false;
+    }
+
+    // Set pixel size
+    FT_Set_Pixel_Sizes(face, 0, static_cast<FT_UInt>(fontSize));
+
+    // Get font metrics
+    ascent_ = face->size->metrics.ascender / 64.0f;
+    descent_ = face->size->metrics.descender / 64.0f;
+    lineHeight_ = face->size->metrics.height / 64.0f;
+
+    // Create glyph atlas - pre-load all ASCII glyphs
+    atlasPixels_.resize(ATLAS_SIZE * ATLAS_SIZE, 0);
+    atlasX_ = 1;
+    atlasY_ = 1;
+    atlasRowHeight_ = 0;
+
+    for (uint32_t c = 32; c < 128; ++c) {
+        FT_UInt glyphIndex = FT_Get_Char_Index(face, c);
+        if (glyphIndex == 0) continue;
+
+        if (FT_Load_Glyph(face, glyphIndex, FT_LOAD_RENDER) != 0) continue;
+
+        FT_Bitmap& bitmap = face->glyph->bitmap;
+        int w = bitmap.width;
+        int h = bitmap.rows;
+
+        GlyphInfo glyph;
+        if (w == 0 || h == 0) {
+            glyph.u0 = glyph.v0 = glyph.u1 = glyph.v1 = 0;
+            glyph.xoff = 0;
+            glyph.yoff = 0;
+            glyph.xadvance = face->glyph->advance.x / 64.0f;
+            glyph.width = 0;
+            glyph.height = 0;
+        } else {
+            if (atlasX_ + w + 1 >= ATLAS_SIZE) {
+                atlasX_ = 1;
+                atlasY_ += atlasRowHeight_ + 1;
+                atlasRowHeight_ = 0;
+            }
+            if (atlasY_ + h + 1 >= ATLAS_SIZE) break;
+
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    atlasPixels_[(atlasY_ + y) * ATLAS_SIZE + atlasX_ + x] = bitmap.buffer[y * bitmap.pitch + x];
+                }
+            }
+
+            glyph.u0 = atlasX_ / (float)ATLAS_SIZE;
+            glyph.v0 = atlasY_ / (float)ATLAS_SIZE;
+            glyph.u1 = (atlasX_ + w) / (float)ATLAS_SIZE;
+            glyph.v1 = (atlasY_ + h) / (float)ATLAS_SIZE;
+            glyph.xoff = face->glyph->bitmap_left;
+            glyph.yoff = -face->glyph->bitmap_top;
+            glyph.xadvance = face->glyph->advance.x / 64.0f;
+            glyph.width = w;
+            glyph.height = h;
+
+            atlasX_ += w + 1;
+            atlasRowHeight_ = std::max(atlasRowHeight_, h);
+        }
+
+        simpleGlyphCache_[c] = glyph;
+        glyphCache_[makeKey(c, 0.0f)] = glyph;
+    }
+
+    // Clean up temporary FreeType objects
+    FT_Done_Face(face);
+    FT_Done_FreeType(library);
+
+    // Convert to RGBA and create texture ONCE
+    std::vector<unsigned char> rgbaPixels(ATLAS_SIZE * ATLAS_SIZE * 4);
+    for (int i = 0; i < ATLAS_SIZE * ATLAS_SIZE; ++i) {
+        rgbaPixels[i * 4 + 0] = 255;
+        rgbaPixels[i * 4 + 1] = 255;
+        rgbaPixels[i * 4 + 2] = 255;
+        rgbaPixels[i * 4 + 3] = atlasPixels_[i];
+    }
+
+    textureId_ = SDL2Renderer::getInstance().createTexture(ATLAS_SIZE, ATLAS_SIZE, rgbaPixels.data());
+
+    std::cout << "FontAtlas: created " << ATLAS_SIZE << "x" << ATLAS_SIZE
+              << " atlas with " << simpleGlyphCache_.size() << " glyphs, textureId=" << textureId_ << std::endl;
+
+    return true;
+}
+
+bool FontAtlas::loadGlyph(uint32_t codepoint, float outlineThickness) {
+    if (!font_ || !font_->getFTFace()) return false;
+
+    FT_Face face = static_cast<FT_Face>(font_->getFTFace());
+
+    // Make sure pixel size is set
+    FT_Set_Pixel_Sizes(face, 0, static_cast<FT_UInt>(fontSize_));
+
+    FT_UInt glyphIndex = FT_Get_Char_Index(face, codepoint);
+    if (glyphIndex == 0) return false;
+
+    // Load glyph without rendering (we may need to stroke it first)
+    if (FT_Load_Glyph(face, glyphIndex, FT_LOAD_DEFAULT) != 0) return false;
+
+    FT_Glyph glyph;
+    if (FT_Get_Glyph(face->glyph, &glyph) != 0) return false;
+
+    // Apply stroking if outline thickness > 0
+    if (outlineThickness > 0.0f && glyph->format == FT_GLYPH_FORMAT_OUTLINE) {
+        FT_Stroker stroker = static_cast<FT_Stroker>(font_->getFTStroker());
+        if (stroker) {
+            // Set stroker parameters (thickness is in 26.6 fixed-point)
+            FT_Stroker_Set(stroker,
+                           static_cast<FT_Fixed>(outlineThickness * 64.0f),
+                           FT_STROKER_LINECAP_ROUND,
+                           FT_STROKER_LINEJOIN_ROUND,
+                           0);
+
+            // Stroke the glyph outline (replaces outline with stroked version)
+            FT_Glyph_Stroke(&glyph, stroker, 1);
+        }
+    }
+
+    // Convert to bitmap
+    if (FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, nullptr, 1) != 0) {
+        FT_Done_Glyph(glyph);
+        return false;
+    }
+
+    FT_BitmapGlyph bitmapGlyph = reinterpret_cast<FT_BitmapGlyph>(glyph);
+    FT_Bitmap& bitmap = bitmapGlyph->bitmap;
+
+    int w = bitmap.width;
+    int h = bitmap.rows;
+
+    GlyphInfo info;
+
+    if (w == 0 || h == 0) {
+        // Space or invisible character
+        info.u0 = info.v0 = info.u1 = info.v1 = 0;
+        info.xoff = 0;
+        info.yoff = 0;
+        info.xadvance = face->glyph->advance.x / 64.0f;
+        info.width = 0;
+        info.height = 0;
+    } else {
+        // Check if we need to move to next row
+        if (atlasX_ + w + 1 >= ATLAS_SIZE) {
+            atlasX_ = 1;
+            atlasY_ += atlasRowHeight_ + 1;
+            atlasRowHeight_ = 0;
+        }
+
+        if (atlasY_ + h + 1 >= ATLAS_SIZE) {
+            std::cerr << "FontAtlas: Atlas full" << std::endl;
+            FT_Done_Glyph(glyph);
+            return false;
+        }
+
+        // Copy bitmap to atlas pixel buffer
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                atlasPixels_[(atlasY_ + y) * ATLAS_SIZE + atlasX_ + x] = bitmap.buffer[y * bitmap.pitch + x];
+            }
+        }
+
+        info.u0 = atlasX_ / (float)ATLAS_SIZE;
+        info.v0 = atlasY_ / (float)ATLAS_SIZE;
+        info.u1 = (atlasX_ + w) / (float)ATLAS_SIZE;
+        info.v1 = (atlasY_ + h) / (float)ATLAS_SIZE;
+        info.xoff = bitmapGlyph->left;
+        info.yoff = -bitmapGlyph->top;  // FreeType uses bottom-up
+        info.xadvance = face->glyph->advance.x / 64.0f;
+        info.width = w;
+        info.height = h;
+
+        // Update ONLY the region of the texture that changed (not the whole atlas!)
+        if (textureId_) {
+            // Convert just this glyph region to RGBA
+            std::vector<unsigned char> glyphRGBA(w * h * 4);
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    int srcIdx = (atlasY_ + y) * ATLAS_SIZE + atlasX_ + x;
+                    int dstIdx = (y * w + x) * 4;
+                    glyphRGBA[dstIdx + 0] = 255;
+                    glyphRGBA[dstIdx + 1] = 255;
+                    glyphRGBA[dstIdx + 2] = 255;
+                    glyphRGBA[dstIdx + 3] = atlasPixels_[srcIdx];
+                }
+            }
+            // Use glTexSubImage2D to update just the glyph region
+            SDL2Renderer::getInstance().updateTexture(textureId_, atlasX_, atlasY_, w, h, glyphRGBA.data());
+        }
+
+        atlasX_ += w + 1;
+        atlasRowHeight_ = std::max(atlasRowHeight_, h);
+    }
+
+    // Store in appropriate cache
+    if (outlineThickness == 0.0f) {
+        simpleGlyphCache_[codepoint] = info;
+    }
+    uint64_t key = makeKey(codepoint, outlineThickness);
+    glyphCache_[key] = info;
+
+    FT_Done_Glyph(glyph);
+    return true;
+}
+
+bool FontAtlas::getGlyph(uint32_t codepoint, float outlineThickness, GlyphInfo& info) {
+    uint64_t key = makeKey(codepoint, outlineThickness);
+
+    auto it = glyphCache_.find(key);
     if (it != glyphCache_.end()) {
+        info = it->second;
+        return true;
+    }
+
+    // Try to load the glyph on-demand
+    if (loadGlyph(codepoint, outlineThickness)) {
+        it = glyphCache_.find(key);
+        if (it != glyphCache_.end()) {
+            info = it->second;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool FontAtlas::getGlyph(uint32_t codepoint, GlyphInfo& info) const {
+    auto it = simpleGlyphCache_.find(codepoint);
+    if (it != simpleGlyphCache_.end()) {
         info = it->second;
         return true;
     }

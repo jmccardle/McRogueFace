@@ -722,9 +722,14 @@ protected:
 // =============================================================================
 
 class Font {
-    // SDL2-specific: font data for stb_truetype
+    // SDL2-specific: font data for FreeType
     std::vector<unsigned char> fontData_;
     bool loaded_ = false;
+
+    // FreeType handles (void* to avoid header dependency in .h)
+    void* ftLibrary_ = nullptr;   // FT_Library
+    void* ftFace_ = nullptr;      // FT_Face
+    void* ftStroker_ = nullptr;   // FT_Stroker
 
 public:
     struct Info {
@@ -732,6 +737,7 @@ public:
     };
 
     Font() = default;
+    ~Font();  // Destructor for FreeType cleanup - implemented in SDL2Renderer.cpp
     bool loadFromFile(const std::string& filename);  // Implemented in SDL2Renderer.cpp
     bool loadFromMemory(const void* data, size_t sizeInBytes);  // Implemented in SDL2Renderer.cpp
     const Info& getInfo() const { static Info info; return info; }
@@ -740,6 +746,11 @@ public:
     const unsigned char* getData() const { return fontData_.data(); }
     size_t getDataSize() const { return fontData_.size(); }
     bool isLoaded() const { return loaded_; }
+
+    // FreeType accessors
+    void* getFTFace() const { return ftFace_; }
+    void* getFTStroker() const { return ftStroker_; }
+    void* getFTLibrary() const { return ftLibrary_; }
 };
 
 class Text : public Drawable, public Transformable {

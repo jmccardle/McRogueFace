@@ -283,12 +283,14 @@ if(EMSCRIPTEN)
             -sFULL_ES2=1
             -sMIN_WEBGL_VERSION=2
             -sMAX_WEBGL_VERSION=2
+            -sUSE_FREETYPE=1
         )
-        # SDL2 flags are also needed at compile time for headers
+        # SDL2 and FreeType flags are also needed at compile time for headers
         target_compile_options(mcrogueface PRIVATE
             -sUSE_SDL=2
+            -sUSE_FREETYPE=1
         )
-        message(STATUS "Emscripten SDL2 options enabled: -sUSE_SDL=2 -sFULL_ES2=1")
+        message(STATUS "Emscripten SDL2 options enabled: -sUSE_SDL=2 -sFULL_ES2=1 -sUSE_FREETYPE=1")
     endif()
 
     target_link_options(mcrogueface PRIVATE ${EMSCRIPTEN_LINK_OPTIONS})

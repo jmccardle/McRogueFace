@@ -162,7 +162,10 @@ public:
     FontAtlas(const FontAtlas&) = delete;
     FontAtlas& operator=(const FontAtlas&) = delete;
 
-    // Load font data
+    // Load font using Font's FreeType handles
+    bool load(const class Font* font, float fontSize);
+
+    // Legacy interface for backwards compatibility (uses global FT library)
     bool load(const unsigned char* fontData, size_t dataSize, float fontSize);
 
     // Get texture atlas
@@ -176,6 +179,10 @@ public:
         float width, height;     // Glyph dimensions in pixels
     };
 
+    // Get glyph with optional outline thickness (0 = no outline)
+    bool getGlyph(uint32_t codepoint, float outlineThickness, GlyphInfo& info);
+
+    // Legacy interface (no outline)
     bool getGlyph(uint32_t codepoint, GlyphInfo& info) const;
 
     // Get font metrics
@@ -190,11 +197,28 @@ private:
     float descent_ = 0;
     float lineHeight_ = 0;
 
-    // Glyph cache - maps codepoint to glyph info
-    std::unordered_map<uint32_t, GlyphInfo> glyphCache_;
+    // FreeType handles (stored for on-demand glyph loading)
+    const class Font* font_ = nullptr;
 
-    // stb_truetype font info (opaque pointer to avoid header inclusion)
-    void* stbFontInfo_ = nullptr;
+    // Atlas packing state for on-demand glyph loading
+    static const int ATLAS_SIZE = 1024;
+    std::vector<unsigned char> atlasPixels_;
+    int atlasX_ = 1;
+    int atlasY_ = 1;
+    int atlasRowHeight_ = 0;
+
+    // Glyph cache - maps (codepoint, outlineThickness) to glyph info
+    // Key: (outlineThickness bits << 32) | codepoint
+    std::unordered_map<uint64_t, GlyphInfo> glyphCache_;
+
+    // Simple glyph cache for backwards compatibility (no outline)
+    std::unordered_map<uint32_t, GlyphInfo> simpleGlyphCache_;
+
+    // Helper to make cache key
+    static uint64_t makeKey(uint32_t codepoint, float outlineThickness);
+
+    // Load a glyph on-demand with optional stroking
+    bool loadGlyph(uint32_t codepoint, float outlineThickness);
 };
 
 } // namespace sf

@@ -43,7 +43,7 @@
             min-width: 300px;
         }
         #canvas {
-            border: 2px solid #e94560;
+            /* border: 2px solid #e94560; -- disabled per Emscripten docs, causes alignment issues */
             background: #000;
             display: block;
             max-width: 100%;
@@ -56,7 +56,6 @@
             outline: none;
         }
         #canvas:focus {
-            border-color: #4ecca3;
             box-shadow: 0 0 10px rgba(78, 204, 163, 0.5);
         }
         .repl-panel {
