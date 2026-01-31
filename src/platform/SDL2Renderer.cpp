@@ -460,6 +460,22 @@ void SDL2Renderer::drawTriangles(const float* vertices, size_t vertexCount,
         glBindTexture(GL_TEXTURE_2D, textureId);
         int texLoc = glGetUniformLocation(program, "u_texture");
         glUniform1i(texLoc, 0);
+
+        // Debug: verify texture binding for text shader
+        static int texBindDebug = 0;
+        if (texBindDebug < 2 && shaderType == ShaderType::Text) {
+            std::cout << "drawTriangles(Text): textureId=" << textureId
+                      << " texLoc=" << texLoc << " program=" << program << std::endl;
+            texBindDebug++;
+        }
+    } else if (shaderType == ShaderType::Text) {
+        // This would explain solid boxes - texture not being bound!
+        static bool warnOnce = true;
+        if (warnOnce) {
+            std::cerr << "WARNING: Text shader used but texture not bound! texCoords="
+                      << (texCoords ? "valid" : "null") << " textureId=" << textureId << std::endl;
+            warnOnce = false;
+        }
     }
 
     // Draw
@@ -1022,6 +1038,7 @@ bool RenderTexture::create(unsigned int width, unsigned int height) {
     // Set up internal texture to point to FBO color attachment
     texture_.setNativeHandle(colorTexture);
     texture_.setSize(width, height);  // Critical: Sprite::draw needs texture size for UV calc
+    texture_.setFlippedY(true);       // FBO textures are Y-flipped in OpenGL
 
     view_ = View(FloatRect(0, 0, static_cast<float>(width), static_cast<float>(height)));
     defaultView_ = view_;
@@ -1544,6 +1561,13 @@ void Sprite::draw(RenderTarget& target, RenderStates states) const {
     float u1 = (rect.left + rect.width) / static_cast<float>(texSize.x);
     float v1 = (rect.top + rect.height) / static_cast<float>(texSize.y);
 
+    // For RenderTexture (FBO) textures, flip V coordinates
+    // OpenGL FBOs store content with Y=0 at bottom, but we sample assuming Y=0 at top
+    if (texture_->isFlippedY()) {
+        v0 = 1.0f - v0;
+        v1 = 1.0f - v1;
+    }
+
     // Two triangles forming a quad (6 vertices)
     float vertices[] = {
         p0.x, p0.y,  p1.x, p1.y,  p2.x, p2.y,  // Triangle 1
@@ -1667,6 +1691,15 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
     }
 
     if (!vertices.empty()) {
+        // Debug: log first glyph's UVs
+        static int uvDebugCount = 0;
+        if (uvDebugCount < 2 && texcoords.size() >= 12) {
+            std::cout << "Text UVs for first glyph: u0=" << texcoords[0] << " v0=" << texcoords[1]
+                      << " u1=" << texcoords[4] << " v1=" << texcoords[5]
+                      << " (vertexCount=" << (vertices.size()/2) << ")" << std::endl;
+            uvDebugCount++;
+        }
+
         // Use text shader (uses alpha from texture, not full RGBA multiply)
         SDL2Renderer::getInstance().drawTriangles(
             vertices.data(), vertices.size() / 2,

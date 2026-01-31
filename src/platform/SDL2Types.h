@@ -656,6 +656,7 @@ class Texture {
     unsigned int textureId_ = 0;
     bool smooth_ = false;
     bool repeated_ = false;
+    bool flippedY_ = false;  // True for RenderTexture (FBO) textures
 
 public:
     Texture() = default;
@@ -671,6 +672,8 @@ public:
 
     Vector2u getSize() const { return size_; }
     void setSize(unsigned int width, unsigned int height) { size_ = Vector2u(width, height); }
+    void setFlippedY(bool flipped) { flippedY_ = flipped; }
+    bool isFlippedY() const { return flippedY_; }
     void setSmooth(bool smooth);  // Implemented in SDL2Renderer.cpp
     bool isSmooth() const { return smooth_; }
     void setRepeated(bool repeated);  // Implemented in SDL2Renderer.cpp
