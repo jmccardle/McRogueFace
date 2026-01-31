@@ -11,6 +11,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Headless build option (no SFML, no graphics - for server/testing/Emscripten prep)
 option(MCRF_HEADLESS "Build without graphics dependencies (SFML, ImGui)" OFF)
 
+# Emscripten builds are always headless (no SFML yet - using stubs)
+if(EMSCRIPTEN)
+    set(MCRF_HEADLESS ON)
+    message(STATUS "Emscripten detected - forcing HEADLESS mode")
+endif()
+
 if(MCRF_HEADLESS)
     message(STATUS "Building in HEADLESS mode - no SFML/ImGui dependencies")
 endif()
@@ -25,8 +31,16 @@ endif()
 include_directories(${CMAKE_SOURCE_DIR}/deps)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/deps/libtcod)
 
-# Python includes: use different paths for Windows vs Linux
-if(MCRF_CROSS_WINDOWS)
+# Python includes: use different paths for Windows vs Linux vs Emscripten
+if(EMSCRIPTEN)
+    # Emscripten build: use Python headers compiled for wasm32-emscripten
+    # The pyconfig.h from cross-build has correct LONG_BIT and other settings
+    set(PYTHON_WASM_BUILD "${CMAKE_SOURCE_DIR}/deps/cpython/cross-build/wasm32-emscripten/build/python")
+    add_compile_options(-include ${PYTHON_WASM_BUILD}/pyconfig.h)
+    include_directories(${CMAKE_SOURCE_DIR}/deps/cpython/Include)
+    include_directories(${PYTHON_WASM_BUILD})  # For generated headers
+    message(STATUS "Using Emscripten Python from: ${PYTHON_WASM_BUILD}")
+elseif(MCRF_CROSS_WINDOWS)
     # Windows cross-compilation: use cpython headers with PC/pyconfig.h
     # Problem: Python.h uses #include "pyconfig.h" which finds Include/pyconfig.h (Linux) first
     # Solution: Use -include to force Windows pyconfig.h to be included first
@@ -78,7 +92,16 @@ if(NOT MCRF_HEADLESS)
 endif()
 
 # Create a list of libraries to link against
-if(MCRF_HEADLESS)
+if(EMSCRIPTEN)
+    # Emscripten build: link against WASM-compiled Python
+    set(PYTHON_WASM_BUILD "${CMAKE_SOURCE_DIR}/deps/cpython/cross-build/wasm32-emscripten/build/python")
+    set(LINK_LIBS
+        ${PYTHON_WASM_BUILD}/libpython3.14.a
+        tcod)
+    include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)  # Use Linux platform stubs for now
+    link_directories(${CMAKE_SOURCE_DIR}/__lib)
+    message(STATUS "Linking Emscripten Python: ${PYTHON_WASM_BUILD}/libpython3.14.a")
+elseif(MCRF_HEADLESS)
     # Headless build: no SFML, no OpenGL
     if(WIN32 OR MCRF_CROSS_WINDOWS)
         set(LINK_LIBS
