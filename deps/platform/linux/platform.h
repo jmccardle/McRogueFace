@@ -1,6 +1,54 @@
 #ifndef __PLATFORM
 #define __PLATFORM
 #define __PLATFORM_SET_PYTHON_SEARCH_PATHS 1
+
+#ifdef __EMSCRIPTEN__
+// WASM/Emscripten platform - no /proc filesystem, limited std::filesystem support
+
+std::wstring executable_path()
+{
+    // In WASM, the executable is at the root of the virtual filesystem
+    return L"/";
+}
+
+std::wstring executable_filename()
+{
+    // In WASM, we use a fixed executable name
+    return L"/mcrogueface";
+}
+
+std::wstring working_path()
+{
+    // In WASM, working directory is root of virtual filesystem
+    return L"/";
+}
+
+std::string narrow_string(std::wstring convertme)
+{
+    // Simple conversion for ASCII/UTF-8 compatible strings
+    std::string result;
+    result.reserve(convertme.size());
+    for (wchar_t wc : convertme) {
+        if (wc < 128) {
+            result.push_back(static_cast<char>(wc));
+        } else {
+            // For non-ASCII, use a simple UTF-8 encoding
+            if (wc < 0x800) {
+                result.push_back(static_cast<char>(0xC0 | (wc >> 6)));
+                result.push_back(static_cast<char>(0x80 | (wc & 0x3F)));
+            } else {
+                result.push_back(static_cast<char>(0xE0 | (wc >> 12)));
+                result.push_back(static_cast<char>(0x80 | ((wc >> 6) & 0x3F)));
+                result.push_back(static_cast<char>(0x80 | (wc & 0x3F)));
+            }
+        }
+    }
+    return result;
+}
+
+#else
+// Native Linux platform
+
 std::wstring executable_path()
 {
     /*
@@ -12,7 +60,7 @@ std::wstring executable_path()
 	return exec_path.wstring();
     //size_t path_index = exec_path.find_last_of('/');
 	//return exec_path.substr(0, path_index);
-    
+
 }
 
 std::wstring executable_filename()
@@ -37,4 +85,6 @@ std::string narrow_string(std::wstring convertme)
     return converter.to_bytes(convertme);
 }
 
-#endif
+#endif // __EMSCRIPTEN__
+
+#endif // __PLATFORM

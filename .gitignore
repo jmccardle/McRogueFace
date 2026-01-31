@@ -7,8 +7,11 @@ PCbuild
 .vs
 obj
 build
-lib
+/lib
 __pycache__
+
+# WASM stdlib for Emscripten build
+!wasm_stdlib/
 
 .cache/
 7DRL2025 Release/

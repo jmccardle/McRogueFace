@@ -11,11 +11,13 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
     current_arg = 1;  // Reset for each parse
     
     // Detect if running as Python interpreter
+#ifndef __EMSCRIPTEN__
     std::filesystem::path exec_name = std::filesystem::path(argv[0]).filename();
     if (exec_name.string().find("python") == 0) {
         config.headless = true;
         config.python_mode = true;
     }
+#endif
     
     while (current_arg < argc) {
         std::string arg = argv[current_arg];

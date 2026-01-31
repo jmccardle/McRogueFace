@@ -493,8 +493,16 @@ class Texture {
 public:
     Texture() = default;
     bool create(unsigned int width, unsigned int height) { size_ = Vector2u(width, height); return true; }
-    bool loadFromFile(const std::string& filename) { return false; }
-    bool loadFromMemory(const void* data, size_t size) { return false; }
+    // In headless mode, pretend texture loading succeeded with dummy dimensions
+    // This allows game scripts to run without actual graphics
+    bool loadFromFile(const std::string& filename) {
+        size_ = Vector2u(256, 256);  // Default size for headless textures
+        return true;
+    }
+    bool loadFromMemory(const void* data, size_t size) {
+        size_ = Vector2u(256, 256);
+        return true;
+    }
     Vector2u getSize() const { return size_; }
     void setSmooth(bool smooth) {}
     bool isSmooth() const { return false; }
@@ -545,8 +553,9 @@ public:
     };
 
     Font() = default;
-    bool loadFromFile(const std::string& filename) { return false; }
-    bool loadFromMemory(const void* data, size_t sizeInBytes) { return false; }
+    // In headless mode, pretend font loading succeeded
+    bool loadFromFile(const std::string& filename) { return true; }
+    bool loadFromMemory(const void* data, size_t sizeInBytes) { return true; }
     const Info& getInfo() const { static Info info; return info; }
 };
 
@@ -723,8 +732,9 @@ public:
 class SoundBuffer {
 public:
     SoundBuffer() = default;
-    bool loadFromFile(const std::string& filename) { return false; }
-    bool loadFromMemory(const void* data, size_t sizeInBytes) { return false; }
+    // In headless mode, pretend sound loading succeeded
+    bool loadFromFile(const std::string& filename) { return true; }
+    bool loadFromMemory(const void* data, size_t sizeInBytes) { return true; }
     Time getDuration() const { return Time(); }
 };
 
@@ -752,7 +762,8 @@ public:
     enum Status { Stopped, Paused, Playing };
 
     Music() = default;
-    bool openFromFile(const std::string& filename) { return false; }
+    // In headless mode, pretend music loading succeeded
+    bool openFromFile(const std::string& filename) { return true; }
 
     void play() {}
     void pause() {}

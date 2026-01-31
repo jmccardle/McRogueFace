@@ -1,5 +1,8 @@
 import mcrfpy
-import code
+try:
+    import code
+except ImportError:
+    code = None  # Interactive console not available in WASM
 
 #t = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16) # 12, 11)
 t = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16) # 12, 11)
@@ -326,7 +329,8 @@ class Crypt:
         d = None
         if state == "end": return
         elif key == "Grave":
-            code.InteractiveConsole(locals=globals()).interact()
+            if code:  # Only available in native builds, not WASM
+                code.InteractiveConsole(locals=globals()).interact()
             return
         elif key == "Z":
             self.player.do_zap()

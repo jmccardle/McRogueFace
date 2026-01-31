@@ -208,6 +208,23 @@ if(EMSCRIPTEN)
         -sUSE_ZLIB=1
         -sUSE_BZIP2=1
         -sUSE_SQLITE3=1
+        -sALLOW_MEMORY_GROWTH=1
+        -sSTACK_SIZE=2097152
+        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap
+        -sASSERTIONS=2
+        -sSTACK_OVERFLOW_CHECK=2
+        -fexceptions
+        -sNO_DISABLE_EXCEPTION_CATCHING
+        # Preload Python stdlib into virtual filesystem at /lib/python3.14
+        --preload-file=${CMAKE_SOURCE_DIR}/wasm_stdlib/lib@/lib
+        # Preload game scripts into /scripts
+        --preload-file=${CMAKE_SOURCE_DIR}/src/scripts@/scripts
+        # Preload assets
+        --preload-file=${CMAKE_SOURCE_DIR}/assets@/assets
+    )
+    # Set Python home for the embedded interpreter
+    target_compile_definitions(mcrogueface PRIVATE
+        MCRF_WASM_PYTHON_HOME="/lib/python3.14"
     )
 endif()
 

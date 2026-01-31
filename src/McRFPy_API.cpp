@@ -698,32 +698,64 @@ PyObject* PyInit_mcrfpy()
 // init_python - configure interpreter details here
 PyStatus init_python(const char *program_name)
 {
+    std::cerr << "[DEBUG] api_init: starting" << std::endl;
+    std::cerr.flush();
+
     PyStatus status;
 
-	//**preconfig to establish locale**
+    //**preconfig to establish locale**
     PyPreConfig preconfig;
     PyPreConfig_InitIsolatedConfig(&preconfig);
     preconfig.utf8_mode = 1;
-    
+
+    std::cerr << "[DEBUG] api_init: Py_PreInitialize" << std::endl;
+    std::cerr.flush();
+
     status = Py_PreInitialize(&preconfig);
     if (PyStatus_Exception(status)) {
-    	Py_ExitStatusException(status);
+        std::cerr << "[DEBUG] api_init: PreInit failed" << std::endl;
+        Py_ExitStatusException(status);
     }
+
+    std::cerr << "[DEBUG] api_init: PyConfig setup" << std::endl;
+    std::cerr.flush();
 
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
-	config.dev_mode = 0;
-    
+    config.dev_mode = 0;
+
     // Configure UTF-8 for stdio
     PyConfig_SetString(&config, &config.stdio_encoding, L"UTF-8");
     PyConfig_SetString(&config, &config.stdio_errors, L"surrogateescape");
     config.configure_c_stdio = 1;
 
+#ifdef __EMSCRIPTEN__
+    std::cerr << "[DEBUG] api_init: WASM path config" << std::endl;
+    std::cerr.flush();
+
+    // WASM: Use absolute paths in virtual filesystem
+    PyConfig_SetString(&config, &config.executable, L"/mcrogueface");
+    PyConfig_SetString(&config, &config.home, L"/lib/python3.14");
+    status = PyConfig_SetBytesString(&config, &config.program_name, "mcrogueface");
+
+    // Set up module search paths for WASM
+    config.module_search_paths_set = 1;
+    const wchar_t* wasm_paths[] = {
+        L"/scripts",
+        L"/lib/python3.14"
+    };
+    for (auto s : wasm_paths) {
+        status = PyWideStringList_Append(&config.module_search_paths, s);
+        if (PyStatus_Exception(status)) {
+            continue;
+        }
+    }
+#else
     // Set sys.executable to the McRogueFace binary path
     auto exe_filename = executable_filename();
     PyConfig_SetString(&config, &config.executable, exe_filename.c_str());
 
-	PyConfig_SetBytesString(&config, &config.home,
+    PyConfig_SetBytesString(&config, &config.home,
         narrow_string(executable_path() + L"/lib/Python").c_str());
 
     status = PyConfig_SetBytesString(&config, &config.program_name,
@@ -770,6 +802,7 @@ PyStatus init_python(const char *program_name)
         }
     }
 #endif
+#endif // __EMSCRIPTEN__
 
     status = Py_InitializeFromConfig(&config);
 
@@ -780,10 +813,17 @@ PyStatus init_python(const char *program_name)
 
 PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 {
+    std::cerr << "[DEBUG] init_python_with_config: starting" << std::endl;
+    std::cerr.flush();
+
     // If Python is already initialized, just return success
     if (Py_IsInitialized()) {
+        std::cerr << "[DEBUG] init_python_with_config: already initialized" << std::endl;
         return PyStatus_Ok();
     }
+
+    std::cerr << "[DEBUG] init_python_with_config: PyConfig_InitIsolatedConfig" << std::endl;
+    std::cerr.flush();
 
     PyStatus status;
     PyConfig pyconfig;
@@ -849,7 +889,10 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
         return status;
     }
 
+    // Set Python home to our bundled Python
+#ifndef __EMSCRIPTEN__
     // Check if we're in a virtual environment (symlinked into a venv)
+    // Skip for WASM builds - no filesystem access like this
     auto exe_wpath = executable_filename();
     auto exe_path_fs = std::filesystem::path(exe_wpath);
     auto exe_dir = exe_path_fs.parent_path();
@@ -880,8 +923,24 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
             pyconfig.module_search_paths_set = 1;
         }
     }
+#endif // !__EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
+    // WASM: Use absolute paths in virtual filesystem
+    PyConfig_SetString(&pyconfig, &pyconfig.home, L"/lib/python3.14");
 
-    // Set Python home to our bundled Python
+    // Set up module search paths for WASM
+    pyconfig.module_search_paths_set = 1;
+    const wchar_t* wasm_paths[] = {
+        L"/scripts",
+        L"/lib/python3.14"
+    };
+    for (auto s : wasm_paths) {
+        status = PyWideStringList_Append(&pyconfig.module_search_paths, s);
+        if (PyStatus_Exception(status)) {
+            continue;
+        }
+    }
+#else
     auto python_home = executable_path() + L"/lib/Python";
     PyConfig_SetString(&pyconfig, &pyconfig.home, python_home.c_str());
 
@@ -907,6 +966,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
         }
     }
 #endif
+#endif // __EMSCRIPTEN__
 
     // Register mcrfpy module before initialization
     PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
@@ -988,26 +1048,39 @@ void McRFPy_API::api_init(const McRogueFaceConfig& config) {
 
 void McRFPy_API::executeScript(std::string filename)
 {
+    std::string script_path_str;
+
+#ifdef __EMSCRIPTEN__
+    // WASM: Scripts are at /scripts/ in virtual filesystem
+    if (filename.find('/') == std::string::npos) {
+        // Simple filename - look in /scripts/
+        script_path_str = "/scripts/" + filename;
+    } else {
+        script_path_str = filename;
+    }
+#else
     std::filesystem::path script_path(filename);
-    
+
     // If the path is relative and the file doesn't exist, try resolving it relative to the executable
     if (script_path.is_relative() && !std::filesystem::exists(script_path)) {
         // Get the directory where the executable is located using platform-specific function
         std::wstring exe_dir_w = executable_path();
         std::filesystem::path exe_dir(exe_dir_w);
-        
+
         // Try the script path relative to the executable directory
         std::filesystem::path resolved_path = exe_dir / script_path;
         if (std::filesystem::exists(resolved_path)) {
             script_path = resolved_path;
         }
     }
-    
+    script_path_str = script_path.string();
+#endif
+
     // Use std::ifstream + PyRun_SimpleString instead of PyRun_SimpleFile
     // PyRun_SimpleFile has compatibility issues with MinGW-compiled code
-    std::ifstream file(script_path);
+    std::ifstream file(script_path_str);
     if (!file.is_open()) {
-        std::cout << "Failed to open script: " << script_path.string() << std::endl;
+        std::cout << "Failed to open script: " << script_path_str << std::endl;
         return;
     }
 
@@ -1018,7 +1091,7 @@ void McRFPy_API::executeScript(std::string filename)
     // Set __file__ before execution
     PyObject* main_module = PyImport_AddModule("__main__");
     PyObject* main_dict = PyModule_GetDict(main_module);
-    PyObject* py_filename = PyUnicode_FromString(script_path.string().c_str());
+    PyObject* py_filename = PyUnicode_FromString(script_path_str.c_str());
     PyDict_SetItemString(main_dict, "__file__", py_filename);
     Py_DECREF(py_filename);
 
