@@ -728,9 +728,59 @@ grid = mcrfpy.Grid(grid_size=(10,10))  # ✅
 1. ✅ **Main loop extraction** - `GameEngine::doFrame()` extracted with Emscripten callback support
    - `run()` now uses `#ifdef __EMSCRIPTEN__` to choose between callback and blocking loop
    - `emscripten_set_main_loop_arg()` integration ready
-2. **Emscripten toolchain** - Add CMake toolchain file for emcc
-3. **VRSFML integration** - Replace stubs with actual WebGL rendering
-4. **Python-in-WASM** - Test CPython/Pyodide integration (highest risk)
+2. ✅ **Emscripten toolchain** - `emcmake cmake` works with headless mode
+3. ❌ **Python-in-WASM** - **BLOCKER** - Desktop Python headers incompatible with WASM
+4. **VRSFML integration** - Replace stubs with actual WebGL rendering
+
+### First Emscripten Build Attempt (2026-01-31)
+
+**Command:**
+```bash
+source ~/emsdk/emsdk_env.sh
+emcmake cmake .. -DMCRF_HEADLESS=ON -DCMAKE_BUILD_TYPE=Release
+emmake make -j8
+```
+
+**Result:** Build failed on Python headers.
+
+**Key Errors:**
+```
+deps/Python/pyport.h:429:2: error: "LONG_BIT definition appears wrong for platform"
+```
+```
+warning: shift count >= width of type [-Wshift-count-overflow]
+_Py_STATIC_FLAG_BITS << 48  // 48-bit shift on 32-bit WASM!
+```
+
+**Root Cause:**
+1. Desktop Python 3.14 headers assume 64-bit Linux with glibc
+2. Emscripten targets 32-bit WASM with musl-based libc
+3. Python's immortal reference counting uses `<< 48` shifts that overflow on 32-bit
+4. `LONG_BIT` check fails because WASM's `long` is 32 bits
+
+**Analysis:**
+The HeadlessTypes.h stubs and game engine code compile fine. The blocker is exclusively the Python C API integration.
+
+### Python-in-WASM Options
+
+| Option | Complexity | Description |
+|--------|------------|-------------|
+| **Pyodide** | Medium | Pre-built Python WASM with package ecosystem |
+| **CPython WASM** | High | Build CPython ourselves with Emscripten |
+| **No-Python mode** | Low | New CMake option to exclude Python entirely |
+
+**Pyodide Approach (Recommended):**
+- Pyodide provides Python 3.12 compiled for WASM
+- Would need to replace `deps/Python` with Pyodide headers
+- `McRFPy_API` binding layer needs adaptation
+- Pyodide handles asyncio, file system virtualization
+- Active project with good documentation
+
+**No-Python Mode (For Testing):**
+- Add `MCRF_NO_PYTHON` CMake option
+- Allows testing WASM build without Python complexity
+- Game engine would be pure C++ (no scripting)
+- Useful for validating rendering, input, timing first
 
 ### Main Loop Architecture
 
