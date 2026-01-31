@@ -1602,8 +1602,6 @@ void Sprite::draw(RenderTarget& target, RenderStates states) const {
 // Static cache for font atlases - keyed by (font data pointer, character size)
 static std::map<std::pair<const Font*, unsigned int>, FontAtlas> s_fontAtlasCache;
 
-static int textDebugCount = 0;
-
 void Text::draw(RenderTarget& target, RenderStates states) const {
     if (!font_ || string_.empty() || !font_->isLoaded()) return;
 
@@ -1613,96 +1611,102 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
     if (it == s_fontAtlasCache.end()) {
         FontAtlas atlas;
         if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
-            std::cerr << "Text::draw: Failed to create font atlas!" << std::endl;
             return;  // Failed to create atlas
         }
-        std::cout << "Text::draw: Created font atlas, textureId=" << atlas.getTextureId() << std::endl;
         it = s_fontAtlasCache.emplace(key, std::move(atlas)).first;
     }
     const FontAtlas& atlas = it->second;
 
-    // Debug: log first few text draws
-    if (textDebugCount < 3) {
-        std::cout << "Text::draw: string='" << string_.substr(0, 20) << "' atlasTexId=" << atlas.getTextureId()
-                  << " fillColor=(" << (int)fillColor_.r << "," << (int)fillColor_.g << "," << (int)fillColor_.b << ")" << std::endl;
-        textDebugCount++;
-    }
-
     Transform combined = states.transform * getTransform();
 
-    // Build vertex data for all glyphs
-    std::vector<float> vertices;
-    std::vector<float> texcoords;
-    std::vector<float> colors;
+    // Helper lambda to build glyph geometry with a given color and offset
+    auto buildGlyphs = [&](const Color& color, float offsetX, float offsetY,
+                           std::vector<float>& verts, std::vector<float>& uvs, std::vector<float>& cols) {
+        float x = 0;
+        float y = atlas.getAscent();
 
-    float x = 0;
-    float y = atlas.getAscent();  // Start at baseline
+        float r = color.r / 255.0f;
+        float g = color.g / 255.0f;
+        float b = color.b / 255.0f;
+        float a = color.a / 255.0f;
 
-    float r = fillColor_.r / 255.0f;
-    float g = fillColor_.g / 255.0f;
-    float b = fillColor_.b / 255.0f;
-    float a = fillColor_.a / 255.0f;
+        for (size_t i = 0; i < string_.size(); ++i) {
+            char c = string_[i];
 
-    for (size_t i = 0; i < string_.size(); ++i) {
-        char c = string_[i];
-
-        // Handle newlines
-        if (c == '\n') {
-            x = 0;
-            y += atlas.getLineHeight();
-            continue;
-        }
-
-        FontAtlas::GlyphInfo glyph;
-        if (!atlas.getGlyph(static_cast<uint32_t>(c), glyph)) {
-            // Try space for unknown glyphs
-            if (!atlas.getGlyph(' ', glyph)) {
+            if (c == '\n') {
+                x = 0;
+                y += atlas.getLineHeight();
                 continue;
             }
+
+            FontAtlas::GlyphInfo glyph;
+            if (!atlas.getGlyph(static_cast<uint32_t>(c), glyph)) {
+                if (!atlas.getGlyph(' ', glyph)) {
+                    continue;
+                }
+            }
+
+            // Calculate quad corners with offset
+            float x0 = x + glyph.xoff + offsetX;
+            float y0 = y + glyph.yoff + offsetY;
+            float x1 = x0 + glyph.width;
+            float y1 = y0 + glyph.height;
+
+            // Transform to world space
+            Vector2f p0 = combined.transformPoint(x0, y0);
+            Vector2f p1 = combined.transformPoint(x1, y0);
+            Vector2f p2 = combined.transformPoint(x1, y1);
+            Vector2f p3 = combined.transformPoint(x0, y1);
+
+            verts.insert(verts.end(), {
+                p0.x, p0.y,  p1.x, p1.y,  p2.x, p2.y,
+                p0.x, p0.y,  p2.x, p2.y,  p3.x, p3.y
+            });
+
+            uvs.insert(uvs.end(), {
+                glyph.u0, glyph.v0,  glyph.u1, glyph.v0,  glyph.u1, glyph.v1,
+                glyph.u0, glyph.v0,  glyph.u1, glyph.v1,  glyph.u0, glyph.v1
+            });
+
+            for (int v = 0; v < 6; ++v) {
+                cols.insert(cols.end(), {r, g, b, a});
+            }
+
+            x += glyph.xadvance;
+        }
+    };
+
+    // Draw outline first (if any)
+    if (outlineThickness_ > 0 && outlineColor_.a > 0) {
+        std::vector<float> outlineVerts, outlineUVs, outlineCols;
+
+        // Draw at 8 positions around each glyph for outline effect
+        float t = outlineThickness_;
+        float offsets[][2] = {
+            {-t, -t}, {0, -t}, {t, -t},
+            {-t,  0},          {t,  0},
+            {-t,  t}, {0,  t}, {t,  t}
+        };
+
+        for (auto& off : offsets) {
+            buildGlyphs(outlineColor_, off[0], off[1], outlineVerts, outlineUVs, outlineCols);
         }
 
-        // Calculate quad corners in local space
-        float x0 = x + glyph.xoff;
-        float y0 = y + glyph.yoff;
-        float x1 = x0 + glyph.width;
-        float y1 = y0 + glyph.height;
-
-        // Transform to world space
-        Vector2f p0 = combined.transformPoint(x0, y0);
-        Vector2f p1 = combined.transformPoint(x1, y0);
-        Vector2f p2 = combined.transformPoint(x1, y1);
-        Vector2f p3 = combined.transformPoint(x0, y1);
-
-        // Two triangles for quad
-        vertices.insert(vertices.end(), {
-            p0.x, p0.y,  p1.x, p1.y,  p2.x, p2.y,  // Triangle 1
-            p0.x, p0.y,  p2.x, p2.y,  p3.x, p3.y   // Triangle 2
-        });
-
-        texcoords.insert(texcoords.end(), {
-            glyph.u0, glyph.v0,  glyph.u1, glyph.v0,  glyph.u1, glyph.v1,  // Triangle 1
-            glyph.u0, glyph.v0,  glyph.u1, glyph.v1,  glyph.u0, glyph.v1   // Triangle 2
-        });
-
-        // 6 vertices * 4 color components
-        for (int v = 0; v < 6; ++v) {
-            colors.insert(colors.end(), {r, g, b, a});
+        if (!outlineVerts.empty()) {
+            SDL2Renderer::getInstance().drawTriangles(
+                outlineVerts.data(), outlineVerts.size() / 2,
+                outlineCols.data(), outlineUVs.data(),
+                atlas.getTextureId(),
+                SDL2Renderer::ShaderType::Text
+            );
         }
-
-        x += glyph.xadvance;
     }
 
-    if (!vertices.empty()) {
-        // Debug: log first glyph's UVs
-        static int uvDebugCount = 0;
-        if (uvDebugCount < 2 && texcoords.size() >= 12) {
-            std::cout << "Text UVs for first glyph: u0=" << texcoords[0] << " v0=" << texcoords[1]
-                      << " u1=" << texcoords[4] << " v1=" << texcoords[5]
-                      << " (vertexCount=" << (vertices.size()/2) << ")" << std::endl;
-            uvDebugCount++;
-        }
+    // Draw fill text on top
+    std::vector<float> vertices, texcoords, colors;
+    buildGlyphs(fillColor_, 0, 0, vertices, texcoords, colors);
 
-        // Use text shader (uses alpha from texture, not full RGBA multiply)
+    if (!vertices.empty()) {
         SDL2Renderer::getInstance().drawTriangles(
             vertices.data(), vertices.size() / 2,
             colors.data(), texcoords.data(),
