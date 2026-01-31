@@ -370,9 +370,16 @@ void SDL2Renderer::setProjection(float left, float right, float bottom, float to
     projectionMatrix_[15] = 1.0f;
 }
 
+static int clearCount = 0;
 void SDL2Renderer::clear(float r, float g, float b, float a) {
     glClearColor(r, g, b, a);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    // Debug: Log first few clears to confirm render loop is running
+    if (clearCount < 5) {
+        std::cout << "SDL2Renderer::clear(" << r << ", " << g << ", " << b << ", " << a << ") #" << clearCount << std::endl;
+        clearCount++;
+    }
 }
 
 void SDL2Renderer::drawTriangles(const float* vertices, size_t vertexCount,
@@ -461,9 +468,14 @@ void RenderWindow::create(VideoMode mode, const std::string& title, uint32_t sty
     }
 
 #ifdef __EMSCRIPTEN__
-    // For Emscripten, we need to set the canvas size explicitly
-    // The canvas element with id="canvas" is used by default
+    // For Emscripten, tell SDL2 which canvas element to use
+    // SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR = "SDL_EMSCRIPTEN_CANVAS_SELECTOR"
+    SDL_SetHint("SDL_EMSCRIPTEN_CANVAS_SELECTOR", "#canvas");
+
+    // Set the canvas size explicitly before creating the window
     emscripten_set_canvas_element_size("#canvas", mode.width, mode.height);
+
+    std::cout << "Emscripten: Setting canvas to " << mode.width << "x" << mode.height << std::endl;
 #endif
 
     // Create window
@@ -493,6 +505,28 @@ void RenderWindow::create(VideoMode mode, const std::string& title, uint32_t sty
     title_ = title;
     open_ = true;
 
+#ifdef __EMSCRIPTEN__
+    // Force canvas size AFTER SDL window creation (SDL may have reset it)
+    emscripten_set_canvas_element_size("#canvas", mode.width, mode.height);
+
+    // Also set the CSS size to match
+    EM_ASM({
+        var canvas = document.getElementById('canvas');
+        if (canvas) {
+            canvas.width = $0;
+            canvas.height = $1;
+            canvas.style.width = $0 + 'px';
+            canvas.style.height = $1 + 'px';
+            console.log('EM_ASM: Set canvas to ' + $0 + 'x' + $1);
+        } else {
+            console.error('EM_ASM: Canvas element not found!');
+        }
+    }, mode.width, mode.height);
+
+    // Re-make context current after canvas resize
+    SDL_GL_MakeCurrent(window, context);
+#endif
+
     // Initialize OpenGL resources now that we have a context
     if (!SDL2Renderer::getInstance().initGL()) {
         std::cerr << "RenderWindow: Failed to initialize OpenGL resources" << std::endl;
@@ -504,6 +538,13 @@ void RenderWindow::create(VideoMode mode, const std::string& title, uint32_t sty
 
     // Set up OpenGL state
     glViewport(0, 0, mode.width, mode.height);
+    std::cout << "GL viewport set to " << mode.width << "x" << mode.height << std::endl;
+
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "GL error after viewport: " << err << std::endl;
+    }
+
     SDL2Renderer::getInstance().setProjection(0, mode.width, mode.height, 0);
 
     // Enable blending for transparency
@@ -513,9 +554,21 @@ void RenderWindow::create(VideoMode mode, const std::string& title, uint32_t sty
     // Initial clear to a visible color to confirm GL is working
     glClearColor(0.2f, 0.3f, 0.4f, 1.0f);  // Blue-gray
     glClear(GL_COLOR_BUFFER_BIT);
+
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "GL error after clear: " << err << std::endl;
+    }
+
     SDL_GL_SwapWindow(window);
 
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+        std::cerr << "GL error after swap: " << err << std::endl;
+    }
+
     std::cout << "RenderWindow: Created " << mode.width << "x" << mode.height << " window" << std::endl;
+    std::cout << "WebGL context should now show blue-gray" << std::endl;
 }
 
 void RenderWindow::close() {
@@ -1118,7 +1171,125 @@ bool Font::loadFromMemory(const void* data, size_t sizeInBytes) {
 // =============================================================================
 
 void Shape::draw(RenderTarget& target, RenderStates states) const {
-    // TODO: Generate vertices and draw using SDL2Renderer
+    size_t pointCount = getPointCount();
+    if (pointCount < 3) return;
+
+    // Get the combined transform
+    Transform combinedTransform = states.transform * getTransform();
+
+    // Build vertex data for fill (triangle fan from center)
+    std::vector<float> vertices;
+    std::vector<float> colors;
+
+    // Calculate center point
+    Vector2f center(0, 0);
+    for (size_t i = 0; i < pointCount; ++i) {
+        center.x += getPoint(i).x;
+        center.y += getPoint(i).y;
+    }
+    center.x /= pointCount;
+    center.y /= pointCount;
+
+    // Transform center
+    Vector2f transformedCenter = combinedTransform.transformPoint(center);
+
+    // Build triangles (fan from center)
+    Color fill = getFillColor();
+    float fr = fill.r / 255.0f;
+    float fg = fill.g / 255.0f;
+    float fb = fill.b / 255.0f;
+    float fa = fill.a / 255.0f;
+
+    for (size_t i = 0; i < pointCount; ++i) {
+        size_t next = (i + 1) % pointCount;
+
+        Vector2f p1 = combinedTransform.transformPoint(getPoint(i));
+        Vector2f p2 = combinedTransform.transformPoint(getPoint(next));
+
+        // Triangle: center, p1, p2
+        vertices.push_back(transformedCenter.x);
+        vertices.push_back(transformedCenter.y);
+        vertices.push_back(p1.x);
+        vertices.push_back(p1.y);
+        vertices.push_back(p2.x);
+        vertices.push_back(p2.y);
+
+        // Colors for each vertex
+        for (int v = 0; v < 3; ++v) {
+            colors.push_back(fr);
+            colors.push_back(fg);
+            colors.push_back(fb);
+            colors.push_back(fa);
+        }
+    }
+
+    // Draw fill
+    if (fill.a > 0 && !vertices.empty()) {
+        SDL2Renderer::getInstance().drawTriangles(
+            vertices.data(), vertices.size() / 2,
+            colors.data(), nullptr, 0
+        );
+    }
+
+    // Draw outline if thickness > 0
+    float outlineThickness = getOutlineThickness();
+    if (outlineThickness > 0) {
+        Color outline = getOutlineColor();
+        if (outline.a > 0) {
+            float or_ = outline.r / 255.0f;
+            float og = outline.g / 255.0f;
+            float ob = outline.b / 255.0f;
+            float oa = outline.a / 255.0f;
+
+            // Build outline as quads (two triangles per edge)
+            vertices.clear();
+            colors.clear();
+
+            for (size_t i = 0; i < pointCount; ++i) {
+                size_t next = (i + 1) % pointCount;
+
+                Vector2f p1 = combinedTransform.transformPoint(getPoint(i));
+                Vector2f p2 = combinedTransform.transformPoint(getPoint(next));
+
+                // Calculate normal direction
+                Vector2f dir(p2.x - p1.x, p2.y - p1.y);
+                float len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+                if (len > 0) {
+                    dir.x /= len;
+                    dir.y /= len;
+                }
+                Vector2f normal(-dir.y * outlineThickness, dir.x * outlineThickness);
+
+                // Outer points
+                Vector2f p1o(p1.x + normal.x, p1.y + normal.y);
+                Vector2f p2o(p2.x + normal.x, p2.y + normal.y);
+
+                // Two triangles for quad
+                // Triangle 1: p1, p2, p1o
+                vertices.push_back(p1.x); vertices.push_back(p1.y);
+                vertices.push_back(p2.x); vertices.push_back(p2.y);
+                vertices.push_back(p1o.x); vertices.push_back(p1o.y);
+                // Triangle 2: p2, p2o, p1o
+                vertices.push_back(p2.x); vertices.push_back(p2.y);
+                vertices.push_back(p2o.x); vertices.push_back(p2o.y);
+                vertices.push_back(p1o.x); vertices.push_back(p1o.y);
+
+                for (int v = 0; v < 6; ++v) {
+                    colors.push_back(or_);
+                    colors.push_back(og);
+                    colors.push_back(ob);
+                    colors.push_back(oa);
+                }
+            }
+
+            if (!vertices.empty()) {
+                SDL2Renderer::getInstance().drawTriangles(
+                    vertices.data(), vertices.size() / 2,
+                    colors.data(), nullptr, 0
+                );
+            }
+        }
+    }
 }
 
 void VertexArray::draw(RenderTarget& target, RenderStates states) const {

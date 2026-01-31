@@ -216,29 +216,101 @@ public:
 // For now, stub implementation matching headless
 
 class Transform {
-    // 3x3 matrix stored as 4x4 for OpenGL compatibility
-    // [ m00 m01 m02 ]     [ m[0] m[4] m[12] ]
-    // [ m10 m11 m12 ] ->  [ m[1] m[5] m[13] ]
-    // [  0   0   1  ]     [  0    0    1    ]
-    float m[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+    // 3x3 matrix stored as column-major for OpenGL
+    // [ a c tx ]     [ m[0] m[3] m[6] ]
+    // [ b d ty ] ->  [ m[1] m[4] m[7] ]
+    // [ 0 0 1  ]     [ m[2] m[5] m[8] ]
+    float m[9] = {1,0,0, 0,1,0, 0,0,1};
 
 public:
     Transform() = default;
-    Transform& translate(float x, float y) { return *this; }  // TODO: Implement
+
+    Transform& translate(float x, float y) {
+        // Combine with translation matrix
+        m[6] += m[0] * x + m[3] * y;
+        m[7] += m[1] * x + m[4] * y;
+        return *this;
+    }
     Transform& translate(const Vector2f& offset) { return translate(offset.x, offset.y); }
-    Transform& rotate(float angle) { return *this; }  // TODO: Implement
-    Transform& rotate(float angle, const Vector2f& center) { return *this; }  // TODO: Implement
-    Transform& scale(float factorX, float factorY) { return *this; }  // TODO: Implement
+
+    Transform& rotate(float angle) {
+        float rad = angle * 3.14159265f / 180.0f;
+        float cos_a = std::cos(rad);
+        float sin_a = std::sin(rad);
+
+        float new_m0 = m[0] * cos_a + m[3] * sin_a;
+        float new_m1 = m[1] * cos_a + m[4] * sin_a;
+        float new_m3 = m[0] * -sin_a + m[3] * cos_a;
+        float new_m4 = m[1] * -sin_a + m[4] * cos_a;
+
+        m[0] = new_m0; m[1] = new_m1;
+        m[3] = new_m3; m[4] = new_m4;
+        return *this;
+    }
+    Transform& rotate(float angle, const Vector2f& center) {
+        translate(center.x, center.y);
+        rotate(angle);
+        translate(-center.x, -center.y);
+        return *this;
+    }
+
+    Transform& scale(float factorX, float factorY) {
+        m[0] *= factorX; m[1] *= factorX;
+        m[3] *= factorY; m[4] *= factorY;
+        return *this;
+    }
     Transform& scale(const Vector2f& factors) { return scale(factors.x, factors.y); }
 
-    Vector2f transformPoint(float x, float y) const { return Vector2f(x, y); }  // TODO: Implement
-    Vector2f transformPoint(const Vector2f& point) const { return point; }
-    FloatRect transformRect(const FloatRect& rect) const { return rect; }  // TODO: Implement
+    Vector2f transformPoint(float x, float y) const {
+        return Vector2f(m[0] * x + m[3] * y + m[6],
+                        m[1] * x + m[4] * y + m[7]);
+    }
+    Vector2f transformPoint(const Vector2f& point) const {
+        return transformPoint(point.x, point.y);
+    }
 
-    Transform getInverse() const { return Transform(); }  // TODO: Implement
+    FloatRect transformRect(const FloatRect& rect) const {
+        // Transform all four corners and compute bounding box
+        Vector2f p1 = transformPoint(rect.left, rect.top);
+        Vector2f p2 = transformPoint(rect.left + rect.width, rect.top);
+        Vector2f p3 = transformPoint(rect.left, rect.top + rect.height);
+        Vector2f p4 = transformPoint(rect.left + rect.width, rect.top + rect.height);
 
-    Transform operator*(const Transform& rhs) const { return Transform(); }  // TODO: Implement
-    Vector2f operator*(const Vector2f& point) const { return point; }
+        float minX = std::min({p1.x, p2.x, p3.x, p4.x});
+        float maxX = std::max({p1.x, p2.x, p3.x, p4.x});
+        float minY = std::min({p1.y, p2.y, p3.y, p4.y});
+        float maxY = std::max({p1.y, p2.y, p3.y, p4.y});
+
+        return FloatRect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    Transform getInverse() const {
+        // Compute inverse of 3x3 affine matrix
+        float det = m[0] * m[4] - m[1] * m[3];
+        if (std::abs(det) < 1e-7f) return Transform();
+
+        float invDet = 1.0f / det;
+        Transform inv;
+        inv.m[0] = m[4] * invDet;
+        inv.m[1] = -m[1] * invDet;
+        inv.m[3] = -m[3] * invDet;
+        inv.m[4] = m[0] * invDet;
+        inv.m[6] = (m[3] * m[7] - m[4] * m[6]) * invDet;
+        inv.m[7] = (m[1] * m[6] - m[0] * m[7]) * invDet;
+        return inv;
+    }
+
+    Transform operator*(const Transform& rhs) const {
+        Transform result;
+        result.m[0] = m[0] * rhs.m[0] + m[3] * rhs.m[1];
+        result.m[1] = m[1] * rhs.m[0] + m[4] * rhs.m[1];
+        result.m[3] = m[0] * rhs.m[3] + m[3] * rhs.m[4];
+        result.m[4] = m[1] * rhs.m[3] + m[4] * rhs.m[4];
+        result.m[6] = m[0] * rhs.m[6] + m[3] * rhs.m[7] + m[6];
+        result.m[7] = m[1] * rhs.m[6] + m[4] * rhs.m[7] + m[7];
+        return result;
+    }
+    Vector2f operator*(const Vector2f& point) const { return transformPoint(point); }
 
     static const Transform Identity;
 
@@ -331,10 +403,14 @@ class Shader;
 
 class RenderStates {
 public:
+    Transform transform;
+    BlendMode blendMode;
+    const Shader* shader = nullptr;
+
     RenderStates() = default;
-    RenderStates(const Transform& transform) {}  // Implicit conversion from Transform
-    RenderStates(const BlendMode& mode) {}
-    RenderStates(const Shader* shader) {}  // Implicit conversion from Shader pointer
+    RenderStates(const Transform& t) : transform(t) {}
+    RenderStates(const BlendMode& mode) : blendMode(mode) {}
+    RenderStates(const Shader* s) : shader(s) {}
     static const RenderStates Default;
 };
 
@@ -386,8 +462,18 @@ public:
     void scale(float factorX, float factorY) { scale_.x *= factorX; scale_.y *= factorY; }
     void scale(const Vector2f& factor) { scale_.x *= factor.x; scale_.y *= factor.y; }
 
-    Transform getTransform() const { return Transform::Identity; }  // TODO: Implement
-    Transform getInverseTransform() const { return Transform::Identity; }  // TODO: Implement
+    Transform getTransform() const {
+        Transform transform;
+        // Apply transformations: translate to position, rotate, scale, translate by -origin
+        transform.translate(position_.x, position_.y);
+        transform.rotate(rotation_);
+        transform.scale(scale_.x, scale_.y);
+        transform.translate(-origin_.x, -origin_.y);
+        return transform;
+    }
+    Transform getInverseTransform() const {
+        return getTransform().getInverse();
+    }
 };
 
 // =============================================================================
@@ -411,6 +497,10 @@ public:
     virtual FloatRect getLocalBounds() const { return FloatRect(); }
     virtual FloatRect getGlobalBounds() const { return FloatRect(); }
 
+    // Virtual methods for shape points (implemented by derived classes)
+    virtual size_t getPointCount() const = 0;
+    virtual Vector2f getPoint(size_t index) const = 0;
+
 protected:
     void draw(RenderTarget& target, RenderStates states) const override;  // Implemented in SDL2Renderer.cpp
 };
@@ -423,6 +513,17 @@ public:
     const Vector2f& getSize() const { return size_; }
     FloatRect getLocalBounds() const override { return FloatRect(0, 0, size_.x, size_.y); }
     FloatRect getGlobalBounds() const override { return FloatRect(position_.x, position_.y, size_.x, size_.y); }
+
+    size_t getPointCount() const override { return 4; }
+    Vector2f getPoint(size_t index) const override {
+        switch (index) {
+            case 0: return Vector2f(0, 0);
+            case 1: return Vector2f(size_.x, 0);
+            case 2: return Vector2f(size_.x, size_.y);
+            case 3: return Vector2f(0, size_.y);
+            default: return Vector2f();
+        }
+    }
 };
 
 class CircleShape : public Shape {
@@ -433,8 +534,13 @@ public:
     void setRadius(float radius) { radius_ = radius; }
     float getRadius() const { return radius_; }
     void setPointCount(size_t count) { pointCount_ = count; }
-    size_t getPointCount() const { return pointCount_; }
+    size_t getPointCount() const override { return pointCount_; }
     FloatRect getLocalBounds() const override { return FloatRect(0, 0, radius_ * 2, radius_ * 2); }
+
+    Vector2f getPoint(size_t index) const override {
+        float angle = static_cast<float>(index) / pointCount_ * 2.0f * 3.14159265f;
+        return Vector2f(radius_ + radius_ * std::cos(angle), radius_ + radius_ * std::sin(angle));
+    }
 };
 
 class ConvexShape : public Shape {
@@ -442,9 +548,9 @@ class ConvexShape : public Shape {
 public:
     ConvexShape(size_t pointCount = 0) : points_(pointCount) {}
     void setPointCount(size_t count) { points_.resize(count); }
-    size_t getPointCount() const { return points_.size(); }
+    size_t getPointCount() const override { return points_.size(); }
     void setPoint(size_t index, const Vector2f& point) { if (index < points_.size()) points_[index] = point; }
-    Vector2f getPoint(size_t index) const { return index < points_.size() ? points_[index] : Vector2f(); }
+    Vector2f getPoint(size_t index) const override { return index < points_.size() ? points_[index] : Vector2f(); }
 };
 
 // =============================================================================
