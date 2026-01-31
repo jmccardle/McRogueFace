@@ -269,6 +269,10 @@ if(EMSCRIPTEN)
         --preload-file=${CMAKE_SOURCE_DIR}/src/scripts@/scripts
         # Preload assets
         --preload-file=${CMAKE_SOURCE_DIR}/assets@/assets
+        # Use custom HTML shell for crisp pixel rendering
+        --shell-file=${CMAKE_SOURCE_DIR}/src/shell.html
+        # Pre-JS to fix browser zoom causing undefined values in events
+        --pre-js=${CMAKE_SOURCE_DIR}/src/emscripten_pre.js
     )
 
     # Add SDL2 options if using SDL2 backend
@@ -287,6 +291,9 @@ if(EMSCRIPTEN)
     endif()
 
     target_link_options(mcrogueface PRIVATE ${EMSCRIPTEN_LINK_OPTIONS})
+
+    # Output as HTML to use the shell file
+    set_target_properties(mcrogueface PROPERTIES SUFFIX ".html")
 
     # Set Python home for the embedded interpreter
     target_compile_definitions(mcrogueface PRIVATE

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>McRogueFace - WebGL</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #eee;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #e94560;
+        }
+        #status {
+            margin-bottom: 10px;
+            color: #888;
+        }
+        .emscripten {
+            display: block;
+            margin: 0 auto;
+        }
+        #canvas {
+            border: 2px solid #e94560;
+            background: #000;
+            display: block;
+            /* Crisp pixel rendering - no smoothing/interpolation */
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            -ms-interpolation-mode: nearest-neighbor;
+        }
+        #output {
+            margin-top: 20px;
+            max-width: 1024px;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #0f0f23;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            border: 1px solid #333;
+        }
+        .spinner {
+            margin: 20px;
+            width: 50px;
+            height: 50px;
+            border: 5px solid #333;
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>McRogueFace</h1>
+    <div id="status">Downloading...</div>
+    <div id="spinner" class="spinner"></div>
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <div id="output"></div>
+
+    <script type='text/javascript'>
+        var statusElement = document.getElementById('status');
+        var spinnerElement = document.getElementById('spinner');
+        var outputElement = document.getElementById('output');
+        var canvasElement = document.getElementById('canvas');
+
+        // Pre-set canvas size
+        canvasElement.width = 1024;
+        canvasElement.height = 768;
+
+        var Module = {
+            print: (function() {
+                return function(text) {
+                    if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+                    console.log(text);
+                    outputElement.textContent += text + '\n';
+                    outputElement.scrollTop = outputElement.scrollHeight;
+                };
+            })(),
+            printErr: function(text) {
+                if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+                console.error(text);
+                outputElement.textContent += '[ERR] ' + text + '\n';
+                outputElement.scrollTop = outputElement.scrollHeight;
+            },
+            canvas: canvasElement,
+            setStatus: function(text) {
+                if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+                if (text === Module.setStatus.last.text) return;
+                var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+                var now = Date.now();
+                if (m && now - Module.setStatus.last.time < 30) return;
+                Module.setStatus.last.time = now;
+                Module.setStatus.last.text = text;
+                if (m) {
+                    text = m[1];
+                }
+                statusElement.innerHTML = text;
+            },
+            totalDependencies: 0,
+            monitorRunDependencies: function(left) {
+                this.totalDependencies = Math.max(this.totalDependencies, left);
+                Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+            },
+            onRuntimeInitialized: function() {
+                console.log('Emscripten runtime initialized');
+                spinnerElement.style.display = 'none';
+            }
+        };
+
+        Module.setStatus('Downloading...');
+
+        window.onerror = function(event) {
+            Module.setStatus('Error! See console for details.');
+            spinnerElement.style.display = 'none';
+        };
+
+        // Stub for resolveGlobalSymbol - needed by Emscripten's promising main feature
+        if (typeof resolveGlobalSymbol === 'undefined') {
+            window.resolveGlobalSymbol = function(name, direct) {
+                return {
+                    sym: Module['_' + name] || Module[name],
+                    type: 'function'
+                };
+            };
+        }
+
+        // Prevent browser zoom on canvas (Ctrl+scroll causes Emscripten heap errors)
+        // Use capture phase to intercept BEFORE Emscripten's handlers
+        // Also stop propagation to prevent the event from reaching SDL
+        document.addEventListener('wheel', function(e) {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return false;
+            }
+        }, { passive: false, capture: true });
+
+        // Also prevent Ctrl+Plus/Minus zoom
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_')) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return false;
+            }
+        }, { capture: true });
+    </script>
+    {{{ SCRIPT }}}
+</body>
+</html>
