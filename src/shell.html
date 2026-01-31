@@ -5,42 +5,165 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>McRogueFace - WebGL</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             margin: 0;
             padding: 20px;
             background: #1a1a2e;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
             font-family: 'Segoe UI', system-ui, sans-serif;
             color: #eee;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
         }
         h1 {
-            margin-bottom: 10px;
+            margin: 0;
             color: #e94560;
         }
         #status {
-            margin-bottom: 10px;
             color: #888;
         }
-        .emscripten {
-            display: block;
-            margin: 0 auto;
+        .main-content {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .game-panel {
+            flex: 1;
+            min-width: 300px;
         }
         #canvas {
             border: 2px solid #e94560;
             background: #000;
             display: block;
+            max-width: 100%;
+            height: auto;
             /* Crisp pixel rendering - no smoothing/interpolation */
             image-rendering: pixelated;
             image-rendering: crisp-edges;
             -ms-interpolation-mode: nearest-neighbor;
+            /* Ensure canvas can receive focus */
+            outline: none;
+        }
+        #canvas:focus {
+            border-color: #4ecca3;
+            box-shadow: 0 0 10px rgba(78, 204, 163, 0.5);
+        }
+        .repl-panel {
+            width: 400px;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            background: #16213e;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .repl-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: #0f3460;
+            border-bottom: 1px solid #e94560;
+        }
+        .repl-header h3 {
+            margin: 0;
+            font-size: 14px;
+            color: #e94560;
+        }
+        .repl-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .repl-buttons button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        #runBtn {
+            background: #4ecca3;
+            color: #1a1a2e;
+        }
+        #runBtn:hover {
+            background: #3db892;
+        }
+        #resetBtn {
+            background: #e94560;
+            color: white;
+        }
+        #resetBtn:hover {
+            background: #d63050;
+        }
+        #clearBtn {
+            background: #666;
+            color: white;
+        }
+        #clearBtn:hover {
+            background: #555;
+        }
+        .repl-buttons button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #codeEditor {
+            width: 100%;
+            height: 250px;
+            padding: 12px;
+            border: none;
+            background: #0f0f23;
+            color: #4ecca3;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+            outline: none;
+        }
+        #codeEditor::placeholder {
+            color: #555;
+        }
+        .repl-output-header {
+            padding: 8px 15px;
+            background: #0f3460;
+            font-size: 12px;
+            color: #888;
+            border-top: 1px solid #333;
+        }
+        #replOutput {
+            flex: 1;
+            min-height: 150px;
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 12px;
+            background: #0a0a15;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            color: #ccc;
+        }
+        #replOutput .error {
+            color: #e94560;
+        }
+        #replOutput .success {
+            color: #4ecca3;
         }
         #output {
             margin-top: 20px;
-            max-width: 1024px;
             width: 100%;
-            max-height: 200px;
+            max-height: 150px;
             overflow-y: auto;
             background: #0f0f23;
             padding: 10px;
@@ -48,9 +171,10 @@
             font-size: 12px;
             white-space: pre-wrap;
             border: 1px solid #333;
+            border-radius: 4px;
         }
         .spinner {
-            margin: 20px;
+            margin: 20px auto;
             width: 50px;
             height: 50px;
             border: 5px solid #333;
@@ -61,20 +185,82 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        .toggle-repl {
+            display: none;
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #0f3460;
+            border: 1px solid #e94560;
+            color: #e94560;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        @media (max-width: 900px) {
+            .main-content {
+                flex-direction: column;
+            }
+            .repl-panel {
+                width: 100%;
+            }
+        }
+        /* Keyboard shortcut hint */
+        .shortcut-hint {
+            font-size: 11px;
+            color: #666;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
-    <h1>McRogueFace</h1>
-    <div id="status">Downloading...</div>
-    <div id="spinner" class="spinner"></div>
-    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
-    <div id="output"></div>
+    <div class="container">
+        <header>
+            <h1>McRogueFace</h1>
+            <div id="status">Downloading...</div>
+        </header>
+
+        <div id="spinner" class="spinner"></div>
+
+        <div class="main-content">
+            <div class="game-panel">
+                <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+            </div>
+
+            <div class="repl-panel" id="replPanel">
+                <div class="repl-header">
+                    <h3>Python REPL</h3>
+                    <div class="repl-buttons">
+                        <button id="runBtn" disabled>Run</button>
+                        <button id="resetBtn" disabled>Reset</button>
+                        <button id="clearBtn">Clear</button>
+                        <span class="shortcut-hint">Ctrl+Enter to run</span>
+                    </div>
+                </div>
+                <textarea id="codeEditor" placeholder="Write Python code here...
+
+import mcrfpy
+scene = mcrfpy.Scene('test')
+frame = mcrfpy.Frame(100, 100, 200, 150)
+scene.ui.append(frame)
+mcrfpy.setScene('test')
+"></textarea>
+                <div class="repl-output-header">Output</div>
+                <div id="replOutput"></div>
+            </div>
+        </div>
+
+        <div id="output"></div>
+    </div>
 
     <script type='text/javascript'>
         var statusElement = document.getElementById('status');
         var spinnerElement = document.getElementById('spinner');
         var outputElement = document.getElementById('output');
         var canvasElement = document.getElementById('canvas');
+        var codeEditor = document.getElementById('codeEditor');
+        var replOutput = document.getElementById('replOutput');
+        var runBtn = document.getElementById('runBtn');
+        var resetBtn = document.getElementById('resetBtn');
+        var clearBtn = document.getElementById('clearBtn');
 
         // Pre-set canvas size
         canvasElement.width = 1024;
@@ -117,6 +303,30 @@
             onRuntimeInitialized: function() {
                 console.log('Emscripten runtime initialized');
                 spinnerElement.style.display = 'none';
+
+                // Enable REPL buttons
+                runBtn.disabled = false;
+                resetBtn.disabled = false;
+
+                // Make FS available globally for console access
+                window.FS = Module.FS;
+
+                // Create convenient Python execution functions
+                window.runPython = function(code) {
+                    return Module.ccall('run_python_string_with_output', 'string', ['string'], [code]);
+                };
+                window.resetGame = function() {
+                    return Module.ccall('reset_python_environment', 'number', [], []);
+                };
+
+                replOutput.innerHTML = '<span class="success">Python REPL ready. Enter code and click Run (or Ctrl+Enter).</span>\n';
+
+                // Focus canvas after a short delay to ensure SDL is ready
+                setTimeout(function() {
+                    canvasElement.focus();
+                    // Trigger a synthetic resize to ensure SDL is properly initialized
+                    window.dispatchEvent(new Event('resize'));
+                }, 100);
             }
         };
 
@@ -127,7 +337,7 @@
             spinnerElement.style.display = 'none';
         };
 
-        // Stub for resolveGlobalSymbol - needed by Emscripten's promising main feature
+        // Stub for resolveGlobalSymbol
         if (typeof resolveGlobalSymbol === 'undefined') {
             window.resolveGlobalSymbol = function(name, direct) {
                 return {
@@ -137,9 +347,7 @@
             };
         }
 
-        // Prevent browser zoom on canvas (Ctrl+scroll causes Emscripten heap errors)
-        // Use capture phase to intercept BEFORE Emscripten's handlers
-        // Also stop propagation to prevent the event from reaching SDL
+        // Prevent browser zoom on canvas
         document.addEventListener('wheel', function(e) {
             if (e.ctrlKey) {
                 e.preventDefault();
@@ -148,7 +356,6 @@
             }
         }, { passive: false, capture: true });
 
-        // Also prevent Ctrl+Plus/Minus zoom
         document.addEventListener('keydown', function(e) {
             if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_')) {
                 e.preventDefault();
@@ -156,6 +363,98 @@
                 return false;
             }
         }, { capture: true });
+
+        // Click on canvas to focus it (for keyboard input)
+        canvasElement.addEventListener('click', function() {
+            canvasElement.focus();
+        });
+
+        // Also handle mousedown to ensure focus happens before SDL processes the click
+        canvasElement.addEventListener('mousedown', function() {
+            if (document.activeElement !== canvasElement) {
+                canvasElement.focus();
+            }
+        });
+
+        // REPL functionality
+        function runCode() {
+            var code = codeEditor.value;
+            if (!code.trim()) return;
+
+            replOutput.innerHTML += '<span style="color:#666">>>> </span><span style="color:#888">' + escapeHtml(code.split('\n')[0]) + (code.includes('\n') ? '...' : '') + '</span>\n';
+
+            try {
+                var result = window.runPython(code);
+                if (result) {
+                    // Check if result contains error indicators
+                    if (result.includes('Traceback') || result.includes('Error:')) {
+                        replOutput.innerHTML += '<span class="error">' + escapeHtml(result) + '</span>\n';
+                    } else {
+                        // Show result (could be print output or repr of expression)
+                        replOutput.innerHTML += '<span class="success">' + escapeHtml(result) + '</span>\n';
+                    }
+                }
+            } catch (e) {
+                replOutput.innerHTML += '<span class="error">JavaScript Error: ' + escapeHtml(e.toString()) + '</span>\n';
+            }
+
+            replOutput.scrollTop = replOutput.scrollHeight;
+        }
+
+        function resetEnvironment() {
+            replOutput.innerHTML += '<span style="color:#888">>>> Resetting environment...</span>\n';
+            try {
+                window.resetGame();
+                replOutput.innerHTML += '<span class="success">Environment reset.</span>\n';
+            } catch (e) {
+                replOutput.innerHTML += '<span class="error">Reset error: ' + escapeHtml(e.toString()) + '</span>\n';
+            }
+            replOutput.scrollTop = replOutput.scrollHeight;
+        }
+
+        function clearOutput() {
+            replOutput.innerHTML = '';
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Button handlers
+        runBtn.addEventListener('click', runCode);
+        resetBtn.addEventListener('click', resetEnvironment);
+        clearBtn.addEventListener('click', clearOutput);
+
+        // Keyboard shortcut: Ctrl+Enter to run
+        // IMPORTANT: Stop propagation to prevent SDL from consuming keystrokes
+        codeEditor.addEventListener('keydown', function(e) {
+            e.stopPropagation();  // Prevent SDL from receiving this event
+
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                if (!runBtn.disabled) {
+                    runCode();
+                }
+            }
+            // Tab key inserts spaces instead of changing focus
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+
+        // Stop all keyboard events from reaching SDL when REPL is focused
+        codeEditor.addEventListener('keyup', function(e) {
+            e.stopPropagation();
+        });
+        codeEditor.addEventListener('keypress', function(e) {
+            e.stopPropagation();
+        });
     </script>
     {{{ SCRIPT }}}
 </body>

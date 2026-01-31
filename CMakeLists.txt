@@ -255,7 +255,8 @@ if(EMSCRIPTEN)
         -sUSE_SQLITE3=1
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=2097152
-        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap
+        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS
+        -sEXPORTED_FUNCTIONS=_main,_run_python_string,_run_python_string_with_output,_reset_python_environment
         -sASSERTIONS=2
         -sSTACK_OVERFLOW_CHECK=2
         -fexceptions
