@@ -1,7 +1,7 @@
 #ifndef HEADLESS_RENDERER_H
 #define HEADLESS_RENDERER_H
 
-#include <SFML/Graphics.hpp>
+#include "Common.h"
 #include <memory>
 #include <string>
 

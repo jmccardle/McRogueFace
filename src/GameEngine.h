@@ -10,8 +10,10 @@
 #include "HeadlessRenderer.h"
 #include "SceneTransition.h"
 #include "Profiler.h"
+#ifndef MCRF_HEADLESS
 #include "ImGuiConsole.h"
 #include "ImGuiSceneExplorer.h"
+#endif
 #include <memory>
 #include <sstream>
 #include <mutex>
@@ -194,10 +196,12 @@ private:
     int overlayUpdateCounter = 0;             // Only update overlay every N frames
     ProfilerOverlay* profilerOverlay = nullptr; // The actual overlay renderer
 
+#ifndef MCRF_HEADLESS
     // ImGui console overlay
     ImGuiConsole console;
     ImGuiSceneExplorer sceneExplorer;
     bool imguiInitialized = false;
+#endif
 
     // #219 - Thread synchronization for background Python threads
     FrameLock frameLock;

@@ -2,7 +2,7 @@
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
-#include <SFML/Graphics.hpp>
+#include "Common.h"
 #include <cstring>
 
 // Singleton instance - static variable, not a class member

@@ -2,7 +2,6 @@
 #include "Common.h"
 #include "Python.h"
 #include "structmember.h"
-#include <SFML/Graphics.hpp>
 #include <libtcod.h>
 #include <memory>
 #include <vector>

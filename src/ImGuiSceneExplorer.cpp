@@ -1,3 +1,8 @@
+// ImGuiSceneExplorer.cpp - Debug scene hierarchy explorer using ImGui
+// This file is excluded from headless builds (no GUI/debug interface needed)
+
+#ifndef MCRF_HEADLESS
+
 #include "ImGuiSceneExplorer.h"
 #include "imgui.h"
 #include "GameEngine.h"
@@ -283,3 +288,5 @@ const char* ImGuiSceneExplorer::getTypeName(UIDrawable* drawable) {
         default:                       return "Unknown";
     }
 }
+
+#endif // MCRF_HEADLESS

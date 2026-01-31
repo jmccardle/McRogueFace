@@ -1,5 +1,8 @@
 #pragma once
 
+// ImGuiConsole - excluded from headless builds (no GUI/debug interface)
+#ifndef MCRF_HEADLESS
+
 #include <string>
 #include <vector>
 #include <deque>
@@ -71,3 +74,5 @@ private:
     // Scroll state
     bool scrollToBottom = true;
 };
+
+#endif // MCRF_HEADLESS

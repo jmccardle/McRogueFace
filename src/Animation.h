@@ -5,7 +5,7 @@
 #include <memory>
 #include <variant>
 #include <vector>
-#include <SFML/Graphics.hpp>
+#include "Common.h"
 #include "Python.h"
 
 // Forward declarations

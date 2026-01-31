@@ -3,7 +3,6 @@
 #include "Python.h"
 #include "UIBase.h"  // For PyUIGridObject typedef
 #include <libtcod.h>
-#include <SFML/System/Vector2.hpp>
 #include <vector>
 #include <memory>
 #include <map>

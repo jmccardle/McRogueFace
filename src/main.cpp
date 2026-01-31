@@ -1,4 +1,4 @@
-#include <SFML/Graphics.hpp>
+#include "Common.h"
 #include "GameEngine.h"
 #include "CommandLineParser.h"
 #include "McRogueFaceConfig.h"

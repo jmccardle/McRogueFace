@@ -32,7 +32,9 @@
 #include "PyUniformCollection.h"  // Shader uniform collection (#106)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
+#ifndef MCRF_HEADLESS
 #include "ImGuiConsole.h"
+#endif
 #include "BenchmarkLogger.h"
 #include "UI.h"
 #include "UILine.h"
@@ -1552,7 +1554,9 @@ PyObject* McRFPy_API::_setDevConsole(PyObject* self, PyObject* args) {
         return NULL;
     }
 
+#ifndef MCRF_HEADLESS
     ImGuiConsole::setEnabled(enabled);
+#endif
     Py_RETURN_NONE;
 }
 

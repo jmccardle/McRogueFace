@@ -7,8 +7,10 @@
 #include "Animation.h"
 #include "Timer.h"
 #include "BenchmarkLogger.h"
+#ifndef MCRF_HEADLESS
 #include "imgui.h"
 #include "imgui-SFML.h"
+#endif
 #include <cmath>
 #include <Python.h>
 
@@ -84,6 +86,7 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         window->setFramerateLimit(60);
         render_target = window.get();
 
+#ifndef MCRF_HEADLESS
         // Initialize ImGui for the window
         if (ImGui::SFML::Init(*window)) {
             imguiInitialized = true;
@@ -92,6 +95,7 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
             // Load JetBrains Mono for crisp console text (will be overridden by .ini if present)
             ImGuiConsole::reloadFont(16.0f);
         }
+#endif
     }
 
     visible = render_target->getDefaultView();
@@ -195,10 +199,12 @@ void GameEngine::cleanup()
     }
 
     // Shutdown ImGui AFTER window is closed to avoid X11 BadCursor errors
+#ifndef MCRF_HEADLESS
     if (imguiInitialized) {
         ImGui::SFML::Shutdown();
         imguiInitialized = false;
     }
+#endif
 }
 
 Scene* GameEngine::currentScene() { return scenes[scene]; }
@@ -318,10 +324,12 @@ void GameEngine::run()
         if (!headless) {
             sUserInput();
 
+#ifndef MCRF_HEADLESS
             // Update ImGui
             if (imguiInitialized) {
                 ImGui::SFML::Update(*window, clock.getElapsedTime());
             }
+#endif
         }
         if (!paused)
         {
@@ -360,12 +368,14 @@ void GameEngine::run()
             profilerOverlay->render(*render_target);
         }
 
+#ifndef MCRF_HEADLESS
         // Render ImGui overlays (console and scene explorer)
         if (imguiInitialized && !headless) {
             console.render();
             sceneExplorer.render(*this);
             ImGui::SFML::Render(*window);
         }
+#endif
 
         // Record work time before display (which may block for vsync/framerate limit)
         metrics.workTime = clock.getElapsedTime().asSeconds() * 1000.0f;
@@ -554,6 +564,7 @@ void GameEngine::sUserInput()
     sf::Event event;
     while (window && window->pollEvent(event))
     {
+#ifndef MCRF_HEADLESS
         // Process event through ImGui first
         if (imguiInitialized) {
             ImGui::SFML::ProcessEvent(*window, event);
@@ -579,6 +590,7 @@ void GameEngine::sUserInput()
                 continue;
             }
         }
+#endif
 
         processEvent(event);
     }

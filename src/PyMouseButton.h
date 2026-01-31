@@ -1,7 +1,6 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
-#include <SFML/Window/Mouse.hpp>
 
 // Module-level MouseButton enum class (created at runtime using Python's IntEnum)
 // Stored as a module attribute: mcrfpy.MouseButton

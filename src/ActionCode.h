@@ -1,4 +1,4 @@
-#include <SFML/Window/Keyboard.hpp>
+#include "Common.h"
 
 class ActionCode
 {

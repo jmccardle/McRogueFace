@@ -1,8 +1,6 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
-#include <SFML/Graphics.hpp>
-#include <SFML/Window.hpp>
 #include <string>
 #include <chrono>
 #include <thread>

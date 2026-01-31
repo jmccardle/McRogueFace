@@ -1,6 +1,5 @@
 #pragma once
 #include "Common.h"
-#include <SFML/Graphics.hpp>
 #include <vector>
 #include <memory>
 #include "UIGridPoint.h"

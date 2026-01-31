@@ -1,3 +1,8 @@
+// ImGuiConsole.cpp - Debug console using ImGui
+// This file is excluded from headless builds (no GUI/debug interface needed)
+
+#ifndef MCRF_HEADLESS
+
 #include "ImGuiConsole.h"
 #include "imgui.h"
 #include "imgui_internal.h"  // For ImGuiSettingsHandler, ImHashStr, MarkIniSettingsDirty
@@ -445,3 +450,5 @@ void ImGuiConsole::renderCodeEditor() {
 
     ImGui::End();
 }
+
+#endif // MCRF_HEADLESS

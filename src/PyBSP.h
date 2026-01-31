@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <unordered_map>
 #include <map>
-#include <SFML/System/Vector2.hpp>
 
 // Forward declarations
 class PyBSP;

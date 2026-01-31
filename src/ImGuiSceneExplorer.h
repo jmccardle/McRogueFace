@@ -1,5 +1,8 @@
 #pragma once
 
+// ImGuiSceneExplorer - excluded from headless builds (no GUI/debug interface)
+#ifndef MCRF_HEADLESS
+
 #include <string>
 #include <memory>
 
@@ -44,3 +47,5 @@ private:
     // Get type name string
     const char* getTypeName(UIDrawable* drawable);
 };
+
+#endif // MCRF_HEADLESS
