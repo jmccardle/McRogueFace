@@ -1,7 +1,7 @@
 // ImGuiConsole.cpp - Debug console using ImGui
-// This file is excluded from headless builds (no GUI/debug interface needed)
+// This file is excluded from headless and SDL2 builds (ImGui-SFML only)
 
-#ifndef MCRF_HEADLESS
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 
 #include "ImGuiConsole.h"
 #include "imgui.h"

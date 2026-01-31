@@ -10,11 +10,15 @@
 // =============================================================================
 
 #ifdef MCRF_HEADLESS
-    // Use headless type stubs instead of SFML
+    // Use headless type stubs instead of SFML (no graphics, for CI/testing)
     #include "platform/HeadlessTypes.h"
     #define MCRF_GRAPHICS_BACKEND "headless"
+#elif defined(MCRF_SDL2)
+    // Use SDL2 + OpenGL ES 2 backend (for Emscripten/WebGL, Android, cross-platform)
+    #include "platform/SDL2Types.h"
+    #define MCRF_GRAPHICS_BACKEND "sdl2"
 #else
-    // Use SFML for graphics and audio
+    // Use SFML for graphics and audio (default desktop build)
     #include <SFML/Graphics.hpp>
     #include <SFML/Audio.hpp>
     #define MCRF_GRAPHICS_BACKEND "sfml"

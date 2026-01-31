@@ -10,7 +10,8 @@
 #include "HeadlessRenderer.h"
 #include "SceneTransition.h"
 #include "Profiler.h"
-#ifndef MCRF_HEADLESS
+// ImGui is only available for SFML builds (not headless, not SDL2)
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 #include "ImGuiConsole.h"
 #include "ImGuiSceneExplorer.h"
 #endif
@@ -196,7 +197,8 @@ private:
     int overlayUpdateCounter = 0;             // Only update overlay every N frames
     ProfilerOverlay* profilerOverlay = nullptr; // The actual overlay renderer
 
-#ifndef MCRF_HEADLESS
+// ImGui is only available for SFML builds
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
     // ImGui console overlay
     ImGuiConsole console;
     ImGuiSceneExplorer sceneExplorer;

@@ -32,7 +32,8 @@
 #include "PyUniformCollection.h"  // Shader uniform collection (#106)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
-#ifndef MCRF_HEADLESS
+// ImGui is only available for SFML builds
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 #include "ImGuiConsole.h"
 #endif
 #include "BenchmarkLogger.h"
@@ -1627,7 +1628,7 @@ PyObject* McRFPy_API::_setDevConsole(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-#ifndef MCRF_HEADLESS
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
     ImGuiConsole::setEnabled(enabled);
 #endif
     Py_RETURN_NONE;

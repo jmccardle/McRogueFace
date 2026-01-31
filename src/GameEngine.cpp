@@ -7,7 +7,8 @@
 #include "Animation.h"
 #include "Timer.h"
 #include "BenchmarkLogger.h"
-#ifndef MCRF_HEADLESS
+// ImGui is only available for SFML builds (not headless, not SDL2)
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 #include "imgui.h"
 #include "imgui-SFML.h"
 #endif
@@ -86,8 +87,8 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         window->setFramerateLimit(60);
         render_target = window.get();
 
-#ifndef MCRF_HEADLESS
-        // Initialize ImGui for the window
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
+        // Initialize ImGui for the window (SFML builds only)
         if (ImGui::SFML::Init(*window)) {
             imguiInitialized = true;
             // Register settings handler before .ini is loaded (happens on first frame)
@@ -199,7 +200,7 @@ void GameEngine::cleanup()
     }
 
     // Shutdown ImGui AFTER window is closed to avoid X11 BadCursor errors
-#ifndef MCRF_HEADLESS
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
     if (imguiInitialized) {
         ImGui::SFML::Shutdown();
         imguiInitialized = false;
@@ -361,8 +362,8 @@ void GameEngine::doFrame()
     if (!headless) {
         sUserInput();
 
-#ifndef MCRF_HEADLESS
-        // Update ImGui
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
+        // Update ImGui (SFML builds only)
         if (imguiInitialized) {
             ImGui::SFML::Update(*window, clock.getElapsedTime());
         }
@@ -405,8 +406,8 @@ void GameEngine::doFrame()
         profilerOverlay->render(*render_target);
     }
 
-#ifndef MCRF_HEADLESS
-    // Render ImGui overlays (console and scene explorer)
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
+    // Render ImGui overlays (console and scene explorer) - SFML builds only
     if (imguiInitialized && !headless) {
         console.render();
         sceneExplorer.render(*this);
@@ -593,8 +594,8 @@ void GameEngine::sUserInput()
     sf::Event event;
     while (window && window->pollEvent(event))
     {
-#ifndef MCRF_HEADLESS
-        // Process event through ImGui first
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
+        // Process event through ImGui first (SFML builds only)
         if (imguiInitialized) {
             ImGui::SFML::ProcessEvent(*window, event);
         }

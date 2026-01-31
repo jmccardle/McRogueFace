@@ -1,7 +1,7 @@
 #pragma once
 
-// ImGuiSceneExplorer - excluded from headless builds (no GUI/debug interface)
-#ifndef MCRF_HEADLESS
+// ImGuiSceneExplorer - excluded from headless and SDL2 builds (ImGui-SFML only)
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 
 #include <string>
 #include <memory>
