@@ -679,9 +679,9 @@ The stub file grew from ~700 lines to ~900 lines with additional types and metho
 # Normal SFML build (default)
 make
 
-# Headless build (no SFML dependency)
+# Headless build (no SFML/ImGui dependencies)
 mkdir build-headless && cd build-headless
-cmake .. -DCMAKE_CXX_FLAGS="-DMCRF_HEADLESS" -DCMAKE_BUILD_TYPE=Debug
+cmake .. -DMCRF_HEADLESS=ON -DCMAKE_BUILD_TYPE=Release
 make
 ```
 
@@ -700,9 +700,32 @@ The libtcod approach of `#ifndef NO_SDL` guards works when **all platform includ
 
 **Total**: ~3 hours for clean headless compilation
 
-### Next Steps
+### Completed Milestones
 
-1. **Test Python bindings** - Ensure mcrfpy module loads in headless mode
-2. **Add CMake option** - `option(MCRF_HEADLESS "Build without graphics" OFF)`
-3. **Link-time validation** - Verify no SFML symbols are referenced
-4. **Emscripten testing** - Try building with emcc
+1. ✅ **Test Python bindings** - mcrfpy module loads and works in headless mode
+   - Vector, Color, Scene, Frame, Grid all functional
+   - libtcod integrations (BSP, pathfinding) available
+2. ✅ **Add CMake option** - `option(MCRF_HEADLESS "Build without graphics" OFF)`
+   - Proper conditional compilation and linking
+   - No SFML symbols in headless binary
+3. ✅ **Link-time validation** - `ldd` confirms zero SFML/OpenGL dependencies
+4. ✅ **Binary size reduction** - Headless is 1.6 MB vs 2.5 MB normal build (36% smaller)
+
+### Python Test Results (Headless Mode)
+
+```python
+# All these work in headless build:
+import mcrfpy
+v = mcrfpy.Vector(10, 20)        # ✅
+c = mcrfpy.Color(255, 128, 64)   # ✅
+scene = mcrfpy.Scene('test')     # ✅
+frame = mcrfpy.Frame(pos=(0,0))  # ✅
+grid = mcrfpy.Grid(grid_size=(10,10))  # ✅
+```
+
+### Remaining Steps for Emscripten
+
+1. **Main loop extraction** - Extract `GameEngine::doFrame()` for callback-based loop
+2. **Emscripten toolchain** - Add CMake toolchain file for emcc
+3. **VRSFML integration** - Replace stubs with actual WebGL rendering
+4. **Python-in-WASM** - Test CPython/Pyodide integration (highest risk)

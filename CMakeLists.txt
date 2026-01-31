@@ -8,6 +8,13 @@ project(McRogueFace)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# Headless build option (no SFML, no graphics - for server/testing/Emscripten prep)
+option(MCRF_HEADLESS "Build without graphics dependencies (SFML, ImGui)" OFF)
+
+if(MCRF_HEADLESS)
+    message(STATUS "Building in HEADLESS mode - no SFML/ImGui dependencies")
+endif()
+
 # Detect cross-compilation for Windows (MinGW)
 if(CMAKE_CROSSCOMPILING AND WIN32)
     set(MCRF_CROSS_WINDOWS TRUE)
@@ -36,36 +43,65 @@ else()
     include_directories(${CMAKE_SOURCE_DIR}/deps/Python)
 endif()
 
-# ImGui and ImGui-SFML include directories
-include_directories(${CMAKE_SOURCE_DIR}/modules/imgui)
-include_directories(${CMAKE_SOURCE_DIR}/modules/imgui-sfml)
+# ImGui and ImGui-SFML include directories (not needed in headless mode)
+if(NOT MCRF_HEADLESS)
+    include_directories(${CMAKE_SOURCE_DIR}/modules/imgui)
+    include_directories(${CMAKE_SOURCE_DIR}/modules/imgui-sfml)
 
-# ImGui source files
-set(IMGUI_SOURCES
-    ${CMAKE_SOURCE_DIR}/modules/imgui/imgui.cpp
-    ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_draw.cpp
-    ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_tables.cpp
-    ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_widgets.cpp
-    ${CMAKE_SOURCE_DIR}/modules/imgui-sfml/imgui-SFML.cpp
-)
+    # ImGui source files
+    set(IMGUI_SOURCES
+        ${CMAKE_SOURCE_DIR}/modules/imgui/imgui.cpp
+        ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_draw.cpp
+        ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_tables.cpp
+        ${CMAKE_SOURCE_DIR}/modules/imgui/imgui_widgets.cpp
+        ${CMAKE_SOURCE_DIR}/modules/imgui-sfml/imgui-SFML.cpp
+    )
+endif()
 
 # Collect all the source files
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
-# Add ImGui sources to the build
-list(APPEND SOURCES ${IMGUI_SOURCES})
+# Add ImGui sources to the build (only if not headless)
+if(NOT MCRF_HEADLESS)
+    list(APPEND SOURCES ${IMGUI_SOURCES})
+endif()
 
-# Find OpenGL (required by ImGui-SFML)
-if(MCRF_CROSS_WINDOWS)
-    # For cross-compilation, OpenGL is provided by MinGW
-    set(OPENGL_LIBRARIES opengl32)
-else()
-    find_package(OpenGL REQUIRED)
-    set(OPENGL_LIBRARIES OpenGL::GL)
+# Find OpenGL (required by ImGui-SFML) - not needed in headless mode
+if(NOT MCRF_HEADLESS)
+    if(MCRF_CROSS_WINDOWS)
+        # For cross-compilation, OpenGL is provided by MinGW
+        set(OPENGL_LIBRARIES opengl32)
+    else()
+        find_package(OpenGL REQUIRED)
+        set(OPENGL_LIBRARIES OpenGL::GL)
+    endif()
 endif()
 
 # Create a list of libraries to link against
-if(MCRF_CROSS_WINDOWS)
+if(MCRF_HEADLESS)
+    # Headless build: no SFML, no OpenGL
+    if(WIN32 OR MCRF_CROSS_WINDOWS)
+        set(LINK_LIBS
+            libtcod
+            python314)
+        if(MCRF_CROSS_WINDOWS)
+            include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
+            link_directories(${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/lib)
+            link_directories(${CMAKE_SOURCE_DIR}/__lib_windows)
+        else()
+            include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
+            link_directories(${CMAKE_SOURCE_DIR}/__lib)
+        endif()
+    else()
+        # Unix/Linux headless build
+        set(LINK_LIBS
+            tcod
+            python3.14
+            m dl util pthread)
+        include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
+        link_directories(${CMAKE_SOURCE_DIR}/__lib)
+    endif()
+elseif(MCRF_CROSS_WINDOWS)
     # MinGW cross-compilation: use full library names
     set(LINK_LIBS
         sfml-graphics
@@ -127,6 +163,11 @@ add_executable(mcrogueface ${SOURCES})
 
 # Define NO_SDL for libtcod-headless headers (excludes SDL-dependent code)
 target_compile_definitions(mcrogueface PRIVATE NO_SDL)
+
+# Define MCRF_HEADLESS for headless builds (excludes SFML/ImGui code)
+if(MCRF_HEADLESS)
+    target_compile_definitions(mcrogueface PRIVATE MCRF_HEADLESS)
+endif()
 
 # On Windows, define Py_ENABLE_SHARED for proper Python DLL imports
 # Py_PYCONFIG_H prevents Include/pyconfig.h (Linux config) from being included
