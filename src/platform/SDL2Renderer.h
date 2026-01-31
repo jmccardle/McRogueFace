@@ -82,10 +82,15 @@ public:
     // Drawing primitives
     void drawTriangles(const float* vertices, size_t vertexCount,
                        const float* colors, const float* texCoords,
-                       unsigned int textureId = 0);
+                       unsigned int textureId = 0,
+                       ShaderType shaderType = ShaderType::Shape);
 
     // Projection matrix access (for shaders)
     const float* getProjectionMatrix() const { return projectionMatrix_; }
+
+    // Push/pop viewport and projection for RenderTexture
+    void pushRenderState(unsigned int width, unsigned int height);
+    void popRenderState();
 
 private:
     SDL2Renderer() = default;
@@ -106,6 +111,13 @@ private:
 
     // FBO stack for nested render-to-texture
     std::vector<unsigned int> fboStack_;
+
+    // Viewport/projection stack for nested rendering
+    struct RenderState {
+        int viewport[4];  // x, y, width, height
+        float projection[16];
+    };
+    std::vector<RenderState> renderStateStack_;
 
     // Helper functions
     bool compileAndLinkProgram(const char* vertexSrc, const char* fragmentSrc, unsigned int& programOut);

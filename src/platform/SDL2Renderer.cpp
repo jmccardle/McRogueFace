@@ -383,12 +383,56 @@ void SDL2Renderer::clear(float r, float g, float b, float a) {
     }
 }
 
+void SDL2Renderer::pushRenderState(unsigned int width, unsigned int height) {
+    RenderState state;
+
+    // Save current viewport
+    glGetIntegerv(GL_VIEWPORT, state.viewport);
+
+    // Save current projection
+    memcpy(state.projection, projectionMatrix_, sizeof(projectionMatrix_));
+
+    renderStateStack_.push_back(state);
+
+    // Set new viewport and projection for FBO
+    glViewport(0, 0, width, height);
+    setProjection(0, static_cast<float>(width), static_cast<float>(height), 0);
+}
+
+void SDL2Renderer::popRenderState() {
+    if (renderStateStack_.empty()) return;
+
+    RenderState& state = renderStateStack_.back();
+
+    // Restore viewport
+    glViewport(state.viewport[0], state.viewport[1], state.viewport[2], state.viewport[3]);
+
+    // Restore projection
+    memcpy(projectionMatrix_, state.projection, sizeof(projectionMatrix_));
+
+    renderStateStack_.pop_back();
+}
+
 void SDL2Renderer::drawTriangles(const float* vertices, size_t vertexCount,
                                   const float* colors, const float* texCoords,
-                                  unsigned int textureId) {
+                                  unsigned int textureId, ShaderType shaderType) {
     if (vertexCount == 0) return;
 
-    unsigned int program = textureId ? spriteProgram_ : shapeProgram_;
+    // Select shader based on type parameter
+    unsigned int program;
+    switch (shaderType) {
+        case ShaderType::Text:
+            program = textProgram_;
+            break;
+        case ShaderType::Sprite:
+            program = spriteProgram_;
+            break;
+        case ShaderType::Shape:
+        default:
+            // Auto-select based on texture
+            program = textureId ? spriteProgram_ : shapeProgram_;
+            break;
+    }
     glUseProgram(program);
 
     // Set projection uniform
@@ -986,10 +1030,12 @@ bool RenderTexture::create(unsigned int width, unsigned int height) {
 
 void RenderTexture::clear(const Color& color) {
     SDL2Renderer::getInstance().bindFBO(fboId_);
+    SDL2Renderer::getInstance().pushRenderState(size_.x, size_.y);
     RenderTarget::clear(color);
 }
 
 void RenderTexture::display() {
+    SDL2Renderer::getInstance().popRenderState();
     SDL2Renderer::getInstance().unbindFBO();
 }
 
@@ -1522,8 +1568,8 @@ void Sprite::draw(RenderTarget& target, RenderStates states) const {
     }
 
     // Use sprite shader and draw
-    glUseProgram(SDL2Renderer::getInstance().getShaderProgram(SDL2Renderer::ShaderType::Sprite));
-    SDL2Renderer::getInstance().drawTriangles(vertices, 6, colors, texcoords, texture_->getNativeHandle());
+    SDL2Renderer::getInstance().drawTriangles(vertices, 6, colors, texcoords,
+        texture_->getNativeHandle(), SDL2Renderer::ShaderType::Sprite);
 }
 
 // Static cache for font atlases - keyed by (font data pointer, character size)
@@ -1609,12 +1655,12 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
     }
 
     if (!vertices.empty()) {
-        // Use text shader (uses alpha from texture)
-        glUseProgram(SDL2Renderer::getInstance().getShaderProgram(SDL2Renderer::ShaderType::Text));
+        // Use text shader (uses alpha from texture, not full RGBA multiply)
         SDL2Renderer::getInstance().drawTriangles(
             vertices.data(), vertices.size() / 2,
             colors.data(), texcoords.data(),
-            atlas.getTextureId()
+            atlas.getTextureId(),
+            SDL2Renderer::ShaderType::Text
         );
     }
 }
