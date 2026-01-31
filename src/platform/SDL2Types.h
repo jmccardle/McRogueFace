@@ -670,6 +670,7 @@ public:
     bool loadFromMemory(const void* data, size_t size);  // Implemented in SDL2Renderer.cpp
 
     Vector2u getSize() const { return size_; }
+    void setSize(unsigned int width, unsigned int height) { size_ = Vector2u(width, height); }
     void setSmooth(bool smooth);  // Implemented in SDL2Renderer.cpp
     bool isSmooth() const { return smooth_; }
     void setRepeated(bool repeated);  // Implemented in SDL2Renderer.cpp

@@ -1021,6 +1021,7 @@ bool RenderTexture::create(unsigned int width, unsigned int height) {
 
     // Set up internal texture to point to FBO color attachment
     texture_.setNativeHandle(colorTexture);
+    texture_.setSize(width, height);  // Critical: Sprite::draw needs texture size for UV calc
 
     view_ = View(FloatRect(0, 0, static_cast<float>(width), static_cast<float>(height)));
     defaultView_ = view_;
@@ -1575,6 +1576,8 @@ void Sprite::draw(RenderTarget& target, RenderStates states) const {
 // Static cache for font atlases - keyed by (font data pointer, character size)
 static std::map<std::pair<const Font*, unsigned int>, FontAtlas> s_fontAtlasCache;
 
+static int textDebugCount = 0;
+
 void Text::draw(RenderTarget& target, RenderStates states) const {
     if (!font_ || string_.empty() || !font_->isLoaded()) return;
 
@@ -1584,11 +1587,20 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
     if (it == s_fontAtlasCache.end()) {
         FontAtlas atlas;
         if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
+            std::cerr << "Text::draw: Failed to create font atlas!" << std::endl;
             return;  // Failed to create atlas
         }
+        std::cout << "Text::draw: Created font atlas, textureId=" << atlas.getTextureId() << std::endl;
         it = s_fontAtlasCache.emplace(key, std::move(atlas)).first;
     }
     const FontAtlas& atlas = it->second;
+
+    // Debug: log first few text draws
+    if (textDebugCount < 3) {
+        std::cout << "Text::draw: string='" << string_.substr(0, 20) << "' atlasTexId=" << atlas.getTextureId()
+                  << " fillColor=(" << (int)fillColor_.r << "," << (int)fillColor_.g << "," << (int)fillColor_.b << ")" << std::endl;
+        textDebugCount++;
+    }
 
     Transform combined = states.transform * getTransform();
 
@@ -1903,6 +1915,15 @@ bool FontAtlas::load(const unsigned char* fontData, size_t dataSize, float fontS
     }
 
     textureId_ = SDL2Renderer::getInstance().createTexture(atlasSize, atlasSize, rgbaPixels.data());
+
+    // Debug: Check if any glyph pixels were actually rendered
+    int nonZeroPixels = 0;
+    for (int i = 0; i < atlasSize * atlasSize; ++i) {
+        if (atlasPixels[i] > 0) nonZeroPixels++;
+    }
+    std::cout << "FontAtlas: created " << atlasSize << "x" << atlasSize
+              << " atlas with " << glyphCache_.size() << " glyphs, "
+              << nonZeroPixels << " non-zero pixels, textureId=" << textureId_ << std::endl;
 
     return true;
 }
