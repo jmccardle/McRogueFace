@@ -9,6 +9,7 @@
 #include <iostream>
 #include <cstring>
 #include <cmath>
+#include <map>
 
 // SDL2 and OpenGL ES 2 headers
 #ifdef __EMSCRIPTEN__
@@ -1293,15 +1294,380 @@ void Shape::draw(RenderTarget& target, RenderStates states) const {
 }
 
 void VertexArray::draw(RenderTarget& target, RenderStates states) const {
-    // TODO: Draw using SDL2Renderer
+    if (vertices_.empty()) return;
+
+    // Convert vertex array to flat arrays based on primitive type
+    std::vector<float> positions;
+    std::vector<float> colors;
+    std::vector<float> texcoords;
+
+    auto addVertex = [&](const Vertex& v) {
+        Vector2f p = states.transform.transformPoint(v.position);
+        positions.push_back(p.x);
+        positions.push_back(p.y);
+        colors.push_back(v.color.r / 255.0f);
+        colors.push_back(v.color.g / 255.0f);
+        colors.push_back(v.color.b / 255.0f);
+        colors.push_back(v.color.a / 255.0f);
+        texcoords.push_back(v.texCoords.x);
+        texcoords.push_back(v.texCoords.y);
+    };
+
+    switch (primitiveType_) {
+        case Triangles:
+            // Already in triangle format
+            for (size_t i = 0; i < vertices_.size(); ++i) {
+                addVertex(vertices_[i]);
+            }
+            break;
+
+        case TriangleFan:
+            // Convert fan to triangles: v0, v1, v2, then v0, v2, v3, etc.
+            if (vertices_.size() >= 3) {
+                for (size_t i = 1; i < vertices_.size() - 1; ++i) {
+                    addVertex(vertices_[0]);
+                    addVertex(vertices_[i]);
+                    addVertex(vertices_[i + 1]);
+                }
+            }
+            break;
+
+        case TriangleStrip:
+            // Convert strip to triangles
+            if (vertices_.size() >= 3) {
+                for (size_t i = 0; i < vertices_.size() - 2; ++i) {
+                    if (i % 2 == 0) {
+                        addVertex(vertices_[i]);
+                        addVertex(vertices_[i + 1]);
+                        addVertex(vertices_[i + 2]);
+                    } else {
+                        // Flip winding for odd triangles
+                        addVertex(vertices_[i + 1]);
+                        addVertex(vertices_[i]);
+                        addVertex(vertices_[i + 2]);
+                    }
+                }
+            }
+            break;
+
+        case Quads:
+            // Convert quads to triangles (4 vertices -> 2 triangles)
+            for (size_t i = 0; i + 3 < vertices_.size(); i += 4) {
+                // Triangle 1: v0, v1, v2
+                addVertex(vertices_[i]);
+                addVertex(vertices_[i + 1]);
+                addVertex(vertices_[i + 2]);
+                // Triangle 2: v0, v2, v3
+                addVertex(vertices_[i]);
+                addVertex(vertices_[i + 2]);
+                addVertex(vertices_[i + 3]);
+            }
+            break;
+
+        case Lines:
+            // Draw lines as thin quads (2 triangles per line)
+            for (size_t i = 0; i + 1 < vertices_.size(); i += 2) {
+                Vector2f p1 = states.transform.transformPoint(vertices_[i].position);
+                Vector2f p2 = states.transform.transformPoint(vertices_[i + 1].position);
+
+                // Calculate perpendicular for line thickness (1 pixel)
+                Vector2f dir(p2.x - p1.x, p2.y - p1.y);
+                float len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+                if (len > 0) {
+                    dir.x /= len;
+                    dir.y /= len;
+                }
+                Vector2f perp(-dir.y * 0.5f, dir.x * 0.5f);
+
+                // Build thin quad
+                Vector2f v0(p1.x - perp.x, p1.y - perp.y);
+                Vector2f v1(p1.x + perp.x, p1.y + perp.y);
+                Vector2f v2(p2.x + perp.x, p2.y + perp.y);
+                Vector2f v3(p2.x - perp.x, p2.y - perp.y);
+
+                const Vertex& vert1 = vertices_[i];
+                const Vertex& vert2 = vertices_[i + 1];
+
+                // Triangle 1
+                positions.insert(positions.end(), {v0.x, v0.y, v1.x, v1.y, v2.x, v2.y});
+                for (int j = 0; j < 2; ++j) {
+                    colors.insert(colors.end(), {vert1.color.r/255.f, vert1.color.g/255.f, vert1.color.b/255.f, vert1.color.a/255.f});
+                }
+                colors.insert(colors.end(), {vert2.color.r/255.f, vert2.color.g/255.f, vert2.color.b/255.f, vert2.color.a/255.f});
+                texcoords.insert(texcoords.end(), {0, 0, 0, 0, 0, 0});
+
+                // Triangle 2
+                positions.insert(positions.end(), {v0.x, v0.y, v2.x, v2.y, v3.x, v3.y});
+                colors.insert(colors.end(), {vert1.color.r/255.f, vert1.color.g/255.f, vert1.color.b/255.f, vert1.color.a/255.f});
+                colors.insert(colors.end(), {vert2.color.r/255.f, vert2.color.g/255.f, vert2.color.b/255.f, vert2.color.a/255.f});
+                colors.insert(colors.end(), {vert2.color.r/255.f, vert2.color.g/255.f, vert2.color.b/255.f, vert2.color.a/255.f});
+                texcoords.insert(texcoords.end(), {0, 0, 0, 0, 0, 0});
+            }
+            break;
+
+        case LineStrip:
+            // Similar to Lines but connected
+            for (size_t i = 0; i + 1 < vertices_.size(); ++i) {
+                Vector2f p1 = states.transform.transformPoint(vertices_[i].position);
+                Vector2f p2 = states.transform.transformPoint(vertices_[i + 1].position);
+
+                Vector2f dir(p2.x - p1.x, p2.y - p1.y);
+                float len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+                if (len > 0) {
+                    dir.x /= len;
+                    dir.y /= len;
+                }
+                Vector2f perp(-dir.y * 0.5f, dir.x * 0.5f);
+
+                Vector2f v0(p1.x - perp.x, p1.y - perp.y);
+                Vector2f v1(p1.x + perp.x, p1.y + perp.y);
+                Vector2f v2(p2.x + perp.x, p2.y + perp.y);
+                Vector2f v3(p2.x - perp.x, p2.y - perp.y);
+
+                const Vertex& vert1 = vertices_[i];
+                const Vertex& vert2 = vertices_[i + 1];
+
+                positions.insert(positions.end(), {v0.x, v0.y, v1.x, v1.y, v2.x, v2.y});
+                for (int j = 0; j < 2; ++j) {
+                    colors.insert(colors.end(), {vert1.color.r/255.f, vert1.color.g/255.f, vert1.color.b/255.f, vert1.color.a/255.f});
+                }
+                colors.insert(colors.end(), {vert2.color.r/255.f, vert2.color.g/255.f, vert2.color.b/255.f, vert2.color.a/255.f});
+                texcoords.insert(texcoords.end(), {0, 0, 0, 0, 0, 0});
+
+                positions.insert(positions.end(), {v0.x, v0.y, v2.x, v2.y, v3.x, v3.y});
+                colors.insert(colors.end(), {vert1.color.r/255.f, vert1.color.g/255.f, vert1.color.b/255.f, vert1.color.a/255.f});
+                colors.insert(colors.end(), {vert2.color.r/255.f, vert2.color.g/255.f, vert2.color.b/255.f, vert2.color.a/255.f});
+                colors.insert(colors.end(), {vert2.color.r/255.f, vert2.color.g/255.f, vert2.color.b/255.f, vert2.color.a/255.f});
+                texcoords.insert(texcoords.end(), {0, 0, 0, 0, 0, 0});
+            }
+            break;
+
+        case Points:
+            // Draw points as small quads
+            for (size_t i = 0; i < vertices_.size(); ++i) {
+                Vector2f p = states.transform.transformPoint(vertices_[i].position);
+                const Vertex& v = vertices_[i];
+
+                // 2x2 pixel quad centered on point
+                positions.insert(positions.end(), {
+                    p.x - 1, p.y - 1,  p.x + 1, p.y - 1,  p.x + 1, p.y + 1,
+                    p.x - 1, p.y - 1,  p.x + 1, p.y + 1,  p.x - 1, p.y + 1
+                });
+                for (int j = 0; j < 6; ++j) {
+                    colors.insert(colors.end(), {v.color.r/255.f, v.color.g/255.f, v.color.b/255.f, v.color.a/255.f});
+                }
+                texcoords.insert(texcoords.end(), {0,0, 0,0, 0,0, 0,0, 0,0, 0,0});
+            }
+            break;
+    }
+
+    if (!positions.empty()) {
+        // Use shape shader (no texture)
+        glUseProgram(SDL2Renderer::getInstance().getShaderProgram(SDL2Renderer::ShaderType::Shape));
+        SDL2Renderer::getInstance().drawTriangles(
+            positions.data(), positions.size() / 2,
+            colors.data(), nullptr, 0
+        );
+    }
 }
 
 void Sprite::draw(RenderTarget& target, RenderStates states) const {
-    // TODO: Draw textured quad
+    if (!texture_) return;
+
+    Transform combined = states.transform * getTransform();
+
+    // Get texture rectangle (use full texture if not set)
+    IntRect rect = textureRect_;
+    if (rect.width == 0 || rect.height == 0) {
+        rect = IntRect(0, 0, texture_->getSize().x, texture_->getSize().y);
+    }
+
+    // Four corners of sprite in local space
+    Vector2f p0 = combined.transformPoint(0, 0);
+    Vector2f p1 = combined.transformPoint(static_cast<float>(rect.width), 0);
+    Vector2f p2 = combined.transformPoint(static_cast<float>(rect.width), static_cast<float>(rect.height));
+    Vector2f p3 = combined.transformPoint(0, static_cast<float>(rect.height));
+
+    // Texture coordinates (normalized)
+    Vector2u texSize = texture_->getSize();
+    if (texSize.x == 0 || texSize.y == 0) return;
+
+    float u0 = rect.left / static_cast<float>(texSize.x);
+    float v0 = rect.top / static_cast<float>(texSize.y);
+    float u1 = (rect.left + rect.width) / static_cast<float>(texSize.x);
+    float v1 = (rect.top + rect.height) / static_cast<float>(texSize.y);
+
+    // Two triangles forming a quad (6 vertices)
+    float vertices[] = {
+        p0.x, p0.y,  p1.x, p1.y,  p2.x, p2.y,  // Triangle 1
+        p0.x, p0.y,  p2.x, p2.y,  p3.x, p3.y   // Triangle 2
+    };
+
+    float texcoords[] = {
+        u0, v0,  u1, v0,  u1, v1,  // Triangle 1
+        u0, v0,  u1, v1,  u0, v1   // Triangle 2
+    };
+
+    // Color tint for all 6 vertices
+    float colors[24];
+    float r = color_.r / 255.0f;
+    float g = color_.g / 255.0f;
+    float b = color_.b / 255.0f;
+    float a = color_.a / 255.0f;
+    for (int i = 0; i < 6; ++i) {
+        colors[i * 4 + 0] = r;
+        colors[i * 4 + 1] = g;
+        colors[i * 4 + 2] = b;
+        colors[i * 4 + 3] = a;
+    }
+
+    // Use sprite shader and draw
+    glUseProgram(SDL2Renderer::getInstance().getShaderProgram(SDL2Renderer::ShaderType::Sprite));
+    SDL2Renderer::getInstance().drawTriangles(vertices, 6, colors, texcoords, texture_->getNativeHandle());
 }
 
+// Static cache for font atlases - keyed by (font data pointer, character size)
+static std::map<std::pair<const Font*, unsigned int>, FontAtlas> s_fontAtlasCache;
+
 void Text::draw(RenderTarget& target, RenderStates states) const {
-    // TODO: Draw text using font atlas
+    if (!font_ || string_.empty() || !font_->isLoaded()) return;
+
+    // Get or create font atlas for this font + size combination
+    auto key = std::make_pair(font_, characterSize_);
+    auto it = s_fontAtlasCache.find(key);
+    if (it == s_fontAtlasCache.end()) {
+        FontAtlas atlas;
+        if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
+            return;  // Failed to create atlas
+        }
+        it = s_fontAtlasCache.emplace(key, std::move(atlas)).first;
+    }
+    const FontAtlas& atlas = it->second;
+
+    Transform combined = states.transform * getTransform();
+
+    // Build vertex data for all glyphs
+    std::vector<float> vertices;
+    std::vector<float> texcoords;
+    std::vector<float> colors;
+
+    float x = 0;
+    float y = atlas.getAscent();  // Start at baseline
+
+    float r = fillColor_.r / 255.0f;
+    float g = fillColor_.g / 255.0f;
+    float b = fillColor_.b / 255.0f;
+    float a = fillColor_.a / 255.0f;
+
+    for (size_t i = 0; i < string_.size(); ++i) {
+        char c = string_[i];
+
+        // Handle newlines
+        if (c == '\n') {
+            x = 0;
+            y += atlas.getLineHeight();
+            continue;
+        }
+
+        FontAtlas::GlyphInfo glyph;
+        if (!atlas.getGlyph(static_cast<uint32_t>(c), glyph)) {
+            // Try space for unknown glyphs
+            if (!atlas.getGlyph(' ', glyph)) {
+                continue;
+            }
+        }
+
+        // Calculate quad corners in local space
+        float x0 = x + glyph.xoff;
+        float y0 = y + glyph.yoff;
+        float x1 = x0 + glyph.width;
+        float y1 = y0 + glyph.height;
+
+        // Transform to world space
+        Vector2f p0 = combined.transformPoint(x0, y0);
+        Vector2f p1 = combined.transformPoint(x1, y0);
+        Vector2f p2 = combined.transformPoint(x1, y1);
+        Vector2f p3 = combined.transformPoint(x0, y1);
+
+        // Two triangles for quad
+        vertices.insert(vertices.end(), {
+            p0.x, p0.y,  p1.x, p1.y,  p2.x, p2.y,  // Triangle 1
+            p0.x, p0.y,  p2.x, p2.y,  p3.x, p3.y   // Triangle 2
+        });
+
+        texcoords.insert(texcoords.end(), {
+            glyph.u0, glyph.v0,  glyph.u1, glyph.v0,  glyph.u1, glyph.v1,  // Triangle 1
+            glyph.u0, glyph.v0,  glyph.u1, glyph.v1,  glyph.u0, glyph.v1   // Triangle 2
+        });
+
+        // 6 vertices * 4 color components
+        for (int v = 0; v < 6; ++v) {
+            colors.insert(colors.end(), {r, g, b, a});
+        }
+
+        x += glyph.xadvance;
+    }
+
+    if (!vertices.empty()) {
+        // Use text shader (uses alpha from texture)
+        glUseProgram(SDL2Renderer::getInstance().getShaderProgram(SDL2Renderer::ShaderType::Text));
+        SDL2Renderer::getInstance().drawTriangles(
+            vertices.data(), vertices.size() / 2,
+            colors.data(), texcoords.data(),
+            atlas.getTextureId()
+        );
+    }
+}
+
+FloatRect Text::getLocalBounds() const {
+    if (!font_ || string_.empty() || !font_->isLoaded()) {
+        return FloatRect(0, 0, 0, 0);
+    }
+
+    // Get or create font atlas for this font + size combination
+    auto key = std::make_pair(font_, characterSize_);
+    auto it = s_fontAtlasCache.find(key);
+    if (it == s_fontAtlasCache.end()) {
+        FontAtlas atlas;
+        if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
+            return FloatRect(0, 0, 0, 0);
+        }
+        it = s_fontAtlasCache.emplace(key, std::move(atlas)).first;
+    }
+    const FontAtlas& atlas = it->second;
+
+    float x = 0;
+    float maxX = 0;
+    float minY = 0;
+    float maxY = atlas.getLineHeight();
+    int lineCount = 1;
+
+    for (size_t i = 0; i < string_.size(); ++i) {
+        char c = string_[i];
+
+        if (c == '\n') {
+            maxX = std::max(maxX, x);
+            x = 0;
+            lineCount++;
+            continue;
+        }
+
+        FontAtlas::GlyphInfo glyph;
+        if (atlas.getGlyph(static_cast<uint32_t>(c), glyph)) {
+            x += glyph.xadvance;
+        }
+    }
+
+    maxX = std::max(maxX, x);
+    maxY = atlas.getLineHeight() * lineCount;
+
+    return FloatRect(0, 0, maxX, maxY);
+}
+
+FloatRect Text::getGlobalBounds() const {
+    FloatRect local = getLocalBounds();
+    Transform t = getTransform();
+    return t.transformRect(local);
 }
 
 // =============================================================================

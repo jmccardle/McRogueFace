@@ -367,8 +367,19 @@ public:
     void rotate(float angle) { rotation_ += angle; }
     void zoom(float factor) { size_ *= factor; }
 
-    Transform getTransform() const { return Transform::Identity; }  // TODO: Implement
-    Transform getInverseTransform() const { return Transform::Identity; }  // TODO: Implement
+    Transform getTransform() const {
+        // View transform: translates world coords to view coords (NDC)
+        // Order: Scale to NDC, then Rotate, then Translate center to origin
+        Transform t;
+        t.translate(-center_.x, -center_.y);  // Move center to origin
+        t.rotate(-rotation_);                  // Rotate around origin (negative for view)
+        t.scale(2.0f / size_.x, 2.0f / size_.y);  // Scale to NDC [-1,1]
+        return t;
+    }
+
+    Transform getInverseTransform() const {
+        return getTransform().getInverse();
+    }
 };
 
 // =============================================================================
@@ -758,8 +769,8 @@ public:
     const Color& getOutlineColor() const { return outlineColor_; }
     float getOutlineThickness() const { return outlineThickness_; }
 
-    FloatRect getLocalBounds() const { return FloatRect(); }  // TODO: Implement
-    FloatRect getGlobalBounds() const { return FloatRect(); }  // TODO: Implement
+    FloatRect getLocalBounds() const;  // Implemented in SDL2Renderer.cpp
+    FloatRect getGlobalBounds() const;  // Implemented in SDL2Renderer.cpp
 
 protected:
     void draw(RenderTarget& target, RenderStates states) const override;  // Implemented in SDL2Renderer.cpp
