@@ -93,14 +93,24 @@ endif()
 
 # Create a list of libraries to link against
 if(EMSCRIPTEN)
-    # Emscripten build: link against WASM-compiled Python
+    # Emscripten build: link against WASM-compiled Python and libtcod
     set(PYTHON_WASM_BUILD "${CMAKE_SOURCE_DIR}/deps/cpython/cross-build/wasm32-emscripten/build/python")
+    set(PYTHON_WASM_PREFIX "${CMAKE_SOURCE_DIR}/deps/cpython/cross-build/wasm32-emscripten/prefix")
+    set(LIBTCOD_WASM_BUILD "${CMAKE_SOURCE_DIR}/modules/libtcod-headless/build-emscripten")
+    # Collect HACL crypto object files (not included in libpython3.14.a)
+    file(GLOB PYTHON_HACL_OBJECTS "${PYTHON_WASM_BUILD}/Modules/_hacl/*.o")
     set(LINK_LIBS
         ${PYTHON_WASM_BUILD}/libpython3.14.a
-        tcod)
+        ${PYTHON_HACL_OBJECTS}
+        ${PYTHON_WASM_BUILD}/Modules/expat/libexpat.a
+        ${PYTHON_WASM_PREFIX}/lib/libmpdec.a
+        ${PYTHON_WASM_PREFIX}/lib/libffi.a
+        ${LIBTCOD_WASM_BUILD}/libtcod.a
+        ${LIBTCOD_WASM_BUILD}/_deps/lodepng-c-build/liblodepng-c.a
+        ${LIBTCOD_WASM_BUILD}/_deps/utf8proc-build/libutf8proc.a)
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)  # Use Linux platform stubs for now
-    link_directories(${CMAKE_SOURCE_DIR}/__lib)
     message(STATUS "Linking Emscripten Python: ${PYTHON_WASM_BUILD}/libpython3.14.a")
+    message(STATUS "Linking Emscripten libtcod: ${LIBTCOD_WASM_BUILD}/libtcod.a")
 elseif(MCRF_HEADLESS)
     # Headless build: no SFML, no OpenGL
     if(WIN32 OR MCRF_CROSS_WINDOWS)
@@ -190,6 +200,15 @@ target_compile_definitions(mcrogueface PRIVATE NO_SDL)
 # Define MCRF_HEADLESS for headless builds (excludes SFML/ImGui code)
 if(MCRF_HEADLESS)
     target_compile_definitions(mcrogueface PRIVATE MCRF_HEADLESS)
+endif()
+
+# Emscripten-specific link options (use ports for zlib, bzip2, sqlite3)
+if(EMSCRIPTEN)
+    target_link_options(mcrogueface PRIVATE
+        -sUSE_ZLIB=1
+        -sUSE_BZIP2=1
+        -sUSE_SQLITE3=1
+    )
 endif()
 
 # On Windows, define Py_ENABLE_SHARED for proper Python DLL imports

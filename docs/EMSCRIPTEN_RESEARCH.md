@@ -729,8 +729,18 @@ grid = mcrfpy.Grid(grid_size=(10,10))  # ✅
    - `run()` now uses `#ifdef __EMSCRIPTEN__` to choose between callback and blocking loop
    - `emscripten_set_main_loop_arg()` integration ready
 2. ✅ **Emscripten toolchain** - `emcmake cmake` works with headless mode
-3. ❌ **Python-in-WASM** - **BLOCKER** - Desktop Python headers incompatible with WASM
-4. **VRSFML integration** - Replace stubs with actual WebGL rendering
+3. ✅ **Python-in-WASM** - Built CPython 3.14.2 for wasm32-emscripten target
+   - Uses official `Tools/wasm/emscripten build` script from CPython repo
+   - Produced libpython3.14.a (47MB static library)
+   - Also builds: libmpdec, libffi, libexpat for WASM
+4. ✅ **libtcod-in-WASM** - Built libtcod-headless for Emscripten
+   - Uses `LIBTCOD_SDL3=OFF` to avoid SDL dependency
+   - Includes lodepng and utf8proc dependencies
+5. ✅ **First successful WASM build** - mcrogueface.wasm (8.9MB) + mcrogueface.js (126KB)
+   - All 68 C++ source files compile with emcc
+   - Links: Python, libtcod, HACL crypto, expat, mpdec, ffi, zlib, bzip2, sqlite3
+6. 🔲 **Python stdlib bundling** - Need to package Python stdlib for WASM filesystem
+7. 🔲 **VRSFML integration** - Replace stubs with actual WebGL rendering
 
 ### First Emscripten Build Attempt (2026-01-31)
 
@@ -775,6 +785,50 @@ The HeadlessTypes.h stubs and game engine code compile fine. The blocker is excl
 - `McRFPy_API` binding layer needs adaptation
 - Pyodide handles asyncio, file system virtualization
 - Active project with good documentation
+
+### CPython WASM Build (Successful!)
+
+**Date**: 2026-01-31
+
+Used the official CPython WASM build process:
+
+```bash
+# From deps/cpython directory
+./Tools/wasm/emscripten build
+
+# This produces:
+# - cross-build/wasm32-emscripten/build/python/libpython3.14.a
+# - cross-build/wasm32-emscripten/prefix/lib/libmpdec.a
+# - cross-build/wasm32-emscripten/prefix/lib/libffi.a
+# - cross-build/wasm32-emscripten/build/python/Modules/expat/libexpat.a
+```
+
+**CMake Integration:**
+```cmake
+if(EMSCRIPTEN)
+    set(PYTHON_WASM_BUILD "${CMAKE_SOURCE_DIR}/deps/cpython/cross-build/wasm32-emscripten/build/python")
+    set(PYTHON_WASM_PREFIX "${CMAKE_SOURCE_DIR}/deps/cpython/cross-build/wasm32-emscripten/prefix")
+
+    # Force WASM-compatible pyconfig.h
+    add_compile_options(-include ${PYTHON_WASM_BUILD}/pyconfig.h)
+
+    # Link all Python dependencies
+    set(LINK_LIBS
+        ${PYTHON_WASM_BUILD}/libpython3.14.a
+        ${PYTHON_WASM_BUILD}/Modules/_hacl/*.o  # HACL crypto not in libpython
+        ${PYTHON_WASM_BUILD}/Modules/expat/libexpat.a
+        ${PYTHON_WASM_PREFIX}/lib/libmpdec.a
+        ${PYTHON_WASM_PREFIX}/lib/libffi.a
+    )
+
+    # Emscripten ports for common libraries
+    target_link_options(mcrogueface PRIVATE
+        -sUSE_ZLIB=1
+        -sUSE_BZIP2=1
+        -sUSE_SQLITE3=1
+    )
+endif()
+```
 
 **No-Python Mode (For Testing):**
 - Add `MCRF_NO_PYTHON` CMake option
