@@ -123,21 +123,11 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
                            !config.python_mode;
     
     if (should_load_game) {
-        std::cerr << "[DEBUG] GameEngine: loading default game.py" << std::endl;
-        std::cerr.flush();
         if (!Py_IsInitialized()) {
-            std::cerr << "[DEBUG] GameEngine: initializing Python API" << std::endl;
-            std::cerr.flush();
             McRFPy_API::api_init();
         }
-        std::cerr << "[DEBUG] GameEngine: importing mcrfpy" << std::endl;
-        std::cerr.flush();
         McRFPy_API::executePyString("import mcrfpy");
-        std::cerr << "[DEBUG] GameEngine: executing scripts/game.py" << std::endl;
-        std::cerr.flush();
         McRFPy_API::executeScript("scripts/game.py");
-        std::cerr << "[DEBUG] GameEngine: game.py execution complete" << std::endl;
-        std::cerr.flush();
     }
 
     // Note: --exec scripts are NOT executed here.

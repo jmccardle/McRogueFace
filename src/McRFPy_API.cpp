@@ -699,27 +699,17 @@ PyObject* PyInit_mcrfpy()
 // init_python - configure interpreter details here
 PyStatus init_python(const char *program_name)
 {
-    std::cerr << "[DEBUG] api_init: starting" << std::endl;
-    std::cerr.flush();
-
     PyStatus status;
 
-    //**preconfig to establish locale**
+    // Preconfig to establish locale
     PyPreConfig preconfig;
     PyPreConfig_InitIsolatedConfig(&preconfig);
     preconfig.utf8_mode = 1;
 
-    std::cerr << "[DEBUG] api_init: Py_PreInitialize" << std::endl;
-    std::cerr.flush();
-
     status = Py_PreInitialize(&preconfig);
     if (PyStatus_Exception(status)) {
-        std::cerr << "[DEBUG] api_init: PreInit failed" << std::endl;
         Py_ExitStatusException(status);
     }
-
-    std::cerr << "[DEBUG] api_init: PyConfig setup" << std::endl;
-    std::cerr.flush();
 
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
@@ -731,9 +721,6 @@ PyStatus init_python(const char *program_name)
     config.configure_c_stdio = 1;
 
 #ifdef __EMSCRIPTEN__
-    std::cerr << "[DEBUG] api_init: WASM path config" << std::endl;
-    std::cerr.flush();
-
     // WASM: Use absolute paths in virtual filesystem
     PyConfig_SetString(&config, &config.executable, L"/mcrogueface");
     PyConfig_SetString(&config, &config.home, L"/lib/python3.14");
@@ -814,17 +801,10 @@ PyStatus init_python(const char *program_name)
 
 PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 {
-    std::cerr << "[DEBUG] init_python_with_config: starting" << std::endl;
-    std::cerr.flush();
-
     // If Python is already initialized, just return success
     if (Py_IsInitialized()) {
-        std::cerr << "[DEBUG] init_python_with_config: already initialized" << std::endl;
         return PyStatus_Ok();
     }
-
-    std::cerr << "[DEBUG] init_python_with_config: PyConfig_InitIsolatedConfig" << std::endl;
-    std::cerr.flush();
 
     PyStatus status;
     PyConfig pyconfig;

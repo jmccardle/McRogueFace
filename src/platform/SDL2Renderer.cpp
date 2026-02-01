@@ -377,16 +377,9 @@ void SDL2Renderer::setProjection(float left, float right, float bottom, float to
     projectionMatrix_[15] = 1.0f;
 }
 
-static int clearCount = 0;
 void SDL2Renderer::clear(float r, float g, float b, float a) {
     glClearColor(r, g, b, a);
     glClear(GL_COLOR_BUFFER_BIT);
-
-    // Debug: Log first few clears to confirm render loop is running
-    if (clearCount < 5) {
-        std::cout << "SDL2Renderer::clear(" << r << ", " << g << ", " << b << ", " << a << ") #" << clearCount << std::endl;
-        clearCount++;
-    }
 }
 
 void SDL2Renderer::pushRenderState(unsigned int width, unsigned int height) {
@@ -466,22 +459,6 @@ void SDL2Renderer::drawTriangles(const float* vertices, size_t vertexCount,
         glBindTexture(GL_TEXTURE_2D, textureId);
         int texLoc = glGetUniformLocation(program, "u_texture");
         glUniform1i(texLoc, 0);
-
-        // Debug: verify texture binding for text shader
-        static int texBindDebug = 0;
-        if (texBindDebug < 2 && shaderType == ShaderType::Text) {
-            std::cout << "drawTriangles(Text): textureId=" << textureId
-                      << " texLoc=" << texLoc << " program=" << program << std::endl;
-            texBindDebug++;
-        }
-    } else if (shaderType == ShaderType::Text) {
-        // This would explain solid boxes - texture not being bound!
-        static bool warnOnce = true;
-        if (warnOnce) {
-            std::cerr << "WARNING: Text shader used but texture not bound! texCoords="
-                      << (texCoords ? "valid" : "null") << " textureId=" << textureId << std::endl;
-            warnOnce = false;
-        }
     }
 
     // Draw
@@ -541,8 +518,6 @@ void RenderWindow::create(VideoMode mode, const std::string& title, uint32_t sty
 
     // Set the canvas size explicitly before creating the window
     emscripten_set_canvas_element_size("#canvas", mode.width, mode.height);
-
-    std::cout << "Emscripten: Setting canvas to " << mode.width << "x" << mode.height << std::endl;
 #endif
 
     // Create window
@@ -605,37 +580,16 @@ void RenderWindow::create(VideoMode mode, const std::string& title, uint32_t sty
 
     // Set up OpenGL state
     glViewport(0, 0, mode.width, mode.height);
-    std::cout << "GL viewport set to " << mode.width << "x" << mode.height << std::endl;
-
-    GLenum err = glGetError();
-    if (err != GL_NO_ERROR) {
-        std::cerr << "GL error after viewport: " << err << std::endl;
-    }
-
     SDL2Renderer::getInstance().setProjection(0, mode.width, mode.height, 0);
 
     // Enable blending for transparency
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Initial clear to a visible color to confirm GL is working
-    glClearColor(0.2f, 0.3f, 0.4f, 1.0f);  // Blue-gray
+    // Initial clear
+    glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-
-    err = glGetError();
-    if (err != GL_NO_ERROR) {
-        std::cerr << "GL error after clear: " << err << std::endl;
-    }
-
     SDL_GL_SwapWindow(window);
-
-    err = glGetError();
-    if (err != GL_NO_ERROR) {
-        std::cerr << "GL error after swap: " << err << std::endl;
-    }
-
-    std::cout << "RenderWindow: Created " << mode.width << "x" << mode.height << " window" << std::endl;
-    std::cout << "WebGL context should now show blue-gray" << std::endl;
 }
 
 void RenderWindow::close() {
@@ -1277,7 +1231,6 @@ bool Font::loadFromFile(const std::string& filename) {
     ftStroker_ = stroker;
 
     loaded_ = true;
-    std::cout << "Font: Loaded " << filename << " with FreeType" << std::endl;
     return true;
 }
 
@@ -2129,10 +2082,6 @@ bool FontAtlas::load(const Font* font, float fontSize) {
     }
 
     textureId_ = SDL2Renderer::getInstance().createTexture(ATLAS_SIZE, ATLAS_SIZE, rgbaPixels.data());
-
-    std::cout << "FontAtlas: created " << ATLAS_SIZE << "x" << ATLAS_SIZE
-              << " atlas with " << simpleGlyphCache_.size() << " glyphs, textureId=" << textureId_ << std::endl;
-
     return true;
 }
 
@@ -2234,10 +2183,6 @@ bool FontAtlas::load(const unsigned char* fontData, size_t dataSize, float fontS
     }
 
     textureId_ = SDL2Renderer::getInstance().createTexture(ATLAS_SIZE, ATLAS_SIZE, rgbaPixels.data());
-
-    std::cout << "FontAtlas: created " << ATLAS_SIZE << "x" << ATLAS_SIZE
-              << " atlas with " << simpleGlyphCache_.size() << " glyphs, textureId=" << textureId_ << std::endl;
-
     return true;
 }
 
