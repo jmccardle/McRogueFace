@@ -61,7 +61,10 @@ public:
     
     // Complete the animation immediately (jump to final value)
     void complete();
-    
+
+    // Stop the animation without completing (no final value applied, no callback)
+    void stop();
+
     // Update animation (called each frame)
     // Returns true if animation is still running, false if complete
     bool update(float deltaTime);
@@ -79,7 +82,8 @@ public:
     std::string getTargetProperty() const { return targetProperty; }
     float getDuration() const { return duration; }
     float getElapsed() const { return elapsed; }
-    bool isComplete() const { return elapsed >= duration; }
+    bool isComplete() const { return elapsed >= duration || stopped; }
+    bool isStopped() const { return stopped; }
     bool isDelta() const { return delta; }
 
     // Get raw target pointer for property locking (#120)
@@ -97,6 +101,7 @@ private:
     float elapsed = 0.0f;          // Elapsed time
     EasingFunction easingFunc;     // Easing function to use
     bool delta;                    // If true, targetValue is relative to start
+    bool stopped = false;          // If true, animation was stopped without completing
     
     // RAII: Use weak_ptr for safe target tracking
     std::weak_ptr<UIDrawable> targetWeak;
@@ -195,6 +200,9 @@ public:
 
     // Get active animation count (for debugging/testing)
     size_t getActiveAnimationCount() const { return activeAnimations.size(); }
+
+    // Get all active animations (for mcrfpy.animations)
+    const std::vector<std::shared_ptr<Animation>>& getActiveAnimations() const { return activeAnimations; }
 
 private:
     AnimationManager() = default;

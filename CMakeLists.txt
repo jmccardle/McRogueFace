@@ -14,6 +14,9 @@ option(MCRF_HEADLESS "Build without graphics dependencies (SFML, ImGui)" OFF)
 # SDL2 backend option (SDL2 + OpenGL ES 2 - for Emscripten/WebGL, Android, cross-platform)
 option(MCRF_SDL2 "Build with SDL2+OpenGL ES 2 backend instead of SFML" OFF)
 
+# Playground mode - minimal scripts for web playground (REPL-focused)
+option(MCRF_PLAYGROUND "Build with minimal playground scripts instead of full game" OFF)
+
 # Emscripten builds: use SDL2 if specified, otherwise fall back to headless
 if(EMSCRIPTEN)
     if(MCRF_SDL2)
@@ -27,6 +30,10 @@ endif()
 
 if(MCRF_SDL2)
     message(STATUS "Building with SDL2 backend - SDL2+OpenGL ES 2")
+endif()
+
+if(MCRF_PLAYGROUND)
+    message(STATUS "Building in PLAYGROUND mode - minimal scripts for web REPL")
 endif()
 
 if(MCRF_HEADLESS)
@@ -266,8 +273,8 @@ if(EMSCRIPTEN)
         -sALLOW_UNIMPLEMENTED_SYSCALLS=1
         # Preload Python stdlib into virtual filesystem at /lib/python3.14
         --preload-file=${CMAKE_SOURCE_DIR}/wasm_stdlib/lib@/lib
-        # Preload game scripts into /scripts
-        --preload-file=${CMAKE_SOURCE_DIR}/src/scripts@/scripts
+        # Preload game scripts into /scripts (use playground scripts if MCRF_PLAYGROUND is set)
+        --preload-file=${CMAKE_SOURCE_DIR}/src/$<IF:$<BOOL:${MCRF_PLAYGROUND}>,scripts_playground,scripts>@/scripts
         # Preload assets
         --preload-file=${CMAKE_SOURCE_DIR}/assets@/assets
         # Use custom HTML shell for crisp pixel rendering

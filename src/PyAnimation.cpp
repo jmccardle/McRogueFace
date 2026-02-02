@@ -331,6 +331,13 @@ PyObject* PyAnimation::complete(PyAnimationObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
+PyObject* PyAnimation::stop(PyAnimationObject* self, PyObject* args) {
+    if (self->data) {
+        self->data->stop();
+    }
+    Py_RETURN_NONE;
+}
+
 PyObject* PyAnimation::has_valid_target(PyAnimationObject* self, PyObject* args) {
     if (self->data && self->data->hasValidTarget()) {
         Py_RETURN_TRUE;
@@ -389,6 +396,14 @@ PyMethodDef PyAnimation::methods[] = {
          MCRF_DESC("Complete the animation immediately by jumping to the final value."),
          MCRF_RETURNS("None")
          MCRF_NOTE("Sets elapsed = duration and applies target value immediately. Completion callback will be called if set.")
+     )},
+    {"stop", (PyCFunction)stop, METH_NOARGS,
+     MCRF_METHOD(Animation, stop,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Stop the animation without completing it."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Unlike complete(), this does NOT apply the final value and does NOT trigger the callback. "
+                   "The animation is simply cancelled and will be removed from the AnimationManager.")
      )},
     {"hasValidTarget", (PyCFunction)has_valid_target, METH_NOARGS,
      MCRF_METHOD(Animation, hasValidTarget,

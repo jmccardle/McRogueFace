@@ -111,6 +111,10 @@ static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
         return McRFPy_API::api_get_timers();
     }
 
+    if (strcmp(name, "animations") == 0) {
+        return McRFPy_API::api_get_animations();
+    }
+
     if (strcmp(name, "default_transition") == 0) {
         return PyTransition::to_python(PyTransition::default_transition);
     }
@@ -141,6 +145,11 @@ static int mcrfpy_module_setattro(PyObject* self, PyObject* name, PyObject* valu
 
     if (strcmp(name_str, "timers") == 0) {
         PyErr_SetString(PyExc_AttributeError, "'timers' is read-only");
+        return -1;
+    }
+
+    if (strcmp(name_str, "animations") == 0) {
+        PyErr_SetString(PyExc_AttributeError, "'animations' is read-only");
         return -1;
     }
 
@@ -1247,6 +1256,33 @@ PyObject* McRFPy_API::api_get_timers()
         // timer_objs already has a reference from lookup() or createTimerWrapper()
         // PyTuple_SET_ITEM steals that reference, so no additional INCREF needed
         PyTuple_SET_ITEM(tuple, i, timer_objs[i]);
+    }
+
+    return tuple;
+}
+
+// Module-level animation collection accessor
+PyObject* McRFPy_API::api_get_animations()
+{
+    auto& manager = AnimationManager::getInstance();
+    const auto& animations = manager.getActiveAnimations();
+
+    PyObject* tuple = PyTuple_New(animations.size());
+    if (!tuple) return NULL;
+
+    Py_ssize_t i = 0;
+    for (const auto& anim : animations) {
+        // Create a PyAnimation wrapper for each animation
+        PyAnimationObject* pyAnim = (PyAnimationObject*)mcrfpydef::PyAnimationType.tp_alloc(&mcrfpydef::PyAnimationType, 0);
+        if (pyAnim) {
+            pyAnim->data = anim;
+            PyTuple_SET_ITEM(tuple, i, (PyObject*)pyAnim);
+        } else {
+            // Failed to allocate - fill with None
+            Py_INCREF(Py_None);
+            PyTuple_SET_ITEM(tuple, i, Py_None);
+        }
+        i++;
     }
 
     return tuple;

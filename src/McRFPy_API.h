@@ -93,6 +93,9 @@ public:
     // #173: Module-level timer collection accessor
     static PyObject* api_get_timers();
 
+    // Module-level animation collection accessor
+    static PyObject* api_get_animations();
+
     // Exception handling - signal game loop to exit on unhandled Python exceptions
     static std::atomic<bool> exception_occurred;
     static std::atomic<int> exit_code;

@@ -157,9 +157,9 @@ private:
     std::unique_ptr<sf::RenderWindow> window;
     std::unique_ptr<HeadlessRenderer> headless_renderer;
     sf::RenderTarget* render_target;
-    
+
     sf::Font font;
-    std::map<std::string, Scene*> scenes;
+    std::map<std::string, std::shared_ptr<Scene>> scenes;
     bool running = true;
     bool paused = false;
     int currentFrame = 0;
@@ -230,6 +230,8 @@ public:
     void changeScene(std::string);
     void changeScene(std::string sceneName, TransitionType transitionType, float duration);
     void createScene(std::string);
+    void registerScene(const std::string& name, std::shared_ptr<Scene> scene);
+    void unregisterScene(const std::string& name);
     void quit();
     void setPause(bool);
     sf::Font & getFont();

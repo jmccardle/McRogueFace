@@ -25,50 +25,57 @@ int PySceneClass::__init__(PySceneObject* self, PyObject* args, PyObject* kwds)
 {
     static const char* keywords[] = {"name", nullptr};
     const char* name = nullptr;
-    
+
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", const_cast<char**>(keywords), &name)) {
         return -1;
     }
-    
-    // Check if scene with this name already exists
-    if (python_scenes.count(name) > 0) {
-        PyErr_Format(PyExc_ValueError, "Scene with name '%s' already exists", name);
-        return -1;
-    }
-    
-    self->name = name;
-    
-    // Create the C++ PyScene
-    McRFPy_API::game->createScene(name);
-    
-    // Get reference to the created scene
+
     GameEngine* game = McRFPy_API::game;
     if (!game) {
         PyErr_SetString(PyExc_RuntimeError, "No game engine initialized");
         return -1;
     }
-    
-    // Store this Python object in our registry
+
+    // If scene with this name already exists in python_scenes, unregister the old one
+    if (python_scenes.count(name) > 0) {
+        PySceneObject* old_scene = python_scenes[name];
+        // Remove old scene from registries (but its shared_ptr keeps the C++ object alive)
+        Py_DECREF(old_scene);
+        python_scenes.erase(name);
+        game->unregisterScene(name);
+    }
+
+    self->name = name;
+
+    // Create the C++ PyScene with shared ownership
+    self->scene = std::make_shared<PyScene>(game);
+
+    // Register with the game engine (game engine also holds a reference)
+    game->registerScene(name, self->scene);
+
+    // Store this Python object in our registry for lifecycle callbacks
     python_scenes[name] = self;
-    Py_INCREF(self);  // Keep a reference
-    
-    // Create a Python function that routes to on_keypress
-    // We'll register this after the object is fully initialized
-    
+    Py_INCREF(self);  // python_scenes holds a reference
+
     self->initialized = true;
-    
+
     return 0;
 }
 
 void PySceneClass::__dealloc(PyObject* self_obj)
 {
     PySceneObject* self = (PySceneObject*)self_obj;
-    
-    // Remove from registry
+
+    // Remove from python_scenes registry if we're the registered scene
     if (python_scenes.count(self->name) > 0 && python_scenes[self->name] == self) {
         python_scenes.erase(self->name);
     }
-    
+
+    // Release our shared_ptr reference to the C++ scene
+    // If GameEngine still holds a reference, the scene survives
+    // If not, this may be the last reference and the scene is deleted
+    self->scene.reset();
+
     // Call Python object destructor
     Py_TYPE(self)->tp_free(self);
 }
@@ -122,6 +129,15 @@ PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args, PyObject* 
         return NULL;
     }
 
+    // Auto-register if this scene is not currently registered
+    if (!game->getScene(self->name)) {
+        game->registerScene(self->name, self->scene);
+        if (python_scenes.count(self->name) == 0 || python_scenes[self->name] != self) {
+            python_scenes[self->name] = self;
+            Py_INCREF(self);
+        }
+    }
+
     // Call game->changeScene directly with proper transition
     game->changeScene(self->name, transition_type, duration);
 
@@ -141,17 +157,11 @@ static PyObject* PySceneClass_get_children(PySceneObject* self, void* closure)
 // on_key property getter
 static PyObject* PySceneClass_get_on_key(PySceneObject* self, void* closure)
 {
-    GameEngine* game = McRFPy_API::game;
-    if (!game) {
+    if (!self->scene || !self->scene->key_callable) {
         Py_RETURN_NONE;
     }
 
-    auto scene = game->getScene(self->name);
-    if (!scene || !scene->key_callable) {
-        Py_RETURN_NONE;
-    }
-
-    PyObject* callable = scene->key_callable->borrow();
+    PyObject* callable = self->scene->key_callable->borrow();
     if (callable && callable != Py_None) {
         Py_INCREF(callable);
         return callable;
@@ -162,22 +172,15 @@ static PyObject* PySceneClass_get_on_key(PySceneObject* self, void* closure)
 // on_key property setter
 static int PySceneClass_set_on_key(PySceneObject* self, PyObject* value, void* closure)
 {
-    GameEngine* game = McRFPy_API::game;
-    if (!game) {
-        PyErr_SetString(PyExc_RuntimeError, "No game engine");
-        return -1;
-    }
-
-    auto scene = game->getScene(self->name);
-    if (!scene) {
-        PyErr_SetString(PyExc_RuntimeError, "Scene not found");
+    if (!self->scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not initialized");
         return -1;
     }
 
     if (value == Py_None || value == NULL) {
-        scene->key_unregister();
+        self->scene->key_unregister();
     } else if (PyCallable_Check(value)) {
-        scene->key_register(value);
+        self->scene->key_register(value);
     } else {
         PyErr_SetString(PyExc_TypeError, "on_key must be callable or None");
         return -1;
@@ -203,21 +206,14 @@ PyObject* PySceneClass::get_active(PySceneObject* self, void* closure)
 // #118: Scene position getter
 static PyObject* PySceneClass_get_pos(PySceneObject* self, void* closure)
 {
-    GameEngine* game = McRFPy_API::game;
-    if (!game) {
-        Py_RETURN_NONE;
-    }
-
-    // Get the scene by name using the public accessor
-    auto scene = game->getScene(self->name);
-    if (!scene) {
+    if (!self->scene) {
         Py_RETURN_NONE;
     }
 
     // Create a Vector object
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
     if (!type) return NULL;
-    PyObject* args = Py_BuildValue("(ff)", scene->position.x, scene->position.y);
+    PyObject* args = Py_BuildValue("(ff)", self->scene->position.x, self->scene->position.y);
     PyObject* result = PyObject_CallObject((PyObject*)type, args);
     Py_DECREF(type);
     Py_DECREF(args);
@@ -227,15 +223,8 @@ static PyObject* PySceneClass_get_pos(PySceneObject* self, void* closure)
 // #118: Scene position setter
 static int PySceneClass_set_pos(PySceneObject* self, PyObject* value, void* closure)
 {
-    GameEngine* game = McRFPy_API::game;
-    if (!game) {
-        PyErr_SetString(PyExc_RuntimeError, "No game engine");
-        return -1;
-    }
-
-    auto scene = game->getScene(self->name);
-    if (!scene) {
-        PyErr_SetString(PyExc_RuntimeError, "Scene not found");
+    if (!self->scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not initialized");
         return -1;
     }
 
@@ -256,38 +245,25 @@ static int PySceneClass_set_pos(PySceneObject* self, PyObject* value, void* clos
         return -1;
     }
 
-    scene->position = sf::Vector2f(x, y);
+    self->scene->position = sf::Vector2f(x, y);
     return 0;
 }
 
 // #118: Scene visible getter
 static PyObject* PySceneClass_get_visible(PySceneObject* self, void* closure)
 {
-    GameEngine* game = McRFPy_API::game;
-    if (!game) {
+    if (!self->scene) {
         Py_RETURN_TRUE;
     }
 
-    auto scene = game->getScene(self->name);
-    if (!scene) {
-        Py_RETURN_TRUE;
-    }
-
-    return PyBool_FromLong(scene->visible);
+    return PyBool_FromLong(self->scene->visible);
 }
 
 // #118: Scene visible setter
 static int PySceneClass_set_visible(PySceneObject* self, PyObject* value, void* closure)
 {
-    GameEngine* game = McRFPy_API::game;
-    if (!game) {
-        PyErr_SetString(PyExc_RuntimeError, "No game engine");
-        return -1;
-    }
-
-    auto scene = game->getScene(self->name);
-    if (!scene) {
-        PyErr_SetString(PyExc_RuntimeError, "Scene not found");
+    if (!self->scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not initialized");
         return -1;
     }
 
@@ -296,38 +272,25 @@ static int PySceneClass_set_visible(PySceneObject* self, PyObject* value, void* 
         return -1;
     }
 
-    scene->visible = PyObject_IsTrue(value);
+    self->scene->visible = PyObject_IsTrue(value);
     return 0;
 }
 
 // #118: Scene opacity getter
 static PyObject* PySceneClass_get_opacity(PySceneObject* self, void* closure)
 {
-    GameEngine* game = McRFPy_API::game;
-    if (!game) {
+    if (!self->scene) {
         return PyFloat_FromDouble(1.0);
     }
 
-    auto scene = game->getScene(self->name);
-    if (!scene) {
-        return PyFloat_FromDouble(1.0);
-    }
-
-    return PyFloat_FromDouble(scene->opacity);
+    return PyFloat_FromDouble(self->scene->opacity);
 }
 
 // #118: Scene opacity setter
 static int PySceneClass_set_opacity(PySceneObject* self, PyObject* value, void* closure)
 {
-    GameEngine* game = McRFPy_API::game;
-    if (!game) {
-        PyErr_SetString(PyExc_RuntimeError, "No game engine");
-        return -1;
-    }
-
-    auto scene = game->getScene(self->name);
-    if (!scene) {
-        PyErr_SetString(PyExc_RuntimeError, "Scene not found");
+    if (!self->scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not initialized");
         return -1;
     }
 
@@ -345,7 +308,7 @@ static int PySceneClass_set_opacity(PySceneObject* self, PyObject* value, void* 
     if (opacity < 0.0) opacity = 0.0;
     if (opacity > 1.0) opacity = 1.0;
 
-    scene->opacity = opacity;
+    self->scene->opacity = opacity;
     return 0;
 }
 
@@ -494,12 +457,29 @@ void PySceneClass::call_on_resize(PySceneObject* self, sf::Vector2u new_size)
     }
 }
 
+// registered property getter
+static PyObject* PySceneClass_get_registered(PySceneObject* self, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game || !self->scene) {
+        Py_RETURN_FALSE;
+    }
+
+    // Check if THIS scene object is the one registered under this name
+    // (not just that a scene with this name exists)
+    Scene* registered_scene = game->getScene(self->name);
+    return PyBool_FromLong(registered_scene == self->scene.get());
+}
+
 // Properties
 PyGetSetDef PySceneClass::getsetters[] = {
     {"name", (getter)get_name, NULL,
      MCRF_PROPERTY(name, "Scene name (str, read-only). Unique identifier for this scene."), NULL},
     {"active", (getter)get_active, NULL,
      MCRF_PROPERTY(active, "Whether this scene is currently active (bool, read-only). Only one scene can be active at a time."), NULL},
+    {"registered", (getter)PySceneClass_get_registered, NULL,
+     MCRF_PROPERTY(registered, "Whether this scene is registered with the game engine (bool, read-only). "
+         "Unregistered scenes still exist but won't receive lifecycle callbacks."), NULL},
     // #118: Scene-level UIDrawable-like properties
     {"pos", (getter)PySceneClass_get_pos, (setter)PySceneClass_set_pos,
      MCRF_PROPERTY(pos, "Scene position offset (Vector). Applied to all UI elements during rendering."), NULL},
@@ -521,23 +501,76 @@ PyGetSetDef PySceneClass::getsetters[] = {
 // Scene.realign() - recalculate alignment for all children
 static PyObject* PySceneClass_realign(PySceneObject* self, PyObject* args)
 {
+    if (!self->scene || !self->scene->ui_elements) {
+        Py_RETURN_NONE;
+    }
+
+    // Iterate through all UI elements and realign those with alignment set
+    for (auto& drawable : *self->scene->ui_elements) {
+        if (drawable && drawable->align_type != AlignmentType::NONE) {
+            drawable->applyAlignment();
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
+// Scene.register() - add scene to GameEngine's registry
+static PyObject* PySceneClass_register(PySceneObject* self, PyObject* args)
+{
     GameEngine* game = McRFPy_API::game;
     if (!game) {
         PyErr_SetString(PyExc_RuntimeError, "No game engine");
         return NULL;
     }
 
-    auto scene = game->getScene(self->name);
-    if (!scene || !scene->ui_elements) {
-        Py_RETURN_NONE;
+    if (!self->scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not initialized");
+        return NULL;
     }
 
-    // Iterate through all UI elements and realign those with alignment set
-    for (auto& drawable : *scene->ui_elements) {
-        if (drawable && drawable->align_type != AlignmentType::NONE) {
-            drawable->applyAlignment();
-        }
+    // If another scene with this name is registered, unregister it first
+    if (python_scenes.count(self->name) > 0 && python_scenes[self->name] != self) {
+        PySceneObject* old = python_scenes[self->name];
+        Py_DECREF(old);
+        python_scenes.erase(self->name);
     }
+
+    // Unregister from GameEngine (removes old reference if any)
+    game->unregisterScene(self->name);
+
+    // Register this scene with GameEngine
+    game->registerScene(self->name, self->scene);
+
+    // Register in python_scenes if not already
+    if (python_scenes.count(self->name) == 0 || python_scenes[self->name] != self) {
+        python_scenes[self->name] = self;
+        Py_INCREF(self);
+    }
+
+    Py_RETURN_NONE;
+}
+
+// Scene.unregister() - remove scene from GameEngine's registry (but keep Python object alive)
+static PyObject* PySceneClass_unregister(PySceneObject* self, PyObject* args)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "No game engine");
+        return NULL;
+    }
+
+    // Remove from GameEngine's scenes map
+    game->unregisterScene(self->name);
+
+    // Remove from python_scenes callback registry
+    if (python_scenes.count(self->name) > 0 && python_scenes[self->name] == self) {
+        Py_DECREF(self);
+        python_scenes.erase(self->name);
+    }
+
+    // Note: self->scene shared_ptr still holds the C++ object!
+    // The scene survives because this PySceneObject still has a reference
 
     Py_RETURN_NONE;
 }
@@ -560,6 +593,22 @@ PyMethodDef PySceneClass::methods[] = {
          MCRF_DESC("Recalculate alignment for all children with alignment set."),
          MCRF_NOTE("Call this after window resize or when game_resolution changes. "
                    "For responsive layouts, connect this to on_resize callback.")
+     )},
+    {"register", (PyCFunction)PySceneClass_register, METH_NOARGS,
+     MCRF_METHOD(SceneClass, register,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Register this scene with the game engine."),
+         MCRF_NOTE("Makes the scene available for activation and receives lifecycle callbacks. "
+                   "If another scene with the same name exists, it will be unregistered first. "
+                   "Called automatically by activate() if needed.")
+     )},
+    {"unregister", (PyCFunction)PySceneClass_unregister, METH_NOARGS,
+     MCRF_METHOD(SceneClass, unregister,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Unregister this scene from the game engine."),
+         MCRF_NOTE("Removes the scene from the engine's registry but keeps the Python object alive. "
+                   "The scene's UI elements and state are preserved. Call register() to re-add it. "
+                   "Useful for temporary scenes or scene pooling.")
      )},
     {NULL}
 };

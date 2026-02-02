@@ -107,7 +107,7 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     gameView.setCenter(std::floor(gameResolution.x / 2.0f), std::floor(gameResolution.y / 2.0f));
     updateViewport();
     scene = "uitest";
-    scenes["uitest"] = new UITestScene(this);
+    scenes["uitest"] = std::make_shared<UITestScene>(this);
 
     McRFPy_API::game = this;
 
@@ -159,9 +159,8 @@ void GameEngine::executeStartupScripts()
 GameEngine::~GameEngine()
 {
     cleanup();
-    for (auto& [name, scene] : scenes) {
-        delete scene;
-    }
+    // scenes map uses shared_ptr, will clean up automatically
+    scenes.clear();
     delete profilerOverlay;
 }
 
@@ -198,10 +197,10 @@ void GameEngine::cleanup()
 #endif
 }
 
-Scene* GameEngine::currentScene() { return scenes[scene]; }
+Scene* GameEngine::currentScene() { return scenes[scene].get(); }
 Scene* GameEngine::getScene(const std::string& name) {
     auto it = scenes.find(name);
-    return (it != scenes.end()) ? it->second : nullptr;
+    return (it != scenes.end()) ? it->second.get() : nullptr;
 }
 
 std::vector<std::string> GameEngine::getSceneNames() const {
@@ -276,7 +275,29 @@ sf::RenderTarget & GameEngine::getRenderTarget() {
     return *render_target; 
 }
 
-void GameEngine::createScene(std::string s) { scenes[s] = new PyScene(this); }
+void GameEngine::createScene(std::string s) { scenes[s] = std::make_shared<PyScene>(this); }
+
+void GameEngine::registerScene(const std::string& name, std::shared_ptr<Scene> scenePtr) {
+    scenes[name] = scenePtr;
+}
+
+void GameEngine::unregisterScene(const std::string& name) {
+    auto it = scenes.find(name);
+    if (it != scenes.end()) {
+        // If this was the active scene, we need to handle that
+        if (scene == name) {
+            // Find another scene to switch to, or leave empty
+            scene.clear();
+            for (const auto& [sceneName, scenePtr] : scenes) {
+                if (sceneName != name) {
+                    scene = sceneName;
+                    break;
+                }
+            }
+        }
+        scenes.erase(it);
+    }
+}
 
 void GameEngine::setWindowScale(float multiplier)
 {
@@ -310,8 +331,16 @@ void GameEngine::run()
 
 #ifdef __EMSCRIPTEN__
     // Browser: use callback-based loop (non-blocking)
-    // 0 = use requestAnimationFrame, 1 = simulate infinite loop
+    // Start with 0 (requestAnimationFrame), then set timing based on framerate_limit
     emscripten_set_main_loop_arg(emscriptenMainLoopCallback, this, 0, 1);
+
+    // Apply framerate_limit setting (0 = use RAF, >0 = use setTimeout)
+    if (framerate_limit == 0) {
+        emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
+    } else {
+        int interval_ms = 1000 / framerate_limit;
+        emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, interval_ms);
+    }
 #else
     // Desktop: traditional blocking loop
     while (running)
@@ -628,7 +657,7 @@ std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> GameEngine::scene_ui(s
     std::cout << "iterators: " << std::distance(scenes.begin(), scenes.begin()) << " " <<
         std::distance(scenes.begin(), scenes.end()) << std::endl;
     std::cout << "scenes.contains(target): " << scenes.contains(target) << std::endl;
-    std::cout << "scenes[target]: " << (long)(scenes[target]) << std::endl;
+    std::cout << "scenes[target]: " << (long)(scenes[target].get()) << std::endl;
     */
     if (scenes.count(target) == 0) return NULL;
     return scenes[target]->ui_elements;
@@ -653,9 +682,23 @@ void GameEngine::setVSync(bool enabled)
 void GameEngine::setFramerateLimit(unsigned int limit)
 {
     framerate_limit = limit;
+
+#ifdef __EMSCRIPTEN__
+    // For Emscripten: change loop timing dynamically
+    if (limit == 0) {
+        // Unlimited: use requestAnimationFrame (browser-controlled, typically 60fps)
+        emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
+    } else {
+        // Specific FPS: use setTimeout with calculated interval
+        int interval_ms = 1000 / limit;
+        emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, interval_ms);
+    }
+#else
+    // For desktop: use SFML's setFramerateLimit
     if (!headless && window) {
         window->setFramerateLimit(limit);
     }
+#endif
 }
 
 void GameEngine::setGameResolution(unsigned int width, unsigned int height) {

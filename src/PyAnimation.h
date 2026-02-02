@@ -30,6 +30,7 @@ public:
     static PyObject* update(PyAnimationObject* self, PyObject* args);
     static PyObject* get_current_value(PyAnimationObject* self, PyObject* args);
     static PyObject* complete(PyAnimationObject* self, PyObject* args);
+    static PyObject* stop(PyAnimationObject* self, PyObject* args);
     static PyObject* has_valid_target(PyAnimationObject* self, PyObject* args);
     
     static PyGetSetDef getsetters[];

@@ -188,7 +188,7 @@ void Animation::clearCallback() {
 void Animation::complete() {
     // Jump to end of animation
     elapsed = duration;
-    
+
     // Apply final value
     if (auto target = targetWeak.lock()) {
         AnimationValue finalValue = interpolate(1.0f);
@@ -200,7 +200,18 @@ void Animation::complete() {
     }
 }
 
+void Animation::stop() {
+    // Mark as stopped - no final value applied, no callback triggered
+    stopped = true;
+    // AnimationManager will remove this on next update() call
+}
+
 bool Animation::update(float deltaTime) {
+    // Check if animation was stopped
+    if (stopped) {
+        return false;  // Signal removal from AnimationManager
+    }
+
     // Try to lock weak_ptr to get shared_ptr
     std::shared_ptr<UIDrawable> target = targetWeak.lock();
     std::shared_ptr<UIEntity> entity = entityTargetWeak.lock();
