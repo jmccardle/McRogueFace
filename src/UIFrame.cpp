@@ -126,7 +126,15 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Check visibility
     if (!visible) return;
 
-    // TODO: Apply opacity when SFML supports it on shapes
+    // Apply opacity (multiply with fill/outline color alpha)
+    auto fill_color = box.getFillColor();
+    auto outline_color = box.getOutlineColor();
+    sf::Uint8 original_fill_alpha = fill_color.a;
+    sf::Uint8 original_outline_alpha = outline_color.a;
+    fill_color.a = static_cast<sf::Uint8>(original_fill_alpha * opacity);
+    outline_color.a = static_cast<sf::Uint8>(original_outline_alpha * opacity);
+    box.setFillColor(fill_color);
+    box.setOutlineColor(outline_color);
 
     // #144: Use RenderTexture for clipping OR texture caching OR shaders (#106)
     // clip_children: requires texture for clipping effect (only when has children)
@@ -194,6 +202,11 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
             render_sprite.setOrigin(origin);
             render_sprite.setRotation(rotation);
 
+            // Apply opacity to render_sprite
+            auto sprite_color = render_sprite.getColor();
+            sprite_color.a = static_cast<sf::Uint8>(255 * opacity);
+            render_sprite.setColor(sprite_color);
+
             // #106: Apply shader if set
             if (shader && shader->shader) {
                 // Apply engine uniforms (time, resolution, mouse, texture)
@@ -236,6 +249,12 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
             drawable->render(offset + position, target);  // Use `position` as source of truth
         }
     }
+
+    // Restore original colors
+    fill_color.a = original_fill_alpha;
+    outline_color.a = original_outline_alpha;
+    box.setFillColor(fill_color);
+    box.setOutlineColor(outline_color);
 }
 
 PyObject* UIFrame::get_children(PyUIFrameObject* self, void* closure)
@@ -836,6 +855,10 @@ bool UIFrame::setProperty(const std::string& name, float value) {
         box.setOutlineThickness(value);
         markDirty();
         return true;
+    } else if (name == "opacity") {
+        opacity = std::clamp(value, 0.0f, 1.0f);
+        markDirty();
+        return true;
     } else if (name == "fill_color.r") {
         auto color = box.getFillColor();
         color.r = std::clamp(static_cast<int>(value), 0, 255);
@@ -960,6 +983,9 @@ bool UIFrame::getProperty(const std::string& name, float& value) const {
     } else if (name == "outline") {
         value = box.getOutlineThickness();
         return true;
+    } else if (name == "opacity") {
+        value = opacity;
+        return true;
     } else if (name == "fill_color.r") {
         value = box.getFillColor().r;
         return true;
@@ -1029,7 +1055,7 @@ bool UIFrame::getProperty(const std::string& name, sf::Vector2f& value) const {
 bool UIFrame::hasProperty(const std::string& name) const {
     // Float properties
     if (name == "x" || name == "y" || name == "w" || name == "h" ||
-        name == "outline" ||
+        name == "outline" || name == "opacity" ||
         name == "fill_color.r" || name == "fill_color.g" ||
         name == "fill_color.b" || name == "fill_color.a" ||
         name == "outline_color.r" || name == "outline_color.g" ||

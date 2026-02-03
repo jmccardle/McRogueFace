@@ -13,10 +13,11 @@ class PlaygroundScene(mcrfpy.Scene):
         for a in mcrfpy.animations:
             a.stop()
         for s in mcrfpy.scenes:
+            if s is self: continue
             s.unregister()
+        self.activate()
         while self.children:
             self.children.pop()
-        self.activate()
 
 scene = PlaygroundScene()
 scene.activate()

@@ -66,9 +66,10 @@ void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Check visibility
     if (!visible) return;
 
-    // Apply opacity
+    // Apply opacity (multiply with fill_color alpha)
     auto color = text.getFillColor();
-    color.a = static_cast<sf::Uint8>(255 * opacity);
+    sf::Uint8 original_alpha = color.a;
+    color.a = static_cast<sf::Uint8>(original_alpha * opacity);
     text.setFillColor(color);
 
     // Apply rotation and origin
@@ -114,7 +115,7 @@ void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
     }
 
     // Restore original alpha
-    color.a = 255;
+    color.a = original_alpha;
     text.setFillColor(color);
 }
 
@@ -604,6 +605,11 @@ bool UICaption::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Content change
         return true;
     }
+    else if (name == "opacity") {
+        opacity = std::clamp(value, 0.0f, 1.0f);
+        markDirty();  // #144 - Visual change
+        return true;
+    }
     else if (name == "fill_color.r") {
         auto color = text.getFillColor();
         color.r = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
@@ -730,6 +736,10 @@ bool UICaption::getProperty(const std::string& name, float& value) const {
         value = text.getOutlineThickness();
         return true;
     }
+    else if (name == "opacity") {
+        value = opacity;
+        return true;
+    }
     else if (name == "fill_color.r") {
         value = text.getFillColor().r;
         return true;
@@ -808,7 +818,7 @@ bool UICaption::getProperty(const std::string& name, std::string& value) const {
 bool UICaption::hasProperty(const std::string& name) const {
     // Float properties
     if (name == "x" || name == "y" ||
-        name == "font_size" || name == "size" || name == "outline" ||
+        name == "font_size" || name == "size" || name == "outline" || name == "opacity" ||
         name == "fill_color.r" || name == "fill_color.g" ||
         name == "fill_color.b" || name == "fill_color.a" ||
         name == "outline_color.r" || name == "outline_color.g" ||

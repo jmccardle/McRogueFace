@@ -230,6 +230,10 @@ bool UICircle::setProperty(const std::string& name, float value) {
         shape.setOrigin(radius + origin.x, radius + origin.y);
         markDirty();
         return true;
+    } else if (name == "opacity") {
+        opacity = std::clamp(value, 0.0f, 1.0f);
+        markDirty();
+        return true;
     }
     return false;
 }
@@ -278,6 +282,9 @@ bool UICircle::getProperty(const std::string& name, float& value) const {
     } else if (name == "origin_y") {
         value = origin.y;
         return true;
+    } else if (name == "opacity") {
+        value = opacity;
+        return true;
     }
     return false;
 }
@@ -303,7 +310,7 @@ bool UICircle::getProperty(const std::string& name, sf::Vector2f& value) const {
 
 bool UICircle::hasProperty(const std::string& name) const {
     // Float properties
-    if (name == "radius" || name == "outline" ||
+    if (name == "radius" || name == "outline" || name == "opacity" ||
         name == "x" || name == "y" ||
         name == "rotation" || name == "origin_x" || name == "origin_y") {
         return true;

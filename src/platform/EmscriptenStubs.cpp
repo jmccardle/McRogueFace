@@ -53,11 +53,27 @@ int run_python_string(const char* code) {
 // Returns a pointer to a static buffer (caller should copy immediately)
 static std::string python_output_buffer;
 
+// Helper to safely delete a key from a dict without leaving error state
+static void safe_dict_del(PyObject* dict, const char* key) {
+    PyObject* py_key = PyUnicode_FromString(key);
+    if (py_key && PyDict_Contains(dict, py_key)) {
+        PyDict_DelItem(dict, py_key);
+    }
+    Py_XDECREF(py_key);
+    PyErr_Clear();  // Clear any error from Contains or Del
+}
+
 EMSCRIPTEN_KEEPALIVE
 const char* run_python_string_with_output(const char* code) {
     if (!Py_IsInitialized()) {
         python_output_buffer = "Error: Python not initialized";
         return python_output_buffer.c_str();
+    }
+
+    // CRITICAL: Clear any lingering error state before execution
+    // This prevents "clogged" interpreter state from previous errors
+    if (PyErr_Occurred()) {
+        PyErr_Clear();
     }
 
     // Redirect stdout and stderr to a StringIO, run code, capture output
@@ -113,7 +129,37 @@ elif _mcrf_last_repr:
     Py_DECREF(py_code);
 
     // Run the capture code
-    PyRun_SimpleString(capture_code);
+    int result = PyRun_SimpleString(capture_code);
+
+    // Check if capture code itself failed (e.g., internal error in REPL wrapper)
+    if (result != 0 || PyErr_Occurred()) {
+        // Capture the Python error before clearing
+        PyObject *ptype, *pvalue, *ptraceback;
+        PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+
+        python_output_buffer = "Internal REPL Error: ";
+        if (pvalue) {
+            PyObject* str = PyObject_Str(pvalue);
+            if (str) {
+                const char* err_str = PyUnicode_AsUTF8(str);
+                if (err_str) {
+                    python_output_buffer += err_str;
+                }
+                Py_DECREF(str);
+            }
+        } else {
+            python_output_buffer += "Unknown error in capture code";
+        }
+
+        Py_XDECREF(ptype);
+        Py_XDECREF(pvalue);
+        Py_XDECREF(ptraceback);
+        PyErr_Clear();  // Ensure clean state for next execution
+
+        // Still clean up what we can
+        safe_dict_del(main_dict, "_mcrf_user_code");
+        return python_output_buffer.c_str();
+    }
 
     // Get the captured output
     PyObject* output = PyDict_GetItemString(main_dict, "_mcrf_captured_output");
@@ -124,14 +170,22 @@ elif _mcrf_last_repr:
         python_output_buffer = "";
     }
 
-    // Clean up temporary variables
-    PyDict_DelItemString(main_dict, "_mcrf_user_code");
-    PyDict_DelItemString(main_dict, "_mcrf_stdout_capture");
-    PyDict_DelItemString(main_dict, "_mcrf_stderr_capture");
-    PyDict_DelItemString(main_dict, "_mcrf_old_stdout");
-    PyDict_DelItemString(main_dict, "_mcrf_old_stderr");
-    PyDict_DelItemString(main_dict, "_mcrf_exec_error");
-    PyDict_DelItemString(main_dict, "_mcrf_captured_output");
+    // Clean up ALL temporary variables (including previously missed ones)
+    safe_dict_del(main_dict, "_mcrf_user_code");
+    safe_dict_del(main_dict, "_mcrf_stdout_capture");
+    safe_dict_del(main_dict, "_mcrf_stderr_capture");
+    safe_dict_del(main_dict, "_mcrf_old_stdout");
+    safe_dict_del(main_dict, "_mcrf_old_stderr");
+    safe_dict_del(main_dict, "_mcrf_exec_error");
+    safe_dict_del(main_dict, "_mcrf_captured_output");
+    safe_dict_del(main_dict, "_mcrf_last_repr");    // Previously leaked
+    safe_dict_del(main_dict, "_mcrf_result");       // Previously leaked
+    safe_dict_del(main_dict, "_mcrf_code_obj");     // Previously leaked
+
+    // Final safety check - clear any residual error state
+    if (PyErr_Occurred()) {
+        PyErr_Clear();
+    }
 
     return python_output_buffer.c_str();
 }
@@ -141,6 +195,11 @@ EMSCRIPTEN_KEEPALIVE
 int reset_python_environment() {
     if (!Py_IsInitialized()) {
         return -1;
+    }
+
+    // Clear any lingering error state first
+    if (PyErr_Occurred()) {
+        PyErr_Clear();
     }
 
     // Clear all scenes and reload game.py
@@ -161,7 +220,74 @@ except Exception as e:
     print(f"Reset error: {e}")
 )";
 
-    return PyRun_SimpleString(reset_code);
+    int result = PyRun_SimpleString(reset_code);
+
+    // Clear any error state from reset
+    if (PyErr_Occurred()) {
+        PyErr_Clear();
+    }
+
+    return result;
+}
+
+// =============================================================================
+// Interpreter health check functions (for debugging)
+// =============================================================================
+
+static std::string python_state_buffer;
+
+// Check the current state of the Python interpreter
+// Returns: "OK", "NOT_INITIALIZED", or "ERROR_SET: <message>"
+EMSCRIPTEN_KEEPALIVE
+const char* get_python_state() {
+    if (!Py_IsInitialized()) {
+        return "NOT_INITIALIZED";
+    }
+
+    if (PyErr_Occurred()) {
+        PyObject *ptype, *pvalue, *ptraceback;
+        PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+
+        python_state_buffer = "ERROR_SET: ";
+        if (pvalue) {
+            PyObject* str = PyObject_Str(pvalue);
+            if (str) {
+                const char* err_str = PyUnicode_AsUTF8(str);
+                if (err_str) {
+                    python_state_buffer += err_str;
+                }
+                Py_DECREF(str);
+            }
+        } else {
+            python_state_buffer += "Unknown error";
+        }
+
+        // Restore the error so caller can decide what to do
+        PyErr_Restore(ptype, pvalue, ptraceback);
+        return python_state_buffer.c_str();
+    }
+
+    return "OK";
+}
+
+// Clear any pending Python error state
+EMSCRIPTEN_KEEPALIVE
+void clear_python_error() {
+    if (Py_IsInitialized() && PyErr_Occurred()) {
+        PyErr_Clear();
+    }
+}
+
+// Get a count of items in Python's global namespace (for debugging memory leaks)
+EMSCRIPTEN_KEEPALIVE
+int get_python_globals_count() {
+    if (!Py_IsInitialized()) {
+        return -1;
+    }
+
+    PyObject* main_module = PyImport_AddModule("__main__");
+    PyObject* main_dict = PyModule_GetDict(main_module);
+    return (int)PyDict_Size(main_dict);
 }
 
 } // extern "C"

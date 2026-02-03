@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>McRogueFace - WebGL</title>
+    <!-- LZ-String for URL compression -->
+    <script src="https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js"></script>
+    <!-- CodeMirror from CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -25,10 +32,25 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
         h1 {
             margin: 0;
             color: #e94560;
+        }
+        h1 a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .tagline {
+            color: #666;
+            font-size: 14px;
         }
         #status {
             color: #888;
@@ -43,24 +65,21 @@
             min-width: 300px;
         }
         #canvas {
-            /* border: 2px solid #e94560; -- disabled per Emscripten docs, causes alignment issues */
             background: #000;
             display: block;
             max-width: 100%;
             height: auto;
-            /* Crisp pixel rendering - no smoothing/interpolation */
             image-rendering: pixelated;
             image-rendering: crisp-edges;
             -ms-interpolation-mode: nearest-neighbor;
-            /* Ensure canvas can receive focus */
             outline: none;
         }
         #canvas:focus {
             box-shadow: 0 0 10px rgba(78, 204, 163, 0.5);
         }
         .repl-panel {
-            width: 400px;
-            min-width: 300px;
+            width: 450px;
+            min-width: 350px;
             display: flex;
             flex-direction: column;
             background: #16213e;
@@ -74,15 +93,35 @@
             padding: 10px 15px;
             background: #0f3460;
             border-bottom: 1px solid #e94560;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .repl-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .repl-header h3 {
             margin: 0;
             font-size: 14px;
             color: #e94560;
         }
+        /* Interpreter status indicator */
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            transition: background-color 0.3s;
+        }
+        .status-ok { background-color: #4ecca3; }
+        .status-error { background-color: #e94560; }
+        .status-busy { background-color: #f39c12; }
         .repl-buttons {
             display: flex;
             gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
         }
         .repl-buttons button {
             padding: 6px 12px;
@@ -99,6 +138,13 @@
         }
         #runBtn:hover {
             background: #3db892;
+        }
+        #shareBtn {
+            background: #667eea;
+            color: white;
+        }
+        #shareBtn:hover {
+            background: #5a6fd6;
         }
         #resetBtn {
             background: #e94560;
@@ -118,28 +164,27 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
-        #codeEditor {
-            width: 100%;
-            height: 250px;
-            padding: 12px;
-            border: none;
-            background: #0f0f23;
-            color: #4ecca3;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-            font-size: 13px;
-            line-height: 1.5;
-            resize: vertical;
-            outline: none;
+        /* CodeMirror container */
+        .editor-container {
+            border-bottom: 1px solid #333;
         }
-        #codeEditor::placeholder {
-            color: #555;
+        .CodeMirror {
+            height: 430px;
+            font-size: 13px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
         }
         .repl-output-header {
             padding: 8px 15px;
             background: #0f3460;
             font-size: 12px;
             color: #888;
-            border-top: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .shortcut-hint {
+            font-size: 11px;
+            color: #666;
         }
         #replOutput {
             flex: 1;
@@ -158,6 +203,12 @@
         }
         #replOutput .success {
             color: #4ecca3;
+        }
+        #replOutput .warning {
+            color: #f39c12;
+        }
+        #replOutput .input {
+            color: #888;
         }
         #output {
             margin-top: 20px;
@@ -184,16 +235,6 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        .toggle-repl {
-            display: none;
-            margin-top: 10px;
-            padding: 8px 16px;
-            background: #0f3460;
-            border: 1px solid #e94560;
-            color: #e94560;
-            border-radius: 4px;
-            cursor: pointer;
-        }
         @media (max-width: 900px) {
             .main-content {
                 flex-direction: column;
@@ -202,18 +243,96 @@
                 width: 100%;
             }
         }
-        /* Keyboard shortcut hint */
-        .shortcut-hint {
-            font-size: 11px;
-            color: #666;
-            margin-left: 8px;
+        /* Source indicator for gists */
+        .source-indicator {
+            padding: 5px 10px;
+            background: #0f3460;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #4ecca3;
+        }
+        .source-indicator.hidden {
+            display: none;
+        }
+        .source-indicator a {
+            color: #667eea;
+        }
+        /* Share modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-overlay.hidden {
+            display: none;
+        }
+        .modal {
+            background: #16213e;
+            padding: 25px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            border: 2px solid #e94560;
+        }
+        .modal h2 {
+            margin: 0 0 15px 0;
+            color: #e94560;
+        }
+        .modal p {
+            color: #888;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .modal input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            background: #0f0f23;
+            border: 1px solid #333;
+            color: #4ecca3;
+            font-family: monospace;
+            font-size: 13px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .modal .copy-btn {
+            background: #4ecca3;
+            color: #1a1a2e;
+        }
+        .modal .close-btn {
+            background: #666;
+            color: white;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>McRogueFace</h1>
+            <div class="header-left">
+                <h1><a href="/">McRogueFace</a></h1>
+                <span class="tagline">Playground</span>
+                <span id="sourceIndicator" class="source-indicator hidden"></span>
+            </div>
             <div id="status">Downloading...</div>
         </header>
 
@@ -226,23 +345,24 @@
 
             <div class="repl-panel" id="replPanel">
                 <div class="repl-header">
-                    <h3>Python REPL</h3>
+                    <div class="repl-title">
+                        <span id="interpreterStatus" class="status-indicator status-busy" title="Initializing..."></span>
+                        <h3>Python REPL</h3>
+                    </div>
                     <div class="repl-buttons">
                         <button id="runBtn" disabled>Run</button>
+                        <button id="shareBtn">Share</button>
                         <button id="resetBtn" disabled>Reset</button>
                         <button id="clearBtn">Clear</button>
-                        <span class="shortcut-hint">Ctrl+Enter to run</span>
                     </div>
                 </div>
-                <textarea id="codeEditor" placeholder="Write Python code here...
-
-import mcrfpy
-scene = mcrfpy.Scene('test')
-frame = mcrfpy.Frame(100, 100, 200, 150)
-scene.ui.append(frame)
-mcrfpy.setScene('test')
-"></textarea>
-                <div class="repl-output-header">Output</div>
+                <div class="editor-container">
+                    <textarea id="codeEditor"></textarea>
+                </div>
+                <div class="repl-output-header">
+                    <span>Output</span>
+                    <span class="shortcut-hint">Ctrl+Enter to run | Ctrl+Up/Down for history</span>
+                </div>
                 <div id="replOutput"></div>
             </div>
         </div>
@@ -250,20 +370,311 @@ mcrfpy.setScene('test')
         <div id="output"></div>
     </div>
 
+    <!-- Share Modal -->
+    <div id="shareModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h2>Share Your Code</h2>
+            <p>Copy this URL to share your playground:</p>
+            <input type="text" id="shareUrl" readonly onclick="this.select()">
+            <p id="shareSize" style="font-size: 12px;"></p>
+            <div class="modal-buttons">
+                <button class="copy-btn" id="copyBtn">Copy to Clipboard</button>
+                <button class="close-btn" id="closeModalBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script type='text/javascript'>
+        // ===========================================
+        // CONFIGURATION
+        // ===========================================
+        const CONFIG = {
+            playgroundUrl: window.location.origin,
+            shortUrl: window.location.origin,
+            playgroundPath: window.location.pathname.replace(/\/[^\/]*$/, ''),
+            maxCodeSize: 16 * 1024,
+            githubApiBase: 'https://api.github.com'
+        };
+
+        // ===========================================
+        // URL Fragment Handling (Share & Gist support)
+        // ===========================================
+
+        async function parseUrlFragment() {
+            const hash = window.location.hash.slice(1);
+            if (!hash) return null;
+
+            const params = new URLSearchParams(hash);
+
+            // Handle #src=<lz-compressed>
+            if (params.has('src')) {
+                try {
+                    const compressed = params.get('src');
+                    const code = LZString.decompressFromEncodedURIComponent(compressed);
+                    if (code) {
+                        return { type: 'inline', code: code };
+                    }
+                } catch (e) {
+                    console.error('Failed to decompress code:', e);
+                }
+            }
+
+            // Handle #gist=user/id or #gist=id
+            if (params.has('gist')) {
+                const gistParam = params.get('gist');
+                const file = params.get('file');
+                return { type: 'gist', gistId: gistParam, file: file };
+            }
+
+            return null;
+        }
+
+        async function loadGist(gistId, preferredFile) {
+            const id = gistId.includes('/') ? gistId.split('/').pop() : gistId;
+
+            try {
+                const resp = await fetch(`${CONFIG.githubApiBase}/gists/${id}`);
+                if (!resp.ok) {
+                    throw new Error(`Gist not found (${resp.status})`);
+                }
+
+                const data = await resp.json();
+                const files = Object.values(data.files);
+
+                let targetFile = null;
+                if (preferredFile) {
+                    targetFile = files.find(f => f.filename === preferredFile);
+                }
+                if (!targetFile) {
+                    targetFile = files.find(f => f.filename.endsWith('.py'));
+                }
+                if (!targetFile) {
+                    targetFile = files[0];
+                }
+
+                return {
+                    code: targetFile.content,
+                    filename: targetFile.filename,
+                    gistUrl: data.html_url,
+                    owner: data.owner?.login || 'anonymous',
+                    description: data.description
+                };
+            } catch (e) {
+                console.error('Failed to load gist:', e);
+                throw e;
+            }
+        }
+
+        function generateShareUrl(code) {
+            const compressed = LZString.compressToEncodedURIComponent(code);
+            const path = CONFIG.playgroundPath || '';
+            const url = `${CONFIG.shortUrl}${path}/#src=${compressed}`;
+            return {
+                url: url,
+                originalSize: code.length,
+                compressedSize: compressed.length,
+                ratio: ((compressed.length / code.length) * 100).toFixed(1)
+            };
+        }
+
+        // ===========================================
+        // DOM Elements
+        // ===========================================
+
         var statusElement = document.getElementById('status');
         var spinnerElement = document.getElementById('spinner');
         var outputElement = document.getElementById('output');
         var canvasElement = document.getElementById('canvas');
-        var codeEditor = document.getElementById('codeEditor');
         var replOutput = document.getElementById('replOutput');
         var runBtn = document.getElementById('runBtn');
+        var shareBtn = document.getElementById('shareBtn');
         var resetBtn = document.getElementById('resetBtn');
         var clearBtn = document.getElementById('clearBtn');
+        var interpreterStatus = document.getElementById('interpreterStatus');
+        var sourceIndicator = document.getElementById('sourceIndicator');
+        var shareModal = document.getElementById('shareModal');
+        var shareUrlInput = document.getElementById('shareUrl');
+        var shareSizeEl = document.getElementById('shareSize');
+        var copyBtn = document.getElementById('copyBtn');
+        var closeModalBtn = document.getElementById('closeModalBtn');
+
+        // Initialize CodeMirror
+        var editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
+            mode: 'python',
+            theme: 'dracula',
+            lineNumbers: true,
+            indentUnit: 4,
+            tabSize: 4,
+            indentWithTabs: false,
+            electricChars: true,
+            matchBrackets: true
+        });
+
+        // Default content
+        var defaultCode = `import mcrfpy
+
+# the default "playground" scene
+scene = mcrfpy.current_scene
+
+# Frame:
+frame = mcrfpy.Frame((10, 10), (50, 50), fill_color=(30,30,80))
+scene.children.append(frame)
+
+# Caption:
+caption = mcrfpy.Caption((10,60), text="Hello\nMcRogueFace!", font_size=32) # uses default font
+scene.children.append(caption)
+
+# Sprite:
+sprite = mcrfpy.Sprite((10, 150), sprite_index=84, scale=4.0) # uses default sprite sheet
+scene.children.append(sprite)
+
+# Grid:
+grid = mcrfpy.Grid((250,10), (320,320), grid_size=(10,10), zoom=2.0)
+scene.children.append(grid)
+# place entities on grid squares
+mcrfpy.Entity((4,5), sprite_index=85, grid=grid) # uses default sprite sheet
+mcrfpy.Entity((5,9), sprite_index=87, grid=grid)
+mcrfpy.Entity((3,7), sprite_index=89, grid=grid)
+# fill with some dirt
+import random
+for x in range(10):
+    for y in range(10):
+        # mostly 0 for plain dirt, with two variations
+    	grid[x,y].tilesprite = random.choice([0, 0, 0, 0, 0, 0, 12, 24])
+
+        
+# make the wizard sprite clickable
+def poke(position, mousebtn, inputstate):
+    if inputstate != mcrfpy.InputState.PRESSED:
+        return
+    say = random.choice(["oof", "ouch", "uff"])
+    new_txt = mcrfpy.Caption(position, text=say)
+    scene.children.append(new_txt)
+    done = lambda *args: scene.children.remove(new_txt)
+    new_txt.animate("y", # property 
+                    -100, # target value
+                    10.0 + random.randint(-4, 2), # duration
+                    callback=done # called on completion
+                   )
+    new_txt.animate("x", position.x + random.randint(-70, +270), 5.5)
+    new_txt.animate("fill_color.a", 0, 5.5)
+sprite.on_click = poke
+
+# make the wizard sprite moveable
+def keypress(key, inputstate):
+    actions = { mcrfpy.Key.W: mcrfpy.Vector(0, -10),
+                mcrfpy.Key.A: mcrfpy.Vector(-10, 0),
+                mcrfpy.Key.S: mcrfpy.Vector(0, 10),
+                mcrfpy.Key.D: mcrfpy.Vector(10, 0) }
+    if inputstate != mcrfpy.InputState.PRESSED:
+        return
+    if key in actions:
+        sprite.pos += actions[key]
+
+scene.on_key = keypress
+
+print(mcrfpy.current_scene.children)
+
+# Press F3 for stats
+
+# create a new scene and switch to it:
+#new_scene = mcrfpy.Scene("test")
+#new_scene.activate()
+`;
+        editor.setValue(defaultCode);
+
+        // Stop keyboard events from bubbling to SDL (bubble phase)
+        var cmElement = editor.getWrapperElement();
+        cmElement.addEventListener('keydown', function(e) {
+            e.stopPropagation();
+            // Handle Ctrl+Enter for running code
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                if (!runBtn.disabled) {
+                    runCode();
+                }
+            }
+            // Handle Ctrl+Up/Down for history
+            if (e.ctrlKey && e.key === 'ArrowUp') {
+                e.preventDefault();
+                navigateHistory(-1);
+            }
+            if (e.ctrlKey && e.key === 'ArrowDown') {
+                e.preventDefault();
+                navigateHistory(1);
+            }
+        }, false);
+        cmElement.addEventListener('keyup', function(e) {
+            e.stopPropagation();
+        }, false);
+        cmElement.addEventListener('keypress', function(e) {
+            e.stopPropagation();
+        }, false);
+
+        // Execution history
+        var cmdHistory = [];
+        var historyIndex = -1;
+        var currentInput = '';
+
+        function navigateHistory(direction) {
+            if (cmdHistory.length === 0) return;
+
+            if (historyIndex === -1) {
+                currentInput = editor.getValue();
+            }
+
+            historyIndex += direction;
+
+            if (historyIndex < -1) {
+                historyIndex = -1;
+            } else if (historyIndex >= cmdHistory.length) {
+                historyIndex = cmdHistory.length - 1;
+            }
+
+            if (historyIndex === -1) {
+                editor.setValue(currentInput);
+            } else {
+                editor.setValue(cmdHistory[cmdHistory.length - 1 - historyIndex]);
+            }
+
+            editor.setCursor(editor.lineCount(), 0);
+        }
 
         // Pre-set canvas size
         canvasElement.width = 1024;
         canvasElement.height = 768;
+
+        // ===========================================
+        // Initialization (load from URL fragment)
+        // ===========================================
+
+        async function init() {
+            const source = await parseUrlFragment();
+
+            if (source) {
+                if (source.type === 'inline') {
+                    editor.setValue(source.code);
+                    sourceIndicator.textContent = 'Loaded from shared URL';
+                    sourceIndicator.classList.remove('hidden');
+                } else if (source.type === 'gist') {
+                    editor.setValue('# Loading gist...');
+
+                    try {
+                        const gist = await loadGist(source.gistId, source.file);
+                        editor.setValue(gist.code);
+
+                        sourceIndicator.innerHTML = `From: <a href="${gist.gistUrl}" target="_blank">${gist.owner}/${gist.filename}</a>`;
+                        sourceIndicator.classList.remove('hidden');
+                    } catch (e) {
+                        editor.setValue(`# Failed to load gist: ${e.message}\n# Check the console for details.`);
+                    }
+                }
+            }
+        }
+
+        // ===========================================
+        // Emscripten Module
+        // ===========================================
 
         var Module = {
             print: (function() {
@@ -310,7 +721,7 @@ mcrfpy.setScene('test')
                 // Make FS available globally for console access
                 window.FS = Module.FS;
 
-                // Create convenient Python execution functions
+                // Create Python execution functions
                 window.runPython = function(code) {
                     return Module.ccall('run_python_string_with_output', 'string', ['string'], [code]);
                 };
@@ -318,12 +729,24 @@ mcrfpy.setScene('test')
                     return Module.ccall('reset_python_environment', 'number', [], []);
                 };
 
-                replOutput.innerHTML = '<span class="success">Python REPL ready. Enter code and click Run (or Ctrl+Enter).</span>\n';
+                // Interpreter health check functions
+                window.getPythonState = function() {
+                    return Module.ccall('get_python_state', 'string', [], []);
+                };
+                window.clearPythonError = function() {
+                    Module.ccall('clear_python_error', null, [], []);
+                };
+                window.getPythonGlobalsCount = function() {
+                    return Module.ccall('get_python_globals_count', 'number', [], []);
+                };
 
-                // Focus canvas after a short delay to ensure SDL is ready
+                updateInterpreterStatus();
+
+                appendToOutput('Python REPL ready. Enter code and click Run (or Ctrl+Enter).', 'success');
+                appendToOutput('Tip: Use Ctrl+Up/Down to navigate command history.', 'input');
+
                 setTimeout(function() {
                     canvasElement.focus();
-                    // Trigger a synthetic resize to ensure SDL is properly initialized
                     window.dispatchEvent(new Event('resize'));
                 }, 100);
             }
@@ -336,7 +759,6 @@ mcrfpy.setScene('test')
             spinnerElement.style.display = 'none';
         };
 
-        // Stub for resolveGlobalSymbol
         if (typeof resolveGlobalSymbol === 'undefined') {
             window.resolveGlobalSymbol = function(name, direct) {
                 return {
@@ -346,114 +768,188 @@ mcrfpy.setScene('test')
             };
         }
 
-        // Prevent browser zoom on canvas
-        document.addEventListener('wheel', function(e) {
-            if (e.ctrlKey) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-            }
-        }, { passive: false, capture: true });
-
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_')) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-            }
-        }, { capture: true });
-
-        // Click on canvas to focus it (for keyboard input)
+        // Click on canvas to focus it
         canvasElement.addEventListener('click', function() {
             canvasElement.focus();
         });
 
-        // Also handle mousedown to ensure focus happens before SDL processes the click
         canvasElement.addEventListener('mousedown', function() {
             if (document.activeElement !== canvasElement) {
                 canvasElement.focus();
             }
         });
 
-        // REPL functionality
-        function runCode() {
-            var code = codeEditor.value;
-            if (!code.trim()) return;
+        // ===========================================
+        // Interpreter Status
+        // ===========================================
 
-            replOutput.innerHTML += '<span style="color:#666">>>> </span><span style="color:#888">' + escapeHtml(code.split('\n')[0]) + (code.includes('\n') ? '...' : '') + '</span>\n';
-
-            try {
-                var result = window.runPython(code);
-                if (result) {
-                    // Check if result contains error indicators
-                    if (result.includes('Traceback') || result.includes('Error:')) {
-                        replOutput.innerHTML += '<span class="error">' + escapeHtml(result) + '</span>\n';
-                    } else {
-                        // Show result (could be print output or repr of expression)
-                        replOutput.innerHTML += '<span class="success">' + escapeHtml(result) + '</span>\n';
-                    }
-                }
-            } catch (e) {
-                replOutput.innerHTML += '<span class="error">JavaScript Error: ' + escapeHtml(e.toString()) + '</span>\n';
+        function updateInterpreterStatus() {
+            if (!window.getPythonState) {
+                interpreterStatus.className = 'status-indicator status-busy';
+                interpreterStatus.title = 'Initializing...';
+                return;
             }
 
+            var state = window.getPythonState();
+            if (state === 'OK') {
+                interpreterStatus.className = 'status-indicator status-ok';
+                interpreterStatus.title = 'Interpreter ready';
+            } else if (state === 'NOT_INITIALIZED') {
+                interpreterStatus.className = 'status-indicator status-busy';
+                interpreterStatus.title = 'Python not initialized';
+            } else {
+                interpreterStatus.className = 'status-indicator status-error';
+                interpreterStatus.title = state;
+            }
+        }
+
+        function appendToOutput(text, className) {
+            var span = document.createElement('span');
+            span.className = className || '';
+            span.textContent = text + '\n';
+            replOutput.appendChild(span);
             replOutput.scrollTop = replOutput.scrollHeight;
         }
 
+        // ===========================================
+        // REPL Functionality
+        // ===========================================
+
+        function runCode() {
+            var code = editor.getValue();
+            if (!code.trim()) return;
+
+            // Add to history
+            if (cmdHistory.length === 0 || cmdHistory[cmdHistory.length - 1] !== code) {
+                cmdHistory.push(code);
+            }
+            historyIndex = -1;
+
+            var inputDisplay = '>>> ' + code.split('\n')[0] + (code.includes('\n') ? '...' : '');
+            appendToOutput(inputDisplay, 'input');
+
+            // Check interpreter state and auto-recover if needed
+            var state = window.getPythonState();
+            if (state !== 'OK' && state !== 'NOT_INITIALIZED') {
+                appendToOutput('Warning: Clearing previous error state...', 'warning');
+                window.clearPythonError();
+                updateInterpreterStatus();
+            }
+
+            try {
+                // Reset environment before running for idempotent execution
+                window.runPython('_reset()');
+
+                var result = window.runPython(code);
+                updateInterpreterStatus();
+
+                if (result) {
+                    if (result.includes('Traceback') ||
+                        result.includes('Error:') ||
+                        result.includes('Error\n') ||
+                        result.startsWith('Internal REPL Error:')) {
+                        appendToOutput(result, 'error');
+                    } else {
+                        appendToOutput(result, 'success');
+                    }
+                }
+            } catch (e) {
+                appendToOutput('JavaScript Error: ' + e.toString(), 'error');
+                updateInterpreterStatus();
+            }
+        }
+
         function resetEnvironment() {
-            replOutput.innerHTML += '<span style="color:#888">>>> Resetting environment...</span>\n';
+            appendToOutput('>>> Resetting environment...', 'input');
+
+            if (window.clearPythonError) {
+                window.clearPythonError();
+            }
+
             try {
                 window.resetGame();
-                replOutput.innerHTML += '<span class="success">Environment reset.</span>\n';
+                updateInterpreterStatus();
+                appendToOutput('Environment reset.', 'success');
             } catch (e) {
-                replOutput.innerHTML += '<span class="error">Reset error: ' + escapeHtml(e.toString()) + '</span>\n';
+                appendToOutput('Reset error: ' + e.toString(), 'error');
+                updateInterpreterStatus();
             }
-            replOutput.scrollTop = replOutput.scrollHeight;
         }
 
         function clearOutput() {
             replOutput.innerHTML = '';
         }
 
-        function escapeHtml(text) {
-            var div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        // ===========================================
+        // Share Functionality
+        // ===========================================
+
+        function showShareModal() {
+            const code = editor.getValue();
+
+            if (code.length > CONFIG.maxCodeSize) {
+                alert(`Code is too large (${(code.length / 1024).toFixed(1)} KB). Maximum is ${CONFIG.maxCodeSize / 1024} KB.\n\nConsider using a GitHub Gist for larger code.`);
+                return;
+            }
+
+            const result = generateShareUrl(code);
+            shareUrlInput.value = result.url;
+            shareSizeEl.textContent = `${result.originalSize} bytes -> ${result.compressedSize} chars (${result.ratio}% of original)`;
+
+            if (result.url.length > 2000) {
+                shareSizeEl.textContent += ' Warning: URL is long - may not work in all browsers';
+            }
+
+            shareModal.classList.remove('hidden');
         }
 
-        // Button handlers
+        copyBtn.addEventListener('click', function() {
+            shareUrlInput.select();
+            navigator.clipboard.writeText(shareUrlInput.value).then(function() {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(function() {
+                    copyBtn.textContent = 'Copy to Clipboard';
+                }, 2000);
+            }).catch(function() {
+                document.execCommand('copy');
+                copyBtn.textContent = 'Copied!';
+                setTimeout(function() {
+                    copyBtn.textContent = 'Copy to Clipboard';
+                }, 2000);
+            });
+        });
+
+        closeModalBtn.addEventListener('click', function() {
+            shareModal.classList.add('hidden');
+        });
+
+        shareModal.addEventListener('click', function(e) {
+            if (e.target === shareModal) {
+                shareModal.classList.add('hidden');
+            }
+        });
+
+        // Escape closes modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !shareModal.classList.contains('hidden')) {
+                shareModal.classList.add('hidden');
+            }
+        });
+
+        // ===========================================
+        // Button Handlers
+        // ===========================================
+
         runBtn.addEventListener('click', runCode);
+        shareBtn.addEventListener('click', showShareModal);
         resetBtn.addEventListener('click', resetEnvironment);
         clearBtn.addEventListener('click', clearOutput);
 
-        // Keyboard shortcut: Ctrl+Enter to run
-        // IMPORTANT: Stop propagation to prevent SDL from consuming keystrokes
-        codeEditor.addEventListener('keydown', function(e) {
-            e.stopPropagation();  // Prevent SDL from receiving this event
+        // ===========================================
+        // Initialize
+        // ===========================================
 
-            if (e.ctrlKey && e.key === 'Enter') {
-                e.preventDefault();
-                if (!runBtn.disabled) {
-                    runCode();
-                }
-            }
-            // Tab key inserts spaces instead of changing focus
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                var start = this.selectionStart;
-                var end = this.selectionEnd;
-                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
-                this.selectionStart = this.selectionEnd = start + 4;
-            }
-        });
-
-        // Stop all keyboard events from reaching SDL when REPL is focused
-        codeEditor.addEventListener('keyup', function(e) {
-            e.stopPropagation();
-        });
-        codeEditor.addEventListener('keypress', function(e) {
-            e.stopPropagation();
-        });
+        init();
     </script>
     {{{ SCRIPT }}}
 </body>

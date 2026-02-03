@@ -109,9 +109,10 @@ void UISprite::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Check visibility
     if (!visible) return;
 
-    // Apply opacity
+    // Apply opacity (multiply with sprite color alpha)
     auto color = sprite.getColor();
-    color.a = static_cast<sf::Uint8>(255 * opacity);
+    sf::Uint8 original_alpha = color.a;
+    color.a = static_cast<sf::Uint8>(original_alpha * opacity);
     sprite.setColor(color);
 
     // Apply rotation and origin
@@ -157,7 +158,7 @@ void UISprite::render(sf::Vector2f offset, sf::RenderTarget& target)
     }
 
     // Restore original alpha
-    color.a = 255;
+    color.a = original_alpha;
     sprite.setColor(color);
 }
 
@@ -653,6 +654,11 @@ bool UISprite::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Content change
         return true;
     }
+    else if (name == "opacity") {
+        opacity = std::clamp(value, 0.0f, 1.0f);
+        markDirty();  // #144 - Visual change
+        return true;
+    }
     else if (name == "z_index") {
         z_index = static_cast<int>(value);
         markDirty();  // #144 - Z-order change affects parent
@@ -718,6 +724,10 @@ bool UISprite::getProperty(const std::string& name, float& value) const {
         value = sprite.getScale().y;
         return true;
     }
+    else if (name == "opacity") {
+        value = opacity;
+        return true;
+    }
     else if (name == "z_index") {
         value = static_cast<float>(z_index);
         return true;
@@ -757,7 +767,7 @@ bool UISprite::hasProperty(const std::string& name) const {
     // Float properties
     if (name == "x" || name == "y" ||
         name == "scale" || name == "scale_x" || name == "scale_y" ||
-        name == "z_index" ||
+        name == "opacity" || name == "z_index" ||
         name == "rotation" || name == "origin_x" || name == "origin_y") {
         return true;
     }

@@ -284,6 +284,11 @@ bool UILine::setProperty(const std::string& name, float value) {
         markDirty();
         return true;
     }
+    else if (name == "opacity") {
+        opacity = std::clamp(value, 0.0f, 1.0f);
+        markDirty();
+        return true;
+    }
     return false;
 }
 
@@ -354,6 +359,10 @@ bool UILine::getProperty(const std::string& name, float& value) const {
         value = origin.y;
         return true;
     }
+    else if (name == "opacity") {
+        value = opacity;
+        return true;
+    }
     return false;
 }
 
@@ -379,7 +388,7 @@ bool UILine::getProperty(const std::string& name, sf::Vector2f& value) const {
 
 bool UILine::hasProperty(const std::string& name) const {
     // Float properties
-    if (name == "thickness" || name == "x" || name == "y" ||
+    if (name == "thickness" || name == "x" || name == "y" || name == "opacity" ||
         name == "start_x" || name == "start_y" ||
         name == "end_x" || name == "end_y" ||
         name == "rotation" || name == "origin_x" || name == "origin_y") {
