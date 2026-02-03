@@ -290,6 +290,129 @@ The following are deprecated but kept for reference:
 - `build.sh` - Original Linux build script (use `make` instead)
 - `GNUmakefile.legacy` - Old wrapper makefile (renamed to avoid conflicts)
 
+## Emscripten / WebAssembly Builds
+
+McRogueFace supports WebGL deployment via Emscripten with an SDL2+OpenGL ES 2 backend.
+
+### Quick Start
+
+```bash
+source ~/emsdk/emsdk_env.sh  # Activate Emscripten SDK
+make wasm                     # Full game web build
+make playground               # REPL-focused web build
+make serve                    # Serve at http://localhost:8080
+```
+
+### Build Variants
+
+| Target | Output Directory | Purpose |
+|--------|------------------|---------|
+| `make wasm` | `build-emscripten/` | Full game with all scripts/assets |
+| `make playground` | `build-playground/` | Minimal REPL build for interactive testing |
+
+### Rendering Backend Selection
+
+The build system supports three backends via CMake defines:
+
+```bash
+cmake ..                      # SFML (default desktop)
+cmake -DMCRF_SDL2=ON ..       # SDL2 + OpenGL ES 2 (Emscripten)
+cmake -DMCRF_HEADLESS=ON ..   # No graphics (CI/testing)
+```
+
+Emscripten builds automatically select SDL2 mode. Backend selection happens in `Common.h`:
+
+```cpp
+#ifdef MCRF_HEADLESS
+    #include "platform/HeadlessTypes.h"
+#elif defined(MCRF_SDL2)
+    #include "platform/SDL2Types.h"
+#else
+    #include <SFML/Graphics.hpp>
+#endif
+```
+
+### SDL2 Backend Architecture
+
+Game code remains unchanged because `SDL2Types.h` provides SFML-compatible type stubs:
+- `sf::Vector2f`, `sf::Color`, `sf::RectangleShape`, etc. all work identically
+- Rendering uses OpenGL ES 2 shaders internally
+- Text rendering uses FreeType 2 (with outline support)
+
+### Web Build Constraints
+
+When developing features that must work in WebGL:
+
+| Feature | Desktop (SFML) | Web (SDL2) | Notes |
+|---------|----------------|------------|-------|
+| Audio | ✅ Full | ❌ Stubbed | SoundBuffer/Sound/Music do nothing |
+| ImGui console | ✅ Full | ❌ Disabled | Debug overlay unavailable |
+| Dynamic assets | ✅ Filesystem | ❌ Preloaded | All assets bundled at build time |
+| Threading | ✅ Full | ⚠️ Limited | Single-threaded JS execution |
+| Input | ✅ Full | ✅ Full | SDL events translated to SFML enums |
+
+### Development Workflow
+
+For iterative Emscripten development:
+
+```bash
+source ~/emsdk/emsdk_env.sh
+# Initial configure (once)
+emmake cmake -B build-emscripten -DMCRF_SDL2=ON
+
+# Rebuild after code changes (fast)
+emmake make -C build-emscripten -j$(nproc)
+
+# Test in browser
+make serve
+```
+
+### Adding Cross-Platform Features
+
+When adding rendering features:
+
+1. **Check backend at compile time** if needed:
+   ```cpp
+   #ifdef MCRF_SDL2
+       // SDL2-specific implementation
+   #else
+       // SFML implementation
+   #endif
+   ```
+
+2. **Prefer SFML API abstractions** - SDL2Types.h mirrors the SFML interface
+
+3. **For new SDL2 features**: Add to `SDL2Renderer.cpp` with GLSL ES 2.0 shaders
+
+4. **Test headless mode** for CI compatibility:
+   ```bash
+   ./mcrogueface --headless --exec ../tests/unit/my_test.py
+   ```
+
+### Asset Paths
+
+Emscripten uses a virtual filesystem with preloaded assets:
+- Use absolute paths: `/assets/sprite.png`, `/scripts/game.py`
+- Assets defined in CMakeLists.txt `--preload-file` flags
+- No runtime file loading from disk
+
+### Playground Mode
+
+The playground build (`-DMCRF_PLAYGROUND=ON`) provides:
+- Python REPL widget in browser
+- Scene reset capability via `reset_python_environment()`
+- Minimal `src/scripts_playground/game.py` with idempotent initialization
+- JavaScript interop via `Module.ccall()` to C functions
+
+### Key Files
+
+- `src/platform/SDL2Types.h` - SFML-compatible type stubs
+- `src/platform/SDL2Renderer.cpp` - OpenGL ES 2 rendering implementation
+- `src/platform/HeadlessTypes.h` - No-op types for headless mode
+- `src/EmscriptenStubs.cpp` - JavaScript interop functions
+- `emscripten_pre.js` - Browser quirk fixes
+- `shell.html` - HTML template with REPL widget
+
 ## Project Architecture
 
 McRogueFace is a C++ game engine with Python scripting support, designed for creating roguelike games. The architecture consists of:
