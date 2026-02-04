@@ -28,6 +28,9 @@ public:
     // Check if shader is valid
     bool isValid() const { return program_ != 0; }
 
+    // Get the raw shader program ID (for glGetUniformLocation in Entity3D)
+    unsigned int getProgram() const { return program_; }
+
     // Uniform setters (cached location lookup)
     void setUniform(const std::string& name, float value);
     void setUniform(const std::string& name, int value);

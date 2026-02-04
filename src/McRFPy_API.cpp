@@ -32,6 +32,8 @@
 #include "PyUniformBinding.h"  // Shader uniform bindings (#106)
 #include "PyUniformCollection.h"  // Shader uniform collection (#106)
 #include "3d/Viewport3D.h"  // 3D rendering viewport
+#include "3d/Entity3D.h"    // 3D game entities
+#include "3d/EntityCollection3D.h"  // Entity3D collection
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 // ImGui is only available for SFML builds
@@ -435,6 +437,10 @@ PyObject* PyInit_mcrfpy()
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,
         &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
 
+        /*3D entities*/
+        &mcrfpydef::PyEntity3DType, &mcrfpydef::PyEntityCollection3DType,
+        &mcrfpydef::PyEntityCollection3DIterType,
+
         /*grid layers (#147)*/
         &PyColorLayerType, &PyTileLayerType,
 
@@ -552,6 +558,7 @@ PyObject* PyInit_mcrfpy()
     PyUICircleType.tp_weaklistoffset = offsetof(PyUICircleObject, weakreflist);
     PyUIArcType.tp_weaklistoffset = offsetof(PyUIArcObject, weakreflist);
     PyViewport3DType.tp_weaklistoffset = offsetof(PyViewport3DObject, weakreflist);
+    mcrfpydef::PyEntity3DType.tp_weaklistoffset = offsetof(PyEntity3DObject, weakreflist);
 
     // #219 - Initialize PyLock context manager type
     if (PyLock::init() < 0) {

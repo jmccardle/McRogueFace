@@ -3,6 +3,8 @@
 #include "Viewport3D.h"
 #include "Shader3D.h"
 #include "MeshLayer.h"
+#include "Entity3D.h"
+#include "EntityCollection3D.h"
 #include "../platform/GLContext.h"
 #include "PyVector.h"
 #include "PyColor.h"
@@ -39,6 +41,7 @@ namespace mcrf {
 
 Viewport3D::Viewport3D()
     : size_(320.0f, 240.0f)
+    , entities_(std::make_shared<std::list<std::shared_ptr<Entity3D>>>())
 {
     position = sf::Vector2f(0, 0);
     camera_.setAspect(size_.x / size_.y);
@@ -46,6 +49,7 @@ Viewport3D::Viewport3D()
 
 Viewport3D::Viewport3D(float x, float y, float width, float height)
     : size_(width, height)
+    , entities_(std::make_shared<std::list<std::shared_ptr<Entity3D>>>())
 {
     position = sf::Vector2f(x, y);
     camera_.setAspect(size_.x / size_.y);
@@ -424,6 +428,37 @@ bool Viewport3D::isInFOV(int x, int z) const {
 }
 
 // =============================================================================
+// Entity3D Management
+// =============================================================================
+
+void Viewport3D::updateEntities(float dt) {
+    if (!entities_) return;
+
+    for (auto& entity : *entities_) {
+        if (entity) {
+            entity->update(dt);
+        }
+    }
+}
+
+void Viewport3D::renderEntities(const mat4& view, const mat4& proj) {
+#ifdef MCRF_HAS_GL
+    if (!entities_ || !shader_ || !shader_->isValid()) return;
+
+    // Entity rendering uses the same shader as terrain
+    shader_->bind();
+
+    for (auto& entity : *entities_) {
+        if (entity && entity->isVisible()) {
+            entity->render(view, proj, shader_->getProgram());
+        }
+    }
+
+    shader_->unbind();
+#endif
+}
+
+// =============================================================================
 // FBO Management
 // =============================================================================
 
@@ -628,6 +663,11 @@ void Viewport3D::render3DContent() {
 
     // Render mesh layers first (terrain, etc.) - sorted by z_index
     renderMeshLayers();
+
+    // Render entities
+    mat4 view = camera_.getViewMatrix();
+    mat4 projection = camera_.getProjectionMatrix();
+    renderEntities(view, projection);
 
     // Render test cube if enabled (disabled when layers are added)
     if (renderTestCube_ && shader_ && shader_->isValid() && testVBO_ != 0) {
@@ -1125,6 +1165,20 @@ static int Viewport3D_set_cell_size_prop(PyViewport3DObject* self, PyObject* val
     return 0;
 }
 
+// Entities collection property
+static PyObject* Viewport3D_get_entities(PyViewport3DObject* self, void* closure) {
+    // Create an EntityCollection3D wrapper for this viewport's entity list
+    auto type = &mcrfpydef::PyEntityCollection3DType;
+    auto obj = (PyEntityCollection3DObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+
+    // Use placement new for shared_ptr members
+    new (&obj->data) std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>(self->data->getEntities());
+    new (&obj->viewport) std::shared_ptr<mcrf::Viewport3D>(self->data);
+
+    return (PyObject*)obj;
+}
+
 PyGetSetDef Viewport3D::getsetters[] = {
     // Position and size
     {"x", (getter)Viewport3D_get_x, (setter)Viewport3D_set_x,
@@ -1177,6 +1231,10 @@ PyGetSetDef Viewport3D::getsetters[] = {
      MCRF_PROPERTY(grid_size, "Navigation grid dimensions as (width, depth) tuple."), NULL},
     {"cell_size", (getter)Viewport3D_get_cell_size_prop, (setter)Viewport3D_set_cell_size_prop,
      MCRF_PROPERTY(cell_size, "World units per navigation grid cell."), NULL},
+
+    // Entity collection
+    {"entities", (getter)Viewport3D_get_entities, NULL,
+     MCRF_PROPERTY(entities, "Collection of Entity3D objects (read-only). Use append/remove to modify."), NULL},
 
     // Common UIDrawable properties
     UIDRAWABLE_GETSETTERS,

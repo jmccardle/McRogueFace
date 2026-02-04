@@ -14,9 +14,15 @@
 #include "VoxelPoint.h"
 #include <memory>
 #include <vector>
+#include <list>
 #include <algorithm>
 #include <mutex>
 #include <libtcod.h>
+
+// Forward declaration
+namespace mcrf {
+class Entity3D;
+}
 
 namespace mcrf {
 
@@ -171,6 +177,19 @@ public:
     /// Get TCODMap pointer (for advanced usage)
     TCODMap* getTCODMap() const { return tcodMap_; }
 
+    // =========================================================================
+    // Entity3D Management
+    // =========================================================================
+
+    /// Get the entity list (for EntityCollection3D)
+    std::shared_ptr<std::list<std::shared_ptr<Entity3D>>> getEntities() { return entities_; }
+
+    /// Update all entities (call once per frame)
+    void updateEntities(float dt);
+
+    /// Render all entities
+    void renderEntities(const mat4& view, const mat4& proj);
+
     // Background color
     void setBackgroundColor(const sf::Color& color) { bgColor_ = color; }
     sf::Color getBackgroundColor() const { return bgColor_; }
@@ -253,6 +272,9 @@ private:
     float cellSize_ = 1.0f;
     TCODMap* tcodMap_ = nullptr;
     mutable std::mutex fovMutex_;
+
+    // Entity3D storage
+    std::shared_ptr<std::list<std::shared_ptr<Entity3D>>> entities_;
 
     // Shader for PS1-style rendering
     std::unique_ptr<Shader3D> shader_;
