@@ -24,7 +24,7 @@
             min-height: 100vh;
         }
         .container {
-            max-width: 1400px;
+            max-width: 1500px;
             margin: 0 auto;
         }
         header {
@@ -511,76 +511,7 @@
         });
 
         // Default content
-        var defaultCode = `import mcrfpy
-
-# the default "playground" scene
-scene = mcrfpy.current_scene
-
-# Frame:
-frame = mcrfpy.Frame((10, 10), (50, 50), fill_color=(30,30,80))
-scene.children.append(frame)
-
-# Caption:
-caption = mcrfpy.Caption((10,60), text="Hello\nMcRogueFace!", font_size=32) # uses default font
-scene.children.append(caption)
-
-# Sprite:
-sprite = mcrfpy.Sprite((10, 150), sprite_index=84, scale=4.0) # uses default sprite sheet
-scene.children.append(sprite)
-
-# Grid:
-grid = mcrfpy.Grid((250,10), (320,320), grid_size=(10,10), zoom=2.0)
-scene.children.append(grid)
-# place entities on grid squares
-mcrfpy.Entity((4,5), sprite_index=85, grid=grid) # uses default sprite sheet
-mcrfpy.Entity((5,9), sprite_index=87, grid=grid)
-mcrfpy.Entity((3,7), sprite_index=89, grid=grid)
-# fill with some dirt
-import random
-for x in range(10):
-    for y in range(10):
-        # mostly 0 for plain dirt, with two variations
-    	grid[x,y].tilesprite = random.choice([0, 0, 0, 0, 0, 0, 12, 24])
-
-        
-# make the wizard sprite clickable
-def poke(position, mousebtn, inputstate):
-    if inputstate != mcrfpy.InputState.PRESSED:
-        return
-    say = random.choice(["oof", "ouch", "uff"])
-    new_txt = mcrfpy.Caption(position, text=say)
-    scene.children.append(new_txt)
-    done = lambda *args: scene.children.remove(new_txt)
-    new_txt.animate("y", # property 
-                    -100, # target value
-                    10.0 + random.randint(-4, 2), # duration
-                    callback=done # called on completion
-                   )
-    new_txt.animate("x", position.x + random.randint(-70, +270), 5.5)
-    new_txt.animate("fill_color.a", 0, 5.5)
-sprite.on_click = poke
-
-# make the wizard sprite moveable
-def keypress(key, inputstate):
-    actions = { mcrfpy.Key.W: mcrfpy.Vector(0, -10),
-                mcrfpy.Key.A: mcrfpy.Vector(-10, 0),
-                mcrfpy.Key.S: mcrfpy.Vector(0, 10),
-                mcrfpy.Key.D: mcrfpy.Vector(10, 0) }
-    if inputstate != mcrfpy.InputState.PRESSED:
-        return
-    if key in actions:
-        sprite.pos += actions[key]
-
-scene.on_key = keypress
-
-print(mcrfpy.current_scene.children)
-
-# Press F3 for stats
-
-# create a new scene and switch to it:
-#new_scene = mcrfpy.Scene("test")
-#new_scene.activate()
-`;
+        var defaultCode = 'import mcrfpy\n\n# the default "playground" scene\nscene = mcrfpy.current_scene\n\n# Frame:\nframe = mcrfpy.Frame((10, 10), (50, 50), fill_color=(30,30,80))\nscene.children.append(frame)\n\n# Caption:\ncaption = mcrfpy.Caption((80,10), text="Hello\\nMcRogueFace!", font_size=32) # uses default font\nscene.children.append(caption)\n\n# Sprite:\nsprite = mcrfpy.Sprite((150, 150), sprite_index=84, scale=8.0) # uses default sprite sheet\nscene.children.append(sprite)\n\n# Grid:\ngrid = mcrfpy.Grid((694,10), (320,320), grid_size=(10,10), zoom=2.0)\nscene.children.append(grid)\n# place entities on grid squares\nmcrfpy.Entity((4,5), sprite_index=85, grid=grid) # uses default sprite sheet\nmcrfpy.Entity((5,9), sprite_index=87, grid=grid)\nmcrfpy.Entity((3,7), sprite_index=89, grid=grid)\n# fill with some dirt\nimport random\nfor x in range(10):\n    for y in range(10):\n        # mostly 0 for plain dirt, with two variations\n        grid[x,y].tilesprite = random.choice([0, 0, 0, 0, 0, 0, 12, 24])\n\n\n# make the wizard sprite clickable\ndef poke(position, mousebtn, inputstate):\n    if inputstate != mcrfpy.InputState.PRESSED:\n        return\n    say = random.choice(["oof", "ouch", "uff"])\n    new_txt = mcrfpy.Caption(position, text=say)\n    scene.children.append(new_txt)\n    done = lambda *args: scene.children.remove(new_txt)\n    new_txt.animate("y", # property\n                    -100, # target value\n                    10.0 + random.randint(-4, 2), # duration\n                    callback=done # called on completion\n                   )\n    new_txt.animate("x", position.x + random.randint(-70, +270), 5.5)\n    new_txt.animate("fill_color.a", 0, 5.5)\n    new_txt.animate("rotation", random.randint(-85, 85), 5.5, mcrfpy.Easing.EASE_OUT_QUAD)\nsprite.on_click = poke\n\n# make the wizard sprite moveable\ndef keypress(key, inputstate):\n    actions = { mcrfpy.Key.W: mcrfpy.Vector(0, -10),\n                mcrfpy.Key.A: mcrfpy.Vector(-10, 0),\n                mcrfpy.Key.S: mcrfpy.Vector(0, 10),\n                mcrfpy.Key.D: mcrfpy.Vector(10, 0) }\n    if inputstate != mcrfpy.InputState.PRESSED:\n        return\n    if key in actions:\n        sprite.pos += actions[key]\n\nscene.on_key = keypress\n\nprint(mcrfpy.current_scene.children)\n\n# Press F3 for stats\n\n# create a new scene and switch to it:\n#new_scene = mcrfpy.Scene("test")\n#new_scene.activate()';
         editor.setValue(defaultCode);
 
         // Stop keyboard events from bubbling to SDL (bubble phase)
