@@ -23,6 +23,7 @@
 #include "PyMouse.h"
 #include "UIGridPathfinding.h"  // AStarPath and DijkstraMap types
 #include "PyHeightMap.h"  // Procedural generation heightmap (#193)
+#include "PyDiscreteMap.h"  // Procedural generation discrete map (#193)
 #include "PyBSP.h"  // Procedural generation BSP (#202-206)
 #include "PyNoiseSource.h"  // Procedural generation noise (#207-208)
 #include "PyLock.h"  // Thread synchronization (#219)
@@ -464,6 +465,7 @@ PyObject* PyInit_mcrfpy()
 
         /*procedural generation (#192)*/
         &mcrfpydef::PyHeightMapType,
+        &mcrfpydef::PyDiscreteMapType,
         &mcrfpydef::PyBSPType,
         &mcrfpydef::PyNoiseSourceType,
 
@@ -509,6 +511,10 @@ PyObject* PyInit_mcrfpy()
     // Set up PyHeightMapType methods and getsetters (#193)
     mcrfpydef::PyHeightMapType.tp_methods = PyHeightMap::methods;
     mcrfpydef::PyHeightMapType.tp_getset = PyHeightMap::getsetters;
+
+    // Set up PyDiscreteMapType methods and getsetters (#193)
+    mcrfpydef::PyDiscreteMapType.tp_methods = PyDiscreteMap::methods;
+    mcrfpydef::PyDiscreteMapType.tp_getset = PyDiscreteMap::getsetters;
 
     // Set up PyBSPType and BSPNode methods and getsetters (#202-206)
     mcrfpydef::PyBSPType.tp_methods = PyBSP::methods;
