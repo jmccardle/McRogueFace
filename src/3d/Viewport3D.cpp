@@ -85,7 +85,9 @@ void Viewport3D::render(sf::Vector2f offset, sf::RenderTarget& target) {
 
         // Save SFML's GL state before raw GL rendering
         // This is REQUIRED when mixing SFML 2D and raw OpenGL
+#ifndef MCRF_SDL2
         target.pushGLStates();
+#endif
     }
 
     // Render 3D content to FBO
@@ -93,7 +95,9 @@ void Viewport3D::render(sf::Vector2f offset, sf::RenderTarget& target) {
 
     // Restore SFML's GL state after our GL calls
     if (gl::isGLReady()) {
+#ifndef MCRF_SDL2
         target.popGLStates();
+#endif
     }
 
     // Blit FBO to screen (using SFML's drawing, so after state restore)
