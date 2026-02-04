@@ -977,14 +977,21 @@ void AnimationManager::addAnimation(std::shared_ptr<Animation> animation,
 
         switch (conflict_mode) {
             case AnimationConflictMode::REPLACE:
-                // Complete the existing animation and replace it
                 if (existingAnim) {
-                    existingAnim->complete();
-                    // Remove from active animations
-                    activeAnimations.erase(
-                        std::remove(activeAnimations.begin(), activeAnimations.end(), existingAnim),
-                        activeAnimations.end()
-                    );
+                    if (isUpdating) {
+                        // During update, just stop the animation without completing
+                        // to avoid recursive callback issues and iterator invalidation.
+                        // The update loop will clean up stopped animations.
+                        existingAnim->stop();
+                    } else {
+                        // Outside update loop, complete the animation (jump to final value)
+                        // and remove it safely
+                        existingAnim->complete();
+                        activeAnimations.erase(
+                            std::remove(activeAnimations.begin(), activeAnimations.end(), existingAnim),
+                            activeAnimations.end()
+                        );
+                    }
                 }
                 // Fall through to add the new animation
                 break;
@@ -1046,21 +1053,26 @@ void AnimationManager::update(float deltaTime) {
 
     // Add any animations that were created during update
     if (!pendingAnimations.empty()) {
-        // Re-add pending animations through addAnimation to handle conflicts properly
         for (auto& anim : pendingAnimations) {
             if (anim && anim->hasValidTarget()) {
-                // Check if this was a queued animation or a new one
                 void* target = getAnimationTarget(anim);
                 std::string property = anim->getTargetProperty();
                 PropertyKey key{target, property};
 
-                // If not already locked, add it
+                // Check if this animation is already the property lock holder
+                // (this happens when addAnimation was called during update)
                 auto lockIt = propertyLocks.find(key);
-                if (lockIt == propertyLocks.end() || lockIt->second.expired()) {
+                bool isLockHolder = (lockIt != propertyLocks.end()) &&
+                                   (lockIt->second.lock() == anim);
+                bool propertyFree = (lockIt == propertyLocks.end()) ||
+                                   lockIt->second.expired();
+
+                if (isLockHolder || propertyFree) {
+                    // This animation owns the lock or property is free - add it
                     propertyLocks[key] = anim;
                     activeAnimations.push_back(anim);
                 } else {
-                    // Property still locked, re-queue
+                    // Property still locked by another animation, re-queue
                     animationQueue.emplace_back(key, anim);
                 }
             }
