@@ -54,6 +54,10 @@ Viewport3D::Viewport3D(float x, float y, float width, float height)
 Viewport3D::~Viewport3D() {
     cleanupTestGeometry();
     cleanupFBO();
+    if (tcodMap_) {
+        delete tcodMap_;
+        tcodMap_ = nullptr;
+    }
 }
 
 // =============================================================================
@@ -208,6 +212,215 @@ bool Viewport3D::removeLayer(const std::string& name) {
         }
     }
     return false;
+}
+
+// =============================================================================
+// Navigation Grid (VoxelPoint System)
+// =============================================================================
+
+void Viewport3D::setGridSize(int width, int depth) {
+    if (width <= 0 || depth <= 0) {
+        throw std::invalid_argument("Grid dimensions must be positive");
+    }
+
+    gridWidth_ = width;
+    gridDepth_ = depth;
+
+    // Resize and initialize grid
+    navGrid_.resize(width * depth);
+    for (int z = 0; z < depth; z++) {
+        for (int x = 0; x < width; x++) {
+            int idx = z * width + x;
+            navGrid_[idx] = VoxelPoint(x, z, this);
+        }
+    }
+
+    // Create/recreate TCODMap
+    if (tcodMap_) {
+        delete tcodMap_;
+    }
+    tcodMap_ = new TCODMap(width, depth);
+
+    // Sync initial state
+    syncToTCOD();
+}
+
+VoxelPoint& Viewport3D::at(int x, int z) {
+    if (!isValidCell(x, z)) {
+        throw std::out_of_range("Grid coordinates out of range");
+    }
+    return navGrid_[z * gridWidth_ + x];
+}
+
+const VoxelPoint& Viewport3D::at(int x, int z) const {
+    if (!isValidCell(x, z)) {
+        throw std::out_of_range("Grid coordinates out of range");
+    }
+    return navGrid_[z * gridWidth_ + x];
+}
+
+bool Viewport3D::isValidCell(int x, int z) const {
+    return x >= 0 && x < gridWidth_ && z >= 0 && z < gridDepth_;
+}
+
+void Viewport3D::syncToTCOD() {
+    if (!tcodMap_) return;
+
+    for (int z = 0; z < gridDepth_; z++) {
+        for (int x = 0; x < gridWidth_; x++) {
+            const VoxelPoint& vp = at(x, z);
+            tcodMap_->setProperties(x, z, vp.transparent, vp.walkable);
+        }
+    }
+}
+
+void Viewport3D::syncTCODCell(int x, int z) {
+    if (!tcodMap_ || !isValidCell(x, z)) return;
+
+    const VoxelPoint& vp = at(x, z);
+    tcodMap_->setProperties(x, z, vp.transparent, vp.walkable);
+}
+
+void Viewport3D::applyHeightmap(TCOD_heightmap_t* hm, float yScale) {
+    if (!hm) return;
+
+    // Ensure grid matches heightmap dimensions
+    if (gridWidth_ != hm->w || gridDepth_ != hm->h) {
+        setGridSize(hm->w, hm->h);
+    }
+
+    // Apply heights
+    for (int z = 0; z < gridDepth_; z++) {
+        for (int x = 0; x < gridWidth_; x++) {
+            int idx = z * hm->w + x;
+            navGrid_[z * gridWidth_ + x].height = hm->values[idx] * yScale;
+        }
+    }
+}
+
+void Viewport3D::applyThreshold(TCOD_heightmap_t* hm, float minHeight, float maxHeight, bool walkable) {
+    if (!hm) return;
+
+    // Grid must match heightmap dimensions
+    if (gridWidth_ != hm->w || gridDepth_ != hm->h) {
+        return;  // Dimension mismatch
+    }
+
+    for (int z = 0; z < gridDepth_; z++) {
+        for (int x = 0; x < gridWidth_; x++) {
+            int idx = z * hm->w + x;
+            float h = hm->values[idx];
+            if (h >= minHeight && h <= maxHeight) {
+                navGrid_[z * gridWidth_ + x].walkable = walkable;
+            }
+        }
+    }
+
+    syncToTCOD();
+}
+
+void Viewport3D::setSlopeCost(float maxSlope, float costMultiplier) {
+    if (gridWidth_ < 2 || gridDepth_ < 2) return;
+
+    // Neighbor offsets (4-directional)
+    const int dx[] = {-1, 1, 0, 0};
+    const int dz[] = {0, 0, -1, 1};
+
+    for (int z = 0; z < gridDepth_; z++) {
+        for (int x = 0; x < gridWidth_; x++) {
+            VoxelPoint& vp = navGrid_[z * gridWidth_ + x];
+            float maxNeighborDiff = 0.0f;
+
+            // Check all neighbors
+            for (int i = 0; i < 4; i++) {
+                int nx = x + dx[i];
+                int nz = z + dz[i];
+                if (isValidCell(nx, nz)) {
+                    float diff = std::abs(vp.height - at(nx, nz).height);
+                    maxNeighborDiff = std::max(maxNeighborDiff, diff);
+                }
+            }
+
+            // Mark unwalkable if too steep, otherwise set cost
+            if (maxNeighborDiff > maxSlope) {
+                vp.walkable = false;
+            } else {
+                vp.cost = 1.0f + maxNeighborDiff * costMultiplier;
+            }
+        }
+    }
+
+    syncToTCOD();
+}
+
+std::vector<std::pair<int, int>> Viewport3D::findPath(int startX, int startZ, int endX, int endZ) {
+    std::vector<std::pair<int, int>> result;
+
+    if (!tcodMap_ || !isValidCell(startX, startZ) || !isValidCell(endX, endZ)) {
+        return result;
+    }
+
+    // Ensure TCOD is synced
+    syncToTCOD();
+
+    // Create path with cost callback
+    struct PathUserData {
+        Viewport3D* viewport;
+    };
+    PathUserData userData = {this};
+
+    // Use TCODPath with diagonal movement
+    TCODPath path(tcodMap_, 1.41f);
+
+    // Compute path
+    if (!path.compute(startX, startZ, endX, endZ)) {
+        return result;  // No path found
+    }
+
+    // Extract path
+    int x, z;
+    while (path.walk(&x, &z, true)) {
+        result.push_back({x, z});
+    }
+
+    return result;
+}
+
+std::vector<std::pair<int, int>> Viewport3D::computeFOV(int originX, int originZ, int radius) {
+    std::vector<std::pair<int, int>> visible;
+
+    if (!tcodMap_ || !isValidCell(originX, originZ)) {
+        return visible;
+    }
+
+    // Thread-safe FOV computation
+    std::lock_guard<std::mutex> lock(fovMutex_);
+
+    // Ensure TCOD is synced
+    syncToTCOD();
+
+    // Compute FOV
+    tcodMap_->computeFov(originX, originZ, radius, true, FOV_BASIC);
+
+    // Collect visible cells
+    for (int z = 0; z < gridDepth_; z++) {
+        for (int x = 0; x < gridWidth_; x++) {
+            if (tcodMap_->isInFov(x, z)) {
+                visible.push_back({x, z});
+            }
+        }
+    }
+
+    return visible;
+}
+
+bool Viewport3D::isInFOV(int x, int z) const {
+    if (!tcodMap_ || !isValidCell(x, z)) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(fovMutex_);
+    return tcodMap_->isInFov(x, z);
 }
 
 // =============================================================================
@@ -862,6 +1075,56 @@ static int Viewport3D_set_fog_far(PyViewport3DObject* self, PyObject* value, voi
     return 0;
 }
 
+// Navigation grid property getters/setters
+static PyObject* Viewport3D_get_grid_size_prop(PyViewport3DObject* self, void* closure) {
+    return Py_BuildValue("(ii)", self->data->getGridWidth(), self->data->getGridDepth());
+}
+
+static int Viewport3D_set_grid_size_prop(PyViewport3DObject* self, PyObject* value, void* closure) {
+    if (!PyTuple_Check(value) || PyTuple_Size(value) != 2) {
+        PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple of (width, depth)");
+        return -1;
+    }
+
+    int width, depth;
+    if (!PyArg_ParseTuple(value, "ii", &width, &depth)) {
+        return -1;
+    }
+
+    try {
+        self->data->setGridSize(width, depth);
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return -1;
+    }
+
+    return 0;
+}
+
+static PyObject* Viewport3D_get_cell_size_prop(PyViewport3DObject* self, void* closure) {
+    return PyFloat_FromDouble(self->data->getCellSize());
+}
+
+static int Viewport3D_set_cell_size_prop(PyViewport3DObject* self, PyObject* value, void* closure) {
+    double size;
+    if (PyFloat_Check(value)) {
+        size = PyFloat_AsDouble(value);
+    } else if (PyLong_Check(value)) {
+        size = static_cast<double>(PyLong_AsLong(value));
+    } else {
+        PyErr_SetString(PyExc_TypeError, "cell_size must be a number");
+        return -1;
+    }
+
+    if (size <= 0) {
+        PyErr_SetString(PyExc_ValueError, "cell_size must be positive");
+        return -1;
+    }
+
+    self->data->setCellSize(static_cast<float>(size));
+    return 0;
+}
+
 PyGetSetDef Viewport3D::getsetters[] = {
     // Position and size
     {"x", (getter)Viewport3D_get_x, (setter)Viewport3D_set_x,
@@ -908,6 +1171,12 @@ PyGetSetDef Viewport3D::getsetters[] = {
      MCRF_PROPERTY(fog_near, "Fog start distance."), NULL},
     {"fog_far", (getter)Viewport3D_get_fog_far, (setter)Viewport3D_set_fog_far,
      MCRF_PROPERTY(fog_far, "Fog end distance."), NULL},
+
+    // Navigation grid properties
+    {"grid_size", (getter)Viewport3D_get_grid_size_prop, (setter)Viewport3D_set_grid_size_prop,
+     MCRF_PROPERTY(grid_size, "Navigation grid dimensions as (width, depth) tuple."), NULL},
+    {"cell_size", (getter)Viewport3D_get_cell_size_prop, (setter)Viewport3D_set_cell_size_prop,
+     MCRF_PROPERTY(cell_size, "World units per navigation grid cell."), NULL},
 
     // Common UIDrawable properties
     UIDRAWABLE_GETSETTERS,
@@ -1238,6 +1507,232 @@ static PyObject* Viewport3D_layer_count(PyViewport3DObject* self, PyObject* Py_U
     return PyLong_FromSize_t(self->data->getLayerCount());
 }
 
+// =============================================================================
+// Navigation Grid Python Methods
+// =============================================================================
+
+static PyObject* Viewport3D_set_grid_size(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"width", "depth", NULL};
+    int width = 0;
+    int depth = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ii", const_cast<char**>(kwlist),
+                                      &width, &depth)) {
+        return NULL;
+    }
+
+    try {
+        self->data->setGridSize(width, depth);
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_at(PyViewport3DObject* self, PyObject* args) {
+    int x, z;
+
+    if (!PyArg_ParseTuple(args, "ii", &x, &z)) {
+        return NULL;
+    }
+
+    if (!self->data->isValidCell(x, z)) {
+        PyErr_Format(PyExc_IndexError, "Grid coordinates (%d, %d) out of range", x, z);
+        return NULL;
+    }
+
+    // Create Python VoxelPoint wrapper using tp_alloc to properly construct shared_ptr
+    auto type = &mcrfpydef::PyVoxelPointType;
+    auto vp_obj = (PyVoxelPointObject*)type->tp_alloc(type, 0);
+    if (!vp_obj) {
+        return NULL;
+    }
+
+    vp_obj->data = &(self->data->at(x, z));
+    vp_obj->viewport = self->data;
+
+    return (PyObject*)vp_obj;
+}
+
+static PyObject* Viewport3D_apply_heightmap(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"heightmap", "y_scale", NULL};
+    PyObject* hm_obj = nullptr;
+    float y_scale = 1.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|f", const_cast<char**>(kwlist),
+                                      &hm_obj, &y_scale)) {
+        return NULL;
+    }
+
+    // Validate HeightMap type
+    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!heightmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(hm_obj, heightmap_type)) {
+        Py_DECREF(heightmap_type);
+        PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
+        return NULL;
+    }
+    Py_DECREF(heightmap_type);
+
+    PyHeightMapObject* hm = reinterpret_cast<PyHeightMapObject*>(hm_obj);
+    if (!hm->heightmap) {
+        PyErr_SetString(PyExc_ValueError, "HeightMap has no data");
+        return NULL;
+    }
+
+    self->data->applyHeightmap(hm->heightmap, y_scale);
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_apply_threshold(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"heightmap", "min_height", "max_height", "walkable", NULL};
+    PyObject* hm_obj = nullptr;
+    float min_height = 0.0f;
+    float max_height = 1.0f;
+    int walkable = 1;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off|p", const_cast<char**>(kwlist),
+                                      &hm_obj, &min_height, &max_height, &walkable)) {
+        return NULL;
+    }
+
+    // Validate HeightMap type
+    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!heightmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(hm_obj, heightmap_type)) {
+        Py_DECREF(heightmap_type);
+        PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
+        return NULL;
+    }
+    Py_DECREF(heightmap_type);
+
+    PyHeightMapObject* hm = reinterpret_cast<PyHeightMapObject*>(hm_obj);
+    if (!hm->heightmap) {
+        PyErr_SetString(PyExc_ValueError, "HeightMap has no data");
+        return NULL;
+    }
+
+    self->data->applyThreshold(hm->heightmap, min_height, max_height, walkable != 0);
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_set_slope_cost(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"max_slope", "cost_multiplier", NULL};
+    float max_slope = 0.5f;
+    float cost_multiplier = 1.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ff", const_cast<char**>(kwlist),
+                                      &max_slope, &cost_multiplier)) {
+        return NULL;
+    }
+
+    self->data->setSlopeCost(max_slope, cost_multiplier);
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_find_path(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"start", "end", NULL};
+    PyObject* start_obj = nullptr;
+    PyObject* end_obj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO", const_cast<char**>(kwlist),
+                                      &start_obj, &end_obj)) {
+        return NULL;
+    }
+
+    // Parse start tuple
+    int start_x, start_z;
+    if (!PyArg_ParseTuple(start_obj, "ii", &start_x, &start_z)) {
+        PyErr_SetString(PyExc_TypeError, "start must be a tuple of (x, z) integers");
+        return NULL;
+    }
+
+    // Parse end tuple
+    int end_x, end_z;
+    if (!PyArg_ParseTuple(end_obj, "ii", &end_x, &end_z)) {
+        PyErr_SetString(PyExc_TypeError, "end must be a tuple of (x, z) integers");
+        return NULL;
+    }
+
+    // Find path
+    std::vector<std::pair<int, int>> path = self->data->findPath(start_x, start_z, end_x, end_z);
+
+    // Convert to Python list
+    PyObject* result = PyList_New(path.size());
+    if (!result) {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < path.size(); i++) {
+        PyObject* tuple = Py_BuildValue("(ii)", path[i].first, path[i].second);
+        if (!tuple) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        PyList_SET_ITEM(result, i, tuple);
+    }
+
+    return result;
+}
+
+static PyObject* Viewport3D_compute_fov(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"origin", "radius", NULL};
+    PyObject* origin_obj = nullptr;
+    int radius = 10;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i", const_cast<char**>(kwlist),
+                                      &origin_obj, &radius)) {
+        return NULL;
+    }
+
+    // Parse origin tuple
+    int origin_x, origin_z;
+    if (!PyArg_ParseTuple(origin_obj, "ii", &origin_x, &origin_z)) {
+        PyErr_SetString(PyExc_TypeError, "origin must be a tuple of (x, z) integers");
+        return NULL;
+    }
+
+    // Compute FOV
+    std::vector<std::pair<int, int>> visible = self->data->computeFOV(origin_x, origin_z, radius);
+
+    // Convert to Python list
+    PyObject* result = PyList_New(visible.size());
+    if (!result) {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < visible.size(); i++) {
+        PyObject* tuple = Py_BuildValue("(ii)", visible[i].first, visible[i].second);
+        if (!tuple) {
+            Py_DECREF(result);
+            return NULL;
+        }
+        PyList_SET_ITEM(result, i, tuple);
+    }
+
+    return result;
+}
+
+static PyObject* Viewport3D_is_in_fov(PyViewport3DObject* self, PyObject* args) {
+    int x, z;
+
+    if (!PyArg_ParseTuple(args, "ii", &x, &z)) {
+        return NULL;
+    }
+
+    return PyBool_FromLong(self->data->isInFOV(x, z));
+}
+
 } // namespace mcrf
 
 // Methods array - outside namespace but PyObjectType still in scope via typedef
@@ -1286,5 +1781,65 @@ PyMethodDef Viewport3D_methods[] = {
     {"layer_count", (PyCFunction)mcrf::Viewport3D_layer_count, METH_NOARGS,
      "layer_count() -> int\n\n"
      "Get the number of mesh layers."},
+
+    // Navigation grid methods
+    {"set_grid_size", (PyCFunction)mcrf::Viewport3D_set_grid_size, METH_VARARGS | METH_KEYWORDS,
+     "set_grid_size(width, depth)\n\n"
+     "Initialize navigation grid with specified dimensions.\n\n"
+     "Args:\n"
+     "    width: Grid width (X axis)\n"
+     "    depth: Grid depth (Z axis)"},
+    {"at", (PyCFunction)mcrf::Viewport3D_at, METH_VARARGS,
+     "at(x, z) -> VoxelPoint\n\n"
+     "Get VoxelPoint at grid coordinates.\n\n"
+     "Args:\n"
+     "    x: X coordinate in grid\n"
+     "    z: Z coordinate in grid\n\n"
+     "Returns:\n"
+     "    VoxelPoint object for the cell"},
+    {"apply_heightmap", (PyCFunction)mcrf::Viewport3D_apply_heightmap, METH_VARARGS | METH_KEYWORDS,
+     "apply_heightmap(heightmap, y_scale=1.0)\n\n"
+     "Set cell heights from HeightMap.\n\n"
+     "Args:\n"
+     "    heightmap: HeightMap object\n"
+     "    y_scale: Vertical scale factor"},
+    {"apply_threshold", (PyCFunction)mcrf::Viewport3D_apply_threshold, METH_VARARGS | METH_KEYWORDS,
+     "apply_threshold(heightmap, min_height, max_height, walkable=True)\n\n"
+     "Set cell walkability based on height thresholds.\n\n"
+     "Args:\n"
+     "    heightmap: HeightMap object\n"
+     "    min_height: Minimum height (0-1)\n"
+     "    max_height: Maximum height (0-1)\n"
+     "    walkable: Walkability value for cells in range"},
+    {"set_slope_cost", (PyCFunction)mcrf::Viewport3D_set_slope_cost, METH_VARARGS | METH_KEYWORDS,
+     "set_slope_cost(max_slope=0.5, cost_multiplier=1.0)\n\n"
+     "Calculate slope costs and mark steep cells unwalkable.\n\n"
+     "Args:\n"
+     "    max_slope: Maximum height difference before marking unwalkable\n"
+     "    cost_multiplier: Cost increase per unit slope"},
+    {"find_path", (PyCFunction)mcrf::Viewport3D_find_path, METH_VARARGS | METH_KEYWORDS,
+     "find_path(start, end) -> list\n\n"
+     "Find A* path between two points.\n\n"
+     "Args:\n"
+     "    start: Starting point as (x, z) tuple\n"
+     "    end: End point as (x, z) tuple\n\n"
+     "Returns:\n"
+     "    List of (x, z) tuples forming the path, or empty list if no path"},
+    {"compute_fov", (PyCFunction)mcrf::Viewport3D_compute_fov, METH_VARARGS | METH_KEYWORDS,
+     "compute_fov(origin, radius=10) -> list\n\n"
+     "Compute field of view from a position.\n\n"
+     "Args:\n"
+     "    origin: Origin point as (x, z) tuple\n"
+     "    radius: FOV radius\n\n"
+     "Returns:\n"
+     "    List of visible (x, z) positions"},
+    {"is_in_fov", (PyCFunction)mcrf::Viewport3D_is_in_fov, METH_VARARGS,
+     "is_in_fov(x, z) -> bool\n\n"
+     "Check if a cell is in the current FOV (after compute_fov).\n\n"
+     "Args:\n"
+     "    x: X coordinate\n"
+     "    z: Z coordinate\n\n"
+     "Returns:\n"
+     "    True if the cell is visible"},
     {NULL}  // Sentinel
 };

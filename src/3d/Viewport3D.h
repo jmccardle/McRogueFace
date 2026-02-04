@@ -11,9 +11,12 @@
 #include "PyDrawable.h"
 #include "Math3D.h"
 #include "Camera3D.h"
+#include "VoxelPoint.h"
 #include <memory>
 #include <vector>
 #include <algorithm>
+#include <mutex>
+#include <libtcod.h>
 
 namespace mcrf {
 
@@ -99,6 +102,75 @@ public:
     /// Get number of layers
     size_t getLayerCount() const { return meshLayers_.size(); }
 
+    // =========================================================================
+    // Navigation Grid (VoxelPoint System)
+    // =========================================================================
+
+    /// Set navigation grid dimensions
+    /// @param width Grid width (X axis)
+    /// @param depth Grid depth (Z axis)
+    void setGridSize(int width, int depth);
+
+    /// Get grid dimensions
+    int getGridWidth() const { return gridWidth_; }
+    int getGridDepth() const { return gridDepth_; }
+
+    /// Access a VoxelPoint at grid coordinates
+    /// @throws std::out_of_range if coordinates are invalid
+    VoxelPoint& at(int x, int z);
+    const VoxelPoint& at(int x, int z) const;
+
+    /// Check if coordinates are within grid bounds
+    bool isValidCell(int x, int z) const;
+
+    /// Set cell size (world units per grid cell)
+    void setCellSize(float size) { cellSize_ = size; }
+    float getCellSize() const { return cellSize_; }
+
+    /// Synchronize all cells to libtcod TCODMap
+    void syncToTCOD();
+
+    /// Synchronize a single cell to TCODMap
+    void syncTCODCell(int x, int z);
+
+    /// Apply heights from HeightMap to navigation grid
+    /// @param hm HeightMap to read heights from
+    /// @param yScale Scale factor for Y values
+    void applyHeightmap(TCOD_heightmap_t* hm, float yScale);
+
+    /// Set cell walkability by height threshold
+    /// @param hm HeightMap to sample
+    /// @param minHeight Minimum height for threshold
+    /// @param maxHeight Maximum height for threshold
+    /// @param walkable Walkability value to set for cells in range
+    void applyThreshold(TCOD_heightmap_t* hm, float minHeight, float maxHeight, bool walkable);
+
+    /// Calculate slope costs and mark steep cells unwalkable
+    /// @param maxSlope Maximum height difference before marking unwalkable
+    /// @param costMultiplier Cost increase per unit slope
+    void setSlopeCost(float maxSlope, float costMultiplier);
+
+    /// Find path using A* pathfinding
+    /// @param startX Start X coordinate
+    /// @param startZ Start Z coordinate
+    /// @param endX End X coordinate
+    /// @param endZ End Z coordinate
+    /// @return Vector of (x, z) positions, or empty if no path
+    std::vector<std::pair<int, int>> findPath(int startX, int startZ, int endX, int endZ);
+
+    /// Compute field of view from a position
+    /// @param originX Origin X coordinate
+    /// @param originZ Origin Z coordinate
+    /// @param radius FOV radius
+    /// @return Set of visible (x, z) positions
+    std::vector<std::pair<int, int>> computeFOV(int originX, int originZ, int radius);
+
+    /// Check if a cell is in current FOV (after computeFOV call)
+    bool isInFOV(int x, int z) const;
+
+    /// Get TCODMap pointer (for advanced usage)
+    TCODMap* getTCODMap() const { return tcodMap_; }
+
     // Background color
     void setBackgroundColor(const sf::Color& color) { bgColor_ = color; }
     sf::Color getBackgroundColor() const { return bgColor_; }
@@ -173,6 +245,14 @@ private:
 
     // Mesh layers for terrain, static geometry
     std::vector<std::shared_ptr<MeshLayer>> meshLayers_;
+
+    // Navigation grid (VoxelPoint system)
+    std::vector<VoxelPoint> navGrid_;
+    int gridWidth_ = 0;
+    int gridDepth_ = 0;
+    float cellSize_ = 1.0f;
+    TCODMap* tcodMap_ = nullptr;
+    mutable std::mutex fovMutex_;
 
     // Shader for PS1-style rendering
     std::unique_ptr<Shader3D> shader_;

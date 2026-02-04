@@ -483,6 +483,9 @@ PyObject* PyInit_mcrfpy()
         /*game map & perspective data - returned by Grid.at() but not directly instantiable*/
         &PyUIGridPointType, &PyUIGridPointStateType,
 
+        /*3D navigation grid - returned by Viewport3D.at() but not directly instantiable*/
+        &mcrfpydef::PyVoxelPointType,
+
         /*collections & iterators - returned by .children/.entities but not directly instantiable*/
         &PyUICollectionType, &PyUICollectionIterType,
         &PyUIEntityCollectionType, &PyUIEntityCollectionIterType,
