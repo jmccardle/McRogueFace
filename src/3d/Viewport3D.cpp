@@ -2,6 +2,7 @@
 
 #include "Viewport3D.h"
 #include "Shader3D.h"
+#include "MeshLayer.h"
 #include "../platform/GLContext.h"
 #include "PyVector.h"
 #include "PyColor.h"
@@ -9,8 +10,11 @@
 #include "McRFPy_Doc.h"
 #include "PythonObjectCache.h"
 #include "McRFPy_API.h"
+#include "PyHeightMap.h"
 #include <set>
 #include <cstring>
+#include <cmath>
+#include <algorithm>
 
 // Include appropriate GL headers based on backend
 #if defined(MCRF_SDL2)
@@ -155,6 +159,58 @@ void Viewport3D::setFogRange(float nearDist, float farDist) {
 }
 
 // =============================================================================
+// Camera Helpers
+// =============================================================================
+
+void Viewport3D::orbitCamera(float angle, float distance, float height) {
+    float x = std::cos(angle) * distance;
+    float z = std::sin(angle) * distance;
+    camera_.setPosition(vec3(x, height, z));
+    camera_.setTarget(vec3(0, 0, 0));
+}
+
+// =============================================================================
+// Mesh Layer Management
+// =============================================================================
+
+std::shared_ptr<MeshLayer> Viewport3D::addLayer(const std::string& name, int zIndex) {
+    // Check if layer with this name already exists
+    for (auto& layer : meshLayers_) {
+        if (layer->getName() == name) {
+            return layer;  // Return existing layer
+        }
+    }
+
+    // Create new layer
+    auto layer = std::make_shared<MeshLayer>(name, zIndex);
+    meshLayers_.push_back(layer);
+
+    // Disable test cube when layers are added
+    renderTestCube_ = false;
+
+    return layer;
+}
+
+std::shared_ptr<MeshLayer> Viewport3D::getLayer(const std::string& name) {
+    for (auto& layer : meshLayers_) {
+        if (layer->getName() == name) {
+            return layer;
+        }
+    }
+    return nullptr;
+}
+
+bool Viewport3D::removeLayer(const std::string& name) {
+    for (auto it = meshLayers_.begin(); it != meshLayers_.end(); ++it) {
+        if ((*it)->getName() == name) {
+            meshLayers_.erase(it);
+            return true;
+        }
+    }
+    return false;
+}
+
+// =============================================================================
 // FBO Management
 // =============================================================================
 
@@ -270,6 +326,66 @@ void Viewport3D::cleanupTestGeometry() {
 // 3D Rendering
 // =============================================================================
 
+void Viewport3D::renderMeshLayers() {
+#ifdef MCRF_HAS_GL
+    if (meshLayers_.empty() || !shader_ || !shader_->isValid()) {
+        return;
+    }
+
+    // Sort layers by z_index (lower = rendered first)
+    std::vector<MeshLayer*> sortedLayers;
+    sortedLayers.reserve(meshLayers_.size());
+    for (auto& layer : meshLayers_) {
+        if (layer && layer->isVisible()) {
+            sortedLayers.push_back(layer.get());
+        }
+    }
+    std::sort(sortedLayers.begin(), sortedLayers.end(),
+              [](const MeshLayer* a, const MeshLayer* b) {
+                  return a->getZIndex() < b->getZIndex();
+              });
+
+    shader_->bind();
+
+    // Set up view and projection matrices (same for all layers)
+    mat4 view = camera_.getViewMatrix();
+    mat4 projection = camera_.getProjectionMatrix();
+
+    shader_->setUniform("u_view", view);
+    shader_->setUniform("u_projection", projection);
+
+    // PS1 effect uniforms
+    shader_->setUniform("u_resolution", vec2(static_cast<float>(internalWidth_),
+                                               static_cast<float>(internalHeight_)));
+    shader_->setUniform("u_enable_snap", vertexSnapEnabled_);
+    shader_->setUniform("u_enable_dither", ditheringEnabled_);
+
+    // Lighting
+    vec3 lightDir = vec3(0.5f, -0.7f, 0.5f).normalized();
+    shader_->setUniform("u_light_dir", lightDir);
+    shader_->setUniform("u_ambient", vec3(0.3f, 0.3f, 0.3f));
+
+    // Fog
+    shader_->setUniform("u_fog_start", fogNear_);
+    shader_->setUniform("u_fog_end", fogFar_);
+    shader_->setUniform("u_fog_color", fogColor_);
+
+    // For now, no textures on terrain (use vertex colors)
+    shader_->setUniform("u_has_texture", false);
+
+    // Render each layer
+    for (auto* layer : sortedLayers) {
+        // Set model matrix for this layer
+        shader_->setUniform("u_model", layer->getModelMatrix());
+
+        // Render the layer's geometry
+        layer->render(layer->getModelMatrix(), view, projection);
+    }
+
+    shader_->unbind();
+#endif
+}
+
 void Viewport3D::render3DContent() {
     // GL not available in current backend - skip 3D rendering
     if (!gl::isGLReady() || fbo_ == 0) {
@@ -297,8 +413,11 @@ void Viewport3D::render3DContent() {
     // Update test rotation for spinning geometry
     testRotation_ += 0.02f;
 
-    // Render test cube if shader and geometry are ready
-    if (shader_ && shader_->isValid() && testVBO_ != 0) {
+    // Render mesh layers first (terrain, etc.) - sorted by z_index
+    renderMeshLayers();
+
+    // Render test cube if enabled (disabled when layers are added)
+    if (renderTestCube_ && shader_ && shader_->isValid() && testVBO_ != 0) {
         shader_->bind();
 
         // Set up matrices
@@ -947,6 +1066,178 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
     return 0;
 }
 
+// =============================================================================
+// Python Methods for Layer Management
+// =============================================================================
+
+static PyObject* Viewport3D_add_layer(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"name", "z_index", NULL};
+    const char* name = nullptr;
+    int z_index = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|i", const_cast<char**>(kwlist), &name, &z_index)) {
+        return NULL;
+    }
+
+    auto layer = self->data->addLayer(name, z_index);
+    if (!layer) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create layer");
+        return NULL;
+    }
+
+    // Return a dictionary with layer info (simple approach)
+    // TODO: Create proper PyMeshLayer type for full API
+    return Py_BuildValue("{s:s, s:i, s:i, s:n}",
+        "name", layer->getName().c_str(),
+        "z_index", layer->getZIndex(),
+        "vertex_count", static_cast<int>(layer->getVertexCount()),
+        "layer_ptr", reinterpret_cast<Py_ssize_t>(layer.get()));
+}
+
+static PyObject* Viewport3D_get_layer(PyViewport3DObject* self, PyObject* args) {
+    const char* name = nullptr;
+    if (!PyArg_ParseTuple(args, "s", &name)) {
+        return NULL;
+    }
+
+    auto layer = self->data->getLayer(name);
+    if (!layer) {
+        Py_RETURN_NONE;
+    }
+
+    return Py_BuildValue("{s:s, s:i, s:i, s:n}",
+        "name", layer->getName().c_str(),
+        "z_index", layer->getZIndex(),
+        "vertex_count", static_cast<int>(layer->getVertexCount()),
+        "layer_ptr", reinterpret_cast<Py_ssize_t>(layer.get()));
+}
+
+static PyObject* Viewport3D_remove_layer(PyViewport3DObject* self, PyObject* args) {
+    const char* name = nullptr;
+    if (!PyArg_ParseTuple(args, "s", &name)) {
+        return NULL;
+    }
+
+    bool removed = self->data->removeLayer(name);
+    return PyBool_FromLong(removed);
+}
+
+static PyObject* Viewport3D_orbit_camera(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"angle", "distance", "height", NULL};
+    float angle = 0.0f;
+    float distance = 10.0f;
+    float height = 5.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|fff", const_cast<char**>(kwlist),
+                                      &angle, &distance, &height)) {
+        return NULL;
+    }
+
+    self->data->orbitCamera(angle, distance, height);
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_build_terrain(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"layer_name", "heightmap", "y_scale", "cell_size", NULL};
+    const char* layer_name = nullptr;
+    PyObject* heightmap_obj = nullptr;
+    float y_scale = 1.0f;
+    float cell_size = 1.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sO|ff", const_cast<char**>(kwlist),
+                                      &layer_name, &heightmap_obj, &y_scale, &cell_size)) {
+        return NULL;
+    }
+
+    // Get or create the layer
+    auto layer = self->data->getLayer(layer_name);
+    if (!layer) {
+        layer = self->data->addLayer(layer_name, 0);
+    }
+
+    // Check if heightmap_obj is a PyHeightMapObject
+    // Get the HeightMap type from the module
+    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!heightmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(heightmap_obj, heightmap_type)) {
+        Py_DECREF(heightmap_type);
+        PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
+        return NULL;
+    }
+    Py_DECREF(heightmap_type);
+
+    // Get the TCOD heightmap pointer from the Python object
+    PyHeightMapObject* hm = reinterpret_cast<PyHeightMapObject*>(heightmap_obj);
+    if (!hm->heightmap) {
+        PyErr_SetString(PyExc_ValueError, "HeightMap has no data");
+        return NULL;
+    }
+
+    // Build the terrain mesh
+    layer->buildFromHeightmap(hm->heightmap, y_scale, cell_size);
+
+    return Py_BuildValue("i", static_cast<int>(layer->getVertexCount()));
+}
+
+static PyObject* Viewport3D_apply_terrain_colors(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"layer_name", "r_map", "g_map", "b_map", NULL};
+    const char* layer_name = nullptr;
+    PyObject* r_obj = nullptr;
+    PyObject* g_obj = nullptr;
+    PyObject* b_obj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOOO", const_cast<char**>(kwlist),
+                                      &layer_name, &r_obj, &g_obj, &b_obj)) {
+        return NULL;
+    }
+
+    // Get the layer
+    auto layer = self->data->getLayer(layer_name);
+    if (!layer) {
+        PyErr_Format(PyExc_ValueError, "Layer '%s' not found", layer_name);
+        return NULL;
+    }
+
+    // Validate all three are HeightMap objects
+    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
+    if (!heightmap_type) {
+        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(r_obj, heightmap_type) ||
+        !PyObject_IsInstance(g_obj, heightmap_type) ||
+        !PyObject_IsInstance(b_obj, heightmap_type)) {
+        Py_DECREF(heightmap_type);
+        PyErr_SetString(PyExc_TypeError, "r_map, g_map, and b_map must all be HeightMap objects");
+        return NULL;
+    }
+    Py_DECREF(heightmap_type);
+
+    // Get the TCOD heightmap pointers
+    PyHeightMapObject* r_hm = reinterpret_cast<PyHeightMapObject*>(r_obj);
+    PyHeightMapObject* g_hm = reinterpret_cast<PyHeightMapObject*>(g_obj);
+    PyHeightMapObject* b_hm = reinterpret_cast<PyHeightMapObject*>(b_obj);
+
+    if (!r_hm->heightmap || !g_hm->heightmap || !b_hm->heightmap) {
+        PyErr_SetString(PyExc_ValueError, "One or more HeightMap objects have no data");
+        return NULL;
+    }
+
+    // Apply the color map
+    layer->applyColorMap(r_hm->heightmap, g_hm->heightmap, b_hm->heightmap);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_layer_count(PyViewport3DObject* self, PyObject* Py_UNUSED(args)) {
+    return PyLong_FromSize_t(self->data->getLayerCount());
+}
+
 } // namespace mcrf
 
 // Methods array - outside namespace but PyObjectType still in scope via typedef
@@ -954,5 +1245,46 @@ typedef PyViewport3DObject PyObjectType;
 
 PyMethodDef Viewport3D_methods[] = {
     UIDRAWABLE_METHODS,
+    {"add_layer", (PyCFunction)mcrf::Viewport3D_add_layer, METH_VARARGS | METH_KEYWORDS,
+     "add_layer(name, z_index=0) -> dict\n\n"
+     "Add a new mesh layer to the viewport.\n\n"
+     "Args:\n"
+     "    name: Unique identifier for the layer\n"
+     "    z_index: Render order (lower = rendered first)"},
+    {"get_layer", (PyCFunction)mcrf::Viewport3D_get_layer, METH_VARARGS,
+     "get_layer(name) -> dict or None\n\n"
+     "Get a layer by name."},
+    {"remove_layer", (PyCFunction)mcrf::Viewport3D_remove_layer, METH_VARARGS,
+     "remove_layer(name) -> bool\n\n"
+     "Remove a layer by name. Returns True if found and removed."},
+    {"orbit_camera", (PyCFunction)mcrf::Viewport3D_orbit_camera, METH_VARARGS | METH_KEYWORDS,
+     "orbit_camera(angle=0, distance=10, height=5)\n\n"
+     "Position camera to orbit around origin.\n\n"
+     "Args:\n"
+     "    angle: Orbit angle in radians\n"
+     "    distance: Distance from origin\n"
+     "    height: Camera height above XZ plane"},
+    {"build_terrain", (PyCFunction)mcrf::Viewport3D_build_terrain, METH_VARARGS | METH_KEYWORDS,
+     "build_terrain(layer_name, heightmap, y_scale=1.0, cell_size=1.0) -> int\n\n"
+     "Build terrain mesh from HeightMap on specified layer.\n\n"
+     "Args:\n"
+     "    layer_name: Name of layer to build terrain on (created if doesn't exist)\n"
+     "    heightmap: HeightMap object with height data\n"
+     "    y_scale: Vertical exaggeration factor\n"
+     "    cell_size: World-space size of each grid cell\n\n"
+     "Returns:\n"
+     "    Number of vertices in the generated mesh"},
+    {"apply_terrain_colors", (PyCFunction)mcrf::Viewport3D_apply_terrain_colors, METH_VARARGS | METH_KEYWORDS,
+     "apply_terrain_colors(layer_name, r_map, g_map, b_map)\n\n"
+     "Apply per-vertex colors to terrain from RGB HeightMaps.\n\n"
+     "Args:\n"
+     "    layer_name: Name of terrain layer to colorize\n"
+     "    r_map: HeightMap for red channel (0-1 values)\n"
+     "    g_map: HeightMap for green channel (0-1 values)\n"
+     "    b_map: HeightMap for blue channel (0-1 values)\n\n"
+     "All HeightMaps must match the terrain's original dimensions."},
+    {"layer_count", (PyCFunction)mcrf::Viewport3D_layer_count, METH_NOARGS,
+     "layer_count() -> int\n\n"
+     "Get the number of mesh layers."},
     {NULL}  // Sentinel
 };

@@ -12,12 +12,15 @@
 #include "Math3D.h"
 #include "Camera3D.h"
 #include <memory>
+#include <vector>
+#include <algorithm>
 
 namespace mcrf {
 
 // Forward declarations
 class Viewport3D;
 class Shader3D;
+class MeshLayer;
 
 } // namespace mcrf
 
@@ -68,6 +71,33 @@ public:
     void setCameraTarget(const vec3& target) { camera_.setTarget(target); }
     vec3 getCameraPosition() const { return camera_.getPosition(); }
     vec3 getCameraTarget() const { return camera_.getTarget(); }
+
+    // Camera orbit helper for demos
+    void orbitCamera(float angle, float distance, float height);
+
+    // =========================================================================
+    // Mesh Layer Management
+    // =========================================================================
+
+    /// Add a new mesh layer
+    /// @param name Unique identifier for the layer
+    /// @param zIndex Render order (lower = rendered first, behind higher values)
+    /// @return Pointer to the new layer (owned by Viewport3D)
+    std::shared_ptr<MeshLayer> addLayer(const std::string& name, int zIndex = 0);
+
+    /// Get a layer by name
+    /// @return Pointer to layer, or nullptr if not found
+    std::shared_ptr<MeshLayer> getLayer(const std::string& name);
+
+    /// Remove a layer by name
+    /// @return true if layer was found and removed
+    bool removeLayer(const std::string& name);
+
+    /// Get all layers (read-only)
+    const std::vector<std::shared_ptr<MeshLayer>>& getLayers() const { return meshLayers_; }
+
+    /// Get number of layers
+    size_t getLayerCount() const { return meshLayers_.size(); }
 
     // Background color
     void setBackgroundColor(const sf::Color& color) { bgColor_ = color; }
@@ -137,8 +167,12 @@ private:
     float fogNear_ = 10.0f;
     float fogFar_ = 100.0f;
 
-    // Render test geometry (temporary until Entity3D/MeshLayer added)
+    // Render test geometry (temporary, will be replaced by layers)
     float testRotation_ = 0.0f;
+    bool renderTestCube_ = true;  // Set to false when layers are added
+
+    // Mesh layers for terrain, static geometry
+    std::vector<std::shared_ptr<MeshLayer>> meshLayers_;
 
     // Shader for PS1-style rendering
     std::unique_ptr<Shader3D> shader_;
@@ -161,6 +195,9 @@ private:
 
     // Render 3D content to FBO
     void render3DContent();
+
+    // Render all mesh layers
+    void renderMeshLayers();
 
     // Blit FBO to screen
     void blitToScreen(sf::Vector2f offset, sf::RenderTarget& target);
