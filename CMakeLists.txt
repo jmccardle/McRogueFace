@@ -49,6 +49,9 @@ endif()
 # Add include directories
 include_directories(${CMAKE_SOURCE_DIR}/deps)
 include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/deps/libtcod)
+include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${CMAKE_SOURCE_DIR}/src/3d)
+include_directories(${CMAKE_SOURCE_DIR}/src/platform)
 
 # Python includes: use different paths for Windows vs Linux vs Emscripten
 if(EMSCRIPTEN)
@@ -102,6 +105,8 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 # Add ImGui sources to the build (only if using SFML)
 if(NOT MCRF_HEADLESS AND NOT MCRF_SDL2)
     list(APPEND SOURCES ${IMGUI_SOURCES})
+    # Add GLAD for OpenGL function loading (needed for 3D rendering on SFML)
+    list(APPEND SOURCES "${CMAKE_SOURCE_DIR}/src/3d/glad.c")
 endif()
 
 # Find OpenGL (required by ImGui-SFML) - not needed in headless mode

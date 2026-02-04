@@ -7,6 +7,7 @@
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
+#include "3d/Viewport3D.h"
 #include "McRFPy_API.h"
 #include "PyObjectUtils.h"
 #include "PythonObjectCache.h"
@@ -113,6 +114,18 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIArc>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIVIEWPORT3D:
+        {
+            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D");
+            if (!type) return nullptr;
+            auto pyObj = (PyViewport3DObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<mcrf::Viewport3D>(drawable);
                 pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;
@@ -644,10 +657,11 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
         !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")) &&
         !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")) &&
         !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc"))
+        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")) &&
+        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D"))
         )
     {
-        PyErr_SetString(PyExc_TypeError, "Only Frame, Caption, Sprite, Grid, Line, Circle, and Arc objects can be added to UICollection");
+        PyErr_SetString(PyExc_TypeError, "Only Frame, Caption, Sprite, Grid, Line, Circle, Arc, and Viewport3D objects can be added to UICollection");
         return NULL;
     }
 
@@ -713,6 +727,10 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
     {
         addDrawable(((PyUIArcObject*)o)->data);
     }
+    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D")))
+    {
+        addDrawable(((PyViewport3DObject*)o)->data);
+    }
 
     // Mark scene as needing resort after adding element
     McRFPy_API::markSceneNeedsSort();
@@ -752,11 +770,12 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
             !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")) &&
             !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")) &&
             !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")))
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")) &&
+            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D")))
         {
             Py_DECREF(item);
             Py_DECREF(iterator);
-            PyErr_SetString(PyExc_TypeError, "All items must be Frame, Caption, Sprite, Grid, Line, Circle, or Arc objects");
+            PyErr_SetString(PyExc_TypeError, "All items must be Frame, Caption, Sprite, Grid, Line, Circle, Arc, or Viewport3D objects");
             return NULL;
         }
         
@@ -803,12 +822,15 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
         else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc"))) {
             addDrawable(((PyUIArcObject*)item)->data);
         }
+        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D"))) {
+            addDrawable(((PyViewport3DObject*)item)->data);
+        }
 
         Py_DECREF(item);
     }
 
     Py_DECREF(iterator);
-    
+
     // Check if iteration ended due to an error
     if (PyErr_Occurred()) {
         return NULL;

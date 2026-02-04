@@ -32,7 +32,8 @@ enum PyObjectsEnum : int
     UIGRID,
     UILINE,
     UICIRCLE,
-    UIARC
+    UIARC,
+    UIVIEWPORT3D
 };
 
 class UIDrawable

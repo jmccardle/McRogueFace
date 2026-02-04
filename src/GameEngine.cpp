@@ -7,6 +7,7 @@
 #include "Animation.h"
 #include "Timer.h"
 #include "BenchmarkLogger.h"
+#include "platform/GLContext.h"
 // ImGui is only available for SFML builds (not headless, not SDL2)
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 #include "imgui.h"
@@ -86,6 +87,12 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         window->create(sf::VideoMode(1024, 768), window_title, sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
         window->setFramerateLimit(60);
         render_target = window.get();
+
+        // Initialize OpenGL function pointers via GLAD for 3D rendering
+        if (!mcrf::gl::initGL()) {
+            // Non-fatal: 3D features will be unavailable but 2D still works
+            fprintf(stderr, "Warning: OpenGL initialization failed. 3D features disabled.\n");
+        }
 
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
         // Initialize ImGui for the window (SFML builds only)

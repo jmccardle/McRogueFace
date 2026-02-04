@@ -1,0 +1,272 @@
+// Viewport3D.h - 3D rendering viewport for McRogueFace
+// A UIDrawable that renders a 3D scene to an FBO and displays it
+
+#pragma once
+
+#include "Common.h"
+#include "Python.h"
+#include "structmember.h"
+#include "UIDrawable.h"
+#include "UIBase.h"
+#include "PyDrawable.h"
+#include "Math3D.h"
+#include "Camera3D.h"
+#include <memory>
+
+namespace mcrf {
+
+// Forward declarations
+class Viewport3D;
+class Shader3D;
+
+} // namespace mcrf
+
+// Python object struct
+typedef struct {
+    PyObject_HEAD
+    std::shared_ptr<mcrf::Viewport3D> data;
+    PyObject* weakreflist;
+} PyViewport3DObject;
+
+namespace mcrf {
+
+// =============================================================================
+// Viewport3D - 3D rendering viewport as a UIDrawable
+// Renders 3D content to an FBO, then blits to screen at display size
+// =============================================================================
+
+class Viewport3D : public UIDrawable {
+public:
+    Viewport3D();
+    Viewport3D(float x, float y, float width, float height);
+    ~Viewport3D();
+
+    // UIDrawable interface
+    void render(sf::Vector2f offset, sf::RenderTarget& target) override final;
+    PyObjectsEnum derived_type() override final;
+    UIDrawable* click_at(sf::Vector2f point) override final;
+    sf::FloatRect get_bounds() const override;
+    void move(float dx, float dy) override;
+    void resize(float w, float h) override;
+
+    // Size (screen display size)
+    void setSize(float width, float height);
+    float getWidth() const { return size_.x; }
+    float getHeight() const { return size_.y; }
+
+    // Internal resolution (PS1 style: render at low res, upscale)
+    void setInternalResolution(int width, int height);
+    int getInternalWidth() const { return internalWidth_; }
+    int getInternalHeight() const { return internalHeight_; }
+
+    // Camera access
+    Camera3D& getCamera() { return camera_; }
+    const Camera3D& getCamera() const { return camera_; }
+
+    // Camera convenience methods (exposed to Python)
+    void setCameraPosition(const vec3& pos) { camera_.setPosition(pos); }
+    void setCameraTarget(const vec3& target) { camera_.setTarget(target); }
+    vec3 getCameraPosition() const { return camera_.getPosition(); }
+    vec3 getCameraTarget() const { return camera_.getTarget(); }
+
+    // Background color
+    void setBackgroundColor(const sf::Color& color) { bgColor_ = color; }
+    sf::Color getBackgroundColor() const { return bgColor_; }
+
+    // PS1 effect settings
+    void setVertexSnapEnabled(bool enable) { vertexSnapEnabled_ = enable; }
+    bool isVertexSnapEnabled() const { return vertexSnapEnabled_; }
+
+    void setAffineMappingEnabled(bool enable) { affineMappingEnabled_ = enable; }
+    bool isAffineMappingEnabled() const { return affineMappingEnabled_; }
+
+    void setDitheringEnabled(bool enable) { ditheringEnabled_ = enable; }
+    bool isDitheringEnabled() const { return ditheringEnabled_; }
+
+    void setFogEnabled(bool enable) { fogEnabled_ = enable; }
+    bool isFogEnabled() const { return fogEnabled_; }
+    void setFogColor(const sf::Color& color);
+    sf::Color getFogColor() const;
+    void setFogRange(float nearDist, float farDist);
+    float getFogNear() const { return fogNear_; }
+    float getFogFar() const { return fogFar_; }
+
+    // Animation property system
+    bool setProperty(const std::string& name, float value) override;
+    bool setProperty(const std::string& name, const sf::Color& value) override;
+    bool setProperty(const std::string& name, const sf::Vector2f& value) override;
+
+    bool getProperty(const std::string& name, float& value) const override;
+    bool getProperty(const std::string& name, sf::Color& value) const override;
+    bool getProperty(const std::string& name, sf::Vector2f& value) const override;
+
+    bool hasProperty(const std::string& name) const override;
+
+    // Python API
+    static PyGetSetDef getsetters[];
+    static PyObject* repr(PyViewport3DObject* self);
+    static int init(PyViewport3DObject* self, PyObject* args, PyObject* kwds);
+
+private:
+    // Display size (screen coordinates)
+    sf::Vector2f size_;
+
+    // Internal render target dimensions (PS1 was 320x240)
+    int internalWidth_ = 320;
+    int internalHeight_ = 240;
+
+    // FBO for render-to-texture
+    unsigned int fbo_ = 0;
+    unsigned int colorTexture_ = 0;
+    unsigned int depthRenderbuffer_ = 0;
+
+    // Camera
+    Camera3D camera_;
+
+    // Background color
+    sf::Color bgColor_ = sf::Color(25, 25, 50);
+
+    // PS1 effect flags
+    bool vertexSnapEnabled_ = true;
+    bool affineMappingEnabled_ = true;
+    bool ditheringEnabled_ = true;
+    bool fogEnabled_ = true;
+
+    // Fog parameters
+    vec3 fogColor_ = vec3(0.5f, 0.5f, 0.6f);
+    float fogNear_ = 10.0f;
+    float fogFar_ = 100.0f;
+
+    // Render test geometry (temporary until Entity3D/MeshLayer added)
+    float testRotation_ = 0.0f;
+
+    // Shader for PS1-style rendering
+    std::unique_ptr<Shader3D> shader_;
+
+    // Test geometry VBO (cube)
+    unsigned int testVBO_ = 0;
+    unsigned int testVertexCount_ = 0;
+
+    // SFML texture for blitting (wraps GL texture)
+    std::unique_ptr<sf::Texture> blitTexture_;
+
+    // Initialize/cleanup FBO
+    void initFBO();
+    void cleanupFBO();
+
+    // Initialize shader and test geometry
+    void initShader();
+    void initTestGeometry();
+    void cleanupTestGeometry();
+
+    // Render 3D content to FBO
+    void render3DContent();
+
+    // Blit FBO to screen
+    void blitToScreen(sf::Vector2f offset, sf::RenderTarget& target);
+};
+
+} // namespace mcrf
+
+// Forward declaration of methods array
+extern PyMethodDef Viewport3D_methods[];
+
+namespace mcrfpydef {
+
+static PyTypeObject PyViewport3DType = {
+    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .tp_name = "mcrfpy.Viewport3D",
+    .tp_basicsize = sizeof(PyViewport3DObject),
+    .tp_itemsize = 0,
+    .tp_dealloc = (destructor)[](PyObject* self)
+    {
+        PyViewport3DObject* obj = (PyViewport3DObject*)self;
+        PyObject_GC_UnTrack(self);
+        if (obj->weakreflist != NULL) {
+            PyObject_ClearWeakRefs(self);
+        }
+        if (obj->data) {
+            obj->data->click_unregister();
+            obj->data->on_enter_unregister();
+            obj->data->on_exit_unregister();
+            obj->data->on_move_unregister();
+        }
+        obj->data.reset();
+        Py_TYPE(self)->tp_free(self);
+    },
+    .tp_repr = (reprfunc)mcrf::Viewport3D::repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
+    .tp_doc = PyDoc_STR("Viewport3D(pos=None, size=None, **kwargs)\n\n"
+                        "A 3D rendering viewport that displays a 3D scene as a UI element.\n\n"
+                        "Args:\n"
+                        "    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)\n"
+                        "    size (tuple, optional): Display size as (width, height). Default: (320, 240)\n\n"
+                        "Keyword Args:\n"
+                        "    render_resolution (tuple): Internal render resolution (width, height). Default: (320, 240)\n"
+                        "    fov (float): Camera field of view in degrees. Default: 60\n"
+                        "    camera_pos (tuple): Camera position (x, y, z). Default: (0, 0, 5)\n"
+                        "    camera_target (tuple): Camera look-at point (x, y, z). Default: (0, 0, 0)\n"
+                        "    bg_color (Color): Background clear color. Default: (25, 25, 50)\n"
+                        "    enable_vertex_snap (bool): PS1-style vertex snapping. Default: True\n"
+                        "    enable_affine (bool): PS1-style affine texture mapping. Default: True\n"
+                        "    enable_dither (bool): PS1-style color dithering. Default: True\n"
+                        "    enable_fog (bool): Distance fog. Default: True\n"
+                        "    fog_color (Color): Fog color. Default: (128, 128, 153)\n"
+                        "    fog_near (float): Fog start distance. Default: 10\n"
+                        "    fog_far (float): Fog end distance. Default: 100\n"),
+    .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+        PyViewport3DObject* obj = (PyViewport3DObject*)self;
+        if (obj->data) {
+            if (obj->data->click_callable) {
+                PyObject* callback = obj->data->click_callable->borrow();
+                if (callback && callback != Py_None) {
+                    Py_VISIT(callback);
+                }
+            }
+            if (obj->data->on_enter_callable) {
+                PyObject* callback = obj->data->on_enter_callable->borrow();
+                if (callback && callback != Py_None) {
+                    Py_VISIT(callback);
+                }
+            }
+            if (obj->data->on_exit_callable) {
+                PyObject* callback = obj->data->on_exit_callable->borrow();
+                if (callback && callback != Py_None) {
+                    Py_VISIT(callback);
+                }
+            }
+            if (obj->data->on_move_callable) {
+                PyObject* callback = obj->data->on_move_callable->borrow();
+                if (callback && callback != Py_None) {
+                    Py_VISIT(callback);
+                }
+            }
+        }
+        return 0;
+    },
+    .tp_clear = [](PyObject* self) -> int {
+        PyViewport3DObject* obj = (PyViewport3DObject*)self;
+        if (obj->data) {
+            obj->data->click_unregister();
+            obj->data->on_enter_unregister();
+            obj->data->on_exit_unregister();
+            obj->data->on_move_unregister();
+        }
+        return 0;
+    },
+    .tp_methods = Viewport3D_methods,
+    .tp_getset = mcrf::Viewport3D::getsetters,
+    .tp_base = &mcrfpydef::PyDrawableType,
+    .tp_init = (initproc)mcrf::Viewport3D::init,
+    .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
+    {
+        PyViewport3DObject* self = (PyViewport3DObject*)type->tp_alloc(type, 0);
+        if (self) {
+            self->data = std::make_shared<mcrf::Viewport3D>();
+            self->weakreflist = nullptr;
+        }
+        return (PyObject*)self;
+    }
+};
+
+} // namespace mcrfpydef

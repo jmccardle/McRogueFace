@@ -31,6 +31,7 @@
 #include "PyShader.h"  // Shader support (#106)
 #include "PyUniformBinding.h"  // Shader uniform bindings (#106)
 #include "PyUniformCollection.h"  // Shader uniform collection (#106)
+#include "3d/Viewport3D.h"  // 3D rendering viewport
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 // ImGui is only available for SFML builds
@@ -415,7 +416,7 @@ PyObject* PyInit_mcrfpy()
     // This must be done BEFORE PyType_Ready is called on these types
     PyTypeObject* ui_types_with_callbacks[] = {
         &PyUIFrameType, &PyUICaptionType, &PyUISpriteType, &PyUIGridType,
-        &PyUILineType, &PyUICircleType, &PyUIArcType,
+        &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
         nullptr
     };
     for (int i = 0; ui_types_with_callbacks[i] != nullptr; i++) {
@@ -432,7 +433,7 @@ PyObject* PyInit_mcrfpy()
 
         /*UI widgets*/
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,
-        &PyUILineType, &PyUICircleType, &PyUIArcType,
+        &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
 
         /*grid layers (#147)*/
         &PyColorLayerType, &PyTileLayerType,
@@ -547,6 +548,7 @@ PyObject* PyInit_mcrfpy()
     PyUILineType.tp_weaklistoffset = offsetof(PyUILineObject, weakreflist);
     PyUICircleType.tp_weaklistoffset = offsetof(PyUICircleObject, weakreflist);
     PyUIArcType.tp_weaklistoffset = offsetof(PyUIArcObject, weakreflist);
+    PyViewport3DType.tp_weaklistoffset = offsetof(PyViewport3DObject, weakreflist);
 
     // #219 - Initialize PyLock context manager type
     if (PyLock::init() < 0) {
