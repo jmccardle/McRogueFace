@@ -281,11 +281,15 @@ const char* ImGuiSceneExplorer::getTypeName(UIDrawable* drawable) {
     if (!drawable) return "null";
 
     switch (drawable->derived_type()) {
-        case PyObjectsEnum::UIFRAME:   return "Frame";
-        case PyObjectsEnum::UICAPTION: return "Caption";
-        case PyObjectsEnum::UISPRITE:  return "Sprite";
-        case PyObjectsEnum::UIGRID:    return "Grid";
-        default:                       return "Unknown";
+        case PyObjectsEnum::UIFRAME:      return "Frame";
+        case PyObjectsEnum::UICAPTION:    return "Caption";
+        case PyObjectsEnum::UISPRITE:     return "Sprite";
+        case PyObjectsEnum::UIGRID:       return "Grid";
+        case PyObjectsEnum::UILINE:       return "Line";
+        case PyObjectsEnum::UICIRCLE:     return "Circle";
+        case PyObjectsEnum::UIARC:        return "Arc";
+        case PyObjectsEnum::UIVIEWPORT3D: return "Viewport3D";
+        default:                          return "Unknown";
     }
 }
 

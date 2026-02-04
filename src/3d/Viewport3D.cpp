@@ -7,6 +7,8 @@
 #include "PyColor.h"
 #include "PyPositionHelper.h"
 #include "McRFPy_Doc.h"
+#include "PythonObjectCache.h"
+#include "McRFPy_API.h"
 #include <set>
 #include <cstring>
 
@@ -925,15 +927,32 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
         self->data->name = name;
     }
 
+    // Register in Python object cache for scene explorer repr
+    if (self->data->serial_number == 0) {
+        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
+            Py_DECREF(weakref);  // Cache owns the reference now
+        }
+    }
+
+    // Check if this is a Python subclass (for callback method support)
+    PyObject* viewport3d_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D");
+    if (viewport3d_type) {
+        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != viewport3d_type;
+        Py_DECREF(viewport3d_type);
+    }
+
     return 0;
 }
 
-#undef PyObjectType
-
 } // namespace mcrf
 
-// Methods array (outside namespace)
+// Methods array - outside namespace but PyObjectType still in scope via typedef
+typedef PyViewport3DObject PyObjectType;
+
 PyMethodDef Viewport3D_methods[] = {
-    // Add UIDRAWABLE_METHODS when ready
+    UIDRAWABLE_METHODS,
     {NULL}  // Sentinel
 };
