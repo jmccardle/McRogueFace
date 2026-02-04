@@ -243,7 +243,7 @@ public:
     static PyObject* get_hovered_cell(PyUIGridObject* self, void* closure);
 
     // #147 - Layer system Python API
-    static PyObject* py_add_layer(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_add_layer(PyUIGridObject* self, PyObject* args);
     static PyObject* py_remove_layer(PyUIGridObject* self, PyObject* args);
     static PyObject* get_layers(PyUIGridObject* self, void* closure);
     static PyObject* py_layer(PyUIGridObject* self, PyObject* args);

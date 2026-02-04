@@ -924,51 +924,185 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
         self->data->click_register(click_handler);
     }
 
-    // #150 - Handle layers dict
-    // Default: {"tilesprite": "tile"} when layers not provided
-    // Empty dict: no rendering layers (entity storage + pathfinding only)
+    // #150 - Handle layers parameter
+    // Default: single TileLayer named "tilesprite" when layers not provided
+    // Empty list/None: no rendering layers (entity storage + pathfinding only)
+    // List of layer objects: add each layer with lazy allocation
     if (layers_obj == nullptr) {
         // Default layer: single TileLayer named "tilesprite" (z_index -1 = below entities)
         self->data->addTileLayer(-1, texture_ptr, "tilesprite");
     } else if (layers_obj != Py_None) {
-        if (!PyDict_Check(layers_obj)) {
-            PyErr_SetString(PyExc_TypeError, "layers must be a dict mapping names to types ('color' or 'tile')");
+        // Accept any iterable of layer objects
+        PyObject* iterator = PyObject_GetIter(layers_obj);
+        if (!iterator) {
+            PyErr_SetString(PyExc_TypeError, "layers must be an iterable of ColorLayer or TileLayer objects");
             return -1;
         }
 
-        PyObject* key;
-        PyObject* value;
-        Py_ssize_t pos = 0;
-        int layer_z = -1;  // Start at -1 (below entities), decrement for each layer
-
-        while (PyDict_Next(layers_obj, &pos, &key, &value)) {
-            if (!PyUnicode_Check(key)) {
-                PyErr_SetString(PyExc_TypeError, "Layer names must be strings");
-                return -1;
-            }
-            if (!PyUnicode_Check(value)) {
-                PyErr_SetString(PyExc_TypeError, "Layer types must be strings ('color' or 'tile')");
-                return -1;
-            }
-
-            const char* layer_name = PyUnicode_AsUTF8(key);
-            const char* layer_type = PyUnicode_AsUTF8(value);
-
-            // Check for protected names
-            if (UIGrid::isProtectedLayerName(layer_name)) {
-                PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", layer_name);
-                return -1;
-            }
-
-            if (strcmp(layer_type, "color") == 0) {
-                self->data->addColorLayer(layer_z--, layer_name);
-            } else if (strcmp(layer_type, "tile") == 0) {
-                self->data->addTileLayer(layer_z--, texture_ptr, layer_name);
-            } else {
-                PyErr_Format(PyExc_ValueError, "Unknown layer type '%s' (expected 'color' or 'tile')", layer_type);
-                return -1;
-            }
+        auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+        if (!mcrfpy_module) {
+            Py_DECREF(iterator);
+            return -1;
         }
+
+        auto* color_layer_type = PyObject_GetAttrString(mcrfpy_module, "ColorLayer");
+        auto* tile_layer_type = PyObject_GetAttrString(mcrfpy_module, "TileLayer");
+        Py_DECREF(mcrfpy_module);
+
+        if (!color_layer_type || !tile_layer_type) {
+            if (color_layer_type) Py_DECREF(color_layer_type);
+            if (tile_layer_type) Py_DECREF(tile_layer_type);
+            Py_DECREF(iterator);
+            return -1;
+        }
+
+        PyObject* item;
+        while ((item = PyIter_Next(iterator)) != NULL) {
+            std::shared_ptr<GridLayer> layer;
+
+            if (PyObject_IsInstance(item, color_layer_type)) {
+                PyColorLayerObject* py_layer = (PyColorLayerObject*)item;
+                if (!py_layer->data) {
+                    Py_DECREF(item);
+                    Py_DECREF(iterator);
+                    Py_DECREF(color_layer_type);
+                    Py_DECREF(tile_layer_type);
+                    PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+                    return -1;
+                }
+
+                // Check if already attached to another grid
+                if (py_layer->grid) {
+                    Py_DECREF(item);
+                    Py_DECREF(iterator);
+                    Py_DECREF(color_layer_type);
+                    Py_DECREF(tile_layer_type);
+                    PyErr_SetString(PyExc_ValueError, "Layer is already attached to another Grid");
+                    return -1;
+                }
+
+                layer = py_layer->data;
+
+                // Check for protected names
+                if (!layer->name.empty() && UIGrid::isProtectedLayerName(layer->name)) {
+                    Py_DECREF(item);
+                    Py_DECREF(iterator);
+                    Py_DECREF(color_layer_type);
+                    Py_DECREF(tile_layer_type);
+                    PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", layer->name.c_str());
+                    return -1;
+                }
+
+                // Handle name collision
+                if (!layer->name.empty()) {
+                    auto existing = self->data->getLayerByName(layer->name);
+                    if (existing) {
+                        existing->parent_grid = nullptr;
+                        self->data->removeLayer(existing);
+                    }
+                }
+
+                // Lazy allocation: resize if layer is (0,0)
+                if (layer->grid_x == 0 && layer->grid_y == 0) {
+                    layer->resize(self->data->grid_w, self->data->grid_h);
+                } else if (layer->grid_x != self->data->grid_w || layer->grid_y != self->data->grid_h) {
+                    Py_DECREF(item);
+                    Py_DECREF(iterator);
+                    Py_DECREF(color_layer_type);
+                    Py_DECREF(tile_layer_type);
+                    PyErr_Format(PyExc_ValueError,
+                        "Layer size (%d, %d) does not match Grid size (%d, %d)",
+                        layer->grid_x, layer->grid_y, self->data->grid_w, self->data->grid_h);
+                    return -1;
+                }
+
+                // Link to grid
+                layer->parent_grid = self->data.get();
+                self->data->layers.push_back(layer);
+                py_layer->grid = self->data;
+
+            } else if (PyObject_IsInstance(item, tile_layer_type)) {
+                PyTileLayerObject* py_layer = (PyTileLayerObject*)item;
+                if (!py_layer->data) {
+                    Py_DECREF(item);
+                    Py_DECREF(iterator);
+                    Py_DECREF(color_layer_type);
+                    Py_DECREF(tile_layer_type);
+                    PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+                    return -1;
+                }
+
+                // Check if already attached to another grid
+                if (py_layer->grid) {
+                    Py_DECREF(item);
+                    Py_DECREF(iterator);
+                    Py_DECREF(color_layer_type);
+                    Py_DECREF(tile_layer_type);
+                    PyErr_SetString(PyExc_ValueError, "Layer is already attached to another Grid");
+                    return -1;
+                }
+
+                layer = py_layer->data;
+
+                // Check for protected names
+                if (!layer->name.empty() && UIGrid::isProtectedLayerName(layer->name)) {
+                    Py_DECREF(item);
+                    Py_DECREF(iterator);
+                    Py_DECREF(color_layer_type);
+                    Py_DECREF(tile_layer_type);
+                    PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", layer->name.c_str());
+                    return -1;
+                }
+
+                // Handle name collision
+                if (!layer->name.empty()) {
+                    auto existing = self->data->getLayerByName(layer->name);
+                    if (existing) {
+                        existing->parent_grid = nullptr;
+                        self->data->removeLayer(existing);
+                    }
+                }
+
+                // Lazy allocation: resize if layer is (0,0)
+                if (layer->grid_x == 0 && layer->grid_y == 0) {
+                    layer->resize(self->data->grid_w, self->data->grid_h);
+                } else if (layer->grid_x != self->data->grid_w || layer->grid_y != self->data->grid_h) {
+                    Py_DECREF(item);
+                    Py_DECREF(iterator);
+                    Py_DECREF(color_layer_type);
+                    Py_DECREF(tile_layer_type);
+                    PyErr_Format(PyExc_ValueError,
+                        "Layer size (%d, %d) does not match Grid size (%d, %d)",
+                        layer->grid_x, layer->grid_y, self->data->grid_w, self->data->grid_h);
+                    return -1;
+                }
+
+                // Link to grid
+                layer->parent_grid = self->data.get();
+                self->data->layers.push_back(layer);
+                py_layer->grid = self->data;
+
+            } else {
+                Py_DECREF(item);
+                Py_DECREF(iterator);
+                Py_DECREF(color_layer_type);
+                Py_DECREF(tile_layer_type);
+                PyErr_SetString(PyExc_TypeError, "layers must contain only ColorLayer or TileLayer objects");
+                return -1;
+            }
+
+            Py_DECREF(item);
+        }
+
+        Py_DECREF(iterator);
+        Py_DECREF(color_layer_type);
+        Py_DECREF(tile_layer_type);
+
+        if (PyErr_Occurred()) {
+            return -1;
+        }
+
+        self->data->layers_need_sort = true;
     }
     // else: layers_obj is Py_None - explicit empty, no layers created
 
@@ -1456,80 +1590,173 @@ PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args, PyObject* k
 // Grid.get_dijkstra_map() returns DijkstraMap objects (cached by root)
 
 // #147 - Layer system Python API
-PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"type", "z_index", "texture", NULL};
-    const char* type_str = nullptr;
-    int z_index = -1;
-    PyObject* texture_obj = nullptr;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|iO", const_cast<char**>(kwlist),
-                                     &type_str, &z_index, &texture_obj)) {
+PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args) {
+    PyObject* layer_obj;
+    if (!PyArg_ParseTuple(args, "O", &layer_obj)) {
         return NULL;
     }
 
-    std::string type(type_str);
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) return NULL;
 
-    if (type == "color") {
-        auto layer = self->data->addColorLayer(z_index);
+    auto* color_layer_type = PyObject_GetAttrString(mcrfpy_module, "ColorLayer");
+    auto* tile_layer_type = PyObject_GetAttrString(mcrfpy_module, "TileLayer");
+    Py_DECREF(mcrfpy_module);
 
-        // Create Python ColorLayer object
-        auto* color_layer_type = (PyTypeObject*)PyObject_GetAttrString(
-            PyImport_ImportModule("mcrfpy"), "ColorLayer");
-        if (!color_layer_type) return NULL;
+    if (!color_layer_type || !tile_layer_type) {
+        if (color_layer_type) Py_DECREF(color_layer_type);
+        if (tile_layer_type) Py_DECREF(tile_layer_type);
+        return NULL;
+    }
 
-        PyColorLayerObject* py_layer = (PyColorLayerObject*)color_layer_type->tp_alloc(color_layer_type, 0);
-        Py_DECREF(color_layer_type);
-        if (!py_layer) return NULL;
+    std::shared_ptr<GridLayer> layer;
+    PyObject* py_layer_ref = nullptr;
 
-        py_layer->data = layer;
-        py_layer->grid = self->data;
-        return (PyObject*)py_layer;
-
-    } else if (type == "tile") {
-        // Parse texture
-        std::shared_ptr<PyTexture> texture;
-        if (texture_obj && texture_obj != Py_None) {
-            auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-            if (!mcrfpy_module) return NULL;
-
-            auto* texture_type = PyObject_GetAttrString(mcrfpy_module, "Texture");
-            Py_DECREF(mcrfpy_module);
-            if (!texture_type) return NULL;
-
-            if (!PyObject_IsInstance(texture_obj, texture_type)) {
-                Py_DECREF(texture_type);
-                PyErr_SetString(PyExc_TypeError, "texture must be a Texture object");
-                return NULL;
-            }
-            Py_DECREF(texture_type);
-            texture = ((PyTextureObject*)texture_obj)->data;
+    if (PyObject_IsInstance(layer_obj, color_layer_type)) {
+        PyColorLayerObject* py_layer = (PyColorLayerObject*)layer_obj;
+        if (!py_layer->data) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+            return NULL;
         }
 
-        auto layer = self->data->addTileLayer(z_index, texture);
+        // Check if already attached to another grid
+        if (py_layer->grid && py_layer->grid.get() != self->data.get()) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            PyErr_SetString(PyExc_ValueError, "Layer is already attached to another Grid");
+            return NULL;
+        }
 
-        // Create Python TileLayer object
-        auto* tile_layer_type = (PyTypeObject*)PyObject_GetAttrString(
-            PyImport_ImportModule("mcrfpy"), "TileLayer");
-        if (!tile_layer_type) return NULL;
+        layer = py_layer->data;
+        py_layer_ref = layer_obj;
 
-        PyTileLayerObject* py_layer = (PyTileLayerObject*)tile_layer_type->tp_alloc(tile_layer_type, 0);
-        Py_DECREF(tile_layer_type);
-        if (!py_layer) return NULL;
+        // Check for protected names
+        if (!layer->name.empty() && UIGrid::isProtectedLayerName(layer->name)) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", layer->name.c_str());
+            return NULL;
+        }
 
-        py_layer->data = layer;
+        // Handle name collision - unlink existing layer with same name
+        if (!layer->name.empty()) {
+            auto existing = self->data->getLayerByName(layer->name);
+            if (existing && existing.get() != layer.get()) {
+                existing->parent_grid = nullptr;
+                self->data->removeLayer(existing);
+            }
+        }
+
+        // Lazy allocation: resize if layer is (0,0)
+        if (layer->grid_x == 0 && layer->grid_y == 0) {
+            layer->resize(self->data->grid_w, self->data->grid_h);
+        } else if (layer->grid_x != self->data->grid_w || layer->grid_y != self->data->grid_h) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            PyErr_Format(PyExc_ValueError,
+                "Layer size (%d, %d) does not match Grid size (%d, %d)",
+                layer->grid_x, layer->grid_y, self->data->grid_w, self->data->grid_h);
+            return NULL;
+        }
+
+        // Link to grid
+        layer->parent_grid = self->data.get();
+        self->data->layers.push_back(layer);
+        self->data->layers_need_sort = true;
         py_layer->grid = self->data;
-        return (PyObject*)py_layer;
+
+    } else if (PyObject_IsInstance(layer_obj, tile_layer_type)) {
+        PyTileLayerObject* py_layer = (PyTileLayerObject*)layer_obj;
+        if (!py_layer->data) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+            return NULL;
+        }
+
+        // Check if already attached to another grid
+        if (py_layer->grid && py_layer->grid.get() != self->data.get()) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            PyErr_SetString(PyExc_ValueError, "Layer is already attached to another Grid");
+            return NULL;
+        }
+
+        layer = py_layer->data;
+        py_layer_ref = layer_obj;
+
+        // Check for protected names
+        if (!layer->name.empty() && UIGrid::isProtectedLayerName(layer->name)) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", layer->name.c_str());
+            return NULL;
+        }
+
+        // Handle name collision - unlink existing layer with same name
+        if (!layer->name.empty()) {
+            auto existing = self->data->getLayerByName(layer->name);
+            if (existing && existing.get() != layer.get()) {
+                existing->parent_grid = nullptr;
+                self->data->removeLayer(existing);
+            }
+        }
+
+        // Lazy allocation: resize if layer is (0,0)
+        if (layer->grid_x == 0 && layer->grid_y == 0) {
+            layer->resize(self->data->grid_w, self->data->grid_h);
+        } else if (layer->grid_x != self->data->grid_w || layer->grid_y != self->data->grid_h) {
+            Py_DECREF(color_layer_type);
+            Py_DECREF(tile_layer_type);
+            PyErr_Format(PyExc_ValueError,
+                "Layer size (%d, %d) does not match Grid size (%d, %d)",
+                layer->grid_x, layer->grid_y, self->data->grid_w, self->data->grid_h);
+            return NULL;
+        }
+
+        // Link to grid
+        layer->parent_grid = self->data.get();
+        self->data->layers.push_back(layer);
+        self->data->layers_need_sort = true;
+        py_layer->grid = self->data;
 
     } else {
-        PyErr_SetString(PyExc_ValueError, "type must be 'color' or 'tile'");
+        Py_DECREF(color_layer_type);
+        Py_DECREF(tile_layer_type);
+        PyErr_SetString(PyExc_TypeError, "layer must be a ColorLayer or TileLayer");
         return NULL;
     }
+
+    Py_DECREF(color_layer_type);
+    Py_DECREF(tile_layer_type);
+
+    // Return the layer object (incref it since we're returning a reference)
+    Py_INCREF(py_layer_ref);
+    return py_layer_ref;
 }
 
 PyObject* UIGrid::py_remove_layer(PyUIGridObject* self, PyObject* args) {
     PyObject* layer_obj;
     if (!PyArg_ParseTuple(args, "O", &layer_obj)) {
         return NULL;
+    }
+
+    // Check if it's a string (layer name)
+    if (PyUnicode_Check(layer_obj)) {
+        const char* name_str = PyUnicode_AsUTF8(layer_obj);
+        if (!name_str) return NULL;
+
+        auto layer = self->data->getLayerByName(std::string(name_str));
+        if (!layer) {
+            PyErr_Format(PyExc_KeyError, "Layer '%s' not found", name_str);
+            return NULL;
+        }
+
+        layer->parent_grid = nullptr;
+        self->data->removeLayer(layer);
+        Py_RETURN_NONE;
     }
 
     auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
@@ -1541,7 +1768,11 @@ PyObject* UIGrid::py_remove_layer(PyUIGridObject* self, PyObject* args) {
         Py_DECREF(color_layer_type);
         Py_DECREF(mcrfpy_module);
         auto* py_layer = (PyColorLayerObject*)layer_obj;
-        self->data->removeLayer(py_layer->data);
+        if (py_layer->data) {
+            py_layer->data->parent_grid = nullptr;
+            self->data->removeLayer(py_layer->data);
+            py_layer->grid.reset();
+        }
         Py_RETURN_NONE;
     }
     if (color_layer_type) Py_DECREF(color_layer_type);
@@ -1552,25 +1783,29 @@ PyObject* UIGrid::py_remove_layer(PyUIGridObject* self, PyObject* args) {
         Py_DECREF(tile_layer_type);
         Py_DECREF(mcrfpy_module);
         auto* py_layer = (PyTileLayerObject*)layer_obj;
-        self->data->removeLayer(py_layer->data);
+        if (py_layer->data) {
+            py_layer->data->parent_grid = nullptr;
+            self->data->removeLayer(py_layer->data);
+            py_layer->grid.reset();
+        }
         Py_RETURN_NONE;
     }
     if (tile_layer_type) Py_DECREF(tile_layer_type);
 
     Py_DECREF(mcrfpy_module);
-    PyErr_SetString(PyExc_TypeError, "layer must be a ColorLayer or TileLayer");
+    PyErr_SetString(PyExc_TypeError, "layer must be a string (layer name), ColorLayer, or TileLayer");
     return NULL;
 }
 
 PyObject* UIGrid::get_layers(PyUIGridObject* self, void* closure) {
     self->data->sortLayers();
 
-    PyObject* list = PyList_New(self->data->layers.size());
-    if (!list) return NULL;
+    PyObject* tuple = PyTuple_New(self->data->layers.size());
+    if (!tuple) return NULL;
 
     auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
     if (!mcrfpy_module) {
-        Py_DECREF(list);
+        Py_DECREF(tuple);
         return NULL;
     }
 
@@ -1581,7 +1816,7 @@ PyObject* UIGrid::get_layers(PyUIGridObject* self, void* closure) {
     if (!color_layer_type || !tile_layer_type) {
         if (color_layer_type) Py_DECREF(color_layer_type);
         if (tile_layer_type) Py_DECREF(tile_layer_type);
-        Py_DECREF(list);
+        Py_DECREF(tuple);
         return NULL;
     }
 
@@ -1608,58 +1843,57 @@ PyObject* UIGrid::get_layers(PyUIGridObject* self, void* closure) {
         if (!py_layer) {
             Py_DECREF(color_layer_type);
             Py_DECREF(tile_layer_type);
-            Py_DECREF(list);
+            Py_DECREF(tuple);
             return NULL;
         }
 
-        PyList_SET_ITEM(list, i, py_layer);  // Steals reference
+        PyTuple_SET_ITEM(tuple, i, py_layer);  // Steals reference
     }
 
     Py_DECREF(color_layer_type);
     Py_DECREF(tile_layer_type);
-    return list;
+    return tuple;
 }
 
 PyObject* UIGrid::py_layer(PyUIGridObject* self, PyObject* args) {
-    int z_index;
-    if (!PyArg_ParseTuple(args, "i", &z_index)) {
+    const char* name_str;
+    if (!PyArg_ParseTuple(args, "s", &name_str)) {
         return NULL;
     }
 
-    for (auto& layer : self->data->layers) {
-        if (layer->z_index == z_index) {
-            auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-            if (!mcrfpy_module) return NULL;
-
-            if (layer->type == GridLayerType::Color) {
-                auto* type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "ColorLayer");
-                Py_DECREF(mcrfpy_module);
-                if (!type) return NULL;
-
-                PyColorLayerObject* obj = (PyColorLayerObject*)type->tp_alloc(type, 0);
-                Py_DECREF(type);
-                if (!obj) return NULL;
-
-                obj->data = std::static_pointer_cast<ColorLayer>(layer);
-                obj->grid = self->data;
-                return (PyObject*)obj;
-            } else {
-                auto* type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "TileLayer");
-                Py_DECREF(mcrfpy_module);
-                if (!type) return NULL;
-
-                PyTileLayerObject* obj = (PyTileLayerObject*)type->tp_alloc(type, 0);
-                Py_DECREF(type);
-                if (!obj) return NULL;
-
-                obj->data = std::static_pointer_cast<TileLayer>(layer);
-                obj->grid = self->data;
-                return (PyObject*)obj;
-            }
-        }
+    auto layer = self->data->getLayerByName(std::string(name_str));
+    if (!layer) {
+        Py_RETURN_NONE;
     }
 
-    Py_RETURN_NONE;
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) return NULL;
+
+    if (layer->type == GridLayerType::Color) {
+        auto* type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "ColorLayer");
+        Py_DECREF(mcrfpy_module);
+        if (!type) return NULL;
+
+        PyColorLayerObject* obj = (PyColorLayerObject*)type->tp_alloc(type, 0);
+        Py_DECREF(type);
+        if (!obj) return NULL;
+
+        obj->data = std::static_pointer_cast<ColorLayer>(layer);
+        obj->grid = self->data;
+        return (PyObject*)obj;
+    } else {
+        auto* type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "TileLayer");
+        Py_DECREF(mcrfpy_module);
+        if (!type) return NULL;
+
+        PyTileLayerObject* obj = (PyTileLayerObject*)type->tp_alloc(type, 0);
+        Py_DECREF(type);
+        if (!obj) return NULL;
+
+        obj->data = std::static_pointer_cast<TileLayer>(layer);
+        obj->grid = self->data;
+        return (PyObject*)obj;
+    }
 }
 
 // #115 - Spatial hash query for entities in radius
@@ -2061,12 +2295,12 @@ PyMethodDef UIGrid::methods[] = {
      "Clear all cached Dijkstra maps.\n\n"
      "Call this after modifying grid cell walkability to ensure pathfinding\n"
      "uses updated walkability data."},
-    {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS | METH_KEYWORDS,
-     "add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer"},
+    {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS,
+     "add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer"},
     {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
-     "remove_layer(layer: ColorLayer | TileLayer) -> None"},
+     "remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None"},
     {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
-     "layer(z_index: int) -> ColorLayer | TileLayer | None"},
+     "layer(name: str) -> ColorLayer | TileLayer | None"},
     {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
      "entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]\n\n"
      "Query entities within radius using spatial hash (O(k) where k = nearby entities).\n\n"
@@ -2166,27 +2400,34 @@ PyMethodDef UIGrid_all_methods[] = {
      "Clear all cached Dijkstra maps.\n\n"
      "Call this after modifying grid cell walkability to ensure pathfinding\n"
      "uses updated walkability data."},
-    {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS | METH_KEYWORDS,
-     "add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer\n\n"
-     "Add a new layer to the grid.\n\n"
+    {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS,
+     "add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer\n\n"
+     "Add a layer to the grid.\n\n"
      "Args:\n"
-     "    type: Layer type ('color' or 'tile')\n"
-     "    z_index: Render order. Negative = below entities, >= 0 = above entities. Default: -1\n"
-     "    texture: Texture for tile layers. Required for 'tile' type.\n\n"
+     "    layer: A ColorLayer or TileLayer object. Layers with size (0, 0) are\n"
+     "           automatically resized to match the grid. Named layers replace\n"
+     "           any existing layer with the same name.\n\n"
      "Returns:\n"
-     "    The created ColorLayer or TileLayer object."},
+     "    The added layer object.\n\n"
+     "Raises:\n"
+     "    ValueError: If layer is already attached to another grid, or if\n"
+     "                layer size doesn't match grid (and isn't (0,0)).\n"
+     "    TypeError: If argument is not a ColorLayer or TileLayer."},
     {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
-     "remove_layer(layer: ColorLayer | TileLayer) -> None\n\n"
+     "remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None\n\n"
      "Remove a layer from the grid.\n\n"
      "Args:\n"
-     "    layer: The layer to remove."},
+     "    name_or_layer: Either a layer name (str) or the layer object itself.\n\n"
+     "Raises:\n"
+     "    KeyError: If name is provided but no layer with that name exists.\n"
+     "    TypeError: If argument is not a string, ColorLayer, or TileLayer."},
     {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
-     "layer(z_index: int) -> ColorLayer | TileLayer | None\n\n"
-     "Get a layer by its z_index.\n\n"
+     "layer(name: str) -> ColorLayer | TileLayer | None\n\n"
+     "Get a layer by its name.\n\n"
      "Args:\n"
-     "    z_index: The z_index of the layer to find.\n\n"
+     "    name: The name of the layer to find.\n\n"
      "Returns:\n"
-     "    The layer with the specified z_index, or None if not found."},
+     "    The layer with the specified name, or None if not found."},
     {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
      "entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]\n\n"
      "Query entities within radius using spatial hash (O(k) where k = nearby entities).\n\n"

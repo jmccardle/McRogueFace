@@ -803,17 +803,23 @@ PyGetSetDef PyGridLayerAPI::ColorLayer_getsetters[] = {
      "Whether the layer is rendered.", NULL},
     {"grid_size", (getter)PyGridLayerAPI::ColorLayer_get_grid_size, NULL,
      "Layer dimensions as (width, height) tuple.", NULL},
+    {"name", (getter)PyGridLayerAPI::ColorLayer_get_name, NULL,
+     "Layer name (str, read-only). Used for Grid.layer(name) lookup.", NULL},
+    {"grid", (getter)PyGridLayerAPI::ColorLayer_get_grid,
+             (setter)PyGridLayerAPI::ColorLayer_set_grid,
+     "Parent Grid or None. Setting manages layer association and handles lazy allocation.", NULL},
     {NULL}
 };
 
 int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"z_index", "grid_size", NULL};
+    static const char* kwlist[] = {"z_index", "name", "grid_size", NULL};
     int z_index = -1;
+    const char* name_str = nullptr;
     PyObject* grid_size_obj = nullptr;
     int grid_x = 0, grid_y = 0;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iO", const_cast<char**>(kwlist),
-                                     &z_index, &grid_size_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|izO", const_cast<char**>(kwlist),
+                                     &z_index, &name_str, &grid_size_obj)) {
         return -1;
     }
 
@@ -836,8 +842,11 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
         }
     }
 
-    // Create the layer (will be attached to grid via add_layer)
+    // Create the layer (will be attached to grid via add_layer or layer.grid setter)
     self->data = std::make_shared<ColorLayer>(z_index, grid_x, grid_y, nullptr);
+    if (name_str) {
+        self->data->name = name_str;
+    }
     self->grid.reset();
 
     return 0;
@@ -1598,12 +1607,137 @@ PyObject* PyGridLayerAPI::ColorLayer_get_grid_size(PyColorLayerObject* self, voi
     return Py_BuildValue("(ii)", self->data->grid_x, self->data->grid_y);
 }
 
+PyObject* PyGridLayerAPI::ColorLayer_get_name(PyColorLayerObject* self, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    return PyUnicode_FromString(self->data->name.c_str());
+}
+
+PyObject* PyGridLayerAPI::ColorLayer_get_grid(PyColorLayerObject* self, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    // Check actual parent_grid pointer - it may have been cleared by name collision handling
+    if (!self->data->parent_grid) {
+        // Sync Python wrapper's state if the C++ layer was unlinked externally
+        self->grid.reset();
+        Py_RETURN_NONE;
+    }
+
+    if (!self->grid) {
+        Py_RETURN_NONE;
+    }
+
+    // Create Python Grid wrapper for the parent grid
+    auto* grid_type = (PyTypeObject*)PyObject_GetAttrString(
+        PyImport_ImportModule("mcrfpy"), "Grid");
+    if (!grid_type) return NULL;
+
+    PyUIGridObject* py_grid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
+    Py_DECREF(grid_type);
+    if (!py_grid) return NULL;
+
+    py_grid->data = self->grid;
+    py_grid->weakreflist = NULL;
+    return (PyObject*)py_grid;
+}
+
+int PyGridLayerAPI::ColorLayer_set_grid(PyColorLayerObject* self, PyObject* value, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return -1;
+    }
+
+    // Handle None - unlink from current grid
+    if (value == Py_None || value == NULL) {
+        if (self->grid) {
+            self->data->parent_grid = nullptr;
+            self->grid->removeLayer(self->data);
+            self->grid.reset();
+        }
+        return 0;
+    }
+
+    // Validate it's a Grid
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) return -1;
+
+    auto* grid_type = PyObject_GetAttrString(mcrfpy_module, "Grid");
+    Py_DECREF(mcrfpy_module);
+    if (!grid_type) return -1;
+
+    if (!PyObject_IsInstance(value, grid_type)) {
+        Py_DECREF(grid_type);
+        PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
+        return -1;
+    }
+    Py_DECREF(grid_type);
+
+    PyUIGridObject* py_grid = (PyUIGridObject*)value;
+
+    // Check if already attached to this grid
+    if (self->grid.get() == py_grid->data.get()) {
+        return 0;  // Nothing to do
+    }
+
+    // Unlink from old grid if any
+    if (self->grid) {
+        self->data->parent_grid = nullptr;
+        self->grid->removeLayer(self->data);
+    }
+
+    // Check for protected names
+    if (!self->data->name.empty() && UIGrid::isProtectedLayerName(self->data->name)) {
+        PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", self->data->name.c_str());
+        self->grid.reset();
+        return -1;
+    }
+
+    // Handle name collision - unlink existing layer with same name
+    if (!self->data->name.empty()) {
+        auto existing = py_grid->data->getLayerByName(self->data->name);
+        if (existing && existing.get() != self->data.get()) {
+            existing->parent_grid = nullptr;
+            py_grid->data->removeLayer(existing);
+        }
+    }
+
+    // Lazy allocation: resize if layer is (0,0)
+    if (self->data->grid_x == 0 && self->data->grid_y == 0) {
+        self->data->resize(py_grid->data->grid_w, py_grid->data->grid_h);
+    } else if (self->data->grid_x != py_grid->data->grid_w ||
+               self->data->grid_y != py_grid->data->grid_h) {
+        PyErr_Format(PyExc_ValueError,
+            "Layer size (%d, %d) does not match Grid size (%d, %d)",
+            self->data->grid_x, self->data->grid_y,
+            py_grid->data->grid_w, py_grid->data->grid_h);
+        self->grid.reset();
+        return -1;
+    }
+
+    // Link to new grid
+    self->data->parent_grid = py_grid->data.get();
+    py_grid->data->layers.push_back(self->data);
+    py_grid->data->layers_need_sort = true;
+    self->grid = py_grid->data;
+
+    return 0;
+}
+
 PyObject* PyGridLayerAPI::ColorLayer_repr(PyColorLayerObject* self) {
     std::ostringstream ss;
     if (!self->data) {
         ss << "<ColorLayer (invalid)>";
     } else {
-        ss << "<ColorLayer z_index=" << self->data->z_index
+        ss << "<ColorLayer";
+        if (!self->data->name.empty()) {
+            ss << " '" << self->data->name << "'";
+        }
+        ss << " z_index=" << self->data->z_index
            << " size=(" << self->data->grid_x << "x" << self->data->grid_y << ")"
            << " visible=" << (self->data->visible ? "True" : "False") << ">";
     }
@@ -1679,18 +1813,24 @@ PyGetSetDef PyGridLayerAPI::TileLayer_getsetters[] = {
      "Texture atlas for tile sprites.", NULL},
     {"grid_size", (getter)PyGridLayerAPI::TileLayer_get_grid_size, NULL,
      "Layer dimensions as (width, height) tuple.", NULL},
+    {"name", (getter)PyGridLayerAPI::TileLayer_get_name, NULL,
+     "Layer name (str, read-only). Used for Grid.layer(name) lookup.", NULL},
+    {"grid", (getter)PyGridLayerAPI::TileLayer_get_grid,
+             (setter)PyGridLayerAPI::TileLayer_set_grid,
+     "Parent Grid or None. Setting manages layer association and handles lazy allocation.", NULL},
     {NULL}
 };
 
 int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"z_index", "texture", "grid_size", NULL};
+    static const char* kwlist[] = {"z_index", "name", "texture", "grid_size", NULL};
     int z_index = -1;
+    const char* name_str = nullptr;
     PyObject* texture_obj = nullptr;
     PyObject* grid_size_obj = nullptr;
     int grid_x = 0, grid_y = 0;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iOO", const_cast<char**>(kwlist),
-                                     &z_index, &texture_obj, &grid_size_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|izOO", const_cast<char**>(kwlist),
+                                     &z_index, &name_str, &texture_obj, &grid_size_obj)) {
         return -1;
     }
 
@@ -1736,6 +1876,9 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
 
     // Create the layer
     self->data = std::make_shared<TileLayer>(z_index, grid_x, grid_y, nullptr, texture);
+    if (name_str) {
+        self->data->name = name_str;
+    }
     self->grid.reset();
 
     return 0;
@@ -2099,12 +2242,137 @@ PyObject* PyGridLayerAPI::TileLayer_get_grid_size(PyTileLayerObject* self, void*
     return Py_BuildValue("(ii)", self->data->grid_x, self->data->grid_y);
 }
 
+PyObject* PyGridLayerAPI::TileLayer_get_name(PyTileLayerObject* self, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    return PyUnicode_FromString(self->data->name.c_str());
+}
+
+PyObject* PyGridLayerAPI::TileLayer_get_grid(PyTileLayerObject* self, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+
+    // Check actual parent_grid pointer - it may have been cleared by name collision handling
+    if (!self->data->parent_grid) {
+        // Sync Python wrapper's state if the C++ layer was unlinked externally
+        self->grid.reset();
+        Py_RETURN_NONE;
+    }
+
+    if (!self->grid) {
+        Py_RETURN_NONE;
+    }
+
+    // Create Python Grid wrapper for the parent grid
+    auto* grid_type = (PyTypeObject*)PyObject_GetAttrString(
+        PyImport_ImportModule("mcrfpy"), "Grid");
+    if (!grid_type) return NULL;
+
+    PyUIGridObject* py_grid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
+    Py_DECREF(grid_type);
+    if (!py_grid) return NULL;
+
+    py_grid->data = self->grid;
+    py_grid->weakreflist = NULL;
+    return (PyObject*)py_grid;
+}
+
+int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return -1;
+    }
+
+    // Handle None - unlink from current grid
+    if (value == Py_None || value == NULL) {
+        if (self->grid) {
+            self->data->parent_grid = nullptr;
+            self->grid->removeLayer(self->data);
+            self->grid.reset();
+        }
+        return 0;
+    }
+
+    // Validate it's a Grid
+    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
+    if (!mcrfpy_module) return -1;
+
+    auto* grid_type = PyObject_GetAttrString(mcrfpy_module, "Grid");
+    Py_DECREF(mcrfpy_module);
+    if (!grid_type) return -1;
+
+    if (!PyObject_IsInstance(value, grid_type)) {
+        Py_DECREF(grid_type);
+        PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
+        return -1;
+    }
+    Py_DECREF(grid_type);
+
+    PyUIGridObject* py_grid = (PyUIGridObject*)value;
+
+    // Check if already attached to this grid
+    if (self->grid.get() == py_grid->data.get()) {
+        return 0;  // Nothing to do
+    }
+
+    // Unlink from old grid if any
+    if (self->grid) {
+        self->data->parent_grid = nullptr;
+        self->grid->removeLayer(self->data);
+    }
+
+    // Check for protected names
+    if (!self->data->name.empty() && UIGrid::isProtectedLayerName(self->data->name)) {
+        PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", self->data->name.c_str());
+        self->grid.reset();
+        return -1;
+    }
+
+    // Handle name collision - unlink existing layer with same name
+    if (!self->data->name.empty()) {
+        auto existing = py_grid->data->getLayerByName(self->data->name);
+        if (existing && existing.get() != self->data.get()) {
+            existing->parent_grid = nullptr;
+            py_grid->data->removeLayer(existing);
+        }
+    }
+
+    // Lazy allocation: resize if layer is (0,0)
+    if (self->data->grid_x == 0 && self->data->grid_y == 0) {
+        self->data->resize(py_grid->data->grid_w, py_grid->data->grid_h);
+    } else if (self->data->grid_x != py_grid->data->grid_w ||
+               self->data->grid_y != py_grid->data->grid_h) {
+        PyErr_Format(PyExc_ValueError,
+            "Layer size (%d, %d) does not match Grid size (%d, %d)",
+            self->data->grid_x, self->data->grid_y,
+            py_grid->data->grid_w, py_grid->data->grid_h);
+        self->grid.reset();
+        return -1;
+    }
+
+    // Link to new grid
+    self->data->parent_grid = py_grid->data.get();
+    py_grid->data->layers.push_back(std::static_pointer_cast<GridLayer>(self->data));
+    py_grid->data->layers_need_sort = true;
+    self->grid = py_grid->data;
+
+    return 0;
+}
+
 PyObject* PyGridLayerAPI::TileLayer_repr(PyTileLayerObject* self) {
     std::ostringstream ss;
     if (!self->data) {
         ss << "<TileLayer (invalid)>";
     } else {
-        ss << "<TileLayer z_index=" << self->data->z_index
+        ss << "<TileLayer";
+        if (!self->data->name.empty()) {
+            ss << " '" << self->data->name << "'";
+        }
+        ss << " z_index=" << self->data->z_index
            << " size=(" << self->data->grid_x << "x" << self->data->grid_y << ")"
            << " visible=" << (self->data->visible ? "True" : "False")
            << " texture=" << (self->data->texture ? "set" : "None") << ">";

@@ -212,6 +212,9 @@ public:
     static PyObject* ColorLayer_get_visible(PyColorLayerObject* self, void* closure);
     static int ColorLayer_set_visible(PyColorLayerObject* self, PyObject* value, void* closure);
     static PyObject* ColorLayer_get_grid_size(PyColorLayerObject* self, void* closure);
+    static PyObject* ColorLayer_get_name(PyColorLayerObject* self, void* closure);
+    static PyObject* ColorLayer_get_grid(PyColorLayerObject* self, void* closure);
+    static int ColorLayer_set_grid(PyColorLayerObject* self, PyObject* value, void* closure);
     static PyObject* ColorLayer_repr(PyColorLayerObject* self);
 
     // TileLayer methods
@@ -229,6 +232,9 @@ public:
     static PyObject* TileLayer_get_texture(PyTileLayerObject* self, void* closure);
     static int TileLayer_set_texture(PyTileLayerObject* self, PyObject* value, void* closure);
     static PyObject* TileLayer_get_grid_size(PyTileLayerObject* self, void* closure);
+    static PyObject* TileLayer_get_name(PyTileLayerObject* self, void* closure);
+    static PyObject* TileLayer_get_grid(PyTileLayerObject* self, void* closure);
+    static int TileLayer_set_grid(PyTileLayerObject* self, PyObject* value, void* closure);
     static PyObject* TileLayer_repr(PyTileLayerObject* self);
 
     // Method and getset arrays
@@ -253,21 +259,24 @@ namespace mcrfpydef {
         },
         .tp_repr = (reprfunc)PyGridLayerAPI::ColorLayer_repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("ColorLayer(z_index=-1, grid_size=None)\n\n"
+        .tp_doc = PyDoc_STR("ColorLayer(z_index=-1, name=None, grid_size=None)\n\n"
                            "A grid layer that stores RGBA colors per cell for background/overlay effects.\n\n"
-                           "ColorLayers are typically created via Grid.add_layer('color', ...) rather than\n"
-                           "instantiated directly. When attached to a Grid, the layer inherits rendering\n"
-                           "parameters and can participate in FOV (field of view) calculations.\n\n"
+                           "ColorLayers can be created standalone and attached to a Grid via add_layer()\n"
+                           "or passed to the Grid constructor's layers parameter. Layers with size (0, 0)\n"
+                           "automatically resize to match the Grid when attached.\n\n"
                            "Args:\n"
                            "    z_index (int): Render order relative to entities. Negative values render\n"
                            "        below entities (as backgrounds), positive values render above entities\n"
                            "        (as overlays). Default: -1 (background)\n"
-                           "    grid_size (tuple): Dimensions as (width, height). If None, the layer will\n"
-                           "        inherit the parent Grid's dimensions when attached. Default: None\n\n"
+                           "    name (str): Layer name for Grid.layer(name) lookup. Default: None\n"
+                           "    grid_size (tuple): Dimensions as (width, height). If None or (0, 0), the\n"
+                           "        layer will auto-resize when attached to a Grid. Default: None\n\n"
                            "Attributes:\n"
                            "    z_index (int): Layer z-order relative to entities (read/write)\n"
+                           "    name (str): Layer name for lookup (read-only)\n"
                            "    visible (bool): Whether layer is rendered (read/write)\n"
-                           "    grid_size (tuple): Layer dimensions as (width, height) (read-only)\n\n"
+                           "    grid_size (tuple): Layer dimensions as (width, height) (read-only)\n"
+                           "    grid (Grid): Parent Grid or None. Setting manages layer association.\n\n"
                            "Methods:\n"
                            "    at(x, y) -> Color: Get the color at cell position (x, y)\n"
                            "    set(x, y, color): Set the color at cell position (x, y)\n"
@@ -276,11 +285,10 @@ namespace mcrfpydef {
                            "    draw_fov(...): Draw FOV-based visibility colors\n"
                            "    apply_perspective(entity, ...): Bind layer to entity for automatic FOV updates\n\n"
                            "Example:\n"
-                           "    grid = mcrfpy.Grid(grid_size=(20, 15), texture=my_texture,\n"
-                           "                       pos=(50, 50), size=(640, 480))\n"
-                           "    layer = grid.add_layer('color', z_index=-1)\n"
-                           "    layer.fill(mcrfpy.Color(40, 40, 40))  # Dark gray background\n"
-                           "    layer.set(5, 5, mcrfpy.Color(255, 0, 0, 128))  # Semi-transparent red cell"),
+                           "    fog = mcrfpy.ColorLayer(z_index=-1, name='fog')\n"
+                           "    grid = mcrfpy.Grid(grid_size=(20, 15), layers=[fog])\n"
+                           "    fog.fill(mcrfpy.Color(40, 40, 40))  # Dark gray background\n"
+                           "    grid.layer('fog').set(5, 5, mcrfpy.Color(255, 0, 0, 128))"),
         .tp_methods = PyGridLayerAPI::ColorLayer_methods,
         .tp_getset = PyGridLayerAPI::ColorLayer_getsetters,
         .tp_init = (initproc)PyGridLayerAPI::ColorLayer_init,
@@ -304,25 +312,28 @@ namespace mcrfpydef {
         },
         .tp_repr = (reprfunc)PyGridLayerAPI::TileLayer_repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("TileLayer(z_index=-1, texture=None, grid_size=None)\n\n"
+        .tp_doc = PyDoc_STR("TileLayer(z_index=-1, name=None, texture=None, grid_size=None)\n\n"
                            "A grid layer that stores sprite indices per cell for tile-based rendering.\n\n"
-                           "TileLayers are typically created via Grid.add_layer('tile', ...) rather than\n"
-                           "instantiated directly. Each cell stores an integer index into the layer's\n"
-                           "sprite atlas texture. An index of -1 means no tile (transparent/empty).\n\n"
+                           "TileLayers can be created standalone and attached to a Grid via add_layer()\n"
+                           "or passed to the Grid constructor's layers parameter. Layers with size (0, 0)\n"
+                           "automatically resize to match the Grid when attached.\n\n"
                            "Args:\n"
                            "    z_index (int): Render order relative to entities. Negative values render\n"
                            "        below entities (as backgrounds), positive values render above entities\n"
                            "        (as overlays). Default: -1 (background)\n"
+                           "    name (str): Layer name for Grid.layer(name) lookup. Default: None\n"
                            "    texture (Texture): Sprite atlas containing tile images. The texture's\n"
                            "        sprite_size determines individual tile dimensions. Required for\n"
                            "        rendering; can be set after creation. Default: None\n"
-                           "    grid_size (tuple): Dimensions as (width, height). If None, the layer will\n"
-                           "        inherit the parent Grid's dimensions when attached. Default: None\n\n"
+                           "    grid_size (tuple): Dimensions as (width, height). If None or (0, 0), the\n"
+                           "        layer will auto-resize when attached to a Grid. Default: None\n\n"
                            "Attributes:\n"
                            "    z_index (int): Layer z-order relative to entities (read/write)\n"
+                           "    name (str): Layer name for lookup (read-only)\n"
                            "    visible (bool): Whether layer is rendered (read/write)\n"
                            "    texture (Texture): Sprite atlas for tile images (read/write)\n"
-                           "    grid_size (tuple): Layer dimensions as (width, height) (read-only)\n\n"
+                           "    grid_size (tuple): Layer dimensions as (width, height) (read-only)\n"
+                           "    grid (Grid): Parent Grid or None. Setting manages layer association.\n\n"
                            "Methods:\n"
                            "    at(x, y) -> int: Get the tile index at cell position (x, y)\n"
                            "    set(x, y, index): Set the tile index at cell position (x, y)\n"
@@ -332,12 +343,10 @@ namespace mcrfpydef {
                            "    -1: No tile (transparent/empty cell)\n"
                            "    0+: Index into the texture's sprite atlas (row-major order)\n\n"
                            "Example:\n"
-                           "    grid = mcrfpy.Grid(grid_size=(20, 15), texture=my_texture,\n"
-                           "                       pos=(50, 50), size=(640, 480))\n"
-                           "    layer = grid.add_layer('tile', z_index=1, texture=overlay_texture)\n"
-                           "    layer.fill(-1)  # Clear layer (all transparent)\n"
-                           "    layer.set(5, 5, 42)  # Place tile index 42 at position (5, 5)\n"
-                           "    layer.fill_rect(0, 0, 20, 1, 10)  # Top row filled with tile 10"),
+                           "    terrain = mcrfpy.TileLayer(z_index=-2, name='terrain', texture=tileset)\n"
+                           "    grid = mcrfpy.Grid(grid_size=(20, 15), layers=[terrain])\n"
+                           "    terrain.fill(0)  # Fill with tile index 0\n"
+                           "    grid.layer('terrain').set(5, 5, 42)  # Place tile 42 at (5, 5)"),
         .tp_methods = PyGridLayerAPI::TileLayer_methods,
         .tp_getset = PyGridLayerAPI::TileLayer_getsetters,
         .tp_init = (initproc)PyGridLayerAPI::TileLayer_init,
