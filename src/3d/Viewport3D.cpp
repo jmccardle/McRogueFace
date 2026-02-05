@@ -515,10 +515,23 @@ void Viewport3D::renderEntities(const mat4& view, const mat4& proj) {
 #ifdef MCRF_HAS_GL
     if (!entities_ || !shader_ || !shader_->isValid()) return;
 
+    // Extract frustum for culling
+    mat4 viewProj = proj * view;
+    Frustum frustum;
+    frustum.extractFromMatrix(viewProj);
+
     // Render non-skeletal entities first
     shader_->bind();
     for (auto& entity : *entities_) {
         if (entity && entity->isVisible()) {
+            // Frustum culling - use entity position with generous bounding radius
+            vec3 pos = entity->getWorldPos();
+            float boundingRadius = entity->getScale().x * 2.0f;  // Approximate bounding sphere
+
+            if (!frustum.containsSphere(pos, boundingRadius)) {
+                continue;  // Skip this entity - outside view frustum
+            }
+
             auto model = entity->getModel();
             if (!model || !model->hasSkeleton()) {
                 entity->render(view, proj, shader_->getProgram());
@@ -554,6 +567,14 @@ void Viewport3D::renderEntities(const mat4& view, const mat4& proj) {
 
         for (auto& entity : *entities_) {
             if (entity && entity->isVisible()) {
+                // Frustum culling for skeletal entities too
+                vec3 pos = entity->getWorldPos();
+                float boundingRadius = entity->getScale().x * 2.0f;
+
+                if (!frustum.containsSphere(pos, boundingRadius)) {
+                    continue;
+                }
+
                 auto model = entity->getModel();
                 if (model && model->hasSkeleton()) {
                     entity->render(view, proj, skinnedShader_->getProgram());
@@ -594,6 +615,11 @@ void Viewport3D::renderBillboards(const mat4& view, const mat4& proj) {
 #ifdef MCRF_HAS_GL
     if (!billboards_ || billboards_->empty() || !shader_ || !shader_->isValid()) return;
 
+    // Extract frustum for culling
+    mat4 viewProj = proj * view;
+    Frustum frustum;
+    frustum.extractFromMatrix(viewProj);
+
     shader_->bind();
     unsigned int shaderProgram = shader_->getProgram();
     vec3 cameraPos = camera_.getPosition();
@@ -607,6 +633,14 @@ void Viewport3D::renderBillboards(const mat4& view, const mat4& proj) {
 
     for (auto& billboard : *billboards_) {
         if (billboard && billboard->isVisible()) {
+            // Frustum culling for billboards
+            vec3 pos = billboard->getPosition();
+            float boundingRadius = billboard->getScale() * 2.0f;  // Approximate
+
+            if (!frustum.containsSphere(pos, boundingRadius)) {
+                continue;  // Skip - outside frustum
+            }
+
             billboard->render(shaderProgram, view, proj, cameraPos);
         }
     }

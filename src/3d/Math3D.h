@@ -611,6 +611,116 @@ struct quat {
 };
 
 // =============================================================================
+// Frustum - View frustum for culling
+// =============================================================================
+
+struct Plane {
+    vec3 normal;
+    float distance;
+
+    Plane() : normal(0, 1, 0), distance(0) {}
+    Plane(const vec3& n, float d) : normal(n), distance(d) {}
+
+    // Distance from plane to point (positive = in front, negative = behind)
+    float distanceToPoint(const vec3& point) const {
+        return normal.dot(point) + distance;
+    }
+};
+
+struct Frustum {
+    // Six planes: left, right, bottom, top, near, far
+    Plane planes[6];
+
+    // Extract frustum planes from view-projection matrix
+    // Uses Gribb/Hartmann method
+    void extractFromMatrix(const mat4& viewProj) {
+        const float* m = viewProj.m;
+
+        // Left plane
+        planes[0].normal.x = m[3] + m[0];
+        planes[0].normal.y = m[7] + m[4];
+        planes[0].normal.z = m[11] + m[8];
+        planes[0].distance = m[15] + m[12];
+
+        // Right plane
+        planes[1].normal.x = m[3] - m[0];
+        planes[1].normal.y = m[7] - m[4];
+        planes[1].normal.z = m[11] - m[8];
+        planes[1].distance = m[15] - m[12];
+
+        // Bottom plane
+        planes[2].normal.x = m[3] + m[1];
+        planes[2].normal.y = m[7] + m[5];
+        planes[2].normal.z = m[11] + m[9];
+        planes[2].distance = m[15] + m[13];
+
+        // Top plane
+        planes[3].normal.x = m[3] - m[1];
+        planes[3].normal.y = m[7] - m[5];
+        planes[3].normal.z = m[11] - m[9];
+        planes[3].distance = m[15] - m[13];
+
+        // Near plane
+        planes[4].normal.x = m[3] + m[2];
+        planes[4].normal.y = m[7] + m[6];
+        planes[4].normal.z = m[11] + m[10];
+        planes[4].distance = m[15] + m[14];
+
+        // Far plane
+        planes[5].normal.x = m[3] - m[2];
+        planes[5].normal.y = m[7] - m[6];
+        planes[5].normal.z = m[11] - m[10];
+        planes[5].distance = m[15] - m[14];
+
+        // Normalize all planes
+        for (int i = 0; i < 6; i++) {
+            float len = planes[i].normal.length();
+            if (len > 0.0001f) {
+                planes[i].normal = planes[i].normal / len;
+                planes[i].distance /= len;
+            }
+        }
+    }
+
+    // Test if a point is inside the frustum
+    bool containsPoint(const vec3& point) const {
+        for (int i = 0; i < 6; i++) {
+            if (planes[i].distanceToPoint(point) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Test if a sphere intersects or is inside the frustum
+    bool containsSphere(const vec3& center, float radius) const {
+        for (int i = 0; i < 6; i++) {
+            if (planes[i].distanceToPoint(center) < -radius) {
+                return false;  // Sphere is completely behind this plane
+            }
+        }
+        return true;
+    }
+
+    // Test if an axis-aligned bounding box intersects the frustum
+    bool containsAABB(const vec3& min, const vec3& max) const {
+        for (int i = 0; i < 6; i++) {
+            // Find the positive vertex (furthest along plane normal)
+            vec3 pVertex;
+            pVertex.x = (planes[i].normal.x >= 0) ? max.x : min.x;
+            pVertex.y = (planes[i].normal.y >= 0) ? max.y : min.y;
+            pVertex.z = (planes[i].normal.z >= 0) ? max.z : min.z;
+
+            // If positive vertex is behind plane, box is outside
+            if (planes[i].distanceToPoint(pVertex) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+// =============================================================================
 // Utility constants and functions
 // =============================================================================
 
