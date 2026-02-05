@@ -444,6 +444,7 @@ PyObject* PyInit_mcrfpy()
         &mcrfpydef::PyEntity3DType, &mcrfpydef::PyEntityCollection3DType,
         &mcrfpydef::PyEntityCollection3DIterType, &mcrfpydef::PyModel3DType,
         &mcrfpydef::PyBillboardType, &mcrfpydef::PyVoxelGridType,
+        &mcrfpydef::PyVoxelRegionType,
 
         /*grid layers (#147)*/
         &PyColorLayerType, &PyTileLayerType,
@@ -543,6 +544,9 @@ PyObject* PyInit_mcrfpy()
     // Set up PyVoxelGridType methods and getsetters (Milestone 9)
     mcrfpydef::PyVoxelGridType.tp_methods = PyVoxelGrid::methods;
     mcrfpydef::PyVoxelGridType.tp_getset = PyVoxelGrid::getsetters;
+
+    // Set up PyVoxelRegionType getsetters (Milestone 11)
+    mcrfpydef::PyVoxelRegionType.tp_getset = PyVoxelRegion::getsetters;
 
     // Set up PyShaderType methods and getsetters (#106)
     mcrfpydef::PyShaderType.tp_methods = PyShader::methods;

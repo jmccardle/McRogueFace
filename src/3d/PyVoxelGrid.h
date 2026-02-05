@@ -1,5 +1,5 @@
 // PyVoxelGrid.h - Python bindings for VoxelGrid
-// Part of McRogueFace 3D Extension - Milestone 9
+// Part of McRogueFace 3D Extension - Milestones 9, 11
 #pragma once
 
 #include "../Common.h"
@@ -7,11 +7,8 @@
 #include "VoxelGrid.h"
 #include <memory>
 
-// Forward declaration
-class PyVoxelGrid;
-
 // =============================================================================
-// Python object structure
+// Python object structures
 // =============================================================================
 
 typedef struct PyVoxelGridObject {
@@ -20,8 +17,13 @@ typedef struct PyVoxelGridObject {
     PyObject* weakreflist;
 } PyVoxelGridObject;
 
+typedef struct PyVoxelRegionObject {
+    PyObject_HEAD
+    std::shared_ptr<mcrf::VoxelRegion> data;
+} PyVoxelRegionObject;
+
 // =============================================================================
-// Python binding class
+// Python binding classes
 // =============================================================================
 
 class PyVoxelGrid {
@@ -46,6 +48,10 @@ public:
     static PyObject* get_rotation(PyVoxelGridObject* self, void* closure);
     static int set_rotation(PyVoxelGridObject* self, PyObject* value, void* closure);
 
+    // Properties - mesh generation (Milestone 13)
+    static PyObject* get_greedy_meshing(PyVoxelGridObject* self, void* closure);
+    static int set_greedy_meshing(PyVoxelGridObject* self, PyObject* value, void* closure);
+
     // Voxel access methods
     static PyObject* get(PyVoxelGridObject* self, PyObject* args);
     static PyObject* set(PyVoxelGridObject* self, PyObject* args);
@@ -59,9 +65,25 @@ public:
     static PyObject* fill_box(PyVoxelGridObject* self, PyObject* args);
     static PyObject* clear(PyVoxelGridObject* self, PyObject* Py_UNUSED(args));
 
+    // Bulk operations - Milestone 11
+    static PyObject* fill_box_hollow(PyVoxelGridObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* fill_sphere(PyVoxelGridObject* self, PyObject* args);
+    static PyObject* fill_cylinder(PyVoxelGridObject* self, PyObject* args);
+    static PyObject* fill_noise(PyVoxelGridObject* self, PyObject* args, PyObject* kwds);
+
+    // Copy/paste operations - Milestone 11
+    static PyObject* copy_region(PyVoxelGridObject* self, PyObject* args);
+    static PyObject* paste_region(PyVoxelGridObject* self, PyObject* args, PyObject* kwds);
+
     // Mesh caching (Milestone 10)
     static PyObject* get_vertex_count(PyVoxelGridObject* self, void* closure);
     static PyObject* rebuild_mesh(PyVoxelGridObject* self, PyObject* Py_UNUSED(args));
+
+    // Serialization (Milestone 14)
+    static PyObject* save(PyVoxelGridObject* self, PyObject* args);
+    static PyObject* load(PyVoxelGridObject* self, PyObject* args);
+    static PyObject* to_bytes(PyVoxelGridObject* self, PyObject* Py_UNUSED(args));
+    static PyObject* from_bytes(PyVoxelGridObject* self, PyObject* args);
 
     // Statistics
     static PyObject* count_non_air(PyVoxelGridObject* self, PyObject* Py_UNUSED(args));
@@ -72,8 +94,20 @@ public:
     static PyGetSetDef getsetters[];
 };
 
+class PyVoxelRegion {
+public:
+    static void dealloc(PyVoxelRegionObject* self);
+    static PyObject* repr(PyObject* obj);
+    static PyObject* get_size(PyVoxelRegionObject* self, void* closure);
+    static PyObject* get_width(PyVoxelRegionObject* self, void* closure);
+    static PyObject* get_height(PyVoxelRegionObject* self, void* closure);
+    static PyObject* get_depth(PyVoxelRegionObject* self, void* closure);
+
+    static PyGetSetDef getsetters[];
+};
+
 // =============================================================================
-// Python type definition
+// Python type definitions (in mcrfpydef namespace)
 // =============================================================================
 
 namespace mcrfpydef {
@@ -120,6 +154,26 @@ inline PyTypeObject PyVoxelGridType = {
     .tp_getset = nullptr,   // Set before PyType_Ready
     .tp_init = (initproc)PyVoxelGrid::init,
     .tp_new = PyVoxelGrid::pynew,
+};
+
+inline PyTypeObject PyVoxelRegionType = {
+    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .tp_name = "mcrfpy.VoxelRegion",
+    .tp_basicsize = sizeof(PyVoxelRegionObject),
+    .tp_itemsize = 0,
+    .tp_dealloc = (destructor)PyVoxelRegion::dealloc,
+    .tp_repr = PyVoxelRegion::repr,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = PyDoc_STR(
+        "VoxelRegion - Portable voxel data for copy/paste operations.\n\n"
+        "Created by VoxelGrid.copy_region(), used with paste_region().\n"
+        "Cannot be instantiated directly.\n\n"
+        "Properties:\n"
+        "    size (tuple, read-only): Dimensions as (width, height, depth)\n"
+        "    width, height, depth (int, read-only): Individual dimensions"
+    ),
+    .tp_getset = nullptr,  // Set before PyType_Ready
+    .tp_new = nullptr,  // Cannot instantiate directly
 };
 
 } // namespace mcrfpydef

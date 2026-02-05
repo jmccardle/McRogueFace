@@ -68,8 +68,68 @@ PyObject* PyColor::pyObject()
 
 sf::Color PyColor::fromPy(PyObject* obj)
 {
-    PyColorObject* self = (PyColorObject*)obj;
-    return self->data;
+    // Handle None or NULL
+    if (!obj || obj == Py_None) {
+        return sf::Color::White;
+    }
+
+    // Check if it's already a Color object
+    PyTypeObject* color_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
+    if (color_type) {
+        bool is_color = PyObject_TypeCheck(obj, color_type);
+        Py_DECREF(color_type);
+        if (is_color) {
+            PyColorObject* self = (PyColorObject*)obj;
+            return self->data;
+        }
+    }
+
+    // Handle tuple or list input
+    if (PyTuple_Check(obj) || PyList_Check(obj)) {
+        Py_ssize_t size = PySequence_Size(obj);
+        if (size < 3 || size > 4) {
+            PyErr_SetString(PyExc_TypeError, "Color tuple/list must have 3 or 4 elements (r, g, b[, a])");
+            return sf::Color::White;
+        }
+
+        int r = 255, g = 255, b = 255, a = 255;
+
+        PyObject* item0 = PySequence_GetItem(obj, 0);
+        PyObject* item1 = PySequence_GetItem(obj, 1);
+        PyObject* item2 = PySequence_GetItem(obj, 2);
+
+        if (PyLong_Check(item0)) r = (int)PyLong_AsLong(item0);
+        if (PyLong_Check(item1)) g = (int)PyLong_AsLong(item1);
+        if (PyLong_Check(item2)) b = (int)PyLong_AsLong(item2);
+
+        Py_DECREF(item0);
+        Py_DECREF(item1);
+        Py_DECREF(item2);
+
+        if (size == 4) {
+            PyObject* item3 = PySequence_GetItem(obj, 3);
+            if (PyLong_Check(item3)) a = (int)PyLong_AsLong(item3);
+            Py_DECREF(item3);
+        }
+
+        // Clamp values
+        r = std::max(0, std::min(255, r));
+        g = std::max(0, std::min(255, g));
+        b = std::max(0, std::min(255, b));
+        a = std::max(0, std::min(255, a));
+
+        return sf::Color(r, g, b, a);
+    }
+
+    // Handle integer (grayscale)
+    if (PyLong_Check(obj)) {
+        int v = std::max(0, std::min(255, (int)PyLong_AsLong(obj)));
+        return sf::Color(v, v, v, 255);
+    }
+
+    // Unknown type - set error and return white
+    PyErr_SetString(PyExc_TypeError, "Color must be a Color object, tuple, list, or integer");
+    return sf::Color::White;
 }
 
 sf::Color PyColor::fromPy(PyColorObject* self)

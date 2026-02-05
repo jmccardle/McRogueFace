@@ -872,6 +872,104 @@ bool Viewport3D::removeVoxelLayer(std::shared_ptr<VoxelGrid> grid) {
     return false;
 }
 
+// =============================================================================
+// Voxel-to-Nav Projection (Milestone 12)
+// =============================================================================
+
+void Viewport3D::clearVoxelNavRegion(std::shared_ptr<VoxelGrid> grid) {
+    if (!grid || navGrid_.empty()) return;
+
+    // Get voxel grid offset in world space
+    vec3 offset = grid->getOffset();
+    float cellSize = grid->cellSize();
+
+    // Calculate nav grid cell offset from voxel grid offset
+    int navOffsetX = static_cast<int>(std::floor(offset.x / cellSize_));
+    int navOffsetZ = static_cast<int>(std::floor(offset.z / cellSize_));
+
+    // Clear nav cells corresponding to voxel grid footprint
+    for (int vz = 0; vz < grid->depth(); vz++) {
+        for (int vx = 0; vx < grid->width(); vx++) {
+            int navX = navOffsetX + vx;
+            int navZ = navOffsetZ + vz;
+
+            if (isValidCell(navX, navZ)) {
+                VoxelPoint& cell = at(navX, navZ);
+                cell.walkable = true;
+                cell.transparent = true;
+                cell.height = 0.0f;
+                cell.cost = 1.0f;
+            }
+        }
+    }
+
+    // Sync to TCOD
+    syncToTCOD();
+}
+
+void Viewport3D::projectVoxelToNav(std::shared_ptr<VoxelGrid> grid, int headroom) {
+    if (!grid || navGrid_.empty()) return;
+
+    // Get voxel grid offset in world space
+    vec3 offset = grid->getOffset();
+    float voxelCellSize = grid->cellSize();
+
+    // Calculate nav grid cell offset from voxel grid offset
+    // Assuming nav cell size matches voxel cell size for 1:1 mapping
+    int navOffsetX = static_cast<int>(std::floor(offset.x / cellSize_));
+    int navOffsetZ = static_cast<int>(std::floor(offset.z / cellSize_));
+
+    // Project each column of the voxel grid to the navigation grid
+    for (int vz = 0; vz < grid->depth(); vz++) {
+        for (int vx = 0; vx < grid->width(); vx++) {
+            int navX = navOffsetX + vx;
+            int navZ = navOffsetZ + vz;
+
+            if (!isValidCell(navX, navZ)) continue;
+
+            // Get projection info from voxel column
+            VoxelGrid::NavInfo navInfo = grid->projectColumn(vx, vz, headroom);
+
+            // Update nav cell
+            VoxelPoint& cell = at(navX, navZ);
+            cell.height = navInfo.height + offset.y;  // Add world Y offset
+            cell.walkable = navInfo.walkable;
+            cell.transparent = navInfo.transparent;
+            cell.cost = navInfo.pathCost;
+
+            // Sync this cell to TCOD
+            syncTCODCell(navX, navZ);
+        }
+    }
+}
+
+void Viewport3D::projectAllVoxelsToNav(int headroom) {
+    if (navGrid_.empty()) return;
+
+    // First, reset all nav cells to default state
+    for (auto& cell : navGrid_) {
+        cell.walkable = true;
+        cell.transparent = true;
+        cell.height = 0.0f;
+        cell.cost = 1.0f;
+    }
+
+    // Project each voxel layer in order (later layers overwrite earlier)
+    // Sort by z_index so higher z_index layers take precedence
+    std::vector<std::pair<std::shared_ptr<VoxelGrid>, int>> sortedLayers = voxelLayers_;
+    std::sort(sortedLayers.begin(), sortedLayers.end(),
+              [](const auto& a, const auto& b) { return a.second < b.second; });
+
+    for (const auto& pair : sortedLayers) {
+        if (pair.first) {
+            projectVoxelToNav(pair.first, headroom);
+        }
+    }
+
+    // Final sync to TCOD (redundant but ensures consistency)
+    syncToTCOD();
+}
+
 void Viewport3D::renderVoxelLayers(const mat4& view, const mat4& proj) {
 #ifdef MCRF_HAS_GL
     if (voxelLayers_.empty() || !shader_ || !shader_->isValid()) {
@@ -2475,6 +2573,99 @@ static PyObject* Viewport3D_voxel_layer_count(PyViewport3DObject* self, PyObject
     return PyLong_FromSize_t(self->data->getVoxelLayerCount());
 }
 
+// =============================================================================
+// Voxel-to-Nav Projection Methods (Milestone 12)
+// =============================================================================
+
+static PyObject* Viewport3D_project_voxel_to_nav(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"voxel_grid", "headroom", NULL};
+    PyObject* voxel_grid_obj = nullptr;
+    int headroom = 2;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i", const_cast<char**>(kwlist),
+                                      &voxel_grid_obj, &headroom)) {
+        return NULL;
+    }
+
+    // Check if it's a VoxelGrid object
+    PyTypeObject* voxelGridType = (PyTypeObject*)PyObject_GetAttrString(
+        McRFPy_API::mcrf_module, "VoxelGrid");
+    if (!voxelGridType) {
+        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid type not found");
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(voxel_grid_obj, (PyObject*)voxelGridType)) {
+        Py_DECREF(voxelGridType);
+        PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
+        return NULL;
+    }
+    Py_DECREF(voxelGridType);
+
+    PyVoxelGridObject* vg = (PyVoxelGridObject*)voxel_grid_obj;
+    if (!vg->data) {
+        PyErr_SetString(PyExc_ValueError, "VoxelGrid not initialized");
+        return NULL;
+    }
+
+    if (headroom < 0) {
+        PyErr_SetString(PyExc_ValueError, "headroom must be non-negative");
+        return NULL;
+    }
+
+    self->data->projectVoxelToNav(vg->data, headroom);
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_project_all_voxels_to_nav(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"headroom", NULL};
+    int headroom = 2;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", const_cast<char**>(kwlist), &headroom)) {
+        return NULL;
+    }
+
+    if (headroom < 0) {
+        PyErr_SetString(PyExc_ValueError, "headroom must be non-negative");
+        return NULL;
+    }
+
+    self->data->projectAllVoxelsToNav(headroom);
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_clear_voxel_nav_region(PyViewport3DObject* self, PyObject* args) {
+    PyObject* voxel_grid_obj = nullptr;
+
+    if (!PyArg_ParseTuple(args, "O", &voxel_grid_obj)) {
+        return NULL;
+    }
+
+    // Check if it's a VoxelGrid object
+    PyTypeObject* voxelGridType = (PyTypeObject*)PyObject_GetAttrString(
+        McRFPy_API::mcrf_module, "VoxelGrid");
+    if (!voxelGridType) {
+        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid type not found");
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(voxel_grid_obj, (PyObject*)voxelGridType)) {
+        Py_DECREF(voxelGridType);
+        PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
+        return NULL;
+    }
+    Py_DECREF(voxelGridType);
+
+    PyVoxelGridObject* vg = (PyVoxelGridObject*)voxel_grid_obj;
+    if (!vg->data) {
+        PyErr_SetString(PyExc_ValueError, "VoxelGrid not initialized");
+        return NULL;
+    }
+
+    self->data->clearVoxelNavRegion(vg->data);
+    Py_RETURN_NONE;
+}
+
 } // namespace mcrf
 
 // Methods array - outside namespace but PyObjectType still in scope via typedef
@@ -2674,5 +2865,29 @@ PyMethodDef Viewport3D_methods[] = {
      "Get the number of voxel layers.\n\n"
      "Returns:\n"
      "    Number of voxel layers in the viewport"},
+
+    // Voxel-to-Nav projection methods (Milestone 12)
+    {"project_voxel_to_nav", (PyCFunction)mcrf::Viewport3D_project_voxel_to_nav, METH_VARARGS | METH_KEYWORDS,
+     "project_voxel_to_nav(voxel_grid, headroom=2)\n\n"
+     "Project a VoxelGrid to the navigation grid.\n\n"
+     "Scans each column of the voxel grid and updates corresponding\n"
+     "navigation cells with walkability, transparency, height, and cost.\n\n"
+     "Args:\n"
+     "    voxel_grid: VoxelGrid to project\n"
+     "    headroom: Required air voxels above floor for walkability (default: 2)"},
+    {"project_all_voxels_to_nav", (PyCFunction)mcrf::Viewport3D_project_all_voxels_to_nav, METH_VARARGS | METH_KEYWORDS,
+     "project_all_voxels_to_nav(headroom=2)\n\n"
+     "Project all voxel layers to the navigation grid.\n\n"
+     "Resets navigation grid and projects each voxel layer in z_index order.\n"
+     "Later layers (higher z_index) overwrite earlier ones.\n\n"
+     "Args:\n"
+     "    headroom: Required air voxels above floor for walkability (default: 2)"},
+    {"clear_voxel_nav_region", (PyCFunction)mcrf::Viewport3D_clear_voxel_nav_region, METH_VARARGS,
+     "clear_voxel_nav_region(voxel_grid)\n\n"
+     "Clear navigation cells in a voxel grid's footprint.\n\n"
+     "Resets walkability, transparency, height, and cost to defaults\n"
+     "for all nav cells corresponding to the voxel grid's XZ extent.\n\n"
+     "Args:\n"
+     "    voxel_grid: VoxelGrid whose nav region to clear"},
     {NULL}  // Sentinel
 };

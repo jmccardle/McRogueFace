@@ -1,5 +1,5 @@
 // VoxelGrid.h - Dense 3D voxel array with material palette
-// Part of McRogueFace 3D Extension - Milestones 9-10
+// Part of McRogueFace 3D Extension - Milestones 9-11
 #pragma once
 
 #include "../Common.h"
@@ -8,6 +8,7 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <cstdint>
 
 namespace mcrf {
 
@@ -29,6 +30,22 @@ struct VoxelMaterial {
 };
 
 // =============================================================================
+// VoxelRegion - Portable voxel data for copy/paste operations (Milestone 11)
+// =============================================================================
+
+struct VoxelRegion {
+    int width, height, depth;
+    std::vector<uint8_t> data;
+
+    VoxelRegion() : width(0), height(0), depth(0) {}
+    VoxelRegion(int w, int h, int d) : width(w), height(h), depth(d),
+        data(static_cast<size_t>(w) * h * d, 0) {}
+
+    bool isValid() const { return width > 0 && height > 0 && depth > 0; }
+    size_t totalVoxels() const { return static_cast<size_t>(width) * height * depth; }
+};
+
+// =============================================================================
 // VoxelGrid - Dense 3D array of material IDs
 // =============================================================================
 
@@ -43,9 +60,10 @@ private:
     vec3 offset_;
     float rotation_ = 0.0f;  // Y-axis only, degrees
 
-    // Mesh caching (Milestone 10)
+    // Mesh caching (Milestones 10, 13)
     mutable bool meshDirty_ = true;
     mutable std::vector<MeshVertex> cachedVertices_;
+    bool greedyMeshing_ = false;  // Use greedy meshing algorithm
 
     // Index calculation (row-major: X varies fastest, then Y, then Z)
     inline size_t index(int x, int y, int z) const {
@@ -79,10 +97,38 @@ public:
     const VoxelMaterial& getMaterial(uint8_t id) const;
     size_t materialCount() const { return materials_.size(); }
 
-    // Bulk operations
+    // Bulk operations - Basic
     void fill(uint8_t material);
     void clear() { fill(0); }
     void fillBox(int x0, int y0, int z0, int x1, int y1, int z1, uint8_t material);
+
+    // Bulk operations - Milestone 11
+    void fillBoxHollow(int x0, int y0, int z0, int x1, int y1, int z1,
+                       uint8_t material, int thickness = 1);
+    void fillSphere(int cx, int cy, int cz, int radius, uint8_t material);
+    void fillCylinder(int cx, int cy, int cz, int radius, int height, uint8_t material);
+    void fillNoise(int x0, int y0, int z0, int x1, int y1, int z1,
+                   uint8_t material, float threshold = 0.5f,
+                   float scale = 0.1f, unsigned int seed = 0);
+
+    // Copy/paste operations - Milestone 11
+    VoxelRegion copyRegion(int x0, int y0, int z0, int x1, int y1, int z1) const;
+    void pasteRegion(const VoxelRegion& region, int x, int y, int z, bool skipAir = true);
+
+    // Navigation projection - Milestone 12
+    struct NavInfo {
+        float height = 0.0f;
+        bool walkable = false;
+        bool transparent = true;
+        float pathCost = 1.0f;
+    };
+
+    /// Project a single column to get navigation info
+    /// @param x X coordinate in voxel grid
+    /// @param z Z coordinate in voxel grid
+    /// @param headroom Required air voxels above floor (default 2)
+    /// @return Navigation info for this column
+    NavInfo projectColumn(int x, int z, int headroom = 2) const;
 
     // Transform
     void setOffset(const vec3& offset) { offset_ = offset; }
@@ -96,7 +142,7 @@ public:
     size_t countNonAir() const;
     size_t countMaterial(uint8_t material) const;
 
-    // Mesh caching (Milestone 10)
+    // Mesh caching (Milestones 10, 13)
     /// Mark mesh as needing rebuild (called automatically by set/fill operations)
     void markDirty() { meshDirty_ = true; }
 
@@ -112,10 +158,37 @@ public:
     /// Get vertex count after mesh generation
     size_t vertexCount() const { return cachedVertices_.size(); }
 
+    /// Enable/disable greedy meshing (Milestone 13)
+    /// Greedy meshing merges coplanar faces to reduce vertex count
+    void setGreedyMeshing(bool enabled) { greedyMeshing_ = enabled; markDirty(); }
+    bool isGreedyMeshingEnabled() const { return greedyMeshing_; }
+
     // Memory info (for debugging)
     size_t memoryUsageBytes() const {
         return data_.size() + materials_.size() * sizeof(VoxelMaterial);
     }
+
+    // Serialization (Milestone 14)
+    /// Save voxel grid to binary file
+    /// @param path File path to save to
+    /// @return true on success
+    bool save(const std::string& path) const;
+
+    /// Load voxel grid from binary file
+    /// @param path File path to load from
+    /// @return true on success
+    bool load(const std::string& path);
+
+    /// Save to memory buffer
+    /// @param buffer Output buffer (resized as needed)
+    /// @return true on success
+    bool saveToBuffer(std::vector<uint8_t>& buffer) const;
+
+    /// Load from memory buffer
+    /// @param data Buffer to load from
+    /// @param size Buffer size
+    /// @return true on success
+    bool loadFromBuffer(const uint8_t* data, size_t size);
 };
 
 } // namespace mcrf

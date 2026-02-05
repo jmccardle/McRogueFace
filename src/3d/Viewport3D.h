@@ -250,6 +250,23 @@ public:
     /// Render all voxel layers
     void renderVoxelLayers(const mat4& view, const mat4& proj);
 
+    // =========================================================================
+    // Voxel-to-Nav Projection (Milestone 12)
+    // =========================================================================
+
+    /// Project a single voxel grid to the navigation grid
+    /// @param grid The voxel grid to project
+    /// @param headroom Required air voxels above floor for walkability
+    void projectVoxelToNav(std::shared_ptr<VoxelGrid> grid, int headroom = 2);
+
+    /// Project all voxel layers to the navigation grid
+    /// @param headroom Required air voxels above floor for walkability
+    void projectAllVoxelsToNav(int headroom = 2);
+
+    /// Clear nav cells in a voxel grid's footprint (before re-projection)
+    /// @param grid The voxel grid whose footprint to clear
+    void clearVoxelNavRegion(std::shared_ptr<VoxelGrid> grid);
+
     // Background color
     void setBackgroundColor(const sf::Color& color) { bgColor_ = color; }
     sf::Color getBackgroundColor() const { return bgColor_; }
