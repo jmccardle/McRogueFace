@@ -272,6 +272,9 @@ public:
     static PyObject* py_at(PyEntity3DObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_update_visibility(PyEntity3DObject* self, PyObject* args);
     static PyObject* py_animate(PyEntity3DObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_follow_path(PyEntity3DObject* self, PyObject* args);
+    static PyObject* py_clear_path(PyEntity3DObject* self, PyObject* args);
+    static PyObject* get_is_moving(PyEntity3DObject* self, void* closure);
 
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];

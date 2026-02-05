@@ -85,6 +85,19 @@ public:
     // Camera orbit helper for demos
     void orbitCamera(float angle, float distance, float height);
 
+    /// Convert screen coordinates to world position via ray casting
+    /// @param screenX X position relative to viewport
+    /// @param screenY Y position relative to viewport
+    /// @return World position on Y=0 plane, or (-1,-1,-1) if no intersection
+    vec3 screenToWorld(float screenX, float screenY);
+
+    /// Position camera to follow an entity
+    /// @param entity Entity to follow
+    /// @param distance Distance behind entity
+    /// @param height Height above entity
+    /// @param smoothing Interpolation factor (0-1, where 1 = instant)
+    void followEntity(std::shared_ptr<Entity3D> entity, float distance, float height, float smoothing = 1.0f);
+
     // =========================================================================
     // Mesh Layer Management
     // =========================================================================

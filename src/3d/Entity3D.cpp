@@ -1121,6 +1121,47 @@ PyObject* Entity3D::py_animate(PyEntity3DObject* self, PyObject* args, PyObject*
     return NULL;
 }
 
+PyObject* Entity3D::py_follow_path(PyEntity3DObject* self, PyObject* args)
+{
+    PyObject* path_list;
+    if (!PyArg_ParseTuple(args, "O", &path_list)) {
+        return NULL;
+    }
+
+    if (!PyList_Check(path_list)) {
+        PyErr_SetString(PyExc_TypeError, "follow_path() requires a list of (x, z) tuples");
+        return NULL;
+    }
+
+    std::vector<std::pair<int, int>> path;
+    Py_ssize_t len = PyList_Size(path_list);
+    for (Py_ssize_t i = 0; i < len; ++i) {
+        PyObject* item = PyList_GetItem(path_list, i);
+        if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
+            PyErr_SetString(PyExc_TypeError, "Each path element must be (x, z) tuple");
+            return NULL;
+        }
+        int x = static_cast<int>(PyLong_AsLong(PyTuple_GetItem(item, 0)));
+        int z = static_cast<int>(PyLong_AsLong(PyTuple_GetItem(item, 1)));
+        if (PyErr_Occurred()) return NULL;
+        path.emplace_back(x, z);
+    }
+
+    self->data->followPath(path);
+    Py_RETURN_NONE;
+}
+
+PyObject* Entity3D::py_clear_path(PyEntity3DObject* self, PyObject* args)
+{
+    self->data->clearPath();
+    Py_RETURN_NONE;
+}
+
+PyObject* Entity3D::get_is_moving(PyEntity3DObject* self, void* closure)
+{
+    return PyBool_FromLong(self->data->isMoving() ? 1 : 0);
+}
+
 // Method and GetSet tables
 
 PyMethodDef Entity3D::methods[] = {
@@ -1141,6 +1182,14 @@ PyMethodDef Entity3D::methods[] = {
     {"animate", (PyCFunction)Entity3D::py_animate, METH_VARARGS | METH_KEYWORDS,
      "animate(property, target, duration, easing=None, callback=None)\n\n"
      "Animate a property over time. (Not yet implemented)"},
+    {"follow_path", (PyCFunction)Entity3D::py_follow_path, METH_VARARGS,
+     "follow_path(path)\n\n"
+     "Queue path positions for smooth movement.\n\n"
+     "Args:\n"
+     "    path: List of (x, z) tuples (as returned by path_to())"},
+    {"clear_path", (PyCFunction)Entity3D::py_clear_path, METH_NOARGS,
+     "clear_path()\n\n"
+     "Clear the movement queue and stop at current position."},
     {NULL}  // Sentinel
 };
 
@@ -1185,6 +1234,8 @@ PyGetSetDef Entity3D::getsetters[] = {
      "Animation clip to play when entity is moving.", NULL},
     {"idle_clip", (getter)Entity3D::get_idle_clip, (setter)Entity3D::set_idle_clip,
      "Animation clip to play when entity is stationary.", NULL},
+    {"is_moving", (getter)Entity3D::get_is_moving, NULL,
+     "Whether entity is currently moving (read-only).", NULL},
 
     {NULL}  // Sentinel
 };

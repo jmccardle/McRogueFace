@@ -185,6 +185,67 @@ void Viewport3D::orbitCamera(float angle, float distance, float height) {
     camera_.setTarget(vec3(0, 0, 0));
 }
 
+vec3 Viewport3D::screenToWorld(float screenX, float screenY) {
+    // Convert screen coordinates to normalized device coordinates (-1 to 1)
+    // screenX/Y are relative to the viewport position
+    float ndcX = (2.0f * screenX / size_.x) - 1.0f;
+    float ndcY = 1.0f - (2.0f * screenY / size_.y);  // Flip Y for OpenGL
+
+    // Get inverse matrices
+    mat4 proj = camera_.getProjectionMatrix();
+    mat4 view = camera_.getViewMatrix();
+    mat4 invProj = proj.inverse();
+    mat4 invView = view.inverse();
+
+    // Unproject near plane point to get ray direction
+    vec4 rayClip(ndcX, ndcY, -1.0f, 1.0f);
+    vec4 rayEye = invProj * rayClip;
+    rayEye = vec4(rayEye.x, rayEye.y, -1.0f, 0.0f);  // Direction in eye space
+
+    vec4 rayWorld4 = invView * rayEye;
+    vec3 rayDir = vec3(rayWorld4.x, rayWorld4.y, rayWorld4.z).normalized();
+    vec3 rayOrigin = camera_.getPosition();
+
+    // Intersect with Y=0 plane (ground level)
+    // This is a simplification - for hilly terrain, you'd want ray-marching
+    if (std::abs(rayDir.y) > 0.0001f) {
+        float t = -rayOrigin.y / rayDir.y;
+        if (t > 0) {
+            return rayOrigin + rayDir * t;
+        }
+    }
+
+    // Ray parallel to ground or pointing away - return invalid position
+    return vec3(-1.0f, -1.0f, -1.0f);
+}
+
+void Viewport3D::followEntity(std::shared_ptr<Entity3D> entity, float distance, float height, float smoothing) {
+    if (!entity) return;
+
+    // Get entity's world position
+    vec3 entityPos = entity->getWorldPos();
+
+    // Calculate desired camera position behind and above entity
+    float entityRotation = radians(entity->getRotation());
+    float camX = entityPos.x - std::sin(entityRotation) * distance;
+    float camZ = entityPos.z - std::cos(entityRotation) * distance;
+    float camY = entityPos.y + height;
+
+    vec3 desiredPos(camX, camY, camZ);
+    vec3 currentPos = camera_.getPosition();
+
+    // Smooth interpolation (smoothing is 0-1, where 1 = instant)
+    if (smoothing >= 1.0f) {
+        camera_.setPosition(desiredPos);
+    } else {
+        vec3 newPos = vec3::lerp(currentPos, desiredPos, smoothing);
+        camera_.setPosition(newPos);
+    }
+
+    // Look at entity (slightly above ground)
+    camera_.setTarget(vec3(entityPos.x, entityPos.y + 0.5f, entityPos.z));
+}
+
 // =============================================================================
 // Mesh Layer Management
 // =============================================================================
@@ -2114,6 +2175,59 @@ static PyObject* Viewport3D_billboard_count(PyViewport3DObject* self, PyObject* 
     return PyLong_FromLong(static_cast<long>(billboards->size()));
 }
 
+// =============================================================================
+// Camera & Input Methods (Milestone 8)
+// =============================================================================
+
+static PyObject* Viewport3D_screen_to_world(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"x", "y", NULL};
+
+    float x = 0.0f, y = 0.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ff", const_cast<char**>(kwlist), &x, &y)) {
+        return NULL;
+    }
+
+    // Adjust for viewport position (user passes screen coords relative to viewport)
+    vec3 worldPos = self->data->screenToWorld(x, y);
+
+    // Return None if no intersection (ray parallel to ground or invalid)
+    if (worldPos.x < 0 && worldPos.y < 0 && worldPos.z < 0) {
+        Py_RETURN_NONE;
+    }
+
+    return Py_BuildValue("(fff)", worldPos.x, worldPos.y, worldPos.z);
+}
+
+static PyObject* Viewport3D_follow(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"entity", "distance", "height", "smoothing", NULL};
+
+    PyObject* entityObj = nullptr;
+    float distance = 10.0f;
+    float height = 5.0f;
+    float smoothing = 1.0f;  // Default to instant (for single-call positioning)
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|fff", const_cast<char**>(kwlist),
+                                     &entityObj, &distance, &height, &smoothing)) {
+        return NULL;
+    }
+
+    // Check if it's an Entity3D object
+    if (!PyObject_IsInstance(entityObj, (PyObject*)&mcrfpydef::PyEntity3DType)) {
+        PyErr_SetString(PyExc_TypeError, "Expected an Entity3D object");
+        return NULL;
+    }
+
+    PyEntity3DObject* entObj = (PyEntity3DObject*)entityObj;
+    if (!entObj->data) {
+        PyErr_SetString(PyExc_ValueError, "Invalid Entity3D object");
+        return NULL;
+    }
+
+    self->data->followEntity(entObj->data, distance, height, smoothing);
+    Py_RETURN_NONE;
+}
+
 } // namespace mcrf
 
 // Methods array - outside namespace but PyObjectType still in scope via typedef
@@ -2275,5 +2389,23 @@ PyMethodDef Viewport3D_methods[] = {
      "Get the number of billboards.\n\n"
      "Returns:\n"
      "    Number of billboards in the viewport"},
+
+    // Camera & Input methods (Milestone 8)
+    {"screen_to_world", (PyCFunction)mcrf::Viewport3D_screen_to_world, METH_VARARGS | METH_KEYWORDS,
+     "screen_to_world(x, y) -> tuple or None\n\n"
+     "Convert screen coordinates to world position via ray casting.\n\n"
+     "Args:\n"
+     "    x: Screen X coordinate relative to viewport\n"
+     "    y: Screen Y coordinate relative to viewport\n\n"
+     "Returns:\n"
+     "    (x, y, z) world position tuple, or None if no intersection with ground plane"},
+    {"follow", (PyCFunction)mcrf::Viewport3D_follow, METH_VARARGS | METH_KEYWORDS,
+     "follow(entity, distance=10, height=5, smoothing=1.0)\n\n"
+     "Position camera to follow an entity.\n\n"
+     "Args:\n"
+     "    entity: Entity3D to follow\n"
+     "    distance: Distance behind entity\n"
+     "    height: Camera height above entity\n"
+     "    smoothing: Interpolation factor (0-1). 1 = instant, lower = smoother"},
     {NULL}  // Sentinel
 };
