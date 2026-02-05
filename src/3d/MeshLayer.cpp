@@ -1,8 +1,11 @@
 // MeshLayer.cpp - Static 3D geometry layer implementation
 
 #include "MeshLayer.h"
+#include "Model3D.h"
+#include "Viewport3D.h"
 #include "Shader3D.h"
 #include "../platform/GLContext.h"
+#include <cmath>
 
 // GL headers based on backend
 #if defined(MCRF_SDL2)
@@ -377,53 +380,57 @@ void MeshLayer::uploadToGPU() {
 // Rendering
 // =============================================================================
 
-void MeshLayer::render(const mat4& model, const mat4& view, const mat4& projection) {
+void MeshLayer::render(unsigned int shader, const mat4& model, const mat4& view, const mat4& projection) {
 #ifdef MCRF_HAS_GL
-    if (!gl::isGLReady() || vertices_.empty()) {
+    if (!gl::isGLReady()) {
         return;
     }
 
-    // Upload to GPU if needed
-    if (dirty_ || vbo_ == 0) {
-        uploadToGPU();
+    // Render terrain geometry if present
+    if (!vertices_.empty()) {
+        // Upload to GPU if needed
+        if (dirty_ || vbo_ == 0) {
+            uploadToGPU();
+        }
+
+        if (vbo_ != 0) {
+            // Bind VBO
+            glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+
+            // Vertex format: pos(3) + texcoord(2) + normal(3) + color(4) = 12 floats = 48 bytes
+            int stride = sizeof(MeshVertex);
+
+            // Set up vertex attributes
+            glEnableVertexAttribArray(Shader3D::ATTRIB_POSITION);
+            glVertexAttribPointer(Shader3D::ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE,
+                                  stride, reinterpret_cast<void*>(offsetof(MeshVertex, position)));
+
+            glEnableVertexAttribArray(Shader3D::ATTRIB_TEXCOORD);
+            glVertexAttribPointer(Shader3D::ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE,
+                                  stride, reinterpret_cast<void*>(offsetof(MeshVertex, texcoord)));
+
+            glEnableVertexAttribArray(Shader3D::ATTRIB_NORMAL);
+            glVertexAttribPointer(Shader3D::ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE,
+                                  stride, reinterpret_cast<void*>(offsetof(MeshVertex, normal)));
+
+            glEnableVertexAttribArray(Shader3D::ATTRIB_COLOR);
+            glVertexAttribPointer(Shader3D::ATTRIB_COLOR, 4, GL_FLOAT, GL_FALSE,
+                                  stride, reinterpret_cast<void*>(offsetof(MeshVertex, color)));
+
+            // Draw triangles
+            glDrawArrays(GL_TRIANGLES, 0, static_cast<int>(vertices_.size()));
+
+            // Cleanup
+            glDisableVertexAttribArray(Shader3D::ATTRIB_POSITION);
+            glDisableVertexAttribArray(Shader3D::ATTRIB_TEXCOORD);
+            glDisableVertexAttribArray(Shader3D::ATTRIB_NORMAL);
+            glDisableVertexAttribArray(Shader3D::ATTRIB_COLOR);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
     }
 
-    if (vbo_ == 0) {
-        return;
-    }
-
-    // Bind VBO
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_);
-
-    // Vertex format: pos(3) + texcoord(2) + normal(3) + color(4) = 12 floats = 48 bytes
-    int stride = sizeof(MeshVertex);
-
-    // Set up vertex attributes
-    glEnableVertexAttribArray(Shader3D::ATTRIB_POSITION);
-    glVertexAttribPointer(Shader3D::ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE,
-                          stride, reinterpret_cast<void*>(offsetof(MeshVertex, position)));
-
-    glEnableVertexAttribArray(Shader3D::ATTRIB_TEXCOORD);
-    glVertexAttribPointer(Shader3D::ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE,
-                          stride, reinterpret_cast<void*>(offsetof(MeshVertex, texcoord)));
-
-    glEnableVertexAttribArray(Shader3D::ATTRIB_NORMAL);
-    glVertexAttribPointer(Shader3D::ATTRIB_NORMAL, 3, GL_FLOAT, GL_FALSE,
-                          stride, reinterpret_cast<void*>(offsetof(MeshVertex, normal)));
-
-    glEnableVertexAttribArray(Shader3D::ATTRIB_COLOR);
-    glVertexAttribPointer(Shader3D::ATTRIB_COLOR, 4, GL_FLOAT, GL_FALSE,
-                          stride, reinterpret_cast<void*>(offsetof(MeshVertex, color)));
-
-    // Draw triangles
-    glDrawArrays(GL_TRIANGLES, 0, static_cast<int>(vertices_.size()));
-
-    // Cleanup
-    glDisableVertexAttribArray(Shader3D::ATTRIB_POSITION);
-    glDisableVertexAttribArray(Shader3D::ATTRIB_TEXCOORD);
-    glDisableVertexAttribArray(Shader3D::ATTRIB_NORMAL);
-    glDisableVertexAttribArray(Shader3D::ATTRIB_COLOR);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    // Render mesh instances
+    renderMeshInstances(shader, view, projection);
 #endif
 }
 
@@ -445,6 +452,114 @@ vec3 MeshLayer::computeFaceNormal(const vec3& v0, const vec3& v1, const vec3& v2
     vec3 edge2 = v2 - v0;
     return edge1.cross(edge2).normalized();
 }
+
+// =============================================================================
+// Mesh Instances
+// =============================================================================
+
+size_t MeshLayer::addMesh(std::shared_ptr<Model3D> model, const vec3& pos,
+                          float rotation, const vec3& scale) {
+    MeshInstance instance(model, pos, rotation, scale);
+    meshInstances_.push_back(std::move(instance));
+    return meshInstances_.size() - 1;
+}
+
+void MeshLayer::removeMesh(size_t index) {
+    if (index < meshInstances_.size()) {
+        meshInstances_.erase(meshInstances_.begin() + index);
+    }
+}
+
+void MeshLayer::clearMeshes() {
+    meshInstances_.clear();
+}
+
+MeshInstance* MeshLayer::getMeshInstance(size_t index) {
+    if (index < meshInstances_.size()) {
+        return &meshInstances_[index];
+    }
+    return nullptr;
+}
+
+const MeshInstance* MeshLayer::getMeshInstance(size_t index) const {
+    if (index < meshInstances_.size()) {
+        return &meshInstances_[index];
+    }
+    return nullptr;
+}
+
+void MeshLayer::renderMeshInstances(unsigned int shader, const mat4& view, const mat4& projection) {
+#ifdef MCRF_HAS_GL
+    if (!gl::isGLReady() || meshInstances_.empty()) {
+        return;
+    }
+
+    for (const auto& inst : meshInstances_) {
+        if (!inst.model) continue;
+
+        // Build model matrix: translate * rotateY * scale
+        mat4 model = mat4::identity();
+        model = model * mat4::translate(inst.position);
+        model = model * mat4::rotateY(inst.rotation * 3.14159265f / 180.0f);
+        model = model * mat4::scale(inst.scale);
+
+        // Render the model
+        inst.model->render(shader, model, view, projection);
+    }
+#endif
+}
+
+// =============================================================================
+// Collision Helpers
+// =============================================================================
+
+void MeshLayer::placeBlocking(int gridX, int gridZ, int footprintW, int footprintD,
+                              bool walkable, bool transparent) {
+    if (!viewport_) return;
+
+    for (int dz = 0; dz < footprintD; dz++) {
+        for (int dx = 0; dx < footprintW; dx++) {
+            int cx = gridX + dx;
+            int cz = gridZ + dz;
+            if (viewport_->isValidCell(cx, cz)) {
+                VoxelPoint& cell = viewport_->at(cx, cz);
+                cell.walkable = walkable;
+                cell.transparent = transparent;
+                viewport_->syncTCODCell(cx, cz);
+            }
+        }
+    }
+}
+
+void MeshLayer::placeBlockingAuto(std::shared_ptr<Model3D> model, const vec3& worldPos,
+                                  float rotation, bool walkable, bool transparent) {
+    if (!viewport_ || !model) return;
+
+    float cellSize = viewport_->getCellSize();
+    if (cellSize <= 0) cellSize = 1.0f;
+
+    // Get model bounds
+    auto [minBounds, maxBounds] = model->getBounds();
+
+    // Calculate world-space extents (ignoring rotation for simplicity)
+    float extentX = (maxBounds.x - minBounds.x);
+    float extentZ = (maxBounds.z - minBounds.z);
+
+    // Calculate footprint in cells (always at least 1x1)
+    int footprintW = std::max(1, static_cast<int>(std::ceil(extentX / cellSize)));
+    int footprintD = std::max(1, static_cast<int>(std::ceil(extentZ / cellSize)));
+
+    // Calculate grid position (center the footprint on the world position)
+    int gridX = static_cast<int>(std::floor(worldPos.x / cellSize - footprintW * 0.5f));
+    int gridZ = static_cast<int>(std::floor(worldPos.z / cellSize - footprintD * 0.5f));
+
+    // Place blocking cells
+    placeBlocking(gridX, gridZ, footprintW, footprintD, walkable, transparent);
+}
+
+// =============================================================================
+// Private Helpers
+// =============================================================================
 
 void MeshLayer::computeVertexNormals() {
     // For terrain mesh, we can average normals at shared positions

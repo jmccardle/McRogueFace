@@ -5,6 +5,8 @@
 #include "MeshLayer.h"
 #include "Entity3D.h"
 #include "EntityCollection3D.h"
+#include "Billboard.h"
+#include "Model3D.h"
 #include "../platform/GLContext.h"
 #include "PyVector.h"
 #include "PyColor.h"
@@ -42,6 +44,7 @@ namespace mcrf {
 Viewport3D::Viewport3D()
     : size_(320.0f, 240.0f)
     , entities_(std::make_shared<std::list<std::shared_ptr<Entity3D>>>())
+    , billboards_(std::make_shared<std::vector<std::shared_ptr<Billboard>>>())
 {
     position = sf::Vector2f(0, 0);
     camera_.setAspect(size_.x / size_.y);
@@ -50,6 +53,7 @@ Viewport3D::Viewport3D()
 Viewport3D::Viewport3D(float x, float y, float width, float height)
     : size_(width, height)
     , entities_(std::make_shared<std::list<std::shared_ptr<Entity3D>>>())
+    , billboards_(std::make_shared<std::vector<std::shared_ptr<Billboard>>>())
 {
     position = sf::Vector2f(x, y);
     camera_.setAspect(size_.x / size_.y);
@@ -195,6 +199,7 @@ std::shared_ptr<MeshLayer> Viewport3D::addLayer(const std::string& name, int zIn
 
     // Create new layer
     auto layer = std::make_shared<MeshLayer>(name, zIndex);
+    layer->setViewport(this);  // Allow layer to mark cells as blocking
     meshLayers_.push_back(layer);
 
     // Disable test cube when layers are added
@@ -463,6 +468,60 @@ void Viewport3D::renderEntities(const mat4& view, const mat4& proj) {
 }
 
 // =============================================================================
+// Billboard Management
+// =============================================================================
+
+void Viewport3D::addBillboard(std::shared_ptr<Billboard> bb) {
+    if (billboards_ && bb) {
+        billboards_->push_back(bb);
+    }
+}
+
+void Viewport3D::removeBillboard(Billboard* bb) {
+    if (!billboards_ || !bb) return;
+    auto it = std::find_if(billboards_->begin(), billboards_->end(),
+                           [bb](const std::shared_ptr<Billboard>& p) { return p.get() == bb; });
+    if (it != billboards_->end()) {
+        billboards_->erase(it);
+    }
+}
+
+void Viewport3D::clearBillboards() {
+    if (billboards_) {
+        billboards_->clear();
+    }
+}
+
+void Viewport3D::renderBillboards(const mat4& view, const mat4& proj) {
+#ifdef MCRF_HAS_GL
+    if (!billboards_ || billboards_->empty() || !shader_ || !shader_->isValid()) return;
+
+    shader_->bind();
+    unsigned int shaderProgram = shader_->getProgram();
+    vec3 cameraPos = camera_.getPosition();
+
+    // Enable blending for transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Disable depth write but keep depth test for proper ordering
+    glDepthMask(GL_FALSE);
+
+    for (auto& billboard : *billboards_) {
+        if (billboard && billboard->isVisible()) {
+            billboard->render(shaderProgram, view, proj, cameraPos);
+        }
+    }
+
+    // Restore depth writing
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+
+    shader_->unbind();
+#endif
+}
+
+// =============================================================================
 // FBO Management
 // =============================================================================
 
@@ -626,12 +685,13 @@ void Viewport3D::renderMeshLayers() {
     shader_->setUniform("u_has_texture", false);
 
     // Render each layer
+    unsigned int shaderProgram = shader_->getProgram();
     for (auto* layer : sortedLayers) {
         // Set model matrix for this layer
         shader_->setUniform("u_model", layer->getModelMatrix());
 
-        // Render the layer's geometry
-        layer->render(layer->getModelMatrix(), view, projection);
+        // Render the layer's geometry (terrain + mesh instances)
+        layer->render(shaderProgram, layer->getModelMatrix(), view, projection);
     }
 
     shader_->unbind();
@@ -672,6 +732,9 @@ void Viewport3D::render3DContent() {
     mat4 view = camera_.getViewMatrix();
     mat4 projection = camera_.getProjectionMatrix();
     renderEntities(view, projection);
+
+    // Render billboards (after opaque geometry for proper transparency)
+    renderBillboards(view, projection);
 
     // Render test cube if enabled (disabled when layers are added)
     if (renderTestCube_ && shader_ && shader_->isValid() && testVBO_ != 0) {
@@ -1795,6 +1858,206 @@ static PyObject* Viewport3D_is_in_fov(PyViewport3DObject* self, PyObject* args) 
     return PyBool_FromLong(self->data->isInFOV(x, z));
 }
 
+// =============================================================================
+// Mesh Instance Methods (Milestone 6)
+// =============================================================================
+
+static PyObject* Viewport3D_add_mesh(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"layer_name", "model", "pos", "rotation", "scale", NULL};
+
+    const char* layerName = nullptr;
+    PyObject* modelObj = nullptr;
+    PyObject* posObj = nullptr;
+    float rotation = 0.0f;
+    float scale = 1.0f;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOO|ff", const_cast<char**>(kwlist),
+                                     &layerName, &modelObj, &posObj, &rotation, &scale)) {
+        return NULL;
+    }
+
+    // Validate model
+    if (!PyObject_IsInstance(modelObj, (PyObject*)&mcrfpydef::PyModel3DType)) {
+        PyErr_SetString(PyExc_TypeError, "model must be a Model3D object");
+        return NULL;
+    }
+    PyModel3DObject* modelPy = (PyModel3DObject*)modelObj;
+    if (!modelPy->data) {
+        PyErr_SetString(PyExc_ValueError, "model is invalid");
+        return NULL;
+    }
+
+    // Parse position
+    if (!PyTuple_Check(posObj) || PyTuple_Size(posObj) < 3) {
+        PyErr_SetString(PyExc_TypeError, "pos must be a tuple of (x, y, z)");
+        return NULL;
+    }
+    float px = static_cast<float>(PyFloat_AsDouble(PyTuple_GetItem(posObj, 0)));
+    float py = static_cast<float>(PyFloat_AsDouble(PyTuple_GetItem(posObj, 1)));
+    float pz = static_cast<float>(PyFloat_AsDouble(PyTuple_GetItem(posObj, 2)));
+    if (PyErr_Occurred()) return NULL;
+
+    // Get or create layer
+    auto layer = self->data->getLayer(layerName);
+    if (!layer) {
+        layer = self->data->addLayer(layerName, 0);
+    }
+
+    // Add mesh instance
+    size_t index = layer->addMesh(modelPy->data, vec3(px, py, pz), rotation, vec3(scale, scale, scale));
+
+    return PyLong_FromSize_t(index);
+}
+
+static PyObject* Viewport3D_place_blocking(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"grid_pos", "footprint", "walkable", "transparent", NULL};
+
+    PyObject* gridPosObj = nullptr;
+    PyObject* footprintObj = nullptr;
+    int walkable = 0;  // Default: not walkable
+    int transparent = 0;  // Default: not transparent
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|pp", const_cast<char**>(kwlist),
+                                     &gridPosObj, &footprintObj, &walkable, &transparent)) {
+        return NULL;
+    }
+
+    // Parse grid_pos
+    if (!PyTuple_Check(gridPosObj) || PyTuple_Size(gridPosObj) < 2) {
+        PyErr_SetString(PyExc_TypeError, "grid_pos must be a tuple of (x, z)");
+        return NULL;
+    }
+    int gridX = static_cast<int>(PyLong_AsLong(PyTuple_GetItem(gridPosObj, 0)));
+    int gridZ = static_cast<int>(PyLong_AsLong(PyTuple_GetItem(gridPosObj, 1)));
+    if (PyErr_Occurred()) return NULL;
+
+    // Parse footprint
+    if (!PyTuple_Check(footprintObj) || PyTuple_Size(footprintObj) < 2) {
+        PyErr_SetString(PyExc_TypeError, "footprint must be a tuple of (width, depth)");
+        return NULL;
+    }
+    int footW = static_cast<int>(PyLong_AsLong(PyTuple_GetItem(footprintObj, 0)));
+    int footD = static_cast<int>(PyLong_AsLong(PyTuple_GetItem(footprintObj, 1)));
+    if (PyErr_Occurred()) return NULL;
+
+    // Mark cells
+    for (int dz = 0; dz < footD; dz++) {
+        for (int dx = 0; dx < footW; dx++) {
+            int cx = gridX + dx;
+            int cz = gridZ + dz;
+            if (self->data->isValidCell(cx, cz)) {
+                VoxelPoint& cell = self->data->at(cx, cz);
+                cell.walkable = walkable != 0;
+                cell.transparent = transparent != 0;
+                self->data->syncTCODCell(cx, cz);
+            }
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_clear_meshes(PyViewport3DObject* self, PyObject* args) {
+    const char* layerName = nullptr;
+
+    if (!PyArg_ParseTuple(args, "s", &layerName)) {
+        return NULL;
+    }
+
+    auto layer = self->data->getLayer(layerName);
+    if (!layer) {
+        PyErr_SetString(PyExc_ValueError, "Layer not found");
+        return NULL;
+    }
+
+    layer->clearMeshes();
+    Py_RETURN_NONE;
+}
+
+// =============================================================================
+// Billboard Management Methods
+// =============================================================================
+
+static PyObject* Viewport3D_add_billboard(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"billboard", NULL};
+
+    PyObject* billboardObj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", const_cast<char**>(kwlist), &billboardObj)) {
+        return NULL;
+    }
+
+    // Check if it's a Billboard object
+    if (!PyObject_IsInstance(billboardObj, (PyObject*)&mcrfpydef::PyBillboardType)) {
+        PyErr_SetString(PyExc_TypeError, "Expected a Billboard object");
+        return NULL;
+    }
+
+    PyBillboardObject* bbObj = (PyBillboardObject*)billboardObj;
+    if (!bbObj->data) {
+        PyErr_SetString(PyExc_ValueError, "Invalid Billboard object");
+        return NULL;
+    }
+
+    self->data->addBillboard(bbObj->data);
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_remove_billboard(PyViewport3DObject* self, PyObject* args) {
+    PyObject* billboardObj = nullptr;
+
+    if (!PyArg_ParseTuple(args, "O", &billboardObj)) {
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(billboardObj, (PyObject*)&mcrfpydef::PyBillboardType)) {
+        PyErr_SetString(PyExc_TypeError, "Expected a Billboard object");
+        return NULL;
+    }
+
+    PyBillboardObject* bbObj = (PyBillboardObject*)billboardObj;
+    if (bbObj->data) {
+        self->data->removeBillboard(bbObj->data.get());
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_clear_billboards(PyViewport3DObject* self, PyObject* args) {
+    self->data->clearBillboards();
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_get_billboard(PyViewport3DObject* self, PyObject* args) {
+    int index = 0;
+
+    if (!PyArg_ParseTuple(args, "i", &index)) {
+        return NULL;
+    }
+
+    auto billboards = self->data->getBillboards();
+    if (index < 0 || index >= static_cast<int>(billboards->size())) {
+        PyErr_SetString(PyExc_IndexError, "Billboard index out of range");
+        return NULL;
+    }
+
+    auto bb = (*billboards)[index];
+
+    // Create Python wrapper for billboard
+    auto type = &mcrfpydef::PyBillboardType;
+    auto obj = (PyBillboardObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+
+    obj->data = bb;
+    obj->weakreflist = nullptr;
+
+    return (PyObject*)obj;
+}
+
+static PyObject* Viewport3D_billboard_count(PyViewport3DObject* self, PyObject* args) {
+    auto billboards = self->data->getBillboards();
+    return PyLong_FromLong(static_cast<long>(billboards->size()));
+}
+
 } // namespace mcrf
 
 // Methods array - outside namespace but PyObjectType still in scope via typedef
@@ -1903,5 +2166,58 @@ PyMethodDef Viewport3D_methods[] = {
      "    z: Z coordinate\n\n"
      "Returns:\n"
      "    True if the cell is visible"},
+
+    // Mesh instance methods (Milestone 6)
+    {"add_mesh", (PyCFunction)mcrf::Viewport3D_add_mesh, METH_VARARGS | METH_KEYWORDS,
+     "add_mesh(layer_name, model, pos, rotation=0, scale=1.0) -> int\n\n"
+     "Add a Model3D instance to a layer at the specified position.\n\n"
+     "Args:\n"
+     "    layer_name: Name of layer to add mesh to (created if needed)\n"
+     "    model: Model3D object to place\n"
+     "    pos: World position as (x, y, z) tuple\n"
+     "    rotation: Y-axis rotation in degrees\n"
+     "    scale: Uniform scale factor\n\n"
+     "Returns:\n"
+     "    Index of the mesh instance"},
+    {"place_blocking", (PyCFunction)mcrf::Viewport3D_place_blocking, METH_VARARGS | METH_KEYWORDS,
+     "place_blocking(grid_pos, footprint, walkable=False, transparent=False)\n\n"
+     "Mark grid cells as blocking for pathfinding and FOV.\n\n"
+     "Args:\n"
+     "    grid_pos: Top-left grid position as (x, z) tuple\n"
+     "    footprint: Size in cells as (width, depth) tuple\n"
+     "    walkable: Whether cells should be walkable (default: False)\n"
+     "    transparent: Whether cells should be transparent (default: False)"},
+    {"clear_meshes", (PyCFunction)mcrf::Viewport3D_clear_meshes, METH_VARARGS,
+     "clear_meshes(layer_name)\n\n"
+     "Clear all mesh instances from a layer.\n\n"
+     "Args:\n"
+     "    layer_name: Name of layer to clear"},
+
+    // Billboard methods (Milestone 6)
+    {"add_billboard", (PyCFunction)mcrf::Viewport3D_add_billboard, METH_VARARGS | METH_KEYWORDS,
+     "add_billboard(billboard)\n\n"
+     "Add a Billboard to the viewport.\n\n"
+     "Args:\n"
+     "    billboard: Billboard object to add"},
+    {"remove_billboard", (PyCFunction)mcrf::Viewport3D_remove_billboard, METH_VARARGS,
+     "remove_billboard(billboard)\n\n"
+     "Remove a Billboard from the viewport.\n\n"
+     "Args:\n"
+     "    billboard: Billboard object to remove"},
+    {"clear_billboards", (PyCFunction)mcrf::Viewport3D_clear_billboards, METH_NOARGS,
+     "clear_billboards()\n\n"
+     "Remove all billboards from the viewport."},
+    {"get_billboard", (PyCFunction)mcrf::Viewport3D_get_billboard, METH_VARARGS,
+     "get_billboard(index) -> Billboard\n\n"
+     "Get a Billboard by index.\n\n"
+     "Args:\n"
+     "    index: Index of the billboard\n\n"
+     "Returns:\n"
+     "    Billboard object"},
+    {"billboard_count", (PyCFunction)mcrf::Viewport3D_billboard_count, METH_NOARGS,
+     "billboard_count() -> int\n\n"
+     "Get the number of billboards.\n\n"
+     "Returns:\n"
+     "    Number of billboards in the viewport"},
     {NULL}  // Sentinel
 };

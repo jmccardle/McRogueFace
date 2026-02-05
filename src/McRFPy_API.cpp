@@ -35,6 +35,7 @@
 #include "3d/Entity3D.h"    // 3D game entities
 #include "3d/EntityCollection3D.h"  // Entity3D collection
 #include "3d/Model3D.h"     // 3D model resource
+#include "3d/Billboard.h"   // Billboard sprites
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 // ImGui is only available for SFML builds
@@ -441,6 +442,7 @@ PyObject* PyInit_mcrfpy()
         /*3D entities*/
         &mcrfpydef::PyEntity3DType, &mcrfpydef::PyEntityCollection3DType,
         &mcrfpydef::PyEntityCollection3DIterType, &mcrfpydef::PyModel3DType,
+        &mcrfpydef::PyBillboardType,
 
         /*grid layers (#147)*/
         &PyColorLayerType, &PyTileLayerType,
@@ -561,6 +563,7 @@ PyObject* PyInit_mcrfpy()
     PyViewport3DType.tp_weaklistoffset = offsetof(PyViewport3DObject, weakreflist);
     mcrfpydef::PyEntity3DType.tp_weaklistoffset = offsetof(PyEntity3DObject, weakreflist);
     mcrfpydef::PyModel3DType.tp_weaklistoffset = offsetof(PyModel3DObject, weakreflist);
+    mcrfpydef::PyBillboardType.tp_weaklistoffset = offsetof(PyBillboardObject, weakreflist);
 
     // #219 - Initialize PyLock context manager type
     if (PyLock::init() < 0) {

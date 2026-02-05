@@ -67,16 +67,29 @@ sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
 PyObject* PyTexture::pyObject()
 {
     auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture");
+    if (!type) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get Texture type from module");
+        return NULL;
+    }
     PyObject* obj = PyTexture::pynew(type, Py_None, Py_None);
+    Py_DECREF(type);  // GetAttrString returns new reference
+
+    if (!obj) {
+        return NULL;
+    }
 
     try {
-        ((PyTextureObject*)obj)->data = shared_from_this();
+        // Use placement new to properly construct the shared_ptr
+        // tp_alloc zeroes memory but doesn't call C++ constructors
+        new (&((PyTextureObject*)obj)->data) std::shared_ptr<PyTexture>(shared_from_this());
     }
     catch (std::bad_weak_ptr& e)
     {
         std::cout << "Bad weak ptr: shared_from_this() failed in PyTexture::pyObject(); did you create a PyTexture outside of std::make_shared? enjoy your segfault, soon!" << std::endl;
+        Py_DECREF(obj);
+        PyErr_SetString(PyExc_RuntimeError, "PyTexture was not created with std::make_shared");
+        return NULL;
     }
-    // TODO - shared_from_this will raise an exception if the object does not have a shared pointer. Constructor should be made private; write a factory function
     return obj;
 }
 

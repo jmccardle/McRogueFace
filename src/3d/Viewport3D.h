@@ -30,6 +30,7 @@ namespace mcrf {
 class Viewport3D;
 class Shader3D;
 class MeshLayer;
+class Billboard;
 
 } // namespace mcrf
 
@@ -190,6 +191,28 @@ public:
     /// Render all entities
     void renderEntities(const mat4& view, const mat4& proj);
 
+    // =========================================================================
+    // Billboard Management
+    // =========================================================================
+
+    /// Get the billboard list
+    std::shared_ptr<std::vector<std::shared_ptr<Billboard>>> getBillboards() { return billboards_; }
+
+    /// Add a billboard
+    void addBillboard(std::shared_ptr<Billboard> bb);
+
+    /// Remove a billboard by pointer
+    void removeBillboard(Billboard* bb);
+
+    /// Clear all billboards
+    void clearBillboards();
+
+    /// Get billboard count
+    size_t getBillboardCount() const { return billboards_ ? billboards_->size() : 0; }
+
+    /// Render all billboards
+    void renderBillboards(const mat4& view, const mat4& proj);
+
     // Background color
     void setBackgroundColor(const sf::Color& color) { bgColor_ = color; }
     sf::Color getBackgroundColor() const { return bgColor_; }
@@ -275,6 +298,9 @@ private:
 
     // Entity3D storage
     std::shared_ptr<std::list<std::shared_ptr<Entity3D>>> entities_;
+
+    // Billboard storage
+    std::shared_ptr<std::vector<std::shared_ptr<Billboard>>> billboards_;
 
     // Shader for PS1-style rendering
     std::unique_ptr<Shader3D> shader_;
