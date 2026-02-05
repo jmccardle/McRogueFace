@@ -454,16 +454,53 @@ void Viewport3D::renderEntities(const mat4& view, const mat4& proj) {
 #ifdef MCRF_HAS_GL
     if (!entities_ || !shader_ || !shader_->isValid()) return;
 
-    // Entity rendering uses the same shader as terrain
+    // Render non-skeletal entities first
     shader_->bind();
-
     for (auto& entity : *entities_) {
         if (entity && entity->isVisible()) {
-            entity->render(view, proj, shader_->getProgram());
+            auto model = entity->getModel();
+            if (!model || !model->hasSkeleton()) {
+                entity->render(view, proj, shader_->getProgram());
+            }
         }
     }
-
     shader_->unbind();
+
+    // Then render skeletal entities with skinned shader
+    if (skinnedShader_ && skinnedShader_->isValid()) {
+        skinnedShader_->bind();
+
+        // Set up common uniforms for skinned shader
+        skinnedShader_->setUniform("u_view", view);
+        skinnedShader_->setUniform("u_projection", proj);
+        skinnedShader_->setUniform("u_resolution", vec2(static_cast<float>(internalWidth_),
+                                                        static_cast<float>(internalHeight_)));
+        skinnedShader_->setUniform("u_enable_snap", vertexSnapEnabled_);
+
+        // Lighting
+        vec3 lightDir = vec3(0.5f, -0.7f, 0.5f).normalized();
+        skinnedShader_->setUniform("u_light_dir", lightDir);
+        skinnedShader_->setUniform("u_ambient", vec3(0.3f, 0.3f, 0.3f));
+
+        // Fog
+        skinnedShader_->setUniform("u_fog_start", fogNear_);
+        skinnedShader_->setUniform("u_fog_end", fogFar_);
+        skinnedShader_->setUniform("u_fog_color", fogColor_);
+
+        // Texture
+        skinnedShader_->setUniform("u_has_texture", false);
+        skinnedShader_->setUniform("u_enable_dither", ditheringEnabled_);
+
+        for (auto& entity : *entities_) {
+            if (entity && entity->isVisible()) {
+                auto model = entity->getModel();
+                if (model && model->hasSkeleton()) {
+                    entity->render(view, proj, skinnedShader_->getProgram());
+                }
+            }
+        }
+        skinnedShader_->unbind();
+    }
 #endif
 }
 
@@ -556,6 +593,12 @@ void Viewport3D::initShader() {
     shader_ = std::make_unique<Shader3D>();
     if (!shader_->loadPS1Shaders()) {
         shader_.reset();  // Shader loading failed
+    }
+
+    // Also create skinned shader for skeletal animation
+    skinnedShader_ = std::make_unique<Shader3D>();
+    if (!skinnedShader_->loadPS1SkinnedShaders()) {
+        skinnedShader_.reset();  // Skinned shader loading failed
     }
 }
 
@@ -705,6 +748,19 @@ void Viewport3D::render3DContent() {
     }
 
 #ifdef MCRF_HAS_GL
+    // Calculate delta time for animation updates
+    static sf::Clock frameClock;
+    float currentTime = frameClock.getElapsedTime().asSeconds();
+    float dt = firstFrame_ ? 0.016f : (currentTime - lastFrameTime_);
+    lastFrameTime_ = currentTime;
+    firstFrame_ = false;
+
+    // Cap delta time to avoid huge jumps (e.g., after window minimize)
+    if (dt > 0.1f) dt = 0.016f;
+
+    // Update entity animations
+    updateEntities(dt);
+
     // Save GL state
     gl::pushState();
 

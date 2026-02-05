@@ -11,6 +11,7 @@
 #include <queue>
 #include <vector>
 #include <string>
+#include <functional>
 
 namespace mcrf {
 
@@ -159,6 +160,57 @@ public:
     bool hasProperty(const std::string& name) const;
 
     // =========================================================================
+    // Skeletal Animation
+    // =========================================================================
+
+    /// Get current animation clip name
+    const std::string& getAnimClip() const { return anim_clip_; }
+
+    /// Set animation clip by name (starts playing)
+    void setAnimClip(const std::string& name);
+
+    /// Get/set animation time (position in clip)
+    float getAnimTime() const { return anim_time_; }
+    void setAnimTime(float t) { anim_time_ = t; }
+
+    /// Get/set playback speed (1.0 = normal)
+    float getAnimSpeed() const { return anim_speed_; }
+    void setAnimSpeed(float s) { anim_speed_ = s; }
+
+    /// Get/set looping state
+    bool getAnimLoop() const { return anim_loop_; }
+    void setAnimLoop(bool l) { anim_loop_ = l; }
+
+    /// Get/set pause state
+    bool getAnimPaused() const { return anim_paused_; }
+    void setAnimPaused(bool p) { anim_paused_ = p; }
+
+    /// Get current animation frame (approximate)
+    int getAnimFrame() const;
+
+    /// Update skeletal animation (call before render)
+    void updateAnimation(float dt);
+
+    /// Get computed bone matrices for shader
+    const std::vector<mat4>& getBoneMatrices() const { return bone_matrices_; }
+
+    /// Animation complete callback type
+    using AnimCompleteCallback = std::function<void(Entity3D*, const std::string&)>;
+
+    /// Set animation complete callback
+    void setOnAnimComplete(AnimCompleteCallback cb) { on_anim_complete_ = cb; }
+
+    /// Auto-animate settings (play walk/idle based on movement)
+    bool getAutoAnimate() const { return auto_animate_; }
+    void setAutoAnimate(bool a) { auto_animate_ = a; }
+
+    const std::string& getWalkClip() const { return walk_clip_; }
+    void setWalkClip(const std::string& c) { walk_clip_ = c; }
+
+    const std::string& getIdleClip() const { return idle_clip_; }
+    void setIdleClip(const std::string& c) { idle_clip_ = c; }
+
+    // =========================================================================
     // Rendering
     // =========================================================================
 
@@ -192,6 +244,27 @@ public:
     static PyObject* get_viewport(PyEntity3DObject* self, void* closure);
     static PyObject* get_model(PyEntity3DObject* self, void* closure);
     static int set_model(PyEntity3DObject* self, PyObject* value, void* closure);
+
+    // Animation property getters/setters
+    static PyObject* get_anim_clip(PyEntity3DObject* self, void* closure);
+    static int set_anim_clip(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_anim_time(PyEntity3DObject* self, void* closure);
+    static int set_anim_time(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_anim_speed(PyEntity3DObject* self, void* closure);
+    static int set_anim_speed(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_anim_loop(PyEntity3DObject* self, void* closure);
+    static int set_anim_loop(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_anim_paused(PyEntity3DObject* self, void* closure);
+    static int set_anim_paused(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_anim_frame(PyEntity3DObject* self, void* closure);
+    static PyObject* get_on_anim_complete(PyEntity3DObject* self, void* closure);
+    static int set_on_anim_complete(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_auto_animate(PyEntity3DObject* self, void* closure);
+    static int set_auto_animate(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_walk_clip(PyEntity3DObject* self, void* closure);
+    static int set_walk_clip(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_idle_clip(PyEntity3DObject* self, void* closure);
+    static int set_idle_clip(PyEntity3DObject* self, PyObject* value, void* closure);
 
     // Methods
     static PyObject* py_path_to(PyEntity3DObject* self, PyObject* args, PyObject* kwds);
@@ -239,6 +312,24 @@ private:
     float move_progress_ = 0.0f;
     float move_speed_ = 5.0f;  // Cells per second
     vec3 move_start_pos_;
+
+    // Skeletal animation state
+    std::string anim_clip_;                 // Current animation clip name
+    float anim_time_ = 0.0f;                // Current time in animation
+    float anim_speed_ = 1.0f;               // Playback speed multiplier
+    bool anim_loop_ = true;                 // Loop animation
+    bool anim_paused_ = false;              // Pause playback
+    std::vector<mat4> bone_matrices_;       // Computed bone matrices for shader
+    AnimCompleteCallback on_anim_complete_; // Callback when animation ends
+
+    // Auto-animate state
+    bool auto_animate_ = true;              // Auto-play walk/idle based on movement
+    std::string walk_clip_ = "walk";        // Clip to play when moving
+    std::string idle_clip_ = "idle";        // Clip to play when stopped
+    bool was_moving_ = false;               // Track movement state for auto-animate
+
+    // Python callback for animation complete
+    PyObject* py_anim_callback_ = nullptr;
 
     // Helper to initialize voxel state
     void initVoxelState() const;

@@ -18,7 +18,137 @@ namespace mcrf {
 class Shader3D;
 
 // =============================================================================
-// ModelMesh - Single submesh within a Model3D
+// Bone - Single bone in a skeleton
+// =============================================================================
+
+struct Bone {
+    std::string name;
+    int parent_index = -1;       // -1 for root bones
+    mat4 inverse_bind_matrix;    // Transforms from model space to bone space
+    mat4 local_transform;        // Default local transform (rest pose)
+};
+
+// =============================================================================
+// Skeleton - Bone hierarchy for skeletal animation
+// =============================================================================
+
+struct Skeleton {
+    std::vector<Bone> bones;
+    std::vector<int> root_bones;  // Indices of bones with parent_index == -1
+
+    /// Find bone by name, returns -1 if not found
+    int findBone(const std::string& name) const {
+        for (size_t i = 0; i < bones.size(); i++) {
+            if (bones[i].name == name) return static_cast<int>(i);
+        }
+        return -1;
+    }
+
+    /// Compute global (model-space) transforms for all bones
+    void computeGlobalTransforms(const std::vector<mat4>& local_transforms,
+                                  std::vector<mat4>& global_out) const {
+        global_out.resize(bones.size());
+        for (size_t i = 0; i < bones.size(); i++) {
+            if (bones[i].parent_index < 0) {
+                global_out[i] = local_transforms[i];
+            } else {
+                global_out[i] = global_out[bones[i].parent_index] * local_transforms[i];
+            }
+        }
+    }
+
+    /// Compute final bone matrices for shader (global * inverse_bind)
+    void computeBoneMatrices(const std::vector<mat4>& global_transforms,
+                              std::vector<mat4>& matrices_out) const {
+        matrices_out.resize(bones.size());
+        for (size_t i = 0; i < bones.size(); i++) {
+            matrices_out[i] = global_transforms[i] * bones[i].inverse_bind_matrix;
+        }
+    }
+};
+
+// =============================================================================
+// AnimationChannel - Animates a single property of a single bone
+// =============================================================================
+
+struct AnimationChannel {
+    int bone_index = -1;
+
+    enum class Path {
+        Translation,
+        Rotation,
+        Scale
+    } path = Path::Translation;
+
+    // Keyframe times (shared for all values in this channel)
+    std::vector<float> times;
+
+    // Keyframe values (only one of these is populated based on path)
+    std::vector<vec3> translations;
+    std::vector<quat> rotations;
+    std::vector<vec3> scales;
+
+    /// Sample the channel at a given time, returning the interpolated transform component
+    /// For Translation/Scale: writes to trans_out
+    /// For Rotation: writes to rot_out
+    void sample(float time, vec3& trans_out, quat& rot_out, vec3& scale_out) const;
+};
+
+// =============================================================================
+// AnimationClip - Named animation containing multiple channels
+// =============================================================================
+
+struct AnimationClip {
+    std::string name;
+    float duration = 0.0f;
+    std::vector<AnimationChannel> channels;
+
+    /// Sample the animation at a given time, producing bone local transforms
+    /// @param time Current time in the animation
+    /// @param num_bones Total number of bones (for output sizing)
+    /// @param default_transforms Default local transforms for bones without animation
+    /// @param local_out Output: interpolated local transforms for each bone
+    void sample(float time, size_t num_bones,
+                const std::vector<mat4>& default_transforms,
+                std::vector<mat4>& local_out) const;
+};
+
+// =============================================================================
+// SkinnedVertex - Vertex with bone weights for skeletal animation
+// =============================================================================
+
+struct SkinnedVertex {
+    vec3 position;
+    vec2 texcoord;
+    vec3 normal;
+    vec4 color;
+    vec4 bone_ids;      // Up to 4 bone indices (as floats for GLES2 compatibility)
+    vec4 bone_weights;  // Corresponding weights (should sum to 1.0)
+};
+
+// =============================================================================
+// SkinnedMesh - Submesh with skinning data
+// =============================================================================
+
+struct SkinnedMesh {
+    unsigned int vbo = 0;
+    unsigned int ebo = 0;
+    int vertex_count = 0;
+    int index_count = 0;
+    int material_index = -1;
+    bool is_skinned = false;    // True if this mesh has bone weights
+
+    SkinnedMesh() = default;
+    ~SkinnedMesh() = default;
+
+    SkinnedMesh(const SkinnedMesh&) = delete;
+    SkinnedMesh& operator=(const SkinnedMesh&) = delete;
+    SkinnedMesh(SkinnedMesh&& other) noexcept;
+    SkinnedMesh& operator=(SkinnedMesh&& other) noexcept;
+};
+
+// =============================================================================
+// ModelMesh - Single submesh within a Model3D (legacy non-skinned)
 // =============================================================================
 
 struct ModelMesh {
@@ -109,8 +239,41 @@ public:
     /// Check if model has skeletal animation data
     bool hasSkeleton() const { return has_skeleton_; }
 
-    /// Get number of submeshes
-    size_t getMeshCount() const { return meshes_.size(); }
+    /// Get number of submeshes (regular + skinned)
+    size_t getMeshCount() const { return meshes_.size() + skinned_meshes_.size(); }
+
+    // =========================================================================
+    // Skeleton & Animation
+    // =========================================================================
+
+    /// Get skeleton (may be empty if no skeleton)
+    const Skeleton& getSkeleton() const { return skeleton_; }
+
+    /// Get number of bones
+    size_t getBoneCount() const { return skeleton_.bones.size(); }
+
+    /// Get animation clips
+    const std::vector<AnimationClip>& getAnimationClips() const { return animation_clips_; }
+
+    /// Get animation clip names
+    std::vector<std::string> getAnimationClipNames() const {
+        std::vector<std::string> names;
+        for (const auto& clip : animation_clips_) {
+            names.push_back(clip.name);
+        }
+        return names;
+    }
+
+    /// Find animation clip by name (returns nullptr if not found)
+    const AnimationClip* findClip(const std::string& name) const {
+        for (const auto& clip : animation_clips_) {
+            if (clip.name == name) return &clip;
+        }
+        return nullptr;
+    }
+
+    /// Get default bone transforms (rest pose)
+    const std::vector<mat4>& getDefaultBoneTransforms() const { return default_bone_transforms_; }
 
     // =========================================================================
     // Rendering
@@ -122,6 +285,15 @@ public:
     /// @param view View matrix
     /// @param projection Projection matrix
     void render(unsigned int shader, const mat4& model, const mat4& view, const mat4& projection);
+
+    /// Render with skeletal animation
+    /// @param shader Shader program handle (already bound, should be skinned shader)
+    /// @param model Model transformation matrix
+    /// @param view View matrix
+    /// @param projection Projection matrix
+    /// @param bone_matrices Final bone matrices (global * inverse_bind)
+    void renderSkinned(unsigned int shader, const mat4& model, const mat4& view,
+                       const mat4& projection, const std::vector<mat4>& bone_matrices);
 
     // =========================================================================
     // Python API
@@ -142,6 +314,8 @@ public:
     static PyObject* get_bounds(PyObject* self, void* closure);
     static PyObject* get_name(PyObject* self, void* closure);
     static PyObject* get_mesh_count(PyObject* self, void* closure);
+    static PyObject* get_bone_count(PyObject* self, void* closure);
+    static PyObject* get_animation_clips(PyObject* self, void* closure);
 
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
@@ -150,13 +324,17 @@ private:
     // Model data
     std::string name_;
     std::vector<ModelMesh> meshes_;
+    std::vector<SkinnedMesh> skinned_meshes_;  // Skinned meshes with bone weights
 
     // Bounds
     vec3 bounds_min_ = vec3(0, 0, 0);
     vec3 bounds_max_ = vec3(0, 0, 0);
 
-    // Future: skeletal animation data
+    // Skeletal animation data
     bool has_skeleton_ = false;
+    Skeleton skeleton_;
+    std::vector<AnimationClip> animation_clips_;
+    std::vector<mat4> default_bone_transforms_;  // Rest pose local transforms
 
     // Error handling
     static std::string lastError_;
@@ -169,6 +347,15 @@ private:
     /// @return ModelMesh with GPU resources allocated
     static ModelMesh createMesh(const std::vector<MeshVertex>& vertices,
                                 const std::vector<uint32_t>& indices);
+
+    /// Create VBO/EBO from skinned vertex and index data
+    static SkinnedMesh createSkinnedMesh(const std::vector<SkinnedVertex>& vertices,
+                                          const std::vector<uint32_t>& indices);
+
+    // glTF loading helpers
+    void loadSkeleton(void* cgltf_data);     // void* to avoid header dependency
+    void loadAnimations(void* cgltf_data);
+    int findJointIndex(void* cgltf_skin, void* node);
 };
 
 } // namespace mcrf
@@ -217,7 +404,9 @@ inline PyTypeObject PyModel3DType = {
         "    triangle_count (int, read-only): Total triangles across all meshes\n"
         "    has_skeleton (bool, read-only): Whether model has skeletal animation data\n"
         "    bounds (tuple, read-only): AABB as ((min_x, min_y, min_z), (max_x, max_y, max_z))\n"
-        "    mesh_count (int, read-only): Number of submeshes"
+        "    mesh_count (int, read-only): Number of submeshes\n"
+        "    bone_count (int, read-only): Number of bones in skeleton\n"
+        "    animation_clips (list, read-only): List of animation clip names"
     ),
     .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
         return 0;

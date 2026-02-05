@@ -56,6 +56,10 @@ Entity3D::~Entity3D()
 {
     // Cleanup cube geometry when last entity is destroyed?
     // For now, leave it - it's shared static data
+
+    // Clean up Python animation callback
+    Py_XDECREF(py_anim_callback_);
+    py_anim_callback_ = nullptr;
 }
 
 // =============================================================================
@@ -283,23 +287,27 @@ void Entity3D::processNextMove()
 
 void Entity3D::update(float dt)
 {
-    if (!is_animating_) return;
+    // Update movement animation
+    if (is_animating_) {
+        move_progress_ += dt * move_speed_;
 
-    move_progress_ += dt * move_speed_;
+        if (move_progress_ >= 1.0f) {
+            // Animation complete
+            world_pos_ = target_world_pos_;
+            is_animating_ = false;
 
-    if (move_progress_ >= 1.0f) {
-        // Animation complete
-        world_pos_ = target_world_pos_;
-        is_animating_ = false;
-
-        // Process next move in queue
-        if (!move_queue_.empty()) {
-            processNextMove();
+            // Process next move in queue
+            if (!move_queue_.empty()) {
+                processNextMove();
+            }
+        } else {
+            // Interpolate position
+            world_pos_ = vec3::lerp(move_start_pos_, target_world_pos_, move_progress_);
         }
-    } else {
-        // Interpolate position
-        world_pos_ = vec3::lerp(move_start_pos_, target_world_pos_, move_progress_);
     }
+
+    // Update skeletal animation
+    updateAnimation(dt);
 }
 
 bool Entity3D::setProperty(const std::string& name, float value)
@@ -384,6 +392,111 @@ bool Entity3D::hasProperty(const std::string& name) const
            name == "rotation" || name == "rot_y" ||
            name == "scale" || name == "scale_x" || name == "scale_y" || name == "scale_z" ||
            name == "sprite_index" || name == "visible";
+}
+
+// =============================================================================
+// Skeletal Animation
+// =============================================================================
+
+void Entity3D::setAnimClip(const std::string& name)
+{
+    if (anim_clip_ == name) return;
+
+    anim_clip_ = name;
+    anim_time_ = 0.0f;
+    anim_paused_ = false;
+
+    // Initialize bone matrices if model has skeleton
+    if (model_ && model_->hasSkeleton()) {
+        size_t bone_count = model_->getBoneCount();
+        bone_matrices_.resize(bone_count);
+        for (auto& m : bone_matrices_) {
+            m = mat4::identity();
+        }
+    }
+}
+
+void Entity3D::updateAnimation(float dt)
+{
+    // Handle auto-animate (play walk/idle based on movement state)
+    if (auto_animate_ && model_ && model_->hasSkeleton()) {
+        bool currently_moving = isMoving();
+        if (currently_moving != was_moving_) {
+            was_moving_ = currently_moving;
+            if (currently_moving) {
+                // Started moving - play walk clip
+                if (model_->findClip(walk_clip_)) {
+                    setAnimClip(walk_clip_);
+                }
+            } else {
+                // Stopped moving - play idle clip
+                if (model_->findClip(idle_clip_)) {
+                    setAnimClip(idle_clip_);
+                }
+            }
+        }
+    }
+
+    // Early out if no model, no skeleton, or no animation
+    if (!model_ || !model_->hasSkeleton()) return;
+    if (anim_clip_.empty() || anim_paused_) return;
+
+    const AnimationClip* clip = model_->findClip(anim_clip_);
+    if (!clip) return;
+
+    // Advance time
+    anim_time_ += dt * anim_speed_;
+
+    // Handle loop/completion
+    if (anim_time_ >= clip->duration) {
+        if (anim_loop_) {
+            anim_time_ = std::fmod(anim_time_, clip->duration);
+        } else {
+            anim_time_ = clip->duration;
+            anim_paused_ = true;
+
+            // Fire callback
+            if (on_anim_complete_) {
+                on_anim_complete_(this, anim_clip_);
+            }
+
+            // Fire Python callback
+            if (py_anim_callback_) {
+                PyObject* result = PyObject_CallFunction(py_anim_callback_, "(Os)",
+                    self, anim_clip_.c_str());
+                if (result) {
+                    Py_DECREF(result);
+                } else {
+                    PyErr_Print();
+                }
+            }
+        }
+    }
+
+    // Sample animation
+    const Skeleton& skeleton = model_->getSkeleton();
+    const std::vector<mat4>& default_transforms = model_->getDefaultBoneTransforms();
+
+    std::vector<mat4> local_transforms;
+    clip->sample(anim_time_, skeleton.bones.size(), default_transforms, local_transforms);
+
+    // Compute global transforms
+    std::vector<mat4> global_transforms;
+    skeleton.computeGlobalTransforms(local_transforms, global_transforms);
+
+    // Compute final bone matrices (global * inverse_bind)
+    skeleton.computeBoneMatrices(global_transforms, bone_matrices_);
+}
+
+int Entity3D::getAnimFrame() const
+{
+    if (!model_ || !model_->hasSkeleton()) return 0;
+
+    const AnimationClip* clip = model_->findClip(anim_clip_);
+    if (!clip || clip->duration <= 0) return 0;
+
+    // Approximate frame at 30fps
+    return static_cast<int>(anim_time_ * 30.0f);
 }
 
 // =============================================================================
@@ -482,7 +595,13 @@ void Entity3D::render(const mat4& view, const mat4& proj, unsigned int shader)
     // If we have a model, use it
     if (model_) {
         mat4 model = getModelMatrix();
-        model_->render(shader, model, view, proj);
+
+        // Use skinned rendering if model has skeleton and we have bone matrices
+        if (model_->hasSkeleton() && !bone_matrices_.empty()) {
+            model_->renderSkinned(shader, model, view, proj, bone_matrices_);
+        } else {
+            model_->render(shader, model, view, proj);
+        }
         return;
     }
 
@@ -762,6 +881,147 @@ int Entity3D::set_model(PyEntity3DObject* self, PyObject* value, void* closure)
     return 0;
 }
 
+// Animation property getters/setters
+
+PyObject* Entity3D::get_anim_clip(PyEntity3DObject* self, void* closure)
+{
+    return PyUnicode_FromString(self->data->getAnimClip().c_str());
+}
+
+int Entity3D::set_anim_clip(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    if (!PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "anim_clip must be a string");
+        return -1;
+    }
+    self->data->setAnimClip(PyUnicode_AsUTF8(value));
+    return 0;
+}
+
+PyObject* Entity3D::get_anim_time(PyEntity3DObject* self, void* closure)
+{
+    return PyFloat_FromDouble(self->data->getAnimTime());
+}
+
+int Entity3D::set_anim_time(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    if (!PyNumber_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "anim_time must be a number");
+        return -1;
+    }
+    self->data->setAnimTime((float)PyFloat_AsDouble(value));
+    return 0;
+}
+
+PyObject* Entity3D::get_anim_speed(PyEntity3DObject* self, void* closure)
+{
+    return PyFloat_FromDouble(self->data->getAnimSpeed());
+}
+
+int Entity3D::set_anim_speed(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    if (!PyNumber_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "anim_speed must be a number");
+        return -1;
+    }
+    self->data->setAnimSpeed((float)PyFloat_AsDouble(value));
+    return 0;
+}
+
+PyObject* Entity3D::get_anim_loop(PyEntity3DObject* self, void* closure)
+{
+    return PyBool_FromLong(self->data->getAnimLoop() ? 1 : 0);
+}
+
+int Entity3D::set_anim_loop(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    self->data->setAnimLoop(PyObject_IsTrue(value));
+    return 0;
+}
+
+PyObject* Entity3D::get_anim_paused(PyEntity3DObject* self, void* closure)
+{
+    return PyBool_FromLong(self->data->getAnimPaused() ? 1 : 0);
+}
+
+int Entity3D::set_anim_paused(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    self->data->setAnimPaused(PyObject_IsTrue(value));
+    return 0;
+}
+
+PyObject* Entity3D::get_anim_frame(PyEntity3DObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->getAnimFrame());
+}
+
+PyObject* Entity3D::get_on_anim_complete(PyEntity3DObject* self, void* closure)
+{
+    if (self->data->py_anim_callback_) {
+        Py_INCREF(self->data->py_anim_callback_);
+        return self->data->py_anim_callback_;
+    }
+    Py_RETURN_NONE;
+}
+
+int Entity3D::set_on_anim_complete(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    // Clear existing callback
+    Py_XDECREF(self->data->py_anim_callback_);
+
+    if (value == Py_None) {
+        self->data->py_anim_callback_ = nullptr;
+    } else if (PyCallable_Check(value)) {
+        Py_INCREF(value);
+        self->data->py_anim_callback_ = value;
+    } else {
+        PyErr_SetString(PyExc_TypeError, "on_anim_complete must be callable or None");
+        return -1;
+    }
+    return 0;
+}
+
+PyObject* Entity3D::get_auto_animate(PyEntity3DObject* self, void* closure)
+{
+    return PyBool_FromLong(self->data->getAutoAnimate() ? 1 : 0);
+}
+
+int Entity3D::set_auto_animate(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    self->data->setAutoAnimate(PyObject_IsTrue(value));
+    return 0;
+}
+
+PyObject* Entity3D::get_walk_clip(PyEntity3DObject* self, void* closure)
+{
+    return PyUnicode_FromString(self->data->getWalkClip().c_str());
+}
+
+int Entity3D::set_walk_clip(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    if (!PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "walk_clip must be a string");
+        return -1;
+    }
+    self->data->setWalkClip(PyUnicode_AsUTF8(value));
+    return 0;
+}
+
+PyObject* Entity3D::get_idle_clip(PyEntity3DObject* self, void* closure)
+{
+    return PyUnicode_FromString(self->data->getIdleClip().c_str());
+}
+
+int Entity3D::set_idle_clip(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    if (!PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "idle_clip must be a string");
+        return -1;
+    }
+    self->data->setIdleClip(PyUnicode_AsUTF8(value));
+    return 0;
+}
+
 // Methods
 
 PyObject* Entity3D::py_path_to(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
@@ -903,6 +1163,29 @@ PyGetSetDef Entity3D::getsetters[] = {
      "Owning Viewport3D (read-only).", NULL},
     {"model", (getter)Entity3D::get_model, (setter)Entity3D::set_model,
      "3D model (Model3D). If None, uses placeholder cube.", NULL},
+
+    // Animation properties
+    {"anim_clip", (getter)Entity3D::get_anim_clip, (setter)Entity3D::set_anim_clip,
+     "Current animation clip name. Set to play an animation.", NULL},
+    {"anim_time", (getter)Entity3D::get_anim_time, (setter)Entity3D::set_anim_time,
+     "Current time position in animation (seconds).", NULL},
+    {"anim_speed", (getter)Entity3D::get_anim_speed, (setter)Entity3D::set_anim_speed,
+     "Animation playback speed multiplier. 1.0 = normal speed.", NULL},
+    {"anim_loop", (getter)Entity3D::get_anim_loop, (setter)Entity3D::set_anim_loop,
+     "Whether animation loops when it reaches the end.", NULL},
+    {"anim_paused", (getter)Entity3D::get_anim_paused, (setter)Entity3D::set_anim_paused,
+     "Whether animation playback is paused.", NULL},
+    {"anim_frame", (getter)Entity3D::get_anim_frame, NULL,
+     "Current animation frame number (read-only, approximate at 30fps).", NULL},
+    {"on_anim_complete", (getter)Entity3D::get_on_anim_complete, (setter)Entity3D::set_on_anim_complete,
+     "Callback(entity, clip_name) when non-looping animation ends.", NULL},
+    {"auto_animate", (getter)Entity3D::get_auto_animate, (setter)Entity3D::set_auto_animate,
+     "Enable auto-play of walk/idle clips based on movement.", NULL},
+    {"walk_clip", (getter)Entity3D::get_walk_clip, (setter)Entity3D::set_walk_clip,
+     "Animation clip to play when entity is moving.", NULL},
+    {"idle_clip", (getter)Entity3D::get_idle_clip, (setter)Entity3D::set_idle_clip,
+     "Animation clip to play when entity is stationary.", NULL},
+
     {NULL}  // Sentinel
 };
 

@@ -18,6 +18,9 @@ public:
     // Automatically selects desktop vs ES2 shaders based on platform
     bool loadPS1Shaders();
 
+    // Load skinned (skeletal animation) shaders
+    bool loadPS1SkinnedShaders();
+
     // Load from custom source strings
     bool load(const char* vertexSource, const char* fragmentSource);
 

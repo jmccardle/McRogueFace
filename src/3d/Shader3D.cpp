@@ -245,6 +245,223 @@ void main() {
 }
 )";
 
+// =============================================================================
+// Skinned Vertex Shaders (for skeletal animation)
+// =============================================================================
+
+const char* PS1_SKINNED_VERTEX_ES2 = R"(
+// PS1-style skinned vertex shader for OpenGL ES 2.0 / WebGL 1.0
+precision mediump float;
+
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+uniform mat4 u_bones[32];
+uniform vec2 u_resolution;
+uniform bool u_enable_snap;
+uniform float u_fog_start;
+uniform float u_fog_end;
+uniform vec3 u_light_dir;
+uniform vec3 u_ambient;
+
+attribute vec3 a_position;
+attribute vec2 a_texcoord;
+attribute vec3 a_normal;
+attribute vec4 a_color;
+attribute vec4 a_bone_ids;
+attribute vec4 a_bone_weights;
+
+varying vec4 v_color;
+varying vec2 v_texcoord;
+varying float v_w;
+varying float v_fog;
+
+mat4 getBoneMatrix(int index) {
+    if (index < 8) {
+        if (index < 4) {
+            if (index < 2) {
+                if (index == 0) return u_bones[0];
+                else return u_bones[1];
+            } else {
+                if (index == 2) return u_bones[2];
+                else return u_bones[3];
+            }
+        } else {
+            if (index < 6) {
+                if (index == 4) return u_bones[4];
+                else return u_bones[5];
+            } else {
+                if (index == 6) return u_bones[6];
+                else return u_bones[7];
+            }
+        }
+    } else if (index < 16) {
+        if (index < 12) {
+            if (index < 10) {
+                if (index == 8) return u_bones[8];
+                else return u_bones[9];
+            } else {
+                if (index == 10) return u_bones[10];
+                else return u_bones[11];
+            }
+        } else {
+            if (index < 14) {
+                if (index == 12) return u_bones[12];
+                else return u_bones[13];
+            } else {
+                if (index == 14) return u_bones[14];
+                else return u_bones[15];
+            }
+        }
+    } else if (index < 24) {
+        if (index < 20) {
+            if (index < 18) {
+                if (index == 16) return u_bones[16];
+                else return u_bones[17];
+            } else {
+                if (index == 18) return u_bones[18];
+                else return u_bones[19];
+            }
+        } else {
+            if (index < 22) {
+                if (index == 20) return u_bones[20];
+                else return u_bones[21];
+            } else {
+                if (index == 22) return u_bones[22];
+                else return u_bones[23];
+            }
+        }
+    } else {
+        if (index < 28) {
+            if (index < 26) {
+                if (index == 24) return u_bones[24];
+                else return u_bones[25];
+            } else {
+                if (index == 26) return u_bones[26];
+                else return u_bones[27];
+            }
+        } else {
+            if (index < 30) {
+                if (index == 28) return u_bones[28];
+                else return u_bones[29];
+            } else {
+                if (index == 30) return u_bones[30];
+                else return u_bones[31];
+            }
+        }
+    }
+    return mat4(1.0);
+}
+
+void main() {
+    int b0 = int(a_bone_ids.x);
+    int b1 = int(a_bone_ids.y);
+    int b2 = int(a_bone_ids.z);
+    int b3 = int(a_bone_ids.w);
+
+    mat4 skin_matrix =
+        getBoneMatrix(b0) * a_bone_weights.x +
+        getBoneMatrix(b1) * a_bone_weights.y +
+        getBoneMatrix(b2) * a_bone_weights.z +
+        getBoneMatrix(b3) * a_bone_weights.w;
+
+    vec4 skinned_pos = skin_matrix * vec4(a_position, 1.0);
+    vec3 skinned_normal = mat3(skin_matrix[0].xyz, skin_matrix[1].xyz, skin_matrix[2].xyz) * a_normal;
+
+    vec4 worldPos = u_model * skinned_pos;
+    vec4 viewPos = u_view * worldPos;
+    vec4 clipPos = u_projection * viewPos;
+
+    if (u_enable_snap) {
+        vec4 ndc = clipPos;
+        ndc.xyz /= ndc.w;
+        vec2 grid = u_resolution * 0.5;
+        ndc.xy = floor(ndc.xy * grid + 0.5) / grid;
+        ndc.xyz *= clipPos.w;
+        clipPos = ndc;
+    }
+
+    gl_Position = clipPos;
+
+    vec3 worldNormal = mat3(u_model[0].xyz, u_model[1].xyz, u_model[2].xyz) * skinned_normal;
+    worldNormal = normalize(worldNormal);
+    float diffuse = max(dot(worldNormal, -u_light_dir), 0.0);
+    vec3 lighting = u_ambient + vec3(diffuse);
+    v_color = vec4(a_color.rgb * lighting, a_color.a);
+
+    v_texcoord = a_texcoord * clipPos.w;
+    v_w = clipPos.w;
+
+    float depth = -viewPos.z;
+    v_fog = clamp((depth - u_fog_start) / (u_fog_end - u_fog_start), 0.0, 1.0);
+}
+)";
+
+const char* PS1_SKINNED_VERTEX = R"(
+#version 150 core
+
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+uniform mat4 u_bones[64];
+uniform vec2 u_resolution;
+uniform bool u_enable_snap;
+uniform float u_fog_start;
+uniform float u_fog_end;
+uniform vec3 u_light_dir;
+uniform vec3 u_ambient;
+
+in vec3 a_position;
+in vec2 a_texcoord;
+in vec3 a_normal;
+in vec4 a_color;
+in vec4 a_bone_ids;
+in vec4 a_bone_weights;
+
+out vec4 v_color;
+noperspective out vec2 v_texcoord;
+out float v_fog;
+
+void main() {
+    ivec4 bone_ids = ivec4(a_bone_ids);
+
+    mat4 skin_matrix =
+        u_bones[bone_ids.x] * a_bone_weights.x +
+        u_bones[bone_ids.y] * a_bone_weights.y +
+        u_bones[bone_ids.z] * a_bone_weights.z +
+        u_bones[bone_ids.w] * a_bone_weights.w;
+
+    vec4 skinned_pos = skin_matrix * vec4(a_position, 1.0);
+    vec3 skinned_normal = mat3(skin_matrix) * a_normal;
+
+    vec4 worldPos = u_model * skinned_pos;
+    vec4 viewPos = u_view * worldPos;
+    vec4 clipPos = u_projection * viewPos;
+
+    if (u_enable_snap) {
+        vec4 ndc = clipPos;
+        ndc.xyz /= ndc.w;
+        vec2 grid = u_resolution * 0.5;
+        ndc.xy = floor(ndc.xy * grid + 0.5) / grid;
+        ndc.xyz *= clipPos.w;
+        clipPos = ndc;
+    }
+
+    gl_Position = clipPos;
+
+    vec3 worldNormal = mat3(u_model) * skinned_normal;
+    worldNormal = normalize(worldNormal);
+    float diffuse = max(dot(worldNormal, -u_light_dir), 0.0);
+    vec3 lighting = u_ambient + vec3(diffuse);
+    v_color = vec4(a_color.rgb * lighting, a_color.a);
+
+    v_texcoord = a_texcoord;
+
+    float depth = -viewPos.z;
+    v_fog = clamp((depth - u_fog_start) / (u_fog_end - u_fog_start), 0.0, 1.0);
+}
+)";
+
 } // namespace shaders
 
 // =============================================================================
@@ -270,6 +487,20 @@ bool Shader3D::loadPS1Shaders() {
 #endif
 #else
     // SFML backend - requires GLAD (not yet implemented)
+    return false;
+#endif
+}
+
+bool Shader3D::loadPS1SkinnedShaders() {
+#ifdef MCRF_HAS_GL
+#ifdef __EMSCRIPTEN__
+    // Use GLES2 skinned shaders for Emscripten/WebGL
+    return load(shaders::PS1_SKINNED_VERTEX_ES2, shaders::PS1_FRAGMENT_ES2);
+#else
+    // Use desktop GL 3.2+ skinned shaders
+    return load(shaders::PS1_SKINNED_VERTEX, shaders::PS1_FRAGMENT);
+#endif
+#else
     return false;
 #endif
 }

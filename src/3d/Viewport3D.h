@@ -285,6 +285,10 @@ private:
     float testRotation_ = 0.0f;
     bool renderTestCube_ = true;  // Set to false when layers are added
 
+    // Animation timing
+    float lastFrameTime_ = 0.0f;
+    bool firstFrame_ = true;
+
     // Mesh layers for terrain, static geometry
     std::vector<std::shared_ptr<MeshLayer>> meshLayers_;
 
@@ -304,6 +308,7 @@ private:
 
     // Shader for PS1-style rendering
     std::unique_ptr<Shader3D> shader_;
+    std::unique_ptr<Shader3D> skinnedShader_;  // For skeletal animation
 
     // Test geometry VBO (cube)
     unsigned int testVBO_ = 0;
