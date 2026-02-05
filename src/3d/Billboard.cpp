@@ -229,7 +229,7 @@ void Billboard::render(unsigned int shader, const mat4& view, const mat4& projec
         // Bind texture using PyTexture's underlying sf::Texture
         const sf::Texture* sfTexture = texture_->getSFMLTexture();
         if (sfTexture) {
-            sf::Texture::bind(sfTexture);
+            glBindTexture(GL_TEXTURE_2D, sfTexture->getNativeHandle());
 
             // Use PyTexture's sprite sheet configuration
             int sheetW = texture_->sprite_width > 0 ? texture_->sprite_width : 1;
@@ -294,7 +294,7 @@ void Billboard::render(unsigned int shader, const mat4& view, const mat4& projec
 
     // Unbind texture
     if (hasTexture) {
-        sf::Texture::bind(nullptr);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
     // Reset UV uniforms
