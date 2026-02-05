@@ -3,6 +3,8 @@
 #include "Entity3D.h"
 #include "Viewport3D.h"
 #include "VoxelPoint.h"
+#include "Model3D.h"
+#include "Shader3D.h"
 #include "PyVector.h"
 #include "PyColor.h"
 #include "PythonObjectCache.h"
@@ -467,6 +469,24 @@ void Entity3D::render(const mat4& view, const mat4& proj, unsigned int shader)
 {
     if (!visible_) return;
 
+    // Set entity color uniform (used by Model3D and placeholder)
+    int colorLoc = glGetUniformLocation(shader, "u_entityColor");
+    if (colorLoc >= 0) {
+        glUniform4f(colorLoc,
+            color_.r / 255.0f,
+            color_.g / 255.0f,
+            color_.b / 255.0f,
+            color_.a / 255.0f);
+    }
+
+    // If we have a model, use it
+    if (model_) {
+        mat4 model = getModelMatrix();
+        model_->render(shader, model, view, proj);
+        return;
+    }
+
+    // Otherwise, fall back to placeholder cube
     // Initialize cube geometry if needed
     if (!cubeInitialized_) {
         initCubeGeometry();
@@ -479,17 +499,9 @@ void Entity3D::render(const mat4& view, const mat4& proj, unsigned int shader)
     // Get uniform locations (assuming shader is already bound)
     int mvpLoc = glGetUniformLocation(shader, "u_mvp");
     int modelLoc = glGetUniformLocation(shader, "u_model");
-    int colorLoc = glGetUniformLocation(shader, "u_entityColor");
 
     if (mvpLoc >= 0) glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, mvp.data());
     if (modelLoc >= 0) glUniformMatrix4fv(modelLoc, 1, GL_FALSE, model.data());
-    if (colorLoc >= 0) {
-        glUniform4f(colorLoc,
-            color_.r / 255.0f,
-            color_.g / 255.0f,
-            color_.b / 255.0f,
-            color_.a / 255.0f);
-    }
 
     // Bind VBO and set up attributes
     glBindBuffer(GL_ARRAY_BUFFER, cubeVBO_);
@@ -715,6 +727,41 @@ PyObject* Entity3D::get_viewport(PyEntity3DObject* self, void* closure)
     Py_RETURN_NONE;
 }
 
+PyObject* Entity3D::get_model(PyEntity3DObject* self, void* closure)
+{
+    auto model = self->data->getModel();
+    if (!model) {
+        Py_RETURN_NONE;
+    }
+
+    // Create Python Model3D object wrapping the shared_ptr
+    PyTypeObject* type = &mcrfpydef::PyModel3DType;
+    PyModel3DObject* obj = (PyModel3DObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+
+    obj->data = model;
+    obj->weakreflist = nullptr;
+
+    return (PyObject*)obj;
+}
+
+int Entity3D::set_model(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    if (value == Py_None) {
+        self->data->setModel(nullptr);
+        return 0;
+    }
+
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyModel3DType)) {
+        PyErr_SetString(PyExc_TypeError, "model must be a Model3D or None");
+        return -1;
+    }
+
+    PyModel3DObject* model_obj = (PyModel3DObject*)value;
+    self->data->setModel(model_obj->data);
+    return 0;
+}
+
 // Methods
 
 PyObject* Entity3D::py_path_to(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
@@ -854,6 +901,8 @@ PyGetSetDef Entity3D::getsetters[] = {
      "Entity render color.", NULL},
     {"viewport", (getter)Entity3D::get_viewport, NULL,
      "Owning Viewport3D (read-only).", NULL},
+    {"model", (getter)Entity3D::get_model, (setter)Entity3D::set_model,
+     "3D model (Model3D). If None, uses placeholder cube.", NULL},
     {NULL}  // Sentinel
 };
 

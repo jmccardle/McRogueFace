@@ -16,6 +16,7 @@ namespace mcrf {
 
 // Forward declarations
 class Viewport3D;
+class Model3D;
 
 } // namespace mcrf
 
@@ -93,6 +94,10 @@ public:
     // Sprite index (for future texture atlas support)
     int getSpriteIndex() const { return sprite_index_; }
     void setSpriteIndex(int idx) { sprite_index_ = idx; }
+
+    // 3D model (if null, uses placeholder cube)
+    std::shared_ptr<Model3D> getModel() const { return model_; }
+    void setModel(std::shared_ptr<Model3D> m) { model_ = m; }
 
     // =========================================================================
     // Viewport Integration
@@ -185,6 +190,8 @@ public:
     static PyObject* get_color(PyEntity3DObject* self, void* closure);
     static int set_color(PyEntity3DObject* self, PyObject* value, void* closure);
     static PyObject* get_viewport(PyEntity3DObject* self, void* closure);
+    static PyObject* get_model(PyEntity3DObject* self, void* closure);
+    static int set_model(PyEntity3DObject* self, PyObject* value, void* closure);
 
     // Methods
     static PyObject* py_path_to(PyEntity3DObject* self, PyObject* args, PyObject* kwds);
@@ -217,6 +224,7 @@ private:
     bool visible_ = true;
     sf::Color color_ = sf::Color(200, 100, 50);  // Default orange
     int sprite_index_ = 0;
+    std::shared_ptr<Model3D> model_;  // 3D model (null = placeholder cube)
 
     // Viewport (weak reference to avoid cycles)
     std::weak_ptr<Viewport3D> viewport_;
