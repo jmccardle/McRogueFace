@@ -7,6 +7,8 @@
 #include "EntityCollection3D.h"
 #include "Billboard.h"
 #include "Model3D.h"
+#include "VoxelGrid.h"
+#include "PyVoxelGrid.h"
 #include "../platform/GLContext.h"
 #include "PyVector.h"
 #include "PyColor.h"
@@ -62,6 +64,15 @@ Viewport3D::Viewport3D(float x, float y, float width, float height)
 Viewport3D::~Viewport3D() {
     cleanupTestGeometry();
     cleanupFBO();
+
+    // Clean up voxel VBO (Milestone 10)
+#ifdef MCRF_HAS_GL
+    if (voxelVBO_ != 0) {
+        glDeleteBuffers(1, &voxelVBO_);
+        voxelVBO_ = 0;
+    }
+#endif
+
     if (tcodMap_) {
         delete tcodMap_;
         tcodMap_ = nullptr;
@@ -836,6 +847,130 @@ void Viewport3D::renderMeshLayers() {
 #endif
 }
 
+// =============================================================================
+// Voxel Layer Management (Milestone 10)
+// =============================================================================
+
+void Viewport3D::addVoxelLayer(std::shared_ptr<VoxelGrid> grid, int zIndex) {
+    if (!grid) return;
+    voxelLayers_.push_back({grid, zIndex});
+
+    // Disable test cube when real content is added
+    renderTestCube_ = false;
+}
+
+bool Viewport3D::removeVoxelLayer(std::shared_ptr<VoxelGrid> grid) {
+    if (!grid) return false;
+
+    auto it = std::find_if(voxelLayers_.begin(), voxelLayers_.end(),
+                           [&grid](const auto& pair) { return pair.first == grid; });
+
+    if (it != voxelLayers_.end()) {
+        voxelLayers_.erase(it);
+        return true;
+    }
+    return false;
+}
+
+void Viewport3D::renderVoxelLayers(const mat4& view, const mat4& proj) {
+#ifdef MCRF_HAS_GL
+    if (voxelLayers_.empty() || !shader_ || !shader_->isValid()) {
+        return;
+    }
+
+    // Sort layers by z_index (lower = rendered first)
+    std::vector<std::pair<VoxelGrid*, int>> sortedLayers;
+    sortedLayers.reserve(voxelLayers_.size());
+    for (auto& pair : voxelLayers_) {
+        if (pair.first) {
+            sortedLayers.push_back({pair.first.get(), pair.second});
+        }
+    }
+    std::sort(sortedLayers.begin(), sortedLayers.end(),
+              [](const auto& a, const auto& b) { return a.second < b.second; });
+
+    shader_->bind();
+
+    // Set up view and projection matrices
+    shader_->setUniform("u_view", view);
+    shader_->setUniform("u_projection", proj);
+
+    // PS1 effect uniforms
+    shader_->setUniform("u_resolution", vec2(static_cast<float>(internalWidth_),
+                                               static_cast<float>(internalHeight_)));
+    shader_->setUniform("u_enable_snap", vertexSnapEnabled_);
+    shader_->setUniform("u_enable_dither", ditheringEnabled_);
+
+    // Lighting
+    vec3 lightDir = vec3(0.5f, -0.7f, 0.5f).normalized();
+    shader_->setUniform("u_light_dir", lightDir);
+    shader_->setUniform("u_ambient", vec3(0.3f, 0.3f, 0.3f));
+
+    // Fog
+    shader_->setUniform("u_fog_start", fogNear_);
+    shader_->setUniform("u_fog_end", fogFar_);
+    shader_->setUniform("u_fog_color", fogColor_);
+
+    // No texture for voxels (use vertex colors)
+    shader_->setUniform("u_has_texture", false);
+
+    // Create VBO if needed
+    if (voxelVBO_ == 0) {
+        glGenBuffers(1, &voxelVBO_);
+    }
+
+    // Render each voxel grid
+    for (auto& pair : sortedLayers) {
+        VoxelGrid* grid = pair.first;
+
+        // Get vertices (triggers rebuild if dirty)
+        const std::vector<MeshVertex>& vertices = grid->getVertices();
+        if (vertices.empty()) continue;
+
+        // Set model matrix for this grid
+        shader_->setUniform("u_model", grid->getModelMatrix());
+
+        // Upload vertices to VBO
+        glBindBuffer(GL_ARRAY_BUFFER, voxelVBO_);
+        glBufferData(GL_ARRAY_BUFFER,
+                     vertices.size() * sizeof(MeshVertex),
+                     vertices.data(),
+                     GL_DYNAMIC_DRAW);
+
+        // Set up vertex attributes (same as MeshLayer)
+        size_t stride = sizeof(MeshVertex);
+
+        // Position
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(MeshVertex, position));
+
+        // TexCoord
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(MeshVertex, texcoord));
+
+        // Normal
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(MeshVertex, normal));
+
+        // Color
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, stride, (void*)offsetof(MeshVertex, color));
+
+        // Draw
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size()));
+
+        // Cleanup
+        glDisableVertexAttribArray(0);
+        glDisableVertexAttribArray(1);
+        glDisableVertexAttribArray(2);
+        glDisableVertexAttribArray(3);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    shader_->unbind();
+#endif
+}
+
 void Viewport3D::render3DContent() {
     // GL not available in current backend - skip 3D rendering
     if (!gl::isGLReady() || fbo_ == 0) {
@@ -879,9 +1014,12 @@ void Viewport3D::render3DContent() {
     // Render mesh layers first (terrain, etc.) - sorted by z_index
     renderMeshLayers();
 
-    // Render entities
+    // Render voxel layers (Milestone 10)
     mat4 view = camera_.getViewMatrix();
     mat4 projection = camera_.getProjectionMatrix();
+    renderVoxelLayers(view, projection);
+
+    // Render entities
     renderEntities(view, projection);
 
     // Render billboards (after opaque geometry for proper transparency)
@@ -2262,6 +2400,81 @@ static PyObject* Viewport3D_follow(PyViewport3DObject* self, PyObject* args, PyO
     Py_RETURN_NONE;
 }
 
+// =============================================================================
+// Voxel Layer Methods (Milestone 10)
+// =============================================================================
+
+static PyObject* Viewport3D_add_voxel_layer(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"voxel_grid", "z_index", NULL};
+    PyObject* voxel_grid_obj = nullptr;
+    int z_index = 0;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i", const_cast<char**>(kwlist),
+                                      &voxel_grid_obj, &z_index)) {
+        return NULL;
+    }
+
+    // Check if it's a VoxelGrid object
+    PyTypeObject* voxelGridType = (PyTypeObject*)PyObject_GetAttrString(
+        McRFPy_API::mcrf_module, "VoxelGrid");
+    if (!voxelGridType) {
+        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid type not found");
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(voxel_grid_obj, (PyObject*)voxelGridType)) {
+        Py_DECREF(voxelGridType);
+        PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
+        return NULL;
+    }
+    Py_DECREF(voxelGridType);
+
+    PyVoxelGridObject* vg = (PyVoxelGridObject*)voxel_grid_obj;
+    if (!vg->data) {
+        PyErr_SetString(PyExc_ValueError, "VoxelGrid not initialized");
+        return NULL;
+    }
+
+    self->data->addVoxelLayer(vg->data, z_index);
+    Py_RETURN_NONE;
+}
+
+static PyObject* Viewport3D_remove_voxel_layer(PyViewport3DObject* self, PyObject* args) {
+    PyObject* voxel_grid_obj = nullptr;
+
+    if (!PyArg_ParseTuple(args, "O", &voxel_grid_obj)) {
+        return NULL;
+    }
+
+    // Check if it's a VoxelGrid object
+    PyTypeObject* voxelGridType = (PyTypeObject*)PyObject_GetAttrString(
+        McRFPy_API::mcrf_module, "VoxelGrid");
+    if (!voxelGridType) {
+        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid type not found");
+        return NULL;
+    }
+
+    if (!PyObject_IsInstance(voxel_grid_obj, (PyObject*)voxelGridType)) {
+        Py_DECREF(voxelGridType);
+        PyErr_SetString(PyExc_TypeError, "voxel_grid must be a VoxelGrid object");
+        return NULL;
+    }
+    Py_DECREF(voxelGridType);
+
+    PyVoxelGridObject* vg = (PyVoxelGridObject*)voxel_grid_obj;
+    if (!vg->data) {
+        PyErr_SetString(PyExc_ValueError, "VoxelGrid not initialized");
+        return NULL;
+    }
+
+    bool removed = self->data->removeVoxelLayer(vg->data);
+    return PyBool_FromLong(removed);
+}
+
+static PyObject* Viewport3D_voxel_layer_count(PyViewport3DObject* self, PyObject* Py_UNUSED(args)) {
+    return PyLong_FromSize_t(self->data->getVoxelLayerCount());
+}
+
 } // namespace mcrf
 
 // Methods array - outside namespace but PyObjectType still in scope via typedef
@@ -2441,5 +2654,25 @@ PyMethodDef Viewport3D_methods[] = {
      "    distance: Distance behind entity\n"
      "    height: Camera height above entity\n"
      "    smoothing: Interpolation factor (0-1). 1 = instant, lower = smoother"},
+
+    // Voxel layer methods (Milestone 10)
+    {"add_voxel_layer", (PyCFunction)mcrf::Viewport3D_add_voxel_layer, METH_VARARGS | METH_KEYWORDS,
+     "add_voxel_layer(voxel_grid, z_index=0)\n\n"
+     "Add a VoxelGrid as a renderable layer.\n\n"
+     "Args:\n"
+     "    voxel_grid: VoxelGrid object to render\n"
+     "    z_index: Render order (lower = rendered first)"},
+    {"remove_voxel_layer", (PyCFunction)mcrf::Viewport3D_remove_voxel_layer, METH_VARARGS,
+     "remove_voxel_layer(voxel_grid) -> bool\n\n"
+     "Remove a VoxelGrid layer from the viewport.\n\n"
+     "Args:\n"
+     "    voxel_grid: VoxelGrid object to remove\n\n"
+     "Returns:\n"
+     "    True if the layer was found and removed"},
+    {"voxel_layer_count", (PyCFunction)mcrf::Viewport3D_voxel_layer_count, METH_NOARGS,
+     "voxel_layer_count() -> int\n\n"
+     "Get the number of voxel layers.\n\n"
+     "Returns:\n"
+     "    Number of voxel layers in the viewport"},
     {NULL}  // Sentinel
 };

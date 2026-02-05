@@ -36,6 +36,7 @@
 #include "3d/EntityCollection3D.h"  // Entity3D collection
 #include "3d/Model3D.h"     // 3D model resource
 #include "3d/Billboard.h"   // Billboard sprites
+#include "3d/PyVoxelGrid.h" // Voxel grid for 3D structures (Milestone 9)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 // ImGui is only available for SFML builds
@@ -442,7 +443,7 @@ PyObject* PyInit_mcrfpy()
         /*3D entities*/
         &mcrfpydef::PyEntity3DType, &mcrfpydef::PyEntityCollection3DType,
         &mcrfpydef::PyEntityCollection3DIterType, &mcrfpydef::PyModel3DType,
-        &mcrfpydef::PyBillboardType,
+        &mcrfpydef::PyBillboardType, &mcrfpydef::PyVoxelGridType,
 
         /*grid layers (#147)*/
         &PyColorLayerType, &PyTileLayerType,
@@ -538,6 +539,10 @@ PyObject* PyInit_mcrfpy()
     // Set up PyNoiseSourceType methods and getsetters (#207-208)
     mcrfpydef::PyNoiseSourceType.tp_methods = PyNoiseSource::methods;
     mcrfpydef::PyNoiseSourceType.tp_getset = PyNoiseSource::getsetters;
+
+    // Set up PyVoxelGridType methods and getsetters (Milestone 9)
+    mcrfpydef::PyVoxelGridType.tp_methods = PyVoxelGrid::methods;
+    mcrfpydef::PyVoxelGridType.tp_getset = PyVoxelGrid::getsetters;
 
     // Set up PyShaderType methods and getsetters (#106)
     mcrfpydef::PyShaderType.tp_methods = PyShader::methods;

@@ -31,6 +31,7 @@ class Viewport3D;
 class Shader3D;
 class MeshLayer;
 class Billboard;
+class VoxelGrid;
 
 } // namespace mcrf
 
@@ -226,6 +227,29 @@ public:
     /// Render all billboards
     void renderBillboards(const mat4& view, const mat4& proj);
 
+    // =========================================================================
+    // VoxelGrid Layer Management (Milestone 10)
+    // =========================================================================
+
+    /// Add a voxel layer to the viewport
+    /// @param grid The VoxelGrid to add
+    /// @param zIndex Render order (lower = rendered first, behind higher values)
+    void addVoxelLayer(std::shared_ptr<VoxelGrid> grid, int zIndex = 0);
+
+    /// Remove a voxel layer from the viewport
+    /// @param grid The VoxelGrid to remove
+    /// @return true if the layer was found and removed
+    bool removeVoxelLayer(std::shared_ptr<VoxelGrid> grid);
+
+    /// Get all voxel layers (read-only)
+    const std::vector<std::pair<std::shared_ptr<VoxelGrid>, int>>& getVoxelLayers() const { return voxelLayers_; }
+
+    /// Get number of voxel layers
+    size_t getVoxelLayerCount() const { return voxelLayers_.size(); }
+
+    /// Render all voxel layers
+    void renderVoxelLayers(const mat4& view, const mat4& proj);
+
     // Background color
     void setBackgroundColor(const sf::Color& color) { bgColor_ = color; }
     sf::Color getBackgroundColor() const { return bgColor_; }
@@ -318,6 +342,11 @@ private:
 
     // Billboard storage
     std::shared_ptr<std::vector<std::shared_ptr<Billboard>>> billboards_;
+
+    // Voxel layer storage (Milestone 10)
+    // Pairs of (VoxelGrid, z_index) for render ordering
+    std::vector<std::pair<std::shared_ptr<VoxelGrid>, int>> voxelLayers_;
+    unsigned int voxelVBO_ = 0;  // Shared VBO for voxel rendering
 
     // Shader for PS1-style rendering
     std::unique_ptr<Shader3D> shader_;
