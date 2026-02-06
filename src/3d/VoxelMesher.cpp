@@ -235,8 +235,10 @@ void VoxelMesher::generateGreedyMesh(const VoxelGrid& grid, std::vector<MeshVert
                         } else { // Z-facing
                             float faceZ = (dir > 0) ? (sliceIdx + 1) * cs : sliceIdx * cs;
                             corner = vec3(u * cs, v * cs, faceZ);
-                            uAxis = vec3(rectW * cs, 0, 0);
-                            vAxis = vec3(0, rectH * cs, 0);
+                            // Note: axes swapped vs X/Y cases to maintain CCW winding
+                            // (vAxis × uAxis must equal +Z for front faces)
+                            uAxis = vec3(0, rectH * cs, 0);
+                            vAxis = vec3(rectW * cs, 0, 0);
                             normal = vec3(0, 0, static_cast<float>(dir));
                             if (dir < 0) std::swap(uAxis, vAxis);
                         }

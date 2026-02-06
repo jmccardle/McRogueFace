@@ -259,6 +259,30 @@ int PyVoxelGrid::set_greedy_meshing(PyVoxelGridObject* self, PyObject* value, vo
     return 0;
 }
 
+// Visible property
+PyObject* PyVoxelGrid::get_visible(PyVoxelGridObject* self, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid not initialized");
+        return nullptr;
+    }
+    return PyBool_FromLong(self->data->isVisible());
+}
+
+int PyVoxelGrid::set_visible(PyVoxelGridObject* self, PyObject* value, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "VoxelGrid not initialized");
+        return -1;
+    }
+
+    if (!PyBool_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "visible must be a boolean");
+        return -1;
+    }
+
+    self->data->setVisible(value == Py_True);
+    return 0;
+}
+
 // =============================================================================
 // Voxel access methods
 // =============================================================================
@@ -1267,5 +1291,7 @@ PyGetSetDef PyVoxelGrid::getsetters[] = {
      "Y-axis rotation in degrees.", nullptr},
     {"greedy_meshing", (getter)get_greedy_meshing, (setter)set_greedy_meshing,
      "Enable greedy meshing optimization (reduces vertex count for uniform regions).", nullptr},
+    {"visible", (getter)get_visible, (setter)set_visible,
+     "Show or hide this voxel grid in rendering.", nullptr},
     {nullptr}  // Sentinel
 };

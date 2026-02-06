@@ -1021,6 +1021,9 @@ void Viewport3D::renderVoxelLayers(const mat4& view, const mat4& proj) {
     for (auto& pair : sortedLayers) {
         VoxelGrid* grid = pair.first;
 
+        // Skip invisible grids
+        if (!grid->isVisible()) continue;
+
         // Get vertices (triggers rebuild if dirty)
         const std::vector<MeshVertex>& vertices = grid->getVertices();
         if (vertices.empty()) continue;

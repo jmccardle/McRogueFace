@@ -64,6 +64,7 @@ private:
     mutable bool meshDirty_ = true;
     mutable std::vector<MeshVertex> cachedVertices_;
     bool greedyMeshing_ = false;  // Use greedy meshing algorithm
+    bool visible_ = true;          // Visibility toggle for rendering
 
     // Index calculation (row-major: X varies fastest, then Y, then Z)
     inline size_t index(int x, int y, int z) const {
@@ -162,6 +163,10 @@ public:
     /// Greedy meshing merges coplanar faces to reduce vertex count
     void setGreedyMeshing(bool enabled) { greedyMeshing_ = enabled; markDirty(); }
     bool isGreedyMeshingEnabled() const { return greedyMeshing_; }
+
+    /// Show/hide this voxel grid in rendering
+    void setVisible(bool v) { visible_ = v; }
+    bool isVisible() const { return visible_; }
 
     // Memory info (for debugging)
     size_t memoryUsageBytes() const {

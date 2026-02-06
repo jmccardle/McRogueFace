@@ -52,6 +52,10 @@ public:
     static PyObject* get_greedy_meshing(PyVoxelGridObject* self, void* closure);
     static int set_greedy_meshing(PyVoxelGridObject* self, PyObject* value, void* closure);
 
+    // Properties - visibility
+    static PyObject* get_visible(PyVoxelGridObject* self, void* closure);
+    static int set_visible(PyVoxelGridObject* self, PyObject* value, void* closure);
+
     // Voxel access methods
     static PyObject* get(PyVoxelGridObject* self, PyObject* args);
     static PyObject* set(PyVoxelGridObject* self, PyObject* args);
