@@ -235,6 +235,60 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        /* Click-to-run overlay */
+        .game-panel {
+            position: relative;
+        }
+        .click-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .click-overlay.hidden {
+            display: none;
+        }
+        .click-overlay h2 {
+            color: #e94560;
+            margin: 0 0 10px 0;
+            font-size: 32px;
+        }
+        .click-overlay p {
+            color: #888;
+            margin: 5px 15px;
+            text-align: center;
+        }
+        .click-overlay p a {
+            color: #667eea;
+        }
+        .click-overlay .start-btn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 18px;
+            background: #4ecca3;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .click-overlay .start-btn:hover {
+            background: #3db892;
+            transform: scale(1.05);
+        }
+        .click-overlay .start-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
         @media (max-width: 900px) {
             .main-content {
                 flex-direction: column;
@@ -341,6 +395,14 @@
         <div class="main-content">
             <div class="game-panel">
                 <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+
+                <!-- Click-to-run overlay (visible on load, especially important for mobile) -->
+                <div id="clickOverlay" class="click-overlay">
+                    <h2>McRogueFace Playground</h2>
+                    <p>Code snippets run unmodified in <a href="https://github.com/jmccardle/McRogueFace" target="_blank">McRogueFace for Linux or Windows Desktop</a></p>
+                    <p id="overlayStatus">Loading engine...</p>
+                    <button class="start-btn" id="startBtn" disabled>Loading...</button>
+                </div>
             </div>
 
             <div class="repl-panel" id="replPanel">
@@ -492,6 +554,9 @@
         var clearBtn = document.getElementById('clearBtn');
         var interpreterStatus = document.getElementById('interpreterStatus');
         var sourceIndicator = document.getElementById('sourceIndicator');
+        var clickOverlay = document.getElementById('clickOverlay');
+        var startBtn = document.getElementById('startBtn');
+        var overlayStatus = document.getElementById('overlayStatus');
         var shareModal = document.getElementById('shareModal');
         var shareUrlInput = document.getElementById('shareUrl');
         var shareSizeEl = document.getElementById('shareSize');
@@ -675,6 +740,11 @@
 
                 appendToOutput('Python REPL ready. Enter code and click Run (or Ctrl+Enter).', 'success');
                 appendToOutput('Tip: Use Ctrl+Up/Down to navigate command history.', 'input');
+
+                // Enable the click overlay start button
+                overlayStatus.textContent = 'Engine ready!';
+                startBtn.textContent = 'Click to Run';
+                startBtn.disabled = false;
 
                 setTimeout(function() {
                     canvasElement.focus();
@@ -875,6 +945,15 @@
         shareBtn.addEventListener('click', showShareModal);
         resetBtn.addEventListener('click', resetEnvironment);
         clearBtn.addEventListener('click', clearOutput);
+
+        // Click overlay start button - runs editor code and dismisses overlay
+        startBtn.addEventListener('click', function() {
+            clickOverlay.classList.add('hidden');
+            canvasElement.focus();
+            if (window.runPython) {
+                runCode();
+            }
+        });
 
         // ===========================================
         // Initialize
