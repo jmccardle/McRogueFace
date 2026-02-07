@@ -40,6 +40,8 @@
 #include "tiled/PyTileSetFile.h"  // Tiled tileset loading
 #include "tiled/PyTileMapFile.h"  // Tiled tilemap loading
 #include "tiled/PyWangSet.h"      // Wang auto-tile sets
+#include "ldtk/PyLdtkProject.h"   // LDtk project loading
+#include "ldtk/PyAutoRuleSet.h"   // LDtk auto-rule sets
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 // ImGui is only available for SFML builds
@@ -494,6 +496,10 @@ PyObject* PyInit_mcrfpy()
         &mcrfpydef::PyTileMapFileType,
         &mcrfpydef::PyWangSetType,
 
+        /*LDtk project loading*/
+        &mcrfpydef::PyLdtkProjectType,
+        &mcrfpydef::PyAutoRuleSetType,
+
         nullptr};
 
     // Types that are used internally but NOT exported to module namespace (#189)
@@ -574,6 +580,12 @@ PyObject* PyInit_mcrfpy()
     mcrfpydef::PyTileMapFileType.tp_getset = PyTileMapFile::getsetters;
     mcrfpydef::PyWangSetType.tp_methods = PyWangSet::methods;
     mcrfpydef::PyWangSetType.tp_getset = PyWangSet::getsetters;
+
+    // LDtk types
+    mcrfpydef::PyLdtkProjectType.tp_methods = PyLdtkProject::methods;
+    mcrfpydef::PyLdtkProjectType.tp_getset = PyLdtkProject::getsetters;
+    mcrfpydef::PyAutoRuleSetType.tp_methods = PyAutoRuleSet::methods;
+    mcrfpydef::PyAutoRuleSetType.tp_getset = PyAutoRuleSet::getsetters;
 
     // Set up weakref support for all types that need it
     PyTimerType.tp_weaklistoffset = offsetof(PyTimerObject, weakreflist);

@@ -48,6 +48,30 @@ std::shared_ptr<PyTexture> PyTexture::from_rendered(sf::RenderTexture& render_te
     return ptex;
 }
 
+// Factory method to create texture from an sf::Image (for LDtk flip-baked atlases)
+std::shared_ptr<PyTexture> PyTexture::from_image(
+    const sf::Image& img, int sprite_w, int sprite_h,
+    const std::string& name)
+{
+    struct MakeSharedEnabler : public PyTexture {
+        MakeSharedEnabler() : PyTexture() {}
+    };
+    auto ptex = std::make_shared<MakeSharedEnabler>();
+
+    ptex->texture.loadFromImage(img);
+    ptex->texture.setSmooth(false);
+
+    ptex->source = name;
+    ptex->sprite_width = sprite_w;
+    ptex->sprite_height = sprite_h;
+
+    auto size = ptex->texture.getSize();
+    ptex->sheet_width = (sprite_w > 0) ? (size.x / sprite_w) : 0;
+    ptex->sheet_height = (sprite_h > 0) ? (size.y / sprite_h) : 0;
+
+    return ptex;
+}
+
 sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
 {
     // Protect against division by zero if texture failed to load
