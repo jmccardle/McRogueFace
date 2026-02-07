@@ -14,3 +14,9 @@
 	path = modules/libtcod-headless
 	url = git@github.com:jmccardle/libtcod-headless.git
 	branch = 2.2.1-headless
+[submodule "modules/RapidXML"]
+	path = modules/RapidXML
+	url = https://github.com/Fe-Bell/RapidXML
+[submodule "modules/json"]
+	path = modules/json
+	url = git@github.com:nlohmann/json.git
