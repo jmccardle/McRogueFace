@@ -37,6 +37,9 @@
 #include "3d/Model3D.h"     // 3D model resource
 #include "3d/Billboard.h"   // Billboard sprites
 #include "3d/PyVoxelGrid.h" // Voxel grid for 3D structures (Milestone 9)
+#include "tiled/PyTileSetFile.h"  // Tiled tileset loading
+#include "tiled/PyTileMapFile.h"  // Tiled tilemap loading
+#include "tiled/PyWangSet.h"      // Wang auto-tile sets
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 // ImGui is only available for SFML builds
@@ -486,6 +489,11 @@ PyObject* PyInit_mcrfpy()
         &mcrfpydef::PyPropertyBindingType,
         &mcrfpydef::PyCallableBindingType,
 
+        /*tiled map/tileset loading*/
+        &mcrfpydef::PyTileSetFileType,
+        &mcrfpydef::PyTileMapFileType,
+        &mcrfpydef::PyWangSetType,
+
         nullptr};
 
     // Types that are used internally but NOT exported to module namespace (#189)
@@ -558,6 +566,14 @@ PyObject* PyInit_mcrfpy()
 
     // Set up PyUniformCollectionType methods (#106)
     mcrfpydef::PyUniformCollectionType.tp_methods = ::PyUniformCollectionType::methods;
+
+    // Set up Tiled types methods and getsetters
+    mcrfpydef::PyTileSetFileType.tp_methods = PyTileSetFile::methods;
+    mcrfpydef::PyTileSetFileType.tp_getset = PyTileSetFile::getsetters;
+    mcrfpydef::PyTileMapFileType.tp_methods = PyTileMapFile::methods;
+    mcrfpydef::PyTileMapFileType.tp_getset = PyTileMapFile::getsetters;
+    mcrfpydef::PyWangSetType.tp_methods = PyWangSet::methods;
+    mcrfpydef::PyWangSetType.tp_getset = PyWangSet::getsetters;
 
     // Set up weakref support for all types that need it
     PyTimerType.tp_weaklistoffset = offsetof(PyTimerObject, weakreflist);

@@ -217,6 +217,14 @@ def _Key_eq(self, other):
     return int.__eq__(int(self), other)
 
 Key.__eq__ = _Key_eq
+
+def _Key_ne(self, other):
+    result = type(self).__eq__(self, other)
+    if result is NotImplemented:
+        return result
+    return not result
+
+Key.__ne__ = _Key_ne
 Key.__hash__ = lambda self: hash(int(self))
 Key.__repr__ = lambda self: f"{type(self).__name__}.{self.name}"
 Key.__str__ = lambda self: self.name

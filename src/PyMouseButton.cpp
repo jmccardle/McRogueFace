@@ -89,6 +89,14 @@ def _MouseButton_eq(self, other):
     return int.__eq__(int(self), other)
 
 MouseButton.__eq__ = _MouseButton_eq
+
+def _MouseButton_ne(self, other):
+    result = type(self).__eq__(self, other)
+    if result is NotImplemented:
+        return result
+    return not result
+
+MouseButton.__ne__ = _MouseButton_ne
 MouseButton.__hash__ = lambda self: hash(int(self))
 MouseButton.__repr__ = lambda self: f"{type(self).__name__}.{self.name}"
 MouseButton.__str__ = lambda self: self.name

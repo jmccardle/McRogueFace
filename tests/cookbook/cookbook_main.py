@@ -212,26 +212,26 @@ class CookbookLauncher:
         category = self.categories[self.selected_category]
         items = self.DEMOS[category]
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
-        elif key == "Left":
+        elif key == mcrfpy.Key.LEFT or key == mcrfpy.Key.A:
             self.selected_category = (self.selected_category - 1) % len(self.categories)
             # Clamp item selection to new category
             new_category = self.categories[self.selected_category]
             self.selected_item = min(self.selected_item, len(self.DEMOS[new_category]) - 1)
             self._update_selection()
-        elif key == "Right":
+        elif key == mcrfpy.Key.RIGHT or key == mcrfpy.Key.D:
             self.selected_category = (self.selected_category + 1) % len(self.categories)
             new_category = self.categories[self.selected_category]
             self.selected_item = min(self.selected_item, len(self.DEMOS[new_category]) - 1)
             self._update_selection()
-        elif key == "Up":
+        elif key == mcrfpy.Key.UP or key == mcrfpy.Key.W:
             self.selected_item = (self.selected_item - 1) % len(items)
             self._update_selection()
-        elif key == "Down":
+        elif key == mcrfpy.Key.DOWN or key == mcrfpy.Key.S:
             self.selected_item = (self.selected_item + 1) % len(items)
             self._update_selection()
-        elif key == "Enter":
+        elif key == mcrfpy.Key.ENTER or key == mcrfpy.Key.SPACE:
             self._run_selected_demo()
 
     def activate(self):

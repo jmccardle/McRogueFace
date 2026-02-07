@@ -69,6 +69,14 @@ def _InputState_eq(self, other):
     return int.__eq__(int(self), other)
 
 InputState.__eq__ = _InputState_eq
+
+def _InputState_ne(self, other):
+    result = type(self).__eq__(self, other)
+    if result is NotImplemented:
+        return result
+    return not result
+
+InputState.__ne__ = _InputState_ne
 InputState.__hash__ = lambda self: hash(int(self))
 InputState.__repr__ = lambda self: f"{type(self).__name__}.{self.name}"
 InputState.__str__ = lambda self: self.name
