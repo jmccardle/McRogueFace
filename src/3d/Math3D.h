@@ -247,30 +247,30 @@ struct mat4 {
     // Perspective projection matrix
     // fov: vertical field of view in radians
     // aspect: width / height
-    // near, far: clipping planes
-    static mat4 perspective(float fov, float aspect, float near, float far) {
+    // nearPlane, farPlane: clipping planes
+    static mat4 perspective(float fov, float aspect, float nearPlane, float farPlane) {
         mat4 result;
         float tanHalfFov = std::tan(fov / 2.0f);
 
         result.at(0, 0) = 1.0f / (aspect * tanHalfFov);
         result.at(1, 1) = 1.0f / tanHalfFov;
-        result.at(2, 2) = -(far + near) / (far - near);
+        result.at(2, 2) = -(farPlane + nearPlane) / (farPlane - nearPlane);
         result.at(2, 3) = -1.0f;
-        result.at(3, 2) = -(2.0f * far * near) / (far - near);
+        result.at(3, 2) = -(2.0f * farPlane * nearPlane) / (farPlane - nearPlane);
 
         return result;
     }
 
     // Orthographic projection matrix
-    static mat4 ortho(float left, float right, float bottom, float top, float near, float far) {
+    static mat4 ortho(float left, float right, float bottom, float top, float nearPlane, float farPlane) {
         mat4 result = identity();
 
         result.at(0, 0) = 2.0f / (right - left);
         result.at(1, 1) = 2.0f / (top - bottom);
-        result.at(2, 2) = -2.0f / (far - near);
+        result.at(2, 2) = -2.0f / (farPlane - nearPlane);
         result.at(3, 0) = -(right + left) / (right - left);
         result.at(3, 1) = -(top + bottom) / (top - bottom);
-        result.at(3, 2) = -(far + near) / (far - near);
+        result.at(3, 2) = -(farPlane + nearPlane) / (farPlane - nearPlane);
 
         return result;
     }

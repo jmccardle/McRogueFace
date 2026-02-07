@@ -503,6 +503,10 @@ public:
         size_ = Vector2u(256, 256);
         return true;
     }
+    bool loadFromImage(const Image& image) {
+        size_ = image.getSize();
+        return true;
+    }
     Vector2u getSize() const { return size_; }
     void setSmooth(bool smooth) {}
     bool isSmooth() const { return false; }

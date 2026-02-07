@@ -1100,6 +1100,17 @@ bool Texture::loadFromMemory(const void* data, size_t size) {
     return textureId_ != 0;
 }
 
+bool Texture::loadFromImage(const Image& image) {
+    if (textureId_) {
+        SDL2Renderer::getInstance().deleteTexture(textureId_);
+    }
+    auto imgSize = image.getSize();
+    size_ = imgSize;
+    textureId_ = SDL2Renderer::getInstance().createTexture(
+        imgSize.x, imgSize.y, image.getPixelsPtr());
+    return textureId_ != 0;
+}
+
 void Texture::setSmooth(bool smooth) {
     smooth_ = smooth;
     if (textureId_) {

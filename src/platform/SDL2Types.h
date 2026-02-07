@@ -669,6 +669,7 @@ public:
     bool create(unsigned int width, unsigned int height);  // Implemented in SDL2Renderer.cpp
     bool loadFromFile(const std::string& filename);  // Implemented in SDL2Renderer.cpp
     bool loadFromMemory(const void* data, size_t size);  // Implemented in SDL2Renderer.cpp
+    bool loadFromImage(const Image& image);  // Implemented in SDL2Renderer.cpp
 
     Vector2u getSize() const { return size_; }
     void setSize(unsigned int width, unsigned int height) { size_ = Vector2u(width, height); }

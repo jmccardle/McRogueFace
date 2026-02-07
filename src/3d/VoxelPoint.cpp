@@ -51,7 +51,7 @@ PyObject* VoxelPoint::get_bool_member(PyVoxelPointObject* self, void* closure)
         return NULL;
     }
 
-    long member = reinterpret_cast<long>(closure);
+    intptr_t member = reinterpret_cast<intptr_t>(closure);
     bool value = false;
 
     switch (member) {
@@ -82,7 +82,7 @@ int VoxelPoint::set_bool_member(PyVoxelPointObject* self, PyObject* value, void*
     }
 
     bool newValue = PyObject_IsTrue(value);
-    long member = reinterpret_cast<long>(closure);
+    intptr_t member = reinterpret_cast<intptr_t>(closure);
 
     switch (member) {
         case VOXEL_WALKABLE:
@@ -111,7 +111,7 @@ PyObject* VoxelPoint::get_float_member(PyVoxelPointObject* self, void* closure)
         return NULL;
     }
 
-    long member = reinterpret_cast<long>(closure);
+    intptr_t member = reinterpret_cast<intptr_t>(closure);
     float value = 0.0f;
 
     switch (member) {
@@ -146,7 +146,7 @@ int VoxelPoint::set_float_member(PyVoxelPointObject* self, PyObject* value, void
         return -1;
     }
 
-    long member = reinterpret_cast<long>(closure);
+    intptr_t member = reinterpret_cast<intptr_t>(closure);
 
     switch (member) {
         case VOXEL_HEIGHT:
