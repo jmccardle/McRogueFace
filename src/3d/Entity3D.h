@@ -88,6 +88,10 @@ public:
     bool isVisible() const { return visible_; }
     void setVisible(bool v) { visible_ = v; }
 
+    // Name (for find() lookup)
+    const std::string& getName() const { return name_; }
+    void setName(const std::string& n) { name_ = n; }
+
     // Color for placeholder cube rendering
     sf::Color getColor() const { return color_; }
     void setColor(const sf::Color& c) { color_ = c; }
@@ -228,6 +232,8 @@ public:
     static PyObject* repr(PyEntity3DObject* self);
 
     // Property getters/setters
+    static PyObject* get_name(PyEntity3DObject* self, void* closure);
+    static int set_name(PyEntity3DObject* self, PyObject* value, void* closure);
     static PyObject* get_pos(PyEntity3DObject* self, void* closure);
     static int set_pos(PyEntity3DObject* self, PyObject* value, void* closure);
     static PyObject* get_world_pos(PyEntity3DObject* self, void* closure);
@@ -297,6 +303,7 @@ private:
     vec3 scale_ = vec3(1.0f, 1.0f, 1.0f);
 
     // Appearance
+    std::string name_;  // For find() lookup
     bool visible_ = true;
     sf::Color color_ = sf::Color(200, 100, 50);  // Default orange
     int sprite_index_ = 0;

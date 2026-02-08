@@ -196,6 +196,125 @@ PyObject* EntityCollection3D::clear(PyEntityCollection3DObject* self, PyObject* 
     Py_RETURN_NONE;
 }
 
+PyObject* EntityCollection3D::pop(PyEntityCollection3DObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"index", NULL};
+    Py_ssize_t index = -1;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|n", const_cast<char**>(kwlist), &index)) {
+        return NULL;
+    }
+
+    if (!self->data || self->data->empty()) {
+        PyErr_SetString(PyExc_IndexError, "pop from empty EntityCollection3D");
+        return NULL;
+    }
+
+    Py_ssize_t size = static_cast<Py_ssize_t>(self->data->size());
+    if (index < 0) index += size;
+    if (index < 0 || index >= size) {
+        PyErr_SetString(PyExc_IndexError, "EntityCollection3D pop index out of range");
+        return NULL;
+    }
+
+    // Iterate to the index
+    auto it = self->data->begin();
+    std::advance(it, index);
+
+    auto entity = *it;
+
+    // Clear viewport reference before removing
+    entity->setViewport(nullptr);
+    self->data->erase(it);
+
+    // Create Python wrapper for the removed entity
+    auto type = &mcrfpydef::PyEntity3DType;
+    auto obj = (PyEntity3DObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+
+    new (&obj->data) std::shared_ptr<mcrf::Entity3D>(entity);
+    obj->weakreflist = nullptr;
+
+    return (PyObject*)obj;
+}
+
+PyObject* EntityCollection3D::extend(PyEntityCollection3DObject* self, PyObject* o)
+{
+    if (!self->data || !self->viewport) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection has no data");
+        return NULL;
+    }
+
+    PyObject* iterator = PyObject_GetIter(o);
+    if (!iterator) {
+        return NULL;
+    }
+
+    // First pass: validate all items are Entity3D
+    std::vector<std::shared_ptr<mcrf::Entity3D>> to_add;
+    PyObject* item;
+    while ((item = PyIter_Next(iterator)) != NULL) {
+        if (!PyObject_IsInstance(item, (PyObject*)&mcrfpydef::PyEntity3DType)) {
+            Py_DECREF(item);
+            Py_DECREF(iterator);
+            PyErr_SetString(PyExc_TypeError, "extend() requires an iterable of Entity3D objects");
+            return NULL;
+        }
+        auto entity_obj = (PyEntity3DObject*)item;
+        if (!entity_obj->data) {
+            Py_DECREF(item);
+            Py_DECREF(iterator);
+            PyErr_SetString(PyExc_ValueError, "Entity3D has no data");
+            return NULL;
+        }
+        to_add.push_back(entity_obj->data);
+        Py_DECREF(item);
+    }
+    Py_DECREF(iterator);
+
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+
+    // Second pass: append all validated entities
+    for (auto& entity : to_add) {
+        self->data->push_back(entity);
+        entity->setViewport(self->viewport);
+    }
+
+    Py_RETURN_NONE;
+}
+
+PyObject* EntityCollection3D::find(PyEntityCollection3DObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"name", NULL};
+    const char* name = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", const_cast<char**>(kwlist), &name)) {
+        return NULL;
+    }
+
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection has no data");
+        return NULL;
+    }
+
+    for (const auto& entity : *self->data) {
+        if (entity->getName() == name) {
+            auto type = &mcrfpydef::PyEntity3DType;
+            auto obj = (PyEntity3DObject*)type->tp_alloc(type, 0);
+            if (!obj) return NULL;
+
+            new (&obj->data) std::shared_ptr<mcrf::Entity3D>(entity);
+            obj->weakreflist = nullptr;
+
+            return (PyObject*)obj;
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
 PyMethodDef EntityCollection3D::methods[] = {
     {"append", (PyCFunction)EntityCollection3D::append, METH_O,
      "append(entity)\n\n"
@@ -206,6 +325,15 @@ PyMethodDef EntityCollection3D::methods[] = {
     {"clear", (PyCFunction)EntityCollection3D::clear, METH_NOARGS,
      "clear()\n\n"
      "Remove all entities from the collection."},
+    {"pop", (PyCFunction)EntityCollection3D::pop, METH_VARARGS | METH_KEYWORDS,
+     "pop(index=-1) -> Entity3D\n\n"
+     "Remove and return Entity3D at index (default: last)."},
+    {"extend", (PyCFunction)EntityCollection3D::extend, METH_O,
+     "extend(iterable)\n\n"
+     "Add all Entity3D objects from iterable to the collection."},
+    {"find", (PyCFunction)EntityCollection3D::find, METH_VARARGS | METH_KEYWORDS,
+     "find(name) -> Entity3D or None\n\n"
+     "Find an Entity3D by name. Returns None if not found."},
     {NULL}  // Sentinel
 };
 

@@ -43,6 +43,9 @@ public:
     static PyObject* append(PyEntityCollection3DObject* self, PyObject* o);
     static PyObject* remove(PyEntityCollection3DObject* self, PyObject* o);
     static PyObject* clear(PyEntityCollection3DObject* self, PyObject* args);
+    static PyObject* pop(PyEntityCollection3DObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* extend(PyEntityCollection3DObject* self, PyObject* o);
+    static PyObject* find(PyEntityCollection3DObject* self, PyObject* args, PyObject* kwds);
     static PyMethodDef methods[];
 
     // Python type slots
