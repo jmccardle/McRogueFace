@@ -196,7 +196,7 @@ void Viewport3D::orbitCamera(float angle, float distance, float height) {
     camera_.setTarget(vec3(0, 0, 0));
 }
 
-vec3 Viewport3D::screenToWorld(float screenX, float screenY) {
+vec3 Viewport3D::screenToWorld(float screenX, float screenY, float yPlane) {
     // Convert screen coordinates to normalized device coordinates (-1 to 1)
     // screenX/Y are relative to the viewport position
     float ndcX = (2.0f * screenX / size_.x) - 1.0f;
@@ -217,10 +217,10 @@ vec3 Viewport3D::screenToWorld(float screenX, float screenY) {
     vec3 rayDir = vec3(rayWorld4.x, rayWorld4.y, rayWorld4.z).normalized();
     vec3 rayOrigin = camera_.getPosition();
 
-    // Intersect with Y=0 plane (ground level)
+    // Intersect with Y=yPlane horizontal plane
     // This is a simplification - for hilly terrain, you'd want ray-marching
     if (std::abs(rayDir.y) > 0.0001f) {
-        float t = -rayOrigin.y / rayDir.y;
+        float t = (yPlane - rayOrigin.y) / rayDir.y;
         if (t > 0) {
             return rayOrigin + rayDir * t;
         }
@@ -2453,16 +2453,16 @@ static PyObject* Viewport3D_billboard_count(PyViewport3DObject* self, PyObject* 
 // =============================================================================
 
 static PyObject* Viewport3D_screen_to_world(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"x", "y", NULL};
+    static const char* kwlist[] = {"x", "y", "y_plane", NULL};
 
-    float x = 0.0f, y = 0.0f;
+    float x = 0.0f, y = 0.0f, y_plane = 0.0f;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ff", const_cast<char**>(kwlist), &x, &y)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ff|f", const_cast<char**>(kwlist), &x, &y, &y_plane)) {
         return NULL;
     }
 
     // Adjust for viewport position (user passes screen coords relative to viewport)
-    vec3 worldPos = self->data->screenToWorld(x, y);
+    vec3 worldPos = self->data->screenToWorld(x, y, y_plane);
 
     // Return None if no intersection (ray parallel to ground or invalid)
     if (worldPos.x < 0 && worldPos.y < 0 && worldPos.z < 0) {
@@ -2833,13 +2833,14 @@ PyMethodDef Viewport3D_methods[] = {
 
     // Camera & Input methods (Milestone 8)
     {"screen_to_world", (PyCFunction)mcrf::Viewport3D_screen_to_world, METH_VARARGS | METH_KEYWORDS,
-     "screen_to_world(x, y) -> tuple or None\n\n"
+     "screen_to_world(x, y, y_plane=0.0) -> tuple or None\n\n"
      "Convert screen coordinates to world position via ray casting.\n\n"
      "Args:\n"
      "    x: Screen X coordinate relative to viewport\n"
-     "    y: Screen Y coordinate relative to viewport\n\n"
+     "    y: Screen Y coordinate relative to viewport\n"
+     "    y_plane: Y value of horizontal plane to intersect (default: 0.0)\n\n"
      "Returns:\n"
-     "    (x, y, z) world position tuple, or None if no intersection with ground plane"},
+     "    (x, y, z) world position tuple, or None if no intersection with the plane"},
     {"follow", (PyCFunction)mcrf::Viewport3D_follow, METH_VARARGS | METH_KEYWORDS,
      "follow(entity, distance=10, height=5, smoothing=1.0)\n\n"
      "Position camera to follow an entity.\n\n"
