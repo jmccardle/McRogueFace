@@ -8,7 +8,12 @@
 #include "PyVector.h"
 #include "PyColor.h"
 #include "PythonObjectCache.h"
+#include "Animation.h"
+#include "PyAnimation.h"
+#include "PyEasing.h"
+#include "McRFPy_API.h"
 #include <cstdio>
+#include <cstring>
 
 // Include appropriate GL headers based on backend
 #if defined(MCRF_SDL2)
@@ -739,6 +744,21 @@ PyObject* Entity3D::repr(PyEntity3DObject* self)
 
 // Property getters/setters
 
+PyObject* Entity3D::get_name(PyEntity3DObject* self, void* closure)
+{
+    return PyUnicode_FromString(self->data->getName().c_str());
+}
+
+int Entity3D::set_name(PyEntity3DObject* self, PyObject* value, void* closure)
+{
+    if (!PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "name must be a string");
+        return -1;
+    }
+    self->data->setName(PyUnicode_AsUTF8(value));
+    return 0;
+}
+
 PyObject* Entity3D::get_pos(PyEntity3DObject* self, void* closure)
 {
     return Py_BuildValue("(ii)", self->data->grid_x_, self->data->grid_z_);
@@ -841,9 +861,15 @@ PyObject* Entity3D::get_viewport(PyEntity3DObject* self, void* closure)
     if (!vp) {
         Py_RETURN_NONE;
     }
-    // TODO: Return actual viewport Python object
-    // For now, return None
-    Py_RETURN_NONE;
+
+    PyTypeObject* type = &mcrfpydef::PyViewport3DType;
+    PyViewport3DObject* obj = (PyViewport3DObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+
+    obj->data = vp;
+    obj->weakreflist = nullptr;
+
+    return (PyObject*)obj;
 }
 
 PyObject* Entity3D::get_model(PyEntity3DObject* self, void* closure)
@@ -1115,10 +1141,110 @@ PyObject* Entity3D::py_update_visibility(PyEntity3DObject* self, PyObject* args)
 
 PyObject* Entity3D::py_animate(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
 {
-    // TODO: Implement animation shorthand similar to UIEntity
-    // For now, return None
-    PyErr_SetString(PyExc_NotImplementedError, "Entity3D.animate() not yet implemented");
-    return NULL;
+    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "callback", "conflict_mode", nullptr};
+
+    const char* property_name;
+    PyObject* target_value;
+    float duration;
+    PyObject* easing_arg = Py_None;
+    int delta = 0;
+    PyObject* callback = nullptr;
+    const char* conflict_mode_str = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OpOs", const_cast<char**>(keywords),
+                                      &property_name, &target_value, &duration,
+                                      &easing_arg, &delta, &callback, &conflict_mode_str)) {
+        return NULL;
+    }
+
+    // Validate property exists on this entity
+    if (!self->data->hasProperty(property_name)) {
+        PyErr_Format(PyExc_ValueError,
+            "Property '%s' is not valid for animation on Entity3D. "
+            "Valid properties: x, y, z, world_x, world_y, world_z, rotation, rot_y, "
+            "scale, scale_x, scale_y, scale_z, sprite_index, visible",
+            property_name);
+        return NULL;
+    }
+
+    // Validate callback is callable if provided
+    if (callback && callback != Py_None && !PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "callback must be callable");
+        return NULL;
+    }
+
+    // Convert None to nullptr for C++
+    if (callback == Py_None) {
+        callback = nullptr;
+    }
+
+    // Convert Python target value to AnimationValue
+    // Entity3D only supports float and int properties
+    AnimationValue animValue;
+
+    if (PyFloat_Check(target_value)) {
+        animValue = static_cast<float>(PyFloat_AsDouble(target_value));
+    }
+    else if (PyLong_Check(target_value)) {
+        animValue = static_cast<int>(PyLong_AsLong(target_value));
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError, "Entity3D animations only support float or int target values");
+        return NULL;
+    }
+
+    // Get easing function from argument
+    EasingFunction easingFunc;
+    if (!PyEasing::from_arg(easing_arg, &easingFunc, nullptr)) {
+        return NULL;  // Error already set by from_arg
+    }
+
+    // Parse conflict mode
+    AnimationConflictMode conflict_mode = AnimationConflictMode::REPLACE;
+    if (conflict_mode_str) {
+        if (strcmp(conflict_mode_str, "replace") == 0) {
+            conflict_mode = AnimationConflictMode::REPLACE;
+        } else if (strcmp(conflict_mode_str, "queue") == 0) {
+            conflict_mode = AnimationConflictMode::QUEUE;
+        } else if (strcmp(conflict_mode_str, "error") == 0) {
+            conflict_mode = AnimationConflictMode::RAISE_ERROR;
+        } else {
+            PyErr_Format(PyExc_ValueError,
+                "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", conflict_mode_str);
+            return NULL;
+        }
+    }
+
+    // Create the Animation
+    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, callback);
+
+    // Start on this entity (uses startEntity3D)
+    animation->startEntity3D(self->data);
+
+    // Add to AnimationManager
+    AnimationManager::getInstance().addAnimation(animation, conflict_mode);
+
+    // Check if ERROR mode raised an exception
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+
+    // Create and return a PyAnimation wrapper
+    PyTypeObject* animType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Animation");
+    if (!animType) {
+        PyErr_SetString(PyExc_RuntimeError, "Could not find Animation type");
+        return NULL;
+    }
+
+    PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
+    Py_DECREF(animType);
+
+    if (!pyAnim) {
+        return NULL;
+    }
+
+    pyAnim->data = animation;
+    return (PyObject*)pyAnim;
 }
 
 PyObject* Entity3D::py_follow_path(PyEntity3DObject* self, PyObject* args)
@@ -1180,8 +1306,16 @@ PyMethodDef Entity3D::methods[] = {
      "update_visibility()\n\n"
      "Recompute field of view from current position."},
     {"animate", (PyCFunction)Entity3D::py_animate, METH_VARARGS | METH_KEYWORDS,
-     "animate(property, target, duration, easing=None, callback=None)\n\n"
-     "Animate a property over time. (Not yet implemented)"},
+     "animate(property, target, duration, easing=None, delta=False, callback=None, conflict_mode=None)\n\n"
+     "Animate a property over time.\n\n"
+     "Args:\n"
+     "    property: Property name (x, y, z, rotation, scale, etc.)\n"
+     "    target: Target value (float or int)\n"
+     "    duration: Animation duration in seconds\n"
+     "    easing: Easing function (Easing enum or None for linear)\n"
+     "    delta: If True, target is relative to current value\n"
+     "    callback: Called with (target, property, value) when complete\n"
+     "    conflict_mode: 'replace', 'queue', or 'error'"},
     {"follow_path", (PyCFunction)Entity3D::py_follow_path, METH_VARARGS,
      "follow_path(path)\n\n"
      "Queue path positions for smooth movement.\n\n"
@@ -1194,6 +1328,8 @@ PyMethodDef Entity3D::methods[] = {
 };
 
 PyGetSetDef Entity3D::getsetters[] = {
+    {"name", (getter)Entity3D::get_name, (setter)Entity3D::set_name,
+     "Entity name (str). Used for find() lookup.", NULL},
     {"pos", (getter)Entity3D::get_pos, (setter)Entity3D::set_pos,
      "Grid position (x, z). Setting triggers smooth movement.", NULL},
     {"grid_pos", (getter)Entity3D::get_grid_pos, (setter)Entity3D::set_grid_pos,

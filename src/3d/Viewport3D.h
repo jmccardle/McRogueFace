@@ -89,8 +89,9 @@ public:
     /// Convert screen coordinates to world position via ray casting
     /// @param screenX X position relative to viewport
     /// @param screenY Y position relative to viewport
-    /// @return World position on Y=0 plane, or (-1,-1,-1) if no intersection
-    vec3 screenToWorld(float screenX, float screenY);
+    /// @param yPlane Y value of the horizontal plane to intersect (default: 0)
+    /// @return World position on the given Y plane, or (-1,-1,-1) if no intersection
+    vec3 screenToWorld(float screenX, float screenY, float yPlane = 0.0f);
 
     /// Position camera to follow an entity
     /// @param entity Entity to follow
@@ -402,7 +403,7 @@ extern PyMethodDef Viewport3D_methods[];
 
 namespace mcrfpydef {
 
-static PyTypeObject PyViewport3DType = {
+inline PyTypeObject PyViewport3DType = {
     .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
     .tp_name = "mcrfpy.Viewport3D",
     .tp_basicsize = sizeof(PyViewport3DObject),
