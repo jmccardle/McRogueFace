@@ -1,4 +1,5 @@
 #include "UIDrawable.h"
+#include <iostream>
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
@@ -428,6 +429,8 @@ void UIDrawable::enableRenderTexture(unsigned int width, unsigned int height) {
     if (!render_texture || render_texture->getSize().x != width || render_texture->getSize().y != height) {
         render_texture = std::make_unique<sf::RenderTexture>();
         if (!render_texture->create(width, height)) {
+            std::cerr << "[McRogueFace] Warning: Failed to create RenderTexture ("
+                      << width << "x" << height << ")" << std::endl;
             render_texture.reset();
             use_render_texture = false;
             return;
