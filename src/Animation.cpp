@@ -1,6 +1,7 @@
 #include "Animation.h"
 #include "UIDrawable.h"
 #include "UIEntity.h"
+#include "3d/Entity3D.h"
 #include "PyAnimation.h"
 #include "McRFPy_API.h"
 #include "GameEngine.h"
@@ -168,8 +169,46 @@ void Animation::startEntity(std::shared_ptr<UIEntity> target) {
     }
 }
 
+void Animation::startEntity3D(std::shared_ptr<mcrf::Entity3D> target) {
+    if (!target) return;
+
+    entity3dTargetWeak = target;
+    elapsed = 0.0f;
+    callbackTriggered = false;
+
+    // Capture the starting value from the entity
+    std::visit([this, target](const auto& val) {
+        using T = std::decay_t<decltype(val)>;
+
+        if constexpr (std::is_same_v<T, float>) {
+            float value = 0.0f;
+            if (target->getProperty(targetProperty, value)) {
+                startValue = value;
+            }
+        }
+        else if constexpr (std::is_same_v<T, int>) {
+            // For sprite_index/visible: capture via float and convert
+            float fvalue = 0.0f;
+            if (target->getProperty(targetProperty, fvalue)) {
+                startValue = static_cast<int>(fvalue);
+            }
+        }
+        // Entity3D doesn't support other types
+    }, targetValue);
+
+    // For zero-duration animations, apply final value immediately
+    if (duration <= 0.0f) {
+        AnimationValue finalValue = interpolate(1.0f);
+        applyValue(target.get(), finalValue);
+        if (pythonCallback && !callbackTriggered) {
+            triggerCallback();
+        }
+        callbackTriggered = true;
+    }
+}
+
 bool Animation::hasValidTarget() const {
-    return !targetWeak.expired() || !entityTargetWeak.expired();
+    return !targetWeak.expired() || !entityTargetWeak.expired() || !entity3dTargetWeak.expired();
 }
 
 void Animation::clearCallback() {
@@ -198,6 +237,10 @@ void Animation::complete() {
         AnimationValue finalValue = interpolate(1.0f);
         applyValue(entity.get(), finalValue);
     }
+    else if (auto entity3d = entity3dTargetWeak.lock()) {
+        AnimationValue finalValue = interpolate(1.0f);
+        applyValue(entity3d.get(), finalValue);
+    }
 }
 
 void Animation::stop() {
@@ -215,9 +258,10 @@ bool Animation::update(float deltaTime) {
     // Try to lock weak_ptr to get shared_ptr
     std::shared_ptr<UIDrawable> target = targetWeak.lock();
     std::shared_ptr<UIEntity> entity = entityTargetWeak.lock();
+    std::shared_ptr<mcrf::Entity3D> entity3d = entity3dTargetWeak.lock();
 
-    // If both are null, target was destroyed
-    if (!target && !entity) {
+    // If all are null, target was destroyed
+    if (!target && !entity && !entity3d) {
         return false;  // Remove this animation
     }
 
@@ -231,6 +275,8 @@ bool Animation::update(float deltaTime) {
                 applyValue(target.get(), finalValue);
             } else if (entity) {
                 applyValue(entity.get(), finalValue);
+            } else if (entity3d) {
+                applyValue(entity3d.get(), finalValue);
             }
             // Trigger callback
             if (pythonCallback) {
@@ -256,6 +302,8 @@ bool Animation::update(float deltaTime) {
         applyValue(target.get(), currentValue);
     } else if (entity) {
         applyValue(entity.get(), currentValue);
+    } else if (entity3d) {
+        applyValue(entity3d.get(), currentValue);
     }
 
     // Trigger callback when animation completes
@@ -400,10 +448,10 @@ void Animation::applyValue(UIDrawable* target, const AnimationValue& value) {
 
 void Animation::applyValue(UIEntity* entity, const AnimationValue& value) {
     if (!entity) return;
-    
+
     std::visit([this, entity](const auto& val) {
         using T = std::decay_t<decltype(val)>;
-        
+
         if constexpr (std::is_same_v<T, float>) {
             entity->setProperty(targetProperty, val);
         }
@@ -411,6 +459,22 @@ void Animation::applyValue(UIEntity* entity, const AnimationValue& value) {
             entity->setProperty(targetProperty, val);
         }
         // Entities don't support other types yet
+    }, value);
+}
+
+void Animation::applyValue(mcrf::Entity3D* entity, const AnimationValue& value) {
+    if (!entity) return;
+
+    std::visit([this, entity](const auto& val) {
+        using T = std::decay_t<decltype(val)>;
+
+        if constexpr (std::is_same_v<T, float>) {
+            entity->setProperty(targetProperty, val);
+        }
+        else if constexpr (std::is_same_v<T, int>) {
+            entity->setProperty(targetProperty, val);
+        }
+        // Entity3D doesn't support other types
     }, value);
 }
 
@@ -560,6 +624,37 @@ static PyObject* convertEntityToPython(std::shared_ptr<UIEntity> entity) {
     return (PyObject*)pyObj;
 }
 
+// Helper to convert Entity3D target to Python object
+static PyObject* convertEntity3DToPython(std::shared_ptr<mcrf::Entity3D> entity) {
+    if (!entity) {
+        Py_RETURN_NONE;
+    }
+
+    // Use the entity's cached Python self pointer if available
+    if (entity->self) {
+        Py_INCREF(entity->self);
+        return entity->self;
+    }
+
+    // Create a new wrapper
+    PyTypeObject* type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity3D");
+    if (!type) {
+        Py_RETURN_NONE;
+    }
+
+    auto pyObj = (PyEntity3DObject*)type->tp_alloc(type, 0);
+    Py_DECREF(type);
+
+    if (!pyObj) {
+        Py_RETURN_NONE;
+    }
+
+    pyObj->data = entity;
+    pyObj->weakreflist = NULL;
+
+    return (PyObject*)pyObj;
+}
+
 // #229 - Helper to convert AnimationValue to Python object
 static PyObject* animationValueToPython(const AnimationValue& value) {
     return std::visit([](const auto& val) -> PyObject* {
@@ -609,6 +704,8 @@ void Animation::triggerCallback() {
         targetObj = convertDrawableToPython(drawable);
     } else if (auto entity = entityTargetWeak.lock()) {
         targetObj = convertEntityToPython(entity);
+    } else if (auto entity3d = entity3dTargetWeak.lock()) {
+        targetObj = convertEntity3DToPython(entity3d);
     }
 
     // If target conversion failed, use None

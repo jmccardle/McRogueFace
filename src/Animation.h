@@ -11,6 +11,7 @@
 // Forward declarations
 class UIDrawable;
 class UIEntity;
+namespace mcrf { class Entity3D; }
 
 /**
  * ConflictMode - How to handle multiple animations on the same property (#120)
@@ -58,6 +59,9 @@ public:
     
     // Apply this animation to an entity (special case since Entity doesn't inherit from UIDrawable)
     void startEntity(std::shared_ptr<UIEntity> target);
+
+    // Apply this animation to a 3D entity
+    void startEntity3D(std::shared_ptr<mcrf::Entity3D> target);
     
     // Complete the animation immediately (jump to final value)
     void complete();
@@ -90,6 +94,7 @@ public:
     void* getTargetPtr() const {
         if (auto sp = targetWeak.lock()) return sp.get();
         if (auto sp = entityTargetWeak.lock()) return sp.get();
+        if (auto sp = entity3dTargetWeak.lock()) return sp.get();
         return nullptr;
     }
     
@@ -106,6 +111,7 @@ private:
     // RAII: Use weak_ptr for safe target tracking
     std::weak_ptr<UIDrawable> targetWeak;
     std::weak_ptr<UIEntity> entityTargetWeak;
+    std::weak_ptr<mcrf::Entity3D> entity3dTargetWeak;
     
     // Callback support
     PyObject* pythonCallback = nullptr;  // Python callback function (we own a reference)
@@ -121,6 +127,7 @@ private:
     // Helper to apply value to target
     void applyValue(UIDrawable* target, const AnimationValue& value);
     void applyValue(UIEntity* entity, const AnimationValue& value);
+    void applyValue(mcrf::Entity3D* entity, const AnimationValue& value);
     
     // Trigger callback when animation completes
     void triggerCallback();
