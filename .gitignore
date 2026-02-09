@@ -10,6 +10,9 @@ build
 /lib
 __pycache__
 
+# images are produced by many tests
+*.png
+
 # WASM stdlib for Emscripten build
 !wasm_stdlib/
 
