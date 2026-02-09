@@ -25,12 +25,20 @@
 #include <vector>
 #include <functional>
 #include <chrono>
+#include <algorithm>
 
 // SDL2 headers - conditionally included when actually implementing
 // For now, forward declare what we need
 #ifdef MCRF_SDL2_IMPL
 #include <SDL2/SDL.h>
 #include <GLES2/gl2.h>
+#endif
+
+// SDL2_mixer for audio (always needed in SDL2 builds for SoundBuffer/Sound/Music types)
+#ifdef __EMSCRIPTEN__
+#include <SDL_mixer.h>
+#else
+#include <SDL2/SDL_mixer.h>
 #endif
 
 namespace sf {
@@ -922,34 +930,195 @@ public:
 };
 
 // =============================================================================
-// Audio Stubs (SDL2_mixer could implement these later)
+// Audio (SDL2_mixer backed)
 // =============================================================================
 
 class SoundBuffer {
+    Mix_Chunk* chunk_ = nullptr;
+    Time duration_;
+
 public:
     SoundBuffer() = default;
-    bool loadFromFile(const std::string& filename) { return true; }  // Stub
-    bool loadFromMemory(const void* data, size_t sizeInBytes) { return true; }  // Stub
-    Time getDuration() const { return Time(); }
+    ~SoundBuffer() {
+        if (chunk_) {
+            Mix_FreeChunk(chunk_);
+            chunk_ = nullptr;
+        }
+    }
+
+    // No copy (Mix_Chunk ownership)
+    SoundBuffer(const SoundBuffer&) = delete;
+    SoundBuffer& operator=(const SoundBuffer&) = delete;
+
+    // Move
+    SoundBuffer(SoundBuffer&& other) noexcept
+        : chunk_(other.chunk_), duration_(other.duration_) {
+        other.chunk_ = nullptr;
+    }
+    SoundBuffer& operator=(SoundBuffer&& other) noexcept {
+        if (this != &other) {
+            if (chunk_) Mix_FreeChunk(chunk_);
+            chunk_ = other.chunk_;
+            duration_ = other.duration_;
+            other.chunk_ = nullptr;
+        }
+        return *this;
+    }
+
+    bool loadFromFile(const std::string& filename) {
+        if (chunk_) { Mix_FreeChunk(chunk_); chunk_ = nullptr; }
+        chunk_ = Mix_LoadWAV(filename.c_str());
+        if (!chunk_) return false;
+        computeDuration();
+        return true;
+    }
+
+    bool loadFromMemory(const void* data, size_t sizeInBytes) {
+        if (chunk_) { Mix_FreeChunk(chunk_); chunk_ = nullptr; }
+        SDL_RWops* rw = SDL_RWFromConstMem(data, static_cast<int>(sizeInBytes));
+        if (!rw) return false;
+        chunk_ = Mix_LoadWAV_RW(rw, 1);  // 1 = free RWops after load
+        if (!chunk_) return false;
+        computeDuration();
+        return true;
+    }
+
+    Time getDuration() const { return duration_; }
+    Mix_Chunk* getChunk() const { return chunk_; }
+
+private:
+    void computeDuration() {
+        if (!chunk_) { duration_ = Time(); return; }
+        int freq = 0, channels = 0;
+        Uint16 format = 0;
+        Mix_QuerySpec(&freq, &format, &channels);
+        if (freq == 0 || channels == 0) { duration_ = Time(); return; }
+        // Compute bytes per sample based on format
+        int bytesPerSample = 2;  // Default 16-bit
+        if (format == AUDIO_U8 || format == AUDIO_S8) bytesPerSample = 1;
+        else if (format == AUDIO_S32LSB || format == AUDIO_S32MSB) bytesPerSample = 4;
+        else if (format == AUDIO_F32LSB || format == AUDIO_F32MSB) bytesPerSample = 4;
+        int totalSamples = chunk_->alen / (bytesPerSample * channels);
+        float secs = static_cast<float>(totalSamples) / static_cast<float>(freq);
+        duration_ = seconds(secs);
+    }
 };
+
+// Forward declare Sound for channel tracking
+class Sound;
+
+// Channel tracking: maps SDL_mixer channel indices to Sound* owners
+// Defined as inline to keep header-only and avoid multiple definition issues
+inline Sound* g_channelOwners[16] = {};
 
 class Sound {
 public:
     enum Status { Stopped, Paused, Playing };
 
     Sound() = default;
-    Sound(const SoundBuffer& buffer) {}
+    Sound(const SoundBuffer& buffer) : chunk_(buffer.getChunk()) {}
 
-    void setBuffer(const SoundBuffer& buffer) {}
-    void play() {}
-    void pause() {}
-    void stop() {}
+    ~Sound() {
+        // Release our channel claim
+        if (channel_ >= 0 && channel_ < 16) {
+            if (g_channelOwners[channel_] == this) {
+                Mix_HaltChannel(channel_);
+                g_channelOwners[channel_] = nullptr;
+            }
+            channel_ = -1;
+        }
+    }
 
-    Status getStatus() const { return Stopped; }
-    void setVolume(float volume) {}
-    float getVolume() const { return 100.0f; }
-    void setLoop(bool loop) {}
-    bool getLoop() const { return false; }
+    // No copy (channel ownership)
+    Sound(const Sound&) = delete;
+    Sound& operator=(const Sound&) = delete;
+
+    // Move
+    Sound(Sound&& other) noexcept
+        : chunk_(other.chunk_), channel_(other.channel_),
+          volume_(other.volume_), loop_(other.loop_) {
+        if (channel_ >= 0 && channel_ < 16) {
+            g_channelOwners[channel_] = this;
+        }
+        other.channel_ = -1;
+        other.chunk_ = nullptr;
+    }
+    Sound& operator=(Sound&& other) noexcept {
+        if (this != &other) {
+            stop();
+            chunk_ = other.chunk_;
+            channel_ = other.channel_;
+            volume_ = other.volume_;
+            loop_ = other.loop_;
+            if (channel_ >= 0 && channel_ < 16) {
+                g_channelOwners[channel_] = this;
+            }
+            other.channel_ = -1;
+            other.chunk_ = nullptr;
+        }
+        return *this;
+    }
+
+    void setBuffer(const SoundBuffer& buffer) { chunk_ = buffer.getChunk(); }
+
+    void play() {
+        if (!chunk_) return;
+        channel_ = Mix_PlayChannel(-1, chunk_, loop_ ? -1 : 0);
+        if (channel_ >= 0 && channel_ < 16) {
+            // Clear any previous owner on this channel
+            if (g_channelOwners[channel_] && g_channelOwners[channel_] != this) {
+                g_channelOwners[channel_]->channel_ = -1;
+            }
+            g_channelOwners[channel_] = this;
+            Mix_Volume(channel_, static_cast<int>(volume_ * 128.f / 100.f));
+        }
+    }
+
+    void pause() {
+        if (channel_ >= 0) Mix_Pause(channel_);
+    }
+
+    void stop() {
+        if (channel_ >= 0) {
+            Mix_HaltChannel(channel_);
+            if (channel_ < 16 && g_channelOwners[channel_] == this) {
+                g_channelOwners[channel_] = nullptr;
+            }
+            channel_ = -1;
+        }
+    }
+
+    Status getStatus() const {
+        if (channel_ < 0) return Stopped;
+        if (Mix_Paused(channel_)) return Paused;
+        if (Mix_Playing(channel_)) return Playing;
+        return Stopped;
+    }
+
+    void setVolume(float vol) {
+        volume_ = std::clamp(vol, 0.f, 100.f);
+        if (channel_ >= 0) {
+            Mix_Volume(channel_, static_cast<int>(volume_ * 128.f / 100.f));
+        }
+    }
+    float getVolume() const { return volume_; }
+
+    void setLoop(bool loop) { loop_ = loop; }
+    bool getLoop() const { return loop_; }
+
+    // Called by Mix_ChannelFinished callback
+    static void onChannelFinished(int channel) {
+        if (channel >= 0 && channel < 16 && g_channelOwners[channel]) {
+            g_channelOwners[channel]->channel_ = -1;
+            g_channelOwners[channel] = nullptr;
+        }
+    }
+
+private:
+    Mix_Chunk* chunk_ = nullptr;  // Borrowed from SoundBuffer
+    int channel_ = -1;
+    float volume_ = 100.f;
+    bool loop_ = false;
 };
 
 class Music {
@@ -957,20 +1126,83 @@ public:
     enum Status { Stopped, Paused, Playing };
 
     Music() = default;
-    bool openFromFile(const std::string& filename) { return true; }  // Stub
+    ~Music() {
+        if (music_) {
+            Mix_FreeMusic(music_);
+            music_ = nullptr;
+        }
+    }
 
-    void play() {}
-    void pause() {}
-    void stop() {}
+    // No copy (global music channel)
+    Music(const Music&) = delete;
+    Music& operator=(const Music&) = delete;
 
-    Status getStatus() const { return Stopped; }
-    void setVolume(float volume) {}
-    float getVolume() const { return 100.0f; }
-    void setLoop(bool loop) {}
-    bool getLoop() const { return false; }
+    // Move
+    Music(Music&& other) noexcept
+        : music_(other.music_), volume_(other.volume_), loop_(other.loop_) {
+        other.music_ = nullptr;
+    }
+    Music& operator=(Music&& other) noexcept {
+        if (this != &other) {
+            if (music_) Mix_FreeMusic(music_);
+            music_ = other.music_;
+            volume_ = other.volume_;
+            loop_ = other.loop_;
+            other.music_ = nullptr;
+        }
+        return *this;
+    }
+
+    bool openFromFile(const std::string& filename) {
+        if (music_) { Mix_FreeMusic(music_); music_ = nullptr; }
+        music_ = Mix_LoadMUS(filename.c_str());
+        return music_ != nullptr;
+    }
+
+    void play() {
+        if (!music_) return;
+        Mix_PlayMusic(music_, loop_ ? -1 : 0);
+        Mix_VolumeMusic(static_cast<int>(volume_ * 128.f / 100.f));
+    }
+
+    void pause() {
+        Mix_PauseMusic();
+    }
+
+    void stop() {
+        Mix_HaltMusic();
+    }
+
+    Status getStatus() const {
+        if (Mix_PausedMusic()) return Paused;
+        if (Mix_PlayingMusic()) return Playing;
+        return Stopped;
+    }
+
+    void setVolume(float vol) {
+        volume_ = std::clamp(vol, 0.f, 100.f);
+        Mix_VolumeMusic(static_cast<int>(volume_ * 128.f / 100.f));
+    }
+    float getVolume() const { return volume_; }
+
+    void setLoop(bool loop) { loop_ = loop; }
+    bool getLoop() const { return loop_; }
+
+    // Duration not available in Emscripten's SDL_mixer 2.0.2
     Time getDuration() const { return Time(); }
+
+    // Playing offset getter not available in Emscripten's SDL_mixer 2.0.2
     Time getPlayingOffset() const { return Time(); }
-    void setPlayingOffset(Time offset) {}
+
+    // Setter works for OGG via Mix_SetMusicPosition
+    void setPlayingOffset(Time offset) {
+        if (music_) Mix_SetMusicPosition(static_cast<double>(offset.asSeconds()));
+    }
+
+private:
+    Mix_Music* music_ = nullptr;
+    float volume_ = 100.f;
+    bool loop_ = false;
 };
 
 // =============================================================================

@@ -17,6 +17,9 @@ option(MCRF_SDL2 "Build with SDL2+OpenGL ES 2 backend instead of SFML" OFF)
 # Playground mode - minimal scripts for web playground (REPL-focused)
 option(MCRF_PLAYGROUND "Build with minimal playground scripts instead of full game" OFF)
 
+# Game shell mode - fullscreen canvas, no REPL chrome (for itch.io / standalone web games)
+option(MCRF_GAME_SHELL "Use minimal game-only HTML shell (no REPL)" OFF)
+
 # Emscripten builds: use SDL2 if specified, otherwise fall back to headless
 if(EMSCRIPTEN)
     if(MCRF_SDL2)
@@ -286,8 +289,8 @@ if(EMSCRIPTEN)
         --preload-file=${CMAKE_SOURCE_DIR}/src/$<IF:$<BOOL:${MCRF_PLAYGROUND}>,scripts_playground,scripts>@/scripts
         # Preload assets
         --preload-file=${CMAKE_SOURCE_DIR}/assets@/assets
-        # Use custom HTML shell for crisp pixel rendering
-        --shell-file=${CMAKE_SOURCE_DIR}/src/shell.html
+        # Use custom HTML shell - game shell (fullscreen) or playground shell (REPL)
+        --shell-file=${CMAKE_SOURCE_DIR}/src/$<IF:$<BOOL:${MCRF_GAME_SHELL}>,shell_game.html,shell.html>
         # Pre-JS to fix browser zoom causing undefined values in events
         --pre-js=${CMAKE_SOURCE_DIR}/src/emscripten_pre.js
     )
@@ -296,17 +299,19 @@ if(EMSCRIPTEN)
     if(MCRF_SDL2)
         list(APPEND EMSCRIPTEN_LINK_OPTIONS
             -sUSE_SDL=2
+            -sUSE_SDL_MIXER=2
             -sFULL_ES2=1
             -sMIN_WEBGL_VERSION=2
             -sMAX_WEBGL_VERSION=2
             -sUSE_FREETYPE=1
         )
-        # SDL2 and FreeType flags are also needed at compile time for headers
+        # SDL2, SDL2_mixer, and FreeType flags are also needed at compile time for headers
         target_compile_options(mcrogueface PRIVATE
             -sUSE_SDL=2
+            -sUSE_SDL_MIXER=2
             -sUSE_FREETYPE=1
         )
-        message(STATUS "Emscripten SDL2 options enabled: -sUSE_SDL=2 -sFULL_ES2=1 -sUSE_FREETYPE=1")
+        message(STATUS "Emscripten SDL2 options enabled: -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sFULL_ES2=1 -sUSE_FREETYPE=1")
     endif()
 
     target_link_options(mcrogueface PRIVATE ${EMSCRIPTEN_LINK_OPTIONS})

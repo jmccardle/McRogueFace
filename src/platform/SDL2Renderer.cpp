@@ -17,9 +17,11 @@
 #include <emscripten/html5.h>
 // Emscripten's USE_SDL=2 port puts headers directly in include path
 #include <SDL.h>
+#include <SDL_mixer.h>
 #include <GLES2/gl2.h>
 #else
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_mixer.h>
 #include <SDL2/SDL_opengl.h>
 // Desktop OpenGL - we'll use GL 2.1 compatible subset that matches GLES2
 #define GL_GLEXT_PROTOTYPES
@@ -132,9 +134,20 @@ bool SDL2Renderer::init() {
     if (initialized_) return true;
 
     // Initialize SDL2 if not already done
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO) < 0) {
         std::cerr << "SDL2Renderer: Failed to initialize SDL: " << SDL_GetError() << std::endl;
         return false;
+    }
+
+    // Initialize SDL2_mixer for audio (non-fatal if it fails)
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
+        std::cerr << "SDL2Renderer: Failed to initialize audio: " << Mix_GetError() << std::endl;
+        std::cerr << "SDL2Renderer: Continuing without audio support" << std::endl;
+    } else {
+        Mix_AllocateChannels(16);
+        Mix_ChannelFinished(Sound::onChannelFinished);
+        audioInitialized_ = true;
+        std::cout << "SDL2Renderer: Audio initialized (16 channels, 44100 Hz)" << std::endl;
     }
 
     // Note: Shaders are initialized in initGL() after GL context is created
@@ -169,6 +182,12 @@ void SDL2Renderer::shutdown() {
     if (textProgram_) glDeleteProgram(textProgram_);
 
     shapeProgram_ = spriteProgram_ = textProgram_ = 0;
+
+    // Close audio before SDL_Quit
+    if (audioInitialized_) {
+        Mix_CloseAudio();
+        audioInitialized_ = false;
+    }
 
     SDL_Quit();
     initialized_ = false;
@@ -673,6 +692,9 @@ void RenderWindow::setSize(const Vector2u& size) {
     if (sdlWindow_) {
         SDL_SetWindowSize(static_cast<SDL_Window*>(sdlWindow_), size.x, size.y);
         glViewport(0, 0, size.x, size.y);
+#ifdef __EMSCRIPTEN__
+        emscripten_set_canvas_element_size("#canvas", size.x, size.y);
+#endif
     }
 }
 

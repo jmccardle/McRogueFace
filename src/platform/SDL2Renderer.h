@@ -44,6 +44,7 @@ public:
     void shutdown();
     bool isInitialized() const { return initialized_; }
     bool isGLInitialized() const { return glInitialized_; }
+    bool isAudioInitialized() const { return audioInitialized_; }
 
     // Built-in shader programs
     enum class ShaderType {
@@ -100,6 +101,7 @@ private:
 
     bool initialized_ = false;
     bool glInitialized_ = false;
+    bool audioInitialized_ = false;
 
     // Built-in shader programs
     unsigned int shapeProgram_ = 0;
