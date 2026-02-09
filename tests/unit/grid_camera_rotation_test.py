@@ -75,6 +75,31 @@ ui.append(grid3)
 label3 = mcrfpy.Caption(text="Grid with viewport rotation=15 (rotates entire widget)", pos=(100, 560))
 ui.append(label3)
 
+# Test center_camera computes correct pixel center
+test_grid = mcrfpy.Grid(grid_size=(20, 15), pos=(0, 0), size=(320, 240))
+cell_w = test_grid.cell_size[0]
+cell_h = test_grid.cell_size[1]
+
+# center_camera((0, 0)) should put tile (0,0) at view center
+test_grid.center_camera((0, 0))
+c0 = test_grid.center
+# The center should position (0,0) in the middle of the viewport
+# center = (tile_x * cell_w + cell_w/2, tile_y * cell_h + cell_h/2) mapped to view center
+
+# center_camera at a different position should produce a different center
+test_grid.center_camera((10, 7))
+c1 = test_grid.center
+assert c0.x != c1.x or c0.y != c1.y, "center_camera at different positions should give different centers"
+
+# center_camera at same position twice should be idempotent
+test_grid.center_camera((5, 5))
+c2 = test_grid.center
+test_grid.center_camera((5, 5))
+c3 = test_grid.center
+assert abs(c2.x - c3.x) < 0.01 and abs(c2.y - c3.y) < 0.01, "center_camera should be idempotent"
+
+print("center_camera assertions passed")
+
 # Activate scene
 mcrfpy.current_scene = test_scene
 

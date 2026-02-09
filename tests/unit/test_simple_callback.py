@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
-"""Very simple callback test - refactored to use mcrfpy.step()"""
+"""Very simple animation callback test"""
 import mcrfpy
 import sys
 
 callback_fired = False
 
-def cb(a, t):
+def cb(target, prop, value):
     global callback_fired
     callback_fired = True
-    print("CB")
 
 # Setup scene
 test = mcrfpy.Scene("test")
-test.activate()
-mcrfpy.step(0.01)  # Initialize
+mcrfpy.current_scene = test
 
-# Create entity and animation
-e = mcrfpy.Entity((0, 0), texture=None, sprite_index=0)
-a = mcrfpy.Animation("x", 1.0, 0.1, "linear", callback=cb)
-a.start(e)
+# Create frame and animate it
+f = mcrfpy.Frame(pos=(0, 0), size=(50, 50))
+test.children.append(f)
+f.animate("x", 100.0, 0.1, "linear", callback=cb)
 
 # Advance past animation duration (0.1s)
-mcrfpy.step(0.15)
+for _ in range(3):
+    mcrfpy.step(0.05)
 
 # Verify callback fired
 if callback_fired:
-    print("PASS: Callback fired")
+    print("PASS: Callback fired", file=sys.stderr)
     sys.exit(0)
 else:
-    print("FAIL: Callback did not fire")
+    print("FAIL: Callback did not fire", file=sys.stderr)
     sys.exit(1)

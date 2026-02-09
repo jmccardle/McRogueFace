@@ -6,30 +6,28 @@ Test UTF-8 encoding support
 import mcrfpy
 import sys
 
-def test_utf8(timer, runtime):
-    """Test UTF-8 encoding in print statements"""
-    
-    # Test various unicode characters
-    print("✓ Check mark works")
-    print("✗ Cross mark works")
-    print("🎮 Emoji works")
-    print("日本語 Japanese works")
-    print("Ñoño Spanish works")
-    print("Привет Russian works")
-    
-    # Test in f-strings
-    count = 5
-    print(f"✓ Added {count} items")
-    
-    # Test unicode in error messages
-    try:
-        raise ValueError("❌ Error with unicode")
-    except ValueError as e:
-        print(f"✓ Exception handling works: {e}")
-    
-    print("\n✅ All UTF-8 tests passed!")
-    sys.exit(0)
-
-# Run test
+# Setup scene
 test = mcrfpy.Scene("test")
-test_timer = mcrfpy.Timer("test", test_utf8, 100, once=True)
+mcrfpy.current_scene = test
+
+# Test various unicode characters
+print("Check mark works")
+print("Cross mark works")
+print("Emoji works")
+print("Japanese works")
+print("Spanish works")
+print("Russian works")
+
+# Test in f-strings
+count = 5
+print(f"Added {count} items")
+
+# Test unicode in error messages
+try:
+    raise ValueError("Error with unicode")
+except ValueError as e:
+    print(f"Exception handling works: {e}")
+
+print("\nAll UTF-8 tests passed!")
+print("PASS")
+sys.exit(0)

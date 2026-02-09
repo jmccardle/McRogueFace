@@ -47,7 +47,8 @@ def run_tests():
 
     # Test 2: Apply perspective binding
     print("Test 2: Perspective Binding")
-    fov_layer = grid.add_layer('color', z_index=-1)
+    fov_layer = mcrfpy.ColorLayer(z_index=-1, grid_size=(40, 25))
+    grid.add_layer(fov_layer)
     fov_layer.fill((0, 0, 0, 255))  # Start with black (unknown)
 
     fov_layer.apply_perspective(
@@ -67,7 +68,7 @@ def run_tests():
     player.update_visibility()
 
     # Check that the player's position is now visible
-    visible_cell = fov_layer.at(int(player.x), int(player.y))
+    visible_cell = fov_layer.at(player.grid_x, player.grid_y)
     assert visible_cell.r == 255, f"Player position should be visible (got r={visible_cell.r})"
     print("  Player position has visible color after updateVisibility()")
 
@@ -80,9 +81,8 @@ def run_tests():
     # Test 4: Moving entity and calling updateVisibility
     print("Test 4: Entity Movement with Perspective")
 
-    # Move player through the door
-    player.x = 21
-    player.y = 12
+    # Move player through the door (use grid coordinates)
+    player.grid_pos = (21, 12)
     player.update_visibility()
 
     # Now the player should see both sides of the wall
@@ -93,17 +93,16 @@ def run_tests():
     print(f"  After moving to door, cell (25,12) has r={now_visible.r}")
 
     # Player's new position should be visible
-    new_pos_color = fov_layer.at(int(player.x), int(player.y))
+    new_pos_color = fov_layer.at(player.grid_x, player.grid_y)
     assert new_pos_color.r == 255, f"New player position should be visible (got r={new_pos_color.r})"
-    print(f"  Player's new position ({player.x}, {player.y}) is visible")
+    print(f"  Player's new position ({player.grid_x}, {player.grid_y}) is visible")
     print()
 
     # Test 5: Check discovered cells remain discovered
     print("Test 5: Discovered State Persistence")
 
-    # Move player away from original position
-    player.x = 35
-    player.y = 12
+    # Move player away from original position (use grid coordinates)
+    player.grid_pos = (35, 12)
     player.update_visibility()
 
     # Original position (5, 12) should now be discovered (not visible, but was seen)
@@ -121,7 +120,7 @@ def run_tests():
     player.update_visibility()
 
     # Layer should still be purple (not modified by updateVisibility)
-    check_cell = fov_layer.at(int(player.x), int(player.y))
+    check_cell = fov_layer.at(player.grid_x, player.grid_y)
     assert check_cell.r == 128, f"Layer should be unchanged after clear_perspective (got r={check_cell.r})"
     assert check_cell.g == 0, f"Layer should be unchanged (got g={check_cell.g})"
     assert check_cell.b == 128, f"Layer should be unchanged (got b={check_cell.b})"
@@ -150,7 +149,8 @@ def run_tests():
     grid2.fov_radius = 5  # Smaller radius
 
     # Create layer and bind perspective
-    fov_layer2 = grid2.add_layer('color', z_index=-1)
+    fov_layer2 = mcrfpy.ColorLayer(z_index=-1, grid_size=(40, 25))
+    grid2.add_layer(fov_layer2)
     fov_layer2.fill((0, 0, 0, 255))  # Start with black (unknown)
 
     fov_layer2.apply_perspective(
@@ -211,7 +211,7 @@ def run_tests():
 
     # Get visible entities from player
     visible = player3.visible_entities()
-    visible_positions = [(int(e.x), int(e.y)) for e in visible]
+    visible_positions = [(e.grid_x, e.grid_y) for e in visible]
 
     print(f"  Player at (5, 12)")
     print(f"  Visible entities: {visible_positions}")
@@ -234,7 +234,7 @@ def run_tests():
 
     # With small radius, only ally should be visible
     visible_small = player3.visible_entities(radius=4)
-    visible_small_positions = [(int(e.x), int(e.y)) for e in visible_small]
+    visible_small_positions = [(e.grid_x, e.grid_y) for e in visible_small]
 
     print(f"  With radius=4: {visible_small_positions}")
     assert (8, 12) in visible_small_positions, "Ally should be visible with radius=4"

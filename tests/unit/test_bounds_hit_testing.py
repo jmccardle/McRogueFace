@@ -15,10 +15,11 @@ def test_bounds_property():
     ui.append(frame)
 
     bounds = frame.bounds
-    assert bounds[0] == 50.0, f"Expected x=50, got {bounds[0]}"
-    assert bounds[1] == 75.0, f"Expected y=75, got {bounds[1]}"
-    assert bounds[2] == 200.0, f"Expected w=200, got {bounds[2]}"
-    assert bounds[3] == 150.0, f"Expected h=150, got {bounds[3]}"
+    # bounds returns (pos_vector, size_vector)
+    assert bounds[0].x == 50.0, f"Expected x=50, got {bounds[0].x}"
+    assert bounds[0].y == 75.0, f"Expected y=75, got {bounds[0].y}"
+    assert bounds[1].x == 200.0, f"Expected w=200, got {bounds[1].x}"
+    assert bounds[1].y == 150.0, f"Expected h=150, got {bounds[1].y}"
 
     print("  - bounds property: PASS")
 
@@ -36,7 +37,11 @@ def test_global_bounds_no_parent():
     bounds = frame.bounds
     global_bounds = frame.global_bounds
 
-    assert bounds == global_bounds, f"Expected {bounds} == {global_bounds}"
+    # Both should have same position and size
+    assert bounds[0].x == global_bounds[0].x and bounds[0].y == global_bounds[0].y, \
+        f"Expected pos {bounds[0]} == {global_bounds[0]}"
+    assert bounds[1].x == global_bounds[1].x and bounds[1].y == global_bounds[1].y, \
+        f"Expected size {bounds[1]} == {global_bounds[1]}"
 
     print("  - global_bounds (no parent): PASS")
 
@@ -55,10 +60,10 @@ def test_global_bounds_with_parent():
     parent.children.append(child)
 
     gb = child.global_bounds
-    assert gb[0] == 150.0, f"Expected x=150, got {gb[0]}"
-    assert gb[1] == 150.0, f"Expected y=150, got {gb[1]}"
-    assert gb[2] == 80.0, f"Expected w=80, got {gb[2]}"
-    assert gb[3] == 60.0, f"Expected h=60, got {gb[3]}"
+    assert gb[0].x == 150.0, f"Expected x=150, got {gb[0].x}"
+    assert gb[0].y == 150.0, f"Expected y=150, got {gb[0].y}"
+    assert gb[1].x == 80.0, f"Expected w=80, got {gb[1].x}"
+    assert gb[1].y == 60.0, f"Expected h=60, got {gb[1].y}"
 
     print("  - global_bounds (with parent): PASS")
 
@@ -82,8 +87,8 @@ def test_global_bounds_nested():
 
     # leaf global pos should be 10+20+30 = 60, 60
     gb = leaf.global_bounds
-    assert gb[0] == 60.0, f"Expected x=60, got {gb[0]}"
-    assert gb[1] == 60.0, f"Expected y=60, got {gb[1]}"
+    assert gb[0].x == 60.0, f"Expected x=60, got {gb[0].x}"
+    assert gb[0].y == 60.0, f"Expected y=60, got {gb[0].y}"
 
     print("  - global_bounds (nested): PASS")
 
@@ -91,9 +96,6 @@ def test_global_bounds_nested():
 def test_all_drawable_types_have_bounds():
     """Test that all drawable types have bounds properties"""
     print("Testing bounds on all drawable types...")
-
-    test_types = mcrfpy.Scene("test_types")
-    ui = test_types.children
 
     types_to_test = [
         ("Frame", mcrfpy.Frame(pos=(0, 0), size=(100, 100))),
@@ -106,12 +108,15 @@ def test_all_drawable_types_have_bounds():
         # Should have bounds property
         bounds = obj.bounds
         assert isinstance(bounds, tuple), f"{name}.bounds should be tuple"
-        assert len(bounds) == 4, f"{name}.bounds should have 4 elements"
+        assert len(bounds) == 2, f"{name}.bounds should have 2 elements (pos, size)"
+        # Each element should be a Vector
+        assert hasattr(bounds[0], 'x'), f"{name}.bounds[0] should be Vector"
+        assert hasattr(bounds[1], 'x'), f"{name}.bounds[1] should be Vector"
 
         # Should have global_bounds property
         gb = obj.global_bounds
         assert isinstance(gb, tuple), f"{name}.global_bounds should be tuple"
-        assert len(gb) == 4, f"{name}.global_bounds should have 4 elements"
+        assert len(gb) == 2, f"{name}.global_bounds should have 2 elements"
 
     print("  - all drawable types have bounds: PASS")
 

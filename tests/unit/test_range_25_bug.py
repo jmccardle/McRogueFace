@@ -19,7 +19,7 @@ except Exception as e:
 print("\nTest 2: range(25) after creating 25x15 grid")
 try:
     test = mcrfpy.Scene("test")
-    grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
     
     for i in range(25):
         pass
@@ -31,7 +31,7 @@ except Exception as e:
 print("\nTest 3: range(25) after 15x25 grid.at() operations")
 try:
     test3 = mcrfpy.Scene("test3")
-    grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
     
     # Do the nested loop that triggers the bug
     count = 0
@@ -55,7 +55,7 @@ except Exception as e:
 print("\nTest 4: range(24) after same operations")
 try:
     test4 = mcrfpy.Scene("test4")
-    grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
     
     for y in range(15):
         for x in range(24):  # One less
@@ -77,7 +77,7 @@ except Exception as e:
 print("\nTest 5: Different grid dimensions")
 try:
     test5 = mcrfpy.Scene("test5")
-    grid = mcrfpy.Grid(grid_x=30, grid_y=20)
+    grid = mcrfpy.Grid(grid_w=30, grid_h=20)
     
     for y in range(20):
         for x in range(30):
@@ -96,7 +96,7 @@ except Exception as e:
     print(f"  ✗ Error: {e}")
 
 print("\nConclusion: There's a specific bug triggered by:")
-print("1. Creating a grid with grid_x=25")
+print("1. Creating a grid with grid_w=25")
 print("2. Using range(25) in a nested loop with grid.at() calls")
 print("3. Then trying to use range(25) again")
 print("\nThis appears to be a memory corruption or reference counting issue in the C++ code.")

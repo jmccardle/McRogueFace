@@ -15,7 +15,7 @@ print("==================")
 
 # Create scene and grid
 astar_test = mcrfpy.Scene("astar_test")
-grid = mcrfpy.Grid(grid_x=20, grid_y=20)
+grid = mcrfpy.Grid(grid_w=20, grid_h=20)
 
 # Initialize grid - all walkable
 for y in range(20):

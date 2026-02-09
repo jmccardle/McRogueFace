@@ -48,7 +48,7 @@ print()
 print("Test 4: After creating mcrfpy scene/grid")
 try:
     test = mcrfpy.Scene("test")
-    grid = mcrfpy.Grid(grid_x=10, grid_y=10)
+    grid = mcrfpy.Grid(grid_w=10, grid_h=10)
     
     walls = []
     for x in range(1, 8): walls.append((x, 1))
@@ -64,7 +64,7 @@ print()
 print("Test 5: Checking exact error location")
 def test_exact_pattern():
     dijkstra_demo = mcrfpy.Scene("dijkstra_demo")
-    grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
     
     # Initialize all as floor

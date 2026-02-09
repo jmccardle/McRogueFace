@@ -19,7 +19,7 @@ def test_grid_at_position_parsing():
     scene = mcrfpy.Scene("test_position")
 
     # Create a grid with enough cells to test indexing
-    grid = mcrfpy.Grid(grid_x=10, grid_y=10)
+    grid = mcrfpy.Grid(grid_w=10, grid_h=10)
 
     errors = []
 

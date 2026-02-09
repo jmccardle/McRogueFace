@@ -15,7 +15,8 @@ def test_on_move_property():
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
     ui.append(frame)
 
-    def move_handler(x, y, button, action):
+    # #230 - on_move receives only (pos: Vector)
+    def move_handler(pos):
         pass
 
     # Test assignment
@@ -44,32 +45,28 @@ def test_on_move_fires():
     move_count = [0]
     positions = []
 
-    def move_handler(x, y, button, action):
+    # #230 - on_move receives only (pos: Vector)
+    def move_handler(pos):
         move_count[0] += 1
-        positions.append((x, y))
+        positions.append((pos.x, pos.y))
 
     frame.on_move = move_handler
 
     # Move mouse to enter the frame
-    automation.moveTo(150, 150)
+    automation.moveTo((150, 150))
+    mcrfpy.step(0.05)
 
     # Move within the frame (should fire on_move)
-    automation.moveTo(200, 200)
-    automation.moveTo(250, 250)
+    automation.moveTo((200, 200))
+    mcrfpy.step(0.05)
+    automation.moveTo((250, 250))
+    mcrfpy.step(0.05)
 
-    def check_results(timer, runtime):
-        if move_count[0] >= 2:
-            print(f"  - on_move fired {move_count[0]} times: PASS")
-            print(f"    Positions: {positions[:5]}...")
-            print("\n=== All on_move tests passed! ===")
-            sys.exit(0)
-        else:
-            print(f"  - on_move fired only {move_count[0]} times: PARTIAL")
-            print("    (Expected at least 2 move events)")
-            print("\n=== on_move basic tests passed! ===")
-            sys.exit(0)
-
-    mcrfpy.Timer("check_move", check_results, 200, once=True)
+    if move_count[0] >= 2:
+        print(f"  - on_move fired {move_count[0]} times: PASS")
+    else:
+        print(f"  - on_move fired {move_count[0]} times: PARTIAL")
+        print("    (Expected at least 2 move events)")
 
 
 def test_on_move_not_outside():
@@ -86,27 +83,26 @@ def test_on_move_not_outside():
 
     move_count = [0]
 
-    def move_handler(x, y, button, action):
+    # #230 - on_move receives only (pos: Vector)
+    def move_handler(pos):
         move_count[0] += 1
-        print(f"    Unexpected move at ({x}, {y})")
+        print(f"    Unexpected move at ({pos.x}, {pos.y})")
 
     frame.on_move = move_handler
 
     # Move mouse outside the frame
-    automation.moveTo(50, 50)
-    automation.moveTo(60, 60)
-    automation.moveTo(70, 70)
+    automation.moveTo((50, 50))
+    mcrfpy.step(0.05)
+    automation.moveTo((60, 60))
+    mcrfpy.step(0.05)
+    automation.moveTo((70, 70))
+    mcrfpy.step(0.05)
 
-    def check_results(timer, runtime):
-        if move_count[0] == 0:
-            print("  - No on_move outside bounds: PASS")
-            # Chain to the firing test
-            test_on_move_fires()
-        else:
-            print(f"  - Unexpected {move_count[0]} move(s) outside bounds: FAIL")
-            sys.exit(1)
-
-    mcrfpy.Timer("check_outside", check_results, 200, once=True)
+    if move_count[0] == 0:
+        print("  - No on_move outside bounds: PASS")
+    else:
+        print(f"  - Unexpected {move_count[0]} move(s) outside bounds: FAIL")
+        sys.exit(1)
 
 
 def test_all_types_have_on_move():
@@ -123,7 +119,8 @@ def test_all_types_have_on_move():
         ("Grid", mcrfpy.Grid(grid_size=(5, 5), pos=(0, 0), size=(100, 100))),
     ]
 
-    def dummy_cb(x, y, button, action):
+    # #230 - on_move receives only (pos: Vector)
+    def dummy_cb(pos):
         pass
 
     for name, obj in types_to_test:
@@ -143,7 +140,11 @@ if __name__ == "__main__":
     try:
         test_on_move_property()
         test_all_types_have_on_move()
-        test_on_move_not_outside()  # Chains to test_on_move_fires
+        test_on_move_not_outside()
+        test_on_move_fires()
+
+        print("\n=== All on_move tests passed! ===")
+        sys.exit(0)
     except Exception as e:
         print(f"\nTEST FAILED: {e}")
         import traceback

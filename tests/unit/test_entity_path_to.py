@@ -8,7 +8,7 @@ print("=" * 50)
 
 # Create scene and grid
 path_test = mcrfpy.Scene("path_test")
-grid = mcrfpy.Grid(grid_x=10, grid_y=10)
+grid = mcrfpy.Grid(grid_w=10, grid_h=10)
 
 # Set up a simple map with some walls
 for y in range(10):

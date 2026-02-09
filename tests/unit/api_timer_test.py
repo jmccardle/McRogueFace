@@ -116,6 +116,50 @@ def test_timers():
         print("FAIL")
         return
 
+    # Test 8: remaining property
+    try:
+        rem_timer = mcrfpy.Timer("remaining_test", callback3, 1000)
+        remaining = rem_timer.remaining
+        assert isinstance(remaining, (int, float)), f"remaining should be numeric, got {type(remaining)}"
+        assert remaining > 0, f"remaining should be > 0 on fresh timer, got {remaining}"
+        assert remaining <= 1000, f"remaining should be <= interval, got {remaining}"
+        rem_timer.stop()
+        print(f"  Timer.remaining = {remaining}")
+        print("OK: remaining property works")
+    except Exception as e:
+        print(f"FAIL: remaining property: {e}")
+        print("FAIL")
+        return
+
+    # Test 9: callback property (read and write)
+    try:
+        cb_counts = [0, 0]
+        def cb_a(timer, runtime):
+            cb_counts[0] += 1
+        def cb_b(timer, runtime):
+            cb_counts[1] += 1
+
+        cb_timer = mcrfpy.Timer("callback_test", cb_a, 200)
+
+        # Read callback
+        assert cb_timer.callback is cb_a, "callback should return original function"
+
+        # Replace callback
+        cb_timer.callback = cb_b
+        assert cb_timer.callback is cb_b, "callback should return new function"
+
+        # Fire the timer to confirm new callback is used
+        for _ in range(3):
+            mcrfpy.step(0.21)
+        cb_timer.stop()
+        assert cb_counts[0] == 0, f"old callback should not fire, got {cb_counts[0]}"
+        assert cb_counts[1] >= 1, f"new callback should fire, got {cb_counts[1]}"
+        print("OK: callback property read/write works")
+    except Exception as e:
+        print(f"FAIL: callback property: {e}")
+        print("FAIL")
+        return
+
     print("\nAll Timer API tests passed")
     print("PASS")
 

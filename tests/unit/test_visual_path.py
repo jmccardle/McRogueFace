@@ -13,7 +13,7 @@ PATH_COLOR = mcrfpy.Color(100, 255, 100)
 visual_test = mcrfpy.Scene("visual_test")
 
 # Create grid
-grid = mcrfpy.Grid(grid_x=5, grid_y=5)
+grid = mcrfpy.Grid(grid_w=5, grid_h=5)
 grid.fill_color = mcrfpy.Color(0, 0, 0)
 
 # Add color layer for cell coloring

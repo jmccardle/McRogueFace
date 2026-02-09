@@ -10,7 +10,7 @@ import sys
 print("Starting test...")
 
 # Create a simple grid without texture (should work in headless mode)
-grid = mcrfpy.Grid(grid_x=10, grid_y=8)
+grid = mcrfpy.Grid(grid_w=10, grid_h=8)
 print(f"Created grid: {grid}")
 
 # Test various grid positions

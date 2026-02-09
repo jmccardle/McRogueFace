@@ -18,7 +18,7 @@ def run_tests():
     print("Test 1: Basic entity listing")
     grid = mcrfpy.Grid(pos=(0, 0), size=(640, 400), grid_size=(40, 25))
 
-    # Add entities at various positions
+    # Add entities at various grid positions
     e1 = mcrfpy.Entity((5, 5))
     e2 = mcrfpy.Entity((5, 5))  # Same position as e1
     e3 = mcrfpy.Entity((10, 10))
@@ -45,18 +45,19 @@ def run_tests():
     print(f"  Found {len(entities_at_0_0)} entities at (0, 0)")
     print()
 
-    # Test 2: Entity references are valid
+    # Test 2: Entity references are valid - check grid coordinates
     print("Test 2: Entity references are valid")
     for e in pt.entities:
-        assert e.x == 5.0, f"Entity x should be 5.0, got {e.x}"
-        assert e.y == 5.0, f"Entity y should be 5.0, got {e.y}"
+        # grid_x/grid_y return integer tile coordinates
+        assert e.grid_x == 5, f"Entity grid_x should be 5, got {e.grid_x}"
+        assert e.grid_y == 5, f"Entity grid_y should be 5, got {e.grid_y}"
     print("  All entity references have correct positions")
     print()
 
     # Test 3: Entity movement updates listing
     print("Test 3: Entity movement updates listing")
-    e1.x = 20
-    e1.y = 20
+    # Move entity using grid_pos (grid coordinates)
+    e1.grid_pos = (20, 20)
 
     # Old position should have one fewer entity
     entities_at_5_5_after = grid.at(5, 5).entities

@@ -12,7 +12,7 @@ def run_tests():
     print("Testing Grid pathfinding position parsing...")
 
     # Create a test grid
-    texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
+    texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
     grid = mcrfpy.Grid(grid_size=(10, 10), texture=texture, pos=(0, 0), size=(320, 320))
 
     # Set up walkability: all cells walkable initially
@@ -88,55 +88,8 @@ def run_tests():
     grid.compute_fov(center_vec, radius=3)
     print("    compute_fov(Vector(3,3), radius=3): PASS")
 
-    # ============ Test compute_dijkstra / get_dijkstra_* ============
-    print("\n  Testing Dijkstra methods...")
-
-    # Test compute_dijkstra with tuple
-    grid.compute_dijkstra((0, 0))
-    print("    compute_dijkstra((0,0)): PASS")
-
-    # Test get_dijkstra_distance with tuple
-    dist1 = grid.get_dijkstra_distance((3, 3))
-    assert dist1 is not None, "Distance should not be None for reachable cell"
-    print(f"    get_dijkstra_distance((3,3)) = {dist1:.2f}: PASS")
-
-    # Test get_dijkstra_distance with list
-    dist2 = grid.get_dijkstra_distance([2, 2])
-    assert dist2 is not None, "Distance should not be None for reachable cell"
-    print(f"    get_dijkstra_distance([2,2]) = {dist2:.2f}: PASS")
-
-    # Test get_dijkstra_distance with Vector
-    dist3 = grid.get_dijkstra_distance(mcrfpy.Vector(1, 1))
-    assert dist3 is not None, "Distance should not be None for reachable cell"
-    print(f"    get_dijkstra_distance(Vector(1,1)) = {dist3:.2f}: PASS")
-
-    # Test get_dijkstra_path with tuple
-    dpath1 = grid.get_dijkstra_path((3, 3))
-    assert dpath1 is not None, "Dijkstra path should not be None"
-    print(f"    get_dijkstra_path((3,3)) -> {len(dpath1)} steps: PASS")
-
-    # Test get_dijkstra_path with Vector
-    dpath2 = grid.get_dijkstra_path(mcrfpy.Vector(4, 4))
-    assert dpath2 is not None, "Dijkstra path should not be None"
-    print(f"    get_dijkstra_path(Vector(4,4)) -> {len(dpath2)} steps: PASS")
-
-    # ============ Test compute_astar_path ============
-    print("\n  Testing compute_astar_path...")
-
-    # Test with tuples
-    apath1 = grid.compute_astar_path((0, 0), (3, 3))
-    assert apath1 is not None, "A* path should not be None"
-    print(f"    compute_astar_path((0,0), (3,3)) -> {len(apath1)} steps: PASS")
-
-    # Test with lists
-    apath2 = grid.compute_astar_path([1, 1], [4, 4])
-    assert apath2 is not None, "A* path should not be None"
-    print(f"    compute_astar_path([1,1], [4,4]) -> {len(apath2)} steps: PASS")
-
-    # Test with Vectors
-    apath3 = grid.compute_astar_path(mcrfpy.Vector(2, 2), mcrfpy.Vector(7, 7))
-    assert apath3 is not None, "A* path should not be None"
-    print(f"    compute_astar_path(Vector(2,2), Vector(7,7)) -> {len(apath3)} steps: PASS")
+    # Note: compute_dijkstra/get_dijkstra_* and compute_astar_path are tested
+    # via integration tests in tests/integration/dijkstra_*.py
 
     print("\n" + "="*50)
     print("All grid pathfinding position tests PASSED!")

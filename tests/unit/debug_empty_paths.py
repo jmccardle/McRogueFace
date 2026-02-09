@@ -8,7 +8,7 @@ print("Debugging empty paths...")
 
 # Create scene and grid
 debug = mcrfpy.Scene("debug")
-grid = mcrfpy.Grid(grid_x=10, grid_y=10)
+grid = mcrfpy.Grid(grid_w=10, grid_h=10)
 
 # Initialize grid - all walkable
 print("\nInitializing grid...")

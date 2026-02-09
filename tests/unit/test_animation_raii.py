@@ -59,7 +59,7 @@ try:
 except Exception as e:
     test_result("Basic animation", False, str(e))
 
-# Test 2: Remove animated object
+# Test 2: Remove animated object - shared_ptr stays alive while Python ref exists
 try:
     frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
     ui.append(frame)
@@ -68,6 +68,9 @@ try:
     anim.start(frame)
 
     ui.remove(frame)
+    # Note: frame still holds a shared_ptr reference, so target is still valid
+    # This is correct shared_ptr behavior
+    del frame  # Release Python reference
 
     if hasattr(anim, 'hasValidTarget'):
         valid = anim.hasValidTarget()
@@ -135,6 +138,7 @@ try:
     # Clear all UI except background - iterate in reverse
     for i in range(len(ui) - 1, 0, -1):
         ui.remove(ui[i])
+    del frame  # Release Python reference too
 
     if hasattr(anim, 'hasValidTarget'):
         valid = anim.hasValidTarget()

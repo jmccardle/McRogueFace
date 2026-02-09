@@ -6,8 +6,8 @@ Runs all headless tests and reports results.
 Usage:
     python3 tests/run_tests.py           # Run all tests
     python3 tests/run_tests.py unit      # Run only unit tests
-    python3 tests/run_tests.py -v        # Verbose output
-    python3 tests/run_tests.py -q        # Quiet (no checksums)
+    python3 tests/run_tests.py -v        # Verbose output (show failure details)
+    python3 tests/run_tests.py --checksums  # Show screenshot checksums
     python3 tests/run_tests.py --timeout=30  # Custom timeout
 """
 import os
@@ -35,9 +35,9 @@ RESET = '\033[0m'
 BOLD = '\033[1m'
 
 def get_screenshot_checksum(test_dir):
-    """Get checksums of any PNG files in build directory."""
+    """Get checksums of test-generated PNG files in build directory."""
     checksums = {}
-    for png in BUILD_DIR.glob("*.png"):
+    for png in BUILD_DIR.glob("test_*.png"):
         with open(png, 'rb') as f:
             checksums[png.name] = hashlib.md5(f.read()).hexdigest()[:8]
     return checksums
@@ -88,7 +88,7 @@ def find_tests(directory):
 
 def main():
     verbose = '-v' in sys.argv or '--verbose' in sys.argv
-    quiet = '-q' in sys.argv or '--quiet' in sys.argv
+    show_checksums = '--checksums' in sys.argv  # off by default; use --checksums to show
 
     # Parse --timeout=N
     timeout = DEFAULT_TIMEOUT
@@ -134,9 +134,9 @@ def main():
                 status = f"{RED}FAIL{RESET}"
                 failures.append((test_dir, test_name, output))
 
-            # Get screenshot checksums if any were generated (skip in quiet mode)
+            # Get screenshot checksums if any were generated
             checksum_str = ""
-            if not quiet:
+            if show_checksums:
                 checksums = get_screenshot_checksum(BUILD_DIR)
                 if checksums:
                     checksum_str = f" [{', '.join(f'{k}:{v}' for k,v in checksums.items())}]"

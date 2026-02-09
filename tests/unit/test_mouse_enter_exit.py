@@ -146,29 +146,22 @@ def test_enter_exit_simulation():
 
     # Use automation to simulate mouse movement
     # Move to outside the frame first
-    automation.moveTo(50, 50)
+    automation.moveTo((50, 50))
+    mcrfpy.step(0.05)
 
     # Move inside the frame - should trigger on_enter
-    automation.moveTo(200, 200)
+    automation.moveTo((200, 200))
+    mcrfpy.step(0.05)
 
     # Move outside the frame - should trigger on_exit
-    automation.moveTo(50, 50)
+    automation.moveTo((50, 50))
+    mcrfpy.step(0.05)
 
-    # Give time for callbacks to execute
-    def check_results(timer, runtime):
-        global enter_count, exit_count
-
-        if enter_count >= 1 and exit_count >= 1:
-            print(f"  - callbacks fired: enter={enter_count}, exit={exit_count}: PASS")
-            print("\n=== All Mouse Enter/Exit tests passed! ===")
-            sys.exit(0)
-        else:
-            print(f"  - callbacks fired: enter={enter_count}, exit={exit_count}: PARTIAL")
-            print("    (Note: Full callback testing requires interactive mode)")
-            print("\n=== Basic Mouse Enter/Exit tests passed! ===")
-            sys.exit(0)
-
-    mcrfpy.Timer("check", check_results, 200, once=True)
+    if enter_count >= 1 and exit_count >= 1:
+        print(f"  - callbacks fired: enter={enter_count}, exit={exit_count}: PASS")
+    else:
+        print(f"  - callbacks fired: enter={enter_count}, exit={exit_count}: PARTIAL")
+        print("    (Note: Full callback testing requires interactive mode)")
 
 
 def run_basic_tests():
@@ -182,6 +175,9 @@ if __name__ == "__main__":
     try:
         run_basic_tests()
         test_enter_exit_simulation()
+
+        print("\n=== All Mouse Enter/Exit tests passed! ===")
+        sys.exit(0)
     except Exception as e:
         print(f"\nTEST FAILED: {e}")
         import traceback

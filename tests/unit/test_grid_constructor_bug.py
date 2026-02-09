@@ -14,8 +14,8 @@ try:
     sys.exc_clear() if hasattr(sys, 'exc_clear') else None
     
     # Create grid with problematic dimensions
-    print("  Creating Grid(grid_x=25, grid_y=15)...")
-    grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+    print("  Creating Grid(grid_w=25, grid_h=15)...")
+    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
     print("  Grid created successfully")
     
     # Check if there's a pending exception
@@ -48,8 +48,8 @@ except Exception as e:
 
 # Pattern 2: Different size
 try:
-    print("  Trying Grid(grid_x=24, grid_y=15)...")
-    grid2 = mcrfpy.Grid(grid_x=24, grid_y=15)
+    print("  Trying Grid(grid_w=24, grid_h=15)...")
+    grid2 = mcrfpy.Grid(grid_w=24, grid_h=15)
     for i in range(1): pass
     print("  ✓ Size 24x15 worked")
 except Exception as e:
@@ -57,8 +57,8 @@ except Exception as e:
 
 # Pattern 3: Check if it's specifically 25
 try:
-    print("  Trying Grid(grid_x=26, grid_y=15)...")
-    grid3 = mcrfpy.Grid(grid_x=26, grid_y=15)
+    print("  Trying Grid(grid_w=26, grid_h=15)...")
+    grid3 = mcrfpy.Grid(grid_w=26, grid_h=15)
     for i in range(1): pass
     print("  ✓ Size 26x15 worked")
 except Exception as e:
@@ -72,7 +72,7 @@ print("Test 3: Isolating the problem")
 def test_grid_creation(x, y):
     """Test creating a grid and immediately using range()"""
     try:
-        grid = mcrfpy.Grid(grid_x=x, grid_y=y)
+        grid = mcrfpy.Grid(grid_w=x, grid_h=y)
         # Immediately test if exception is pending
         list(range(1))
         return True, "Success"
@@ -94,7 +94,7 @@ print()
 print("Test 4: Exception clearing")
 try:
     # Create the problematic grid
-    grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
     print("  Created Grid(25, 15)")
     
     # Try to clear any pending exception

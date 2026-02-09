@@ -10,7 +10,7 @@ print("Simple visibility test...")
 simple = mcrfpy.Scene("simple")
 print("Scene created")
 
-grid = mcrfpy.Grid(grid_x=5, grid_y=5)
+grid = mcrfpy.Grid(grid_w=5, grid_h=5)
 print("Grid created")
 
 # Create entity with grid association

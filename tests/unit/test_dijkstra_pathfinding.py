@@ -19,7 +19,7 @@ def create_test_grid():
     dijkstra_test = mcrfpy.Scene("dijkstra_test")
 
     # Create grid
-    grid = mcrfpy.Grid(grid_x=20, grid_y=20)
+    grid = mcrfpy.Grid(grid_w=20, grid_h=20)
 
     # Add color layer for cell coloring
     color_layer = grid.add_layer("color", z_index=-1)
@@ -27,8 +27,8 @@ def create_test_grid():
     grid._color_layer = color_layer
 
     # Initialize all cells as walkable
-    for y in range(grid.grid_y):
-        for x in range(grid.grid_x):
+    for y in range(grid.grid_h):
+        for x in range(grid.grid_w):
             cell = grid.at(x, y)
             cell.walkable = True
             cell.transparent = True
@@ -145,8 +145,8 @@ def test_multi_target_scenario():
         
         # Store distances for all cells
         distances = {}
-        for y in range(grid.grid_y):
-            for x in range(grid.grid_x):
+        for y in range(grid.grid_h):
+            for x in range(grid.grid_w):
                 d = grid.get_dijkstra_distance(x, y)
                 if d is not None:
                     distances[(x, y)] = d
@@ -159,8 +159,8 @@ def test_multi_target_scenario():
     best_pos = None
     best_min_dist = 0
     
-    for y in range(grid.grid_y):
-        for x in range(grid.grid_x):
+    for y in range(grid.grid_h):
+        for x in range(grid.grid_w):
             # Skip if not walkable
             if not grid.at(x, y).walkable:
                 continue

@@ -15,7 +15,7 @@ def create_test_map():
     dijkstra_test = mcrfpy.Scene("dijkstra_test")
     
     # Create grid
-    grid = mcrfpy.Grid(grid_x=20, grid_y=12)
+    grid = mcrfpy.Grid(grid_w=20, grid_h=12)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
     
     # Initialize all cells as walkable floor

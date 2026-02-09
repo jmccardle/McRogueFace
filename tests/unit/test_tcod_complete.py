@@ -10,8 +10,8 @@ def run_tests():
     # Test 1: Basic Grid Creation
     print("Test 1: Grid Creation")
     tcod_test = mcrfpy.Scene("tcod_test")
-    grid = mcrfpy.Grid(grid_x=10, grid_y=10, texture=None, pos=(10, 10), size=(160, 160))
-    print("✓ Grid created successfully\n")
+    grid = mcrfpy.Grid(grid_w=10, grid_h=10, texture=None, pos=(10, 10), size=(160, 160))
+    print("OK: Grid created successfully\n")
     
     # Test 2: Grid Point Manipulation
     print("Test 2: Grid Point Properties")
@@ -32,7 +32,7 @@ def run_tests():
     # Verify
     assert grid.at(0, 0).walkable == True
     assert grid.at(4, 3).walkable == False
-    print("✓ Grid points configured correctly\n")
+    print("OK: Grid points configured correctly\n")
     
     # Test 3: Field of View
     print("Test 3: Field of View Algorithms")
@@ -47,7 +47,7 @@ def run_tests():
     ]
     
     for name, algo in algorithms:
-        grid.compute_fov(2, 5, radius=5, light_walls=True, algorithm=algo)
+        grid.compute_fov((2, 5), radius=5, light_walls=True, algorithm=algo)
         visible_count = sum(1 for y in range(10) for x in range(10) if grid.is_in_fov(x, y))
         print(f"  {name}: {visible_count} cells visible")
         
@@ -55,32 +55,34 @@ def run_tests():
         assert grid.is_in_fov(2, 5) == True  # Origin always visible
         assert grid.is_in_fov(5, 5) == False  # Behind wall
     
-    print("✓ All FOV algorithms working\n")
+    print("OK: All FOV algorithms working\n")
     
     # Test 4: Pathfinding
     print("Test 4: A* Pathfinding")
     
     # Find path around wall
-    path = grid.find_path(1, 5, 8, 5)
+    path = grid.find_path((1, 5), (8, 5))
     if path:
-        print(f"  Path found: {len(path)} steps")
-        print(f"  Route: {path[:3]}...{path[-3:]}")
-        
+        path_len = len(path)  # Get length before iteration consumes it
+        path_list = [(int(p.x), int(p.y)) for p in path]
+        print(f"  Path found: {path_len} steps")
+        print(f"  Route: {path_list[:3]}...{path_list[-3:]}")
+
         # Verify path goes around wall
-        assert (4, 5) not in path  # Should not go through wall
-        assert len(path) >= 7  # Should be at least 7 steps (direct would be 7)
+        assert (4, 5) not in path_list  # Should not go through wall
+        assert path_len >= 7  # Should be at least 7 steps (direct would be 7)
     else:
         print("  ERROR: No path found!")
-        
+
     # Test diagonal movement
-    path_diag = grid.find_path(0, 0, 9, 9, diagonal_cost=1.41)
-    path_no_diag = grid.find_path(0, 0, 9, 9, diagonal_cost=0.0)
-    
+    path_diag = grid.find_path((0, 0), (9, 9), diagonal_cost=1.41)
+    path_no_diag = grid.find_path((0, 0), (9, 9), diagonal_cost=0.0)
+
     print(f"  With diagonals: {len(path_diag)} steps")
     print(f"  Without diagonals: {len(path_no_diag)} steps")
     assert len(path_diag) < len(path_no_diag)  # Diagonal should be shorter
     
-    print("✓ Pathfinding working correctly\n")
+    print("OK: Pathfinding working correctly\n")
     
     # Test 5: Edge Cases
     print("Test 5: Edge Cases")
@@ -96,10 +98,10 @@ def run_tests():
             if dx != 0 or dy != 0:
                 grid.at(5 + dx, 5 + dy).walkable = False
     
-    blocked_path = grid.find_path(5, 5, 0, 0)
-    assert len(blocked_path) == 0  # Should return empty path
+    blocked_path = grid.find_path((5, 5), (0, 0))
+    assert blocked_path is None, "Blocked path should return None"
     
-    print("✓ Edge cases handled properly\n")
+    print("OK: Edge cases handled properly\n")
     
     print("=== All Tests Passed! ===")
     return True

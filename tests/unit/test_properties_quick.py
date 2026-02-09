@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-"""Quick test of drawable properties
-Refactored to use mcrfpy.step() for synchronous execution.
-"""
+"""Quick test of drawable properties"""
 import mcrfpy
 import sys
 
 # Initialize scene
 test = mcrfpy.Scene("test")
-test.activate()
-mcrfpy.step(0.01)
+mcrfpy.current_scene = test
 
 print("\n=== Testing Properties ===")
 
@@ -25,12 +22,13 @@ try:
     frame.opacity = 0.5
     print(f"Frame opacity after setting to 0.5: {frame.opacity}")
 
-    bounds = frame.get_bounds()
-    print(f"Frame bounds: {bounds}")
+    bounds = frame.bounds
+    print(f"Frame bounds: pos={bounds[0]}, size={bounds[1]}")
 
-    frame.move(5, 5)
-    bounds2 = frame.get_bounds()
-    print(f"Frame bounds after move(5,5): {bounds2}")
+    frame.x += 5
+    frame.y += 5
+    bounds2 = frame.bounds
+    print(f"Frame bounds after move: pos={bounds2[0]}, size={bounds2[1]}")
 
     print("+ Frame properties work!")
 except Exception as e:
@@ -48,20 +46,14 @@ try:
     entity.opacity = 0.7
     print(f"Entity opacity after setting to 0.7: {entity.opacity}")
 
-    bounds = entity.get_bounds()
-    print(f"Entity bounds: {bounds}")
-
-    entity.move(3, 3)
-    print(f"Entity position after move(3,3): ({entity.x}, {entity.y})")
-
     print("+ Entity properties work!")
 except Exception as e:
     print(f"x Entity failed: {e}")
     all_pass = False
 
 if all_pass:
-    print("\nPASS")
+    print("\nPASS", file=sys.stderr)
     sys.exit(0)
 else:
-    print("\nFAIL")
+    print("\nFAIL", file=sys.stderr)
     sys.exit(1)

@@ -46,7 +46,7 @@ def create_scene():
         print("  ✓ Range after createScene works")
         
         # Create grid
-        grid = mcrfpy.Grid(grid_x=10, grid_y=10)
+        grid = mcrfpy.Grid(grid_w=10, grid_h=10)
         print("  ✓ Created grid")
         
         # Try range again
@@ -70,7 +70,7 @@ print("Test 4: Exact failing pattern")
 def failing_pattern():
     try:
         failing_test = mcrfpy.Scene("failing_test")
-        grid = mcrfpy.Grid(grid_x=14, grid_y=10)
+        grid = mcrfpy.Grid(grid_w=14, grid_h=10)
         
         # This is where it fails in the demos
         walls = []

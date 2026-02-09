@@ -24,25 +24,25 @@ def test_frame_combinations():
     assert f4.x == 15 and f4.y == 25 and f4.w == 150 and f4.h == 250
     assert f4.outline == 2.0 and f4.visible and abs(f4.opacity - 0.5) < 0.0001
     
-    print("✓ Frame: all constructor variations work")
+    print("  Frame: all constructor variations work")
 
 def test_grid_combinations():
     print("Testing Grid constructors...")
     
     # No args (should default to 2x2)
     g1 = mcrfpy.Grid()
-    assert g1.grid_x == 2 and g1.grid_y == 2
+    assert g1.grid_w == 2 and g1.grid_h == 2
     
     # Positional args
     g2 = mcrfpy.Grid((0, 0), (320, 320), (10, 10))
-    assert g2.x == 0 and g2.y == 0 and g2.grid_x == 10 and g2.grid_y == 10
+    assert g2.x == 0 and g2.y == 0 and g2.grid_w == 10 and g2.grid_h == 10
     
     # Mix with keywords
-    g3 = mcrfpy.Grid(pos=(50, 50), grid_x=20, grid_y=15, zoom=2.0, name="zoomed_grid")
-    assert g3.x == 50 and g3.y == 50 and g3.grid_x == 20 and g3.grid_y == 15
+    g3 = mcrfpy.Grid(pos=(50, 50), grid_w=20, grid_h=15, zoom=2.0, name="zoomed_grid")
+    assert g3.x == 50 and g3.y == 50 and g3.grid_w == 20 and g3.grid_h == 15
     assert g3.zoom == 2.0 and g3.name == "zoomed_grid"
     
-    print("✓ Grid: all constructor variations work")
+    print(" Grid: all constructor variations work")
 
 def test_sprite_combinations():
     print("Testing Sprite constructors...")
@@ -64,7 +64,7 @@ def test_sprite_combinations():
     s4 = mcrfpy.Sprite(scale_x=2.0, scale_y=3.0)
     assert s4.scale_x == 2.0 and s4.scale_y == 3.0
     
-    print("✓ Sprite: all constructor variations work")
+    print(" Sprite: all constructor variations work")
 
 def test_caption_combinations():
     print("Testing Caption constructors...")
@@ -86,25 +86,25 @@ def test_caption_combinations():
     assert c4.x == 10 and c4.y == 10 and c4.text == "Mixed"
     assert c4.outline == 1.0 and abs(c4.opacity - 0.8) < 0.0001
     
-    print("✓ Caption: all constructor variations work")
+    print(" Caption: all constructor variations work")
 
 def test_entity_combinations():
     print("Testing Entity constructors...")
-    
+
     # No args
     e1 = mcrfpy.Entity()
-    assert e1.x == 0 and e1.y == 0 and e1.sprite_index == 0
-    
-    # Positional args
+    assert e1.grid_x == 0 and e1.grid_y == 0 and e1.sprite_index == 0
+
+    # Positional args (grid coordinates)
     e2 = mcrfpy.Entity((5, 10), None, 3)
-    assert e2.x == 5 and e2.y == 10 and e2.sprite_index == 3
-    
-    # Keywords only
-    e3 = mcrfpy.Entity(x=15, y=20, sprite_index=7, name="player", visible=True)
-    assert e3.x == 15 and e3.y == 20 and e3.sprite_index == 7
+    assert e2.grid_x == 5 and e2.grid_y == 10 and e2.sprite_index == 3
+
+    # Keywords only - Entity uses grid_pos, not x/y directly
+    e3 = mcrfpy.Entity(grid_pos=(15, 20), sprite_index=7, name="player", visible=True)
+    assert e3.grid_x == 15 and e3.grid_y == 20 and e3.sprite_index == 7
     assert e3.name == "player" and e3.visible
-    
-    print("✓ Entity: all constructor variations work")
+
+    print("  Entity: all constructor variations work")
 
 def test_edge_cases():
     print("Testing edge cases...")
@@ -122,7 +122,7 @@ def test_edge_cases():
     c = mcrfpy.Caption(font=None)
     e = mcrfpy.Entity(texture=None)
     
-    print("✓ Edge cases: all handled correctly")
+    print(" Edge cases: all handled correctly")
 
 # Run all tests
 try:
@@ -133,11 +133,11 @@ try:
     test_entity_combinations()
     test_edge_cases()
     
-    print("\n✅ All comprehensive constructor tests passed!")
+    print("\nPASS: All comprehensive constructor tests passed!")
     sys.exit(0)
     
 except Exception as e:
-    print(f"\n❌ Test failed: {e}")
+    print(f"\nFAIL: Test failed: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)

@@ -10,7 +10,7 @@ def test_colorlayer_at():
     # Create a grid and color layer
     grid = mcrfpy.Grid(grid_size=(10, 10))
     layer = mcrfpy.ColorLayer(z_index=-1, grid_size=(10, 10))
-    grid.layers.append(layer)
+    grid.add_layer(layer)
 
     # Set a color at position
     layer.set((5, 5), mcrfpy.Color(255, 0, 0))
@@ -45,7 +45,7 @@ def test_colorlayer_set():
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
     layer = mcrfpy.ColorLayer(z_index=-1, grid_size=(10, 10))
-    grid.layers.append(layer)
+    grid.add_layer(layer)
 
     # Test set() with tuple position
     layer.set((3, 4), mcrfpy.Color(0, 255, 0))
@@ -76,7 +76,7 @@ def test_tilelayer_at():
     grid = mcrfpy.Grid(grid_size=(10, 10))
     texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
     layer = mcrfpy.TileLayer(z_index=-1, texture=texture, grid_size=(10, 10))
-    grid.layers.append(layer)
+    grid.add_layer(layer)
 
     # Set a tile at position
     layer.set((5, 5), 42)
@@ -111,7 +111,7 @@ def test_tilelayer_set():
     grid = mcrfpy.Grid(grid_size=(10, 10))
     texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
     layer = mcrfpy.TileLayer(z_index=-1, texture=texture, grid_size=(10, 10))
-    grid.layers.append(layer)
+    grid.add_layer(layer)
 
     # Test set() with tuple position
     layer.set((3, 4), 10)

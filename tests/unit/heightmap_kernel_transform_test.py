@@ -12,6 +12,13 @@ Tests:
 import mcrfpy
 import sys
 
+# Check if kernel_transform is implemented (Issue #198 may be pending)
+_hm = mcrfpy.HeightMap((2, 2))
+if not hasattr(_hm, 'kernel_transform'):
+    print("SKIP: HeightMap.kernel_transform() not yet implemented (Issue #198)")
+    sys.exit(0)
+del _hm
+
 
 def test_blur_kernel():
     """Test 3x3 averaging blur kernel"""

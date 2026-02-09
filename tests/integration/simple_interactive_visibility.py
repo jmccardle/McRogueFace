@@ -9,7 +9,7 @@ print("Creating scene...")
 vis_test = mcrfpy.Scene("vis_test")
 
 print("Creating grid...")
-grid = mcrfpy.Grid(grid_x=10, grid_y=10)
+grid = mcrfpy.Grid(grid_w=10, grid_h=10)
 
 # Add color layer for cell coloring
 color_layer = grid.add_layer("color", z_index=-1)

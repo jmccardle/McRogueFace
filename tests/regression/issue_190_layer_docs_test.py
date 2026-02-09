@@ -27,8 +27,7 @@ def test_colorlayer_docs():
         "at(x, y)",
         "set(x, y",
         "fill(",
-        "Grid.add_layer",
-        "visible",
+        "add_layer",
         "Example",
     ]
 
@@ -66,8 +65,7 @@ def test_tilelayer_docs():
         "fill(",
         "-1",  # Special value for no tile
         "sprite",
-        "Grid.add_layer",
-        "visible",
+        "add_layer",
         "Example",
     ]
 

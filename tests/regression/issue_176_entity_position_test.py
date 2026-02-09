@@ -66,10 +66,10 @@ def test_entity_positions():
     if entity.grid_x != 4 or entity.grid_y != 6:
         errors.append(f"After setting pos, grid_x/y: expected (4, 6), got ({entity.grid_x}, {entity.grid_y})")
 
-    # Test 8: repr should show grid_x/grid_y
+    # Test 8: repr should show position info
     repr_str = repr(entity)
-    if "grid_x=" not in repr_str or "grid_y=" not in repr_str:
-        errors.append(f"repr should contain grid_x/grid_y: {repr_str}")
+    if "draw_pos=" not in repr_str:
+        errors.append(f"repr should contain draw_pos: {repr_str}")
 
     return errors
 

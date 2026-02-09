@@ -32,12 +32,12 @@ move_timer_ms = 150  # Time between moves
 g_grid = None
 g_patrol = None
 g_fov_layer = None
+patrol_demo = mcrfpy.Scene("patrol_demo")
 
 def setup_scene():
     """Create the demo scene"""
     global g_grid, g_patrol, g_fov_layer
 
-    patrol_demo = mcrfpy.Scene("patrol_demo")
     patrol_demo.activate()
 
     ui = patrol_demo.children
@@ -89,7 +89,7 @@ def setup_scene():
     # Draw walls on the wall layer
     for y in range(5, 15):
         for x in range(5, 15):
-            wall_layer.set(x, y, mcrfpy.Color(100, 70, 50, 255))  # Brown walls
+            wall_layer.set((x, y), mcrfpy.Color(100, 70, 50, 255))  # Brown walls
 
     # Create FOV layer (above walls, below entities)
     fov_layer = grid.add_layer('color', z_index=-1)
@@ -146,9 +146,9 @@ def patrol_step(timer, runtime):
 
     # Move one step (prefer horizontal, then vertical)
     if dx != 0:
-        g_patrol.x = px + dx
+        g_patrol.grid_x = px + dx
     elif dy != 0:
-        g_patrol.y = py + dy
+        g_patrol.grid_y = py + dy
 
     # Update visibility after move
     g_patrol.update_visibility()

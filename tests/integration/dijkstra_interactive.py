@@ -41,7 +41,7 @@ def create_map():
     dijkstra_interactive = mcrfpy.Scene("dijkstra_interactive")
 
     # Create grid - 14x10 as specified
-    grid = mcrfpy.Grid(grid_x=14, grid_y=10)
+    grid = mcrfpy.Grid(grid_w=14, grid_h=10)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
 
     # Add color layer for cell coloring
@@ -95,8 +95,8 @@ def create_map():
 def clear_path_highlight():
     """Clear any existing path highlighting"""
     # Reset all floor tiles to original color
-    for y in range(grid.grid_y):
-        for x in range(grid.grid_x):
+    for y in range(grid.grid_h):
+        for x in range(grid.grid_w):
             cell = grid.at(x, y)
             if cell.walkable:
                 color_layer.set(x, y, FLOOR_COLOR)

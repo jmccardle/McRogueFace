@@ -14,7 +14,7 @@ import sys
 test_anim = mcrfpy.Scene("test_anim")
 
 # Create simple grid
-grid = mcrfpy.Grid(grid_x=15, grid_y=15)
+grid = mcrfpy.Grid(grid_w=15, grid_h=15)
 grid.fill_color = mcrfpy.Color(20, 20, 30)
 
 # Add a color layer for cell coloring

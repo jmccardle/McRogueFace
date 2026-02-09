@@ -71,7 +71,7 @@ class PathAnimator:
 chain_test = mcrfpy.Scene("chain_test")
 
 # Create grid
-grid = mcrfpy.Grid(grid_x=20, grid_y=15)
+grid = mcrfpy.Grid(grid_w=20, grid_h=15)
 grid.fill_color = mcrfpy.Color(20, 20, 30)
 
 # Add a color layer for cell coloring

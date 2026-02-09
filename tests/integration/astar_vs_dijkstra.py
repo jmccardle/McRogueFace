@@ -31,7 +31,7 @@ def create_map():
     pathfinding_comparison = mcrfpy.Scene("pathfinding_comparison")
 
     # Create grid
-    grid = mcrfpy.Grid(grid_x=30, grid_y=20)
+    grid = mcrfpy.Grid(grid_w=30, grid_h=20)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
 
     # Add color layer for cell coloring

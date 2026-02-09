@@ -10,7 +10,7 @@ print("=" * 50)
 print("Test 1: Color assignment in grid")
 try:
     test1 = mcrfpy.Scene("test1")
-    grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
     
     # Assign color to a cell
     grid.at(0, 0).color = mcrfpy.Color(200, 200, 220)
@@ -28,7 +28,7 @@ except Exception as e:
 print("\nTest 2: Multiple color assignments")
 try:
     test2 = mcrfpy.Scene("test2")
-    grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
     
     # Multiple properties including color
     for y in range(15):
@@ -57,7 +57,7 @@ try:
         dijkstra_demo = mcrfpy.Scene("dijkstra_demo")
         
         # Create grid
-        grid = mcrfpy.Grid(grid_x=25, grid_y=15)
+        grid = mcrfpy.Grid(grid_w=25, grid_h=15)
         grid.fill_color = mcrfpy.Color(0, 0, 0)
         
         # Initialize all as floor

@@ -14,7 +14,8 @@ def test_properties():
     grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
     ui.append(grid)
 
-    def cell_handler(x, y):
+    # #230 - cell enter/exit receive (cell_pos: Vector)
+    def cell_handler(pos):
         pass
 
     # Test on_cell_enter
@@ -29,9 +30,13 @@ def test_properties():
     grid.on_cell_exit = None
     assert grid.on_cell_exit is None
 
+    # #230 - cell click receives (cell_pos: Vector, button: MouseButton, action: InputState)
+    def click_handler(pos, button, action):
+        pass
+
     # Test on_cell_click
-    grid.on_cell_click = cell_handler
-    assert grid.on_cell_click == cell_handler
+    grid.on_cell_click = click_handler
+    assert grid.on_cell_click == click_handler
     grid.on_cell_click = None
     assert grid.on_cell_click is None
 
@@ -55,32 +60,29 @@ def test_cell_hover():
     enter_events = []
     exit_events = []
 
-    def on_enter(x, y):
-        enter_events.append((x, y))
+    # #230 - cell enter/exit receive (cell_pos: Vector)
+    def on_enter(pos):
+        enter_events.append((pos.x, pos.y))
 
-    def on_exit(x, y):
-        exit_events.append((x, y))
+    def on_exit(pos):
+        exit_events.append((pos.x, pos.y))
 
     grid.on_cell_enter = on_enter
     grid.on_cell_exit = on_exit
 
     # Move into grid and between cells
-    automation.moveTo(150, 150)
-    automation.moveTo(200, 200)
+    automation.moveTo((150, 150))
+    mcrfpy.step(0.05)
+    automation.moveTo((200, 200))
+    mcrfpy.step(0.05)
 
-    def check_hover(timer, runtime):
-        print(f"  Enter events: {len(enter_events)}, Exit events: {len(exit_events)}")
-        print(f"  Hovered cell: {grid.hovered_cell}")
+    print(f"  Enter events: {len(enter_events)}, Exit events: {len(exit_events)}")
+    print(f"  Hovered cell: {grid.hovered_cell}")
 
-        if len(enter_events) >= 1:
-            print("  - Hover: PASS")
-        else:
-            print("  - Hover: PARTIAL")
-
-        # Continue to click test
-        test_cell_click()
-
-    mcrfpy.Timer("check_hover", check_hover, 200, once=True)
+    if len(enter_events) >= 1:
+        print("  - Hover: PASS")
+    else:
+        print("  - Hover: PARTIAL (events may require interactive mode)")
 
 
 def test_cell_click():
@@ -96,31 +98,31 @@ def test_cell_click():
 
     click_events = []
 
-    def on_click(x, y):
-        click_events.append((x, y))
+    # #230 - cell click receives (cell_pos: Vector, button: MouseButton, action: InputState)
+    def on_click(pos, button, action):
+        click_events.append((pos.x, pos.y))
 
     grid.on_cell_click = on_click
 
-    automation.click(200, 200)
+    automation.click((200, 200))
+    mcrfpy.step(0.05)
 
-    def check_click(timer, runtime):
-        print(f"  Click events: {len(click_events)}")
+    print(f"  Click events: {len(click_events)}")
 
-        if len(click_events) >= 1:
-            print("  - Click: PASS")
-        else:
-            print("  - Click: PARTIAL")
-
-        print("\n=== All grid cell event tests passed! ===")
-        sys.exit(0)
-
-    mcrfpy.Timer("check_click", check_click, 200, once=True)
+    if len(click_events) >= 1:
+        print("  - Click: PASS")
+    else:
+        print("  - Click: PARTIAL (events may require interactive mode)")
 
 
 if __name__ == "__main__":
     try:
         test_properties()
-        test_cell_hover()  # Chains to test_cell_click
+        test_cell_hover()
+        test_cell_click()
+
+        print("\n=== All grid cell event tests passed! ===")
+        sys.exit(0)
     except Exception as e:
         print(f"\nTEST FAILED: {e}")
         import traceback

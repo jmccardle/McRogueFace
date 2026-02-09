@@ -8,7 +8,7 @@ print("Debug visibility...")
 
 # Create scene and grid
 debug = mcrfpy.Scene("debug")
-grid = mcrfpy.Grid(grid_x=5, grid_y=5)
+grid = mcrfpy.Grid(grid_w=5, grid_h=5)
 
 # Initialize grid
 print("Initializing grid...")

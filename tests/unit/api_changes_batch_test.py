@@ -7,7 +7,7 @@ def test_issue_177_gridpoint_grid_pos():
     """Test GridPoint.grid_pos property returns tuple"""
     print("Testing #177: GridPoint.grid_pos property...")
 
-    texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
+    texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
     grid = mcrfpy.Grid(grid_size=(10, 10), texture=texture, pos=(0, 0), size=(160, 160))
 
     # Get a grid point
@@ -30,7 +30,7 @@ def test_issue_179_181_grid_vectors():
     """Test Grid properties return Vectors instead of tuples"""
     print("Testing #179, #181: Grid Vector returns and grid_w/grid_h rename...")
 
-    texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
+    texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
     grid = mcrfpy.Grid(grid_size=(15, 20), texture=texture, pos=(50, 100), size=(240, 320))
 
     # Test center returns Vector

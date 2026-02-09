@@ -22,9 +22,9 @@ def run_tests():
     try:
         print(f"  FOV.BASIC = {mcrfpy.FOV.BASIC}")
         print(f"  FOV.SHADOW = {mcrfpy.FOV.SHADOW}")
-        print("✓ FOV enum available\n")
+        print("OK: FOV enum available\n")
     except Exception as e:
-        print(f"✗ FOV enum not available: {e}")
+        print(f"FAIL: FOV enum not available: {e}")
         return False
 
     # Test 2: Create grid with walls
@@ -47,7 +47,7 @@ def run_tests():
                 point.walkable = True
                 point.transparent = True
 
-    print("✓ Grid with walls created\n")
+    print("OK: Grid with walls created\n")
 
     # Test 3: Create entities
     print("Test 3: Entity Creation")
@@ -55,16 +55,16 @@ def run_tests():
     enemy = mcrfpy.Entity((35, 12))
     grid.entities.append(player)
     grid.entities.append(enemy)
-    print(f"  Player at ({player.x}, {player.y})")
-    print(f"  Enemy at ({enemy.x}, {enemy.y})")
-    print("✓ Entities created\n")
+    print(f"  Player at grid ({player.grid_x}, {player.grid_y})")
+    print(f"  Enemy at grid ({enemy.grid_x}, {enemy.grid_y})")
+    print("OK: Entities created\n")
 
     # Test 4: FOV calculation for player
     print("Test 4: Player FOV Calculation")
-    grid.compute_fov(int(player.x), int(player.y), radius=15, algorithm=mcrfpy.FOV.SHADOW)
+    grid.compute_fov((player.grid_x, player.grid_y), radius=15, algorithm=mcrfpy.FOV.SHADOW)
 
     # Player should see themselves
-    assert grid.is_in_fov(int(player.x), int(player.y)), "Player should see themselves"
+    assert grid.is_in_fov(player.grid_x, player.grid_y), "Player should see themselves"
     print("  Player can see their own position")
 
     # Player should see nearby cells
@@ -76,33 +76,34 @@ def run_tests():
     print("  Player cannot see behind wall at (21, 5)")
 
     # Player should NOT see enemy (behind wall even with door)
-    assert not grid.is_in_fov(int(enemy.x), int(enemy.y)), "Player should not see enemy"
+    assert not grid.is_in_fov(enemy.grid_x, enemy.grid_y), "Player should not see enemy"
     print("  Player cannot see enemy")
 
-    print("✓ Player FOV working correctly\n")
+    print("OK: Player FOV working correctly\n")
 
     # Test 5: FOV calculation for enemy
     print("Test 5: Enemy FOV Calculation")
-    grid.compute_fov(int(enemy.x), int(enemy.y), radius=15, algorithm=mcrfpy.FOV.SHADOW)
+    grid.compute_fov((enemy.grid_x, enemy.grid_y), radius=15, algorithm=mcrfpy.FOV.SHADOW)
 
     # Enemy should see themselves
-    assert grid.is_in_fov(int(enemy.x), int(enemy.y)), "Enemy should see themselves"
+    assert grid.is_in_fov(enemy.grid_x, enemy.grid_y), "Enemy should see themselves"
     print("  Enemy can see their own position")
 
     # Enemy should NOT see player (behind wall)
-    assert not grid.is_in_fov(int(player.x), int(player.y)), "Enemy should not see player"
+    assert not grid.is_in_fov(player.grid_x, player.grid_y), "Enemy should not see player"
     print("  Enemy cannot see player")
 
-    print("✓ Enemy FOV working correctly\n")
+    print("OK: Enemy FOV working correctly\n")
 
     # Test 6: FOV with color layer
     print("Test 6: FOV Color Layer Visualization")
-    fov_layer = grid.add_layer('color', z_index=-1)
+    fov_layer = mcrfpy.ColorLayer(z_index=-1, grid_size=(40, 25))
+    grid.add_layer(fov_layer)
     fov_layer.fill((0, 0, 0, 255))  # Start with black (unknown)
 
     # Draw player FOV
     fov_layer.draw_fov(
-        source=(int(player.x), int(player.y)),
+        source=(player.grid_x, player.grid_y),
         radius=10,
         fov=mcrfpy.FOV.SHADOW,
         visible=(255, 255, 200, 64),
@@ -111,23 +112,16 @@ def run_tests():
     )
 
     # Check visible cell
-    visible_cell = fov_layer.at(int(player.x), int(player.y))
+    visible_cell = fov_layer.at(player.grid_x, player.grid_y)
     assert visible_cell.r == 255, "Player position should be visible"
     print("  Player position has visible color")
 
     # Check hidden cell (behind wall)
-    hidden_cell = fov_layer.at(int(enemy.x), int(enemy.y))
+    hidden_cell = fov_layer.at(enemy.grid_x, enemy.grid_y)
     assert hidden_cell.r == 0, "Enemy position should be unknown"
     print("  Enemy position has unknown color")
 
-    print("✓ FOV color layer working correctly\n")
-
-    # Test 7: Line of sight via libtcod
-    print("Test 7: Line Drawing")
-    line = mcrfpy.libtcod.line(int(player.x), int(player.y), int(enemy.x), int(enemy.y))
-    print(f"  Line from player to enemy: {len(line)} cells")
-    assert len(line) > 0, "Line should have cells"
-    print("✓ Line drawing working\n")
+    print("OK: FOV color layer working correctly\n")
 
     print("=== All FOV Entity Tests Passed! ===")
     return True

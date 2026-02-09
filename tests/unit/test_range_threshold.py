@@ -10,7 +10,7 @@ def test_range_size(n):
     """Test if range(n) works after grid operations"""
     try:
         mcrfpy.createScene(f"test_{n}")
-        grid = mcrfpy.Grid(grid_x=n, grid_y=n)
+        grid = mcrfpy.Grid(grid_w=n, grid_h=n)
         
         # Do grid operations
         for y in range(min(n, 10)):  # Limit outer loop
@@ -70,7 +70,7 @@ print("Testing if it's about grid size vs range size...")
 try:
     # Small grid, large range
     test_small_grid = mcrfpy.Scene("test_small_grid")
-    grid = mcrfpy.Grid(grid_x=5, grid_y=5)
+    grid = mcrfpy.Grid(grid_w=5, grid_h=5)
     
     # Do minimal grid operations
     grid.at(0, 0).walkable = True
@@ -86,7 +86,7 @@ except Exception as e:
 try:
     # Large grid, see what happens
     test_large_grid = mcrfpy.Scene("test_large_grid")
-    grid = mcrfpy.Grid(grid_x=20, grid_y=20)
+    grid = mcrfpy.Grid(grid_w=20, grid_h=20)
     
     # Do operations on large grid
     for y in range(20):

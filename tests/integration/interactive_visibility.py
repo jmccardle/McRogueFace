@@ -16,7 +16,7 @@ import sys
 
 # Create scene and grid
 visibility_demo = mcrfpy.Scene("visibility_demo")
-grid = mcrfpy.Grid(grid_x=30, grid_y=20)
+grid = mcrfpy.Grid(grid_w=30, grid_h=20)
 grid.fill_color = mcrfpy.Color(20, 20, 30)  # Dark background
 
 # Add color layer for cell coloring

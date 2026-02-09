@@ -158,10 +158,16 @@ def test_edge_cases():
     print("  Edge cases: PASS")
     return True
 
-def run_test(timer, runtime):
-    """Timer callback to run tests after scene is active"""
-    results = []
+# Main
+if __name__ == "__main__":
+    print("=" * 60)
+    print("Issue #123: Grid Sub-grid Chunk System Test")
+    print("=" * 60)
 
+    test = mcrfpy.Scene("test")
+    mcrfpy.current_scene = test
+
+    results = []
     results.append(test_small_grid())
     results.append(test_large_grid())
     results.append(test_very_large_grid())
@@ -174,15 +180,3 @@ def run_test(timer, runtime):
     else:
         print("\n=== SOME TESTS FAILED ===")
         sys.exit(1)
-
-# Main
-if __name__ == "__main__":
-    print("=" * 60)
-    print("Issue #123: Grid Sub-grid Chunk System Test")
-    print("=" * 60)
-
-    test = mcrfpy.Scene("test")
-    test.activate()
-
-    # Run tests after scene is active
-    test_timer = mcrfpy.Timer("test", run_test, 100, once=True)

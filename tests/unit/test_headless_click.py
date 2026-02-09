@@ -1,122 +1,72 @@
 #!/usr/bin/env python3
 """Test #111: Click Events in Headless Mode"""
-
 import mcrfpy
 from mcrfpy import automation
 import sys
 
-# Track callback invocations
-click_count = 0
-click_positions = []
+errors = []
 
-def test_headless_click():
-    """Test that clicks work in headless mode via automation API"""
-    print("Testing headless click events...")
+# Test 1: Click hit detection
+print("Testing headless click events...")
+test_click = mcrfpy.Scene("test_click")
+mcrfpy.current_scene = test_click
+ui = test_click.children
 
-    test_click = mcrfpy.Scene("test_click")
-    ui = test_click.children
-    test_click.activate()
+frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
+ui.append(frame)
 
-    # Create a frame at known position
-    frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200))
-    ui.append(frame)
+start_clicks = []
 
-    # Track only "start" events (press) - click() sends both press and release
-    start_clicks = []
+def on_click_handler(pos, button, action):
+    if action == mcrfpy.InputState.PRESSED:
+        start_clicks.append((pos.x, pos.y))
 
-    def on_click_handler(x, y, button, action):
-        if action == "start":
-            start_clicks.append((x, y, button, action))
-            print(f"    Click received: x={x}, y={y}, button={button}, action={action}")
+frame.on_click = on_click_handler
 
-    frame.on_click = on_click_handler
+# Click inside the frame
+automation.click(150, 150)
+mcrfpy.step(0.05)
 
-    # Use automation to click inside the frame
-    print("  Clicking inside frame at (150, 150)...")
-    automation.click(150, 150)
+if len(start_clicks) >= 1:
+    if abs(start_clicks[0][0] - 150) > 1 or abs(start_clicks[0][1] - 150) > 1:
+        errors.append(f"Click position wrong: expected ~(150,150), got {start_clicks[0]}")
+else:
+    errors.append("No click received on frame")
 
-    # Give time for events to process
-    def check_results(timer, runtime):
-        if len(start_clicks) >= 1:
-            print(f"  - Click received: {len(start_clicks)} click(s)")
-            # Verify position
-            pos = start_clicks[0]
-            assert pos[0] == 150, f"Expected x=150, got {pos[0]}"
-            assert pos[1] == 150, f"Expected y=150, got {pos[1]}"
-            print(f"  - Position correct: ({pos[0]}, {pos[1]})")
-            print("  - headless click: PASS")
-            print("\n=== All Headless Click tests passed! ===")
-            sys.exit(0)
-        else:
-            print(f"  - No clicks received: FAIL")
-            sys.exit(1)
+# Test 2: Click miss (outside element)
+print("Testing click miss...")
+test_miss = mcrfpy.Scene("test_miss")
+mcrfpy.current_scene = test_miss
+ui2 = test_miss.children
 
-    mcrfpy.Timer("check_click", check_results, 200, once=True)
+frame2 = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
+ui2.append(frame2)
 
+miss_clicks = []
 
-def test_click_miss():
-    """Test that clicks outside an element don't trigger its callback"""
-    print("Testing click miss (outside element)...")
+def on_miss_handler(pos, button, action):
+    miss_clicks.append(1)
 
-    global click_count, click_positions
-    click_count = 0
-    click_positions = []
+frame2.on_click = on_miss_handler
 
-    test_miss = mcrfpy.Scene("test_miss")
-    ui = test_miss.children
-    test_miss.activate()
+# Click outside the frame
+automation.click(50, 50)
+mcrfpy.step(0.05)
 
-    # Create a frame at known position
-    frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
-    ui.append(frame)
+if len(miss_clicks) > 0:
+    errors.append(f"Click outside frame should not trigger callback, got {len(miss_clicks)} events")
 
-    miss_count = [0]  # Use list to avoid global
+# Test 3: Position tracking
+print("Testing position tracking...")
+automation.moveTo(123, 456)
+pos = automation.position()
+if pos[0] != 123 or pos[1] != 456:
+    errors.append(f"Position tracking: expected (123,456), got {pos}")
 
-    def on_click_handler(x, y, button, action):
-        miss_count[0] += 1
-        print(f"    Unexpected click received at ({x}, {y})")
-
-    frame.on_click = on_click_handler
-
-    # Click outside the frame
-    print("  Clicking outside frame at (50, 50)...")
-    automation.click(50, 50)
-
-    def check_miss_results(timer, runtime):
-        if miss_count[0] == 0:
-            print("  - No click on miss: PASS")
-            # Now run the main click test
-            test_headless_click()
-        else:
-            print(f"  - Unexpected {miss_count[0]} click(s): FAIL")
-            sys.exit(1)
-
-    mcrfpy.Timer("check_miss", check_miss_results, 200, once=True)
-
-
-def test_position_tracking():
-    """Test that automation.position() returns simulated position"""
-    print("Testing position tracking...")
-
-    # Move to a specific position
-    automation.moveTo(123, 456)
-
-    # Check position
-    pos = automation.position()
-    print(f"  Position after moveTo(123, 456): {pos}")
-
-    assert pos[0] == 123, f"Expected x=123, got {pos[0]}"
-    assert pos[1] == 456, f"Expected y=456, got {pos[1]}"
-
-    print("  - position tracking: PASS")
-
-
-if __name__ == "__main__":
-    try:
-        test_position_tracking()
-        test_click_miss()  # This will chain to test_headless_click on success
-    except Exception as e:
-        print(f"\nTEST FAILED: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+if errors:
+    for err in errors:
+        print(f"FAIL: {err}", file=sys.stderr)
+    sys.exit(1)
+else:
+    print("PASS: headless click events", file=sys.stderr)
+    sys.exit(0)

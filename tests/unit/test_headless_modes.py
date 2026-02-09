@@ -6,8 +6,8 @@ import sys
 
 # Create scene
 headless_test = mcrfpy.Scene("headless_test")
+mcrfpy.current_scene = headless_test
 ui = headless_test.children
-headless_test.activate()
 
 # Create a visible indicator
 frame = mcrfpy.Frame(pos=(200, 200), size=(400, 200))
@@ -21,9 +21,8 @@ ui.append(caption)
 
 print("Script started. Window should appear unless --headless was specified.")
 
-# Exit after 2 seconds
-def exit_test(timer, runtime):
-    print("Test complete. Exiting.")
-    sys.exit(0)
+# Step forward to render
+mcrfpy.step(0.01)
 
-exit_timer = mcrfpy.Timer("exit", exit_test, 2000, once=True)
+print("Test complete. Exiting.")
+sys.exit(0)

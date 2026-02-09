@@ -30,7 +30,7 @@ def create_simple_map():
     dijkstra_debug = mcrfpy.Scene("dijkstra_debug")
 
     # Small grid for easy debugging
-    grid = mcrfpy.Grid(grid_x=10, grid_y=10)
+    grid = mcrfpy.Grid(grid_w=10, grid_h=10)
     grid.fill_color = mcrfpy.Color(0, 0, 0)
 
     # Add color layer for cell coloring

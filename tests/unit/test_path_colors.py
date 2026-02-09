@@ -9,7 +9,7 @@ print("=" * 50)
 
 # Create scene and small grid
 test = mcrfpy.Scene("test")
-grid = mcrfpy.Grid(grid_x=5, grid_y=5)
+grid = mcrfpy.Grid(grid_w=5, grid_h=5)
 
 # Add color layer for cell coloring
 color_layer = grid.add_layer("color", z_index=-1)
