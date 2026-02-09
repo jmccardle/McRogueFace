@@ -10,6 +10,8 @@
 #include <emscripten.h>
 #include <Python.h>
 #include <string>
+#include "Resources.h"
+#include "GameEngine.h"
 
 extern "C" {
 
@@ -288,6 +290,16 @@ int get_python_globals_count() {
     PyObject* main_module = PyImport_AddModule("__main__");
     PyObject* main_dict = PyModule_GetDict(main_module);
     return (int)PyDict_Size(main_dict);
+}
+
+// Notify the engine that the browser canvas was resized (called from JS)
+EMSCRIPTEN_KEEPALIVE
+void notify_canvas_resize(int width, int height) {
+    // Forward to SDL so it generates a proper resize event
+    if (Resources::game) {
+        auto& win = Resources::game->getWindow();
+        win.setSize(sf::Vector2u(width, height));
+    }
 }
 
 } // extern "C"

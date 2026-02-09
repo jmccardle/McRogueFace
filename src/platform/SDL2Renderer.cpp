@@ -567,22 +567,9 @@ void RenderWindow::create(VideoMode mode, const std::string& title, uint32_t sty
     open_ = true;
 
 #ifdef __EMSCRIPTEN__
-    // Force canvas size AFTER SDL window creation (SDL may have reset it)
+    // Force canvas backing buffer size AFTER SDL window creation (SDL may have reset it)
+    // CSS display size is controlled by the HTML shell template (fullscreen or layout-constrained)
     emscripten_set_canvas_element_size("#canvas", mode.width, mode.height);
-
-    // Also set the CSS size to match
-    EM_ASM({
-        var canvas = document.getElementById('canvas');
-        if (canvas) {
-            canvas.width = $0;
-            canvas.height = $1;
-            canvas.style.width = $0 + 'px';
-            canvas.style.height = $1 + 'px';
-            console.log('EM_ASM: Set canvas to ' + $0 + 'x' + $1);
-        } else {
-            console.error('EM_ASM: Canvas element not found!');
-        }
-    }, mode.width, mode.height);
 
     // Re-make context current after canvas resize
     SDL_GL_MakeCurrent(window, context);
@@ -995,6 +982,80 @@ void RenderTarget::draw(const Vertex* vertices, size_t vertexCount, PrimitiveTyp
 
 void RenderTarget::draw(const VertexArray& vertices, const RenderStates& states) {
     draw(&vertices[0], vertices.getVertexCount(), vertices.getPrimitiveType(), states);
+}
+
+void RenderTarget::setView(const View& view) {
+    view_ = view;
+
+    // Apply the view's viewport (normalized 0-1 coords) to OpenGL
+    auto vp = view.getViewport();
+    int px = static_cast<int>(vp.left * size_.x);
+    // OpenGL viewport origin is bottom-left, SFML is top-left
+    int py = static_cast<int>((1.0f - vp.top - vp.height) * size_.y);
+    int pw = static_cast<int>(vp.width * size_.x);
+    int ph = static_cast<int>(vp.height * size_.y);
+    glViewport(px, py, pw, ph);
+
+    // Set projection to map view center/size to the viewport
+    auto center = view.getCenter();
+    auto sz = view.getSize();
+    float left = center.x - sz.x / 2.0f;
+    float right = center.x + sz.x / 2.0f;
+    float top = center.y - sz.y / 2.0f;
+    float bottom = center.y + sz.y / 2.0f;
+    SDL2Renderer::getInstance().setProjection(left, right, bottom, top);
+}
+
+IntRect RenderTarget::getViewport(const View& view) const {
+    auto vp = view.getViewport();
+    return IntRect(
+        static_cast<int>(vp.left * size_.x),
+        static_cast<int>(vp.top * size_.y),
+        static_cast<int>(vp.width * size_.x),
+        static_cast<int>(vp.height * size_.y)
+    );
+}
+
+Vector2f RenderTarget::mapPixelToCoords(const Vector2i& point) const {
+    return mapPixelToCoords(point, view_);
+}
+
+Vector2f RenderTarget::mapPixelToCoords(const Vector2i& point, const View& view) const {
+    // Convert pixel position to world coordinates through the view
+    auto viewport = getViewport(view);
+    auto center = view.getCenter();
+    auto sz = view.getSize();
+
+    // Normalize point within viewport (0-1)
+    float nx = (static_cast<float>(point.x) - viewport.left) / viewport.width;
+    float ny = (static_cast<float>(point.y) - viewport.top) / viewport.height;
+
+    // Map to view coordinates
+    return Vector2f(
+        center.x + sz.x * (nx - 0.5f),
+        center.y + sz.y * (ny - 0.5f)
+    );
+}
+
+Vector2i RenderTarget::mapCoordsToPixel(const Vector2f& point) const {
+    return mapCoordsToPixel(point, view_);
+}
+
+Vector2i RenderTarget::mapCoordsToPixel(const Vector2f& point, const View& view) const {
+    // Convert world coordinates to pixel position through the view
+    auto viewport = getViewport(view);
+    auto center = view.getCenter();
+    auto sz = view.getSize();
+
+    // Normalize within view (0-1)
+    float nx = (point.x - center.x) / sz.x + 0.5f;
+    float ny = (point.y - center.y) / sz.y + 0.5f;
+
+    // Map to pixel coordinates within viewport
+    return Vector2i(
+        static_cast<int>(viewport.left + nx * viewport.width),
+        static_cast<int>(viewport.top + ny * viewport.height)
+    );
 }
 
 // =============================================================================

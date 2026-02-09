@@ -1144,7 +1144,8 @@ PyObject* UIGrid::get_grid_h(PyUIGridObject* self, void* closure) {
 }
 
 PyObject* UIGrid::get_position(PyUIGridObject* self, void* closure) {
-    return Py_BuildValue("(ff)", self->data->position.x, self->data->position.y);
+    // #179 - Return position as Vector (consistent with get_size, get_grid_size)
+    return PyVector(self->data->position).pyObject();
 }
 
 int UIGrid::set_position(PyUIGridObject* self, PyObject* value, void* closure) {

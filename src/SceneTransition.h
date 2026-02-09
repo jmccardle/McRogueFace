@@ -17,6 +17,8 @@ public:
     TransitionType type = TransitionType::None;
     float duration = 0.0f;
     float elapsed = 0.0f;
+    unsigned int width = 1024;
+    unsigned int height = 768;
     std::string fromScene;
     std::string toScene;
     

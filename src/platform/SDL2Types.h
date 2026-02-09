@@ -821,16 +821,16 @@ public:
     void draw(const Vertex* vertices, size_t vertexCount, PrimitiveType type, const RenderStates& states = RenderStates::Default);
     void draw(const VertexArray& vertices, const RenderStates& states = RenderStates::Default);
 
-    void setView(const View& view) { view_ = view; }
+    void setView(const View& view);  // Implemented in SDL2Renderer.cpp - applies glViewport + projection
     const View& getView() const { return view_; }
     const View& getDefaultView() const { return defaultView_; }
 
-    IntRect getViewport(const View& view) const { return IntRect(0, 0, size_.x, size_.y); }
+    IntRect getViewport(const View& view) const;  // Implemented in SDL2Renderer.cpp
 
-    Vector2f mapPixelToCoords(const Vector2i& point) const { return Vector2f(static_cast<float>(point.x), static_cast<float>(point.y)); }
-    Vector2f mapPixelToCoords(const Vector2i& point, const View& view) const { return Vector2f(static_cast<float>(point.x), static_cast<float>(point.y)); }
-    Vector2i mapCoordsToPixel(const Vector2f& point) const { return Vector2i(static_cast<int>(point.x), static_cast<int>(point.y)); }
-    Vector2i mapCoordsToPixel(const Vector2f& point, const View& view) const { return Vector2i(static_cast<int>(point.x), static_cast<int>(point.y)); }
+    Vector2f mapPixelToCoords(const Vector2i& point) const;  // Implemented in SDL2Renderer.cpp
+    Vector2f mapPixelToCoords(const Vector2i& point, const View& view) const;  // Implemented in SDL2Renderer.cpp
+    Vector2i mapCoordsToPixel(const Vector2f& point) const;  // Implemented in SDL2Renderer.cpp
+    Vector2i mapCoordsToPixel(const Vector2f& point, const View& view) const;  // Implemented in SDL2Renderer.cpp
 };
 
 // =============================================================================

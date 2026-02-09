@@ -15,6 +15,9 @@
 #endif
 #include <cmath>
 #include <Python.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
 
 // Static member definitions for shader intermediate texture (#106)
 std::unique_ptr<sf::RenderTexture> GameEngine::shaderIntermediate;
@@ -84,7 +87,15 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         render_target = &headless_renderer->getRenderTarget();
     } else {
         window = std::make_unique<sf::RenderWindow>();
+#ifdef __EMSCRIPTEN__
+        // Read actual canvas size from HTML template (may be fullscreen or layout-constrained)
+        // gameResolution stays at its default (1024x768) - the viewport system maps it to the canvas
+        int cw = 1024, ch = 768;
+        emscripten_get_canvas_element_size("#canvas", &cw, &ch);
+        window->create(sf::VideoMode(cw, ch), window_title, sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
+#else
         window->create(sf::VideoMode(1024, 768), window_title, sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
+#endif
         window->setFramerateLimit(60);
         render_target = window.get();
 
@@ -243,7 +254,9 @@ void GameEngine::changeScene(std::string sceneName, TransitionType transitionTyp
     }
     else
     {
-        // Start transition
+        // Start transition with current game resolution
+        transition.width = gameResolution.x;
+        transition.height = gameResolution.y;
         transition.start(transitionType, scene, sceneName, duration);
         
         // Render current scene to texture
@@ -829,8 +842,14 @@ void GameEngine::initShaderIntermediate(unsigned int width, unsigned int height)
 
 sf::RenderTexture& GameEngine::getShaderIntermediate() {
     if (!shaderIntermediateInitialized) {
-        // Initialize with default resolution if not already done
-        initShaderIntermediate(1024, 768);
+        // Initialize with game resolution from the engine instance
+        unsigned int w = 1024, h = 768;
+        if (Resources::game) {
+            auto res = Resources::game->getGameResolution();
+            w = res.x;
+            h = res.y;
+        }
+        initShaderIntermediate(w, h);
     }
     return *shaderIntermediate;
 }
