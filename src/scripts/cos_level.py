@@ -105,9 +105,7 @@ class Level:
         self.height = height
         #self.graph = [(0, 0, width, height)]
         self.graph = RoomGraph( (0, 0, width, height) )
-        # #150 - Create grid with explicit layers for color and tilesprite
-        self.grid = mcrfpy.Grid(grid_size=(width, height), texture=t, pos=(10, 5), size=(1014, 700),
-                                layers={"color": "color", "tilesprite": "tile"})
+        self.grid = mcrfpy.Grid(grid_size=(width, height), texture=t, pos=(10, 5), size=(1014, 700))
         self.highlighted = -1 #debug view feature
         self.walled_rooms = [] # for tracking "hallway rooms" vs "walled rooms"
 
@@ -183,8 +181,7 @@ class Level:
         #    self.grid.at((0, y)).walkable = False
             self.grid.at((self.width-1, y)).walkable = False
 
-    def dig_path(self, start:"Tuple[int, int]", end:"Tuple[int, int]", walkable=True, color=None, sprite=None):
-        #print(f"Digging: {start} -> {end}")
+    def dig_path(self, start:"Tuple[int, int]", end:"Tuple[int, int]", walkable=True, sprite=None):
         # get x1,y1 and x2,y2 coordinates: top left and bottom right points on the rect formed by two random points, one from each of the 2 rooms
         x1 = min([start[0], end[0]])
         x2 = max([start[0], end[0]])
@@ -200,8 +197,6 @@ class Level:
             try:
                 if walkable:
                     self.grid.at((x, ty)).walkable = walkable
-                if color:
-                    self.grid.at((x, ty)).color = color
                 if sprite is not None:
                     self.grid.at((x, ty)).tilesprite = sprite
             except:
@@ -210,8 +205,6 @@ class Level:
             try:
                 if walkable:
                     self.grid.at((tx, y)).walkable = True
-                if color:
-                    self.grid.at((tx, y)).color = color
                 if sprite is not None:
                     self.grid.at((tx, y)).tilesprite = sprite
             except:
@@ -264,7 +257,7 @@ class Level:
             if prev_room:
                 start = room_coord(prev_room, margin=2)
                 end = room_coord(room, margin=2)
-                self.dig_path(start, end, color=(0, 64, 0))
+                self.dig_path(start, end)
             prev_room = room
 
         # Tile painting

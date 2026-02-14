@@ -147,7 +147,6 @@ def wfc_pass(grid, possibilities=None):
             grid.at((x, y)).tilesprite = matches[0]
         else:
             grid.at((x, y)).tilesprite = -1
-            grid.at((x, y)).color = (32 * len(matches), 32 * len(matches), 32 * len(matches))
             possibilities[(x,y)] = matches
 
     if len(possibilities) == len(old_possibilities):
