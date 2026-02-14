@@ -10,6 +10,12 @@ build
 /lib
 __pycache__
 
+# unimportant files that won't pass clean dir check
+build*
+docs
+.claude
+my_games
+
 # images are produced by many tests
 *.png
 
