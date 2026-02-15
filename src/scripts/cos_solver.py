@@ -2,8 +2,8 @@
 from collections import deque
 
 
-def can_reach(grid, start, goal, boulders, w, h):
-    """BFS check if start can reach goal, treating boulders as walls."""
+def can_reach(grid, start, goal, boulders, w, h, obstacles=frozenset()):
+    """BFS check if start can reach goal, treating boulders and obstacles as walls."""
     if start == goal:
         return True
     visited = {start}
@@ -20,6 +20,8 @@ def can_reach(grid, start, goal, boulders, w, h):
                 continue
             if (nx, ny) in boulders:
                 continue
+            if (nx, ny) in obstacles:
+                continue
             if (nx, ny) not in visited:
                 visited.add((nx, ny))
                 queue.append((nx, ny))
@@ -27,7 +29,7 @@ def can_reach(grid, start, goal, boulders, w, h):
 
 
 def is_solvable(grid, player_pos, boulder_positions, button_positions, exit_pos,
-                max_states=500000):
+                max_states=500000, obstacles=None):
     """BFS through Sokoban state space. Returns True if solvable.
 
     Args:
@@ -37,18 +39,35 @@ def is_solvable(grid, player_pos, boulder_positions, button_positions, exit_pos,
         button_positions: list of (x, y) tuples for buttons
         exit_pos: (x, y) tuple for exit
         max_states: maximum states to explore before giving up
+        obstacles: list of (x, y) tuples for immovable obstacles (treasures, etc.)
 
     Returns:
         True if the puzzle is solvable, False otherwise
     """
     w, h = int(grid.grid_size.x), int(grid.grid_size.y)
+    obstacle_set = frozenset(obstacles) if obstacles else frozenset()
 
-    def is_walkable(x, y, boulders):
+    def is_cell_open(x, y):
+        """Check if a cell is in-bounds and walkable."""
         if x < 0 or x >= w or y < 0 or y >= h:
             return False
-        if not grid.at((x, y)).walkable:
+        return grid.at((x, y)).walkable
+
+    def player_can_walk(x, y, boulders):
+        """Check if player can walk to (x,y). Players can pass through obstacles (chests)."""
+        if not is_cell_open(x, y):
             return False
         if (x, y) in boulders:
+            return False
+        return True
+
+    def boulder_can_land(x, y, boulders):
+        """Check if a boulder can be pushed to (x,y). Boulders cannot pass through obstacles."""
+        if not is_cell_open(x, y):
+            return False
+        if (x, y) in boulders:
+            return False
+        if (x, y) in obstacle_set:
             return False
         return True
 
@@ -73,15 +92,15 @@ def is_solvable(grid, player_pos, boulder_positions, button_positions, exit_pos,
             nx, ny = px + dx, py + dy
 
             if (nx, ny) in boulders:
-                # Push boulder
+                # Push boulder - boulder landing site must be obstacle-free
                 bx, by = nx + dx, ny + dy
-                if is_walkable(bx, by, boulders):
+                if boulder_can_land(bx, by, boulders):
                     new_boulders = frozenset(boulders - {(nx, ny)} | {(bx, by)})
                     state = ((nx, ny), new_boulders)
                     if state not in visited:
                         visited.add(state)
                         queue.append(state)
-            elif is_walkable(nx, ny, boulders):
+            elif player_can_walk(nx, ny, boulders):
                 state = ((nx, ny), boulders)
                 if state not in visited:
                     visited.add(state)

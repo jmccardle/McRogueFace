@@ -137,16 +137,37 @@ class Level:
 
                 for f in room_plan:
                     fcoord = None
+                    used_coords = [c[1] for c in feature_coords]
                     for _ in range(100):
                         fc = self.room_coord(leaf)
                         if not self.grid.at(fc).walkable:
                             continue
-                        if fc in [c[1] for c in feature_coords]:
+                        if fc in used_coords:
                             continue
                         fcoord = fc
                         break
                     if fcoord is None:
-                        fcoord = self.leaf_center(leaf)
+                        # Fallback: leaf center, but only if not already used
+                        fc = self.leaf_center(leaf)
+                        if fc not in used_coords:
+                            fcoord = fc
+                        else:
+                            # Last resort: scan all walkable cells in the room
+                            lx, ly = int(leaf.pos[0]), int(leaf.pos[1])
+                            lw, lh = int(leaf.size[0]), int(leaf.size[1])
+                            for cx in range(lx + 1, lx + lw - 1):
+                                for cy in range(ly + 1, ly + lh - 1):
+                                    if (cx, cy) not in used_coords and \
+                                       0 <= cx < self.width and \
+                                       0 <= cy < self.height and \
+                                       self.grid.at((cx, cy)).walkable:
+                                        fcoord = (cx, cy)
+                                        break
+                                if fcoord is not None:
+                                    break
+                    if fcoord is None:
+                        print(f"WARNING: Could not place '{f}' in room {room_num} - no free cells!")
+                        fcoord = self.leaf_center(leaf)  # absolute last resort
                     feature_coords.append((f, fcoord))
 
             # 7. Solvability check
@@ -154,6 +175,7 @@ class Level:
             boulder_positions = []
             button_positions = []
             exit_pos = None
+            obstacle_positions = []
             for f, pos in feature_coords:
                 if f == "spawn":
                     spawn_pos = pos
@@ -163,11 +185,22 @@ class Level:
                     button_positions.append(pos)
                 elif f == "exit":
                     exit_pos = pos
+                elif f == "treasure":
+                    obstacle_positions.append(pos)
 
             if spawn_pos and boulder_positions and button_positions and exit_pos:
+                # Check that no obstacle sits on a button
+                buttons_blocked = any(
+                    bp in obstacle_positions for bp in button_positions
+                )
+                if buttons_blocked:
+                    print(f"Level attempt {attempt + 1}: button blocked by obstacle, retrying...")
+                    continue
+
                 from cos_solver import is_solvable
                 if is_solvable(self.grid, spawn_pos, boulder_positions,
-                               button_positions, exit_pos):
+                               button_positions, exit_pos,
+                               obstacles=obstacle_positions):
                     break
                 print(f"Level attempt {attempt + 1}: unsolvable, retrying...")
             else:
