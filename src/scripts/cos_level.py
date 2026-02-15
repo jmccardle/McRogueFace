@@ -63,12 +63,125 @@ class Level:
                 self.grid.at((tx, y)).walkable = True
                 self.grid.at((tx, y)).transparent = True
 
-    def generate(self, level_plan):
+    def place_feature(self, leaf, feature_coords):
+        """Find a unique walkable coordinate in the given leaf for a feature."""
+        used_coords = [c[1] for c in feature_coords]
+        # Try random positions first
+        for _ in range(100):
+            fc = self.room_coord(leaf)
+            if not self.grid.at(fc).walkable:
+                continue
+            if fc in used_coords:
+                continue
+            return fc
+        # Fallback: leaf center
+        fc = self.leaf_center(leaf)
+        if fc not in used_coords:
+            return fc
+        # Last resort: scan all walkable cells in the room
+        lx, ly = int(leaf.pos[0]), int(leaf.pos[1])
+        lw, lh = int(leaf.size[0]), int(leaf.size[1])
+        for cx in range(lx + 1, lx + lw - 1):
+            for cy in range(ly + 1, ly + lh - 1):
+                if (cx, cy) not in used_coords and \
+                   0 <= cx < self.width and \
+                   0 <= cy < self.height and \
+                   self.grid.at((cx, cy)).walkable:
+                    return (cx, cy)
+        return None
+
+    def generate_boulder_by_pull(self, button_pos, min_pulls=3, max_pulls=20,
+                                  min_distance=3, obstacles=None):
+        """Generate a boulder position by reverse-solving from the button.
+
+        Places the boulder on the button, then simulates reverse pushes
+        (un-pushes) to move it away. The resulting puzzle is guaranteed
+        solvable by reversing the sequence.
+
+        A forward push in direction d means: player at B-d pushes boulder
+        from B to B+d. To reverse this, boulder goes from B+d back to B,
+        requiring B to be walkable and B-d (player's push position) to be
+        walkable.
+
+        Args:
+            button_pos: (x, y) of the button
+            min_pulls: minimum successful un-pushes for interesting puzzle
+            max_pulls: maximum un-pushes to attempt
+            min_distance: minimum manhattan distance from button to boulder
+            obstacles: set of positions that block boulder movement
+
+        Returns:
+            (x, y) boulder position, or None if puzzle too trivial
+        """
+        w, h = self.width, self.height
+        if obstacles is None:
+            obstacles = set()
+
+        boulder = button_pos
+        pull_count = 0
+        visited = {boulder}
+
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+        for _ in range(max_pulls * 3):
+            random.shuffle(directions)
+
+            pulled = False
+            for dx, dy in directions:
+                # Reversing a push in direction (dx, dy):
+                # Boulder goes from current pos to current - d
+                # Player was at current - 2d (needed to push)
+                new_boulder = (boulder[0] - dx, boulder[1] - dy)
+                player_push_pos = (boulder[0] - 2*dx, boulder[1] - 2*dy)
+
+                nbx, nby = new_boulder
+                ppx, ppy = player_push_pos
+
+                # Bounds check
+                if not (0 <= nbx < w and 0 <= nby < h):
+                    continue
+                if not (0 <= ppx < w and 0 <= ppy < h):
+                    continue
+                # Walkability
+                if not self.grid.at(new_boulder).walkable:
+                    continue
+                if not self.grid.at(player_push_pos).walkable:
+                    continue
+                # Obstacles block boulder landing
+                if new_boulder in obstacles:
+                    continue
+                # Avoid loops
+                if new_boulder in visited:
+                    continue
+
+                boulder = new_boulder
+                visited.add(boulder)
+                pull_count += 1
+                pulled = True
+                break
+
+            if not pulled:
+                break
+            if pull_count >= max_pulls:
+                break
+
+        dist = abs(boulder[0] - button_pos[0]) + abs(boulder[1] - button_pos[1])
+        if pull_count < min_pulls or dist < min_distance:
+            return None
+
+        return boulder
+
+    def generate(self, level_plan, min_pulls=3):
         """Generate a level using BSP room placement and corridor digging.
+
+        Boulder placement is handled automatically via reverse-pull from
+        the button position, guaranteeing solvability by construction.
+        Any "boulder" entries in the level_plan are ignored.
 
         Args:
             level_plan: list of tuples, each tuple is the features for one room.
                         Can also be a set of alternative plans.
+            min_pulls: minimum reverse-pull steps for the puzzle
 
         Returns:
             List of (feature_name, (x, y)) tuples for entity placement.
@@ -127,7 +240,7 @@ class Level:
                     cj = self.leaf_center(self.leaves[j])
                     self.dig_path(ci, cj)
 
-            # 6. Place features using level_plan
+            # 6. Place non-boulder features from level_plan
             feature_coords = []
             for room_num in range(min(target_rooms, len(self.leaves))):
                 leaf = self.leaves[room_num]
@@ -136,75 +249,36 @@ class Level:
                     room_plan = [room_plan]
 
                 for f in room_plan:
-                    fcoord = None
-                    used_coords = [c[1] for c in feature_coords]
-                    for _ in range(100):
-                        fc = self.room_coord(leaf)
-                        if not self.grid.at(fc).walkable:
-                            continue
-                        if fc in used_coords:
-                            continue
-                        fcoord = fc
-                        break
+                    if f == "boulder":
+                        continue  # Boulder auto-placed via reverse-pull
+                    fcoord = self.place_feature(leaf, feature_coords)
                     if fcoord is None:
-                        # Fallback: leaf center, but only if not already used
-                        fc = self.leaf_center(leaf)
-                        if fc not in used_coords:
-                            fcoord = fc
-                        else:
-                            # Last resort: scan all walkable cells in the room
-                            lx, ly = int(leaf.pos[0]), int(leaf.pos[1])
-                            lw, lh = int(leaf.size[0]), int(leaf.size[1])
-                            for cx in range(lx + 1, lx + lw - 1):
-                                for cy in range(ly + 1, ly + lh - 1):
-                                    if (cx, cy) not in used_coords and \
-                                       0 <= cx < self.width and \
-                                       0 <= cy < self.height and \
-                                       self.grid.at((cx, cy)).walkable:
-                                        fcoord = (cx, cy)
-                                        break
-                                if fcoord is not None:
-                                    break
-                    if fcoord is None:
-                        print(f"WARNING: Could not place '{f}' in room {room_num} - no free cells!")
-                        fcoord = self.leaf_center(leaf)  # absolute last resort
+                        print(f"WARNING: Could not place '{f}' in room {room_num}")
+                        fcoord = self.leaf_center(leaf)
                     feature_coords.append((f, fcoord))
 
-            # 7. Solvability check
-            spawn_pos = None
-            boulder_positions = []
-            button_positions = []
-            exit_pos = None
-            obstacle_positions = []
+            # 7. Generate boulder via reverse-pull from button
+            button_pos = None
             for f, pos in feature_coords:
-                if f == "spawn":
-                    spawn_pos = pos
-                elif f == "boulder":
-                    boulder_positions.append(pos)
-                elif f == "button":
-                    button_positions.append(pos)
-                elif f == "exit":
-                    exit_pos = pos
-                elif f == "treasure":
-                    obstacle_positions.append(pos)
-
-            if spawn_pos and boulder_positions and button_positions and exit_pos:
-                # Check that no obstacle sits on a button
-                buttons_blocked = any(
-                    bp in obstacle_positions for bp in button_positions
-                )
-                if buttons_blocked:
-                    print(f"Level attempt {attempt + 1}: button blocked by obstacle, retrying...")
-                    continue
-
-                from cos_solver import is_solvable
-                if is_solvable(self.grid, spawn_pos, boulder_positions,
-                               button_positions, exit_pos,
-                               obstacles=obstacle_positions):
+                if f == "button":
+                    button_pos = pos
                     break
-                print(f"Level attempt {attempt + 1}: unsolvable, retrying...")
-            else:
-                break  # No puzzle elements to verify
+
+            if button_pos:
+                obstacles = {pos for _, pos in feature_coords}
+                boulder_pos = self.generate_boulder_by_pull(
+                    button_pos,
+                    min_pulls=min_pulls,
+                    max_pulls=max(min_pulls * 4, 20),
+                    min_distance=min_pulls,
+                    obstacles=obstacles
+                )
+                if boulder_pos is None:
+                    print(f"Level attempt {attempt + 1}: puzzle too trivial, retrying...")
+                    continue
+                feature_coords.append(("boulder", boulder_pos))
+
+            break
 
         # 8. Tile painting (WFC)
         possibilities = None

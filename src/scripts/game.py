@@ -77,19 +77,18 @@ class Crypt:
         self.stuck_btn = SweetButton(self.ui, (810, 700), "Stuck", icon=19, box_width=150, box_height = 60, click=self.stuck)
 
         self.level_plan = {
-                1: [("spawn", "button", "boulder"), ("exit")],
-                2: [("spawn", "button", "treasure", "treasure", "treasure", "rat", "rat", "boulder"), ("exit")],
-                #2: [("spawn", "button", "boulder"), ("rat"), ("exit")],
-                3: [("spawn", "button", "boulder"), ("rat"), ("exit")],
-                4: [("spawn", "button", "rat"), ("boulder", "rat", "treasure"), ("exit")],
-                5: [("spawn", "button", "rat"), ("boulder", "rat"), ("exit")],
-                6: {(("spawn", "button"), ("boulder", "treasure", "exit")),
-                    (("spawn", "boulder"), ("button", "treasure", "exit"))},
-                7: {(("spawn", "button"), ("boulder", "treasure", "exit")),
-                    (("spawn", "boulder"), ("button", "treasure", "exit"))},
-                8: {(("spawn", "treasure", "button"), ("boulder", "treasure", "exit")),
-                    (("spawn", "treasure", "boulder"), ("button", "treasure", "exit"))}
-                #9: self.lv_planner
+                # Boulder auto-generated via reverse-pull from button
+                1: [("spawn", "button"), ("exit",)],
+                2: [("spawn", "button", "rat"), ("treasure",), ("treasure", "rat"), ("treasure", "exit")],
+                3: [("spawn", "button"), ("rat",), ("exit",)],
+                4: [("spawn", "button", "rat"), ("treasure",), ("rat", "exit")],
+                5: [("spawn", "button", "rat"), ("rat",), ("treasure", "exit")],
+                6: {(("spawn", "button"), ("treasure", "exit")),
+                    (("spawn",), ("button", "treasure", "exit"))},
+                7: {(("spawn", "button"), ("treasure", "exit")),
+                    (("spawn",), ("button", "treasure", "exit"))},
+                8: {(("spawn", "button"), ("treasure",), ("treasure", "exit")),
+                    (("spawn",), ("treasure",), ("button", "treasure", "exit"))}
                 }
 
         # empty void for the player to initialize into
@@ -217,11 +216,12 @@ class Crypt:
         """Plan room sequence in levels > 9"""
         monsters = (target_level - 6) // 2
         target_rooms = min(int(target_level // 2), 6)
-        target_treasure = min(int(target_level // 3), 4)
+        target_treasure = min(int(target_level // 3), target_rooms)
         rooms = []
         for i in range(target_rooms):
             rooms.append([])
-        for o in ("spawn", "boulder", "button", "exit"):
+        # Boulder auto-generated via reverse-pull from button
+        for o in ("spawn", "button", "exit"):
             r = random.randint(0, target_rooms-1)
             rooms[r].append(o)
         monster_table = {
@@ -236,9 +236,11 @@ class Crypt:
             r = random.randint(0, target_rooms - 1)
             rooms[r].append(random.choices(monster_names, weights = monster_weights)[0])
 
+        # Treasures: at most one per room
+        available_rooms = list(range(target_rooms))
+        random.shuffle(available_rooms)
         for t in range(target_treasure):
-            r = random.randint(0, target_rooms - 1)
-            rooms[r].append("treasure")
+            rooms[available_rooms[t]].append("treasure")
 
         return rooms
 
@@ -290,7 +292,8 @@ class Crypt:
             plan = self.level_plan[depth]
         else:
             plan = self.lv_planner(depth)
-        coords = self.level.generate(plan)
+        min_pulls = min(max(2, depth), 8)
+        coords = self.level.generate(plan, min_pulls=min_pulls)
         self.entities = []
         if self.player:
             luck = self.player.luck
@@ -584,7 +587,7 @@ class MainMenu:
         gw, gh = int(self.grid.grid_size.x), int(self.grid.grid_size.y)
         self.grid.center = (gw * 16 / 2, gh * 16 / 2)
         coords = self.demo.generate(
-                [("boulder", "boulder", "rat", "cyclops", "boulder"), ("spawn"), ("rat", "big rat"), ("button", "boulder", "exit")]
+                [("rat", "cyclops"), ("spawn",), ("rat", "big rat"), ("button", "exit")]
                 )
         self.entities = []
         self.add_entity = lambda e: self.entities.append(e)
