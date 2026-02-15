@@ -132,6 +132,9 @@ class Crypt:
         self.grid = liminal_void
         self.player = ce.PlayerEntity(game=self)
         self.spawn_point = (0, 0)
+        self.discovered_rooms = set()
+        self.discovered_cells = set()
+        self.fog_layer = None
 
         # level creation moves player to the game level at the generated spawn point
         self.create_level(self.depth)
@@ -314,8 +317,16 @@ class Crypt:
             elif k == "big rat":
                 ce.EnemyEntity(*v, game=self, base_damage=2, hp=4, sprite=130)
             elif k == "cyclops":
-                ce.EnemyEntity(*v, game=self, base_damage=3, hp=8, sprite=109, base_defense=2)
-                
+                ce.EnemyEntity(*v, game=self, base_damage=3, hp=8, sprite=109,
+                               base_defense=2, can_push=True)
+
+        # Create fog layer for FOV
+        self.fog_layer = mcrfpy.ColorLayer(name="fog", z_index=10)
+        self.grid.add_layer(self.fog_layer)
+        self.fog_layer.fill(mcrfpy.Color(0, 0, 0, 220))
+        self.discovered_rooms = set()
+        self.discovered_cells = set()
+
         #if self.depth > 2:
             #for i in range(10):
             #    self.spawn_test_rat()
@@ -391,7 +402,52 @@ class Crypt:
             self.player.try_move(*d)
             self.enemy_turn()
 
+    def update_fov(self):
+        """Update fog of war based on player position."""
+        if not self.fog_layer or not hasattr(self.level, 'bsp') or not self.level.bsp:
+            return
+
+        px = int(self.player.draw_pos.x)
+        py = int(self.player.draw_pos.y)
+
+        # Compute FOV from player position
+        self.grid.compute_fov((px, py), radius=12)
+
+        # Pass 1: discover rooms and track seen cells
+        for x in range(self.level.width):
+            for y in range(self.level.height):
+                if self.grid.is_in_fov((x, y)):
+                    self.discovered_cells.add((x, y))
+                    room_idx = self.level.room_map[x][y]
+                    if room_idx is not None:
+                        self.discovered_rooms.add(room_idx)
+
+        # Pass 2: update fog overlay
+        for x in range(self.level.width):
+            for y in range(self.level.height):
+                if self.grid.is_in_fov((x, y)):
+                    self.fog_layer.set((x, y), mcrfpy.Color(0, 0, 0, 0))
+                elif self.cell_in_discovered(x, y):
+                    self.fog_layer.set((x, y), mcrfpy.Color(0, 0, 0, 128))
+                else:
+                    self.fog_layer.set((x, y), mcrfpy.Color(0, 0, 0, 220))
+
+    def cell_in_discovered(self, x, y):
+        """Check if a cell has been discovered (room reveal or individually seen)."""
+        if (x, y) in self.discovered_cells:
+            return True
+        if hasattr(self.level, 'room_map'):
+            room_idx = self.level.room_map[x][y]
+            if room_idx is not None and room_idx in self.discovered_rooms:
+                return True
+        return False
+
     def enemy_turn(self):
+        self.update_fov()
+        try:
+            self.grid.clear_dijkstra_maps()
+        except:
+            pass
         self.entities.sort(key = lambda e: e.draw_order, reverse=False)
         for e in self.entities:
             e.act()
@@ -446,6 +502,7 @@ class Crypt:
         self.level_caption.text = f"Level: {self.depth}"
         self.ui.append(self.sidebar)
         self.gui_update()
+        self.update_fov()
 
 class SweetButton:
     def __init__(self, ui:mcrfpy.UICollection, 

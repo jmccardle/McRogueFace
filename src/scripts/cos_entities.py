@@ -389,6 +389,9 @@ class EnemyEntity(COSEntity):
         self.sight = sight
         self.move_cooldown = move_cooldown
         self.moved_last = 0
+        self.max_hp = hp
+        self.state = "idle"
+        self.turns_since_seen = 0
 
     def bump(self, other, dx, dy, test=False):
         if self.hp == 0:
@@ -420,56 +423,150 @@ class EnemyEntity(COSEntity):
                 other.do_move(*old_pos)
             return True
 
-    def act(self):
-        if self.hp > 0:
-            # if player nearby: attack
-            x, y = self.draw_pos.x, self.draw_pos.y
-            px, py = self.game.player.draw_pos.x, self.game.player.draw_pos.y
-            for d in ((1, 0), (0, 1), (-1, 0), (1, 0)):
-                if int(x + d[0]) == int(px) and int(y + d[1]) == int(py):
-                    self.try_move(*d)
-                    return
+    def can_see_player(self):
+        """Check if this enemy can see the player (symmetric FOV + range)."""
+        x, y = int(self.draw_pos.x), int(self.draw_pos.y)
+        px, py = int(self.game.player.draw_pos.x), int(self.game.player.draw_pos.y)
+        dist = abs(x - px) + abs(y - py)
+        if dist > self.sight:
+            return False
+        # Use player's computed FOV for symmetric visibility
+        try:
+            return self.grid.is_in_fov((x, y))
+        except:
+            # FOV not yet computed - fall back to distance check
+            return dist <= self.sight
 
-            # slow movement (doesn't affect ability to attack)
-            if self.moved_last > 0:
-                self.moved_last -= 1
-                #print(f"Deducting move cooldown, now {self.moved_last} / {self.move_cooldown}")
-                return
-            else:
-                #print(f"Restaring move cooldown - {self.move_cooldown}")
-                self.moved_last = self.move_cooldown
+    def wander(self):
+        """Random cardinal movement with cooldown."""
+        if self.moved_last > 0:
+            self.moved_last -= 1
+            return
+        self.moved_last = self.move_cooldown
+        d = random.choice(((1, 0), (0, 1), (-1, 0), (0, -1)))
+        self.try_move(*d)
 
-            # if player is not nearby, wander
-            if abs(x - px) + abs(y - py) > self.sight:
-                d = random.choice(((1, 0), (0, 1), (-1, 0), (1, 0)))
+    def pursue(self):
+        """Pathfind toward player, attacking if adjacent."""
+        x, y = int(self.draw_pos.x), int(self.draw_pos.y)
+        px, py = int(self.game.player.draw_pos.x), int(self.game.player.draw_pos.y)
+
+        # Attack if adjacent
+        for d in ((1, 0), (0, 1), (-1, 0), (0, -1)):
+            if x + d[0] == px and y + d[1] == py:
                 self.try_move(*d)
+                return
 
-            # if can_push and player in a line: KICK
-            if self.can_push:
-                if int(x) == int(px):# vertical kick
-                    self.try_move(0, 1 if y < py else -1)
-                elif int(y) == int(py):# horizontal kick
-                    self.try_move(1 if x < px else -1, 0)
+        # Movement cooldown
+        if self.moved_last > 0:
+            self.moved_last -= 1
+            return
+        self.moved_last = self.move_cooldown
 
-            # else, nearby pursue
-            towards = []
-            dist = lambda dx, dy: abs(px - (x + dx)) + abs(py - (y + dy))
-            #current_dist = dist(0, 0)
-            #for d in ((1, 0), (0, 1), (-1, 0), (1, 0)):
-            #    if dist(*d) <= current_dist + 0.75: towards.append(d)
-            #print(current_dist, towards)
-            if px >= x:
-                towards.append((1, 0))
-            if px <= x:
-                towards.append((-1, 0))
-            if py >= y:
-                towards.append((0, 1))
-            if py <= y:
-                towards.append((0, -1))
-            towards = [p for p in towards if self.game.grid.at((int(x + p[0]), int(y + p[1]))).walkable]
-            towards.sort(key = lambda p: dist(*p))
-            target_dir = towards[0]
-            self.try_move(*target_dir)
+        # Cyclops boulder-kick: charge in a line toward player
+        if self.can_push:
+            if x == px:
+                self.try_move(0, 1 if y < py else -1)
+                return
+            elif y == py:
+                self.try_move(1 if x < px else -1, 0)
+                return
+
+        # A* pathfinding toward player
+        try:
+            path = self.grid.find_path((x, y), (px, py), diagonal_cost=0.0)
+            if path:
+                for step in path:
+                    dx = int(step.x) - x
+                    dy = int(step.y) - y
+                    self.try_move(dx, dy)
+                    return
+        except:
+            pass
+
+        # Fallback: simple directional movement
+        towards = []
+        if px > x: towards.append((1, 0))
+        if px < x: towards.append((-1, 0))
+        if py > y: towards.append((0, 1))
+        if py < y: towards.append((0, -1))
+        towards = [p for p in towards
+                   if self.grid.at((x + p[0], y + p[1])).walkable]
+        if towards:
+            self.try_move(*towards[0])
+        else:
+            self.wander()
+
+    def flee(self):
+        """Move away from player using Dijkstra gradient."""
+        if self.moved_last > 0:
+            self.moved_last -= 1
+            return
+        self.moved_last = self.move_cooldown
+
+        x, y = int(self.draw_pos.x), int(self.draw_pos.y)
+        px, py = int(self.game.player.draw_pos.x), int(self.game.player.draw_pos.y)
+
+        # Pick the neighbor that maximizes distance from player
+        best_dir = None
+        best_dist = -1
+        try:
+            dijkstra = self.grid.get_dijkstra_map((px, py), diagonal_cost=0.0)
+            for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if nx < 0 or ny < 0:
+                    continue
+                if nx >= int(self.grid.grid_size.x) or ny >= int(self.grid.grid_size.y):
+                    continue
+                if not self.grid.at((nx, ny)).walkable:
+                    continue
+                d = dijkstra.distance((nx, ny))
+                if d is not None and d > best_dist:
+                    best_dist = d
+                    best_dir = (dx, dy)
+        except:
+            pass
+
+        if best_dir:
+            self.try_move(*best_dir)
+        else:
+            self.wander()
+
+    def act(self):
+        if self.hp <= 0:
+            return
+
+        can_see = self.can_see_player()
+
+        # State transitions
+        if self.state == "idle":
+            if can_see:
+                self.state = "aggressive"
+                self.turns_since_seen = 0
+        elif self.state == "aggressive":
+            if not can_see:
+                self.turns_since_seen += 1
+                if self.turns_since_seen >= 5:
+                    self.state = "idle"
+            else:
+                self.turns_since_seen = 0
+            if self.hp < self.max_hp * 0.25:
+                self.state = "fleeing"
+        elif self.state == "fleeing":
+            x, y = int(self.draw_pos.x), int(self.draw_pos.y)
+            px = int(self.game.player.draw_pos.x)
+            py = int(self.game.player.draw_pos.y)
+            dist = abs(x - px) + abs(y - py)
+            if dist > self.sight * 2:
+                self.state = "idle"
+
+        # Actions based on state
+        if self.state == "idle":
+            self.wander()
+        elif self.state == "aggressive":
+            self.pursue()
+        elif self.state == "fleeing":
+            self.flee()
 
     def get_zapped(self, d):
         self.hp -= d

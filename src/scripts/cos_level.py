@@ -4,284 +4,178 @@ import cos_tiles as ct
 
 t = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
 
-def binary_space_partition(x, y, w, h):
-    d = random.choices(["vert", "horiz"], weights=[w/(w+h), h/(w+h)])[0]
-    split = random.randint(30, 70) / 100.0
-    if d == "vert":
-        coord = int(w * split)
-        return (x, y, coord, h), (x+coord, y, w-coord, h)
-    else: # horizontal
-        coord = int(h * split)
-        return (x, y, w, coord), (x, y+coord, w, h-coord)
-
-room_area = lambda x, y, w, h: w * h
-
-class BinaryRoomNode:
-    def __init__(self, xywh):
-        self.data = xywh
-        self.left = None
-        self.right = None
-
-    def __repr__(self):
-        return f"<RoomNode {self.data}>"
-
-    def center(self):
-        x, y, w, h = self.data
-        return (x + w // 2, y + h // 2)
-
-    def split(self):
-        new_data = binary_space_partition(*self.data)
-        self.left = BinaryRoomNode(new_data[0])
-        self.right = BinaryRoomNode(new_data[1])
-
-    def walk(self):
-        if self.left and self.right:
-            return self.left.walk() + self.right.walk()
-        return [self]
-
-    def contains(self, pt):
-        x, y, w, h = self.data
-        tx, ty = pt
-        return x <= tx <= x + w and y <= ty <= y + h
-
-class RoomGraph:
-    def __init__(self, xywh):
-        self.root = BinaryRoomNode(xywh)
-
-    def __repr__(self):
-        return f"<RoomGraph, root={self.root}, {len(self.walk())} rooms>"
-
-    def walk(self):
-        w = self.root.walk() if self.root else []
-        #print(w)
-        return w
-
-def room_coord(room, margin=0):
-    x, y, w, h = room.data
-    #print(x,y,w,h, f'{margin=}', end=';')
-    w -= 1
-    h -= 1
-    margin += 1
-    x += margin
-    y += margin
-    w -= margin
-    h -= margin
-    if w < 0: w = 0
-    if h < 0: h = 0
-    #print(x,y,w,h, end=' -> ')
-    tx = x if w==0 else random.randint(x, x+w)
-    ty = y if h==0 else random.randint(y, y+h)
-    #print((tx, ty))
-    return (tx, ty)
-
-def adjacent_rooms(r, rooms):
-    x, y, w, h = r.data
-    adjacents = {}
-
-    for i, other_r in enumerate(rooms):
-        rx, ry, rw, rh = other_r.data
-        if (rx, ry, rw, rh) == r:
-            continue  # Skip self
-
-        # Check vertical adjacency (above or below)
-        if rx < x + w and x < rx + rw:  # Overlapping width
-            if ry + rh == y:  # Above
-                adjacents[i] = (x + w // 2, y - 1)
-            elif y + h == ry:  # Below
-                adjacents[i] = (x + w // 2, y + h + 1)
-
-        # Check horizontal adjacency (left or right)
-        if ry < y + h and y < ry + rh:  # Overlapping height
-            if rx + rw == x:  # Left
-                adjacents[i] = (x - 1, y + h // 2)
-            elif x + w == rx:  # Right
-                adjacents[i] = (x + w + 1, y + h // 2)
-
-    return adjacents
 
 class Level:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        #self.graph = [(0, 0, width, height)]
-        self.graph = RoomGraph( (0, 0, width, height) )
-        self.grid = mcrfpy.Grid(grid_size=(width, height), texture=t, pos=(10, 5), size=(1014, 700))
-        self.highlighted = -1 #debug view feature
-        self.walled_rooms = [] # for tracking "hallway rooms" vs "walled rooms"
-
-    def fill(self, xywh, highlight = False):
-        if highlight:
-            ts = 0
-        else:
-            ts = room_area(*xywh) % 131
-        X, Y, W, H = xywh
-        for x in range(X, X+W):
-            for y in range(Y, Y+H):
-                self.grid.at((x, y)).tilesprite = ts
-
-    def highlight(self, delta):
-        rooms = self.graph.walk()
-        if self.highlighted < len(rooms):
-            #print(f"reset {self.highlighted}")
-            self.fill(rooms[self.highlighted].data) # reset
-        self.highlighted += delta
-        print(f"highlight {self.highlighted}")
-        self.highlighted = self.highlighted % len(rooms)
-        self.fill(rooms[self.highlighted].data, highlight = True)
+        self.grid = mcrfpy.Grid(grid_size=(width, height), texture=t,
+                                pos=(10, 5), size=(1014, 700))
+        self.bsp = None
+        self.leaves = []
+        self.room_map = [[None] * height for _ in range(width)]
 
     def reset(self):
-        self.graph = RoomGraph( (0, 0, self.width, self.height) )
+        """Initialize all cells as walls (unwalkable, opaque)."""
         for x in range(self.width):
             for y in range(self.height):
-                self.grid.at((x, y)).walkable = True
-                self.grid.at((x, y)).transparent = True
-                self.grid.at((x, y)).tilesprite = 0 #random.choice([40, 28])
+                self.grid.at((x, y)).walkable = False
+                self.grid.at((x, y)).transparent = False
+                self.grid.at((x, y)).tilesprite = 0
+        self.room_map = [[None] * self.height for _ in range(self.width)]
 
-    def split(self, single=False):
-        if single:
-            areas = {g.data: room_area(*g.data) for g in self.graph.walk()}
-            largest = sorted(self.graph.walk(), key=lambda g: areas[g.data])[-1]
-            largest.split()
-        else:
-            for room in self.graph.walk(): room.split()
-        self.fill_rooms()
+    def leaf_center(self, leaf):
+        """Get center coordinates of a BSP leaf."""
+        x, y = int(leaf.pos[0]), int(leaf.pos[1])
+        w, h = int(leaf.size[0]), int(leaf.size[1])
+        return (x + w // 2, y + h // 2)
 
-    def fill_rooms(self, features=None):
-        rooms = self.graph.walk()
-        #print(f"rooms: {len(rooms)}")
-        for i, g in enumerate(rooms):
-            X, Y, W, H = g.data
-            #c = [random.randint(0, 255) for _ in range(3)]
-            ts = room_area(*g.data) % 131 + i # modulo - consistent tile pick
-            for x in range(X, X+W):
-                for y in range(Y, Y+H):
-                    self.grid.at((x, y)).tilesprite = ts
+    def room_coord(self, leaf, margin=0):
+        """Get a random walkable coordinate inside a leaf's carved room area."""
+        x, y = int(leaf.pos[0]), int(leaf.pos[1])
+        w, h = int(leaf.size[0]), int(leaf.size[1])
+        # Room interior starts at (x+1, y+1) due to wall carving margin
+        inner_x = x + 1 + margin
+        inner_y = y + 1 + margin
+        inner_max_x = x + w - 2 - margin
+        inner_max_y = y + h - 2 - margin
+        if inner_max_x <= inner_x:
+            inner_x = inner_max_x = x + w // 2
+        if inner_max_y <= inner_y:
+            inner_y = inner_max_y = y + h // 2
+        return (random.randint(inner_x, inner_max_x),
+                random.randint(inner_y, inner_max_y))
 
-    def wall_rooms(self):
-        self.walled_rooms = []
-        rooms = self.graph.walk()
-        for i, g in enumerate(rooms):
-            # unwalled / hallways: not selected for small dungeons, first, last, and 65% of all other rooms
-            if len(rooms) > 3 and i > 1 and i < len(rooms) - 2 and random.random() < 0.35:
-                self.walled_rooms.append(False)
-                continue
-            self.walled_rooms.append(True)
-            X, Y, W, H = g.data
-            for x in range(X, X+W):
-                self.grid.at((x, Y)).walkable = False
-                #self.grid.at((x, Y+H-1)).walkable = False
-            for y in range(Y, Y+H):
-                self.grid.at((X, y)).walkable = False
-                #self.grid.at((X+W-1, y)).walkable = False
-        # boundary of entire level
-        for x in range(0, self.width):
-        #    self.grid.at((x, 0)).walkable = False
-            self.grid.at((x, self.height-1)).walkable = False
-        for y in range(0, self.height):
-        #    self.grid.at((0, y)).walkable = False
-            self.grid.at((self.width-1, y)).walkable = False
+    def dig_path(self, start, end):
+        """Dig an L-shaped corridor between two points."""
+        x1, x2 = min(start[0], end[0]), max(start[0], end[0])
+        y1, y2 = min(start[1], end[1]), max(start[1], end[1])
 
-    def dig_path(self, start:"Tuple[int, int]", end:"Tuple[int, int]", walkable=True, sprite=None):
-        # get x1,y1 and x2,y2 coordinates: top left and bottom right points on the rect formed by two random points, one from each of the 2 rooms
-        x1 = min([start[0], end[0]])
-        x2 = max([start[0], end[0]])
-        dw = x2 - x1
-        y1 = min([start[1], end[1]])
-        y2 = max([start[1], end[1]])
-        dh = y2 - y1
-
-        # random: top left or bottom right as the corner between the paths
+        # Random L-shape corner
         tx, ty = (x1, y1) if random.random() >= 0.5 else (x2, y2)
 
-        for x in range(x1, x1+dw):
-            try:
-                if walkable:
-                    self.grid.at((x, ty)).walkable = walkable
-                if sprite is not None:
-                    self.grid.at((x, ty)).tilesprite = sprite
-            except:
-                pass
-        for y in range(y1, y1+dh):
-            try:
-                if walkable:
-                    self.grid.at((tx, y)).walkable = True
-                if sprite is not None:
-                    self.grid.at((tx, y)).tilesprite = sprite
-            except:
-                pass
+        for x in range(x1, x2 + 1):
+            if 0 <= x < self.width and 0 <= ty < self.height:
+                self.grid.at((x, ty)).walkable = True
+                self.grid.at((x, ty)).transparent = True
+        for y in range(y1, y2 + 1):
+            if 0 <= tx < self.width and 0 <= y < self.height:
+                self.grid.at((tx, y)).walkable = True
+                self.grid.at((tx, y)).transparent = True
 
-    def generate(self, level_plan): #target_rooms = 5, features=None):
-        self.reset()
-        target_rooms = len(level_plan)
+    def generate(self, level_plan):
+        """Generate a level using BSP room placement and corridor digging.
+
+        Args:
+            level_plan: list of tuples, each tuple is the features for one room.
+                        Can also be a set of alternative plans.
+
+        Returns:
+            List of (feature_name, (x, y)) tuples for entity placement.
+        """
         if type(level_plan) is set:
-            level_plan = random.choice(list(level_plan))
-        while len(self.graph.walk()) < target_rooms:
-            self.split(single=len(self.graph.walk()) > target_rooms * .5)
-            
-        # Player path planning
-        #self.fill_rooms()
-        self.wall_rooms()
-        rooms = self.graph.walk()
-        feature_coords = []
-        prev_room = None
-        print(level_plan)
-        for room_num, room in enumerate(rooms):
-            room_plan = level_plan[room_num]
-            if type(room_plan) == str: room_plan = [room_plan] # single item plans became single-character plans...
-            for f in room_plan:
-                #feature_coords.append((f, room_coord(room, margin=4 if f in ("boulder",) else 1)))
-                # boulders are breaking my brain. If I can't get boulders away from walls with margin, I'm just going to dig them out.
-                #if f == "boulder":
-                #    x, y = room_coord(room, margin=0)
-                #    if x < 2: x += 1
-                #    if y < 2: y += 1
-                #    if x > self.grid.grid_size[0] - 2: x -= 1
-                #    if y > self.grid.grid_size[1] - 2: y -= 1
-                #    for _x in (1, 0, -1):
-                #        for _y in (1, 0, -1):
-                #            self.grid.at((x + _x, y + _y)).walkable = True
-                #    feature_coords.append((f, (x, y)))
-                #else:
-                #    feature_coords.append((f, room_coord(room, margin=0)))
-                fcoord = None
-                while not fcoord:
-                    fc = room_coord(room, margin=0)
-                    if not self.grid.at(fc).walkable: continue
-                    if fc in [_i[1] for _i in feature_coords]: continue
-                    fcoord = fc
-                feature_coords.append((f, fcoord))
-                print(feature_coords[-1])
+            level_plan = list(random.choice(list(level_plan)))
+        target_rooms = len(level_plan)
 
-            ## Hallway generation
-            # plow an inelegant path
-            if prev_room:
-                start = room_coord(prev_room, margin=2)
-                end = room_coord(room, margin=2)
-                self.dig_path(start, end)
-            prev_room = room
+        for attempt in range(10):
+            self.reset()
 
-        # Tile painting
+            # 1. Create and split BSP
+            self.bsp = mcrfpy.BSP(pos=(1, 1),
+                                  size=(self.width - 2, self.height - 2))
+            depth = max(2, target_rooms.bit_length() + 1)
+            self.bsp.split_recursive(
+                depth=depth,
+                min_size=(4, 4),
+                max_ratio=1.5
+            )
+
+            # 2. Get leaves - retry if not enough
+            self.leaves = list(self.bsp.leaves())
+            if len(self.leaves) < target_rooms:
+                continue
+
+            # 3. Carve rooms (1-cell wall margin from leaf edges)
+            for leaf in self.leaves:
+                lx, ly = int(leaf.pos[0]), int(leaf.pos[1])
+                lw, lh = int(leaf.size[0]), int(leaf.size[1])
+                for cx in range(lx + 1, lx + lw - 1):
+                    for cy in range(ly + 1, ly + lh - 1):
+                        if 0 <= cx < self.width and 0 <= cy < self.height:
+                            self.grid.at((cx, cy)).walkable = True
+                            self.grid.at((cx, cy)).transparent = True
+
+            # 4. Build room map (cell -> leaf index)
+            for i, leaf in enumerate(self.leaves):
+                lx, ly = int(leaf.pos[0]), int(leaf.pos[1])
+                lw, lh = int(leaf.size[0]), int(leaf.size[1])
+                for cx in range(lx, lx + lw):
+                    for cy in range(ly, ly + lh):
+                        if 0 <= cx < self.width and 0 <= cy < self.height:
+                            self.room_map[cx][cy] = i
+
+            # 5. Carve corridors using BSP adjacency
+            adj = self.bsp.adjacency
+            connected = set()
+            for i in range(len(adj)):
+                for j in adj[i]:
+                    edge = (min(i, j), max(i, j))
+                    if edge in connected:
+                        continue
+                    connected.add(edge)
+                    ci = self.leaf_center(self.leaves[i])
+                    cj = self.leaf_center(self.leaves[j])
+                    self.dig_path(ci, cj)
+
+            # 6. Place features using level_plan
+            feature_coords = []
+            for room_num in range(min(target_rooms, len(self.leaves))):
+                leaf = self.leaves[room_num]
+                room_plan = level_plan[room_num]
+                if type(room_plan) == str:
+                    room_plan = [room_plan]
+
+                for f in room_plan:
+                    fcoord = None
+                    for _ in range(100):
+                        fc = self.room_coord(leaf)
+                        if not self.grid.at(fc).walkable:
+                            continue
+                        if fc in [c[1] for c in feature_coords]:
+                            continue
+                        fcoord = fc
+                        break
+                    if fcoord is None:
+                        fcoord = self.leaf_center(leaf)
+                    feature_coords.append((f, fcoord))
+
+            # 7. Solvability check
+            spawn_pos = None
+            boulder_positions = []
+            button_positions = []
+            exit_pos = None
+            for f, pos in feature_coords:
+                if f == "spawn":
+                    spawn_pos = pos
+                elif f == "boulder":
+                    boulder_positions.append(pos)
+                elif f == "button":
+                    button_positions.append(pos)
+                elif f == "exit":
+                    exit_pos = pos
+
+            if spawn_pos and boulder_positions and button_positions and exit_pos:
+                from cos_solver import is_solvable
+                if is_solvable(self.grid, spawn_pos, boulder_positions,
+                               button_positions, exit_pos):
+                    break
+                print(f"Level attempt {attempt + 1}: unsolvable, retrying...")
+            else:
+                break  # No puzzle elements to verify
+
+        # 8. Tile painting (WFC)
         possibilities = None
         while possibilities or possibilities is None:
             possibilities = ct.wfc_pass(self.grid, possibilities)
-
-        ## "hallway room" repainting
-        #for i, hall_room in enumerate(rooms):
-        #    if self.walled_rooms[i]:
-        #        print(f"walled room: {hall_room}")
-        #        continue
-        #    print(f"hall room: {hall_room}")
-        #    x, y, w, h = hall_room.data
-        #    for _x in range(x+1, x+w-1):
-        #        for _y in range(y+1, y+h-1):
-        #            self.grid.at((_x, _y)).walkable = False
-        #            self.grid.at((_x, _y)).tilesprite = -1
-        #            self.grid.at((_x, _y)).color = (0, 0, 0) # pit!
-        #    targets = adjacent_rooms(hall_room, rooms)
-        #    print(targets)
-        #    for k, v in targets.items():
-        #        self.dig_path(hall_room.center(), v, color=(64, 32, 32))
-        #    for _, p in feature_coords:
-        #        if hall_room.contains(p): self.dig_path(hall_room.center(), p, color=(92, 48, 48))
 
         return feature_coords
