@@ -280,9 +280,7 @@ class Level:
 
             break
 
-        # 8. Tile painting (WFC)
-        possibilities = None
-        while possibilities or possibilities is None:
-            possibilities = ct.wfc_pass(self.grid, possibilities)
+        # 8. Tile painting (Wang autotiling)
+        ct.paint_tiles(self.grid)
 
         return feature_coords
