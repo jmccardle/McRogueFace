@@ -581,6 +581,9 @@ PyObject* PyInit_mcrfpy()
     mcrfpydef::PyWangSetType.tp_methods = PyWangSet::methods;
     mcrfpydef::PyWangSetType.tp_getset = PyWangSet::getsetters;
 
+    // Texture methods (from_bytes, composite, hsl_shift)
+    mcrfpydef::PyTextureType.tp_methods = PyTexture::methods;
+
     // LDtk types
     mcrfpydef::PyLdtkProjectType.tp_methods = PyLdtkProject::methods;
     mcrfpydef::PyLdtkProjectType.tp_getset = PyLdtkProject::getsetters;

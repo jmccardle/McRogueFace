@@ -51,6 +51,12 @@ public:
     static PyObject* get_source(PyTextureObject* self, void* closure);
     
     static PyGetSetDef getsetters[];
+
+    // Methods (classmethods and instance methods)
+    static PyObject* from_bytes(PyObject* cls, PyObject* args, PyObject* kwds);
+    static PyObject* composite(PyObject* cls, PyObject* args, PyObject* kwds);
+    static PyObject* hsl_shift(PyTextureObject* self, PyObject* args, PyObject* kwds);
+    static PyMethodDef methods[];
 };
 
 namespace mcrfpydef {
