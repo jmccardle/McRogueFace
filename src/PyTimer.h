@@ -48,7 +48,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PyTimerType = {
+    inline PyTypeObject PyTimerType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Timer",
         .tp_basicsize = sizeof(PyTimerObject),

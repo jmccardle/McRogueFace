@@ -59,7 +59,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PySoundType = {
+    inline PyTypeObject PySoundType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Sound",
         .tp_basicsize = sizeof(PySoundObject),

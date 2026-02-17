@@ -9,7 +9,6 @@
 #include "UIArc.h"
 #include "3d/Viewport3D.h"
 #include "McRFPy_API.h"
-#include "PyObjectUtils.h"
 #include "PythonObjectCache.h"
 #include <climits>
 #include <algorithm>

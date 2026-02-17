@@ -111,7 +111,7 @@ public:
 extern PyMethodDef UIArc_methods[];
 
 namespace mcrfpydef {
-    static PyTypeObject PyUIArcType = {
+    inline PyTypeObject PyUIArcType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Arc",
         .tp_basicsize = sizeof(PyUIArcObject),

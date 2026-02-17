@@ -1,7 +1,5 @@
 #include "PyVector.h"
-#include "PyObjectUtils.h"
 #include "McRFPy_Doc.h"
-#include "PyRAII.h"
 #include <cmath>
 
 PyGetSetDef PyVector::getsetters[] = {
@@ -262,20 +260,16 @@ int PyVector::set_member(PyObject* obj, PyObject* value, void* closure)
 
 PyVectorObject* PyVector::from_arg(PyObject* args)
 {
-    // Use RAII for type reference management
-    PyRAII::PyTypeRef type("Vector", McRFPy_API::mcrf_module);
-    if (!type) {
-        return NULL;
-    }
+    PyTypeObject* type = &mcrfpydef::PyVectorType;
 
     // Check if args is already a Vector instance
-    if (PyObject_IsInstance(args, (PyObject*)type.get())) {
+    if (PyObject_IsInstance(args, (PyObject*)type)) {
         Py_INCREF(args);  // Return new reference so caller can safely DECREF
         return (PyVectorObject*)args;
     }
 
-    // Create new Vector object using RAII
-    PyRAII::PyObjectRef obj(type->tp_alloc(type.get(), 0), true);
+    // Create new Vector object
+    PyObject* obj = type->tp_alloc(type, 0);
     if (!obj) {
         return NULL;
     }
@@ -283,25 +277,27 @@ PyVectorObject* PyVector::from_arg(PyObject* args)
     // Handle different input types
     if (PyTuple_Check(args)) {
         // It's already a tuple, pass it directly to init
-        int err = init((PyVectorObject*)obj.get(), args, NULL);
+        int err = init((PyVectorObject*)obj, args, NULL);
         if (err) {
-            // obj will be automatically cleaned up when it goes out of scope
+            Py_DECREF(obj);
             return NULL;
         }
     } else {
         // Wrap single argument in a tuple for init
-        PyRAII::PyObjectRef tuple(PyTuple_Pack(1, args), true);
+        PyObject* tuple = PyTuple_Pack(1, args);
         if (!tuple) {
+            Py_DECREF(obj);
             return NULL;
         }
-        int err = init((PyVectorObject*)obj.get(), tuple.get(), NULL);
+        int err = init((PyVectorObject*)obj, tuple, NULL);
+        Py_DECREF(tuple);
         if (err) {
+            Py_DECREF(obj);
             return NULL;
         }
     }
 
-    // Release ownership and return
-    return (PyVectorObject*)obj.release();
+    return (PyVectorObject*)obj;
 }
 
 // Arithmetic operations

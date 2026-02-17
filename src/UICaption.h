@@ -50,7 +50,7 @@ public:
 extern PyMethodDef UICaption_methods[];
 
 namespace mcrfpydef {
-    static PyTypeObject PyUICaptionType = {
+    inline PyTypeObject PyUICaptionType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Caption",
         .tp_basicsize = sizeof(PyUICaptionObject),

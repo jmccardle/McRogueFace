@@ -1,7 +1,5 @@
 #include "PyColor.h"
 #include "McRFPy_API.h"
-#include "PyObjectUtils.h"
-#include "PyRAII.h"
 #include "McRFPy_Doc.h"
 #include <string>
 #include <cstdio>
@@ -288,33 +286,28 @@ int PyColor::set_member(PyObject* obj, PyObject* value, void* closure)
 
 PyColorObject* PyColor::from_arg(PyObject* args)
 {
-    // Use RAII for type reference management
-    PyRAII::PyTypeRef type("Color", McRFPy_API::mcrf_module);
-    if (!type) {
-        return NULL;
-    }
-    
+    PyTypeObject* type = &mcrfpydef::PyColorType;
+
     // Check if args is already a Color instance
-    if (PyObject_IsInstance(args, (PyObject*)type.get())) {
+    if (PyObject_IsInstance(args, (PyObject*)type)) {
         Py_INCREF(args);  // Return new reference so caller can safely DECREF
         return (PyColorObject*)args;
     }
-    
-    // Create new Color object using RAII
-    PyRAII::PyObjectRef obj(type->tp_alloc(type.get(), 0), true);
+
+    // Create new Color object
+    PyObject* obj = type->tp_alloc(type, 0);
     if (!obj) {
         return NULL;
     }
-    
+
     // Initialize the object
-    int err = init((PyColorObject*)obj.get(), args, NULL);
+    int err = init((PyColorObject*)obj, args, NULL);
     if (err) {
-        // obj will be automatically cleaned up when it goes out of scope
+        Py_DECREF(obj);
         return NULL;
     }
-    
-    // Release ownership and return
-    return (PyColorObject*)obj.release();
+
+    return (PyColorObject*)obj;
 }
 
 // Color helper method implementations

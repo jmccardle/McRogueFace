@@ -3,7 +3,6 @@
 #include "McRFPy_Automation.h"
 // Note: McRFPy_Libtcod.h removed in #215 - functionality moved to mcrfpy.bresenham()
 #include "McRFPy_Doc.h"
-#include "PyTypeCache.h"  // Thread-safe cached Python types
 #include "platform.h"
 #include "PyAnimation.h"
 #include "PyDrawable.h"
@@ -755,14 +754,6 @@ PyObject* PyInit_mcrfpy()
     // Note: mcrfpy.libtcod submodule removed in #215
     // - line() functionality replaced by mcrfpy.bresenham()
     // - compute_fov() redundant with Grid.compute_fov()
-
-    // Initialize PyTypeCache for thread-safe type lookups
-    // This must be done after all types are added to the module
-    if (!PyTypeCache::initialize(m)) {
-        // Failed to initialize type cache - this is a critical error
-        // Error message already set by PyTypeCache::initialize
-        return NULL;
-    }
 
     //McRFPy_API::mcrf_module = m;
     return m;

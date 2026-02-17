@@ -62,7 +62,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PyMusicType = {
+    inline PyTypeObject PyMusicType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Music",
         .tp_basicsize = sizeof(PyMusicObject),

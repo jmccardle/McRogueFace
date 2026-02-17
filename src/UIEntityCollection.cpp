@@ -7,7 +7,6 @@
 #include "UIEntity.h"
 #include "UIGrid.h"
 #include "McRFPy_API.h"
-#include "PyTypeCache.h"
 #include "PythonObjectCache.h"
 #include <sstream>
 #include <algorithm>
@@ -49,11 +48,7 @@ PyObject* UIEntityCollectionIter::next(PyUIEntityCollectionIterObject* self)
     }
 
     // Otherwise create and return a new Python Entity object
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     auto o = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
     if (!o) return NULL;
@@ -119,11 +114,7 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
     }
 
     // Otherwise, create a new base Entity object
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     auto o = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
     if (!o) return NULL;
@@ -174,12 +165,8 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
         return 0;
     }
 
-    // Type checking using cached type
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return -1;
-    }
+    // Type checking
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     if (!PyObject_IsInstance(value, (PyObject*)entity_type)) {
         PyErr_SetString(PyExc_TypeError, "EntityCollection can only contain Entity objects");
@@ -219,9 +206,9 @@ int UIEntityCollection::contains(PyUIEntityCollectionObject* self, PyObject* val
         return -1;
     }
 
-    // Type checking using cached type
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type || !PyObject_IsInstance(value, (PyObject*)entity_type)) {
+    // Type checking
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
+    if (!PyObject_IsInstance(value, (PyObject*)entity_type)) {
         return 0;  // Not an Entity, can't be in collection
     }
 
@@ -257,12 +244,7 @@ PyObject* UIEntityCollection::concat(PyUIEntityCollectionObject* self, PyObject*
         return NULL;
     }
 
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        Py_DECREF(result_list);
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     // Add all elements from self
     Py_ssize_t idx = 0;
@@ -296,11 +278,7 @@ PyObject* UIEntityCollection::inplace_concat(PyUIEntityCollectionObject* self, P
         return NULL;
     }
 
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     // First, validate ALL items before modifying anything
     Py_ssize_t other_len = PySequence_Length(other);
@@ -380,12 +358,7 @@ PyObject* UIEntityCollection::subscript(PyUIEntityCollectionObject* self, PyObje
             return NULL;
         }
 
-        PyTypeObject* entity_type = PyTypeCache::Entity();
-        if (!entity_type) {
-            Py_DECREF(result_list);
-            PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-            return NULL;
-        }
+        PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
         auto it = self->data->begin();
         for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
@@ -474,11 +447,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
             return -1;
         }
 
-        PyTypeObject* entity_type = PyTypeCache::Entity();
-        if (!entity_type) {
-            PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-            return -1;
-        }
+        PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
         // Validate all items first
         std::vector<std::shared_ptr<UIEntity>> new_items;
@@ -577,11 +546,7 @@ PyMappingMethods UIEntityCollection::mpmethods = {
 
 PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject* o)
 {
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     if (!PyObject_IsInstance(o, (PyObject*)entity_type)) {
         PyErr_SetString(PyExc_TypeError, "Only Entity objects can be added to EntityCollection");
@@ -627,11 +592,7 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
 
 PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject* o)
 {
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     if (!PyObject_IsInstance(o, (PyObject*)entity_type)) {
         PyErr_SetString(PyExc_TypeError, "EntityCollection.remove requires an Entity object");
@@ -675,12 +636,7 @@ PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject*
         return NULL;
     }
 
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        Py_DECREF(iterator);
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     // FIXED: Validate ALL items first before modifying anything
     // (Following the pattern from inplace_concat)
@@ -785,11 +741,7 @@ PyObject* UIEntityCollection::pop(PyUIEntityCollectionObject* self, PyObject* ar
     list->erase(it);
 
     // Create Python object for the entity
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     PyUIEntityObject* py_entity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
     if (!py_entity) {
@@ -817,11 +769,7 @@ PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject*
         return NULL;
     }
 
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     if (!PyObject_IsInstance(o, (PyObject*)entity_type)) {
         PyErr_SetString(PyExc_TypeError, "EntityCollection.insert requires an Entity object");
@@ -874,11 +822,7 @@ PyObject* UIEntityCollection::index_method(PyUIEntityCollectionObject* self, PyO
         return NULL;
     }
 
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     if (!PyObject_IsInstance(value, (PyObject*)entity_type)) {
         PyErr_SetString(PyExc_TypeError, "EntityCollection.index requires an Entity object");
@@ -910,8 +854,8 @@ PyObject* UIEntityCollection::count(PyUIEntityCollectionObject* self, PyObject* 
         return NULL;
     }
 
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type || !PyObject_IsInstance(value, (PyObject*)entity_type)) {
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
+    if (!PyObject_IsInstance(value, (PyObject*)entity_type)) {
         return PyLong_FromLong(0);
     }
 
@@ -969,11 +913,7 @@ PyObject* UIEntityCollection::find(PyUIEntityCollectionObject* self, PyObject* a
     std::string pattern(name);
     bool has_wildcard = (pattern.find('*') != std::string::npos);
 
-    PyTypeObject* entity_type = PyTypeCache::Entity();
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Entity type not initialized in cache");
-        return NULL;
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     if (has_wildcard) {
         PyObject* results = PyList_New(0);

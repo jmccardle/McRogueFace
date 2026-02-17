@@ -5,7 +5,6 @@
 #include "MeshLayer.h"  // For MeshVertex
 #include "../platform/GLContext.h"
 #include "../PyTexture.h"
-#include "../PyTypeCache.h"
 #include <cmath>
 #include <iostream>
 
@@ -355,8 +354,8 @@ int Billboard::init(PyObject* self, PyObject* args, PyObject* kwds) {
 
     // Handle texture
     if (textureObj && textureObj != Py_None) {
-        PyTypeObject* textureType = PyTypeCache::Texture();
-        if (textureType && PyObject_IsInstance(textureObj, (PyObject*)textureType)) {
+        PyTypeObject* textureType = &mcrfpydef::PyTextureType;
+        if (PyObject_IsInstance(textureObj, (PyObject*)textureType)) {
             PyTextureObject* texPy = (PyTextureObject*)textureObj;
             if (texPy->data) {
                 selfObj->data->setTexture(texPy->data);
@@ -443,12 +442,7 @@ int Billboard::set_texture(PyObject* self, PyObject* value, void* closure) {
         obj->data->setTexture(nullptr);
         return 0;
     }
-    // Use PyTypeCache to get properly initialized type object
-    PyTypeObject* textureType = PyTypeCache::Texture();
-    if (!textureType) {
-        PyErr_SetString(PyExc_RuntimeError, "Texture type not initialized");
-        return -1;
-    }
+    PyTypeObject* textureType = &mcrfpydef::PyTextureType;
     if (PyObject_IsInstance(value, (PyObject*)textureType)) {
         PyTextureObject* texPy = (PyTextureObject*)value;
         if (texPy->data) {

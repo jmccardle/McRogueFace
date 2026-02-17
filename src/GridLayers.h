@@ -246,7 +246,7 @@ public:
 
 namespace mcrfpydef {
     // ColorLayer type
-    static PyTypeObject PyColorLayerType = {
+    inline PyTypeObject PyColorLayerType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.ColorLayer",
         .tp_basicsize = sizeof(PyColorLayerObject),
@@ -299,7 +299,7 @@ namespace mcrfpydef {
     };
 
     // TileLayer type
-    static PyTypeObject PyTileLayerType = {
+    inline PyTypeObject PyTileLayerType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.TileLayer",
         .tp_basicsize = sizeof(PyTileLayerObject),

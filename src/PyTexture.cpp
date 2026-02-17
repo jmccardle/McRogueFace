@@ -1,7 +1,6 @@
 #include "PyTexture.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
-#include "PyTypeCache.h"
 #include <cmath>
 #include <algorithm>
 
@@ -93,13 +92,8 @@ sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
 
 PyObject* PyTexture::pyObject()
 {
-    PyTypeObject* type = PyTypeCache::Texture();
-    if (!type) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to get Texture type from cache");
-        return NULL;
-    }
+    PyTypeObject* type = &mcrfpydef::PyTextureType;
     PyObject* obj = PyTexture::pynew(type, Py_None, Py_None);
-    // PyTypeCache returns borrowed reference — no DECREF needed
 
     if (!obj) {
         return NULL;
@@ -275,12 +269,7 @@ PyObject* PyTexture::composite(PyObject* cls, PyObject* args, PyObject* kwds)
     std::vector<sf::Image> images;
     unsigned int tex_w = 0, tex_h = 0;
 
-    // Use PyTypeCache for reliable, leak-free isinstance check
-    PyTypeObject* texture_type = PyTypeCache::Texture();
-    if (!texture_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to get Texture type from cache");
-        return NULL;
-    }
+    PyTypeObject* texture_type = &mcrfpydef::PyTextureType;
 
     for (Py_ssize_t i = 0; i < count; i++) {
         PyObject* item = PyList_GetItem(layers_list, i);
@@ -311,7 +300,6 @@ PyObject* PyTexture::composite(PyObject* cls, PyObject* args, PyObject* kwds)
         }
         images.push_back(std::move(img));
     }
-    // PyTypeCache returns borrowed reference — no DECREF needed
 
     // Alpha-composite all layers bottom-to-top
     sf::Image result;

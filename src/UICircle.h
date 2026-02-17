@@ -100,7 +100,7 @@ public:
 extern PyMethodDef UICircle_methods[];
 
 namespace mcrfpydef {
-    static PyTypeObject PyUICircleType = {
+    inline PyTypeObject PyUICircleType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Circle",
         .tp_basicsize = sizeof(PyUICircleObject),

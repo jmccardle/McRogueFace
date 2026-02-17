@@ -339,9 +339,6 @@ typedef struct {
 } PyUICollectionIterObject;
 
 namespace mcrfpydef {
-    // DEPRECATED: RET_PY_INSTANCE macro has been replaced with template functions in PyObjectUtils.h
-    // The macro was difficult to debug and used static type references that could cause initialization order issues.
-    // Use PyObjectUtils::convertDrawableToPython() or PyObjectUtils::createPyObject<T>() instead.
 
 //TODO: add this method to class scope; move implementation to .cpp file
 /*

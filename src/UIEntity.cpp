@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cstring>
 #include <libtcod.h>
-#include "PyObjectUtils.h"
 #include "PyVector.h"
 #include "PythonObjectCache.h"
 #include "PyFOV.h"

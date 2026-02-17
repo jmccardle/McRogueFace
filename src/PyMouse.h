@@ -35,7 +35,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PyMouseType = {
+    inline PyTypeObject PyMouseType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Mouse",
         .tp_basicsize = sizeof(PyMouseObject),

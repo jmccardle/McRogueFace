@@ -4,7 +4,6 @@
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
 #include "PyAlignment.h"
-#include "PyTypeCache.h"  // Thread-safe cached Python types
 #include "UIEntity.h"
 #include "Profiler.h"
 #include "PyFOV.h"
@@ -1928,16 +1927,7 @@ PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, Py
     PyObject* result = PyList_New(entities.size());
     if (!result) return PyErr_NoMemory();
 
-    // Cache Entity type for efficiency
-    static PyTypeObject* cached_entity_type = nullptr;
-    if (!cached_entity_type) {
-        cached_entity_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-        if (!cached_entity_type) {
-            Py_DECREF(result);
-            return NULL;
-        }
-        Py_INCREF(cached_entity_type);
-    }
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     for (size_t i = 0; i < entities.size(); i++) {
         auto& entity = entities[i];
@@ -1948,7 +1938,7 @@ PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, Py
             PyList_SET_ITEM(result, i, entity->self);
         } else {
             // Create new Python Entity wrapper
-            auto pyEntity = (PyUIEntityObject*)cached_entity_type->tp_alloc(cached_entity_type, 0);
+            auto pyEntity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
             if (!pyEntity) {
                 Py_DECREF(result);
                 return PyErr_NoMemory();

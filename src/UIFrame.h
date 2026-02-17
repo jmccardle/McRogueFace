@@ -76,7 +76,7 @@ public:
 extern PyMethodDef UIFrame_methods[];
 
 namespace mcrfpydef {
-    static PyTypeObject PyUIFrameType = {
+    inline PyTypeObject PyUIFrameType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Frame",
         .tp_basicsize = sizeof(PyUIFrameObject),

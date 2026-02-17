@@ -21,7 +21,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PyKeyboardType = {
+    inline PyTypeObject PyKeyboardType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Keyboard",
         .tp_basicsize = sizeof(PyKeyboardObject),

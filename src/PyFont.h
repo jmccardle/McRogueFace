@@ -30,7 +30,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PyFontType = {
+    inline PyTypeObject PyFontType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Font",
         .tp_basicsize = sizeof(PyFontObject),

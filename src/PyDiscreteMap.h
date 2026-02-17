@@ -77,7 +77,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PyDiscreteMapType = {
+    inline PyTypeObject PyDiscreteMapType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.DiscreteMap",
         .tp_basicsize = sizeof(PyDiscreteMapObject),

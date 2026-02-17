@@ -88,7 +88,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PyHeightMapType = {
+    inline PyTypeObject PyHeightMapType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.HeightMap",
         .tp_basicsize = sizeof(PyHeightMapObject),

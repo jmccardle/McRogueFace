@@ -47,7 +47,7 @@ public:
 };
 
 namespace mcrfpydef {
-    static PyTypeObject PySceneType = {
+    inline PyTypeObject PySceneType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Scene",
         .tp_basicsize = sizeof(PySceneObject),

@@ -97,7 +97,7 @@ public:
 extern PyMethodDef UILine_methods[];
 
 namespace mcrfpydef {
-    static PyTypeObject PyUILineType = {
+    inline PyTypeObject PyUILineType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
         .tp_name = "mcrfpy.Line",
         .tp_basicsize = sizeof(PyUILineObject),
