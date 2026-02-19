@@ -983,8 +983,52 @@ public:
         return true;
     }
 
+    bool loadFromSamples(const Int16* samples, Uint64 sampleCount, unsigned int channelCount, unsigned int sampleRate) {
+        if (chunk_) { Mix_FreeChunk(chunk_); chunk_ = nullptr; }
+        // Build a WAV file in memory: 44-byte header + PCM data
+        uint32_t dataSize = static_cast<uint32_t>(sampleCount * sizeof(Int16));
+        uint32_t fileSize = 44 + dataSize;
+        std::vector<uint8_t> wav(fileSize);
+        uint8_t* p = wav.data();
+        // RIFF header
+        memcpy(p, "RIFF", 4); p += 4;
+        uint32_t chunkSize = fileSize - 8;
+        memcpy(p, &chunkSize, 4); p += 4;
+        memcpy(p, "WAVE", 4); p += 4;
+        // fmt sub-chunk
+        memcpy(p, "fmt ", 4); p += 4;
+        uint32_t fmtSize = 16;
+        memcpy(p, &fmtSize, 4); p += 4;
+        uint16_t audioFormat = 1; // PCM
+        memcpy(p, &audioFormat, 2); p += 2;
+        uint16_t numChannels = static_cast<uint16_t>(channelCount);
+        memcpy(p, &numChannels, 2); p += 2;
+        uint32_t sr = sampleRate;
+        memcpy(p, &sr, 4); p += 4;
+        uint32_t byteRate = sampleRate * channelCount * 2;
+        memcpy(p, &byteRate, 4); p += 4;
+        uint16_t blockAlign = static_cast<uint16_t>(channelCount * 2);
+        memcpy(p, &blockAlign, 2); p += 2;
+        uint16_t bitsPerSample = 16;
+        memcpy(p, &bitsPerSample, 2); p += 2;
+        // data sub-chunk
+        memcpy(p, "data", 4); p += 4;
+        memcpy(p, &dataSize, 4); p += 4;
+        memcpy(p, samples, dataSize);
+        // Load via SDL_mixer
+        SDL_RWops* rw = SDL_RWFromConstMem(wav.data(), static_cast<int>(fileSize));
+        if (!rw) return false;
+        chunk_ = Mix_LoadWAV_RW(rw, 1);
+        if (!chunk_) return false;
+        computeDuration();
+        return true;
+    }
+
     Time getDuration() const { return duration_; }
     Mix_Chunk* getChunk() const { return chunk_; }
+    unsigned int getSampleRate() const { return 44100; } // SDL_mixer default
+    unsigned int getChannelCount() const { return 1; }   // Approximate
+    Uint64 getSampleCount() const { return chunk_ ? chunk_->alen / 2 : 0; }
 
 private:
     void computeDuration() {
@@ -1106,6 +1150,10 @@ public:
     void setLoop(bool loop) { loop_ = loop; }
     bool getLoop() const { return loop_; }
 
+    // Pitch: SDL_mixer doesn't support per-channel pitch, so store value only
+    void setPitch(float pitch) { pitch_ = pitch; }
+    float getPitch() const { return pitch_; }
+
     // Called by Mix_ChannelFinished callback
     static void onChannelFinished(int channel) {
         if (channel >= 0 && channel < 16 && g_channelOwners[channel]) {
@@ -1118,6 +1166,7 @@ private:
     Mix_Chunk* chunk_ = nullptr;  // Borrowed from SoundBuffer
     int channel_ = -1;
     float volume_ = 100.f;
+    float pitch_ = 1.0f;
     bool loop_ = false;
 };
 

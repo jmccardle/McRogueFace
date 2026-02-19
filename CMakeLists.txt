@@ -57,6 +57,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/3d)
 include_directories(${CMAKE_SOURCE_DIR}/src/platform)
 include_directories(${CMAKE_SOURCE_DIR}/src/tiled)
 include_directories(${CMAKE_SOURCE_DIR}/src/ldtk)
+include_directories(${CMAKE_SOURCE_DIR}/src/audio)
 include_directories(${CMAKE_SOURCE_DIR}/modules/RapidXML)
 include_directories(${CMAKE_SOURCE_DIR}/modules/json/single_include)
 

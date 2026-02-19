@@ -17,6 +17,7 @@
 #include "PyMouseButton.h"
 #include "PyInputState.h"
 #include "PySound.h"
+#include "PySoundBuffer.h"
 #include "PyMusic.h"
 #include "PyKeyboard.h"
 #include "PyMouse.h"
@@ -467,6 +468,7 @@ PyObject* PyInit_mcrfpy()
 
         /*audio (#66)*/
         &PySoundType,
+        &PySoundBufferType,
         &PyMusicType,
 
         /*keyboard state (#160)*/

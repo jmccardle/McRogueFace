@@ -734,15 +734,32 @@ public:
 // =============================================================================
 
 class SoundBuffer {
+    unsigned int sampleRate_ = 44100;
+    unsigned int channelCount_ = 1;
+    std::size_t sampleCount_ = 0;
 public:
     SoundBuffer() = default;
     // In headless mode, pretend sound loading succeeded
     bool loadFromFile(const std::string& filename) { return true; }
     bool loadFromMemory(const void* data, size_t sizeInBytes) { return true; }
-    Time getDuration() const { return Time(); }
+    bool loadFromSamples(const Int16* samples, Uint64 sampleCount, unsigned int channelCount, unsigned int sampleRate) {
+        sampleCount_ = sampleCount;
+        channelCount_ = channelCount;
+        sampleRate_ = sampleRate;
+        return true;
+    }
+    Time getDuration() const {
+        if (sampleRate_ == 0 || channelCount_ == 0) return Time();
+        float secs = static_cast<float>(sampleCount_) / static_cast<float>(channelCount_) / static_cast<float>(sampleRate_);
+        return seconds(secs);
+    }
+    unsigned int getSampleRate() const { return sampleRate_; }
+    unsigned int getChannelCount() const { return channelCount_; }
+    Uint64 getSampleCount() const { return sampleCount_; }
 };
 
 class Sound {
+    float pitch_ = 1.0f;
 public:
     enum Status { Stopped, Paused, Playing };
 
@@ -759,6 +776,8 @@ public:
     float getVolume() const { return 100.0f; }
     void setLoop(bool loop) {}
     bool getLoop() const { return false; }
+    void setPitch(float pitch) { pitch_ = pitch; }
+    float getPitch() const { return pitch_; }
 };
 
 class Music {
