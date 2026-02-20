@@ -15,9 +15,22 @@ Timer::Timer()
 {}
 
 Timer::~Timer() {
+    releasePyWrapper();
     if (serial_number != 0) {
         PythonObjectCache::getInstance().remove(serial_number);
     }
+}
+
+void Timer::retainPyWrapper(PyObject* wrapper) {
+    if (py_wrapper == wrapper) return;  // Already held
+    Py_XDECREF(py_wrapper);
+    py_wrapper = wrapper;
+    Py_XINCREF(py_wrapper);
+}
+
+void Timer::releasePyWrapper() {
+    Py_XDECREF(py_wrapper);
+    py_wrapper = nullptr;
 }
 
 bool Timer::hasElapsed(int now) const
@@ -71,6 +84,7 @@ bool Timer::test(int now)
         // Handle one-shot timers: stop but preserve callback for potential restart
         if (once) {
             stopped = true;  // Will be removed from map by testTimers(), but callback preserved
+            releasePyWrapper();  // Allow Python GC now (#251)
         }
 
         return true;
@@ -123,6 +137,7 @@ void Timer::stop()
     paused = false;
     pause_start_time = 0;
     total_paused_time = 0;
+    releasePyWrapper();  // Allow Python GC now that timer is inactive (#251)
 }
 
 bool Timer::isActive() const

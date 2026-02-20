@@ -34,8 +34,8 @@ C_SL_FILL = mcrfpy.Color(192, 152, 58)
 C_VALUE   = mcrfpy.Color(68, 60, 50)
 C_OUTLINE = mcrfpy.Color(95, 85, 72)
 C_ACCENT  = mcrfpy.Color(200, 75, 55)
-C_BG2     = mcrfpy.Color(45, 50, 65)
-C_BG2_PNL = mcrfpy.Color(55, 62, 78)
+C_BG2     = mcrfpy.Color(85, 92, 110)
+C_BG2_PNL = mcrfpy.Color(100, 108, 128)
 
 # ============================================================
 # Shared State
@@ -109,7 +109,12 @@ def _cap(parent, x, y, text, size=11, color=None):
     return c
 
 def _btn(parent, x, y, w, h, label, cb, color=None, fsize=11):
-    """Clickable button frame with centered text."""
+    """Clickable button frame with centered text.
+
+    Caption is a child of the Frame but has NO on_click handler.
+    This way, Caption returns nullptr from click_at(), letting the
+    click fall through to the parent Frame's handler.
+    """
     f = mcrfpy.Frame(pos=(x, y), size=(w, h),
                      fill_color=color or C_BTN,
                      outline_color=C_OUTLINE, outline=1.0)
@@ -124,7 +129,8 @@ def _btn(parent, x, y, w, h, label, cb, color=None, fsize=11):
         if button == mcrfpy.MouseButton.LEFT and action == mcrfpy.InputState.PRESSED:
             cb()
     f.on_click = click
-    c.on_click = click
+    # Do NOT set c.on_click - Caption children consume click events
+    # and prevent the parent Frame's handler from firing.
     return f, c
 
 
@@ -508,108 +514,32 @@ def build_sfxr():
     py += 26
     _btn(bg, 10, py, 118, 22, "RANDOMIZE", randomize_sfxr, color=C_BTN_ACC)
 
-    # --- Top: Waveform Selection ---
-    _cap(bg, 145, 8, "MANUAL SETTINGS", size=13, color=C_HEADER)
+    # --- Right Panel ---
+    rx = 730
 
-    wave_names = ["SQUARE", "SAWTOOTH", "SINEWAVE", "NOISE"]
+    # Waveform Selection
+    _cap(bg, rx, 8, "WAVEFORM", size=12, color=C_HEADER)
+    wave_names = ["SQUARE", "SAW", "SINE", "NOISE"]
     S.wave_btns = []
     for i, wn in enumerate(wave_names):
-        bx = 145 + i * 105
-        b, c = _btn(bg, bx, 28, 100, 22, wn,
-                     lambda idx=i: set_wave(idx))
+        bx = rx + i * 68
+        b, c = _btn(bg, bx, 26, 64, 20, wn,
+                     lambda idx=i: set_wave(idx), fsize=10)
         S.wave_btns.append((b, c))
     _update_wave_btns()
 
-    # --- Center: SFXR Parameter Sliders ---
-    # Column 1
-    col1_x = 140
-    col1_params = [
-        ("ATTACK TIME",    'env_attack',    0.0, 1.0),
-        ("SUSTAIN TIME",   'env_sustain',   0.0, 1.0),
-        ("SUSTAIN PUNCH",  'env_punch',     0.0, 1.0),
-        ("DECAY TIME",     'env_decay',     0.0, 1.0),
-        ("",               None,            0, 0),  # spacer
-        ("START FREQ",     'base_freq',     0.0, 1.0),
-        ("MIN FREQ",       'freq_limit',    0.0, 1.0),
-        ("SLIDE",          'freq_ramp',    -1.0, 1.0),
-        ("DELTA SLIDE",    'freq_dramp',   -1.0, 1.0),
-        ("",               None,            0, 0),
-        ("VIB DEPTH",      'vib_strength',  0.0, 1.0),
-        ("VIB SPEED",      'vib_speed',     0.0, 1.0),
-    ]
-
-    cy = 58
-    ROW = 22
-    for label, key, lo, hi in col1_params:
-        if key is None:
-            cy += 8
-            continue
-        val = S.params[key]
-        sl = Slider(bg, col1_x, cy, label, lo, hi, val,
-                    lambda v, k=key: _sfxr_param_changed(k, v),
-                    sw=140, lw=108)
-        S.sliders[key] = sl
-        cy += ROW
-
-    # Column 2
-    col2_x = 530
-    col2_params = [
-        ("SQUARE DUTY",    'duty',          0.0, 1.0),
-        ("DUTY SWEEP",     'duty_ramp',    -1.0, 1.0),
-        ("",               None,            0, 0),
-        ("REPEAT SPEED",   'repeat_speed',  0.0, 1.0),
-        ("",               None,            0, 0),
-        ("PHA OFFSET",     'pha_offset',   -1.0, 1.0),
-        ("PHA SWEEP",      'pha_ramp',     -1.0, 1.0),
-        ("",               None,            0, 0),
-        ("LP CUTOFF",      'lpf_freq',      0.0, 1.0),
-        ("LP SWEEP",       'lpf_ramp',     -1.0, 1.0),
-        ("LP RESONANCE",   'lpf_resonance', 0.0, 1.0),
-        ("HP CUTOFF",      'hpf_freq',      0.0, 1.0),
-        ("HP SWEEP",       'hpf_ramp',     -1.0, 1.0),
-    ]
-
-    cy = 58
-    for label, key, lo, hi in col2_params:
-        if key is None:
-            cy += 8
-            continue
-        val = S.params[key]
-        sl = Slider(bg, col2_x, cy, label, lo, hi, val,
-                    lambda v, k=key: _sfxr_param_changed(k, v),
-                    sw=140, lw=108)
-        S.sliders[key] = sl
-        cy += ROW
-
-    # Column 2 extras: arpeggiation
-    col2_params2 = [
-        ("ARP MOD",        'arp_mod',      -1.0, 1.0),
-        ("ARP SPEED",      'arp_speed',     0.0, 1.0),
-    ]
-    cy += 8
-    for label, key, lo, hi in col2_params2:
-        val = S.params[key]
-        sl = Slider(bg, col2_x, cy, label, lo, hi, val,
-                    lambda v, k=key: _sfxr_param_changed(k, v),
-                    sw=140, lw=108)
-        S.sliders[key] = sl
-        cy += ROW
-
-    # --- Right Panel ---
-    rx = 790
-
     # Volume
-    _cap(bg, rx, 8, "VOLUME", size=12, color=C_HEADER)
-    Slider(bg, rx, 26, "", 0, 100, S.volume,
+    _cap(bg, rx, 54, "VOLUME", size=12, color=C_HEADER)
+    Slider(bg, rx, 70, "", 0, 100, S.volume,
            lambda v: setattr(S, 'volume', v),
-           sw=180, lw=0)
+           sw=220, lw=0)
 
     # Play button
-    _btn(bg, rx, 50, 180, 28, "PLAY SOUND", play_sfxr,
+    _btn(bg, rx, 90, 270, 28, "PLAY SOUND", play_sfxr,
          color=mcrfpy.Color(180, 100, 80), fsize=13)
 
     # Auto-play toggle
-    auto_btn, auto_cap = _btn(bg, rx, 86, 180, 22, "AUTO-PLAY: ON",
+    auto_btn, auto_cap = _btn(bg, rx, 124, 270, 22, "AUTO-PLAY: ON",
                                lambda: None, color=C_BTN_ON)
     def toggle_auto():
         S.auto_play = not S.auto_play
@@ -618,10 +548,10 @@ def build_sfxr():
     auto_btn.on_click = lambda p, b, a: (
         toggle_auto() if b == mcrfpy.MouseButton.LEFT
         and a == mcrfpy.InputState.PRESSED else None)
-    auto_cap.on_click = auto_btn.on_click
+    # Do NOT set auto_cap.on_click - let clicks pass through to Frame
 
     # DSP Effects
-    _cap(bg, rx, 120, "DSP EFFECTS", size=12, color=C_HEADER)
+    _cap(bg, rx, 158, "DSP EFFECTS", size=12, color=C_HEADER)
 
     fx_list = [
         ("LOW PASS",   'low_pass'),
@@ -631,24 +561,76 @@ def build_sfxr():
         ("DISTORTION", 'distortion'),
         ("BIT CRUSH",  'bit_crush'),
     ]
-    fy = 140
+    fy = 176
     for label, key in fx_list:
-        fb, fc = _btn(bg, rx, fy, 180, 20, label,
+        fb, fc = _btn(bg, rx, fy, 270, 20, label,
                        lambda k=key: toggle_fx(k))
         S.fx_btns[key] = fb
         fy += 24
 
     # Navigation
-    _cap(bg, rx, fy + 16, "NAVIGATION", size=12, color=C_HEADER)
-    _btn(bg, rx, fy + 36, 180, 26, "ANIMALESE >>",
+    _cap(bg, rx, fy + 10, "NAVIGATION", size=12, color=C_HEADER)
+    _btn(bg, rx, fy + 28, 270, 26, "ANIMALESE >>",
          lambda: setattr(mcrfpy, 'current_scene', S.anim_scene))
 
+    # --- Center: SFXR Parameter Sliders (single column) ---
+    sx = 140
+    cy = 8
+    ROW = 18
+    SL_W = 220
+    LBL_W = 108
+
+    all_params = [
+        ("ENVELOPE", None),
+        ("ATTACK TIME",    'env_attack',    0.0, 1.0),
+        ("SUSTAIN TIME",   'env_sustain',   0.0, 1.0),
+        ("SUSTAIN PUNCH",  'env_punch',     0.0, 1.0),
+        ("DECAY TIME",     'env_decay',     0.0, 1.0),
+        ("FREQUENCY", None),
+        ("START FREQ",     'base_freq',     0.0, 1.0),
+        ("MIN FREQ",       'freq_limit',    0.0, 1.0),
+        ("SLIDE",          'freq_ramp',    -1.0, 1.0),
+        ("DELTA SLIDE",    'freq_dramp',   -1.0, 1.0),
+        ("VIBRATO", None),
+        ("VIB DEPTH",      'vib_strength',  0.0, 1.0),
+        ("VIB SPEED",      'vib_speed',     0.0, 1.0),
+        ("DUTY", None),
+        ("SQUARE DUTY",    'duty',          0.0, 1.0),
+        ("DUTY SWEEP",     'duty_ramp',    -1.0, 1.0),
+        ("ARPEGGIATION", None),
+        ("ARP MOD",        'arp_mod',      -1.0, 1.0),
+        ("ARP SPEED",      'arp_speed',     0.0, 1.0),
+        ("REPEAT", None),
+        ("REPEAT SPEED",   'repeat_speed',  0.0, 1.0),
+        ("PHASER", None),
+        ("PHA OFFSET",     'pha_offset',   -1.0, 1.0),
+        ("PHA SWEEP",      'pha_ramp',     -1.0, 1.0),
+        ("FILTER", None),
+        ("LP CUTOFF",      'lpf_freq',      0.0, 1.0),
+        ("LP SWEEP",       'lpf_ramp',     -1.0, 1.0),
+        ("LP RESONANCE",   'lpf_resonance', 0.0, 1.0),
+        ("HP CUTOFF",      'hpf_freq',      0.0, 1.0),
+        ("HP SWEEP",       'hpf_ramp',     -1.0, 1.0),
+    ]
+
+    for entry in all_params:
+        if len(entry) == 2:
+            # Section header
+            header_text, _ = entry
+            _cap(bg, sx, cy, header_text, size=10, color=C_HEADER)
+            cy += 14
+            continue
+        label, key, lo, hi = entry
+        val = S.params[key]
+        sl = Slider(bg, sx, cy, label, lo, hi, val,
+                    lambda v, k=key: _sfxr_param_changed(k, v),
+                    sw=SL_W, lw=LBL_W)
+        S.sliders[key] = sl
+        cy += ROW
+
     # --- Keyboard hints ---
-    hints_y = H - 90
-    _cap(bg, 10, hints_y, "Keyboard:", size=11, color=C_HEADER)
-    _cap(bg, 10, hints_y + 16, "SPACE = Play   R = Randomize   M = Mutate",
-         size=10, color=C_VALUE)
-    _cap(bg, 10, hints_y + 30, "1-4 = Waveform   TAB = Animalese   ESC = Quit",
+    _cap(bg, 10, H - 44, "Keyboard:", size=11, color=C_HEADER)
+    _cap(bg, 10, H - 28, "SPACE=Play  R=Random  M=Mutate  1-4=Wave  TAB=Animalese  ESC=Quit",
          size=10, color=C_VALUE)
 
     # --- Key handler ---
@@ -694,11 +676,11 @@ def build_animalese():
     scene.children.append(bg)
 
     # Title
-    _cap(bg, 20, 10, "ANIMALESE SPEECH SYNTH", size=16, color=mcrfpy.Color(220, 215, 200))
+    _cap(bg, 20, 10, "ANIMALESE SPEECH SYNTH", size=16, color=mcrfpy.Color(240, 235, 220))
 
     # --- Text Display ---
     _cap(bg, 20, 50, "TEXT (type to edit, ENTER to speak):", size=11,
-         color=mcrfpy.Color(160, 155, 140))
+         color=mcrfpy.Color(220, 215, 200))
 
     # Text input display
     text_frame = mcrfpy.Frame(pos=(20, 70), size=(700, 36),
@@ -712,7 +694,7 @@ def build_animalese():
     text_frame.children.append(S.text_cap)
 
     # Current letter display (large)
-    _cap(bg, 740, 50, "NOW:", size=11, color=mcrfpy.Color(160, 155, 140))
+    _cap(bg, 740, 50, "NOW:", size=11, color=mcrfpy.Color(220, 215, 200))
     S.letter_cap = mcrfpy.Caption(text="", pos=(740, 68),
                                    fill_color=C_ACCENT)
     S.letter_cap.font_size = 42
@@ -720,7 +702,7 @@ def build_animalese():
 
     # --- Personality Presets ---
     _cap(bg, 20, 120, "CHARACTER PRESETS", size=13,
-         color=mcrfpy.Color(200, 195, 180))
+         color=mcrfpy.Color(240, 235, 220))
 
     px = 20
     for name in ['CRANKY', 'NORMAL', 'PEPPY', 'LAZY', 'JOCK']:
@@ -731,7 +713,7 @@ def build_animalese():
 
     # --- Voice Parameters ---
     _cap(bg, 20, 185, "VOICE PARAMETERS", size=13,
-         color=mcrfpy.Color(200, 195, 180))
+         color=mcrfpy.Color(240, 235, 220))
 
     sy = 208
     S.anim_sliders['pitch'] = Slider(
@@ -761,7 +743,7 @@ def build_animalese():
     # --- Formant Reference ---
     ry = 185
     _cap(bg, 550, ry, "LETTER -> VOWEL MAPPING", size=12,
-         color=mcrfpy.Color(180, 175, 160))
+         color=mcrfpy.Color(240, 235, 220))
     ry += 22
     mappings = [
         ("A H L R", "-> 'ah' (F1=660, F2=1700)"),
@@ -772,20 +754,20 @@ def build_animalese():
     ]
     for letters, desc in mappings:
         _cap(bg, 555, ry, letters, size=11,
-             color=mcrfpy.Color(200, 180, 120))
+             color=mcrfpy.Color(240, 220, 140))
         _cap(bg, 680, ry, desc, size=10,
-             color=mcrfpy.Color(140, 135, 125))
+             color=mcrfpy.Color(200, 195, 180))
         ry += 18
 
     _cap(bg, 555, ry + 8, "Consonants (B,C,D,...) add", size=10,
-         color=mcrfpy.Color(120, 115, 105))
+         color=mcrfpy.Color(185, 180, 170))
     _cap(bg, 555, ry + 22, "a noise burst before the vowel", size=10,
-         color=mcrfpy.Color(120, 115, 105))
+         color=mcrfpy.Color(185, 180, 170))
 
     # --- How it works ---
     hy = 420
     _cap(bg, 20, hy, "HOW IT WORKS", size=13,
-         color=mcrfpy.Color(200, 195, 180))
+         color=mcrfpy.Color(240, 235, 220))
     steps = [
         "1. Each letter maps to a vowel class (ah/eh/ee/oh/oo)",
         "2. Sawtooth tone at base_pitch filtered through low_pass (formant F1)",
@@ -796,7 +778,7 @@ def build_animalese():
     ]
     for i, step in enumerate(steps):
         _cap(bg, 25, hy + 22 + i * 17, step, size=10,
-             color=mcrfpy.Color(140, 138, 128))
+             color=mcrfpy.Color(200, 198, 188))
 
     # --- Navigation ---
     _btn(bg, 20, H - 50, 200, 28, "<< SFXR SYNTH",
@@ -806,7 +788,7 @@ def build_animalese():
     # --- Keyboard hints ---
     _cap(bg, 250, H - 46, "Type letters to edit text | ENTER = Speak | "
          "1-5 = Presets | TAB = SFXR | ESC = Quit",
-         size=10, color=mcrfpy.Color(110, 108, 98))
+         size=10, color=mcrfpy.Color(190, 188, 175))
 
     # Build key-to-char map
     key_chars = {}

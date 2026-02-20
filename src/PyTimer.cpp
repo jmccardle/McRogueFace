@@ -101,6 +101,8 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
             it->second->stop();
         }
         Resources::game->timers[self->name] = self->data;
+        // Prevent Python GC while timer is active (#251)
+        self->data->retainPyWrapper((PyObject*)self);
     }
 
     return 0;
@@ -147,6 +149,8 @@ PyObject* PyTimer::start(PyTimerObject* self, PyObject* Py_UNUSED(ignored)) {
     }
 
     self->data->start(current_time);
+    // Prevent Python GC while timer is active (#251)
+    self->data->retainPyWrapper((PyObject*)self);
     Py_RETURN_NONE;
 }
 
@@ -218,6 +222,8 @@ PyObject* PyTimer::restart(PyTimerObject* self, PyObject* Py_UNUSED(ignored)) {
     }
 
     self->data->restart(current_time);
+    // Prevent Python GC while timer is active (#251)
+    self->data->retainPyWrapper((PyObject*)self);
     Py_RETURN_NONE;
 }
 
@@ -316,6 +322,8 @@ int PyTimer::set_active(PyTimerObject* self, PyObject* value, void* closure) {
                 Resources::game->timers[self->name] = self->data;
             }
             self->data->start(current_time);
+            // Prevent Python GC while timer is active (#251)
+            self->data->retainPyWrapper((PyObject*)self);
         } else if (self->data->isPaused()) {
             // Resume from pause
             self->data->resume(current_time);

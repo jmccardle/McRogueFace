@@ -90,8 +90,10 @@ namespace mcrfpydef {
             if (obj->weakreflist != NULL) {
                 PyObject_ClearWeakRefs(self);
             }
-            // Clear Python references to break cycles
-            if (obj->data) {
+            // Only unregister callbacks if we're the last owner of the
+            // C++ object. If other shared_ptr owners exist (e.g. parent's
+            // children vector), the callbacks must survive. (#251)
+            if (obj->data && obj->data.use_count() <= 1) {
                 obj->data->click_unregister();
                 obj->data->on_enter_unregister();
                 obj->data->on_exit_unregister();

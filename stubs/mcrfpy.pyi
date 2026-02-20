@@ -5,7 +5,8 @@ Core game engine interface for creating roguelike games with Python.
 
 from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload
 
-# Type aliases
+# Type aliases - Color tuples are accepted anywhere a Color is expected
+ColorLike = Union['Color', Tuple[int, int, int], Tuple[int, int, int, int]]
 UIElement = Union['Frame', 'Caption', 'Sprite', 'Grid', 'Line', 'Circle', 'Arc']
 Transition = Union[str, None]
 
@@ -20,11 +21,39 @@ class Key:
     A: 'Key'
     B: 'Key'
     C: 'Key'
-    # ... (all letters A-Z)
+    D: 'Key'
+    E: 'Key'
+    F: 'Key'
+    G: 'Key'
+    H: 'Key'
+    I: 'Key'
+    J: 'Key'
+    K: 'Key'
+    L: 'Key'
+    M: 'Key'
+    N: 'Key'
+    O: 'Key'
+    P: 'Key'
+    Q: 'Key'
+    R: 'Key'
+    S: 'Key'
+    T: 'Key'
+    U: 'Key'
+    V: 'Key'
+    W: 'Key'
+    X: 'Key'
+    Y: 'Key'
+    Z: 'Key'
     Num0: 'Key'
     Num1: 'Key'
     Num2: 'Key'
-    # ... (Num0-Num9)
+    Num3: 'Key'
+    Num4: 'Key'
+    Num5: 'Key'
+    Num6: 'Key'
+    Num7: 'Key'
+    Num8: 'Key'
+    Num9: 'Key'
     ESCAPE: 'Key'
     ENTER: 'Key'
     SPACE: 'Key'
@@ -41,7 +70,59 @@ class Key:
     RCTRL: 'Key'
     LALT: 'Key'
     RALT: 'Key'
-    # ... (additional keys)
+    F1: 'Key'
+    F2: 'Key'
+    F3: 'Key'
+    F4: 'Key'
+    F5: 'Key'
+    F6: 'Key'
+    F7: 'Key'
+    F8: 'Key'
+    F9: 'Key'
+    F10: 'Key'
+    F11: 'Key'
+    F12: 'Key'
+    F13: 'Key'
+    F14: 'Key'
+    F15: 'Key'
+    HOME: 'Key'
+    END: 'Key'
+    PAGEUP: 'Key'
+    PAGEDOWN: 'Key'
+    INSERT: 'Key'
+    PAUSE: 'Key'
+    TILDE: 'Key'
+    MINUS: 'Key'
+    EQUAL: 'Key'
+    LBRACKET: 'Key'
+    RBRACKET: 'Key'
+    BACKSLASH: 'Key'
+    SEMICOLON: 'Key'
+    QUOTE: 'Key'
+    COMMA: 'Key'
+    PERIOD: 'Key'
+    SLASH: 'Key'
+    # NUM_ aliases for Num keys
+    NUM_0: 'Key'
+    NUM_1: 'Key'
+    NUM_2: 'Key'
+    NUM_3: 'Key'
+    NUM_4: 'Key'
+    NUM_5: 'Key'
+    NUM_6: 'Key'
+    NUM_7: 'Key'
+    NUM_8: 'Key'
+    NUM_9: 'Key'
+    NUMPAD0: 'Key'
+    NUMPAD1: 'Key'
+    NUMPAD2: 'Key'
+    NUMPAD3: 'Key'
+    NUMPAD4: 'Key'
+    NUMPAD5: 'Key'
+    NUMPAD6: 'Key'
+    NUMPAD7: 'Key'
+    NUMPAD8: 'Key'
+    NUMPAD9: 'Key'
 
 class MouseButton:
     """Mouse button enum for click callbacks."""
@@ -95,40 +176,40 @@ class Easing:
 
 class Color:
     """SFML Color Object for RGBA colors."""
-    
+
     r: int
     g: int
     b: int
     a: int
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, r: int, g: int, b: int, a: int = 255) -> None: ...
-    
+
     def from_hex(self, hex_string: str) -> 'Color':
         """Create color from hex string (e.g., '#FF0000' or 'FF0000')."""
         ...
-    
+
     def to_hex(self) -> str:
         """Convert color to hex string format."""
         ...
-    
+
     def lerp(self, other: 'Color', t: float) -> 'Color':
         """Linear interpolation between two colors."""
         ...
 
 class Vector:
     """SFML Vector Object for 2D coordinates."""
-    
+
     x: float
     y: float
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, x: float, y: float) -> None: ...
-    
+
     def add(self, other: 'Vector') -> 'Vector': ...
     def subtract(self, other: 'Vector') -> 'Vector': ...
     def multiply(self, scalar: float) -> 'Vector': ...
@@ -138,22 +219,88 @@ class Vector:
     def dot(self, other: 'Vector') -> float: ...
 
 class Texture:
-    """SFML Texture Object for images."""
-    
-    def __init__(self, filename: str) -> None: ...
-    
+    """SFML Texture Object for sprite sheet images."""
+
+    def __init__(self, filename: str, sprite_width: int = 0, sprite_height: int = 0) -> None: ...
+
     filename: str
     width: int
     height: int
     sprite_count: int
 
+    @classmethod
+    def from_bytes(cls, data: bytes, width: int, height: int,
+                   sprite_width: int, sprite_height: int,
+                   name: str = "<generated>") -> 'Texture':
+        """Create texture from raw RGBA bytes."""
+        ...
+
+    @classmethod
+    def composite(cls, textures: List['Texture'],
+                  sprite_width: int, sprite_height: int,
+                  name: str = "<composite>") -> 'Texture':
+        """Composite multiple textures into one by layering sprites."""
+        ...
+
+    def hsl_shift(self, hue_shift: float, sat_shift: float = 0.0,
+                  lit_shift: float = 0.0) -> 'Texture':
+        """Return a new texture with HSL color shift applied."""
+        ...
+
 class Font:
     """SFML Font Object for text rendering."""
-    
+
     def __init__(self, filename: str) -> None: ...
-    
+
     filename: str
     family: str
+
+class Sound:
+    """Sound effect object for short audio clips."""
+
+    def __init__(self, filename: str) -> None: ...
+
+    volume: float
+    loop: bool
+    playing: bool  # Read-only
+    duration: float  # Read-only
+    source: str  # Read-only
+
+    def play(self) -> None:
+        """Play the sound effect."""
+        ...
+
+    def pause(self) -> None:
+        """Pause playback."""
+        ...
+
+    def stop(self) -> None:
+        """Stop playback."""
+        ...
+
+class Music:
+    """Streaming music object for longer audio tracks."""
+
+    def __init__(self, filename: str) -> None: ...
+
+    volume: float
+    loop: bool
+    playing: bool  # Read-only
+    duration: float  # Read-only
+    position: float  # Playback position in seconds
+    source: str  # Read-only
+
+    def play(self) -> None:
+        """Play the music."""
+        ...
+
+    def pause(self) -> None:
+        """Pause playback."""
+        ...
+
+    def stop(self) -> None:
+        """Stop playback."""
+        ...
 
 class Drawable:
     """Base class for all drawable UI elements."""
@@ -164,6 +311,7 @@ class Drawable:
     z_index: int
     name: str
     pos: Vector
+    opacity: float
 
     # Mouse event callbacks (#140, #141, #230)
     # on_click receives (pos: Vector, button: MouseButton, action: InputState)
@@ -188,6 +336,12 @@ class Drawable:
         """Resize to new dimensions (width, height)."""
         ...
 
+    def animate(self, property: str, end_value: Any, duration: float,
+                easing: Union[str, 'Easing'] = 'linear',
+                callback: Optional[Callable[[Any, str, Any], None]] = None) -> None:
+        """Animate a property to a target value over duration seconds."""
+        ...
+
 class Frame(Drawable):
     """Frame(x=0, y=0, w=0, h=0, fill_color=None, outline_color=None, outline=0, on_click=None, children=None)
 
@@ -198,59 +352,73 @@ class Frame(Drawable):
     def __init__(self) -> None: ...
     @overload
     def __init__(self, x: float = 0, y: float = 0, w: float = 0, h: float = 0,
-                 fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
+                 fill_color: Optional[ColorLike] = None, outline_color: Optional[ColorLike] = None,
+                 outline: float = 0, on_click: Optional[Callable] = None,
+                 children: Optional[List[UIElement]] = None) -> None: ...
+    @overload
+    def __init__(self, pos: Tuple[float, float], size: Tuple[float, float],
+                 fill_color: Optional[ColorLike] = None, outline_color: Optional[ColorLike] = None,
                  outline: float = 0, on_click: Optional[Callable] = None,
                  children: Optional[List[UIElement]] = None) -> None: ...
 
     w: float
     h: float
-    fill_color: Color
-    outline_color: Color
+    fill_color: ColorLike
+    outline_color: ColorLike
     outline: float
-    on_click: Optional[Callable[[float, float, int], None]]
     children: 'UICollection'
     clip_children: bool
 
 class Caption(Drawable):
-    """Caption(text='', x=0, y=0, font=None, fill_color=None, outline_color=None, outline=0, on_click=None)
+    """Caption(pos=None, font=None, text='', fill_color=None, ...)
 
     A text display UI element with customizable font and styling.
+    Positional args: pos, font, text. Everything else is keyword-only.
     """
 
     @overload
     def __init__(self) -> None: ...
     @overload
-    def __init__(self, text: str = '', x: float = 0, y: float = 0,
-                 font: Optional[Font] = None, fill_color: Optional[Color] = None,
-                 outline_color: Optional[Color] = None, outline: float = 0,
-                 on_click: Optional[Callable] = None) -> None: ...
+    def __init__(self, pos: Optional[Tuple[float, float]] = None,
+                 font: Optional[Font] = None, text: str = '',
+                 fill_color: Optional[ColorLike] = None,
+                 outline_color: Optional[ColorLike] = None, outline: float = 0,
+                 font_size: float = 16.0, on_click: Optional[Callable] = None,
+                 visible: bool = True, opacity: float = 1.0,
+                 z_index: int = 0, name: str = '',
+                 x: float = 0, y: float = 0) -> None: ...
 
     text: str
     font: Font
-    fill_color: Color
-    outline_color: Color
+    fill_color: ColorLike
+    outline_color: ColorLike
     outline: float
-    on_click: Optional[Callable[[float, float, int], None]]
+    font_size: float
     w: float  # Read-only, computed from text
     h: float  # Read-only, computed from text
 
 class Sprite(Drawable):
-    """Sprite(x=0, y=0, texture=None, sprite_index=0, scale=1.0, on_click=None)
+    """Sprite(pos=None, texture=None, sprite_index=0, scale=1.0, on_click=None)
 
     A sprite UI element that displays a texture or portion of a texture atlas.
+    Positional args: pos, texture, sprite_index. Everything else is keyword-only.
     """
 
     @overload
     def __init__(self) -> None: ...
     @overload
-    def __init__(self, x: float = 0, y: float = 0, texture: Optional[Texture] = None,
+    def __init__(self, pos: Optional[Tuple[float, float]] = None,
+                 texture: Optional[Texture] = None,
                  sprite_index: int = 0, scale: float = 1.0,
-                 on_click: Optional[Callable] = None) -> None: ...
+                 on_click: Optional[Callable] = None,
+                 visible: bool = True, opacity: float = 1.0,
+                 z_index: int = 0, name: str = '',
+                 x: float = 0, y: float = 0) -> None: ...
 
     texture: Texture
     sprite_index: int
+    sprite_number: int  # Deprecated alias for sprite_index
     scale: float
-    on_click: Optional[Callable[[float, float, int], None]]
     w: float  # Read-only, computed from texture
     h: float  # Read-only, computed from texture
 
@@ -268,14 +436,15 @@ class Grid(Drawable):
                  size: Tuple[float, float] = (0, 0),
                  grid_size: Tuple[int, int] = (2, 2),
                  texture: Optional[Texture] = None,
-                 fill_color: Optional[Color] = None,
+                 fill_color: Optional[ColorLike] = None,
                  on_click: Optional[Callable] = None,
                  center_x: float = 0, center_y: float = 0, zoom: float = 1.0,
                  visible: bool = True, opacity: float = 1.0,
-                 z_index: int = 0, name: str = '') -> None: ...
+                 z_index: int = 0, name: str = '',
+                 layers: Optional[List[Union['ColorLayer', 'TileLayer']]] = None) -> None: ...
 
     # Dimensions
-    grid_size: Tuple[int, int]  # Read-only (grid_w, grid_h)
+    grid_size: Vector  # Read-only - has .x (width) and .y (height)
     grid_w: int  # Read-only
     grid_h: int  # Read-only
 
@@ -286,7 +455,7 @@ class Grid(Drawable):
     h: float
 
     # Camera/viewport
-    center: Vector  # Viewport center point (pan position)
+    center: Union[Vector, Tuple[float, float]]  # Viewport center point (pixel coordinates)
     center_x: float
     center_y: float
     zoom: float  # Scale factor for rendering
@@ -294,11 +463,11 @@ class Grid(Drawable):
     # Collections
     entities: 'EntityCollection'  # Entities on this grid
     children: 'UICollection'  # UI overlays (speech bubbles, effects)
-    layers: List[Union['ColorLayer', 'TileLayer']]  # Grid layers sorted by z_index
+    layers: Tuple[Union['ColorLayer', 'TileLayer'], ...]  # Grid layers sorted by z_index
 
     # Appearance
     texture: Texture  # Read-only
-    fill_color: Color  # Background fill color
+    fill_color: ColorLike  # Background fill color
 
     # Perspective/FOV
     perspective: Optional['Entity']  # Entity for FOV rendering (None = omniscient)
@@ -307,9 +476,7 @@ class Grid(Drawable):
     fov_radius: int  # Default FOV radius
 
     # Cell-level mouse events (#230)
-    # on_cell_click receives (cell_pos: Vector, button: MouseButton, action: InputState)
     on_cell_click: Optional[Callable[['Vector', 'MouseButton', 'InputState'], None]]
-    # Cell hover callbacks receive only position per #230
     on_cell_enter: Optional[Callable[['Vector'], None]]
     on_cell_exit: Optional[Callable[['Vector'], None]]
     hovered_cell: Optional[Tuple[int, int]]  # Read-only
@@ -349,17 +516,16 @@ class Grid(Drawable):
         ...
 
     # Layer methods
-    def add_layer(self, type: str, z_index: int = -1,
-                  texture: Optional[Texture] = None) -> Union['ColorLayer', 'TileLayer']:
-        """Add a new layer to the grid."""
+    def add_layer(self, layer: Union['ColorLayer', 'TileLayer']) -> None:
+        """Add a pre-constructed layer to the grid."""
         ...
 
     def remove_layer(self, layer: Union['ColorLayer', 'TileLayer']) -> None:
         """Remove a layer from the grid."""
         ...
 
-    def layer(self, z_index: int) -> Optional[Union['ColorLayer', 'TileLayer']]:
-        """Get layer by z_index."""
+    def layer(self, name: str) -> Optional[Union['ColorLayer', 'TileLayer']]:
+        """Get layer by name."""
         ...
 
     # Spatial queries
@@ -391,14 +557,13 @@ class Line(Drawable):
     @overload
     def __init__(self, start: Optional[Tuple[float, float]] = None,
                  end: Optional[Tuple[float, float]] = None,
-                 thickness: float = 1.0, color: Optional[Color] = None,
+                 thickness: float = 1.0, color: Optional[ColorLike] = None,
                  on_click: Optional[Callable] = None) -> None: ...
 
     start: Vector
     end: Vector
     thickness: float
-    color: Color
-    on_click: Optional[Callable[[float, float, int], None]]
+    color: ColorLike
 
 class Circle(Drawable):
     """Circle(radius=0, center=None, fill_color=None, outline_color=None, outline=0, on_click=None, **kwargs)
@@ -410,15 +575,14 @@ class Circle(Drawable):
     def __init__(self) -> None: ...
     @overload
     def __init__(self, radius: float = 0, center: Optional[Tuple[float, float]] = None,
-                 fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
+                 fill_color: Optional[ColorLike] = None, outline_color: Optional[ColorLike] = None,
                  outline: float = 0, on_click: Optional[Callable] = None) -> None: ...
 
     radius: float
     center: Vector
-    fill_color: Color
-    outline_color: Color
+    fill_color: ColorLike
+    outline_color: ColorLike
     outline: float
-    on_click: Optional[Callable[[float, float, int], None]]
 
 class Arc(Drawable):
     """Arc(center=None, radius=0, start_angle=0, end_angle=90, color=None, thickness=1, on_click=None, **kwargs)
@@ -431,16 +595,15 @@ class Arc(Drawable):
     @overload
     def __init__(self, center: Optional[Tuple[float, float]] = None, radius: float = 0,
                  start_angle: float = 0, end_angle: float = 90,
-                 color: Optional[Color] = None, thickness: float = 1.0,
+                 color: Optional[ColorLike] = None, thickness: float = 1.0,
                  on_click: Optional[Callable] = None) -> None: ...
 
     center: Vector
     radius: float
     start_angle: float
     end_angle: float
-    color: Color
+    color: ColorLike
     thickness: float
-    on_click: Optional[Callable[[float, float, int], None]]
 
 class GridPoint:
     """Grid point representing a single tile's properties.
@@ -451,6 +614,7 @@ class GridPoint:
 
     walkable: bool  # Whether entities can walk through this cell
     transparent: bool  # Whether light/sight passes through this cell
+    tilesprite: int  # Tile sprite index (legacy property, not in dir())
     entities: List['Entity']  # Read-only list of entities at this cell
     grid_pos: Tuple[int, int]  # Read-only (x, y) position in grid
 
@@ -468,20 +632,27 @@ class ColorLayer:
     """A color overlay layer for Grid.
 
     Provides per-cell color values for tinting, fog of war, etc.
+    Construct independently, then add to a Grid via grid.add_layer().
     """
 
-    z_index: int
-    grid: 'Grid'  # Read-only parent grid
+    def __init__(self, z_index: int = -1, name: Optional[str] = None,
+                 grid_size: Optional[Tuple[int, int]] = None) -> None: ...
 
-    def fill(self, color: Color) -> None:
+    z_index: int
+    name: str  # Read-only
+    visible: bool
+    grid_size: Vector  # Read-only
+    grid: Optional['Grid']
+
+    def fill(self, color: ColorLike) -> None:
         """Fill entire layer with a single color."""
         ...
 
-    def set_color(self, pos: Tuple[int, int], color: Color) -> None:
+    def set(self, pos: Tuple[int, int], color: ColorLike) -> None:
         """Set color at a specific cell."""
         ...
 
-    def get_color(self, pos: Tuple[int, int]) -> Color:
+    def get(self, pos: Tuple[int, int]) -> Color:
         """Get color at a specific cell."""
         ...
 
@@ -489,21 +660,29 @@ class TileLayer:
     """A tile sprite layer for Grid.
 
     Provides per-cell tile indices for multi-layer tile rendering.
+    Construct independently, then add to a Grid via grid.add_layer().
     """
 
+    def __init__(self, z_index: int = -1, name: Optional[str] = None,
+                 texture: Optional[Texture] = None,
+                 grid_size: Optional[Tuple[int, int]] = None) -> None: ...
+
     z_index: int
-    grid: 'Grid'  # Read-only parent grid
+    name: str  # Read-only
+    visible: bool
     texture: Optional[Texture]
+    grid_size: Vector  # Read-only
+    grid: Optional['Grid']
 
     def fill(self, tile_index: int) -> None:
         """Fill entire layer with a single tile index."""
         ...
 
-    def set_tile(self, pos: Tuple[int, int], tile_index: int) -> None:
-        """Set tile index at a specific cell."""
+    def set(self, pos: Tuple[int, int], tile_index: int) -> None:
+        """Set tile index at a specific cell. Use -1 for transparent."""
         ...
 
-    def get_tile(self, pos: Tuple[int, int]) -> int:
+    def get(self, pos: Tuple[int, int]) -> int:
         """Get tile index at a specific cell."""
         ...
 
@@ -672,37 +851,38 @@ class BSP:
 
 class Entity(Drawable):
     """Entity(grid_x=0, grid_y=0, texture=None, sprite_index=0, name='')
-    
+
     Game entity that lives within a Grid.
     """
-    
+
     @overload
     def __init__(self) -> None: ...
     @overload
     def __init__(self, grid_x: float = 0, grid_y: float = 0, texture: Optional[Texture] = None,
                  sprite_index: int = 0, name: str = '') -> None: ...
-    
+
     grid_x: float
     grid_y: float
     texture: Texture
     sprite_index: int
+    sprite_number: int  # Deprecated alias for sprite_index
     grid: Optional[Grid]
-    
+
     def at(self, grid_x: float, grid_y: float) -> None:
         """Move entity to grid position."""
         ...
-    
+
     def die(self) -> None:
         """Remove entity from its grid."""
         ...
-    
+
     def index(self) -> int:
         """Get index in parent grid's entity collection."""
         ...
 
 class UICollection:
     """Collection of UI drawable elements (Frame, Caption, Sprite, Grid, Line, Circle, Arc)."""
-    
+
     def __len__(self) -> int: ...
     def __getitem__(self, index: int) -> UIElement: ...
     def __setitem__(self, index: int, value: UIElement) -> None: ...
@@ -711,16 +891,17 @@ class UICollection:
     def __iter__(self) -> Any: ...
     def __add__(self, other: 'UICollection') -> 'UICollection': ...
     def __iadd__(self, other: 'UICollection') -> 'UICollection': ...
-    
+
     def append(self, item: UIElement) -> None: ...
     def extend(self, items: List[UIElement]) -> None: ...
+    def pop(self, index: int = -1) -> UIElement: ...
     def remove(self, item: UIElement) -> None: ...
     def index(self, item: UIElement) -> int: ...
     def count(self, item: UIElement) -> int: ...
 
 class EntityCollection:
     """Collection of Entity objects."""
-    
+
     def __len__(self) -> int: ...
     def __getitem__(self, index: int) -> Entity: ...
     def __setitem__(self, index: int, value: Entity) -> None: ...
@@ -729,9 +910,10 @@ class EntityCollection:
     def __iter__(self) -> Any: ...
     def __add__(self, other: 'EntityCollection') -> 'EntityCollection': ...
     def __iadd__(self, other: 'EntityCollection') -> 'EntityCollection': ...
-    
+
     def append(self, item: Entity) -> None: ...
     def extend(self, items: List[Entity]) -> None: ...
+    def pop(self, index: int = -1) -> Entity: ...
     def remove(self, item: Entity) -> None: ...
     def index(self, item: Entity) -> int: ...
     def count(self, item: Entity) -> int: ...
@@ -740,7 +922,7 @@ class Scene:
     """Base class for object-oriented scenes."""
 
     name: str
-    children: UICollection  # #151: UI elements collection (read-only alias for get_ui())
+    children: UICollection  # UI elements collection (read-only alias for get_ui())
     # Keyboard handler receives (key: Key, action: InputState) per #184
     on_key: Optional[Callable[['Key', 'InputState'], None]]
 
@@ -783,29 +965,46 @@ class Scene:
         ...
 
 class Timer:
-    """Timer object for scheduled callbacks."""
-    
+    """Timer object for scheduled callbacks.
+
+    Callback receives (timer_object, runtime_ms).
+    """
+
     name: str
     interval: int
+    callback: Callable[['Timer', float], None]
     active: bool
-    
-    def __init__(self, name: str, callback: Callable[[float], None], interval: int) -> None: ...
-    
+    paused: bool
+    stopped: bool
+    remaining: int
+    once: bool
+
+    def __init__(self, name: str, callback: Callable[['Timer', float], None],
+                 interval: int, once: bool = False, start: bool = True) -> None: ...
+
+    def stop(self) -> None:
+        """Stop the timer."""
+        ...
+
     def pause(self) -> None:
         """Pause the timer."""
         ...
-    
+
     def resume(self) -> None:
         """Resume the timer."""
         ...
-    
+
+    def restart(self) -> None:
+        """Restart the timer."""
+        ...
+
     def cancel(self) -> None:
         """Cancel and remove the timer."""
         ...
 
 class Window:
     """Window singleton for managing the game window."""
-    
+
     resolution: Tuple[int, int]
     fullscreen: bool
     vsync: bool
@@ -813,7 +1012,7 @@ class Window:
     fps_limit: int
     game_resolution: Tuple[int, int]
     scaling_mode: str
-    
+
     @staticmethod
     def get() -> 'Window':
         """Get the window singleton instance."""
@@ -834,7 +1033,6 @@ class Animation:
     property: str
     duration: float
     easing: 'Easing'
-    # Callback receives (target: Any, property: str, final_value: Any) per #229
     callback: Optional[Callable[[Any, str, Any], None]]
 
     def __init__(self, property: str, end_value: Any, duration: float,
@@ -848,6 +1046,10 @@ class Animation:
     def get_current_value(self) -> Any:
         """Get the current interpolated value."""
         ...
+
+# Module-level properties
+
+current_scene: Scene  # Get or set the active scene
 
 # Module functions
 
@@ -937,81 +1139,97 @@ def getMetrics() -> Dict[str, Union[int, float]]:
     """Get current performance metrics."""
     ...
 
+def step(dt: float) -> None:
+    """Advance the game loop by dt seconds (headless mode only)."""
+    ...
+
+def start_benchmark() -> None:
+    """Start performance benchmarking."""
+    ...
+
+def end_benchmark() -> None:
+    """End performance benchmarking."""
+    ...
+
+def log_benchmark(message: str) -> None:
+    """Log a benchmark measurement."""
+    ...
+
 # Submodule
 class automation:
     """Automation API for testing and scripting."""
-    
+
     @staticmethod
     def screenshot(filename: str) -> bool:
         """Save a screenshot to the specified file."""
         ...
-    
+
     @staticmethod
     def position() -> Tuple[int, int]:
         """Get current mouse position as (x, y) tuple."""
         ...
-    
+
     @staticmethod
     def size() -> Tuple[int, int]:
         """Get screen size as (width, height) tuple."""
         ...
-    
+
     @staticmethod
     def onScreen(x: int, y: int) -> bool:
         """Check if coordinates are within screen bounds."""
         ...
-    
+
     @staticmethod
     def moveTo(x: int, y: int, duration: float = 0.0) -> None:
         """Move mouse to absolute position."""
         ...
-    
+
     @staticmethod
     def moveRel(xOffset: int, yOffset: int, duration: float = 0.0) -> None:
         """Move mouse relative to current position."""
         ...
-    
+
     @staticmethod
     def dragTo(x: int, y: int, duration: float = 0.0, button: str = 'left') -> None:
         """Drag mouse to position."""
         ...
-    
+
     @staticmethod
     def dragRel(xOffset: int, yOffset: int, duration: float = 0.0, button: str = 'left') -> None:
         """Drag mouse relative to current position."""
         ...
-    
+
     @staticmethod
     def click(x: Optional[int] = None, y: Optional[int] = None, clicks: int = 1,
               interval: float = 0.0, button: str = 'left') -> None:
         """Click mouse at position."""
         ...
-    
+
     @staticmethod
     def mouseDown(x: Optional[int] = None, y: Optional[int] = None, button: str = 'left') -> None:
         """Press mouse button down."""
         ...
-    
+
     @staticmethod
     def mouseUp(x: Optional[int] = None, y: Optional[int] = None, button: str = 'left') -> None:
         """Release mouse button."""
         ...
-    
+
     @staticmethod
     def keyDown(key: str) -> None:
         """Press key down."""
         ...
-    
+
     @staticmethod
     def keyUp(key: str) -> None:
         """Release key."""
         ...
-    
+
     @staticmethod
     def press(key: str) -> None:
         """Press and release a key."""
         ...
-    
+
     @staticmethod
     def typewrite(text: str, interval: float = 0.0) -> None:
         """Type text with optional interval between characters."""

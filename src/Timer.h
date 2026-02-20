@@ -29,6 +29,11 @@ public:
     uint64_t serial_number = 0;  // For Python object cache
     std::string name;  // Store name for creating Python wrappers (#180)
 
+    // Strong reference to Python wrapper prevents GC while timer is active (#251)
+    PyObject* py_wrapper = nullptr;
+    void retainPyWrapper(PyObject* wrapper);
+    void releasePyWrapper();
+
     Timer(); // for map to build
     Timer(PyObject* target, int interval, int now, bool once = false, bool start = true, const std::string& name = "");
     ~Timer();
