@@ -1,0 +1,8 @@
+{
+    "include": ["src/scripts", "shade_sprite", "tests"],
+    "extraPaths": ["stubs"],
+    "pythonVersion": "3.14",
+    "pythonPlatform": "Linux",
+    "typeCheckingMode": "basic",
+    "reportMissingModuleSource": false
+}

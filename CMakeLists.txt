@@ -266,6 +266,11 @@ if(MCRF_SDL2)
     target_compile_definitions(mcrogueface PRIVATE MCRF_SDL2)
 endif()
 
+# Asset/script directories for WASM preloading (game projects override these)
+set(MCRF_ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets" CACHE PATH "Assets directory for WASM preloading")
+set(MCRF_SCRIPTS_DIR "${CMAKE_SOURCE_DIR}/src/scripts" CACHE PATH "Scripts directory for WASM preloading")
+set(MCRF_SCRIPTS_PLAYGROUND_DIR "${CMAKE_SOURCE_DIR}/src/scripts_playground" CACHE PATH "Playground scripts for WASM")
+
 # Emscripten-specific link options (use ports for zlib, bzip2, sqlite3)
 if(EMSCRIPTEN)
     # Base Emscripten options
@@ -287,9 +292,9 @@ if(EMSCRIPTEN)
         # Preload Python stdlib into virtual filesystem at /lib/python3.14
         --preload-file=${CMAKE_SOURCE_DIR}/wasm_stdlib/lib@/lib
         # Preload game scripts into /scripts (use playground scripts if MCRF_PLAYGROUND is set)
-        --preload-file=${CMAKE_SOURCE_DIR}/src/$<IF:$<BOOL:${MCRF_PLAYGROUND}>,scripts_playground,scripts>@/scripts
+        --preload-file=$<IF:$<BOOL:${MCRF_PLAYGROUND}>,${MCRF_SCRIPTS_PLAYGROUND_DIR},${MCRF_SCRIPTS_DIR}>@/scripts
         # Preload assets
-        --preload-file=${CMAKE_SOURCE_DIR}/assets@/assets
+        --preload-file=${MCRF_ASSETS_DIR}@/assets
         # Use custom HTML shell - game shell (fullscreen) or playground shell (REPL)
         --shell-file=${CMAKE_SOURCE_DIR}/src/$<IF:$<BOOL:${MCRF_GAME_SHELL}>,shell_game.html,shell.html>
         # Pre-JS to fix browser zoom causing undefined values in events
