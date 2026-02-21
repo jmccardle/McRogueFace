@@ -29,6 +29,14 @@ For layered characters:
     assembler.add_layer("clothes/BasicBlue-Body.png", hue_shift=120.0)
     assembler.add_layer("hair/M-Hairstyle1-Black.png")
     texture = assembler.build("my_character")
+
+For procedural factions:
+    from shade_sprite import FactionGenerator, AssetLibrary
+
+    lib = AssetLibrary()
+    gen = FactionGenerator(seed=42, library=lib)
+    recipe = gen.generate()
+    textures = recipe.build_role_textures(assembler)
 """
 
 from .formats import (
@@ -44,12 +52,23 @@ from .formats import (
     detect_format,
 )
 from .animation import AnimatedSprite
-from .assembler import CharacterAssembler
+from .assembler import CharacterAssembler, TextureCache
+from .assets import AssetLibrary, LayerFile
+from .factions import (
+    FactionRecipe,
+    FactionGenerator,
+    RoleDefinition,
+    Biome,
+    Element,
+    Aesthetic,
+    RoleType,
+)
 
 __all__ = [
     # Core classes
     "AnimatedSprite",
     "CharacterAssembler",
+    "TextureCache",
     # Format definitions
     "Direction",
     "AnimFrame",
@@ -63,4 +82,15 @@ __all__ = [
     "ALL_FORMATS",
     # Utilities
     "detect_format",
+    # Asset scanning
+    "AssetLibrary",
+    "LayerFile",
+    # Faction generation
+    "FactionRecipe",
+    "FactionGenerator",
+    "RoleDefinition",
+    "Biome",
+    "Element",
+    "Aesthetic",
+    "RoleType",
 ]
