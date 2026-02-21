@@ -459,6 +459,12 @@ public:
         pixels_.resize(width * height * 4, 0);
     }
 
+    void create(unsigned int width, unsigned int height, const Uint8* pixels) {
+        size_ = Vector2u(width, height);
+        size_t byteCount = static_cast<size_t>(width) * height * 4;
+        pixels_.assign(pixels, pixels + byteCount);
+    }
+
     bool loadFromFile(const std::string& filename) { return false; }
     bool saveToFile(const std::string& filename) const { return false; }
 

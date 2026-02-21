@@ -18,7 +18,10 @@ PySound::PySound(std::shared_ptr<SoundBufferData> bufData)
     : source("<SoundBuffer>"), loaded(false), bufferData(bufData)
 {
     if (bufData && !bufData->samples.empty()) {
-        buffer = bufData->getSfBuffer();
+        // Rebuild the sf::SoundBuffer from sample data directly
+        // (avoids copy-assign which is deleted on SDL2 backend)
+        buffer.loadFromSamples(bufData->samples.data(), bufData->samples.size(),
+                               bufData->channels, bufData->sampleRate);
         sound.setBuffer(buffer);
         loaded = true;
     }

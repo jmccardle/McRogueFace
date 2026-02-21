@@ -218,6 +218,17 @@ std::vector<int16_t> sfxr_synthesize(const SfxrParams& p) {
         for (int si2 = 0; si2 < OVERSAMPLE; si2++) {
             double sample = 0.0;
             phase++;
+
+            // Wrap phase at period boundary (critical for square/saw waveforms)
+            if (phase >= period) {
+                phase %= period;
+                if (p.wave_type == 3) { // Refresh noise buffer each period
+                    for (int i = 0; i < 32; i++) {
+                        noise_buffer[i] = ((std::rand() % 20001) / 10000.0) - 1.0;
+                    }
+                }
+            }
+
             double fphase = static_cast<double>(phase) / period;
 
             // Waveform generation

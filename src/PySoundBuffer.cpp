@@ -446,6 +446,16 @@ PyObject* PySoundBuffer::bit_crush(PySoundBufferObject* self, PyObject* args) {
     return PySoundBuffer_from_data(std::move(data));
 }
 
+PyObject* PySoundBuffer::gain(PySoundBufferObject* self, PyObject* args) {
+    double factor;
+    if (!PyArg_ParseTuple(args, "d", &factor)) return NULL;
+    if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
+
+    auto result = AudioEffects::gain(self->data->samples, factor);
+    auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
+    return PySoundBuffer_from_data(std::move(data));
+}
+
 PyObject* PySoundBuffer::normalize(PySoundBufferObject* self, PyObject* args) {
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
 
@@ -727,6 +737,13 @@ PyMethodDef PySoundBuffer::methods[] = {
      MCRF_METHOD(SoundBuffer, bit_crush,
          MCRF_SIG("(bits: int, rate_divisor: int)", "SoundBuffer"),
          MCRF_DESC("Reduce bit depth and sample rate for lo-fi effect.")
+     )},
+    {"gain", (PyCFunction)PySoundBuffer::gain, METH_VARARGS,
+     MCRF_METHOD(SoundBuffer, gain,
+         MCRF_SIG("(factor: float)", "SoundBuffer"),
+         MCRF_DESC("Multiply all samples by a scalar factor. Use for volume/amplitude control before mixing."),
+         MCRF_ARGS_START
+         MCRF_ARG("factor", "Amplitude multiplier (0.5 = half volume, 2.0 = double). Clamps to int16 range.")
      )},
     {"normalize", (PyCFunction)PySoundBuffer::normalize, METH_NOARGS,
      MCRF_METHOD(SoundBuffer, normalize,

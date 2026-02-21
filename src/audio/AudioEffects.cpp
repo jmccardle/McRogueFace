@@ -290,6 +290,21 @@ std::vector<int16_t> normalize(const std::vector<int16_t>& samples) {
 }
 
 // ============================================================================
+// Gain (multiply all samples by scalar factor)
+// ============================================================================
+
+std::vector<int16_t> gain(const std::vector<int16_t>& samples, double factor) {
+    if (samples.empty()) return samples;
+
+    std::vector<int16_t> result(samples.size());
+    for (size_t i = 0; i < samples.size(); i++) {
+        double s = samples[i] * factor;
+        result[i] = static_cast<int16_t>(std::max(-32768.0, std::min(32767.0, s)));
+    }
+    return result;
+}
+
+// ============================================================================
 // Reverse (frame-aware for multichannel)
 // ============================================================================
 

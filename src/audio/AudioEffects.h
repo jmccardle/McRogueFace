@@ -32,6 +32,9 @@ std::vector<int16_t> bitCrush(const std::vector<int16_t>& samples, int bits, int
 // Scale to 95% of int16 max
 std::vector<int16_t> normalize(const std::vector<int16_t>& samples);
 
+// Multiply all samples by a scalar factor (volume/amplitude control)
+std::vector<int16_t> gain(const std::vector<int16_t>& samples, double factor);
+
 // Reverse sample order (frame-aware for multichannel)
 std::vector<int16_t> reverse(const std::vector<int16_t>& samples, unsigned int channels);
 

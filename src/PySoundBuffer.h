@@ -72,6 +72,7 @@ namespace PySoundBuffer {
     PyObject* reverb(PySoundBufferObject* self, PyObject* args);
     PyObject* distortion(PySoundBufferObject* self, PyObject* args);
     PyObject* bit_crush(PySoundBufferObject* self, PyObject* args);
+    PyObject* gain(PySoundBufferObject* self, PyObject* args);
     PyObject* normalize(PySoundBufferObject* self, PyObject* args);
     PyObject* reverse(PySoundBufferObject* self, PyObject* args);
     PyObject* slice(PySoundBufferObject* self, PyObject* args);
