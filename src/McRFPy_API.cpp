@@ -44,6 +44,10 @@
 #include "ldtk/PyAutoRuleSet.h"   // LDtk auto-rule sets
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+#include <sys/stat.h>  // mkdir
 // ImGui is only available for SFML builds
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 #include "ImGuiConsole.h"
@@ -103,6 +107,20 @@ static bool McRFPyMetaclass_initialized = false;
 
 // ============================================================================
 
+#ifdef __EMSCRIPTEN__
+extern "C" void sync_storage();
+#endif
+
+// Flush persistent storage (IDBFS on WASM, no-op on desktop)
+static PyObject* mcrfpy_sync_storage(PyObject* self, PyObject* args)
+{
+#ifdef __EMSCRIPTEN__
+    sync_storage();
+#endif
+    // On desktop, writes go directly to disk — nothing to sync
+    Py_RETURN_NONE;
+}
+
 // #151: Module-level __getattr__ for dynamic properties (current_scene, scenes)
 static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
 {
@@ -133,6 +151,14 @@ static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
 
     if (strcmp(name, "default_transition_duration") == 0) {
         return PyFloat_FromDouble(PyTransition::default_duration);
+    }
+
+    if (strcmp(name, "save_dir") == 0) {
+#ifdef __EMSCRIPTEN__
+        return PyUnicode_FromString("/save");
+#else
+        return PyUnicode_FromString("save");
+#endif
     }
 
     // Attribute not found - raise AttributeError
@@ -345,6 +371,16 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_RETURNS("list[tuple[int, int]]: List of (x, y) grid coordinates along the line")
          MCRF_NOTE("Useful for line-of-sight checks, projectile paths, and drawing lines on grids. "
                    "The algorithm ensures minimal grid traversal between two points.")
+     )},
+
+    {"_sync_storage", mcrfpy_sync_storage, METH_NOARGS,
+     MCRF_FUNCTION(_sync_storage,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Flush save directory to persistent storage."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("On WebAssembly, flushes the /save/ directory to IndexedDB via IDBFS. "
+                   "On desktop, this is a no-op since writes go directly to disk. "
+                   "Call this after writing files to mcrfpy.save_dir to ensure persistence.")
      )},
 
     {NULL, NULL, 0, NULL}
@@ -756,6 +792,53 @@ PyObject* PyInit_mcrfpy()
     // Note: mcrfpy.libtcod submodule removed in #215
     // - line() functionality replaced by mcrfpy.bresenham()
     // - compute_fov() redundant with Grid.compute_fov()
+
+#ifdef __EMSCRIPTEN__
+    // WASM: Monkeypatch builtins.open() so that writes to /save/ auto-sync IDBFS.
+    // This makes `with open(path, 'w') as f: ...` persist transparently on web.
+    PyRun_SimpleString(R"(
+import builtins as _builtins
+_mcrf_original_open = _builtins.open
+
+class _McRF_SyncingFile:
+    __slots__ = ('_file',)
+    def __init__(self, f):
+        object.__setattr__(self, '_file', f)
+    def __getattr__(self, name):
+        return getattr(self._file, name)
+    def __enter__(self):
+        self._file.__enter__()
+        return self
+    def __exit__(self, *args):
+        result = self._file.__exit__(*args)
+        import mcrfpy
+        mcrfpy._sync_storage()
+        return result
+    def close(self):
+        self._file.close()
+        import mcrfpy
+        mcrfpy._sync_storage()
+    def __iter__(self):
+        return iter(self._file)
+    def __next__(self):
+        return next(self._file)
+    def writable(self):
+        return self._file.writable()
+    def readable(self):
+        return self._file.readable()
+    def seekable(self):
+        return self._file.seekable()
+
+def _mcrf_syncing_open(path, mode='r', *args, **kwargs):
+    f = _mcrf_original_open(path, mode, *args, **kwargs)
+    if any(c in mode for c in 'wxa+') and str(path).startswith('/save'):
+        return _McRF_SyncingFile(f)
+    return f
+
+_builtins.open = _mcrf_syncing_open
+del _builtins
+)");
+#endif
 
     //McRFPy_API::mcrf_module = m;
     return m;

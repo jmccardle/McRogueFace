@@ -292,6 +292,18 @@ int get_python_globals_count() {
     return (int)PyDict_Size(main_dict);
 }
 
+// Flush IDBFS to IndexedDB (called from Python via mcrfpy._sync_storage())
+EMSCRIPTEN_KEEPALIVE
+void sync_storage() {
+    EM_ASM(
+        FS.syncfs(false, function(err) {
+            if (err) {
+                console.error('McRogueFace: Failed to sync /save/ to IndexedDB:', err);
+            }
+        });
+    );
+}
+
 // Notify the engine that the browser canvas was resized (called from JS)
 EMSCRIPTEN_KEEPALIVE
 void notify_canvas_resize(int width, int height) {

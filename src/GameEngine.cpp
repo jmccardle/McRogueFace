@@ -1,5 +1,6 @@
 #include "GameEngine.h"
 #include "ActionCode.h"
+#include <sys/stat.h>
 #include "McRFPy_API.h"
 #include "PyScene.h"
 #include "UITestScene.h"
@@ -77,6 +78,15 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
     Resources::game = this;
     window_title = "McRogueFace Engine";
+
+    // Ensure save/ directory exists for persistent game data
+#ifndef __EMSCRIPTEN__
+    // Desktop: create save/ in working directory (WASM uses IDBFS mount from JS)
+    struct stat st;
+    if (stat("save", &st) != 0) {
+        mkdir("save", 0755);
+    }
+#endif
     
     // Initialize rendering based on headless mode
     if (headless) {

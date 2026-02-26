@@ -82,6 +82,18 @@
         });
 
         var Module = {
+            preRun: [function() {
+                // Mount IDBFS at /save/ for persistent game data
+                FS.mkdir('/save');
+                FS.mount(IDBFS, {}, '/save');
+                // Restore saved data from IndexedDB (synchronous before main())
+                Module.addRunDependency('idbfs-restore');
+                FS.syncfs(true, function(err) {
+                    if (err) console.error('McRogueFace: Failed to restore /save/:', err);
+                    else console.log('McRogueFace: /save/ restored from IndexedDB');
+                    Module.removeRunDependency('idbfs-restore');
+                });
+            }],
             print: function(text) {
                 if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
                 console.log(text);
