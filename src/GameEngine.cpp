@@ -84,7 +84,11 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     // Desktop: create save/ in working directory (WASM uses IDBFS mount from JS)
     struct stat st;
     if (stat("save", &st) != 0) {
+#ifdef _WIN32
+        mkdir("save");
+#else
         mkdir("save", 0755);
+#endif
     }
 #endif
     
