@@ -44,11 +44,12 @@ typedef std::variant<
 class Animation {
 public:
     // Constructor
-    Animation(const std::string& targetProperty, 
+    Animation(const std::string& targetProperty,
               const AnimationValue& targetValue,
               float duration,
               EasingFunction easingFunc = EasingFunctions::linear,
               bool delta = false,
+              bool loop = false,
               PyObject* callback = nullptr);
     
     // Destructor - cleanup Python callback reference
@@ -86,9 +87,10 @@ public:
     std::string getTargetProperty() const { return targetProperty; }
     float getDuration() const { return duration; }
     float getElapsed() const { return elapsed; }
-    bool isComplete() const { return elapsed >= duration || stopped; }
+    bool isComplete() const { return (!loop && elapsed >= duration) || stopped; }
     bool isStopped() const { return stopped; }
     bool isDelta() const { return delta; }
+    bool isLooping() const { return loop; }
 
     // Get raw target pointer for property locking (#120)
     void* getTargetPtr() const {
@@ -106,6 +108,7 @@ private:
     float elapsed = 0.0f;          // Elapsed time
     EasingFunction easingFunc;     // Easing function to use
     bool delta;                    // If true, targetValue is relative to start
+    bool loop;                     // If true, animation repeats from start when complete
     bool stopped = false;          // If true, animation was stopped without completing
     
     // RAII: Use weak_ptr for safe target tracking
@@ -177,7 +180,14 @@ namespace EasingFunctions {
     float easeInBounce(float t);
     float easeOutBounce(float t);
     float easeInOutBounce(float t);
-    
+
+    // Ping-pong easing functions (0 -> 1 -> 0, for looping animations)
+    float pingPong(float t);
+    float pingPongSmooth(float t);
+    float pingPongEaseIn(float t);
+    float pingPongEaseOut(float t);
+    float pingPongEaseInOut(float t);
+
     // Get easing function by name
     EasingFunction getByName(const std::string& name);
 }

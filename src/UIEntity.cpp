@@ -945,19 +945,21 @@ PyMethodDef UIEntity_all_methods[] = {
     UIDRAWABLE_METHODS_BASE,
     {"animate", (PyCFunction)UIEntity::animate, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Entity, animate,
-         MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace')", "Animation"),
+         MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace')", "Animation"),
          MCRF_DESC("Create and start an animation on this entity's property."),
          MCRF_ARGS_START
          MCRF_ARG("property", "Name of the property to animate: 'draw_x', 'draw_y' (tile coords), 'sprite_scale', 'sprite_index'")
-         MCRF_ARG("target", "Target value - float or int depending on property")
+         MCRF_ARG("target", "Target value - float, int, or list of int (for sprite frame sequences)")
          MCRF_ARG("duration", "Animation duration in seconds")
          MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear")
          MCRF_ARG("delta", "If True, target is relative to current value; if False, target is absolute")
-         MCRF_ARG("callback", "Optional callable invoked when animation completes")
+         MCRF_ARG("loop", "If True, animation repeats from start when it reaches the end (default False)")
+         MCRF_ARG("callback", "Optional callable invoked when animation completes (not called for looping animations)")
          MCRF_ARG("conflict_mode", "'replace' (default), 'queue', or 'error' if property already animating")
          MCRF_RETURNS("Animation object for monitoring progress")
          MCRF_RAISES("ValueError", "If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index)")
-         MCRF_NOTE("Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells.")
+         MCRF_NOTE("Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells. "
+                   "Use list target with loop=True for repeating sprite frame animations.")
      )},
     {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
      "at(x, y) or at(pos) -> GridPointState\n\n"
@@ -1136,19 +1138,20 @@ bool UIEntity::hasProperty(const std::string& name) const {
 
 // Animation shorthand for Entity - creates and starts an animation
 PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
-    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "callback", "conflict_mode", nullptr};
+    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "loop", "callback", "conflict_mode", nullptr};
 
     const char* property_name;
     PyObject* target_value;
     float duration;
     PyObject* easing_arg = Py_None;
     int delta = 0;
+    int loop_val = 0;
     PyObject* callback = nullptr;
     const char* conflict_mode_str = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OpOs", const_cast<char**>(keywords),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OppOs", const_cast<char**>(keywords),
                                       &property_name, &target_value, &duration,
-                                      &easing_arg, &delta, &callback, &conflict_mode_str)) {
+                                      &easing_arg, &delta, &loop_val, &callback, &conflict_mode_str)) {
         return NULL;
     }
 
@@ -1173,7 +1176,7 @@ PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kw
     }
 
     // Convert Python target value to AnimationValue
-    // Entity only supports float and int properties
+    // Entity supports float, int, and list of int (for sprite frame animation)
     AnimationValue animValue;
 
     if (PyFloat_Check(target_value)) {
@@ -1182,8 +1185,23 @@ PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kw
     else if (PyLong_Check(target_value)) {
         animValue = static_cast<int>(PyLong_AsLong(target_value));
     }
+    else if (PyList_Check(target_value)) {
+        // List of integers for sprite animation
+        std::vector<int> indices;
+        Py_ssize_t size = PyList_Size(target_value);
+        for (Py_ssize_t i = 0; i < size; i++) {
+            PyObject* item = PyList_GetItem(target_value, i);
+            if (PyLong_Check(item)) {
+                indices.push_back(PyLong_AsLong(item));
+            } else {
+                PyErr_SetString(PyExc_TypeError, "Sprite animation list must contain only integers");
+                return NULL;
+            }
+        }
+        animValue = indices;
+    }
     else {
-        PyErr_SetString(PyExc_TypeError, "Entity animations only support float or int target values");
+        PyErr_SetString(PyExc_TypeError, "Entity animations support float, int, or list of int target values");
         return NULL;
     }
 
@@ -1210,7 +1228,7 @@ PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kw
     }
 
     // Create the Animation
-    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, callback);
+    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, loop_val != 0, callback);
 
     // Start on this entity (uses startEntity, not start)
     animation->startEntity(self->data);

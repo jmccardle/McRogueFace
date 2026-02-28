@@ -24,6 +24,7 @@ public:
     static PyObject* get_elapsed(PyAnimationObject* self, void* closure);
     static PyObject* get_is_complete(PyAnimationObject* self, void* closure);
     static PyObject* get_is_delta(PyAnimationObject* self, void* closure);
+    static PyObject* get_is_looping(PyAnimationObject* self, void* closure);
     
     // Methods
     static PyObject* start(PyAnimationObject* self, PyObject* args, PyObject* kwds);
@@ -47,7 +48,7 @@ namespace mcrfpydef {
         .tp_repr = (reprfunc)PyAnimation::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR(
-            "Animation(property: str, target: Any, duration: float, easing: str = 'linear', delta: bool = False, callback: Callable = None)\n"
+            "Animation(property: str, target: Any, duration: float, easing: str = 'linear', delta: bool = False, loop: bool = False, callback: Callable = None)\n"
             "\n"
             "Create an animation that interpolates a property value over time.\n"
             "\n"
@@ -80,22 +81,18 @@ namespace mcrfpydef {
             "        - 'easeInBack', 'easeOutBack', 'easeInOutBack'\n"
             "        - 'easeInBounce', 'easeOutBounce', 'easeInOutBounce'\n"
             "    delta: If True, target is relative to start value (additive). Default False.\n"
-            "    callback: Function(animation, target) called when animation completes.\n"
+            "    loop: If True, animation repeats from start when it reaches the end. Default False.\n"
+            "    callback: Function(target, property, value) called when animation completes.\n"
+            "        Not called for looping animations (since they never complete).\n"
             "\n"
             "Example:\n"
             "    # Move a frame from current position to x=500 over 2 seconds\n"
             "    anim = mcrfpy.Animation('x', 500.0, 2.0, 'easeInOut')\n"
             "    anim.start(my_frame)\n"
             "\n"
-            "    # Fade out with callback\n"
-            "    def on_done(anim, target):\n"
-            "        print('Animation complete!')\n"
-            "    fade = mcrfpy.Animation('fill_color.a', 0, 1.0, callback=on_done)\n"
-            "    fade.start(my_sprite)\n"
-            "\n"
-            "    # Animate through sprite frames\n"
-            "    walk_cycle = mcrfpy.Animation('sprite_index', [0,1,2,3,2,1], 0.5, 'linear')\n"
-            "    walk_cycle.start(my_entity)\n"
+            "    # Looping sprite animation\n"
+            "    walk = mcrfpy.Animation('sprite_index', [0,1,2,3,2,1], 0.6, loop=True)\n"
+            "    walk.start(my_sprite)\n"
         ),
         .tp_methods = PyAnimation::methods,
         .tp_getset = PyAnimation::getsetters,

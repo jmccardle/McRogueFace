@@ -20,17 +20,18 @@ PyObject* PyAnimation::create(PyTypeObject* type, PyObject* args, PyObject* kwds
 }
 
 int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
-    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "callback", nullptr};
+    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "loop", "callback", nullptr};
 
     const char* property_name;
     PyObject* target_value;
     float duration;
     PyObject* easing_arg = Py_None;
     int delta = 0;
+    int loop_val = 0;
     PyObject* callback = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OpO", const_cast<char**>(keywords),
-                                      &property_name, &target_value, &duration, &easing_arg, &delta, &callback)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OppO", const_cast<char**>(keywords),
+                                      &property_name, &target_value, &duration, &easing_arg, &delta, &loop_val, &callback)) {
         return -1;
     }
     
@@ -107,8 +108,8 @@ int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
     }
 
     // Create the Animation
-    self->data = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, callback);
-    
+    self->data = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, loop_val != 0, callback);
+
     return 0;
 }
 
@@ -177,6 +178,10 @@ PyObject* PyAnimation::get_is_complete(PyAnimationObject* self, void* closure) {
 
 PyObject* PyAnimation::get_is_delta(PyAnimationObject* self, void* closure) {
     return PyBool_FromLong(self->data->isDelta());
+}
+
+PyObject* PyAnimation::get_is_looping(PyAnimationObject* self, void* closure) {
+    return PyBool_FromLong(self->data->isLooping());
 }
 
 // Helper to convert Python string to AnimationConflictMode
@@ -356,6 +361,8 @@ PyGetSetDef PyAnimation::getsetters[] = {
      MCRF_PROPERTY(is_complete, "Whether animation is complete (bool, read-only). True when elapsed >= duration or complete() was called."), NULL},
     {"is_delta", (getter)get_is_delta, NULL,
      MCRF_PROPERTY(is_delta, "Whether animation uses delta mode (bool, read-only). In delta mode, the target value is added to the starting value."), NULL},
+    {"is_looping", (getter)get_is_looping, NULL,
+     MCRF_PROPERTY(is_looping, "Whether animation loops (bool, read-only). Looping animations repeat from the start when they reach the end."), NULL},
     {NULL}
 };
 

@@ -1141,19 +1141,20 @@ PyObject* Entity3D::py_update_visibility(PyEntity3DObject* self, PyObject* args)
 
 PyObject* Entity3D::py_animate(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "callback", "conflict_mode", nullptr};
+    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "loop", "callback", "conflict_mode", nullptr};
 
     const char* property_name;
     PyObject* target_value;
     float duration;
     PyObject* easing_arg = Py_None;
     int delta = 0;
+    int loop_val = 0;
     PyObject* callback = nullptr;
     const char* conflict_mode_str = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OpOs", const_cast<char**>(keywords),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OppOs", const_cast<char**>(keywords),
                                       &property_name, &target_value, &duration,
-                                      &easing_arg, &delta, &callback, &conflict_mode_str)) {
+                                      &easing_arg, &delta, &loop_val, &callback, &conflict_mode_str)) {
         return NULL;
     }
 
@@ -1216,7 +1217,7 @@ PyObject* Entity3D::py_animate(PyEntity3DObject* self, PyObject* args, PyObject*
     }
 
     // Create the Animation
-    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, callback);
+    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, loop_val != 0, callback);
 
     // Start on this entity (uses startEntity3D)
     animation->startEntity3D(self->data);

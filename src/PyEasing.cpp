@@ -43,6 +43,11 @@ static const EasingEntry easing_table[] = {
     {"EASE_IN_BOUNCE", 28, EasingFunctions::easeInBounce},
     {"EASE_OUT_BOUNCE", 29, EasingFunctions::easeOutBounce},
     {"EASE_IN_OUT_BOUNCE", 30, EasingFunctions::easeInOutBounce},
+    {"PING_PONG", 31, EasingFunctions::pingPong},
+    {"PING_PONG_SMOOTH", 32, EasingFunctions::pingPongSmooth},
+    {"PING_PONG_EASE_IN", 33, EasingFunctions::pingPongEaseIn},
+    {"PING_PONG_EASE_OUT", 34, EasingFunctions::pingPongEaseOut},
+    {"PING_PONG_EASE_IN_OUT", 35, EasingFunctions::pingPongEaseInOut},
 };
 
 // Old string names (for backwards compatibility)
@@ -56,7 +61,9 @@ static const char* legacy_names[] = {
     "easeInCirc", "easeOutCirc", "easeInOutCirc",
     "easeInElastic", "easeOutElastic", "easeInOutElastic",
     "easeInBack", "easeOutBack", "easeInOutBack",
-    "easeInBounce", "easeOutBounce", "easeInOutBounce"
+    "easeInBounce", "easeOutBounce", "easeInOutBounce",
+    "pingPong", "pingPongSmooth", "pingPongEaseIn",
+    "pingPongEaseOut", "pingPongEaseInOut"
 };
 
 static const int NUM_EASING_ENTRIES = sizeof(easing_table) / sizeof(easing_table[0]);

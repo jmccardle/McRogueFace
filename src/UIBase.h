@@ -110,7 +110,7 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
     UIDRAWABLE_METHODS_BASE, \
     {"animate", (PyCFunction)UIDrawable_animate<PyObjectType>, METH_VARARGS | METH_KEYWORDS, \
      MCRF_METHOD(Drawable, animate, \
-         MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace')", "Animation"), \
+         MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace')", "Animation"), \
          MCRF_DESC("Create and start an animation on this drawable's property."), \
          MCRF_ARGS_START \
          MCRF_ARG("property", "Name of the property to animate (e.g., 'x', 'fill_color', 'opacity')") \
@@ -118,7 +118,8 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
          MCRF_ARG("duration", "Animation duration in seconds") \
          MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear") \
          MCRF_ARG("delta", "If True, target is relative to current value; if False, target is absolute") \
-         MCRF_ARG("callback", "Optional callable invoked when animation completes") \
+         MCRF_ARG("loop", "If True, animation repeats from start when it reaches the end (default False)") \
+         MCRF_ARG("callback", "Optional callable invoked when animation completes (not called for looping animations)") \
          MCRF_ARG("conflict_mode", "'replace' (default), 'queue', or 'error' if property already animating") \
          MCRF_RETURNS("Animation object for monitoring progress") \
          MCRF_RAISES("ValueError", "If property name is not valid for this drawable type") \

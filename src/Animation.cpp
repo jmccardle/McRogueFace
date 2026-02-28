@@ -28,17 +28,19 @@ namespace mcrfpydef {
 }
 
 // Animation implementation
-Animation::Animation(const std::string& targetProperty, 
+Animation::Animation(const std::string& targetProperty,
                      const AnimationValue& targetValue,
                      float duration,
                      EasingFunction easingFunc,
                      bool delta,
+                     bool loop,
                      PyObject* callback)
     : targetProperty(targetProperty)
     , targetValue(targetValue)
     , duration(duration)
     , easingFunc(easingFunc)
     , delta(delta)
+    , loop(loop)
     , pythonCallback(callback)
 {
     // Increase reference count for Python callback
@@ -123,7 +125,7 @@ void Animation::start(std::shared_ptr<UIDrawable> target) {
 
     // For zero-duration animations, apply final value immediately
     if (duration <= 0.0f) {
-        AnimationValue finalValue = interpolate(1.0f);
+        AnimationValue finalValue = interpolate(easingFunc(1.0f));
         applyValue(target.get(), finalValue);
         if (pythonCallback && !callbackTriggered) {
             triggerCallback();
@@ -155,12 +157,18 @@ void Animation::startEntity(std::shared_ptr<UIEntity> target) {
                 startValue = target->sprite.getSpriteIndex();
             }
         }
+        else if constexpr (std::is_same_v<T, std::vector<int>>) {
+            // For sprite animation frame lists, get current sprite index
+            if (targetProperty == "sprite_index" || targetProperty == "sprite_number") {
+                startValue = target->sprite.getSpriteIndex();
+            }
+        }
         // Entities don't support other types yet
     }, targetValue);
 
     // For zero-duration animations, apply final value immediately
     if (duration <= 0.0f) {
-        AnimationValue finalValue = interpolate(1.0f);
+        AnimationValue finalValue = interpolate(easingFunc(1.0f));
         applyValue(target.get(), finalValue);
         if (pythonCallback && !callbackTriggered) {
             triggerCallback();
@@ -198,7 +206,7 @@ void Animation::startEntity3D(std::shared_ptr<mcrf::Entity3D> target) {
 
     // For zero-duration animations, apply final value immediately
     if (duration <= 0.0f) {
-        AnimationValue finalValue = interpolate(1.0f);
+        AnimationValue finalValue = interpolate(easingFunc(1.0f));
         applyValue(target.get(), finalValue);
         if (pythonCallback && !callbackTriggered) {
             triggerCallback();
@@ -228,17 +236,20 @@ void Animation::complete() {
     // Jump to end of animation
     elapsed = duration;
 
-    // Apply final value
+    // Apply final value through easing function
+    // For standard easings, easingFunc(1.0) = 1.0 (no change)
+    // For ping-pong easings, easingFunc(1.0) = 0.0 (returns to start value)
+    float finalT = easingFunc(1.0f);
     if (auto target = targetWeak.lock()) {
-        AnimationValue finalValue = interpolate(1.0f);
+        AnimationValue finalValue = interpolate(finalT);
         applyValue(target.get(), finalValue);
     }
     else if (auto entity = entityTargetWeak.lock()) {
-        AnimationValue finalValue = interpolate(1.0f);
+        AnimationValue finalValue = interpolate(finalT);
         applyValue(entity.get(), finalValue);
     }
     else if (auto entity3d = entity3dTargetWeak.lock()) {
-        AnimationValue finalValue = interpolate(1.0f);
+        AnimationValue finalValue = interpolate(finalT);
         applyValue(entity3d.get(), finalValue);
     }
 }
@@ -269,8 +280,9 @@ bool Animation::update(float deltaTime) {
     // Apply final value once before returning
     if (isComplete()) {
         if (!callbackTriggered) {
-            // Apply final value for zero-duration animations
-            AnimationValue finalValue = interpolate(1.0f);
+            // Apply final value through easing function
+            float finalT = easingFunc(1.0f);
+            AnimationValue finalValue = interpolate(finalT);
             if (target) {
                 applyValue(target.get(), finalValue);
             } else if (entity) {
@@ -288,7 +300,11 @@ bool Animation::update(float deltaTime) {
     }
 
     elapsed += deltaTime;
-    elapsed = std::min(elapsed, duration);
+    if (loop && duration > 0.0f) {
+        while (elapsed >= duration) elapsed -= duration;
+    } else {
+        elapsed = std::min(elapsed, duration);
+    }
 
     // Calculate easing value (0.0 to 1.0)
     float t = duration > 0 ? elapsed / duration : 1.0f;
@@ -722,8 +738,9 @@ void Animation::triggerCallback() {
         return;
     }
 
-    // Final value (interpolated at t=1.0)
-    PyObject* valueObj = animationValueToPython(interpolate(1.0f));
+    // Final value (interpolated through easing function at t=1.0)
+    // For ping-pong easings, this returns the start value (easingFunc(1.0) = 0.0)
+    PyObject* valueObj = animationValueToPython(interpolate(easingFunc(1.0f)));
     if (!valueObj) {
         Py_DECREF(targetObj);
         Py_DECREF(propertyObj);
@@ -956,6 +973,38 @@ float easeInOutBounce(float t) {
     }
 }
 
+// Ping-pong easing functions (0 -> 1 -> 0)
+// These are designed for looping animations where the value should
+// smoothly return to the start position each cycle.
+
+float pingPong(float t) {
+    // Linear triangle wave: 0 -> 1 -> 0
+    return 1.0f - std::fabs(2.0f * t - 1.0f);
+}
+
+float pingPongSmooth(float t) {
+    // Sine bell curve: smooth acceleration and deceleration
+    return std::sin(static_cast<float>(M_PI) * t);
+}
+
+float pingPongEaseIn(float t) {
+    // Quadratic ease at rest positions (smooth departure/return, sharp peak)
+    float pp = 1.0f - std::fabs(2.0f * t - 1.0f);
+    return pp * pp;
+}
+
+float pingPongEaseOut(float t) {
+    // Ease-out at peak (sharp departure, smooth turnaround)
+    float pp = 1.0f - std::fabs(2.0f * t - 1.0f);
+    return pp * (2.0f - pp);
+}
+
+float pingPongEaseInOut(float t) {
+    // sin^2: smooth everywhere including at loop seam
+    float s = std::sin(static_cast<float>(M_PI) * t);
+    return s * s;
+}
+
 // Get easing function by name
 EasingFunction getByName(const std::string& name) {
     static std::unordered_map<std::string, EasingFunction> easingMap = {
@@ -989,7 +1038,12 @@ EasingFunction getByName(const std::string& name) {
         {"easeInOutBack", easeInOutBack},
         {"easeInBounce", easeInBounce},
         {"easeOutBounce", easeOutBounce},
-        {"easeInOutBounce", easeInOutBounce}
+        {"easeInOutBounce", easeInOutBounce},
+        {"pingPong", pingPong},
+        {"pingPongSmooth", pingPongSmooth},
+        {"pingPongEaseIn", pingPongEaseIn},
+        {"pingPongEaseOut", pingPongEaseOut},
+        {"pingPongEaseInOut", pingPongEaseInOut}
     };
     
     auto it = easingMap.find(name);
