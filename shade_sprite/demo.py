@@ -11,6 +11,7 @@ Scenes:
   5 - Layer Compositing: demonstrates CharacterAssembler layered texture building
   6 - Equipment Customizer: procedural + user-driven layer coloring for gear
   7 - Asset Inventory: browse discovered layer categories and files
+  8 - Entity Animation: engine-native Entity.animate() with loop - all formats
 
 Controls shown on-screen per scene.
 """
@@ -90,7 +91,7 @@ if __name__ == "__main__":
         sys.path.insert(0, parent_dir)
 
 from shade_sprite import (
-    AnimatedSprite, Direction, PUNY_24, SLIME,
+    AnimatedSprite, Direction, PUNY_24, PUNY_29, SLIME, CREATURE_RPGMAKER,
     CharacterAssembler,
     AssetLibrary, FactionGenerator,
 )
@@ -130,7 +131,7 @@ def _no_assets_fallback(scene, scene_name):
         pos=(20, 60), fill_color=WARN_COLOR)
     ui.append(msg)
     controls = mcrfpy.Caption(
-        text="[1-7] Switch scenes",
+        text="[1-8] Switch scenes",
         pos=(20, 740), fill_color=DIM_COLOR)
     ui.append(controls)
 
@@ -152,6 +153,7 @@ def _handle_scene_switch(key):
         mcrfpy.Key.NUM_5: "layers",
         mcrfpy.Key.NUM_6: "equip",
         mcrfpy.Key.NUM_7: "inventory",
+        mcrfpy.Key.NUM_8: "entity_anim",
     }
     name = scene_map.get(key)
     if name:
@@ -267,7 +269,7 @@ def _build_scene_viewer():
     ui.append(anim_ref)
 
     controls = mcrfpy.Caption(
-        text="[Q/E] Sheet  [A/D] Animation  [W/S] Direction  [1-7] Scenes",
+        text="[Q/E] Sheet  [A/D] Animation  [W/S] Direction  [1-8] Scenes",
         pos=(20, 740), fill_color=DIM_COLOR)
     ui.append(controls)
 
@@ -415,7 +417,7 @@ def _build_scene_hsl():
     ui.append(explain2)
 
     controls = mcrfpy.Caption(
-        text="[Left/Right] Hue +/-30  [Up/Down] Sat +/-0.1  [Z/X] Lit +/-0.1  [Q/E] Sheet  [1-7] Scenes",
+        text="[Left/Right] Hue +/-30  [Up/Down] Sat +/-0.1  [Z/X] Lit +/-0.1  [Q/E] Sheet  [1-8] Scenes",
         pos=(20, 740), fill_color=DIM_COLOR)
     ui.append(controls)
 
@@ -547,7 +549,7 @@ def _build_scene_gallery():
     ui.append(dir_info)
 
     controls = mcrfpy.Caption(
-        text="[W/S] Direction  [A/D] Animation  [1-7] Scenes",
+        text="[W/S] Direction  [A/D] Animation  [1-8] Scenes",
         pos=(20, 740), fill_color=DIM_COLOR)
     ui.append(controls)
 
@@ -659,7 +661,7 @@ def _build_scene_factions():
     _populate()
 
     controls = mcrfpy.Caption(
-        text="[Space] Re-roll factions  [1-7] Scenes",
+        text="[Space] Re-roll factions  [1-8] Scenes",
         pos=(20, 740), fill_color=DIM_COLOR)
     ui.append(controls)
 
@@ -840,7 +842,7 @@ def _build_scene_layers():
     ui.append(code_lbl4)
 
     controls = mcrfpy.Caption(
-        text="[Q/E] Overlay sheet  [Left/Right] Overlay hue +/-30  [1-7] Scenes",
+        text="[Q/E] Overlay sheet  [Left/Right] Overlay hue +/-30  [1-8] Scenes",
         pos=(20, 740), fill_color=DIM_COLOR)
     ui.append(controls)
 
@@ -1062,7 +1064,7 @@ def _build_scene_equip():
     _generate_variants()
 
     controls = mcrfpy.Caption(
-        text="[Tab] Slot  [Q/E] Sheet  [Left/Right] Hue  [Up/Down] Sat  [Z/X] Lit  [T] Toggle  [R] Randomize  [1-7] Scenes",
+        text="[Tab] Slot  [Q/E] Sheet  [Left/Right] Hue  [Up/Down] Sat  [Z/X] Lit  [T] Toggle  [R] Randomize  [1-8] Scenes",
         pos=(20, 740), fill_color=DIM_COLOR)
     ui.append(controls)
 
@@ -1148,7 +1150,7 @@ def _build_scene_inventory():
             text="The AssetLibrary scans the 'Individual Spritesheets' directory.",
             pos=(20, 90), fill_color=DIM_COLOR)
         ui.append(msg2)
-        controls = mcrfpy.Caption(text="[1-7] Switch scenes",
+        controls = mcrfpy.Caption(text="[1-8] Switch scenes",
                                   pos=(20, 740), fill_color=DIM_COLOR)
         ui.append(controls)
 
@@ -1275,7 +1277,7 @@ def _build_scene_inventory():
     _refresh()
 
     controls = mcrfpy.Caption(
-        text="[W/S] Category  [A/D] Subcategory  [PgUp/PgDn] Scroll files  [1-7] Scenes",
+        text="[W/S] Category  [A/D] Subcategory  [PgUp/PgDn] Scroll files  [1-8] Scenes",
         pos=(20, 740), fill_color=DIM_COLOR)
     ui.append(controls)
 
@@ -1322,6 +1324,240 @@ def _build_scene_inventory():
 
 
 # ---------------------------------------------------------------------------
+# Scene 8: Entity Animation (engine-native, all formats)
+# ---------------------------------------------------------------------------
+def _format_frame_list(fmt, anim_name, direction):
+    """Convert animation def to flat sprite index list for Entity.animate()."""
+    anim = fmt.animations[anim_name]
+    return [fmt.sprite_index(f.col, direction) for f in anim.frames]
+
+
+def _format_duration(fmt, anim_name):
+    """Total duration in seconds."""
+    anim = fmt.animations[anim_name]
+    return sum(f.duration for f in anim.frames) / 1000.0
+
+
+def _build_scene_entity_anim():
+    scene = mcrfpy.Scene("entity_anim")
+    sheets = _available_sheets()
+    if not sheets:
+        return _no_assets_fallback(scene, "Entity Animation")
+
+    ui = scene.children
+    bg = mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=BG)
+    ui.append(bg)
+
+    title = mcrfpy.Caption(text="[8] Entity Animation (engine-native loop)",
+                           pos=(20, 10), fill_color=TITLE_COLOR)
+    ui.append(title)
+
+    explain = mcrfpy.Caption(
+        text="Entity.animate('sprite_index', [frames], duration, loop=True) - no Python timer needed",
+        pos=(20, 40), fill_color=LABEL_COLOR)
+    ui.append(explain)
+
+    # Collect all format sections
+    # Each section: format, texture path, available animations, grid + entities
+    sections = []  # (fmt, name, tex, grid, entities, anim_names)
+
+    state = {"anim_idx": 0, "dir_idx": 0}
+
+    section_y = 80
+    grid_w, grid_h = 200, 160
+
+    # --- PUNY_24 ---
+    puny24_lbl = mcrfpy.Caption(text="PUNY_24 (8-dir, free)",
+                                pos=(20, section_y), fill_color=ACCENT_COLOR)
+    ui.append(puny24_lbl)
+
+    fmt24 = PUNY_24
+    tex24 = mcrfpy.Texture(sheets[0], fmt24.tile_w, fmt24.tile_h)
+    grid24 = mcrfpy.Grid(grid_size=(8, 1), texture=tex24,
+                         pos=(20, section_y + 25), size=(grid_w * 2, grid_h))
+    grid24.zoom = 0.25
+    ui.append(grid24)
+
+    entities24 = []
+    anim_names24 = list(fmt24.animations.keys())
+    for i, d in enumerate(Direction):
+        e = mcrfpy.Entity(grid_pos=(i, 0), texture=tex24, sprite_index=0)
+        grid24.entities.append(e)
+        entities24.append(e)
+    sections.append((fmt24, "PUNY_24", tex24, grid24, entities24, anim_names24))
+
+    # Direction labels for compass
+    for i, d in enumerate(Direction):
+        lbl = mcrfpy.Caption(text=d.name, pos=(20 + i * 50, section_y + 25 + grid_h + 2),
+                             fill_color=DIM_COLOR)
+        ui.append(lbl)
+
+    # --- PUNY_29 (if paid sheets exist with 29 cols) ---
+    # PUNY_29 uses 928px wide sheets; check if any available are that size
+    puny29_sheet = None
+    for s in sheets:
+        try:
+            # Try loading as PUNY_29 to check
+            t = mcrfpy.Texture(s, PUNY_29.tile_w, PUNY_29.tile_h)
+            # Check column count via sprite count (29 cols * 8 rows = 232)
+            puny29_sheet = s
+            break
+        except Exception:
+            pass
+
+    section_y2 = section_y + grid_h + 45
+    if puny29_sheet:
+        puny29_lbl = mcrfpy.Caption(text="PUNY_29 (8-dir, paid - extra anims)",
+                                    pos=(20, section_y2), fill_color=ACCENT_COLOR)
+        ui.append(puny29_lbl)
+
+        fmt29 = PUNY_29
+        tex29 = mcrfpy.Texture(puny29_sheet, fmt29.tile_w, fmt29.tile_h)
+        grid29 = mcrfpy.Grid(grid_size=(8, 1), texture=tex29,
+                             pos=(20, section_y2 + 25), size=(grid_w * 2, grid_h))
+        grid29.zoom = 0.25
+        ui.append(grid29)
+
+        entities29 = []
+        anim_names29 = list(fmt29.animations.keys())
+        for i, d in enumerate(Direction):
+            e = mcrfpy.Entity(grid_pos=(i, 0), texture=tex29, sprite_index=0)
+            grid29.entities.append(e)
+            entities29.append(e)
+        sections.append((fmt29, "PUNY_29", tex29, grid29, entities29, anim_names29))
+    else:
+        puny29_lbl = mcrfpy.Caption(text="PUNY_29 (not available - need 928px wide sheet)",
+                                    pos=(20, section_y2), fill_color=DIM_COLOR)
+        ui.append(puny29_lbl)
+
+    # --- SLIME ---
+    section_y3 = section_y2 + grid_h + 45
+    slime_p = _slime_path()
+    if slime_p:
+        slime_lbl = mcrfpy.Caption(text="SLIME (1-dir, non-directional)",
+                                   pos=(20, section_y3), fill_color=ACCENT_COLOR)
+        ui.append(slime_lbl)
+
+        fmt_slime = SLIME
+        tex_slime = mcrfpy.Texture(slime_p, fmt_slime.tile_w, fmt_slime.tile_h)
+        grid_slime = mcrfpy.Grid(grid_size=(2, 1), texture=tex_slime,
+                                 pos=(20, section_y3 + 25), size=(120, grid_h))
+        grid_slime.zoom = 0.25
+        ui.append(grid_slime)
+
+        entities_slime = []
+        anim_names_slime = list(fmt_slime.animations.keys())
+        for i, aname in enumerate(anim_names_slime):
+            e = mcrfpy.Entity(grid_pos=(i, 0), texture=tex_slime, sprite_index=0)
+            grid_slime.entities.append(e)
+            entities_slime.append(e)
+
+        slime_note = mcrfpy.Caption(
+            text="idle / walk", pos=(20, section_y3 + 25 + grid_h + 2),
+            fill_color=DIM_COLOR)
+        ui.append(slime_note)
+
+        sections.append((fmt_slime, "SLIME", tex_slime, grid_slime,
+                         entities_slime, anim_names_slime))
+    else:
+        slime_lbl = mcrfpy.Caption(text="SLIME (not available)",
+                                   pos=(20, section_y3), fill_color=DIM_COLOR)
+        ui.append(slime_lbl)
+
+    # --- Info panel (right side) ---
+    info_x = 500
+    anim_info = mcrfpy.Caption(text="Animation: idle", pos=(info_x, 80),
+                               fill_color=HIGHLIGHT_COLOR)
+    ui.append(anim_info)
+    dir_info = mcrfpy.Caption(text="Direction: S (0)", pos=(info_x, 110),
+                              fill_color=LABEL_COLOR)
+    ui.append(dir_info)
+    frame_info = mcrfpy.Caption(text="", pos=(info_x, 140),
+                                fill_color=ACCENT_COLOR)
+    ui.append(frame_info)
+
+    # Code example
+    code_y = 200
+    code_lines = [
+        "# Engine-native sprite frame animation:",
+        "frames = [fmt.sprite_index(f.col, dir)",
+        "          for f in fmt.animations['walk'].frames]",
+        "entity.animate('sprite_index', frames,",
+        "               duration, loop=True)",
+        "",
+        "# No Python Timer or AnimatedSprite needed!",
+        "# The C++ AnimationManager handles the loop.",
+    ]
+    for i, line in enumerate(code_lines):
+        c = mcrfpy.Caption(text=line, pos=(info_x, code_y + i * 25),
+                           fill_color=mcrfpy.Color(150, 200, 150))
+        ui.append(c)
+
+    # Show all available animation names per format
+    names_y = code_y + len(code_lines) * 25 + 20
+    for fmt, name, _, _, _, anim_names in sections:
+        albl = mcrfpy.Caption(
+            text=f"{name}: {', '.join(anim_names)}",
+            pos=(info_x, names_y), fill_color=DIM_COLOR)
+        ui.append(albl)
+        names_y += 25
+
+    def _apply_anims():
+        """Apply current animation to all entities in all sections."""
+        d = Direction(state["dir_idx"])
+        for fmt, name, tex, grid, entities, anim_names in sections:
+            idx = state["anim_idx"] % len(anim_names)
+            anim_name = anim_names[idx]
+            frames = _format_frame_list(fmt, anim_name, d)
+            dur = _format_duration(fmt, anim_name)
+            is_loop = fmt.animations[anim_name].loop
+
+            for e in entities:
+                e.animate("sprite_index", frames, dur, loop=is_loop)
+
+        # Use first section for info display
+        if sections:
+            fmt0, _, _, _, _, anames0 = sections[0]
+            idx0 = state["anim_idx"] % len(anames0)
+            aname = anames0[idx0]
+            adef = fmt0.animations[aname]
+            nf = len(adef.frames)
+            loop_str = "loop" if adef.loop else "one-shot"
+            chain_str = f" -> {adef.chain_to}" if adef.chain_to else ""
+            anim_info.text = f"Animation: {aname}"
+            frame_info.text = f"Frames: {nf}  ({loop_str}{chain_str})"
+        dir_info.text = f"Direction: {d.name} ({d.value})"
+
+    _apply_anims()
+
+    controls = mcrfpy.Caption(
+        text="[A/D] Animation  [W/S] Direction  [1-8] Scenes",
+        pos=(20, 740), fill_color=DIM_COLOR)
+    ui.append(controls)
+
+    def on_key(key, action):
+        if action != mcrfpy.InputState.PRESSED:
+            return
+        if _handle_scene_switch(key):
+            return
+        if key == mcrfpy.Key.A:
+            state["anim_idx"] -= 1
+            _apply_anims()
+        elif key == mcrfpy.Key.D:
+            state["anim_idx"] += 1
+            _apply_anims()
+        elif key == mcrfpy.Key.W:
+            state["dir_idx"] = (state["dir_idx"] - 1) % 8
+            _apply_anims()
+        elif key == mcrfpy.Key.S:
+            state["dir_idx"] = (state["dir_idx"] + 1) % 8
+            _apply_anims()
+
+    scene.on_key = on_key
+    return scene
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main():
@@ -1338,6 +1574,7 @@ def main():
     _build_scene_layers()
     _build_scene_equip()
     _build_scene_inventory()
+    _build_scene_entity_anim()
 
     # Start animation timer (20fps animation updates)
     # Keep a reference so the Python cache lookup works and (timer, runtime) is passed
