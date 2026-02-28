@@ -639,10 +639,10 @@ build/
 
 ## Important Notes
 
-- The project uses SFML for graphics/audio and libtcod for roguelike utilities
+- The project uses SFML for graphics/audio (or SDL2 when building for wasm) and libtcod for roguelike utilities
 - Python scripts are loaded at runtime from the `scripts/` directory
 - Asset loading expects specific paths relative to the executable
-- The game was created for 7DRL 2025 as "Crypt of Sokoban"
+- The game was created for 7DRL 2023
 - Iterator implementations require careful handling of C++/Python boundaries
 
 ## Testing Guidelines
