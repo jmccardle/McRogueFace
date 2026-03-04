@@ -148,6 +148,26 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     // #228 - Ensure renderTexture matches current game resolution
     ensureRenderTextureSize();
 
+    if (!render_dirty && !composite_dirty) {
+        if (shader && shader->shader) {
+            sf::Vector2f resolution(box.getSize().x, box.getSize().y);
+            PyShader::applyEngineUniforms(*shader->shader, resolution);
+
+            // Apply user uniforms
+            if (uniforms) {
+                uniforms->applyTo(*shader->shader);
+            }
+
+            target.draw(output, shader->shader.get());
+        }
+        else
+        {
+            output.setPosition(box.getPosition() + offset);
+            target.draw(output);
+            return;
+        }
+    }
+
     // TODO: Apply opacity to output sprite
 
     // Get cell dimensions - use texture if available, otherwise defaults
@@ -228,9 +248,9 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
 
         for (auto e : *entities) {
             // Skip out-of-bounds entities for performance
-            // Check if entity is within visible bounds (with 1 cell margin for partially visible entities)
-            if (e->position.x < left_edge - 1 || e->position.x >= left_edge + width_sq + 1 ||
-                e->position.y < top_edge - 1 || e->position.y >= top_edge + height_sq + 1) {
+            // Check if entity is within visible bounds (with 2 cell margin for offset/oversized sprites)
+            if (e->position.x < left_edge - 2 || e->position.x >= left_edge + width_sq + 2 ||
+                e->position.y < top_edge - 2 || e->position.y >= top_edge + height_sq + 2) {
                 continue; // Skip this entity as it's not visible
             }
 
@@ -239,8 +259,8 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
             //drawent.setScale(zoom, zoom);
             drawent.setScale(sf::Vector2f(zoom, zoom));
             auto pixel_pos = sf::Vector2f(
-                (e->position.x*cell_width - left_spritepixels) * zoom,
-                (e->position.y*cell_height - top_spritepixels) * zoom );
+                (e->position.x*cell_width - left_spritepixels + e->sprite_offset.x) * zoom,
+                (e->position.y*cell_height - top_spritepixels + e->sprite_offset.y) * zoom );
             drawent.render(pixel_pos, *activeTexture);
 
             entitiesRendered++;

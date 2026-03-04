@@ -18,8 +18,8 @@
 
 
 
-UIEntity::UIEntity() 
-: self(nullptr), grid(nullptr), position(0.0f, 0.0f)
+UIEntity::UIEntity()
+: self(nullptr), grid(nullptr), position(0.0f, 0.0f), sprite_offset(0.0f, 0.0f)
 {
     // Initialize sprite with safe defaults (sprite has its own safe constructor now)
     // gridstate vector starts empty - will be lazily initialized when needed
@@ -172,19 +172,20 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     float opacity = 1.0f;
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f;
-    
+    PyObject* sprite_offset_obj = nullptr;
+
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
         "grid_pos", "texture", "sprite_index",  // Positional args (as per spec)
         // Keyword-only args
-        "grid", "visible", "opacity", "name", "x", "y",
+        "grid", "visible", "opacity", "name", "x", "y", "sprite_offset",
         nullptr
     };
-    
+
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOiOifzff", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOiOifzffO", const_cast<char**>(kwlist),
                                      &grid_pos_obj, &texture, &sprite_index,  // Positional
-                                     &grid_obj, &visible, &opacity, &name, &x, &y)) {
+                                     &grid_obj, &visible, &opacity, &name, &x, &y, &sprite_offset_obj)) {
         return -1;
     }
     
@@ -257,7 +258,16 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     
     // Set position using grid coordinates
     self->data->position = sf::Vector2f(x, y);
-    
+
+    // Handle sprite_offset argument (optional tuple, default (0,0))
+    if (sprite_offset_obj && sprite_offset_obj != Py_None) {
+        sf::Vector2f offset = PyObject_to_sfVector2f(sprite_offset_obj);
+        if (PyErr_Occurred()) {
+            return -1;
+        }
+        self->data->sprite_offset = offset;
+    }
+
     // Set other properties (delegate to sprite)
     self->data->sprite.visible = visible;
     self->data->sprite.opacity = opacity;
@@ -708,6 +718,47 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
     return 0;
 }
 
+// sprite_offset property - Vector (tuple)
+PyObject* UIEntity::get_sprite_offset(PyUIEntityObject* self, void* closure) {
+    return sfVector2f_to_PyObject(self->data->sprite_offset);
+}
+
+int UIEntity::set_sprite_offset(PyUIEntityObject* self, PyObject* value, void* closure) {
+    sf::Vector2f vec = PyObject_to_sfVector2f(value);
+    if (PyErr_Occurred()) return -1;
+    self->data->sprite_offset = vec;
+    if (self->data->grid) self->data->grid->markDirty();
+    return 0;
+}
+
+// sprite_offset_x / sprite_offset_y individual components
+PyObject* UIEntity::get_sprite_offset_member(PyUIEntityObject* self, void* closure) {
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
+    if (member_ptr == 0)
+        return PyFloat_FromDouble(self->data->sprite_offset.x);
+    else
+        return PyFloat_FromDouble(self->data->sprite_offset.y);
+}
+
+int UIEntity::set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, void* closure) {
+    float val;
+    if (PyFloat_Check(value))
+        val = PyFloat_AsDouble(value);
+    else if (PyLong_Check(value))
+        val = PyLong_AsLong(value);
+    else {
+        PyErr_SetString(PyExc_TypeError, "sprite_offset component must be a number");
+        return -1;
+    }
+    auto member_ptr = reinterpret_cast<intptr_t>(closure);
+    if (member_ptr == 0)
+        self->data->sprite_offset.x = val;
+    else
+        self->data->sprite_offset.y = val;
+    if (self->data->grid) self->data->grid->markDirty();
+    return 0;
+}
+
 PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
 {
     // Check if entity has a grid
@@ -1046,6 +1097,12 @@ PyGetSetDef UIEntity::getsetters[] = {
      "Collection of shader uniforms (read-only access to collection). "
      "Set uniforms via dict-like syntax: entity.uniforms['name'] = value. "
      "Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.", NULL},
+    {"sprite_offset", (getter)UIEntity::get_sprite_offset, (setter)UIEntity::set_sprite_offset,
+     "Pixel offset for oversized sprites (Vector). Applied pre-zoom during grid rendering.", NULL},
+    {"sprite_offset_x", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
+     "X component of sprite pixel offset.", (void*)0},
+    {"sprite_offset_y", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
+     "Y component of sprite pixel offset.", (void*)1},
     {NULL}  /* Sentinel */
 };
 
@@ -1070,18 +1127,28 @@ bool UIEntity::setProperty(const std::string& name, float value) {
     if (name == "draw_x" || name == "x") {  // #176 - draw_x is preferred, x is alias
         position.x = value;
         // Don't update sprite position here - UIGrid::render() handles the pixel positioning
-        if (grid) grid->markDirty();  // #144 - Propagate to parent grid for texture caching
+        if (grid) grid->markCompositeDirty();  // #144 - Propagate to parent grid for texture caching
         return true;
     }
     else if (name == "draw_y" || name == "y") {  // #176 - draw_y is preferred, y is alias
         position.y = value;
         // Don't update sprite position here - UIGrid::render() handles the pixel positioning
-        if (grid) grid->markDirty();  // #144 - Propagate to parent grid for texture caching
+        if (grid) grid->markCompositeDirty();  // #144 - Propagate to parent grid for texture caching
         return true;
     }
     else if (name == "sprite_scale") {
         sprite.setScale(sf::Vector2f(value, value));
-        if (grid) grid->markDirty();  // #144 - Content change
+        if (grid) grid->markCompositeDirty();  // #144 - Content change
+        return true;
+    }
+    else if (name == "sprite_offset_x") {
+        sprite_offset.x = value;
+        if (grid) grid->markCompositeDirty();
+        return true;
+    }
+    else if (name == "sprite_offset_y") {
+        sprite_offset.y = value;
+        if (grid) grid->markCompositeDirty();
         return true;
     }
     // #106: Shader uniform properties - delegate to sprite
@@ -1113,6 +1180,14 @@ bool UIEntity::getProperty(const std::string& name, float& value) const {
         value = sprite.getScale().x;  // Assuming uniform scale
         return true;
     }
+    else if (name == "sprite_offset_x") {
+        value = sprite_offset.x;
+        return true;
+    }
+    else if (name == "sprite_offset_y") {
+        value = sprite_offset.y;
+        return true;
+    }
     // #106: Shader uniform properties - delegate to sprite
     if (sprite.getShaderProperty(name, value)) {
         return true;
@@ -1122,7 +1197,8 @@ bool UIEntity::getProperty(const std::string& name, float& value) const {
 
 bool UIEntity::hasProperty(const std::string& name) const {
     // #176 - Float properties (draw_x/draw_y preferred, x/y are aliases)
-    if (name == "draw_x" || name == "draw_y" || name == "x" || name == "y" || name == "sprite_scale") {
+    if (name == "draw_x" || name == "draw_y" || name == "x" || name == "y" || name == "sprite_scale"
+        || name == "sprite_offset_x" || name == "sprite_offset_y") {
         return true;
     }
     // Int properties

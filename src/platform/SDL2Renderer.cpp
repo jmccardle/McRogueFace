@@ -1111,11 +1111,16 @@ Texture::~Texture() {
 }
 
 Texture::Texture(const Texture& other)
-    : size_(other.size_), smooth_(other.smooth_), repeated_(other.repeated_) {
-    if (other.textureId_) {
-        // Create new texture with same properties
-        textureId_ = SDL2Renderer::getInstance().createTexture(size_.x, size_.y, nullptr);
-        // Note: Would need to copy pixel data for full implementation
+    : size_(other.size_), smooth_(other.smooth_), repeated_(other.repeated_),
+      flippedY_(false) {
+    if (other.textureId_ && size_.x > 0 && size_.y > 0) {
+        // Read back pixel data from source texture via FBO, then upload to new texture.
+        // copyToImage() normalizes orientation (flips FBO textures to top-to-bottom),
+        // so the copy is always in standard orientation: flippedY_ = false.
+        Image img = other.copyToImage();
+        textureId_ = SDL2Renderer::getInstance().createTexture(size_.x, size_.y, img.getPixelsPtr());
+        if (smooth_) SDL2Renderer::getInstance().setTextureSmooth(textureId_, true);
+        if (repeated_) SDL2Renderer::getInstance().setTextureRepeated(textureId_, true);
     }
 }
 
@@ -1123,12 +1128,18 @@ Texture& Texture::operator=(const Texture& other) {
     if (this != &other) {
         if (textureId_) {
             SDL2Renderer::getInstance().deleteTexture(textureId_);
+            textureId_ = 0;
         }
         size_ = other.size_;
         smooth_ = other.smooth_;
         repeated_ = other.repeated_;
-        if (other.textureId_) {
-            textureId_ = SDL2Renderer::getInstance().createTexture(size_.x, size_.y, nullptr);
+        // copyToImage() normalizes orientation, so the result is always standard.
+        flippedY_ = false;
+        if (other.textureId_ && size_.x > 0 && size_.y > 0) {
+            Image img = other.copyToImage();
+            textureId_ = SDL2Renderer::getInstance().createTexture(size_.x, size_.y, img.getPixelsPtr());
+            if (smooth_) SDL2Renderer::getInstance().setTextureSmooth(textureId_, true);
+            if (repeated_) SDL2Renderer::getInstance().setTextureRepeated(textureId_, true);
         }
     }
     return *this;
@@ -1211,7 +1222,46 @@ void Texture::setRepeated(bool repeated) {
 Image Texture::copyToImage() const {
     Image img;
     img.create(size_.x, size_.y);
-    // TODO: Read back from GPU texture
+
+    if (!textureId_ || size_.x == 0 || size_.y == 0) {
+        return img;
+    }
+
+    // OpenGL ES 2 / WebGL doesn't have glGetTexImage.
+    // Workaround: attach the texture to a temporary FBO and use glReadPixels.
+    GLuint fbo = 0;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureId_, 0);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+        // Read RGBA pixels from the framebuffer
+        std::vector<Uint8> pixels(size_.x * size_.y * 4);
+        glReadPixels(0, 0, size_.x, size_.y, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+
+        // For normal textures (loaded via stbi/loadFromImage), glReadPixels
+        // returns rows in the same order they were uploaded — no flip needed.
+        // For FBO/RenderTexture textures (flippedY_), GL renders bottom-to-top,
+        // so readback is scene-bottom first — flip to get conventional top-to-bottom.
+        if (flippedY_) {
+            const unsigned int rowBytes = size_.x * 4;
+            std::vector<Uint8> rowBuf(rowBytes);
+            for (unsigned int y = 0; y < size_.y / 2; ++y) {
+                unsigned int opposite = size_.y - 1 - y;
+                std::memcpy(rowBuf.data(),               &pixels[y * rowBytes],        rowBytes);
+                std::memcpy(&pixels[y * rowBytes],        &pixels[opposite * rowBytes], rowBytes);
+                std::memcpy(&pixels[opposite * rowBytes], rowBuf.data(),               rowBytes);
+            }
+        }
+
+        img.create(size_.x, size_.y, pixels.data());
+    }
+
+    // Restore previous framebuffer binding
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &fbo);
+
     return img;
 }
 

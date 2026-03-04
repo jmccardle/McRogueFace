@@ -66,6 +66,7 @@ public:
     std::vector<UIGridPointState> gridstate;
     UISprite sprite;
     sf::Vector2f position; //(x,y) in grid coordinates; float for animation
+    sf::Vector2f sprite_offset; // pixel offset for oversized sprites (applied pre-zoom)
     //void render(sf::Vector2f); //override final;
 
     UIEntity();
@@ -115,6 +116,10 @@ public:
     static int set_grid_int_member(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_grid(PyUIEntityObject* self, void* closure);
     static int set_grid(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_sprite_offset(PyUIEntityObject* self, void* closure);
+    static int set_sprite_offset(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_sprite_offset_member(PyUIEntityObject* self, void* closure);
+    static int set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIEntityObject* self);
@@ -143,7 +148,8 @@ namespace mcrfpydef {
                             "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
                             "    name (str): Element name for finding. Default: None\n"
                             "    x (float): X grid position override (tile coords). Default: 0\n"
-                            "    y (float): Y grid position override (tile coords). Default: 0\n\n"
+                            "    y (float): Y grid position override (tile coords). Default: 0\n"
+                            "    sprite_offset (tuple): Pixel offset for oversized sprites. Default: (0, 0)\n\n"
                             "Attributes:\n"
                             "    pos (Vector): Pixel position relative to grid (requires grid attachment)\n"
                             "    x, y (float): Pixel position components (requires grid attachment)\n"
@@ -154,7 +160,10 @@ namespace mcrfpydef {
                             "    sprite_index (int): Current sprite index\n"
                             "    visible (bool): Visibility state\n"
                             "    opacity (float): Opacity value\n"
-                            "    name (str): Element name"),
+                            "    name (str): Element name\n"
+                            "    sprite_offset (Vector): Pixel offset for oversized sprites\n"
+                            "    sprite_offset_x (float): X component of sprite offset\n"
+                            "    sprite_offset_y (float): Y component of sprite offset"),
         .tp_methods = UIEntity_all_methods,
         .tp_getset = UIEntity::getsetters,
         .tp_base = NULL,
