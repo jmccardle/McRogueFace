@@ -40,26 +40,44 @@ sf::Color PyObject_to_sfColor(PyObject* obj) {
 
 // #150 - Removed get_color/set_color - now handled by layers
 
+// Helper to safely get the GridPoint data from coordinates
+static UIGridPoint* getGridPointData(PyUIGridPointObject* self) {
+    if (!self->grid) return nullptr;
+    int idx = self->y * self->grid->grid_w + self->x;
+    if (idx < 0 || idx >= static_cast<int>(self->grid->points.size())) return nullptr;
+    return &self->grid->points[idx];
+}
+
 PyObject* UIGridPoint::get_bool_member(PyUIGridPointObject* self, void* closure) {
+    auto* data = getGridPointData(self);
+    if (!data) {
+        PyErr_SetString(PyExc_RuntimeError, "GridPoint data is no longer valid");
+        return NULL;
+    }
     if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
-        return PyBool_FromLong(self->data->walkable);
+        return PyBool_FromLong(data->walkable);
     } else { // transparent
-        return PyBool_FromLong(self->data->transparent);
+        return PyBool_FromLong(data->transparent);
     }
 }
 
 int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, void* closure) {
+    auto* data = getGridPointData(self);
+    if (!data) {
+        PyErr_SetString(PyExc_RuntimeError, "GridPoint data is no longer valid");
+        return -1;
+    }
     if (value == Py_True) {
         if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
-            self->data->walkable = true;
+            data->walkable = true;
         } else { // transparent
-            self->data->transparent = true;
+            data->transparent = true;
         }
     } else if (value == Py_False) {
         if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
-            self->data->walkable = false;
+            data->walkable = false;
         } else { // transparent
-            self->data->transparent = false;
+            data->transparent = false;
         }
     } else {
         PyErr_SetString(PyExc_ValueError, "Expected a boolean value");
@@ -67,8 +85,8 @@ int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, voi
     }
 
     // Sync with TCOD map if parent grid exists
-    if (self->data->parent_grid && self->data->grid_x >= 0 && self->data->grid_y >= 0) {
-        self->data->parent_grid->syncTCODMapCell(self->data->grid_x, self->data->grid_y);
+    if (data->parent_grid && data->grid_x >= 0 && data->grid_y >= 0) {
+        data->parent_grid->syncTCODMapCell(data->grid_x, data->grid_y);
     }
 
     return 0;
@@ -83,8 +101,8 @@ PyObject* UIGridPoint::get_entities(PyUIGridPointObject* self, void* closure) {
         return NULL;
     }
 
-    int target_x = self->data->grid_x;
-    int target_y = self->data->grid_y;
+    int target_x = self->x;
+    int target_y = self->y;
 
     PyObject* list = PyList_New(0);
     if (!list) return NULL;
@@ -115,7 +133,7 @@ PyObject* UIGridPoint::get_entities(PyUIGridPointObject* self, void* closure) {
 
 // #177 - Get grid position as tuple
 PyObject* UIGridPoint::get_grid_pos(PyUIGridPointObject* self, void* closure) {
-    return Py_BuildValue("(ii)", self->data->grid_x, self->data->grid_y);
+    return Py_BuildValue("(ii)", self->x, self->y);
 }
 
 PyGetSetDef UIGridPoint::getsetters[] = {
@@ -129,26 +147,44 @@ PyGetSetDef UIGridPoint::getsetters[] = {
 
 PyObject* UIGridPoint::repr(PyUIGridPointObject* self) {
     std::ostringstream ss;
-    if (!self->data) ss << "<GridPoint (invalid internal object)>";
+    auto* gp = getGridPointData(self);
+    if (!gp) ss << "<GridPoint (invalid internal object)>";
     else {
-        auto gp = self->data;
         ss << "<GridPoint (walkable=" << (gp->walkable ? "True" : "False")
            << ", transparent=" << (gp->transparent ? "True" : "False")
-           << ") at (" << gp->grid_x << ", " << gp->grid_y << ")>";
+           << ") at (" << self->x << ", " << self->y << ")>";
     }
     std::string repr_str = ss.str();
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
 }
 
+// Helper to safely get the GridPointState data from coordinates
+static UIGridPointState* getGridPointStateData(PyUIGridPointStateObject* self) {
+    if (!self->entity || !self->entity->grid) return nullptr;
+    int idx = self->y * self->entity->grid->grid_w + self->x;
+    if (idx < 0 || idx >= static_cast<int>(self->entity->gridstate.size())) return nullptr;
+    return &self->entity->gridstate[idx];
+}
+
 PyObject* UIGridPointState::get_bool_member(PyUIGridPointStateObject* self, void* closure) {
+    auto* data = getGridPointStateData(self);
+    if (!data) {
+        PyErr_SetString(PyExc_RuntimeError, "GridPointState data is no longer valid");
+        return NULL;
+    }
     if (reinterpret_cast<intptr_t>(closure) == 0) { // visible
-        return PyBool_FromLong(self->data->visible);
+        return PyBool_FromLong(data->visible);
     } else { // discovered
-        return PyBool_FromLong(self->data->discovered);
+        return PyBool_FromLong(data->discovered);
     }
 }
 
 int UIGridPointState::set_bool_member(PyUIGridPointStateObject* self, PyObject* value, void* closure) {
+    auto* data = getGridPointStateData(self);
+    if (!data) {
+        PyErr_SetString(PyExc_RuntimeError, "GridPointState data is no longer valid");
+        return -1;
+    }
     if (!PyBool_Check(value)) {
         PyErr_SetString(PyExc_TypeError, "Value must be a boolean");
         return -1;
@@ -156,13 +192,13 @@ int UIGridPointState::set_bool_member(PyUIGridPointStateObject* self, PyObject* 
 
     int truthValue = PyObject_IsTrue(value);
     if (truthValue < 0) {
-        return -1; // PyObject_IsTrue returns -1 on error
+        return -1;
     }
 
     if (reinterpret_cast<intptr_t>(closure) == 0) { // visible
-        self->data->visible = truthValue;
+        data->visible = truthValue;
     } else { // discovered
-        self->data->discovered = truthValue;
+        data->discovered = truthValue;
     }
 
     return 0;
@@ -171,7 +207,8 @@ int UIGridPointState::set_bool_member(PyUIGridPointStateObject* self, PyObject* 
 // #16 - Get GridPoint at this position (None if not discovered)
 PyObject* UIGridPointState::get_point(PyUIGridPointStateObject* self, void* closure) {
     // Return None if entity hasn't discovered this cell
-    if (!self->data->discovered) {
+    auto* data = getGridPointStateData(self);
+    if (!data || !data->discovered) {
         Py_RETURN_NONE;
     }
 
@@ -185,16 +222,9 @@ PyObject* UIGridPointState::get_point(PyUIGridPointStateObject* self, void* clos
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
     if (!obj) return NULL;
 
-    // Get the GridPoint from the grid
-    int idx = self->y * self->grid->grid_w + self->x;
-    if (idx < 0 || idx >= static_cast<int>(self->grid->points.size())) {
-        Py_DECREF(obj);
-        PyErr_SetString(PyExc_IndexError, "GridPointState position out of bounds");
-        return NULL;
-    }
-
-    obj->data = &(self->grid->points[idx]);
     obj->grid = self->grid;
+    obj->x = self->x;
+    obj->y = self->y;
     return (PyObject*)obj;
 }
 
@@ -207,9 +237,9 @@ PyGetSetDef UIGridPointState::getsetters[] = {
 
 PyObject* UIGridPointState::repr(PyUIGridPointStateObject* self) {
     std::ostringstream ss;
-    if (!self->data) ss << "<GridPointState (invalid internal object)>";
+    auto* gps = getGridPointStateData(self);
+    if (!gps) ss << "<GridPointState (invalid internal object)>";
     else {
-        auto gps = self->data;
         ss << "<GridPointState (visible=" << (gps->visible ? "True" : "False") << ", discovered=" << (gps->discovered ? "True" : "False") <<
         ")>";
     }
@@ -243,8 +273,8 @@ PyObject* UIGridPoint::getattro(PyUIGridPointObject* self, PyObject* name) {
         return nullptr;
     }
 
-    int x = self->data->grid_x;
-    int y = self->data->grid_y;
+    int x = self->x;
+    int y = self->y;
 
     // Get value based on layer type
     if (layer->type == GridLayerType::Color) {
@@ -285,8 +315,8 @@ int UIGridPoint::setattro(PyUIGridPointObject* self, PyObject* name, PyObject* v
         return -1;
     }
 
-    int x = self->data->grid_x;
-    int y = self->data->grid_y;
+    int x = self->x;
+    int y = self->y;
 
     // Set value based on layer type
     if (layer->type == GridLayerType::Color) {

@@ -1353,10 +1353,9 @@ PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds)
     // Use the type directly since GridPoint is internal-only (not exported to module)
     auto type = &mcrfpydef::PyUIGridPointType;
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
-    //auto target = std::static_pointer_cast<UIEntity>(target);
-    // #123 - Use at() method to route through chunks for large grids
-    obj->data = &(self->data->at(x, y));
     obj->grid = self->data;
+    obj->x = x;
+    obj->y = y;
     return (PyObject*)obj;
 }
 
@@ -1396,8 +1395,9 @@ PyObject* UIGrid::subscript(PyUIGridObject* self, PyObject* key)
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
     if (!obj) return NULL;
 
-    obj->data = &(self->data->at(x, y));
     obj->grid = self->data;
+    obj->x = x;
+    obj->y = y;
     return (PyObject*)obj;
 }
 

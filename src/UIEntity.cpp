@@ -124,7 +124,6 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     // Use type directly since GridPointState is internal-only (not exported to module)
     auto type = &mcrfpydef::PyUIGridPointStateType;
     auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
-    obj->data = &(self->data->gridstate[y * self->data->grid->grid_w + x]);
     obj->grid = self->data->grid;
     obj->entity = self->data;
     obj->x = x;  // #16 - Store position for .point property
@@ -324,24 +323,20 @@ sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
 }
 
 PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state) {
-    // Create a new GridPointState Python object (detached - no grid/entity context)
-    // Use type directly since GridPointState is internal-only (not exported to module)
-    auto type = &mcrfpydef::PyUIGridPointStateType;
-    auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
-    if (!obj) {
-        return NULL;
-    }
-
-    // Allocate new data and copy values
-    obj->data = new UIGridPointState();
-    obj->data->visible = state.visible;
-    obj->data->discovered = state.discovered;
-
-    // Initialize context fields (detached state has no grid/entity context)
-    obj->grid = nullptr;
-    obj->entity = nullptr;
-    obj->x = -1;
-    obj->y = -1;
+    // Return a simple namespace with visible/discovered attributes
+    // (detached snapshot — not backed by a live entity's gridstate)
+    PyObject* types_mod = PyImport_ImportModule("types");
+    if (!types_mod) return NULL;
+    PyObject* ns_type = PyObject_GetAttrString(types_mod, "SimpleNamespace");
+    Py_DECREF(types_mod);
+    if (!ns_type) return NULL;
+    PyObject* kwargs = Py_BuildValue("{s:O,s:O}",
+        "visible", state.visible ? Py_True : Py_False,
+        "discovered", state.discovered ? Py_True : Py_False);
+    if (!kwargs) { Py_DECREF(ns_type); return NULL; }
+    PyObject* obj = PyObject_Call(ns_type, PyTuple_New(0), kwargs);
+    Py_DECREF(ns_type);
+    Py_DECREF(kwargs);
 
     return (PyObject*)obj;
 }

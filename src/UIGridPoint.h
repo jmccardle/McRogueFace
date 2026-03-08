@@ -22,16 +22,15 @@ class UIGridPointState;
 
 typedef struct {
     PyObject_HEAD
-    UIGridPoint* data;
     std::shared_ptr<UIGrid> grid;
+    int x, y;  // Grid coordinates - compute data pointer on access
 } PyUIGridPointObject;
 
 typedef struct {
     PyObject_HEAD
-    UIGridPointState* data;
     std::shared_ptr<UIGrid> grid;
     std::shared_ptr<UIEntity> entity;
-    int x, y;  // Position in grid (needed for .point property)
+    int x, y;  // Position in grid - compute state on access
 } PyUIGridPointStateObject;
 
 // UIGridPoint - grid cell data for pathfinding and layer access
