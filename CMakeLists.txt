@@ -205,9 +205,14 @@ elseif(MCRF_HEADLESS)
         endif()
     else()
         # Unix/Linux headless build
+        if(MCRF_DEBUG_PYTHON)
+            set(PYTHON_LIB python3.14d)
+        else()
+            set(PYTHON_LIB python3.14)
+        endif()
         set(LINK_LIBS
             tcod
-            python3.14
+            ${PYTHON_LIB}
             m dl util pthread)
         include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
         if(MCRF_DEBUG_PYTHON)
@@ -259,13 +264,18 @@ elseif(WIN32)
     link_directories(${CMAKE_SOURCE_DIR}/__lib)
 else()
     # Unix/Linux build
+    if(MCRF_DEBUG_PYTHON)
+        set(PYTHON_LIB python3.14d)
+    else()
+        set(PYTHON_LIB python3.14)
+    endif()
     set(LINK_LIBS
         sfml-graphics
         sfml-window
         sfml-system
         sfml-audio
         tcod
-        python3.14
+        ${PYTHON_LIB}
         m dl util pthread
         ${OPENGL_LIBRARIES})
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
@@ -294,10 +304,16 @@ endif()
 
 if(MCRF_SANITIZE_UNDEFINED)
     message(STATUS "UndefinedBehaviorSanitizer enabled")
+    # -fno-sanitize=function is Clang-only; -fno-sanitize=vptr avoids CPython false positives
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        set(UBSAN_EXCLUSIONS -fno-sanitize=function,vptr)
+    else()
+        set(UBSAN_EXCLUSIONS -fno-sanitize=vptr)
+    endif()
     target_compile_options(mcrogueface PRIVATE
-        -fsanitize=undefined -fno-sanitize=function,vptr -g -O1)
+        -fsanitize=undefined ${UBSAN_EXCLUSIONS} -g -O1)
     target_link_options(mcrogueface PRIVATE
-        -fsanitize=undefined -fno-sanitize=function,vptr)
+        -fsanitize=undefined ${UBSAN_EXCLUSIONS})
 endif()
 
 if(MCRF_SANITIZE_THREAD)
@@ -436,12 +452,19 @@ add_custom_command(TARGET mcrogueface POST_BUILD
 # Copy Python standard library to build directory
 if(MCRF_DEBUG_PYTHON)
     # Copy all libs first (SFML, libtcod, Python stdlib), then overwrite with debug Python
+    # The debug lib has SONAME libpython3.14d.so.1.0, so we need both names
     add_custom_command(TARGET mcrogueface POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib
         COMMAND ${CMAKE_COMMAND} -E copy
             ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
-            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython3.14.so.1.0)
+            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython3.14.so.1.0
+        COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
+            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython3.14d.so.1.0
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            libpython3.14d.so.1.0
+            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython3.14d.so)
 else()
     add_custom_command(TARGET mcrogueface POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
