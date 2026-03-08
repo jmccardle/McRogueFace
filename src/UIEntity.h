@@ -60,7 +60,6 @@ PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& 
 class UIEntity
 {
 public:
-    PyObject* self = nullptr;  // Reference to the Python object (if created from Python)
     uint64_t serial_number = 0;  // For Python object cache
     std::shared_ptr<UIGrid> grid;
     std::vector<UIGridPointState> gridstate;
@@ -135,6 +134,12 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.Entity",
         .tp_basicsize = sizeof(PyUIEntityObject),
         .tp_itemsize = 0,
+        .tp_dealloc = [](PyObject* obj) {
+            auto* self = (PyUIEntityObject*)obj;
+            if (self->weakreflist) PyObject_ClearWeakRefs(obj);
+            self->data.reset();
+            Py_TYPE(obj)->tp_free(obj);
+        },
         .tp_repr = (reprfunc)UIEntity::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
         .tp_doc = PyDoc_STR("Entity(grid_pos=None, texture=None, sprite_index=0, **kwargs)\n\n"

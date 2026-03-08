@@ -41,10 +41,12 @@ PyObject* UIEntityCollectionIter::next(PyUIEntityCollectionIterObject* self)
     auto target = *self->current;
     ++self->current;
 
-    // Return the stored Python object if it exists (preserves derived types)
-    if (target->self != nullptr) {
-        Py_INCREF(target->self);
-        return target->self;
+    // Check cache first to preserve derived class identity
+    if (target->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(target->serial_number);
+        if (cached) {
+            return cached;  // Already INCREF'd by lookup
+        }
     }
 
     // Otherwise create and return a new Python Entity object
@@ -107,13 +109,7 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
         }
     }
 
-    // Legacy: If the entity has a stored Python object reference, return that
-    if (target->self != nullptr) {
-        Py_INCREF(target->self);
-        return target->self;
-    }
-
-    // Otherwise, create a new base Entity object
+    // Create a new base Entity object
     PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
 
     auto o = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);

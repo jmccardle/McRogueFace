@@ -1442,13 +1442,7 @@ PyObject* UIGrid::get_perspective(PyUIGridObject* self, void* closure)
             }
         }
         
-        // Legacy: If the entity has a stored Python object reference
-        if (locked->self != nullptr) {
-            Py_INCREF(locked->self);
-            return locked->self;
-        }
-        
-        // Otherwise, create a new base Entity object
+        // Create a new base Entity object
         auto type = &mcrfpydef::PyUIEntityType;
         auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
         if (o) {
@@ -1936,11 +1930,12 @@ PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, Py
     for (size_t i = 0; i < entities.size(); i++) {
         auto& entity = entities[i];
 
-        // Return stored Python object if it exists
-        if (entity->self != nullptr) {
-            Py_INCREF(entity->self);
-            PyList_SET_ITEM(result, i, entity->self);
-        } else {
+        // Check cache first to preserve derived class identity
+        PyObject* py_entity = nullptr;
+        if (entity->serial_number != 0) {
+            py_entity = PythonObjectCache::getInstance().lookup(entity->serial_number);
+        }
+        if (!py_entity) {
             // Create new Python Entity wrapper
             auto pyEntity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
             if (!pyEntity) {
@@ -1949,8 +1944,9 @@ PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, Py
             }
             pyEntity->data = entity;
             pyEntity->weakreflist = NULL;
-            PyList_SET_ITEM(result, i, (PyObject*)pyEntity);
+            py_entity = (PyObject*)pyEntity;
         }
+        PyList_SET_ITEM(result, i, py_entity);
     }
 
     return result;

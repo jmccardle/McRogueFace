@@ -19,7 +19,7 @@
 
 
 UIEntity::UIEntity()
-: self(nullptr), grid(nullptr), position(0.0f, 0.0f), sprite_offset(0.0f, 0.0f)
+: grid(nullptr), position(0.0f, 0.0f), sprite_offset(0.0f, 0.0f)
 {
     // Initialize sprite with safe defaults (sprite has its own safe constructor now)
     // gridstate vector starts empty - will be lazily initialized when needed
@@ -241,10 +241,6 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         }
     }
     
-    // Store reference to Python object (legacy - to be removed)
-    self->data->self = (PyObject*)self;
-    Py_INCREF(self);
-
     // Set texture and sprite index
     if (texture_ptr) {
         self->data->sprite = UISprite(texture_ptr, sprite_index, sf::Vector2f(0,0), 1.0);
