@@ -464,28 +464,19 @@ PyObject* PyNoiseSource::sample(PyNoiseSourceObject* self, PyObject* args, PyObj
     }
 
     // Create HeightMap
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
-        return nullptr;
-    }
-
     PyObject* size_tuple = Py_BuildValue("(ii)", width, height);
     if (!size_tuple) {
-        Py_DECREF(heightmap_type);
         return nullptr;
     }
 
     PyObject* hmap_args = PyTuple_Pack(1, size_tuple);
     Py_DECREF(size_tuple);
     if (!hmap_args) {
-        Py_DECREF(heightmap_type);
         return nullptr;
     }
 
-    PyHeightMapObject* hmap = (PyHeightMapObject*)PyObject_Call(heightmap_type, hmap_args, nullptr);
+    PyHeightMapObject* hmap = (PyHeightMapObject*)PyObject_Call((PyObject*)&mcrfpydef::PyHeightMapType, hmap_args, nullptr);
     Py_DECREF(hmap_args);
-    Py_DECREF(heightmap_type);
 
     if (!hmap) {
         return nullptr;

@@ -53,16 +53,8 @@ PyClickCallable::PyClickCallable()
 
 void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::string action)
 {
-    // Create a Vector object for the position - must fetch the finalized type from the module
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) {
-        std::cerr << "Failed to get Vector type for click callback" << std::endl;
-        PyErr_Print();
-        PyErr_Clear();
-        return;
-    }
-    PyObject* pos = PyObject_CallFunction(vector_type, "ff", mousepos.x, mousepos.y);
-    Py_DECREF(vector_type);
+    // Create a Vector object for the position
+    PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", mousepos.x, mousepos.y);
     if (!pos) {
         std::cerr << "Failed to create Vector object for click callback" << std::endl;
         PyErr_Print();
@@ -203,15 +195,7 @@ void PyHoverCallable::call(sf::Vector2f mousepos)
     if (target == Py_None || target == NULL) return;
 
     // Create a Vector object for the position
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) {
-        std::cerr << "Failed to get Vector type for hover callback" << std::endl;
-        PyErr_Print();
-        PyErr_Clear();
-        return;
-    }
-    PyObject* pos = PyObject_CallFunction(vector_type, "ff", mousepos.x, mousepos.y);
-    Py_DECREF(vector_type);
+    PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", mousepos.x, mousepos.y);
     if (!pos) {
         std::cerr << "Failed to create Vector object for hover callback" << std::endl;
         PyErr_Print();
@@ -263,15 +247,7 @@ void PyCellHoverCallable::call(sf::Vector2i cellpos)
     if (target == Py_None || target == NULL) return;
 
     // Create a Vector object for the cell position
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) {
-        std::cerr << "Failed to get Vector type for cell hover callback" << std::endl;
-        PyErr_Print();
-        PyErr_Clear();
-        return;
-    }
-    PyObject* pos = PyObject_CallFunction(vector_type, "ii", cellpos.x, cellpos.y);
-    Py_DECREF(vector_type);
+    PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ii", cellpos.x, cellpos.y);
     if (!pos) {
         std::cerr << "Failed to create Vector object for cell hover callback" << std::endl;
         PyErr_Print();

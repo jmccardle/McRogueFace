@@ -52,12 +52,8 @@ PyColor::PyColor(sf::Color target)
 
 PyObject* PyColor::pyObject()
 {
-    PyTypeObject* type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
-    if (!type) return nullptr;
-    
-    PyColorObject* obj = (PyColorObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
-    
+    PyColorObject* obj = (PyColorObject*)mcrfpydef::PyColorType.tp_alloc(&mcrfpydef::PyColorType, 0);
+
     if (obj) {
         obj->data = data;
     }
@@ -72,14 +68,9 @@ sf::Color PyColor::fromPy(PyObject* obj)
     }
 
     // Check if it's already a Color object
-    PyTypeObject* color_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
-    if (color_type) {
-        bool is_color = PyObject_TypeCheck(obj, color_type);
-        Py_DECREF(color_type);
-        if (is_color) {
-            PyColorObject* self = (PyColorObject*)obj;
-            return self->data;
-        }
+    if (PyObject_TypeCheck(obj, &mcrfpydef::PyColorType)) {
+        PyColorObject* self = (PyColorObject*)obj;
+        return self->data;
     }
 
     // Handle tuple or list input
@@ -382,9 +373,7 @@ PyObject* PyColor::lerp(PyColorObject* self, PyObject* args)
     }
     
     // Validate other color
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
-    if (!PyObject_IsInstance(other_obj, (PyObject*)type)) {
-        Py_DECREF(type);
+    if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyColorType)) {
         PyErr_SetString(PyExc_TypeError, "First argument must be a Color");
         return NULL;
     }
@@ -402,8 +391,8 @@ PyObject* PyColor::lerp(PyColorObject* self, PyObject* args)
     sf::Uint8 a = static_cast<sf::Uint8>(self->data.a + (other->data.a - self->data.a) * t);
     
     // Create new Color object
+    auto type = &mcrfpydef::PyColorType;
     PyColorObject* result = (PyColorObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
     
     if (result) {
         result->data = sf::Color(r, g, b, a);

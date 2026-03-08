@@ -350,7 +350,7 @@ PyObject* UISprite::get_texture(PyUISpriteObject* self, void* closure)
 int UISprite::set_texture(PyUISpriteObject* self, PyObject* value, void* closure)
 {
     // Check if value is a Texture instance
-    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType)) {
         PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
         return -1;
     }
@@ -370,7 +370,7 @@ int UISprite::set_texture(PyUISpriteObject* self, PyObject* value, void* closure
 
 PyObject* UISprite::get_pos(PyUISpriteObject* self, void* closure)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
     if (obj) {
         auto pos = self->data->getPosition();
@@ -515,9 +515,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
     if (snapshot && snapshot != Py_None) {
         // Check if snapshot is a Frame (most common case)
-        PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-        if (PyObject_IsInstance(snapshot, frame_type)) {
-            Py_DECREF(frame_type);
+        if (PyObject_IsInstance(snapshot, (PyObject*)&mcrfpydef::PyUIFrameType)) {
             auto pyframe = (PyUIFrameObject*)snapshot;
             if (!pyframe->data) {
                 PyErr_SetString(PyExc_ValueError, "Invalid Frame object for snapshot");
@@ -547,14 +545,13 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
             texture_ptr = PyTexture::from_rendered(render_tex);
             sprite_index = 0;  // Snapshot is always sprite index 0
         } else {
-            Py_DECREF(frame_type);
             PyErr_SetString(PyExc_TypeError, "snapshot must be a Frame instance");
             return -1;
         }
     }
     // Handle texture - allow None or use default (only if no snapshot)
     else if (texture && texture != Py_None) {
-        if (!PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
+        if (!PyObject_IsInstance(texture, (PyObject*)&mcrfpydef::PyTextureType)) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
             return -1;
         }
@@ -616,11 +613,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     }
 
     // #184: Check if this is a Python subclass (for callback method support)
-    PyObject* sprite_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
-    if (sprite_type) {
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != sprite_type;
-        Py_DECREF(sprite_type);
-    }
+    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUISpriteType;
 
     return 0;
 }

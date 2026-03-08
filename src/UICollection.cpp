@@ -20,7 +20,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
     if (!drawable) {
         Py_RETURN_NONE;
     }
-    
+
     // Check cache first
     if (drawable->serial_number != 0) {
         PyObject* cached = PythonObjectCache::getInstance().lookup(drawable->serial_number);
@@ -28,15 +28,14 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             return cached;  // Already INCREF'd by lookup
         }
     }
-    
+
     PyTypeObject* type = nullptr;
     PyObject* obj = nullptr;
-    
+
     switch (drawable->derived_type()) {
         case PyObjectsEnum::UIFRAME:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-            if (!type) return nullptr;
+            type = &PyUIFrameType;
             auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
@@ -47,8 +46,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UICAPTION:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
-            if (!type) return nullptr;
+            type = &PyUICaptionType;
             auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UICaption>(drawable);
@@ -60,8 +58,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UISPRITE:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
-            if (!type) return nullptr;
+            type = &PyUISpriteType;
             auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UISprite>(drawable);
@@ -72,8 +69,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UIGRID:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-            if (!type) return nullptr;
+            type = &PyUIGridType;
             auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
@@ -84,8 +80,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UILINE:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line");
-            if (!type) return nullptr;
+            type = &PyUILineType;
             auto pyObj = (PyUILineObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UILine>(drawable);
@@ -96,8 +91,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UICIRCLE:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle");
-            if (!type) return nullptr;
+            type = &PyUICircleType;
             auto pyObj = (PyUICircleObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UICircle>(drawable);
@@ -108,8 +102,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UIARC:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc");
-            if (!type) return nullptr;
+            type = &PyUIArcType;
             auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIArc>(drawable);
@@ -120,8 +113,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UIVIEWPORT3D:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D");
-            if (!type) return nullptr;
+            type = &PyViewport3DType;
             auto pyObj = (PyViewport3DObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<mcrf::Viewport3D>(drawable);
@@ -133,10 +125,6 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         default:
             PyErr_SetString(PyExc_TypeError, "Unknown UIDrawable derived type");
             return nullptr;
-    }
-    
-    if (type) {
-        Py_DECREF(type);
     }
 
     // Re-register in cache if the object has a serial number
@@ -151,6 +139,28 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
     }
 
     return obj;
+}
+
+// Helper to extract shared_ptr<UIDrawable> from any UIDrawable Python subclass.
+// Returns nullptr without setting an error if the type doesn't match.
+static std::shared_ptr<UIDrawable> extractDrawable(PyObject* o) {
+    if (PyObject_IsInstance(o, (PyObject*)&PyUIFrameType))
+        return ((PyUIFrameObject*)o)->data;
+    if (PyObject_IsInstance(o, (PyObject*)&PyUICaptionType))
+        return ((PyUICaptionObject*)o)->data;
+    if (PyObject_IsInstance(o, (PyObject*)&PyUISpriteType))
+        return ((PyUISpriteObject*)o)->data;
+    if (PyObject_IsInstance(o, (PyObject*)&PyUIGridType))
+        return ((PyUIGridObject*)o)->data;
+    if (PyObject_IsInstance(o, (PyObject*)&PyUILineType))
+        return ((PyUILineObject*)o)->data;
+    if (PyObject_IsInstance(o, (PyObject*)&PyUICircleType))
+        return ((PyUICircleObject*)o)->data;
+    if (PyObject_IsInstance(o, (PyObject*)&PyUIArcType))
+        return ((PyUIArcObject*)o)->data;
+    if (PyObject_IsInstance(o, (PyObject*)&PyViewport3DType))
+        return ((PyViewport3DObject*)o)->data;
+    return nullptr;
 }
 
 int UICollectionIter::init(PyUICollectionIterObject* self, PyObject* args, PyObject* kwds)
@@ -250,37 +260,13 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
         return 0;
     }
     
-    // Type checking - must be a UIDrawable subclass
-    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        PyErr_SetString(PyExc_TypeError, "UICollection can only contain Frame, Caption, Sprite, and Grid objects");
-        return -1;
-    }
-    
-    // Get the C++ object from the Python object
-    std::shared_ptr<UIDrawable> new_drawable = nullptr;
-    int old_z_index = (*vec)[index]->z_index;  // Preserve the z_index
-    
-    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-        PyUIFrameObject* frame = (PyUIFrameObject*)value;
-        new_drawable = frame->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-        PyUICaptionObject* caption = (PyUICaptionObject*)value;
-        new_drawable = caption->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-        PyUISpriteObject* sprite = (PyUISpriteObject*)value;
-        new_drawable = sprite->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        PyUIGridObject* grid = (PyUIGridObject*)value;
-        new_drawable = grid->data;
-    }
-    
+    // Extract drawable from Python object (type-checks internally)
+    std::shared_ptr<UIDrawable> new_drawable = extractDrawable(value);
     if (!new_drawable) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to extract C++ object from Python object");
+        PyErr_SetString(PyExc_TypeError, "UICollection can only contain Drawable objects");
         return -1;
     }
+    int old_z_index = (*vec)[index]->z_index;  // Preserve the z_index
 
     // #122: Clear parent of old element
     (*vec)[index]->setParent(nullptr);
@@ -312,32 +298,8 @@ int UICollection::contains(PyUICollectionObject* self, PyObject* value) {
         return -1;
     }
     
-    // Type checking - must be a UIDrawable subclass
-    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        // Not a valid type, so it can't be in the collection
-        return 0;
-    }
-    
-    // Get the C++ object from the Python object
-    std::shared_ptr<UIDrawable> search_drawable = nullptr;
-    
-    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-        PyUIFrameObject* frame = (PyUIFrameObject*)value;
-        search_drawable = frame->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-        PyUICaptionObject* caption = (PyUICaptionObject*)value;
-        search_drawable = caption->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-        PyUISpriteObject* sprite = (PyUISpriteObject*)value;
-        search_drawable = sprite->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        PyUIGridObject* grid = (PyUIGridObject*)value;
-        search_drawable = grid->data;
-    }
-    
+    // Extract drawable (returns nullptr for non-drawable types)
+    std::shared_ptr<UIDrawable> search_drawable = extractDrawable(value);
     if (!search_drawable) {
         return 0;
     }
@@ -412,14 +374,11 @@ PyObject* UICollection::inplace_concat(PyUICollectionObject* self, PyObject* oth
             return NULL;
         }
         
-        // Type check
-        if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
+        // Type check - must be a UIDrawable subclass
+        if (!PyObject_IsInstance(item, (PyObject*)&PyDrawableType)) {
             Py_DECREF(item);
-            PyErr_Format(PyExc_TypeError, 
-                "UICollection can only contain Frame, Caption, Sprite, and Grid objects; "
+            PyErr_Format(PyExc_TypeError,
+                "UICollection can only contain Drawable objects; "
                 "got %s at index %zd", Py_TYPE(item)->tp_name, i);
             return NULL;
         }
@@ -544,20 +503,11 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
                 }
                 
                 // Type check and extract C++ object
-                std::shared_ptr<UIDrawable> drawable = nullptr;
-                
-                if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-                    drawable = ((PyUIFrameObject*)item)->data;
-                } else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-                    drawable = ((PyUICaptionObject*)item)->data;
-                } else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-                    drawable = ((PyUISpriteObject*)item)->data;
-                } else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-                    drawable = ((PyUIGridObject*)item)->data;
-                } else {
+                std::shared_ptr<UIDrawable> drawable = extractDrawable(item);
+                if (!drawable) {
                     Py_DECREF(item);
-                    PyErr_Format(PyExc_TypeError, 
-                        "UICollection can only contain Frame, Caption, Sprite, and Grid objects; "
+                    PyErr_Format(PyExc_TypeError,
+                        "UICollection can only contain Drawable objects; "
                         "got %s at index %zd", Py_TYPE(item)->tp_name, i);
                     return -1;
                 }
@@ -629,45 +579,22 @@ PySequenceMethods UICollection::sqmethods = {
 	.sq_inplace_repeat = NULL
 };
 
-/* Idiomatic way to fetch complete types from the API rather than referencing their PyTypeObject struct
-
-auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture");
-
-I never identified why `using namespace mcrfpydef;` doesn't solve the segfault issue.
-The horrible macro in UIDrawable was originally a workaround for this, but as I interact with the types outside of the monster UI.h, a more general (and less icky) solution is required.
-
-*/
 
 PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
 {
 	// if not UIDrawable subclass, reject it
 	// self->data->push_back( c++ object inside o );
 
-    // Ensure module is initialized
-    if (!McRFPy_API::mcrf_module) {
-        PyErr_SetString(PyExc_RuntimeError, "mcrfpy module not initialized");
-        return NULL;
-    }
-
-    // this would be a great use case for .tp_base
-    if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")) &&
-        !PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D"))
-        )
-    {
-        PyErr_SetString(PyExc_TypeError, "Only Frame, Caption, Sprite, Grid, Line, Circle, Arc, and Viewport3D objects can be added to UICollection");
+    // Extract drawable from Python object
+    std::shared_ptr<UIDrawable> drawable = extractDrawable(o);
+    if (!drawable) {
+        PyErr_SetString(PyExc_TypeError, "Only Drawable objects can be added to UICollection");
         return NULL;
     }
 
     // Calculate z_index for the new element
     int new_z_index = 0;
     if (!self->data->empty()) {
-        // Get the z_index of the last element and add 10
         int last_z = self->data->back()->z_index;
         if (last_z <= INT_MAX - 10) {
             new_z_index = last_z + 10;
@@ -676,60 +603,20 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
         }
     }
 
-    // #122: Get the owner as parent for this drawable
-    std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
+    // #183: Remove from old parent (drawable or scene)
+    drawable->removeFromParent();
 
-    // Helper lambda to add drawable with parent tracking
-    auto addDrawable = [&](std::shared_ptr<UIDrawable> drawable) {
-        // #183: Remove from old parent (drawable or scene)
-        drawable->removeFromParent();
+    drawable->z_index = new_z_index;
 
-        drawable->z_index = new_z_index;
+    // #183: Set new parent - either scene or drawable
+    if (!self->scene_name.empty()) {
+        drawable->setParentScene(self->scene_name);
+    } else {
+        std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
+        drawable->setParent(owner_ptr);
+    }
 
-        // #183: Set new parent - either scene or drawable
-        if (!self->scene_name.empty()) {
-            // This is a scene's children collection
-            drawable->setParentScene(self->scene_name);
-        } else {
-            // This is a Frame/Grid's children collection
-            drawable->setParent(owner_ptr);
-        }
-
-        self->data->push_back(drawable);
-    };
-
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")))
-    {
-        addDrawable(((PyUIFrameObject*)o)->data);
-    }
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")))
-    {
-        addDrawable(((PyUICaptionObject*)o)->data);
-    }
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")))
-    {
-        addDrawable(((PyUISpriteObject*)o)->data);
-    }
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")))
-    {
-        addDrawable(((PyUIGridObject*)o)->data);
-    }
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")))
-    {
-        addDrawable(((PyUILineObject*)o)->data);
-    }
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")))
-    {
-        addDrawable(((PyUICircleObject*)o)->data);
-    }
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")))
-    {
-        addDrawable(((PyUIArcObject*)o)->data);
-    }
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D")))
-    {
-        addDrawable(((PyViewport3DObject*)o)->data);
-    }
+    self->data->push_back(drawable);
 
     // Mark scene as needing resort after adding element
     McRFPy_API::markSceneNeedsSort();
@@ -747,83 +634,34 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
         return NULL;
     }
     
-    // Ensure module is initialized
-    if (!McRFPy_API::mcrf_module) {
-        Py_DECREF(iterator);
-        PyErr_SetString(PyExc_RuntimeError, "mcrfpy module not initialized");
-        return NULL;
-    }
-    
     // Get current highest z_index
     int current_z_index = 0;
     if (!self->data->empty()) {
         current_z_index = self->data->back()->z_index;
     }
-    
+
+    std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
+
     PyObject* item;
     while ((item = PyIter_Next(iterator)) != NULL) {
-        // Check if item is a UIDrawable subclass
-        if (!PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc")) &&
-            !PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D")))
-        {
+        std::shared_ptr<UIDrawable> drawable = extractDrawable(item);
+        if (!drawable) {
             Py_DECREF(item);
             Py_DECREF(iterator);
-            PyErr_SetString(PyExc_TypeError, "All items must be Frame, Caption, Sprite, Grid, Line, Circle, Arc, or Viewport3D objects");
+            PyErr_SetString(PyExc_TypeError, "All items must be Drawable objects");
             return NULL;
         }
-        
-        // Increment z_index for each new element
+
         if (current_z_index <= INT_MAX - 10) {
             current_z_index += 10;
         } else {
             current_z_index = INT_MAX;
         }
-        
-        // #122: Get the owner as parent for this drawable
-        std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
 
-        // Helper lambda to add drawable with parent tracking
-        auto addDrawable = [&](std::shared_ptr<UIDrawable> drawable) {
-            // #122: Remove from old parent if it has one
-            if (auto old_parent = drawable->getParent()) {
-                drawable->removeFromParent();
-            }
-            drawable->z_index = current_z_index;
-            drawable->setParent(owner_ptr);
-            self->data->push_back(drawable);
-        };
-
-        // Add the item based on its type
-        if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-            addDrawable(((PyUIFrameObject*)item)->data);
-        }
-        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-            addDrawable(((PyUICaptionObject*)item)->data);
-        }
-        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-            addDrawable(((PyUISpriteObject*)item)->data);
-        }
-        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-            addDrawable(((PyUIGridObject*)item)->data);
-        }
-        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line"))) {
-            addDrawable(((PyUILineObject*)item)->data);
-        }
-        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle"))) {
-            addDrawable(((PyUICircleObject*)item)->data);
-        }
-        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc"))) {
-            addDrawable(((PyUIArcObject*)item)->data);
-        }
-        else if (PyObject_IsInstance(item, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D"))) {
-            addDrawable(((PyViewport3DObject*)item)->data);
-        }
+        drawable->removeFromParent();
+        drawable->z_index = current_z_index;
+        drawable->setParent(owner_ptr);
+        self->data->push_back(drawable);
 
         Py_DECREF(item);
     }
@@ -850,29 +688,11 @@ PyObject* UICollection::remove(PyUICollectionObject* self, PyObject* o)
         return NULL;
     }
 
-    // Type checking - must be a UIDrawable subclass
-    if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Drawable"))) {
-        PyErr_SetString(PyExc_TypeError,
-            "UICollection.remove requires a UI element (Frame, Caption, Sprite, Grid)");
-        return NULL;
-    }
-
-    // Get the C++ object from the Python object
-    std::shared_ptr<UIDrawable> search_drawable = nullptr;
-
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-        search_drawable = ((PyUIFrameObject*)o)->data;
-    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-        search_drawable = ((PyUICaptionObject*)o)->data;
-    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-        search_drawable = ((PyUISpriteObject*)o)->data;
-    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        search_drawable = ((PyUIGridObject*)o)->data;
-    }
-
+    // Extract drawable from Python object
+    std::shared_ptr<UIDrawable> search_drawable = extractDrawable(o);
     if (!search_drawable) {
         PyErr_SetString(PyExc_TypeError,
-            "UICollection.remove requires a UI element (Frame, Caption, Sprite, Grid)");
+            "UICollection.remove requires a Drawable object");
         return NULL;
     }
 
@@ -951,29 +771,11 @@ PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
         return NULL;
     }
 
-    // Type checking - must be a UIDrawable subclass
-    if (!PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Drawable"))) {
-        PyErr_SetString(PyExc_TypeError,
-            "UICollection.insert requires a UI element (Frame, Caption, Sprite, Grid)");
-        return NULL;
-    }
-
-    // Get the C++ object from the Python object
-    std::shared_ptr<UIDrawable> drawable = nullptr;
-
-    if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-        drawable = ((PyUIFrameObject*)o)->data;
-    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-        drawable = ((PyUICaptionObject*)o)->data;
-    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-        drawable = ((PyUISpriteObject*)o)->data;
-    } else if (PyObject_IsInstance(o, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        drawable = ((PyUIGridObject*)o)->data;
-    }
-
+    // Extract drawable from Python object
+    std::shared_ptr<UIDrawable> drawable = extractDrawable(o);
     if (!drawable) {
         PyErr_SetString(PyExc_TypeError,
-            "UICollection.insert requires a UI element (Frame, Caption, Sprite, Grid)");
+            "UICollection.insert requires a Drawable object");
         return NULL;
     }
 
@@ -1011,30 +813,10 @@ PyObject* UICollection::index_method(PyUICollectionObject* self, PyObject* value
         return NULL;
     }
     
-    // Type checking - must be a UIDrawable subclass
-    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        PyErr_SetString(PyExc_TypeError, "UICollection.index requires a Frame, Caption, Sprite, or Grid object");
-        return NULL;
-    }
-    
-    // Get the C++ object from the Python object
-    std::shared_ptr<UIDrawable> search_drawable = nullptr;
-    
-    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-        search_drawable = ((PyUIFrameObject*)value)->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-        search_drawable = ((PyUICaptionObject*)value)->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-        search_drawable = ((PyUISpriteObject*)value)->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        search_drawable = ((PyUIGridObject*)value)->data;
-    }
-    
+    // Extract drawable from Python object
+    std::shared_ptr<UIDrawable> search_drawable = extractDrawable(value);
     if (!search_drawable) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to extract C++ object from Python object");
+        PyErr_SetString(PyExc_TypeError, "UICollection.index requires a Drawable object");
         return NULL;
     }
     
@@ -1056,28 +838,8 @@ PyObject* UICollection::count(PyUICollectionObject* self, PyObject* value) {
         return NULL;
     }
     
-    // Type checking - must be a UIDrawable subclass
-    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption")) &&
-        !PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        // Not a valid type, so count is 0
-        return PyLong_FromLong(0);
-    }
-    
-    // Get the C++ object from the Python object
-    std::shared_ptr<UIDrawable> search_drawable = nullptr;
-    
-    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame"))) {
-        search_drawable = ((PyUIFrameObject*)value)->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption"))) {
-        search_drawable = ((PyUICaptionObject*)value)->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite"))) {
-        search_drawable = ((PyUISpriteObject*)value)->data;
-    } else if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
-        search_drawable = ((PyUIGridObject*)value)->data;
-    }
-    
+    // Extract drawable (returns nullptr for non-drawable types)
+    std::shared_ptr<UIDrawable> search_drawable = extractDrawable(value);
     if (!search_drawable) {
         return PyLong_FromLong(0);
     }

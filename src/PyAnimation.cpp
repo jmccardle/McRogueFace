@@ -216,17 +216,11 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
         return NULL;  // Error already set
     }
 
-    // Get type objects from the module to ensure they're initialized
-    PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-    PyObject* caption_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
-    PyObject* sprite_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
-    PyObject* grid_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-    PyObject* entity_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-
+    // Use direct type references (no ref counting needed for static types)
     bool handled = false;
 
     // Use PyObject_IsInstance to support inheritance
-    if (frame_type && PyObject_IsInstance(target_obj, frame_type)) {
+    if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIFrameType)) {
         PyUIFrameObject* frame = (PyUIFrameObject*)target_obj;
         if (frame->data) {
             self->data->start(frame->data);
@@ -234,7 +228,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-    else if (caption_type && PyObject_IsInstance(target_obj, caption_type)) {
+    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUICaptionType)) {
         PyUICaptionObject* caption = (PyUICaptionObject*)target_obj;
         if (caption->data) {
             self->data->start(caption->data);
@@ -242,7 +236,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-    else if (sprite_type && PyObject_IsInstance(target_obj, sprite_type)) {
+    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUISpriteType)) {
         PyUISpriteObject* sprite = (PyUISpriteObject*)target_obj;
         if (sprite->data) {
             self->data->start(sprite->data);
@@ -250,7 +244,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-    else if (grid_type && PyObject_IsInstance(target_obj, grid_type)) {
+    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIGridType)) {
         PyUIGridObject* grid = (PyUIGridObject*)target_obj;
         if (grid->data) {
             self->data->start(grid->data);
@@ -258,7 +252,7 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-    else if (entity_type && PyObject_IsInstance(target_obj, entity_type)) {
+    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
         // Special handling for Entity since it doesn't inherit from UIDrawable
         PyUIEntityObject* entity = (PyUIEntityObject*)target_obj;
         if (entity->data) {
@@ -267,13 +261,6 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-
-    // Clean up references
-    Py_XDECREF(frame_type);
-    Py_XDECREF(caption_type);
-    Py_XDECREF(sprite_type);
-    Py_XDECREF(grid_type);
-    Py_XDECREF(entity_type);
 
     if (!handled) {
         PyErr_SetString(PyExc_TypeError, "Target must be a Frame, Caption, Sprite, Grid, or Entity (or a subclass of these)");

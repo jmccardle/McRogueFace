@@ -350,15 +350,7 @@ PyObject* UIFrame::get_color_member(PyUIFrameObject* self, void* closure)
         PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
         return nullptr;
     }
-    //PyTypeObject* colorType = &PyColorType;
-    auto colorType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
-    PyObject* pyColor = colorType->tp_alloc(colorType, 0);
-    if (pyColor == NULL)
-    {
-        std::cout << "failure to allocate mcrfpy.Color / PyColorType" << std::endl;
-        return NULL;
-    }
-    PyColorObject* pyColorObj = reinterpret_cast<PyColorObject*>(pyColor);
+    auto colorType = &mcrfpydef::PyColorType;
 
     // fetch correct member data
     sf::Color color;
@@ -381,7 +373,7 @@ int UIFrame::set_color_member(PyUIFrameObject* self, PyObject* value, void* clos
     //TODO: this logic of (PyColor instance OR tuple -> sf::color) should be encapsulated for reuse
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
     int r, g, b, a;
-    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color")))
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType))
     {
         sf::Color c = ((PyColorObject*)value)->data;
         r = c.r; g = c.g; b = c.b; a = c.a;
@@ -432,7 +424,7 @@ int UIFrame::set_color_member(PyUIFrameObject* self, PyObject* value, void* clos
 
 PyObject* UIFrame::get_pos(PyUIFrameObject* self, void* closure)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
     if (obj) {
         auto pos = self->data->box.getPosition();
@@ -750,37 +742,26 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
             if (!child) return -1;
             
             // Check if it's a UIDrawable (Frame, Caption, Sprite, or Grid)
-            PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-            PyObject* caption_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
-            PyObject* sprite_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
-            PyObject* grid_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-            
-            if (!PyObject_IsInstance(child, frame_type) &&
-                !PyObject_IsInstance(child, caption_type) &&
-                !PyObject_IsInstance(child, sprite_type) &&
-                !PyObject_IsInstance(child, grid_type)) {
+            if (!PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIFrameType) &&
+                !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUICaptionType) &&
+                !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUISpriteType) &&
+                !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridType)) {
                 Py_DECREF(child);
                 PyErr_SetString(PyExc_TypeError, "children must contain only Frame, Caption, Sprite, or Grid objects");
                 return -1;
             }
-            
+
             // Get the shared_ptr and add to children
             std::shared_ptr<UIDrawable> drawable = nullptr;
-            if (PyObject_IsInstance(child, frame_type)) {
+            if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIFrameType)) {
                 drawable = ((PyUIFrameObject*)child)->data;
-            } else if (PyObject_IsInstance(child, caption_type)) {
+            } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUICaptionType)) {
                 drawable = ((PyUICaptionObject*)child)->data;
-            } else if (PyObject_IsInstance(child, sprite_type)) {
+            } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUISpriteType)) {
                 drawable = ((PyUISpriteObject*)child)->data;
-            } else if (PyObject_IsInstance(child, grid_type)) {
+            } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridType)) {
                 drawable = ((PyUIGridObject*)child)->data;
             }
-            
-            // Clean up type references
-            Py_DECREF(frame_type);
-            Py_DECREF(caption_type);
-            Py_DECREF(sprite_type);
-            Py_DECREF(grid_type);
             
             if (drawable) {
                 drawable->setParent(self->data);  // Set parent before adding (enables alignment)
@@ -812,11 +793,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     }
 
     // #184: Check if this is a Python subclass (for callback method support)
-    PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-    if (frame_type) {
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != frame_type;
-        Py_DECREF(frame_type);
-    }
+    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIFrameType;
 
     return 0;
 }

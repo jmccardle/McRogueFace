@@ -1231,14 +1231,9 @@ PyObject* Entity3D::py_animate(PyEntity3DObject* self, PyObject* args, PyObject*
     }
 
     // Create and return a PyAnimation wrapper
-    PyTypeObject* animType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Animation");
-    if (!animType) {
-        PyErr_SetString(PyExc_RuntimeError, "Could not find Animation type");
-        return NULL;
-    }
+    PyTypeObject* animType = &mcrfpydef::PyAnimationType;
 
     PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
-    Py_DECREF(animType);
 
     if (!pyAnim) {
         return NULL;

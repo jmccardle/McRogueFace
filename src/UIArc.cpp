@@ -391,10 +391,8 @@ bool UIArc::hasProperty(const std::string& name) const {
 // Python API implementation
 PyObject* UIArc::get_center(PyUIArcObject* self, void* closure) {
     auto center = self->data->getCenter();
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!type) return NULL;
+    auto type = &mcrfpydef::PyVectorType;
     PyObject* result = PyObject_CallFunction((PyObject*)type, "ff", center.x, center.y);
-    Py_DECREF(type);
     return result;
 }
 
@@ -450,11 +448,10 @@ int UIArc::set_end_angle(PyUIArcObject* self, PyObject* value, void* closure) {
 
 PyObject* UIArc::get_color(PyUIArcObject* self, void* closure) {
     auto color = self->data->getColor();
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
+    auto type = &mcrfpydef::PyColorType;
     PyObject* args = Py_BuildValue("(iiii)", color.r, color.g, color.b, color.a);
     PyObject* obj = PyObject_CallObject((PyObject*)type, args);
     Py_DECREF(args);
-    Py_DECREF(type);
     return obj;
 }
 
@@ -634,11 +631,7 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
     }
 
     // #184: Check if this is a Python subclass (for callback method support)
-    PyObject* arc_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc");
-    if (arc_type) {
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != arc_type;
-        Py_DECREF(arc_type);
-    }
+    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIArcType;
 
     return 0;
 }

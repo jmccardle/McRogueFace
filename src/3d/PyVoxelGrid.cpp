@@ -390,15 +390,11 @@ PyObject* PyVoxelGrid::get_material(PyVoxelGridObject* self, PyObject* args) {
     const mcrf::VoxelMaterial& mat = self->data->getMaterial(static_cast<uint8_t>(id));
 
     // Create color object
-    PyObject* color_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
-    if (!color_type) {
-        return nullptr;
-    }
+    PyObject* color_type = (PyObject*)&mcrfpydef::PyColorType;
 
     PyObject* color_obj = PyObject_Call(color_type,
         Py_BuildValue("(iiii)", mat.color.r, mat.color.g, mat.color.b, mat.color.a),
         nullptr);
-    Py_DECREF(color_type);
 
     if (!color_obj) {
         return nullptr;

@@ -2,6 +2,7 @@
 #include "McRFPy_API.h"
 #include "GameEngine.h"
 #include "PyPositionHelper.h"
+#include "PyVector.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -262,37 +263,20 @@ PyObject* McRFPy_Automation::_position(PyObject* self, PyObject* args) {
         y = simulated_mouse_pos.y;
     }
 
-    // Return a Vector object - get type from module to ensure we use the initialized type
-    auto vector_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Vector type not found in mcrfpy module");
-        return NULL;
-    }
-    PyObject* result = PyObject_CallFunction((PyObject*)vector_type, "ff", (float)x, (float)y);
-    Py_DECREF(vector_type);
+    // Return a Vector object
+    PyObject* result = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)x, (float)y);
     return result;
 }
 
 // Get screen size - returns Vector object
 PyObject* McRFPy_Automation::_size(PyObject* self, PyObject* args) {
-    // Get Vector type from module to ensure we use the initialized type
-    auto vector_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Vector type not found in mcrfpy module");
-        return NULL;
-    }
-
     auto engine = getGameEngine();
     if (!engine || !engine->getRenderTargetPtr()) {
-        PyObject* result = PyObject_CallFunction((PyObject*)vector_type, "ff", 1024.0f, 768.0f);  // Default size
-        Py_DECREF(vector_type);
-        return result;
+        return PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", 1024.0f, 768.0f);  // Default size
     }
 
     sf::Vector2u size = engine->getRenderTarget().getSize();
-    PyObject* result = PyObject_CallFunction((PyObject*)vector_type, "ff", (float)size.x, (float)size.y);
-    Py_DECREF(vector_type);
-    return result;
+    return PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)size.x, (float)size.y);
 }
 
 // Check if coordinates are on screen - accepts onScreen(x, y) or onScreen(pos)

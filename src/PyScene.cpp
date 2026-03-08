@@ -7,6 +7,7 @@
 #include "McRFPy_Automation.h"  // #111 - For simulated mouse position
 #include "PythonObjectCache.h"  // #184 - For subclass callback support
 #include "McRFPy_API.h"         // For Vector type access
+#include "PyVector.h"           // For direct PyVectorType reference
 #include "PyMouseButton.h"      // For MouseButton enum
 #include "PyInputState.h"       // For InputState enum
 #include <algorithm>
@@ -55,16 +56,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
 
     if (method && PyCallable_Check(method) && method != Py_None) {
         // Create Vector object for position (matches property callback signature)
-        PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-        if (!vector_type) {
-            PyErr_Print();
-            PyErr_Clear();
-            Py_XDECREF(method);
-            Py_DECREF(pyObj);
-            return false;
-        }
-        PyObject* pos = PyObject_CallFunction(vector_type, "ff", mousepos.x, mousepos.y);
-        Py_DECREF(vector_type);
+        PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", mousepos.x, mousepos.y);
         if (!pos) {
             PyErr_Print();
             PyErr_Clear();
@@ -164,16 +156,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
 
     if (method && PyCallable_Check(method) && method != Py_None) {
         // Create Vector object for position
-        PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-        if (!vector_type) {
-            PyErr_Print();
-            PyErr_Clear();
-            Py_XDECREF(method);
-            Py_DECREF(pyObj);
-            return false;
-        }
-        PyObject* pos = PyObject_CallFunction(vector_type, "ff", mousepos.x, mousepos.y);
-        Py_DECREF(vector_type);
+        PyObject* pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", mousepos.x, mousepos.y);
         if (!pos) {
             PyErr_Print();
             PyErr_Clear();

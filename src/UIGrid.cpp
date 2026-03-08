@@ -873,7 +873,7 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     // Handle texture argument
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
     if (textureObj && textureObj != Py_None) {
-        if (!PyObject_IsInstance(textureObj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
+        if (!PyObject_IsInstance(textureObj, (PyObject*)&mcrfpydef::PyTextureType)) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
             return -1;
         }
@@ -1139,11 +1139,7 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     }
 
     // #184: Check if this is a Python subclass (for callback method support)
-    PyObject* grid_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-    if (grid_type) {
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != grid_type;
-        Py_DECREF(grid_type);
-    }
+    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridType;
 
     return 0; // Success
 }
@@ -1328,7 +1324,7 @@ PyObject* UIGrid::get_texture(PyUIGridObject* self, void* closure) {
             Py_RETURN_NONE;
         }
         
-        auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture");
+        auto type = &mcrfpydef::PyTextureType;
         auto obj = (PyTextureObject*)type->tp_alloc(type, 0);
         obj->data = texture;
         return (PyObject*)obj;
@@ -1415,17 +1411,16 @@ PyMappingMethods UIGrid::mpmethods = {
 PyObject* UIGrid::get_fill_color(PyUIGridObject* self, void* closure)
 {
     auto& color = self->data->fill_color;
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
+    auto type = &mcrfpydef::PyColorType;
     PyObject* args = Py_BuildValue("(iiii)", color.r, color.g, color.b, color.a);
     PyObject* obj = PyObject_CallObject((PyObject*)type, args);
     Py_DECREF(args);
-    Py_DECREF(type);
     return obj;
 }
 
 int UIGrid::set_fill_color(PyUIGridObject* self, PyObject* value, void* closure)
 {
-    if (!PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color"))) {
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType)) {
         PyErr_SetString(PyExc_TypeError, "fill_color must be a Color object");
         return -1;
     }
@@ -1454,15 +1449,13 @@ PyObject* UIGrid::get_perspective(PyUIGridObject* self, void* closure)
         }
         
         // Otherwise, create a new base Entity object
-        auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+        auto type = &mcrfpydef::PyUIEntityType;
         auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
         if (o) {
             o->data = locked;
             o->weakreflist = NULL;
-            Py_DECREF(type);
             return (PyObject*)o;
         }
-        Py_XDECREF(type);
     }
     Py_RETURN_NONE;
 }
@@ -1476,19 +1469,10 @@ int UIGrid::set_perspective(PyUIGridObject* self, PyObject* value, void* closure
     }
     
     // Extract UIEntity from PyObject
-    // Get the Entity type from the module
-    auto entity_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-    if (!entity_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Could not get Entity type from mcrfpy module");
-        return -1;
-    }
-    
-    if (!PyObject_IsInstance(value, entity_type)) {
-        Py_DECREF(entity_type);
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIEntityType)) {
         PyErr_SetString(PyExc_TypeError, "perspective must be a UIEntity or None");
         return -1;
     }
-    Py_DECREF(entity_type);
     
     PyUIEntityObject* entity_obj = (PyUIEntityObject*)value;
     self->data->perspective_entity = entity_obj->data;
@@ -2053,14 +2037,7 @@ PyObject* UIGrid::py_apply_threshold(PyUIGridObject* self, PyObject* args, PyObj
     }
 
     // Validate source is a HeightMap
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
-        return nullptr;
-    }
-    bool is_heightmap = PyObject_IsInstance(source_obj, heightmap_type);
-    Py_DECREF(heightmap_type);
-    if (!is_heightmap) {
+    if (!PyObject_IsInstance(source_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
         return nullptr;
     }
@@ -2140,14 +2117,7 @@ PyObject* UIGrid::py_apply_ranges(PyUIGridObject* self, PyObject* args) {
     }
 
     // Validate source is a HeightMap
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
-        return nullptr;
-    }
-    bool is_heightmap = PyObject_IsInstance(source_obj, heightmap_type);
-    Py_DECREF(heightmap_type);
-    if (!is_heightmap) {
+    if (!PyObject_IsInstance(source_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "source must be a HeightMap");
         return nullptr;
     }
@@ -2793,13 +2763,7 @@ void UIGrid::refreshCellCallbackCache(PyObject* pyObj) {
 // Helper to create typed cell callback arguments: (Vector, MouseButton, InputState)
 static PyObject* createCellCallbackArgs(sf::Vector2i cell, const std::string& button, const std::string& action) {
     // Create Vector object for cell position
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) {
-        PyErr_Print();
-        return nullptr;
-    }
-    PyObject* cell_pos = PyObject_CallFunction(vector_type, "ff", (float)cell.x, (float)cell.y);
-    Py_DECREF(vector_type);
+    PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)cell.x, (float)cell.y);
     if (!cell_pos) {
         PyErr_Print();
         return nullptr;
@@ -2834,13 +2798,7 @@ static PyObject* createCellCallbackArgs(sf::Vector2i cell, const std::string& bu
 // #230 - Helper to create cell hover callback arguments: (Vector) only
 static PyObject* createCellHoverArgs(sf::Vector2i cell) {
     // Create Vector object for cell position
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) {
-        PyErr_Print();
-        return nullptr;
-    }
-    PyObject* cell_pos = PyObject_CallFunction(vector_type, "ii", cell.x, cell.y);
-    Py_DECREF(vector_type);
+    PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ii", cell.x, cell.y);
     if (!cell_pos) {
         PyErr_Print();
         return nullptr;

@@ -1841,11 +1841,7 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
     }
 
     // Check if this is a Python subclass (for callback method support)
-    PyObject* viewport3d_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Viewport3D");
-    if (viewport3d_type) {
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != viewport3d_type;
-        Py_DECREF(viewport3d_type);
-    }
+    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyViewport3DType;
 
     return 0;
 }
@@ -1940,19 +1936,10 @@ static PyObject* Viewport3D_build_terrain(PyViewport3DObject* self, PyObject* ar
     }
 
     // Check if heightmap_obj is a PyHeightMapObject
-    // Get the HeightMap type from the module
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
-        return NULL;
-    }
-
-    if (!PyObject_IsInstance(heightmap_obj, heightmap_type)) {
-        Py_DECREF(heightmap_type);
+    if (!PyObject_IsInstance(heightmap_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
         return NULL;
     }
-    Py_DECREF(heightmap_type);
 
     // Get the TCOD heightmap pointer from the Python object
     PyHeightMapObject* hm = reinterpret_cast<PyHeightMapObject*>(heightmap_obj);
@@ -1987,20 +1974,14 @@ static PyObject* Viewport3D_apply_terrain_colors(PyViewport3DObject* self, PyObj
     }
 
     // Validate all three are HeightMap objects
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
-        return NULL;
-    }
+    PyObject* heightmap_type = (PyObject*)&mcrfpydef::PyHeightMapType;
 
     if (!PyObject_IsInstance(r_obj, heightmap_type) ||
         !PyObject_IsInstance(g_obj, heightmap_type) ||
         !PyObject_IsInstance(b_obj, heightmap_type)) {
-        Py_DECREF(heightmap_type);
         PyErr_SetString(PyExc_TypeError, "r_map, g_map, and b_map must all be HeightMap objects");
         return NULL;
     }
-    Py_DECREF(heightmap_type);
 
     // Get the TCOD heightmap pointers
     PyHeightMapObject* r_hm = reinterpret_cast<PyHeightMapObject*>(r_obj);
@@ -2082,18 +2063,10 @@ static PyObject* Viewport3D_apply_heightmap(PyViewport3DObject* self, PyObject* 
     }
 
     // Validate HeightMap type
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
-        return NULL;
-    }
-
-    if (!PyObject_IsInstance(hm_obj, heightmap_type)) {
-        Py_DECREF(heightmap_type);
+    if (!PyObject_IsInstance(hm_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
         return NULL;
     }
-    Py_DECREF(heightmap_type);
 
     PyHeightMapObject* hm = reinterpret_cast<PyHeightMapObject*>(hm_obj);
     if (!hm->heightmap) {
@@ -2118,18 +2091,10 @@ static PyObject* Viewport3D_apply_threshold(PyViewport3DObject* self, PyObject* 
     }
 
     // Validate HeightMap type
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
-        return NULL;
-    }
-
-    if (!PyObject_IsInstance(hm_obj, heightmap_type)) {
-        Py_DECREF(heightmap_type);
+    if (!PyObject_IsInstance(hm_obj, (PyObject*)&mcrfpydef::PyHeightMapType)) {
         PyErr_SetString(PyExc_TypeError, "heightmap must be a HeightMap object");
         return NULL;
     }
-    Py_DECREF(heightmap_type);
 
     PyHeightMapObject* hm = reinterpret_cast<PyHeightMapObject*>(hm_obj);
     if (!hm->heightmap) {

@@ -255,7 +255,7 @@ int UICaption::set_color_member(PyUICaptionObject* self, PyObject* value, void* 
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
     //TODO: this logic of (PyColor instance OR tuple -> sf::color) should be encapsulated for reuse
     int r, g, b, a;
-    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color")  /*(PyObject*)&mcrfpydef::PyColorType)*/))
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType))
     {
         // get value from mcrfpy.Color instance
         auto c = ((PyColorObject*)value)->data;
@@ -479,7 +479,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     // Handle font argument
     std::shared_ptr<PyFont> pyfont = nullptr;
     if (font && font != Py_None) {
-        if (!PyObject_IsInstance(font, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Font"))) {
+        if (!PyObject_IsInstance(font, (PyObject*)&mcrfpydef::PyFontType)) {
             PyErr_SetString(PyExc_TypeError, "font must be a mcrfpy.Font instance");
             return -1;
         }
@@ -571,11 +571,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     }
 
     // #184: Check if this is a Python subclass (for callback method support)
-    PyObject* caption_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
-    if (caption_type) {
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != caption_type;
-        Py_DECREF(caption_type);
-    }
+    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUICaptionType;
 
     return 0;
 }

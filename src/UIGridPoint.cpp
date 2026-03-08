@@ -17,24 +17,8 @@ PyObject* sfColor_to_PyObject(sf::Color color) {
 
 // Utility function to convert PyObject* to sf::Color
 sf::Color PyObject_to_sfColor(PyObject* obj) {
-    // Get the mcrfpy module and Color type
-    PyObject* module = PyImport_ImportModule("mcrfpy");
-    if (!module) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to import mcrfpy module");
-        return sf::Color();
-    }
-
-    PyObject* color_type = PyObject_GetAttrString(module, "Color");
-    Py_DECREF(module);
-
-    if (!color_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Failed to get Color type from mcrfpy module");
-        return sf::Color();
-    }
-
     // Check if it's a mcrfpy.Color object
-    int is_color = PyObject_IsInstance(obj, color_type);
-    Py_DECREF(color_type);
+    int is_color = PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyColorType);
 
     if (is_color == 1) {
         PyColorObject* color_obj = (PyColorObject*)obj;
@@ -110,13 +94,8 @@ PyObject* UIGridPoint::get_entities(PyUIGridPointObject* self, void* closure) {
         if (static_cast<int>(entity->position.x) == target_x &&
             static_cast<int>(entity->position.y) == target_y) {
             // Create Python Entity object for this entity
-            auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-            if (!type) {
-                Py_DECREF(list);
-                return NULL;
-            }
+            auto type = &mcrfpydef::PyUIEntityType;
             auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
-            Py_DECREF(type);
             if (!obj) {
                 Py_DECREF(list);
                 return NULL;

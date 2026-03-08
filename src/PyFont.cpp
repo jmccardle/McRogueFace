@@ -12,8 +12,7 @@ PyFont::PyFont(std::string filename)
 
 PyObject* PyFont::pyObject()
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Font");
-    //PyObject* obj = PyType_GenericAlloc(&mcrfpydef::PyFontType, 0);
+    auto type = &mcrfpydef::PyFontType;
     PyObject* obj = PyFont::pynew(type, Py_None, Py_None);
     try {
         ((PyFontObject*)obj)->data = shared_from_this();

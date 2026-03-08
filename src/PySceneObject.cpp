@@ -6,6 +6,7 @@
 #include "PyTransition.h"
 #include "PyKey.h"
 #include "PyInputState.h"
+#include "PyVector.h"
 #include <iostream>
 
 // Static map to store Python scene objects by name
@@ -211,11 +212,8 @@ static PyObject* PySceneClass_get_pos(PySceneObject* self, void* closure)
     }
 
     // Create a Vector object
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!type) return NULL;
     PyObject* args = Py_BuildValue("(ff)", self->scene->position.x, self->scene->position.y);
-    PyObject* result = PyObject_CallObject((PyObject*)type, args);
-    Py_DECREF(type);
+    PyObject* result = PyObject_CallObject((PyObject*)&mcrfpydef::PyVectorType, args);
     Py_DECREF(args);
     return result;
 }
@@ -425,15 +423,8 @@ void PySceneClass::call_on_resize(PySceneObject* self, sf::Vector2u new_size)
     PyObject* method = PyObject_GetAttrString((PyObject*)self, "on_resize");
     if (method && PyCallable_Check(method)) {
         // Create a Vector object to pass
-        auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-        if (!type) {
-            PyErr_Print();
-            Py_DECREF(method);
-            return;
-        }
         PyObject* args = Py_BuildValue("(ff)", (float)new_size.x, (float)new_size.y);
-        PyObject* vector = PyObject_CallObject((PyObject*)type, args);
-        Py_DECREF(type);
+        PyObject* vector = PyObject_CallObject((PyObject*)&mcrfpydef::PyVectorType, args);
         Py_DECREF(args);
 
         if (!vector) {
@@ -716,14 +707,11 @@ int McRFPy_API::api_set_current_scene(PyObject* value)
     if (PyUnicode_Check(value)) {
         scene_name = PyUnicode_AsUTF8(value);
     } else {
-        // Check if value is a Scene or Scene subclass - use same pattern as rest of codebase
-        PyObject* scene_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Scene");
-        if (scene_type && PyObject_IsInstance(value, scene_type)) {
-            Py_DECREF(scene_type);
+        // Check if value is a Scene or Scene subclass
+        if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PySceneType)) {
             PySceneObject* scene_obj = (PySceneObject*)value;
             scene_name = scene_obj->name.c_str();
         } else {
-            Py_XDECREF(scene_type);
             PyErr_SetString(PyExc_TypeError, "current_scene must be a Scene object or scene name string");
             return -1;
         }

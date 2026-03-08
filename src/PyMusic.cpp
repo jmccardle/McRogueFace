@@ -76,9 +76,8 @@ void PyMusic::setPosition(float pos)
 
 PyObject* PyMusic::pyObject()
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Music");
+    auto type = &mcrfpydef::PyMusicType;
     PyObject* obj = PyMusic::pynew(type, Py_None, Py_None);
-    Py_DECREF(type);
     try {
         ((PyMusicObject*)obj)->data = shared_from_this();
     }

@@ -514,8 +514,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
     switch (drawable->derived_type()) {
         case PyObjectsEnum::UIFRAME:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUIFrameType;
             auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
@@ -526,8 +525,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UICAPTION:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUICaptionType;
             auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UICaption>(drawable);
@@ -539,8 +537,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UISPRITE:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUISpriteType;
             auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UISprite>(drawable);
@@ -551,8 +548,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UIGRID:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUIGridType;
             auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
@@ -563,8 +559,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UILINE:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUILineType;
             auto pyObj = (PyUILineObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UILine>(drawable);
@@ -575,8 +570,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UICIRCLE:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUICircleType;
             auto pyObj = (PyUICircleObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UICircle>(drawable);
@@ -587,8 +581,7 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         case PyObjectsEnum::UIARC:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUIArcType;
             auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIArc>(drawable);
@@ -599,10 +592,6 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
         }
         default:
             Py_RETURN_NONE;
-    }
-
-    if (type) {
-        Py_DECREF(type);
     }
 
     return obj ? obj : Py_None;
@@ -622,13 +611,9 @@ static PyObject* convertEntityToPython(std::shared_ptr<UIEntity> entity) {
         }
     }
 
-    PyTypeObject* type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-    if (!type) {
-        Py_RETURN_NONE;
-    }
+    PyTypeObject* type = &mcrfpydef::PyUIEntityType;
 
     auto pyObj = (PyUIEntityObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
 
     if (!pyObj) {
         Py_RETURN_NONE;
@@ -653,13 +638,9 @@ static PyObject* convertEntity3DToPython(std::shared_ptr<mcrf::Entity3D> entity)
     }
 
     // Create a new wrapper
-    PyTypeObject* type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity3D");
-    if (!type) {
-        Py_RETURN_NONE;
-    }
+    PyTypeObject* type = &mcrfpydef::PyEntity3DType;
 
     auto pyObj = (PyEntity3DObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
 
     if (!pyObj) {
         Py_RETURN_NONE;

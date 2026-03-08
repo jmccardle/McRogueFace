@@ -91,9 +91,8 @@ void PySound::setPitch(float pitch)
 
 PyObject* PySound::pyObject()
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sound");
+    auto type = &mcrfpydef::PySoundType;
     PyObject* obj = PySound::pynew(type, Py_None, Py_None);
-    Py_DECREF(type);
     try {
         ((PySoundObject*)obj)->data = shared_from_this();
     }

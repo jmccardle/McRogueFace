@@ -756,12 +756,10 @@ PyObject* UIDrawable::get_grid_pos(PyObject* self, void* closure) {
     float grid_y = drawable->position.y / cell_size.y;
 
     // Return as Vector
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) return NULL;
+    PyObject* vector_type = (PyObject*)&mcrfpydef::PyVectorType;
 
     PyObject* args = Py_BuildValue("(ff)", grid_x, grid_y);
     PyObject* result = PyObject_CallObject(vector_type, args);
-    Py_DECREF(vector_type);
     Py_DECREF(args);
 
     return result;
@@ -868,12 +866,10 @@ PyObject* UIDrawable::get_grid_size(PyObject* self, void* closure) {
     float grid_h = bounds.height / cell_size.y;
 
     // Return as Vector
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) return NULL;
+    PyObject* vector_type = (PyObject*)&mcrfpydef::PyVectorType;
 
     PyObject* args = Py_BuildValue("(ff)", grid_w, grid_h);
     PyObject* result = PyObject_CallObject(vector_type, args);
-    Py_DECREF(vector_type);
     Py_DECREF(args);
 
     return result;
@@ -1308,8 +1304,7 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
     switch (parent_ptr->derived_type()) {
         case PyObjectsEnum::UIFRAME:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUIFrameType;
             auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIFrame>(parent_ptr);
@@ -1320,8 +1315,7 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
         }
         case PyObjectsEnum::UICAPTION:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUICaptionType;
             auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UICaption>(parent_ptr);
@@ -1333,8 +1327,7 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
         }
         case PyObjectsEnum::UISPRITE:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUISpriteType;
             auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UISprite>(parent_ptr);
@@ -1345,8 +1338,7 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
         }
         case PyObjectsEnum::UIGRID:
         {
-            type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-            if (!type) return nullptr;
+            type = &mcrfpydef::PyUIGridType;
             auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIGrid>(parent_ptr);
@@ -1359,9 +1351,6 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
             Py_RETURN_NONE;
     }
 
-    if (type) {
-        Py_DECREF(type);
-    }
     return obj;
 }
 
@@ -1405,17 +1394,9 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
     }
 
     // Value must be a Frame, Grid, or Scene (things with children collections)
-    PyTypeObject* frame_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-    PyTypeObject* grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-    PyTypeObject* scene_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Scene");
-
-    bool is_frame = frame_type && PyObject_IsInstance(value, (PyObject*)frame_type);
-    bool is_grid = grid_type && PyObject_IsInstance(value, (PyObject*)grid_type);
-    bool is_scene = scene_type && PyObject_IsInstance(value, (PyObject*)scene_type);
-
-    Py_XDECREF(frame_type);
-    Py_XDECREF(grid_type);
-    Py_XDECREF(scene_type);
+    bool is_frame = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIFrameType);
+    bool is_grid = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType);
+    bool is_scene = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PySceneType);
 
     if (!is_frame && !is_grid && !is_scene) {
         PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Grid, Scene, or None");
@@ -1519,16 +1500,14 @@ PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
 
     sf::FloatRect bounds = drawable->get_bounds();
 
-    // Get Vector type from mcrfpy module
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) return NULL;
+    // Get Vector type
+    PyObject* vector_type = (PyObject*)&mcrfpydef::PyVectorType;
 
     // Create pos vector
     PyObject* pos_args = Py_BuildValue("(ff)", bounds.left, bounds.top);
     PyObject* pos = PyObject_CallObject(vector_type, pos_args);
     Py_DECREF(pos_args);
     if (!pos) {
-        Py_DECREF(vector_type);
         return NULL;
     }
 
@@ -1536,7 +1515,6 @@ PyObject* UIDrawable::get_bounds_py(PyObject* self, void* closure) {
     PyObject* size_args = Py_BuildValue("(ff)", bounds.width, bounds.height);
     PyObject* size = PyObject_CallObject(vector_type, size_args);
     Py_DECREF(size_args);
-    Py_DECREF(vector_type);
     if (!size) {
         Py_DECREF(pos);
         return NULL;
@@ -1554,16 +1532,14 @@ PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
 
     sf::FloatRect bounds = drawable->get_global_bounds();
 
-    // Get Vector type from mcrfpy module
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) return NULL;
+    // Get Vector type
+    PyObject* vector_type = (PyObject*)&mcrfpydef::PyVectorType;
 
     // Create pos vector
     PyObject* pos_args = Py_BuildValue("(ff)", bounds.left, bounds.top);
     PyObject* pos = PyObject_CallObject(vector_type, pos_args);
     Py_DECREF(pos_args);
     if (!pos) {
-        Py_DECREF(vector_type);
         return NULL;
     }
 
@@ -1571,7 +1547,6 @@ PyObject* UIDrawable::get_global_bounds_py(PyObject* self, void* closure) {
     PyObject* size_args = Py_BuildValue("(ff)", bounds.width, bounds.height);
     PyObject* size = PyObject_CallObject(vector_type, size_args);
     Py_DECREF(size_args);
-    Py_DECREF(vector_type);
     if (!size) {
         Py_DECREF(pos);
         return NULL;
@@ -1976,14 +1951,9 @@ PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> self, PyObject* ar
     }
 
     // Create and return a PyAnimation wrapper
-    PyTypeObject* animType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Animation");
-    if (!animType) {
-        PyErr_SetString(PyExc_RuntimeError, "Could not find Animation type");
-        return NULL;
-    }
+    PyTypeObject* animType = &mcrfpydef::PyAnimationType;
 
     PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
-    Py_DECREF(animType);
 
     if (!pyAnim) {
         return NULL;
@@ -2182,29 +2152,13 @@ PyObject* UIDrawable::py_realign(PyObject* self, PyObject* args) {
     PyObjectsEnum objtype = PyObjectsEnum::UIFRAME;  // Default, will be set by type check
 
     // Determine the type from the Python object
-    PyObject* frame_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
-    PyObject* caption_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
-    PyObject* sprite_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
-    PyObject* grid_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-    PyObject* line_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line");
-    PyObject* circle_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle");
-    PyObject* arc_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Arc");
-
-    if (PyObject_IsInstance(self, frame_type)) objtype = PyObjectsEnum::UIFRAME;
-    else if (PyObject_IsInstance(self, caption_type)) objtype = PyObjectsEnum::UICAPTION;
-    else if (PyObject_IsInstance(self, sprite_type)) objtype = PyObjectsEnum::UISPRITE;
-    else if (PyObject_IsInstance(self, grid_type)) objtype = PyObjectsEnum::UIGRID;
-    else if (PyObject_IsInstance(self, line_type)) objtype = PyObjectsEnum::UILINE;
-    else if (PyObject_IsInstance(self, circle_type)) objtype = PyObjectsEnum::UICIRCLE;
-    else if (PyObject_IsInstance(self, arc_type)) objtype = PyObjectsEnum::UIARC;
-
-    Py_XDECREF(frame_type);
-    Py_XDECREF(caption_type);
-    Py_XDECREF(sprite_type);
-    Py_XDECREF(grid_type);
-    Py_XDECREF(line_type);
-    Py_XDECREF(circle_type);
-    Py_XDECREF(arc_type);
+    if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIFrameType)) objtype = PyObjectsEnum::UIFRAME;
+    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUICaptionType)) objtype = PyObjectsEnum::UICAPTION;
+    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUISpriteType)) objtype = PyObjectsEnum::UISPRITE;
+    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIGridType)) objtype = PyObjectsEnum::UIGRID;
+    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUILineType)) objtype = PyObjectsEnum::UILINE;
+    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUICircleType)) objtype = PyObjectsEnum::UICIRCLE;
+    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIArcType)) objtype = PyObjectsEnum::UIARC;
 
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return NULL;

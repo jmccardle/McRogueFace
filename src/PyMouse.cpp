@@ -74,14 +74,7 @@ PyObject* PyMouse::get_pos(PyObject* self, void* closure)
     sf::Vector2i pos = getMousePosition();
 
     // Return a Vector object
-    auto vector_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!vector_type) {
-        PyErr_SetString(PyExc_RuntimeError, "Vector type not found in mcrfpy module");
-        return NULL;
-    }
-    PyObject* result = PyObject_CallFunction((PyObject*)vector_type, "ff", (float)pos.x, (float)pos.y);
-    Py_DECREF(vector_type);
-    return result;
+    return PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)pos.x, (float)pos.y);
 }
 
 PyObject* PyMouse::get_left(PyObject* self, void* closure)

@@ -1218,17 +1218,12 @@ static PyHeightMapObject* validateOtherHeightMapType(PyObject* other_obj, const 
 // Helper: Create a new HeightMap object with same dimensions
 static PyHeightMapObject* CreateNewHeightMap(int width, int height)
 {
-    // Get the HeightMap type from the module
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
-        return nullptr;
-    }
+    // Get the HeightMap type
+    PyObject* heightmap_type = (PyObject*)&mcrfpydef::PyHeightMapType;
 
     // Create size tuple
     PyObject* size_tuple = Py_BuildValue("(ii)", width, height);
     if (!size_tuple) {
-        Py_DECREF(heightmap_type);
         return nullptr;
     }
 
@@ -1236,14 +1231,12 @@ static PyHeightMapObject* CreateNewHeightMap(int width, int height)
     PyObject* args = PyTuple_Pack(1, size_tuple);
     Py_DECREF(size_tuple);
     if (!args) {
-        Py_DECREF(heightmap_type);
         return nullptr;
     }
 
     // Create the new object
     PyHeightMapObject* new_hmap = (PyHeightMapObject*)PyObject_Call(heightmap_type, args, nullptr);
     Py_DECREF(args);
-    Py_DECREF(heightmap_type);
 
     if (!new_hmap) {
         return nullptr;  // Python error already set
@@ -1981,14 +1974,7 @@ PyObject* PyHeightMap::gradients(PyHeightMapObject* self, PyObject* args, PyObje
 static PyHeightMapObject* validateOtherHeightMapType(PyObject* other_obj, const char* method_name)
 {
     // Check that other is a HeightMap
-    PyObject* heightmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!heightmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
-        return nullptr;
-    }
-
-    int is_hmap = PyObject_IsInstance(other_obj, heightmap_type);
-    Py_DECREF(heightmap_type);
+    int is_hmap = PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyHeightMapType);
 
     if (is_hmap < 0) {
         return nullptr;  // Error in isinstance check
@@ -2326,13 +2312,7 @@ static bool parseNoiseSampleParams(
     }
 
     // Validate source is a NoiseSource
-    PyObject* noise_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "NoiseSource");
-    if (!noise_type) {
-        PyErr_SetString(PyExc_RuntimeError, "NoiseSource type not found in module");
-        return false;
-    }
-    int is_noise = PyObject_IsInstance(source_obj, noise_type);
-    Py_DECREF(noise_type);
+    int is_noise = PyObject_IsInstance(source_obj, (PyObject*)&mcrfpydef::PyNoiseSourceType);
 
     if (is_noise < 0) return false;
     if (!is_noise) {
@@ -2539,34 +2519,26 @@ static bool collectBSPNodes(
             return false;
         }
 
-        PyObject* bspnode_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "BSPNode");
-        if (!bspnode_type) {
-            PyErr_SetString(PyExc_RuntimeError, "BSPNode type not found in module");
-            return false;
-        }
+        PyObject* bspnode_type = (PyObject*)&mcrfpydef::PyBSPNodeType;
 
         Py_ssize_t count = PyList_Size(nodes_list);
         for (Py_ssize_t i = 0; i < count; i++) {
             PyObject* item = PyList_GetItem(nodes_list, i);
             int is_node = PyObject_IsInstance(item, bspnode_type);
             if (is_node < 0) {
-                Py_DECREF(bspnode_type);
                 return false;
             }
             if (!is_node) {
-                Py_DECREF(bspnode_type);
                 PyErr_Format(PyExc_TypeError, "%s() nodes[%zd] is not a BSPNode", method_name, i);
                 return false;
             }
 
             PyBSPNodeObject* node = (PyBSPNodeObject*)item;
             if (!PyBSPNode::checkValid(node)) {
-                Py_DECREF(bspnode_type);
                 return false;  // Error already set
             }
             out_nodes.push_back(node->node);
         }
-        Py_DECREF(bspnode_type);
         return true;
     }
 
@@ -2646,13 +2618,7 @@ PyObject* PyHeightMap::add_bsp(PyHeightMapObject* self, PyObject* args, PyObject
     }
 
     // Validate bsp is a BSP
-    PyObject* bsp_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "BSP");
-    if (!bsp_type) {
-        PyErr_SetString(PyExc_RuntimeError, "BSP type not found in module");
-        return nullptr;
-    }
-    int is_bsp = PyObject_IsInstance(bsp_obj, bsp_type);
-    Py_DECREF(bsp_type);
+    int is_bsp = PyObject_IsInstance(bsp_obj, (PyObject*)&mcrfpydef::PyBSPType);
 
     if (is_bsp < 0) return nullptr;
     if (!is_bsp) {
@@ -2740,13 +2706,7 @@ PyObject* PyHeightMap::multiply_bsp(PyHeightMapObject* self, PyObject* args, PyO
     }
 
     // Validate bsp is a BSP
-    PyObject* bsp_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "BSP");
-    if (!bsp_type) {
-        PyErr_SetString(PyExc_RuntimeError, "BSP type not found in module");
-        return nullptr;
-    }
-    int is_bsp = PyObject_IsInstance(bsp_obj, bsp_type);
-    Py_DECREF(bsp_type);
+    int is_bsp = PyObject_IsInstance(bsp_obj, (PyObject*)&mcrfpydef::PyBSPType);
 
     if (is_bsp < 0) return nullptr;
     if (!is_bsp) {

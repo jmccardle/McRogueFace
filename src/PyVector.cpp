@@ -130,11 +130,9 @@ PyVector::PyVector(sf::Vector2f target)
 
 PyObject* PyVector::pyObject()
 {
-    PyTypeObject* type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!type) return nullptr;
-    
+    PyTypeObject* type = &mcrfpydef::PyVectorType;
+
     PyVectorObject* obj = (PyVectorObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
     
     if (obj) {
         obj->data = data;
@@ -304,7 +302,7 @@ PyVectorObject* PyVector::from_arg(PyObject* args)
 PyObject* PyVector::add(PyObject* left, PyObject* right)
 {
     // Check if both operands are vectors
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     
     PyVectorObject* vec1 = nullptr;
     PyVectorObject* vec2 = nullptr;
@@ -326,7 +324,7 @@ PyObject* PyVector::add(PyObject* left, PyObject* right)
 
 PyObject* PyVector::subtract(PyObject* left, PyObject* right)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     
     PyVectorObject* vec1 = nullptr;
     PyVectorObject* vec2 = nullptr;
@@ -348,7 +346,7 @@ PyObject* PyVector::subtract(PyObject* left, PyObject* right)
 
 PyObject* PyVector::multiply(PyObject* left, PyObject* right)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     
     PyVectorObject* vec = nullptr;
     double scalar = 0.0;
@@ -377,7 +375,7 @@ PyObject* PyVector::multiply(PyObject* left, PyObject* right)
 
 PyObject* PyVector::divide(PyObject* left, PyObject* right)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     
     // Only support Vector / scalar
     if (!PyObject_IsInstance(left, (PyObject*)type) || (!PyFloat_Check(right) && !PyLong_Check(right))) {
@@ -402,7 +400,7 @@ PyObject* PyVector::divide(PyObject* left, PyObject* right)
 
 PyObject* PyVector::negative(PyObject* self)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     PyVectorObject* vec = (PyVectorObject*)self;
     
     auto result = (PyVectorObject*)type->tp_alloc(type, 0);
@@ -426,7 +424,7 @@ int PyVector::bool_check(PyObject* self)
 
 PyObject* PyVector::richcompare(PyObject* left, PyObject* right, int op)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
 
     float left_x, left_y, right_x, right_y;
 
@@ -509,9 +507,9 @@ PyObject* PyVector::normalize(PyVectorObject* self, PyObject* Py_UNUSED(ignored)
 {
     float mag = std::sqrt(self->data.x * self->data.x + self->data.y * self->data.y);
     
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto result = (PyVectorObject*)type->tp_alloc(type, 0);
-    
+
     if (result) {
         if (mag > 0.0f) {
             result->data = sf::Vector2f(self->data.x / mag, self->data.y / mag);
@@ -526,9 +524,7 @@ PyObject* PyVector::normalize(PyVectorObject* self, PyObject* Py_UNUSED(ignored)
 
 PyObject* PyVector::dot(PyVectorObject* self, PyObject* other)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    
-    if (!PyObject_IsInstance(other, (PyObject*)type)) {
+    if (!PyObject_IsInstance(other, (PyObject*)&mcrfpydef::PyVectorType)) {
         PyErr_SetString(PyExc_TypeError, "Argument must be a Vector");
         return NULL;
     }
@@ -541,9 +537,7 @@ PyObject* PyVector::dot(PyVectorObject* self, PyObject* other)
 
 PyObject* PyVector::distance_to(PyVectorObject* self, PyObject* other)
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    
-    if (!PyObject_IsInstance(other, (PyObject*)type)) {
+    if (!PyObject_IsInstance(other, (PyObject*)&mcrfpydef::PyVectorType)) {
         PyErr_SetString(PyExc_TypeError, "Argument must be a Vector");
         return NULL;
     }
@@ -564,7 +558,7 @@ PyObject* PyVector::angle(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
 
 PyObject* PyVector::copy(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto result = (PyVectorObject*)type->tp_alloc(type, 0);
 
     if (result) {
@@ -576,7 +570,7 @@ PyObject* PyVector::copy(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
 
 PyObject* PyVector::floor(PyVectorObject* self, PyObject* Py_UNUSED(ignored))
 {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto result = (PyVectorObject*)type->tp_alloc(type, 0);
 
     if (result) {

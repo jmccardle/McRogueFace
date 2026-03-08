@@ -56,17 +56,12 @@ static PyObject* valueToResult(uint8_t value, PyObject* enum_type) {
 // Helper: Create a new DiscreteMap object with given dimensions
 // ============================================================================
 static PyDiscreteMapObject* CreateNewDiscreteMap(int width, int height) {
-    // Get the DiscreteMap type from the module
-    PyObject* dmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "DiscreteMap");
-    if (!dmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "DiscreteMap type not found in module");
-        return nullptr;
-    }
+    // Get the DiscreteMap type
+    PyObject* dmap_type = (PyObject*)&mcrfpydef::PyDiscreteMapType;
 
     // Create size tuple
     PyObject* size_tuple = Py_BuildValue("(ii)", width, height);
     if (!size_tuple) {
-        Py_DECREF(dmap_type);
         return nullptr;
     }
 
@@ -74,14 +69,12 @@ static PyDiscreteMapObject* CreateNewDiscreteMap(int width, int height) {
     PyObject* args = PyTuple_Pack(1, size_tuple);
     Py_DECREF(size_tuple);
     if (!args) {
-        Py_DECREF(dmap_type);
         return nullptr;
     }
 
     // Create the new object
     PyDiscreteMapObject* new_dmap = (PyDiscreteMapObject*)PyObject_Call(dmap_type, args, nullptr);
     Py_DECREF(args);
-    Py_DECREF(dmap_type);
 
     if (!new_dmap) {
         return nullptr;  // Python error already set
@@ -94,16 +87,8 @@ static PyDiscreteMapObject* CreateNewDiscreteMap(int width, int height) {
 // Helper: Validate another DiscreteMap for binary operations
 // ============================================================================
 static PyDiscreteMapObject* validateOtherDiscreteMapType(PyObject* other_obj, const char* method_name) {
-    // Get the DiscreteMap type from the module
-    PyObject* dmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "DiscreteMap");
-    if (!dmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "DiscreteMap type not found in module");
-        return nullptr;
-    }
-
     // Check if other is a DiscreteMap
-    int is_dmap = PyObject_IsInstance(other_obj, dmap_type);
-    Py_DECREF(dmap_type);
+    int is_dmap = PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType);
 
     if (is_dmap < 0) {
         return nullptr;  // Error during check
@@ -1331,14 +1316,7 @@ PyObject* PyDiscreteMap::from_heightmap(PyTypeObject* type, PyObject* args, PyOb
     }
 
     // Validate HeightMap
-    PyObject* hmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!hmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
-        return nullptr;
-    }
-
-    int is_hmap = PyObject_IsInstance(hmap_obj, hmap_type);
-    Py_DECREF(hmap_type);
+    int is_hmap = PyObject_IsInstance(hmap_obj, (PyObject*)&mcrfpydef::PyHeightMapType);
 
     if (is_hmap < 0) {
         return nullptr;
@@ -1507,28 +1485,21 @@ PyObject* PyDiscreteMap::to_heightmap(PyDiscreteMapObject* self, PyObject* args,
     }
 
     // Get HeightMap type and create new instance
-    PyObject* hmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!hmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found in module");
-        return nullptr;
-    }
+    PyObject* hmap_type = (PyObject*)&mcrfpydef::PyHeightMapType;
 
     PyObject* size_tuple = Py_BuildValue("(ii)", self->w, self->h);
     if (!size_tuple) {
-        Py_DECREF(hmap_type);
         return nullptr;
     }
 
     PyObject* hmap_args = PyTuple_Pack(1, size_tuple);
     Py_DECREF(size_tuple);
     if (!hmap_args) {
-        Py_DECREF(hmap_type);
         return nullptr;
     }
 
     PyHeightMapObject* result = (PyHeightMapObject*)PyObject_Call(hmap_type, hmap_args, nullptr);
     Py_DECREF(hmap_args);
-    Py_DECREF(hmap_type);
 
     if (!result) {
         return nullptr;

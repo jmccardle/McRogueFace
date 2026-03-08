@@ -83,14 +83,8 @@ sf::Vector2i DijkstraMap::stepFrom(int x, int y, bool* valid) const {
 bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
                                         UIGrid* expected_grid,
                                         const char* arg_name) {
-    // Get types from module to avoid static type instance issues
-    PyObject* entity_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-
     // Check if it's an Entity
-    if (entity_type && PyObject_IsInstance(obj, entity_type)) {
-        Py_DECREF(entity_type);
-        Py_XDECREF(vector_type);
+    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
         auto* entity = (PyUIEntityObject*)obj;
         if (!entity->data) {
             PyErr_Format(PyExc_RuntimeError,
@@ -111,17 +105,14 @@ bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
         *y = static_cast<int>(entity->data->position.y);
         return true;
     }
-    Py_XDECREF(entity_type);
 
     // Check if it's a Vector
-    if (vector_type && PyObject_IsInstance(obj, vector_type)) {
-        Py_DECREF(vector_type);
+    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyVectorType)) {
         auto* vec = (PyVectorObject*)obj;
         *x = static_cast<int>(vec->data.x);
         *y = static_cast<int>(vec->data.y);
         return true;
     }
-    Py_XDECREF(vector_type);
 
     // Try tuple/list
     if (PySequence_Check(obj) && PySequence_Size(obj) == 2) {
@@ -428,20 +419,13 @@ PyObject* UIGridPathfinding::DijkstraMap_to_heightmap(PyDijkstraMapObject* self,
         }
     }
 
-    // Create HeightMap via Python API (same pattern as BSP.to_heightmap)
-    PyObject* hmap_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "HeightMap");
-    if (!hmap_type) {
-        PyErr_SetString(PyExc_RuntimeError, "HeightMap type not found");
-        return nullptr;
-    }
-
+    // Create HeightMap via Python API
     PyObject* size_tuple = Py_BuildValue("(ii)", width, height);
     PyObject* hmap_args = PyTuple_Pack(1, size_tuple);
     Py_DECREF(size_tuple);
 
-    PyHeightMapObject* hmap = (PyHeightMapObject*)PyObject_Call(hmap_type, hmap_args, nullptr);
+    PyHeightMapObject* hmap = (PyHeightMapObject*)PyObject_Call((PyObject*)&mcrfpydef::PyHeightMapType, hmap_args, nullptr);
     Py_DECREF(hmap_args);
-    Py_DECREF(hmap_type);
 
     if (!hmap) {
         return nullptr;

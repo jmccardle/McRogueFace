@@ -208,7 +208,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     // Handle texture argument
     std::shared_ptr<PyTexture> texture_ptr = nullptr;
     if (texture && texture != Py_None) {
-        if (!PyObject_IsInstance(texture, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Texture"))) {
+        if (!PyObject_IsInstance(texture, (PyObject*)&mcrfpydef::PyTextureType)) {
             PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
             return -1;
         }
@@ -220,7 +220,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     }
     
     // Handle grid argument
-    if (grid_obj && !PyObject_IsInstance(grid_obj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid"))) {
+    if (grid_obj && !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
@@ -292,7 +292,7 @@ PyObject* UIEntity::get_spritenumber(PyUIEntityObject* self, void* closure) {
 }
 
 PyObject* sfVector2f_to_PyObject(sf::Vector2f vec) {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
     if (obj) {
         obj->data = vec;
@@ -301,7 +301,7 @@ PyObject* sfVector2f_to_PyObject(sf::Vector2f vec) {
 }
 
 PyObject* sfVector2i_to_PyObject(sf::Vector2i vec) {
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
     if (obj) {
         obj->data = sf::Vector2f(static_cast<float>(vec.x), static_cast<float>(vec.y));
@@ -636,11 +636,9 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
     }
 
     // Return a Python Grid object wrapping the C++ grid
-    PyTypeObject* grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-    if (!grid_type) return nullptr;
+    auto grid_type = &mcrfpydef::PyUIGridType;
 
     auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
-    Py_DECREF(grid_type);
 
     if (pyGrid) {
         pyGrid->data = self->data->grid;
@@ -885,11 +883,7 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
     if (!result) return PyErr_NoMemory();
 
     // Get Entity type for creating Python objects
-    PyTypeObject* entity_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-    if (!entity_type) {
-        Py_DECREF(result);
-        return NULL;
-    }
+    auto entity_type = &mcrfpydef::PyUIEntityType;
 
     // Iterate through all entities in the grid
     if (grid->entities) {
@@ -908,7 +902,6 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
                 auto pyEntity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
                 if (!pyEntity) {
                     Py_DECREF(result);
-                    Py_DECREF(entity_type);
                     return PyErr_NoMemory();
                 }
 
@@ -918,7 +911,6 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
                 if (PyList_Append(result, (PyObject*)pyEntity) < 0) {
                     Py_DECREF(pyEntity);
                     Py_DECREF(result);
-                    Py_DECREF(entity_type);
                     return NULL;
                 }
                 Py_DECREF(pyEntity);  // List now owns the reference
@@ -926,7 +918,6 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
         }
     }
 
-    Py_DECREF(entity_type);
     return result;
 }
 
@@ -1308,14 +1299,9 @@ PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kw
     }
 
     // Create and return a PyAnimation wrapper
-    PyTypeObject* animType = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Animation");
-    if (!animType) {
-        PyErr_SetString(PyExc_RuntimeError, "Could not find Animation type");
-        return NULL;
-    }
+    auto animType = &mcrfpydef::PyAnimationType;
 
     PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
-    Py_DECREF(animType);
 
     if (!pyAnim) {
         return NULL;

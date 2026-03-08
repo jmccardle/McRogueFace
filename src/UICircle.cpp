@@ -342,10 +342,8 @@ int UICircle::set_radius(PyUICircleObject* self, PyObject* value, void* closure)
 
 PyObject* UICircle::get_center(PyUICircleObject* self, void* closure) {
     sf::Vector2f center = self->data->getCenter();
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (!type) return NULL;
+    auto type = &mcrfpydef::PyVectorType;
     PyObject* result = PyObject_CallFunction((PyObject*)type, "ff", center.x, center.y);
-    Py_DECREF(type);
     return result;
 }
 
@@ -362,16 +360,14 @@ int UICircle::set_center(PyUICircleObject* self, PyObject* value, void* closure)
 
 PyObject* UICircle::get_fill_color(PyUICircleObject* self, void* closure) {
     sf::Color c = self->data->getFillColor();
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
-    if (!type) return NULL;
+    auto type = &mcrfpydef::PyColorType;
     PyObject* result = PyObject_CallFunction((PyObject*)type, "iiii", c.r, c.g, c.b, c.a);
-    Py_DECREF(type);
     return result;
 }
 
 int UICircle::set_fill_color(PyUICircleObject* self, PyObject* value, void* closure) {
     sf::Color color;
-    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color"))) {
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType)) {
         auto pyColor = (PyColorObject*)value;
         color = pyColor->data;
     } else if (PyTuple_Check(value)) {
@@ -391,16 +387,14 @@ int UICircle::set_fill_color(PyUICircleObject* self, PyObject* value, void* clos
 
 PyObject* UICircle::get_outline_color(PyUICircleObject* self, void* closure) {
     sf::Color c = self->data->getOutlineColor();
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
-    if (!type) return NULL;
+    auto type = &mcrfpydef::PyColorType;
     PyObject* result = PyObject_CallFunction((PyObject*)type, "iiii", c.r, c.g, c.b, c.a);
-    Py_DECREF(type);
     return result;
 }
 
 int UICircle::set_outline_color(PyUICircleObject* self, PyObject* value, void* closure) {
     sf::Color color;
-    if (PyObject_IsInstance(value, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color"))) {
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType)) {
         auto pyColor = (PyColorObject*)value;
         color = pyColor->data;
     } else if (PyTuple_Check(value)) {
@@ -527,7 +521,7 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     // Set fill color if provided
     if (fill_color_obj && fill_color_obj != Py_None) {
         sf::Color color;
-        if (PyObject_IsInstance(fill_color_obj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color"))) {
+        if (PyObject_IsInstance(fill_color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
             color = ((PyColorObject*)fill_color_obj)->data;
         } else if (PyTuple_Check(fill_color_obj)) {
             int r, g, b, a = 255;
@@ -546,7 +540,7 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     // Set outline color if provided
     if (outline_color_obj && outline_color_obj != Py_None) {
         sf::Color color;
-        if (PyObject_IsInstance(outline_color_obj, PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color"))) {
+        if (PyObject_IsInstance(outline_color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
             color = ((PyColorObject*)outline_color_obj)->data;
         } else if (PyTuple_Check(outline_color_obj)) {
             int r, g, b, a = 255;
@@ -596,11 +590,7 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     }
 
     // #184: Check if this is a Python subclass (for callback method support)
-    PyObject* circle_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Circle");
-    if (circle_type) {
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != circle_type;
-        Py_DECREF(circle_type);
-    }
+    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUICircleType;
 
     return 0;
 }

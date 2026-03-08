@@ -408,9 +408,8 @@ bool UILine::hasProperty(const std::string& name) const {
 // Python API implementation
 PyObject* UILine::get_start(PyUILineObject* self, void* closure) {
     auto vec = self->data->getStart();
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
     if (obj) {
         obj->data = vec;
     }
@@ -429,9 +428,8 @@ int UILine::set_start(PyUILineObject* self, PyObject* value, void* closure) {
 
 PyObject* UILine::get_end(PyUILineObject* self, void* closure) {
     auto vec = self->data->getEnd();
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
+    auto type = &mcrfpydef::PyVectorType;
     auto obj = (PyVectorObject*)type->tp_alloc(type, 0);
-    Py_DECREF(type);
     if (obj) {
         obj->data = vec;
     }
@@ -450,11 +448,10 @@ int UILine::set_end(PyUILineObject* self, PyObject* value, void* closure) {
 
 PyObject* UILine::get_color(PyUILineObject* self, void* closure) {
     auto color = self->data->getColor();
-    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Color");
+    auto type = &mcrfpydef::PyColorType;
     PyObject* args = Py_BuildValue("(iiii)", color.r, color.g, color.b, color.a);
     PyObject* obj = PyObject_CallObject((PyObject*)type, args);
     Py_DECREF(args);
-    Py_DECREF(type);
     return obj;
 }
 
@@ -660,11 +657,7 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     }
 
     // #184: Check if this is a Python subclass (for callback method support)
-    PyObject* line_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Line");
-    if (line_type) {
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != line_type;
-        Py_DECREF(line_type);
-    }
+    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUILineType;
 
     return 0;
 }

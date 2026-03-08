@@ -1544,7 +1544,7 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
             switch (drawable->derived_type()) {
                 case PyObjectsEnum::UIFRAME: {
                     auto frame = std::static_pointer_cast<UIFrame>(drawable);
-                    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Frame");
+                    auto type = &mcrfpydef::PyUIFrameType;
                     auto o = (PyUIFrameObject*)type->tp_alloc(type, 0);
                     if (o) {
                         o->data = frame;
@@ -1554,7 +1554,7 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
                 }
                 case PyObjectsEnum::UICAPTION: {
                     auto caption = std::static_pointer_cast<UICaption>(drawable);
-                    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Caption");
+                    auto type = &mcrfpydef::PyUICaptionType;
                     auto o = (PyUICaptionObject*)type->tp_alloc(type, 0);
                     if (o) {
                         o->data = caption;
@@ -1564,7 +1564,7 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
                 }
                 case PyObjectsEnum::UISPRITE: {
                     auto sprite = std::static_pointer_cast<UISprite>(drawable);
-                    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Sprite");
+                    auto type = &mcrfpydef::PyUISpriteType;
                     auto o = (PyUISpriteObject*)type->tp_alloc(type, 0);
                     if (o) {
                         o->data = sprite;
@@ -1574,7 +1574,7 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
                 }
                 case PyObjectsEnum::UIGRID: {
                     auto grid = std::static_pointer_cast<UIGrid>(drawable);
-                    auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+                    auto type = &mcrfpydef::PyUIGridType;
                     auto o = (PyUIGridObject*)type->tp_alloc(type, 0);
                     if (o) {
                         o->data = grid;
@@ -1620,7 +1620,7 @@ static void find_in_grid_entities(UIGrid* grid, const std::string& pattern,
         
         // Entities delegate name to their sprite
         if (name_matches_pattern(entity->sprite.name, pattern)) {
-            auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
+            auto type = &mcrfpydef::PyUIEntityType;
             auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
             if (o) {
                 o->data = entity;
@@ -1817,15 +1817,12 @@ static bool extract_point(PyObject* obj, int* x, int* y, const char* arg_name) {
     }
 
     // Try Vector type
-    PyObject* vector_type = PyObject_GetAttrString(McRFPy_API::mcrf_module, "Vector");
-    if (vector_type && PyObject_IsInstance(obj, vector_type)) {
-        Py_DECREF(vector_type);
+    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyVectorType)) {
         PyVectorObject* vec = (PyVectorObject*)obj;
         *x = static_cast<int>(vec->data.x);
         *y = static_cast<int>(vec->data.y);
         return true;
     }
-    Py_XDECREF(vector_type);
 
     PyErr_Format(PyExc_TypeError,
         "%s: expected (x, y) tuple or Vector, got %s",
