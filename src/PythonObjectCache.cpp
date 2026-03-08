@@ -37,7 +37,7 @@ void PythonObjectCache::registerObject(uint64_t serial, PyObject* weakref) {
 PyObject* PythonObjectCache::lookup(uint64_t serial) {
     if (serial == 0) return nullptr;
 
-    // No mutex needed for read - GIL protects PyWeakref_GetRef
+    std::lock_guard<std::mutex> lock(serial_mutex);
     auto it = cache.find(serial);
     if (it != cache.end()) {
         PyObject* obj = nullptr;

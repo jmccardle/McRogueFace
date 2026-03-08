@@ -926,7 +926,10 @@ PyMethodDef UIEntity::methods[] = {
      "    state = entity.at((5, 3))\n"
      "    state = entity.at(pos=(5, 3))"},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
-    {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
+    {"die", (PyCFunction)UIEntity::die, METH_NOARGS,
+     "Remove this entity from its grid.\n\n"
+     "Warning: Do not call during iteration over grid.entities.\n"
+     "Modifying the collection during iteration raises RuntimeError."},
     {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS,
      "path_to(x, y) or path_to(target) -> list\n\n"
      "Find a path to the target position using Dijkstra pathfinding.\n\n"
@@ -997,7 +1000,10 @@ PyMethodDef UIEntity_all_methods[] = {
      "    state = entity.at((5, 3))\n"
      "    state = entity.at(pos=(5, 3))"},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
-    {"die", (PyCFunction)UIEntity::die, METH_NOARGS, "Remove this entity from its grid"},
+    {"die", (PyCFunction)UIEntity::die, METH_NOARGS,
+     "Remove this entity from its grid.\n\n"
+     "Warning: Do not call during iteration over grid.entities.\n"
+     "Modifying the collection during iteration raises RuntimeError."},
     {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS,
      "path_to(x, y) or path_to(target) -> list\n\n"
      "Find a path to the target position using Dijkstra pathfinding.\n\n"
