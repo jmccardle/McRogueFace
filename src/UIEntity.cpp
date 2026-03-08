@@ -33,19 +33,24 @@ UIEntity::~UIEntity() {
 
 // Removed UIEntity(UIGrid&) constructor - using lazy initialization instead
 
-void UIEntity::updateVisibility()
+void UIEntity::ensureGridstate()
 {
     if (!grid) return;
-
-    // Lazy initialize gridstate if needed
-    if (gridstate.size() == 0) {
-        gridstate.resize(grid->grid_w * grid->grid_h);
-        // Initialize all cells as not visible/discovered
+    size_t expected = static_cast<size_t>(grid->grid_w) * grid->grid_h;
+    if (gridstate.size() != expected) {
+        gridstate.resize(expected);
         for (auto& state : gridstate) {
             state.visible = false;
             state.discovered = false;
         }
     }
+}
+
+void UIEntity::updateVisibility()
+{
+    if (!grid) return;
+
+    ensureGridstate();
 
     // First, mark all cells as not visible
     for (auto& state : gridstate) {
@@ -108,15 +113,7 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         return NULL;
     }
 
-    // Lazy initialize gridstate if needed
-    if (self->data->gridstate.size() == 0) {
-        self->data->gridstate.resize(self->data->grid->grid_w * self->data->grid->grid_h);
-        // Initialize all cells as not visible/discovered
-        for (auto& state : self->data->gridstate) {
-            state.visible = false;
-            state.discovered = false;
-        }
-    }
+    self->data->ensureGridstate();
 
     // Bounds check
     if (x < 0 || x >= self->data->grid->grid_w || y < 0 || y >= self->data->grid->grid_h) {
@@ -662,6 +659,8 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
     // Handle None - remove from current grid
     if (value == Py_None) {
         if (self->data->grid) {
+            // Remove from spatial hash before removing from entity list
+            self->data->grid->spatial_hash.remove(self->data);
             // Remove from current grid's entity list
             auto& entities = self->data->grid->entities;
             auto it = std::find_if(entities->begin(), entities->end(),
@@ -677,11 +676,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
     }
 
     // Value must be a Grid
-    PyTypeObject* grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-    bool is_grid = grid_type && PyObject_IsInstance(value, (PyObject*)grid_type);
-    Py_XDECREF(grid_type);
-
-    if (!is_grid) {
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid or None");
         return -1;
     }
@@ -690,6 +685,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
 
     // Remove from old grid first (if any)
     if (self->data->grid && self->data->grid != new_grid) {
+        self->data->grid->spatial_hash.remove(self->data);
         auto& old_entities = self->data->grid->entities;
         auto it = std::find_if(old_entities->begin(), old_entities->end(),
             [self](const std::shared_ptr<UIEntity>& e) {
@@ -705,14 +701,8 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         new_grid->entities->push_back(self->data);
         self->data->grid = new_grid;
 
-        // Initialize gridstate if needed
-        if (self->data->gridstate.size() == 0) {
-            self->data->gridstate.resize(new_grid->grid_w * new_grid->grid_h);
-            for (auto& state : self->data->gridstate) {
-                state.visible = false;
-                state.discovered = false;
-            }
-        }
+        // Resize gridstate to match new grid dimensions
+        self->data->ensureGridstate();
     }
 
     return 0;

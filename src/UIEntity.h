@@ -73,6 +73,7 @@ public:
     ~UIEntity();
     
     // Visibility methods
+    void ensureGridstate();   // Resize gridstate to match current grid dimensions
     void updateVisibility();  // Update gridstate from current FOV
     
     // Property system for animations

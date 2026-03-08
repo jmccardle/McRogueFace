@@ -190,6 +190,7 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
     // Replace the element and set grid reference
     *it = entity->data;
     entity->data->grid = self->grid;
+    entity->data->ensureGridstate();
 
     // Add to spatial hash
     if (self->grid) {
@@ -492,6 +493,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
             for (const auto& entity : new_items) {
                 self->data->insert(insert_pos, entity);
                 entity->grid = self->grid;
+                entity->ensureGridstate();
                 if (self->grid) {
                     self->grid->spatial_hash.insert(entity);
                 }
@@ -518,6 +520,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
 
                 *cur_it = new_items[new_idx++];
                 (*cur_it)->grid = self->grid;
+                (*cur_it)->ensureGridstate();
 
                 if (self->grid) {
                     self->grid->spatial_hash.insert(*cur_it);
@@ -578,14 +581,8 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
         }
     }
 
-    // Initialize gridstate if not already done
-    if (entity->data->gridstate.size() == 0 && self->grid) {
-        entity->data->gridstate.resize(self->grid->grid_w * self->grid->grid_h);
-        for (auto& state : entity->data->gridstate) {
-            state.visible = false;
-            state.discovered = false;
-        }
-    }
+    // Ensure gridstate matches current grid dimensions
+    entity->data->ensureGridstate();
 
     Py_RETURN_NONE;
 }
@@ -683,14 +680,8 @@ PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject*
             self->grid->spatial_hash.insert(entity->data);
         }
 
-        // Initialize gridstate if needed
-        if (entity->data->gridstate.size() == 0 && self->grid) {
-            entity->data->gridstate.resize(self->grid->grid_w * self->grid->grid_h);
-            for (auto& state : entity->data->gridstate) {
-                state.visible = false;
-                state.discovered = false;
-            }
-        }
+        // Ensure gridstate matches current grid dimensions
+        entity->data->ensureGridstate();
 
         Py_DECREF(entity);  // Release the reference we held during validation
     }
@@ -803,14 +794,8 @@ PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject*
         self->grid->spatial_hash.insert(entity->data);
     }
 
-    // Initialize gridstate if needed
-    if (entity->data->gridstate.size() == 0 && self->grid) {
-        entity->data->gridstate.resize(self->grid->grid_w * self->grid->grid_h);
-        for (auto& state : entity->data->gridstate) {
-            state.visible = false;
-            state.discovered = false;
-        }
-    }
+    // Ensure gridstate matches current grid dimensions
+    entity->data->ensureGridstate();
 
     Py_RETURN_NONE;
 }
