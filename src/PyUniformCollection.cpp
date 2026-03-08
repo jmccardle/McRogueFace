@@ -151,7 +151,7 @@ PyObject* PyUniformCollectionType::repr(PyObject* obj) {
     PyUniformCollectionObject* self = (PyUniformCollectionObject*)obj;
     std::ostringstream ss;
     ss << "<UniformCollection";
-    if (self->collection) {
+    if (self->owner.lock() && self->collection) {
         auto names = self->collection->getNames();
         ss << " [";
         for (size_t i = 0; i < names.size(); ++i) {
@@ -166,15 +166,15 @@ PyObject* PyUniformCollectionType::repr(PyObject* obj) {
 
 Py_ssize_t PyUniformCollectionType::mp_length(PyObject* obj) {
     PyUniformCollectionObject* self = (PyUniformCollectionObject*)obj;
-    if (!self->collection) return 0;
+    if (!self->owner.lock() || !self->collection) return 0;
     return static_cast<Py_ssize_t>(self->collection->getNames().size());
 }
 
 PyObject* PyUniformCollectionType::mp_subscript(PyObject* obj, PyObject* key) {
     PyUniformCollectionObject* self = (PyUniformCollectionObject*)obj;
 
-    if (!self->collection) {
-        PyErr_SetString(PyExc_RuntimeError, "UniformCollection is not valid");
+    if (!self->owner.lock() || !self->collection) {
+        PyErr_SetString(PyExc_RuntimeError, "UniformCollection is not valid (owner destroyed)");
         return NULL;
     }
 
@@ -239,8 +239,8 @@ PyObject* PyUniformCollectionType::mp_subscript(PyObject* obj, PyObject* key) {
 int PyUniformCollectionType::mp_ass_subscript(PyObject* obj, PyObject* key, PyObject* value) {
     PyUniformCollectionObject* self = (PyUniformCollectionObject*)obj;
 
-    if (!self->collection) {
-        PyErr_SetString(PyExc_RuntimeError, "UniformCollection is not valid");
+    if (!self->owner.lock() || !self->collection) {
+        PyErr_SetString(PyExc_RuntimeError, "UniformCollection is not valid (owner destroyed)");
         return -1;
     }
 
@@ -330,7 +330,7 @@ int PyUniformCollectionType::mp_ass_subscript(PyObject* obj, PyObject* key, PyOb
 int PyUniformCollectionType::sq_contains(PyObject* obj, PyObject* key) {
     PyUniformCollectionObject* self = (PyUniformCollectionObject*)obj;
 
-    if (!self->collection) return 0;
+    if (!self->owner.lock() || !self->collection) return 0;
 
     if (!PyUnicode_Check(key)) return 0;
 
@@ -339,7 +339,7 @@ int PyUniformCollectionType::sq_contains(PyObject* obj, PyObject* key) {
 }
 
 PyObject* PyUniformCollectionType::keys(PyUniformCollectionObject* self, PyObject* Py_UNUSED(ignored)) {
-    if (!self->collection) {
+    if (!self->owner.lock() || !self->collection) {
         return PyList_New(0);
     }
 
@@ -352,7 +352,7 @@ PyObject* PyUniformCollectionType::keys(PyUniformCollectionObject* self, PyObjec
 }
 
 PyObject* PyUniformCollectionType::values(PyUniformCollectionObject* self, PyObject* Py_UNUSED(ignored)) {
-    if (!self->collection) {
+    if (!self->owner.lock() || !self->collection) {
         return PyList_New(0);
     }
 
@@ -372,7 +372,7 @@ PyObject* PyUniformCollectionType::values(PyUniformCollectionObject* self, PyObj
 }
 
 PyObject* PyUniformCollectionType::items(PyUniformCollectionObject* self, PyObject* Py_UNUSED(ignored)) {
-    if (!self->collection) {
+    if (!self->owner.lock() || !self->collection) {
         return PyList_New(0);
     }
 
@@ -395,7 +395,7 @@ PyObject* PyUniformCollectionType::items(PyUniformCollectionObject* self, PyObje
 }
 
 PyObject* PyUniformCollectionType::clear(PyUniformCollectionObject* self, PyObject* Py_UNUSED(ignored)) {
-    if (self->collection) {
+    if (self->owner.lock() && self->collection) {
         auto names = self->collection->getNames();
         for (const auto& name : names) {
             self->collection->remove(name);

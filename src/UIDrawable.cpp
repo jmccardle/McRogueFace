@@ -41,6 +41,28 @@ static UIDrawable* extractDrawable(PyObject* self, PyObjectsEnum objtype) {
     }
 }
 
+// Helper to extract shared_ptr<UIDrawable> for ownership tracking
+static std::shared_ptr<UIDrawable> extractDrawableShared(PyObject* self, PyObjectsEnum objtype) {
+    switch (objtype) {
+        case PyObjectsEnum::UIFRAME:
+            return ((PyUIFrameObject*)self)->data;
+        case PyObjectsEnum::UICAPTION:
+            return ((PyUICaptionObject*)self)->data;
+        case PyObjectsEnum::UISPRITE:
+            return ((PyUISpriteObject*)self)->data;
+        case PyObjectsEnum::UIGRID:
+            return ((PyUIGridObject*)self)->data;
+        case PyObjectsEnum::UILINE:
+            return ((PyUILineObject*)self)->data;
+        case PyObjectsEnum::UICIRCLE:
+            return ((PyUICircleObject*)self)->data;
+        case PyObjectsEnum::UIARC:
+            return ((PyUIArcObject*)self)->data;
+        default:
+            return nullptr;
+    }
+}
+
 UIDrawable::UIDrawable() : position(0.0f, 0.0f) { click_callable = NULL;  }
 
 UIDrawable::UIDrawable(const UIDrawable& other)
@@ -1271,7 +1293,7 @@ PyObject* UIDrawable::get_uniforms(PyObject* self, void* closure) {
 
     collection->collection = drawable->uniforms.get();
     collection->weakreflist = NULL;
-    // Note: owner weak_ptr could be set here if we had access to shared_ptr
+    collection->owner = extractDrawableShared(self, objtype);
 
     return (PyObject*)collection;
 }

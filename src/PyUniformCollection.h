@@ -83,8 +83,8 @@ private:
 // Python object structure for UniformCollection
 typedef struct {
     PyObject_HEAD
-    UniformCollection* collection;  // Owned by UIDrawable, not by this object
-    std::weak_ptr<UIDrawable> owner;  // For checking validity
+    UniformCollection* collection;  // Owned by UIDrawable/UIEntity, not by this object
+    std::weak_ptr<void> owner;  // Type-erased weak ref for validity checking
     PyObject* weakreflist;
 } PyUniformCollectionObject;
 

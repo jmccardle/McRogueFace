@@ -140,6 +140,7 @@ static PyObject* UIEntity_get_uniforms(PyUIEntityObject* self, void* closure)
 
     // The collection is owned by the sprite, we just provide a view
     uniforms_obj->collection = self->data->sprite.uniforms.get();
+    uniforms_obj->owner = self->data;  // Entity shared_ptr keeps collection alive
     uniforms_obj->weakreflist = NULL;
 
     return (PyObject*)uniforms_obj;
