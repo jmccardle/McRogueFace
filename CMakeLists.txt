@@ -20,6 +20,27 @@ option(MCRF_PLAYGROUND "Build with minimal playground scripts instead of full ga
 # Game shell mode - fullscreen canvas, no REPL chrome (for itch.io / standalone web games)
 option(MCRF_GAME_SHELL "Use minimal game-only HTML shell (no REPL)" OFF)
 
+# Debug/sanitizer build options
+option(MCRF_SANITIZE_ADDRESS "Build with AddressSanitizer" OFF)
+option(MCRF_SANITIZE_UNDEFINED "Build with UBSan" OFF)
+option(MCRF_SANITIZE_THREAD "Build with ThreadSanitizer" OFF)
+option(MCRF_DEBUG_PYTHON "Link against debug CPython from __lib_debug/" OFF)
+
+# Validate mutually exclusive sanitizers
+if(MCRF_SANITIZE_ADDRESS AND MCRF_SANITIZE_THREAD)
+    message(FATAL_ERROR "ASan and TSan are mutually exclusive. Use one or the other.")
+endif()
+
+# Validate debug Python library exists when requested
+if(MCRF_DEBUG_PYTHON)
+    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0")
+        message(FATAL_ERROR
+            "__lib_debug/libpython3.14.so.1.0 not found.\n"
+            "Build it first: tools/build_debug_python.sh")
+    endif()
+    message(STATUS "Using debug CPython from __lib_debug/")
+endif()
+
 # Emscripten builds: use SDL2 if specified, otherwise fall back to headless
 if(EMSCRIPTEN)
     if(MCRF_SDL2)
@@ -189,6 +210,9 @@ elseif(MCRF_HEADLESS)
             python3.14
             m dl util pthread)
         include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
+        if(MCRF_DEBUG_PYTHON)
+            link_directories(${CMAKE_SOURCE_DIR}/__lib_debug)
+        endif()
         link_directories(${CMAKE_SOURCE_DIR}/__lib)
     endif()
 elseif(MCRF_CROSS_WINDOWS)
@@ -245,6 +269,9 @@ else()
         m dl util pthread
         ${OPENGL_LIBRARIES})
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
+    if(MCRF_DEBUG_PYTHON)
+        link_directories(${CMAKE_SOURCE_DIR}/__lib_debug)
+    endif()
     link_directories(${CMAKE_SOURCE_DIR}/__lib)
 endif()
 
@@ -255,6 +282,36 @@ add_executable(mcrogueface ${SOURCES})
 # We ALWAYS need this because libtcod headers expect SDL3, not SDL2
 # Our SDL2 backend is separate from libtcod's SDL3 renderer
 target_compile_definitions(mcrogueface PRIVATE NO_SDL)
+
+# Sanitizer instrumentation — applied to mcrogueface target only (not imported libs)
+if(MCRF_SANITIZE_ADDRESS)
+    message(STATUS "AddressSanitizer enabled")
+    target_compile_options(mcrogueface PRIVATE
+        -fsanitize=address -fno-omit-frame-pointer -g -O1)
+    target_link_options(mcrogueface PRIVATE
+        -fsanitize=address)
+endif()
+
+if(MCRF_SANITIZE_UNDEFINED)
+    message(STATUS "UndefinedBehaviorSanitizer enabled")
+    target_compile_options(mcrogueface PRIVATE
+        -fsanitize=undefined -fno-sanitize=function,vptr -g -O1)
+    target_link_options(mcrogueface PRIVATE
+        -fsanitize=undefined -fno-sanitize=function,vptr)
+endif()
+
+if(MCRF_SANITIZE_THREAD)
+    message(STATUS "ThreadSanitizer enabled")
+    target_compile_options(mcrogueface PRIVATE
+        -fsanitize=thread -g -O1)
+    target_link_options(mcrogueface PRIVATE
+        -fsanitize=thread)
+endif()
+
+# Enable Py_DEBUG when linking against debug CPython (matches pydebug ABI)
+if(MCRF_DEBUG_PYTHON)
+    target_compile_definitions(mcrogueface PRIVATE Py_DEBUG)
+endif()
 
 # Define MCRF_HEADLESS for headless builds (excludes SFML/ImGui code)
 if(MCRF_HEADLESS)
@@ -377,9 +434,19 @@ add_custom_command(TARGET mcrogueface POST_BUILD
     ${CMAKE_SOURCE_DIR}/src/scripts $<TARGET_FILE_DIR:mcrogueface>/scripts)
 
 # Copy Python standard library to build directory
-add_custom_command(TARGET mcrogueface POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
+if(MCRF_DEBUG_PYTHON)
+    # Copy all libs first (SFML, libtcod, Python stdlib), then overwrite with debug Python
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib
+        COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
+            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython3.14.so.1.0)
+else()
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
+endif()
 
 # On Windows, copy DLLs to executable directory
 if(MCRF_CROSS_WINDOWS)

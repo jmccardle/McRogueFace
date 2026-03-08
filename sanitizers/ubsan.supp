@@ -1,0 +1,25 @@
+# McRogueFace UndefinedBehaviorSanitizer Suppression File
+#
+# CPython uses function pointer casts extensively (PyCFunction signatures
+# don't match the actual function types). These are "safe" in practice
+# on all ABIs CPython targets, but UBSan flags them.
+#
+# The primary defense is -fno-sanitize=function,vptr in compile flags.
+# This file is a backup for any that slip through.
+#
+# Usage:
+#   UBSAN_OPTIONS="suppressions=sanitizers/ubsan.supp"
+#
+# Format: type:source_pattern
+
+# CPython function pointer cast patterns
+function:modules/cpython/*
+function:deps/cpython/*
+
+# CPython object header type punning (PyObject* -> specific types)
+alignment:modules/cpython/*
+alignment:deps/cpython/*
+
+# libtcod internal casts (C library with void* patterns)
+function:*libtcod*
+function:*tcod*

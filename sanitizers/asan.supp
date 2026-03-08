@@ -1,0 +1,33 @@
+# McRogueFace AddressSanitizer Suppression File
+#
+# Minimal — most CPython false positives are handled by:
+#   - PYTHONMALLOC=malloc (bypasses pymalloc)
+#   - detect_leaks=0 (CPython has intentional lifetime leaks)
+#
+# Usage (via ASAN_OPTIONS or LSAN_OPTIONS):
+#   LSAN_OPTIONS="suppressions=sanitizers/asan.supp"
+#
+# Format: one suppression per line, prefix with "leak:" for leak suppressions
+# See https://github.com/google/sanitizers/wiki/AddressSanitizerLeakSanitizer
+
+# CPython interned strings — intentionally never freed
+leak:_PyUnicode_InternInPlace
+leak:PyUnicode_InternFromString
+
+# CPython type objects — intentionally immortal
+leak:PyType_Ready
+leak:_PyType_Ready
+
+# CPython small int cache ([-5, 256]) — allocated once, never freed
+leak:_PyLong_Init
+
+# CPython GIL — allocated once per interpreter
+leak:PyThread_allocate_lock
+
+# CPython import system caches
+leak:PyImport_ImportModule
+leak:_PyImport_FindExtensionObject
+
+# dlopen — loaded shared libraries are intentionally kept resident
+leak:dlopen
+leak:_dl_open

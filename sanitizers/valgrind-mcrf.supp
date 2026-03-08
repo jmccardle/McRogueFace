@@ -1,0 +1,269 @@
+#
+# McRogueFace Valgrind Suppression File
+#
+# Adapted from CPython's Misc/valgrind-python.supp with _PyObject_Free
+# and _PyObject_Realloc entries uncommented and updated for 64-bit.
+#
+# Usage:
+#   valgrind --tool=memcheck --suppressions=sanitizers/valgrind-mcrf.supp \
+#       --leak-check=full --error-exitcode=42 ./build-debug/mcrogueface ...
+#
+# NOTE: For best results, run with PYTHONMALLOC=malloc so that all Python
+# allocations go through system malloc and are fully visible to Valgrind.
+# When using PYTHONMALLOC=malloc, the pymalloc suppressions below are not
+# needed, but they're kept for cases where you want to run without it.
+#
+
+###############################################################################
+# CPython pymalloc internals (address_in_range)
+###############################################################################
+
+{
+   ADDRESS_IN_RANGE/Invalid read of size 4
+   Memcheck:Addr4
+   fun:address_in_range
+}
+
+{
+   ADDRESS_IN_RANGE/Invalid read of size 4
+   Memcheck:Value4
+   fun:address_in_range
+}
+
+{
+   ADDRESS_IN_RANGE/Invalid read of size 8 (x86_64)
+   Memcheck:Value8
+   fun:address_in_range
+}
+
+{
+   ADDRESS_IN_RANGE/Conditional jump depends on uninitialised value
+   Memcheck:Cond
+   fun:address_in_range
+}
+
+###############################################################################
+# _PyObject_Free — pymalloc's free; reads pool headers that look
+# uninitialised to Valgrind. Updated from Addr4/Value4 to Addr8/Value8
+# for 64-bit systems.
+###############################################################################
+
+{
+   _PyObject_Free/Invalid read of size 4
+   Memcheck:Addr4
+   fun:_PyObject_Free
+}
+
+{
+   _PyObject_Free/Invalid read of size 4
+   Memcheck:Value4
+   fun:_PyObject_Free
+}
+
+{
+   _PyObject_Free/Use of uninitialised value of size 8
+   Memcheck:Addr8
+   fun:_PyObject_Free
+}
+
+{
+   _PyObject_Free/Use of uninitialised value of size 8
+   Memcheck:Value8
+   fun:_PyObject_Free
+}
+
+{
+   _PyObject_Free/Conditional jump depends on uninitialised value
+   Memcheck:Cond
+   fun:_PyObject_Free
+}
+
+###############################################################################
+# _PyObject_Realloc — same pymalloc pool-header reads as _PyObject_Free
+###############################################################################
+
+{
+   _PyObject_Realloc/Invalid read of size 4
+   Memcheck:Addr4
+   fun:_PyObject_Realloc
+}
+
+{
+   _PyObject_Realloc/Invalid read of size 4
+   Memcheck:Value4
+   fun:_PyObject_Realloc
+}
+
+{
+   _PyObject_Realloc/Use of uninitialised value of size 8
+   Memcheck:Addr8
+   fun:_PyObject_Realloc
+}
+
+{
+   _PyObject_Realloc/Use of uninitialised value of size 8
+   Memcheck:Value8
+   fun:_PyObject_Realloc
+}
+
+{
+   _PyObject_Realloc/Conditional jump depends on uninitialised value
+   Memcheck:Cond
+   fun:_PyObject_Realloc
+}
+
+###############################################################################
+# CPython intentional leaks — interned strings, type objects, small int
+# cache, and other objects that live for the entire process lifetime
+###############################################################################
+
+{
+   Suppress leaking the GIL after a fork
+   Memcheck:Leak
+   fun:malloc
+   fun:PyThread_allocate_lock
+   fun:PyEval_ReInitThreads
+}
+
+{
+   Suppress leaking the autoTLSkey
+   Memcheck:Leak
+   fun:malloc
+   fun:PyThread_create_key
+   fun:_PyGILState_Init
+   ...
+}
+
+{
+   Handle pthread leak (possibly leaked)
+   Memcheck:Leak
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls_storage
+   fun:_dl_allocate_tls
+}
+
+{
+   Handle pthread leak (possibly leaked)
+   Memcheck:Leak
+   fun:memalign
+   fun:_dl_allocate_tls_storage
+   fun:_dl_allocate_tls
+}
+
+###############################################################################
+# dlopen internals — these leak by design (loaded libraries stay resident)
+###############################################################################
+
+{
+   dlopen without dlclose (strdup via cache lookup)
+   Memcheck:Leak
+   fun:malloc
+   fun:malloc
+   fun:strdup
+   fun:_dl_load_cache_lookup
+}
+
+{
+   dlopen without dlclose (strdup via map object)
+   Memcheck:Leak
+   fun:malloc
+   fun:malloc
+   fun:strdup
+   fun:_dl_map_object
+}
+
+{
+   dlopen without dlclose (new object via malloc)
+   Memcheck:Leak
+   fun:malloc
+   fun:*
+   fun:_dl_new_object
+}
+
+{
+   dlopen without dlclose (new object via calloc)
+   Memcheck:Leak
+   fun:calloc
+   fun:*
+   fun:_dl_new_object
+}
+
+{
+   dlopen without dlclose (check map versions)
+   Memcheck:Leak
+   fun:calloc
+   fun:*
+   fun:_dl_check_map_versions
+}
+
+###############################################################################
+# CPython false positives
+###############################################################################
+
+{
+   bpo-38118: Valgrind false alarm on GCC builtin strcmp
+   Memcheck:Cond
+   fun:PyUnicode_Decode
+}
+
+{
+   Uninitialised byte(s) false alarm (bpo-35561)
+   Memcheck:Param
+   epoll_ctl(event)
+   fun:epoll_ctl
+   fun:pyepoll_internal_ctl
+}
+
+{
+   wcscmp false positive in command line parsing
+   Memcheck:Addr8
+   fun:wcscmp
+   fun:_PyOS_GetOpt
+   ...
+}
+
+###############################################################################
+# CPython 3.14 specific — type slot lookups can read union members that
+# Valgrind thinks are uninitialised (they're valid via different union paths)
+###############################################################################
+
+{
+   CPython type slot union reads
+   Memcheck:Cond
+   fun:_Py_type_getattro
+   ...
+}
+
+{
+   CPython type slot union reads (value variant)
+   Memcheck:Value8
+   fun:_Py_type_getattro
+   ...
+}
+
+###############################################################################
+# SFML / OpenGL driver internals — graphics drivers have their own allocators
+# that produce false positives. Only suppress known-safe patterns.
+###############################################################################
+
+{
+   Mesa/OpenGL driver init leaks
+   Memcheck:Leak
+   ...
+   obj:*/dri/*_dri.so
+}
+
+{
+   X11 display connection leaks
+   Memcheck:Leak
+   ...
+   fun:XOpenDisplay
+}
+
+{
+   SFML font/texture init
+   Memcheck:Leak
+   ...
+   fun:*sf*Font*
+}
