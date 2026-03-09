@@ -156,6 +156,7 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
         if (self->grid) {
             self->grid->spatial_hash.remove(*it);
         }
+        (*it)->releasePyIdentity();
         (*it)->grid = nullptr;
         list->erase(it);
         return 0;
@@ -181,6 +182,7 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
     }
 
     // Clear grid reference from the old entity
+    (*it)->releasePyIdentity();
     (*it)->grid = nullptr;
 
     // Replace the element and set grid reference
@@ -409,6 +411,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                     if (self->grid) {
                         self->grid->spatial_hash.remove(*it);
                     }
+                    (*it)->releasePyIdentity();
                     (*it)->grid = nullptr;
                 }
                 self->data->erase(start_it, stop_it);
@@ -426,6 +429,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                     if (self->grid) {
                         self->grid->spatial_hash.remove(*it);
                     }
+                    (*it)->releasePyIdentity();
                     (*it)->grid = nullptr;
                     self->data->erase(it);
                 }
@@ -479,6 +483,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                 if (self->grid) {
                     self->grid->spatial_hash.remove(*it);
                 }
+                (*it)->releasePyIdentity();
                 (*it)->grid = nullptr;
             }
 
@@ -610,6 +615,7 @@ PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject*
             if (self->grid) {
                 self->grid->spatial_hash.remove(*it);
             }
+            (*it)->releasePyIdentity();
             (*it)->grid = nullptr;
             list->erase(it);
             Py_RETURN_NONE;
@@ -726,6 +732,20 @@ PyObject* UIEntityCollection::pop(PyUIEntityCollectionObject* self, PyObject* ar
     }
     entity->grid = nullptr;
     list->erase(it);
+
+    // Return cached Python object if available (preserves subclass identity)
+    if (entity->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(entity->serial_number);
+        if (cached) {
+            // Release identity ref — entity is leaving the grid
+            // The caller now holds a strong ref via 'cached'
+            entity->releasePyIdentity();
+            return cached;
+        }
+    }
+
+    // Release identity ref (no cached object to return)
+    entity->releasePyIdentity();
 
     // Create Python object for the entity
     PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;

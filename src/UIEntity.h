@@ -61,6 +61,7 @@ class UIEntity
 {
 public:
     uint64_t serial_number = 0;  // For Python object cache
+    PyObject* pyobject = nullptr;  // Strong ref: preserves Python subclass identity while in grid
     std::shared_ptr<UIGrid> grid;
     std::vector<UIGridPointState> gridstate;
     UISprite sprite;
@@ -70,7 +71,17 @@ public:
 
     UIEntity();
     ~UIEntity();
-    
+
+    // Release the strong reference that preserves Python subclass identity.
+    // Called when entity leaves a grid (die, set_grid, collection removal).
+    void releasePyIdentity() {
+        if (pyobject) {
+            PyObject* tmp = pyobject;
+            pyobject = nullptr;
+            Py_DECREF(tmp);
+        }
+    }
+
     // Visibility methods
     void ensureGridstate();   // Resize gridstate to match current grid dimensions
     void updateVisibility();  // Update gridstate from current FOV
@@ -136,6 +147,8 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = [](PyObject* obj) {
             auto* self = (PyUIEntityObject*)obj;
+            // Clear the identity ref without DECREF - we ARE this object
+            if (self->data) self->data->pyobject = nullptr;
             if (self->weakreflist) PyObject_ClearWeakRefs(obj);
             self->data.reset();
             Py_TYPE(obj)->tp_free(obj);

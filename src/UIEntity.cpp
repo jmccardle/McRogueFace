@@ -26,6 +26,7 @@ UIEntity::UIEntity()
 }
 
 UIEntity::~UIEntity() {
+    releasePyIdentity();
     if (serial_number != 0) {
         PythonObjectCache::getInstance().remove(serial_number);
     }
@@ -230,7 +231,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     // Initialize weak reference list
     self->weakreflist = NULL;
 
-    // Register in Python object cache  
+    // Register in Python object cache
     if (self->data->serial_number == 0) {
         self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
         PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
@@ -239,6 +240,13 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
             Py_DECREF(weakref);  // Cache owns the reference now
         }
     }
+
+    // Hold a strong reference to preserve Python subclass identity.
+    // Without this, the Python wrapper can be GC'd while the C++ entity
+    // lives on in a grid, and later access returns a base Entity wrapper
+    // that lacks subclass methods. Cleared in die() and set_grid(None).
+    self->data->pyobject = (PyObject*)self;
+    Py_INCREF(self);
     
     // Set texture and sprite index
     if (texture_ptr) {
@@ -660,6 +668,9 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
                 entities->erase(it);
             }
             self->data->grid.reset();
+
+            // Release identity strong ref — entity left grid
+            self->data->releasePyIdentity();
         }
         return 0;
     }
@@ -762,6 +773,9 @@ PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
         entities->erase(it);
         // Clear the grid reference
         self->data->grid.reset();
+
+        // Release identity strong ref — entity is no longer in a grid
+        self->data->releasePyIdentity();
     }
 
     Py_RETURN_NONE;
