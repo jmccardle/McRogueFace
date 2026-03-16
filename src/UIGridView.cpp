@@ -426,8 +426,35 @@ PyObject* UIGridView::repr(PyUIGridViewObject* self)
 PyObject* UIGridView::get_grid(PyUIGridViewObject* self, void* closure)
 {
     if (!self->data->grid_data) Py_RETURN_NONE;
-    // TODO: return the Grid wrapper for grid_data
-    Py_RETURN_NONE;
+
+    // grid_data is an aliasing shared_ptr into a UIGrid (GridData is a base of UIGrid).
+    // Reconstruct shared_ptr<UIGrid> to return the proper Python wrapper.
+    auto grid_ptr = static_cast<UIGrid*>(self->data->grid_data.get());
+    auto grid_as_uigrid = std::shared_ptr<UIGrid>(
+        self->data->grid_data, grid_ptr);
+
+    // Check cache via UIDrawable::serial_number
+    if (grid_ptr->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(grid_ptr->serial_number);
+        if (cached) return cached;
+    }
+
+    auto grid_type = &mcrfpydef::PyUIGridType;
+    auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
+    if (!pyGrid) return PyErr_NoMemory();
+
+    pyGrid->data = grid_as_uigrid;
+    pyGrid->weakreflist = NULL;
+
+    if (grid_ptr->serial_number == 0) {
+        grid_ptr->serial_number = PythonObjectCache::getInstance().assignSerial();
+    }
+    PyObject* weakref = PyWeakref_NewRef((PyObject*)pyGrid, NULL);
+    if (weakref) {
+        PythonObjectCache::getInstance().registerObject(grid_ptr->serial_number, weakref);
+        Py_DECREF(weakref);
+    }
+    return (PyObject*)pyGrid;
 }
 
 int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closure)

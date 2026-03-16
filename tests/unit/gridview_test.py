@@ -72,6 +72,18 @@ def test_gridview_repr():
     assert "15x10" in r
     print("PASS: GridView repr")
 
+def test_gridview_grid_property():
+    """GridView.grid returns the correct Grid with identity preservation."""
+    tex = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
+    grid = mcrfpy.Grid(grid_size=(15, 10), texture=tex, pos=(0, 0), size=(240, 160))
+    view = mcrfpy.GridView(grid=grid, pos=(250, 0), size=(240, 160))
+
+    assert view.grid is grid, "view.grid should be the same Grid object"
+    assert view.grid.grid_w == 15
+    # Identity preserved on repeated access
+    assert view.grid is view.grid
+    print("PASS: GridView.grid property with identity")
+
 def test_gridview_no_grid():
     """GridView without a grid doesn't crash."""
     view = mcrfpy.GridView()
@@ -86,6 +98,7 @@ if __name__ == "__main__":
     test_gridview_in_scene()
     test_gridview_multi_view()
     test_gridview_repr()
+    test_gridview_grid_property()
     test_gridview_no_grid()
     print("All GridView tests passed")
     sys.exit(0)
