@@ -33,7 +33,8 @@ enum PyObjectsEnum : int
     UILINE,
     UICIRCLE,
     UIARC,
-    UIVIEWPORT3D
+    UIVIEWPORT3D,
+    UIGRIDVIEW  // #252: rendering view for GridData
 };
 
 class UIDrawable

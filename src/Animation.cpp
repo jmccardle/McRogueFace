@@ -11,6 +11,7 @@
 #include "UICaption.h"
 #include "UISprite.h"
 #include "UIGrid.h"
+#include "UIGridView.h"
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
@@ -552,6 +553,17 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIGRIDVIEW:
+        {
+            type = &mcrfpydef::PyUIGridViewType;
+            auto pyObj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIGridView>(drawable);
                 pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;

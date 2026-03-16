@@ -4,6 +4,7 @@
 #include "PyCallable.h"
 #include "UIFrame.h"
 #include "UIGrid.h"
+#include "UIGridView.h"
 #include "McRFPy_Automation.h"  // #111 - For simulated mouse position
 #include "PythonObjectCache.h"  // #184 - For subclass callback support
 #include "McRFPy_API.h"         // For Vector type access

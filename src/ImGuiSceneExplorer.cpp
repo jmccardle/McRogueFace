@@ -12,6 +12,7 @@
 #include "UICaption.h"
 #include "UISprite.h"
 #include "UIGrid.h"
+#include "UIGridView.h"
 #include "UIEntity.h"
 #include "ImGuiConsole.h"
 #include "PythonObjectCache.h"
@@ -285,6 +286,7 @@ const char* ImGuiSceneExplorer::getTypeName(UIDrawable* drawable) {
         case PyObjectsEnum::UICAPTION:    return "Caption";
         case PyObjectsEnum::UISPRITE:     return "Sprite";
         case PyObjectsEnum::UIGRID:       return "Grid";
+        case PyObjectsEnum::UIGRIDVIEW:   return "GridView";
         case PyObjectsEnum::UILINE:       return "Line";
         case PyObjectsEnum::UICIRCLE:     return "Circle";
         case PyObjectsEnum::UIARC:        return "Arc";

@@ -18,6 +18,7 @@
 #include "PyInputState.h"
 #include "PyBehavior.h"
 #include "PyTrigger.h"
+#include "UIGridView.h"
 #include "PySound.h"
 #include "PySoundBuffer.h"
 #include "PyMusic.h"
@@ -465,6 +466,7 @@ PyObject* PyInit_mcrfpy()
     PyTypeObject* ui_types_with_callbacks[] = {
         &PyUIFrameType, &PyUICaptionType, &PyUISpriteType, &PyUIGridType,
         &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
+        &mcrfpydef::PyUIGridViewType,
         nullptr
     };
     for (int i = 0; ui_types_with_callbacks[i] != nullptr; i++) {
@@ -482,6 +484,7 @@ PyObject* PyInit_mcrfpy()
         /*UI widgets*/
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,
         &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
+        &mcrfpydef::PyUIGridViewType,
 
         /*3D entities*/
         &mcrfpydef::PyEntity3DType, &mcrfpydef::PyEntityCollection3DType,
@@ -635,6 +638,7 @@ PyObject* PyInit_mcrfpy()
     PyUICaptionType.tp_weaklistoffset = offsetof(PyUICaptionObject, weakreflist);
     PyUISpriteType.tp_weaklistoffset = offsetof(PyUISpriteObject, weakreflist);
     PyUIGridType.tp_weaklistoffset = offsetof(PyUIGridObject, weakreflist);
+    mcrfpydef::PyUIGridViewType.tp_weaklistoffset = offsetof(PyUIGridViewObject, weakreflist);
     PyUIEntityType.tp_weaklistoffset = offsetof(PyUIEntityObject, weakreflist);
     PyUILineType.tp_weaklistoffset = offsetof(PyUILineObject, weakreflist);
     PyUICircleType.tp_weaklistoffset = offsetof(PyUICircleObject, weakreflist);
@@ -1592,6 +1596,16 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
                     auto o = (PyUIGridObject*)type->tp_alloc(type, 0);
                     if (o) {
                         o->data = grid;
+                        py_obj = (PyObject*)o;
+                    }
+                    break;
+                }
+                case PyObjectsEnum::UIGRIDVIEW: {
+                    auto gridview = std::static_pointer_cast<UIGridView>(drawable);
+                    auto type = &mcrfpydef::PyUIGridViewType;
+                    auto o = (PyUIGridViewObject*)type->tp_alloc(type, 0);
+                    if (o) {
+                        o->data = gridview;
                         py_obj = (PyObject*)o;
                     }
                     break;
