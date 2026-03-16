@@ -5,6 +5,8 @@
 #include "IndexTexture.h"
 #include "Resources.h"
 #include <list>
+#include <unordered_set>
+#include <string>
 
 #include "PyCallable.h"
 #include "PyTexture.h"
@@ -66,7 +68,11 @@ public:
     std::vector<UIGridPointState> gridstate;
     UISprite sprite;
     sf::Vector2f position; //(x,y) in grid coordinates; float for animation
+    sf::Vector2i cell_position{0, 0}; // #295: integer logical position (decoupled from float position)
     sf::Vector2f sprite_offset; // pixel offset for oversized sprites (applied pre-zoom)
+    std::unordered_set<std::string> labels; // #296: entity label system for collision/targeting
+    PyObject* step_callback = nullptr; // #299: callback for grid.step() turn management
+    int default_behavior = 0; // #299: BehaviorType::IDLE - behavior to revert to after DONE
     //void render(sf::Vector2f); //override final;
 
     UIEntity();
@@ -80,6 +86,9 @@ public:
             pyobject = nullptr;
             Py_DECREF(tmp);
         }
+        // #299: Clean up step callback
+        Py_XDECREF(step_callback);
+        step_callback = nullptr;
     }
 
     // Visibility methods
@@ -131,6 +140,26 @@ public:
     static int set_sprite_offset(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_sprite_offset_member(PyUIEntityObject* self, void* closure);
     static int set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, void* closure);
+
+    // #295 - cell_pos (integer logical position)
+    static PyObject* get_cell_pos(PyUIEntityObject* self, void* closure);
+    static int set_cell_pos(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_cell_member(PyUIEntityObject* self, void* closure);
+    static int set_cell_member(PyUIEntityObject* self, PyObject* value, void* closure);
+
+    // #296 - Label system
+    static PyObject* get_labels(PyUIEntityObject* self, void* closure);
+    static int set_labels(PyUIEntityObject* self, PyObject* value, void* closure);
+
+    // #299 - Step callback and default behavior
+    static PyObject* get_step(PyUIEntityObject* self, void* closure);
+    static int set_step(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_default_behavior(PyUIEntityObject* self, void* closure);
+    static int set_default_behavior(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* py_add_label(PyUIEntityObject* self, PyObject* arg);
+    static PyObject* py_remove_label(PyUIEntityObject* self, PyObject* arg);
+    static PyObject* py_has_label(PyUIEntityObject* self, PyObject* arg);
+
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIEntityObject* self);

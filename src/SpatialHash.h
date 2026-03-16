@@ -33,7 +33,11 @@ public:
     // This removes from old bucket and inserts into new bucket if needed
     void update(std::shared_ptr<UIEntity> entity, float old_x, float old_y);
 
-    // Query all entities at a specific cell (exact integer position match)
+    // Update entity position using integer cell coordinates (#295)
+    // Removes from old bucket and inserts into new based on cell_position
+    void updateCell(std::shared_ptr<UIEntity> entity, int old_x, int old_y);
+
+    // Query all entities at a specific cell (uses cell_position for matching)
     // O(n) where n = entities in the bucket containing this cell
     std::vector<std::shared_ptr<UIEntity>> queryCell(int x, int y) const;
 

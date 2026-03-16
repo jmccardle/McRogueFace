@@ -58,9 +58,9 @@ void UIEntity::updateVisibility()
         state.visible = false;
     }
 
-    // Compute FOV from entity's position using grid's FOV settings (#114)
-    int x = static_cast<int>(position.x);
-    int y = static_cast<int>(position.y);
+    // Compute FOV from entity's cell position (#114, #295)
+    int x = cell_position.x;
+    int y = cell_position.y;
 
     // Use grid's configured FOV algorithm and radius
     grid->computeFOV(x, y, grid->fov_radius, true, grid->fov_algorithm);
@@ -170,19 +170,20 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     const char* name = nullptr;
     float x = 0.0f, y = 0.0f;
     PyObject* sprite_offset_obj = nullptr;
+    PyObject* labels_obj = nullptr;
 
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
         "grid_pos", "texture", "sprite_index",  // Positional args (as per spec)
         // Keyword-only args
-        "grid", "visible", "opacity", "name", "x", "y", "sprite_offset",
+        "grid", "visible", "opacity", "name", "x", "y", "sprite_offset", "labels",
         nullptr
     };
 
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOiOifzffO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOiOifzffOO", const_cast<char**>(kwlist),
                                      &grid_pos_obj, &texture, &sprite_index,  // Positional
-                                     &grid_obj, &visible, &opacity, &name, &x, &y, &sprite_offset_obj)) {
+                                     &grid_obj, &visible, &opacity, &name, &x, &y, &sprite_offset_obj, &labels_obj)) {
         return -1;
     }
     
@@ -258,6 +259,8 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     
     // Set position using grid coordinates
     self->data->position = sf::Vector2f(x, y);
+    // #295: Initialize cell_position from grid coordinates
+    self->data->cell_position = sf::Vector2i(static_cast<int>(x), static_cast<int>(y));
 
     // Handle sprite_offset argument (optional tuple, default (0,0))
     if (sprite_offset_obj && sprite_offset_obj != Py_None) {
@@ -275,6 +278,28 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         self->data->sprite.name = std::string(name);
     }
     
+    // #296 - Parse labels kwarg
+    if (labels_obj && labels_obj != Py_None) {
+        PyObject* iter = PyObject_GetIter(labels_obj);
+        if (!iter) {
+            PyErr_SetString(PyExc_TypeError, "labels must be iterable");
+            return -1;
+        }
+        PyObject* item;
+        while ((item = PyIter_Next(iter)) != NULL) {
+            if (!PyUnicode_Check(item)) {
+                Py_DECREF(item);
+                Py_DECREF(iter);
+                PyErr_SetString(PyExc_TypeError, "labels must contain only strings");
+                return -1;
+            }
+            self->data->labels.insert(PyUnicode_AsUTF8(item));
+            Py_DECREF(item);
+        }
+        Py_DECREF(iter);
+        if (PyErr_Occurred()) return -1;
+    }
+
     // Handle grid attachment
     if (grid_obj) {
         PyUIGridObject* pygrid = (PyUIGridObject*)grid_obj;
@@ -897,11 +922,11 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
         radius = grid->fov_radius;
     }
 
-    // Get current position
-    int x = static_cast<int>(self->data->position.x);
-    int y = static_cast<int>(self->data->position.y);
+    // Get current cell position (#295)
+    int x = self->data->cell_position.x;
+    int y = self->data->cell_position.y;
 
-    // Compute FOV from this entity's position
+    // Compute FOV from this entity's cell position
     grid->computeFOV(x, y, radius, true, algorithm);
 
     // Create result list
@@ -919,9 +944,9 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
                 continue;
             }
 
-            // Check if entity is in FOV
-            int ex = static_cast<int>(entity->position.x);
-            int ey = static_cast<int>(entity->position.y);
+            // Check if entity is in FOV (#295: use cell_position)
+            int ex = entity->cell_position.x;
+            int ey = entity->cell_position.y;
 
             if (grid->isInFOV(ex, ey)) {
                 // Create Python Entity object for this entity
@@ -1002,6 +1027,162 @@ typedef PyUIEntityObject PyObjectType;
 // Combine base methods with entity-specific methods
 // Note: Use UIDRAWABLE_METHODS_BASE (not UIDRAWABLE_METHODS) because UIEntity is NOT a UIDrawable
 // and the template-based animate helper won't work. Entity has its own animate() method.
+// #296 - Label system implementations
+PyObject* UIEntity::get_labels(PyUIEntityObject* self, void* closure) {
+    PyObject* frozen = PyFrozenSet_New(NULL);
+    if (!frozen) return NULL;
+
+    for (const auto& label : self->data->labels) {
+        PyObject* str = PyUnicode_FromString(label.c_str());
+        if (!str) { Py_DECREF(frozen); return NULL; }
+        if (PySet_Add(frozen, str) < 0) {
+            Py_DECREF(str); Py_DECREF(frozen); return NULL;
+        }
+        Py_DECREF(str);
+    }
+    return frozen;
+}
+
+int UIEntity::set_labels(PyUIEntityObject* self, PyObject* value, void* closure) {
+    PyObject* iter = PyObject_GetIter(value);
+    if (!iter) {
+        PyErr_SetString(PyExc_TypeError, "labels must be iterable");
+        return -1;
+    }
+
+    std::unordered_set<std::string> new_labels;
+    PyObject* item;
+    while ((item = PyIter_Next(iter)) != NULL) {
+        if (!PyUnicode_Check(item)) {
+            Py_DECREF(item);
+            Py_DECREF(iter);
+            PyErr_SetString(PyExc_TypeError, "labels must contain only strings");
+            return -1;
+        }
+        new_labels.insert(PyUnicode_AsUTF8(item));
+        Py_DECREF(item);
+    }
+    Py_DECREF(iter);
+    if (PyErr_Occurred()) return -1;
+
+    self->data->labels = std::move(new_labels);
+    return 0;
+}
+
+PyObject* UIEntity::py_add_label(PyUIEntityObject* self, PyObject* arg) {
+    if (!PyUnicode_Check(arg)) {
+        PyErr_SetString(PyExc_TypeError, "label must be a string");
+        return NULL;
+    }
+    self->data->labels.insert(PyUnicode_AsUTF8(arg));
+    Py_RETURN_NONE;
+}
+
+PyObject* UIEntity::py_remove_label(PyUIEntityObject* self, PyObject* arg) {
+    if (!PyUnicode_Check(arg)) {
+        PyErr_SetString(PyExc_TypeError, "label must be a string");
+        return NULL;
+    }
+    self->data->labels.erase(PyUnicode_AsUTF8(arg));
+    Py_RETURN_NONE;
+}
+
+PyObject* UIEntity::py_has_label(PyUIEntityObject* self, PyObject* arg) {
+    if (!PyUnicode_Check(arg)) {
+        PyErr_SetString(PyExc_TypeError, "label must be a string");
+        return NULL;
+    }
+    if (self->data->labels.count(PyUnicode_AsUTF8(arg))) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+// #299 - Step callback and default_behavior implementations
+PyObject* UIEntity::get_step(PyUIEntityObject* self, void* closure) {
+    if (self->data->step_callback) {
+        Py_INCREF(self->data->step_callback);
+        return self->data->step_callback;
+    }
+    Py_RETURN_NONE;
+}
+
+int UIEntity::set_step(PyUIEntityObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        Py_XDECREF(self->data->step_callback);
+        self->data->step_callback = nullptr;
+        return 0;
+    }
+    if (!PyCallable_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "step must be callable or None");
+        return -1;
+    }
+    Py_XDECREF(self->data->step_callback);
+    Py_INCREF(value);
+    self->data->step_callback = value;
+    return 0;
+}
+
+PyObject* UIEntity::get_default_behavior(PyUIEntityObject* self, void* closure) {
+    return PyLong_FromLong(self->data->default_behavior);
+}
+
+int UIEntity::set_default_behavior(PyUIEntityObject* self, PyObject* value, void* closure) {
+    long val = PyLong_AsLong(value);
+    if (val == -1 && PyErr_Occurred()) return -1;
+    self->data->default_behavior = static_cast<int>(val);
+    return 0;
+}
+
+// #295 - cell_pos property implementations
+PyObject* UIEntity::get_cell_pos(PyUIEntityObject* self, void* closure) {
+    return sfVector2i_to_PyObject(self->data->cell_position);
+}
+
+int UIEntity::set_cell_pos(PyUIEntityObject* self, PyObject* value, void* closure) {
+    int old_x = self->data->cell_position.x;
+    int old_y = self->data->cell_position.y;
+
+    sf::Vector2f vec = PyObject_to_sfVector2f(value);
+    if (PyErr_Occurred()) return -1;
+
+    self->data->cell_position.x = static_cast<int>(vec.x);
+    self->data->cell_position.y = static_cast<int>(vec.y);
+
+    // Update spatial hash
+    if (self->data->grid) {
+        self->data->grid->spatial_hash.updateCell(self->data, old_x, old_y);
+    }
+    return 0;
+}
+
+PyObject* UIEntity::get_cell_member(PyUIEntityObject* self, void* closure) {
+    if (reinterpret_cast<intptr_t>(closure) == 0) {
+        return PyLong_FromLong(self->data->cell_position.x);
+    } else {
+        return PyLong_FromLong(self->data->cell_position.y);
+    }
+}
+
+int UIEntity::set_cell_member(PyUIEntityObject* self, PyObject* value, void* closure) {
+    long val = PyLong_AsLong(value);
+    if (val == -1 && PyErr_Occurred()) return -1;
+
+    int old_x = self->data->cell_position.x;
+    int old_y = self->data->cell_position.y;
+
+    if (reinterpret_cast<intptr_t>(closure) == 0) {
+        self->data->cell_position.x = static_cast<int>(val);
+    } else {
+        self->data->cell_position.y = static_cast<int>(val);
+    }
+
+    if (self->data->grid) {
+        self->data->grid->spatial_hash.updateCell(self->data, old_x, old_y);
+    }
+    return 0;
+}
+
 PyMethodDef UIEntity_all_methods[] = {
     UIDRAWABLE_METHODS_BASE,
     {"animate", (PyCFunction)UIEntity::animate, METH_VARARGS | METH_KEYWORDS,
@@ -1067,6 +1248,16 @@ PyMethodDef UIEntity_all_methods[] = {
      "    List of Entity objects that are within field of view.\n\n"
      "Computes FOV from this entity's position and returns all other entities\n"
      "whose positions fall within the visible area."},
+    // #296 - Label methods
+    {"add_label", (PyCFunction)UIEntity::py_add_label, METH_O,
+     "add_label(label: str) -> None\n\n"
+     "Add a label to this entity. Idempotent (adding same label twice is safe)."},
+    {"remove_label", (PyCFunction)UIEntity::py_remove_label, METH_O,
+     "remove_label(label: str) -> None\n\n"
+     "Remove a label from this entity. No-op if label not present."},
+    {"has_label", (PyCFunction)UIEntity::py_has_label, METH_O,
+     "has_label(label: str) -> bool\n\n"
+     "Check if this entity has the given label."},
     {NULL}  // Sentinel
 };
 
@@ -1080,13 +1271,21 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"y", (getter)UIEntity::get_pixel_member, (setter)UIEntity::set_pixel_member,
      "Pixel Y position relative to grid. Requires entity to be attached to a grid.", (void*)1},
 
-    // #176 - Integer tile coordinates (logical game position)
-    {"grid_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position,
-     "Grid position as integer tile coordinates (Vector). The logical cell this entity occupies.", (void*)1},
-    {"grid_x", (getter)UIEntity::get_grid_int_member, (setter)UIEntity::set_grid_int_member,
-     "Grid X position as integer tile coordinate.", (void*)0},
-    {"grid_y", (getter)UIEntity::get_grid_int_member, (setter)UIEntity::set_grid_int_member,
-     "Grid Y position as integer tile coordinate.", (void*)1},
+    // #295 - Integer cell position (decoupled from float draw_pos)
+    {"cell_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
+     "Integer logical cell position (Vector). Decoupled from draw_pos. "
+     "Determines which cell this entity logically occupies for collision, pathfinding, etc.", NULL},
+    {"cell_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
+     "Integer X cell coordinate.", (void*)0},
+    {"cell_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
+     "Integer Y cell coordinate.", (void*)1},
+    // grid_pos now aliases cell_pos (#295 BREAKING: no longer derives from float position)
+    {"grid_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
+     "Grid position as integer cell coordinates (Vector). Alias for cell_pos.", NULL},
+    {"grid_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
+     "Grid X position as integer cell coordinate. Alias for cell_x.", (void*)0},
+    {"grid_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
+     "Grid Y position as integer cell coordinate. Alias for cell_y.", (void*)1},
 
     // Float tile coordinates (for smooth animation between tiles)
     {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position,
@@ -1116,6 +1315,18 @@ PyGetSetDef UIEntity::getsetters[] = {
      "X component of sprite pixel offset.", (void*)0},
     {"sprite_offset_y", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
      "Y component of sprite pixel offset.", (void*)1},
+    // #296 - Label system
+    {"labels", (getter)UIEntity::get_labels, (setter)UIEntity::set_labels,
+     "Set of string labels for collision/targeting (frozenset). "
+     "Assign any iterable of strings to replace all labels.", NULL},
+    // #299 - Step callback and default behavior
+    {"step", (getter)UIEntity::get_step, (setter)UIEntity::set_step,
+     "Step callback for grid.step() turn management. "
+     "Called with (trigger, data) when behavior triggers fire. "
+     "Set to None to clear.", NULL},
+    {"default_behavior", (getter)UIEntity::get_default_behavior, (setter)UIEntity::set_default_behavior,
+     "Default behavior type (int, maps to Behavior enum). "
+     "Entity reverts to this after DONE trigger. Default: 0 (IDLE).", NULL},
     {NULL}  /* Sentinel */
 };
 

@@ -361,9 +361,9 @@ void ColorLayer::updatePerspective() {
 
     if (!parent_grid) return;
 
-    // Get entity position and grid's FOV settings
-    int source_x = static_cast<int>(entity->position.x);
-    int source_y = static_cast<int>(entity->position.y);
+    // Get entity cell position and grid's FOV settings (#295)
+    int source_x = entity->cell_position.x;
+    int source_y = entity->cell_position.y;
     int radius = parent_grid->fov_radius;
     TCOD_fov_algorithm_t algorithm = parent_grid->fov_algorithm;
 

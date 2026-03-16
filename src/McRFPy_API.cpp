@@ -16,6 +16,8 @@
 #include "PyKey.h"
 #include "PyMouseButton.h"
 #include "PyInputState.h"
+#include "PyBehavior.h"
+#include "PyTrigger.h"
 #include "PySound.h"
 #include "PySoundBuffer.h"
 #include "PyMusic.h"
@@ -776,6 +778,18 @@ PyObject* PyInit_mcrfpy()
     PyObject* alignment_class = PyAlignment::create_enum_class(m);
     if (!alignment_class) {
         // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add Behavior enum class for entity behavior types (#297)
+    PyObject* behavior_class = PyBehavior::create_enum_class(m);
+    if (!behavior_class) {
+        PyErr_Clear();
+    }
+
+    // Add Trigger enum class for entity step callback triggers (#298)
+    PyObject* trigger_class = PyTrigger::create_enum_class(m);
+    if (!trigger_class) {
         PyErr_Clear();
     }
 

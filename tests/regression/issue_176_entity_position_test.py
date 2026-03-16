@@ -50,21 +50,23 @@ def test_entity_positions():
     if abs(entity.y - 80.0) > 0.001:
         errors.append(f"y: expected 80.0, got {entity.y}")
 
-    # Test 6: Setting grid_x/grid_y should update position
+    # Test 6: Setting grid_x/grid_y should update cell position (#295: decoupled from pixel pos)
     entity.grid_x = 7
     entity.grid_y = 2
     if entity.grid_x != 7 or entity.grid_y != 2:
         errors.append(f"After setting grid_x/y: expected (7, 2), got ({entity.grid_x}, {entity.grid_y})")
-    # Pixel should update too: (7, 2) * 16 = (112, 32)
-    if abs(entity.x - 112.0) > 0.001 or abs(entity.y - 32.0) > 0.001:
-        errors.append(f"After grid_x/y set, pixel pos: expected (112, 32), got ({entity.x}, {entity.y})")
+    # #295: cell_pos (grid_x/y) is decoupled from pixel pos - pixel pos NOT updated
+    # Pixel pos should remain at the draw_pos * tile_size (3*16=48, 5*16=80 from earlier)
+    if abs(entity.x - 48.0) > 0.001 or abs(entity.y - 80.0) > 0.001:
+        errors.append(f"After grid_x/y set, pixel pos should be unchanged: expected (48, 80), got ({entity.x}, {entity.y})")
 
-    # Test 7: Setting pos (pixels) should update grid position
+    # Test 7: Setting pos (pixels) should update draw_pos but NOT grid_pos (#295)
     entity.pos = mcrfpy.Vector(64, 96)  # (64, 96) / 16 = (4, 6) tiles
     if abs(entity.draw_pos.x - 4.0) > 0.001 or abs(entity.draw_pos.y - 6.0) > 0.001:
         errors.append(f"After setting pos, draw_pos: expected (4, 6), got ({entity.draw_pos.x}, {entity.draw_pos.y})")
-    if entity.grid_x != 4 or entity.grid_y != 6:
-        errors.append(f"After setting pos, grid_x/y: expected (4, 6), got ({entity.grid_x}, {entity.grid_y})")
+    # #295: grid_pos is cell_pos, not derived from float position - should be (7, 2) from above
+    if entity.grid_x != 7 or entity.grid_y != 2:
+        errors.append(f"After setting pos, grid_x/y should be unchanged: expected (7, 2), got ({entity.grid_x}, {entity.grid_y})")
 
     # Test 8: repr should show position info
     repr_str = repr(entity)

@@ -72,6 +72,37 @@ void SpatialHash::update(std::shared_ptr<UIEntity> entity, float old_x, float ol
     buckets[new_bucket].push_back(entity);
 }
 
+void SpatialHash::updateCell(std::shared_ptr<UIEntity> entity, int old_x, int old_y)
+{
+    if (!entity) return;
+
+    auto old_bucket = getBucket(static_cast<float>(old_x), static_cast<float>(old_y));
+    auto new_bucket = getBucket(static_cast<float>(entity->cell_position.x),
+                                 static_cast<float>(entity->cell_position.y));
+
+    if (old_bucket == new_bucket) return;
+
+    // Remove from old bucket
+    auto it = buckets.find(old_bucket);
+    if (it != buckets.end()) {
+        auto& bucket = it->second;
+        bucket.erase(
+            std::remove_if(bucket.begin(), bucket.end(),
+                [&entity](const std::weak_ptr<UIEntity>& wp) {
+                    auto sp = wp.lock();
+                    return !sp || sp == entity;
+                }),
+            bucket.end()
+        );
+        if (bucket.empty()) {
+            buckets.erase(it);
+        }
+    }
+
+    // Add to new bucket
+    buckets[new_bucket].push_back(entity);
+}
+
 std::vector<std::shared_ptr<UIEntity>> SpatialHash::queryCell(int x, int y) const
 {
     std::vector<std::shared_ptr<UIEntity>> result;
@@ -84,9 +115,9 @@ std::vector<std::shared_ptr<UIEntity>> SpatialHash::queryCell(int x, int y) cons
         auto entity = wp.lock();
         if (!entity) continue;
 
-        // Exact integer position match
-        if (static_cast<int>(entity->position.x) == x &&
-            static_cast<int>(entity->position.y) == y) {
+        // Match on cell_position (#295)
+        if (entity->cell_position.x == x &&
+            entity->cell_position.y == y) {
             result.push_back(entity);
         }
     }
