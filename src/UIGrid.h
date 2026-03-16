@@ -26,169 +26,82 @@
 #include "GridChunk.h"
 #include "SpatialHash.h"
 #include "UIEntityCollection.h"  // EntityCollection types (extracted from UIGrid)
+#include "GridData.h"  // #252 - Data layer base class
 
 // Forward declaration for pathfinding
 class DijkstraMap;
 
-class UIGrid: public UIDrawable
+// UIGrid inherits both UIDrawable (rendering) and GridData (state).
+// This allows GridData to be shared with GridView for multi-view support (#252).
+class UIGrid: public UIDrawable, public GridData
 {
 private:
     std::shared_ptr<PyTexture> ptex;
     // Default cell dimensions when no texture is provided
     static constexpr int DEFAULT_CELL_WIDTH = 16;
     static constexpr int DEFAULT_CELL_HEIGHT = 16;
-    TCODMap* tcod_map;  // TCOD map for FOV and pathfinding
-    mutable std::mutex fov_mutex;  // Mutex for thread-safe FOV operations
-
-public:
-    // Dijkstra map cache - keyed by root position
-    // Public so UIGridPathfinding can access it
-    std::map<std::pair<int,int>, std::shared_ptr<DijkstraMap>> dijkstra_maps;
 
 public:
     UIGrid();
-    //UIGrid(int, int, IndexTexture*, float, float, float, float);
     UIGrid(int, int, std::shared_ptr<PyTexture>, sf::Vector2f, sf::Vector2f);
-    ~UIGrid();  // Destructor to clean up TCOD map
+    ~UIGrid();
     void update();
     void render(sf::Vector2f, sf::RenderTarget&) override final;
-    UIGridPoint& at(int, int);
     PyObjectsEnum derived_type() override final;
-    //void setSprite(int);
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
-    
-    // TCOD integration methods
-    void syncTCODMap();  // Sync entire map with current grid state
-    void syncTCODMapCell(int x, int y);  // Sync a single cell to TCOD map
-    void computeFOV(int x, int y, int radius, bool light_walls = true, TCOD_fov_algorithm_t algo = FOV_BASIC);
-    bool isInFOV(int x, int y) const;
-    TCODMap* getTCODMap() const { return tcod_map; }  // Access for pathfinding
-    
-    // Pathfinding - new API creates AStarPath/DijkstraMap objects
-    // See UIGridPathfinding.h for the new pathfinding API
-    // Grid.find_path() now returns AStarPath objects
-    // Grid.get_dijkstra_map() returns DijkstraMap objects (cached by root position)
-    
+
     // Phase 1 virtual method implementations
     sf::FloatRect get_bounds() const override;
     void move(float dx, float dy) override;
     void resize(float w, float h) override;
     void onPositionChanged() override;
 
-    int grid_w, grid_h;
-    //int grid_size; // grid sizes are implied by IndexTexture now
+    // =========================================================================
+    // Rendering-only members (NOT in GridData)
+    // =========================================================================
     sf::RectangleShape box;
     float center_x, center_y, zoom;
-    float camera_rotation = 0.0f;  // Rotation of grid contents around camera center (degrees)
-    //IndexTexture* itex;
+    float camera_rotation = 0.0f;
     std::shared_ptr<PyTexture> getTexture();
     sf::Sprite sprite, output;
     sf::RenderTexture renderTexture;
-    sf::Vector2u renderTextureSize{0, 0};  // Track current allocation for resize detection
-
-    // Helper to ensure renderTexture matches game resolution
+    sf::Vector2u renderTextureSize{0, 0};
     void ensureRenderTextureSize();
-
-    // Intermediate texture for camera_rotation (larger than viewport to hold rotated content)
     sf::RenderTexture rotationTexture;
-    unsigned int rotationTextureSize = 0;  // Track current allocation size
-
-    // #123 - Chunk-based storage for large grid support
-    std::unique_ptr<ChunkManager> chunk_manager;
-    // Legacy flat storage (kept for small grids or compatibility)
-    std::vector<UIGridPoint> points;
-    // Use chunks for grids larger than this threshold
-    static constexpr int CHUNK_THRESHOLD = 64;
-    bool use_chunks;
-
-    std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> entities;
-
-    // Spatial hash for O(1) entity queries (#115)
-    SpatialHash spatial_hash;
-
-    // UIDrawable children collection (speech bubbles, effects, overlays, etc.)
-    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
-    bool children_need_sort = true;  // Dirty flag for z_index sorting
-
-    // Dynamic layer system (#147)
-    std::vector<std::shared_ptr<GridLayer>> layers;
-    bool layers_need_sort = true;  // Dirty flag for z_index sorting
-
-    // Layer management (#150 - extended with names)
-    std::shared_ptr<ColorLayer> addColorLayer(int z_index, const std::string& name = "");
-    std::shared_ptr<TileLayer> addTileLayer(int z_index, std::shared_ptr<PyTexture> texture = nullptr, const std::string& name = "");
-    void removeLayer(std::shared_ptr<GridLayer> layer);
-    void sortLayers();
-    std::shared_ptr<GridLayer> getLayerByName(const std::string& name);
-
-    // #150 - Protected layer names (reserved for GridPoint properties)
-    static bool isProtectedLayerName(const std::string& name);
+    unsigned int rotationTextureSize = 0;
 
     // Background rendering
     sf::Color fill_color;
 
-    // Perspective system - entity whose view to render
-    std::weak_ptr<UIEntity> perspective_entity;  // Weak reference to perspective entity
-    bool perspective_enabled;                     // Whether to use perspective rendering
+    // Perspective system
+    std::weak_ptr<UIEntity> perspective_entity;
+    bool perspective_enabled;
 
-    // #114 - FOV algorithm and radius for this grid
-    TCOD_fov_algorithm_t fov_algorithm;           // Default FOV algorithm (from mcrfpy.default_fov)
-    int fov_radius;                               // Default FOV radius
-
-    // #292 - FOV deduplication: skip redundant computations
-    bool fov_dirty = true;                        // Set true when TCOD map changes
-    int fov_last_x = -1, fov_last_y = -1;        // Last FOV computation parameters
-    int fov_last_radius = -1;
-    bool fov_last_light_walls = true;
-    TCOD_fov_algorithm_t fov_last_algo = FOV_BASIC;
-
-    // #142, #230 - Grid cell mouse events
-    // Cell hover callbacks take only (cell_pos); cell click still takes (cell_pos, button, action)
-    std::unique_ptr<PyCellHoverCallable> on_cell_enter_callable;
-    std::unique_ptr<PyCellHoverCallable> on_cell_exit_callable;
-    std::unique_ptr<PyClickCallable> on_cell_click_callable;
-    std::optional<sf::Vector2i> hovered_cell;  // Currently hovered cell or nullopt
-    std::optional<sf::Vector2i> last_clicked_cell;  // Cell clicked during click_at
-
-    // Grid-specific cell callback cache (separate from UIDrawable::CallbackCache)
-    struct CellCallbackCache {
-        uint32_t generation = 0;
-        bool valid = false;
-        bool has_on_cell_click = false;
-        bool has_on_cell_enter = false;
-        bool has_on_cell_exit = false;
-    };
-    CellCallbackCache cell_callback_cache;
-
-    // #142 - Cell coordinate conversion (screen pos -> cell coords)
-    std::optional<sf::Vector2i> screenToCell(sf::Vector2f screen_pos) const;
-
-    // #221 - Get effective cell size (texture size * zoom)
-    sf::Vector2f getEffectiveCellSize() const;
-
-    // #142 - Update cell hover state (called from PyScene)
-    // Now takes button/action for consistent callback signatures
-    void updateCellHover(sf::Vector2f mousepos, const std::string& button, const std::string& action);
-
-    // Fire cell callbacks
-    // #230: Cell hover callbacks (enter/exit) now take only (cell_pos)
-    // Cell click still takes (cell_pos, button, action)
-    // Returns true if a callback was fired
+    // Cell callback firing (needs UIDrawable::is_python_subclass, serial_number)
     bool fireCellClick(sf::Vector2i cell, const std::string& button, const std::string& action);
     bool fireCellEnter(sf::Vector2i cell);
     bool fireCellExit(sf::Vector2i cell);
-
-    // Refresh cell callback cache for subclass method support
     void refreshCellCallbackCache(PyObject* pyObj);
-    
+
+    // #142 - Cell coordinate conversion (needs texture for cell size)
+    std::optional<sf::Vector2i> screenToCell(sf::Vector2f screen_pos) const;
+    sf::Vector2f getEffectiveCellSize() const;
+    void updateCellHover(sf::Vector2f mousepos, const std::string& button, const std::string& action);
+
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
     bool setProperty(const std::string& name, const sf::Vector2f& value) override;
     bool getProperty(const std::string& name, float& value) const override;
     bool getProperty(const std::string& name, sf::Vector2f& value) const override;
-
     bool hasProperty(const std::string& name) const override;
 
+    // #169 - Camera positioning
+    void center_camera();
+    void center_camera(float tile_x, float tile_y);
+
+    // =========================================================================
+    // Python API (static methods)
+    // =========================================================================
     static int init(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* get_grid_size(PyUIGridObject* self, void* closure);
     static PyObject* get_grid_w(PyUIGridObject* self, void* closure);
@@ -215,35 +128,22 @@ public:
     static PyObject* py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_is_in_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds);
-    // Pathfinding methods moved to UIGridPathfinding.cpp
-    // py_find_path -> UIGridPathfinding::Grid_find_path (returns AStarPath)
-    // py_get_dijkstra_map -> UIGridPathfinding::Grid_get_dijkstra_map (returns DijkstraMap)
-    // py_clear_dijkstra_maps -> UIGridPathfinding::Grid_clear_dijkstra_maps
-    static PyObject* py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds);  // #115
-    static PyObject* py_center_camera(PyUIGridObject* self, PyObject* args);  // #169
+    static PyObject* py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_center_camera(PyUIGridObject* self, PyObject* args);
     static PyObject* get_camera_rotation(PyUIGridObject* self, void* closure);
     static int set_camera_rotation(PyUIGridObject* self, PyObject* value, void* closure);
-
-    // #199 - HeightMap application methods
     static PyObject* py_apply_threshold(PyUIGridObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_apply_ranges(PyUIGridObject* self, PyObject* args);
-
-    // #169 - Camera positioning
-    void center_camera();  // Center on grid's middle tile
-    void center_camera(float tile_x, float tile_y);  // Center on specific tile
-
-    // #301 - Turn management
     static PyObject* py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds);
 
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
-    static PyMappingMethods mpmethods;  // For grid[x, y] subscript access
-    static PyObject* subscript(PyUIGridObject* self, PyObject* key);  // __getitem__
+    static PyMappingMethods mpmethods;
+    static PyObject* subscript(PyUIGridObject* self, PyObject* key);
     static PyObject* get_entities(PyUIGridObject* self, void* closure);
     static PyObject* get_children(PyUIGridObject* self, void* closure);
     static PyObject* repr(PyUIGridObject* self);
 
-    // #142 - Grid cell mouse event Python API
     static PyObject* get_on_cell_enter(PyUIGridObject* self, void* closure);
     static int set_on_cell_enter(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_on_cell_exit(PyUIGridObject* self, void* closure);
@@ -252,7 +152,6 @@ public:
     static int set_on_cell_click(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_hovered_cell(PyUIGridObject* self, void* closure);
 
-    // #147 - Layer system Python API
     static PyObject* py_add_layer(PyUIGridObject* self, PyObject* args);
     static PyObject* py_remove_layer(PyUIGridObject* self, PyObject* args);
     static PyObject* get_layers(PyUIGridObject* self, void* closure);
@@ -285,7 +184,7 @@ namespace mcrfpydef {
                 obj->data->on_enter_unregister();
                 obj->data->on_exit_unregister();
                 obj->data->on_move_unregister();
-                // Grid-specific cell callbacks
+                // Grid-specific cell callbacks (now on GridData base)
                 obj->data->on_cell_enter_callable.reset();
                 obj->data->on_cell_exit_callable.reset();
                 obj->data->on_cell_click_callable.reset();
@@ -294,7 +193,7 @@ namespace mcrfpydef {
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)UIGrid::repr,
-        .tp_as_mapping = &UIGrid::mpmethods,  // Enable grid[x, y] subscript access
+        .tp_as_mapping = &UIGrid::mpmethods,
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR("Grid(pos=None, size=None, grid_size=None, texture=None, **kwargs)\n\n"
                             "A grid-based UI element for tile-based rendering and entity management.\n\n"
@@ -347,11 +246,9 @@ namespace mcrfpydef {
                             "    margin (float): General margin for alignment\n"
                             "    horiz_margin (float): Horizontal margin override\n"
                             "    vert_margin (float): Vertical margin override"),
-        // tp_traverse visits Python object references for GC cycle detection
         .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
             PyUIGridObject* obj = (PyUIGridObject*)self;
             if (obj->data) {
-                // Base class callbacks
                 if (obj->data->click_callable) {
                     PyObject* callback = obj->data->click_callable->borrow();
                     if (callback && callback != Py_None) Py_VISIT(callback);
@@ -368,7 +265,6 @@ namespace mcrfpydef {
                     PyObject* callback = obj->data->on_move_callable->borrow();
                     if (callback && callback != Py_None) Py_VISIT(callback);
                 }
-                // Grid-specific cell callbacks
                 if (obj->data->on_cell_enter_callable) {
                     PyObject* callback = obj->data->on_cell_enter_callable->borrow();
                     if (callback && callback != Py_None) Py_VISIT(callback);
@@ -384,7 +280,6 @@ namespace mcrfpydef {
             }
             return 0;
         },
-        // tp_clear breaks reference cycles by clearing Python references
         .tp_clear = [](PyObject* self) -> int {
             PyUIGridObject* obj = (PyUIGridObject*)self;
             if (obj->data) {
@@ -399,7 +294,6 @@ namespace mcrfpydef {
             return 0;
         },
         .tp_methods = UIGrid_all_methods,
-        //.tp_members = UIGrid::members,
         .tp_getset = UIGrid::getsetters,
         .tp_base = &mcrfpydef::PyDrawableType,
         .tp_init = (initproc)UIGrid::init,
@@ -410,7 +304,4 @@ namespace mcrfpydef {
             return (PyObject*)self;
         }
     };
-
-    // EntityCollection types moved to UIEntityCollection.h
-
 }

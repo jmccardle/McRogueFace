@@ -9,7 +9,7 @@
 // =============================================================================
 
 GridChunk::GridChunk(int chunk_x, int chunk_y, int width, int height,
-                     int world_x, int world_y, UIGrid* parent)
+                     int world_x, int world_y, GridData* parent)
     : chunk_x(chunk_x), chunk_y(chunk_y),
       width(width), height(height),
       world_x(world_x), world_y(world_y),
@@ -47,7 +47,7 @@ bool GridChunk::isVisible(float left_edge, float top_edge,
 // ChunkManager implementation
 // =============================================================================
 
-ChunkManager::ChunkManager(int grid_x, int grid_y, UIGrid* parent)
+ChunkManager::ChunkManager(int grid_x, int grid_y, GridData* parent)
     : grid_x(grid_x), grid_y(grid_y), parent_grid(parent)
 {
     // Calculate number of chunks needed

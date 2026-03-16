@@ -6,6 +6,7 @@
 
 // Forward declarations
 class UIGrid;
+class GridData;
 class PyTexture;
 
 /**
@@ -36,11 +37,11 @@ public:
     bool dirty;
 
     // Parent grid reference
-    UIGrid* parent_grid;
+    GridData* parent_grid;
 
     // Constructor
     GridChunk(int chunk_x, int chunk_y, int width, int height,
-              int world_x, int world_y, UIGrid* parent);
+              int world_x, int world_y, GridData* parent);
 
     // Access cell at local chunk coordinates
     UIGridPoint& at(int local_x, int local_y);
@@ -69,10 +70,10 @@ public:
     std::vector<std::unique_ptr<GridChunk>> chunks;
 
     // Parent grid
-    UIGrid* parent_grid;
+    GridData* parent_grid;
 
     // Constructor - creates chunks for given grid dimensions
-    ChunkManager(int grid_x, int grid_y, UIGrid* parent);
+    ChunkManager(int grid_x, int grid_y, GridData* parent);
 
     // Get chunk containing cell (x, y)
     GridChunk* getChunkForCell(int x, int y);

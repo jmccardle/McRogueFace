@@ -22,17 +22,11 @@
 // UIEntityCollection code moved to UIEntityCollection.cpp
 
 UIGrid::UIGrid()
-: grid_w(0), grid_h(0), zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
-  fill_color(8, 8, 8, 255), tcod_map(nullptr),
-  perspective_enabled(false), fov_algorithm(FOV_BASIC), fov_radius(10),
-  use_chunks(false)  // Default to omniscient view
+: GridData(),  // Initialize data layer (entities, children, FOV defaults)
+  zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
+  fill_color(8, 8, 8, 255),
+  perspective_enabled(false)
 {
-    // Initialize entities list
-    entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
-
-    // Initialize children collection (for UIDrawables like speech bubbles, effects)
-    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
-
     // Initialize box with safe defaults
     box.setSize(sf::Vector2f(0, 0));
     position = sf::Vector2f(0, 0);  // Set base class position
@@ -53,12 +47,11 @@ UIGrid::UIGrid()
 }
 
 UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _xy, sf::Vector2f _wh)
-: grid_w(gx), grid_h(gy),
+: GridData(),  // Initialize data layer
   zoom(1.0f),
   ptex(_ptex),
-  fill_color(8, 8, 8, 255), tcod_map(nullptr),
-  perspective_enabled(false), fov_algorithm(FOV_BASIC), fov_radius(10),
-  use_chunks(gx > CHUNK_THRESHOLD || gy > CHUNK_THRESHOLD)  // #123 - Use chunks for large grids
+  fill_color(8, 8, 8, 255),
+  perspective_enabled(false)
 {
     // Use texture dimensions if available, otherwise use defaults
     int cell_width = _ptex ? _ptex->sprite_width : DEFAULT_CELL_WIDTH;
@@ -66,10 +59,6 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
 
     center_x = (gx/2) * cell_width;
     center_y = (gy/2) * cell_height;
-    entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
-
-    // Initialize children collection (for UIDrawables like speech bubbles, effects)
-    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
 
     box.setSize(_wh);
     position = _xy;               // Set base class position
@@ -91,47 +80,8 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
      // textures are upside-down inside renderTexture
      output.setTexture(renderTexture.getTexture());
 
-    // Create TCOD map for FOV and as source for pathfinding
-    tcod_map = new TCODMap(gx, gy);
-    // Note: DijkstraMap objects are created on-demand via get_dijkstra_map()
-    // A* paths are computed on-demand via find_path()
-
-    // #123 - Initialize storage based on grid size
-    if (use_chunks) {
-        // Large grid: use chunk-based storage
-        chunk_manager = std::make_unique<ChunkManager>(gx, gy, this);
-
-        // Initialize all cells with parent reference
-        for (int cy = 0; cy < chunk_manager->chunks_y; ++cy) {
-            for (int cx = 0; cx < chunk_manager->chunks_x; ++cx) {
-                GridChunk* chunk = chunk_manager->getChunk(cx, cy);
-                if (!chunk) continue;
-
-                for (int ly = 0; ly < chunk->height; ++ly) {
-                    for (int lx = 0; lx < chunk->width; ++lx) {
-                        auto& cell = chunk->at(lx, ly);
-                        cell.grid_x = chunk->world_x + lx;
-                        cell.grid_y = chunk->world_y + ly;
-                        cell.parent_grid = this;
-                    }
-                }
-            }
-        }
-    } else {
-        // Small grid: use flat storage (original behavior)
-        points.resize(gx * gy);
-        for (int y = 0; y < gy; y++) {
-            for (int x = 0; x < gx; x++) {
-                int idx = y * gx + x;
-                points[idx].grid_x = x;
-                points[idx].grid_y = y;
-                points[idx].parent_grid = this;
-            }
-        }
-    }
-
-    // Initial sync of TCOD map
-    syncTCODMap();
+    // Initialize grid storage, TCOD map, and sync (#252: delegated to GridData)
+    initStorage(gx, gy, static_cast<GridData*>(this));
 }
 
 void UIGrid::update() {}
@@ -467,24 +417,12 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     }
 }
 
-UIGridPoint& UIGrid::at(int x, int y)
-{
-    // #123 - Route through chunk manager for large grids
-    if (use_chunks && chunk_manager) {
-        return chunk_manager->at(x, y);
-    }
-    return points[y * grid_w + x];
-}
+// at(), syncTCODMap(), computeFOV(), isInFOV(), layer management methods
+// are now in GridData.cpp (#252)
 
 UIGrid::~UIGrid()
 {
-    // Clear Dijkstra maps first (they reference tcod_map)
-    dijkstra_maps.clear();
-
-    if (tcod_map) {
-        delete tcod_map;
-        tcod_map = nullptr;
-    }
+    // GridData destructor handles TCOD map and Dijkstra cleanup
 }
 
 void UIGrid::ensureRenderTextureSize()
@@ -510,114 +448,6 @@ void UIGrid::ensureRenderTextureSize()
 PyObjectsEnum UIGrid::derived_type()
 {
     return PyObjectsEnum::UIGRID;
-}
-
-// #147 - Layer management methods
-std::shared_ptr<ColorLayer> UIGrid::addColorLayer(int z_index, const std::string& name) {
-    auto layer = std::make_shared<ColorLayer>(z_index, grid_w, grid_h, this);
-    layer->name = name;
-    layers.push_back(layer);
-    layers_need_sort = true;
-    return layer;
-}
-
-std::shared_ptr<TileLayer> UIGrid::addTileLayer(int z_index, std::shared_ptr<PyTexture> texture, const std::string& name) {
-    auto layer = std::make_shared<TileLayer>(z_index, grid_w, grid_h, this, texture);
-    layer->name = name;
-    layers.push_back(layer);
-    layers_need_sort = true;
-    return layer;
-}
-
-std::shared_ptr<GridLayer> UIGrid::getLayerByName(const std::string& name) {
-    for (auto& layer : layers) {
-        if (layer->name == name) {
-            return layer;
-        }
-    }
-    return nullptr;
-}
-
-bool UIGrid::isProtectedLayerName(const std::string& name) {
-    // #150 - These names are reserved for GridPoint pathfinding properties
-    static const std::vector<std::string> protected_names = {
-        "walkable", "transparent"
-    };
-    for (const auto& pn : protected_names) {
-        if (name == pn) return true;
-    }
-    return false;
-}
-
-void UIGrid::removeLayer(std::shared_ptr<GridLayer> layer) {
-    auto it = std::find(layers.begin(), layers.end(), layer);
-    if (it != layers.end()) {
-        layers.erase(it);
-    }
-}
-
-void UIGrid::sortLayers() {
-    if (layers_need_sort) {
-        std::sort(layers.begin(), layers.end(),
-            [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
-        layers_need_sort = false;
-    }
-}
-
-// TCOD integration methods
-void UIGrid::syncTCODMap()
-{
-    if (!tcod_map) return;
-
-    for (int y = 0; y < grid_h; y++) {
-        for (int x = 0; x < grid_w; x++) {
-            const UIGridPoint& point = at(x, y);
-            tcod_map->setProperties(x, y, point.transparent, point.walkable);
-        }
-    }
-    fov_dirty = true;  // #292: map changed, FOV needs recomputation
-}
-
-void UIGrid::syncTCODMapCell(int x, int y)
-{
-    if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return;
-
-    const UIGridPoint& point = at(x, y);
-    tcod_map->setProperties(x, y, point.transparent, point.walkable);
-    fov_dirty = true;  // #292: cell changed, FOV needs recomputation
-}
-
-void UIGrid::computeFOV(int x, int y, int radius, bool light_walls, TCOD_fov_algorithm_t algo)
-{
-    if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return;
-
-    // #292: Skip redundant FOV computation if map hasn't changed and params match
-    if (!fov_dirty &&
-        x == fov_last_x && y == fov_last_y &&
-        radius == fov_last_radius &&
-        light_walls == fov_last_light_walls &&
-        algo == fov_last_algo) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(fov_mutex);
-    tcod_map->computeFov(x, y, radius, light_walls, algo);
-
-    // Cache parameters for deduplication
-    fov_dirty = false;
-    fov_last_x = x;
-    fov_last_y = y;
-    fov_last_radius = radius;
-    fov_last_light_walls = light_walls;
-    fov_last_algo = algo;
-}
-
-bool UIGrid::isInFOV(int x, int y) const
-{
-    if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return false;
-    
-    std::lock_guard<std::mutex> lock(fov_mutex);
-    return tcod_map->isInFov(x, y);
 }
 
 // Pathfinding methods moved to UIGridPathfinding.cpp

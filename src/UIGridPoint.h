@@ -16,6 +16,7 @@ static PyObject* sfColor_to_PyObject(sf::Color color);
 static sf::Color PyObject_to_sfColor(PyObject* obj);
 
 class UIGrid;
+class GridData;
 class UIEntity;
 class UIGridPoint;
 class UIGridPointState;
@@ -40,7 +41,7 @@ class UIGridPoint
 public:
     bool walkable, transparent;  // Pathfinding/FOV properties
     int grid_x, grid_y;          // Position in parent grid
-    UIGrid* parent_grid;         // Parent grid reference for TCOD sync
+    GridData* parent_grid;       // Parent grid reference for TCOD sync (#252)
     UIGridPoint();
 
     // Built-in property accessors (walkable, transparent only)

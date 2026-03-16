@@ -9,6 +9,7 @@
 
 // Forward declarations
 class UIGrid;
+class GridData;
 class PyTexture;
 class UIEntity;
 
@@ -31,7 +32,7 @@ public:
     std::string name;      // #150 - Layer name for GridPoint property access
     int z_index;           // Negative = below entities, >= 0 = above entities
     int grid_x, grid_y;    // Dimensions
-    UIGrid* parent_grid;   // Parent grid reference
+    GridData* parent_grid;   // Parent grid reference (#252: GridData, not UIGrid)
     bool visible;          // Visibility flag
 
     // Chunk dimensions
@@ -43,7 +44,7 @@ public:
     std::vector<bool> chunk_texture_initialized;                // Track which textures are created
     int cached_cell_width, cached_cell_height;                  // Cell size used for cached textures
 
-    GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, UIGrid* parent);
+    GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, GridData* parent);
     virtual ~GridLayer() = default;
 
     // Mark entire layer as needing re-render
@@ -93,7 +94,7 @@ public:
     sf::Color perspective_unknown;
     bool has_perspective;
 
-    ColorLayer(int z_index, int grid_x, int grid_y, UIGrid* parent);
+    ColorLayer(int z_index, int grid_x, int grid_y, GridData* parent);
 
     // Access color at position
     sf::Color& at(int x, int y);
@@ -145,7 +146,7 @@ public:
     std::vector<int> tiles;  // Sprite indices (-1 = no tile)
     std::shared_ptr<PyTexture> texture;
 
-    TileLayer(int z_index, int grid_x, int grid_y, UIGrid* parent,
+    TileLayer(int z_index, int grid_x, int grid_y, GridData* parent,
               std::shared_ptr<PyTexture> texture = nullptr);
 
     // Access tile index at position

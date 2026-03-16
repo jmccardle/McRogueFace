@@ -150,7 +150,7 @@ static sf::Color LerpColor(const sf::Color& a, const sf::Color& b, float t) {
 // GridLayer base class
 // =============================================================================
 
-GridLayer::GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, UIGrid* parent)
+GridLayer::GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, GridData* parent)
     : type(type), z_index(z_index), grid_x(grid_x), grid_y(grid_y),
       parent_grid(parent), visible(true),
       chunks_x(0), chunks_y(0),
@@ -244,7 +244,7 @@ void GridLayer::ensureChunkTexture(int chunk_idx, int cell_width, int cell_heigh
 // ColorLayer implementation
 // =============================================================================
 
-ColorLayer::ColorLayer(int z_index, int grid_x, int grid_y, UIGrid* parent)
+ColorLayer::ColorLayer(int z_index, int grid_x, int grid_y, GridData* parent)
     : GridLayer(GridLayerType::Color, z_index, grid_x, grid_y, parent),
       colors(grid_x * grid_y, sf::Color::Transparent),
       perspective_visible(255, 255, 200, 64),
@@ -515,7 +515,7 @@ void ColorLayer::render(sf::RenderTarget& target,
 // TileLayer implementation
 // =============================================================================
 
-TileLayer::TileLayer(int z_index, int grid_x, int grid_y, UIGrid* parent,
+TileLayer::TileLayer(int z_index, int grid_x, int grid_y, GridData* parent,
                      std::shared_ptr<PyTexture> texture)
     : GridLayer(GridLayerType::Tile, z_index, grid_x, grid_y, parent),
       tiles(grid_x * grid_y, -1),  // -1 = no tile
