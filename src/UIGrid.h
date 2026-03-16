@@ -135,6 +135,13 @@ public:
     TCOD_fov_algorithm_t fov_algorithm;           // Default FOV algorithm (from mcrfpy.default_fov)
     int fov_radius;                               // Default FOV radius
 
+    // #292 - FOV deduplication: skip redundant computations
+    bool fov_dirty = true;                        // Set true when TCOD map changes
+    int fov_last_x = -1, fov_last_y = -1;        // Last FOV computation parameters
+    int fov_last_radius = -1;
+    bool fov_last_light_walls = true;
+    TCOD_fov_algorithm_t fov_last_algo = FOV_BASIC;
+
     // #142, #230 - Grid cell mouse events
     // Cell hover callbacks take only (cell_pos); cell click still takes (cell_pos, button, action)
     std::unique_ptr<PyCellHoverCallable> on_cell_enter_callable;

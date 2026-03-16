@@ -41,11 +41,12 @@ sf::Color PyObject_to_sfColor(PyObject* obj) {
 // #150 - Removed get_color/set_color - now handled by layers
 
 // Helper to safely get the GridPoint data from coordinates
+// Routes through UIGrid::at() which handles both flat and chunked storage
 static UIGridPoint* getGridPointData(PyUIGridPointObject* self) {
     if (!self->grid) return nullptr;
-    int idx = self->y * self->grid->grid_w + self->x;
-    if (idx < 0 || idx >= static_cast<int>(self->grid->points.size())) return nullptr;
-    return &self->grid->points[idx];
+    if (self->x < 0 || self->x >= self->grid->grid_w ||
+        self->y < 0 || self->y >= self->grid->grid_h) return nullptr;
+    return &self->grid->at(self->x, self->y);
 }
 
 PyObject* UIGridPoint::get_bool_member(PyUIGridPointObject* self, void* closure) {
@@ -94,7 +95,7 @@ int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, voi
 
 // #150 - Removed get_int_member/set_int_member - now handled by layers
 
-// #114 - Get list of entities at this grid cell
+// #114, #253 - Get list of entities at this grid cell (uses spatial hash for O(1) lookup)
 PyObject* UIGridPoint::get_entities(PyUIGridPointObject* self, void* closure) {
     if (!self->grid) {
         PyErr_SetString(PyExc_RuntimeError, "GridPoint has no parent grid");
@@ -107,25 +108,23 @@ PyObject* UIGridPoint::get_entities(PyUIGridPointObject* self, void* closure) {
     PyObject* list = PyList_New(0);
     if (!list) return NULL;
 
-    // Iterate through grid's entities and find those at this position
-    for (auto& entity : *(self->grid->entities)) {
-        if (static_cast<int>(entity->position.x) == target_x &&
-            static_cast<int>(entity->position.y) == target_y) {
-            // Create Python Entity object for this entity
-            auto type = &mcrfpydef::PyUIEntityType;
-            auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
-            if (!obj) {
-                Py_DECREF(list);
-                return NULL;
-            }
-            obj->data = entity;
-            if (PyList_Append(list, (PyObject*)obj) < 0) {
-                Py_DECREF(obj);
-                Py_DECREF(list);
-                return NULL;
-            }
-            Py_DECREF(obj);  // List now owns the reference
+    // Use spatial hash for O(bucket_size) lookup instead of O(n) iteration
+    auto entities = self->grid->spatial_hash.queryCell(target_x, target_y);
+    for (auto& entity : entities) {
+        // Create Python Entity object for this entity
+        auto type = &mcrfpydef::PyUIEntityType;
+        auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
+        if (!obj) {
+            Py_DECREF(list);
+            return NULL;
         }
+        obj->data = entity;
+        if (PyList_Append(list, (PyObject*)obj) < 0) {
+            Py_DECREF(obj);
+            Py_DECREF(list);
+            return NULL;
+        }
+        Py_DECREF(obj);  // List now owns the reference
     }
 
     return list;

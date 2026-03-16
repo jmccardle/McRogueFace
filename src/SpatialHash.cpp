@@ -72,6 +72,28 @@ void SpatialHash::update(std::shared_ptr<UIEntity> entity, float old_x, float ol
     buckets[new_bucket].push_back(entity);
 }
 
+std::vector<std::shared_ptr<UIEntity>> SpatialHash::queryCell(int x, int y) const
+{
+    std::vector<std::shared_ptr<UIEntity>> result;
+
+    auto bucket_coord = getBucket(static_cast<float>(x), static_cast<float>(y));
+    auto it = buckets.find(bucket_coord);
+    if (it == buckets.end()) return result;
+
+    for (const auto& wp : it->second) {
+        auto entity = wp.lock();
+        if (!entity) continue;
+
+        // Exact integer position match
+        if (static_cast<int>(entity->position.x) == x &&
+            static_cast<int>(entity->position.y) == y) {
+            result.push_back(entity);
+        }
+    }
+
+    return result;
+}
+
 std::vector<std::pair<int, int>> SpatialHash::getBucketsInRadius(float x, float y, float radius) const
 {
     std::vector<std::pair<int, int>> result;

@@ -33,6 +33,10 @@ public:
     // This removes from old bucket and inserts into new bucket if needed
     void update(std::shared_ptr<UIEntity> entity, float old_x, float old_y);
 
+    // Query all entities at a specific cell (exact integer position match)
+    // O(n) where n = entities in the bucket containing this cell
+    std::vector<std::shared_ptr<UIEntity>> queryCell(int x, int y) const;
+
     // Query all entities within radius of a point
     // Returns entities whose positions are within the circular radius
     std::vector<std::shared_ptr<UIEntity>> queryRadius(float x, float y, float radius) const;

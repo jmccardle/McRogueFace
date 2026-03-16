@@ -631,10 +631,10 @@ static PyObject* convertEntity3DToPython(std::shared_ptr<mcrf::Entity3D> entity)
         Py_RETURN_NONE;
     }
 
-    // Use the entity's cached Python self pointer if available
-    if (entity->self) {
-        Py_INCREF(entity->self);
-        return entity->self;
+    // Use the entity's cached Python pyobject pointer if available
+    if (entity->pyobject) {
+        Py_INCREF(entity->pyobject);
+        return entity->pyobject;
     }
 
     // Create a new wrapper

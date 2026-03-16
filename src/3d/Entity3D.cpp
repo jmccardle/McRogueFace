@@ -59,8 +59,8 @@ Entity3D::Entity3D(int grid_x, int grid_z)
 
 Entity3D::~Entity3D()
 {
-    // Cleanup cube geometry when last entity is destroyed?
-    // For now, leave it - it's shared static data
+    // Release Python identity reference (handles viewport destruction edge case)
+    releasePyIdentity();
 
     // Clean up Python animation callback
     Py_XDECREF(py_anim_callback_);
@@ -468,7 +468,7 @@ void Entity3D::updateAnimation(float dt)
             // Fire Python callback
             if (py_anim_callback_) {
                 PyObject* result = PyObject_CallFunction(py_anim_callback_, "(Os)",
-                    self, anim_clip_.c_str());
+                    pyobject, anim_clip_.c_str());
                 if (result) {
                     Py_DECREF(result);
                 } else {
@@ -722,7 +722,9 @@ int Entity3D::init(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
 
     // Register in object cache
     self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-    self->data->self = (PyObject*)self;
+    // Set strong ref for Python subclass identity preservation
+    self->data->pyobject = (PyObject*)self;
+    Py_INCREF((PyObject*)self);
 
     return 0;
 }

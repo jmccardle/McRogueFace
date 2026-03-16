@@ -568,13 +568,14 @@ void UIGrid::sortLayers() {
 void UIGrid::syncTCODMap()
 {
     if (!tcod_map) return;
-    
+
     for (int y = 0; y < grid_h; y++) {
         for (int x = 0; x < grid_w; x++) {
             const UIGridPoint& point = at(x, y);
             tcod_map->setProperties(x, y, point.transparent, point.walkable);
         }
     }
+    fov_dirty = true;  // #292: map changed, FOV needs recomputation
 }
 
 void UIGrid::syncTCODMapCell(int x, int y)
@@ -583,14 +584,32 @@ void UIGrid::syncTCODMapCell(int x, int y)
 
     const UIGridPoint& point = at(x, y);
     tcod_map->setProperties(x, y, point.transparent, point.walkable);
+    fov_dirty = true;  // #292: cell changed, FOV needs recomputation
 }
 
 void UIGrid::computeFOV(int x, int y, int radius, bool light_walls, TCOD_fov_algorithm_t algo)
 {
     if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return;
-    
+
+    // #292: Skip redundant FOV computation if map hasn't changed and params match
+    if (!fov_dirty &&
+        x == fov_last_x && y == fov_last_y &&
+        radius == fov_last_radius &&
+        light_walls == fov_last_light_walls &&
+        algo == fov_last_algo) {
+        return;
+    }
+
     std::lock_guard<std::mutex> lock(fov_mutex);
     tcod_map->computeFov(x, y, radius, light_walls, algo);
+
+    // Cache parameters for deduplication
+    fov_dirty = false;
+    fov_last_x = x;
+    fov_last_y = y;
+    fov_last_radius = radius;
+    fov_last_light_walls = light_walls;
+    fov_last_algo = algo;
 }
 
 bool UIGrid::isInFOV(int x, int y) const
@@ -1100,6 +1119,12 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
                 layer->parent_grid = self->data.get();
                 self->data->layers.push_back(layer);
                 py_layer->grid = self->data;
+
+                // Inherit grid texture if TileLayer has none (#254)
+                auto tile_layer_ptr = std::static_pointer_cast<TileLayer>(layer);
+                if (!tile_layer_ptr->texture) {
+                    tile_layer_ptr->texture = self->data->getTexture();
+                }
 
             } else {
                 Py_DECREF(item);
@@ -1719,6 +1744,12 @@ PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args) {
         self->data->layers.push_back(layer);
         self->data->layers_need_sort = true;
         py_layer->grid = self->data;
+
+        // Inherit grid texture if TileLayer has none (#254)
+        auto tile_layer = std::static_pointer_cast<TileLayer>(layer);
+        if (!tile_layer->texture) {
+            tile_layer->texture = self->data->getTexture();
+        }
 
     } else {
         Py_DECREF(color_layer_type);

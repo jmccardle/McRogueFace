@@ -281,7 +281,9 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         self->data->grid = pygrid->data;
         // Append entity to grid's entity list
         pygrid->data->entities->push_back(self->data);
-        
+        // Insert into spatial hash for O(1) cell queries (#253)
+        pygrid->data->spatial_hash.insert(self->data);
+
         // Don't initialize gridstate here - lazy initialization to support large numbers of entities
         // gridstate will be initialized when visibility is updated or accessed
     }
@@ -634,14 +636,33 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
         Py_RETURN_NONE;
     }
 
-    // Return a Python Grid object wrapping the C++ grid
-    auto grid_type = &mcrfpydef::PyUIGridType;
+    auto& grid = self->data->grid;
 
+    // Check cache first — preserves identity (entity.grid is entity.grid)
+    if (grid->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(grid->serial_number);
+        if (cached) {
+            return cached;  // Already INCREF'd by lookup
+        }
+    }
+
+    // No cached wrapper — allocate a new one
+    auto grid_type = &mcrfpydef::PyUIGridType;
     auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
 
     if (pyGrid) {
-        pyGrid->data = self->data->grid;
+        pyGrid->data = grid;
         pyGrid->weakreflist = NULL;
+
+        // Register in cache so future accesses return the same wrapper
+        if (grid->serial_number == 0) {
+            grid->serial_number = PythonObjectCache::getInstance().assignSerial();
+        }
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)pyGrid, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(grid->serial_number, weakref);
+            Py_DECREF(weakref);
+        }
     }
     return (PyObject*)pyGrid;
 }

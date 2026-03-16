@@ -42,8 +42,17 @@ struct VoxelPointState {
 class Entity3D : public std::enable_shared_from_this<Entity3D> {
 public:
     // Python integration
-    PyObject* self = nullptr;  // Reference to Python object
+    PyObject* pyobject = nullptr;  // Strong ref: preserves Python subclass identity while in viewport
     uint64_t serial_number = 0;  // For object cache
+
+    /// Release Python identity reference (call at all viewport exit points)
+    void releasePyIdentity() {
+        if (pyobject) {
+            PyObject* tmp = pyobject;
+            pyobject = nullptr;
+            Py_DECREF(tmp);
+        }
+    }
 
     Entity3D();
     Entity3D(int grid_x, int grid_z);
@@ -383,6 +392,8 @@ inline PyTypeObject PyEntity3DType = {
     {
         PyEntity3DObject* obj = (PyEntity3DObject*)self;
         PyObject_GC_UnTrack(self);
+        // Clear the identity ref without DECREF - we ARE this object
+        if (obj->data) obj->data->pyobject = nullptr;
         if (obj->weakreflist != NULL) {
             PyObject_ClearWeakRefs(self);
         }

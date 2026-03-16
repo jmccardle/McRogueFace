@@ -6,6 +6,7 @@
 #include "PyFOV.h"
 #include "PyPositionHelper.h"
 #include "PyHeightMap.h"
+#include "PythonObjectCache.h"
 #include <sstream>
 
 // =============================================================================
@@ -1632,17 +1633,31 @@ PyObject* PyGridLayerAPI::ColorLayer_get_grid(PyColorLayerObject* self, void* cl
         Py_RETURN_NONE;
     }
 
-    // Create Python Grid wrapper for the parent grid
-    auto* grid_type = (PyTypeObject*)PyObject_GetAttrString(
-        PyImport_ImportModule("mcrfpy"), "Grid");
-    if (!grid_type) return NULL;
+    // Check cache first — preserves identity (layer.grid is layer.grid)
+    if (self->grid->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(self->grid->serial_number);
+        if (cached) {
+            return cached;
+        }
+    }
 
+    // No cached wrapper — allocate a new one
+    auto* grid_type = &mcrfpydef::PyUIGridType;
     PyUIGridObject* py_grid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
-    Py_DECREF(grid_type);
     if (!py_grid) return NULL;
 
     py_grid->data = self->grid;
     py_grid->weakreflist = NULL;
+
+    // Register in cache
+    if (self->grid->serial_number == 0) {
+        self->grid->serial_number = PythonObjectCache::getInstance().assignSerial();
+    }
+    PyObject* weakref = PyWeakref_NewRef((PyObject*)py_grid, NULL);
+    if (weakref) {
+        PythonObjectCache::getInstance().registerObject(self->grid->serial_number, weakref);
+        Py_DECREF(weakref);
+    }
     return (PyObject*)py_grid;
 }
 
@@ -2267,17 +2282,31 @@ PyObject* PyGridLayerAPI::TileLayer_get_grid(PyTileLayerObject* self, void* clos
         Py_RETURN_NONE;
     }
 
-    // Create Python Grid wrapper for the parent grid
-    auto* grid_type = (PyTypeObject*)PyObject_GetAttrString(
-        PyImport_ImportModule("mcrfpy"), "Grid");
-    if (!grid_type) return NULL;
+    // Check cache first — preserves identity (layer.grid is layer.grid)
+    if (self->grid->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(self->grid->serial_number);
+        if (cached) {
+            return cached;
+        }
+    }
 
+    // No cached wrapper — allocate a new one
+    auto* grid_type = &mcrfpydef::PyUIGridType;
     PyUIGridObject* py_grid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
-    Py_DECREF(grid_type);
     if (!py_grid) return NULL;
 
     py_grid->data = self->grid;
     py_grid->weakreflist = NULL;
+
+    // Register in cache
+    if (self->grid->serial_number == 0) {
+        self->grid->serial_number = PythonObjectCache::getInstance().assignSerial();
+    }
+    PyObject* weakref = PyWeakref_NewRef((PyObject*)py_grid, NULL);
+    if (weakref) {
+        PythonObjectCache::getInstance().registerObject(self->grid->serial_number, weakref);
+        Py_DECREF(weakref);
+    }
     return (PyObject*)py_grid;
 }
 
@@ -2359,6 +2388,11 @@ int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value,
     py_grid->data->layers.push_back(std::static_pointer_cast<GridLayer>(self->data));
     py_grid->data->layers_need_sort = true;
     self->grid = py_grid->data;
+
+    // Inherit grid texture if TileLayer has none (#254)
+    if (!self->data->texture) {
+        self->data->texture = py_grid->data->getTexture();
+    }
 
     return 0;
 }
