@@ -1134,6 +1134,136 @@ int UIEntity::set_default_behavior(PyUIEntityObject* self, PyObject* value, void
     return 0;
 }
 
+// #300 - Behavior system property implementations
+PyObject* UIEntity::get_behavior_type(PyUIEntityObject* self, void* closure) {
+    return PyLong_FromLong(static_cast<int>(self->data->behavior.type));
+}
+
+PyObject* UIEntity::get_turn_order(PyUIEntityObject* self, void* closure) {
+    return PyLong_FromLong(self->data->turn_order);
+}
+
+int UIEntity::set_turn_order(PyUIEntityObject* self, PyObject* value, void* closure) {
+    long val = PyLong_AsLong(value);
+    if (val == -1 && PyErr_Occurred()) return -1;
+    self->data->turn_order = static_cast<int>(val);
+    return 0;
+}
+
+PyObject* UIEntity::get_move_speed(PyUIEntityObject* self, void* closure) {
+    return PyFloat_FromDouble(self->data->move_speed);
+}
+
+int UIEntity::set_move_speed(PyUIEntityObject* self, PyObject* value, void* closure) {
+    double val = PyFloat_AsDouble(value);
+    if (val == -1.0 && PyErr_Occurred()) return -1;
+    self->data->move_speed = static_cast<float>(val);
+    return 0;
+}
+
+PyObject* UIEntity::get_target_label(PyUIEntityObject* self, void* closure) {
+    if (self->data->target_label.empty()) Py_RETURN_NONE;
+    return PyUnicode_FromString(self->data->target_label.c_str());
+}
+
+int UIEntity::set_target_label(PyUIEntityObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        self->data->target_label.clear();
+        return 0;
+    }
+    if (!PyUnicode_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "target_label must be a string or None");
+        return -1;
+    }
+    self->data->target_label = PyUnicode_AsUTF8(value);
+    return 0;
+}
+
+PyObject* UIEntity::get_sight_radius(PyUIEntityObject* self, void* closure) {
+    return PyLong_FromLong(self->data->sight_radius);
+}
+
+int UIEntity::set_sight_radius(PyUIEntityObject* self, PyObject* value, void* closure) {
+    long val = PyLong_AsLong(value);
+    if (val == -1 && PyErr_Occurred()) return -1;
+    self->data->sight_radius = static_cast<int>(val);
+    return 0;
+}
+
+PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"type", "waypoints", "turns", "path", nullptr};
+    int type_val = 0;
+    PyObject* waypoints_obj = nullptr;
+    int turns = 0;
+    PyObject* path_obj = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|OiO", const_cast<char**>(kwlist),
+                                     &type_val, &waypoints_obj, &turns, &path_obj)) {
+        return NULL;
+    }
+
+    auto& behavior = self->data->behavior;
+    behavior.reset();
+    behavior.type = static_cast<BehaviorType>(type_val);
+
+    // Parse waypoints
+    if (waypoints_obj && waypoints_obj != Py_None) {
+        PyObject* iter = PyObject_GetIter(waypoints_obj);
+        if (!iter) {
+            PyErr_SetString(PyExc_TypeError, "waypoints must be iterable");
+            return NULL;
+        }
+        PyObject* item;
+        while ((item = PyIter_Next(iter)) != NULL) {
+            if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
+                Py_DECREF(item);
+                Py_DECREF(iter);
+                PyErr_SetString(PyExc_TypeError, "Each waypoint must be a (x, y) tuple");
+                return NULL;
+            }
+            int wx = PyLong_AsLong(PyTuple_GetItem(item, 0));
+            int wy = PyLong_AsLong(PyTuple_GetItem(item, 1));
+            Py_DECREF(item);
+            if (PyErr_Occurred()) { Py_DECREF(iter); return NULL; }
+            behavior.waypoints.push_back({wx, wy});
+        }
+        Py_DECREF(iter);
+        if (PyErr_Occurred()) return NULL;
+    }
+
+    // Parse path
+    if (path_obj && path_obj != Py_None) {
+        PyObject* iter = PyObject_GetIter(path_obj);
+        if (!iter) {
+            PyErr_SetString(PyExc_TypeError, "path must be iterable");
+            return NULL;
+        }
+        PyObject* item;
+        while ((item = PyIter_Next(iter)) != NULL) {
+            if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
+                Py_DECREF(item);
+                Py_DECREF(iter);
+                PyErr_SetString(PyExc_TypeError, "Each path step must be a (x, y) tuple");
+                return NULL;
+            }
+            int px = PyLong_AsLong(PyTuple_GetItem(item, 0));
+            int py_val = PyLong_AsLong(PyTuple_GetItem(item, 1));
+            Py_DECREF(item);
+            if (PyErr_Occurred()) { Py_DECREF(iter); return NULL; }
+            behavior.current_path.push_back({px, py_val});
+        }
+        Py_DECREF(iter);
+        if (PyErr_Occurred()) return NULL;
+    }
+
+    // Set sleep turns
+    if (turns > 0) {
+        behavior.sleep_turns_remaining = turns;
+    }
+
+    Py_RETURN_NONE;
+}
+
 // #295 - cell_pos property implementations
 PyObject* UIEntity::get_cell_pos(PyUIEntityObject* self, void* closure) {
     return sfVector2i_to_PyObject(self->data->cell_position);
@@ -1258,6 +1388,15 @@ PyMethodDef UIEntity_all_methods[] = {
     {"has_label", (PyCFunction)UIEntity::py_has_label, METH_O,
      "has_label(label: str) -> bool\n\n"
      "Check if this entity has the given label."},
+    // #300 - Behavior system
+    {"set_behavior", (PyCFunction)UIEntity::py_set_behavior, METH_VARARGS | METH_KEYWORDS,
+     "set_behavior(type, waypoints=None, turns=0, path=None) -> None\n\n"
+     "Configure this entity's behavior for grid.step() turn management.\n\n"
+     "Args:\n"
+     "    type (int/Behavior): Behavior type (e.g., Behavior.PATROL)\n"
+     "    waypoints (list): List of (x, y) tuples for WAYPOINT/PATROL/LOOP\n"
+     "    turns (int): Number of turns for SLEEP behavior\n"
+     "    path (list): Pre-computed path as list of (x, y) tuples for PATH behavior"},
     {NULL}  // Sentinel
 };
 
@@ -1327,6 +1466,17 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"default_behavior", (getter)UIEntity::get_default_behavior, (setter)UIEntity::set_default_behavior,
      "Default behavior type (int, maps to Behavior enum). "
      "Entity reverts to this after DONE trigger. Default: 0 (IDLE).", NULL},
+    // #300 - Behavior system
+    {"behavior_type", (getter)UIEntity::get_behavior_type, NULL,
+     "Current behavior type (int, read-only). Use set_behavior() to change.", NULL},
+    {"turn_order", (getter)UIEntity::get_turn_order, (setter)UIEntity::set_turn_order,
+     "Turn order for grid.step() (int). 0 = skip, higher values go later. Default: 1.", NULL},
+    {"move_speed", (getter)UIEntity::get_move_speed, (setter)UIEntity::set_move_speed,
+     "Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15.", NULL},
+    {"target_label", (getter)UIEntity::get_target_label, (setter)UIEntity::set_target_label,
+     "Label to search for with TARGET trigger (str or None). Default: None.", NULL},
+    {"sight_radius", (getter)UIEntity::get_sight_radius, (setter)UIEntity::set_sight_radius,
+     "FOV radius for TARGET trigger (int). Default: 10.", NULL},
     {NULL}  /* Sentinel */
 };
 

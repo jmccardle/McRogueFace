@@ -18,6 +18,7 @@
 #include "UIGridPoint.h"
 #include "UIBase.h"
 #include "UISprite.h"
+#include "EntityBehavior.h"
 
 class UIGrid;
 
@@ -73,6 +74,11 @@ public:
     std::unordered_set<std::string> labels; // #296: entity label system for collision/targeting
     PyObject* step_callback = nullptr; // #299: callback for grid.step() turn management
     int default_behavior = 0; // #299: BehaviorType::IDLE - behavior to revert to after DONE
+    EntityBehavior behavior; // #300: behavior state for grid.step()
+    int turn_order = 1; // #300: 0 = skip, higher = later in turn order
+    float move_speed = 0.15f; // #300: animation duration for movement (0 = instant)
+    std::string target_label; // #300: label to search for with TARGET trigger
+    int sight_radius = 10; // #300: FOV radius for TARGET trigger
     //void render(sf::Vector2f); //override final;
 
     UIEntity();
@@ -156,6 +162,18 @@ public:
     static int set_step(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_default_behavior(PyUIEntityObject* self, void* closure);
     static int set_default_behavior(PyUIEntityObject* self, PyObject* value, void* closure);
+
+    // #300 - Behavior system properties
+    static PyObject* get_behavior_type(PyUIEntityObject* self, void* closure);
+    static PyObject* get_turn_order(PyUIEntityObject* self, void* closure);
+    static int set_turn_order(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_move_speed(PyUIEntityObject* self, void* closure);
+    static int set_move_speed(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_target_label(PyUIEntityObject* self, void* closure);
+    static int set_target_label(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_sight_radius(PyUIEntityObject* self, void* closure);
+    static int set_sight_radius(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* py_set_behavior(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_add_label(PyUIEntityObject* self, PyObject* arg);
     static PyObject* py_remove_label(PyUIEntityObject* self, PyObject* arg);
     static PyObject* py_has_label(PyUIEntityObject* self, PyObject* arg);

@@ -232,6 +232,9 @@ public:
     void center_camera();  // Center on grid's middle tile
     void center_camera(float tile_x, float tile_y);  // Center on specific tile
 
+    // #301 - Turn management
+    static PyObject* py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyMappingMethods mpmethods;  // For grid[x, y] subscript access

@@ -2358,6 +2358,181 @@ PyMethodDef UIGrid::methods[] = {
     {NULL, NULL, 0, NULL}
 };
 
+// #301 - grid.step() turn manager
+#include "EntityBehavior.h"
+#include "PyTrigger.h"
+
+// Helper: fire step callback on entity
+static void fireStepCallback(std::shared_ptr<UIEntity>& entity, int trigger_int, PyObject* data) {
+    PyObject* callback = entity->step_callback;
+
+    // If no explicit callback, check for subclass method override
+    if (!callback && entity->pyobject) {
+        // Check if the Python object's type has a 'step' method that isn't the C property
+        PyObject* step_attr = PyObject_GetAttrString(entity->pyobject, "on_step");
+        if (step_attr && PyCallable_Check(step_attr)) {
+            callback = step_attr;
+        } else {
+            PyErr_Clear();
+            Py_XDECREF(step_attr);
+            return;
+        }
+        // Call and decref the looked-up method
+        PyObject* trigger_obj = nullptr;
+        if (PyTrigger::trigger_enum_class) {
+            trigger_obj = PyObject_CallFunction(PyTrigger::trigger_enum_class, "i", trigger_int);
+        }
+        if (!trigger_obj) {
+            PyErr_Clear();
+            trigger_obj = PyLong_FromLong(trigger_int);
+        }
+        if (!data) data = Py_None;
+        PyObject* result = PyObject_CallFunction(callback, "OO", trigger_obj, data);
+        Py_XDECREF(result);
+        if (PyErr_Occurred()) PyErr_Print();
+        Py_DECREF(trigger_obj);
+        Py_DECREF(step_attr);
+        return;
+    }
+
+    if (!callback) return;
+
+    // Build trigger enum value
+    PyObject* trigger_obj = nullptr;
+    if (PyTrigger::trigger_enum_class) {
+        trigger_obj = PyObject_CallFunction(PyTrigger::trigger_enum_class, "i", trigger_int);
+    }
+    if (!trigger_obj) {
+        PyErr_Clear();
+        trigger_obj = PyLong_FromLong(trigger_int);
+    }
+
+    if (!data) data = Py_None;
+    PyObject* result = PyObject_CallFunction(callback, "OO", trigger_obj, data);
+    Py_XDECREF(result);
+    if (PyErr_Occurred()) PyErr_Print();
+    Py_DECREF(trigger_obj);
+}
+
+PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"n", "turn_order", nullptr};
+    int n = 1;
+    PyObject* turn_order_filter = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iO", const_cast<char**>(kwlist),
+                                     &n, &turn_order_filter)) {
+        return NULL;
+    }
+
+    int filter_turn_order = -1;  // -1 = no filter
+    if (turn_order_filter && turn_order_filter != Py_None) {
+        filter_turn_order = PyLong_AsLong(turn_order_filter);
+        if (filter_turn_order == -1 && PyErr_Occurred()) return NULL;
+    }
+
+    auto& grid = self->data;
+    if (!grid->entities) Py_RETURN_NONE;
+
+    for (int round = 0; round < n; round++) {
+        // Snapshot entity list to avoid iterator invalidation from callbacks
+        std::vector<std::shared_ptr<UIEntity>> snapshot;
+        for (auto& entity : *grid->entities) {
+            if (entity->turn_order == 0) continue;  // Skip turn_order=0
+            if (filter_turn_order >= 0 && entity->turn_order != filter_turn_order) continue;
+            snapshot.push_back(entity);
+        }
+
+        // Sort by turn_order (ascending)
+        std::sort(snapshot.begin(), snapshot.end(),
+            [](const auto& a, const auto& b) { return a->turn_order < b->turn_order; });
+
+        for (auto& entity : snapshot) {
+            // Skip if entity was removed from grid during this round
+            if (!entity->grid) continue;
+
+            // Skip IDLE
+            if (entity->behavior.type == BehaviorType::IDLE) continue;
+
+            // Check TARGET trigger (if target_label set)
+            if (!entity->target_label.empty()) {
+                // Quick check: are there any entities with target_label nearby?
+                auto nearby = grid->spatial_hash.queryRadius(
+                    static_cast<float>(entity->cell_position.x),
+                    static_cast<float>(entity->cell_position.y),
+                    static_cast<float>(entity->sight_radius));
+
+                for (auto& target : nearby) {
+                    if (target.get() == entity.get()) continue;
+                    if (target->labels.count(entity->target_label)) {
+                        // Compute FOV to verify line of sight
+                        grid->computeFOV(entity->cell_position.x, entity->cell_position.y,
+                                        entity->sight_radius, true, grid->fov_algorithm);
+                        if (grid->isInFOV(target->cell_position.x, target->cell_position.y)) {
+                            // Fire TARGET trigger
+                            PyObject* target_pyobj = Py_None;
+                            if (target->pyobject) {
+                                target_pyobj = target->pyobject;
+                            }
+                            fireStepCallback(entity, 2 /* TARGET */, target_pyobj);
+                            goto next_entity;  // Skip behavior execution after TARGET
+                        }
+                    }
+                }
+            }
+
+            {
+                // Execute behavior
+                BehaviorOutput output = executeBehavior(*entity, *grid);
+
+                switch (output.result) {
+                    case BehaviorResult::MOVED: {
+                        int old_x = entity->cell_position.x;
+                        int old_y = entity->cell_position.y;
+                        entity->cell_position = output.target_cell;
+                        grid->spatial_hash.updateCell(entity, old_x, old_y);
+
+                        // Queue movement animation
+                        if (entity->move_speed > 0) {
+                            // Animate draw_pos from old to new
+                            entity->position = sf::Vector2f(
+                                static_cast<float>(output.target_cell.x),
+                                static_cast<float>(output.target_cell.y));
+                        } else {
+                            // Instant: snap draw_pos
+                            entity->position = sf::Vector2f(
+                                static_cast<float>(output.target_cell.x),
+                                static_cast<float>(output.target_cell.y));
+                        }
+                        break;
+                    }
+                    case BehaviorResult::DONE: {
+                        fireStepCallback(entity, 0 /* DONE */, Py_None);
+                        // Revert to default behavior
+                        entity->behavior.type = static_cast<BehaviorType>(entity->default_behavior);
+                        break;
+                    }
+                    case BehaviorResult::BLOCKED: {
+                        // Try to find what's blocking
+                        PyObject* blocker = Py_None;
+                        auto blockers = grid->spatial_hash.queryCell(
+                            output.target_cell.x, output.target_cell.y);
+                        if (!blockers.empty() && blockers[0]->pyobject) {
+                            blocker = blockers[0]->pyobject;
+                        }
+                        fireStepCallback(entity, 1 /* BLOCKED */, blocker);
+                        break;
+                    }
+                    case BehaviorResult::NO_ACTION:
+                        break;
+                }
+            }
+            next_entity:;
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
 // Define the PyObjectType alias for the macros
 typedef PyUIGridObject PyObjectType;
 
@@ -2482,6 +2657,15 @@ PyMethodDef UIGrid_all_methods[] = {
      "        ((0.3, 0.8), {'walkable': True, 'transparent': True}),    # Land\n"
      "        ((0.8, 1.0), {'walkable': False, 'transparent': False}),  # Mountains\n"
      "    ])"},
+    // #301 - Turn management
+    {"step", (PyCFunction)UIGrid::py_step, METH_VARARGS | METH_KEYWORDS,
+     "step(n=1, turn_order=None) -> None\n\n"
+     "Execute n rounds of turn-based entity behavior.\n\n"
+     "Args:\n"
+     "    n (int): Number of rounds to execute. Default: 1\n"
+     "    turn_order (int, optional): Only process entities with this turn_order value\n\n"
+     "Each round: entities grouped by turn_order (ascending), behaviors executed,\n"
+     "triggers fired (TARGET, DONE, BLOCKED), movement animated."},
     {NULL}  // Sentinel
 };
 
