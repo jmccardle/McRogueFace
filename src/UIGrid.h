@@ -27,6 +27,7 @@
 #include "SpatialHash.h"
 #include "UIEntityCollection.h"  // EntityCollection types (extracted from UIGrid)
 #include "GridData.h"  // #252 - Data layer base class
+#include "UIGridView.h"  // #252 - GridView shim
 
 // Forward declaration for pathfinding
 class DijkstraMap;
@@ -152,6 +153,7 @@ public:
     static int set_on_cell_click(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_hovered_cell(PyUIGridObject* self, void* closure);
 
+    static PyObject* get_view(PyUIGridObject* self, void* closure);  // #252 shim
     static PyObject* py_add_layer(PyUIGridObject* self, PyObject* args);
     static PyObject* py_remove_layer(PyUIGridObject* self, PyObject* args);
     static PyObject* get_layers(PyUIGridObject* self, void* closure);
@@ -189,6 +191,7 @@ namespace mcrfpydef {
                 obj->data->on_cell_exit_callable.reset();
                 obj->data->on_cell_click_callable.reset();
             }
+            obj->view.reset();  // #252: release GridView shim
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
@@ -300,7 +303,11 @@ namespace mcrfpydef {
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
             PyUIGridObject* self = (PyUIGridObject*)type->tp_alloc(type, 0);
-            if (self) self->data = std::make_shared<UIGrid>();
+            if (self) {
+                self->data = std::make_shared<UIGrid>();
+                // Placement-new the shared_ptr<UIGridView> (tp_alloc zero-fills, not construct)
+                new (&self->view) std::shared_ptr<UIGridView>();
+            }
             return (PyObject*)self;
         }
     };

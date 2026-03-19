@@ -1,4 +1,5 @@
 #include "UIGrid.h"
+#include "UIGridView.h"  // #252: GridView shim
 #include "UIGridPathfinding.h"  // New pathfinding API
 #include "GameEngine.h"
 #include "McRFPy_API.h"
@@ -996,6 +997,33 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridType;
 
+    // #252 shim: auto-create a GridView for rendering
+    // The GridView shares GridData (via aliasing shared_ptr) and copies rendering state
+    {
+        auto view = std::make_shared<UIGridView>();
+        // Share grid data (aliasing shared_ptr: shares UIGrid ownership, points to GridData base)
+        view->grid_data = std::shared_ptr<GridData>(
+            self->data, static_cast<GridData*>(self->data.get()));
+        // Copy rendering state from UIGrid to GridView
+        view->ptex = texture_ptr;
+        view->box.setPosition(self->data->box.getPosition());
+        view->box.setSize(self->data->box.getSize());
+        view->position = self->data->position;
+        view->center_x = self->data->center_x;
+        view->center_y = self->data->center_y;
+        view->zoom = self->data->zoom;
+        view->fill_color = self->data->fill_color;
+        view->camera_rotation = self->data->camera_rotation;
+        view->perspective_entity = self->data->perspective_entity;
+        view->perspective_enabled = self->data->perspective_enabled;
+        view->visible = self->data->visible;
+        view->opacity = self->data->opacity;
+        view->z_index = self->data->z_index;
+        view->name = self->data->name;
+        view->ensureRenderTextureSize();
+        self->view = view;
+    }
+
     return 0; // Success
 }
 
@@ -1158,6 +1186,23 @@ int UIGrid::set_float_member(PyUIGridObject* self, PyObject* value, void* closur
         self->data->zoom = val;
     else if (member_ptr == 7) // camera_rotation
         self->data->camera_rotation = val;
+
+    // #252 shim: sync rendering state to GridView
+    if (self->view) {
+        if (member_ptr == 0) // x
+            self->view->box.setPosition(val, self->view->box.getPosition().y);
+        else if (member_ptr == 1) // y
+            self->view->box.setPosition(self->view->box.getPosition().x, val);
+        else if (member_ptr == 2) // w
+            self->view->box.setSize(sf::Vector2f(val, self->view->box.getSize().y));
+        else if (member_ptr == 3) // h
+            self->view->box.setSize(sf::Vector2f(self->view->box.getSize().x, val));
+        else if (member_ptr == 4) self->view->center_x = val;
+        else if (member_ptr == 5) self->view->center_y = val;
+        else if (member_ptr == 6) self->view->zoom = val;
+        else if (member_ptr == 7) self->view->camera_rotation = val;
+        self->view->position = self->view->box.getPosition();
+    }
     return 0;
 }
 // TODO (7DRL Day 2, item 5.) return Texture object
@@ -2565,6 +2610,10 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"hovered_cell", (getter)UIGrid::get_hovered_cell, NULL,
      "Currently hovered cell as (x, y) tuple, or None if not hovering.", NULL},
     UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UIGRID),
+    // #252 - GridView shim
+    {"view", (getter)UIGrid::get_view, NULL,
+     "Auto-created GridView for rendering (read-only). "
+     "When Grid is appended to a scene, this view is what actually renders.", NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -2592,6 +2641,18 @@ PyObject* UIGrid::get_children(PyUIGridObject* self, void* closure)
         o->owner = self->data;  // #122: Set owner for parent tracking
     }
     return (PyObject*)o;
+}
+
+// #252 - get_view returns the auto-created GridView
+PyObject* UIGrid::get_view(PyUIGridObject* self, void* closure)
+{
+    if (!self->view) Py_RETURN_NONE;
+    auto type = &mcrfpydef::PyUIGridViewType;
+    auto obj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
+    if (!obj) return PyErr_NoMemory();
+    obj->data = self->view;
+    obj->weakreflist = NULL;
+    return (PyObject*)obj;
 }
 
 PyObject* UIGrid::repr(PyUIGridObject* self)
