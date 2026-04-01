@@ -1,5 +1,5 @@
 # tiled_demo.py - Visual demo of Tiled integration
-# Shows premade maps, Wang auto-tiling, and procgen terrain
+# Shows premade maps, Wang auto-tiling, procgen terrain, and edge-type path overlay
 #
 # Usage:
 #   Headless:     cd build && ./mcrogueface --headless --exec ../tests/demo/screens/tiled_demo.py
@@ -8,6 +8,8 @@
 import mcrfpy
 from mcrfpy import automation
 import sys
+import math
+import random
 
 # -- Asset Paths -------------------------------------------------------
 PUNY_BASE = "/home/john/Development/7DRL2026_Liber_Noster_jmccardle/assets_sources/PUNY_WORLD_v1/PUNY_WORLD_v1"
@@ -202,15 +204,15 @@ scene1.children.append(nav1)
 
 
 # ======================================================================
-# SCREEN 2: Procedural Wang Auto-Tile (2-layer approach)
+# SCREEN 2: Procedural Wang Auto-Tile (3-layer: terrain + trees + paths)
 # ======================================================================
-print("\nSetting up Screen 2: Procgen Wang Terrain (2-layer)...")
+print("\nSetting up Screen 2: Procgen Wang Terrain (3-layer)...")
 scene2 = mcrfpy.Scene("tiled_procgen")
 
 bg2 = mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=mcrfpy.Color(10, 10, 15))
 scene2.children.append(bg2)
 
-title2 = mcrfpy.Caption(text="Procgen Wang Auto-Tile (60x60, 2 layers)", pos=(20, 10))
+title2 = mcrfpy.Caption(text="Procgen Wang Auto-Tile (60x60, 3 layers)", pos=(20, 10))
 title2.fill_color = mcrfpy.Color(255, 255, 255)
 scene2.children.append(title2)
 
@@ -277,15 +279,121 @@ terrain_counts["TREES(overlay)"] = tree_count
 
 print(f"  Terrain distribution: {terrain_counts}")
 
-# Create grid with 2 layers and apply Wang auto-tiling
+# -- Path overlay: bezier curves with noise-offset control points --
+# Uses the "pathways" EDGE-type Wang set for thin directional path tiles
+print("  Generating path network...")
+pathways_ws = tileset.wang_set("pathways")
+PathT = pathways_ws.terrain_enum()
+
+# 1. Find land cells for POI placement
+land_terrains = {int(T.GRASS), int(T.SAND), int(T.CLIFF)}
+land_cells = []
+for y in range(H):
+    for x in range(W):
+        if base_dm.get(x, y) in land_terrains:
+            land_cells.append((x, y))
+
+# 2. Place POIs across the map using a grid to ensure good distribution
+random.seed(42)
+poi_grid_n = 4
+zone_w, zone_h = W // poi_grid_n, H // poi_grid_n
+pois = []
+for gx in range(poi_grid_n):
+    for gy in range(poi_grid_n):
+        zone_cells = [(x, y) for x, y in land_cells
+                      if gx * zone_w <= x < (gx + 1) * zone_w
+                      and gy * zone_h <= y < (gy + 1) * zone_h]
+        if zone_cells:
+            pois.append(random.choice(zone_cells))
+
+print(f"    POIs placed: {len(pois)}")
+
+# 3. Build a minimum spanning tree to connect all POIs, then add extra edges for forks
+edges = []
+if len(pois) > 1:
+    connected = {0}
+    unconnected = set(range(1, len(pois)))
+    while unconnected:
+        best_dist = float('inf')
+        best_pair = None
+        for c in connected:
+            for u in unconnected:
+                dx = pois[c][0] - pois[u][0]
+                dy = pois[c][1] - pois[u][1]
+                d = math.hypot(dx, dy)
+                if d < best_dist:
+                    best_dist = d
+                    best_pair = (c, u)
+        if best_pair:
+            edges.append(best_pair)
+            connected.add(best_pair[1])
+            unconnected.discard(best_pair[1])
+
+    # Add extra edges for interesting forks (non-MST shortcuts)
+    edge_set = set(edges) | {(b, a) for a, b in edges}
+    for _ in range(len(pois) // 2):
+        i = random.randint(0, len(pois) - 1)
+        j = random.randint(0, len(pois) - 1)
+        if i != j and (i, j) not in edge_set:
+            edges.append((i, j))
+            edge_set.add((i, j))
+            edge_set.add((j, i))
+
+print(f"    Path edges: {len(edges)} ({len(edges) - len(pois) + 1} extra forks)")
+
+# 4. Dig bezier paths with noise-offset control points for organic curves
+path_hm = mcrfpy.HeightMap((W, H))
+path_hm.fill(1.0)
+path_ctrl_noise = mcrfpy.NoiseSource(dimensions=1, seed=7071)
+
+for idx, (i, j) in enumerate(edges):
+    p0 = pois[i]
+    p3 = pois[j]
+    mx = (p0[0] + p3[0]) / 2.0
+    my = (p0[1] + p3[1]) / 2.0
+    dx = p3[0] - p0[0]
+    dy = p3[1] - p0[1]
+    length = max(math.hypot(dx, dy), 1.0)
+
+    # Perpendicular direction for curve offset
+    nx, ny = -dy / length, dx / length
+
+    # Noise-driven offset makes each path curve uniquely
+    offset1 = path_ctrl_noise.get((float(idx * 2),)) * length * 0.4
+    offset2 = path_ctrl_noise.get((float(idx * 2 + 1),)) * length * 0.4
+
+    # Two control points offset along the perpendicular
+    # dig_bezier requires integer coordinates (libtcod uses int arrays)
+    cx1 = int(round(max(0, min(W - 1, (p0[0] + mx) / 2 + nx * offset1))))
+    cy1 = int(round(max(0, min(H - 1, (p0[1] + my) / 2 + ny * offset1))))
+    cx2 = int(round(max(0, min(W - 1, (mx + p3[0]) / 2 + nx * offset2))))
+    cy2 = int(round(max(0, min(H - 1, (my + p3[1]) / 2 + ny * offset2))))
+
+    path_hm.dig_bezier(
+        points=(p0, (cx1, cy1), (cx2, cy2), p3),
+        start_radius=0.5, end_radius=0.5,
+        start_height=0.0, end_height=0.0
+    )
+
+# 5. Convert heightmap to DiscreteMap: low cells = DIRT_PATHS, only on land
+path_dm = mcrfpy.DiscreteMap((W, H))
+for y in range(H):
+    for x in range(W):
+        if path_hm.get(x, y) < 0.5 and base_dm.get(x, y) in land_terrains:
+            path_dm.set(x, y, int(PathT.DIRT_PATHS))
+
+path_cell_count = path_dm.count(int(PathT.DIRT_PATHS))
+print(f"    Path cells: {path_cell_count}")
+
+# Create grid with 3 layers and apply Wang auto-tiling
 grid2 = mcrfpy.Grid(grid_size=(W, H), pos=(20, 50), size=(520, 520), layers=[])
 grid2.fill_color = mcrfpy.Color(30, 30, 50)
 
-base_layer2 = mcrfpy.TileLayer(name="base", z_index=-2, texture=texture)
+base_layer2 = mcrfpy.TileLayer(name="base", z_index=-3, texture=texture)
 grid2.add_layer(base_layer2)
 overworld_ws.apply(base_dm, base_layer2)
 
-overlay_layer2 = mcrfpy.TileLayer(name="trees", z_index=-1, texture=texture)
+overlay_layer2 = mcrfpy.TileLayer(name="trees", z_index=-2, texture=texture)
 grid2.add_layer(overlay_layer2)
 overworld_ws.apply(overlay_dm, overlay_layer2)
 
@@ -295,6 +403,18 @@ for y in range(H):
         if overlay_dm.get(x, y) == int(T.AIR):
             overlay_layer2.set((x, y), -1)
 
+# 6. Apply pathways edge-type Wang set to path layer
+path_layer2 = mcrfpy.TileLayer(name="paths", z_index=-1, texture=texture)
+grid2.add_layer(path_layer2)
+pathways_ws.apply(path_dm, path_layer2)
+
+# Post-process: only keep tiles on actual path cells (remove neighbor spillover)
+# and clear non-path cells to transparent
+for y in range(H):
+    for x in range(W):
+        if path_dm.get(x, y) != int(PathT.DIRT_PATHS):
+            path_layer2.set((x, y), -1)
+
 grid2.center = (W * tileset.tile_width // 2, H * tileset.tile_height // 2)
 scene2.children.append(grid2)
 
@@ -302,7 +422,7 @@ scene2.children.append(grid2)
 info_lines = [
     "Iterative terrain expansion",
     f"Seed: 42 (base), 999 (trees)",
-    f"Grid: {W}x{H}, 2 layers",
+    f"Grid: {W}x{H}, 3 layers",
     "",
     "Base (3 passes):",
 ]
@@ -314,6 +434,11 @@ info_lines.append("")
 info_lines.append("Tree Overlay:")
 info_lines.append(f"  TREES: {tree_count}")
 info_lines.append(f"  reverted: {overlay_reverted}")
+info_lines.append("")
+info_lines.append("Path Overlay (edge Wang):")
+info_lines.append(f"  POIs: {len(pois)}")
+info_lines.append(f"  Edges: {len(edges)}")
+info_lines.append(f"  Path cells: {path_cell_count}")
 
 make_info_panel(scene2, info_lines)
 
