@@ -458,14 +458,55 @@ PyObject* UIGridPathfinding::DijkstraMap_to_heightmap(PyDijkstraMapObject* self,
 // Grid Factory Methods
 //=============================================================================
 
+// Helper: collect cells occupied by entities with a given label, mark non-walkable.
+// Returns the list of (x, y, was_walkable) for restoration.
+static std::vector<std::tuple<int,int,bool>> markCollisionLabel(
+    GridData* grid, const std::string& collide_label)
+{
+    std::vector<std::tuple<int,int,bool>> restore_list;
+    if (!grid->entities || collide_label.empty()) return restore_list;
+
+    TCODMap* tcod_map = grid->getTCODMap();
+    if (!tcod_map) return restore_list;
+
+    for (auto& entity : *grid->entities) {
+        if (!entity) continue;
+        if (entity->labels.count(collide_label)) {
+            int ex = entity->cell_position.x;
+            int ey = entity->cell_position.y;
+            if (ex >= 0 && ex < grid->grid_w && ey >= 0 && ey < grid->grid_h) {
+                bool was_walkable = tcod_map->isWalkable(ex, ey);
+                if (was_walkable) {
+                    tcod_map->setProperties(ex, ey, tcod_map->isTransparent(ex, ey), false);
+                    restore_list.emplace_back(ex, ey, true);
+                }
+            }
+        }
+    }
+    return restore_list;
+}
+
+// Helper: restore walkability after pathfinding.
+static void restoreCollisionLabel(GridData* grid,
+    const std::vector<std::tuple<int,int,bool>>& restore_list)
+{
+    TCODMap* tcod_map = grid->getTCODMap();
+    if (!tcod_map) return;
+
+    for (auto& [x, y, was_walkable] : restore_list) {
+        tcod_map->setProperties(x, y, tcod_map->isTransparent(x, y), was_walkable);
+    }
+}
+
 PyObject* UIGridPathfinding::Grid_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"start", "end", "diagonal_cost", NULL};
+    static const char* kwlist[] = {"start", "end", "diagonal_cost", "collide", NULL};
     PyObject* start_obj = NULL;
     PyObject* end_obj = NULL;
     float diagonal_cost = 1.41f;
+    const char* collide_label = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|f", const_cast<char**>(kwlist),
-                                     &start_obj, &end_obj, &diagonal_cost)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|fz", const_cast<char**>(kwlist),
+                                     &start_obj, &end_obj, &diagonal_cost, &collide_label)) {
         return NULL;
     }
 
@@ -489,9 +530,18 @@ PyObject* UIGridPathfinding::Grid_find_path(PyUIGridObject* self, PyObject* args
         return NULL;
     }
 
+    // Mark-and-restore: temporarily block cells occupied by entities with collide label
+    std::string label_str = collide_label ? collide_label : "";
+    auto restore_list = markCollisionLabel(self->data.get(), label_str);
+
     // Compute path using temporary TCODPath
     TCODPath tcod_path(self->data->getTCODMap(), diagonal_cost);
-    if (!tcod_path.compute(x1, y1, x2, y2)) {
+    bool found = tcod_path.compute(x1, y1, x2, y2);
+
+    // Restore walkability before returning
+    restoreCollisionLabel(self->data.get(), restore_list);
+
+    if (!found) {
         Py_RETURN_NONE;  // No path exists
     }
 
@@ -518,12 +568,13 @@ PyObject* UIGridPathfinding::Grid_find_path(PyUIGridObject* self, PyObject* args
 }
 
 PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"root", "diagonal_cost", NULL};
+    static const char* kwlist[] = {"root", "diagonal_cost", "collide", NULL};
     PyObject* root_obj = NULL;
     float diagonal_cost = 1.41f;
+    const char* collide_label = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|f", const_cast<char**>(kwlist),
-                                     &root_obj, &diagonal_cost)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|fz", const_cast<char**>(kwlist),
+                                     &root_obj, &diagonal_cost, &collide_label)) {
         return NULL;
     }
 
@@ -543,12 +594,13 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyUIGridObject* self, PyObjec
         return NULL;
     }
 
-    auto key = std::make_pair(root_x, root_y);
+    std::string label_str = collide_label ? collide_label : "";
+    auto key = std::make_tuple(root_x, root_y, label_str);
 
     // Check cache
     auto it = self->data->dijkstra_maps.find(key);
     if (it != self->data->dijkstra_maps.end()) {
-        // Check diagonal cost matches (or we could ignore this)
+        // Check diagonal cost matches
         if (std::abs(it->second->getDiagonalCost() - diagonal_cost) < 0.001f) {
             // Return existing
             PyDijkstraMapObject* result = (PyDijkstraMapObject*)mcrfpydef::PyDijkstraMapType.tp_alloc(
@@ -561,9 +613,15 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyUIGridObject* self, PyObjec
         self->data->dijkstra_maps.erase(it);
     }
 
+    // Mark-and-restore: temporarily block cells with collide label
+    auto restore_list = markCollisionLabel(self->data.get(), label_str);
+
     // Create new DijkstraMap
     auto dijkstra = std::make_shared<DijkstraMap>(
         self->data->getTCODMap(), root_x, root_y, diagonal_cost);
+
+    // Restore walkability
+    restoreCollisionLabel(self->data.get(), restore_list);
 
     // Cache it
     self->data->dijkstra_maps[key] = dijkstra;

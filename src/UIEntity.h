@@ -79,6 +79,27 @@ public:
     float move_speed = 0.15f; // #300: animation duration for movement (0 = instant)
     std::string target_label; // #300: label to search for with TARGET trigger
     int sight_radius = 10; // #300: FOV radius for TARGET trigger
+
+    // #303 - Per-entity FOV result cache for TARGET trigger optimization
+    // Caches the visibility bitmap from the last FOV computation so that
+    // entities that haven't moved skip recomputation entirely.
+    struct TargetFOVCache {
+        sf::Vector2i origin{-1, -1};
+        int radius = -1;
+        uint32_t transparency_gen = 0;
+        std::vector<bool> visibility; // (2*radius+1)^2 bitmap
+        int vis_side = 0; // 2*radius+1
+
+        bool isValid(sf::Vector2i pos, int r, uint32_t gen) const {
+            return vis_side > 0 && pos == origin && r == radius && gen == transparency_gen;
+        }
+        bool isVisible(int x, int y) const {
+            int dx = x - origin.x + radius;
+            int dy = y - origin.y + radius;
+            if (dx < 0 || dx >= vis_side || dy < 0 || dy >= vis_side) return false;
+            return visibility[dy * vis_side + dx];
+        }
+    } target_fov_cache;
     //void render(sf::Vector2f); //override final;
 
     UIEntity();
@@ -120,6 +141,7 @@ public:
     static PyObject* index(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* path_to(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* find_path(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
     static PyObject* update_visibility(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* visible_entities(PyUIEntityObject* self, PyObject* args, PyObject* kwds);
     static int init(PyUIEntityObject* self, PyObject* args, PyObject* kwds);

@@ -84,6 +84,7 @@ void GridData::syncTCODMap()
         }
     }
     fov_dirty = true;
+    transparency_generation++;
 }
 
 void GridData::syncTCODMapCell(int x, int y)
@@ -92,6 +93,7 @@ void GridData::syncTCODMapCell(int x, int y)
     const UIGridPoint& point = at(x, y);
     tcod_map->setProperties(x, y, point.transparent, point.walkable);
     fov_dirty = true;
+    transparency_generation++;
 }
 
 void GridData::computeFOV(int x, int y, int radius, bool light_walls, TCOD_fov_algorithm_t algo)

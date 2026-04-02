@@ -1,5 +1,6 @@
 #include "UIEntity.h"
 #include "UIGrid.h"
+#include "UIGridPathfinding.h"
 #include "McRFPy_API.h"
 #include <algorithm>
 #include <cstring>
@@ -883,6 +884,77 @@ PyObject* UIEntity::path_to(PyUIEntityObject* self, PyObject* args, PyObject* kw
     return path_list;
 }
 
+PyObject* UIEntity::find_path(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"target", "diagonal_cost", "collide", NULL};
+    PyObject* target_obj = NULL;
+    float diagonal_cost = 1.41f;
+    const char* collide_label = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|fz", const_cast<char**>(kwlist),
+                                     &target_obj, &diagonal_cost, &collide_label)) {
+        return NULL;
+    }
+
+    if (!self->data || !self->data->grid) {
+        PyErr_SetString(PyExc_ValueError,
+            "Entity must be associated with a grid to compute paths");
+        return NULL;
+    }
+
+    auto grid = self->data->grid;
+
+    // Extract target position
+    int target_x, target_y;
+    if (!UIGridPathfinding::ExtractPosition(target_obj, &target_x, &target_y,
+                                            grid.get(), "target")) {
+        return NULL;
+    }
+
+    int start_x = self->data->cell_position.x;
+    int start_y = self->data->cell_position.y;
+
+    // Bounds check
+    if (start_x < 0 || start_x >= grid->grid_w || start_y < 0 || start_y >= grid->grid_h ||
+        target_x < 0 || target_x >= grid->grid_w || target_y < 0 || target_y >= grid->grid_h) {
+        PyErr_SetString(PyExc_ValueError, "Position out of grid bounds");
+        return NULL;
+    }
+
+    // Build args to delegate to Grid.find_path
+    // Create a temporary PyUIGridObject wrapper for the grid
+    auto grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
+    if (!grid_type) return NULL;
+    auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
+    Py_DECREF(grid_type);
+    if (!pyGrid) return NULL;
+    new (&pyGrid->data) std::shared_ptr<UIGrid>(grid);
+
+    // Build keyword args for Grid.find_path
+    PyObject* start_tuple = Py_BuildValue("(ii)", start_x, start_y);
+    PyObject* target_tuple = Py_BuildValue("(ii)", target_x, target_y);
+    PyObject* fwd_args = PyTuple_Pack(2, start_tuple, target_tuple);
+    Py_DECREF(start_tuple);
+    Py_DECREF(target_tuple);
+
+    PyObject* fwd_kwds = PyDict_New();
+    PyObject* py_diag = PyFloat_FromDouble(diagonal_cost);
+    PyDict_SetItemString(fwd_kwds, "diagonal_cost", py_diag);
+    Py_DECREF(py_diag);
+    if (collide_label) {
+        PyObject* py_collide = PyUnicode_FromString(collide_label);
+        PyDict_SetItemString(fwd_kwds, "collide", py_collide);
+        Py_DECREF(py_collide);
+    }
+
+    PyObject* result = UIGridPathfinding::Grid_find_path(pyGrid, fwd_args, fwd_kwds);
+
+    Py_DECREF(fwd_args);
+    Py_DECREF(fwd_kwds);
+    Py_DECREF(pyGrid);
+
+    return result;
+}
+
 PyObject* UIEntity::update_visibility(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
 {
     self->data->updateVisibility();
@@ -1002,6 +1074,18 @@ PyMethodDef UIEntity::methods[] = {
      "    path = entity.path_to(10, 5)\n"
      "    path = entity.path_to((10, 5))\n"
      "    path = entity.path_to(pos=(10, 5))"},
+    {"find_path", (PyCFunction)UIEntity::find_path, METH_VARARGS | METH_KEYWORDS,
+     "find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None\n\n"
+     "Find a path from this entity to the target position.\n\n"
+     "Args:\n"
+     "    target: Target as Vector, Entity, or (x, y) tuple.\n"
+     "    diagonal_cost: Cost of diagonal movement (default 1.41).\n"
+     "    collide: Label string. Entities with this label block pathfinding.\n\n"
+     "Returns:\n"
+     "    AStarPath object, or None if no path exists.\n\n"
+     "Example:\n"
+     "    path = entity.find_path((10, 5))\n"
+     "    path = entity.find_path(player, collide='enemy')"},
     {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS,
      "update_visibility() -> None\n\n"
      "Update entity's visibility state based on current FOV.\n\n"
@@ -1362,6 +1446,18 @@ PyMethodDef UIEntity_all_methods[] = {
      "    path = entity.path_to(10, 5)\n"
      "    path = entity.path_to((10, 5))\n"
      "    path = entity.path_to(pos=(10, 5))"},
+    {"find_path", (PyCFunction)UIEntity::find_path, METH_VARARGS | METH_KEYWORDS,
+     "find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None\n\n"
+     "Find a path from this entity to the target position.\n\n"
+     "Args:\n"
+     "    target: Target as Vector, Entity, or (x, y) tuple.\n"
+     "    diagonal_cost: Cost of diagonal movement (default 1.41).\n"
+     "    collide: Label string. Entities with this label block pathfinding.\n\n"
+     "Returns:\n"
+     "    AStarPath object, or None if no path exists.\n\n"
+     "Example:\n"
+     "    path = entity.find_path((10, 5))\n"
+     "    path = entity.find_path(player, collide='enemy')"},
     {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS,
      "update_visibility() -> None\n\n"
      "Update entity's visibility state based on current FOV.\n\n"

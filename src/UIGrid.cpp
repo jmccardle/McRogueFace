@@ -2153,26 +2153,28 @@ PyMethodDef UIGrid::methods[] = {
      "    True if the cell is visible, False otherwise\n\n"
      "Must call compute_fov() first to calculate visibility."},
     {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
-     "find_path(start, end, diagonal_cost: float = 1.41) -> AStarPath | None\n\n"
+     "find_path(start, end, diagonal_cost=1.41, collide=None) -> AStarPath | None\n\n"
      "Compute A* path between two points.\n\n"
      "Args:\n"
      "    start: Starting position as Vector, Entity, or (x, y) tuple\n"
      "    end: Target position as Vector, Entity, or (x, y) tuple\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n"
+     "    collide: Label string. Entities with this label block pathfinding.\n\n"
      "Returns:\n"
      "    AStarPath object if path exists, None otherwise.\n\n"
      "The returned AStarPath can be iterated or walked step-by-step."},
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
-     "get_dijkstra_map(root, diagonal_cost: float = 1.41) -> DijkstraMap\n\n"
+     "get_dijkstra_map(root, diagonal_cost=1.41, collide=None) -> DijkstraMap\n\n"
      "Get or create a Dijkstra distance map for a root position.\n\n"
      "Args:\n"
      "    root: Root position as Vector, Entity, or (x, y) tuple\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n"
+     "    collide: Label string. Entities with this label block pathfinding.\n\n"
      "Returns:\n"
      "    DijkstraMap object for querying distances and paths.\n\n"
-     "Grid caches DijkstraMaps by root position. Multiple requests for the\n"
-     "same root return the same cached map. Call clear_dijkstra_maps() after\n"
-     "changing grid walkability to invalidate the cache."},
+     "Grid caches DijkstraMaps by (root, collide) key. Multiple requests for\n"
+     "the same root and collide label return the same cached map. Call\n"
+     "clear_dijkstra_maps() after changing grid walkability to invalidate."},
     {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
      "clear_dijkstra_maps() -> None\n\n"
      "Clear all cached Dijkstra maps.\n\n"
@@ -2329,27 +2331,64 @@ PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) 
             if (entity->behavior.type == BehaviorType::IDLE) continue;
 
             // Check TARGET trigger (if target_label set)
+            // #303: Tiered optimization:
+            //   Tier 1: O(1) label check (target_label.empty())
+            //   Tier 2: O(bucket) spatial hash pre-filter
+            //   Tier 3: O(radius^2) bounded FOV (TCOD respects radius)
+            //   Tier 4: Per-entity FOV cache — skip recomputation when
+            //           entity hasn't moved and map transparency unchanged
             if (!entity->target_label.empty()) {
-                // Quick check: are there any entities with target_label nearby?
+                // Tier 2: Spatial hash proximity pre-filter
                 auto nearby = grid->spatial_hash.queryRadius(
                     static_cast<float>(entity->cell_position.x),
                     static_cast<float>(entity->cell_position.y),
                     static_cast<float>(entity->sight_radius));
 
-                for (auto& target : nearby) {
-                    if (target.get() == entity.get()) continue;
-                    if (target->labels.count(entity->target_label)) {
-                        // Compute FOV to verify line of sight
+                // Collect matching targets before touching FOV
+                std::vector<std::shared_ptr<UIEntity>> matching_targets;
+                for (auto& candidate : nearby) {
+                    if (candidate.get() != entity.get() &&
+                        candidate->labels.count(entity->target_label)) {
+                        matching_targets.push_back(candidate);
+                    }
+                }
+
+                if (!matching_targets.empty()) {
+                    auto& cache = entity->target_fov_cache;
+
+                    // Tier 4: Check per-entity FOV cache
+                    if (!cache.isValid(entity->cell_position, entity->sight_radius,
+                                       grid->transparency_generation)) {
+                        // Cache miss — compute FOV and snapshot the visibility bitmap
                         grid->computeFOV(entity->cell_position.x, entity->cell_position.y,
                                         entity->sight_radius, true, grid->fov_algorithm);
-                        if (grid->isInFOV(target->cell_position.x, target->cell_position.y)) {
-                            // Fire TARGET trigger
+
+                        int r = entity->sight_radius;
+                        int side = 2 * r + 1;
+                        cache.origin = entity->cell_position;
+                        cache.radius = r;
+                        cache.transparency_gen = grid->transparency_generation;
+                        cache.vis_side = side;
+                        cache.visibility.resize(side * side);
+                        for (int dy = -r; dy <= r; dy++) {
+                            for (int dx = -r; dx <= r; dx++) {
+                                cache.visibility[(dy + r) * side + (dx + r)] =
+                                    grid->isInFOV(entity->cell_position.x + dx,
+                                                  entity->cell_position.y + dy);
+                            }
+                        }
+                    }
+
+                    // Check targets against cached visibility
+                    for (auto& target : matching_targets) {
+                        if (cache.isVisible(target->cell_position.x,
+                                           target->cell_position.y)) {
                             PyObject* target_pyobj = Py_None;
                             if (target->pyobject) {
                                 target_pyobj = target->pyobject;
                             }
                             fireStepCallback(entity, 2 /* TARGET */, target_pyobj);
-                            goto next_entity;  // Skip behavior execution after TARGET
+                            goto next_entity;
                         }
                     }
                 }
@@ -2433,26 +2472,28 @@ PyMethodDef UIGrid_all_methods[] = {
      "    True if the cell is visible, False otherwise\n\n"
      "Must call compute_fov() first to calculate visibility."},
     {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
-     "find_path(start, end, diagonal_cost: float = 1.41) -> AStarPath | None\n\n"
+     "find_path(start, end, diagonal_cost=1.41, collide=None) -> AStarPath | None\n\n"
      "Compute A* path between two points.\n\n"
      "Args:\n"
      "    start: Starting position as Vector, Entity, or (x, y) tuple\n"
      "    end: Target position as Vector, Entity, or (x, y) tuple\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n"
+     "    collide: Label string. Entities with this label block pathfinding.\n\n"
      "Returns:\n"
      "    AStarPath object if path exists, None otherwise.\n\n"
      "The returned AStarPath can be iterated or walked step-by-step."},
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
-     "get_dijkstra_map(root, diagonal_cost: float = 1.41) -> DijkstraMap\n\n"
+     "get_dijkstra_map(root, diagonal_cost=1.41, collide=None) -> DijkstraMap\n\n"
      "Get or create a Dijkstra distance map for a root position.\n\n"
      "Args:\n"
      "    root: Root position as Vector, Entity, or (x, y) tuple\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n\n"
+     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n"
+     "    collide: Label string. Entities with this label block pathfinding.\n\n"
      "Returns:\n"
      "    DijkstraMap object for querying distances and paths.\n\n"
-     "Grid caches DijkstraMaps by root position. Multiple requests for the\n"
-     "same root return the same cached map. Call clear_dijkstra_maps() after\n"
-     "changing grid walkability to invalidate the cache."},
+     "Grid caches DijkstraMaps by (root, collide) key. Multiple requests for\n"
+     "the same root and collide label return the same cached map. Call\n"
+     "clear_dijkstra_maps() after changing grid walkability to invalidate."},
     {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
      "clear_dijkstra_maps() -> None\n\n"
      "Clear all cached Dijkstra maps.\n\n"

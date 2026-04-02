@@ -13,6 +13,7 @@
 #include <optional>
 #include <map>
 #include <memory>
+#include <tuple>
 #include <vector>
 
 #include "PyCallable.h"
@@ -78,10 +79,15 @@ public:
     bool fov_last_light_walls = true;
     TCOD_fov_algorithm_t fov_last_algo = FOV_BASIC;
 
+    // #303 - Transparency generation counter for per-entity FOV caching
+    // Bumped whenever any cell's transparent/walkable property changes
+    uint32_t transparency_generation = 0;
+
     // =========================================================================
     // Pathfinding caches
     // =========================================================================
-    std::map<std::pair<int,int>, std::shared_ptr<DijkstraMap>> dijkstra_maps;
+    // Cache key: (root_x, root_y, collide_label) where collide_label="" means no collision filtering
+    std::map<std::tuple<int,int,std::string>, std::shared_ptr<DijkstraMap>> dijkstra_maps;
 
     // =========================================================================
     // Layer system (#147, #150)
