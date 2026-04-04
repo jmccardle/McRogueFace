@@ -1,5 +1,6 @@
 #include "GridLayers.h"
 #include "UIGrid.h"
+#include "UIGridView.h"
 #include "UIEntity.h"
 #include "PyColor.h"
 #include "PyTexture.h"
@@ -1677,25 +1678,31 @@ int PyGridLayerAPI::ColorLayer_set_grid(PyColorLayerObject* self, PyObject* valu
         return 0;
     }
 
-    // Validate it's a Grid
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return -1;
-
-    auto* grid_type = PyObject_GetAttrString(mcrfpy_module, "Grid");
-    Py_DECREF(mcrfpy_module);
-    if (!grid_type) return -1;
-
-    if (!PyObject_IsInstance(value, grid_type)) {
-        Py_DECREF(grid_type);
+    // Validate it's a Grid (GridView) or internal _GridData
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType) &&
+        !PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
         return -1;
     }
-    Py_DECREF(grid_type);
 
-    PyUIGridObject* py_grid = (PyUIGridObject*)value;
+    // Extract UIGrid shared_ptr from Grid (UIGridView) or _GridData (UIGrid)
+    std::shared_ptr<UIGrid> target_grid;
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        auto* pyview = (PyUIGridViewObject*)value;
+        if (pyview->data->grid_data) {
+            // GridView's grid_data is aliased from a UIGrid, cast back
+            target_grid = std::static_pointer_cast<UIGrid>(pyview->data->grid_data);
+        }
+    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
+        target_grid = ((PyUIGridObject*)value)->data;
+    }
+    if (!target_grid) {
+        PyErr_SetString(PyExc_RuntimeError, "Grid has no data");
+        return -1;
+    }
 
     // Check if already attached to this grid
-    if (self->grid.get() == py_grid->data.get()) {
+    if (self->grid.get() == target_grid.get()) {
         return 0;  // Nothing to do
     }
 
@@ -1714,31 +1721,31 @@ int PyGridLayerAPI::ColorLayer_set_grid(PyColorLayerObject* self, PyObject* valu
 
     // Handle name collision - unlink existing layer with same name
     if (!self->data->name.empty()) {
-        auto existing = py_grid->data->getLayerByName(self->data->name);
+        auto existing = target_grid->getLayerByName(self->data->name);
         if (existing && existing.get() != self->data.get()) {
             existing->parent_grid = nullptr;
-            py_grid->data->removeLayer(existing);
+            target_grid->removeLayer(existing);
         }
     }
 
     // Lazy allocation: resize if layer is (0,0)
     if (self->data->grid_x == 0 && self->data->grid_y == 0) {
-        self->data->resize(py_grid->data->grid_w, py_grid->data->grid_h);
-    } else if (self->data->grid_x != py_grid->data->grid_w ||
-               self->data->grid_y != py_grid->data->grid_h) {
+        self->data->resize(target_grid->grid_w, target_grid->grid_h);
+    } else if (self->data->grid_x != target_grid->grid_w ||
+               self->data->grid_y != target_grid->grid_h) {
         PyErr_Format(PyExc_ValueError,
             "Layer size (%d, %d) does not match Grid size (%d, %d)",
             self->data->grid_x, self->data->grid_y,
-            py_grid->data->grid_w, py_grid->data->grid_h);
+            target_grid->grid_w, target_grid->grid_h);
         self->grid.reset();
         return -1;
     }
 
     // Link to new grid
-    self->data->parent_grid = py_grid->data.get();
-    py_grid->data->layers.push_back(self->data);
-    py_grid->data->layers_need_sort = true;
-    self->grid = py_grid->data;
+    self->data->parent_grid = target_grid.get();
+    target_grid->layers.push_back(self->data);
+    target_grid->layers_need_sort = true;
+    self->grid = target_grid;
 
     return 0;
 }
@@ -2326,25 +2333,30 @@ int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value,
         return 0;
     }
 
-    // Validate it's a Grid
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return -1;
-
-    auto* grid_type = PyObject_GetAttrString(mcrfpy_module, "Grid");
-    Py_DECREF(mcrfpy_module);
-    if (!grid_type) return -1;
-
-    if (!PyObject_IsInstance(value, grid_type)) {
-        Py_DECREF(grid_type);
+    // Validate it's a Grid (GridView) or internal _GridData
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType) &&
+        !PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
         return -1;
     }
-    Py_DECREF(grid_type);
 
-    PyUIGridObject* py_grid = (PyUIGridObject*)value;
+    // Extract UIGrid shared_ptr from Grid (UIGridView) or _GridData (UIGrid)
+    std::shared_ptr<UIGrid> target_grid;
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        auto* pyview = (PyUIGridViewObject*)value;
+        if (pyview->data->grid_data) {
+            target_grid = std::static_pointer_cast<UIGrid>(pyview->data->grid_data);
+        }
+    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
+        target_grid = ((PyUIGridObject*)value)->data;
+    }
+    if (!target_grid) {
+        PyErr_SetString(PyExc_RuntimeError, "Grid has no data");
+        return -1;
+    }
 
     // Check if already attached to this grid
-    if (self->grid.get() == py_grid->data.get()) {
+    if (self->grid.get() == target_grid.get()) {
         return 0;  // Nothing to do
     }
 
@@ -2363,35 +2375,35 @@ int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value,
 
     // Handle name collision - unlink existing layer with same name
     if (!self->data->name.empty()) {
-        auto existing = py_grid->data->getLayerByName(self->data->name);
+        auto existing = target_grid->getLayerByName(self->data->name);
         if (existing && existing.get() != self->data.get()) {
             existing->parent_grid = nullptr;
-            py_grid->data->removeLayer(existing);
+            target_grid->removeLayer(existing);
         }
     }
 
     // Lazy allocation: resize if layer is (0,0)
     if (self->data->grid_x == 0 && self->data->grid_y == 0) {
-        self->data->resize(py_grid->data->grid_w, py_grid->data->grid_h);
-    } else if (self->data->grid_x != py_grid->data->grid_w ||
-               self->data->grid_y != py_grid->data->grid_h) {
+        self->data->resize(target_grid->grid_w, target_grid->grid_h);
+    } else if (self->data->grid_x != target_grid->grid_w ||
+               self->data->grid_y != target_grid->grid_h) {
         PyErr_Format(PyExc_ValueError,
             "Layer size (%d, %d) does not match Grid size (%d, %d)",
             self->data->grid_x, self->data->grid_y,
-            py_grid->data->grid_w, py_grid->data->grid_h);
+            target_grid->grid_w, target_grid->grid_h);
         self->grid.reset();
         return -1;
     }
 
     // Link to new grid
-    self->data->parent_grid = py_grid->data.get();
-    py_grid->data->layers.push_back(std::static_pointer_cast<GridLayer>(self->data));
-    py_grid->data->layers_need_sort = true;
-    self->grid = py_grid->data;
+    self->data->parent_grid = target_grid.get();
+    target_grid->layers.push_back(std::static_pointer_cast<GridLayer>(self->data));
+    target_grid->layers_need_sort = true;
+    self->grid = target_grid;
 
     // Inherit grid texture if TileLayer has none (#254)
     if (!self->data->texture) {
-        self->data->texture = py_grid->data->getTexture();
+        self->data->texture = target_grid->getTexture();
     }
 
     return 0;

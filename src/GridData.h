@@ -26,6 +26,7 @@
 class DijkstraMap;
 class UIEntity;
 class UIDrawable;
+class UIGridView;
 class PyTexture;
 
 class GridData {
@@ -129,6 +130,11 @@ public:
     // =========================================================================
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
     bool children_need_sort = true;
+
+    // =========================================================================
+    // #252 - Owning GridView back-reference (for Entity.grid → GridView lookup)
+    // =========================================================================
+    std::weak_ptr<UIGridView> owning_view;
 
 protected:
     // Initialize grid storage (flat or chunked) and TCOD map

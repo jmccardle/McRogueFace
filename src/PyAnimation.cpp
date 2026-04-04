@@ -244,6 +244,15 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
+    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        // #252: GridView (unified Grid) - animate the view directly
+        PyUIGridViewObject* view = (PyUIGridViewObject*)target_obj;
+        if (view->data) {
+            self->data->start(view->data);
+            AnimationManager::getInstance().addAnimation(self->data, conflict_mode);
+            handled = true;
+        }
+    }
     else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIGridType)) {
         PyUIGridObject* grid = (PyUIGridObject*)target_obj;
         if (grid->data) {

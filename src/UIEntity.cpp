@@ -1,5 +1,6 @@
 #include "UIEntity.h"
 #include "UIGrid.h"
+#include "UIGridView.h"  // #252: Entity.grid accepts GridView
 #include "UIGridPathfinding.h"
 #include "McRFPy_API.h"
 #include <algorithm>
@@ -221,8 +222,9 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         texture_ptr = McRFPy_API::default_texture;
     }
     
-    // Handle grid argument
-    if (grid_obj && !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType)) {
+    // Handle grid argument - accept both internal _GridData and GridView (unified Grid)
+    if (grid_obj && !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType) &&
+        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
@@ -303,15 +305,24 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
     // Handle grid attachment
     if (grid_obj) {
-        PyUIGridObject* pygrid = (PyUIGridObject*)grid_obj;
-        self->data->grid = pygrid->data;
-        // Append entity to grid's entity list
-        pygrid->data->entities->push_back(self->data);
-        // Insert into spatial hash for O(1) cell queries (#253)
-        pygrid->data->spatial_hash.insert(self->data);
-
-        // Don't initialize gridstate here - lazy initialization to support large numbers of entities
-        // gridstate will be initialized when visibility is updated or accessed
+        std::shared_ptr<UIGrid> grid_ptr;
+        if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+            // #252: GridView (unified Grid) - extract internal UIGrid
+            PyUIGridViewObject* pyview = (PyUIGridViewObject*)grid_obj;
+            if (pyview->data->grid_data) {
+                grid_ptr = std::shared_ptr<UIGrid>(
+                    pyview->data->grid_data, static_cast<UIGrid*>(pyview->data->grid_data.get()));
+            }
+        } else {
+            // Internal _GridData type
+            PyUIGridObject* pygrid = (PyUIGridObject*)grid_obj;
+            grid_ptr = pygrid->data;
+        }
+        if (grid_ptr) {
+            self->data->grid = grid_ptr;
+            grid_ptr->entities->push_back(self->data);
+            grid_ptr->spatial_hash.insert(self->data);
+        }
     }
     return 0;
 }
@@ -664,15 +675,43 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
 
     auto& grid = self->data->grid;
 
-    // Check cache first — preserves identity (entity.grid is entity.grid)
+    // #252: If the grid has an owning GridView, return that instead.
+    // This preserves the unified Grid API where entity.grid returns the same
+    // object the user created via mcrfpy.Grid(...).
+    auto owning_view = grid->owning_view.lock();
+    if (owning_view) {
+        // Check cache for the GridView
+        if (owning_view->serial_number != 0) {
+            PyObject* cached = PythonObjectCache::getInstance().lookup(owning_view->serial_number);
+            if (cached) return cached;
+        }
+
+        auto view_type = &mcrfpydef::PyUIGridViewType;
+        auto pyView = (PyUIGridViewObject*)view_type->tp_alloc(view_type, 0);
+        if (pyView) {
+            pyView->data = owning_view;
+            pyView->weakreflist = NULL;
+
+            if (owning_view->serial_number == 0) {
+                owning_view->serial_number = PythonObjectCache::getInstance().assignSerial();
+            }
+            PyObject* weakref = PyWeakref_NewRef((PyObject*)pyView, NULL);
+            if (weakref) {
+                PythonObjectCache::getInstance().registerObject(owning_view->serial_number, weakref);
+                Py_DECREF(weakref);
+            }
+        }
+        return (PyObject*)pyView;
+    }
+
+    // Fallback: return internal _GridData wrapper (no owning view)
     if (grid->serial_number != 0) {
         PyObject* cached = PythonObjectCache::getInstance().lookup(grid->serial_number);
         if (cached) {
-            return cached;  // Already INCREF'd by lookup
+            return cached;
         }
     }
 
-    // No cached wrapper — allocate a new one
     auto grid_type = &mcrfpydef::PyUIGridType;
     auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
 
@@ -680,7 +719,6 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
         pyGrid->data = grid;
         pyGrid->weakreflist = NULL;
 
-        // Register in cache so future accesses return the same wrapper
         if (grid->serial_number == 0) {
             grid->serial_number = PythonObjectCache::getInstance().assignSerial();
         }
@@ -722,13 +760,23 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         return 0;
     }
 
-    // Value must be a Grid
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
+    // #252: Accept both internal _GridData and GridView (unified Grid)
+    std::shared_ptr<UIGrid> new_grid;
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        PyUIGridViewObject* pyview = (PyUIGridViewObject*)value;
+        if (pyview->data->grid_data) {
+            new_grid = std::shared_ptr<UIGrid>(
+                pyview->data->grid_data, static_cast<UIGrid*>(pyview->data->grid_data.get()));
+        } else {
+            PyErr_SetString(PyExc_ValueError, "Grid has no data");
+            return -1;
+        }
+    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
+        new_grid = ((PyUIGridObject*)value)->data;
+    } else {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid or None");
         return -1;
     }
-
-    auto new_grid = ((PyUIGridObject*)value)->data;
 
     // Remove from old grid first (if any)
     if (self->data->grid && self->data->grid != new_grid) {
@@ -921,11 +969,9 @@ PyObject* UIEntity::find_path(PyUIEntityObject* self, PyObject* args, PyObject* 
     }
 
     // Build args to delegate to Grid.find_path
-    // Create a temporary PyUIGridObject wrapper for the grid
-    auto grid_type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Grid");
-    if (!grid_type) return NULL;
+    // Create a temporary PyUIGridObject wrapper for the grid (internal _GridData type)
+    auto* grid_type = &mcrfpydef::PyUIGridType;
     auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
-    Py_DECREF(grid_type);
     if (!pyGrid) return NULL;
     new (&pyGrid->data) std::shared_ptr<UIGrid>(grid);
 

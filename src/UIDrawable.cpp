@@ -36,6 +36,8 @@ static UIDrawable* extractDrawable(PyObject* self, PyObjectsEnum objtype) {
             return ((PyUICircleObject*)self)->data.get();
         case PyObjectsEnum::UIARC:
             return ((PyUIArcObject*)self)->data.get();
+        case PyObjectsEnum::UIGRIDVIEW:
+            return ((PyUIGridViewObject*)self)->data.get();
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return nullptr;
@@ -59,6 +61,8 @@ static std::shared_ptr<UIDrawable> extractDrawableShared(PyObject* self, PyObjec
             return ((PyUICircleObject*)self)->data;
         case PyObjectsEnum::UIARC:
             return ((PyUIArcObject*)self)->data;
+        case PyObjectsEnum::UIGRIDVIEW:
+            return ((PyUIGridViewObject*)self)->data;
         default:
             return nullptr;
     }
@@ -279,6 +283,12 @@ PyObject* UIDrawable::get_click(PyObject* self, void* closure) {
             else
                 ptr = NULL;
             break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            if (((PyUIGridViewObject*)self)->data->click_callable)
+                ptr = ((PyUIGridViewObject*)self)->data->click_callable->borrow();
+            else
+                ptr = NULL;
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _get_click");
             return NULL;
@@ -315,6 +325,9 @@ int UIDrawable::set_click(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UIARC:
             target = (((PyUIArcObject*)self)->data.get());
+            break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            target = (((PyUIGridViewObject*)self)->data.get());
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _set_click");
@@ -1033,7 +1046,7 @@ void UIDrawable::removeFromParent() {
         }
         frame->children_need_sort = true;
     }
-    else if (p->derived_type() == PyObjectsEnum::UIGRID || p->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
+    else if (p->derived_type() == PyObjectsEnum::UIGRID) {
         auto grid = std::static_pointer_cast<UIGrid>(p);
         auto& children = *grid->children;
 
@@ -1044,6 +1057,19 @@ void UIDrawable::removeFromParent() {
             }
         }
         grid->children_need_sort = true;
+    }
+    else if (p->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
+        auto view = std::static_pointer_cast<UIGridView>(p);
+        if (view->grid_data && view->grid_data->children) {
+            auto& children = *view->grid_data->children;
+            for (auto it = children.begin(); it != children.end(); ++it) {
+                if (it->get() == this) {
+                    children.erase(it);
+                    break;
+                }
+            }
+            view->grid_data->children_need_sort = true;
+        }
     }
 
     parent.reset();
@@ -1416,6 +1442,9 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         case PyObjectsEnum::UIARC:
             drawable = ((PyUIArcObject*)self)->data;
             break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            drawable = ((PyUIGridViewObject*)self)->data;
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance");
             return -1;
@@ -1430,9 +1459,10 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
     // Value must be a Frame, Grid, or Scene (things with children collections)
     bool is_frame = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIFrameType);
     bool is_grid = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType);
+    bool is_gridview = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType);
     bool is_scene = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PySceneType);
 
-    if (!is_frame && !is_grid && !is_scene) {
+    if (!is_frame && !is_grid && !is_gridview && !is_scene) {
         PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Grid, Scene, or None");
         return -1;
     }
@@ -1476,6 +1506,13 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         auto frame = ((PyUIFrameObject*)value)->data;
         children_ptr = &frame->children;
         new_parent = frame;
+    } else if (is_gridview) {
+        // #252: GridView (unified Grid) - access children through grid_data
+        auto view = ((PyUIGridViewObject*)value)->data;
+        if (view->grid_data) {
+            children_ptr = &view->grid_data->children;
+        }
+        new_parent = view;
     } else if (is_grid) {
         auto grid = ((PyUIGridObject*)value)->data;
         children_ptr = &grid->children;
@@ -1624,6 +1661,10 @@ PyObject* UIDrawable::get_on_enter(PyObject* self, void* closure) {
             if (((PyUIArcObject*)self)->data->on_enter_callable)
                 ptr = ((PyUIArcObject*)self)->data->on_enter_callable->borrow();
             break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            if (((PyUIGridViewObject*)self)->data->on_enter_callable)
+                ptr = ((PyUIGridViewObject*)self)->data->on_enter_callable->borrow();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_enter");
             return NULL;
@@ -1660,6 +1701,9 @@ int UIDrawable::set_on_enter(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UIARC:
             target = ((PyUIArcObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            target = ((PyUIGridViewObject*)self)->data.get();
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_enter");
@@ -1708,6 +1752,10 @@ PyObject* UIDrawable::get_on_exit(PyObject* self, void* closure) {
             if (((PyUIArcObject*)self)->data->on_exit_callable)
                 ptr = ((PyUIArcObject*)self)->data->on_exit_callable->borrow();
             break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            if (((PyUIGridViewObject*)self)->data->on_exit_callable)
+                ptr = ((PyUIGridViewObject*)self)->data->on_exit_callable->borrow();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_exit");
             return NULL;
@@ -1744,6 +1792,9 @@ int UIDrawable::set_on_exit(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UIARC:
             target = ((PyUIArcObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            target = ((PyUIGridViewObject*)self)->data.get();
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_exit");
@@ -1801,6 +1852,10 @@ PyObject* UIDrawable::get_on_move(PyObject* self, void* closure) {
             if (((PyUIArcObject*)self)->data->on_move_callable)
                 ptr = ((PyUIArcObject*)self)->data->on_move_callable->borrow();
             break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            if (((PyUIGridViewObject*)self)->data->on_move_callable)
+                ptr = ((PyUIGridViewObject*)self)->data->on_move_callable->borrow();
+            break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_move");
             return NULL;
@@ -1837,6 +1892,9 @@ int UIDrawable::set_on_move(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UIARC:
             target = ((PyUIArcObject*)self)->data.get();
+            break;
+        case PyObjectsEnum::UIGRIDVIEW:
+            target = ((PyUIGridViewObject*)self)->data.get();
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "Invalid UIDrawable derived instance for on_move");
@@ -2189,6 +2247,7 @@ PyObject* UIDrawable::py_realign(PyObject* self, PyObject* args) {
     if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIFrameType)) objtype = PyObjectsEnum::UIFRAME;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUICaptionType)) objtype = PyObjectsEnum::UICAPTION;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUISpriteType)) objtype = PyObjectsEnum::UISPRITE;
+    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIGridViewType)) objtype = PyObjectsEnum::UIGRIDVIEW;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIGridType)) objtype = PyObjectsEnum::UIGRID;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUILineType)) objtype = PyObjectsEnum::UILINE;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUICircleType)) objtype = PyObjectsEnum::UICIRCLE;

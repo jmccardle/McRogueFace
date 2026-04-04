@@ -168,7 +168,7 @@ extern PyMethodDef UIGrid_all_methods[];
 namespace mcrfpydef {
     inline PyTypeObject PyUIGridType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
-        .tp_name = "mcrfpy.Grid",
+        .tp_name = "mcrfpy._GridData",  // #252: internal type, "Grid" is now GridView
         .tp_basicsize = sizeof(PyUIGridObject),
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self)

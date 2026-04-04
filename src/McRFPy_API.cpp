@@ -482,9 +482,9 @@ PyObject* PyInit_mcrfpy()
         &PyDrawableType,
 
         /*UI widgets*/
-        &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType, &PyUIGridType,
+        &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType,
         &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
-        &mcrfpydef::PyUIGridViewType,
+        &mcrfpydef::PyUIGridViewType,  // #252: GridView IS the primary "Grid" type
 
         /*3D entities*/
         &mcrfpydef::PyEntity3DType, &mcrfpydef::PyEntityCollection3DType,
@@ -547,6 +547,9 @@ PyObject* PyInit_mcrfpy()
     // Types that are used internally but NOT exported to module namespace (#189)
     // These still need PyType_Ready() but are not added to module
     PyTypeObject* internal_types[] = {
+        /*#252: internal grid data type - UIGrid is now internal, GridView is "Grid"*/
+        &PyUIGridType,
+
         /*game map & perspective data - returned by Grid.at() but not directly instantiable*/
         &PyUIGridPointType, &PyUIGridPointStateType,
 
@@ -681,6 +684,11 @@ PyObject* PyInit_mcrfpy()
         i++;
         t = internal_types[i];
     }
+
+    // #252: Add "GridView" as an alias for the Grid type (which is PyUIGridViewType)
+    // This allows both mcrfpy.Grid(...) and mcrfpy.GridView(...) to work
+    Py_INCREF(&mcrfpydef::PyUIGridViewType);
+    PyModule_AddObject(m, "GridView", (PyObject*)&mcrfpydef::PyUIGridViewType);
 
     // Add default_font and default_texture to module
     McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
