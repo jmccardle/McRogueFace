@@ -60,7 +60,7 @@ sf::Vector2f PyObject_to_sfVector2f(PyObject* obj);
 PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state);
 PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& vec);
 
-class UIEntity
+class UIEntity : public std::enable_shared_from_this<UIEntity>
 {
 public:
     uint64_t serial_number = 0;  // For Python object cache

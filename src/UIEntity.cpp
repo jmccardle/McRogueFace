@@ -1640,15 +1640,23 @@ PyObject* UIEntity::repr(PyUIEntityObject* self) {
 // "x" and "y" are kept as aliases for backwards compatibility
 bool UIEntity::setProperty(const std::string& name, float value) {
     if (name == "draw_x" || name == "x") {  // #176 - draw_x is preferred, x is alias
+        float old_x = position.x;
+        float old_y = position.y;
         position.x = value;
-        // Don't update sprite position here - UIGrid::render() handles the pixel positioning
-        if (grid) grid->markCompositeDirty();  // #144 - Propagate to parent grid for texture caching
+        if (grid) {
+            grid->markCompositeDirty();
+            grid->spatial_hash.update(shared_from_this(), old_x, old_y);  // #256
+        }
         return true;
     }
     else if (name == "draw_y" || name == "y") {  // #176 - draw_y is preferred, y is alias
+        float old_x = position.x;
+        float old_y = position.y;
         position.y = value;
-        // Don't update sprite position here - UIGrid::render() handles the pixel positioning
-        if (grid) grid->markCompositeDirty();  // #144 - Propagate to parent grid for texture caching
+        if (grid) {
+            grid->markCompositeDirty();
+            grid->spatial_hash.update(shared_from_this(), old_x, old_y);  // #256
+        }
         return true;
     }
     else if (name == "sprite_scale") {
