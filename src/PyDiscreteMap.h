@@ -64,6 +64,10 @@ public:
     static PyObject* to_bool(PyDiscreteMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* mask(PyDiscreteMapObject* self, PyObject* Py_UNUSED(args));
 
+    // Serialization
+    static PyObject* to_bytes(PyDiscreteMapObject* self, PyObject* Py_UNUSED(args));
+    static PyObject* from_bytes(PyTypeObject* type, PyObject* args, PyObject* kwds);
+
     // HeightMap integration
     static PyObject* from_heightmap(PyTypeObject* type, PyObject* args, PyObject* kwds);
     static PyObject* to_heightmap(PyDiscreteMapObject* self, PyObject* args, PyObject* kwds);

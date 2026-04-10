@@ -320,6 +320,24 @@ PyMethodDef PyDiscreteMap::methods[] = {
          MCRF_DESC("Get raw uint8_t data as memoryview for libtcod compatibility."),
          MCRF_RETURNS("memoryview: Direct access to internal buffer (read/write)")
      )},
+    // Serialization
+    {"to_bytes", (PyCFunction)PyDiscreteMap::to_bytes, METH_NOARGS,
+     MCRF_METHOD(DiscreteMap, to_bytes,
+         MCRF_SIG("()", "bytes"),
+         MCRF_DESC("Serialize map data to bytes (row-major, one byte per cell)."),
+         MCRF_RETURNS("bytes: Raw cell data, length = width * height")
+     )},
+    {"from_bytes", (PyCFunction)PyDiscreteMap::from_bytes, METH_VARARGS | METH_KEYWORDS | METH_CLASS,
+     MCRF_METHOD(DiscreteMap, from_bytes,
+         MCRF_SIG("(data: bytes, size: tuple[int, int], *, enum: type = None)", "DiscreteMap"),
+         MCRF_DESC("Create a DiscreteMap from raw byte data."),
+         MCRF_ARGS_START
+         MCRF_ARG("data", "Raw cell data (one byte per cell, row-major)")
+         MCRF_ARG("size", "(width, height) dimensions")
+         MCRF_ARG("enum", "Optional IntEnum class for value interpretation")
+         MCRF_RETURNS("DiscreteMap: new map initialized from data")
+         MCRF_RAISES("ValueError", "Data length does not match width * height")
+     )},
     // HeightMap integration
     {"from_heightmap", (PyCFunction)PyDiscreteMap::from_heightmap, METH_VARARGS | METH_KEYWORDS | METH_CLASS,
      MCRF_METHOD(DiscreteMap, from_heightmap,
@@ -1297,6 +1315,97 @@ PyObject* PyDiscreteMap::mask(PyDiscreteMapObject* self, PyObject* Py_UNUSED(arg
     // Create memoryview of the internal buffer
     Py_ssize_t len = static_cast<Py_ssize_t>(self->w) * static_cast<Py_ssize_t>(self->h);
     return PyMemoryView_FromMemory(reinterpret_cast<char*>(self->values), len, PyBUF_WRITE);
+}
+
+// ============================================================================
+// Serialization
+// ============================================================================
+
+PyObject* PyDiscreteMap::to_bytes(PyDiscreteMapObject* self, PyObject* Py_UNUSED(args))
+{
+    if (!self->values) {
+        PyErr_SetString(PyExc_RuntimeError, "DiscreteMap not initialized");
+        return nullptr;
+    }
+    Py_ssize_t len = static_cast<Py_ssize_t>(self->w) * static_cast<Py_ssize_t>(self->h);
+    return PyBytes_FromStringAndSize(reinterpret_cast<const char*>(self->values), len);
+}
+
+PyObject* PyDiscreteMap::from_bytes(PyTypeObject* type, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"data", "size", "enum", nullptr};
+    Py_buffer buffer;
+    PyObject* size_obj = nullptr;
+    PyObject* enum_type = nullptr;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "y*O|O", const_cast<char**>(kwlist),
+                                     &buffer, &size_obj, &enum_type)) {
+        return nullptr;
+    }
+
+    int w = 0, h = 0;
+    if (!PyArg_ParseTuple(size_obj, "ii", &w, &h)) {
+        PyErr_Clear();
+        if (PyTuple_Check(size_obj) && PyTuple_GET_SIZE(size_obj) == 2) {
+            w = (int)PyLong_AsLong(PyTuple_GET_ITEM(size_obj, 0));
+            h = (int)PyLong_AsLong(PyTuple_GET_ITEM(size_obj, 1));
+            if (PyErr_Occurred()) {
+                PyBuffer_Release(&buffer);
+                return nullptr;
+            }
+        } else {
+            PyBuffer_Release(&buffer);
+            PyErr_SetString(PyExc_TypeError, "size must be a (width, height) tuple");
+            return nullptr;
+        }
+    }
+
+    if (w <= 0 || h <= 0 || w > 8192 || h > 8192) {
+        PyBuffer_Release(&buffer);
+        PyErr_SetString(PyExc_ValueError, "dimensions must be positive and <= 8192");
+        return nullptr;
+    }
+
+    Py_ssize_t expected = static_cast<Py_ssize_t>(w) * static_cast<Py_ssize_t>(h);
+    if (buffer.len != expected) {
+        PyBuffer_Release(&buffer);
+        PyErr_Format(PyExc_ValueError,
+                     "data length (%zd) does not match size %d x %d = %zd",
+                     buffer.len, w, h, expected);
+        return nullptr;
+    }
+
+    if (enum_type && enum_type != Py_None && !PyType_Check(enum_type)) {
+        PyBuffer_Release(&buffer);
+        PyErr_SetString(PyExc_TypeError, "enum must be a type (IntEnum subclass)");
+        return nullptr;
+    }
+
+    auto obj = (PyDiscreteMapObject*)type->tp_alloc(type, 0);
+    if (!obj) {
+        PyBuffer_Release(&buffer);
+        return nullptr;
+    }
+
+    obj->w = w;
+    obj->h = h;
+    obj->values = new (std::nothrow) uint8_t[expected];
+    if (!obj->values) {
+        PyBuffer_Release(&buffer);
+        Py_DECREF(obj);
+        return PyErr_NoMemory();
+    }
+    std::memcpy(obj->values, buffer.buf, expected);
+    PyBuffer_Release(&buffer);
+
+    if (enum_type && enum_type != Py_None) {
+        Py_INCREF(enum_type);
+        obj->enum_type = enum_type;
+    } else {
+        obj->enum_type = nullptr;
+    }
+
+    return (PyObject*)obj;
 }
 
 // ============================================================================
