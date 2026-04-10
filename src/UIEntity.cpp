@@ -899,6 +899,105 @@ int UIEntity::set_tile_height(PyUIEntityObject* self, PyObject* value, void* clo
     return 0;
 }
 
+// #237 - Composite sprite grid
+PyObject* UIEntity::get_sprite_grid(PyUIEntityObject* self, void* closure) {
+    auto& sg = self->data->sprite_grid;
+    if (sg.empty()) {
+        Py_RETURN_NONE;
+    }
+    int tw = self->data->tile_width;
+    int th = self->data->tile_height;
+    PyObject* rows = PyList_New(th);
+    if (!rows) return NULL;
+    for (int y = 0; y < th; y++) {
+        PyObject* row = PyList_New(tw);
+        if (!row) { Py_DECREF(rows); return NULL; }
+        for (int x = 0; x < tw; x++) {
+            int idx = sg[y * tw + x];
+            PyList_SET_ITEM(row, x, PyLong_FromLong(idx));
+        }
+        PyList_SET_ITEM(rows, y, row);
+    }
+    return rows;
+}
+
+int UIEntity::set_sprite_grid(PyUIEntityObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        self->data->sprite_grid.clear();
+        if (self->data->grid) self->data->grid->markDirty();
+        return 0;
+    }
+
+    int tw = self->data->tile_width;
+    int th = self->data->tile_height;
+
+    // Accept flat list or nested list
+    if (!PyList_Check(value) && !PyTuple_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "sprite_grid must be a list of lists, a flat list, or None");
+        return -1;
+    }
+
+    Py_ssize_t outer_len = PySequence_Size(value);
+    if (outer_len < 0) return -1;
+
+    std::vector<int> new_grid;
+
+    // Check if it's nested (first element is a sequence)
+    PyObject* first = (outer_len > 0) ? PySequence_GetItem(value, 0) : nullptr;
+    bool nested = first && (PyList_Check(first) || PyTuple_Check(first));
+    Py_XDECREF(first);
+
+    if (nested) {
+        if (outer_len != th) {
+            PyErr_Format(PyExc_ValueError,
+                "sprite_grid has %zd rows, expected %d (tile_height)", outer_len, th);
+            return -1;
+        }
+        new_grid.reserve(tw * th);
+        for (int y = 0; y < th; y++) {
+            PyObject* row = PySequence_GetItem(value, y);
+            if (!row) return -1;
+            Py_ssize_t row_len = PySequence_Size(row);
+            if (row_len != tw) {
+                Py_DECREF(row);
+                PyErr_Format(PyExc_ValueError,
+                    "sprite_grid row %d has %zd items, expected %d (tile_width)", y, row_len, tw);
+                return -1;
+            }
+            for (int x = 0; x < tw; x++) {
+                PyObject* item = PySequence_GetItem(row, x);
+                if (!item) { Py_DECREF(row); return -1; }
+                long idx = PyLong_AsLong(item);
+                Py_DECREF(item);
+                if (idx == -1 && PyErr_Occurred()) { Py_DECREF(row); return -1; }
+                new_grid.push_back(static_cast<int>(idx));
+            }
+            Py_DECREF(row);
+        }
+    } else {
+        // Flat list
+        if (outer_len != tw * th) {
+            PyErr_Format(PyExc_ValueError,
+                "sprite_grid has %zd items, expected %d (tile_width * tile_height)",
+                outer_len, tw * th);
+            return -1;
+        }
+        new_grid.reserve(tw * th);
+        for (Py_ssize_t i = 0; i < outer_len; i++) {
+            PyObject* item = PySequence_GetItem(value, i);
+            if (!item) return -1;
+            long idx = PyLong_AsLong(item);
+            Py_DECREF(item);
+            if (idx == -1 && PyErr_Occurred()) return -1;
+            new_grid.push_back(static_cast<int>(idx));
+        }
+    }
+
+    self->data->sprite_grid = std::move(new_grid);
+    if (self->data->grid) self->data->grid->markDirty();
+    return 0;
+}
+
 PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
 {
     // Check if entity has a grid
@@ -1657,6 +1756,11 @@ PyGetSetDef UIEntity::getsetters[] = {
      "Entity width in tiles (int). Must be >= 1. Default 1.", NULL},
     {"tile_height", (getter)UIEntity::get_tile_height, (setter)UIEntity::set_tile_height,
      "Entity height in tiles (int). Must be >= 1. Default 1.", NULL},
+    // #237 - Composite sprite grid
+    {"sprite_grid", (getter)UIEntity::get_sprite_grid, (setter)UIEntity::set_sprite_grid,
+     "Per-tile sprite indices for composite multi-tile entities (list of lists or None). "
+     "Row-major, dimensions must match tile_width x tile_height. Use -1 for empty tiles. "
+     "When set, each tile renders its own sprite index instead of the single entity sprite.", NULL},
     // #296 - Label system
     {"labels", (getter)UIEntity::get_labels, (setter)UIEntity::set_labels,
      "Set of string labels for collision/targeting (frozenset). "

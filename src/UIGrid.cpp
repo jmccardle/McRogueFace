@@ -207,14 +207,30 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                 continue; // Skip this entity as it's not visible
             }
 
-            //auto drawent = e->cGrid->indexsprite.drawable();
-            auto& drawent = e->sprite;
-            //drawent.setScale(zoom, zoom);
-            drawent.setScale(sf::Vector2f(zoom, zoom));
             auto pixel_pos = sf::Vector2f(
                 (e->position.x*cell_width - left_spritepixels + e->sprite_offset.x) * zoom,
                 (e->position.y*cell_height - top_spritepixels + e->sprite_offset.y) * zoom );
-            drawent.render(pixel_pos, *activeTexture);
+
+            // #237: Composite sprite grid - render per-tile sprites
+            if (!e->sprite_grid.empty() && e->sprite.getTexture()) {
+                auto tex = e->sprite.getTexture();
+                for (int dy = 0; dy < e->tile_height; dy++) {
+                    for (int dx = 0; dx < e->tile_width; dx++) {
+                        int idx = e->sprite_grid[dy * e->tile_width + dx];
+                        if (idx < 0) continue;
+                        auto tile_pos = sf::Vector2f(
+                            pixel_pos.x + dx * cell_width * zoom,
+                            pixel_pos.y + dy * cell_height * zoom);
+                        auto spr = tex->sprite(idx, tile_pos, sf::Vector2f(zoom, zoom));
+                        activeTexture->draw(spr);
+                    }
+                }
+            } else {
+                // Single sprite path
+                auto& drawent = e->sprite;
+                drawent.setScale(sf::Vector2f(zoom, zoom));
+                drawent.render(pixel_pos, *activeTexture);
+            }
 
             entitiesRendered++;
         }

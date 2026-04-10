@@ -73,6 +73,7 @@ public:
     sf::Vector2f sprite_offset; // pixel offset for oversized sprites (applied pre-zoom)
     int tile_width = 1;  // #236: entity size in tiles (for multi-tile entities)
     int tile_height = 1;
+    std::vector<int> sprite_grid; // #237: per-tile sprite indices (row-major, -1 = empty)
     std::unordered_set<std::string> labels; // #296: entity label system for collision/targeting
     PyObject* step_callback = nullptr; // #299: callback for grid.step() turn management
     int default_behavior = 0; // #299: BehaviorType::IDLE - behavior to revert to after DONE
@@ -178,6 +179,9 @@ public:
     static int set_tile_width(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_tile_height(PyUIEntityObject* self, void* closure);
     static int set_tile_height(PyUIEntityObject* self, PyObject* value, void* closure);
+    // #237 - Composite sprite grid
+    static PyObject* get_sprite_grid(PyUIEntityObject* self, void* closure);
+    static int set_sprite_grid(PyUIEntityObject* self, PyObject* value, void* closure);
 
     // #295 - cell_pos (integer logical position)
     static PyObject* get_cell_pos(PyUIEntityObject* self, void* closure);
@@ -247,7 +251,8 @@ namespace mcrfpydef {
                             "    name (str): Element name for finding. Default: None\n"
                             "    x (float): X grid position override (tile coords). Default: 0\n"
                             "    y (float): Y grid position override (tile coords). Default: 0\n"
-                            "    sprite_offset (tuple): Pixel offset for oversized sprites. Default: (0, 0)\n\n"
+                            "    sprite_offset (tuple): Pixel offset for oversized sprites. Default: (0, 0)\n"
+                            "    sprite_grid (list): Per-tile sprite indices for composite entities. Default: None\n\n"
                             "Attributes:\n"
                             "    pos (Vector): Pixel position relative to grid (requires grid attachment)\n"
                             "    x, y (float): Pixel position components (requires grid attachment)\n"
