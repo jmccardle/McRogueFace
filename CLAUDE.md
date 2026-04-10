@@ -166,13 +166,15 @@ The project uses a structured label system to organize issues:
 2. **Automated**: Apply labels ONE AT A TIME using single-element arrays (slower but more reliable)
 3. **Use single-ID mapping** (documented below)
 
-**Label ID Reference** (for documentation purposes - see issue #131 for details):
+**Label ID Reference** (queried from Gitea API 2026-04-09):
 ```
-1=Major Feature, 2=Alpha Release, 3=Bugfix, 4=Demo Target, 5=Documentation,
-6=Minor Feature, 7=tier1-active, 8=tier2-foundation, 9=tier3-future,
-10=Refactoring, 11=animation, 12=docs, 13=grid, 14=input, 15=performance,
-16=python-binding, 17=rendering, 18=ui-hierarchy, 19=Tiny Feature,
-20=blocked, 21=needs-benchmark, 22=needs-documentation
+1=Major Feature, 2=Minor Feature, 3=Tiny Feature, 4=Demo Target, 5=Documentation,
+6=Alpha Release Requirement, 7=Refactoring & Cleanup, 8=Bugfix,
+9=system:grid, 10=system:animation, 11=system:ui-hierarchy, 12=system:python-binding,
+13=system:performance, 14=system:documentation, 15=system:rendering, 16=system:input,
+17=priority:tier1-active, 18=priority:tier2-foundation, 19=priority:tier3-future,
+20=workflow:needs-documentation, 21=workflow:needs-benchmark, 22=workflow:blocked,
+140=priority:tier4-deferred, 141=system:procgen
 ```
 
 ## Build System
