@@ -23,6 +23,7 @@ public:
     static sf::Color fromPy(PyColorObject*);
     static PyObject* repr(PyObject*);
     static Py_hash_t hash(PyObject*);
+    static PyObject* richcompare(PyObject*, PyObject*, int);
     static int init(PyColorObject*, PyObject*, PyObject*);
     static PyObject* pynew(PyTypeObject* type, PyObject* args=NULL, PyObject* kwds=NULL);
     static PyObject* get_member(PyObject*, void*);
@@ -75,6 +76,7 @@ namespace mcrfpydef {
             "        anim = mcrfpy.Animation('fill_color.r', 255, 0.5, 'linear')\n"
             "        anim.start(frame)\n"
         ),
+        .tp_richcompare = PyColor::richcompare,
         .tp_methods = PyColor::methods,
         .tp_getset = PyColor::getsetters,
         .tp_init = (initproc)PyColor::init,

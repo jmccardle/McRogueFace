@@ -367,36 +367,92 @@ PyObject* PyColor::lerp(PyColorObject* self, PyObject* args)
 {
     PyObject* other_obj;
     float t;
-    
+
     if (!PyArg_ParseTuple(args, "Of", &other_obj, &t)) {
         return NULL;
     }
-    
+
     // Validate other color
     if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyColorType)) {
         PyErr_SetString(PyExc_TypeError, "First argument must be a Color");
         return NULL;
     }
-    
+
     PyColorObject* other = (PyColorObject*)other_obj;
-    
+
     // Clamp t to [0, 1]
     if (t < 0.0f) t = 0.0f;
     if (t > 1.0f) t = 1.0f;
-    
+
     // Perform linear interpolation
     sf::Uint8 r = static_cast<sf::Uint8>(self->data.r + (other->data.r - self->data.r) * t);
     sf::Uint8 g = static_cast<sf::Uint8>(self->data.g + (other->data.g - self->data.g) * t);
     sf::Uint8 b = static_cast<sf::Uint8>(self->data.b + (other->data.b - self->data.b) * t);
     sf::Uint8 a = static_cast<sf::Uint8>(self->data.a + (other->data.a - self->data.a) * t);
-    
+
     // Create new Color object
     auto type = &mcrfpydef::PyColorType;
     PyColorObject* result = (PyColorObject*)type->tp_alloc(type, 0);
-    
+
     if (result) {
         result->data = sf::Color(r, g, b, a);
     }
-    
+
     return (PyObject*)result;
+}
+
+PyObject* PyColor::richcompare(PyObject* left, PyObject* right, int op)
+{
+    // Only support == and !=
+    if (op != Py_EQ && op != Py_NE) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    // Extract RGBA from left operand
+    sf::Color left_c, right_c;
+
+    if (PyObject_IsInstance(left, (PyObject*)&mcrfpydef::PyColorType)) {
+        left_c = ((PyColorObject*)left)->data;
+    } else {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    // Extract RGBA from right operand - accept Color, tuple, or list
+    if (PyObject_IsInstance(right, (PyObject*)&mcrfpydef::PyColorType)) {
+        right_c = ((PyColorObject*)right)->data;
+    } else if (PyTuple_Check(right) || PyList_Check(right)) {
+        Py_ssize_t size = PySequence_Size(right);
+        if (size < 3 || size > 4) {
+            Py_RETURN_NOTIMPLEMENTED;
+        }
+        PyObject* r = PySequence_GetItem(right, 0);
+        PyObject* g = PySequence_GetItem(right, 1);
+        PyObject* b = PySequence_GetItem(right, 2);
+        if (!PyLong_Check(r) || !PyLong_Check(g) || !PyLong_Check(b)) {
+            Py_DECREF(r); Py_DECREF(g); Py_DECREF(b);
+            Py_RETURN_NOTIMPLEMENTED;
+        }
+        right_c.r = (sf::Uint8)PyLong_AsLong(r);
+        right_c.g = (sf::Uint8)PyLong_AsLong(g);
+        right_c.b = (sf::Uint8)PyLong_AsLong(b);
+        Py_DECREF(r); Py_DECREF(g); Py_DECREF(b);
+        if (size == 4) {
+            PyObject* a = PySequence_GetItem(right, 3);
+            if (PyLong_Check(a)) right_c.a = (sf::Uint8)PyLong_AsLong(a);
+            Py_DECREF(a);
+        } else {
+            right_c.a = 255;
+        }
+    } else {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    bool equal = (left_c.r == right_c.r && left_c.g == right_c.g &&
+                  left_c.b == right_c.b && left_c.a == right_c.a);
+
+    if (op == Py_EQ) {
+        return PyBool_FromLong(equal);
+    } else {
+        return PyBool_FromLong(!equal);
+    }
 }
