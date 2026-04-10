@@ -6,7 +6,6 @@
 // Stored as a module attribute: mcrfpy.Key
 //
 // Values map to sf::Keyboard::Key enum values.
-// The enum compares equal to both its name ("ESCAPE") and legacy string ("Escape")
 //
 // Naming convention:
 //   - Letters: A, B, C, ... Z
@@ -24,14 +23,11 @@ public:
     static PyObject* create_enum_class(PyObject* module);
 
     // Helper to extract key from Python arg
-    // Accepts Key enum, string (for backwards compatibility), int, or None
+    // Accepts Key enum, string (enum name), or int
     // Returns 1 on success, 0 on error (with exception set)
     static int from_arg(PyObject* arg, sf::Keyboard::Key* out_key);
 
-    // Convert sf::Keyboard::Key to legacy string name (for passing to callbacks)
-    static const char* to_legacy_string(sf::Keyboard::Key key);
-
-    // Convert legacy string to sf::Keyboard::Key
+    // Convert string name to sf::Keyboard::Key (used by C++ event dispatch)
     // Returns sf::Keyboard::Unknown if not found
     static sf::Keyboard::Key from_legacy_string(const char* name);
 

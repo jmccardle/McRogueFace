@@ -120,7 +120,7 @@ ui.append(cached_shader)
 
 # Keyboard handler
 def on_key(key, state):
-    if state == "start" and key in ("Q", "Escape"):
+    if state == mcrfpy.InputState.PRESSED and key in (mcrfpy.Key.Q, mcrfpy.Key.ESCAPE):
         print("PASS: Shader POC test complete - exiting")
         sys.exit(0)
 

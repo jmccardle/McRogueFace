@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test Key, MouseButton, and InputState enum functionality.
 
-Tests the new input-related enums that provide type-safe alternatives to
-string-based key codes, mouse buttons, and event states.
+Tests the input-related enums that provide type-safe key codes,
+mouse buttons, and event states. Legacy string comparison was
+removed in #306 -- these enums now use standard IntEnum comparison.
 """
 
 import mcrfpy
@@ -10,7 +11,7 @@ import sys
 
 
 def test_key_enum():
-    """Test Key enum members and backwards compatibility."""
+    """Test Key enum members and int values."""
     print("Testing Key enum...")
 
     # Test that enum exists and has expected members
@@ -23,24 +24,19 @@ def test_key_enum():
     assert int(mcrfpy.Key.A) == 0, "Key.A should be 0"
     assert int(mcrfpy.Key.ESCAPE) == 36, "Key.ESCAPE should be 36"
 
-    # Test backwards compatibility with legacy strings
-    assert mcrfpy.Key.A == "A", "Key.A should equal 'A'"
-    assert mcrfpy.Key.ESCAPE == "Escape", "Key.ESCAPE should equal 'Escape'"
-    assert mcrfpy.Key.LEFT_SHIFT == "LShift", "Key.LEFT_SHIFT should equal 'LShift'"
-    assert mcrfpy.Key.RIGHT_CONTROL == "RControl", "Key.RIGHT_CONTROL should equal 'RControl'"
-    assert mcrfpy.Key.NUM_1 == "Num1", "Key.NUM_1 should equal 'Num1'"
-    assert mcrfpy.Key.NUMPAD_5 == "Numpad5", "Key.NUMPAD_5 should equal 'Numpad5'"
-    assert mcrfpy.Key.F12 == "F12", "Key.F12 should equal 'F12'"
-    assert mcrfpy.Key.SPACE == "Space", "Key.SPACE should equal 'Space'"
+    # Test enum self-comparison
+    assert mcrfpy.Key.ESCAPE == mcrfpy.Key.ESCAPE, "Key.ESCAPE should equal itself"
+    assert mcrfpy.Key.A != mcrfpy.Key.ESCAPE, "Key.A should not equal Key.ESCAPE"
 
-    # Test that enum name also matches
-    assert mcrfpy.Key.ESCAPE == "ESCAPE", "Key.ESCAPE should also equal 'ESCAPE'"
+    # Verify legacy string comparison is removed (#306)
+    assert not (mcrfpy.Key.ESCAPE == "Escape"), "Legacy string comparison should be removed"
+    assert not (mcrfpy.Key.A == "A"), "Legacy string comparison should be removed"
 
     print("  All Key tests passed")
 
 
 def test_mouse_button_enum():
-    """Test MouseButton enum members and backwards compatibility."""
+    """Test MouseButton enum members."""
     print("Testing MouseButton enum...")
 
     # Test that enum exists and has expected members
@@ -54,21 +50,19 @@ def test_mouse_button_enum():
     assert int(mcrfpy.MouseButton.RIGHT) == 1, "MouseButton.RIGHT should be 1"
     assert int(mcrfpy.MouseButton.MIDDLE) == 2, "MouseButton.MIDDLE should be 2"
 
-    # Test backwards compatibility with legacy strings
-    assert mcrfpy.MouseButton.LEFT == "left", "MouseButton.LEFT should equal 'left'"
-    assert mcrfpy.MouseButton.RIGHT == "right", "MouseButton.RIGHT should equal 'right'"
-    assert mcrfpy.MouseButton.MIDDLE == "middle", "MouseButton.MIDDLE should equal 'middle'"
-    assert mcrfpy.MouseButton.X1 == "x1", "MouseButton.X1 should equal 'x1'"
-    assert mcrfpy.MouseButton.X2 == "x2", "MouseButton.X2 should equal 'x2'"
+    # Test enum self-comparison
+    assert mcrfpy.MouseButton.LEFT == mcrfpy.MouseButton.LEFT
+    assert mcrfpy.MouseButton.LEFT != mcrfpy.MouseButton.RIGHT
 
-    # Test that enum name also matches
-    assert mcrfpy.MouseButton.LEFT == "LEFT", "MouseButton.LEFT should also equal 'LEFT'"
+    # Verify legacy string comparison is removed (#306)
+    assert not (mcrfpy.MouseButton.LEFT == "left"), "Legacy string comparison should be removed"
+    assert not (mcrfpy.MouseButton.RIGHT == "right"), "Legacy string comparison should be removed"
 
     print("  All MouseButton tests passed")
 
 
 def test_input_state_enum():
-    """Test InputState enum members and backwards compatibility."""
+    """Test InputState enum members."""
     print("Testing InputState enum...")
 
     # Test that enum exists and has expected members
@@ -80,13 +74,13 @@ def test_input_state_enum():
     assert int(mcrfpy.InputState.PRESSED) == 0, "InputState.PRESSED should be 0"
     assert int(mcrfpy.InputState.RELEASED) == 1, "InputState.RELEASED should be 1"
 
-    # Test backwards compatibility with legacy strings
-    assert mcrfpy.InputState.PRESSED == "start", "InputState.PRESSED should equal 'start'"
-    assert mcrfpy.InputState.RELEASED == "end", "InputState.RELEASED should equal 'end'"
+    # Test enum self-comparison
+    assert mcrfpy.InputState.PRESSED == mcrfpy.InputState.PRESSED
+    assert mcrfpy.InputState.PRESSED != mcrfpy.InputState.RELEASED
 
-    # Test that enum name also matches
-    assert mcrfpy.InputState.PRESSED == "PRESSED", "InputState.PRESSED should also equal 'PRESSED'"
-    assert mcrfpy.InputState.RELEASED == "RELEASED", "InputState.RELEASED should also equal 'RELEASED'"
+    # Verify legacy string comparison is removed (#306)
+    assert not (mcrfpy.InputState.PRESSED == "start"), "Legacy string comparison should be removed"
+    assert not (mcrfpy.InputState.RELEASED == "end"), "Legacy string comparison should be removed"
 
     print("  All InputState tests passed")
 

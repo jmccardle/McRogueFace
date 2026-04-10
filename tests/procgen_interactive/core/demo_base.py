@@ -456,18 +456,17 @@ class ProcgenDemoBase(ABC):
         elif key == mcrfpy.Key.ESCAPE:
             self._return_to_menu()
         else:
-            # Number keys for layer toggles - convert to string for parsing
-            key_str = str(key) if not isinstance(key, str) else key
-            if key_str.startswith("Key.NUM") or (len(key_str) == 1 and key_str.isdigit()):
-                try:
-                    num = int(key_str[-1])
-                    if 1 <= num <= len(self.layer_defs):
-                        layer_def = self.layer_defs[num - 1]
-                        toggle = self.widgets.get(f"layer_{layer_def.name}")
-                        if toggle:
-                            toggle.toggle()
-                except (ValueError, IndexError):
-                    pass
+            # Number keys for layer toggles
+            _num_key_map = {mcrfpy.Key.NUM_1: 1, mcrfpy.Key.NUM_2: 2, mcrfpy.Key.NUM_3: 3,
+                            mcrfpy.Key.NUM_4: 4, mcrfpy.Key.NUM_5: 5, mcrfpy.Key.NUM_6: 6,
+                            mcrfpy.Key.NUM_7: 7, mcrfpy.Key.NUM_8: 8, mcrfpy.Key.NUM_9: 9}
+            if key in _num_key_map:
+                num = _num_key_map[key]
+                if 1 <= num <= len(self.layer_defs):
+                    layer_def = self.layer_defs[num - 1]
+                    toggle = self.widgets.get(f"layer_{layer_def.name}")
+                    if toggle:
+                        toggle.toggle()
 
     def _return_to_menu(self):
         """Return to demo menu."""

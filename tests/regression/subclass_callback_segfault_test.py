@@ -27,7 +27,7 @@ def test_minimal():
 
     print("Attempting to call on_click...")
     try:
-        obj.on_click((50, 50), "left", "start")
+        obj.on_click((50, 50), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
         print("Call succeeded!")
     except Exception as e:
         print(f"Exception: {type(e).__name__}: {e}")
@@ -51,7 +51,7 @@ def test_without_callback_clear():
     obj = MyFrame(pos=(100, 100), size=(100, 100))
 
     print("Calling...")
-    obj.on_click((50, 50), "left", "start")
+    obj.on_click((50, 50), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
 
     print("Deleting without clearing callback...")
     del obj
@@ -69,7 +69,7 @@ def test_added_to_scene():
     scene.children.append(obj)
 
     print("Calling via scene.children[0]...")
-    scene.children[0].on_click((50, 50), "left", "start")
+    scene.children[0].on_click((50, 50), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
 
     print("About to exit...")
     sys.exit(0)

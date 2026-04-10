@@ -152,21 +152,24 @@ def show_combination(index):
 def handle_keypress(key_str, state):
     """Handle keyboard input"""
     global current_combo_index
-    if state == "end": return
+    if state == mcrfpy.InputState.RELEASED: return
     
-    if key_str == "Esc" or key_str == "Q":
+    if key_str == mcrfpy.Key.ESCAPE or key_str == mcrfpy.Key.Q:
         print("\nExiting...")
         sys.exit(0)
-    elif key_str == "Space" or key_str == "N":
+    elif key_str == mcrfpy.Key.SPACE or key_str == mcrfpy.Key.N:
         show_combination(current_combo_index + 1)
-    elif key_str == "P":
+    elif key_str == mcrfpy.Key.P:
         show_combination(current_combo_index - 1)
-    elif key_str == "R":
+    elif key_str == mcrfpy.Key.R:
         show_combination(current_combo_index)
-    elif key_str in "123456":
-        combo_num = int(key_str) - 1  # 0-based index
-        if combo_num < len(all_combinations):
-            show_combination(combo_num)
+    else:
+        num_keys = {mcrfpy.Key.NUM_1: 0, mcrfpy.Key.NUM_2: 1, mcrfpy.Key.NUM_3: 2,
+                    mcrfpy.Key.NUM_4: 3, mcrfpy.Key.NUM_5: 4, mcrfpy.Key.NUM_6: 5}
+        if key_str in num_keys:
+            combo_num = num_keys[key_str]
+            if combo_num < len(all_combinations):
+                show_combination(combo_num)
 
 # Create the demo
 print("Dijkstra All Paths Demo")
@@ -183,7 +186,7 @@ ui.append(grid)
 
 # Scale and position
 grid.size = (560, 400)
-grid.position = (120, 100)
+grid.pos = (120, 100)
 
 # Add title
 title = mcrfpy.Caption(pos=(200, 20), text="Dijkstra - All Paths (Valid & Invalid)")

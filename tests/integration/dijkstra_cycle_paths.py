@@ -169,15 +169,15 @@ def show_path(index):
 def handle_keypress(key_str, state):
     """Handle keyboard input"""
     global current_path_index
-    if state == "end": return
-    if key_str == "Esc":
+    if state == mcrfpy.InputState.RELEASED: return
+    if key_str == mcrfpy.Key.ESCAPE:
         print("\nExiting...")
         sys.exit(0)
-    elif key_str == "N" or key_str == "Space":
+    elif key_str == mcrfpy.Key.N or key_str == mcrfpy.Key.SPACE:
         show_path(current_path_index + 1)
-    elif key_str == "P":
+    elif key_str == mcrfpy.Key.P:
         show_path(current_path_index - 1)
-    elif key_str == "R":
+    elif key_str == mcrfpy.Key.R:
         show_path(current_path_index)
 
 # Create the demo
@@ -194,7 +194,7 @@ ui.append(grid)
 
 # Scale and position
 grid.size = (560, 400)
-grid.position = (120, 100)
+grid.pos = (120, 100)
 
 # Add title
 title = mcrfpy.Caption(pos=(200, 20), text="Dijkstra Pathfinding - Cycle Paths")

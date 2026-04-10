@@ -194,7 +194,7 @@ class Modal:
 
             def make_click(cb):
                 def handler(pos, button, action):
-                    if button == "left" and action == "end" and cb:
+                    if button == mcrfpy.MouseButton.LEFT and action == mcrfpy.InputState.RELEASED and cb:
                         cb()
                 return handler
 
@@ -208,7 +208,7 @@ class Modal:
     def _on_overlay_click(self, pos, button, action):
         """Handle clicks on overlay (outside modal)."""
         # Check if click is outside modal
-        if button == "left" and action == "end":
+        if button == mcrfpy.MouseButton.LEFT and action == mcrfpy.InputState.RELEASED:
             mx, my = self.modal_frame.x, self.modal_frame.y
             mw, mh = self.modal_frame.w, self.modal_frame.h
             px, py = pos.x, pos.y

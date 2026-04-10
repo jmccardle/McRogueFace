@@ -275,15 +275,15 @@ class StatBarDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
 
         # Number keys to modify bars
         bar_keys = ['hp', 'mp', 'stamina', 'xp']
-        key_map = {"Num1": 0, "Num2": 1, "Num3": 2, "Num4": 3}
+        key_map = {mcrfpy.Key.NUM_1: 0, mcrfpy.Key.NUM_2: 1, mcrfpy.Key.NUM_3: 2, mcrfpy.Key.NUM_4: 3}
 
         if key in key_map:
             idx = key_map[key]
@@ -293,11 +293,11 @@ class StatBarDemo:
                 bar.set_value(bar.current - 10, animate=True)
                 self.status.text = f"Status: Decreased {bar_keys[idx].upper()}"
 
-        elif key == "F":
+        elif key == mcrfpy.Key.F:
             self.flash_bar.flash()
             self.status.text = "Status: Flash effect triggered!"
 
-        elif key == "R":
+        elif key == mcrfpy.Key.R:
             # Reset all bars
             self.bars['hp'].set_value(75, 100, animate=True)
             self.bars['mp'].set_value(50, 80, animate=True)

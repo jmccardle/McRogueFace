@@ -230,31 +230,31 @@ class ChoiceListDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
 
         # Get active list
         active = self.lists[self.active_list_idx] if self.lists else None
 
-        if key == "Up" and active:
+        if key == mcrfpy.Key.UP and active:
             active.navigate(-1)
-        elif key == "Down" and active:
+        elif key == mcrfpy.Key.DOWN and active:
             active.navigate(1)
-        elif key == "Enter" and active:
+        elif key == mcrfpy.Key.ENTER and active:
             active.confirm()
-        elif key == "Tab":
+        elif key == mcrfpy.Key.TAB:
             # Switch active list
             self.active_list_idx = (self.active_list_idx + 1) % len(self.lists)
             self._update_active_indicator()
-        elif key == "A":
+        elif key == mcrfpy.Key.A:
             # Add item to dynamic list
             self.add_counter += 1
             self.dynamic_list.add_choice(f"New Item {self.add_counter}")
             self.dynamic_info.text = f"Items: {len(self.dynamic_list.choices)}"
-        elif key == "R":
+        elif key == mcrfpy.Key.R:
             # Remove selected from dynamic list
             if len(self.dynamic_list.choices) > 1:
                 self.dynamic_list.remove_choice(self.dynamic_list.selected_index)

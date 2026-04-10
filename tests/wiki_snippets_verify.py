@@ -45,11 +45,13 @@ def test_key_enum_members():
 
 check("IE: Key enum members", test_key_enum_members)
 
-def test_inputstate_legacy():
-    assert mcrfpy.InputState.PRESSED == "start"
-    assert mcrfpy.InputState.RELEASED == "end"
+def test_inputstate_values():
+    assert int(mcrfpy.InputState.PRESSED) == 0
+    assert int(mcrfpy.InputState.RELEASED) == 1
+    # Legacy string comparison removed (#306)
+    assert mcrfpy.InputState.PRESSED != "start"
 
-check("IE: InputState legacy string compat", test_inputstate_legacy)
+check("IE: InputState enum values", test_inputstate_values)
 
 def test_click_handler():
     frame = mcrfpy.Frame(pos=(100, 100), size=(200, 50))

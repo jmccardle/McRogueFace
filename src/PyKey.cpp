@@ -143,15 +143,6 @@ static const KeyEntry key_table[] = {
 
 static const int NUM_KEY_ENTRIES = sizeof(key_table) / sizeof(key_table[0]);
 
-const char* PyKey::to_legacy_string(sf::Keyboard::Key key) {
-    for (int i = 0; i < NUM_KEY_ENTRIES; i++) {
-        if (key_table[i].value == static_cast<int>(key)) {
-            return key_table[i].legacy;
-        }
-    }
-    return "Unknown";
-}
-
 sf::Keyboard::Key PyKey::from_legacy_string(const char* name) {
     for (int i = 0; i < NUM_KEY_ENTRIES; i++) {
         if (strcmp(key_table[i].legacy, name) == 0 ||
@@ -181,11 +172,6 @@ PyObject* PyKey::create_enum_class(PyObject* module) {
     code << "        Navigation: LEFT, RIGHT, UP, DOWN, HOME, END, PAGE_UP, PAGE_DOWN\n";
     code << "        Editing: ENTER, BACKSPACE, DELETE, INSERT, TAB, SPACE\n";
     code << "        Symbols: COMMA, PERIOD, SLASH, SEMICOLON, etc.\n";
-    code << "    \n";
-    code << "    These enum values compare equal to their legacy string equivalents\n";
-    code << "    for backwards compatibility:\n";
-    code << "        Key.ESCAPE == 'Escape'  # True\n";
-    code << "        Key.LEFT_SHIFT == 'LShift'  # True\n";
     code << "    \"\"\"\n";
 
     // Add enum members
@@ -193,42 +179,10 @@ PyObject* PyKey::create_enum_class(PyObject* module) {
         code << "    " << key_table[i].name << " = " << key_table[i].value << "\n";
     }
 
-    // Add legacy names and custom methods AFTER class creation
-    // (IntEnum doesn't allow dict attributes during class definition)
-    code << "\n# Add legacy name mapping after class creation\n";
-    code << "Key._legacy_names = {\n";
-    for (int i = 0; i < NUM_KEY_ENTRIES; i++) {
-        code << "    " << key_table[i].value << ": \"" << key_table[i].legacy << "\",\n";
-    }
-    code << "}\n\n";
-
-    code << R"(
-def _Key_eq(self, other):
-    if isinstance(other, str):
-        # Check enum name match (e.g., "ESCAPE")
-        if self.name == other:
-            return True
-        # Check legacy name match (e.g., "Escape")
-        legacy = type(self)._legacy_names.get(self.value)
-        if legacy and legacy == other:
-            return True
-        return False
-    # Fall back to int comparison for IntEnum
-    return int.__eq__(int(self), other)
-
-Key.__eq__ = _Key_eq
-
-def _Key_ne(self, other):
-    result = type(self).__eq__(self, other)
-    if result is NotImplemented:
-        return result
-    return not result
-
-Key.__ne__ = _Key_ne
-Key.__hash__ = lambda self: hash(int(self))
-Key.__repr__ = lambda self: f"{type(self).__name__}.{self.name}"
-Key.__str__ = lambda self: self.name
-)";
+    code << "\n";
+    code << "Key.__hash__ = lambda self: hash(int(self))\n";
+    code << "Key.__repr__ = lambda self: f\"{type(self).__name__}.{self.name}\"\n";
+    code << "Key.__str__ = lambda self: self.name\n";
 
     std::string code_str = code.str();
 
@@ -315,25 +269,22 @@ int PyKey::from_arg(PyObject* arg, sf::Keyboard::Key* out_key) {
         return 0;
     }
 
-    // Accept string (both new and legacy names)
+    // Accept string (enum name only)
     if (PyUnicode_Check(arg)) {
         const char* name = PyUnicode_AsUTF8(arg);
         if (!name) {
             return 0;
         }
 
-        // Check all entries for both name and legacy match
         for (int i = 0; i < NUM_KEY_ENTRIES; i++) {
-            if (strcmp(name, key_table[i].name) == 0 ||
-                strcmp(name, key_table[i].legacy) == 0) {
+            if (strcmp(name, key_table[i].name) == 0) {
                 *out_key = static_cast<sf::Keyboard::Key>(key_table[i].value);
                 return 1;
             }
         }
 
         PyErr_Format(PyExc_ValueError,
-            "Unknown Key: '%s'. Use Key enum members (e.g., Key.ESCAPE, Key.A) "
-            "or legacy strings (e.g., 'Escape', 'A').", name);
+            "Unknown Key: '%s'. Use Key enum members (e.g., Key.ESCAPE, Key.A).", name);
         return 0;
     }
 

@@ -90,7 +90,7 @@ print("=" * 60)
 
 # Exit handler
 def handle_key(key, state):
-    if key == "Escape" and state:
+    if key == mcrfpy.Key.ESCAPE and state == mcrfpy.InputState.PRESSED:
         print("\nBenchmark ended by user")
         sys.exit(0)
 

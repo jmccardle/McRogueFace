@@ -35,7 +35,7 @@ scene.children.append(grid)
 
 # Add keyboard controls using modern API
 def move_around(key, state):
-    if state == "start":
+    if state == mcrfpy.InputState.PRESSED:
         print(f"You pressed {key}")
 
 scene.on_key = move_around

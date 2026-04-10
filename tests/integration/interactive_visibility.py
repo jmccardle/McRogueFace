@@ -79,7 +79,7 @@ perspective_names = ["Omniscient", "Player", "Enemy"]
 # UI Setup
 ui = visibility_demo.children
 ui.append(grid)
-grid.position = (50, 100)
+grid.pos = (50, 100)
 grid.size = (900, 600)  # 30*30, 20*30
 
 # Title
@@ -138,49 +138,48 @@ def cycle_perspective():
 # Key handlers
 def handle_keys(key, state):
     """Handle keyboard input"""
-    if state == "end": return
-    key = key.lower()
+    if state == mcrfpy.InputState.RELEASED: return
     # Player movement (WASD)
-    if key == "w":
+    if key == mcrfpy.Key.W:
         move_entity(player, 0, -1)
-    elif key == "s":
+    elif key == mcrfpy.Key.S:
         move_entity(player, 0, 1)
-    elif key == "a":
+    elif key == mcrfpy.Key.A:
         move_entity(player, -1, 0)
-    elif key == "d":
+    elif key == mcrfpy.Key.D:
         move_entity(player, 1, 0)
-    
+
     # Enemy movement (Arrows)
-    elif key == "up":
+    elif key == mcrfpy.Key.UP:
         move_entity(enemy, 0, -1)
-    elif key == "down":
+    elif key == mcrfpy.Key.DOWN:
         move_entity(enemy, 0, 1)
-    elif key == "left":
+    elif key == mcrfpy.Key.LEFT:
         move_entity(enemy, -1, 0)
-    elif key == "right":
+    elif key == mcrfpy.Key.RIGHT:
         move_entity(enemy, 1, 0)
-    
+
     # Tab to cycle perspective
-    elif key == "tab":
+    elif key == mcrfpy.Key.TAB:
         cycle_perspective()
-    
+
     # Space to update visibility
-    elif key == "space":
+    elif key == mcrfpy.Key.SPACE:
         player.update_visibility()
         enemy.update_visibility()
         print("Updated visibility for both entities")
-    
+
     # R to reset
-    elif key == "r":
+    elif key == mcrfpy.Key.R:
         player.x, player.y = 5, 10
         enemy.x, enemy.y = 25, 10
         player.update_visibility()
         enemy.update_visibility()
         update_info()
         print("Reset positions")
-    
+
     # Q to quit
-    elif key == "q":
+    elif key == mcrfpy.Key.Q:
         print("Exiting...")
         sys.exit(0)
     

@@ -17,12 +17,12 @@ def test_click_callback_signature(pos, button, action):
         results.append(("on_click pos is Vector", False))
         print(f"FAIL: on_click receives {type(pos).__name__} instead of Vector: {pos}")
 
-    # Verify button and action types
-    if isinstance(button, str) and isinstance(action, str):
-        results.append(("on_click button/action are strings", True))
+    # Verify button and action types (enums since #306)
+    if isinstance(button, mcrfpy.MouseButton) and isinstance(action, mcrfpy.InputState):
+        results.append(("on_click button/action are enums", True))
         print(f"PASS: button={button!r}, action={action!r}")
     else:
-        results.append(("on_click button/action are strings", False))
+        results.append(("on_click button/action are enums", False))
         print(f"FAIL: button={type(button).__name__}, action={type(action).__name__}")
 
 # #230 - Hover callbacks now receive only (pos), not (pos, button, action)
@@ -112,7 +112,7 @@ print("\n--- Simulating callback calls ---")
 
 # Test that the callbacks are set up correctly
 # on_click still takes (pos, button, action)
-test_click_callback_signature(mcrfpy.Vector(150, 150), "left", "start")
+test_click_callback_signature(mcrfpy.Vector(150, 150), mcrfpy.MouseButton.LEFT, mcrfpy.InputState.PRESSED)
 # #230 - Hover callbacks now take only (pos)
 test_on_enter_callback_signature(mcrfpy.Vector(100, 100))
 test_on_exit_callback_signature(mcrfpy.Vector(300, 300))

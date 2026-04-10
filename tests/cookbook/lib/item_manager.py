@@ -138,7 +138,7 @@ class ItemSlot(mcrfpy.Frame):
         return item.slot_type == self.slot_type
 
     def _on_click(self, pos, button, action):
-        if action != "start" or button != "left":
+        if action != mcrfpy.InputState.PRESSED or button != mcrfpy.MouseButton.LEFT:
             return
         if self.manager:
             self.manager.handle_slot_click(self.slot_name)
@@ -274,14 +274,14 @@ class ItemManager:
 
     def _on_grid_click(self, grid_name, pos, button, action):
         """Handle click on a registered grid."""
-        if action != "start":
+        if action != mcrfpy.InputState.PRESSED:
             return
 
-        if button == "right":
+        if button == mcrfpy.MouseButton.RIGHT:
             self.cancel_pickup()
             return
 
-        if button != "left":
+        if button != mcrfpy.MouseButton.LEFT:
             return
 
         grid, item_map, color_layer = self.grids[grid_name]

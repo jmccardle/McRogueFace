@@ -206,7 +206,7 @@ class CookbookLauncher:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
         category = self.categories[self.selected_category]

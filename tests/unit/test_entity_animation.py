@@ -44,7 +44,7 @@ entity.sprite_index = 64  # @
 # UI setup
 ui = test_anim.children
 ui.append(grid)
-grid.position = (100, 100)
+grid.pos = (100, 100)
 grid.size = (450, 450)  # 15 * 30 pixels per cell
 
 # Title
@@ -160,23 +160,21 @@ def test_immediate_position():
 
 # Input handler
 def handle_input(key, state):
-    if state != "start":
+    if state != mcrfpy.InputState.PRESSED:
         return
-    
-    key = key.lower()
-    
-    if key == "q":
+
+    if key == mcrfpy.Key.Q:
         print("Exiting test...")
         sys.exit(0)
-    elif key == "space":
+    elif key == mcrfpy.Key.SPACE:
         if not animating:
             start_animation()
         else:
             print("Animation already in progress!")
-    elif key == "t":
+    elif key == mcrfpy.Key.T:
         # Test immediate position change
         test_immediate_position()
-    elif key == "r":
+    elif key == mcrfpy.Key.R:
         # Reset position
         entity.x = 5
         entity.y = 5

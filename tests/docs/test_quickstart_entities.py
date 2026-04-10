@@ -46,15 +46,15 @@ grid.entities.append(treasure)
 
 # Movement handler using modern API
 def handle_keys(key, state):
-    if state == "start":
+    if state == mcrfpy.InputState.PRESSED:
         x, y = player.pos[0], player.pos[1]
-        if key == "W":
+        if key == mcrfpy.Key.W:
             player.pos = (x, y - 1)
-        elif key == "S":
+        elif key == mcrfpy.Key.S:
             player.pos = (x, y + 1)
-        elif key == "A":
+        elif key == mcrfpy.Key.A:
             player.pos = (x - 1, y)
-        elif key == "D":
+        elif key == mcrfpy.Key.D:
             player.pos = (x + 1, y)
 
 scene.on_key = handle_keys

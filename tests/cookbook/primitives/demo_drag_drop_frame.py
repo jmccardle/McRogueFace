@@ -234,9 +234,9 @@ class DragDropFrameDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             # Return to cookbook menu or exit
             try:
                 from cookbook_main import main

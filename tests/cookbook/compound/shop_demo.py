@@ -396,10 +396,10 @@ class ShopDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             if self.manager.held_item:
                 self.manager.cancel_pickup()
                 self.tooltip.text = "Cancelled"

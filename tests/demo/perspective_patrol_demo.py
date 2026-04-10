@@ -162,18 +162,18 @@ def on_keypress(key, state):
     """Handle keyboard input"""
     global patrol_paused
 
-    if state != "start":
+    if state != mcrfpy.InputState.PRESSED:
         return
 
-    if key == "R":
+    if key == mcrfpy.Key.R:
         reset_vision()
-    elif key == "Space":
+    elif key == mcrfpy.Key.SPACE:
         patrol_paused = not patrol_paused
         if patrol_paused:
             update_status("Status: PAUSED")
         else:
             update_status("Status: Patrolling")
-    elif key == "Q":
+    elif key == mcrfpy.Key.Q:
         mcrfpy.current_scene = None
 
 def reset_vision():

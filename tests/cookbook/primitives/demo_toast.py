@@ -163,32 +163,32 @@ class ToastDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
-        elif key == "Num1":
+        elif key == mcrfpy.Key.NUM_1:
             self.toast_count += 1
             self.toasts.show(f"Default notification #{self.toast_count}")
             self.update_stats()
-        elif key == "Num2":
+        elif key == mcrfpy.Key.NUM_2:
             self.toast_count += 1
             self.toasts.show_success("Operation completed successfully!")
             self.update_stats()
-        elif key == "Num3":
+        elif key == mcrfpy.Key.NUM_3:
             self.toast_count += 1
             self.toasts.show_error("An error occurred!")
             self.update_stats()
-        elif key == "Num4":
+        elif key == mcrfpy.Key.NUM_4:
             self.toast_count += 1
             self.toasts.show_warning("Warning: Low health!")
             self.update_stats()
-        elif key == "Num5":
+        elif key == mcrfpy.Key.NUM_5:
             self.toast_count += 1
             self.toasts.show_info("New quest available")
             self.update_stats()
-        elif key == "S":
+        elif key == mcrfpy.Key.S:
             # Spam multiple toasts
             messages = [
                 "Game saved!",
@@ -201,7 +201,7 @@ class ToastDemo:
                 self.toast_count += 1
                 self.toasts.show(msg)
             self.update_stats()
-        elif key == "C":
+        elif key == mcrfpy.Key.C:
             self.toasts.dismiss_all()
             self.update_stats()
 

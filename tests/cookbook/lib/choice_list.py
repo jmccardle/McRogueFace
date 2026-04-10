@@ -123,7 +123,7 @@ class ChoiceList:
             idx = i  # Capture index in closure
             def make_click_handler(index):
                 def handler(pos, button, action):
-                    if button == "left" and action == "end":
+                    if button == mcrfpy.MouseButton.LEFT and action == mcrfpy.InputState.RELEASED:
                         self.set_selected(index)
                         if self.on_select:
                             self.on_select(index, self._choices[index])

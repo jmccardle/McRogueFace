@@ -13,7 +13,7 @@ scene = mcrfpy.Scene("test_modern")
 scene.children.append(mcrfpy.Frame(pos=(0, 0), size=(800, 600)))
 
 def my_handler(key, action):
-    if action == "start":
+    if action == mcrfpy.InputState.PRESSED:
         print(f"  Key handler received: {key}")
 
 scene.on_key = my_handler

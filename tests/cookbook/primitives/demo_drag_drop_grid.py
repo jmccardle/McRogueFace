@@ -142,7 +142,7 @@ class GridDragDropDemo:
 
     def _on_grid_click(self, pos, button, action):
         """Handle grid click for drag start/end."""
-        if button != "left":
+        if button != mcrfpy.MouseButton.LEFT:
             return
 
         # Convert screen pos to grid cell
@@ -154,7 +154,7 @@ class GridDragDropDemo:
         if not (0 <= grid_x < grid_w and 0 <= grid_y < grid_h):
             return
 
-        if action == "start":
+        if action == mcrfpy.InputState.PRESSED:
             # Start drag if there's an entity here
             entity = self._get_entity_at(grid_x, grid_y)
             if entity:
@@ -166,7 +166,7 @@ class GridDragDropDemo:
                 # Highlight start cell yellow
                 self.color_layer.set((grid_x, grid_y), (255, 255, 100, 200))
 
-        elif action == "end":
+        elif action == mcrfpy.InputState.RELEASED:
             if self.dragging_entity:
                 # Drop the entity
                 target_cell = (grid_x, grid_y)
@@ -224,9 +224,9 @@ class GridDragDropDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             # Cancel any drag in progress
             if self.dragging_entity and self.drag_start_cell:
                 self.dragging_entity.grid_pos = self.drag_start_cell

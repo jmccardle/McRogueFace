@@ -100,7 +100,7 @@ enemy.sprite_index = 69  # E
 # UI setup
 ui = chain_test.children
 ui.append(grid)
-grid.position = (100, 100)
+grid.pos = (100, 100)
 grid.size = (600, 450)
 
 title = mcrfpy.Caption(pos=(300, 20), text="Animation Chaining Test")
@@ -179,23 +179,21 @@ def update_camera(timer, runtime):
 def handle_input(key, state):
     global camera_follow
     
-    if state != "start":
+    if state != mcrfpy.InputState.PRESSED:
         return
-    
-    key = key.lower()
-    
-    if key == "q":
+
+    if key == mcrfpy.Key.Q:
         sys.exit(0)
-    elif key == "num1":
+    elif key == mcrfpy.Key.NUM_1:
         animate_player()
-    elif key == "num2":
+    elif key == mcrfpy.Key.NUM_2:
         animate_enemy()
-    elif key == "num3":
+    elif key == mcrfpy.Key.NUM_3:
         animate_both()
-    elif key == "c":
+    elif key == mcrfpy.Key.C:
         camera_follow = not camera_follow
         info.text = f"Camera follow: {'ON' if camera_follow else 'OFF'}"
-    elif key == "r":
+    elif key == mcrfpy.Key.R:
         # Reset positions
         player.x, player.y = 2, 2
         enemy.x, enemy.y = 17, 12

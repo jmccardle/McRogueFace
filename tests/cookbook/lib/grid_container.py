@@ -114,7 +114,7 @@ class GridContainer:
                 # Set up event handlers
                 def make_click(cx, cy):
                     def handler(pos, button, action):
-                        if button == "left" and action == "end":
+                        if button == mcrfpy.MouseButton.LEFT and action == mcrfpy.InputState.RELEASED:
                             self._on_cell_clicked(cx, cy)
                     return handler
 

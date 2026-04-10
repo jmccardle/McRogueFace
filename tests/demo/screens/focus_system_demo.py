@@ -31,14 +31,14 @@ class ModifierTracker:
         self.ctrl = False
         self.alt = False
 
-    def update(self, key: str, action: str):
+    def update(self, key, action):
         """Call this from your key handler to update modifier state."""
-        if key in ("LShift", "RShift"):
-            self.shift = (action == "start")
-        elif key in ("LControl", "RControl"):
-            self.ctrl = (action == "start")
-        elif key in ("LAlt", "RAlt"):
-            self.alt = (action == "start")
+        if key in (mcrfpy.Key.LEFT_SHIFT, mcrfpy.Key.RIGHT_SHIFT):
+            self.shift = (action == mcrfpy.InputState.PRESSED)
+        elif key in (mcrfpy.Key.LEFT_CONTROL, mcrfpy.Key.RIGHT_CONTROL):
+            self.ctrl = (action == mcrfpy.InputState.PRESSED)
+        elif key in (mcrfpy.Key.LEFT_ALT, mcrfpy.Key.RIGHT_ALT):
+            self.alt = (action == mcrfpy.InputState.PRESSED)
 
 
 # =============================================================================
@@ -163,16 +163,16 @@ class FocusManager:
         self.modifiers.update(key, action)
 
         # Only process on key press, not release (key repeat sends multiple "start")
-        if action != "start":
+        if action != mcrfpy.InputState.PRESSED:
             return False
 
         # Global: Escape closes modals
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             if self.pop_modal():
                 return True
 
         # Global: Tab cycles focus
-        if key == "Tab":
+        if key == mcrfpy.Key.TAB:
             direction = -1 if self.modifiers.shift else 1
             self.cycle(direction)
             return True
@@ -251,7 +251,7 @@ class FocusableGrid:
 
     def _on_click(self, x, y, button, action):
         """Handle click to focus this grid."""
-        if self._focus_manager and action == "start":
+        if self._focus_manager and action == mcrfpy.InputState.PRESSED:
             self._focus_manager.focus(self._focus_index)
 
     def _update_player_display(self):
@@ -272,13 +272,13 @@ class FocusableGrid:
         self.outline_frame.outline_color = FocusManager.UNFOCUS_COLOR
         self.outline_frame.outline = FocusManager.UNFOCUS_OUTLINE
 
-    def handle_key(self, key: str, action: str) -> bool:
+    def handle_key(self, key, action) -> bool:
         """Handle WASD movement."""
         moves = {
-            "W": (0, -1), "Up": (0, -1),
-            "A": (-1, 0), "Left": (-1, 0),
-            "S": (0, 1),  "Down": (0, 1),
-            "D": (1, 0),  "Right": (1, 0),
+            mcrfpy.Key.W: (0, -1), mcrfpy.Key.UP: (0, -1),
+            mcrfpy.Key.A: (-1, 0), mcrfpy.Key.LEFT: (-1, 0),
+            mcrfpy.Key.S: (0, 1),  mcrfpy.Key.DOWN: (0, 1),
+            mcrfpy.Key.D: (1, 0),  mcrfpy.Key.RIGHT: (1, 0),
         }
 
         if key in moves:
@@ -373,7 +373,7 @@ class TextInputWidget:
 
     def _on_click(self, x, y, button, action):
         """Handle click to focus."""
-        if self._focus_manager and action == "start":
+        if self._focus_manager and action == mcrfpy.InputState.PRESSED:
             self._focus_manager.focus(self._focus_index)
 
     def _update_display(self):
@@ -404,7 +404,7 @@ class TextInputWidget:
         self.cursor.visible = False
         self._update_display()
 
-    def handle_key(self, key: str, action: str) -> bool:
+    def handle_key(self, key, action) -> bool:
         """Handle text input and editing keys."""
         if not self.focused:
             return False
@@ -412,27 +412,27 @@ class TextInputWidget:
         old_text = self.text
         handled = True
 
-        if key == "BackSpace":
+        if key == mcrfpy.Key.BACKSPACE:
             if self.cursor_pos > 0:
                 self.text = self.text[:self.cursor_pos-1] + self.text[self.cursor_pos:]
                 self.cursor_pos -= 1
-        elif key == "Delete":
+        elif key == mcrfpy.Key.DELETE:
             if self.cursor_pos < len(self.text):
                 self.text = self.text[:self.cursor_pos] + self.text[self.cursor_pos+1:]
-        elif key == "Left":
+        elif key == mcrfpy.Key.LEFT:
             self.cursor_pos = max(0, self.cursor_pos - 1)
-        elif key == "Right":
+        elif key == mcrfpy.Key.RIGHT:
             self.cursor_pos = min(len(self.text), self.cursor_pos + 1)
-        elif key == "Home":
+        elif key == mcrfpy.Key.HOME:
             self.cursor_pos = 0
-        elif key == "End":
+        elif key == mcrfpy.Key.END:
             self.cursor_pos = len(self.text)
-        elif key in ("Return", "Tab"):
+        elif key in (mcrfpy.Key.ENTER, mcrfpy.Key.TAB):
             # Don't consume - let focus manager handle
             handled = False
-        elif len(key) == 1 and key.isprintable():
-            # Insert character
-            self.text = self.text[:self.cursor_pos] + key + self.text[self.cursor_pos:]
+        elif len(key.name) == 1 and key.name.isprintable():
+            # Insert character (key.name is "A"-"Z" for letter keys)
+            self.text = self.text[:self.cursor_pos] + key.name.lower() + self.text[self.cursor_pos:]
             self.cursor_pos += 1
         else:
             handled = False
@@ -509,7 +509,7 @@ class MenuIcon:
         if not self._focus_manager:
             return
 
-        if action == "start":
+        if action == mcrfpy.InputState.PRESSED:
             # If already focused, activate; otherwise just focus
             if self._focus_manager.focus_index == self._focus_index:
                 self._activate()
@@ -535,9 +535,9 @@ class MenuIcon:
         self.frame.fill_color = mcrfpy.Color(60, 60, 80)
         self.tooltip_caption.visible = False
 
-    def handle_key(self, key: str, action: str) -> bool:
+    def handle_key(self, key, action) -> bool:
         """Handle activation keys."""
-        if key in ("Space", "Return"):
+        if key in (mcrfpy.Key.SPACE, mcrfpy.Key.ENTER):
             self._activate()
             return True
         return False

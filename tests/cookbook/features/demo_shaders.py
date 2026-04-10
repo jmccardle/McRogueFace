@@ -296,20 +296,21 @@ class ShaderDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
-        elif key == "Space":
+        elif key == mcrfpy.Key.SPACE:
             self.toggle_shaders()
-        elif key == "R":
+        elif key == mcrfpy.Key.R:
             # Re-enable all shaders
             self.shaders_enabled = False
             self.toggle_shaders()
-        elif key in ("Num1", "Num2", "Num3", "Num4"):
+        elif key in (mcrfpy.Key.NUM_1, mcrfpy.Key.NUM_2, mcrfpy.Key.NUM_3, mcrfpy.Key.NUM_4):
             # Focus on specific shader (could zoom in)
-            idx = int(key[-1]) - 1
+            _num_idx = {mcrfpy.Key.NUM_1: 0, mcrfpy.Key.NUM_2: 1, mcrfpy.Key.NUM_3: 2, mcrfpy.Key.NUM_4: 3}
+            idx = _num_idx[key]
             if idx < len(self.shader_frames):
                 self.status.text = f"Focused: Shader {idx + 1}"
 

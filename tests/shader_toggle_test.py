@@ -55,15 +55,15 @@ test_count = 0
 
 def on_key(key, state):
     global test_count
-    if state != "start":
+    if state != mcrfpy.InputState.PRESSED:
         return
 
-    if key == "Num1" or key == "1":
+    if key == mcrfpy.Key.NUM_1:
         test_frame.shader_enabled = True
         status.text = "Status: Shader ENABLED"
         update_display()
         test_count += 1
-    elif key == "Num2" or key == "2":
+    elif key == mcrfpy.Key.NUM_2:
         test_frame.shader_enabled = False
         status.text = "Status: Shader DISABLED"
         update_display()
@@ -76,7 +76,7 @@ def on_key(key, state):
         else:
             status.text = "Status: Shader DISABLED - Position OK!"
             status.fill_color = (100, 255, 100, 255)
-    elif key in ("Q", "Escape"):
+    elif key in (mcrfpy.Key.Q, mcrfpy.Key.ESCAPE):
         if test_frame.x == 200 and test_frame.y == 200:
             print(f"PASS: Position remained correct after {test_count} toggles")
         else:

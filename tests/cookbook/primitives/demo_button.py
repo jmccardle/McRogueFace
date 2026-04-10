@@ -245,20 +245,20 @@ class ButtonDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
-        elif key == "Num1" and len(self.buttons) > 0:
+        elif key == mcrfpy.Key.NUM_1 and len(self.buttons) > 0:
             self.buttons[0].callback()
-        elif key == "Num2" and len(self.buttons) > 1:
+        elif key == mcrfpy.Key.NUM_2 and len(self.buttons) > 1:
             self.buttons[1].callback()
-        elif key == "Num3" and len(self.buttons) > 2:
+        elif key == mcrfpy.Key.NUM_3 and len(self.buttons) > 2:
             self.buttons[2].callback()
-        elif key == "Num4" and len(self.buttons) > 3:
+        elif key == mcrfpy.Key.NUM_4 and len(self.buttons) > 3:
             self.buttons[3].callback()
-        elif key == "D":
+        elif key == mcrfpy.Key.D:
             # Toggle disabled button
             self.disabled_btn.enabled = not self.disabled_btn.enabled
             if self.disabled_btn.enabled:

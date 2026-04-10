@@ -444,25 +444,26 @@ class DialogueSystem:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
-        elif key in ("Num1", "Num2", "Num3", "Num4"):
-            idx = int(key[-1]) - 1
+        elif key in (mcrfpy.Key.NUM_1, mcrfpy.Key.NUM_2, mcrfpy.Key.NUM_3, mcrfpy.Key.NUM_4):
+            _num_idx = {mcrfpy.Key.NUM_1: 0, mcrfpy.Key.NUM_2: 1, mcrfpy.Key.NUM_3: 2, mcrfpy.Key.NUM_4: 3}
+            idx = _num_idx[key]
             if idx < len(self.choice_list.choices):
                 self.choice_list.set_selected(idx)
                 self.choice_list.confirm()
-        elif key == "Up":
+        elif key == mcrfpy.Key.UP:
             self.choice_list.navigate(-1)
-        elif key == "Down":
+        elif key == mcrfpy.Key.DOWN:
             self.choice_list.navigate(1)
-        elif key == "Enter":
+        elif key == mcrfpy.Key.ENTER:
             self.choice_list.confirm()
-        elif key == "Space":
+        elif key == mcrfpy.Key.SPACE:
             self.dialogue_box.skip_animation()
-        elif key == "R":
+        elif key == mcrfpy.Key.R:
             # Restart
             self.npc.mood = "neutral"
             self.npc.trust = 50

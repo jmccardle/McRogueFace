@@ -182,18 +182,18 @@ class TextBoxDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
-        elif key == "Num1":
+        elif key == mcrfpy.Key.NUM_1:
             # Start typewriter animation
             self.typewriter_box.on_complete = self.on_typewriter_complete
             self.typewriter_box.set_text(self.sample_text, animate=True)
             self.completion_label.text = "Status: Playing..."
             self.completion_label.fill_color = mcrfpy.Color(200, 200, 100)
-        elif key == "Num2":
+        elif key == mcrfpy.Key.NUM_2:
             # Change instant text
             texts = [
                 "This text appeared instantly. Press 2 to change it to different content.",
@@ -203,17 +203,17 @@ class TextBoxDemo:
             ]
             import random
             self.instant_box.set_text(random.choice(texts), animate=False)
-        elif key == "Num3":
+        elif key == mcrfpy.Key.NUM_3:
             # Skip animation
             self.typewriter_box.skip_animation()
             self.completion_label.text = "Status: Skipped"
             self.completion_label.fill_color = mcrfpy.Color(150, 150, 150)
-        elif key == "Num4":
+        elif key == mcrfpy.Key.NUM_4:
             # Clear text
             self.typewriter_box.clear()
             self.completion_label.text = "Status: Cleared"
             self.completion_label.fill_color = mcrfpy.Color(150, 150, 150)
-        elif key == "D":
+        elif key == mcrfpy.Key.D:
             # Cycle dialogue
             self.dialogue_index = (self.dialogue_index + 1) % len(self.dialogues)
             speaker, text = self.dialogues[self.dialogue_index]

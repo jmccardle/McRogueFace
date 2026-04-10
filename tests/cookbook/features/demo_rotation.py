@@ -365,38 +365,39 @@ class RotationDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
-        elif key == "Left":
+        elif key == mcrfpy.Key.LEFT:
             # Rotate left (counter-clockwise)
             name, element = self.elements[self.selected]
             try:
                 element.rotation = (element.rotation - 15) % 360
             except AttributeError:
                 pass
-        elif key == "Right":
+        elif key == mcrfpy.Key.RIGHT:
             # Rotate right (clockwise)
             name, element = self.elements[self.selected]
             try:
                 element.rotation = (element.rotation + 15) % 360
             except AttributeError:
                 pass
-        elif key == "Up":
+        elif key == mcrfpy.Key.UP:
             self.rotation_speed = min(180, self.rotation_speed + 15)
             self.speed_label.text = f"Speed: {self.rotation_speed}°/sec"
-        elif key == "Down":
+        elif key == mcrfpy.Key.DOWN:
             self.rotation_speed = max(15, self.rotation_speed - 15)
             self.speed_label.text = f"Speed: {self.rotation_speed}°/sec"
-        elif key in ("Num1", "Num2", "Num3", "Num4"):
-            self.selected = int(key[-1]) - 1
+        elif key in (mcrfpy.Key.NUM_1, mcrfpy.Key.NUM_2, mcrfpy.Key.NUM_3, mcrfpy.Key.NUM_4):
+            _num_idx = {mcrfpy.Key.NUM_1: 0, mcrfpy.Key.NUM_2: 1, mcrfpy.Key.NUM_3: 2, mcrfpy.Key.NUM_4: 3}
+            self.selected = _num_idx[key]
             if self.selected < len(self.elements):
                 self.selected_label.text = f"Selected: {self.elements[self.selected][0]}"
-        elif key == "O":
+        elif key == mcrfpy.Key.O:
             self._cycle_origin()
-        elif key == "A":
+        elif key == mcrfpy.Key.A:
             self.auto_rotate = not self.auto_rotate
             if self.auto_rotate:
                 self.auto_label.text = "Auto-rotate: On"
@@ -404,7 +405,7 @@ class RotationDemo:
             else:
                 self.auto_label.text = "Auto-rotate: Off"
                 self.auto_label.fill_color = mcrfpy.Color(200, 100, 100)
-        elif key == "R":
+        elif key == mcrfpy.Key.R:
             # Reset all rotations
             for name, element in self.elements:
                 try:

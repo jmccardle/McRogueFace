@@ -160,21 +160,21 @@ def show_both():
 def handle_keypress(key_str, state):
     """Handle keyboard input"""
     global mode
-    if state == "end": return
+    if state == mcrfpy.InputState.RELEASED: return
     print(key_str)
-    if key_str == "Esc" or key_str == "Q":
+    if key_str == mcrfpy.Key.ESCAPE or key_str == mcrfpy.Key.Q:
         print("\nExiting...")
         sys.exit(0)
-    elif key_str == "A" or key_str == "1":
+    elif key_str == mcrfpy.Key.A or key_str == mcrfpy.Key.NUM_1:
         mode = "ASTAR"
         show_astar()
-    elif key_str == "D" or key_str == "2":
+    elif key_str == mcrfpy.Key.D or key_str == mcrfpy.Key.NUM_2:
         mode = "DIJKSTRA"
         show_dijkstra()
-    elif key_str == "B" or key_str == "3":
+    elif key_str == mcrfpy.Key.B or key_str == mcrfpy.Key.NUM_3:
         mode = "BOTH"
         show_both()
-    elif key_str == "Space":
+    elif key_str == mcrfpy.Key.SPACE:
         # Refresh current mode
         if mode == "ASTAR":
             show_astar()
@@ -203,7 +203,7 @@ ui.append(grid)
 
 # Scale and position
 grid.size = (600, 400)  # 30*20, 20*20
-grid.position = (100, 100)
+grid.pos = (100, 100)
 
 # Add title
 title = mcrfpy.Caption(pos=(250, 20), text="A* vs Dijkstra Pathfinding")

@@ -160,17 +160,14 @@ class DemoLauncher:
         if action != mcrfpy.InputState.PRESSED:
             return
 
-        # Convert key to string for easier comparison
-        key_str = str(key) if not isinstance(key, str) else key
-
         # Number keys to launch demos directly
-        if key_str.startswith("Key.NUM") or (len(key_str) == 1 and key_str.isdigit()):
-            try:
-                num = int(key_str[-1])
-                if 1 <= num <= len(self.DEMOS):
-                    self._launch_demo(num - 1)
-            except (ValueError, IndexError):
-                pass
+        _num_key_map = {mcrfpy.Key.NUM_1: 1, mcrfpy.Key.NUM_2: 2, mcrfpy.Key.NUM_3: 3,
+                        mcrfpy.Key.NUM_4: 4, mcrfpy.Key.NUM_5: 5, mcrfpy.Key.NUM_6: 6,
+                        mcrfpy.Key.NUM_7: 7, mcrfpy.Key.NUM_8: 8, mcrfpy.Key.NUM_9: 9}
+        if key in _num_key_map:
+            num = _num_key_map[key]
+            if 1 <= num <= len(self.DEMOS):
+                self._launch_demo(num - 1)
         elif key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
 

@@ -146,21 +146,24 @@ class DemoRunner:
         self.create_menu()
 
         def handle_key(key, state):
-            if state != "start":
+            if state != mcrfpy.InputState.PRESSED:
                 return
 
             # Number keys 1-9 for direct screen access
-            if key in [f"Num{n}" for n in "123456789"]:
-                idx = int(key[-1]) - 1
+            _num_key_map = {mcrfpy.Key.NUM_1: 0, mcrfpy.Key.NUM_2: 1, mcrfpy.Key.NUM_3: 2,
+                            mcrfpy.Key.NUM_4: 3, mcrfpy.Key.NUM_5: 4, mcrfpy.Key.NUM_6: 5,
+                            mcrfpy.Key.NUM_7: 6, mcrfpy.Key.NUM_8: 7, mcrfpy.Key.NUM_9: 8}
+            if key in _num_key_map:
+                idx = _num_key_map[key]
                 if idx < len(self.screens):
                     mcrfpy.setScene(self.screens[idx].scene_name)
 
             # ESC returns to menu
-            elif key == "Escape":
+            elif key == mcrfpy.Key.ESCAPE:
                 menu.activate()
 
             # Q quits
-            elif key == "Q":
+            elif key == mcrfpy.Key.Q:
                 sys.exit(0)
 
         # Register keyboard handler on menu scene

@@ -183,24 +183,23 @@ class Calculator:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             # Switch to game scene
             mcrfpy.current_scene = game_scene
             return
 
         # Map keys to buttons
         key_map = {
-            "Num0": "0", "Num1": "1", "Num2": "2", "Num3": "3",
-            "Num4": "4", "Num5": "5", "Num6": "6", "Num7": "7",
-            "Num8": "8", "Num9": "9",
-            "Period": ".", "Add": "+", "Subtract": "-",
-            "Multiply": "*", "Divide": "/",
-            "Enter": "=", "Return": "=",
-            "C": "C", "Backspace": "DEL",
-            "LParen": "(", "RParen": ")",
+            mcrfpy.Key.NUM_0: "0", mcrfpy.Key.NUM_1: "1", mcrfpy.Key.NUM_2: "2", mcrfpy.Key.NUM_3: "3",
+            mcrfpy.Key.NUM_4: "4", mcrfpy.Key.NUM_5: "5", mcrfpy.Key.NUM_6: "6", mcrfpy.Key.NUM_7: "7",
+            mcrfpy.Key.NUM_8: "8", mcrfpy.Key.NUM_9: "9",
+            mcrfpy.Key.PERIOD: ".", mcrfpy.Key.ADD: "+", mcrfpy.Key.SUBTRACT: "-",
+            mcrfpy.Key.MULTIPLY: "*", mcrfpy.Key.DIVIDE: "/",
+            mcrfpy.Key.ENTER: "=",
+            mcrfpy.Key.C: "C", mcrfpy.Key.BACKSPACE: "DEL",
         }
 
         if key in key_map:
@@ -271,10 +270,10 @@ class GamePlaceholder:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             # Switch to calculator
             calculator.activate()
 

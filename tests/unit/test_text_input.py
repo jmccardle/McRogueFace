@@ -78,9 +78,9 @@ def create_demo():
     # Keyboard handler
     def handle_keys(scene_name, key):
         if not focus_mgr.handle_key(key):
-            if key == "Tab":
+            if key == mcrfpy.Key.TAB:
                 focus_mgr.focus_next()
-            elif key == "Escape":
+            elif key == mcrfpy.Key.ESCAPE:
                 print("\nFinal values:")
                 for i, inp in enumerate(inputs):
                     print(f"  Field {i+1}: '{inp.get_text()}'")

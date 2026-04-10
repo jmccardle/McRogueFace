@@ -70,81 +70,81 @@ def handle_key(key, action):
     """Handle keyboard input for scene transitions."""
     global current_transition, transition_duration
     
-    if action != "start":
+    if action != mcrfpy.InputState.PRESSED:
         return
     
     current_scene = (mcrfpy.current_scene.name if mcrfpy.current_scene else None)
     
     # Number keys set transition type
     keyselections = {
-            "Num1": mcrfpy.Transition.FADE,
-            "Num2": mcrfpy.Transition.SLIDE_LEFT,
-            "Num3": mcrfpy.Transition.SLIDE_RIGHT,
-            "Num4": mcrfpy.Transition.SLIDE_UP,
-            "Num5": mcrfpy.Transition.SLIDE_DOWN,
-            "Num6": mcrfpy.Transition.NONE
+            mcrfpy.Key.NUM_1: mcrfpy.Transition.FADE,
+            mcrfpy.Key.NUM_2: mcrfpy.Transition.SLIDE_LEFT,
+            mcrfpy.Key.NUM_3: mcrfpy.Transition.SLIDE_RIGHT,
+            mcrfpy.Key.NUM_4: mcrfpy.Transition.SLIDE_UP,
+            mcrfpy.Key.NUM_5: mcrfpy.Transition.SLIDE_DOWN,
+            mcrfpy.Key.NUM_6: mcrfpy.Transition.NONE
             }
     if key in keyselections:
         current_transition = keyselections[key]
         print(f"Transition set to: {current_transition}")
-    #if key == "Num1":
+    #if key == mcrfpy.Key.NUM_1:
     #    current_transition = "fade"
     #    print("Transition set to: fade")
-    #elif key == "Num2":
+    #elif key == mcrfpy.Key.NUM_2:
     #    current_transition = "slide_left"
     #    print("Transition set to: slide_left")
-    #elif key == "Num3":
+    #elif key == mcrfpy.Key.NUM_3:
     #    current_transition = "slide_right"
     #    print("Transition set to: slide_right")
-    #elif key == "Num4":
+    #elif key == mcrfpy.Key.NUM_4:
     #    current_transition = "slide_up"
     #    print("Transition set to: slide_up")
-    #elif key == "Num5":
+    #elif key == mcrfpy.Key.NUM_5:
     #    current_transition = "slide_down"
     #    print("Transition set to: slide_down")
-    #elif key == "Num6":
+    #elif key == mcrfpy.Key.NUM_6:
     #    current_transition = None  # Instant
     #    print("Transition set to: instant")
     
     # Letter keys change scene
     keytransitions = {
-            "R": red_scene,
-            "B": blue_scene,
-            "G": green_scene,
-            "M": menu_scene
+            mcrfpy.Key.R: red_scene,
+            mcrfpy.Key.B: blue_scene,
+            mcrfpy.Key.G: green_scene,
+            mcrfpy.Key.M: menu_scene
             }
     if key in keytransitions:
         if mcrfpy.current_scene != keytransitions[key]:
             keytransitions[key].activate(current_transition, transition_duration)
-    #elif key == "R":
+    #elif key == mcrfpy.Key.R:
     #    if current_scene != "red_scene":
     #        print(f"Transitioning to red_scene with {current_transition}")
     #        if current_transition:
     #            mcrfpy.setScene("red_scene", current_transition, transition_duration)
     #        else:
     #            red_scene.activate()
-    #elif key == "B":
+    #elif key == mcrfpy.Key.B:
     #    if current_scene != "blue_scene":
     #        print(f"Transitioning to blue_scene with {current_transition}")
     #        if current_transition:
     #            mcrfpy.setScene("blue_scene", current_transition, transition_duration)
     #        else:
     #            blue_scene.activate()
-    #elif key == "G":
+    #elif key == mcrfpy.Key.G:
     #    if current_scene != "green_scene":
     #        print(f"Transitioning to green_scene with {current_transition}")
     #        if current_transition:
     #            mcrfpy.setScene("green_scene", current_transition, transition_duration)
     #        else:
     #            green_scene.activate()
-    #elif key == "M":
+    #elif key == mcrfpy.Key.M:
     #    if current_scene != "menu_scene":
     #        print(f"Transitioning to menu_scene with {current_transition}")
     #        if current_transition:
     #            mcrfpy.setScene("menu_scene", current_transition, transition_duration)
     #        else:
     #            menu_scene.activate()
-    elif key == "Escape":
+    elif key == mcrfpy.Key.ESCAPE:
         print("Exiting...")
         sys.exit(0)
 

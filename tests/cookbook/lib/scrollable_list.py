@@ -138,7 +138,7 @@ class ScrollableList:
             # Set up click handler
             def make_click_handler(index):
                 def handler(pos, button, action):
-                    if button == "left" and action == "end":
+                    if button == mcrfpy.MouseButton.LEFT and action == mcrfpy.InputState.RELEASED:
                         self.select(index)
                 return handler
 

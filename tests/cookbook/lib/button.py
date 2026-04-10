@@ -102,13 +102,13 @@ class Button:
         if not self._enabled:
             return
 
-        if button == "left":
-            if action == "start":
+        if button == mcrfpy.MouseButton.LEFT:
+            if action == mcrfpy.InputState.PRESSED:
                 self.is_pressed = True
                 self.frame.fill_color = self.press_color
                 # Animate a subtle press effect
                 self._animate_press()
-            elif action == "end":
+            elif action == mcrfpy.InputState.RELEASED:
                 self.is_pressed = False
                 # Restore hover or normal state
                 if self.is_hovered:

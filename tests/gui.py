@@ -41,14 +41,14 @@ class Draggable(mcrfpy.Frame):
         self.tick.stop()
 
     def minmax(self, pos, btn, event):
-        if event != "start": return
+        if event != mcrfpy.InputState.PRESSED: return
         self.minimized = not self.minimized
         self.minimize_btn.children[0].text = "+" if self.minimized else "-"
         self.clock.visible = not self.minimized
         self.h = 40 if self.minimized else 150
 
     def toggle_move(self, *args):
-        if not self.dragging and args[-1] == "start":
+        if not self.dragging and args[-1] == mcrfpy.InputState.PRESSED:
             self.dragging = True
             self.drag_start_pos = args[0]
             self.on_move = self.update_pos
@@ -66,7 +66,7 @@ class Draggable(mcrfpy.Frame):
         self.clock.text = f"{str(self.time//60).zfill(2)}:{str(self.time%60).zfill(2)}"
 
 def spawn(*args):
-    if args[-1] != "start": return
+    if args[-1] != mcrfpy.InputState.PRESSED: return
     scene.children.append(Draggable((50, 100)))
 
 add_btn = mcrfpy.Frame((5, 5), (32, 32), fill_color = (64, 12, 12), children=[mcrfpy.Caption((8, 0), text="+", font=mcrfpy.default_font, font_size=24)])

@@ -4,23 +4,18 @@
 // Static storage for cached enum class reference
 PyObject* PyInputState::input_state_enum_class = nullptr;
 
-// InputState entries - maps enum name to value and legacy string
+// InputState entries - maps enum name to value
 struct InputStateEntry {
     const char* name;       // Python enum name (UPPER_SNAKE_CASE)
     int value;              // Integer value
-    const char* legacy;     // Legacy string name for backwards compatibility
 };
 
 static const InputStateEntry input_state_table[] = {
-    {"PRESSED", 0, "start"},
-    {"RELEASED", 1, "end"},
+    {"PRESSED", 0},
+    {"RELEASED", 1},
 };
 
 static const int NUM_INPUT_STATE_ENTRIES = sizeof(input_state_table) / sizeof(input_state_table[0]);
-
-const char* PyInputState::to_legacy_string(bool pressed) {
-    return pressed ? "start" : "end";
-}
 
 PyObject* PyInputState::create_enum_class(PyObject* module) {
     // Build the enum definition dynamically from the table
@@ -31,13 +26,8 @@ PyObject* PyInputState::create_enum_class(PyObject* module) {
     code << "    \"\"\"Enum representing input event states (pressed/released).\n";
     code << "    \n";
     code << "    Values:\n";
-    code << "        PRESSED: Key or button was pressed (legacy: 'start')\n";
-    code << "        RELEASED: Key or button was released (legacy: 'end')\n";
-    code << "    \n";
-    code << "    These enum values compare equal to their legacy string equivalents\n";
-    code << "    for backwards compatibility:\n";
-    code << "        InputState.PRESSED == 'start'  # True\n";
-    code << "        InputState.RELEASED == 'end'   # True\n";
+    code << "        PRESSED: Key or button was pressed\n";
+    code << "        RELEASED: Key or button was released\n";
     code << "    \"\"\"\n";
 
     // Add enum members
@@ -45,42 +35,10 @@ PyObject* PyInputState::create_enum_class(PyObject* module) {
         code << "    " << input_state_table[i].name << " = " << input_state_table[i].value << "\n";
     }
 
-    // Add legacy names and custom methods AFTER class creation
-    // (IntEnum doesn't allow dict attributes during class definition)
-    code << "\n# Add legacy name mapping after class creation\n";
-    code << "InputState._legacy_names = {\n";
-    for (int i = 0; i < NUM_INPUT_STATE_ENTRIES; i++) {
-        code << "    " << input_state_table[i].value << ": \"" << input_state_table[i].legacy << "\",\n";
-    }
-    code << "}\n\n";
-
-    code << R"(
-def _InputState_eq(self, other):
-    if isinstance(other, str):
-        # Check enum name match (e.g., "PRESSED")
-        if self.name == other:
-            return True
-        # Check legacy name match (e.g., "start")
-        legacy = type(self)._legacy_names.get(self.value)
-        if legacy and legacy == other:
-            return True
-        return False
-    # Fall back to int comparison for IntEnum
-    return int.__eq__(int(self), other)
-
-InputState.__eq__ = _InputState_eq
-
-def _InputState_ne(self, other):
-    result = type(self).__eq__(self, other)
-    if result is NotImplemented:
-        return result
-    return not result
-
-InputState.__ne__ = _InputState_ne
-InputState.__hash__ = lambda self: hash(int(self))
-InputState.__repr__ = lambda self: f"{type(self).__name__}.{self.name}"
-InputState.__str__ = lambda self: self.name
-)";
+    code << "\n";
+    code << "InputState.__hash__ = lambda self: hash(int(self))\n";
+    code << "InputState.__repr__ = lambda self: f\"{type(self).__name__}.{self.name}\"\n";
+    code << "InputState.__str__ = lambda self: self.name\n";
 
     std::string code_str = code.str();
 
@@ -167,25 +125,22 @@ int PyInputState::from_arg(PyObject* arg, bool* out_pressed) {
         return 0;
     }
 
-    // Accept string (both new and legacy names)
+    // Accept string (enum name only)
     if (PyUnicode_Check(arg)) {
         const char* name = PyUnicode_AsUTF8(arg);
         if (!name) {
             return 0;
         }
 
-        // Check all entries for both name and legacy match
         for (int i = 0; i < NUM_INPUT_STATE_ENTRIES; i++) {
-            if (strcmp(name, input_state_table[i].name) == 0 ||
-                strcmp(name, input_state_table[i].legacy) == 0) {
+            if (strcmp(name, input_state_table[i].name) == 0) {
                 *out_pressed = (input_state_table[i].value == 0);
                 return 1;
             }
         }
 
         PyErr_Format(PyExc_ValueError,
-            "Unknown InputState: '%s'. Use InputState.PRESSED, InputState.RELEASED, "
-            "or legacy strings 'start', 'end'.", name);
+            "Unknown InputState: '%s'. Use InputState.PRESSED or InputState.RELEASED.", name);
         return 0;
     }
 

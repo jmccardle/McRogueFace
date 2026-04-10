@@ -377,22 +377,22 @@ class AnimationDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             sys.exit(0)
-        elif key == "Num1":
+        elif key == mcrfpy.Key.NUM_1:
             self.run_chain_demo()
-        elif key == "Num2":
+        elif key == mcrfpy.Key.NUM_2:
             self.run_group_demo()
-        elif key == "Num3":
+        elif key == mcrfpy.Key.NUM_3:
             self.run_callback_demo()
-        elif key == "Num4":
+        elif key == mcrfpy.Key.NUM_4:
             self.run_loop_demo()
-        elif key == "Num5":
+        elif key == mcrfpy.Key.NUM_5:
             self.run_combined_demo()
-        elif key == "R":
+        elif key == mcrfpy.Key.R:
             self.reset_all()
 
     def activate(self):

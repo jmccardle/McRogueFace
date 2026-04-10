@@ -187,7 +187,7 @@ class ClickPickupDemo:
 
     def _on_grid_click(self, pos, button, action):
         """Handle grid click."""
-        if action != "start":
+        if action != mcrfpy.InputState.PRESSED:
             return
 
         cell = self._get_grid_cell(pos)
@@ -196,13 +196,13 @@ class ClickPickupDemo:
 
         x, y = cell
 
-        if button == "right":
+        if button == mcrfpy.MouseButton.RIGHT:
             # Cancel pickup
             if self.held_entity:
                 self._cancel_pickup()
             return
 
-        if button != "left":
+        if button != mcrfpy.MouseButton.LEFT:
             return
 
         if self.held_entity is None:
@@ -334,10 +334,10 @@ class ClickPickupDemo:
 
     def on_key(self, key, state):
         """Handle keyboard input."""
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
-        if key == "Escape":
+        if key == mcrfpy.Key.ESCAPE:
             if self.held_entity:
                 self._cancel_pickup()
                 return
