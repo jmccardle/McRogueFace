@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git \
+            zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev \
+            libfreetype-dev libudev-dev libvorbis-dev libflac-dev \
+            libgl-dev libopenal-dev
+
+      - name: Check for pre-built libraries
+        run: |
+          if [ ! -d "__lib" ]; then
+            echo "::error::__lib/ directory not found. Pre-built libraries must be available on the runner."
+            echo "See BUILD_FROM_SOURCE.md for instructions on building dependencies."
+            exit 1
+          fi
+
+      - name: Build (Release)
+        run: make linux
+
+      - name: Run tests (Release)
+        run: cd tests && python3 run_tests.py -v
+
+  debug-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git \
+            zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev \
+            libfreetype-dev libudev-dev libvorbis-dev libflac-dev \
+            libgl-dev libopenal-dev
+
+      - name: Check for debug libraries
+        run: |
+          if [ ! -d "__lib_debug" ]; then
+            echo "::error::__lib_debug/ directory not found. Build debug Python first: tools/build_debug_python.sh"
+            exit 1
+          fi
+
+      - name: Build and test (debug Python)
+        run: make debug-test
+
+  asan-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git \
+            zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev \
+            libfreetype-dev libudev-dev libvorbis-dev libflac-dev \
+            libgl-dev libopenal-dev
+
+      - name: Check for debug libraries
+        run: |
+          if [ ! -d "__lib_debug" ]; then
+            echo "::error::__lib_debug/ directory not found. Build debug Python first: tools/build_debug_python.sh"
+            exit 1
+          fi
+
+      - name: Build and test (ASan + UBSan)
+        run: make asan-test
+
+  valgrind-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git valgrind \
+            zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev \
+            libfreetype-dev libudev-dev libvorbis-dev libflac-dev \
+            libgl-dev libopenal-dev
+
+      - name: Check for debug libraries
+        run: |
+          if [ ! -d "__lib_debug" ]; then
+            echo "::error::__lib_debug/ directory not found. Build debug Python first: tools/build_debug_python.sh"
+            exit 1
+          fi
+
+      - name: Build and test (Valgrind memcheck)
+        run: make valgrind-test
+        timeout-minutes: 30
