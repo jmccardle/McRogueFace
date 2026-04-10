@@ -32,7 +32,7 @@
 
 ## Executive Summary
 
-The McRogueFace Python API exposes **44 exported types**, **14 internal types**, **10 enums**, **13 module-level functions**, **7 module-level properties**, and **5 singleton instances** through the `mcrfpy` module.
+The McRogueFace Python API exposes **46 exported types**, **14 internal types**, **10 enums**, **13 module-level functions**, **7 module-level properties**, and **5 singleton instances** through the `mcrfpy` module.
 
 Overall, the API is remarkably consistent. Properties and methods use snake_case throughout the type system. The major inconsistencies are concentrated in a few areas:
 
@@ -930,7 +930,7 @@ Some types use raw string docstrings for methods instead of MCRF_METHOD macros. 
 
 | Category | Count |
 |----------|-------|
-| Exported types | 44 |
+| Exported types | 46 |
 | Internal types | 14 |
 | Enums | 10 |
 | Module functions | 13 |
