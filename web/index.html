@@ -362,7 +362,7 @@
 
     var Module = {
         preRun: [function() {
-            FS.mkdir('/save');
+            try { FS.mkdir('/save'); } catch(e) { /* already exists */ }
             FS.mount(IDBFS, {}, '/save');
             Module.addRunDependency('idbfs-restore');
             FS.syncfs(true, function(err) {

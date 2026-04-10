@@ -304,6 +304,7 @@ class Game:
         )
         self.grid.entities.append(stairs)
         self.stairs_pos = (sx, sy)
+        self.occupied.add((sx, sy))
 
         # Place enemies (more enemies on deeper levels)
         num_enemies = min(3 + self.depth * 2, 15)
@@ -357,7 +358,9 @@ class Game:
             self.items.append({"entity": item, "kind": "treasure", "pos": pos})
             self.occupied.add(pos)
 
-        # Set up fog of war
+        # Set up fog of war (remove old layer first to prevent accumulation)
+        if self.fog_layer is not None:
+            self.grid.remove_layer(self.fog_layer)
         self.fog_layer = mcrfpy.ColorLayer(name="fog", z_index=10)
         self.grid.add_layer(self.fog_layer)
         self.fog_layer.fill(mcrfpy.Color(0, 0, 0, 255))
@@ -521,6 +524,7 @@ class Game:
         self.depth = 1
         self.score = 0
         self.player = None
+        self.fog_layer = None  # Old grid is being discarded
         # Remove overlay
         if hasattr(self, 'game_over_overlay'):
             # Rebuild UI from scratch
