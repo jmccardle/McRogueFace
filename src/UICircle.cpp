@@ -337,6 +337,7 @@ int UICircle::set_radius(PyUICircleObject* self, PyObject* value, void* closure)
         return -1;
     }
     self->data->setRadius(static_cast<float>(PyFloat_AsDouble(value)));
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 
@@ -355,6 +356,7 @@ int UICircle::set_center(PyUICircleObject* self, PyObject* value, void* closure)
         return -1;
     }
     self->data->setCenter(vec->data);
+    self->data->markCompositeDirty(); // #291: position change
     return 0;
 }
 
@@ -382,6 +384,7 @@ int UICircle::set_fill_color(PyUICircleObject* self, PyObject* value, void* clos
         return -1;
     }
     self->data->setFillColor(color);
+    self->data->markDirty(); // #291: color change
     return 0;
 }
 
@@ -409,6 +412,7 @@ int UICircle::set_outline_color(PyUICircleObject* self, PyObject* value, void* c
         return -1;
     }
     self->data->setOutlineColor(color);
+    self->data->markDirty(); // #291: color change
     return 0;
 }
 
@@ -422,6 +426,7 @@ int UICircle::set_outline(PyUICircleObject* self, PyObject* value, void* closure
         return -1;
     }
     self->data->setOutline(static_cast<float>(PyFloat_AsDouble(value)));
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 

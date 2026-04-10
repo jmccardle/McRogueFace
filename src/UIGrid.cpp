@@ -1074,7 +1074,8 @@ int UIGrid::set_size(PyUIGridObject* self, PyObject* value, void* closure) {
     tex_height = std::min(tex_height, 4096u);
     
     self->data->renderTexture.create(tex_width, tex_height);
-    
+    self->data->markDirty(); // #291: size change
+
     return 0;
 }
 
@@ -1091,6 +1092,7 @@ int UIGrid::set_center(PyUIGridObject* self, PyObject* value, void* closure) {
     }
     self->data->center_x = x;
     self->data->center_y = y;
+    self->data->markDirty(); // #291: camera position change
     return 0;
 }
 
@@ -1186,6 +1188,14 @@ int UIGrid::set_float_member(PyUIGridObject* self, PyObject* value, void* closur
         else if (member_ptr == 7) self->view->camera_rotation = val;
         self->view->position = self->view->box.getPosition();
     }
+
+    // #291: Dirty flag propagation for visual property changes
+    if (member_ptr == 0 || member_ptr == 1) {
+        self->data->markCompositeDirty(); // position change
+    } else {
+        self->data->markDirty(); // content/size change
+    }
+
     return 0;
 }
 // TODO (7DRL Day 2, item 5.) return Texture object
@@ -1310,6 +1320,7 @@ int UIGrid::set_fill_color(PyUIGridObject* self, PyObject* value, void* closure)
     
     PyColorObject* color = (PyColorObject*)value;
     self->data->fill_color = color->data;
+    self->data->markDirty(); // #291: color change
     return 0;
 }
 
@@ -1342,6 +1353,7 @@ int UIGrid::set_perspective(PyUIGridObject* self, PyObject* value, void* closure
     if (value == Py_None) {
         // Clear perspective but keep perspective_enabled unchanged
         self->data->perspective_entity.reset();
+        self->data->markDirty(); // #291: FOV rendering change
         return 0;
     }
     
@@ -1354,6 +1366,7 @@ int UIGrid::set_perspective(PyUIGridObject* self, PyObject* value, void* closure
     PyUIEntityObject* entity_obj = (PyUIEntityObject*)value;
     self->data->perspective_entity = entity_obj->data;
     self->data->perspective_enabled = true;  // Enable perspective when entity assigned
+    self->data->markDirty(); // #291: FOV rendering change
     return 0;
 }
 
@@ -1369,6 +1382,7 @@ int UIGrid::set_perspective_enabled(PyUIGridObject* self, PyObject* value, void*
         return -1;  // Error occurred
     }
     self->data->perspective_enabled = enabled;
+    self->data->markDirty(); // #291: FOV rendering toggle
     return 0;
 }
 
@@ -1401,6 +1415,7 @@ int UIGrid::set_fov(PyUIGridObject* self, PyObject* value, void* closure)
         return -1;
     }
     self->data->fov_algorithm = algo;
+    self->data->markDirty(); // #291: FOV algorithm change
     return 0;
 }
 
@@ -1425,6 +1440,7 @@ int UIGrid::set_fov_radius(PyUIGridObject* self, PyObject* value, void* closure)
         return -1;
     }
     self->data->fov_radius = (int)radius;
+    self->data->markDirty(); // #291: FOV radius change
     return 0;
 }
 

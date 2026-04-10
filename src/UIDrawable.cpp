@@ -545,10 +545,12 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
         case 0: // x
             drawable->position.x = val;
             drawable->onPositionChanged();
+            drawable->markCompositeDirty(); // #290: position change invalidates parent cache
             break;
         case 1: // y
             drawable->position.y = val;
             drawable->onPositionChanged();
+            drawable->markCompositeDirty(); // #290: position change invalidates parent cache
             break;
         case 2: // w
         case 3: // h
@@ -559,6 +561,7 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
                 } else {
                     drawable->resize(bounds.width, val);
                 }
+                drawable->markDirty(); // #290: size change invalidates own + parent cache
             }
             break;
         default:
@@ -638,6 +641,7 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
     
     drawable->position = sf::Vector2f(x, y);
     drawable->onPositionChanged();
+    drawable->markCompositeDirty(); // #290: position change invalidates parent cache
     return 0;
 }
 
@@ -873,6 +877,7 @@ int UIDrawable::set_grid_pos(PyObject* self, PyObject* value, void* closure) {
     drawable->position.x = grid_x * cell_size.x;
     drawable->position.y = grid_y * cell_size.y;
     drawable->onPositionChanged();
+    drawable->markCompositeDirty(); // #290: position change invalidates parent cache
 
     return 0;
 }

@@ -423,6 +423,7 @@ int UILine::set_start(PyUILineObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->setStart(vec->data);
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 
@@ -443,6 +444,7 @@ int UILine::set_end(PyUILineObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->setEnd(vec->data);
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 
@@ -462,6 +464,7 @@ int UILine::set_color(PyUILineObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->setColor(color->data);
+    self->data->markDirty(); // #291: color change
     return 0;
 }
 
@@ -486,6 +489,7 @@ int UILine::set_thickness(PyUILineObject* self, PyObject* value, void* closure) 
     }
 
     self->data->setThickness(thickness);
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 

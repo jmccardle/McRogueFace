@@ -404,6 +404,7 @@ int UIArc::set_center(PyUIArcObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->setCenter(vec->data);
+    self->data->markCompositeDirty(); // #291: position change
     return 0;
 }
 
@@ -417,6 +418,7 @@ int UIArc::set_radius(PyUIArcObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->setRadius(static_cast<float>(PyFloat_AsDouble(value)));
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 
@@ -430,6 +432,7 @@ int UIArc::set_start_angle(PyUIArcObject* self, PyObject* value, void* closure) 
         return -1;
     }
     self->data->setStartAngle(static_cast<float>(PyFloat_AsDouble(value)));
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 
@@ -443,6 +446,7 @@ int UIArc::set_end_angle(PyUIArcObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->setEndAngle(static_cast<float>(PyFloat_AsDouble(value)));
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 
@@ -462,6 +466,7 @@ int UIArc::set_color(PyUIArcObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->setColor(color->data);
+    self->data->markDirty(); // #291: color change
     return 0;
 }
 
@@ -475,6 +480,7 @@ int UIArc::set_thickness(PyUIArcObject* self, PyObject* value, void* closure) {
         return -1;
     }
     self->data->setThickness(static_cast<float>(PyFloat_AsDouble(value)));
+    self->data->markDirty(); // #291: visual change
     return 0;
 }
 

@@ -271,6 +271,11 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
         // #122: Clear the parent before removing
         (*self->data)[index]->setParent(nullptr);
         self->data->erase(self->data->begin() + index);
+        // #288: Invalidate parent Frame's render cache
+        auto owner_ptr = self->owner.lock();
+        if (owner_ptr) {
+            owner_ptr->markContentDirty();
+        }
         return 0;
     }
     
@@ -301,6 +306,12 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
 
     // Mark scene as needing resort after replacing element
     McRFPy_API::markSceneNeedsSort();
+
+    // #288: Invalidate parent Frame's render cache
+    auto owner_ptr = self->owner.lock();
+    if (owner_ptr) {
+        owner_ptr->markContentDirty();
+    }
 
     return 0;
 }
@@ -494,7 +505,14 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
             
             // Mark scene as needing resort after slice deletion
             McRFPy_API::markSceneNeedsSort();
-            
+            // #288: Invalidate parent Frame's render cache
+            {
+                auto owner_ptr = self->owner.lock();
+                if (owner_ptr) {
+                    owner_ptr->markContentDirty();
+                }
+            }
+
             return 0;
         } else {
             // Assignment
@@ -564,7 +582,14 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
             
             // Mark scene as needing resort after slice assignment
             McRFPy_API::markSceneNeedsSort();
-            
+            // #288: Invalidate parent Frame's render cache
+            {
+                auto owner_ptr = self->owner.lock();
+                if (owner_ptr) {
+                    owner_ptr->markContentDirty();
+                }
+            }
+
             return 0;
         }
     } else {
@@ -635,6 +660,12 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
     // Mark scene as needing resort after adding element
     McRFPy_API::markSceneNeedsSort();
 
+    // #288: Invalidate parent Frame's render cache
+    auto owner_ptr = self->owner.lock();
+    if (owner_ptr) {
+        owner_ptr->markContentDirty();
+    }
+
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -689,7 +720,12 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
     
     // Mark scene as needing resort after adding elements
     McRFPy_API::markSceneNeedsSort();
-    
+
+    // #288: Invalidate parent Frame's render cache
+    if (owner_ptr) {
+        owner_ptr->markContentDirty();
+    }
+
     Py_INCREF(Py_None);
     return Py_None;
 }
@@ -717,6 +753,11 @@ PyObject* UICollection::remove(PyUICollectionObject* self, PyObject* o)
             (*it)->setParent(nullptr);
             vec->erase(it);
             McRFPy_API::markSceneNeedsSort();
+            // #288: Invalidate parent Frame's render cache
+            auto owner_ptr = self->owner.lock();
+            if (owner_ptr) {
+                owner_ptr->markContentDirty();
+            }
             Py_RETURN_NONE;
         }
     }
@@ -765,6 +806,12 @@ PyObject* UICollection::pop(PyUICollectionObject* self, PyObject* args)
     vec->erase(vec->begin() + index);
 
     McRFPy_API::markSceneNeedsSort();
+
+    // #288: Invalidate parent Frame's render cache
+    auto owner_ptr = self->owner.lock();
+    if (owner_ptr) {
+        owner_ptr->markContentDirty();
+    }
 
     // Convert to Python object and return
     return convertDrawableToPython(drawable);
@@ -816,6 +863,12 @@ PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
     vec->insert(vec->begin() + index, drawable);
 
     McRFPy_API::markSceneNeedsSort();
+
+    // #288: Invalidate parent Frame's render cache
+    auto owner_ptr2 = self->owner.lock();
+    if (owner_ptr2) {
+        owner_ptr2->markContentDirty();
+    }
 
     Py_RETURN_NONE;
 }

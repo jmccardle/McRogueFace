@@ -285,16 +285,26 @@ int UISprite::set_float_member(PyUISpriteObject* self, PyObject* value, void* cl
         PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
         return -1;
     }
-    if (member_ptr == 0) //x
+    if (member_ptr == 0) { //x
         self->data->setPosition(sf::Vector2f(val, self->data->getPosition().y));
-    else if (member_ptr == 1) //y
+        self->data->markCompositeDirty(); // #291: position change
+    }
+    else if (member_ptr == 1) { //y
         self->data->setPosition(sf::Vector2f(self->data->getPosition().x, val));
-    else if (member_ptr == 2) // scale (uniform)
+        self->data->markCompositeDirty(); // #291: position change
+    }
+    else if (member_ptr == 2) { // scale (uniform)
         self->data->setScale(sf::Vector2f(val, val));
-    else if (member_ptr == 3) // scale_x
+        self->data->markDirty(); // #291: visual change
+    }
+    else if (member_ptr == 3) { // scale_x
         self->data->setScale(sf::Vector2f(val, self->data->getScale().y));
-    else if (member_ptr == 4) // scale_y
+        self->data->markDirty(); // #291: visual change
+    }
+    else if (member_ptr == 4) { // scale_y
         self->data->setScale(sf::Vector2f(self->data->getScale().x, val));
+        self->data->markDirty(); // #291: visual change
+    }
     return 0;
 }
 
@@ -339,6 +349,7 @@ int UISprite::set_int_member(PyUISpriteObject* self, PyObject* value, void* clos
     }
     
     self->data->setSpriteIndex(val);
+    self->data->markDirty(); // #291: sprite content change
     return 0;
 }
 
@@ -364,7 +375,8 @@ int UISprite::set_texture(PyUISpriteObject* self, PyObject* value, void* closure
     
     // Update the sprite's texture
     self->data->setTexture(pytexture->data);
-    
+    self->data->markDirty(); // #291: texture change
+
     return 0;
 }
 
@@ -387,6 +399,7 @@ int UISprite::set_pos(PyUISpriteObject* self, PyObject* value, void* closure)
         return -1;
     }
     self->data->setPosition(vec->data);
+    self->data->markCompositeDirty(); // #291: position change
     return 0;
 }
 

@@ -200,14 +200,22 @@ int UICaption::set_float_member(PyUICaptionObject* self, PyObject* value, void* 
         PyErr_SetString(PyExc_TypeError, "Value must be a number (int or float)");
         return -1;
     }
-    if (member_ptr == 0) //x
+    if (member_ptr == 0) { //x
         self->data->text.setPosition(val, self->data->text.getPosition().y);
-    else if (member_ptr == 1) //y
+        self->data->markCompositeDirty(); // #289: position change invalidates parent cache
+    }
+    else if (member_ptr == 1) { //y
         self->data->text.setPosition(self->data->text.getPosition().x, val);
-    else if (member_ptr == 4) //outline
+        self->data->markCompositeDirty(); // #289: position change invalidates parent cache
+    }
+    else if (member_ptr == 4) { //outline
         self->data->text.setOutlineThickness(val);
-    else if (member_ptr == 5) // character size
+        self->data->markDirty(); // #289: content change invalidates own + parent cache
+    }
+    else if (member_ptr == 5) { // character size
         self->data->text.setCharacterSize(val);
+        self->data->markDirty(); // #289: content change invalidates own + parent cache
+    }
     return 0;
 }
 
@@ -219,6 +227,7 @@ PyObject* UICaption::get_vec_member(PyUICaptionObject* self, void* closure)
 int UICaption::set_vec_member(PyUICaptionObject* self, PyObject* value, void* closure)
 {
     self->data->text.setPosition(PyVector::fromPy(value));
+    self->data->markCompositeDirty(); // #289: position change invalidates parent cache
     return 0;
 }
 
@@ -289,10 +298,12 @@ int UICaption::set_color_member(PyUICaptionObject* self, PyObject* value, void* 
     if (member_ptr == 0)
     {
         self->data->text.setFillColor(sf::Color(r, g, b, a));
+        self->data->markDirty(); // #289: color change invalidates own + parent cache
     }
     else if (member_ptr == 1)
     {
         self->data->text.setOutlineColor(sf::Color(r, g, b, a));
+        self->data->markDirty(); // #289: color change invalidates own + parent cache
     }
     else
     {
@@ -329,6 +340,7 @@ int UICaption::set_text(PyUICaptionObject* self, PyObject* value, void* closure)
         Py_DECREF(temp_bytes);
     }
     self->data->text.setString(Resources::caption_buffer);
+    self->data->markDirty(); // #289: text change invalidates own + parent cache
     return 0;
 }
 
