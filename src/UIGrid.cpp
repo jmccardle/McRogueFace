@@ -182,10 +182,10 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     if (y_limit > grid_h) y_limit = grid_h;
 
     // #150 - Layers are now the sole source of grid rendering (base layer removed)
-    // Render layers with z_index < 0 (below entities)
+    // Render layers with z_index <= 0 (below entities)
     sortLayers();
     for (auto& layer : layers) {
-        if (layer->z_index >= 0) break;  // Stop at layers that go above entities
+        if (layer->z_index > 0) break;  // Stop at layers that go above entities (#257)
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }
@@ -222,9 +222,9 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
         Resources::game->metrics.totalEntities += totalEntities;
     }
 
-    // #147 - Render dynamic layers with z_index >= 0 (above entities)
+    // #147 - Render dynamic layers with z_index > 0 (above entities)
     for (auto& layer : layers) {
-        if (layer->z_index < 0) continue;  // Skip layers below entities
+        if (layer->z_index <= 0) continue;  // Skip layers at or below entities (#257)
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }

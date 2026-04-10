@@ -167,10 +167,10 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     int y_limit = top_edge + height_sq + 2;
     if (y_limit > grid_data->grid_h) y_limit = grid_data->grid_h;
 
-    // Render layers below entities (z_index < 0)
+    // Render layers below entities (z_index <= 0)
     grid_data->sortLayers();
     for (auto& layer : grid_data->layers) {
-        if (layer->z_index >= 0) break;
+        if (layer->z_index > 0) break;  // #257: z_index=0 is ground level (below entities)
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }
@@ -191,9 +191,9 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         }
     }
 
-    // Render layers above entities (z_index >= 0)
+    // Render layers above entities (z_index > 0)
     for (auto& layer : grid_data->layers) {
-        if (layer->z_index < 0) continue;
+        if (layer->z_index <= 0) continue;  // #257: skip ground-level and below
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }

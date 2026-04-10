@@ -30,7 +30,7 @@ public:
 
     GridLayerType type;
     std::string name;      // #150 - Layer name for GridPoint property access
-    int z_index;           // Negative = below entities, >= 0 = above entities
+    int z_index;           // <= 0 = below entities (ground level), > 0 = above entities
     int grid_x, grid_y;    // Dimensions
     GridData* parent_grid;   // Parent grid reference (#252: GridData, not UIGrid)
     bool visible;          // Visibility flag
