@@ -1027,6 +1027,16 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
             std::wstring warg(arg.begin(), arg.end());
             argv_storage.push_back(warg);
         }
+    } else if (!config.exec_scripts.empty()) {
+        // --exec mode: argv[0] = last exec script path so sys.argv[0] matches the running
+        // script, mirroring normal Python script-mode behavior. Any script_args populated
+        // via the `--` passthrough marker (see CommandLineParser) become argv[1:] so
+        // fuzzers/libFuzzer can receive their flags through atheris.Setup(sys.argv, ...).
+        argv_storage.push_back(config.exec_scripts.back().wstring());
+        for (const auto& arg : config.script_args) {
+            std::wstring warg(arg.begin(), arg.end());
+            argv_storage.push_back(warg);
+        }
     } else {
         // Interactive mode or no script: argv[0] = ""
         argv_storage.push_back(L"");

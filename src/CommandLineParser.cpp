@@ -121,6 +121,19 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
             config.exec_scripts.push_back(argv[current_arg]);
             config.python_mode = true;
             current_arg++;
+            // Look for `--` passthrough marker: everything after it becomes script_args
+            // (forwarded to sys.argv so fuzzers/libFuzzer can receive their flags).
+            int scan = current_arg;
+            while (scan < argc) {
+                if (std::string(argv[scan]) == "--") {
+                    for (int i = scan + 1; i < argc; i++) {
+                        config.script_args.push_back(argv[i]);
+                    }
+                    current_arg = argc;
+                    break;
+                }
+                scan++;
+            }
             continue;
         }
 
