@@ -1,8 +1,8 @@
 # McRogueFace AddressSanitizer Suppression File
 #
-# Minimal — most CPython false positives are handled by:
+# CPython false positives are handled by:
 #   - PYTHONMALLOC=malloc (bypasses pymalloc)
-#   - detect_leaks=0 (CPython has intentional lifetime leaks)
+#   - LSAN suppressions below (CPython has intentional lifetime leaks)
 #
 # Usage (via ASAN_OPTIONS or LSAN_OPTIONS):
 #   LSAN_OPTIONS="suppressions=sanitizers/asan.supp"
