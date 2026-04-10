@@ -30,7 +30,7 @@
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
-.PHONY: debug debug-test asan asan-test valgrind-test massif-test analyze clean-debug
+.PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
 
 # Number of parallel jobs for compilation
 JOBS := $(shell nproc 2>/dev/null || echo 4)
@@ -114,6 +114,24 @@ asan-test: asan
 		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
 		python3 run_tests.py -v --sanitizer
 
+tsan:
+	@echo "Building McRogueFace with TSan + free-threaded Python..."
+	@echo "NOTE: Requires free-threaded debug Python built with:"
+	@echo "  tools/build_debug_python.sh --tsan"
+	@mkdir -p build-tsan
+	@cd build-tsan && cmake .. \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DMCRF_FREE_THREADED_PYTHON=ON \
+		-DMCRF_SANITIZE_THREAD=ON && make -j$(JOBS)
+	@echo "TSan build complete! Output: build-tsan/mcrogueface"
+
+tsan-test: tsan
+	@echo "Running test suite under TSan..."
+	cd tests && MCRF_BUILD_DIR=../build-tsan \
+		MCRF_LIB_DIR=../__lib_debug \
+		TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1" \
+		python3 run_tests.py -v --sanitizer
+
 valgrind-test: debug
 	@echo "Running test suite under Valgrind memcheck..."
 	cd tests && MCRF_BUILD_DIR=../build-debug \
@@ -151,7 +169,7 @@ analyze:
 
 clean-debug:
 	@echo "Cleaning debug/sanitizer builds..."
-	@rm -rf build-debug build-asan
+	@rm -rf build-debug build-asan build-tsan
 
 # Packaging targets using tools/package.sh
 package-windows-light: windows
