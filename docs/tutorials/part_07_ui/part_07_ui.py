@@ -405,24 +405,7 @@ class RectangularRoom:
             self.y2 >= other.y1
         )
 
-# =============================================================================
-# Exploration Tracking
-# =============================================================================
-
-explored: list[list[bool]] = []
-
-def init_explored() -> None:
-    global explored
-    explored = [[False for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
-
-def mark_explored(x: int, y: int) -> None:
-    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
-        explored[y][x] = True
-
-def is_explored(x: int, y: int) -> bool:
-    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
-        return explored[y][x]
-    return False
+# Exploration tracking is handled internally by draw_fov()
 
 # =============================================================================
 # Dungeon Generation
@@ -546,10 +529,7 @@ def get_blocking_entity_at(target_grid: mcrfpy.Grid, x: int, y: int, exclude: mc
     return None
 
 def remove_entity(target_grid: mcrfpy.Grid, entity: mcrfpy.Entity) -> None:
-    for i, e in enumerate(target_grid.entities):
-        if e == entity:
-            target_grid.entities.remove(i)
-            break
+    target_grid.entities.remove(entity)
     if entity in entity_data:
         del entity_data[entity]
 
@@ -633,20 +613,16 @@ def update_entity_visibility(target_grid: mcrfpy.Grid) -> None:
             continue
 
         ex, ey = int(entity.x), int(entity.y)
-        entity.visible = target_grid.is_in_fov(ex, ey)
+        entity.visible = target_grid.is_in_fov((ex, ey))
 
 def update_fov(target_grid: mcrfpy.Grid, target_fov_layer, player_x: int, player_y: int) -> None:
-    target_grid.compute_fov(player_x, player_y, FOV_RADIUS, mcrfpy.FOV.SHADOW)
-
-    for y in range(GRID_HEIGHT):
-        for x in range(GRID_WIDTH):
-            if target_grid.is_in_fov(x, y):
-                mark_explored(x, y)
-                target_fov_layer.set(x, y, COLOR_VISIBLE)
-            elif is_explored(x, y):
-                target_fov_layer.set(x, y, COLOR_DISCOVERED)
-            else:
-                target_fov_layer.set(x, y, COLOR_UNKNOWN)
+    target_fov_layer.draw_fov(
+        (player_x, player_y),
+        radius=FOV_RADIUS,
+        visible=COLOR_VISIBLE,
+        discovered=COLOR_DISCOVERED,
+        unknown=COLOR_UNKNOWN
+    )
 
     update_entity_visibility(target_grid)
 
@@ -719,7 +695,7 @@ def enemy_turn() -> None:
 
         ex, ey = int(enemy.x), int(enemy.y)
 
-        if not grid.is_in_fov(ex, ey):
+        if not grid.is_in_fov((ex, ey)):
             continue
 
         dx = player_x - ex
@@ -791,7 +767,6 @@ grid = mcrfpy.Grid(
 
 # Generate initial dungeon structure
 fill_with_walls(grid)
-init_explored()
 
 rooms: list[RectangularRoom] = []
 
@@ -826,10 +801,9 @@ else:
     player_start_x, player_start_y = GRID_WIDTH // 2, GRID_HEIGHT // 2
 
 # Add FOV layer
-fov_layer = grid.add_layer("color", z_index=-1)
-for y in range(GRID_HEIGHT):
-    for x in range(GRID_WIDTH):
-        fov_layer.set(x, y, COLOR_UNKNOWN)
+fov_layer = mcrfpy.ColorLayer(z_index=-1, name="fov")
+grid.add_layer(fov_layer)
+fov_layer.fill(COLOR_UNKNOWN)
 
 # Create the player
 player = mcrfpy.Entity(
@@ -930,11 +904,11 @@ def restart_game() -> None:
 
     entity_data.clear()
 
-    while len(grid.entities) > 0:
-        grid.entities.remove(0)
+    entities_to_clear = list(grid.entities)
+    for e in entities_to_clear:
+        grid.entities.remove(e)
 
     fill_with_walls(grid)
-    init_explored()
     message_log.clear()
 
     rooms = []
@@ -989,9 +963,7 @@ def restart_game() -> None:
             continue
         spawn_enemies_in_room(grid, room, texture)
 
-    for y in range(GRID_HEIGHT):
-        for x in range(GRID_WIDTH):
-            fov_layer.set(x, y, COLOR_UNKNOWN)
+    fov_layer.fill(COLOR_UNKNOWN)
 
     update_fov(grid, fov_layer, new_x, new_y)
 
@@ -999,30 +971,30 @@ def restart_game() -> None:
 
     update_ui()
 
-def handle_keys(key: str, action: str) -> None:
+def handle_keys(key, action) -> None:
     global game_over
 
-    if action != "start":
+    if action != mcrfpy.InputState.PRESSED:
         return
 
-    if key == "R":
+    if key == mcrfpy.Key.R:
         restart_game()
         return
 
-    if key == "Escape":
+    if key == mcrfpy.Key.ESCAPE:
         mcrfpy.exit()
         return
 
     if game_over:
         return
 
-    if key == "W" or key == "Up":
+    if key == mcrfpy.Key.W or key == mcrfpy.Key.UP:
         try_move_or_attack(0, -1)
-    elif key == "S" or key == "Down":
+    elif key == mcrfpy.Key.S or key == mcrfpy.Key.DOWN:
         try_move_or_attack(0, 1)
-    elif key == "A" or key == "Left":
+    elif key == mcrfpy.Key.A or key == mcrfpy.Key.LEFT:
         try_move_or_attack(-1, 0)
-    elif key == "D" or key == "Right":
+    elif key == mcrfpy.Key.D or key == mcrfpy.Key.RIGHT:
         try_move_or_attack(1, 0)
 
 scene.on_key = handle_keys

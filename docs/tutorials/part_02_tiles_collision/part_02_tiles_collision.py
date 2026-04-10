@@ -160,9 +160,9 @@ scene.children.append(status_display)
 # Input Handling
 # =============================================================================
 
-def handle_keys(key: str, action: str) -> None:
+def handle_keys(key, action) -> None:
     """Handle keyboard input with collision detection."""
-    if action != "start":
+    if action != mcrfpy.InputState.PRESSED:
         return
 
     # Get current position
@@ -171,15 +171,15 @@ def handle_keys(key: str, action: str) -> None:
     # Calculate intended new position
     new_x, new_y = px, py
 
-    if key == "W" or key == "Up":
+    if key == mcrfpy.Key.W or key == mcrfpy.Key.UP:
         new_y -= 1
-    elif key == "S" or key == "Down":
+    elif key == mcrfpy.Key.S or key == mcrfpy.Key.DOWN:
         new_y += 1
-    elif key == "A" or key == "Left":
+    elif key == mcrfpy.Key.A or key == mcrfpy.Key.LEFT:
         new_x -= 1
-    elif key == "D" or key == "Right":
+    elif key == mcrfpy.Key.D or key == mcrfpy.Key.RIGHT:
         new_x += 1
-    elif key == "Escape":
+    elif key == mcrfpy.Key.ESCAPE:
         mcrfpy.exit()
         return
     else:

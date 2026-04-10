@@ -71,24 +71,9 @@ class RectangularRoom:
 # Exploration Tracking
 # =============================================================================
 
-# Track which tiles have been discovered (seen at least once)
-explored: list[list[bool]] = []
-
-def init_explored() -> None:
-    """Initialize the explored array to all False."""
-    global explored
-    explored = [[False for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
-
-def mark_explored(x: int, y: int) -> None:
-    """Mark a tile as explored."""
-    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
-        explored[y][x] = True
-
-def is_explored(x: int, y: int) -> bool:
-    """Check if a tile has been explored."""
-    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
-        return explored[y][x]
-    return False
+# Note: The ColorLayer's draw_fov() method tracks exploration state
+# internally - tiles that have been visible at least once are rendered
+# with the 'discovered' color. No manual tracking needed!
 
 # =============================================================================
 # Dungeon Generation (from Part 3, with transparent property)
@@ -151,7 +136,6 @@ def carve_l_tunnel(
 def generate_dungeon(grid: mcrfpy.Grid) -> tuple[int, int]:
     """Generate a dungeon with rooms and tunnels."""
     fill_with_walls(grid)
-    init_explored()  # Reset exploration when generating new dungeon
 
     rooms: list[RectangularRoom] = []
 
@@ -188,28 +172,25 @@ def generate_dungeon(grid: mcrfpy.Grid) -> tuple[int, int]:
 def update_fov(grid: mcrfpy.Grid, fov_layer, player_x: int, player_y: int) -> None:
     """Update the field of view visualization.
 
+    Uses the ColorLayer's built-in draw_fov() method, which computes FOV
+    via libtcod and paints visibility colors in a single call. The layer
+    tracks explored state automatically.
+
     Args:
         grid: The game grid
         fov_layer: The ColorLayer for FOV visualization
         player_x: Player's X position
         player_y: Player's Y position
     """
-    # Compute FOV from player position
-    grid.compute_fov(player_x, player_y, FOV_RADIUS, mcrfpy.FOV.SHADOW)
-
-    # Update each tile's visibility
-    for y in range(GRID_HEIGHT):
-        for x in range(GRID_WIDTH):
-            if grid.is_in_fov(x, y):
-                # Currently visible - mark as explored and show clearly
-                mark_explored(x, y)
-                fov_layer.set(x, y, COLOR_VISIBLE)
-            elif is_explored(x, y):
-                # Previously seen but not currently visible - show dimmed
-                fov_layer.set(x, y, COLOR_DISCOVERED)
-            else:
-                # Never seen - hide completely
-                fov_layer.set(x, y, COLOR_UNKNOWN)
+    # draw_fov computes FOV and paints the color layer in one step.
+    # It tracks explored state internally so previously-seen tiles stay dimmed.
+    fov_layer.draw_fov(
+        (player_x, player_y),
+        radius=FOV_RADIUS,
+        visible=COLOR_VISIBLE,
+        discovered=COLOR_DISCOVERED,
+        unknown=COLOR_UNKNOWN
+    )
 
 # =============================================================================
 # Collision Detection
@@ -244,12 +225,12 @@ grid = mcrfpy.Grid(
 player_start_x, player_start_y = generate_dungeon(grid)
 
 # Add a color layer for FOV visualization (below entities)
-fov_layer = grid.add_layer("color", z_index=-1)
+# Create the layer object, then attach it to the grid
+fov_layer = mcrfpy.ColorLayer(z_index=-1, name="fov")
+grid.add_layer(fov_layer)
 
 # Initialize the FOV layer to all black (unknown)
-for y in range(GRID_HEIGHT):
-    for x in range(GRID_WIDTH):
-        fov_layer.set(x, y, COLOR_UNKNOWN)
+fov_layer.fill(COLOR_UNKNOWN)
 
 # Create the player
 player = mcrfpy.Entity(
@@ -312,34 +293,32 @@ def regenerate_dungeon() -> None:
     player.y = new_y
 
     # Reset FOV layer to unknown
-    for y in range(GRID_HEIGHT):
-        for x in range(GRID_WIDTH):
-            fov_layer.set(x, y, COLOR_UNKNOWN)
+    fov_layer.fill(COLOR_UNKNOWN)
 
     # Calculate new FOV
     update_fov(grid, fov_layer, new_x, new_y)
     pos_display.text = f"Position: ({new_x}, {new_y})"
 
-def handle_keys(key: str, action: str) -> None:
+def handle_keys(key, action) -> None:
     """Handle keyboard input."""
-    if action != "start":
+    if action != mcrfpy.InputState.PRESSED:
         return
 
     px, py = int(player.x), int(player.y)
     new_x, new_y = px, py
 
-    if key == "W" or key == "Up":
+    if key == mcrfpy.Key.W or key == mcrfpy.Key.UP:
         new_y -= 1
-    elif key == "S" or key == "Down":
+    elif key == mcrfpy.Key.S or key == mcrfpy.Key.DOWN:
         new_y += 1
-    elif key == "A" or key == "Left":
+    elif key == mcrfpy.Key.A or key == mcrfpy.Key.LEFT:
         new_x -= 1
-    elif key == "D" or key == "Right":
+    elif key == mcrfpy.Key.D or key == mcrfpy.Key.RIGHT:
         new_x += 1
-    elif key == "R":
+    elif key == mcrfpy.Key.R:
         regenerate_dungeon()
         return
-    elif key == "Escape":
+    elif key == mcrfpy.Key.ESCAPE:
         mcrfpy.exit()
         return
     else:

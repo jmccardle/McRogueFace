@@ -75,30 +75,30 @@ pos_display.fill_color = mcrfpy.Color(200, 200, 100)
 pos_display.font_size = 16
 scene.children.append(pos_display)
 
-def handle_keys(key: str, action: str) -> None:
+def handle_keys(key, action) -> None:
     """Handle keyboard input to move the player.
 
     Args:
-        key: The key that was pressed (e.g., "W", "Up", "Space")
-        action: Either "start" (key pressed) or "end" (key released)
+        key: A mcrfpy.Key enum value (e.g., Key.W, Key.UP)
+        action: A mcrfpy.InputState enum value (PRESSED or RELEASED)
     """
     # Only respond to key press, not release
-    if action != "start":
+    if action != mcrfpy.InputState.PRESSED:
         return
 
     # Get current player position
     px, py = int(player.x), int(player.y)
 
     # Calculate new position based on key
-    if key == "W" or key == "Up":
+    if key == mcrfpy.Key.W or key == mcrfpy.Key.UP:
         py -= 1  # Up decreases Y
-    elif key == "S" or key == "Down":
+    elif key == mcrfpy.Key.S or key == mcrfpy.Key.DOWN:
         py += 1  # Down increases Y
-    elif key == "A" or key == "Left":
+    elif key == mcrfpy.Key.A or key == mcrfpy.Key.LEFT:
         px -= 1  # Left decreases X
-    elif key == "D" or key == "Right":
+    elif key == mcrfpy.Key.D or key == mcrfpy.Key.RIGHT:
         px += 1  # Right increases X
-    elif key == "Escape":
+    elif key == mcrfpy.Key.ESCAPE:
         mcrfpy.exit()
         return
 

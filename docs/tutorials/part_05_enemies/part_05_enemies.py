@@ -120,23 +120,8 @@ class RectangularRoom:
 # Exploration Tracking (from Part 4)
 # =============================================================================
 
-explored: list[list[bool]] = []
-
-def init_explored() -> None:
-    """Initialize the explored array to all False."""
-    global explored
-    explored = [[False for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
-
-def mark_explored(x: int, y: int) -> None:
-    """Mark a tile as explored."""
-    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
-        explored[y][x] = True
-
-def is_explored(x: int, y: int) -> bool:
-    """Check if a tile has been explored."""
-    if 0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT:
-        return explored[y][x]
-    return False
+# Note: The ColorLayer's draw_fov() method tracks exploration state
+# internally - no manual tracking needed!
 
 # =============================================================================
 # Dungeon Generation (from Part 4)
@@ -293,20 +278,15 @@ def clear_enemies(target_grid: mcrfpy.Grid) -> None:
     """Remove all enemies from the grid."""
     global entity_data
 
-    # Get list of enemies to remove (not the player)
+    # Collect enemies to remove (not the player)
     enemies_to_remove = []
     for entity in target_grid.entities:
         if entity in entity_data and not entity_data[entity].get("is_player", False):
             enemies_to_remove.append(entity)
 
-    # Remove from grid and entity_data
+    # Remove from grid (by entity reference) and from entity_data
     for enemy in enemies_to_remove:
-        # Find and remove from grid.entities
-        for i, e in enumerate(target_grid.entities):
-            if e == enemy:
-                target_grid.entities.remove(i)
-                break
-        # Remove from entity_data
+        target_grid.entities.remove(enemy)
         if enemy in entity_data:
             del entity_data[enemy]
 
@@ -329,7 +309,7 @@ def update_entity_visibility(target_grid: mcrfpy.Grid) -> None:
 
         # Other entities are only visible if in FOV
         ex, ey = int(entity.x), int(entity.y)
-        entity.visible = target_grid.is_in_fov(ex, ey)
+        entity.visible = target_grid.is_in_fov((ex, ey))
 
 # =============================================================================
 # Field of View (from Part 4)
@@ -337,21 +317,18 @@ def update_entity_visibility(target_grid: mcrfpy.Grid) -> None:
 
 def update_fov(target_grid: mcrfpy.Grid, target_fov_layer, player_x: int, player_y: int) -> None:
     """Update the field of view visualization."""
-    # Compute FOV from player position
-    target_grid.compute_fov(player_x, player_y, FOV_RADIUS, mcrfpy.FOV.SHADOW)
+    # draw_fov computes FOV and paints the color layer in one step.
+    # It also tracks explored state internally.
+    target_fov_layer.draw_fov(
+        (player_x, player_y),
+        radius=FOV_RADIUS,
+        visible=COLOR_VISIBLE,
+        discovered=COLOR_DISCOVERED,
+        unknown=COLOR_UNKNOWN
+    )
 
-    # Update each tile's visibility
-    for y in range(GRID_HEIGHT):
-        for x in range(GRID_WIDTH):
-            if target_grid.is_in_fov(x, y):
-                mark_explored(x, y)
-                target_fov_layer.set(x, y, COLOR_VISIBLE)
-            elif is_explored(x, y):
-                target_fov_layer.set(x, y, COLOR_DISCOVERED)
-            else:
-                target_fov_layer.set(x, y, COLOR_UNKNOWN)
-
-    # Update entity visibility
+    # Update entity visibility (draw_fov calls compute_fov internally,
+    # so is_in_fov() reflects the current FOV state)
     update_entity_visibility(target_grid)
 
 # =============================================================================
@@ -399,7 +376,6 @@ def generate_dungeon(target_grid: mcrfpy.Grid, texture: mcrfpy.Texture) -> tuple
 
     # Fill with walls
     fill_with_walls(target_grid)
-    init_explored()
 
     rooms: list[RectangularRoom] = []
 
@@ -454,7 +430,6 @@ grid = mcrfpy.Grid(
 
 # Generate the dungeon (without player first to get starting position)
 fill_with_walls(grid)
-init_explored()
 
 rooms: list[RectangularRoom] = []
 
@@ -489,10 +464,9 @@ else:
     player_start_x, player_start_y = GRID_WIDTH // 2, GRID_HEIGHT // 2
 
 # Add FOV layer
-fov_layer = grid.add_layer("color", z_index=-1)
-for y in range(GRID_HEIGHT):
-    for x in range(GRID_WIDTH):
-        fov_layer.set(x, y, COLOR_UNKNOWN)
+fov_layer = mcrfpy.ColorLayer(z_index=-1, name="fov")
+grid.add_layer(fov_layer)
+fov_layer.fill(COLOR_UNKNOWN)
 
 # Create the player
 player = mcrfpy.Entity(
@@ -574,7 +548,6 @@ def regenerate_dungeon() -> None:
 
     # Regenerate dungeon structure
     fill_with_walls(grid)
-    init_explored()
 
     rooms = []
 
@@ -618,37 +591,35 @@ def regenerate_dungeon() -> None:
         spawn_enemies_in_room(grid, room, texture)
 
     # Reset FOV layer
-    for y in range(GRID_HEIGHT):
-        for x in range(GRID_WIDTH):
-            fov_layer.set(x, y, COLOR_UNKNOWN)
+    fov_layer.fill(COLOR_UNKNOWN)
 
     # Update FOV
     update_fov(grid, fov_layer, new_x, new_y)
     pos_display.text = f"Position: ({new_x}, {new_y})"
     status_display.text = "New dungeon generated!"
 
-def handle_keys(key: str, action: str) -> None:
+def handle_keys(key, action) -> None:
     """Handle keyboard input."""
     global player, grid, fov_layer
 
-    if action != "start":
+    if action != mcrfpy.InputState.PRESSED:
         return
 
     px, py = int(player.x), int(player.y)
     new_x, new_y = px, py
 
-    if key == "W" or key == "Up":
+    if key == mcrfpy.Key.W or key == mcrfpy.Key.UP:
         new_y -= 1
-    elif key == "S" or key == "Down":
+    elif key == mcrfpy.Key.S or key == mcrfpy.Key.DOWN:
         new_y += 1
-    elif key == "A" or key == "Left":
+    elif key == mcrfpy.Key.A or key == mcrfpy.Key.LEFT:
         new_x -= 1
-    elif key == "D" or key == "Right":
+    elif key == mcrfpy.Key.D or key == mcrfpy.Key.RIGHT:
         new_x += 1
-    elif key == "R":
+    elif key == mcrfpy.Key.R:
         regenerate_dungeon()
         return
-    elif key == "Escape":
+    elif key == mcrfpy.Key.ESCAPE:
         mcrfpy.exit()
         return
     else:
