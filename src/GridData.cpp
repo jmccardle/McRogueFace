@@ -12,6 +12,30 @@ GridData::GridData()
 
 GridData::~GridData()
 {
+    // #270: Null out parent_grid in all layers so surviving shared_ptrs
+    // (held by Python wrappers) don't dangle after grid destruction
+    for (auto& layer : layers) {
+        if (layer) layer->parent_grid = nullptr;
+    }
+
+    // #271: Null out parent_grid in all grid points (flat storage)
+    for (auto& p : points) {
+        p.parent_grid = nullptr;
+    }
+
+    // #277: Null out parent_grid in chunks and chunk manager
+    if (chunk_manager) {
+        for (auto& chunk : chunk_manager->chunks) {
+            if (chunk) {
+                chunk->parent_grid = nullptr;
+                for (auto& cell : chunk->cells) {
+                    cell.parent_grid = nullptr;
+                }
+            }
+        }
+        chunk_manager->parent_grid = nullptr;
+    }
+
     cleanupTCOD();
 }
 
