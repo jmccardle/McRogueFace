@@ -338,9 +338,57 @@ if(MCRF_FUZZER)
     if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         message(FATAL_ERROR "MCRF_FUZZER=ON requires Clang. Invoke with CC=clang-18 CXX=clang++-18.")
     endif()
-    message(STATUS "libFuzzer coverage instrumentation enabled (atheris harness)")
-    target_compile_options(mcrogueface PRIVATE -fsanitize=fuzzer-no-link)
-    target_link_options(mcrogueface PRIVATE -fsanitize=fuzzer-no-link)
+    message(STATUS "Building mcrfpy_fuzz harness (libFuzzer + ASan + UBSan)")
+
+    set(MCRF_FUZZ_SOURCES ${SOURCES})
+    list(REMOVE_ITEM MCRF_FUZZ_SOURCES ${CMAKE_SOURCE_DIR}/src/main.cpp)
+    list(APPEND MCRF_FUZZ_SOURCES ${CMAKE_SOURCE_DIR}/tests/fuzz/fuzz_common.cpp)
+
+    add_executable(mcrfpy_fuzz ${MCRF_FUZZ_SOURCES})
+    target_compile_definitions(mcrfpy_fuzz PRIVATE NO_SDL MCRF_FUZZ_HARNESS)
+    if(MCRF_DEBUG_PYTHON OR MCRF_FREE_THREADED_PYTHON)
+        target_compile_definitions(mcrfpy_fuzz PRIVATE Py_DEBUG)
+    endif()
+    if(MCRF_FREE_THREADED_PYTHON)
+        target_compile_definitions(mcrfpy_fuzz PRIVATE Py_GIL_DISABLED)
+    endif()
+    if(MCRF_HEADLESS)
+        target_compile_definitions(mcrfpy_fuzz PRIVATE MCRF_HEADLESS)
+    endif()
+    if(MCRF_SDL2)
+        target_compile_definitions(mcrfpy_fuzz PRIVATE MCRF_SDL2)
+    endif()
+    target_include_directories(mcrfpy_fuzz PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/tests/fuzz)
+    target_compile_options(mcrfpy_fuzz PRIVATE
+        -fsanitize=fuzzer-no-link,address,undefined
+        -fno-sanitize=function,vptr
+        -fno-omit-frame-pointer -g -O1)
+    target_link_options(mcrfpy_fuzz PRIVATE
+        -fsanitize=fuzzer,address,undefined
+        -fno-sanitize=function,vptr)
+    target_link_libraries(mcrfpy_fuzz ${LINK_LIBS})
+
+    # Copy Python runtime + assets next to mcrfpy_fuzz so the embedded
+    # interpreter finds the stdlib and default_font/default_texture load.
+    add_custom_command(TARGET mcrfpy_fuzz POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:mcrfpy_fuzz>/assets)
+    if(MCRF_DEBUG_PYTHON)
+        add_custom_command(TARGET mcrfpy_fuzz POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
+                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython3.14.so.1.0
+            COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
+                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython3.14d.so.1.0
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                libpython3.14d.so.1.0
+                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython3.14d.so)
+    endif()
 endif()
 
 # Enable Py_DEBUG when linking against debug CPython (matches pydebug ABI)
