@@ -137,7 +137,7 @@ print(f"  Visible cells after move: {visible_count}")
 # Set up UI
 ui = visibility_test.children
 ui.append(grid)
-grid.position = (50, 50)
+grid.pos = (50, 50)
 grid.size = (600, 450)  # 20*30, 15*30
 
 # Add title

@@ -35,7 +35,7 @@ entity.update_visibility()
 print("Setting up UI...")
 ui = vis_test.children
 ui.append(grid)
-grid.position = (50, 50)
+grid.pos = (50, 50)
 grid.size = (300, 300)
 
 # Test perspective

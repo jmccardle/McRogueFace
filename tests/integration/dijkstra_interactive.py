@@ -199,7 +199,7 @@ ui.append(grid)
 
 # Scale and position grid for better visibility
 grid.size = (560, 400)  # 14*40, 10*40
-grid.position = (120, 60)
+grid.pos = (120, 60)
 
 # Add title
 title = mcrfpy.Caption(pos=(250, 10), text="Dijkstra Pathfinding Interactive")

@@ -66,7 +66,7 @@ if path:
 # Set up UI
 ui = visual_test.children
 ui.append(grid)
-grid.position = (50, 50)
+grid.pos = (50, 50)
 grid.size = (250, 250)
 
 # Add title

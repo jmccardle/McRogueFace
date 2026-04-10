@@ -107,8 +107,6 @@ public:
     static PyObject* get_grid_size(PyUIGridObject* self, void* closure);
     static PyObject* get_grid_w(PyUIGridObject* self, void* closure);
     static PyObject* get_grid_h(PyUIGridObject* self, void* closure);
-    static PyObject* get_position(PyUIGridObject* self, void* closure);
-    static int set_position(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_size(PyUIGridObject* self, void* closure);
     static int set_size(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_center(PyUIGridObject* self, void* closure);

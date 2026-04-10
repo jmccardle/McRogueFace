@@ -39,14 +39,22 @@ def test_grid_vectors():
     assert center.y == 75.0, f"grid.center.y should be 75.0, got {center.y}"
     print("  PASS: grid.center returns Vector")
 
-    # Test grid.position returns a Vector
-    position = grid.position
-    print(f"  grid.position = {position}")
-    assert hasattr(position, 'x'), f"grid.position should have .x attribute, got {type(position)}"
-    assert hasattr(position, 'y'), f"grid.position should have .y attribute, got {type(position)}"
-    assert position.x == 100.0, f"grid.position.x should be 100.0, got {position.x}"
-    assert position.y == 150.0, f"grid.position.y should be 150.0, got {position.y}"
-    print("  PASS: grid.position returns Vector")
+    # Test grid.pos returns a Vector
+    pos = grid.pos
+    print(f"  grid.pos = {pos}")
+    assert hasattr(pos, 'x'), f"grid.pos should have .x attribute, got {type(pos)}"
+    assert hasattr(pos, 'y'), f"grid.pos should have .y attribute, got {type(pos)}"
+    assert pos.x == 100.0, f"grid.pos.x should be 100.0, got {pos.x}"
+    assert pos.y == 150.0, f"grid.pos.y should be 150.0, got {pos.y}"
+    print("  PASS: grid.pos returns Vector")
+
+    # Verify grid.position alias was removed (#308)
+    try:
+        _ = grid.position
+        print("  FAIL: grid.position should not exist but it does!")
+        sys.exit(1)
+    except AttributeError:
+        print("  PASS: grid.position correctly removed (#308)")
 
     print("Issue #179 tests PASSED!")
 

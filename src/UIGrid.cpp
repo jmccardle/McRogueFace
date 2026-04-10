@@ -1041,23 +1041,6 @@ PyObject* UIGrid::get_grid_h(PyUIGridObject* self, void* closure) {
     return PyLong_FromLong(self->data->grid_h);
 }
 
-PyObject* UIGrid::get_position(PyUIGridObject* self, void* closure) {
-    // #179 - Return position as Vector (consistent with get_size, get_grid_size)
-    return PyVector(self->data->position).pyObject();
-}
-
-int UIGrid::set_position(PyUIGridObject* self, PyObject* value, void* closure) {
-    float x, y;
-    if (!PyArg_ParseTuple(value, "ff", &x, &y)) {
-        PyErr_SetString(PyExc_ValueError, "Position must be a tuple of two floats");
-        return -1;
-    }
-    self->data->position = sf::Vector2f(x, y);  // Update base class position
-    self->data->box.setPosition(self->data->position);  // Sync box position
-    self->data->output.setPosition(self->data->position);  // Sync output sprite position
-    return 0;
-}
-
 // #181 - Return size as Vector
 PyObject* UIGrid::get_size(PyUIGridObject* self, void* closure) {
     auto& box = self->data->box;
@@ -2591,7 +2574,6 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"grid_size", (getter)UIGrid::get_grid_size, NULL, "Grid dimensions (grid_w, grid_h)", NULL},
     {"grid_w", (getter)UIGrid::get_grid_w, NULL, "Grid width in cells", NULL},
     {"grid_h", (getter)UIGrid::get_grid_h, NULL, "Grid height in cells", NULL},
-    {"position", (getter)UIGrid::get_position, (setter)UIGrid::set_position, "Position of the grid (x, y)", NULL},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position of the grid as Vector", (void*)PyObjectsEnum::UIGRID},
     {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in parent grid's tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UIGRID},
     {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size, "Size of the grid as Vector (width, height)", NULL},
@@ -3207,14 +3189,7 @@ bool UIGrid::setProperty(const std::string& name, float value) {
 }
 
 bool UIGrid::setProperty(const std::string& name, const sf::Vector2f& value) {
-    if (name == "position") {
-        position = value;
-        box.setPosition(position);
-        output.setPosition(position);
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "size") {
+    if (name == "size") {
         box.setSize(value);
         output.setTextureRect(sf::IntRect(0, 0, box.getSize().x, box.getSize().y));
         markDirty();  // #144 - Size change
@@ -3307,11 +3282,7 @@ bool UIGrid::getProperty(const std::string& name, float& value) const {
 }
 
 bool UIGrid::getProperty(const std::string& name, sf::Vector2f& value) const {
-    if (name == "position") {
-        value = position;
-        return true;
-    }
-    else if (name == "size") {
+    if (name == "size") {
         value = box.getSize();
         return true;
     }
@@ -3338,7 +3309,7 @@ bool UIGrid::hasProperty(const std::string& name) const {
         return true;
     }
     // Vector2f properties
-    if (name == "position" || name == "size" || name == "center" || name == "origin") {
+    if (name == "size" || name == "center" || name == "origin") {
         return true;
     }
     // #106: Shader uniform properties

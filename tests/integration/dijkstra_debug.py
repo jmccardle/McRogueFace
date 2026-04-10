@@ -144,7 +144,7 @@ ui = dijkstra_debug.children
 ui.append(grid)
 
 # Position and scale
-grid.position = (50, 50)
+grid.pos = (50, 50)
 grid.size = (400, 400)  # 10*40
 
 # Add title

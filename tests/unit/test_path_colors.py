@@ -77,7 +77,7 @@ def check_visual(timer, runtime):
 # Set up minimal UI to test rendering
 ui = test.children
 ui.append(grid)
-grid.position = (50, 50)
+grid.pos = (50, 50)
 grid.size = (250, 250)
 
 test.activate()

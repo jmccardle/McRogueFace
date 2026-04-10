@@ -121,7 +121,7 @@ def visual_test(timer, runtime):
 # Set up minimal UI for visual test
 ui = astar_test.children
 ui.append(grid)
-grid.position = (50, 50)
+grid.pos = (50, 50)
 grid.size = (400, 400)
 
 astar_test.activate()
