@@ -272,7 +272,16 @@ static PyMethodDef mcrfpyMethods[] = {
     {"setScale", McRFPy_API::_setScale, METH_VARARGS,
      MCRF_FUNCTION(setScale,
          MCRF_SIG("(multiplier: float)", "None"),
-         MCRF_DESC("Scale the game window size."),
+         MCRF_DESC("Deprecated: use Window.resolution instead. Scale the game window size."),
+         MCRF_ARGS_START
+         MCRF_ARG("multiplier", "Scale factor (e.g., 2.0 for double size)")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("The internal resolution remains 1024x768, but the window is scaled. This is deprecated - use Window.resolution instead.")
+     )},
+    {"set_scale", McRFPy_API::_setScale, METH_VARARGS,
+     MCRF_FUNCTION(set_scale,
+         MCRF_SIG("(multiplier: float)", "None"),
+         MCRF_DESC("Deprecated: use Window.resolution instead. Scale the game window size."),
          MCRF_ARGS_START
          MCRF_ARG("multiplier", "Scale factor (e.g., 2.0 for double size)")
          MCRF_RETURNS("None")
@@ -292,16 +301,32 @@ static PyMethodDef mcrfpyMethods[] = {
     {"findAll", McRFPy_API::_findAll, METH_VARARGS,
      MCRF_FUNCTION(findAll,
          MCRF_SIG("(pattern: str, scene: str = None)", "list"),
+         MCRF_DESC("Find all UI elements matching a name pattern. Prefer find_all()."),
+         MCRF_ARGS_START
+         MCRF_ARG("pattern", "Name pattern with optional wildcards (* matches any characters)")
+         MCRF_ARG("scene", "Scene to search in (default: current scene)")
+         MCRF_RETURNS("list: All matching UI elements and entities")
+         MCRF_NOTE("Example: find_all('enemy*') finds all elements starting with 'enemy'")
+     )},
+    {"find_all", McRFPy_API::_findAll, METH_VARARGS,
+     MCRF_FUNCTION(find_all,
+         MCRF_SIG("(pattern: str, scene: str = None)", "list"),
          MCRF_DESC("Find all UI elements matching a name pattern."),
          MCRF_ARGS_START
          MCRF_ARG("pattern", "Name pattern with optional wildcards (* matches any characters)")
          MCRF_ARG("scene", "Scene to search in (default: current scene)")
          MCRF_RETURNS("list: All matching UI elements and entities")
-         MCRF_NOTE("Example: findAll('enemy*') finds all elements starting with 'enemy', findAll('*_button') finds all elements ending with '_button'")
+         MCRF_NOTE("Example: find_all('enemy*') finds all elements starting with 'enemy', find_all('*_button') finds all elements ending with '_button'")
      )},
 
     {"getMetrics", McRFPy_API::_getMetrics, METH_NOARGS,
      MCRF_FUNCTION(getMetrics,
+         MCRF_SIG("()", "dict"),
+         MCRF_DESC("Get current performance metrics. Prefer get_metrics()."),
+         MCRF_RETURNS("dict: Performance data with keys: frame_time, avg_frame_time, fps, draw_calls, ui_elements, visible_elements, current_frame, runtime")
+     )},
+    {"get_metrics", McRFPy_API::_getMetrics, METH_NOARGS,
+     MCRF_FUNCTION(get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
          MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds)")
@@ -309,6 +334,15 @@ static PyMethodDef mcrfpyMethods[] = {
 
     {"setDevConsole", McRFPy_API::_setDevConsole, METH_VARARGS,
      MCRF_FUNCTION(setDevConsole,
+         MCRF_SIG("(enabled: bool)", "None"),
+         MCRF_DESC("Enable or disable the developer console overlay. Prefer set_dev_console()."),
+         MCRF_ARGS_START
+         MCRF_ARG("enabled", "True to enable the console (default), False to disable")
+         MCRF_RETURNS("None")
+         MCRF_NOTE("When disabled, the grave/tilde key will not open the console. Use this to ship games without debug features.")
+     )},
+    {"set_dev_console", McRFPy_API::_setDevConsole, METH_VARARGS,
+     MCRF_FUNCTION(set_dev_console,
          MCRF_SIG("(enabled: bool)", "None"),
          MCRF_DESC("Enable or disable the developer console overlay."),
          MCRF_ARGS_START
