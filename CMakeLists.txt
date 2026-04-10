@@ -28,6 +28,7 @@ option(MCRF_SANITIZE_ADDRESS "Build with AddressSanitizer" OFF)
 option(MCRF_SANITIZE_UNDEFINED "Build with UBSan" OFF)
 option(MCRF_SANITIZE_THREAD "Build with ThreadSanitizer" OFF)
 option(MCRF_DEBUG_PYTHON "Link against debug CPython from __lib_debug/" OFF)
+option(MCRF_WASM_DEBUG "Build WASM with DWARF debug info and source maps" OFF)
 
 # Validate mutually exclusive sanitizers
 if(MCRF_SANITIZE_ADDRESS AND MCRF_SANITIZE_THREAD)
@@ -396,6 +397,17 @@ if(EMSCRIPTEN)
             -sUSE_FREETYPE=1
         )
         message(STATUS "Emscripten SDL2 options enabled: -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sFULL_ES2=1 -sUSE_FREETYPE=1")
+    endif()
+
+    # WASM debug builds: DWARF symbols, source maps, symbol map for stack traces
+    if(MCRF_WASM_DEBUG)
+        list(APPEND EMSCRIPTEN_LINK_OPTIONS
+            -g4
+            -gsource-map
+            --emit-symbol-map
+        )
+        target_compile_options(mcrogueface PRIVATE -g4)
+        message(STATUS "Emscripten debug enabled: DWARF (-g4), source maps, symbol map")
     endif()
 
     target_link_options(mcrogueface PRIVATE ${EMSCRIPTEN_LINK_OPTIONS})

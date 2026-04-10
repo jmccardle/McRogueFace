@@ -27,7 +27,7 @@
 #     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
-.PHONY: wasm wasm-game playground serve serve-game serve-playground clean-wasm
+.PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test valgrind-test massif-test analyze clean-debug
@@ -273,7 +273,55 @@ serve-demo:
 
 clean-wasm:
 	@echo "Cleaning Emscripten builds..."
-	@rm -rf build-emscripten build-playground build-wasm-game build-wasm-demo
+	@rm -rf build-emscripten build-playground build-wasm-game build-wasm-demo build-wasm-debug build-playground-debug
+
+wasm-debug:
+	@if ! command -v emcmake >/dev/null 2>&1; then \
+		echo "Error: emcmake not found. Run 'source ~/emsdk/emsdk_env.sh' first."; \
+		exit 1; \
+	fi
+	@if [ ! -f build-wasm-debug/Makefile ]; then \
+		echo "Configuring WebAssembly debug build (DWARF + source maps)..."; \
+		mkdir -p build-wasm-debug; \
+		cd build-wasm-debug && emcmake cmake .. \
+			-DCMAKE_BUILD_TYPE=Debug \
+			-DMCRF_SDL2=ON \
+			-DMCRF_WASM_DEBUG=ON; \
+	fi
+	@echo "Building McRogueFace for WebAssembly (debug)..."
+	@emmake make -C build-wasm-debug -j$(JOBS)
+	@echo "Debug WASM build complete! Files in build-wasm-debug/"
+	@echo "Debug artifacts: .wasm.map (source map), .symbols (symbol map)"
+	@echo "Run 'make serve-wasm-debug' to test locally"
+
+serve-wasm-debug:
+	@echo "Serving debug WASM build at http://localhost:8080"
+	@echo "Press Ctrl+C to stop"
+	@cd build-wasm-debug && python3 -m http.server 8080
+
+playground-debug:
+	@if ! command -v emcmake >/dev/null 2>&1; then \
+		echo "Error: emcmake not found. Run 'source ~/emsdk/emsdk_env.sh' first."; \
+		exit 1; \
+	fi
+	@if [ ! -f build-playground-debug/Makefile ]; then \
+		echo "Configuring Playground debug build (DWARF + source maps)..."; \
+		mkdir -p build-playground-debug; \
+		cd build-playground-debug && emcmake cmake .. \
+			-DCMAKE_BUILD_TYPE=Debug \
+			-DMCRF_SDL2=ON \
+			-DMCRF_PLAYGROUND=ON \
+			-DMCRF_WASM_DEBUG=ON; \
+	fi
+	@echo "Building McRogueFace Playground for WebAssembly (debug)..."
+	@emmake make -C build-playground-debug -j$(JOBS)
+	@echo "Playground debug build complete! Files in build-playground-debug/"
+	@echo "Run 'make serve-playground-debug' to test locally"
+
+serve-playground-debug:
+	@echo "Serving debug Playground build at http://localhost:8080"
+	@echo "Press Ctrl+C to stop"
+	@cd build-playground-debug && python3 -m http.server 8080
 
 # Current version extracted from source
 CURRENT_VERSION := $(shell grep 'MCRFPY_VERSION' src/McRogueFaceVersion.h | sed 's/.*"\(.*\)"/\1/')

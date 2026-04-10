@@ -311,6 +311,8 @@ make serve                    # Serve at http://localhost:8080
 |--------|------------------|---------|
 | `make wasm` | `build-emscripten/` | Full game with all scripts/assets |
 | `make playground` | `build-playground/` | Minimal REPL build for interactive testing |
+| `make wasm-debug` | `build-wasm-debug/` | Debug build with DWARF symbols and source maps |
+| `make playground-debug` | `build-playground-debug/` | Debug playground with DWARF and source maps |
 
 ### Rendering Backend Selection
 
