@@ -795,6 +795,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
     if (self->data->grid != new_grid) {
         new_grid->entities->push_back(self->data);
         self->data->grid = new_grid;
+        new_grid->spatial_hash.insert(self->data);  // #274
 
         // Resize gridstate to match new grid dimensions
         self->data->ensureGridstate();
