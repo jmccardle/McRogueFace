@@ -68,7 +68,19 @@ namespace mcrfpydef {
         .tp_repr = PyTexture::repr,
         .tp_hash = PyTexture::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Texture Object"),
+        .tp_doc = PyDoc_STR(
+            "Texture(filename: str, sprite_width: int = 0, sprite_height: int = 0)\n\n"
+            "A texture atlas for sprites and tiles.\n\n"
+            "Args:\n"
+            "    filename: Path to an image file (PNG, BMP, etc.).\n"
+            "    sprite_width: Width of each sprite cell in pixels (0 = full image).\n"
+            "    sprite_height: Height of each sprite cell in pixels (0 = full image).\n\n"
+            "Properties:\n"
+            "    sprite_width, sprite_height (int, read-only): Cell dimensions.\n"
+            "    sheet_width, sheet_height (int, read-only): Grid dimensions in cells.\n"
+            "    sprite_count (int, read-only): Total number of sprite cells.\n"
+            "    source (str, read-only): File path used to load this texture.\n"
+        ),
         .tp_getset = PyTexture::getsetters,
         //.tp_base = &PyBaseObject_Type,
         .tp_init = (initproc)PyTexture::init,

@@ -88,7 +88,16 @@ namespace mcrfpydef {
         .tp_getattro = (getattrofunc)UIGridPoint::getattro,
         .tp_setattro = (setattrofunc)UIGridPoint::setattro,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = "UIGridPoint object",
+        .tp_doc = PyDoc_STR(
+            "GridPoint — a single cell in a Grid.\n\n"
+            "Obtained via grid.at(x, y). Cannot be constructed directly.\n\n"
+            "Properties:\n"
+            "    walkable (bool): Whether entities can traverse this cell.\n"
+            "    transparent (bool): Whether this cell allows line-of-sight.\n"
+            "    entities (list, read-only): Entities currently on this cell.\n"
+            "    grid_pos (tuple, read-only): (x, y) position in the grid.\n\n"
+            "Named layer data is accessible as dynamic attributes.\n"
+        ),
         .tp_getset = UIGridPoint::getsetters,
         //.tp_init = (initproc)PyUIGridPoint_init, // TODO Define the init function
         .tp_new = NULL, // Prevent instantiation from Python - Issue #12
@@ -102,7 +111,14 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_repr = (reprfunc)UIGridPointState::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = "UIGridPointState object", // TODO: Add PyUIGridPointState tp_init
+        .tp_doc = PyDoc_STR(
+            "GridPointState — per-entity visibility state for a grid cell.\n\n"
+            "Obtained via entity.gridstate. Cannot be constructed directly.\n\n"
+            "Properties:\n"
+            "    visible (bool): Whether this cell is currently in the entity's FOV.\n"
+            "    discovered (bool): Whether this cell has ever been seen.\n"
+            "    point (GridPoint, read-only): The underlying GridPoint, or None.\n"
+        ),
         .tp_getset = UIGridPointState::getsetters,
         .tp_new = NULL, // Prevent instantiation from Python - Issue #12
     };

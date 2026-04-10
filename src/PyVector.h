@@ -73,7 +73,19 @@ namespace mcrfpydef {
         .tp_as_sequence = &PyVector_as_sequence,
         .tp_hash = PyVector::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Vector Object"),
+        .tp_doc = PyDoc_STR(
+            "Vector(x: float = 0, y: float = 0)\n\n"
+            "2D vector for positions, sizes, and directions.\n\n"
+            "Args:\n"
+            "    x: X component.\n"
+            "    y: Y component.\n\n"
+            "Supports arithmetic (+, -, *, /), abs(), len() == 2,\n"
+            "indexing ([0] for x, [1] for y), hashing, and equality.\n\n"
+            "Properties:\n"
+            "    x (float): X component.\n"
+            "    y (float): Y component.\n"
+            "    int (tuple[int, int], read-only): Integer floor of (x, y).\n"
+        ),
         .tp_richcompare = PyVector::richcompare,
         .tp_methods = PyVector::methods,
         .tp_getset = PyVector::getsetters,

@@ -38,7 +38,15 @@ namespace mcrfpydef {
         .tp_repr = PyFont::repr,
         //.tp_hash = PyFont::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("SFML Font Object"),
+        .tp_doc = PyDoc_STR(
+            "Font(filename: str)\n\n"
+            "A font resource for rendering text in Caption elements.\n\n"
+            "Args:\n"
+            "    filename: Path to a TrueType (.ttf) or OpenType (.otf) font file.\n\n"
+            "Properties:\n"
+            "    family (str, read-only): Font family name from metadata.\n"
+            "    source (str, read-only): File path used to load this font.\n"
+        ),
         .tp_getset = PyFont::getsetters,
         //.tp_base = &PyBaseObject_Type,
         .tp_init = (initproc)PyFont::init,
