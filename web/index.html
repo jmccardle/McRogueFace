@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>McRogueFace - Web Demo</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-dark: #0c0a14;
+            --bg-card: #16132a;
+            --bg-surface: #1e1a36;
+            --accent: #e94560;
+            --accent-glow: #e9456040;
+            --text: #e8e6f0;
+            --text-dim: #8886a0;
+            --text-muted: #5a587a;
+            --gold: #f0c040;
+            --green: #40d080;
+        }
+
+        html, body {
+            width: 100%;
+            min-height: 100vh;
+            background: var(--bg-dark);
+            color: var(--text);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            overflow-x: hidden;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 40px 20px 20px;
+            background: linear-gradient(180deg, #14102a 0%, var(--bg-dark) 100%);
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-shadow: 0 0 40px var(--accent-glow);
+            margin-bottom: 8px;
+            letter-spacing: 2px;
+        }
+
+        .hero .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+        }
+
+        .hero .tagline {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 20px;
+            line-height: 1.5;
+        }
+
+        .canvas-wrapper {
+            display: flex;
+            justify-content: center;
+            padding: 0 20px 30px;
+        }
+
+        .canvas-frame {
+            position: relative;
+            background: #000;
+            border: 2px solid #2a2648;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 60px var(--accent-glow);
+            /* fixed aspect ratio container for 1024x768 */
+            width: min(1024px, calc(100vw - 40px));
+            aspect-ratio: 1024 / 768;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            -ms-interpolation-mode: nearest-neighbor;
+            outline: none;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(12, 10, 20, 0.95);
+            z-index: 10;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #2a2648;
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #status {
+            margin-top: 16px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .info-section {
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: 30px 20px 50px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 700px) {
+            .info-grid { grid-template-columns: 1fr; }
+            .hero h1 { font-size: 2rem; }
+        }
+
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid #2a2648;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .info-card h3 {
+            color: var(--gold);
+            font-size: 1rem;
+            margin-bottom: 10px;
+        }
+
+        .info-card p, .info-card ul {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+
+        .info-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .info-card ul li::before {
+            content: "> ";
+            color: var(--green);
+        }
+
+        .links {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .links a {
+            display: inline-block;
+            margin: 0 12px;
+            padding: 10px 24px;
+            background: var(--bg-surface);
+            color: var(--text);
+            text-decoration: none;
+            border: 1px solid #2a2648;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .links a:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            border-top: 1px solid #1a1830;
+        }
+
+        .click-to-focus {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(12, 10, 20, 0.7);
+            z-index: 5;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+
+        .click-to-focus.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .click-to-focus span {
+            font-size: 1.1rem;
+            color: var(--text);
+            padding: 12px 24px;
+            background: var(--bg-surface);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <h1>McRogueFace</h1>
+    <p class="subtitle">A Python-Powered Roguelike Engine</p>
+    <p class="tagline">
+        C++ engine with Python scripting, compiled to WebAssembly.
+        BSP dungeons, Wang tile autotiling, field of view, and turn-based combat
+        &mdash; all running in your browser.
+    </p>
+</div>
+
+<div class="canvas-wrapper">
+    <div class="canvas-frame">
+        <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+        <div class="loading-overlay" id="loading">
+            <div class="spinner"></div>
+            <p id="status">Loading...</p>
+        </div>
+        <div class="click-to-focus hidden" id="focus-prompt">
+            <span>Click to play</span>
+        </div>
+    </div>
+</div>
+
+<div class="info-section">
+    <div class="info-grid">
+        <div class="info-card">
+            <h3>Controls</h3>
+            <ul>
+                <li>Arrow keys or WASD to move</li>
+                <li>Bump into enemies to attack</li>
+                <li>Walk over potions to heal</li>
+                <li>Find stairs to descend deeper</li>
+                <li>Period (.) to wait a turn</li>
+                <li>R to restart after death</li>
+            </ul>
+        </div>
+        <div class="info-card">
+            <h3>Engine Features</h3>
+            <ul>
+                <li>BSP dungeon generation (libtcod)</li>
+                <li>Wang tile autotiling (Tiled .tsx)</li>
+                <li>Field of view &amp; fog of war</li>
+                <li>Entity/Grid system with layers</li>
+                <li>Python 3.14 scripting (full interpreter)</li>
+                <li>SDL2 + OpenGL ES 2 rendering</li>
+            </ul>
+        </div>
+        <div class="info-card">
+            <h3>About This Demo</h3>
+            <p>
+                This entire game is written in Python, running on the McRogueFace
+                C++ engine compiled to WebAssembly via Emscripten. The game logic,
+                dungeon generation, AI, and UI are all Python &mdash; the engine
+                handles rendering, input, and the tile/entity system.
+            </p>
+        </div>
+        <div class="info-card">
+            <h3>Tech Stack</h3>
+            <ul>
+                <li>C++17 game engine core</li>
+                <li>Python 3.14 (cross-compiled to WASM)</li>
+                <li>SDL2 + OpenGL ES 2 (via Emscripten)</li>
+                <li>libtcod (BSP, FOV, pathfinding)</li>
+                <li>Kenney Tiny Dungeon tileset</li>
+                <li>~16 MB total download</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="links">
+        <a href="https://github.com/jmccardle/McRogueFace">GitHub</a>
+        <a href="https://gamedev.ffwf.net/gitea/john/McRogueFace">Gitea</a>
+        <a href="https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki">Documentation</a>
+    </div>
+</div>
+
+<div class="footer">
+    McRogueFace &mdash; Created for 7DRL 2023, actively developed.
+    Engine by John McCardle. Tiles by Kenney.nl.
+</div>
+
+<script>
+    var canvasElement = document.getElementById('canvas');
+    var loadingElement = document.getElementById('loading');
+    var statusElement = document.getElementById('status');
+    var focusPrompt = document.getElementById('focus-prompt');
+    var runtimeReady = false;
+    var hasFocus = false;
+
+    function updateCanvasSize() {
+        // Match canvas backing buffer to its display size
+        var rect = canvasElement.getBoundingClientRect();
+        var w = Math.floor(rect.width);
+        var h = Math.floor(rect.height);
+        if (runtimeReady) {
+            Module.ccall('notify_canvas_resize', null, ['number', 'number'], [w, h]);
+        } else {
+            canvasElement.width = w;
+            canvasElement.height = h;
+        }
+    }
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+
+    // Focus management
+    canvasElement.addEventListener('click', function() {
+        canvasElement.focus();
+        hasFocus = true;
+        focusPrompt.classList.add('hidden');
+    });
+    canvasElement.addEventListener('mousedown', function() {
+        if (document.activeElement !== canvasElement) {
+            canvasElement.focus();
+            hasFocus = true;
+            focusPrompt.classList.add('hidden');
+        }
+    });
+    canvasElement.addEventListener('blur', function() {
+        if (runtimeReady) {
+            hasFocus = false;
+            focusPrompt.classList.remove('hidden');
+        }
+    });
+
+    focusPrompt.addEventListener('click', function() {
+        canvasElement.focus();
+        hasFocus = true;
+        focusPrompt.classList.add('hidden');
+    });
+
+    var Module = {
+        preRun: [function() {
+            FS.mkdir('/save');
+            FS.mount(IDBFS, {}, '/save');
+            Module.addRunDependency('idbfs-restore');
+            FS.syncfs(true, function(err) {
+                if (err) console.error('Failed to restore /save/:', err);
+                Module.removeRunDependency('idbfs-restore');
+            });
+        }],
+        print: function(text) {
+            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+            console.log(text);
+        },
+        printErr: function(text) {
+            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+            console.error(text);
+        },
+        canvas: canvasElement,
+        setStatus: function(text) {
+            if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+            if (text === Module.setStatus.last.text) return;
+            var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+            var now = Date.now();
+            if (m && now - Module.setStatus.last.time < 30) return;
+            Module.setStatus.last.time = now;
+            Module.setStatus.last.text = text;
+            if (m) text = m[1];
+            statusElement.textContent = text;
+        },
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+            this.totalDependencies = Math.max(this.totalDependencies, left);
+            Module.setStatus(left
+                ? 'Preparing... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')'
+                : 'All downloads complete.');
+        },
+        onRuntimeInitialized: function() {
+            runtimeReady = true;
+            loadingElement.classList.add('hidden');
+            canvasElement.focus();
+            hasFocus = true;
+            window.dispatchEvent(new Event('resize'));
+        }
+    };
+
+    Module.setStatus('Downloading...');
+
+    window.onerror = function(event) {
+        Module.setStatus('Error! See browser console.');
+    };
+
+    // Emscripten symbol resolver shim
+    if (typeof resolveGlobalSymbol === 'undefined') {
+        window.resolveGlobalSymbol = function(name, direct) {
+            return {
+                sym: Module['_' + name] || Module[name],
+                type: 'function'
+            };
+        };
+    }
+</script>
+<script async src="mcrogueface.js"></script>
+
+</body>
+</html>

@@ -17,6 +17,9 @@ option(MCRF_SDL2 "Build with SDL2+OpenGL ES 2 backend instead of SFML" OFF)
 # Playground mode - minimal scripts for web playground (REPL-focused)
 option(MCRF_PLAYGROUND "Build with minimal playground scripts instead of full game" OFF)
 
+# Demo mode - self-contained demo game for web showcase
+option(MCRF_DEMO "Build with demo scripts (web showcase)" OFF)
+
 # Game shell mode - fullscreen canvas, no REPL chrome (for itch.io / standalone web games)
 option(MCRF_GAME_SHELL "Use minimal game-only HTML shell (no REPL)" OFF)
 
@@ -343,6 +346,7 @@ endif()
 set(MCRF_ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets" CACHE PATH "Assets directory for WASM preloading")
 set(MCRF_SCRIPTS_DIR "${CMAKE_SOURCE_DIR}/src/scripts" CACHE PATH "Scripts directory for WASM preloading")
 set(MCRF_SCRIPTS_PLAYGROUND_DIR "${CMAKE_SOURCE_DIR}/src/scripts_playground" CACHE PATH "Playground scripts for WASM")
+set(MCRF_SCRIPTS_DEMO_DIR "${CMAKE_SOURCE_DIR}/src/scripts_demo" CACHE PATH "Demo scripts for WASM showcase")
 
 # Emscripten-specific link options (use ports for zlib, bzip2, sqlite3)
 if(EMSCRIPTEN)
@@ -365,8 +369,8 @@ if(EMSCRIPTEN)
         -sALLOW_UNIMPLEMENTED_SYSCALLS=1
         # Preload Python stdlib into virtual filesystem at /lib/python3.14
         --preload-file=${CMAKE_SOURCE_DIR}/wasm_stdlib/lib@/lib
-        # Preload game scripts into /scripts (use playground scripts if MCRF_PLAYGROUND is set)
-        --preload-file=$<IF:$<BOOL:${MCRF_PLAYGROUND}>,${MCRF_SCRIPTS_PLAYGROUND_DIR},${MCRF_SCRIPTS_DIR}>@/scripts
+        # Preload game scripts into /scripts (playground, demo, or full game)
+        --preload-file=$<IF:$<BOOL:${MCRF_PLAYGROUND}>,${MCRF_SCRIPTS_PLAYGROUND_DIR},$<IF:$<BOOL:${MCRF_DEMO}>,${MCRF_SCRIPTS_DEMO_DIR},${MCRF_SCRIPTS_DIR}>>@/scripts
         # Preload assets
         --preload-file=${MCRF_ASSETS_DIR}@/assets
         # Use custom HTML shell - game shell (fullscreen) or playground shell (REPL)
