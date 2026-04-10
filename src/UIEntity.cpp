@@ -845,6 +845,60 @@ int UIEntity::set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, 
     return 0;
 }
 
+// #236 - Multi-tile entity size
+PyObject* UIEntity::get_tile_size(PyUIEntityObject* self, void* closure) {
+    return sfVector2f_to_PyObject(sf::Vector2f(
+        static_cast<float>(self->data->tile_width),
+        static_cast<float>(self->data->tile_height)));
+}
+
+int UIEntity::set_tile_size(PyUIEntityObject* self, PyObject* value, void* closure) {
+    sf::Vector2f vec = PyObject_to_sfVector2f(value);
+    if (PyErr_Occurred()) return -1;
+    int tw = static_cast<int>(vec.x);
+    int th = static_cast<int>(vec.y);
+    if (tw < 1 || th < 1) {
+        PyErr_SetString(PyExc_ValueError, "tile_size components must be >= 1");
+        return -1;
+    }
+    self->data->tile_width = tw;
+    self->data->tile_height = th;
+    if (self->data->grid) self->data->grid->markDirty();
+    return 0;
+}
+
+PyObject* UIEntity::get_tile_width(PyUIEntityObject* self, void* closure) {
+    return PyLong_FromLong(self->data->tile_width);
+}
+
+int UIEntity::set_tile_width(PyUIEntityObject* self, PyObject* value, void* closure) {
+    int val = PyLong_AsLong(value);
+    if (val == -1 && PyErr_Occurred()) return -1;
+    if (val < 1) {
+        PyErr_SetString(PyExc_ValueError, "tile_width must be >= 1");
+        return -1;
+    }
+    self->data->tile_width = val;
+    if (self->data->grid) self->data->grid->markDirty();
+    return 0;
+}
+
+PyObject* UIEntity::get_tile_height(PyUIEntityObject* self, void* closure) {
+    return PyLong_FromLong(self->data->tile_height);
+}
+
+int UIEntity::set_tile_height(PyUIEntityObject* self, PyObject* value, void* closure) {
+    int val = PyLong_AsLong(value);
+    if (val == -1 && PyErr_Occurred()) return -1;
+    if (val < 1) {
+        PyErr_SetString(PyExc_ValueError, "tile_height must be >= 1");
+        return -1;
+    }
+    self->data->tile_height = val;
+    if (self->data->grid) self->data->grid->markDirty();
+    return 0;
+}
+
 PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
 {
     // Check if entity has a grid
@@ -1596,6 +1650,13 @@ PyGetSetDef UIEntity::getsetters[] = {
      "X component of sprite pixel offset.", (void*)0},
     {"sprite_offset_y", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
      "Y component of sprite pixel offset.", (void*)1},
+    // #236 - Multi-tile entity size
+    {"tile_size", (getter)UIEntity::get_tile_size, (setter)UIEntity::set_tile_size,
+     "Entity size in tiles as (width, height) Vector. Default (1, 1).", NULL},
+    {"tile_width", (getter)UIEntity::get_tile_width, (setter)UIEntity::set_tile_width,
+     "Entity width in tiles (int). Must be >= 1. Default 1.", NULL},
+    {"tile_height", (getter)UIEntity::get_tile_height, (setter)UIEntity::set_tile_height,
+     "Entity height in tiles (int). Must be >= 1. Default 1.", NULL},
     // #296 - Label system
     {"labels", (getter)UIEntity::get_labels, (setter)UIEntity::set_labels,
      "Set of string labels for collision/targeting (frozenset). "

@@ -71,6 +71,8 @@ public:
     sf::Vector2f position; //(x,y) in grid coordinates; float for animation
     sf::Vector2i cell_position{0, 0}; // #295: integer logical position (decoupled from float position)
     sf::Vector2f sprite_offset; // pixel offset for oversized sprites (applied pre-zoom)
+    int tile_width = 1;  // #236: entity size in tiles (for multi-tile entities)
+    int tile_height = 1;
     std::unordered_set<std::string> labels; // #296: entity label system for collision/targeting
     PyObject* step_callback = nullptr; // #299: callback for grid.step() turn management
     int default_behavior = 0; // #299: BehaviorType::IDLE - behavior to revert to after DONE
@@ -168,6 +170,14 @@ public:
     static int set_sprite_offset(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_sprite_offset_member(PyUIEntityObject* self, void* closure);
     static int set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, void* closure);
+
+    // #236 - Multi-tile entity size
+    static PyObject* get_tile_size(PyUIEntityObject* self, void* closure);
+    static int set_tile_size(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_tile_width(PyUIEntityObject* self, void* closure);
+    static int set_tile_width(PyUIEntityObject* self, PyObject* value, void* closure);
+    static PyObject* get_tile_height(PyUIEntityObject* self, void* closure);
+    static int set_tile_height(PyUIEntityObject* self, PyObject* value, void* closure);
 
     // #295 - cell_pos (integer logical position)
     static PyObject* get_cell_pos(PyUIEntityObject* self, void* closure);

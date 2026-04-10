@@ -115,9 +115,11 @@ std::vector<std::shared_ptr<UIEntity>> SpatialHash::queryCell(int x, int y) cons
         auto entity = wp.lock();
         if (!entity) continue;
 
-        // Match on cell_position (#295)
-        if (entity->cell_position.x == x &&
-            entity->cell_position.y == y) {
+        // #236: Match on cell_position footprint for multi-tile entities
+        if (x >= entity->cell_position.x &&
+            x < entity->cell_position.x + entity->tile_width &&
+            y >= entity->cell_position.y &&
+            y < entity->cell_position.y + entity->tile_height) {
             result.push_back(entity);
         }
     }

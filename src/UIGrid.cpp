@@ -198,10 +198,12 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
         int totalEntities = entities->size();
 
         for (auto e : *entities) {
-            // Skip out-of-bounds entities for performance
-            // Check if entity is within visible bounds (with 2 cell margin for offset/oversized sprites)
-            if (e->position.x < left_edge - 2 || e->position.x >= left_edge + width_sq + 2 ||
-                e->position.y < top_edge - 2 || e->position.y >= top_edge + height_sq + 2) {
+            // #236: Account for multi-tile entity size in frustum culling
+            int margin = 2;
+            if (e->position.x + e->tile_width < left_edge - margin ||
+                e->position.x >= left_edge + width_sq + margin ||
+                e->position.y + e->tile_height < top_edge - margin ||
+                e->position.y >= top_edge + height_sq + margin) {
                 continue; // Skip this entity as it's not visible
             }
 
