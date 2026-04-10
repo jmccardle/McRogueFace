@@ -154,13 +154,13 @@ void Animation::startEntity(std::shared_ptr<UIEntity> target) {
         }
         else if constexpr (std::is_same_v<T, int>) {
             // For entities, we might need to handle sprite_index differently
-            if (targetProperty == "sprite_index" || targetProperty == "sprite_number") {
+            if (targetProperty == "sprite_index") {
                 startValue = target->sprite.getSpriteIndex();
             }
         }
         else if constexpr (std::is_same_v<T, std::vector<int>>) {
             // For sprite animation frame lists, get current sprite index
-            if (targetProperty == "sprite_index" || targetProperty == "sprite_number") {
+            if (targetProperty == "sprite_index") {
                 startValue = target->sprite.getSpriteIndex();
             }
         }

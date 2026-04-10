@@ -35,11 +35,11 @@ def test_Entity():
     try:
         print(f" Entity1 pos: {entity1.pos}")
         print(f" Entity1 draw_pos: {entity1.draw_pos}")
-        print(f" Entity1 sprite_number: {entity1.sprite_number}")
-        
+        print(f" Entity1 sprite_index: {entity1.sprite_index}")
+
         # Modify properties
         entity1.pos = mcrfpy.Vector(3, 3)
-        entity1.sprite_number = 5
+        entity1.sprite_index = 5
         print(" Entity properties modified")
     except Exception as e:
         print(f"X Entity property access failed: {e}")

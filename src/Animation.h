@@ -101,7 +101,7 @@ public:
     }
     
 private:
-    std::string targetProperty;    // Property name to animate (e.g., "x", "color.r", "sprite_number")
+    std::string targetProperty;    // Property name to animate (e.g., "x", "color.r", "sprite_index")
     AnimationValue startValue;     // Starting value (captured when animation starts)
     AnimationValue targetValue;    // Target value to animate to
     float duration;                // Animation duration in seconds

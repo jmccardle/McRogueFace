@@ -1578,7 +1578,6 @@ PyGetSetDef UIEntity::getsetters[] = {
      "Get: Returns the Grid or None. "
      "Set: Assign a Grid to move entity, or None to remove from grid.", NULL},
     {"sprite_index", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index on the texture on the display", NULL},
-    {"sprite_number", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index (DEPRECATED: use sprite_index instead)", NULL},
     {"visible", (getter)UIEntity_get_visible, (setter)UIEntity_set_visible, "Visibility flag", NULL},
     {"opacity", (getter)UIEntity_get_opacity, (setter)UIEntity_set_opacity, "Opacity (0.0 = transparent, 1.0 = opaque)", NULL},
     {"name", (getter)UIEntity_get_name, (setter)UIEntity_set_name, "Name for finding elements", NULL},
@@ -1675,7 +1674,7 @@ bool UIEntity::setProperty(const std::string& name, float value) {
 }
 
 bool UIEntity::setProperty(const std::string& name, int value) {
-    if (name == "sprite_index" || name == "sprite_number") {
+    if (name == "sprite_index") {
         sprite.setSpriteIndex(value);
         if (grid) grid->markDirty();  // #144 - Content change
         return true;
@@ -1718,7 +1717,7 @@ bool UIEntity::hasProperty(const std::string& name) const {
         return true;
     }
     // Int properties
-    if (name == "sprite_index" || name == "sprite_number") {
+    if (name == "sprite_index") {
         return true;
     }
     // #106: Shader uniform properties - delegate to sprite

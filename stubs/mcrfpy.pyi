@@ -417,7 +417,6 @@ class Sprite(Drawable):
 
     texture: Texture
     sprite_index: int
-    sprite_number: int  # Deprecated alias for sprite_index
     scale: float
     w: float  # Read-only, computed from texture
     h: float  # Read-only, computed from texture
@@ -865,7 +864,6 @@ class Entity(Drawable):
     grid_y: float
     texture: Texture
     sprite_index: int
-    sprite_number: int  # Deprecated alias for sprite_index
     grid: Optional[Grid]
 
     def at(self, grid_x: float, grid_y: float) -> None:

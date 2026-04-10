@@ -38,21 +38,21 @@ except AttributeError:
 except Exception as e:
     print(f"✗ Unexpected error setting texture: {e}")
 
-# Test sprite_number property
+# Test sprite_index property
 try:
-    print(f"Sprite2 sprite_number: {sprite2.sprite_number}")
-    sprite2.sprite_number = 10
-    print(f"✓ Changed sprite_number to: {sprite2.sprite_number}")
+    print(f"Sprite2 sprite_index: {sprite2.sprite_index}")
+    sprite2.sprite_index = 10
+    print(f"sprite_index set to: {sprite2.sprite_index}")
 except Exception as e:
-    print(f"✗ sprite_number property failed: {e}")
+    print(f"sprite_index property failed: {e}")
 
 # Test sprite index validation (Issue #33)
 try:
     # Try to set invalid sprite index
-    sprite2.sprite_number = 9999
-    print("✗ Should validate sprite index against texture range (Issue #33)")
+    sprite2.sprite_index = 9999
+    print("Should validate sprite index against texture range (Issue #33)")
 except Exception as e:
-    print(f"✓ Sprite index validation works: {e}")
+    print(f"Sprite index validation works: {e}")
 
 # Create grid of sprites to show different indices
 y_offset = 100

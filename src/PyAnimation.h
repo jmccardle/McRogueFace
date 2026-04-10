@@ -56,7 +56,7 @@ namespace mcrfpydef {
             "    property: Property name to animate. Valid properties depend on target type:\n"
             "        - Position/Size: 'x', 'y', 'w', 'h', 'pos', 'size'\n"
             "        - Appearance: 'fill_color', 'outline_color', 'outline', 'opacity'\n"
-            "        - Sprite: 'sprite_index', 'sprite_number', 'scale'\n"
+            "        - Sprite: 'sprite_index', 'scale'\n"
             "        - Grid: 'center', 'zoom'\n"
             "        - Caption: 'text'\n"
             "        - Sub-properties: 'fill_color.r', 'fill_color.g', 'fill_color.b', 'fill_color.a'\n"

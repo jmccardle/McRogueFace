@@ -406,7 +406,6 @@ PyGetSetDef UISprite::getsetters[] = {
     {"scale_x", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Horizontal scale factor",         (void*)3},
     {"scale_y", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Vertical scale factor",           (void*)4},
     {"sprite_index", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Which sprite on the texture is shown", NULL},
-    {"sprite_number", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Sprite index (DEPRECATED: use sprite_index instead)", NULL},
     {"texture", (getter)UISprite::get_texture, (setter)UISprite::set_texture,     "Texture object",                    NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
@@ -683,7 +682,7 @@ bool UISprite::setProperty(const std::string& name, float value) {
 }
 
 bool UISprite::setProperty(const std::string& name, int value) {
-    if (name == "sprite_index" || name == "sprite_number") {
+    if (name == "sprite_index") {
         setSpriteIndex(value);
         markDirty();  // #144 - Content change
         return true;
@@ -745,7 +744,7 @@ bool UISprite::getProperty(const std::string& name, float& value) const {
 }
 
 bool UISprite::getProperty(const std::string& name, int& value) const {
-    if (name == "sprite_index" || name == "sprite_number") {
+    if (name == "sprite_index") {
         value = sprite_index;
         return true;
     }
@@ -765,7 +764,7 @@ bool UISprite::hasProperty(const std::string& name) const {
         return true;
     }
     // Int properties
-    if (name == "sprite_index" || name == "sprite_number") {
+    if (name == "sprite_index") {
         return true;
     }
     // Vector2f properties
