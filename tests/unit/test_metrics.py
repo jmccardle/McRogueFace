@@ -14,7 +14,7 @@ def test_metrics(timer, runtime):
     print("\nRunning metrics test...")
 
     # Get metrics
-    metrics = mcrfpy.getMetrics()
+    metrics = mcrfpy.get_metrics()
 
     print("\nPerformance Metrics:")
     print(f"  Frame Time: {metrics['frame_time']:.2f} ms")
@@ -81,7 +81,7 @@ def test_metrics(timer, runtime):
     # Schedule another check after 100ms
     def check_later(timer2, runtime2):
         global success
-        metrics2 = mcrfpy.getMetrics()
+        metrics2 = mcrfpy.get_metrics()
 
         print(f"\nMetrics after 100ms:")
         print(f"  Frame Time: {metrics2['frame_time']:.2f} ms")

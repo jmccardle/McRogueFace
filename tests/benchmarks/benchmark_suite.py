@@ -42,7 +42,7 @@ def collect_metrics(timer, runtime):
         return
 
     # Collect sample
-    m = mcrfpy.getMetrics()
+    m = mcrfpy.get_metrics()
     metrics_samples.append({
         'frame_time': m['frame_time'],
         'avg_frame_time': m['avg_frame_time'],

@@ -1298,20 +1298,8 @@ def exit() -> None:
     """Cleanly shut down the game engine and exit the application."""
     ...
 
-def setScale(multiplier: float) -> None:
-    """Scale the game window size (deprecated - use Window.resolution)."""
-    ...
-
 def find(name: str, scene: Optional[str] = None) -> Optional[UIElement]:
     """Find the first UI element with the specified name."""
-    ...
-
-def findAll(pattern: str, scene: Optional[str] = None) -> List[UIElement]:
-    """Find all UI elements matching a name pattern (supports * wildcards)."""
-    ...
-
-def getMetrics() -> Dict[str, Union[int, float]]:
-    """Get current performance metrics."""
     ...
 
 def step(dt: float) -> None:

@@ -729,10 +729,10 @@ class MainMenu:
         sweet_btn.unpress()
         if self.scaled:
             self.toast_say("Windowed mode only, sorry!\nCheck Settings for for fine-tuned controls.")
-            mcrfpy.setScale(window_scale)
+            mcrfpy.set_scale(window_scale)
             sweet_btn.text = "Scale down\n to 1.0x"
         else:
-            mcrfpy.setScale(1.0)
+            mcrfpy.set_scale(1.0)
             sweet_btn.text = "Scale up\nto 1080p"
 
     def music_toggle(self, sweet_btn, args):
