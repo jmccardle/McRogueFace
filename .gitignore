@@ -49,3 +49,7 @@ dist/
 !CLAUDE.md
 !README.md
 !tests/
+
+# Fuzzing build artifacts and runtime data (build-fuzz matched by build* above)
+tests/fuzz/corpora/
+tests/fuzz/crashes/

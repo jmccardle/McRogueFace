@@ -114,6 +114,61 @@ asan-test: asan
 		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
 		python3 run_tests.py -v --sanitizer
 
+# Fuzzing targets (clang + ASan + libFuzzer + atheris)
+FUZZ_TARGETS := grid_entity property_types anim_timer_scene maps_procgen fov pathfinding_behavior
+FUZZ_SECONDS ?= 30
+
+fuzz-build:
+	@echo "Building McRogueFace with libFuzzer + ASan (clang-18)..."
+	@mkdir -p build-fuzz
+	@cd build-fuzz && CC=clang-18 CXX=clang++-18 cmake .. \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DMCRF_DEBUG_PYTHON=ON \
+		-DMCRF_SANITIZE_ADDRESS=ON \
+		-DMCRF_SANITIZE_UNDEFINED=ON \
+		-DMCRF_FUZZER=ON \
+		-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld && make -j$(JOBS)
+	@if [ ! -f __lib/Python/Lib/site-packages/atheris/__init__.py ]; then \
+		echo "NOTE: atheris not installed. Run tools/install_atheris.sh"; \
+	fi
+	@echo "Fuzz build complete! Output: build-fuzz/mcrogueface"
+
+fuzz: fuzz-build
+	@for t in $(FUZZ_TARGETS); do \
+		if [ ! -f tests/fuzz/fuzz_$$t.py ]; then \
+			echo "SKIP: tests/fuzz/fuzz_$$t.py does not exist yet"; \
+			continue; \
+		fi; \
+		echo "=== fuzzing $$t for $(FUZZ_SECONDS)s ==="; \
+		mkdir -p tests/fuzz/corpora/$$t tests/fuzz/crashes; \
+		( cd build-fuzz && MCRF_LIB_DIR=../__lib_debug PYTHONMALLOC=malloc \
+		  ASAN_OPTIONS="detect_leaks=0:halt_on_error=1:abort_on_error=1" \
+		  ./mcrogueface --headless --exec ../tests/fuzz/fuzz_$$t.py -- \
+		    -max_total_time=$(FUZZ_SECONDS) \
+		    -artifact_prefix=../tests/fuzz/crashes/$$t- \
+		    ../tests/fuzz/corpora/$$t ../tests/fuzz/seeds/$$t ) || exit 1; \
+	done
+
+fuzz-long: fuzz-build
+	@test -n "$(TARGET)" || (echo "Usage: make fuzz-long TARGET=<name> SECONDS=<n>"; exit 1)
+	@mkdir -p tests/fuzz/corpora/$(TARGET) tests/fuzz/crashes
+	@( cd build-fuzz && MCRF_LIB_DIR=../__lib_debug PYTHONMALLOC=malloc \
+	  ASAN_OPTIONS="detect_leaks=0:halt_on_error=1:abort_on_error=1" \
+	  ./mcrogueface --headless --exec ../tests/fuzz/fuzz_$(TARGET).py -- \
+	    -max_total_time=$(or $(SECONDS),3600) \
+	    -artifact_prefix=../tests/fuzz/crashes/$(TARGET)- \
+	    ../tests/fuzz/corpora/$(TARGET) ../tests/fuzz/seeds/$(TARGET) )
+
+fuzz-repro:
+	@test -n "$(TARGET)" || (echo "Usage: make fuzz-repro TARGET=<name> CRASH=<path>"; exit 1)
+	@test -n "$(CRASH)" || (echo "Usage: make fuzz-repro TARGET=<name> CRASH=<path>"; exit 1)
+	@( cd build-fuzz && MCRF_LIB_DIR=../__lib_debug PYTHONMALLOC=malloc \
+	  ./mcrogueface --headless --exec ../tests/fuzz/fuzz_$(TARGET).py -- ../$(CRASH) )
+
+clean-fuzz:
+	@echo "Cleaning fuzz build and corpora..."
+	@rm -rf build-fuzz tests/fuzz/corpora tests/fuzz/crashes
+
 tsan:
 	@echo "Building McRogueFace with TSan + free-threaded Python..."
 	@echo "NOTE: Requires free-threaded debug Python built with:"
@@ -169,7 +224,7 @@ analyze:
 
 clean-debug:
 	@echo "Cleaning debug/sanitizer builds..."
-	@rm -rf build-debug build-asan build-tsan
+	@rm -rf build-debug build-asan build-tsan build-fuzz
 
 # Packaging targets using tools/package.sh
 package-windows-light: windows
