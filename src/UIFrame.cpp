@@ -924,7 +924,7 @@ bool UIFrame::setProperty(const std::string& name, const sf::Color& value) {
 }
 
 bool UIFrame::setProperty(const std::string& name, const sf::Vector2f& value) {
-    if (name == "position") {
+    if (name == "position" || name == "pos") {
         position = value;
         box.setPosition(position);  // Keep box in sync
         markDirty();
@@ -1019,7 +1019,7 @@ bool UIFrame::getProperty(const std::string& name, sf::Color& value) const {
 }
 
 bool UIFrame::getProperty(const std::string& name, sf::Vector2f& value) const {
-    if (name == "position") {
+    if (name == "position" || name == "pos") {
         value = position;
         return true;
     } else if (name == "size") {
@@ -1048,7 +1048,7 @@ bool UIFrame::hasProperty(const std::string& name) const {
         return true;
     }
     // Vector2f properties
-    if (name == "position" || name == "size" || name == "origin") {
+    if (name == "position" || name == "pos" || name == "size" || name == "origin") {
         return true;
     }
     // #106: Check for shader uniform properties

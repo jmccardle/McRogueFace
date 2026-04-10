@@ -60,8 +60,10 @@ public:
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
     bool setProperty(const std::string& name, int value) override;
+    bool setProperty(const std::string& name, const sf::Vector2f& value) override;
     bool getProperty(const std::string& name, float& value) const override;
     bool getProperty(const std::string& name, int& value) const override;
+    bool getProperty(const std::string& name, sf::Vector2f& value) const override;
 
     bool hasProperty(const std::string& name) const override;
 

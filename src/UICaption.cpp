@@ -803,6 +803,32 @@ bool UICaption::getProperty(const std::string& name, float& value) const {
     return false;
 }
 
+bool UICaption::setProperty(const std::string& name, const sf::Vector2f& value) {
+    if (name == "position" || name == "pos") {
+        position = value;
+        text.setPosition(position);
+        markDirty();
+        return true;
+    } else if (name == "origin") {
+        origin = value;
+        text.setOrigin(origin);
+        markDirty();
+        return true;
+    }
+    return false;
+}
+
+bool UICaption::getProperty(const std::string& name, sf::Vector2f& value) const {
+    if (name == "position" || name == "pos") {
+        value = position;
+        return true;
+    } else if (name == "origin") {
+        value = origin;
+        return true;
+    }
+    return false;
+}
+
 bool UICaption::getProperty(const std::string& name, sf::Color& value) const {
     if (name == "fill_color") {
         value = text.getFillColor();
@@ -843,7 +869,7 @@ bool UICaption::hasProperty(const std::string& name) const {
         return true;
     }
     // Vector2f properties
-    if (name == "origin") {
+    if (name == "origin" || name == "position" || name == "pos") {
         return true;
     }
     // #106: Check for shader uniform properties
