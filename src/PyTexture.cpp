@@ -5,7 +5,8 @@
 #include <algorithm>
 
 PyTexture::PyTexture(std::string filename, int sprite_w, int sprite_h)
-: source(filename), sprite_width(sprite_w), sprite_height(sprite_h), sheet_width(0), sheet_height(0)
+: source(filename), sprite_width(sprite_w), sprite_height(sprite_h), sheet_width(0), sheet_height(0),
+  display_width(-1), display_height(-1), display_offset_x(0), display_offset_y(0)
 {
     texture = sf::Texture();
     if (!texture.loadFromFile(source)) {
@@ -81,9 +82,14 @@ sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
         // Return an empty sprite
         return sf::Sprite();
     }
-    
+
     int tx = index % sheet_width, ty = index / sheet_width;
-    auto ir = sf::IntRect(tx * sprite_width, ty * sprite_height, sprite_width, sprite_height);
+    // #235: Apply display bounds within the cell
+    int dw = getDisplayWidth();
+    int dh = getDisplayHeight();
+    auto ir = sf::IntRect(tx * sprite_width + display_offset_x,
+                          ty * sprite_height + display_offset_y,
+                          dw, dh);
     auto sprite = sf::Sprite(texture, ir);
     sprite.setPosition(pos);
     sprite.setScale(s);
@@ -138,21 +144,45 @@ Py_hash_t PyTexture::hash(PyObject* obj)
 
 int PyTexture::init(PyTextureObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = { "filename", "sprite_width", "sprite_height", nullptr };
+    static const char* keywords[] = { "filename", "sprite_width", "sprite_height",
+                                       "display_size", "display_origin", nullptr };
     char* filename;
     int sprite_width, sprite_height;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sii", const_cast<char**>(keywords), &filename, &sprite_width, &sprite_height))
+    PyObject* display_size_obj = nullptr;
+    PyObject* display_origin_obj = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sii|OO", const_cast<char**>(keywords),
+            &filename, &sprite_width, &sprite_height, &display_size_obj, &display_origin_obj))
         return -1;
-    
+
     // Create the texture object
     self->data = std::make_shared<PyTexture>(filename, sprite_width, sprite_height);
-    
+
     // Check if the texture failed to load (sheet dimensions will be 0)
     if (self->data->sheet_width == 0 || self->data->sheet_height == 0) {
         PyErr_Format(PyExc_IOError, "Failed to load texture from file: %s", filename);
         return -1;
     }
-    
+
+    // #235: Parse optional display bounds
+    if (display_size_obj && display_size_obj != Py_None) {
+        int dw, dh;
+        if (!PyArg_ParseTuple(display_size_obj, "ii", &dw, &dh)) {
+            PyErr_SetString(PyExc_TypeError, "display_size must be a (width, height) tuple");
+            return -1;
+        }
+        self->data->display_width = dw;
+        self->data->display_height = dh;
+    }
+    if (display_origin_obj && display_origin_obj != Py_None) {
+        int ox, oy;
+        if (!PyArg_ParseTuple(display_origin_obj, "ii", &ox, &oy)) {
+            PyErr_SetString(PyExc_TypeError, "display_origin must be an (x, y) tuple");
+            return -1;
+        }
+        self->data->display_offset_x = ox;
+        self->data->display_offset_y = oy;
+    }
+
     return 0;
 }
 
@@ -191,6 +221,26 @@ PyObject* PyTexture::get_source(PyTextureObject* self, void* closure)
     return PyUnicode_FromString(self->data->source.c_str());
 }
 
+PyObject* PyTexture::get_display_width(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->getDisplayWidth());
+}
+
+PyObject* PyTexture::get_display_height(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->getDisplayHeight());
+}
+
+PyObject* PyTexture::get_display_offset_x(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->display_offset_x);
+}
+
+PyObject* PyTexture::get_display_offset_y(PyTextureObject* self, void* closure)
+{
+    return PyLong_FromLong(self->data->display_offset_y);
+}
+
 PyGetSetDef PyTexture::getsetters[] = {
     {"sprite_width", (getter)PyTexture::get_sprite_width, NULL,
      MCRF_PROPERTY(sprite_width, "Width of each sprite in pixels (int, read-only). Specified during texture initialization."), NULL},
@@ -204,6 +254,14 @@ PyGetSetDef PyTexture::getsetters[] = {
      MCRF_PROPERTY(sprite_count, "Total number of sprites in the texture sheet (int, read-only). Equals sheet_width * sheet_height."), NULL},
     {"source", (getter)PyTexture::get_source, NULL,
      MCRF_PROPERTY(source, "Source filename path (str, read-only). The path used to load this texture."), NULL},
+    {"display_width", (getter)PyTexture::get_display_width, NULL,
+     MCRF_PROPERTY(display_width, "Display width of sprite content within each cell (int, read-only). Defaults to sprite_width."), NULL},
+    {"display_height", (getter)PyTexture::get_display_height, NULL,
+     MCRF_PROPERTY(display_height, "Display height of sprite content within each cell (int, read-only). Defaults to sprite_height."), NULL},
+    {"display_offset_x", (getter)PyTexture::get_display_offset_x, NULL,
+     MCRF_PROPERTY(display_offset_x, "X offset of sprite content within each cell (int, read-only). Default 0."), NULL},
+    {"display_offset_y", (getter)PyTexture::get_display_offset_y, NULL,
+     MCRF_PROPERTY(display_offset_y, "Y offset of sprite content within each cell (int, read-only). Default 0."), NULL},
     {NULL}  // Sentinel
 };
 
