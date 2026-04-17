@@ -14,6 +14,7 @@
 #include "EntityBehavior.h"
 #include "PyTrigger.h"
 #include "UIBase.h"
+#include "PyFOV.h"
 
 // =========================================================================
 // Cell access: py_at, subscript, mpmethods
@@ -97,10 +98,10 @@ PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject*
     PyObject* pos_obj = NULL;
     int radius = 0;
     int light_walls = 1;
-    int algorithm = FOV_BASIC;
+    PyObject* algorithm_obj = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|ipi", const_cast<char**>(kwlist),
-                                     &pos_obj, &radius, &light_walls, &algorithm)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|ipO", const_cast<char**>(kwlist),
+                                     &pos_obj, &radius, &light_walls, &algorithm_obj)) {
         return NULL;
     }
 
@@ -109,7 +110,17 @@ PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject*
         return NULL;
     }
 
-    self->data->computeFOV(x, y, radius, light_walls, (TCOD_fov_algorithm_t)algorithm);
+    // #310: validate algorithm via PyFOV::from_arg so out-of-range ints become a
+    // ValueError at the Python boundary instead of a UBSan-flagged invalid enum
+    // load deep in GridData::computeFOV.
+    TCOD_fov_algorithm_t algorithm = FOV_BASIC;
+    if (algorithm_obj != NULL) {
+        if (!PyFOV::from_arg(algorithm_obj, &algorithm)) {
+            return NULL;
+        }
+    }
+
+    self->data->computeFOV(x, y, radius, light_walls, algorithm);
 
     Py_RETURN_NONE;
 }
