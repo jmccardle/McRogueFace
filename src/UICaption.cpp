@@ -209,11 +209,18 @@ int UICaption::set_float_member(PyUICaptionObject* self, PyObject* value, void* 
         self->data->markCompositeDirty(); // #289: position change invalidates parent cache
     }
     else if (member_ptr == 4) { //outline
+        // #309: negative outline thickness is nonsensical; clamp to 0
+        if (val < 0.0f) val = 0.0f;
         self->data->text.setOutlineThickness(val);
         self->data->markDirty(); // #289: content change invalidates own + parent cache
     }
     else if (member_ptr == 5) { // character size
-        self->data->text.setCharacterSize(val);
+        // #309: SFML setCharacterSize takes unsigned int; casting a negative or
+        // out-of-range float is UB. Clamp to a safe range before the cast.
+        // Upper bound is a practical cap well below UINT_MAX to keep SFML sane.
+        if (val < 0.0f) val = 0.0f;
+        else if (val > 65535.0f) val = 65535.0f;
+        self->data->text.setCharacterSize(static_cast<unsigned int>(val));
         self->data->markDirty(); // #289: content change invalidates own + parent cache
     }
     return 0;
@@ -503,8 +510,10 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     self->data = std::make_shared<UICaption>();
     self->data->position = sf::Vector2f(x, y);
     self->data->text.setPosition(self->data->position);
+    // #309: clamp outline to non-negative
+    if (outline < 0.0f) outline = 0.0f;
     self->data->text.setOutlineThickness(outline);
-    
+
     // Set the font
     if (pyfont) {
         self->data->text.setFont(pyfont->font);
@@ -514,8 +523,11 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
             self->data->text.setFont(McRFPy_API::default_font->font);
         }
     }
-    
+
     // Set character size
+    // #309: clamp before casting to unsigned int to avoid UB on out-of-range floats
+    if (font_size < 0.0f) font_size = 0.0f;
+    else if (font_size > 65535.0f) font_size = 65535.0f;
     self->data->text.setCharacterSize(static_cast<unsigned int>(font_size));
     
     // Set text
