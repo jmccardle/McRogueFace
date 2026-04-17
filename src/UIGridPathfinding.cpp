@@ -289,6 +289,21 @@ PyObject* UIGridPathfinding::DijkstraMap_repr(PyDijkstraMapObject* self) {
     return PyUnicode_FromFormat("<DijkstraMap root=(%d,%d)>", root.x, root.y);
 }
 
+// #311: Reject out-of-bounds coordinates at the Python boundary. TCOD's
+// dijkstra routines assert and abort() the process for invalid coords, so
+// catching them here turns a fatal crash into a recoverable IndexError.
+static bool dijkstra_bounds_check(DijkstraMap* dmap, int x, int y) {
+    int w = dmap->getWidth();
+    int h = dmap->getHeight();
+    if (x < 0 || y < 0 || x >= w || y >= h) {
+        PyErr_Format(PyExc_IndexError,
+            "coordinate (%d, %d) out of bounds for DijkstraMap of size %dx%d",
+            x, y, w, h);
+        return false;
+    }
+    return true;
+}
+
 PyObject* UIGridPathfinding::DijkstraMap_distance(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {"pos", NULL};
     PyObject* pos_obj = NULL;
@@ -306,6 +321,8 @@ PyObject* UIGridPathfinding::DijkstraMap_distance(PyDijkstraMapObject* self, PyO
     if (!ExtractPosition(pos_obj, &x, &y, nullptr, "pos")) {
         return NULL;
     }
+
+    if (!dijkstra_bounds_check(self->data.get(), x, y)) return NULL;
 
     float dist = self->data->getDistance(x, y);
     if (dist < 0) {
@@ -332,6 +349,8 @@ PyObject* UIGridPathfinding::DijkstraMap_path_from(PyDijkstraMapObject* self, Py
     if (!ExtractPosition(pos_obj, &x, &y, nullptr, "pos")) {
         return NULL;
     }
+
+    if (!dijkstra_bounds_check(self->data.get(), x, y)) return NULL;
 
     std::vector<sf::Vector2i> path = self->data->getPathFrom(x, y);
 
@@ -365,6 +384,8 @@ PyObject* UIGridPathfinding::DijkstraMap_step_from(PyDijkstraMapObject* self, Py
     if (!ExtractPosition(pos_obj, &x, &y, nullptr, "pos")) {
         return NULL;
     }
+
+    if (!dijkstra_bounds_check(self->data.get(), x, y)) return NULL;
 
     bool valid = false;
     sf::Vector2i step = self->data->stepFrom(x, y, &valid);
