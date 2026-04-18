@@ -1,0 +1,48 @@
+{
+  "runs": [
+    {
+      "views": 1,
+      "frames": 60,
+      "warmup_frames": 5,
+      "total_sec": 4.710599604761228,
+      "mean_frame_ms": 78.50999341268714,
+      "p95_frame_ms": 90.47448402270675,
+      "implied_fps": 12.737231994702995,
+      "per_view_frame_ms": 78.50999341268714
+    },
+    {
+      "views": 2,
+      "frames": 60,
+      "warmup_frames": 5,
+      "total_sec": 4.6525509969796985,
+      "mean_frame_ms": 77.54251661632831,
+      "p95_frame_ms": 91.92000096663833,
+      "implied_fps": 12.896150958678424,
+      "per_view_frame_ms": 38.77125830816416
+    },
+    {
+      "views": 4,
+      "frames": 60,
+      "warmup_frames": 5,
+      "total_sec": 4.727940998389386,
+      "mean_frame_ms": 78.7990166398231,
+      "p95_frame_ms": 99.88687501754612,
+      "implied_fps": 12.690513697281654,
+      "per_view_frame_ms": 19.699754159955774
+    }
+  ],
+  "config": {
+    "grid": "80x80",
+    "frames": 60,
+    "warmup_frames": 5,
+    "view_counts": [
+      1,
+      2,
+      4
+    ],
+    "view_pixel_size": [
+      320,
+      320
+    ]
+  }
+}

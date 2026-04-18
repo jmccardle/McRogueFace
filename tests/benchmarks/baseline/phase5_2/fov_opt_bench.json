@@ -1,0 +1,120 @@
+{
+  "config": {
+    "grid": "1000x1000",
+    "entities": 100,
+    "radii": [
+      8,
+      16,
+      32
+    ],
+    "algorithms": [
+      "BASIC",
+      "SHADOW",
+      "SYMMETRIC_SHADOWCAST"
+    ],
+    "warmup_rounds": 1,
+    "measured_rounds": 3,
+    "seed": 6699
+  },
+  "runs": [
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "BASIC",
+      "radius": 8,
+      "with_perspective_round_ms": 2769.56388001175,
+      "without_perspective_round_ms": 271.07496932148933,
+      "with_perspective_per_entity_us": 27695.638800117496,
+      "without_perspective_per_entity_us": 2710.7496932148933,
+      "perspective_overhead_per_entity_us": 24984.889106902603
+    },
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "BASIC",
+      "radius": 16,
+      "with_perspective_round_ms": 2984.1214296563217,
+      "without_perspective_round_ms": 279.2910839974259,
+      "with_perspective_per_entity_us": 29841.214296563216,
+      "without_perspective_per_entity_us": 2792.910839974259,
+      "perspective_overhead_per_entity_us": 27048.303456588957
+    },
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "BASIC",
+      "radius": 32,
+      "with_perspective_round_ms": 2893.4406669965633,
+      "without_perspective_round_ms": 295.72028065255535,
+      "with_perspective_per_entity_us": 28934.406669965636,
+      "without_perspective_per_entity_us": 2957.202806525553,
+      "perspective_overhead_per_entity_us": 25977.20386344008
+    },
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "SHADOW",
+      "radius": 8,
+      "with_perspective_round_ms": 2910.704257975643,
+      "without_perspective_round_ms": 287.07114366504055,
+      "with_perspective_per_entity_us": 29107.04257975643,
+      "without_perspective_per_entity_us": 2870.7114366504056,
+      "perspective_overhead_per_entity_us": 26236.331143106025
+    },
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "SHADOW",
+      "radius": 16,
+      "with_perspective_round_ms": 3024.507179002588,
+      "without_perspective_round_ms": 288.10382665445405,
+      "with_perspective_per_entity_us": 30245.07179002588,
+      "without_perspective_per_entity_us": 2881.0382665445404,
+      "perspective_overhead_per_entity_us": 27364.03352348134
+    },
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "SHADOW",
+      "radius": 32,
+      "with_perspective_round_ms": 2899.84968265829,
+      "without_perspective_round_ms": 284.8557453447332,
+      "with_perspective_per_entity_us": 28998.4968265829,
+      "without_perspective_per_entity_us": 2848.5574534473317,
+      "perspective_overhead_per_entity_us": 26149.93937313557
+    },
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "SYMMETRIC_SHADOWCAST",
+      "radius": 8,
+      "with_perspective_round_ms": 4872.0670250089215,
+      "without_perspective_round_ms": 2398.7115593239046,
+      "with_perspective_per_entity_us": 48720.67025008921,
+      "without_perspective_per_entity_us": 23987.115593239043,
+      "perspective_overhead_per_entity_us": 24733.55465685017
+    },
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "SYMMETRIC_SHADOWCAST",
+      "radius": 16,
+      "with_perspective_round_ms": 5419.6644353602705,
+      "without_perspective_round_ms": 2340.30764332662,
+      "with_perspective_per_entity_us": 54196.64435360271,
+      "without_perspective_per_entity_us": 23403.076433266204,
+      "perspective_overhead_per_entity_us": 30793.567920336503
+    },
+    {
+      "grid": "1000x1000",
+      "entities": 100,
+      "algorithm": "SYMMETRIC_SHADOWCAST",
+      "radius": 32,
+      "with_perspective_round_ms": 6089.957528670008,
+      "without_perspective_round_ms": 2441.893618670292,
+      "with_perspective_per_entity_us": 60899.575286700085,
+      "without_perspective_per_entity_us": 24418.936186702922,
+      "perspective_overhead_per_entity_us": 36480.63909999716
+    }
+  ]
+}

@@ -1,0 +1,969 @@
+{
+  "config": {
+    "grid_sizes": [
+      [
+        100,
+        100
+      ],
+      [
+        500,
+        500
+      ]
+    ],
+    "obstacle_densities": [
+      0.1,
+      0.3,
+      0.5
+    ],
+    "heuristics": [
+      "EUCLIDEAN",
+      "MANHATTAN",
+      "CHEBYSHEV",
+      "DIAGONAL",
+      "ZERO"
+    ],
+    "weights": [
+      1.0,
+      1.5,
+      2.0
+    ],
+    "trials": 5,
+    "collide_blocker_counts": [
+      0,
+      10,
+      100
+    ],
+    "collide_trials": 20
+  },
+  "runs": [
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 0.942350598052144,
+      "hits": 5,
+      "mean_length": 103.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.08371900767087936,
+      "hits": 5,
+      "mean_length": 104.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "EUCLIDEAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.13862219639122486,
+      "hits": 5,
+      "mean_length": 104.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "MANHATTAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 0.09275858756154776,
+      "hits": 5,
+      "mean_length": 106.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "MANHATTAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.09280364029109478,
+      "hits": 5,
+      "mean_length": 106.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "MANHATTAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.08861918468028307,
+      "hits": 5,
+      "mean_length": 106.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 2.3062639636918902,
+      "hits": 5,
+      "mean_length": 103.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.09980038739740849,
+      "hits": 5,
+      "mean_length": 105.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "CHEBYSHEV",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.07879282347857952,
+      "hits": 5,
+      "mean_length": 107.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "DIAGONAL",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 0.3678584238514304,
+      "hits": 5,
+      "mean_length": 103.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "DIAGONAL",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.08070121984928846,
+      "hits": 5,
+      "mean_length": 104.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "DIAGONAL",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.07753577083349228,
+      "hits": 5,
+      "mean_length": 104.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "ZERO",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 2.790003828704357,
+      "hits": 5,
+      "mean_length": 103.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "ZERO",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 2.8951774118468165,
+      "hits": 5,
+      "mean_length": 103.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.1,
+      "heuristic": "ZERO",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 2.86939381621778,
+      "hits": 5,
+      "mean_length": 103.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 0.7874952163547277,
+      "hits": 5,
+      "mean_length": 108.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.10141241364181042,
+      "hits": 5,
+      "mean_length": 114.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "EUCLIDEAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.09933756664395332,
+      "hits": 5,
+      "mean_length": 116.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "MANHATTAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 0.1215972239151597,
+      "hits": 5,
+      "mean_length": 121.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "MANHATTAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.11956898961216211,
+      "hits": 5,
+      "mean_length": 131.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "MANHATTAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.11518399696797132,
+      "hits": 5,
+      "mean_length": 131.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 1.6034855972975492,
+      "hits": 5,
+      "mean_length": 108.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.1681813970208168,
+      "hits": 5,
+      "mean_length": 110.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "CHEBYSHEV",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.10669098701328039,
+      "hits": 5,
+      "mean_length": 115.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "DIAGONAL",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 0.40994961746037006,
+      "hits": 5,
+      "mean_length": 108.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "DIAGONAL",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.09926019702106714,
+      "hits": 5,
+      "mean_length": 113.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "DIAGONAL",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.10138300713151693,
+      "hits": 5,
+      "mean_length": 117.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "ZERO",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 2.339287009090185,
+      "hits": 5,
+      "mean_length": 108.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "ZERO",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 2.4245378095656633,
+      "hits": 5,
+      "mean_length": 108.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.3,
+      "heuristic": "ZERO",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 2.389551419764757,
+      "hits": 5,
+      "mean_length": 108.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 1.602034829556942,
+      "hits": 5,
+      "mean_length": 143.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.3661741968244314,
+      "hits": 5,
+      "mean_length": 148.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "EUCLIDEAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.2342308172956109,
+      "hits": 5,
+      "mean_length": 149.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "MANHATTAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 0.2803839975968003,
+      "hits": 5,
+      "mean_length": 157.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "MANHATTAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.20836759358644485,
+      "hits": 5,
+      "mean_length": 168.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "MANHATTAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.20984318107366562,
+      "hits": 5,
+      "mean_length": 169.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 1.5648985747247934,
+      "hits": 5,
+      "mean_length": 143.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.0680590057745576,
+      "hits": 5,
+      "mean_length": 153.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "CHEBYSHEV",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.5100774113088846,
+      "hits": 5,
+      "mean_length": 159.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "DIAGONAL",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 1.2593558290973306,
+      "hits": 5,
+      "mean_length": 143.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "DIAGONAL",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 0.35627696197479963,
+      "hits": 5,
+      "mean_length": 156.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "DIAGONAL",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 0.22568658459931612,
+      "hits": 5,
+      "mean_length": 158.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "ZERO",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 1.7558214021846652,
+      "hits": 5,
+      "mean_length": 143.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "ZERO",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.7436427995562553,
+      "hits": 5,
+      "mean_length": 143.0
+    },
+    {
+      "grid": "100x100",
+      "density": 0.5,
+      "heuristic": "ZERO",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 1.7293283948674798,
+      "hits": 5,
+      "mean_length": 143.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 32.0626940112561,
+      "hits": 5,
+      "mean_length": 513.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.5519145876169205,
+      "hits": 5,
+      "mean_length": 522.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "EUCLIDEAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 1.4397500082850456,
+      "hits": 5,
+      "mean_length": 522.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "MANHATTAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 1.591819617897272,
+      "hits": 5,
+      "mean_length": 530.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "MANHATTAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.6432177973911166,
+      "hits": 5,
+      "mean_length": 546.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "MANHATTAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 1.6989499796181917,
+      "hits": 5,
+      "mean_length": 546.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 156.1333344085142,
+      "hits": 5,
+      "mean_length": 513.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.5195768093690276,
+      "hits": 5,
+      "mean_length": 521.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "CHEBYSHEV",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 1.4803750207647681,
+      "hits": 5,
+      "mean_length": 526.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "DIAGONAL",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 15.02777342684567,
+      "hits": 5,
+      "mean_length": 513.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "DIAGONAL",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.6023054020479321,
+      "hits": 5,
+      "mean_length": 520.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "DIAGONAL",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 1.6157740028575063,
+      "hits": 5,
+      "mean_length": 520.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "ZERO",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 97.6897893473506,
+      "hits": 5,
+      "mean_length": 513.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "ZERO",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 96.43948636949062,
+      "hits": 5,
+      "mean_length": 513.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.1,
+      "heuristic": "ZERO",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 107.46402416843921,
+      "hits": 5,
+      "mean_length": 513.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 57.68123983871192,
+      "hits": 5,
+      "mean_length": 557.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.858492591418326,
+      "hits": 5,
+      "mean_length": 588.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "EUCLIDEAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 1.757865771651268,
+      "hits": 5,
+      "mean_length": 595.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "MANHATTAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 1.8272274173796177,
+      "hits": 5,
+      "mean_length": 586.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "MANHATTAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.9388356013223529,
+      "hits": 5,
+      "mean_length": 625.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "MANHATTAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 1.9301387714222074,
+      "hits": 5,
+      "mean_length": 622.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 96.00871021393687,
+      "hits": 5,
+      "mean_length": 557.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 6.980397994630039,
+      "hits": 5,
+      "mean_length": 572.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "CHEBYSHEV",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 2.038404601626098,
+      "hits": 5,
+      "mean_length": 604.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "DIAGONAL",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 33.08099440764636,
+      "hits": 5,
+      "mean_length": 557.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "DIAGONAL",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 1.853386196307838,
+      "hits": 5,
+      "mean_length": 589.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "DIAGONAL",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 1.8388852244243026,
+      "hits": 5,
+      "mean_length": 593.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "ZERO",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 88.17679616622627,
+      "hits": 5,
+      "mean_length": 557.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "ZERO",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 92.76693619322032,
+      "hits": 5,
+      "mean_length": 557.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.3,
+      "heuristic": "ZERO",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 82.64447257388383,
+      "hits": 5,
+      "mean_length": 557.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 59.1546967625618,
+      "hits": 5,
+      "mean_length": 683.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "EUCLIDEAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 2.7708559995517135,
+      "hits": 5,
+      "mean_length": 715.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "EUCLIDEAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 4.107674001716077,
+      "hits": 5,
+      "mean_length": 733.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "MANHATTAN",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 2.8352454071864486,
+      "hits": 5,
+      "mean_length": 710.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "MANHATTAN",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 3.3035014057531953,
+      "hits": 5,
+      "mean_length": 767.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "MANHATTAN",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 3.7329247687011957,
+      "hits": 5,
+      "mean_length": 757.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 61.771947774104774,
+      "hits": 5,
+      "mean_length": 683.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "CHEBYSHEV",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 21.38091274537146,
+      "hits": 5,
+      "mean_length": 688.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "CHEBYSHEV",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 3.3959574066102505,
+      "hits": 5,
+      "mean_length": 711.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "DIAGONAL",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 42.92491900268942,
+      "hits": 5,
+      "mean_length": 683.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "DIAGONAL",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 3.1225387938320637,
+      "hits": 5,
+      "mean_length": 710.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "DIAGONAL",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 2.8334501897916198,
+      "hits": 5,
+      "mean_length": 721.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "ZERO",
+      "weight": 1.0,
+      "collide": null,
+      "mean_ms": 57.06864399835467,
+      "hits": 5,
+      "mean_length": 683.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "ZERO",
+      "weight": 1.5,
+      "collide": null,
+      "mean_ms": 55.27959519531578,
+      "hits": 5,
+      "mean_length": 683.0
+    },
+    {
+      "grid": "500x500",
+      "density": 0.5,
+      "heuristic": "ZERO",
+      "weight": 2.0,
+      "collide": null,
+      "mean_ms": 55.80121979583055,
+      "hits": 5,
+      "mean_length": 683.0
+    }
+  ],
+  "collide_runs": [
+    {
+      "grid": "100x100",
+      "blockers": 0,
+      "without_collide_ms": 0.655252585420385,
+      "with_collide_ms": 0.6339186511468142,
+      "without_collide_path_len": 101.0,
+      "with_collide_path_len": 101.0,
+      "overhead_ms": -0.021333934273570776
+    },
+    {
+      "grid": "100x100",
+      "blockers": 10,
+      "without_collide_ms": 0.6333888624794781,
+      "with_collide_ms": 0.624053756473586,
+      "without_collide_path_len": 101.0,
+      "with_collide_path_len": 101.0,
+      "overhead_ms": -0.009335106005892158
+    },
+    {
+      "grid": "100x100",
+      "blockers": 100,
+      "without_collide_ms": 0.6174998939968646,
+      "with_collide_ms": 0.8494114445056766,
+      "without_collide_path_len": 101.0,
+      "with_collide_path_len": 102.0,
+      "overhead_ms": 0.23191155050881207
+    }
+  ]
+}

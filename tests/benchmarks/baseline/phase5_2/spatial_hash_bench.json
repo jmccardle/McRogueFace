@@ -1,0 +1,141 @@
+{
+  "config": {
+    "grid": "200x200",
+    "entity_counts": [
+      100,
+      1000,
+      10000
+    ],
+    "radii": [
+      1,
+      5,
+      10,
+      50
+    ],
+    "queries_per_config": 200,
+    "sample_query_locations": 50,
+    "seed": 51966
+  },
+  "runs": [
+    {
+      "entities": 100,
+      "radius": 1,
+      "queries": 200,
+      "spatial_per_query_us": 1.4766055392101407,
+      "naive_per_query_us": 14.514889917336404,
+      "speedup": 9.829903472460659,
+      "spatial_mean_hits": 0.0,
+      "naive_mean_hits": 0.0
+    },
+    {
+      "entities": 100,
+      "radius": 5,
+      "queries": 200,
+      "spatial_per_query_us": 1.5784951392561197,
+      "naive_per_query_us": 14.675830025225878,
+      "speedup": 9.297355221595422,
+      "spatial_mean_hits": 0.28,
+      "naive_mean_hits": 0.28
+    },
+    {
+      "entities": 100,
+      "radius": 10,
+      "queries": 200,
+      "spatial_per_query_us": 1.7352000577375293,
+      "naive_per_query_us": 14.739789767190814,
+      "speedup": 8.49457657718704,
+      "spatial_mean_hits": 0.94,
+      "naive_mean_hits": 0.94
+    },
+    {
+      "entities": 100,
+      "radius": 50,
+      "queries": 200,
+      "spatial_per_query_us": 3.2524653943255544,
+      "naive_per_query_us": 15.446714824065564,
+      "speedup": 4.749232643955206,
+      "spatial_mean_hits": 15.26,
+      "naive_mean_hits": 15.26
+    },
+    {
+      "entities": 1000,
+      "radius": 1,
+      "queries": 200,
+      "spatial_per_query_us": 3.663320094347,
+      "naive_per_query_us": 153.2661501551047,
+      "speedup": 41.83804478118501,
+      "spatial_mean_hits": 0.1,
+      "naive_mean_hits": 0.1
+    },
+    {
+      "entities": 1000,
+      "radius": 5,
+      "queries": 200,
+      "spatial_per_query_us": 2.5340047432109714,
+      "naive_per_query_us": 205.5685903178528,
+      "speedup": 81.12399586804482,
+      "spatial_mean_hits": 1.98,
+      "naive_mean_hits": 1.98
+    },
+    {
+      "entities": 1000,
+      "radius": 10,
+      "queries": 200,
+      "spatial_per_query_us": 3.4613750176504254,
+      "naive_per_query_us": 156.61109995562583,
+      "speedup": 45.245343008783,
+      "spatial_mean_hits": 7.94,
+      "naive_mean_hits": 7.94
+    },
+    {
+      "entities": 1000,
+      "radius": 50,
+      "queries": 200,
+      "spatial_per_query_us": 18.54475529398769,
+      "naive_per_query_us": 160.16811016015708,
+      "speedup": 8.6368413937543,
+      "spatial_mean_hits": 153.96,
+      "naive_mean_hits": 153.96
+    },
+    {
+      "entities": 10000,
+      "radius": 1,
+      "queries": 200,
+      "spatial_per_query_us": 8.608360076323152,
+      "naive_per_query_us": 1619.5069800596684,
+      "speedup": 188.1318817638726,
+      "spatial_mean_hits": 0.92,
+      "naive_mean_hits": 0.92
+    },
+    {
+      "entities": 10000,
+      "radius": 5,
+      "queries": 200,
+      "spatial_per_query_us": 18.44062004238367,
+      "naive_per_query_us": 2015.9114798298103,
+      "speedup": 109.31907252556947,
+      "spatial_mean_hits": 19.2,
+      "naive_mean_hits": 19.2
+    },
+    {
+      "entities": 10000,
+      "radius": 10,
+      "queries": 200,
+      "spatial_per_query_us": 32.97713526990265,
+      "naive_per_query_us": 1611.3787598442286,
+      "speedup": 48.86351548295013,
+      "spatial_mean_hits": 75.86,
+      "naive_mean_hits": 75.86
+    },
+    {
+      "entities": 10000,
+      "radius": 50,
+      "queries": 200,
+      "spatial_per_query_us": 346.19326528627425,
+      "naive_per_query_us": 1811.6197548806667,
+      "speedup": 5.232972263000557,
+      "spatial_mean_hits": 1583.42,
+      "naive_mean_hits": 1583.42
+    }
+  ]
+}
