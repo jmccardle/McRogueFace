@@ -17,6 +17,7 @@
 #include "PyMouseButton.h"
 #include "PyInputState.h"
 #include "PyPerspective.h"
+#include "PyHeuristic.h"
 #include "PyBehavior.h"
 #include "PyTrigger.h"
 #include "UIGridView.h"
@@ -790,6 +791,12 @@ PyObject* PyInit_mcrfpy()
     // Add Perspective enum class for entity perspective_map values (#294)
     PyObject* perspective_class = PyPerspective::create_enum_class(m);
     if (!perspective_class) {
+        PyErr_Clear();
+    }
+
+    // Add Heuristic enum class for A* heuristic selection (#315)
+    PyObject* heuristic_class = PyHeuristic::create_enum_class(m);
+    if (!heuristic_class) {
         PyErr_Clear();
     }
 

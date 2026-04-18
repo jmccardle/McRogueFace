@@ -28,10 +28,15 @@ struct PyAStarPathObject {
 
 class DijkstraMap {
 public:
+    // Single-root construction (back-compat).
     DijkstraMap(TCODMap* map, int root_x, int root_y, float diagonal_cost);
+
+    // Multi-root construction (#315). roots must be non-empty.
+    DijkstraMap(TCODMap* map, const std::vector<sf::Vector2i>& roots, float diagonal_cost);
+
     ~DijkstraMap();
 
-    // Non-copyable (owns TCODDijkstra)
+    // Non-copyable (owns TCOD_Dijkstra)
     DijkstraMap(const DijkstraMap&) = delete;
     DijkstraMap& operator=(const DijkstraMap&) = delete;
 
@@ -40,18 +45,35 @@ public:
     std::vector<sf::Vector2i> getPathFrom(int x, int y) const;
     sf::Vector2i stepFrom(int x, int y, bool* valid = nullptr) const;
 
+    // Phase B: FLEE primitives (#315)
+    // invertInPlace() mutates this map's distance field. Prefer inverted() in new code —
+    // the Python surface exposes the non-mutating form to keep maps immutable after
+    // creation.
+    void invertInPlace();
+    // Returns a freshly computed DijkstraMap with the same roots and diagonal_cost,
+    // then inverts its distance field. The caller owns the returned shared_ptr.
+    std::shared_ptr<DijkstraMap> inverted() const;
+    // descent_step returns the next cell along steepest descent, or (-1,-1) + valid=false.
+    sf::Vector2i descentStep(int x, int y, bool* valid = nullptr) const;
+
     // Accessors
-    sf::Vector2i getRoot() const { return root; }
+    sf::Vector2i getRoot() const { return root; }  // First root for multi-root
+    const std::vector<sf::Vector2i>& getRoots() const { return roots; }
+    bool isMultiRoot() const { return roots.size() > 1; }
     float getDiagonalCost() const { return diagonal_cost; }
-    int getWidth() const;
-    int getHeight() const;
+    int getWidth() const { return map_width; }
+    int getHeight() const { return map_height; }
+
+    // Raw C handle, for internal use in new constructor paths (e.g. from_invert).
+    TCOD_Dijkstra* getHandle() const { return tcod_dijkstra; }
 
 private:
-    TCODDijkstra* tcod_dijkstra;  // Owned by this object
-    TCODMap* tcod_map;            // Borrowed from Grid
+    TCOD_Dijkstra* tcod_dijkstra;  // Owned
+    TCODMap* tcod_map;             // Borrowed from Grid
     sf::Vector2i root;
+    std::vector<sf::Vector2i> roots;
     float diagonal_cost;
-    int map_width;                // Cached from TCODMap at construction
+    int map_width;
     int map_height;
 };
 
@@ -110,6 +132,8 @@ namespace UIGridPathfinding {
     PyObject* DijkstraMap_path_from(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
     PyObject* DijkstraMap_step_from(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
     PyObject* DijkstraMap_to_heightmap(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
+    PyObject* DijkstraMap_invert(PyDijkstraMapObject* self, PyObject* args);
+    PyObject* DijkstraMap_descent_step(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
 
     // Properties
     PyObject* DijkstraMap_get_root(PyDijkstraMapObject* self, void* closure);

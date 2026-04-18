@@ -4,82 +4,82 @@
       "grid": "100x100",
       "kind": "multi_root",
       "roots": 1,
-      "mean_ms": 0.7709094556048512
+      "mean_ms": 0.6948539987206459
     },
     {
       "grid": "100x100",
       "kind": "multi_root",
       "roots": 2,
-      "mean_ms": 0.7632468361407518
+      "mean_ms": 0.8002225775271654
     },
     {
       "grid": "100x100",
       "kind": "multi_root",
       "roots": 5,
-      "mean_ms": 1.200081780552864
+      "mean_ms": 1.1821302119642496
     },
     {
       "grid": "100x100",
       "kind": "multi_root",
       "roots": 20,
-      "mean_ms": 2.137616788968444
+      "mean_ms": 2.0206935703754425
     },
     {
       "grid": "100x100",
       "kind": "mask",
       "roots": 500,
-      "mean_ms": 30.424197972752154
+      "mean_ms": 24.073211615905166
     },
     {
       "grid": "100x100",
       "kind": "invert",
-      "mean_ms": 1.0323396185413003
+      "mean_ms": 0.7887090090662241
     },
     {
       "grid": "100x100",
       "kind": "descent_step_per_call",
-      "mean_us": 0.4075700417160988,
+      "mean_us": 0.3262499812990427,
       "valid_per_trial": 100
     },
     {
       "grid": "500x500",
       "kind": "multi_root",
       "roots": 1,
-      "mean_ms": 26.075413217768073
+      "mean_ms": 20.39959062822163
     },
     {
       "grid": "500x500",
       "kind": "multi_root",
       "roots": 2,
-      "mean_ms": 25.83242394030094
+      "mean_ms": 22.81180394347757
     },
     {
       "grid": "500x500",
       "kind": "multi_root",
       "roots": 5,
-      "mean_ms": 33.73005616012961
+      "mean_ms": 29.194996040314436
     },
     {
       "grid": "500x500",
       "kind": "multi_root",
       "roots": 20,
-      "mean_ms": 78.58918677084148
+      "mean_ms": 67.84450197592378
     },
     {
       "grid": "500x500",
       "kind": "mask",
       "roots": 12500,
-      "mean_ms": 18658.679087948985
+      "mean_ms": 19711.241053813137
     },
     {
       "grid": "500x500",
       "kind": "invert",
-      "mean_ms": 25.918347598053515
+      "mean_ms": 27.875673002563417
     },
     {
       "grid": "500x500",
       "kind": "descent_step_per_call",
-      "mean_us": 0.3717193566262722,
+      "mean_us": 0.3495373670011759,
       "valid_per_trial": 2500
     }
   ]

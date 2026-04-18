@@ -4,31 +4,31 @@
       "views": 1,
       "frames": 60,
       "warmup_frames": 5,
-      "total_sec": 4.710599604761228,
-      "mean_frame_ms": 78.50999341268714,
-      "p95_frame_ms": 90.47448402270675,
-      "implied_fps": 12.737231994702995,
-      "per_view_frame_ms": 78.50999341268714
+      "total_sec": 4.731390134897083,
+      "mean_frame_ms": 78.85650224828473,
+      "p95_frame_ms": 86.92639297805727,
+      "implied_fps": 12.681262438593032,
+      "per_view_frame_ms": 78.85650224828473
     },
     {
       "views": 2,
       "frames": 60,
       "warmup_frames": 5,
-      "total_sec": 4.6525509969796985,
-      "mean_frame_ms": 77.54251661632831,
-      "p95_frame_ms": 91.92000096663833,
-      "implied_fps": 12.896150958678424,
-      "per_view_frame_ms": 38.77125830816416
+      "total_sec": 4.975782633875497,
+      "mean_frame_ms": 82.92971056459162,
+      "p95_frame_ms": 91.40842803753912,
+      "implied_fps": 12.058404559619538,
+      "per_view_frame_ms": 41.46485528229581
     },
     {
       "views": 4,
       "frames": 60,
       "warmup_frames": 5,
-      "total_sec": 4.727940998389386,
-      "mean_frame_ms": 78.7990166398231,
-      "p95_frame_ms": 99.88687501754612,
-      "implied_fps": 12.690513697281654,
-      "per_view_frame_ms": 19.699754159955774
+      "total_sec": 4.861755113233812,
+      "mean_frame_ms": 81.0292518872302,
+      "p95_frame_ms": 90.46144201420248,
+      "implied_fps": 12.341222172354708,
+      "per_view_frame_ms": 20.25731297180755
     }
   ],
   "config": {
