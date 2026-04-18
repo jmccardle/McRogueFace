@@ -218,6 +218,11 @@ public:
     static int ColorLayer_set_grid(PyColorLayerObject* self, PyObject* value, void* closure);
     static PyObject* ColorLayer_repr(PyColorLayerObject* self);
 
+    // Subscript protocol: layer[x, y] / layer[x, y] = value
+    static PyObject* ColorLayer_subscript(PyColorLayerObject* self, PyObject* key);
+    static int ColorLayer_subscript_assign(PyColorLayerObject* self, PyObject* key, PyObject* value);
+    static PyMappingMethods ColorLayer_mapping_methods;
+
     // TileLayer methods
     static int TileLayer_init(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* TileLayer_at(PyTileLayerObject* self, PyObject* args, PyObject* kwds);
@@ -237,6 +242,11 @@ public:
     static PyObject* TileLayer_get_grid(PyTileLayerObject* self, void* closure);
     static int TileLayer_set_grid(PyTileLayerObject* self, PyObject* value, void* closure);
     static PyObject* TileLayer_repr(PyTileLayerObject* self);
+
+    // Subscript protocol: layer[x, y] / layer[x, y] = value
+    static PyObject* TileLayer_subscript(PyTileLayerObject* self, PyObject* key);
+    static int TileLayer_subscript_assign(PyTileLayerObject* self, PyObject* key, PyObject* value);
+    static PyMappingMethods TileLayer_mapping_methods;
 
     // Method and getset arrays
     static PyMethodDef ColorLayer_methods[];
@@ -259,6 +269,7 @@ namespace mcrfpydef {
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)PyGridLayerAPI::ColorLayer_repr,
+        .tp_as_mapping = &PyGridLayerAPI::ColorLayer_mapping_methods,  // layer[x, y]
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("ColorLayer(z_index=-1, name=None, grid_size=None)\n\n"
                            "A grid layer that stores RGBA colors per cell for background/overlay effects.\n\n"
@@ -312,6 +323,7 @@ namespace mcrfpydef {
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)PyGridLayerAPI::TileLayer_repr,
+        .tp_as_mapping = &PyGridLayerAPI::TileLayer_mapping_methods,  // layer[x, y]
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("TileLayer(z_index=-1, name=None, texture=None, grid_size=None)\n\n"
                            "A grid layer that stores sprite indices per cell for tile-based rendering.\n\n"

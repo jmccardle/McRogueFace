@@ -945,6 +945,90 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
     Py_RETURN_NONE;
 }
 
+// =============================================================================
+// Subscript protocol: layer[x, y] / layer[x, y] = value
+// =============================================================================
+
+// Helper: parse a 2-tuple key into (x, y) ints. Sets TypeError on bad keys.
+static bool parse_subscript_key(PyObject* key, int* x, int* y) {
+    if (!PyTuple_Check(key) || PyTuple_Size(key) != 2) {
+        PyErr_SetString(PyExc_TypeError,
+            "Layer indices must be a 2-tuple (x, y)");
+        return false;
+    }
+    PyObject* x_obj = PyTuple_GetItem(key, 0);
+    PyObject* y_obj = PyTuple_GetItem(key, 1);
+    if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
+        PyErr_SetString(PyExc_TypeError, "Layer indices must be integers");
+        return false;
+    }
+    *x = (int)PyLong_AsLong(x_obj);
+    *y = (int)PyLong_AsLong(y_obj);
+    return true;
+}
+
+PyObject* PyGridLayerAPI::ColorLayer_subscript(PyColorLayerObject* self, PyObject* key) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    int x, y;
+    if (!parse_subscript_key(key, &x, &y)) return NULL;
+
+    if (x < 0 || x >= self->data->grid_x || y < 0 || y >= self->data->grid_y) {
+        PyErr_Format(PyExc_IndexError,
+            "Position (%d, %d) out of bounds for ColorLayer of size (%d, %d)",
+            x, y, self->data->grid_x, self->data->grid_y);
+        return NULL;
+    }
+
+    const sf::Color& color = self->data->at(x, y);
+
+    // Wrap as mcrfpy.Color
+    auto* color_type = (PyTypeObject*)PyObject_GetAttrString(
+        PyImport_ImportModule("mcrfpy"), "Color");
+    if (!color_type) return NULL;
+    PyColorObject* color_obj = (PyColorObject*)color_type->tp_alloc(color_type, 0);
+    Py_DECREF(color_type);
+    if (!color_obj) return NULL;
+    color_obj->data = color;
+    return (PyObject*)color_obj;
+}
+
+int PyGridLayerAPI::ColorLayer_subscript_assign(PyColorLayerObject* self, PyObject* key, PyObject* value) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return -1;
+    }
+    if (value == nullptr) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete ColorLayer cells");
+        return -1;
+    }
+    int x, y;
+    if (!parse_subscript_key(key, &x, &y)) return -1;
+
+    if (x < 0 || x >= self->data->grid_x || y < 0 || y >= self->data->grid_y) {
+        PyErr_Format(PyExc_IndexError,
+            "Position (%d, %d) out of bounds for ColorLayer of size (%d, %d)",
+            x, y, self->data->grid_x, self->data->grid_y);
+        return -1;
+    }
+
+    // PyColor::fromPy accepts Color objects, tuples, lists, ints; sets PyErr on failure.
+    sf::Color color = PyColor::fromPy(value);
+    if (PyErr_Occurred()) return -1;
+
+    self->data->at(x, y) = color;
+    self->data->markDirty(x, y);
+    return 0;
+}
+
+PyMappingMethods PyGridLayerAPI::ColorLayer_mapping_methods = {
+    .mp_length = nullptr,
+    .mp_subscript = (binaryfunc)PyGridLayerAPI::ColorLayer_subscript,
+    .mp_ass_subscript = (objobjargproc)PyGridLayerAPI::ColorLayer_subscript_assign,
+};
+
 PyObject* PyGridLayerAPI::ColorLayer_fill(PyColorLayerObject* self, PyObject* args) {
     PyObject* color_obj;
     if (!PyArg_ParseTuple(args, "O", &color_obj)) {
@@ -1951,6 +2035,64 @@ PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args)
     self->data->markDirty(x, y);  // Mark only the affected chunk
     Py_RETURN_NONE;
 }
+
+// =============================================================================
+// TileLayer subscript: tl[x, y] / tl[x, y] = index
+// =============================================================================
+
+PyObject* PyGridLayerAPI::TileLayer_subscript(PyTileLayerObject* self, PyObject* key) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return NULL;
+    }
+    int x, y;
+    if (!parse_subscript_key(key, &x, &y)) return NULL;
+
+    if (x < 0 || x >= self->data->grid_x || y < 0 || y >= self->data->grid_y) {
+        PyErr_Format(PyExc_IndexError,
+            "Position (%d, %d) out of bounds for TileLayer of size (%d, %d)",
+            x, y, self->data->grid_x, self->data->grid_y);
+        return NULL;
+    }
+
+    return PyLong_FromLong(self->data->at(x, y));
+}
+
+int PyGridLayerAPI::TileLayer_subscript_assign(PyTileLayerObject* self, PyObject* key, PyObject* value) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Layer has no data");
+        return -1;
+    }
+    if (value == nullptr) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete TileLayer cells");
+        return -1;
+    }
+    int x, y;
+    if (!parse_subscript_key(key, &x, &y)) return -1;
+
+    if (x < 0 || x >= self->data->grid_x || y < 0 || y >= self->data->grid_y) {
+        PyErr_Format(PyExc_IndexError,
+            "Position (%d, %d) out of bounds for TileLayer of size (%d, %d)",
+            x, y, self->data->grid_x, self->data->grid_y);
+        return -1;
+    }
+
+    if (!PyLong_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "tile index must be an int");
+        return -1;
+    }
+    int index = (int)PyLong_AsLong(value);
+
+    self->data->at(x, y) = index;
+    self->data->markDirty(x, y);
+    return 0;
+}
+
+PyMappingMethods PyGridLayerAPI::TileLayer_mapping_methods = {
+    .mp_length = nullptr,
+    .mp_subscript = (binaryfunc)PyGridLayerAPI::TileLayer_subscript,
+    .mp_ass_subscript = (objobjargproc)PyGridLayerAPI::TileLayer_subscript_assign,
+};
 
 PyObject* PyGridLayerAPI::TileLayer_fill(PyTileLayerObject* self, PyObject* args) {
     int index;

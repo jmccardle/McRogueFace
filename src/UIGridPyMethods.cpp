@@ -82,10 +82,19 @@ PyObject* UIGrid::subscript(PyUIGridObject* self, PyObject* key)
     return (PyObject*)obj;
 }
 
+// Setitem on _GridData / Grid: GridPoints are views, not assignable.
+static int UIGrid_subscript_assign(PyUIGridObject* self, PyObject* key, PyObject* value)
+{
+    (void)self; (void)key; (void)value;
+    PyErr_SetString(PyExc_TypeError,
+        "Grid points are not assignable; modify properties on the returned point");
+    return -1;
+}
+
 PyMappingMethods UIGrid::mpmethods = {
     .mp_length = NULL,
     .mp_subscript = (binaryfunc)UIGrid::subscript,
-    .mp_ass_subscript = NULL
+    .mp_ass_subscript = (objobjargproc)UIGrid_subscript_assign,
 };
 
 // =========================================================================
