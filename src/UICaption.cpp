@@ -7,6 +7,9 @@
 #include "PyAlignment.h"
 #include "PyShader.h"  // #106: Shader support
 #include "PyUniformCollection.h"  // #106: Uniform collection support
+#include "UIFrame.h"          // parent= kwarg: Frame parent type
+#include "UIGrid.h"           // parent= kwarg: Grid/GridView parent type
+#include "PySceneObject.h"    // parent= kwarg: Scene parent type
 // UIDrawable methods now in UIBase.h
 #include <algorithm>
 
@@ -448,23 +451,27 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     float margin = 0.0f;
     float horiz_margin = -1.0f;
     float vert_margin = -1.0f;
+    PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
-    // Keywords list matches the new spec: positional args first, then all keyword args
+    // Keywords list: pos and text are positional-or-keyword. Everything after
+    // the '$' separator (font and friends) is keyword-only.
     static const char* kwlist[] = {
-        "pos", "font", "text",  // Positional args (as per spec)
-        // Keyword-only args
-        "fill_color", "outline_color", "outline", "font_size", "on_click",
+        "pos", "text",
+        // Keyword-only args follow:
+        "font", "fill_color", "outline_color", "outline", "font_size", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y",
         "align", "margin", "horiz_margin", "vert_margin",
+        "parent",
         nullptr
     };
 
-    // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOzOOffOifizffOfff", const_cast<char**>(kwlist),
-                                     &pos_obj, &font, &text,  // Positional
-                                     &fill_color, &outline_color, &outline, &font_size, &click_handler,
+    // '$' marker makes all following args keyword-only (Python 3.3+ format extension).
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Oz$OOOffOifizffOfffO", const_cast<char**>(kwlist),
+                                     &pos_obj, &text,  // pos+text are positional-or-keyword
+                                     &font, &fill_color, &outline_color, &outline, &font_size, &click_handler,
                                      &visible, &opacity, &z_index, &name, &x, &y,
-                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
+                                     &align_obj, &margin, &horiz_margin, &vert_margin,
+                                     &parent_obj)) {
         return -1;
     }
     
@@ -596,6 +603,9 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUICaptionType;
+
+    // Auto-attach to parent's children collection if parent= was supplied
+    UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
 
     return 0;
 }

@@ -5,6 +5,7 @@
 #include "UICaption.h"
 #include "UISprite.h"
 #include "UIGrid.h"
+#include "PySceneObject.h"  // parent= kwarg: Scene parent type
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
 #include "PyAlignment.h"
@@ -601,6 +602,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     float margin = 0.0f;
     float horiz_margin = -1.0f;
     float vert_margin = -1.0f;
+    PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
@@ -609,15 +611,17 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
         "fill_color", "outline_color", "outline", "children", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y", "w", "h", "clip_children", "cache_subtree",
         "align", "margin", "horiz_margin", "vert_margin",
+        "parent",
         nullptr
     };
 
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOfOOifizffffiiOfff", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOfOOifizffffiiOfffO", const_cast<char**>(kwlist),
                                      &pos_obj, &size_obj,  // Positional
                                      &fill_color, &outline_color, &outline, &children_arg, &click_handler,
                                      &visible, &opacity, &z_index, &name, &x, &y, &w, &h, &clip_children, &cache_subtree,
-                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
+                                     &align_obj, &margin, &horiz_margin, &vert_margin,
+                                     &parent_obj)) {
         return -1;
     }
     
@@ -797,6 +801,9 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIFrameType;
+
+    // Auto-attach to parent's children collection if parent= was supplied
+    UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
 
     return 0;
 }

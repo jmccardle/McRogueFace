@@ -3,6 +3,9 @@
 #include "PyVector.h"
 #include "PythonObjectCache.h"
 #include "UIFrame.h"  // #144: For snapshot= parameter
+#include "UICaption.h"        // parent= kwarg: needed for ATTACH macro instantiation
+#include "UIGrid.h"           // parent= kwarg: Grid/GridView parent type
+#include "PySceneObject.h"    // parent= kwarg: Scene parent type
 #include "PyAlignment.h"
 #include "PyShader.h"  // #106: Shader support
 #include "PyUniformCollection.h"  // #106: Uniform collection support
@@ -476,6 +479,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     float margin = 0.0f;
     float horiz_margin = -1.0f;
     float vert_margin = -1.0f;
+    PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
     // Keywords list matches the new spec: positional args first, then all keyword args
     static const char* kwlist[] = {
@@ -484,15 +488,17 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
         "scale", "scale_x", "scale_y", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y", "snapshot",
         "align", "margin", "horiz_margin", "vert_margin",
+        "parent",
         nullptr
     };
 
     // Parse arguments with | for optional positional args
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOifffOifizffOOfff", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOifffOifizffOOfffO", const_cast<char**>(kwlist),
                                      &pos_obj, &texture, &sprite_index,  // Positional
                                      &scale, &scale_x, &scale_y, &click_handler,
                                      &visible, &opacity, &z_index, &name, &x, &y, &snapshot,
-                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
+                                     &align_obj, &margin, &horiz_margin, &vert_margin,
+                                     &parent_obj)) {
         return -1;
     }
     
@@ -626,6 +632,9 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUISpriteType;
+
+    // Auto-attach to parent's children collection if parent= was supplied
+    UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
 
     return 0;
 }

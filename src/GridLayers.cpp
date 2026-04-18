@@ -814,14 +814,24 @@ PyGetSetDef PyGridLayerAPI::ColorLayer_getsetters[] = {
 };
 
 int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"z_index", "name", "grid_size", NULL};
+    // 1.0 API freeze: positional order is now (name, z_index, ...).
+    static const char* kwlist[] = {"name", "z_index", "grid_size", "grid", NULL};
     int z_index = -1;
     const char* name_str = nullptr;
     PyObject* grid_size_obj = nullptr;
+    PyObject* grid_obj = nullptr;
     int grid_x = 0, grid_y = 0;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|izO", const_cast<char**>(kwlist),
-                                     &z_index, &name_str, &grid_size_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ziOO", const_cast<char**>(kwlist),
+                                     &name_str, &z_index, &grid_size_obj, &grid_obj)) {
+        return -1;
+    }
+
+    // Validate grid kwarg type up-front (before allocating data).
+    if (grid_obj && grid_obj != Py_None &&
+        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType) &&
+        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
 
@@ -850,6 +860,15 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
         self->data->name = name_str;
     }
     self->grid.reset();
+
+    // Auto-attach to grid via grid.add_layer(self) if grid= was supplied.
+    if (grid_obj && grid_obj != Py_None) {
+        PyObject* result = PyObject_CallMethod(grid_obj, "add_layer", "O", (PyObject*)self);
+        if (!result) {
+            return -1;
+        }
+        Py_DECREF(result);
+    }
 
     return 0;
 }
@@ -1844,15 +1863,25 @@ PyGetSetDef PyGridLayerAPI::TileLayer_getsetters[] = {
 };
 
 int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"z_index", "name", "texture", "grid_size", NULL};
+    // 1.0 API freeze: positional order is now (name, z_index, ...).
+    static const char* kwlist[] = {"name", "z_index", "texture", "grid_size", "grid", NULL};
     int z_index = -1;
     const char* name_str = nullptr;
     PyObject* texture_obj = nullptr;
     PyObject* grid_size_obj = nullptr;
+    PyObject* grid_obj = nullptr;
     int grid_x = 0, grid_y = 0;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|izOO", const_cast<char**>(kwlist),
-                                     &z_index, &name_str, &texture_obj, &grid_size_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ziOOO", const_cast<char**>(kwlist),
+                                     &name_str, &z_index, &texture_obj, &grid_size_obj, &grid_obj)) {
+        return -1;
+    }
+
+    // Validate grid kwarg type up-front (before allocating data).
+    if (grid_obj && grid_obj != Py_None &&
+        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType) &&
+        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+        PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
     }
 
@@ -1902,6 +1931,15 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
         self->data->name = name_str;
     }
     self->grid.reset();
+
+    // Auto-attach to grid via grid.add_layer(self) if grid= was supplied.
+    if (grid_obj && grid_obj != Py_None) {
+        PyObject* result = PyObject_CallMethod(grid_obj, "add_layer", "O", (PyObject*)self);
+        if (!result) {
+            return -1;
+        }
+        Py_DECREF(result);
+    }
 
     return 0;
 }
