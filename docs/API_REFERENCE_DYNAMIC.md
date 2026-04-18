@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-04-17 21:43:43*
+*Generated on 2026-04-18 07:28:57*
 
 *This documentation was dynamically generated from the compiled module.*
 

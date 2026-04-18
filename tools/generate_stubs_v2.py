@@ -1,959 +1,512 @@
 #!/usr/bin/env python3
-"""Generate .pyi type stub files for McRogueFace Python API - Version 2.
+"""Generate .pyi type stub files for McRogueFace Python API.
 
-This script creates properly formatted type stubs by manually defining
-the API based on the documentation we've created.
+Uses runtime introspection of the compiled mcrfpy module. Signatures are
+extracted from the first line of each docstring when present, with a
+fallback to (*args, **kwargs) when a class or callable has no signature
+declared.
+
+Run via McRogueFace itself so the mcrfpy module is importable:
+
+    ./build/mcrogueface --headless --exec tools/generate_stubs_v2.py
 """
 
 import os
-import mcrfpy
+import re
+import sys
+import types
+import inspect
+from pathlib import Path
 
-def generate_mcrfpy_stub():
-    """Generate the main mcrfpy.pyi stub file."""
-    return '''"""Type stubs for McRogueFace Python API.
+try:
+    import mcrfpy
+except ImportError:
+    print("Error: this script must be run under McRogueFace (needs mcrfpy)")
+    sys.exit(1)
 
-Core game engine interface for creating roguelike games with Python.
+
+# ---------- signature extraction ----------
+
+_SIG_NAME_RE = re.compile(r"^\s*(\w+)\s*\(")
+_RET_RE = re.compile(r"^\s*->\s*(.+?)\s*$")
+
+
+def _parse_balanced_signature(line):
+    """Parse 'name(...) -> ret' with proper paren/bracket depth tracking.
+
+    Returns (name, params_text, return_text) or None if not a signature.
+    Rejects multi-form signatures like 'foo(x) or foo(y)' by requiring the
+    content after the matched closing paren to be empty or '-> X'.
+    """
+    m = _SIG_NAME_RE.match(line)
+    if not m:
+        return None
+    name = m.group(1)
+    i = m.end()  # position right after the opening '('
+    depth = 1
+    params_start = i
+    while i < len(line) and depth:
+        c = line[i]
+        if c in "([{":
+            depth += 1
+        elif c in ")]}":
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    if depth != 0:
+        return None
+    params = line[params_start:i]
+    tail = line[i + 1:].strip()
+    if not tail:
+        return name, params, None
+    rm = _RET_RE.match(tail)
+    if not rm:
+        return None  # trailing 'or foo(...)' or similar, bail out
+    return name, params, rm.group(1).strip()
+
+
+def first_line(doc):
+    if not doc:
+        return ""
+    return doc.strip().split("\n", 1)[0].strip()
+
+
+def extract_signature(name, doc):
+    """Parse 'name(args) -> ret' from the first docstring line.
+
+    Returns (params_str, return_str) or (None, None) if no signature present
+    or if the signature is multi-form (e.g. 'foo(x) or foo(y)').
+    """
+    line = first_line(doc)
+    if not line:
+        return None, None
+    parsed = _parse_balanced_signature(line)
+    if parsed is None:
+        return None, None
+    sig_name, params, ret = parsed
+    if sig_name != name:
+        return None, None
+    return params.strip(), ret
+
+
+def first_description_paragraph(doc):
+    """Return the first non-empty line after a signature line, if any."""
+    if not doc:
+        return ""
+    lines = doc.strip().split("\n")
+    start = 1 if lines and _parse_balanced_signature(lines[0].strip()) else 0
+    for line in lines[start:]:
+        s = line.strip()
+        if s:
+            return s
+    return ""
+
+
+# ---------- classification ----------
+
+def is_enum_like(cls):
+    """True if this class looks like an IntEnum: int subclass with uppercase members."""
+    if not issubclass(cls, int):
+        return False
+    for name, value in cls.__dict__.items():
+        if name.isupper() and isinstance(value, cls):
+            return True
+    return False
+
+
+def enum_members(cls):
+    """Yield (name, int_value) pairs for enum-like classes."""
+    for name, value in sorted(cls.__dict__.items()):
+        if name.isupper() and isinstance(value, cls):
+            yield name, int(value)
+
+
+def is_method_like(attr):
+    return isinstance(attr, (types.BuiltinFunctionType,
+                             types.BuiltinMethodType,
+                             types.MethodType,
+                             types.FunctionType,
+                             types.MethodDescriptorType,
+                             types.WrapperDescriptorType,
+                             types.ClassMethodDescriptorType)) or callable(attr) and not inspect.isclass(attr)
+
+
+def is_property_descriptor(attr):
+    return isinstance(attr, (types.GetSetDescriptorType, types.MemberDescriptorType, property))
+
+
+# ---------- emitters ----------
+
+def indent(text, n=4):
+    pad = " " * n
+    return "\n".join(pad + ln if ln else ln for ln in text.split("\n"))
+
+
+def _sanitize_params(params):
+    """Rewrite param forms that are not valid Python syntax.
+
+    - Bare `...` (used in docs to mean "and more kwargs") becomes `**kwargs`.
+    - `**kwargs` already present is kept.
+    """
+    if not params:
+        return params
+    # Replace a trailing ", ..." or lone "..." with **kwargs
+    if params.strip() == "...":
+        return "**kwargs"
+    # If "..." appears as a token, replace with **kwargs
+    tokens = [t.strip() for t in params.split(",")]
+    fixed = []
+    saw_kwargs = False
+    for tok in tokens:
+        if tok == "...":
+            if not saw_kwargs:
+                fixed.append("**kwargs")
+                saw_kwargs = True
+        else:
+            if tok.startswith("**"):
+                saw_kwargs = True
+            fixed.append(tok)
+    return ", ".join(fixed)
+
+
+def emit_function(name, doc, is_method=False, is_static=False):
+    """Emit a def line for a free function or method. Always returns a str
+    ending with `: ...` plus an optional one-line docstring."""
+    params, ret = extract_signature(name, doc)
+    if params is None:
+        if is_method:
+            params = "self, *args, **kwargs"
+        else:
+            params = "*args, **kwargs"
+    else:
+        params = _sanitize_params(params)
+        if is_method and not is_static:
+            params = "self" + (", " + params if params else "")
+    ret = ret or "Any"
+
+    decorator = ("@staticmethod\n" if is_static and is_method else "")
+    summary = first_description_paragraph(doc) or first_line(doc)
+    # If the signature itself is the only line, there's nothing useful to
+    # restate. Strip a summary that exactly matches the signature.
+    sig_line = f"{name}({params.replace('self, ', '').replace('self', '')})"
+    body = f'"""{escape_docstring(summary)}"""' if summary else "..."
+    # Never add duplicate bodies
+    if body == "...":
+        return f'{decorator}def {name}({params}) -> {ret}: ...'
+    return f'{decorator}def {name}({params}) -> {ret}:\n    {body}\n    ...'
+
+
+def escape_docstring(text):
+    # Collapse whitespace and escape triple quotes
+    t = " ".join(text.split())
+    t = t.replace('"""', "'''")
+    if len(t) > 160:
+        t = t[:157] + "..."
+    return t
+
+
+# Recognized type words the property parser will accept.
+# Lowercase maps directly to a Python typing name. Anything else must
+# look like a class name (CapitalCase).
+_TYPE_MAPPING = {
+    "int": "int",
+    "uint": "int",
+    "float": "float",
+    "bool": "bool",
+    "str": "str",
+    "string": "str",
+    "tuple": "tuple",
+    "list": "list",
+    "dict": "dict",
+    "set": "set",
+    "frozenset": "frozenset",
+    "bytes": "bytes",
+    "any": "Any",
+    "callable": "Callable",
+    "none": "None",
+    "object": "Any",
+}
+
+
+def property_type_hint(doc):
+    """Best-effort type inference from a property docstring.
+
+    Accepts the FIRST parenthesized group whose first word is either a
+    recognized primitive type or a CapitalCase class name. Skips groups
+    like "(width, height)" or "(trigger, data)" that are argument lists
+    rather than type declarations.
+    """
+    if not doc:
+        return "Any"
+    for m in re.finditer(r"\(([^()]+)\)", doc):
+        text = m.group(1).strip()
+        first = text.split(",")[0].strip()
+        lower = first.lower()
+        if lower in _TYPE_MAPPING:
+            return _TYPE_MAPPING[lower]
+        # Class-like name (starts with capital): accept
+        if re.match(r"^[A-Z][A-Za-z0-9_]*$", first):
+            return first
+        # Union-like text "int | None" etc.
+        if "|" in first and all(
+            tok.strip().lower() in _TYPE_MAPPING or re.match(r"^[A-Z]", tok.strip())
+            for tok in first.split("|")
+        ):
+            return first
+    return "Any"
+
+
+def property_is_readonly(doc):
+    if not doc:
+        return False
+    return "read-only" in doc.lower() or "readonly" in doc.lower()
+
+
+def emit_property(name, doc):
+    t = property_type_hint(doc)
+    summary = first_description_paragraph(doc) or first_line(doc)
+    if summary:
+        return f'{name}: {t}  # {escape_docstring(summary)}'
+    return f'{name}: {t}'
+
+
+# ---------- class emitter ----------
+
+# Methods inherited from object that we should never emit
+_OBJECT_ATTRS = set(dir(object))
+
+
+def iter_class_members(cls):
+    """Yield (name, attr) from cls __dict__ plus inherited members, skipping dunders
+    except __init__, and skipping plain object inheritance."""
+    seen = set()
+    # Walk mro excluding object
+    for klass in cls.__mro__:
+        if klass is object:
+            break
+        for name, attr in klass.__dict__.items():
+            if name in seen:
+                continue
+            if name.startswith("__") and name != "__init__":
+                continue
+            seen.add(name)
+            yield name, attr
+
+
+def emit_class(name, cls):
+    """Emit a `class Name:` block for a regular class or IntEnum."""
+    bases = []
+    if is_enum_like(cls):
+        bases.append("IntEnum")
+
+    header = f'class {name}({", ".join(bases)}):' if bases else f'class {name}:'
+    doc = cls.__doc__ or ""
+    summary = first_description_paragraph(doc) or first_line(doc) or f"{name} type."
+    body_lines = [f'"""{escape_docstring(summary)}"""']
+
+    if is_enum_like(cls):
+        for m_name, m_val in enum_members(cls):
+            body_lines.append(f"{m_name}: int")
+        # Enums rarely have other members we need to expose in stubs
+        return header + "\n" + indent("\n".join(body_lines))
+
+    # Regular class: emit __init__, methods, properties
+    methods = []
+    properties = []
+    seen_names = set()
+
+    def add_from(klass):
+        for attr_name, attr in iter_class_members(klass):
+            if attr_name == "__init__" or attr_name in seen_names:
+                continue
+            if is_property_descriptor(attr):
+                pdoc = attr.__doc__ if not isinstance(attr, property) else (attr.fget.__doc__ if attr.fget else "")
+                properties.append((attr_name, pdoc or ""))
+                seen_names.add(attr_name)
+            elif callable(attr):
+                if attr_name in _OBJECT_ATTRS:
+                    continue
+                mdoc = attr.__doc__ or ""
+                is_static = isinstance(attr, (types.BuiltinFunctionType,
+                                              types.BuiltinMethodType)) and not hasattr(attr, "__self__")
+                methods.append((attr_name, mdoc, is_static))
+                seen_names.add(attr_name)
+
+    add_from(cls)
+
+    # Merge delegated methods/properties from any inner data class
+    delegate = discover_delegate(name, cls)
+    if delegate is not None:
+        add_from(delegate)
+
+    # __init__: take signature from class doc when possible
+    init_params, _ = extract_signature(name, doc)
+    if init_params is None:
+        init_body = "def __init__(self, *args, **kwargs) -> None: ..."
+    else:
+        init_body = f"def __init__(self, {init_params}) -> None: ..." if init_params else \
+                    "def __init__(self) -> None: ..."
+    body_lines.append(init_body)
+
+    for pname, pdoc in sorted(properties):
+        body_lines.append(emit_property(pname, pdoc))
+
+    for mname, mdoc, is_static in sorted(methods):
+        # Skip dunders we don't have a good signature for
+        if mname.startswith("__") and mname != "__init__":
+            continue
+        body_lines.append(emit_function(mname, mdoc, is_method=True, is_static=is_static))
+
+    if len(body_lines) == 1:
+        body_lines.append("...")
+    return header + "\n" + indent("\n".join(body_lines))
+
+
+# ---------- delegation discovery ----------
+
+# Some C types expose methods on an inner "_Data" helper that dir(cls) does
+# not see because __getattr__ forwards at the instance level. We probe known
+# method names on a live instance to discover the delegate type and merge its
+# surface into the stub.
+_DELEGATION_PROBES = (
+    "center_camera",  # Grid/GridView -> _GridData
+    "camera_rotation",
+    "add_collision_label",
+    "entities",
+    "compute_fov",
+    "add_layer",
+    "apply_threshold",
+)
+
+_DELEGATE_CLASS_FACTORIES = {
+    # class_name: callable returning a live instance, or None to skip
+    "Grid": lambda: mcrfpy.Grid(grid_size=(2, 2)),
+    "GridView": lambda: mcrfpy.GridView(grid=mcrfpy.Grid(grid_size=(2, 2))),
+}
+
+
+def discover_delegate(cls_name, cls):
+    """Return a delegate type if `cls` forwards known method names to it, else None."""
+    factory = _DELEGATE_CLASS_FACTORIES.get(cls_name)
+    if factory is None:
+        return None
+    try:
+        inst = factory()
+    except Exception:
+        return None
+    for probe in _DELEGATION_PROBES:
+        try:
+            m = getattr(inst, probe, None)
+        except Exception:
+            continue
+        if callable(m) and hasattr(m, "__self__"):
+            s_type = type(m.__self__)
+            if s_type is not cls:
+                return s_type
+    return None
+
+
+# ---------- submodule (automation) ----------
+
+def emit_submodule(mod_name, mod):
+    lines = [f"class _{mod_name}_module:"]
+    body = [f'"""Stub for mcrfpy.{mod_name} submodule."""']
+    for name in sorted(dir(mod)):
+        if name.startswith("_"):
+            continue
+        attr = getattr(mod, name)
+        if callable(attr):
+            body.append(emit_function(name, attr.__doc__ or "", is_method=True, is_static=True))
+    if len(body) == 1:
+        body.append("...")
+    lines.append(indent("\n".join(body)))
+    lines.append(f"{mod_name}: _{mod_name}_module")
+    return "\n".join(lines)
+
+
+# ---------- main entry ----------
+
+HEADER = '''"""Type stubs for McRogueFace Python API.
+
+Auto-generated by tools/generate_stubs_v2.py via runtime introspection.
+Do not edit by hand -- regenerate after API changes:
+
+    make && ./tools/generate_all_docs.sh
 """
 
-from typing import Any, List, Dict, Tuple, Optional, Callable, Union, overload
-
-# Type aliases
-UIElement = Union['Frame', 'Caption', 'Sprite', 'Grid', 'Line', 'Circle', 'Arc']
-Transition = Union[str, None]
-
-# Classes
-
-class Color:
-    """SFML Color Object for RGBA colors."""
-    
-    r: int
-    g: int
-    b: int
-    a: int
-    
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, r: int, g: int, b: int, a: int = 255) -> None: ...
-    
-    def from_hex(self, hex_string: str) -> 'Color':
-        """Create color from hex string (e.g., '#FF0000' or 'FF0000')."""
-        ...
-    
-    def to_hex(self) -> str:
-        """Convert color to hex string format."""
-        ...
-    
-    def lerp(self, other: 'Color', t: float) -> 'Color':
-        """Linear interpolation between two colors."""
-        ...
-
-class Vector:
-    """SFML Vector Object for 2D coordinates."""
-    
-    x: float
-    y: float
-    
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, x: float, y: float) -> None: ...
-    
-    def add(self, other: 'Vector') -> 'Vector': ...
-    def subtract(self, other: 'Vector') -> 'Vector': ...
-    def multiply(self, scalar: float) -> 'Vector': ...
-    def divide(self, scalar: float) -> 'Vector': ...
-    def distance(self, other: 'Vector') -> float: ...
-    def normalize(self) -> 'Vector': ...
-    def dot(self, other: 'Vector') -> float: ...
-
-class Texture:
-    """SFML Texture Object for images."""
-    
-    def __init__(self, filename: str) -> None: ...
-    
-    filename: str
-    width: int
-    height: int
-    sprite_count: int
-
-class Font:
-    """SFML Font Object for text rendering."""
-    
-    def __init__(self, filename: str) -> None: ...
-    
-    filename: str
-    family: str
-
-class Drawable:
-    """Base class for all drawable UI elements."""
-
-    x: float
-    y: float
-    visible: bool
-    z_index: int
-    name: str
-    pos: Vector
-
-    # Mouse event callbacks (#140, #141)
-    on_click: Optional[Callable[[float, float, int, str], None]]
-    on_enter: Optional[Callable[[float, float, int, str], None]]
-    on_exit: Optional[Callable[[float, float, int, str], None]]
-    on_move: Optional[Callable[[float, float, int, str], None]]
-
-    # Read-only hover state (#140)
-    hovered: bool
-
-    def get_bounds(self) -> Tuple[float, float, float, float]:
-        """Get bounding box as (x, y, width, height)."""
-        ...
-
-    def move(self, dx: float, dy: float) -> None:
-        """Move by relative offset (dx, dy)."""
-        ...
-
-    def resize(self, width: float, height: float) -> None:
-        """Resize to new dimensions (width, height)."""
-        ...
-
-class Frame(Drawable):
-    """Frame(x=0, y=0, w=0, h=0, fill_color=None, outline_color=None, outline=0, on_click=None, children=None)
-
-    A rectangular frame UI element that can contain other drawable elements.
-    """
-
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, x: float = 0, y: float = 0, w: float = 0, h: float = 0,
-                 fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
-                 outline: float = 0, on_click: Optional[Callable] = None,
-                 children: Optional[List[UIElement]] = None) -> None: ...
-
-    w: float
-    h: float
-    fill_color: Color
-    outline_color: Color
-    outline: float
-    on_click: Optional[Callable[[float, float, int], None]]
-    children: 'UICollection'
-    clip_children: bool
-
-class Caption(Drawable):
-    """Caption(text='', x=0, y=0, font=None, fill_color=None, outline_color=None, outline=0, on_click=None)
-
-    A text display UI element with customizable font and styling.
-    """
-
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, text: str = '', x: float = 0, y: float = 0,
-                 font: Optional[Font] = None, fill_color: Optional[Color] = None,
-                 outline_color: Optional[Color] = None, outline: float = 0,
-                 on_click: Optional[Callable] = None) -> None: ...
-
-    text: str
-    font: Font
-    fill_color: Color
-    outline_color: Color
-    outline: float
-    on_click: Optional[Callable[[float, float, int], None]]
-    w: float  # Read-only, computed from text
-    h: float  # Read-only, computed from text
-
-class Sprite(Drawable):
-    """Sprite(x=0, y=0, texture=None, sprite_index=0, scale=1.0, on_click=None)
-
-    A sprite UI element that displays a texture or portion of a texture atlas.
-    """
-
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, x: float = 0, y: float = 0, texture: Optional[Texture] = None,
-                 sprite_index: int = 0, scale: float = 1.0,
-                 on_click: Optional[Callable] = None) -> None: ...
-
-    texture: Texture
-    sprite_index: int
-    scale: float
-    on_click: Optional[Callable[[float, float, int], None]]
-    w: float  # Read-only, computed from texture
-    h: float  # Read-only, computed from texture
-
-class Grid(Drawable):
-    """Grid(pos=(0,0), size=(0,0), grid_size=(2,2), texture=None, ...)
-
-    A grid-based tilemap UI element for rendering tile-based levels and game worlds.
-    Supports layers, FOV, pathfinding, and entity management.
-    """
-
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, pos: Tuple[float, float] = (0, 0),
-                 size: Tuple[float, float] = (0, 0),
-                 grid_size: Tuple[int, int] = (2, 2),
-                 texture: Optional[Texture] = None,
-                 fill_color: Optional[Color] = None,
-                 on_click: Optional[Callable] = None,
-                 center_x: float = 0, center_y: float = 0, zoom: float = 1.0,
-                 visible: bool = True, opacity: float = 1.0,
-                 z_index: int = 0, name: str = '') -> None: ...
-
-    # Dimensions
-    grid_size: Tuple[int, int]  # Read-only (grid_w, grid_h)
-    grid_w: int  # Read-only
-    grid_h: int  # Read-only
-
-    # Position and size
-    position: Tuple[float, float]
-    size: Vector
-    w: float
-    h: float
-
-    # Camera/viewport
-    center: Vector  # Viewport center point (pan position)
-    center_x: float
-    center_y: float
-    zoom: float  # Scale factor for rendering
-
-    # Collections
-    entities: 'EntityCollection'  # Entities on this grid
-    children: 'UICollection'  # UI overlays (speech bubbles, effects)
-    layers: List[Union['ColorLayer', 'TileLayer']]  # Grid layers sorted by z_index
-
-    # Appearance
-    texture: Texture  # Read-only
-    fill_color: Color  # Background fill color
-
-    # Perspective/FOV
-    perspective: Optional['Entity']  # Entity for FOV rendering (None = omniscient)
-    perspective_enabled: bool  # Whether to use perspective-based FOV
-    fov: 'FOV'  # FOV algorithm enum
-    fov_radius: int  # Default FOV radius
-
-    # Cell-level mouse events
-    on_cell_enter: Optional[Callable[['Vector'], None]]
-    on_cell_exit: Optional[Callable[['Vector'], None]]
-    on_cell_click: Optional[Callable[['Vector'], None]]
-    hovered_cell: Optional[Tuple[int, int]]  # Read-only
-
-    def at(self, x: int, y: int) -> 'GridPoint':
-        """Get grid point at tile coordinates."""
-        ...
-
-    def center_camera(self, pos: Optional[Tuple[float, float]] = None) -> None:
-        """Center the camera on a tile coordinate."""
-        ...
-
-    # FOV methods
-    def compute_fov(self, pos: Tuple[int, int], radius: int = 0,
-                    light_walls: bool = True, algorithm: Optional['FOV'] = None) -> None:
-        """Compute field of view from a position."""
-        ...
-
-    def is_in_fov(self, pos: Tuple[int, int]) -> bool:
-        """Check if a cell is in the field of view."""
-        ...
-
-    # Pathfinding methods
-    def find_path(self, start: Union[Tuple[int, int], 'Vector', 'Entity'],
-                  end: Union[Tuple[int, int], 'Vector', 'Entity'],
-                  diagonal_cost: float = 1.41) -> Optional['AStarPath']:
-        """Compute A* path between two points."""
-        ...
-
-    def get_dijkstra_map(self, root: Union[Tuple[int, int], 'Vector', 'Entity'],
-                         diagonal_cost: float = 1.41) -> 'DijkstraMap':
-        """Get or create a Dijkstra distance map for a root position."""
-        ...
-
-    def clear_dijkstra_maps(self) -> None:
-        """Clear all cached Dijkstra maps."""
-        ...
-
-    # Layer methods
-    def add_layer(self, type: str, z_index: int = -1,
-                  texture: Optional[Texture] = None) -> Union['ColorLayer', 'TileLayer']:
-        """Add a new layer to the grid."""
-        ...
-
-    def remove_layer(self, layer: Union['ColorLayer', 'TileLayer']) -> None:
-        """Remove a layer from the grid."""
-        ...
-
-    def layer(self, z_index: int) -> Optional[Union['ColorLayer', 'TileLayer']]:
-        """Get layer by z_index."""
-        ...
-
-    # Spatial queries
-    def entities_in_radius(self, pos: Union[Tuple[float, float], 'Vector'],
-                           radius: float) -> List['Entity']:
-        """Query entities within radius using spatial hash."""
-        ...
-
-    # HeightMap application
-    def apply_threshold(self, source: 'HeightMap', range: Tuple[float, float],
-                        walkable: Optional[bool] = None,
-                        transparent: Optional[bool] = None) -> 'Grid':
-        """Apply walkable/transparent properties where heightmap values are in range."""
-        ...
-
-    def apply_ranges(self, source: 'HeightMap',
-                     ranges: List[Tuple[Tuple[float, float], Dict[str, bool]]]) -> 'Grid':
-        """Apply multiple thresholds in a single pass."""
-        ...
-
-class Line(Drawable):
-    """Line(start=None, end=None, thickness=1.0, color=None, on_click=None, **kwargs)
-
-    A line UI element for drawing straight lines between two points.
-    """
-
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, start: Optional[Tuple[float, float]] = None,
-                 end: Optional[Tuple[float, float]] = None,
-                 thickness: float = 1.0, color: Optional[Color] = None,
-                 on_click: Optional[Callable] = None) -> None: ...
-
-    start: Vector
-    end: Vector
-    thickness: float
-    color: Color
-    on_click: Optional[Callable[[float, float, int], None]]
-
-class Circle(Drawable):
-    """Circle(radius=0, center=None, fill_color=None, outline_color=None, outline=0, on_click=None, **kwargs)
-
-    A circle UI element for drawing filled or outlined circles.
-    """
-
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, radius: float = 0, center: Optional[Tuple[float, float]] = None,
-                 fill_color: Optional[Color] = None, outline_color: Optional[Color] = None,
-                 outline: float = 0, on_click: Optional[Callable] = None) -> None: ...
-
-    radius: float
-    center: Vector
-    fill_color: Color
-    outline_color: Color
-    outline: float
-    on_click: Optional[Callable[[float, float, int], None]]
-
-class Arc(Drawable):
-    """Arc(center=None, radius=0, start_angle=0, end_angle=90, color=None, thickness=1, on_click=None, **kwargs)
-
-    An arc UI element for drawing curved line segments.
-    """
-
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, center: Optional[Tuple[float, float]] = None, radius: float = 0,
-                 start_angle: float = 0, end_angle: float = 90,
-                 color: Optional[Color] = None, thickness: float = 1.0,
-                 on_click: Optional[Callable] = None) -> None: ...
-
-    center: Vector
-    radius: float
-    start_angle: float
-    end_angle: float
-    color: Color
-    thickness: float
-    on_click: Optional[Callable[[float, float, int], None]]
-
-class GridPoint:
-    """Grid point representing a single tile's properties.
-
-    Accessed via Grid.at(x, y). Controls walkability and transparency
-    for pathfinding and FOV calculations.
-    """
-
-    walkable: bool  # Whether entities can walk through this cell
-    transparent: bool  # Whether light/sight passes through this cell
-    entities: List['Entity']  # Read-only list of entities at this cell
-    grid_pos: Tuple[int, int]  # Read-only (x, y) position in grid
-
-class GridPointState:
-    """Per-entity visibility state for a grid cell.
-
-    Tracks what an entity has seen/discovered. Accessed via entity perspective system.
-    """
-
-    visible: bool  # Currently visible in FOV
-    discovered: bool  # Has been seen at least once
-    point: Optional['GridPoint']  # The GridPoint at this position (None if not discovered)
-
-class ColorLayer:
-    """A color overlay layer for Grid.
-
-    Provides per-cell color values for tinting, fog of war, etc.
-    """
-
-    z_index: int
-    grid: 'Grid'  # Read-only parent grid
-
-    def fill(self, color: Color) -> None:
-        """Fill entire layer with a single color."""
-        ...
-
-    def set_color(self, pos: Tuple[int, int], color: Color) -> None:
-        """Set color at a specific cell."""
-        ...
-
-    def get_color(self, pos: Tuple[int, int]) -> Color:
-        """Get color at a specific cell."""
-        ...
-
-class TileLayer:
-    """A tile sprite layer for Grid.
-
-    Provides per-cell tile indices for multi-layer tile rendering.
-    """
-
-    z_index: int
-    grid: 'Grid'  # Read-only parent grid
-    texture: Optional[Texture]
-
-    def fill(self, tile_index: int) -> None:
-        """Fill entire layer with a single tile index."""
-        ...
-
-    def set_tile(self, pos: Tuple[int, int], tile_index: int) -> None:
-        """Set tile index at a specific cell."""
-        ...
-
-    def get_tile(self, pos: Tuple[int, int]) -> int:
-        """Get tile index at a specific cell."""
-        ...
-
-class FOV:
-    """Field of view algorithm enum.
-
-    Available algorithms:
-    - FOV.BASIC: Simple raycasting
-    - FOV.DIAMOND: Diamond-shaped FOV
-    - FOV.SHADOW: Shadow casting (recommended)
-    - FOV.PERMISSIVE_0 through FOV.PERMISSIVE_8: Permissive algorithms
-    - FOV.RESTRICTIVE: Restrictive precise angle shadowcasting
-    """
-
-    BASIC: 'FOV'
-    DIAMOND: 'FOV'
-    SHADOW: 'FOV'
-    PERMISSIVE_0: 'FOV'
-    PERMISSIVE_1: 'FOV'
-    PERMISSIVE_2: 'FOV'
-    PERMISSIVE_3: 'FOV'
-    PERMISSIVE_4: 'FOV'
-    PERMISSIVE_5: 'FOV'
-    PERMISSIVE_6: 'FOV'
-    PERMISSIVE_7: 'FOV'
-    PERMISSIVE_8: 'FOV'
-    RESTRICTIVE: 'FOV'
-
-class AStarPath:
-    """A* pathfinding result.
-
-    Returned by Grid.find_path(). Can be iterated or walked step-by-step.
-    """
-
-    def __iter__(self) -> Any: ...
-    def __len__(self) -> int: ...
-
-    def walk(self) -> Optional[Tuple[int, int]]:
-        """Get next step in path, or None if complete."""
-        ...
-
-    def reverse(self) -> 'AStarPath':
-        """Return a reversed copy of the path."""
-        ...
-
-class DijkstraMap:
-    """Dijkstra distance map for pathfinding.
-
-    Created by Grid.get_dijkstra_map(). Provides distance queries
-    and path finding from the root position.
-    """
-
-    root: Tuple[int, int]  # Read-only root position
-
-    def get_distance(self, pos: Tuple[int, int]) -> float:
-        """Get distance from root to position (-1 if unreachable)."""
-        ...
-
-    def get_path(self, pos: Tuple[int, int]) -> Optional[List[Tuple[int, int]]]:
-        """Get path from position to root."""
-        ...
-
-class HeightMap:
-    """2D height field for terrain generation.
-
-    Used for procedural generation and applying terrain to grids.
-    """
-
-    width: int  # Read-only
-    height: int  # Read-only
-
-    def __init__(self, width: int, height: int) -> None: ...
-
-    def get(self, x: int, y: int) -> float:
-        """Get height value at position."""
-        ...
-
-    def set(self, x: int, y: int, value: float) -> None:
-        """Set height value at position."""
-        ...
-
-    def fill(self, value: float) -> 'HeightMap':
-        """Fill entire heightmap with a value."""
-        ...
-
-    def clear(self) -> 'HeightMap':
-        """Clear heightmap to 0."""
-        ...
-
-    def normalize(self, min_val: float = 0.0, max_val: float = 1.0) -> 'HeightMap':
-        """Normalize values to range."""
-        ...
-
-    def add_hill(self, center: Tuple[float, float], radius: float, height: float) -> 'HeightMap':
-        """Add a hill at position."""
-        ...
-
-    def add_fbm(self, noise: 'NoiseSource', mulx: float = 1.0, muly: float = 1.0,
-                addx: float = 0.0, addy: float = 0.0, octaves: int = 4,
-                delta: float = 1.0, scale: float = 1.0) -> 'HeightMap':
-        """Add fractal Brownian motion noise."""
-        ...
-
-    def scale(self, factor: float) -> 'HeightMap':
-        """Scale all values by factor."""
-        ...
-
-    def clamp(self, min_val: float, max_val: float) -> 'HeightMap':
-        """Clamp values to range."""
-        ...
-
-class NoiseSource:
-    """Coherent noise generator for procedural generation.
-
-    Supports various noise types: PERLIN, SIMPLEX, WAVELET, etc.
-    """
-
-    def __init__(self, type: str = 'SIMPLEX', seed: Optional[int] = None) -> None: ...
-
-    def get(self, x: float, y: float, z: float = 0.0) -> float:
-        """Get noise value at position."""
-        ...
-
-class BSP:
-    """Binary space partitioning for dungeon generation.
-
-    Recursively subdivides a rectangle into rooms.
-    """
-
-    x: int
-    y: int
-    width: int
-    height: int
-    level: int
-    horizontal: bool
-    position: int
-
-    def __init__(self, x: int, y: int, width: int, height: int) -> None: ...
-
-    def split_recursive(self, randomizer: Optional[Any] = None, nb: int = 8,
-                        minHSize: int = 4, minVSize: int = 4,
-                        maxHRatio: float = 1.5, maxVRatio: float = 1.5) -> None:
-        """Recursively split the BSP tree."""
-        ...
-
-    def traverse(self, callback: Callable[['BSP'], bool],
-                 order: str = 'PRE_ORDER') -> None:
-        """Traverse BSP tree calling callback for each node."""
-        ...
-
-    def is_leaf(self) -> bool:
-        """Check if this is a leaf node (no children)."""
-        ...
-
-    def contains(self, x: int, y: int) -> bool:
-        """Check if point is within this node's bounds."""
-        ...
-
-    def get_left(self) -> Optional['BSP']:
-        """Get left child node."""
-        ...
-
-    def get_right(self) -> Optional['BSP']:
-        """Get right child node."""
-        ...
-
-class Entity(Drawable):
-    """Entity(grid_x=0, grid_y=0, texture=None, sprite_index=0, name='')
-    
-    Game entity that lives within a Grid.
-    """
-    
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, grid_x: float = 0, grid_y: float = 0, texture: Optional[Texture] = None,
-                 sprite_index: int = 0, name: str = '') -> None: ...
-    
-    grid_x: float
-    grid_y: float
-    texture: Texture
-    sprite_index: int
-    grid: Optional[Grid]
-    
-    def at(self, grid_x: float, grid_y: float) -> None:
-        """Move entity to grid position."""
-        ...
-    
-    def die(self) -> None:
-        """Remove entity from its grid."""
-        ...
-    
-    def index(self) -> int:
-        """Get index in parent grid's entity collection."""
-        ...
-
-class UICollection:
-    """Collection of UI drawable elements (Frame, Caption, Sprite, Grid, Line, Circle, Arc)."""
-    
-    def __len__(self) -> int: ...
-    def __getitem__(self, index: int) -> UIElement: ...
-    def __setitem__(self, index: int, value: UIElement) -> None: ...
-    def __delitem__(self, index: int) -> None: ...
-    def __contains__(self, item: UIElement) -> bool: ...
-    def __iter__(self) -> Any: ...
-    def __add__(self, other: 'UICollection') -> 'UICollection': ...
-    def __iadd__(self, other: 'UICollection') -> 'UICollection': ...
-    
-    def append(self, item: UIElement) -> None: ...
-    def extend(self, items: List[UIElement]) -> None: ...
-    def remove(self, item: UIElement) -> None: ...
-    def index(self, item: UIElement) -> int: ...
-    def count(self, item: UIElement) -> int: ...
-
-class EntityCollection:
-    """Collection of Entity objects."""
-    
-    def __len__(self) -> int: ...
-    def __getitem__(self, index: int) -> Entity: ...
-    def __setitem__(self, index: int, value: Entity) -> None: ...
-    def __delitem__(self, index: int) -> None: ...
-    def __contains__(self, item: Entity) -> bool: ...
-    def __iter__(self) -> Any: ...
-    def __add__(self, other: 'EntityCollection') -> 'EntityCollection': ...
-    def __iadd__(self, other: 'EntityCollection') -> 'EntityCollection': ...
-    
-    def append(self, item: Entity) -> None: ...
-    def extend(self, items: List[Entity]) -> None: ...
-    def remove(self, item: Entity) -> None: ...
-    def index(self, item: Entity) -> int: ...
-    def count(self, item: Entity) -> int: ...
-
-class Scene:
-    """Base class for object-oriented scenes."""
-
-    name: str
-    children: UICollection  # #151: UI elements collection (read-only alias for get_ui())
-    on_key: Optional[Callable[[str, str], None]]  # Keyboard handler (key, action)
-
-    def __init__(self, name: str) -> None: ...
-
-    def activate(self) -> None:
-        """Called when scene becomes active."""
-        ...
-
-    def deactivate(self) -> None:
-        """Called when scene becomes inactive."""
-        ...
-
-    def get_ui(self) -> UICollection:
-        """Get UI elements collection."""
-        ...
-
-    def on_keypress(self, key: str, pressed: bool) -> None:
-        """Handle keyboard events (override in subclass)."""
-        ...
-
-    def on_click(self, x: float, y: float, button: int) -> None:
-        """Handle mouse clicks (override in subclass)."""
-        ...
-
-    def on_enter(self) -> None:
-        """Called when entering the scene (override in subclass)."""
-        ...
-
-    def on_exit(self) -> None:
-        """Called when leaving the scene (override in subclass)."""
-        ...
-
-    def on_resize(self, width: int, height: int) -> None:
-        """Handle window resize events (override in subclass)."""
-        ...
-
-    def update(self, dt: float) -> None:
-        """Update scene logic (override in subclass)."""
-        ...
-
-class Timer:
-    """Timer object for scheduled callbacks."""
-    
-    name: str
-    interval: int
-    active: bool
-    
-    def __init__(self, name: str, callback: Callable[[float], None], interval: int) -> None: ...
-    
-    def pause(self) -> None:
-        """Pause the timer."""
-        ...
-    
-    def resume(self) -> None:
-        """Resume the timer."""
-        ...
-    
-    def cancel(self) -> None:
-        """Cancel and remove the timer."""
-        ...
-
-class Window:
-    """Window singleton for managing the game window."""
-    
-    resolution: Tuple[int, int]
-    fullscreen: bool
-    vsync: bool
-    title: str
-    fps_limit: int
-    game_resolution: Tuple[int, int]
-    scaling_mode: str
-    
-    @staticmethod
-    def get() -> 'Window':
-        """Get the window singleton instance."""
-        ...
-
-class Animation:
-    """Animation object for animating UI properties."""
-    
-    target: Any
-    property: str
-    duration: float
-    easing: str
-    loop: bool
-    on_complete: Optional[Callable]
-    
-    def __init__(self, target: Any, property: str, start_value: Any, end_value: Any,
-                 duration: float, easing: str = 'linear', loop: bool = False,
-                 on_complete: Optional[Callable] = None) -> None: ...
-    
-    def start(self) -> None:
-        """Start the animation."""
-        ...
-    
-    def update(self, dt: float) -> bool:
-        """Update animation, returns True if still running."""
-        ...
-    
-    def get_current_value(self) -> Any:
-        """Get the current interpolated value."""
-        ...
-
-# Module functions
-
-def createSoundBuffer(filename: str) -> int:
-    """Load a sound effect from a file and return its buffer ID."""
-    ...
-
-def loadMusic(filename: str) -> None:
-    """Load and immediately play background music from a file."""
-    ...
-
-def setMusicVolume(volume: int) -> None:
-    """Set the global music volume (0-100)."""
-    ...
-
-def setSoundVolume(volume: int) -> None:
-    """Set the global sound effects volume (0-100)."""
-    ...
-
-def playSound(buffer_id: int) -> None:
-    """Play a sound effect using a previously loaded buffer."""
-    ...
-
-def getMusicVolume() -> int:
-    """Get the current music volume level (0-100)."""
-    ...
-
-def getSoundVolume() -> int:
-    """Get the current sound effects volume level (0-100)."""
-    ...
-
-def sceneUI(scene: Optional[str] = None) -> UICollection:
-    """Get all UI elements for a scene."""
-    ...
-
-def currentScene() -> str:
-    """Get the name of the currently active scene."""
-    ...
-
-def setScene(scene: str, transition: Optional[str] = None, duration: float = 0.0) -> None:
-    """Switch to a different scene with optional transition effect."""
-    ...
-
-def createScene(name: str) -> None:
-    """Create a new empty scene."""
-    ...
-
-def keypressScene(handler: Callable[[str, bool], None]) -> None:
-    """Set the keyboard event handler for the current scene."""
-    ...
-
-def setTimer(name: str, handler: Callable[[float], None], interval: int) -> None:
-    """Create or update a recurring timer."""
-    ...
-
-def delTimer(name: str) -> None:
-    """Stop and remove a timer."""
-    ...
-
-def exit() -> None:
-    """Cleanly shut down the game engine and exit the application."""
-    ...
-
-def setScale(multiplier: float) -> None:
-    """Scale the game window size (deprecated - use Window.resolution)."""
-    ...
-
-def find(name: str, scene: Optional[str] = None) -> Optional[UIElement]:
-    """Find the first UI element with the specified name."""
-    ...
-
-def findAll(pattern: str, scene: Optional[str] = None) -> List[UIElement]:
-    """Find all UI elements matching a name pattern (supports * wildcards)."""
-    ...
-
-def getMetrics() -> Dict[str, Union[int, float]]:
-    """Get current performance metrics."""
-    ...
-
-# Submodule
-class automation:
-    """Automation API for testing and scripting."""
-    
-    @staticmethod
-    def screenshot(filename: str) -> bool:
-        """Save a screenshot to the specified file."""
-        ...
-    
-    @staticmethod
-    def position() -> Tuple[int, int]:
-        """Get current mouse position as (x, y) tuple."""
-        ...
-    
-    @staticmethod
-    def size() -> Tuple[int, int]:
-        """Get screen size as (width, height) tuple."""
-        ...
-    
-    @staticmethod
-    def onScreen(x: int, y: int) -> bool:
-        """Check if coordinates are within screen bounds."""
-        ...
-    
-    @staticmethod
-    def moveTo(x: int, y: int, duration: float = 0.0) -> None:
-        """Move mouse to absolute position."""
-        ...
-    
-    @staticmethod
-    def moveRel(xOffset: int, yOffset: int, duration: float = 0.0) -> None:
-        """Move mouse relative to current position."""
-        ...
-    
-    @staticmethod
-    def dragTo(x: int, y: int, duration: float = 0.0, button: str = 'left') -> None:
-        """Drag mouse to position."""
-        ...
-    
-    @staticmethod
-    def dragRel(xOffset: int, yOffset: int, duration: float = 0.0, button: str = 'left') -> None:
-        """Drag mouse relative to current position."""
-        ...
-    
-    @staticmethod
-    def click(x: Optional[int] = None, y: Optional[int] = None, clicks: int = 1,
-              interval: float = 0.0, button: str = 'left') -> None:
-        """Click mouse at position."""
-        ...
-    
-    @staticmethod
-    def mouseDown(x: Optional[int] = None, y: Optional[int] = None, button: str = 'left') -> None:
-        """Press mouse button down."""
-        ...
-    
-    @staticmethod
-    def mouseUp(x: Optional[int] = None, y: Optional[int] = None, button: str = 'left') -> None:
-        """Release mouse button."""
-        ...
-    
-    @staticmethod
-    def keyDown(key: str) -> None:
-        """Press key down."""
-        ...
-    
-    @staticmethod
-    def keyUp(key: str) -> None:
-        """Release key."""
-        ...
-    
-    @staticmethod
-    def press(key: str) -> None:
-        """Press and release a key."""
-        ...
-    
-    @staticmethod
-    def typewrite(text: str, interval: float = 0.0) -> None:
-        """Type text with optional interval between characters."""
-        ...
+from enum import IntEnum
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 '''
 
-def main():
-    """Generate type stubs."""
-    print("Generating comprehensive type stubs for McRogueFace...")
-    
-    # Create stubs directory
-    os.makedirs('stubs', exist_ok=True)
-    
-    # Write main stub file
-    with open('stubs/mcrfpy.pyi', 'w') as f:
-        f.write(generate_mcrfpy_stub())
-    
-    print("Generated stubs/mcrfpy.pyi")
-    
-    # Create py.typed marker
-    with open('stubs/py.typed', 'w') as f:
-        f.write('')
-    
-    print("Created py.typed marker")
-    
-    print("\nType stubs generated successfully!")
-    print("\nTo use in your IDE:")
-    print("1. Add the 'stubs' directory to your project")
-    print("2. Most IDEs will automatically detect the .pyi files")
-    print("3. For VS Code: add to python.analysis.extraPaths in settings.json")
-    print("4. For PyCharm: mark 'stubs' directory as Sources Root")
 
-if __name__ == '__main__':
+def classify_module():
+    classes = {}
+    functions = {}
+    constants = {}
+    submodules = {}
+    for name in sorted(dir(mcrfpy)):
+        if name.startswith("_"):
+            continue
+        attr = getattr(mcrfpy, name)
+        if isinstance(attr, types.ModuleType):
+            submodules[name] = attr
+        elif inspect.isclass(attr):
+            classes[name] = attr
+        elif callable(attr):
+            functions[name] = attr
+        else:
+            constants[name] = attr
+    return classes, functions, constants, submodules
+
+
+def main():
+    classes, functions, constants, submodules = classify_module()
+
+    out_lines = [HEADER]
+
+    # Emit classes (enums first so forward-reference order is sensible)
+    enum_names = [n for n, c in classes.items() if is_enum_like(c)]
+    other_names = [n for n in classes if n not in enum_names]
+
+    out_lines.append("# --- Enums --------------------------------------------------------------")
+    for n in sorted(enum_names):
+        out_lines.append(emit_class(n, classes[n]))
+        out_lines.append("")
+
+    out_lines.append("# --- Classes ------------------------------------------------------------")
+    for n in sorted(other_names):
+        out_lines.append(emit_class(n, classes[n]))
+        out_lines.append("")
+
+    out_lines.append("# --- Submodules ---------------------------------------------------------")
+    for n in sorted(submodules):
+        out_lines.append(emit_submodule(n, submodules[n]))
+        out_lines.append("")
+
+    out_lines.append("# --- Module-level functions ---------------------------------------------")
+    for n in sorted(functions):
+        fn = functions[n]
+        out_lines.append(emit_function(n, fn.__doc__ or ""))
+
+    out_lines.append("")
+    out_lines.append("# --- Module-level constants ---------------------------------------------")
+    for n in sorted(constants):
+        v = constants[n]
+        t = type(v).__name__
+        out_lines.append(f"{n}: {t}")
+
+    out_text = "\n".join(out_lines).rstrip() + "\n"
+
+    stubs_dir = Path("stubs")
+    stubs_dir.mkdir(exist_ok=True)
+    (stubs_dir / "mcrfpy.pyi").write_text(out_text)
+    (stubs_dir / "py.typed").write_text("")
+
+    print(f"Wrote stubs/mcrfpy.pyi ({len(out_text)} bytes, "
+          f"{len(classes)} classes, {len(functions)} functions, "
+          f"{len(constants)} constants, {len(submodules)} submodules)")
+
+
+if __name__ == "__main__":
     main()
