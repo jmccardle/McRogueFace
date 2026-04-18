@@ -497,9 +497,6 @@ PyObject* PyInit_mcrfpy()
         /*grid layers (#147)*/
         &PyColorLayerType, &PyTileLayerType,
 
-        /*animation*/
-        &PyAnimationType,
-
         /*timer*/
         &PyTimerType,
 
@@ -573,6 +570,10 @@ PyObject* PyInit_mcrfpy()
 
         /*shader uniform collection - returned by drawable.uniforms but not directly instantiable (#106)*/
         &mcrfpydef::PyUniformCollectionType,
+
+        /*animation - constructed internally by drawable.animate() and returned by mcrfpy.animations,
+          but not directly instantiable from Python (pre-1.0 API freeze)*/
+        &PyAnimationType,
 
         nullptr};
     
