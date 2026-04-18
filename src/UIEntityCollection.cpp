@@ -188,7 +188,7 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
     // Replace the element and set grid reference
     *it = entity->data;
     entity->data->grid = self->grid;
-    entity->data->ensureGridstate();
+    // #294: perspective_map is lazy; next update_visibility() sizes it.
 
     // Add to spatial hash
     if (self->grid) {
@@ -494,7 +494,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
             for (const auto& entity : new_items) {
                 self->data->insert(insert_pos, entity);
                 entity->grid = self->grid;
-                entity->ensureGridstate();
+                // #294: perspective_map is lazy; sized on next update_visibility().
                 if (self->grid) {
                     self->grid->spatial_hash.insert(entity);
                 }
@@ -521,7 +521,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
 
                 *cur_it = new_items[new_idx++];
                 (*cur_it)->grid = self->grid;
-                (*cur_it)->ensureGridstate();
+                // #294: perspective_map is lazy; sized on next update_visibility().
 
                 if (self->grid) {
                     self->grid->spatial_hash.insert(*cur_it);
@@ -582,8 +582,7 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
         }
     }
 
-    // Ensure gridstate matches current grid dimensions
-    entity->data->ensureGridstate();
+    // #294: perspective_map is lazy; sized on next update_visibility().
 
     Py_RETURN_NONE;
 }
@@ -682,8 +681,7 @@ PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject*
             self->grid->spatial_hash.insert(entity->data);
         }
 
-        // Ensure gridstate matches current grid dimensions
-        entity->data->ensureGridstate();
+        // #294: perspective_map is lazy; sized on next update_visibility().
 
         Py_DECREF(entity);  // Release the reference we held during validation
     }
@@ -737,7 +735,7 @@ PyObject* UIEntityCollection::pop(PyUIEntityCollectionObject* self, PyObject* ar
     if (entity->serial_number != 0) {
         PyObject* cached = PythonObjectCache::getInstance().lookup(entity->serial_number);
         if (cached) {
-            // Release identity ref — entity is leaving the grid
+            // Release identity ref -- entity is leaving the grid
             // The caller now holds a strong ref via 'cached'
             entity->releasePyIdentity();
             return cached;
@@ -810,8 +808,7 @@ PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject*
         self->grid->spatial_hash.insert(entity->data);
     }
 
-    // Ensure gridstate matches current grid dimensions
-    entity->data->ensureGridstate();
+    // #294: perspective_map is lazy; sized on next update_visibility().
 
     Py_RETURN_NONE;
 }

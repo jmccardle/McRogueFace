@@ -16,6 +16,7 @@
 #include "PyKey.h"
 #include "PyMouseButton.h"
 #include "PyInputState.h"
+#include "PyPerspective.h"
 #include "PyBehavior.h"
 #include "PyTrigger.h"
 #include "UIGridView.h"
@@ -120,7 +121,7 @@ static PyObject* mcrfpy_sync_storage(PyObject* self, PyObject* args)
 #ifdef __EMSCRIPTEN__
     sync_storage();
 #endif
-    // On desktop, writes go directly to disk — nothing to sync
+    // On desktop, writes go directly to disk -- nothing to sync
     Py_RETURN_NONE;
 }
 
@@ -550,8 +551,8 @@ PyObject* PyInit_mcrfpy()
         /*#252: internal grid data type - UIGrid is now internal, GridView is "Grid"*/
         &PyUIGridType,
 
-        /*game map & perspective data - returned by Grid.at() but not directly instantiable*/
-        &PyUIGridPointType, &PyUIGridPointStateType,
+        /*game map data - returned by Grid.at() but not directly instantiable*/
+        &PyUIGridPointType,
 
         /*3D navigation grid - returned by Viewport3D.at() but not directly instantiable*/
         &mcrfpydef::PyVoxelPointType,
@@ -783,6 +784,12 @@ PyObject* PyInit_mcrfpy()
     PyObject* input_state_class = PyInputState::create_enum_class(m);
     if (!input_state_class) {
         // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add Perspective enum class for entity perspective_map values (#294)
+    PyObject* perspective_class = PyPerspective::create_enum_class(m);
+    if (!perspective_class) {
         PyErr_Clear();
     }
 

@@ -1,17 +1,27 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
+#include "DiscreteMap.h"
 #include <cstdint>
+#include <memory>
 
 // Forward declaration
 class PyDiscreteMap;
 
-// Python object structure
+// Python object structure.
+//
+// `data` owns the underlying buffer (shared with UIEntity::perspective_map
+// when this DiscreteMap is an entity's perspective). `values`/`w`/`h` are
+// cached non-owning views that point into `data` for fast hot-path access --
+// they are populated in init() / from_bytes() / the perspective-map getter
+// on UIEntity, and remain valid for the lifetime of this Python object
+// because `data`'s dimensions are immutable after construction.
 typedef struct {
     PyObject_HEAD
-    uint8_t* values;           // Row-major array (width * height)
-    int w, h;                  // Dimensions (max 8192x8192)
-    PyObject* enum_type;       // Optional Python IntEnum for value interpretation
+    std::shared_ptr<DiscreteMap> data;  // shared-ownership C++ storage (issue #294)
+    uint8_t* values;                    // cached data->data()
+    int w, h;                           // cached data->width()/height()
+    PyObject* enum_type;                // Optional Python IntEnum for value interpretation
 } PyDiscreteMapObject;
 
 class PyDiscreteMap

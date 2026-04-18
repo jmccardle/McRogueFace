@@ -19,6 +19,8 @@
 #include "UIBase.h"
 #include "UISprite.h"
 #include "EntityBehavior.h"
+#include "DiscreteMap.h"
+#include <memory>
 
 class UIGrid;
 
@@ -57,8 +59,6 @@ class UIGrid;
 // helper methods with no namespace requirement
 PyObject* sfVector2f_to_PyObject(sf::Vector2f vector);
 sf::Vector2f PyObject_to_sfVector2f(PyObject* obj);
-PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state);
-PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& vec);
 
 class UIEntity : public std::enable_shared_from_this<UIEntity>
 {
@@ -66,7 +66,12 @@ public:
     uint64_t serial_number = 0;  // For Python object cache
     PyObject* pyobject = nullptr;  // Strong ref: preserves Python subclass identity while in grid
     std::shared_ptr<UIGrid> grid;
-    std::vector<UIGridPointState> gridstate;
+    // Per-entity perspective memory (#294): 3-state DiscreteMap --
+    // 0 = unknown, 1 = discovered, 2 = visible. Lazily allocated on first
+    // access to entity.perspective_map (when a grid is set) and whenever
+    // updateVisibility() runs with a grid whose dimensions differ from the
+    // current map. See PyPerspective for the Python-side enum.
+    std::shared_ptr<DiscreteMap> perspective_map;
     UISprite sprite;
     sf::Vector2f position; //(x,y) in grid coordinates; float for animation
     sf::Vector2i cell_position{0, 0}; // #295: integer logical position (decoupled from float position)
@@ -122,8 +127,7 @@ public:
     }
 
     // Visibility methods
-    void ensureGridstate();   // Resize gridstate to match current grid dimensions
-    void updateVisibility();  // Update gridstate from current FOV
+    void updateVisibility();  // Update perspective_map from current FOV (#294)
     
     // Property system for animations
     bool setProperty(const std::string& name, float value);
@@ -151,7 +155,8 @@ public:
 
     static PyObject* get_position(PyUIEntityObject* self, void* closure);
     static int set_position(PyUIEntityObject* self, PyObject* value, void* closure);
-    static PyObject* get_gridstate(PyUIEntityObject* self, void* closure);
+    static PyObject* get_perspective_map(PyUIEntityObject* self, void* closure);
+    static int set_perspective_map(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_spritenumber(PyUIEntityObject* self, void* closure);
     static int set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_float_member(PyUIEntityObject* self, void* closure);
@@ -259,7 +264,7 @@ namespace mcrfpydef {
                             "    grid_pos (Vector): Integer tile coordinates (logical game position)\n"
                             "    grid_x, grid_y (int): Integer tile coordinate components\n"
                             "    draw_pos (Vector): Fractional tile position for smooth animation\n"
-                            "    gridstate (GridPointState): Visibility state for grid points\n"
+                            "    perspective_map (DiscreteMap | None): 3-state per-entity FOV memory\n"
                             "    sprite_index (int): Current sprite index\n"
                             "    visible (bool): Visibility state\n"
                             "    opacity (float): Opacity value\n"

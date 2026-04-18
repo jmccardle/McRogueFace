@@ -368,6 +368,9 @@ PyObject* PyDiscreteMap::pynew(PyTypeObject* type, PyObject* args, PyObject* kwd
 {
     PyDiscreteMapObject* self = (PyDiscreteMapObject*)type->tp_alloc(type, 0);
     if (self) {
+        // Placement-new the shared_ptr member; tp_alloc zeroed memory but
+        // shared_ptr requires proper construction before assignment.
+        new (&self->data) std::shared_ptr<DiscreteMap>();
         self->values = nullptr;
         self->w = 0;
         self->h = 0;
@@ -419,27 +422,24 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
         return -1;
     }
 
-    // Clean up any existing data
-    if (self->values) {
-        delete[] self->values;
-        self->values = nullptr;
-    }
+    // Reset any existing storage (re-init supported)
+    self->data.reset();
     Py_XDECREF(self->enum_type);
     self->enum_type = nullptr;
 
-    // Allocate new array
-    size_t total_size = static_cast<size_t>(width) * static_cast<size_t>(height);
-    self->values = new (std::nothrow) uint8_t[total_size];
-    if (!self->values) {
+    // Construct shared-ownership C++ storage (issue #294)
+    try {
+        self->data = std::make_shared<DiscreteMap>(
+            width, height, static_cast<uint8_t>(fill_value));
+    } catch (const std::bad_alloc&) {
         PyErr_SetString(PyExc_MemoryError, "Failed to allocate DiscreteMap");
         return -1;
     }
 
-    self->w = width;
-    self->h = height;
-
-    // Fill with initial value
-    memset(self->values, static_cast<uint8_t>(fill_value), total_size);
+    // Cache non-owning views for hot-path access
+    self->values = self->data->data();
+    self->w = self->data->width();
+    self->h = self->data->height();
 
     // Store enum type if provided
     if (enum_obj && enum_obj != Py_None) {
@@ -452,10 +452,10 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
 
 void PyDiscreteMap::dealloc(PyDiscreteMapObject* self)
 {
-    if (self->values) {
-        delete[] self->values;
-        self->values = nullptr;
-    }
+    // Release shared ownership; DiscreteMap destructor frees the buffer
+    // if this is the last owner.
+    self->data.~shared_ptr<DiscreteMap>();
+    self->values = nullptr;
     Py_XDECREF(self->enum_type);
     self->enum_type = nullptr;
     Py_TYPE(self)->tp_free((PyObject*)self);
@@ -1387,14 +1387,19 @@ PyObject* PyDiscreteMap::from_bytes(PyTypeObject* type, PyObject* args, PyObject
         return nullptr;
     }
 
-    obj->w = w;
-    obj->h = h;
-    obj->values = new (std::nothrow) uint8_t[expected];
-    if (!obj->values) {
+    new (&obj->data) std::shared_ptr<DiscreteMap>();
+    try {
+        obj->data = std::make_shared<DiscreteMap>(w, h, 0);
+    } catch (const std::bad_alloc&) {
         PyBuffer_Release(&buffer);
+        obj->data.~shared_ptr<DiscreteMap>();
         Py_DECREF(obj);
         return PyErr_NoMemory();
     }
+
+    obj->w = w;
+    obj->h = h;
+    obj->values = obj->data->data();
     std::memcpy(obj->values, buffer.buf, expected);
     PyBuffer_Release(&buffer);
 

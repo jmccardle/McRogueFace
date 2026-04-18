@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-01-28 19:16:58*
+*Generated on 2026-04-17 21:43:43*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -12,40 +12,59 @@
   - [Alignment](#alignment)
   - [Animation](#animation)
   - [Arc](#arc)
+  - [AutoRuleSet](#autoruleset)
   - [BSP](#bsp)
+  - [Behavior](#behavior)
+  - [Billboard](#billboard)
   - [CallableBinding](#callablebinding)
   - [Caption](#caption)
   - [Circle](#circle)
   - [Color](#color)
   - [ColorLayer](#colorlayer)
   - [DijkstraMap](#dijkstramap)
+  - [DiscreteMap](#discretemap)
   - [Drawable](#drawable)
   - [Easing](#easing)
   - [Entity](#entity)
+  - [Entity3D](#entity3d)
+  - [EntityCollection3D](#entitycollection3d)
+  - [EntityCollection3DIter](#entitycollection3diter)
   - [FOV](#fov)
   - [Font](#font)
   - [Frame](#frame)
   - [Grid](#grid)
+  - [GridView](#gridview)
   - [HeightMap](#heightmap)
   - [InputState](#inputstate)
   - [Key](#key)
   - [Keyboard](#keyboard)
+  - [LdtkProject](#ldtkproject)
   - [Line](#line)
+  - [Model3D](#model3d)
   - [Mouse](#mouse)
   - [MouseButton](#mousebutton)
   - [Music](#music)
   - [NoiseSource](#noisesource)
+  - [Perspective](#perspective)
   - [PropertyBinding](#propertybinding)
   - [Scene](#scene)
   - [Shader](#shader)
   - [Sound](#sound)
+  - [SoundBuffer](#soundbuffer)
   - [Sprite](#sprite)
   - [Texture](#texture)
   - [TileLayer](#tilelayer)
+  - [TileMapFile](#tilemapfile)
+  - [TileSetFile](#tilesetfile)
   - [Timer](#timer)
   - [Transition](#transition)
   - [Traversal](#traversal)
+  - [Trigger](#trigger)
   - [Vector](#vector)
+  - [Viewport3D](#viewport3d)
+  - [VoxelGrid](#voxelgrid)
+  - [VoxelRegion](#voxelregion)
+  - [WangSet](#wangset)
   - [Window](#window)
 - [Constants](#constants)
 
@@ -95,7 +114,7 @@ Note:
 
 **Returns:** Frame, Caption, Sprite, Grid, or Entity if found; None otherwise Searches scene UI elements and entities within grids.
 
-### `findAll(pattern: str, scene: str = None) -> list`
+### `find_all(pattern: str, scene: str = None) -> list`
 
 Find all UI elements matching a name pattern.
 
@@ -107,7 +126,7 @@ Note:
 
 **Returns:** list: All matching UI elements and entities
 
-### `getMetrics() -> dict`
+### `get_metrics() -> dict`
 
 Get current performance metrics.
 
@@ -134,7 +153,7 @@ Note:
 
 **Raises:** RuntimeError: If no benchmark is currently running Messages appear in the 'logs' array of each frame in the output JSON.
 
-### `setDevConsole(enabled: bool) -> None`
+### `set_dev_console(enabled: bool) -> None`
 
 Enable or disable the developer console overlay.
 
@@ -145,9 +164,9 @@ Note:
 
 **Returns:** None When disabled, the grave/tilde key will not open the console. Use this to ship games without debug features.
 
-### `setScale(multiplier: float) -> None`
+### `set_scale(multiplier: float) -> None`
 
-Scale the game window size.
+Deprecated: use Window.resolution instead. Scale the game window size.
 
 Note:
 
@@ -339,7 +358,7 @@ Return an array of bytes representing an integer.
 
 ### Animation
 
-Animation(property: str, target: Any, duration: float, easing: str = 'linear', delta: bool = False, callback: Callable = None)
+Animation(property: str, target: Any, duration: float, easing: str = 'linear', delta: bool = False, loop: bool = False, callback: Callable = None)
 
 Create an animation that interpolates a property value over time.
 
@@ -347,7 +366,7 @@ Args:
     property: Property name to animate. Valid properties depend on target type:
         - Position/Size: 'x', 'y', 'w', 'h', 'pos', 'size'
         - Appearance: 'fill_color', 'outline_color', 'outline', 'opacity'
-        - Sprite: 'sprite_index', 'sprite_number', 'scale'
+        - Sprite: 'sprite_index', 'scale'
         - Grid: 'center', 'zoom'
         - Caption: 'text'
         - Sub-properties: 'fill_color.r', 'fill_color.g', 'fill_color.b', 'fill_color.a'
@@ -372,22 +391,18 @@ Args:
         - 'easeInBack', 'easeOutBack', 'easeInOutBack'
         - 'easeInBounce', 'easeOutBounce', 'easeInOutBounce'
     delta: If True, target is relative to start value (additive). Default False.
-    callback: Function(animation, target) called when animation completes.
+    loop: If True, animation repeats from start when it reaches the end. Default False.
+    callback: Function(target, property, value) called when animation completes.
+        Not called for looping animations (since they never complete).
 
 Example:
     # Move a frame from current position to x=500 over 2 seconds
     anim = mcrfpy.Animation('x', 500.0, 2.0, 'easeInOut')
     anim.start(my_frame)
 
-    # Fade out with callback
-    def on_done(anim, target):
-        print('Animation complete!')
-    fade = mcrfpy.Animation('fill_color.a', 0, 1.0, callback=on_done)
-    fade.start(my_sprite)
-
-    # Animate through sprite frames
-    walk_cycle = mcrfpy.Animation('sprite_index', [0,1,2,3,2,1], 0.5, 'linear')
-    walk_cycle.start(my_entity)
+    # Looping sprite animation
+    walk = mcrfpy.Animation('sprite_index', [0,1,2,3,2,1], 0.6, loop=True)
+    walk.start(my_sprite)
 
 
 **Properties:**
@@ -395,6 +410,7 @@ Example:
 - `elapsed` *(read-only)*: Elapsed time in seconds (float, read-only). Time since the animation started.
 - `is_complete` *(read-only)*: Whether animation is complete (bool, read-only). True when elapsed >= duration or complete() was called.
 - `is_delta` *(read-only)*: Whether animation uses delta mode (bool, read-only). In delta mode, the target value is added to the starting value.
+- `is_looping` *(read-only)*: Whether animation loops (bool, read-only). Looping animations repeat from the start when they reach the end.
 - `property` *(read-only)*: Target property name (str, read-only). The property being animated (e.g., 'pos', 'opacity', 'sprite_index').
 
 **Methods:**
@@ -436,6 +452,14 @@ Note:
 **Returns:** None
 
 **Raises:** RuntimeError: When conflict_mode='error' and property is already animating The animation will automatically stop if the target is destroyed.
+
+#### `stop() -> None`
+
+Stop the animation without completing it.
+
+Note:
+
+**Returns:** None Unlike complete(), this does NOT apply the final value and does NOT trigger the callback. The animation is simply cancelled and will be removed from the AnimationManager.
 
 #### `update(delta_time: float) -> bool`
 
@@ -525,7 +549,7 @@ Attributes:
 
 **Methods:**
 
-#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace') -> Animation`
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
 
 Create and start an animation on this drawable's property.
 
@@ -537,7 +561,8 @@ Note:
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
 - `delta`: If True, target is relative to current value; if False, target is absolute
-- `callback`: Optional callable invoked when animation completes
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
 - `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
 
 **Returns:** Animation object for monitoring progress
@@ -572,6 +597,63 @@ Note:
 - `width`: New width in pixels (or use size)
 - `height`: New height in pixels (or use size)
 - `size`: Size as tuple, list, or Vector: (width, height)
+
+### AutoRuleSet
+
+AutoRuleSet - LDtk auto-tile rule set for pattern-based terrain rendering.
+
+AutoRuleSets are obtained from LdtkProject.ruleset().
+They map IntGrid terrain values to sprite tiles using LDtk's
+pattern-matching auto-rule system.
+
+Properties:
+    name (str, read-only): Rule set name (layer identifier).
+    grid_size (int, read-only): Cell size in pixels.
+    value_count (int, read-only): Number of IntGrid values.
+    values (list, read-only): List of value dicts.
+    rule_count (int, read-only): Total rules across all groups.
+    group_count (int, read-only): Number of rule groups.
+
+Example:
+    rs = project.ruleset('Walls')
+    Terrain = rs.terrain_enum()
+    rs.apply(discrete_map, tile_layer, seed=42)
+
+
+**Properties:**
+- `grid_size` *(read-only)*: Cell size in pixels (int, read-only).
+- `group_count` *(read-only)*: Number of rule groups (int, read-only).
+- `name` *(read-only)*: Rule set name / layer identifier (str, read-only).
+- `rule_count` *(read-only)*: Total number of rules across all groups (int, read-only).
+- `value_count` *(read-only)*: Number of IntGrid terrain values (int, read-only).
+- `values` *(read-only)*: List of IntGrid value dicts with value and name (read-only).
+
+**Methods:**
+
+#### `apply(discrete_map: DiscreteMap, tile_layer: TileLayer, seed: int = 0) -> None`
+
+Resolve auto-rules and write tile indices directly into a TileLayer.
+
+**Arguments:**
+- `discrete_map`: A DiscreteMap with IntGrid values
+- `tile_layer`: Target TileLayer to write resolved tiles into
+- `seed`: Random seed for deterministic results (default: 0)
+
+#### `resolve(discrete_map: DiscreteMap, seed: int = 0) -> list[int]`
+
+Resolve IntGrid data to tile indices using LDtk auto-rules.
+
+**Arguments:**
+- `discrete_map`: A DiscreteMap with IntGrid values matching this rule set
+- `seed`: Random seed for deterministic tile selection and probability (default: 0)
+
+**Returns:** List of tile IDs (one per cell). -1 means no matching rule.
+
+#### `terrain_enum() -> IntEnum`
+
+Generate a Python IntEnum from this rule set's IntGrid values.
+
+**Returns:** IntEnum class with NONE=0 and one member per IntGrid value (UPPER_SNAKE_CASE).
 
 ### BSP
 
@@ -688,6 +770,142 @@ Note:
 
 **Returns:** Iterator yielding BSPNode objects Orders: PRE_ORDER, IN_ORDER, POST_ORDER, LEVEL_ORDER, INVERTED_LEVEL_ORDER
 
+### Behavior
+
+*Inherits from: IntEnum*
+
+Enum representing entity behavior types for grid.step() turn management.
+
+Values:
+    IDLE: No action each turn
+    CUSTOM: Calls step callback only, no built-in movement
+    NOISE4: Random movement in 4 cardinal directions
+    NOISE8: Random movement in 8 directions (incl. diagonals)
+    PATH: Follow a precomputed path to completion
+    WAYPOINT: Path through a sequence of waypoints in order
+    PATROL: Patrol waypoints back and forth (reversing at ends)
+    LOOP: Loop through waypoints cyclically
+    SLEEP: Wait for N turns, then trigger DONE
+    SEEK: Move toward target using Dijkstra map
+    FLEE: Move away from target using Dijkstra map
+
+
+**Properties:**
+- `denominator`: the denominator of a rational number in lowest terms
+- `imag`: the imaginary part of a complex number
+- `numerator`: the numerator of a rational number in lowest terms
+- `real`: the real part of a complex number
+
+**Methods:**
+
+#### `as_integer_ratio(...)`
+
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio()
+(10, 1)
+>>> (-10).as_integer_ratio()
+(-10, 1)
+>>> (0).as_integer_ratio()
+(0, 1)
+
+#### `bit_count(...)`
+
+Number of ones in the binary representation of the absolute value of self.
+Also known as the population count.
+>>> bin(13)
+'0b1101'
+>>> (13).bit_count()
+3
+
+#### `bit_length(...)`
+
+Number of bits necessary to represent self in binary.
+>>> bin(37)
+'0b100101'
+>>> (37).bit_length()
+6
+
+#### `conjugate(...)`
+
+Returns self, the complex conjugate of any int.
+
+#### `from_bytes(...)`
+
+Return the integer represented by the given array of bytes.
+  bytes
+    Holds the array of bytes to convert.  The argument must either
+    support the buffer protocol or be an iterable object producing bytes.
+    Bytes and bytearray are examples of built-in objects that support the
+    buffer protocol.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is 'big',
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is 'little', the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use 'big'.
+  signed
+    Indicates whether two's complement is used to represent the integer.
+
+#### `is_integer(...)`
+
+Returns True. Exists for duck type compatibility with float.is_integer.
+
+#### `to_bytes(...)`
+
+Return an array of bytes representing an integer.
+  length
+    Length of bytes object to use.  An OverflowError is raised if the
+    integer is not representable with the given number of bytes.  Default
+    is length 1.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is 'big',
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is 'little', the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use 'big'.
+  signed
+    Determines whether two's complement is used to represent the integer.
+    If signed is False and a negative integer is given, an OverflowError
+    is raised.
+
+### Billboard
+
+Billboard(texture=None, sprite_index=0, pos=(0,0,0), scale=1.0, facing='camera_y')
+
+A camera-facing 3D sprite for trees, items, particles, etc.
+
+Args:
+    texture (Texture, optional): Sprite sheet texture. Default: None
+    sprite_index (int): Index into sprite sheet. Default: 0
+    pos (tuple): World position (x, y, z). Default: (0, 0, 0)
+    scale (float): Uniform scale factor. Default: 1.0
+    facing (str): Facing mode - 'camera', 'camera_y', or 'fixed'. Default: 'camera_y'
+
+Properties:
+    texture (Texture): Sprite sheet texture
+    sprite_index (int): Index into sprite sheet
+    pos (tuple): World position (x, y, z)
+    scale (float): Uniform scale factor
+    facing (str): Facing mode - 'camera', 'camera_y', or 'fixed'
+    theta (float): Horizontal rotation for 'fixed' mode (radians)
+    phi (float): Vertical tilt for 'fixed' mode (radians)
+    opacity (float): Opacity 0.0 (transparent) to 1.0 (opaque)
+    visible (bool): Visibility state
+
+**Properties:**
+- `facing`: Facing mode: 'camera', 'camera_y', or 'fixed' (str)
+- `opacity`: Opacity from 0.0 (transparent) to 1.0 (opaque) (float)
+- `phi`: Vertical tilt for 'fixed' mode in radians (float)
+- `pos`: World position as (x, y, z) tuple
+- `scale`: Uniform scale factor (float)
+- `sprite_index`: Index into sprite sheet (int)
+- `texture`: Sprite sheet texture (Texture or None)
+- `theta`: Horizontal rotation for 'fixed' mode in radians (float)
+- `visible`: Visibility state (bool)
+
+**Methods:**
+
 ### CallableBinding
 
 CallableBinding(callable: Callable[[], float])
@@ -802,7 +1020,7 @@ Attributes:
 
 **Methods:**
 
-#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace') -> Animation`
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
 
 Create and start an animation on this drawable's property.
 
@@ -814,7 +1032,8 @@ Note:
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
 - `delta`: If True, target is relative to current value; if False, target is absolute
-- `callback`: Optional callable invoked when animation completes
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
 - `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
 
 **Returns:** Animation object for monitoring progress
@@ -924,7 +1143,7 @@ Attributes:
 
 **Methods:**
 
-#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace') -> Animation`
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
 
 Create and start an animation on this drawable's property.
 
@@ -936,7 +1155,8 @@ Note:
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
 - `delta`: If True, target is relative to current value; if False, target is absolute
-- `callback`: Optional callable invoked when animation completes
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
 - `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
 
 **Returns:** Animation object for monitoring progress
@@ -1045,25 +1265,28 @@ Note:
 
 ### ColorLayer
 
-ColorLayer(z_index=-1, grid_size=None)
+ColorLayer(z_index=-1, name=None, grid_size=None)
 
 A grid layer that stores RGBA colors per cell for background/overlay effects.
 
-ColorLayers are typically created via Grid.add_layer('color', ...) rather than
-instantiated directly. When attached to a Grid, the layer inherits rendering
-parameters and can participate in FOV (field of view) calculations.
+ColorLayers can be created standalone and attached to a Grid via add_layer()
+or passed to the Grid constructor's layers parameter. Layers with size (0, 0)
+automatically resize to match the Grid when attached.
 
 Args:
     z_index (int): Render order relative to entities. Negative values render
         below entities (as backgrounds), positive values render above entities
         (as overlays). Default: -1 (background)
-    grid_size (tuple): Dimensions as (width, height). If None, the layer will
-        inherit the parent Grid's dimensions when attached. Default: None
+    name (str): Layer name for Grid.layer(name) lookup. Default: None
+    grid_size (tuple): Dimensions as (width, height). If None or (0, 0), the
+        layer will auto-resize when attached to a Grid. Default: None
 
 Attributes:
     z_index (int): Layer z-order relative to entities (read/write)
+    name (str): Layer name for lookup (read-only)
     visible (bool): Whether layer is rendered (read/write)
     grid_size (tuple): Layer dimensions as (width, height) (read-only)
+    grid (Grid): Parent Grid or None. Setting manages layer association.
 
 Methods:
     at(x, y) -> Color: Get the color at cell position (x, y)
@@ -1074,14 +1297,15 @@ Methods:
     apply_perspective(entity, ...): Bind layer to entity for automatic FOV updates
 
 Example:
-    grid = mcrfpy.Grid(grid_size=(20, 15), texture=my_texture,
-                       pos=(50, 50), size=(640, 480))
-    layer = grid.add_layer('color', z_index=-1)
-    layer.fill(mcrfpy.Color(40, 40, 40))  # Dark gray background
-    layer.set(5, 5, mcrfpy.Color(255, 0, 0, 128))  # Semi-transparent red cell
+    fog = mcrfpy.ColorLayer(z_index=-1, name='fog')
+    grid = mcrfpy.Grid(grid_size=(20, 15), layers=[fog])
+    fog.fill(mcrfpy.Color(40, 40, 40))  # Dark gray background
+    grid.layer('fog').set(5, 5, mcrfpy.Color(255, 0, 0, 128))
 
 **Properties:**
+- `grid`: Parent Grid or None. Setting manages layer association and handles lazy allocation.
 - `grid_size`: Layer dimensions as (width, height) tuple.
+- `name` *(read-only)*: Layer name (str, read-only). Used for Grid.layer(name) lookup.
 - `visible`: Whether the layer is rendered.
 - `z_index`: Layer z-order. Negative values render below entities.
 
@@ -1233,6 +1457,273 @@ Useful for visualization, procedural terrain, or influence mapping.
 
 **Returns:** HeightMap with distance values as heights.
 
+### DiscreteMap
+
+DiscreteMap(size: tuple[int, int], fill: int = 0, enum: type[IntEnum] = None)
+
+A 2D grid of uint8 values (0-255) for discrete/categorical data.
+
+DiscreteMap provides memory-efficient storage for terrain types, region IDs,
+walkability masks, and other categorical data. Uses 4x less memory than HeightMap
+for the same dimensions.
+
+Args:
+    size: (width, height) dimensions. Immutable after creation.
+    fill: Initial value for all cells (0-255). Default 0.
+    enum: Optional IntEnum class for value interpretation.
+
+Example:
+    from enum import IntEnum
+    class Terrain(IntEnum):
+        WATER = 0
+        GRASS = 1
+        MOUNTAIN = 2
+
+    dmap = mcrfpy.DiscreteMap((100, 100), fill=0, enum=Terrain)
+    dmap.fill(Terrain.GRASS, pos=(10, 10), size=(20, 20))
+    print(dmap[15, 15])  # Terrain.GRASS
+
+
+**Properties:**
+- `enum_type`: Optional IntEnum class for value interpretation.
+- `size` *(read-only)*: Dimensions (width, height) of the map. Read-only.
+
+**Methods:**
+
+#### `add(other: DiscreteMap | int, *, pos=None, source_pos=None, size=None) -> DiscreteMap`
+
+Add values from another map or a scalar, with saturation to 0-255.
+
+**Arguments:**
+- `other`: DiscreteMap to add, or int scalar to add to all cells
+- `pos`: Destination start (x, y) in self (default: (0, 0))
+- `source_pos`: Source start (x, y) in other (default: (0, 0))
+- `size`: Region (width, height) (default: max overlapping area)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `bitwise_and(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap`
+
+Bitwise AND with another DiscreteMap.
+
+**Arguments:**
+- `other`: DiscreteMap for AND operation
+- `pos`: Destination start (x, y) in self (default: (0, 0))
+- `source_pos`: Source start (x, y) in other (default: (0, 0))
+- `size`: Region (width, height) (default: max overlapping area)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `bitwise_or(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap`
+
+Bitwise OR with another DiscreteMap.
+
+**Arguments:**
+- `other`: DiscreteMap for OR operation
+- `pos`: Destination start (x, y) in self (default: (0, 0))
+- `source_pos`: Source start (x, y) in other (default: (0, 0))
+- `size`: Region (width, height) (default: max overlapping area)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `bitwise_xor(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap`
+
+Bitwise XOR with another DiscreteMap.
+
+**Arguments:**
+- `other`: DiscreteMap for XOR operation
+- `pos`: Destination start (x, y) in self (default: (0, 0))
+- `source_pos`: Source start (x, y) in other (default: (0, 0))
+- `size`: Region (width, height) (default: max overlapping area)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `bool(condition: int | set | callable) -> DiscreteMap`
+
+Create binary mask from condition. Returns NEW DiscreteMap.
+
+**Arguments:**
+- `condition`: int: match that value; set: match any in set; callable: predicate
+
+**Returns:** DiscreteMap: new map with 1 where condition true, 0 elsewhere
+
+#### `clear() -> DiscreteMap`
+
+Set all cells to 0. Equivalent to fill(0).
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `copy_from(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap`
+
+Copy values from another DiscreteMap into the specified region.
+
+**Arguments:**
+- `other`: DiscreteMap to copy from
+- `pos`: Destination start (x, y) in self (default: (0, 0))
+- `source_pos`: Source start (x, y) in other (default: (0, 0))
+- `size`: Region (width, height) (default: max overlapping area)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `count(value: int) -> int`
+
+Count cells with the specified value.
+
+**Arguments:**
+- `value`: Value to count (0-255)
+
+**Returns:** int: Number of cells with that value
+
+#### `count_range(min_val: int, max_val: int) -> int`
+
+Count cells with values in the specified range (inclusive).
+
+**Arguments:**
+- `min_val`: Minimum value (inclusive)
+- `max_val`: Maximum value (inclusive)
+
+**Returns:** int: Number of cells in range
+
+#### `fill(value: int, *, pos=None, size=None) -> DiscreteMap`
+
+Set cells in region to the specified value.
+
+**Arguments:**
+- `value`: The value to set (0-255, or IntEnum member)
+- `pos`: Region start (x, y) in destination (default: (0, 0))
+- `size`: Region (width, height) to fill (default: remaining space)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `from_bytes(data: bytes, size: tuple[int, int], *, enum: type = None) -> DiscreteMap`
+
+Create a DiscreteMap from raw byte data.
+
+**Arguments:**
+- `data`: Raw cell data (one byte per cell, row-major)
+- `size`: (width, height) dimensions
+- `enum`: Optional IntEnum class for value interpretation
+
+**Returns:** DiscreteMap: new map initialized from data
+
+**Raises:** ValueError: Data length does not match width * height
+
+#### `from_heightmap(hmap: HeightMap, mapping: list[tuple[tuple[float,float], int]], *, enum=None) -> DiscreteMap`
+
+Create DiscreteMap from HeightMap using range-to-value mapping.
+
+**Arguments:**
+- `hmap`: HeightMap to convert
+- `mapping`: List of ((min, max), value) tuples
+- `enum`: Optional IntEnum class for value interpretation
+
+**Returns:** DiscreteMap: new map with mapped values
+
+#### `get(x, y) or (pos) -> int | Enum`
+
+Get the value at integer coordinates.
+
+**Returns:** int or enum member if enum_type is set
+
+**Raises:** IndexError: Position is out of bounds
+
+#### `histogram() -> dict[int, int]`
+
+Get a histogram of value counts.
+
+**Returns:** dict: {value: count} for all values present in the map
+
+#### `invert() -> DiscreteMap`
+
+Return NEW DiscreteMap with (255 - value) for each cell.
+
+**Returns:** DiscreteMap: new inverted map (original unchanged)
+
+#### `mask() -> memoryview`
+
+Get raw uint8_t data as memoryview for libtcod compatibility.
+
+**Returns:** memoryview: Direct access to internal buffer (read/write)
+
+#### `max(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap`
+
+Set each cell to the maximum of this and another DiscreteMap.
+
+**Arguments:**
+- `other`: DiscreteMap to compare with
+- `pos`: Destination start (x, y) in self (default: (0, 0))
+- `source_pos`: Source start (x, y) in other (default: (0, 0))
+- `size`: Region (width, height) (default: max overlapping area)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `min(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap`
+
+Set each cell to the minimum of this and another DiscreteMap.
+
+**Arguments:**
+- `other`: DiscreteMap to compare with
+- `pos`: Destination start (x, y) in self (default: (0, 0))
+- `source_pos`: Source start (x, y) in other (default: (0, 0))
+- `size`: Region (width, height) (default: max overlapping area)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `min_max() -> tuple[int, int]`
+
+Get the minimum and maximum values in the map.
+
+**Returns:** tuple[int, int]: (min_value, max_value)
+
+#### `multiply(factor: float, *, pos=None, size=None) -> DiscreteMap`
+
+Multiply values by a scalar factor, with saturation to 0-255.
+
+**Arguments:**
+- `factor`: Multiplier for each cell
+- `pos`: Region start (x, y) (default: (0, 0))
+- `size`: Region (width, height) (default: entire map)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `set(x: int, y: int, value: int) -> None`
+
+Set the value at integer coordinates.
+
+**Arguments:**
+- `x`: X coordinate
+- `y`: Y coordinate
+- `value`: Value to set (0-255, or IntEnum member)
+
+**Raises:** IndexError: Position is out of bounds ValueError: Value out of range 0-255
+
+#### `subtract(other: DiscreteMap | int, *, pos=None, source_pos=None, size=None) -> DiscreteMap`
+
+Subtract values from another map or a scalar, with saturation to 0-255.
+
+**Arguments:**
+- `other`: DiscreteMap to subtract, or int scalar
+- `pos`: Destination start (x, y) in self (default: (0, 0))
+- `source_pos`: Source start (x, y) in other (default: (0, 0))
+- `size`: Region (width, height) (default: max overlapping area)
+
+**Returns:** DiscreteMap: self, for method chaining
+
+#### `to_bytes() -> bytes`
+
+Serialize map data to bytes (row-major, one byte per cell).
+
+**Returns:** bytes: Raw cell data, length = width * height
+
+#### `to_heightmap(mapping: dict[int, float] = None) -> HeightMap`
+
+Convert to HeightMap, optionally mapping values to floats.
+
+**Arguments:**
+- `mapping`: Optional {int: float} mapping (default: direct cast)
+
+**Returns:** HeightMap: new heightmap with converted values
+
 ### Drawable
 
 Base class for all drawable UI elements
@@ -1368,6 +1859,8 @@ Keyword Args:
     name (str): Element name for finding. Default: None
     x (float): X grid position override (tile coords). Default: 0
     y (float): Y grid position override (tile coords). Default: 0
+    sprite_offset (tuple): Pixel offset for oversized sprites. Default: (0, 0)
+    sprite_grid (list): Per-tile sprite indices for composite entities. Default: None
 
 Attributes:
     pos (Vector): Pixel position relative to grid (requires grid attachment)
@@ -1375,25 +1868,45 @@ Attributes:
     grid_pos (Vector): Integer tile coordinates (logical game position)
     grid_x, grid_y (int): Integer tile coordinate components
     draw_pos (Vector): Fractional tile position for smooth animation
-    gridstate (GridPointState): Visibility state for grid points
+    perspective_map (DiscreteMap | None): 3-state per-entity FOV memory
     sprite_index (int): Current sprite index
     visible (bool): Visibility state
     opacity (float): Opacity value
     name (str): Element name
+    sprite_offset (Vector): Pixel offset for oversized sprites
+    sprite_offset_x (float): X component of sprite offset
+    sprite_offset_y (float): Y component of sprite offset
 
 **Properties:**
+- `behavior_type` *(read-only)*: Current behavior type (int, read-only). Use set_behavior() to change.
+- `cell_pos`: Integer logical cell position (Vector). Decoupled from draw_pos. Determines which cell this entity logically occupies for collision, pathfinding, etc.
+- `cell_x`: Integer X cell coordinate.
+- `cell_y`: Integer Y cell coordinate.
+- `default_behavior`: Default behavior type (int, maps to Behavior enum). Entity reverts to this after DONE trigger. Default: 0 (IDLE).
 - `draw_pos`: Fractional tile position for rendering (Vector). Use for smooth animation between grid cells.
 - `grid`: Grid this entity belongs to. Get: Returns the Grid or None. Set: Assign a Grid to move entity, or None to remove from grid.
-- `grid_pos`: Grid position as integer tile coordinates (Vector). The logical cell this entity occupies.
-- `grid_x`: Grid X position as integer tile coordinate.
-- `grid_y`: Grid Y position as integer tile coordinate.
-- `gridstate`: Grid point states for the entity
+- `grid_pos`: Grid position as integer cell coordinates (Vector). Alias for cell_pos.
+- `grid_x`: Grid X position as integer cell coordinate. Alias for cell_x.
+- `grid_y`: Grid Y position as integer cell coordinate. Alias for cell_y.
+- `labels`: Set of string labels for collision/targeting (frozenset). Assign any iterable of strings to replace all labels.
+- `move_speed`: Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15.
 - `name`: Name for finding elements
 - `opacity`: Opacity (0.0 = transparent, 1.0 = opaque)
+- `perspective_map`: Per-entity FOV memory (DiscreteMap, read-write). 3-state values per cell: 0 = unknown (never seen), 1 = discovered (seen before, not currently visible), 2 = visible (in current FOV). Use mcrfpy.Perspective enum for clarity. Lazy-allocated on first access once the entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference -- mutations are visible to subsequent updateVisibility() calls. Assigning a DiscreteMap replaces the entity's memory; the new map's size must match the grid's size or ValueError is raised. Assign None to clear (will be lazy-reallocated on next access).
 - `pos`: Pixel position relative to grid (Vector). Computed as draw_pos * tile_size. Requires entity to be attached to a grid.
 - `shader`: Shader for GPU visual effects (Shader or None). When set, the entity is rendered through the shader program. Set to None to disable shader effects.
+- `sight_radius`: FOV radius for TARGET trigger (int). Default: 10.
+- `sprite_grid`: Per-tile sprite indices for composite multi-tile entities (list of lists or None). Row-major, dimensions must match tile_width x tile_height. Use -1 for empty tiles. When set, each tile renders its own sprite index instead of the single entity sprite.
 - `sprite_index`: Sprite index on the texture on the display
-- `sprite_number`: Sprite index (DEPRECATED: use sprite_index instead)
+- `sprite_offset`: Pixel offset for oversized sprites (Vector). Applied pre-zoom during grid rendering.
+- `sprite_offset_x`: X component of sprite pixel offset.
+- `sprite_offset_y`: Y component of sprite pixel offset.
+- `step`: Step callback for grid.step() turn management. Called with (trigger, data) when behavior triggers fire. Set to None to clear.
+- `target_label`: Label to search for with TARGET trigger (str or None). Default: None.
+- `tile_height`: Entity height in tiles (int). Must be >= 1. Default 1.
+- `tile_size`: Entity size in tiles as (width, height) Vector. Default (1, 1).
+- `tile_width`: Entity width in tiles (int). Must be >= 1. Default 1.
+- `turn_order`: Turn order for grid.step() (int). 0 = skip, higher values go later. Default: 1.
 - `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: entity.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `visible`: Visibility flag
 - `x`: Pixel X position relative to grid. Requires entity to be attached to a grid.
@@ -1401,7 +1914,11 @@ Attributes:
 
 **Methods:**
 
-#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace') -> Animation`
+#### `add_label(label: str) -> None`
+
+Add a label to this entity. Idempotent (adding same label twice is safe).
+
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
 
 Create and start an animation on this entity's property.
 
@@ -1409,29 +1926,49 @@ Note:
 
 **Arguments:**
 - `property`: Name of the property to animate: 'draw_x', 'draw_y' (tile coords), 'sprite_scale', 'sprite_index'
-- `target`: Target value - float or int depending on property
+- `target`: Target value - float, int, or list of int (for sprite frame sequences)
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
 - `delta`: If True, target is relative to current value; if False, target is absolute
-- `callback`: Optional callable invoked when animation completes
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
 - `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
 
 **Returns:** Animation object for monitoring progress
 
-**Raises:** ValueError: If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index) Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells.
+**Raises:** ValueError: If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index) Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells. Use list target with loop=True for repeating sprite frame animations.
 
-#### `at(x, y) or at(pos) -> GridPointState`
+#### `at(x, y) or at(pos) -> GridPoint | None`
 
-Get the grid point state at the specified position.
+Return the GridPoint at (x, y) if currently VISIBLE to this entity's
+perspective_map, otherwise None. Equivalent to:
+    grid.at(x, y) if perspective_map[x, y] == Perspective.VISIBLE else None
+To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y]
+directly and use grid.at(x, y) for cell data.
 
 **Arguments:**
 - `pos`: Grid coordinates as tuple, list, or Vector
 
-**Returns:** GridPointState for the entity's view of that grid cell.
-
 #### `die(...)`
 
-Remove this entity from its grid
+Remove this entity from its grid.
+Warning: Do not call during iteration over grid.entities.
+Modifying the collection during iteration raises RuntimeError.
+
+#### `find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None`
+
+Find a path from this entity to the target position.
+
+**Arguments:**
+- `target`: Target as Vector, Entity, or (x, y) tuple.
+- `diagonal_cost`: Cost of diagonal movement (default 1.41).
+- `collide`: Label string. Entities with this label block pathfinding.
+
+**Returns:** AStarPath object, or None if no path exists.
+
+#### `has_label(label: str) -> bool`
+
+Check if this entity has the given label.
 
 #### `index(...)`
 
@@ -1457,6 +1994,10 @@ Find a path to the target position using Dijkstra pathfinding.
 
 **Returns:** List of (x, y) tuples representing the path.
 
+#### `remove_label(label: str) -> None`
+
+Remove a label from this entity. No-op if label not present.
+
 #### `resize(width, height) or (size) -> None`
 
 Resize the element to new dimensions.
@@ -1468,18 +2009,159 @@ Note:
 - `height`: New height in pixels (or use size)
 - `size`: Size as tuple, list, or Vector: (width, height)
 
+#### `set_behavior(type, waypoints=None, turns=0, path=None) -> None`
+
+Configure this entity's behavior for grid.step() turn management.
+
 #### `update_visibility() -> None`
 
 Update entity's visibility state based on current FOV.
 Recomputes which cells are visible from the entity's position and updates
-the entity's gridstate to track explored areas. This is called automatically
-when the entity moves if it has a grid with perspective set.
+the entity's perspective_map (see entity.perspective_map and mcrfpy.Perspective).
+This is called automatically when the entity moves if it has a grid with
+perspective set.
 
 #### `visible_entities(fov=None, radius=None) -> list[Entity]`
 
 Get list of other entities visible from this entity's position.
 
 **Returns:** List of Entity objects that are within field of view. Computes FOV from this entity's position and returns all other entities whose positions fall within the visible area.
+
+### Entity3D
+
+Entity3D(pos=None, **kwargs)
+
+A 3D game entity that exists on a Viewport3D's navigation grid.
+
+Args:
+    pos (tuple, optional): Grid position as (x, z). Default: (0, 0)
+
+Keyword Args:
+    viewport (Viewport3D): Viewport to attach entity to. Default: None
+    rotation (float): Y-axis rotation in degrees. Default: 0
+    scale (float or tuple): Scale factor. Default: 1.0
+    visible (bool): Visibility state. Default: True
+    color (Color): Entity color. Default: orange
+
+Attributes:
+    pos (tuple): Grid position (x, z) - setting triggers movement
+    grid_pos (tuple): Same as pos (read-only)
+    world_pos (tuple): Current world coordinates (x, y, z) (read-only)
+    rotation (float): Y-axis rotation in degrees
+    scale (float): Uniform scale factor
+    visible (bool): Visibility state
+    color (Color): Entity render color
+    viewport (Viewport3D): Owning viewport (read-only)
+
+**Properties:**
+- `anim_clip`: Current animation clip name. Set to play an animation.
+- `anim_frame` *(read-only)*: Current animation frame number (read-only, approximate at 30fps).
+- `anim_loop`: Whether animation loops when it reaches the end.
+- `anim_paused`: Whether animation playback is paused.
+- `anim_speed`: Animation playback speed multiplier. 1.0 = normal speed.
+- `anim_time`: Current time position in animation (seconds).
+- `auto_animate`: Enable auto-play of walk/idle clips based on movement.
+- `color`: Entity render color.
+- `grid_pos`: Grid position (x, z). Same as pos.
+- `idle_clip`: Animation clip to play when entity is stationary.
+- `is_moving` *(read-only)*: Whether entity is currently moving (read-only).
+- `model`: 3D model (Model3D). If None, uses placeholder cube.
+- `name`: Entity name (str). Used for find() lookup.
+- `on_anim_complete`: Callback(entity, clip_name) when non-looping animation ends.
+- `pos`: Grid position (x, z). Setting triggers smooth movement.
+- `rotation`: Y-axis rotation in degrees.
+- `scale`: Uniform scale factor. Can also set as (x, y, z) tuple.
+- `viewport` *(read-only)*: Owning Viewport3D (read-only).
+- `visible`: Visibility state.
+- `walk_clip`: Animation clip to play when entity is moving.
+- `world_pos` *(read-only)*: Current world position (x, y, z) (read-only). Includes animation interpolation.
+
+**Methods:**
+
+#### `animate(property, target, duration, easing=None, delta=False, callback=None, conflict_mode=None)`
+
+Animate a property over time.
+
+**Arguments:**
+- `property`: Property name (x, y, z, rotation, scale, etc.)
+- `target`: Target value (float or int)
+- `duration`: Animation duration in seconds
+- `easing`: Easing function (Easing enum or None for linear)
+- `delta`: If True, target is relative to current value
+- `callback`: Called with (target, property, value) when complete
+- `conflict_mode`: 'replace', 'queue', or 'error'
+
+#### `at(x, z) -> dict`
+
+Get visibility state for a cell from this entity's perspective.
+Returns dict with 'visible' and 'discovered' boolean keys.
+
+#### `clear_path()`
+
+Clear the movement queue and stop at current position.
+
+#### `follow_path(path)`
+
+Queue path positions for smooth movement.
+
+**Arguments:**
+- `path`: List of (x, z) tuples (as returned by path_to())
+
+#### `path_to(x, z) or path_to(pos=(x, z)) -> list`
+
+Compute A* path to target position.
+Returns list of (x, z) tuples, or empty list if no path exists.
+
+#### `teleport(x, z) or teleport(pos=(x, z))`
+
+Instantly move to target position without animation.
+
+#### `update_visibility()`
+
+Recompute field of view from current position.
+
+### EntityCollection3D
+
+Collection of Entity3D objects belonging to a Viewport3D.
+
+Supports list-like operations: indexing, iteration, append, remove.
+
+Example:
+    viewport.entities.append(entity)
+    for entity in viewport.entities:
+        print(entity.pos)
+
+**Methods:**
+
+#### `append(entity)`
+
+Add an Entity3D to the collection.
+
+#### `clear()`
+
+Remove all entities from the collection.
+
+#### `extend(iterable)`
+
+Add all Entity3D objects from iterable to the collection.
+
+#### `find(name) -> Entity3D or None`
+
+Find an Entity3D by name. Returns None if not found.
+
+#### `pop(index=-1) -> Entity3D`
+
+Remove and return Entity3D at index (default: last).
+
+#### `remove(entity)`
+
+Remove an Entity3D from the collection.
+
+### EntityCollection3DIter
+
+Iterator for EntityCollection3D
+
+**Methods:**
 
 ### FOV
 
@@ -1566,7 +2248,17 @@ Return an array of bytes representing an integer.
 
 ### Font
 
-SFML Font Object
+Font(filename: str)
+
+A font resource for rendering text in Caption elements.
+
+Args:
+    filename: Path to a TrueType (.ttf) or OpenType (.otf) font file.
+
+Properties:
+    family (str, read-only): Font family name from metadata.
+    source (str, read-only): File path used to load this font.
+
 
 **Properties:**
 - `family` *(read-only)*: Font family name (str, read-only). Retrieved from font metadata.
@@ -1665,7 +2357,7 @@ Attributes:
 
 **Methods:**
 
-#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace') -> Animation`
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
 
 Create and start an animation on this drawable's property.
 
@@ -1677,7 +2369,8 @@ Note:
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
 - `delta`: If True, target is relative to current value; if False, target is absolute
-- `callback`: Optional callable invoked when animation completes
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
 - `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
 
 **Returns:** Animation object for monitoring progress
@@ -1717,129 +2410,74 @@ Note:
 
 *Inherits from: Drawable*
 
-Grid(pos=None, size=None, grid_size=None, texture=None, **kwargs)
+Grid(grid_size=None, pos=None, size=None, texture=None, **kwargs)
 
 A grid-based UI element for tile-based rendering and entity management.
+Creates and owns grid data (cells, entities, layers) with an integrated
+rendering view (camera, zoom, perspective).
+
+Can also be constructed as a view of existing grid data:
+    Grid(grid=existing_grid, pos=..., size=...)
 
 Args:
-    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)
-    size (tuple, optional): Size as (width, height) tuple. Default: auto-calculated from grid_size
-    grid_size (tuple, optional): Grid dimensions as (grid_w, grid_h) tuple. Default: (2, 2)
-    texture (Texture, optional): Texture containing tile sprites. Default: default texture
+    grid_size (tuple): Grid dimensions as (grid_w, grid_h). Default: (2, 2)
+    pos (tuple): Position as (x, y). Default: (0, 0)
+    size (tuple): Size as (w, h). Default: auto-calculated
+    texture (Texture): Tile texture atlas. Default: default texture
 
 Keyword Args:
-    fill_color (Color): Background fill color. Default: None
-    click (callable): Click event handler. Default: None
-    center_x (float): X coordinate of center point. Default: 0
-    center_y (float): Y coordinate of center point. Default: 0
-    zoom (float): Zoom level for rendering. Default: 1.0
-    perspective (int): Entity perspective index (-1 for omniscient). Default: -1
-    visible (bool): Visibility state. Default: True
+    grid (Grid): Existing Grid to view (creates view of shared data).
+    fill_color (Color): Background fill color.
+    on_click (callable): Click event handler.
+    center_x, center_y (float): Camera center coordinates.
+    zoom (float): Zoom level. Default: 1.0
+    visible (bool): Visibility. Default: True
     opacity (float): Opacity (0.0-1.0). Default: 1.0
     z_index (int): Rendering order. Default: 0
-    name (str): Element name for finding. Default: None
-    x (float): X position override. Default: 0
-    y (float): Y position override. Default: 0
-    w (float): Width override. Default: auto-calculated
-    h (float): Height override. Default: auto-calculated
-    grid_w (int): Grid width override. Default: 2
-    grid_h (int): Grid height override. Default: 2
-    align (Alignment): Alignment relative to parent. Default: None
-    margin (float): Margin from parent edge when aligned. Default: 0
-    horiz_margin (float): Horizontal margin override. Default: 0 (use margin)
-    vert_margin (float): Vertical margin override. Default: 0 (use margin)
+    name (str): Element name.
+    layers (list): List of ColorLayer/TileLayer objects.
 
-Attributes:
-    x, y (float): Position in pixels
-    w, h (float): Size in pixels
-    pos (Vector): Position as a Vector object
-    size (Vector): Size as (width, height) Vector
-    center (Vector): Center point as (x, y) Vector
-    center_x, center_y (float): Center point coordinates
-    zoom (float): Zoom level for rendering
-    grid_size (Vector): Grid dimensions (width, height) in tiles
-    grid_w, grid_h (int): Grid dimensions
-    texture (Texture): Tile texture atlas
-    fill_color (Color): Background color
-    entities (EntityCollection): Collection of entities in the grid
-    perspective (int): Entity perspective index
-    click (callable): Click event handler
-    visible (bool): Visibility state
-    opacity (float): Opacity value
-    z_index (int): Rendering order
-    name (str): Element name
-    align (Alignment): Alignment relative to parent (or None)
-    margin (float): General margin for alignment
-    horiz_margin (float): Horizontal margin override
-    vert_margin (float): Vertical margin override
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
 - `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
-- `camera_rotation`: Rotation of grid contents around camera center (degrees). The grid widget stays axis-aligned; only the view into the world rotates.
-- `center`: Grid coordinate at the center of the Grid's view (pan)
+- `camera_rotation`: Rotation of grid contents around camera center (degrees).
+- `center`: Camera center point in pixel coordinates.
 - `center_x`: center of the view X-coordinate
 - `center_y`: center of the view Y-coordinate
-- `children`: UICollection of UIDrawable children (speech bubbles, effects, overlays)
-- `entities`: EntityCollection of entities on this grid
-- `fill_color`: Background fill color of the grid. Returns a copy; modifying components requires reassignment. For animation, use 'fill_color.r', 'fill_color.g', etc.
-- `fov`: FOV algorithm for this grid (mcrfpy.FOV enum). Used by entity.updateVisibility() and layer methods when fov=None.
-- `fov_radius`: Default FOV radius for this grid. Used when radius not specified.
+- `fill_color`: Background fill color.
 - `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
-- `grid_h`: Grid height in cells
-- `grid_pos`: Position in parent grid's tile coordinates (only when parent is Grid)
-- `grid_size`: Grid dimensions (grid_w, grid_h)
-- `grid_w`: Grid width in cells
+- `grid_data`: The underlying grid data object (for multi-view scenarios).
 - `h`: visible widget height
 - `horiz_margin`: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).
 - `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
-- `hovered_cell`: Currently hovered cell as (x, y) tuple, or None if not hovering.
-- `layers`: List of grid layers (ColorLayer, TileLayer) sorted by z_index
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding elements
-- `on_cell_click`: Callback when a grid cell is clicked. Called with (cell_pos: Vector).
-- `on_cell_enter`: Callback when mouse enters a grid cell. Called with (cell_pos: Vector).
-- `on_cell_exit`: Callback when mouse exits a grid cell. Called with (cell_pos: Vector).
-- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
+- `on_click`: Callable executed when object is clicked.
 - `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
 - `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
 - `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- `perspective`: Entity whose perspective to use for FOV rendering (None for omniscient view). Setting an entity automatically enables perspective mode.
-- `perspective_enabled`: Whether to use perspective-based FOV rendering. When True with no valid entity, all cells appear undiscovered.
 - `pos`: Position of the grid as Vector
-- `position`: Position of the grid (x, y)
 - `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
 - `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
-- `size`: Size of the grid as Vector (width, height)
-- `texture`: Texture of the grid
+- `texture` *(read-only)*: Texture used for tile rendering (read-only).
 - `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
 - `w`: visible widget width
 - `x`: top-left corner X-coordinate
 - `y`: top-left corner Y-coordinate
-- `z_index`: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
-- `zoom`: zoom factor for displaying the Grid
+- `z_index`: Z-order for rendering (lower values rendered first).
+- `zoom`: Zoom level for rendering.
 
 **Methods:**
 
-#### `add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer`
-
-Add a new layer to the grid.
-
-**Arguments:**
-- `type`: Layer type ('color' or 'tile')
-- `z_index`: Render order. Negative = below entities, >= 0 = above entities. Default: -1
-- `texture`: Texture for tile layers. Required for 'tile' type.
-
-**Returns:** The created ColorLayer or TileLayer object.
-
-#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace') -> Animation`
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
 
 Create and start an animation on this drawable's property.
 
@@ -1851,112 +2489,13 @@ Note:
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
 - `delta`: If True, target is relative to current value; if False, target is absolute
-- `callback`: Optional callable invoked when animation completes
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
 - `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
 
 **Returns:** Animation object for monitoring progress
 
 **Raises:** ValueError: If property name is not valid for this drawable type This is a convenience method that creates an Animation, starts it, and adds it to the AnimationManager.
-
-#### `apply_ranges(source: HeightMap, ranges: list) -> Grid`
-
-Apply multiple thresholds in a single pass.
-
-**Arguments:**
-- `source`: HeightMap with values to check. Must match grid size.
-- `ranges`: List of (range_tuple, properties_dict) tuples.
-- `range_tuple`: (min, max) value range
-- `properties_dict`: {'walkable': bool, 'transparent': bool}
-
-**Returns:** Grid: self, for method chaining.
-
-#### `apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid`
-
-Apply walkable/transparent properties where heightmap values are in range.
-
-**Arguments:**
-- `source`: HeightMap with values to check. Must match grid size.
-- `range`: Tuple of (min, max) - cells with values in this range are affected.
-- `walkable`: If not None, set walkable to this value for cells in range.
-- `transparent`: If not None, set transparent to this value for cells in range.
-
-**Returns:** Grid: self, for method chaining.
-
-**Raises:** ValueError: If HeightMap size doesn't match grid size.
-
-#### `at(...)`
-
-#### `center_camera(pos: tuple = None) -> None`
-
-Center the camera on a tile coordinate.
-
-**Arguments:**
-- `pos`: Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.
-
-#### `clear_dijkstra_maps() -> None`
-
-Clear all cached Dijkstra maps.
-Call this after modifying grid cell walkability to ensure pathfinding
-uses updated walkability data.
-
-#### `compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None`
-
-Compute field of view from a position.
-
-**Arguments:**
-- `pos`: Position as (x, y) tuple, list, or Vector
-- `radius`: Maximum view distance (0 = unlimited)
-- `light_walls`: Whether walls are lit when visible
-- `algorithm`: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)
-
-#### `entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]`
-
-Query entities within radius using spatial hash (O(k) where k = nearby entities).
-
-**Arguments:**
-- `pos`: Center position as (x, y) tuple, Vector, or other 2-element sequence
-- `radius`: Search radius
-
-**Returns:** List of Entity objects within the radius.
-
-#### `find_path(start, end, diagonal_cost: float = 1.41) -> AStarPath | None`
-
-Compute A* path between two points.
-
-**Arguments:**
-- `start`: Starting position as Vector, Entity, or (x, y) tuple
-- `end`: Target position as Vector, Entity, or (x, y) tuple
-- `diagonal_cost`: Cost of diagonal movement (default: 1.41)
-
-**Returns:** AStarPath object if path exists, None otherwise. The returned AStarPath can be iterated or walked step-by-step.
-
-#### `get_dijkstra_map(root, diagonal_cost: float = 1.41) -> DijkstraMap`
-
-Get or create a Dijkstra distance map for a root position.
-
-**Arguments:**
-- `root`: Root position as Vector, Entity, or (x, y) tuple
-- `diagonal_cost`: Cost of diagonal movement (default: 1.41)
-
-**Returns:** DijkstraMap object for querying distances and paths. Grid caches DijkstraMaps by root position. Multiple requests for the same root return the same cached map. Call clear_dijkstra_maps() after changing grid walkability to invalidate the cache.
-
-#### `is_in_fov(pos) -> bool`
-
-Check if a cell is in the field of view.
-
-**Arguments:**
-- `pos`: Position as (x, y) tuple, list, or Vector
-
-**Returns:** True if the cell is visible, False otherwise Must call compute_fov() first to calculate visibility.
-
-#### `layer(z_index: int) -> ColorLayer | TileLayer | None`
-
-Get a layer by its z_index.
-
-**Arguments:**
-- `z_index`: The z_index of the layer to find.
-
-**Returns:** The layer with the specified z_index, or None if not found.
 
 #### `move(dx, dy) or (delta) -> None`
 
@@ -1976,12 +2515,125 @@ Reapply alignment relative to parent, useful for responsive layouts.
 Note:
     Call this to recalculate position after parent changes size. For elements with align=None, this has no effect.
 
-#### `remove_layer(layer: ColorLayer | TileLayer) -> None`
+#### `resize(width, height) or (size) -> None`
 
-Remove a layer from the grid.
+Resize the element to new dimensions.
+
+Note:
 
 **Arguments:**
-- `layer`: The layer to remove.
+- `width`: New width in pixels (or use size)
+- `height`: New height in pixels (or use size)
+- `size`: Size as tuple, list, or Vector: (width, height)
+
+### GridView
+
+*Inherits from: Drawable*
+
+Grid(grid_size=None, pos=None, size=None, texture=None, **kwargs)
+
+A grid-based UI element for tile-based rendering and entity management.
+Creates and owns grid data (cells, entities, layers) with an integrated
+rendering view (camera, zoom, perspective).
+
+Can also be constructed as a view of existing grid data:
+    Grid(grid=existing_grid, pos=..., size=...)
+
+Args:
+    grid_size (tuple): Grid dimensions as (grid_w, grid_h). Default: (2, 2)
+    pos (tuple): Position as (x, y). Default: (0, 0)
+    size (tuple): Size as (w, h). Default: auto-calculated
+    texture (Texture): Tile texture atlas. Default: default texture
+
+Keyword Args:
+    grid (Grid): Existing Grid to view (creates view of shared data).
+    fill_color (Color): Background fill color.
+    on_click (callable): Click event handler.
+    center_x, center_y (float): Camera center coordinates.
+    zoom (float): Zoom level. Default: 1.0
+    visible (bool): Visibility. Default: True
+    opacity (float): Opacity (0.0-1.0). Default: 1.0
+    z_index (int): Rendering order. Default: 0
+    name (str): Element name.
+    layers (list): List of ColorLayer/TileLayer objects.
+
+
+**Properties:**
+- `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
+- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `camera_rotation`: Rotation of grid contents around camera center (degrees).
+- `center`: Camera center point in pixel coordinates.
+- `center_x`: center of the view X-coordinate
+- `center_y`: center of the view Y-coordinate
+- `fill_color`: Background fill color.
+- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `grid_data`: The underlying grid data object (for multi-view scenarios).
+- `h`: visible widget height
+- `horiz_margin`: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
+- `name`: Name for finding elements
+- `on_click`: Callable executed when object is clicked.
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `pos`: Position of the grid as Vector
+- `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
+- `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
+- `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
+- `texture` *(read-only)*: Texture used for tile rendering (read-only).
+- `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
+- `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `w`: visible widget width
+- `x`: top-left corner X-coordinate
+- `y`: top-left corner Y-coordinate
+- `z_index`: Z-order for rendering (lower values rendered first).
+- `zoom`: Zoom level for rendering.
+
+**Methods:**
+
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
+
+Create and start an animation on this drawable's property.
+
+Note:
+
+**Arguments:**
+- `property`: Name of the property to animate (e.g., 'x', 'fill_color', 'opacity')
+- `target`: Target value - type depends on property (float, tuple for color/vector, etc.)
+- `duration`: Animation duration in seconds
+- `easing`: Easing function: Easing enum value, string name, or None for linear
+- `delta`: If True, target is relative to current value; if False, target is absolute
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
+- `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
+
+**Returns:** Animation object for monitoring progress
+
+**Raises:** ValueError: If property name is not valid for this drawable type This is a convenience method that creates an Animation, starts it, and adds it to the AnimationManager.
+
+#### `move(dx, dy) or (delta) -> None`
+
+Move the element by a relative offset.
+
+Note:
+
+**Arguments:**
+- `dx`: Horizontal offset in pixels (or use delta)
+- `dy`: Vertical offset in pixels (or use delta)
+- `delta`: Offset as tuple, list, or Vector: (dx, dy)
+
+#### `realign() -> None`
+
+Reapply alignment relative to parent, useful for responsive layouts.
+
+Note:
+    Call this to recalculate position after parent changes size. For elements with align=None, this has no effect.
 
 #### `resize(width, height) or (size) -> None`
 
@@ -2407,13 +3059,8 @@ Return NEW HeightMap with uniform value where in range, 0.0 elsewhere.
 Enum representing input event states (pressed/released).
 
 Values:
-    PRESSED: Key or button was pressed (legacy: 'start')
-    RELEASED: Key or button was released (legacy: 'end')
-
-These enum values compare equal to their legacy string equivalents
-for backwards compatibility:
-    InputState.PRESSED == 'start'  # True
-    InputState.RELEASED == 'end'   # True
+    PRESSED: Key or button was pressed
+    RELEASED: Key or button was released
 
 
 **Properties:**
@@ -2513,11 +3160,6 @@ Categories:
     Editing: ENTER, BACKSPACE, DELETE, INSERT, TAB, SPACE
     Symbols: COMMA, PERIOD, SLASH, SEMICOLON, etc.
 
-These enum values compare equal to their legacy string equivalents
-for backwards compatibility:
-    Key.ESCAPE == 'Escape'  # True
-    Key.LEFT_SHIFT == 'LShift'  # True
-
 
 **Properties:**
 - `denominator`: the denominator of a rational number in lowest terms
@@ -2610,6 +3252,74 @@ Keyboard state singleton for checking modifier keys
 
 **Methods:**
 
+### LdtkProject
+
+LdtkProject(path: str)
+
+Load an LDtk project file (.ldtk).
+
+Parses the project and provides access to tilesets, auto-rule sets,
+levels, and enum definitions.
+
+Args:
+    path: Path to the .ldtk project file.
+
+Properties:
+    version (str, read-only): LDtk JSON format version.
+    tileset_names (list[str], read-only): Names of all tilesets.
+    ruleset_names (list[str], read-only): Names of all rule sets.
+    level_names (list[str], read-only): Names of all levels.
+    enums (dict, read-only): Enum definitions from the project.
+
+Example:
+    proj = mcrfpy.LdtkProject('dungeon.ldtk')
+    ts = proj.tileset('Dungeon_Tiles')
+    rs = proj.ruleset('Walls')
+    level = proj.level('Level_0')
+
+
+**Properties:**
+- `enums` *(read-only)*: Enum definitions from the project as a list of dicts (read-only).
+- `level_names` *(read-only)*: List of level identifier names (list[str], read-only).
+- `ruleset_names` *(read-only)*: List of rule set / layer names (list[str], read-only).
+- `tileset_names` *(read-only)*: List of tileset identifier names (list[str], read-only).
+- `version` *(read-only)*: LDtk JSON format version string (str, read-only).
+
+**Methods:**
+
+#### `level(name: str) -> dict`
+
+Get level data by name.
+
+**Arguments:**
+- `name`: Level identifier from the LDtk project
+
+**Returns:** Dict with name, dimensions, world position, and layer data.
+
+**Raises:** KeyError: If no level with the given name exists
+
+#### `ruleset(name: str) -> AutoRuleSet`
+
+Get an auto-rule set by layer name.
+
+**Arguments:**
+- `name`: Layer identifier from the LDtk project
+
+**Returns:** An AutoRuleSet for resolving IntGrid data to sprite tiles.
+
+**Raises:** KeyError: If no ruleset with the given name exists
+
+#### `tileset(name: str) -> TileSetFile`
+
+Get a tileset by name.
+
+**Arguments:**
+- `name`: Tileset identifier from the LDtk project
+
+**Returns:** A TileSetFile object for texture creation and tile metadata.
+
+**Raises:** KeyError: If no tileset with the given name exists
+
 ### Line
 
 *Inherits from: Drawable*
@@ -2681,7 +3391,7 @@ Attributes:
 
 **Methods:**
 
-#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace') -> Animation`
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
 
 Create and start an animation on this drawable's property.
 
@@ -2693,7 +3403,8 @@ Note:
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
 - `delta`: If True, target is relative to current value; if False, target is absolute
-- `callback`: Optional callable invoked when animation completes
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
 - `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
 
 **Returns:** Animation object for monitoring progress
@@ -2729,6 +3440,54 @@ Note:
 - `height`: New height in pixels (or use size)
 - `size`: Size as tuple, list, or Vector: (width, height)
 
+### Model3D
+
+Model3D(path=None)
+
+A 3D model resource that can be rendered by Entity3D.
+
+Args:
+    path (str, optional): Path to .glb file to load. If None, creates empty model.
+
+Class Methods:
+    cube(size=1.0) -> Model3D: Create a unit cube
+    plane(width=1.0, depth=1.0, segments=1) -> Model3D: Create a flat plane
+    sphere(radius=0.5, segments=16, rings=12) -> Model3D: Create a UV sphere
+
+Properties:
+    name (str, read-only): Model name
+    vertex_count (int, read-only): Total vertices across all meshes
+    triangle_count (int, read-only): Total triangles across all meshes
+    has_skeleton (bool, read-only): Whether model has skeletal animation data
+    bounds (tuple, read-only): AABB as ((min_x, min_y, min_z), (max_x, max_y, max_z))
+    mesh_count (int, read-only): Number of submeshes
+    bone_count (int, read-only): Number of bones in skeleton
+    animation_clips (list, read-only): List of animation clip names
+
+**Properties:**
+- `animation_clips` *(read-only)*: List of animation clip names (read-only)
+- `bone_count` *(read-only)*: Number of bones in skeleton (read-only)
+- `bounds` *(read-only)*: AABB as ((min_x, min_y, min_z), (max_x, max_y, max_z)) (read-only)
+- `has_skeleton` *(read-only)*: Whether model has skeletal animation data (read-only)
+- `mesh_count` *(read-only)*: Number of submeshes (read-only)
+- `name` *(read-only)*: Model name (read-only)
+- `triangle_count` *(read-only)*: Total triangle count across all meshes (read-only)
+- `vertex_count` *(read-only)*: Total vertex count across all meshes (read-only)
+
+**Methods:**
+
+#### `cube(size=1.0) -> Model3D`
+
+Create a unit cube centered at origin.
+
+#### `plane(width=1.0, depth=1.0, segments=1) -> Model3D`
+
+Create a flat plane.
+
+#### `sphere(radius=0.5, segments=16, rings=12) -> Model3D`
+
+Create a UV sphere.
+
 ### Mouse
 
 Mouse state singleton for reading button/position state and controlling cursor visibility
@@ -2749,19 +3508,16 @@ Mouse state singleton for reading button/position state and controlling cursor v
 
 *Inherits from: IntEnum*
 
-Enum representing mouse buttons.
+Enum representing mouse buttons and scroll wheel.
 
 Values:
-    LEFT: Left mouse button (legacy: 'left')
-    RIGHT: Right mouse button (legacy: 'right')
-    MIDDLE: Middle mouse button / scroll wheel click (legacy: 'middle')
-    X1: Extra mouse button 1 (legacy: 'x1')
-    X2: Extra mouse button 2 (legacy: 'x2')
-
-These enum values compare equal to their legacy string equivalents
-for backwards compatibility:
-    MouseButton.LEFT == 'left'  # True
-    MouseButton.RIGHT == 'right'  # True
+    LEFT: Left mouse button
+    RIGHT: Right mouse button
+    MIDDLE: Middle mouse button / scroll wheel click
+    X1: Extra mouse button 1
+    X2: Extra mouse button 2
+    SCROLL_UP: Scroll wheel up
+    SCROLL_DOWN: Scroll wheel down
 
 
 **Properties:**
@@ -2956,6 +3712,97 @@ Get turbulence (absolute fbm) value at coordinates.
 
 **Raises:** ValueError: Position tuple length doesn't match dimensions
 
+### Perspective
+
+*Inherits from: IntEnum*
+
+Enum representing an entity's knowledge of a cell.
+
+Values:
+    UNKNOWN: Never seen (perspective_map value 0)
+    DISCOVERED: Seen before but not currently visible (value 1)
+    VISIBLE: In current FOV (value 2)
+
+
+**Properties:**
+- `denominator`: the denominator of a rational number in lowest terms
+- `imag`: the imaginary part of a complex number
+- `numerator`: the numerator of a rational number in lowest terms
+- `real`: the real part of a complex number
+
+**Methods:**
+
+#### `as_integer_ratio(...)`
+
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio()
+(10, 1)
+>>> (-10).as_integer_ratio()
+(-10, 1)
+>>> (0).as_integer_ratio()
+(0, 1)
+
+#### `bit_count(...)`
+
+Number of ones in the binary representation of the absolute value of self.
+Also known as the population count.
+>>> bin(13)
+'0b1101'
+>>> (13).bit_count()
+3
+
+#### `bit_length(...)`
+
+Number of bits necessary to represent self in binary.
+>>> bin(37)
+'0b100101'
+>>> (37).bit_length()
+6
+
+#### `conjugate(...)`
+
+Returns self, the complex conjugate of any int.
+
+#### `from_bytes(...)`
+
+Return the integer represented by the given array of bytes.
+  bytes
+    Holds the array of bytes to convert.  The argument must either
+    support the buffer protocol or be an iterable object producing bytes.
+    Bytes and bytearray are examples of built-in objects that support the
+    buffer protocol.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is 'big',
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is 'little', the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use 'big'.
+  signed
+    Indicates whether two's complement is used to represent the integer.
+
+#### `is_integer(...)`
+
+Returns True. Exists for duck type compatibility with float.is_integer.
+
+#### `to_bytes(...)`
+
+Return an array of bytes representing an integer.
+  length
+    Length of bytes object to use.  An OverflowError is raised if the
+    integer is not representable with the given number of bytes.  Default
+    is length 1.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is 'big',
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is 'little', the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use 'big'.
+  signed
+    Determines whether two's complement is used to represent the integer.
+    If signed is False and a negative integer is given, an OverflowError
+    is raised.
+
 ### PropertyBinding
 
 PropertyBinding(target: UIDrawable, property: str)
@@ -3034,6 +3881,7 @@ Example:
 - `on_key`: Keyboard event handler (callable or None). Function receives (key: Key, action: InputState) for keyboard events. Set to None to remove the handler.
 - `opacity`: Scene opacity (0.0-1.0). Applied to all UI elements during rendering.
 - `pos`: Scene position offset (Vector). Applied to all UI elements during rendering.
+- `registered` *(read-only)*: Whether this scene is registered with the game engine (bool, read-only). Unregistered scenes still exist but won't receive lifecycle callbacks.
 - `visible`: Scene visibility (bool). If False, scene is not rendered.
 
 **Methods:**
@@ -3056,6 +3904,20 @@ Recalculate alignment for all children with alignment set.
 
 Note:
     Call this after window resize or when game_resolution changes. For responsive layouts, connect this to on_resize callback.
+
+#### `register() -> None`
+
+Register this scene with the game engine.
+
+Note:
+    Makes the scene available for activation and receives lifecycle callbacks. If another scene with the same name exists, it will be unregistered first. Called automatically by activate() if needed.
+
+#### `unregister() -> None`
+
+Unregister this scene from the game engine.
+
+Note:
+    Removes the scene from the engine's registry but keeps the Python object alive. The scene's UI elements and state are preserved. Call register() to re-add it. Useful for temporary scenes or scene pooling.
 
 ### Shader
 
@@ -3112,11 +3974,28 @@ Note:
 
 ### Sound
 
-Sound effect object for short audio clips
+Sound(source)
+
+Sound effect object for short audio clips.
+
+Args:
+    source: Filename string or SoundBuffer object.
+
+Properties:
+    volume (float): Volume 0-100.
+    loop (bool): Whether to loop.
+    playing (bool, read-only): True if playing.
+    duration (float, read-only): Duration in seconds.
+    source (str, read-only): Source filename.
+    pitch (float): Playback pitch (1.0 = normal).
+    buffer (SoundBuffer, read-only): The SoundBuffer, if created from one.
+
 
 **Properties:**
+- `buffer` *(read-only)*: The SoundBuffer if created from one, else None (read-only).
 - `duration` *(read-only)*: Total duration of the sound in seconds (read-only).
 - `loop`: Whether the sound loops when it reaches the end.
+- `pitch`: Playback pitch multiplier (1.0 = normal, >1 = higher, <1 = lower).
 - `playing` *(read-only)*: True if the sound is currently playing (read-only).
 - `source` *(read-only)*: Filename path used to load this sound (read-only).
 - `volume`: Volume level from 0 (silent) to 100 (full volume).
@@ -3131,9 +4010,145 @@ Pause the sound. Use play() to resume from the paused position.
 
 Start or resume playing the sound.
 
+#### `play_varied(pitch_range: float = 0.1, volume_range: float = 3.0) -> None`
+
+Play with randomized pitch and volume for natural variation.
+
+**Arguments:**
+- `pitch_range`: Random pitch offset range (default 0.1)
+- `volume_range`: Random volume offset range (default 3.0)
+
 #### `stop() -> None`
 
 Stop playing and reset to the beginning.
+
+### SoundBuffer
+
+SoundBuffer(filename: str)
+SoundBuffer.from_samples(data: bytes, channels: int, sample_rate: int)
+SoundBuffer.tone(frequency: float, duration: float, waveform: str = 'sine', ...)
+SoundBuffer.sfxr(preset: str, seed: int = None)
+
+Audio sample buffer for procedural audio generation and effects.
+
+Holds PCM sample data that can be created from files, raw samples,
+tone synthesis, or sfxr presets. Effect methods return new SoundBuffer
+instances (copy-modify pattern).
+
+Properties:
+    duration (float, read-only): Duration in seconds.
+    sample_count (int, read-only): Total number of samples.
+    sample_rate (int, read-only): Samples per second (e.g. 44100).
+    channels (int, read-only): Number of audio channels.
+    sfxr_params (dict or None, read-only): sfxr parameters if sfxr-generated.
+
+
+**Properties:**
+- `channels` *(read-only)*: Number of audio channels (read-only).
+- `duration` *(read-only)*: Total duration in seconds (read-only).
+- `sample_count` *(read-only)*: Total number of samples (read-only).
+- `sample_rate` *(read-only)*: Sample rate in Hz (read-only).
+- `sfxr_params` *(read-only)*: Dict of sfxr parameters if sfxr-generated, else None (read-only).
+
+**Methods:**
+
+#### `bit_crush(bits: int, rate_divisor: int) -> SoundBuffer`
+
+Reduce bit depth and sample rate for lo-fi effect.
+
+#### `concat(buffers: list[SoundBuffer], overlap: float = 0.0) -> SoundBuffer`
+
+Concatenate multiple SoundBuffers with optional crossfade overlap.
+
+**Arguments:**
+- `buffers`: List of SoundBuffer objects to concatenate
+- `overlap`: Crossfade overlap duration in seconds
+
+#### `distortion(drive: float) -> SoundBuffer`
+
+Apply tanh soft clipping distortion.
+
+#### `echo(delay_ms: float, feedback: float, wet: float) -> SoundBuffer`
+
+Apply echo effect with delay, feedback, and wet/dry mix.
+
+#### `from_samples(data: bytes, channels: int, sample_rate: int) -> SoundBuffer`
+
+Create a SoundBuffer from raw int16 PCM sample data.
+
+**Arguments:**
+- `data`: Raw PCM data as bytes (int16 little-endian)
+- `channels`: Number of audio channels (1=mono, 2=stereo)
+- `sample_rate`: Sample rate in Hz (e.g. 44100)
+
+#### `gain(factor: float) -> SoundBuffer`
+
+Multiply all samples by a scalar factor. Use for volume/amplitude control before mixing.
+
+**Arguments:**
+- `factor`: Amplitude multiplier (0.5 = half volume, 2.0 = double). Clamps to int16 range.
+
+#### `high_pass(cutoff_hz: float) -> SoundBuffer`
+
+Apply single-pole IIR high-pass filter.
+
+#### `low_pass(cutoff_hz: float) -> SoundBuffer`
+
+Apply single-pole IIR low-pass filter.
+
+#### `mix(buffers: list[SoundBuffer]) -> SoundBuffer`
+
+Mix multiple SoundBuffers together (additive, clamped).
+
+**Arguments:**
+- `buffers`: List of SoundBuffer objects to mix
+
+#### `normalize() -> SoundBuffer`
+
+Scale samples to 95%% of int16 max.
+
+#### `pitch_shift(factor: float) -> SoundBuffer`
+
+Resample to shift pitch. factor>1 = higher+shorter.
+
+#### `reverb(room_size: float, damping: float, wet: float) -> SoundBuffer`
+
+Apply simplified Freeverb-style reverb.
+
+#### `reverse() -> SoundBuffer`
+
+Reverse the sample order.
+
+#### `sfxr(preset: str = None, seed: int = None, **params) -> SoundBuffer`
+
+Generate retro sound effects using sfxr synthesis.
+
+**Arguments:**
+- `preset`: One of: coin, laser, explosion, powerup, hurt, jump, blip
+- `seed`: Random seed for deterministic generation
+
+**Returns:** SoundBuffer with sfxr_params set for later mutation
+
+#### `sfxr_mutate(amount: float = 0.05, seed: int = None) -> SoundBuffer`
+
+Jitter sfxr params and re-synthesize. Only works on sfxr-generated buffers.
+
+#### `slice(start: float, end: float) -> SoundBuffer`
+
+Extract a time range in seconds.
+
+#### `tone(frequency: float, duration: float, waveform: str = 'sine', ...) -> SoundBuffer`
+
+Generate a tone with optional ADSR envelope.
+
+**Arguments:**
+- `frequency`: Frequency in Hz
+- `duration`: Duration in seconds
+- `waveform`: One of: sine, square, saw, triangle, noise
+- `attack`: ADSR attack time in seconds (default 0.01)
+- `decay`: ADSR decay time in seconds (default 0.0)
+- `sustain`: ADSR sustain level 0.0-1.0 (default 1.0)
+- `release`: ADSR release time in seconds (default 0.01)
 
 ### Sprite
 
@@ -3208,7 +4223,6 @@ Attributes:
 - `scale_y`: Vertical scale factor
 - `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
 - `sprite_index`: Which sprite on the texture is shown
-- `sprite_number`: Sprite index (DEPRECATED: use sprite_index instead)
 - `texture`: Texture object
 - `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
@@ -3219,7 +4233,7 @@ Attributes:
 
 **Methods:**
 
-#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode='replace') -> Animation`
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
 
 Create and start an animation on this drawable's property.
 
@@ -3231,7 +4245,8 @@ Note:
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
 - `delta`: If True, target is relative to current value; if False, target is absolute
-- `callback`: Optional callable invoked when animation completes
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
 - `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
 
 **Returns:** Animation object for monitoring progress
@@ -3269,9 +4284,31 @@ Note:
 
 ### Texture
 
-SFML Texture Object
+Texture(filename: str, sprite_width: int = 0, sprite_height: int = 0, display_size: tuple = None, display_origin: tuple = None)
+
+A texture atlas for sprites and tiles.
+
+Args:
+    filename: Path to an image file (PNG, BMP, etc.).
+    sprite_width: Width of each sprite cell in pixels (0 = full image).
+    sprite_height: Height of each sprite cell in pixels (0 = full image).
+    display_size: Optional (w, h) actual content size within each cell.
+    display_origin: Optional (x, y) content offset within each cell.
+
+Properties:
+    sprite_width, sprite_height (int, read-only): Cell dimensions.
+    sheet_width, sheet_height (int, read-only): Grid dimensions in cells.
+    sprite_count (int, read-only): Total number of sprite cells.
+    source (str, read-only): File path used to load this texture.
+    display_width, display_height (int, read-only): Content size within cells.
+    display_offset_x, display_offset_y (int, read-only): Content offset within cells.
+
 
 **Properties:**
+- `display_height` *(read-only)*: Display height of sprite content within each cell (int, read-only). Defaults to sprite_height.
+- `display_offset_x` *(read-only)*: X offset of sprite content within each cell (int, read-only). Default 0.
+- `display_offset_y` *(read-only)*: Y offset of sprite content within each cell (int, read-only). Default 0.
+- `display_width` *(read-only)*: Display width of sprite content within each cell (int, read-only). Defaults to sprite_width.
 - `sheet_height` *(read-only)*: Number of sprite rows in the texture sheet (int, read-only). Calculated as texture_height / sprite_height.
 - `sheet_width` *(read-only)*: Number of sprite columns in the texture sheet (int, read-only). Calculated as texture_width / sprite_width.
 - `source` *(read-only)*: Source filename path (str, read-only). The path used to load this texture.
@@ -3281,31 +4318,81 @@ SFML Texture Object
 
 **Methods:**
 
+#### `composite(layers: list[Texture], sprite_width: int, sprite_height: int, name: str = '<composite>') -> Texture`
+
+Alpha-composite multiple texture layers into a single texture.
+
+Note:
+
+**Arguments:**
+- `layers`: List of Texture objects, composited bottom-to-top
+- `sprite_width`: Width of each sprite cell in the result
+- `sprite_height`: Height of each sprite cell in the result
+- `name`: Optional name for the composite texture
+
+**Returns:** Texture: New texture with all layers composited
+
+**Raises:** ValueError: If layers have different dimensions or list is empty This is a class method. Uses Porter-Duff 'over' alpha compositing.
+
+#### `from_bytes(data: bytes, width: int, height: int, sprite_width: int, sprite_height: int, name: str = '<generated>') -> Texture`
+
+Create a Texture from raw RGBA pixel data.
+
+Note:
+
+**Arguments:**
+- `data`: Raw RGBA bytes (length must equal width * height * 4)
+- `width`: Image width in pixels
+- `height`: Image height in pixels
+- `sprite_width`: Width of each sprite cell
+- `sprite_height`: Height of each sprite cell
+- `name`: Optional name for the texture (default: '<generated>')
+
+**Returns:** Texture: New texture containing the pixel data
+
+**Raises:** ValueError: If data length does not match width * height * 4 This is a class method. Useful for procedurally generated textures.
+
+#### `hsl_shift(hue_shift: float, sat_shift: float = 0.0, lit_shift: float = 0.0) -> Texture`
+
+Create a new texture with HSL color adjustments applied.
+
+Note:
+
+**Arguments:**
+- `hue_shift`: Hue rotation in degrees [0.0, 360.0)
+- `sat_shift`: Saturation adjustment [-1.0, 1.0] (default 0.0)
+- `lit_shift`: Lightness adjustment [-1.0, 1.0] (default 0.0)
+
+**Returns:** Texture: New texture with color-shifted pixels Preserves alpha channel. Skips fully transparent pixels.
+
 ### TileLayer
 
-TileLayer(z_index=-1, texture=None, grid_size=None)
+TileLayer(z_index=-1, name=None, texture=None, grid_size=None)
 
 A grid layer that stores sprite indices per cell for tile-based rendering.
 
-TileLayers are typically created via Grid.add_layer('tile', ...) rather than
-instantiated directly. Each cell stores an integer index into the layer's
-sprite atlas texture. An index of -1 means no tile (transparent/empty).
+TileLayers can be created standalone and attached to a Grid via add_layer()
+or passed to the Grid constructor's layers parameter. Layers with size (0, 0)
+automatically resize to match the Grid when attached.
 
 Args:
     z_index (int): Render order relative to entities. Negative values render
         below entities (as backgrounds), positive values render above entities
         (as overlays). Default: -1 (background)
+    name (str): Layer name for Grid.layer(name) lookup. Default: None
     texture (Texture): Sprite atlas containing tile images. The texture's
         sprite_size determines individual tile dimensions. Required for
         rendering; can be set after creation. Default: None
-    grid_size (tuple): Dimensions as (width, height). If None, the layer will
-        inherit the parent Grid's dimensions when attached. Default: None
+    grid_size (tuple): Dimensions as (width, height). If None or (0, 0), the
+        layer will auto-resize when attached to a Grid. Default: None
 
 Attributes:
     z_index (int): Layer z-order relative to entities (read/write)
+    name (str): Layer name for lookup (read-only)
     visible (bool): Whether layer is rendered (read/write)
     texture (Texture): Sprite atlas for tile images (read/write)
     grid_size (tuple): Layer dimensions as (width, height) (read-only)
+    grid (Grid): Parent Grid or None. Setting manages layer association.
 
 Methods:
     at(x, y) -> int: Get the tile index at cell position (x, y)
@@ -3318,15 +4405,15 @@ Tile Index Values:
     0+: Index into the texture's sprite atlas (row-major order)
 
 Example:
-    grid = mcrfpy.Grid(grid_size=(20, 15), texture=my_texture,
-                       pos=(50, 50), size=(640, 480))
-    layer = grid.add_layer('tile', z_index=1, texture=overlay_texture)
-    layer.fill(-1)  # Clear layer (all transparent)
-    layer.set(5, 5, 42)  # Place tile index 42 at position (5, 5)
-    layer.fill_rect(0, 0, 20, 1, 10)  # Top row filled with tile 10
+    terrain = mcrfpy.TileLayer(z_index=-2, name='terrain', texture=tileset)
+    grid = mcrfpy.Grid(grid_size=(20, 15), layers=[terrain])
+    terrain.fill(0)  # Fill with tile index 0
+    grid.layer('terrain').set(5, 5, 42)  # Place tile 42 at (5, 5)
 
 **Properties:**
+- `grid`: Parent Grid or None. Setting manages layer association and handles lazy allocation.
 - `grid_size`: Layer dimensions as (width, height) tuple.
+- `name` *(read-only)*: Layer name (str, read-only). Used for Grid.layer(name) lookup.
 - `texture`: Texture atlas for tile sprites.
 - `visible`: Whether the layer is rendered.
 - `z_index`: Layer z-order. Negative values render below entities.
@@ -3370,6 +4457,165 @@ Set the tile index at cell position. Use -1 for no tile.
 **Arguments:**
 - `pos`: Position as (x, y) tuple, list, or Vector
 - `index`: Tile index (-1 for no tile)
+
+### TileMapFile
+
+TileMapFile(path: str)
+
+Load a Tiled map file (.tmx or .tmj).
+
+Parses the map and its referenced tilesets, providing access to tile layers,
+object layers, and GID resolution.
+
+Args:
+    path: Path to the .tmx or .tmj map file.
+
+Properties:
+    width (int, read-only): Map width in tiles.
+    height (int, read-only): Map height in tiles.
+    tile_width (int, read-only): Tile width in pixels.
+    tile_height (int, read-only): Tile height in pixels.
+    orientation (str, read-only): Map orientation (e.g. 'orthogonal').
+    properties (dict, read-only): Custom map properties.
+    tileset_count (int, read-only): Number of referenced tilesets.
+    tile_layer_names (list, read-only): Names of tile layers.
+    object_layer_names (list, read-only): Names of object layers.
+
+Example:
+    tm = mcrfpy.TileMapFile('map.tmx')
+    data = tm.tile_layer_data('Ground')
+    tm.apply_to_tile_layer(my_tile_layer, 'Ground')
+
+
+**Properties:**
+- `height` *(read-only)*: Map height in tiles (int, read-only).
+- `object_layer_names` *(read-only)*: List of object layer names (read-only).
+- `orientation` *(read-only)*: Map orientation, e.g. 'orthogonal' (str, read-only).
+- `properties` *(read-only)*: Custom map properties as a dict (read-only).
+- `tile_height` *(read-only)*: Tile height in pixels (int, read-only).
+- `tile_layer_names` *(read-only)*: List of tile layer names (read-only).
+- `tile_width` *(read-only)*: Tile width in pixels (int, read-only).
+- `tileset_count` *(read-only)*: Number of referenced tilesets (int, read-only).
+- `width` *(read-only)*: Map width in tiles (int, read-only).
+
+**Methods:**
+
+#### `apply_to_tile_layer(tile_layer: TileLayer, layer_name: str, tileset_index: int = 0) -> None`
+
+Resolve GIDs and write sprite indices into a TileLayer.
+
+**Arguments:**
+- `tile_layer`: Target TileLayer to write into
+- `layer_name`: Name of the tile layer in this map
+- `tileset_index`: Which tileset to resolve GIDs against (default 0)
+
+#### `object_layer(name: str) -> list[dict]`
+
+Get objects from an object layer as Python dicts.
+
+**Arguments:**
+- `name`: Name of the object layer
+
+**Returns:** List of dicts with object properties (id, name, x, y, width, height, etc.).
+
+**Raises:** KeyError: If no object layer with that name exists
+
+#### `resolve_gid(gid: int) -> tuple[int, int]`
+
+Resolve a global tile ID to tileset index and local tile ID.
+
+**Arguments:**
+- `gid`: Global tile ID from tile_layer_data()
+
+**Returns:** Tuple of (tileset_index, local_tile_id). (-1, -1) for empty/invalid.
+
+#### `tile_layer_data(name: str) -> list[int]`
+
+Get raw global GID data for a tile layer.
+
+**Arguments:**
+- `name`: Name of the tile layer
+
+**Returns:** Flat list of global GIDs (0 = empty tile).
+
+**Raises:** KeyError: If no tile layer with that name exists
+
+#### `tileset(index: int) -> tuple[int, TileSetFile]`
+
+Get a referenced tileset by index.
+
+**Arguments:**
+- `index`: Tileset index (0-based)
+
+**Returns:** Tuple of (firstgid, TileSetFile).
+
+### TileSetFile
+
+TileSetFile(path: str)
+
+Load a Tiled tileset file (.tsx or .tsj).
+
+Parses the tileset and provides access to tile metadata, properties,
+Wang sets, and texture creation.
+
+Args:
+    path: Path to the .tsx or .tsj tileset file.
+
+Properties:
+    name (str, read-only): Tileset name.
+    tile_width (int, read-only): Width of each tile in pixels.
+    tile_height (int, read-only): Height of each tile in pixels.
+    tile_count (int, read-only): Total number of tiles.
+    columns (int, read-only): Number of columns in the tileset image.
+    image_source (str, read-only): Resolved path to the tileset image.
+    properties (dict, read-only): Custom properties from the tileset.
+    wang_sets (list, read-only): List of WangSet objects.
+
+Example:
+    ts = mcrfpy.TileSetFile('tileset.tsx')
+    texture = ts.to_texture()
+    print(f'{ts.name}: {ts.tile_count} tiles')
+
+
+**Properties:**
+- `columns` *(read-only)*: Number of columns in tileset image (int, read-only).
+- `image_source` *(read-only)*: Resolved path to the tileset image file (str, read-only).
+- `margin` *(read-only)*: Margin around tiles in pixels (int, read-only).
+- `name` *(read-only)*: Tileset name (str, read-only).
+- `properties` *(read-only)*: Custom tileset properties as a dict (read-only).
+- `spacing` *(read-only)*: Spacing between tiles in pixels (int, read-only).
+- `tile_count` *(read-only)*: Total number of tiles (int, read-only).
+- `tile_height` *(read-only)*: Height of each tile in pixels (int, read-only).
+- `tile_width` *(read-only)*: Width of each tile in pixels (int, read-only).
+- `wang_sets` *(read-only)*: List of WangSet objects from this tileset (read-only).
+
+**Methods:**
+
+#### `tile_info(tile_id: int) -> dict | None`
+
+Get metadata for a specific tile.
+
+**Arguments:**
+- `tile_id`: Local tile ID (0-based)
+
+**Returns:** Dict with 'properties' and 'animation' keys, or None if no metadata.
+
+#### `to_texture() -> Texture`
+
+Create a Texture from the tileset image.
+
+**Returns:** A Texture object for use with TileLayer.
+
+#### `wang_set(name: str) -> WangSet`
+
+Look up a WangSet by name.
+
+**Arguments:**
+- `name`: Name of the Wang set
+
+**Returns:** The WangSet object.
+
+**Raises:** KeyError: If no WangSet with that name exists
 
 ### Timer
 
@@ -3630,9 +4876,115 @@ Return an array of bytes representing an integer.
     If signed is False and a negative integer is given, an OverflowError
     is raised.
 
+### Trigger
+
+*Inherits from: IntEnum*
+
+Enum representing trigger types passed to entity step() callbacks.
+
+Values:
+    DONE: Behavior completed (path exhausted, sleep finished, etc.)
+    BLOCKED: Movement blocked by wall or collision
+    TARGET: Target entity spotted in FOV
+
+
+**Properties:**
+- `denominator`: the denominator of a rational number in lowest terms
+- `imag`: the imaginary part of a complex number
+- `numerator`: the numerator of a rational number in lowest terms
+- `real`: the real part of a complex number
+
+**Methods:**
+
+#### `as_integer_ratio(...)`
+
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio()
+(10, 1)
+>>> (-10).as_integer_ratio()
+(-10, 1)
+>>> (0).as_integer_ratio()
+(0, 1)
+
+#### `bit_count(...)`
+
+Number of ones in the binary representation of the absolute value of self.
+Also known as the population count.
+>>> bin(13)
+'0b1101'
+>>> (13).bit_count()
+3
+
+#### `bit_length(...)`
+
+Number of bits necessary to represent self in binary.
+>>> bin(37)
+'0b100101'
+>>> (37).bit_length()
+6
+
+#### `conjugate(...)`
+
+Returns self, the complex conjugate of any int.
+
+#### `from_bytes(...)`
+
+Return the integer represented by the given array of bytes.
+  bytes
+    Holds the array of bytes to convert.  The argument must either
+    support the buffer protocol or be an iterable object producing bytes.
+    Bytes and bytearray are examples of built-in objects that support the
+    buffer protocol.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is 'big',
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is 'little', the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use 'big'.
+  signed
+    Indicates whether two's complement is used to represent the integer.
+
+#### `is_integer(...)`
+
+Returns True. Exists for duck type compatibility with float.is_integer.
+
+#### `to_bytes(...)`
+
+Return an array of bytes representing an integer.
+  length
+    Length of bytes object to use.  An OverflowError is raised if the
+    integer is not representable with the given number of bytes.  Default
+    is length 1.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is 'big',
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is 'little', the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use 'big'.
+  signed
+    Determines whether two's complement is used to represent the integer.
+    If signed is False and a negative integer is given, an OverflowError
+    is raised.
+
 ### Vector
 
-SFML Vector Object
+Vector(x: float = 0, y: float = 0)
+
+2D vector for positions, sizes, and directions.
+
+Args:
+    x: X component.
+    y: Y component.
+
+Supports arithmetic (+, -, *, /), abs(), len() == 2,
+indexing ([0] for x, [1] for y), hashing, and equality.
+
+Properties:
+    x (float): X component.
+    y (float): Y component.
+    int (tuple[int, int], read-only): Integer floor of (x, y).
+
 
 **Properties:**
 - `int` *(read-only)*: Integer tuple (floor of x and y) for use as dict keys. Read-only.
@@ -3700,6 +5052,653 @@ Return a unit vector in the same direction.
 Note:
 
 **Returns:** Vector: New normalized vector with magnitude 1.0 For zero vectors (magnitude 0.0), returns a zero vector rather than raising an exception
+
+### Viewport3D
+
+*Inherits from: Drawable*
+
+Viewport3D(pos=None, size=None, **kwargs)
+
+A 3D rendering viewport that displays a 3D scene as a UI element.
+
+Args:
+    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)
+    size (tuple, optional): Display size as (width, height). Default: (320, 240)
+
+Keyword Args:
+    render_resolution (tuple): Internal render resolution (width, height). Default: (320, 240)
+    fov (float): Camera field of view in degrees. Default: 60
+    camera_pos (tuple): Camera position (x, y, z). Default: (0, 0, 5)
+    camera_target (tuple): Camera look-at point (x, y, z). Default: (0, 0, 0)
+    bg_color (Color): Background clear color. Default: (25, 25, 50)
+    enable_vertex_snap (bool): PS1-style vertex snapping. Default: True
+    enable_affine (bool): PS1-style affine texture mapping. Default: True
+    enable_dither (bool): PS1-style color dithering. Default: True
+    enable_fog (bool): Distance fog. Default: True
+    fog_color (Color): Fog color. Default: (128, 128, 153)
+    fog_near (float): Fog start distance. Default: 10
+    fog_far (float): Fog end distance. Default: 100
+
+
+**Properties:**
+- `bg_color`: Background clear color.
+- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `camera_pos`: Camera position as (x, y, z) tuple.
+- `camera_target`: Camera look-at target as (x, y, z) tuple.
+- `cell_size`: World units per navigation grid cell.
+- `enable_affine`: Enable PS1-style affine texture mapping (warped textures).
+- `enable_dither`: Enable PS1-style color dithering.
+- `enable_fog`: Enable distance fog.
+- `enable_vertex_snap`: Enable PS1-style vertex snapping (jittery vertices).
+- `entities` *(read-only)*: Collection of Entity3D objects (read-only). Use append/remove to modify.
+- `fog_color`: Fog color.
+- `fog_far`: Fog end distance.
+- `fog_near`: Fog start distance.
+- `fov`: Camera field of view in degrees.
+- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
+- `grid_size`: Navigation grid dimensions as (width, depth) tuple.
+- `h`: Display height in pixels.
+- `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
+- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
+- `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- `pos`: Position as Vector (x, y).
+- `render_resolution`: Internal render resolution (width, height). Lower values for PS1 effect.
+- `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
+- `w`: Display width in pixels.
+- `x`: X position in pixels.
+- `y`: Y position in pixels.
+- `z_index`: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
+
+**Methods:**
+
+#### `add_billboard(billboard)`
+
+Add a Billboard to the viewport.
+
+**Arguments:**
+- `billboard`: Billboard object to add
+
+#### `add_layer(name, z_index=0) -> dict`
+
+Add a new mesh layer to the viewport.
+
+**Arguments:**
+- `name`: Unique identifier for the layer
+- `z_index`: Render order (lower = rendered first)
+
+#### `add_mesh(layer_name, model, pos, rotation=0, scale=1.0) -> int`
+
+Add a Model3D instance to a layer at the specified position.
+
+**Arguments:**
+- `layer_name`: Name of layer to add mesh to (created if needed)
+- `model`: Model3D object to place
+- `pos`: World position as (x, y, z) tuple
+- `rotation`: Y-axis rotation in degrees
+- `scale`: Uniform scale factor
+
+**Returns:** Index of the mesh instance
+
+#### `add_voxel_layer(voxel_grid, z_index=0)`
+
+Add a VoxelGrid as a renderable layer.
+
+**Arguments:**
+- `voxel_grid`: VoxelGrid object to render
+- `z_index`: Render order (lower = rendered first)
+
+#### `animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation`
+
+Create and start an animation on this drawable's property.
+
+Note:
+
+**Arguments:**
+- `property`: Name of the property to animate (e.g., 'x', 'fill_color', 'opacity')
+- `target`: Target value - type depends on property (float, tuple for color/vector, etc.)
+- `duration`: Animation duration in seconds
+- `easing`: Easing function: Easing enum value, string name, or None for linear
+- `delta`: If True, target is relative to current value; if False, target is absolute
+- `loop`: If True, animation repeats from start when it reaches the end (default False)
+- `callback`: Optional callable invoked when animation completes (not called for looping animations)
+- `conflict_mode`: 'replace' (default), 'queue', or 'error' if property already animating
+
+**Returns:** Animation object for monitoring progress
+
+**Raises:** ValueError: If property name is not valid for this drawable type This is a convenience method that creates an Animation, starts it, and adds it to the AnimationManager.
+
+#### `apply_heightmap(heightmap, y_scale=1.0)`
+
+Set cell heights from HeightMap.
+
+**Arguments:**
+- `heightmap`: HeightMap object
+- `y_scale`: Vertical scale factor
+
+#### `apply_terrain_colors(layer_name, r_map, g_map, b_map)`
+
+Apply per-vertex colors to terrain from RGB HeightMaps.
+
+**Arguments:**
+- `layer_name`: Name of terrain layer to colorize
+- `r_map`: HeightMap for red channel (0-1 values)
+- `g_map`: HeightMap for green channel (0-1 values)
+- `b_map`: HeightMap for blue channel (0-1 values)
+
+#### `apply_threshold(heightmap, min_height, max_height, walkable=True)`
+
+Set cell walkability based on height thresholds.
+
+**Arguments:**
+- `heightmap`: HeightMap object
+- `min_height`: Minimum height (0-1)
+- `max_height`: Maximum height (0-1)
+- `walkable`: Walkability value for cells in range
+
+#### `at(x, z) -> VoxelPoint`
+
+Get VoxelPoint at grid coordinates.
+
+**Arguments:**
+- `x`: X coordinate in grid
+- `z`: Z coordinate in grid
+
+**Returns:** VoxelPoint object for the cell
+
+#### `billboard_count() -> int`
+
+Get the number of billboards.
+
+**Returns:** Number of billboards in the viewport
+
+#### `build_terrain(layer_name, heightmap, y_scale=1.0, cell_size=1.0) -> int`
+
+Build terrain mesh from HeightMap on specified layer.
+
+**Arguments:**
+- `layer_name`: Name of layer to build terrain on (created if doesn't exist)
+- `heightmap`: HeightMap object with height data
+- `y_scale`: Vertical exaggeration factor
+- `cell_size`: World-space size of each grid cell
+
+**Returns:** Number of vertices in the generated mesh
+
+#### `clear_billboards()`
+
+Remove all billboards from the viewport.
+
+#### `clear_meshes(layer_name)`
+
+Clear all mesh instances from a layer.
+
+**Arguments:**
+- `layer_name`: Name of layer to clear
+
+#### `clear_voxel_nav_region(voxel_grid)`
+
+Clear navigation cells in a voxel grid's footprint.
+Resets walkability, transparency, height, and cost to defaults
+for all nav cells corresponding to the voxel grid's XZ extent.
+
+**Arguments:**
+- `voxel_grid`: VoxelGrid whose nav region to clear
+
+#### `compute_fov(origin, radius=10) -> list`
+
+Compute field of view from a position.
+
+**Arguments:**
+- `origin`: Origin point as (x, z) tuple
+- `radius`: FOV radius
+
+**Returns:** List of visible (x, z) positions
+
+#### `find_path(start, end) -> list`
+
+Find A* path between two points.
+
+**Arguments:**
+- `start`: Starting point as (x, z) tuple
+- `end`: End point as (x, z) tuple
+
+**Returns:** List of (x, z) tuples forming the path, or empty list if no path
+
+#### `follow(entity, distance=10, height=5, smoothing=1.0)`
+
+Position camera to follow an entity.
+
+**Arguments:**
+- `entity`: Entity3D to follow
+- `distance`: Distance behind entity
+- `height`: Camera height above entity
+- `smoothing`: Interpolation factor (0-1). 1 = instant, lower = smoother
+
+#### `get_billboard(index) -> Billboard`
+
+Get a Billboard by index.
+
+**Arguments:**
+- `index`: Index of the billboard
+
+**Returns:** Billboard object
+
+#### `get_layer(name) -> dict or None`
+
+Get a layer by name.
+
+#### `is_in_fov(x, z) -> bool`
+
+Check if a cell is in the current FOV (after compute_fov).
+
+**Arguments:**
+- `x`: X coordinate
+- `z`: Z coordinate
+
+**Returns:** True if the cell is visible
+
+#### `layer_count() -> int`
+
+Get the number of mesh layers.
+
+#### `move(dx, dy) or (delta) -> None`
+
+Move the element by a relative offset.
+
+Note:
+
+**Arguments:**
+- `dx`: Horizontal offset in pixels (or use delta)
+- `dy`: Vertical offset in pixels (or use delta)
+- `delta`: Offset as tuple, list, or Vector: (dx, dy)
+
+#### `orbit_camera(angle=0, distance=10, height=5)`
+
+Position camera to orbit around origin.
+
+**Arguments:**
+- `angle`: Orbit angle in radians
+- `distance`: Distance from origin
+- `height`: Camera height above XZ plane
+
+#### `place_blocking(grid_pos, footprint, walkable=False, transparent=False)`
+
+Mark grid cells as blocking for pathfinding and FOV.
+
+**Arguments:**
+- `grid_pos`: Top-left grid position as (x, z) tuple
+- `footprint`: Size in cells as (width, depth) tuple
+- `walkable`: Whether cells should be walkable (default: False)
+- `transparent`: Whether cells should be transparent (default: False)
+
+#### `project_all_voxels_to_nav(headroom=2)`
+
+Project all voxel layers to the navigation grid.
+Resets navigation grid and projects each voxel layer in z_index order.
+Later layers (higher z_index) overwrite earlier ones.
+
+**Arguments:**
+- `headroom`: Required air voxels above floor for walkability (default: 2)
+
+#### `project_voxel_to_nav(voxel_grid, headroom=2)`
+
+Project a VoxelGrid to the navigation grid.
+Scans each column of the voxel grid and updates corresponding
+navigation cells with walkability, transparency, height, and cost.
+
+**Arguments:**
+- `voxel_grid`: VoxelGrid to project
+- `headroom`: Required air voxels above floor for walkability (default: 2)
+
+#### `realign() -> None`
+
+Reapply alignment relative to parent, useful for responsive layouts.
+
+Note:
+    Call this to recalculate position after parent changes size. For elements with align=None, this has no effect.
+
+#### `remove_billboard(billboard)`
+
+Remove a Billboard from the viewport.
+
+**Arguments:**
+- `billboard`: Billboard object to remove
+
+#### `remove_layer(name) -> bool`
+
+Remove a layer by name. Returns True if found and removed.
+
+#### `remove_voxel_layer(voxel_grid) -> bool`
+
+Remove a VoxelGrid layer from the viewport.
+
+**Arguments:**
+- `voxel_grid`: VoxelGrid object to remove
+
+**Returns:** True if the layer was found and removed
+
+#### `resize(width, height) or (size) -> None`
+
+Resize the element to new dimensions.
+
+Note:
+
+**Arguments:**
+- `width`: New width in pixels (or use size)
+- `height`: New height in pixels (or use size)
+- `size`: Size as tuple, list, or Vector: (width, height)
+
+#### `screen_to_world(x, y, y_plane=0.0) -> tuple or None`
+
+Convert screen coordinates to world position via ray casting.
+
+**Arguments:**
+- `x`: Screen X coordinate relative to viewport
+- `y`: Screen Y coordinate relative to viewport
+- `y_plane`: Y value of horizontal plane to intersect (default: 0.0)
+
+**Returns:** (x, y, z) world position tuple, or None if no intersection with the plane
+
+#### `set_grid_size(width, depth)`
+
+Initialize navigation grid with specified dimensions.
+
+**Arguments:**
+- `width`: Grid width (X axis)
+- `depth`: Grid depth (Z axis)
+
+#### `set_slope_cost(max_slope=0.5, cost_multiplier=1.0)`
+
+Calculate slope costs and mark steep cells unwalkable.
+
+**Arguments:**
+- `max_slope`: Maximum height difference before marking unwalkable
+- `cost_multiplier`: Cost increase per unit slope
+
+#### `voxel_layer_count() -> int`
+
+Get the number of voxel layers.
+
+**Returns:** Number of voxel layers in the viewport
+
+### VoxelGrid
+
+VoxelGrid(size: tuple[int, int, int], cell_size: float = 1.0)
+
+A dense 3D grid of voxel material IDs with a material palette.
+
+VoxelGrids provide volumetric storage for 3D structures like buildings,
+caves, and dungeon walls. Each cell stores a uint8 material ID (0-255),
+where 0 is always air.
+
+Args:
+    size: (width, height, depth) dimensions. Immutable after creation.
+    cell_size: World units per voxel. Default 1.0.
+
+Properties:
+    size (tuple, read-only): Grid dimensions as (width, height, depth)
+    width, height, depth (int, read-only): Individual dimensions
+    cell_size (float, read-only): World units per voxel
+    offset (tuple): World-space position (x, y, z)
+    rotation (float): Y-axis rotation in degrees
+    material_count (int, read-only): Number of defined materials
+
+Example:
+    voxels = mcrfpy.VoxelGrid(size=(16, 8, 16), cell_size=1.0)
+    stone = voxels.add_material('stone', color=mcrfpy.Color(128, 128, 128))
+    voxels.set(5, 0, 5, stone)
+    assert voxels.get(5, 0, 5) == stone
+    print(f'Non-air voxels: {voxels.count_non_air()}')
+
+**Properties:**
+- `cell_size` *(read-only)*: World units per voxel. Read-only.
+- `depth` *(read-only)*: Grid depth (Z dimension). Read-only.
+- `greedy_meshing`: Enable greedy meshing optimization (reduces vertex count for uniform regions).
+- `height` *(read-only)*: Grid height (Y dimension). Read-only.
+- `material_count` *(read-only)*: Number of materials in the palette. Read-only.
+- `offset`: World-space position (x, y, z) of the grid origin.
+- `rotation`: Y-axis rotation in degrees.
+- `size` *(read-only)*: Dimensions (width, height, depth) of the grid. Read-only.
+- `vertex_count` *(read-only)*: Number of vertices after mesh generation. Read-only.
+- `visible`: Show or hide this voxel grid in rendering.
+- `width` *(read-only)*: Grid width (X dimension). Read-only.
+
+**Methods:**
+
+#### `add_material(name, color=Color(255,255,255), sprite_index=-1, transparent=False, path_cost=1.0) -> int`
+
+Add a new material to the palette. Returns the material ID (1-indexed).
+Material 0 is always air (implicit, never stored in palette).
+Maximum 255 materials can be added.
+
+#### `clear() -> None`
+
+Clear the grid (fill with air, material 0).
+
+#### `copy_region(min_coord, max_coord) -> VoxelRegion`
+
+Copy a rectangular region to a VoxelRegion prefab.
+
+**Arguments:**
+- `min_coord`: (x0, y0, z0) - minimum corner (inclusive)
+- `max_coord`: (x1, y1, z1) - maximum corner (inclusive)
+
+**Returns:** VoxelRegion object that can be pasted elsewhere.
+
+#### `count_material(material) -> int`
+
+Count the number of voxels with the specified material ID.
+
+#### `count_non_air() -> int`
+
+Count the number of non-air voxels in the grid.
+
+#### `fill(material) -> None`
+
+Fill the entire grid with the specified material ID.
+
+#### `fill_box(min_coord, max_coord, material) -> None`
+
+Fill a rectangular region with the specified material.
+
+**Arguments:**
+- `min_coord`: (x0, y0, z0) - minimum corner (inclusive)
+- `max_coord`: (x1, y1, z1) - maximum corner (inclusive)
+- `material`: material ID (0-255)
+
+#### `fill_box_hollow(min_coord, max_coord, material, thickness=1) -> None`
+
+Create a hollow rectangular room (walls only, hollow inside).
+
+**Arguments:**
+- `min_coord`: (x0, y0, z0) - minimum corner (inclusive)
+- `max_coord`: (x1, y1, z1) - maximum corner (inclusive)
+- `material`: material ID for walls (0-255)
+- `thickness`: wall thickness in voxels (default 1)
+
+#### `fill_cylinder(base_pos, radius, height, material) -> None`
+
+Fill a vertical cylinder (Y-axis aligned).
+
+**Arguments:**
+- `base_pos`: (cx, cy, cz) - base center position
+- `radius`: cylinder radius in voxels
+- `height`: cylinder height in voxels
+- `material`: material ID (0-255)
+
+#### `fill_noise(min_coord, max_coord, material, threshold=0.5, scale=0.1, seed=0) -> None`
+
+Fill region with 3D noise-based pattern (caves, clouds).
+
+**Arguments:**
+- `min_coord`: (x0, y0, z0) - minimum corner
+- `max_coord`: (x1, y1, z1) - maximum corner
+- `material`: material ID for solid areas
+- `threshold`: noise threshold (0-1, higher = more solid)
+- `scale`: noise scale (smaller = larger features)
+- `seed`: random seed (0 for default)
+
+#### `fill_sphere(center, radius, material) -> None`
+
+Fill a spherical region.
+
+**Arguments:**
+- `center`: (cx, cy, cz) - sphere center coordinates
+- `radius`: sphere radius in voxels
+- `material`: material ID (0-255, use 0 to carve)
+
+#### `from_bytes(data) -> bool`
+
+Load voxel data from a bytes object.
+
+Note: This replaces the current grid data entirely.
+
+**Arguments:**
+- `data`: bytes object containing serialized grid data
+
+**Returns:** True on success, False on failure.
+
+#### `get(x, y, z) -> int`
+
+Get the material ID at integer coordinates.
+Returns 0 (air) for out-of-bounds coordinates.
+
+#### `get_material(id) -> dict`
+
+Get material properties by ID.
+Returns dict with keys: name, color, sprite_index, transparent, path_cost.
+ID 0 returns the implicit air material.
+
+#### `load(path) -> bool`
+
+Load voxel data from a binary file.
+
+Note: This replaces the current grid data entirely, including
+
+**Arguments:**
+- `path`: File path to load from
+
+**Returns:** True on success, False on failure. dimensions and material palette.
+
+#### `paste_region(region, position, skip_air=True) -> None`
+
+Paste a VoxelRegion prefab at the specified position.
+
+**Arguments:**
+- `region`: VoxelRegion from copy_region()
+- `position`: (x, y, z) - paste destination
+- `skip_air`: if True, air voxels don't overwrite (default True)
+
+#### `project_column(x, z, headroom=2) -> dict`
+
+Project a single column to navigation info.
+Scans the column from top to bottom, finding the topmost floor
+(solid voxel with air above) and checking for adequate headroom.
+
+**Arguments:**
+- `x`: X coordinate in voxel grid
+- `z`: Z coordinate in voxel grid
+- `headroom`: Required air voxels above floor (default 2)
+
+**Returns:** dict with keys: height (float): World Y of floor surface walkable (bool): True if floor found with adequate headroom transparent (bool): True if no opaque voxels in column path_cost (float): Floor material's path cost
+
+#### `rebuild_mesh() -> None`
+
+Force immediate mesh rebuild for rendering.
+
+#### `save(path) -> bool`
+
+Save the voxel grid to a binary file.
+
+**Arguments:**
+- `path`: File path to save to (.mcvg extension recommended)
+
+**Returns:** True on success, False on failure. The file format includes grid dimensions, cell size, material palette, and RLE-compressed voxel data.
+
+#### `set(x, y, z, material) -> None`
+
+Set the material ID at integer coordinates.
+Out-of-bounds coordinates are silently ignored.
+
+#### `to_bytes() -> bytes`
+
+Serialize the voxel grid to a bytes object.
+
+**Returns:** bytes object containing the serialized grid data. Useful for network transmission or custom storage.
+
+### VoxelRegion
+
+VoxelRegion - Portable voxel data for copy/paste operations.
+
+Created by VoxelGrid.copy_region(), used with paste_region().
+Cannot be instantiated directly.
+
+Properties:
+    size (tuple, read-only): Dimensions as (width, height, depth)
+    width, height, depth (int, read-only): Individual dimensions
+
+**Properties:**
+- `depth` *(read-only)*: Region depth. Read-only.
+- `height` *(read-only)*: Region height. Read-only.
+- `size` *(read-only)*: Dimensions (width, height, depth) of the region. Read-only.
+- `width` *(read-only)*: Region width. Read-only.
+
+**Methods:**
+
+### WangSet
+
+WangSet - Wang terrain auto-tile set from a Tiled tileset.
+
+WangSets are obtained from TileSetFile.wang_sets or TileSetFile.wang_set().
+They map abstract terrain types to concrete sprite indices using Tiled's
+Wang tile algorithm.
+
+Properties:
+    name (str, read-only): Wang set name.
+    type (str, read-only): 'corner', 'edge', or 'mixed'.
+    color_count (int, read-only): Number of terrain colors.
+    colors (list, read-only): List of color dicts.
+
+Example:
+    ws = tileset.wang_set('overworld')
+    Terrain = ws.terrain_enum()
+    tiles = ws.resolve(discrete_map)
+
+
+**Properties:**
+- `color_count` *(read-only)*: Number of terrain colors (int, read-only).
+- `colors` *(read-only)*: List of color dicts with name, index, tile_id, probability (read-only).
+- `name` *(read-only)*: Wang set name (str, read-only).
+- `type` *(read-only)*: Wang set type: 'corner', 'edge', or 'mixed' (str, read-only).
+
+**Methods:**
+
+#### `apply(discrete_map: DiscreteMap, tile_layer: TileLayer) -> None`
+
+Resolve terrain and write tile indices directly into a TileLayer.
+
+**Arguments:**
+- `discrete_map`: A DiscreteMap with terrain IDs
+- `tile_layer`: Target TileLayer to write resolved tiles into
+
+#### `resolve(discrete_map: DiscreteMap) -> list[int]`
+
+Resolve terrain data to tile indices using Wang tile rules.
+
+**Arguments:**
+- `discrete_map`: A DiscreteMap with terrain IDs matching this WangSet's colors
+
+**Returns:** List of tile IDs (one per cell). -1 means no matching Wang tile.
+
+#### `terrain_enum() -> IntEnum`
+
+Generate a Python IntEnum from this WangSet's terrain colors.
+
+**Returns:** IntEnum class with NONE=0 and one member per color (UPPER_SNAKE_CASE).
 
 ### Window
 

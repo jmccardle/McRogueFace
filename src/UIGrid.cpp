@@ -289,8 +289,11 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
         sf::RectangleShape overlay;
         overlay.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
         
-        if (entity) {
-            // Valid entity - use its gridstate for visibility
+        if (entity && entity->perspective_map) {
+            // #294: perspective_map values -- 0=unknown, 1=discovered, 2=visible.
+            const uint8_t* pm = entity->perspective_map->data();
+            const int pm_w = entity->perspective_map->width();
+            const int pm_h = entity->perspective_map->height();
             for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
                 x < x_limit;
                 x+=1)
@@ -301,30 +304,23 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                 {
                     // Skip out-of-bounds cells
                     if (x < 0 || x >= grid_w || y < 0 || y >= grid_h) continue;
-                    
+                    if (x >= pm_w || y >= pm_h) continue;
+
                     auto pixel_pos = sf::Vector2f(
                             (x*cell_width - left_spritepixels) * zoom,
                             (y*cell_height - top_spritepixels) * zoom );
 
-                    // Get visibility state from entity's perspective
-                    int idx = y * grid_w + x;
-                    if (idx >= 0 && idx < static_cast<int>(entity->gridstate.size())) {
-                        const auto& state = entity->gridstate[idx];
-                        
-                        overlay.setPosition(pixel_pos);
-                        
-                        // Three overlay colors as specified:
-                        if (!state.discovered) {
-                            // Never seen - black
-                            overlay.setFillColor(sf::Color(0, 0, 0, 255));
-                            activeTexture->draw(overlay);
-                        } else if (!state.visible) {
-                            // Discovered but not currently visible - dark gray
-                            overlay.setFillColor(sf::Color(32, 32, 40, 192));
-                            activeTexture->draw(overlay);
-                        }
-                        // If visible and discovered, no overlay (fully visible)
+                    uint8_t state = pm[y * pm_w + x];
+                    overlay.setPosition(pixel_pos);
+
+                    if (state == 0) {
+                        overlay.setFillColor(sf::Color(0, 0, 0, 255));
+                        activeTexture->draw(overlay);
+                    } else if (state == 1) {
+                        overlay.setFillColor(sf::Color(32, 32, 40, 192));
+                        activeTexture->draw(overlay);
                     }
+                    // state == 2: visible -- no overlay
                 }
             }
         } else {

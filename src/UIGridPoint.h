@@ -19,20 +19,12 @@ class UIGrid;
 class GridData;
 class UIEntity;
 class UIGridPoint;
-class UIGridPointState;
 
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIGrid> grid;
     int x, y;  // Grid coordinates - compute data pointer on access
 } PyUIGridPointObject;
-
-typedef struct {
-    PyObject_HEAD
-    std::shared_ptr<UIGrid> grid;
-    std::shared_ptr<UIEntity> entity;
-    int x, y;  // Position in grid - compute state on access
-} PyUIGridPointStateObject;
 
 // UIGridPoint - grid cell data for pathfinding and layer access
 // #150 - Layer-related properties (color, tilesprite, etc.) removed; now handled by layers
@@ -61,20 +53,9 @@ public:
     static int setattro(PyUIGridPointObject* self, PyObject* name, PyObject* value);
 };
 
-// UIGridPointState - entity-specific info for each cell
-class UIGridPointState
-{
-public:
-    bool visible, discovered;
-
-    static PyObject* get_bool_member(PyUIGridPointStateObject* self, void* closure);
-    static int set_bool_member(PyUIGridPointStateObject* self, PyObject* value, void* closure);
-    static PyGetSetDef getsetters[];
-    static PyObject* repr(PyUIGridPointStateObject* self);
-
-    // #16 - point property: access to GridPoint (None if not discovered)
-    static PyObject* get_point(PyUIGridPointStateObject* self, void* closure);
-};
+// UIGridPointState / PyUIGridPointStateType removed in #294.
+// Per-entity visibility memory now lives on UIEntity::perspective_map as a
+// DiscreteMap (3-state: 0=unknown, 1=discovered, 2=visible). See mcrfpy.Perspective.
 
 namespace mcrfpydef {
     // #189 - Use inline instead of static to ensure single instance across translation units
@@ -89,7 +70,7 @@ namespace mcrfpydef {
         .tp_setattro = (setattrofunc)UIGridPoint::setattro,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR(
-            "GridPoint — a single cell in a Grid.\n\n"
+            "GridPoint -- a single cell in a Grid.\n\n"
             "Obtained via grid.at(x, y). Cannot be constructed directly.\n\n"
             "Properties:\n"
             "    walkable (bool): Whether entities can traverse this cell.\n"
@@ -100,26 +81,6 @@ namespace mcrfpydef {
         ),
         .tp_getset = UIGridPoint::getsetters,
         //.tp_init = (initproc)PyUIGridPoint_init, // TODO Define the init function
-        .tp_new = NULL, // Prevent instantiation from Python - Issue #12
-    };
-
-    // #189 - Use inline instead of static to ensure single instance across translation units
-    inline PyTypeObject PyUIGridPointStateType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
-        .tp_name = "mcrfpy.GridPointState",
-        .tp_basicsize = sizeof(PyUIGridPointStateObject),
-        .tp_itemsize = 0,
-        .tp_repr = (reprfunc)UIGridPointState::repr,
-        .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR(
-            "GridPointState — per-entity visibility state for a grid cell.\n\n"
-            "Obtained via entity.gridstate. Cannot be constructed directly.\n\n"
-            "Properties:\n"
-            "    visible (bool): Whether this cell is currently in the entity's FOV.\n"
-            "    discovered (bool): Whether this cell has ever been seen.\n"
-            "    point (GridPoint, read-only): The underlying GridPoint, or None.\n"
-        ),
-        .tp_getset = UIGridPointState::getsetters,
         .tp_new = NULL, // Prevent instantiation from Python - Issue #12
     };
 }

@@ -9,6 +9,8 @@
 #include "PyVector.h"
 #include "PythonObjectCache.h"
 #include "PyFOV.h"
+#include "PyDiscreteMap.h"  // #294: perspective_map wrapper
+#include "PyPerspective.h"  // #294: VISIBLE constant
 #include "Animation.h"
 #include "PyAnimation.h"
 #include "PyEasing.h"
@@ -23,8 +25,8 @@
 UIEntity::UIEntity()
 : grid(nullptr), position(0.0f, 0.0f), sprite_offset(0.0f, 0.0f)
 {
-    // Initialize sprite with safe defaults (sprite has its own safe constructor now)
-    // gridstate vector starts empty - will be lazily initialized when needed
+    // perspective_map starts null; lazily allocated on first access or
+    // updateVisibility() call once a grid is set (#294).
 }
 
 UIEntity::~UIEntity() {
@@ -36,29 +38,23 @@ UIEntity::~UIEntity() {
 
 // Removed UIEntity(UIGrid&) constructor - using lazy initialization instead
 
-void UIEntity::ensureGridstate()
-{
-    if (!grid) return;
-    size_t expected = static_cast<size_t>(grid->grid_w) * grid->grid_h;
-    if (gridstate.size() != expected) {
-        gridstate.resize(expected);
-        for (auto& state : gridstate) {
-            state.visible = false;
-            state.discovered = false;
-        }
-    }
-}
-
 void UIEntity::updateVisibility()
 {
     if (!grid) return;
 
-    ensureGridstate();
-
-    // First, mark all cells as not visible
-    for (auto& state : gridstate) {
-        state.visible = false;
+    // Lazy-allocate or resize perspective_map if grid dimensions changed.
+    // Dimension mismatch wipes prior state -- the entity's memory has no
+    // identity with a differently-sized grid, so starting fresh is correct.
+    size_t expected = static_cast<size_t>(grid->grid_w) * grid->grid_h;
+    if (!perspective_map || perspective_map->size() != expected) {
+        perspective_map = std::make_shared<DiscreteMap>(grid->grid_w, grid->grid_h, 0);
     }
+
+    // Demote visible (2) -> discovered (1) from prior tick. The invariant
+    // `visible subset of discovered` is structural in the 3-state model: cells
+    // currently visible will be re-promoted to 2 below, and cells that
+    // just left FOV fall to discovered.
+    perspective_map->demoteVisible();
 
     // Compute FOV from entity's cell position (#114, #295)
     int x = cell_position.x;
@@ -67,13 +63,13 @@ void UIEntity::updateVisibility()
     // Use grid's configured FOV algorithm and radius
     grid->computeFOV(x, y, grid->fov_radius, true, grid->fov_algorithm);
 
-    // Update visible cells based on FOV computation
+    // Promote visible cells to 2 (VISIBLE). Cells going 0 -> 2 are
+    // freshly discovered; cells going 1 -> 2 were already discovered.
+    uint8_t* buf = perspective_map->data();
     for (int gy = 0; gy < grid->grid_h; gy++) {
         for (int gx = 0; gx < grid->grid_w; gx++) {
-            int idx = gy * grid->grid_w + gx;
             if (grid->isInFOV(gx, gy)) {
-                gridstate[idx].visible = true;
-                gridstate[idx].discovered = true;  // Once seen, always discovered
+                buf[gy * grid->grid_w + gx] = PyPerspective::VISIBLE;
             }
         }
     }
@@ -106,30 +102,38 @@ void UIEntity::updateVisibility()
 }
 
 PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
+    // #294: at(x, y) returns grid.at(x, y) when the cell is currently VISIBLE
+    // to this entity, None otherwise. Equivalent to:
+    //   self.grid.at(x, y) if self.perspective_map[x, y] == Perspective.VISIBLE else None
     int x, y;
     if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
         return NULL;  // Error already set by PyPosition_ParseInt
     }
 
-    if (self->data->grid == NULL) {
-        PyErr_SetString(PyExc_ValueError, "Entity cannot access surroundings because it is not associated with a grid");
+    auto& entity = self->data;
+    if (!entity->grid) {
+        PyErr_SetString(PyExc_ValueError,
+            "Entity cannot access surroundings because it is not associated with a grid");
         return NULL;
     }
 
-    self->data->ensureGridstate();
-
     // Bounds check
-    if (x < 0 || x >= self->data->grid->grid_w || y < 0 || y >= self->data->grid->grid_h) {
+    if (x < 0 || x >= entity->grid->grid_w || y < 0 || y >= entity->grid->grid_h) {
         PyErr_Format(PyExc_IndexError, "Grid coordinates (%d, %d) out of bounds", x, y);
         return NULL;
     }
 
-    // Use type directly since GridPointState is internal-only (not exported to module)
-    auto type = &mcrfpydef::PyUIGridPointStateType;
-    auto obj = (PyUIGridPointStateObject*)type->tp_alloc(type, 0);
-    obj->grid = self->data->grid;
-    obj->entity = self->data;
-    obj->x = x;  // #16 - Store position for .point property
+    // No perspective yet or cell not visible -> None
+    if (!entity->perspective_map) Py_RETURN_NONE;
+    uint8_t state = entity->perspective_map->data()[y * entity->grid->grid_w + x];
+    if (state != PyPerspective::VISIBLE) Py_RETURN_NONE;
+
+    // Construct a GridPoint wrapper (same pattern as grid.at(x, y)).
+    auto type = &mcrfpydef::PyUIGridPointType;
+    auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+    obj->grid = entity->grid;
+    obj->x = x;
     obj->y = y;
     return (PyObject*)obj;
 }
@@ -369,41 +373,6 @@ sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
     return sf::Vector2i(static_cast<int>(vec->data.x), static_cast<int>(vec->data.y));
 }
 
-PyObject* UIGridPointState_to_PyObject(const UIGridPointState& state) {
-    // Return a simple namespace with visible/discovered attributes
-    // (detached snapshot — not backed by a live entity's gridstate)
-    PyObject* types_mod = PyImport_ImportModule("types");
-    if (!types_mod) return NULL;
-    PyObject* ns_type = PyObject_GetAttrString(types_mod, "SimpleNamespace");
-    Py_DECREF(types_mod);
-    if (!ns_type) return NULL;
-    PyObject* kwargs = Py_BuildValue("{s:O,s:O}",
-        "visible", state.visible ? Py_True : Py_False,
-        "discovered", state.discovered ? Py_True : Py_False);
-    if (!kwargs) { Py_DECREF(ns_type); return NULL; }
-    PyObject* obj = PyObject_Call(ns_type, PyTuple_New(0), kwargs);
-    Py_DECREF(ns_type);
-    Py_DECREF(kwargs);
-
-    return (PyObject*)obj;
-}
-
-PyObject* UIGridPointStateVector_to_PyList(const std::vector<UIGridPointState>& vec) {
-    PyObject* list = PyList_New(vec.size());
-    if (!list) return PyErr_NoMemory();
-
-    for (size_t i = 0; i < vec.size(); ++i) {
-        PyObject* obj = UIGridPointState_to_PyObject(vec[i]);
-        if (!obj) { // Cleanup on failure
-            Py_DECREF(list);
-            return NULL;
-        }
-        PyList_SET_ITEM(list, i, obj); // This steals a reference to obj
-    }
-
-    return list;
-}
-
 PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
     if (reinterpret_cast<intptr_t>(closure) == 0) {
         return sfVector2f_to_PyObject(self->data->position);
@@ -444,9 +413,71 @@ int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closur
     return 0;
 }
 
-PyObject* UIEntity::get_gridstate(PyUIEntityObject* self, void* closure) {
-    // Assuming a function to convert std::vector<UIGridPointState> to PyObject* list
-    return UIGridPointStateVector_to_PyList(self->data->gridstate);
+// #294: perspective_map property. Returns a live DiscreteMap reference
+// (not a snapshot); lazy-allocates on first access when a grid is set.
+PyObject* UIEntity::get_perspective_map(PyUIEntityObject* self, void* closure) {
+    auto& entity = self->data;
+    if (!entity->grid) Py_RETURN_NONE;
+    if (!entity->perspective_map) {
+        entity->perspective_map = std::make_shared<DiscreteMap>(
+            entity->grid->grid_w, entity->grid->grid_h, 0);
+    }
+
+    // Wrap in PyDiscreteMapObject sharing the same shared_ptr.
+    auto type = &mcrfpydef::PyDiscreteMapType;
+    auto obj = (PyDiscreteMapObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+    new (&obj->data) std::shared_ptr<DiscreteMap>(entity->perspective_map);
+    obj->values = obj->data->data();
+    obj->w = obj->data->width();
+    obj->h = obj->data->height();
+    obj->enum_type = PyPerspective::perspective_enum_class;
+    if (obj->enum_type) Py_INCREF(obj->enum_type);
+    return (PyObject*)obj;
+}
+
+// #294: Assign a DiscreteMap as the entity's perspective. The incoming map
+// must match the grid's current dimensions; otherwise ValueError is raised.
+// Assigning None clears the perspective (it will be lazy-reallocated on next
+// access or updateVisibility()).
+int UIEntity::set_perspective_map(PyUIEntityObject* self, PyObject* value, void* closure) {
+    auto& entity = self->data;
+
+    if (value == NULL || value == Py_None) {
+        entity->perspective_map.reset();
+        return 0;
+    }
+
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+        PyErr_SetString(PyExc_TypeError,
+            "perspective_map must be a DiscreteMap or None");
+        return -1;
+    }
+
+    if (!entity->grid) {
+        PyErr_SetString(PyExc_ValueError,
+            "Cannot assign perspective_map: entity has no grid");
+        return -1;
+    }
+
+    auto* incoming = (PyDiscreteMapObject*)value;
+    if (!incoming->data) {
+        PyErr_SetString(PyExc_ValueError,
+            "perspective_map DiscreteMap is not initialized");
+        return -1;
+    }
+
+    if (incoming->data->width() != entity->grid->grid_w ||
+        incoming->data->height() != entity->grid->grid_h) {
+        PyErr_Format(PyExc_ValueError,
+            "DiscreteMap size (%d, %d) does not match grid size (%d, %d)",
+            incoming->data->width(), incoming->data->height(),
+            entity->grid->grid_w, entity->grid->grid_h);
+        return -1;
+    }
+
+    entity->perspective_map = incoming->data;  // share ownership
+    return 0;
 }
 
 int UIEntity::set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure) {
@@ -754,7 +785,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
             }
             self->data->grid.reset();
 
-            // Release identity strong ref — entity left grid
+            // Release identity strong ref -- entity left grid
             self->data->releasePyIdentity();
         }
         return 0;
@@ -796,9 +827,11 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         new_grid->entities->push_back(self->data);
         self->data->grid = new_grid;
         new_grid->spatial_hash.insert(self->data);  // #274
-
-        // Resize gridstate to match new grid dimensions
-        self->data->ensureGridstate();
+        // #294: perspective_map is lazy -- the next updateVisibility() call
+        // (or first `entity.perspective_map` access) allocates sized to the
+        // new grid. We deliberately do NOT preserve or clear the old map:
+        // game code that wants per-grid memory should save/restore via
+        // to_bytes/from_bytes and assign before calling updateVisibility.
     }
 
     return 0;
@@ -1023,7 +1056,7 @@ PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
         // Clear the grid reference
         self->data->grid.reset();
 
-        // Release identity strong ref — entity is no longer in a grid
+        // Release identity strong ref -- entity is no longer in a grid
         self->data->releasePyIdentity();
     }
 
@@ -1246,17 +1279,20 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
 
 PyMethodDef UIEntity::methods[] = {
     {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
-     "at(x, y) or at(pos) -> GridPointState\n\n"
-     "Get the grid point state at the specified position.\n\n"
+     "at(x, y) or at(pos) -> GridPoint | None\n\n"
+     "Return the GridPoint at (x, y) if currently VISIBLE to this entity's\n"
+     "perspective_map, otherwise None. Equivalent to:\n"
+     "    grid.at(x, y) if perspective_map[x, y] == Perspective.VISIBLE else None\n\n"
+     "To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y]\n"
+     "directly and use grid.at(x, y) for cell data.\n\n"
      "Args:\n"
      "    x, y: Grid coordinates as two integers, OR\n"
      "    pos: Grid coordinates as tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    GridPointState for the entity's view of that grid cell.\n\n"
      "Example:\n"
-     "    state = entity.at(5, 3)\n"
-     "    state = entity.at((5, 3))\n"
-     "    state = entity.at(pos=(5, 3))"},
+     "    point = entity.at(5, 3)\n"
+     "    if point is not None and point.walkable: ...\n"
+     "    point = entity.at((5, 3))\n"
+     "    point = entity.at(pos=(5, 3))"},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS,
      "Remove this entity from its grid.\n\n"
@@ -1290,8 +1326,9 @@ PyMethodDef UIEntity::methods[] = {
      "update_visibility() -> None\n\n"
      "Update entity's visibility state based on current FOV.\n\n"
      "Recomputes which cells are visible from the entity's position and updates\n"
-     "the entity's gridstate to track explored areas. This is called automatically\n"
-     "when the entity moves if it has a grid with perspective set."},
+     "the entity's perspective_map (see entity.perspective_map and mcrfpy.Perspective).\n"
+     "This is called automatically when the entity moves if it has a grid with\n"
+     "perspective set."},
     {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
      "visible_entities(fov=None, radius=None) -> list[Entity]\n\n"
      "Get list of other entities visible from this entity's position.\n\n"
@@ -1618,17 +1655,20 @@ PyMethodDef UIEntity_all_methods[] = {
                    "Use list target with loop=True for repeating sprite frame animations.")
      )},
     {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
-     "at(x, y) or at(pos) -> GridPointState\n\n"
-     "Get the grid point state at the specified position.\n\n"
+     "at(x, y) or at(pos) -> GridPoint | None\n\n"
+     "Return the GridPoint at (x, y) if currently VISIBLE to this entity's\n"
+     "perspective_map, otherwise None. Equivalent to:\n"
+     "    grid.at(x, y) if perspective_map[x, y] == Perspective.VISIBLE else None\n\n"
+     "To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y]\n"
+     "directly and use grid.at(x, y) for cell data.\n\n"
      "Args:\n"
      "    x, y: Grid coordinates as two integers, OR\n"
      "    pos: Grid coordinates as tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    GridPointState for the entity's view of that grid cell.\n\n"
      "Example:\n"
-     "    state = entity.at(5, 3)\n"
-     "    state = entity.at((5, 3))\n"
-     "    state = entity.at(pos=(5, 3))"},
+     "    point = entity.at(5, 3)\n"
+     "    if point is not None and point.walkable: ...\n"
+     "    point = entity.at((5, 3))\n"
+     "    point = entity.at(pos=(5, 3))"},
     {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS,
      "Remove this entity from its grid.\n\n"
@@ -1662,8 +1702,9 @@ PyMethodDef UIEntity_all_methods[] = {
      "update_visibility() -> None\n\n"
      "Update entity's visibility state based on current FOV.\n\n"
      "Recomputes which cells are visible from the entity's position and updates\n"
-     "the entity's gridstate to track explored areas. This is called automatically\n"
-     "when the entity moves if it has a grid with perspective set."},
+     "the entity's perspective_map (see entity.perspective_map and mcrfpy.Perspective).\n"
+     "This is called automatically when the entity moves if it has a grid with\n"
+     "perspective set."},
     {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
      "visible_entities(fov=None, radius=None) -> list[Entity]\n\n"
      "Get list of other entities visible from this entity's position.\n\n"
@@ -1726,7 +1767,16 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position,
      "Fractional tile position for rendering (Vector). Use for smooth animation between grid cells.", (void*)0},
 
-    {"gridstate", (getter)UIEntity::get_gridstate, NULL, "Grid point states for the entity", NULL},
+    {"perspective_map", (getter)UIEntity::get_perspective_map, (setter)UIEntity::set_perspective_map,
+     "Per-entity FOV memory (DiscreteMap, read-write). 3-state values per cell: "
+     "0 = unknown (never seen), 1 = discovered (seen before, not currently visible), "
+     "2 = visible (in current FOV). Use mcrfpy.Perspective enum for clarity. "
+     "Lazy-allocated on first access once the entity has a grid; returns None otherwise. "
+     "The returned DiscreteMap is a live reference -- mutations are visible to subsequent "
+     "updateVisibility() calls. Assigning a DiscreteMap replaces the entity's memory; "
+     "the new map's size must match the grid's size or ValueError is raised. "
+     "Assign None to clear (will be lazy-reallocated on next access).",
+     NULL},
     {"grid", (getter)UIEntity::get_grid, (setter)UIEntity::set_grid,
      "Grid this entity belongs to. "
      "Get: Returns the Grid or None. "

@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2026-01-28" "McRogueFace 0.2.2-prerelease-7drl2026-12-g55f6ea9" ""
+.TH "MCRFPY" "3" "2026-04-17" "McRogueFace 0.2.7-prerelease-7drl2026-76-g417fc43" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2026-01-28 19:16:58\f[R]
+\f[I]Generated on 2026-04-17 21:43:43\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -37,7 +37,13 @@ Animation
 .IP \[bu] 2
 Arc
 .IP \[bu] 2
+AutoRuleSet
+.IP \[bu] 2
 BSP
+.IP \[bu] 2
+Behavior
+.IP \[bu] 2
+Billboard
 .IP \[bu] 2
 CallableBinding
 .IP \[bu] 2
@@ -51,11 +57,19 @@ ColorLayer
 .IP \[bu] 2
 DijkstraMap
 .IP \[bu] 2
+DiscreteMap
+.IP \[bu] 2
 Drawable
 .IP \[bu] 2
 Easing
 .IP \[bu] 2
 Entity
+.IP \[bu] 2
+Entity3D
+.IP \[bu] 2
+EntityCollection3D
+.IP \[bu] 2
+EntityCollection3DIter
 .IP \[bu] 2
 FOV
 .IP \[bu] 2
@@ -65,6 +79,8 @@ Frame
 .IP \[bu] 2
 Grid
 .IP \[bu] 2
+GridView
+.IP \[bu] 2
 HeightMap
 .IP \[bu] 2
 InputState
@@ -73,7 +89,11 @@ Key
 .IP \[bu] 2
 Keyboard
 .IP \[bu] 2
+LdtkProject
+.IP \[bu] 2
 Line
+.IP \[bu] 2
+Model3D
 .IP \[bu] 2
 Mouse
 .IP \[bu] 2
@@ -83,6 +103,8 @@ Music
 .IP \[bu] 2
 NoiseSource
 .IP \[bu] 2
+Perspective
+.IP \[bu] 2
 PropertyBinding
 .IP \[bu] 2
 Scene
@@ -91,11 +113,17 @@ Shader
 .IP \[bu] 2
 Sound
 .IP \[bu] 2
+SoundBuffer
+.IP \[bu] 2
 Sprite
 .IP \[bu] 2
 Texture
 .IP \[bu] 2
 TileLayer
+.IP \[bu] 2
+TileMapFile
+.IP \[bu] 2
+TileSetFile
 .IP \[bu] 2
 Timer
 .IP \[bu] 2
@@ -103,7 +131,17 @@ Transition
 .IP \[bu] 2
 Traversal
 .IP \[bu] 2
+Trigger
+.IP \[bu] 2
 Vector
+.IP \[bu] 2
+Viewport3D
+.IP \[bu] 2
+VoxelGrid
+.IP \[bu] 2
+VoxelRegion
+.IP \[bu] 2
+WangSet
 .IP \[bu] 2
 Window
 .RE
@@ -156,7 +194,7 @@ Note:
 .PP
 \f[B]Returns:\f[R] Frame, Caption, Sprite, Grid, or Entity if found;
 None otherwise Searches scene UI elements and entities within grids.
-.SS \f[V]findAll(pattern: str, scene: str = None) -> list\f[R]
+.SS \f[V]find_all(pattern: str, scene: str = None) -> list\f[R]
 .PP
 Find all UI elements matching a name pattern.
 .PP
@@ -167,7 +205,7 @@ wildcards (* matches any characters) - \f[V]scene\f[R]: Scene to search
 in (default: current scene)
 .PP
 \f[B]Returns:\f[R] list: All matching UI elements and entities
-.SS \f[V]getMetrics() -> dict\f[R]
+.SS \f[V]get_metrics() -> dict\f[R]
 .PP
 Get current performance metrics.
 .PP
@@ -203,7 +241,7 @@ current frame
 .PP
 \f[B]Raises:\f[R] RuntimeError: If no benchmark is currently running
 Messages appear in the `logs' array of each frame in the output JSON.
-.SS \f[V]setDevConsole(enabled: bool) -> None\f[R]
+.SS \f[V]set_dev_console(enabled: bool) -> None\f[R]
 .PP
 Enable or disable the developer console overlay.
 .PP
@@ -215,8 +253,9 @@ Note:
 \f[B]Returns:\f[R] None When disabled, the grave/tilde key will not open
 the console.
 Use this to ship games without debug features.
-.SS \f[V]setScale(multiplier: float) -> None\f[R]
+.SS \f[V]set_scale(multiplier: float) -> None\f[R]
 .PP
+Deprecated: use Window.resolution instead.
 Scale the game window size.
 .PP
 Note:
@@ -400,17 +439,18 @@ raised.
 .SS Animation
 .PP
 Animation(property: str, target: Any, duration: float, easing: str =
-`linear', delta: bool = False, callback: Callable = None)
+`linear', delta: bool = False, loop: bool = False, callback: Callable =
+None)
 .PP
 Create an animation that interpolates a property value over time.
 .PP
 Args: property: Property name to animate.
 Valid properties depend on target type: - Position/Size: `x', `y', `w',
 `h', `pos', `size' - Appearance: `fill_color', `outline_color',
-`outline', `opacity' - Sprite: `sprite_index', `sprite_number', `scale'
-- Grid: `center', `zoom' - Caption: `text' - Sub-properties:
-`fill_color.r', `fill_color.g', `fill_color.b', `fill_color.a' target:
-Target value for the animation.
+`outline', `opacity' - Sprite: `sprite_index', `scale' - Grid: `center',
+`zoom' - Caption: `text' - Sub-properties: `fill_color.r',
+`fill_color.g', `fill_color.b', `fill_color.a' target: Target value for
+the animation.
 Type depends on property: - float: For numeric properties (x, y, w, h,
 scale, opacity, zoom) - int: For integer properties (sprite_index) -
 tuple (r, g, b[, a]): For color properties - tuple (x, y): For vector
@@ -428,7 +468,11 @@ Options: - `linear' (default) - `easeIn', `easeOut', `easeInOut' -
 `easeInBounce', `easeOutBounce', `easeInOutBounce' delta: If True,
 target is relative to start value (additive).
 Default False.
-callback: Function(animation, target) called when animation completes.
+loop: If True, animation repeats from start when it reaches the end.
+Default False.
+callback: Function(target, property, value) called when animation
+completes.
+Not called for looping animations (since they never complete).
 .PP
 Example: # Move a frame from current position to x=500 over 2 seconds
 anim = mcrfpy.Animation(`x', 500.0, 2.0, `easeInOut')
@@ -436,15 +480,9 @@ anim.start(my_frame)
 .IP
 .nf
 \f[C]
-# Fade out with callback
-def on_done(anim, target):
-    print(\[aq]Animation complete!\[aq])
-fade = mcrfpy.Animation(\[aq]fill_color.a\[aq], 0, 1.0, callback=on_done)
-fade.start(my_sprite)
-
-# Animate through sprite frames
-walk_cycle = mcrfpy.Animation(\[aq]sprite_index\[aq], [0,1,2,3,2,1], 0.5, \[aq]linear\[aq])
-walk_cycle.start(my_entity)
+# Looping sprite animation
+walk = mcrfpy.Animation(\[aq]sprite_index\[aq], [0,1,2,3,2,1], 0.6, loop=True)
+walk.start(my_sprite)
 \f[R]
 .fi
 .PP
@@ -460,6 +498,9 @@ True when elapsed >= duration or complete() was called.
 - \f[V]is_delta\f[R] \f[I](read-only)\f[R]: Whether animation uses delta
 mode (bool, read-only).
 In delta mode, the target value is added to the starting value.
+- \f[V]is_looping\f[R] \f[I](read-only)\f[R]: Whether animation loops
+(bool, read-only).
+Looping animations repeat from the start when they reach the end.
 - \f[V]property\f[R] \f[I](read-only)\f[R]: Target property name (str,
 read-only).
 The property being animated (e.g., `pos', `opacity', `sprite_index').
@@ -513,6 +554,16 @@ property is busy
 \f[B]Raises:\f[R] RuntimeError: When conflict_mode=`error' and property
 is already animating The animation will automatically stop if the target
 is destroyed.
+.SS \f[V]stop() -> None\f[R]
+.PP
+Stop the animation without completing it.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] None Unlike complete(), this does NOT apply the final
+value and does NOT trigger the callback.
+The animation is simply cancelled and will be removed from the
+AnimationManager.
 .SS \f[V]update(delta_time: float) -> bool\f[R]
 .PP
 Update the animation by the given time delta.
@@ -632,7 +683,7 @@ Invisible objects are not rendered or clickable.
 first).
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this drawable\[cq]s property.
 .PP
@@ -644,8 +695,10 @@ value - type depends on property (float, tuple for color/vector, etc.)
 - \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
 Easing function: Easing enum value, string name, or None for linear -
 \f[V]delta\f[R]: If True, target is relative to current value; if False,
-target is absolute - \f[V]callback\f[R]: Optional callable invoked when
-animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
 `queue', or `error' if property already animating
 .PP
 \f[B]Returns:\f[R] Animation object for monitoring progress
@@ -677,6 +730,63 @@ Note:
 \f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
 size) - \f[V]height\f[R]: New height in pixels (or use size) -
 \f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS AutoRuleSet
+.PP
+AutoRuleSet - LDtk auto-tile rule set for pattern-based terrain
+rendering.
+.PP
+AutoRuleSets are obtained from LdtkProject.ruleset().
+They map IntGrid terrain values to sprite tiles using LDtk\[cq]s
+pattern-matching auto-rule system.
+.PP
+Properties: name (str, read-only): Rule set name (layer identifier).
+grid_size (int, read-only): Cell size in pixels.
+value_count (int, read-only): Number of IntGrid values.
+values (list, read-only): List of value dicts.
+rule_count (int, read-only): Total rules across all groups.
+group_count (int, read-only): Number of rule groups.
+.PP
+Example: rs = project.ruleset(`Walls') Terrain = rs.terrain_enum()
+rs.apply(discrete_map, tile_layer, seed=42)
+.PP
+\f[B]Properties:\f[R] - \f[V]grid_size\f[R] \f[I](read-only)\f[R]: Cell
+size in pixels (int, read-only).
+- \f[V]group_count\f[R] \f[I](read-only)\f[R]: Number of rule groups
+(int, read-only).
+- \f[V]name\f[R] \f[I](read-only)\f[R]: Rule set name / layer identifier
+(str, read-only).
+- \f[V]rule_count\f[R] \f[I](read-only)\f[R]: Total number of rules
+across all groups (int, read-only).
+- \f[V]value_count\f[R] \f[I](read-only)\f[R]: Number of IntGrid terrain
+values (int, read-only).
+- \f[V]values\f[R] \f[I](read-only)\f[R]: List of IntGrid value dicts
+with value and name (read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]apply(discrete_map: DiscreteMap, tile_layer: TileLayer, seed: int = 0) -> None\f[R]
+.PP
+Resolve auto-rules and write tile indices directly into a TileLayer.
+.PP
+\f[B]Arguments:\f[R] - \f[V]discrete_map\f[R]: A DiscreteMap with
+IntGrid values - \f[V]tile_layer\f[R]: Target TileLayer to write
+resolved tiles into - \f[V]seed\f[R]: Random seed for deterministic
+results (default: 0)
+.SS \f[V]resolve(discrete_map: DiscreteMap, seed: int = 0) -> list[int]\f[R]
+.PP
+Resolve IntGrid data to tile indices using LDtk auto-rules.
+.PP
+\f[B]Arguments:\f[R] - \f[V]discrete_map\f[R]: A DiscreteMap with
+IntGrid values matching this rule set - \f[V]seed\f[R]: Random seed for
+deterministic tile selection and probability (default: 0)
+.PP
+\f[B]Returns:\f[R] List of tile IDs (one per cell).
+-1 means no matching rule.
+.SS \f[V]terrain_enum() -> IntEnum\f[R]
+.PP
+Generate a Python IntEnum from this rule set\[cq]s IntGrid values.
+.PP
+\f[B]Returns:\f[R] IntEnum class with NONE=0 and one member per IntGrid
+value (UPPER_SNAKE_CASE).
 .SS BSP
 .PP
 BSP(pos: tuple[int, int], size: tuple[int, int])
@@ -806,6 +916,122 @@ Default: LEVEL_ORDER.
 .PP
 \f[B]Returns:\f[R] Iterator yielding BSPNode objects Orders: PRE_ORDER,
 IN_ORDER, POST_ORDER, LEVEL_ORDER, INVERTED_LEVEL_ORDER
+.SS Behavior
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+Enum representing entity behavior types for grid.step() turn management.
+.PP
+Values: IDLE: No action each turn CUSTOM: Calls step callback only, no
+built-in movement NOISE4: Random movement in 4 cardinal directions
+NOISE8: Random movement in 8 directions (incl.\ diagonals) PATH: Follow
+a precomputed path to completion WAYPOINT: Path through a sequence of
+waypoints in order PATROL: Patrol waypoints back and forth (reversing at
+ends) LOOP: Loop through waypoints cyclically SLEEP: Wait for N turns,
+then trigger DONE SEEK: Move toward target using Dijkstra map FLEE: Move
+away from target using Dijkstra map
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
+.SS Billboard
+.PP
+Billboard(texture=None, sprite_index=0, pos=(0,0,0), scale=1.0,
+facing=`camera_y')
+.PP
+A camera-facing 3D sprite for trees, items, particles, etc.
+.PP
+Args: texture (Texture, optional): Sprite sheet texture.
+Default: None sprite_index (int): Index into sprite sheet.
+Default: 0 pos (tuple): World position (x, y, z).
+Default: (0, 0, 0) scale (float): Uniform scale factor.
+Default: 1.0 facing (str): Facing mode - `camera', `camera_y', or
+`fixed'.
+Default: `camera_y'
+.PP
+Properties: texture (Texture): Sprite sheet texture sprite_index (int):
+Index into sprite sheet pos (tuple): World position (x, y, z) scale
+(float): Uniform scale factor facing (str): Facing mode - `camera',
+`camera_y', or `fixed' theta (float): Horizontal rotation for `fixed'
+mode (radians) phi (float): Vertical tilt for `fixed' mode (radians)
+opacity (float): Opacity 0.0 (transparent) to 1.0 (opaque) visible
+(bool): Visibility state
+.PP
+\f[B]Properties:\f[R] - \f[V]facing\f[R]: Facing mode: `camera',
+`camera_y', or `fixed' (str) - \f[V]opacity\f[R]: Opacity from 0.0
+(transparent) to 1.0 (opaque) (float) - \f[V]phi\f[R]: Vertical tilt for
+`fixed' mode in radians (float) - \f[V]pos\f[R]: World position as (x,
+y, z) tuple - \f[V]scale\f[R]: Uniform scale factor (float) -
+\f[V]sprite_index\f[R]: Index into sprite sheet (int) -
+\f[V]texture\f[R]: Sprite sheet texture (Texture or None) -
+\f[V]theta\f[R]: Horizontal rotation for `fixed' mode in radians (float)
+- \f[V]visible\f[R]: Visibility state (bool)
+.PP
+\f[B]Methods:\f[R]
 .SS CallableBinding
 .PP
 CallableBinding(callable: Callable[[], float])
@@ -958,7 +1184,7 @@ values rendered first).
 Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this drawable\[cq]s property.
 .PP
@@ -970,8 +1196,10 @@ value - type depends on property (float, tuple for color/vector, etc.)
 - \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
 Easing function: Easing enum value, string name, or None for linear -
 \f[V]delta\f[R]: If True, target is relative to current value; if False,
-target is absolute - \f[V]callback\f[R]: Optional callable invoked when
-animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
 `queue', or `error' if property already animating
 .PP
 \f[B]Returns:\f[R] Animation object for monitoring progress
@@ -1109,7 +1337,7 @@ Invisible objects are not rendered or clickable.
 first).
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this drawable\[cq]s property.
 .PP
@@ -1121,8 +1349,10 @@ value - type depends on property (float, tuple for color/vector, etc.)
 - \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
 Easing function: Easing enum value, string name, or None for linear -
 \f[V]delta\f[R]: If True, target is relative to current value; if False,
-target is absolute - \f[V]callback\f[R]: Optional callable invoked when
-animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
 `queue', or `error' if property already animating
 .PP
 \f[B]Returns:\f[R] Animation object for monitoring progress
@@ -1233,28 +1463,31 @@ Note:
 255)
 .SS ColorLayer
 .PP
-ColorLayer(z_index=-1, grid_size=None)
+ColorLayer(z_index=-1, name=None, grid_size=None)
 .PP
 A grid layer that stores RGBA colors per cell for background/overlay
 effects.
 .PP
-ColorLayers are typically created via Grid.add_layer(`color', \&...)
-rather than instantiated directly.
-When attached to a Grid, the layer inherits rendering parameters and can
-participate in FOV (field of view) calculations.
+ColorLayers can be created standalone and attached to a Grid via
+add_layer() or passed to the Grid constructor\[cq]s layers parameter.
+Layers with size (0, 0) automatically resize to match the Grid when
+attached.
 .PP
 Args: z_index (int): Render order relative to entities.
 Negative values render below entities (as backgrounds), positive values
 render above entities (as overlays).
-Default: -1 (background) grid_size (tuple): Dimensions as (width,
-height).
-If None, the layer will inherit the parent Grid\[cq]s dimensions when
-attached.
+Default: -1 (background) name (str): Layer name for Grid.layer(name)
+lookup.
+Default: None grid_size (tuple): Dimensions as (width, height).
+If None or (0, 0), the layer will auto-resize when attached to a Grid.
 Default: None
 .PP
 Attributes: z_index (int): Layer z-order relative to entities
-(read/write) visible (bool): Whether layer is rendered (read/write)
-grid_size (tuple): Layer dimensions as (width, height) (read-only)
+(read/write) name (str): Layer name for lookup (read-only) visible
+(bool): Whether layer is rendered (read/write) grid_size (tuple): Layer
+dimensions as (width, height) (read-only) grid (Grid): Parent Grid or
+None.
+Setting manages layer association.
 .PP
 Methods: at(x, y) -> Color: Get the color at cell position (x, y) set(x,
 y, color): Set the color at cell position (x, y) fill(color): Fill the
@@ -1263,14 +1496,16 @@ rectangular region with a color draw_fov(\&...): Draw FOV-based
 visibility colors apply_perspective(entity, \&...): Bind layer to entity
 for automatic FOV updates
 .PP
-Example: grid = mcrfpy.Grid(grid_size=(20, 15), texture=my_texture,
-pos=(50, 50), size=(640, 480)) layer = grid.add_layer(`color',
-z_index=-1) layer.fill(mcrfpy.Color(40, 40, 40)) # Dark gray background
-layer.set(5, 5, mcrfpy.Color(255, 0, 0, 128)) # Semi-transparent red
-cell
+Example: fog = mcrfpy.ColorLayer(z_index=-1, name=`fog') grid =
+mcrfpy.Grid(grid_size=(20, 15), layers=[fog]) fog.fill(mcrfpy.Color(40,
+40, 40)) # Dark gray background grid.layer(`fog').set(5, 5,
+mcrfpy.Color(255, 0, 0, 128))
 .PP
-\f[B]Properties:\f[R] - \f[V]grid_size\f[R]: Layer dimensions as (width,
-height) tuple.
+\f[B]Properties:\f[R] - \f[V]grid\f[R]: Parent Grid or None.
+Setting manages layer association and handles lazy allocation.
+- \f[V]grid_size\f[R]: Layer dimensions as (width, height) tuple.
+- \f[V]name\f[R] \f[I](read-only)\f[R]: Layer name (str, read-only).
+Used for Grid.layer(name) lookup.
 - \f[V]visible\f[R]: Whether the layer is rendered.
 - \f[V]z_index\f[R]: Layer z-order.
 Negative values render below entities.
@@ -1404,6 +1639,244 @@ Defaults to dijkstra dimensions.
 -1.0).
 .PP
 \f[B]Returns:\f[R] HeightMap with distance values as heights.
+.SS DiscreteMap
+.PP
+DiscreteMap(size: tuple[int, int], fill: int = 0, enum: type[IntEnum] =
+None)
+.PP
+A 2D grid of uint8 values (0-255) for discrete/categorical data.
+.PP
+DiscreteMap provides memory-efficient storage for terrain types, region
+IDs, walkability masks, and other categorical data.
+Uses 4x less memory than HeightMap for the same dimensions.
+.PP
+Args: size: (width, height) dimensions.
+Immutable after creation.
+fill: Initial value for all cells (0-255).
+Default 0.
+enum: Optional IntEnum class for value interpretation.
+.PP
+Example: from enum import IntEnum class Terrain(IntEnum): WATER = 0
+GRASS = 1 MOUNTAIN = 2
+.IP
+.nf
+\f[C]
+dmap = mcrfpy.DiscreteMap((100, 100), fill=0, enum=Terrain)
+dmap.fill(Terrain.GRASS, pos=(10, 10), size=(20, 20))
+print(dmap[15, 15])  # Terrain.GRASS
+\f[R]
+.fi
+.PP
+\f[B]Properties:\f[R] - \f[V]enum_type\f[R]: Optional IntEnum class for
+value interpretation.
+- \f[V]size\f[R] \f[I](read-only)\f[R]: Dimensions (width, height) of
+the map.
+Read-only.
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]add(other: DiscreteMap | int, *, pos=None, source_pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Add values from another map or a scalar, with saturation to 0-255.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: DiscreteMap to add, or int
+scalar to add to all cells - \f[V]pos\f[R]: Destination start (x, y) in
+self (default: (0, 0)) - \f[V]source_pos\f[R]: Source start (x, y) in
+other (default: (0, 0)) - \f[V]size\f[R]: Region (width, height)
+(default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]bitwise_and(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Bitwise AND with another DiscreteMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: DiscreteMap for AND operation -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]bitwise_or(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Bitwise OR with another DiscreteMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: DiscreteMap for OR operation -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]bitwise_xor(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Bitwise XOR with another DiscreteMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: DiscreteMap for XOR operation -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]bool(condition: int | set | callable) -> DiscreteMap\f[R]
+.PP
+Create binary mask from condition.
+Returns NEW DiscreteMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]condition\f[R]: int: match that value; set:
+match any in set; callable: predicate
+.PP
+\f[B]Returns:\f[R] DiscreteMap: new map with 1 where condition true, 0
+elsewhere
+.SS \f[V]clear() -> DiscreteMap\f[R]
+.PP
+Set all cells to 0.
+Equivalent to fill(0).
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]copy_from(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Copy values from another DiscreteMap into the specified region.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: DiscreteMap to copy from -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]count(value: int) -> int\f[R]
+.PP
+Count cells with the specified value.
+.PP
+\f[B]Arguments:\f[R] - \f[V]value\f[R]: Value to count (0-255)
+.PP
+\f[B]Returns:\f[R] int: Number of cells with that value
+.SS \f[V]count_range(min_val: int, max_val: int) -> int\f[R]
+.PP
+Count cells with values in the specified range (inclusive).
+.PP
+\f[B]Arguments:\f[R] - \f[V]min_val\f[R]: Minimum value (inclusive) -
+\f[V]max_val\f[R]: Maximum value (inclusive)
+.PP
+\f[B]Returns:\f[R] int: Number of cells in range
+.SS \f[V]fill(value: int, *, pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Set cells in region to the specified value.
+.PP
+\f[B]Arguments:\f[R] - \f[V]value\f[R]: The value to set (0-255, or
+IntEnum member) - \f[V]pos\f[R]: Region start (x, y) in destination
+(default: (0, 0)) - \f[V]size\f[R]: Region (width, height) to fill
+(default: remaining space)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]from_bytes(data: bytes, size: tuple[int, int], *, enum: type = None) -> DiscreteMap\f[R]
+.PP
+Create a DiscreteMap from raw byte data.
+.PP
+\f[B]Arguments:\f[R] - \f[V]data\f[R]: Raw cell data (one byte per cell,
+row-major) - \f[V]size\f[R]: (width, height) dimensions -
+\f[V]enum\f[R]: Optional IntEnum class for value interpretation
+.PP
+\f[B]Returns:\f[R] DiscreteMap: new map initialized from data
+.PP
+\f[B]Raises:\f[R] ValueError: Data length does not match width * height
+.SS \f[V]from_heightmap(hmap: HeightMap, mapping: list[tuple[tuple[float,float], int]], *, enum=None) -> DiscreteMap\f[R]
+.PP
+Create DiscreteMap from HeightMap using range-to-value mapping.
+.PP
+\f[B]Arguments:\f[R] - \f[V]hmap\f[R]: HeightMap to convert -
+\f[V]mapping\f[R]: List of ((min, max), value) tuples - \f[V]enum\f[R]:
+Optional IntEnum class for value interpretation
+.PP
+\f[B]Returns:\f[R] DiscreteMap: new map with mapped values
+.SS \f[V]get(x, y) or (pos) -> int | Enum\f[R]
+.PP
+Get the value at integer coordinates.
+.PP
+\f[B]Returns:\f[R] int or enum member if enum_type is set
+.PP
+\f[B]Raises:\f[R] IndexError: Position is out of bounds
+.SS \f[V]histogram() -> dict[int, int]\f[R]
+.PP
+Get a histogram of value counts.
+.PP
+\f[B]Returns:\f[R] dict: {value: count} for all values present in the
+map
+.SS \f[V]invert() -> DiscreteMap\f[R]
+.PP
+Return NEW DiscreteMap with (255 - value) for each cell.
+.PP
+\f[B]Returns:\f[R] DiscreteMap: new inverted map (original unchanged)
+.SS \f[V]mask() -> memoryview\f[R]
+.PP
+Get raw uint8_t data as memoryview for libtcod compatibility.
+.PP
+\f[B]Returns:\f[R] memoryview: Direct access to internal buffer
+(read/write)
+.SS \f[V]max(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Set each cell to the maximum of this and another DiscreteMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: DiscreteMap to compare with -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]min(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Set each cell to the minimum of this and another DiscreteMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: DiscreteMap to compare with -
+\f[V]pos\f[R]: Destination start (x, y) in self (default: (0, 0)) -
+\f[V]source_pos\f[R]: Source start (x, y) in other (default: (0, 0)) -
+\f[V]size\f[R]: Region (width, height) (default: max overlapping area)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]min_max() -> tuple[int, int]\f[R]
+.PP
+Get the minimum and maximum values in the map.
+.PP
+\f[B]Returns:\f[R] tuple[int, int]: (min_value, max_value)
+.SS \f[V]multiply(factor: float, *, pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Multiply values by a scalar factor, with saturation to 0-255.
+.PP
+\f[B]Arguments:\f[R] - \f[V]factor\f[R]: Multiplier for each cell -
+\f[V]pos\f[R]: Region start (x, y) (default: (0, 0)) - \f[V]size\f[R]:
+Region (width, height) (default: entire map)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]set(x: int, y: int, value: int) -> None\f[R]
+.PP
+Set the value at integer coordinates.
+.PP
+\f[B]Arguments:\f[R] - \f[V]x\f[R]: X coordinate - \f[V]y\f[R]: Y
+coordinate - \f[V]value\f[R]: Value to set (0-255, or IntEnum member)
+.PP
+\f[B]Raises:\f[R] IndexError: Position is out of bounds ValueError:
+Value out of range 0-255
+.SS \f[V]subtract(other: DiscreteMap | int, *, pos=None, source_pos=None, size=None) -> DiscreteMap\f[R]
+.PP
+Subtract values from another map or a scalar, with saturation to 0-255.
+.PP
+\f[B]Arguments:\f[R] - \f[V]other\f[R]: DiscreteMap to subtract, or int
+scalar - \f[V]pos\f[R]: Destination start (x, y) in self (default: (0,
+0)) - \f[V]source_pos\f[R]: Source start (x, y) in other (default: (0,
+0)) - \f[V]size\f[R]: Region (width, height) (default: max overlapping
+area)
+.PP
+\f[B]Returns:\f[R] DiscreteMap: self, for method chaining
+.SS \f[V]to_bytes() -> bytes\f[R]
+.PP
+Serialize map data to bytes (row-major, one byte per cell).
+.PP
+\f[B]Returns:\f[R] bytes: Raw cell data, length = width * height
+.SS \f[V]to_heightmap(mapping: dict[int, float] = None) -> HeightMap\f[R]
+.PP
+Convert to HeightMap, optionally mapping values to floats.
+.PP
+\f[B]Arguments:\f[R] - \f[V]mapping\f[R]: Optional {int: float} mapping
+(default: direct cast)
+.PP
+\f[B]Returns:\f[R] HeightMap: new heightmap with converted values
 .SS Drawable
 .PP
 Base class for all drawable UI elements
@@ -1527,41 +2000,106 @@ Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 name (str): Element name for finding.
 Default: None x (float): X grid position override (tile coords).
 Default: 0 y (float): Y grid position override (tile coords).
-Default: 0
+Default: 0 sprite_offset (tuple): Pixel offset for oversized sprites.
+Default: (0, 0) sprite_grid (list): Per-tile sprite indices for
+composite entities.
+Default: None
 .PP
 Attributes: pos (Vector): Pixel position relative to grid (requires grid
 attachment) x, y (float): Pixel position components (requires grid
 attachment) grid_pos (Vector): Integer tile coordinates (logical game
 position) grid_x, grid_y (int): Integer tile coordinate components
 draw_pos (Vector): Fractional tile position for smooth animation
-gridstate (GridPointState): Visibility state for grid points
+perspective_map (DiscreteMap | None): 3-state per-entity FOV memory
 sprite_index (int): Current sprite index visible (bool): Visibility
 state opacity (float): Opacity value name (str): Element name
+sprite_offset (Vector): Pixel offset for oversized sprites
+sprite_offset_x (float): X component of sprite offset sprite_offset_y
+(float): Y component of sprite offset
 .PP
-\f[B]Properties:\f[R] - \f[V]draw_pos\f[R]: Fractional tile position for
-rendering (Vector).
+\f[B]Properties:\f[R] - \f[V]behavior_type\f[R] \f[I](read-only)\f[R]:
+Current behavior type (int, read-only).
+Use set_behavior() to change.
+- \f[V]cell_pos\f[R]: Integer logical cell position (Vector).
+Decoupled from draw_pos.
+Determines which cell this entity logically occupies for collision,
+pathfinding, etc.
+- \f[V]cell_x\f[R]: Integer X cell coordinate.
+- \f[V]cell_y\f[R]: Integer Y cell coordinate.
+- \f[V]default_behavior\f[R]: Default behavior type (int, maps to
+Behavior enum).
+Entity reverts to this after DONE trigger.
+Default: 0 (IDLE).
+- \f[V]draw_pos\f[R]: Fractional tile position for rendering (Vector).
 Use for smooth animation between grid cells.
 - \f[V]grid\f[R]: Grid this entity belongs to.
 Get: Returns the Grid or None.
 Set: Assign a Grid to move entity, or None to remove from grid.
-- \f[V]grid_pos\f[R]: Grid position as integer tile coordinates
+- \f[V]grid_pos\f[R]: Grid position as integer cell coordinates
 (Vector).
-The logical cell this entity occupies.
-- \f[V]grid_x\f[R]: Grid X position as integer tile coordinate.
-- \f[V]grid_y\f[R]: Grid Y position as integer tile coordinate.
-- \f[V]gridstate\f[R]: Grid point states for the entity -
-\f[V]name\f[R]: Name for finding elements - \f[V]opacity\f[R]: Opacity
-(0.0 = transparent, 1.0 = opaque) - \f[V]pos\f[R]: Pixel position
-relative to grid (Vector).
+Alias for cell_pos.
+- \f[V]grid_x\f[R]: Grid X position as integer cell coordinate.
+Alias for cell_x.
+- \f[V]grid_y\f[R]: Grid Y position as integer cell coordinate.
+Alias for cell_y.
+- \f[V]labels\f[R]: Set of string labels for collision/targeting
+(frozenset).
+Assign any iterable of strings to replace all labels.
+- \f[V]move_speed\f[R]: Animation duration for behavior movement in
+seconds (float).
+0 = instant.
+Default: 0.15.
+- \f[V]name\f[R]: Name for finding elements - \f[V]opacity\f[R]: Opacity
+(0.0 = transparent, 1.0 = opaque) - \f[V]perspective_map\f[R]:
+Per-entity FOV memory (DiscreteMap, read-write).
+3-state values per cell: 0 = unknown (never seen), 1 = discovered (seen
+before, not currently visible), 2 = visible (in current FOV).
+Use mcrfpy.Perspective enum for clarity.
+Lazy-allocated on first access once the entity has a grid; returns None
+otherwise.
+The returned DiscreteMap is a live reference \[en] mutations are visible
+to subsequent updateVisibility() calls.
+Assigning a DiscreteMap replaces the entity\[cq]s memory; the new
+map\[cq]s size must match the grid\[cq]s size or ValueError is raised.
+Assign None to clear (will be lazy-reallocated on next access).
+- \f[V]pos\f[R]: Pixel position relative to grid (Vector).
 Computed as draw_pos * tile_size.
 Requires entity to be attached to a grid.
 - \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
 When set, the entity is rendered through the shader program.
 Set to None to disable shader effects.
+- \f[V]sight_radius\f[R]: FOV radius for TARGET trigger (int).
+Default: 10.
+- \f[V]sprite_grid\f[R]: Per-tile sprite indices for composite
+multi-tile entities (list of lists or None).
+Row-major, dimensions must match tile_width x tile_height.
+Use -1 for empty tiles.
+When set, each tile renders its own sprite index instead of the single
+entity sprite.
 - \f[V]sprite_index\f[R]: Sprite index on the texture on the display -
-\f[V]sprite_number\f[R]: Sprite index (DEPRECATED: use sprite_index
-instead) - \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of
-shader uniforms (read-only access to collection).
+\f[V]sprite_offset\f[R]: Pixel offset for oversized sprites (Vector).
+Applied pre-zoom during grid rendering.
+- \f[V]sprite_offset_x\f[R]: X component of sprite pixel offset.
+- \f[V]sprite_offset_y\f[R]: Y component of sprite pixel offset.
+- \f[V]step\f[R]: Step callback for grid.step() turn management.
+Called with (trigger, data) when behavior triggers fire.
+Set to None to clear.
+- \f[V]target_label\f[R]: Label to search for with TARGET trigger (str
+or None).
+Default: None.
+- \f[V]tile_height\f[R]: Entity height in tiles (int).
+Must be >= 1.
+Default 1.
+- \f[V]tile_size\f[R]: Entity size in tiles as (width, height) Vector.
+Default (1, 1).
+- \f[V]tile_width\f[R]: Entity width in tiles (int).
+Must be >= 1.
+Default 1.
+- \f[V]turn_order\f[R]: Turn order for grid.step() (int).
+0 = skip, higher values go later.
+Default: 1.
+- \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
+uniforms (read-only access to collection).
 Set uniforms via dict-like syntax: entity.uniforms[`name'] = value.
 Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - \f[V]visible\f[R]: Visibility flag - \f[V]x\f[R]: Pixel X position
@@ -1571,7 +2109,11 @@ Requires entity to be attached to a grid.
 Requires entity to be attached to a grid.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.SS \f[V]add_label(label: str) -> None\f[R]
+.PP
+Add a label to this entity.
+Idempotent (adding same label twice is safe).
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this entity\[cq]s property.
 .PP
@@ -1579,12 +2121,14 @@ Note:
 .PP
 \f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
 animate: `draw_x', `draw_y' (tile coords), `sprite_scale',
-`sprite_index' - \f[V]target\f[R]: Target value - float or int depending
-on property - \f[V]duration\f[R]: Animation duration in seconds -
-\f[V]easing\f[R]: Easing function: Easing enum value, string name, or
-None for linear - \f[V]delta\f[R]: If True, target is relative to
-current value; if False, target is absolute - \f[V]callback\f[R]:
-Optional callable invoked when animation completes -
+`sprite_index' - \f[V]target\f[R]: Target value - float, int, or list of
+int (for sprite frame sequences) - \f[V]duration\f[R]: Animation
+duration in seconds - \f[V]easing\f[R]: Easing function: Easing enum
+value, string name, or None for linear - \f[V]delta\f[R]: If True,
+target is relative to current value; if False, target is absolute -
+\f[V]loop\f[R]: If True, animation repeats from start when it reaches
+the end (default False) - \f[V]callback\f[R]: Optional callable invoked
+when animation completes (not called for looping animations) -
 \f[V]conflict_mode\f[R]: `replace' (default), `queue', or `error' if
 property already animating
 .PP
@@ -1593,18 +2137,37 @@ property already animating
 \f[B]Raises:\f[R] ValueError: If property name is not valid for Entity
 (draw_x, draw_y, sprite_scale, sprite_index) Use `draw_x'/`draw_y' to
 animate tile coordinates for smooth movement between grid cells.
-.SS \f[V]at(x, y) or at(pos) -> GridPointState\f[R]
+Use list target with loop=True for repeating sprite frame animations.
+.SS \f[V]at(x, y) or at(pos) -> GridPoint | None\f[R]
 .PP
-Get the grid point state at the specified position.
+Return the GridPoint at (x, y) if currently VISIBLE to this entity\[cq]s
+perspective_map, otherwise None.
+Equivalent to: grid.at(x, y) if perspective_map[x, y] ==
+Perspective.VISIBLE else None To inspect discovered-but-not-visible
+cells, read entity.perspective_map[x, y] directly and use grid.at(x, y)
+for cell data.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Grid coordinates as tuple, list,
 or Vector
-.PP
-\f[B]Returns:\f[R] GridPointState for the entity\[cq]s view of that grid
-cell.
 .SS \f[V]die(...)\f[R]
 .PP
-Remove this entity from its grid
+Remove this entity from its grid.
+Warning: Do not call during iteration over grid.entities.
+Modifying the collection during iteration raises RuntimeError.
+.SS \f[V]find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None\f[R]
+.PP
+Find a path from this entity to the target position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]target\f[R]: Target as Vector, Entity, or
+(x, y) tuple.
+- \f[V]diagonal_cost\f[R]: Cost of diagonal movement (default 1.41).
+- \f[V]collide\f[R]: Label string.
+Entities with this label block pathfinding.
+.PP
+\f[B]Returns:\f[R] AStarPath object, or None if no path exists.
+.SS \f[V]has_label(label: str) -> bool\f[R]
+.PP
+Check if this entity has the given label.
 .SS \f[V]index(...)\f[R]
 .PP
 Return the index of this entity in its grid\[cq]s entity collection
@@ -1625,6 +2188,10 @@ Find a path to the target position using Dijkstra pathfinding.
 list, or Vector
 .PP
 \f[B]Returns:\f[R] List of (x, y) tuples representing the path.
+.SS \f[V]remove_label(label: str) -> None\f[R]
+.PP
+Remove a label from this entity.
+No-op if label not present.
 .SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
@@ -1634,11 +2201,15 @@ Note:
 \f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
 size) - \f[V]height\f[R]: New height in pixels (or use size) -
 \f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS \f[V]set_behavior(type, waypoints=None, turns=0, path=None) -> None\f[R]
+.PP
+Configure this entity\[cq]s behavior for grid.step() turn management.
 .SS \f[V]update_visibility() -> None\f[R]
 .PP
 Update entity\[cq]s visibility state based on current FOV.
 Recomputes which cells are visible from the entity\[cq]s position and
-updates the entity\[cq]s gridstate to track explored areas.
+updates the entity\[cq]s perspective_map (see entity.perspective_map and
+mcrfpy.Perspective).
 This is called automatically when the entity moves if it has a grid with
 perspective set.
 .SS \f[V]visible_entities(fov=None, radius=None) -> list[Entity]\f[R]
@@ -1648,6 +2219,136 @@ Get list of other entities visible from this entity\[cq]s position.
 \f[B]Returns:\f[R] List of Entity objects that are within field of view.
 Computes FOV from this entity\[cq]s position and returns all other
 entities whose positions fall within the visible area.
+.SS Entity3D
+.PP
+Entity3D(pos=None, **kwargs)
+.PP
+A 3D game entity that exists on a Viewport3D\[cq]s navigation grid.
+.PP
+Args: pos (tuple, optional): Grid position as (x, z).
+Default: (0, 0)
+.PP
+Keyword Args: viewport (Viewport3D): Viewport to attach entity to.
+Default: None rotation (float): Y-axis rotation in degrees.
+Default: 0 scale (float or tuple): Scale factor.
+Default: 1.0 visible (bool): Visibility state.
+Default: True color (Color): Entity color.
+Default: orange
+.PP
+Attributes: pos (tuple): Grid position (x, z) - setting triggers
+movement grid_pos (tuple): Same as pos (read-only) world_pos (tuple):
+Current world coordinates (x, y, z) (read-only) rotation (float): Y-axis
+rotation in degrees scale (float): Uniform scale factor visible (bool):
+Visibility state color (Color): Entity render color viewport
+(Viewport3D): Owning viewport (read-only)
+.PP
+\f[B]Properties:\f[R] - \f[V]anim_clip\f[R]: Current animation clip
+name.
+Set to play an animation.
+- \f[V]anim_frame\f[R] \f[I](read-only)\f[R]: Current animation frame
+number (read-only, approximate at 30fps).
+- \f[V]anim_loop\f[R]: Whether animation loops when it reaches the end.
+- \f[V]anim_paused\f[R]: Whether animation playback is paused.
+- \f[V]anim_speed\f[R]: Animation playback speed multiplier.
+1.0 = normal speed.
+- \f[V]anim_time\f[R]: Current time position in animation (seconds).
+- \f[V]auto_animate\f[R]: Enable auto-play of walk/idle clips based on
+movement.
+- \f[V]color\f[R]: Entity render color.
+- \f[V]grid_pos\f[R]: Grid position (x, z).
+Same as pos.
+- \f[V]idle_clip\f[R]: Animation clip to play when entity is stationary.
+- \f[V]is_moving\f[R] \f[I](read-only)\f[R]: Whether entity is currently
+moving (read-only).
+- \f[V]model\f[R]: 3D model (Model3D).
+If None, uses placeholder cube.
+- \f[V]name\f[R]: Entity name (str).
+Used for find() lookup.
+- \f[V]on_anim_complete\f[R]: Callback(entity, clip_name) when
+non-looping animation ends.
+- \f[V]pos\f[R]: Grid position (x, z).
+Setting triggers smooth movement.
+- \f[V]rotation\f[R]: Y-axis rotation in degrees.
+- \f[V]scale\f[R]: Uniform scale factor.
+Can also set as (x, y, z) tuple.
+- \f[V]viewport\f[R] \f[I](read-only)\f[R]: Owning Viewport3D
+(read-only).
+- \f[V]visible\f[R]: Visibility state.
+- \f[V]walk_clip\f[R]: Animation clip to play when entity is moving.
+- \f[V]world_pos\f[R] \f[I](read-only)\f[R]: Current world position (x,
+y, z) (read-only).
+Includes animation interpolation.
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]animate(property, target, duration, easing=None, delta=False, callback=None, conflict_mode=None)\f[R]
+.PP
+Animate a property over time.
+.PP
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Property name (x, y, z,
+rotation, scale, etc.)
+- \f[V]target\f[R]: Target value (float or int) - \f[V]duration\f[R]:
+Animation duration in seconds - \f[V]easing\f[R]: Easing function
+(Easing enum or None for linear) - \f[V]delta\f[R]: If True, target is
+relative to current value - \f[V]callback\f[R]: Called with (target,
+property, value) when complete - \f[V]conflict_mode\f[R]: `replace',
+`queue', or `error'
+.SS \f[V]at(x, z) -> dict\f[R]
+.PP
+Get visibility state for a cell from this entity\[cq]s perspective.
+Returns dict with `visible' and `discovered' boolean keys.
+.SS \f[V]clear_path()\f[R]
+.PP
+Clear the movement queue and stop at current position.
+.SS \f[V]follow_path(path)\f[R]
+.PP
+Queue path positions for smooth movement.
+.PP
+\f[B]Arguments:\f[R] - \f[V]path\f[R]: List of (x, z) tuples (as
+returned by path_to())
+.SS \f[V]path_to(x, z) or path_to(pos=(x, z)) -> list\f[R]
+.PP
+Compute A* path to target position.
+Returns list of (x, z) tuples, or empty list if no path exists.
+.SS \f[V]teleport(x, z) or teleport(pos=(x, z))\f[R]
+.PP
+Instantly move to target position without animation.
+.SS \f[V]update_visibility()\f[R]
+.PP
+Recompute field of view from current position.
+.SS EntityCollection3D
+.PP
+Collection of Entity3D objects belonging to a Viewport3D.
+.PP
+Supports list-like operations: indexing, iteration, append, remove.
+.PP
+Example: viewport.entities.append(entity) for entity in
+viewport.entities: print(entity.pos)
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]append(entity)\f[R]
+.PP
+Add an Entity3D to the collection.
+.SS \f[V]clear()\f[R]
+.PP
+Remove all entities from the collection.
+.SS \f[V]extend(iterable)\f[R]
+.PP
+Add all Entity3D objects from iterable to the collection.
+.SS \f[V]find(name) -> Entity3D or None\f[R]
+.PP
+Find an Entity3D by name.
+Returns None if not found.
+.SS \f[V]pop(index=-1) -> Entity3D\f[R]
+.PP
+Remove and return Entity3D at index (default: last).
+.SS \f[V]remove(entity)\f[R]
+.PP
+Remove an Entity3D from the collection.
+.SS EntityCollection3DIter
+.PP
+Iterator for EntityCollection3D
+.PP
+\f[B]Methods:\f[R]
 .SS FOV
 .PP
 \f[I]Inherits from: IntEnum\f[R]
@@ -1721,7 +2422,14 @@ If signed is False and a negative integer is given, an OverflowError is
 raised.
 .SS Font
 .PP
-SFML Font Object
+Font(filename: str)
+.PP
+A font resource for rendering text in Caption elements.
+.PP
+Args: filename: Path to a TrueType (.ttf) or OpenType (.otf) font file.
+.PP
+Properties: family (str, read-only): Font family name from metadata.
+source (str, read-only): File path used to load this font.
 .PP
 \f[B]Properties:\f[R] - \f[V]family\f[R] \f[I](read-only)\f[R]: Font
 family name (str, read-only).
@@ -1865,7 +2573,7 @@ top-left corner - \f[V]y\f[R]: Y coordinate of top-left corner -
 Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this drawable\[cq]s property.
 .PP
@@ -1877,8 +2585,10 @@ value - type depends on property (float, tuple for color/vector, etc.)
 - \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
 Easing function: Easing enum value, string name, or None for linear -
 \f[V]delta\f[R]: If True, target is relative to current value; if False,
-target is absolute - \f[V]callback\f[R]: Optional callable invoked when
-animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
 `queue', or `error' if property already animating
 .PP
 \f[B]Returns:\f[R] Animation object for monitoring progress
@@ -1914,55 +2624,32 @@ size) - \f[V]height\f[R]: New height in pixels (or use size) -
 .PP
 \f[I]Inherits from: Drawable\f[R]
 .PP
-Grid(pos=None, size=None, grid_size=None, texture=None, **kwargs)
+Grid(grid_size=None, pos=None, size=None, texture=None, **kwargs)
 .PP
 A grid-based UI element for tile-based rendering and entity management.
+Creates and owns grid data (cells, entities, layers) with an integrated
+rendering view (camera, zoom, perspective).
 .PP
-Args: pos (tuple, optional): Position as (x, y) tuple.
-Default: (0, 0) size (tuple, optional): Size as (width, height) tuple.
-Default: auto-calculated from grid_size grid_size (tuple, optional):
-Grid dimensions as (grid_w, grid_h) tuple.
-Default: (2, 2) texture (Texture, optional): Texture containing tile
-sprites.
+Can also be constructed as a view of existing grid data:
+Grid(grid=existing_grid, pos=\&..., size=\&...)
+.PP
+Args: grid_size (tuple): Grid dimensions as (grid_w, grid_h).
+Default: (2, 2) pos (tuple): Position as (x, y).
+Default: (0, 0) size (tuple): Size as (w, h).
+Default: auto-calculated texture (Texture): Tile texture atlas.
 Default: default texture
 .PP
-Keyword Args: fill_color (Color): Background fill color.
-Default: None click (callable): Click event handler.
-Default: None center_x (float): X coordinate of center point.
-Default: 0 center_y (float): Y coordinate of center point.
-Default: 0 zoom (float): Zoom level for rendering.
-Default: 1.0 perspective (int): Entity perspective index (-1 for
-omniscient).
-Default: -1 visible (bool): Visibility state.
+Keyword Args: grid (Grid): Existing Grid to view (creates view of shared
+data).
+fill_color (Color): Background fill color.
+on_click (callable): Click event handler.
+center_x, center_y (float): Camera center coordinates.
+zoom (float): Zoom level.
+Default: 1.0 visible (bool): Visibility.
 Default: True opacity (float): Opacity (0.0-1.0).
 Default: 1.0 z_index (int): Rendering order.
-Default: 0 name (str): Element name for finding.
-Default: None x (float): X position override.
-Default: 0 y (float): Y position override.
-Default: 0 w (float): Width override.
-Default: auto-calculated h (float): Height override.
-Default: auto-calculated grid_w (int): Grid width override.
-Default: 2 grid_h (int): Grid height override.
-Default: 2 align (Alignment): Alignment relative to parent.
-Default: None margin (float): Margin from parent edge when aligned.
-Default: 0 horiz_margin (float): Horizontal margin override.
-Default: 0 (use margin) vert_margin (float): Vertical margin override.
-Default: 0 (use margin)
-.PP
-Attributes: x, y (float): Position in pixels w, h (float): Size in
-pixels pos (Vector): Position as a Vector object size (Vector): Size as
-(width, height) Vector center (Vector): Center point as (x, y) Vector
-center_x, center_y (float): Center point coordinates zoom (float): Zoom
-level for rendering grid_size (Vector): Grid dimensions (width, height)
-in tiles grid_w, grid_h (int): Grid dimensions texture (Texture): Tile
-texture atlas fill_color (Color): Background color entities
-(EntityCollection): Collection of entities in the grid perspective
-(int): Entity perspective index click (callable): Click event handler
-visible (bool): Visibility state opacity (float): Opacity value z_index
-(int): Rendering order name (str): Element name align (Alignment):
-Alignment relative to parent (or None) margin (float): General margin
-for alignment horiz_margin (float): Horizontal margin override
-vert_margin (float): Vertical margin override
+Default: 0 name (str): Element name.
+layers (list): List of ColorLayer/TileLayer objects.
 .PP
 \f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
 bounds (Alignment enum or None).
@@ -1973,53 +2660,30 @@ Set to None to disable alignment and use manual positioning.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]camera_rotation\f[R]: Rotation of grid contents around camera
 center (degrees).
-The grid widget stays axis-aligned; only the view into the world
-rotates.
-- \f[V]center\f[R]: Grid coordinate at the center of the Grid\[cq]s view
-(pan) - \f[V]center_x\f[R]: center of the view X-coordinate -
+- \f[V]center\f[R]: Camera center point in pixel coordinates.
+- \f[V]center_x\f[R]: center of the view X-coordinate -
 \f[V]center_y\f[R]: center of the view Y-coordinate -
-\f[V]children\f[R]: UICollection of UIDrawable children (speech bubbles,
-effects, overlays) - \f[V]entities\f[R]: EntityCollection of entities on
-this grid - \f[V]fill_color\f[R]: Background fill color of the grid.
-Returns a copy; modifying components requires reassignment.
-For animation, use `fill_color.r', `fill_color.g', etc.
-- \f[V]fov\f[R]: FOV algorithm for this grid (mcrfpy.FOV enum).
-Used by entity.updateVisibility() and layer methods when fov=None.
-- \f[V]fov_radius\f[R]: Default FOV radius for this grid.
-Used when radius not specified.
+\f[V]fill_color\f[R]: Background fill color.
 - \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
 in screen coordinates.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_h\f[R]: Grid height in cells - \f[V]grid_pos\f[R]: Position
-in parent grid\[cq]s tile coordinates (only when parent is Grid) -
-\f[V]grid_size\f[R]: Grid dimensions (grid_w, grid_h) -
-\f[V]grid_w\f[R]: Grid width in cells - \f[V]h\f[R]: visible widget
-height - \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 =
-use general margin).
+- \f[V]grid_data\f[R]: The underlying grid data object (for multi-view
+scenarios).
+- \f[V]h\f[R]: visible widget height - \f[V]horiz_margin\f[R]:
+Horizontal margin override (float, 0 = use general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
 - \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
 over this element (read-only).
 Updated automatically by the engine during mouse movement.
-- \f[V]hovered_cell\f[R]: Currently hovered cell as (x, y) tuple, or
-None if not hovering.
-- \f[V]layers\f[R]: List of grid layers (ColorLayer, TileLayer) sorted
-by z_index - \f[V]margin\f[R]: General margin from edge when aligned
-(float).
+- \f[V]margin\f[R]: General margin from edge when aligned (float).
 Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
-- \f[V]name\f[R]: Name for finding elements - \f[V]on_cell_click\f[R]:
-Callback when a grid cell is clicked.
-Called with (cell_pos: Vector).
-- \f[V]on_cell_enter\f[R]: Callback when mouse enters a grid cell.
-Called with (cell_pos: Vector).
-- \f[V]on_cell_exit\f[R]: Callback when mouse exits a grid cell.
-Called with (cell_pos: Vector).
-- \f[V]on_click\f[R]: Callable executed when object is clicked.
-Function receives (pos: Vector, button: str, action: str).
+- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
+Callable executed when object is clicked.
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
 Called with (pos: Vector, button: str, action: str) when mouse enters
 this element\[cq]s bounds.
@@ -2039,15 +2703,9 @@ Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]perspective\f[R]: Entity whose perspective to use for FOV
-rendering (None for omniscient view).
-Setting an entity automatically enables perspective mode.
-- \f[V]perspective_enabled\f[R]: Whether to use perspective-based FOV
-rendering.
-When True with no valid entity, all cells appear undiscovered.
-- \f[V]pos\f[R]: Position of the grid as Vector - \f[V]position\f[R]:
-Position of the grid (x, y) - \f[V]rotate_with_camera\f[R]: Whether to
-rotate visually with parent Grid\[cq]s camera_rotation (bool).
+- \f[V]pos\f[R]: Position of the grid as Vector -
+\f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+Grid\[cq]s camera_rotation (bool).
 False (default): stay screen-aligned.
 True: tilt with camera.
 Only affects children of UIGrid; ignored for other parents.
@@ -2057,10 +2715,10 @@ Animatable property.
 - \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
 When set, the drawable is rendered through the shader program.
 Set to None to disable shader effects.
-- \f[V]size\f[R]: Size of the grid as Vector (width, height) -
-\f[V]texture\f[R]: Texture of the grid - \f[V]uniforms\f[R]
-\f[I](read-only)\f[R]: Collection of shader uniforms (read-only access
-to collection).
+- \f[V]texture\f[R] \f[I](read-only)\f[R]: Texture used for tile
+rendering (read-only).
+- \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
+uniforms (read-only access to collection).
 Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
 Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
@@ -2072,22 +2730,10 @@ Invisible objects are not rendered or clickable.
 - \f[V]w\f[R]: visible widget width - \f[V]x\f[R]: top-left corner
 X-coordinate - \f[V]y\f[R]: top-left corner Y-coordinate -
 \f[V]z_index\f[R]: Z-order for rendering (lower values rendered first).
-Automatically triggers scene resort when changed.
-- \f[V]zoom\f[R]: zoom factor for displaying the Grid
+- \f[V]zoom\f[R]: Zoom level for rendering.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]add_layer(type: str, z_index: int = -1, texture: Texture = None) -> ColorLayer | TileLayer\f[R]
-.PP
-Add a new layer to the grid.
-.PP
-\f[B]Arguments:\f[R] - \f[V]type\f[R]: Layer type (`color' or `tile') -
-\f[V]z_index\f[R]: Render order.
-Negative = below entities, >= 0 = above entities.
-Default: -1 - \f[V]texture\f[R]: Texture for tile layers.
-Required for `tile' type.
-.PP
-\f[B]Returns:\f[R] The created ColorLayer or TileLayer object.
-.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this drawable\[cq]s property.
 .PP
@@ -2099,8 +2745,10 @@ value - type depends on property (float, tuple for color/vector, etc.)
 - \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
 Easing function: Easing enum value, string name, or None for linear -
 \f[V]delta\f[R]: If True, target is relative to current value; if False,
-target is absolute - \f[V]callback\f[R]: Optional callable invoked when
-animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
 `queue', or `error' if property already animating
 .PP
 \f[B]Returns:\f[R] Animation object for monitoring progress
@@ -2108,107 +2756,6 @@ animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
 \f[B]Raises:\f[R] ValueError: If property name is not valid for this
 drawable type This is a convenience method that creates an Animation,
 starts it, and adds it to the AnimationManager.
-.SS \f[V]apply_ranges(source: HeightMap, ranges: list) -> Grid\f[R]
-.PP
-Apply multiple thresholds in a single pass.
-.PP
-\f[B]Arguments:\f[R] - \f[V]source\f[R]: HeightMap with values to check.
-Must match grid size.
-- \f[V]ranges\f[R]: List of (range_tuple, properties_dict) tuples.
-- \f[V]range_tuple\f[R]: (min, max) value range -
-\f[V]properties_dict\f[R]: {`walkable': bool, `transparent': bool}
-.PP
-\f[B]Returns:\f[R] Grid: self, for method chaining.
-.SS \f[V]apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid\f[R]
-.PP
-Apply walkable/transparent properties where heightmap values are in
-range.
-.PP
-\f[B]Arguments:\f[R] - \f[V]source\f[R]: HeightMap with values to check.
-Must match grid size.
-- \f[V]range\f[R]: Tuple of (min, max) - cells with values in this range
-are affected.
-- \f[V]walkable\f[R]: If not None, set walkable to this value for cells
-in range.
-- \f[V]transparent\f[R]: If not None, set transparent to this value for
-cells in range.
-.PP
-\f[B]Returns:\f[R] Grid: self, for method chaining.
-.PP
-\f[B]Raises:\f[R] ValueError: If HeightMap size doesn\[cq]t match grid
-size.
-.SS \f[V]at(...)\f[R]
-.SS \f[V]center_camera(pos: tuple = None) -> None\f[R]
-.PP
-Center the camera on a tile coordinate.
-.PP
-\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Optional (tile_x, tile_y) tuple.
-If None, centers on grid\[cq]s middle tile.
-.SS \f[V]clear_dijkstra_maps() -> None\f[R]
-.PP
-Clear all cached Dijkstra maps.
-Call this after modifying grid cell walkability to ensure pathfinding
-uses updated walkability data.
-.SS \f[V]compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\f[R]
-.PP
-Compute field of view from a position.
-.PP
-\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
-Vector - \f[V]radius\f[R]: Maximum view distance (0 = unlimited) -
-\f[V]light_walls\f[R]: Whether walls are lit when visible -
-\f[V]algorithm\f[R]: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND,
-FOV_SHADOW, FOV_PERMISSIVE_0-8)
-.SS \f[V]entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]\f[R]
-.PP
-Query entities within radius using spatial hash (O(k) where k = nearby
-entities).
-.PP
-\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Center position as (x, y) tuple,
-Vector, or other 2-element sequence - \f[V]radius\f[R]: Search radius
-.PP
-\f[B]Returns:\f[R] List of Entity objects within the radius.
-.SS \f[V]find_path(start, end, diagonal_cost: float = 1.41) -> AStarPath | None\f[R]
-.PP
-Compute A* path between two points.
-.PP
-\f[B]Arguments:\f[R] - \f[V]start\f[R]: Starting position as Vector,
-Entity, or (x, y) tuple - \f[V]end\f[R]: Target position as Vector,
-Entity, or (x, y) tuple - \f[V]diagonal_cost\f[R]: Cost of diagonal
-movement (default: 1.41)
-.PP
-\f[B]Returns:\f[R] AStarPath object if path exists, None otherwise.
-The returned AStarPath can be iterated or walked step-by-step.
-.SS \f[V]get_dijkstra_map(root, diagonal_cost: float = 1.41) -> DijkstraMap\f[R]
-.PP
-Get or create a Dijkstra distance map for a root position.
-.PP
-\f[B]Arguments:\f[R] - \f[V]root\f[R]: Root position as Vector, Entity,
-or (x, y) tuple - \f[V]diagonal_cost\f[R]: Cost of diagonal movement
-(default: 1.41)
-.PP
-\f[B]Returns:\f[R] DijkstraMap object for querying distances and paths.
-Grid caches DijkstraMaps by root position.
-Multiple requests for the same root return the same cached map.
-Call clear_dijkstra_maps() after changing grid walkability to invalidate
-the cache.
-.SS \f[V]is_in_fov(pos) -> bool\f[R]
-.PP
-Check if a cell is in the field of view.
-.PP
-\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
-Vector
-.PP
-\f[B]Returns:\f[R] True if the cell is visible, False otherwise Must
-call compute_fov() first to calculate visibility.
-.SS \f[V]layer(z_index: int) -> ColorLayer | TileLayer | None\f[R]
-.PP
-Get a layer by its z_index.
-.PP
-\f[B]Arguments:\f[R] - \f[V]z_index\f[R]: The z_index of the layer to
-find.
-.PP
-\f[B]Returns:\f[R] The layer with the specified z_index, or None if not
-found.
 .SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
@@ -2224,11 +2771,166 @@ Reapply alignment relative to parent, useful for responsive layouts.
 .PP
 Note: Call this to recalculate position after parent changes size.
 For elements with align=None, this has no effect.
-.SS \f[V]remove_layer(layer: ColorLayer | TileLayer) -> None\f[R]
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
-Remove a layer from the grid.
+Resize the element to new dimensions.
 .PP
-\f[B]Arguments:\f[R] - \f[V]layer\f[R]: The layer to remove.
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS GridView
+.PP
+\f[I]Inherits from: Drawable\f[R]
+.PP
+Grid(grid_size=None, pos=None, size=None, texture=None, **kwargs)
+.PP
+A grid-based UI element for tile-based rendering and entity management.
+Creates and owns grid data (cells, entities, layers) with an integrated
+rendering view (camera, zoom, perspective).
+.PP
+Can also be constructed as a view of existing grid data:
+Grid(grid=existing_grid, pos=\&..., size=\&...)
+.PP
+Args: grid_size (tuple): Grid dimensions as (grid_w, grid_h).
+Default: (2, 2) pos (tuple): Position as (x, y).
+Default: (0, 0) size (tuple): Size as (w, h).
+Default: auto-calculated texture (Texture): Tile texture atlas.
+Default: default texture
+.PP
+Keyword Args: grid (Grid): Existing Grid to view (creates view of shared
+data).
+fill_color (Color): Background fill color.
+on_click (callable): Click event handler.
+center_x, center_y (float): Camera center coordinates.
+zoom (float): Zoom level.
+Default: 1.0 visible (bool): Visibility.
+Default: True opacity (float): Opacity (0.0-1.0).
+Default: 1.0 z_index (int): Rendering order.
+Default: 0 name (str): Element name.
+layers (list): List of ColorLayer/TileLayer objects.
+.PP
+\f[B]Properties:\f[R] - \f[V]align\f[R]: Alignment relative to parent
+bounds (Alignment enum or None).
+When set, position is automatically calculated when parent is assigned
+or resized.
+Set to None to disable alignment and use manual positioning.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]camera_rotation\f[R]: Rotation of grid contents around camera
+center (degrees).
+- \f[V]center\f[R]: Camera center point in pixel coordinates.
+- \f[V]center_x\f[R]: center of the view X-coordinate -
+\f[V]center_y\f[R]: center of the view Y-coordinate -
+\f[V]fill_color\f[R]: Background fill color.
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_data\f[R]: The underlying grid data object (for multi-view
+scenarios).
+- \f[V]h\f[R]: visible widget height - \f[V]horiz_margin\f[R]:
+Horizontal margin override (float, 0 = use general margin).
+Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
+CENTER).
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]margin\f[R]: General margin from edge when aligned (float).
+Applied to both horizontal and vertical edges unless overridden.
+Invalid for CENTER alignment (raises ValueError).
+- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
+Callable executed when object is clicked.
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]origin\f[R]: Transform origin as Vector (pivot point for
+rotation).
+Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
+- \f[V]parent\f[R]: Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]pos\f[R]: Position of the grid as Vector -
+\f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+Grid\[cq]s camera_rotation (bool).
+False (default): stay screen-aligned.
+True: tilt with camera.
+Only affects children of UIGrid; ignored for other parents.
+- \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
+origin).
+Animatable property.
+- \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
+When set, the drawable is rendered through the shader program.
+Set to None to disable shader effects.
+- \f[V]texture\f[R] \f[I](read-only)\f[R]: Texture used for tile
+rendering (read-only).
+- \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
+uniforms (read-only access to collection).
+Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
+Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
+- \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
+general margin).
+Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
+CENTER).
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]w\f[R]: visible widget width - \f[V]x\f[R]: top-left corner
+X-coordinate - \f[V]y\f[R]: top-left corner Y-coordinate -
+\f[V]z_index\f[R]: Z-order for rendering (lower values rendered first).
+- \f[V]zoom\f[R]: Zoom level for rendering.
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.PP
+Create and start an animation on this drawable\[cq]s property.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
+.PP
+Move the element by a relative offset.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
 .SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
@@ -2611,12 +3313,8 @@ or list, inclusive - \f[V]value\f[R]: Value to set for cells in range
 .PP
 Enum representing input event states (pressed/released).
 .PP
-Values: PRESSED: Key or button was pressed (legacy: `start') RELEASED:
-Key or button was released (legacy: `end')
-.PP
-These enum values compare equal to their legacy string equivalents for
-backwards compatibility: InputState.PRESSED == `start' # True
-InputState.RELEASED == `end' # True
+Values: PRESSED: Key or button was pressed RELEASED: Key or button was
+released
 .PP
 \f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
 rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
@@ -2700,10 +3398,6 @@ Navigation: LEFT, RIGHT, UP, DOWN, HOME, END, PAGE_UP, PAGE_DOWN
 Editing: ENTER, BACKSPACE, DELETE, INSERT, TAB, SPACE Symbols: COMMA,
 PERIOD, SLASH, SEMICOLON, etc.
 .PP
-These enum values compare equal to their legacy string equivalents for
-backwards compatibility: Key.ESCAPE == `Escape' # True Key.LEFT_SHIFT ==
-`LShift' # True
-.PP
 \f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
 rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
 a complex number - \f[V]numerator\f[R]: the numerator of a rational
@@ -2785,6 +3479,72 @@ currently pressed (read-only).
 (Win/Cmd) is currently pressed (read-only).
 .PP
 \f[B]Methods:\f[R]
+.SS LdtkProject
+.PP
+LdtkProject(path: str)
+.PP
+Load an LDtk project file (.ldtk).
+.PP
+Parses the project and provides access to tilesets, auto-rule sets,
+levels, and enum definitions.
+.PP
+Args: path: Path to the .ldtk project file.
+.PP
+Properties: version (str, read-only): LDtk JSON format version.
+tileset_names (list[str], read-only): Names of all tilesets.
+ruleset_names (list[str], read-only): Names of all rule sets.
+level_names (list[str], read-only): Names of all levels.
+enums (dict, read-only): Enum definitions from the project.
+.PP
+Example: proj = mcrfpy.LdtkProject(`dungeon.ldtk') ts =
+proj.tileset(`Dungeon_Tiles') rs = proj.ruleset(`Walls') level =
+proj.level(`Level_0')
+.PP
+\f[B]Properties:\f[R] - \f[V]enums\f[R] \f[I](read-only)\f[R]: Enum
+definitions from the project as a list of dicts (read-only).
+- \f[V]level_names\f[R] \f[I](read-only)\f[R]: List of level identifier
+names (list[str], read-only).
+- \f[V]ruleset_names\f[R] \f[I](read-only)\f[R]: List of rule set /
+layer names (list[str], read-only).
+- \f[V]tileset_names\f[R] \f[I](read-only)\f[R]: List of tileset
+identifier names (list[str], read-only).
+- \f[V]version\f[R] \f[I](read-only)\f[R]: LDtk JSON format version
+string (str, read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]level(name: str) -> dict\f[R]
+.PP
+Get level data by name.
+.PP
+\f[B]Arguments:\f[R] - \f[V]name\f[R]: Level identifier from the LDtk
+project
+.PP
+\f[B]Returns:\f[R] Dict with name, dimensions, world position, and layer
+data.
+.PP
+\f[B]Raises:\f[R] KeyError: If no level with the given name exists
+.SS \f[V]ruleset(name: str) -> AutoRuleSet\f[R]
+.PP
+Get an auto-rule set by layer name.
+.PP
+\f[B]Arguments:\f[R] - \f[V]name\f[R]: Layer identifier from the LDtk
+project
+.PP
+\f[B]Returns:\f[R] An AutoRuleSet for resolving IntGrid data to sprite
+tiles.
+.PP
+\f[B]Raises:\f[R] KeyError: If no ruleset with the given name exists
+.SS \f[V]tileset(name: str) -> TileSetFile\f[R]
+.PP
+Get a tileset by name.
+.PP
+\f[B]Arguments:\f[R] - \f[V]name\f[R]: Tileset identifier from the LDtk
+project
+.PP
+\f[B]Returns:\f[R] A TileSetFile object for texture creation and tile
+metadata.
+.PP
+\f[B]Raises:\f[R] KeyError: If no tileset with the given name exists
 .SS Line
 .PP
 \f[I]Inherits from: Drawable\f[R]
@@ -2888,7 +3648,7 @@ Invisible objects are not rendered or clickable.
 first).
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this drawable\[cq]s property.
 .PP
@@ -2900,8 +3660,10 @@ value - type depends on property (float, tuple for color/vector, etc.)
 - \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
 Easing function: Easing enum value, string name, or None for linear -
 \f[V]delta\f[R]: If True, target is relative to current value; if False,
-target is absolute - \f[V]callback\f[R]: Optional callable invoked when
-animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
 `queue', or `error' if property already animating
 .PP
 \f[B]Returns:\f[R] Animation object for monitoring progress
@@ -2933,6 +3695,50 @@ Note:
 \f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
 size) - \f[V]height\f[R]: New height in pixels (or use size) -
 \f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS Model3D
+.PP
+Model3D(path=None)
+.PP
+A 3D model resource that can be rendered by Entity3D.
+.PP
+Args: path (str, optional): Path to .glb file to load.
+If None, creates empty model.
+.PP
+Class Methods: cube(size=1.0) -> Model3D: Create a unit cube
+plane(width=1.0, depth=1.0, segments=1) -> Model3D: Create a flat plane
+sphere(radius=0.5, segments=16, rings=12) -> Model3D: Create a UV sphere
+.PP
+Properties: name (str, read-only): Model name vertex_count (int,
+read-only): Total vertices across all meshes triangle_count (int,
+read-only): Total triangles across all meshes has_skeleton (bool,
+read-only): Whether model has skeletal animation data bounds (tuple,
+read-only): AABB as ((min_x, min_y, min_z), (max_x, max_y, max_z))
+mesh_count (int, read-only): Number of submeshes bone_count (int,
+read-only): Number of bones in skeleton animation_clips (list,
+read-only): List of animation clip names
+.PP
+\f[B]Properties:\f[R] - \f[V]animation_clips\f[R] \f[I](read-only)\f[R]:
+List of animation clip names (read-only) - \f[V]bone_count\f[R]
+\f[I](read-only)\f[R]: Number of bones in skeleton (read-only) -
+\f[V]bounds\f[R] \f[I](read-only)\f[R]: AABB as ((min_x, min_y, min_z),
+(max_x, max_y, max_z)) (read-only) - \f[V]has_skeleton\f[R]
+\f[I](read-only)\f[R]: Whether model has skeletal animation data
+(read-only) - \f[V]mesh_count\f[R] \f[I](read-only)\f[R]: Number of
+submeshes (read-only) - \f[V]name\f[R] \f[I](read-only)\f[R]: Model name
+(read-only) - \f[V]triangle_count\f[R] \f[I](read-only)\f[R]: Total
+triangle count across all meshes (read-only) - \f[V]vertex_count\f[R]
+\f[I](read-only)\f[R]: Total vertex count across all meshes (read-only)
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]cube(size=1.0) -> Model3D\f[R]
+.PP
+Create a unit cube centered at origin.
+.SS \f[V]plane(width=1.0, depth=1.0, segments=1) -> Model3D\f[R]
+.PP
+Create a flat plane.
+.SS \f[V]sphere(radius=0.5, segments=16, rings=12) -> Model3D\f[R]
+.PP
+Create a UV sphere.
 .SS Mouse
 .PP
 Mouse state singleton for reading button/position state and controlling
@@ -2960,16 +3766,11 @@ coordinates (read-only).
 .PP
 \f[I]Inherits from: IntEnum\f[R]
 .PP
-Enum representing mouse buttons.
+Enum representing mouse buttons and scroll wheel.
 .PP
-Values: LEFT: Left mouse button (legacy: `left') RIGHT: Right mouse
-button (legacy: `right') MIDDLE: Middle mouse button / scroll wheel
-click (legacy: `middle') X1: Extra mouse button 1 (legacy: `x1') X2:
-Extra mouse button 2 (legacy: `x2')
-.PP
-These enum values compare equal to their legacy string equivalents for
-backwards compatibility: MouseButton.LEFT == `left' # True
-MouseButton.RIGHT == `right' # True
+Values: LEFT: Left mouse button RIGHT: Right mouse button MIDDLE: Middle
+mouse button / scroll wheel click X1: Extra mouse button 1 X2: Extra
+mouse button 2 SCROLL_UP: Scroll wheel up SCROLL_DOWN: Scroll wheel down
 .PP
 \f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
 rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
@@ -3170,6 +3971,83 @@ combine (default: 4)
 .PP
 \f[B]Raises:\f[R] ValueError: Position tuple length doesn\[cq]t match
 dimensions
+.SS Perspective
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+Enum representing an entity\[cq]s knowledge of a cell.
+.PP
+Values: UNKNOWN: Never seen (perspective_map value 0) DISCOVERED: Seen
+before but not currently visible (value 1) VISIBLE: In current FOV
+(value 2)
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
 .SS PropertyBinding
 .PP
 PropertyBinding(target: UIDrawable, property: str)
@@ -3263,6 +4141,10 @@ Set to None to remove the handler.
 Applied to all UI elements during rendering.
 - \f[V]pos\f[R]: Scene position offset (Vector).
 Applied to all UI elements during rendering.
+- \f[V]registered\f[R] \f[I](read-only)\f[R]: Whether this scene is
+registered with the game engine (bool, read-only).
+Unregistered scenes still exist but won\[cq]t receive lifecycle
+callbacks.
 - \f[V]visible\f[R]: Scene visibility (bool).
 If False, scene is not rendered.
 .PP
@@ -3288,6 +4170,24 @@ Recalculate alignment for all children with alignment set.
 .PP
 Note: Call this after window resize or when game_resolution changes.
 For responsive layouts, connect this to on_resize callback.
+.SS \f[V]register() -> None\f[R]
+.PP
+Register this scene with the game engine.
+.PP
+Note: Makes the scene available for activation and receives lifecycle
+callbacks.
+If another scene with the same name exists, it will be unregistered
+first.
+Called automatically by activate() if needed.
+.SS \f[V]unregister() -> None\f[R]
+.PP
+Unregister this scene from the game engine.
+.PP
+Note: Removes the scene from the engine\[cq]s registry but keeps the
+Python object alive.
+The scene\[cq]s UI elements and state are preserved.
+Call register() to re-add it.
+Useful for temporary scenes or scene pooling.
 .SS Shader
 .PP
 Shader(fragment_source: str, dynamic: bool = False)
@@ -3337,11 +4237,27 @@ Engine uniforms (time, resolution, etc.)
 are set automatically
 .SS Sound
 .PP
-Sound effect object for short audio clips
+Sound(source)
 .PP
-\f[B]Properties:\f[R] - \f[V]duration\f[R] \f[I](read-only)\f[R]: Total
-duration of the sound in seconds (read-only).
+Sound effect object for short audio clips.
+.PP
+Args: source: Filename string or SoundBuffer object.
+.PP
+Properties: volume (float): Volume 0-100.
+loop (bool): Whether to loop.
+playing (bool, read-only): True if playing.
+duration (float, read-only): Duration in seconds.
+source (str, read-only): Source filename.
+pitch (float): Playback pitch (1.0 = normal).
+buffer (SoundBuffer, read-only): The SoundBuffer, if created from one.
+.PP
+\f[B]Properties:\f[R] - \f[V]buffer\f[R] \f[I](read-only)\f[R]: The
+SoundBuffer if created from one, else None (read-only).
+- \f[V]duration\f[R] \f[I](read-only)\f[R]: Total duration of the sound
+in seconds (read-only).
 - \f[V]loop\f[R]: Whether the sound loops when it reaches the end.
+- \f[V]pitch\f[R]: Playback pitch multiplier (1.0 = normal, >1 = higher,
+<1 = lower).
 - \f[V]playing\f[R] \f[I](read-only)\f[R]: True if the sound is
 currently playing (read-only).
 - \f[V]source\f[R] \f[I](read-only)\f[R]: Filename path used to load
@@ -3356,9 +4272,129 @@ Use play() to resume from the paused position.
 .SS \f[V]play() -> None\f[R]
 .PP
 Start or resume playing the sound.
+.SS \f[V]play_varied(pitch_range: float = 0.1, volume_range: float = 3.0) -> None\f[R]
+.PP
+Play with randomized pitch and volume for natural variation.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pitch_range\f[R]: Random pitch offset range
+(default 0.1) - \f[V]volume_range\f[R]: Random volume offset range
+(default 3.0)
 .SS \f[V]stop() -> None\f[R]
 .PP
 Stop playing and reset to the beginning.
+.SS SoundBuffer
+.PP
+SoundBuffer(filename: str) SoundBuffer.from_samples(data: bytes,
+channels: int, sample_rate: int) SoundBuffer.tone(frequency: float,
+duration: float, waveform: str = `sine', \&...)
+SoundBuffer.sfxr(preset: str, seed: int = None)
+.PP
+Audio sample buffer for procedural audio generation and effects.
+.PP
+Holds PCM sample data that can be created from files, raw samples, tone
+synthesis, or sfxr presets.
+Effect methods return new SoundBuffer instances (copy-modify pattern).
+.PP
+Properties: duration (float, read-only): Duration in seconds.
+sample_count (int, read-only): Total number of samples.
+sample_rate (int, read-only): Samples per second (e.g.\ 44100).
+channels (int, read-only): Number of audio channels.
+sfxr_params (dict or None, read-only): sfxr parameters if
+sfxr-generated.
+.PP
+\f[B]Properties:\f[R] - \f[V]channels\f[R] \f[I](read-only)\f[R]: Number
+of audio channels (read-only).
+- \f[V]duration\f[R] \f[I](read-only)\f[R]: Total duration in seconds
+(read-only).
+- \f[V]sample_count\f[R] \f[I](read-only)\f[R]: Total number of samples
+(read-only).
+- \f[V]sample_rate\f[R] \f[I](read-only)\f[R]: Sample rate in Hz
+(read-only).
+- \f[V]sfxr_params\f[R] \f[I](read-only)\f[R]: Dict of sfxr parameters
+if sfxr-generated, else None (read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]bit_crush(bits: int, rate_divisor: int) -> SoundBuffer\f[R]
+.PP
+Reduce bit depth and sample rate for lo-fi effect.
+.SS \f[V]concat(buffers: list[SoundBuffer], overlap: float = 0.0) -> SoundBuffer\f[R]
+.PP
+Concatenate multiple SoundBuffers with optional crossfade overlap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]buffers\f[R]: List of SoundBuffer objects to
+concatenate - \f[V]overlap\f[R]: Crossfade overlap duration in seconds
+.SS \f[V]distortion(drive: float) -> SoundBuffer\f[R]
+.PP
+Apply tanh soft clipping distortion.
+.SS \f[V]echo(delay_ms: float, feedback: float, wet: float) -> SoundBuffer\f[R]
+.PP
+Apply echo effect with delay, feedback, and wet/dry mix.
+.SS \f[V]from_samples(data: bytes, channels: int, sample_rate: int) -> SoundBuffer\f[R]
+.PP
+Create a SoundBuffer from raw int16 PCM sample data.
+.PP
+\f[B]Arguments:\f[R] - \f[V]data\f[R]: Raw PCM data as bytes (int16
+little-endian) - \f[V]channels\f[R]: Number of audio channels (1=mono,
+2=stereo) - \f[V]sample_rate\f[R]: Sample rate in Hz (e.g.\ 44100)
+.SS \f[V]gain(factor: float) -> SoundBuffer\f[R]
+.PP
+Multiply all samples by a scalar factor.
+Use for volume/amplitude control before mixing.
+.PP
+\f[B]Arguments:\f[R] - \f[V]factor\f[R]: Amplitude multiplier (0.5 =
+half volume, 2.0 = double).
+Clamps to int16 range.
+.SS \f[V]high_pass(cutoff_hz: float) -> SoundBuffer\f[R]
+.PP
+Apply single-pole IIR high-pass filter.
+.SS \f[V]low_pass(cutoff_hz: float) -> SoundBuffer\f[R]
+.PP
+Apply single-pole IIR low-pass filter.
+.SS \f[V]mix(buffers: list[SoundBuffer]) -> SoundBuffer\f[R]
+.PP
+Mix multiple SoundBuffers together (additive, clamped).
+.PP
+\f[B]Arguments:\f[R] - \f[V]buffers\f[R]: List of SoundBuffer objects to
+mix
+.SS \f[V]normalize() -> SoundBuffer\f[R]
+.PP
+Scale samples to 95%% of int16 max.
+.SS \f[V]pitch_shift(factor: float) -> SoundBuffer\f[R]
+.PP
+Resample to shift pitch.
+factor>1 = higher+shorter.
+.SS \f[V]reverb(room_size: float, damping: float, wet: float) -> SoundBuffer\f[R]
+.PP
+Apply simplified Freeverb-style reverb.
+.SS \f[V]reverse() -> SoundBuffer\f[R]
+.PP
+Reverse the sample order.
+.SS \f[V]sfxr(preset: str = None, seed: int = None, **params) -> SoundBuffer\f[R]
+.PP
+Generate retro sound effects using sfxr synthesis.
+.PP
+\f[B]Arguments:\f[R] - \f[V]preset\f[R]: One of: coin, laser, explosion,
+powerup, hurt, jump, blip - \f[V]seed\f[R]: Random seed for
+deterministic generation
+.PP
+\f[B]Returns:\f[R] SoundBuffer with sfxr_params set for later mutation
+.SS \f[V]sfxr_mutate(amount: float = 0.05, seed: int = None) -> SoundBuffer\f[R]
+.PP
+Jitter sfxr params and re-synthesize.
+Only works on sfxr-generated buffers.
+.SS \f[V]slice(start: float, end: float) -> SoundBuffer\f[R]
+.PP
+Extract a time range in seconds.
+.SS \f[V]tone(frequency: float, duration: float, waveform: str = \[aq]sine\[aq], ...) -> SoundBuffer\f[R]
+.PP
+Generate a tone with optional ADSR envelope.
+.PP
+\f[B]Arguments:\f[R] - \f[V]frequency\f[R]: Frequency in Hz -
+\f[V]duration\f[R]: Duration in seconds - \f[V]waveform\f[R]: One of:
+sine, square, saw, triangle, noise - \f[V]attack\f[R]: ADSR attack time
+in seconds (default 0.01) - \f[V]decay\f[R]: ADSR decay time in seconds
+(default 0.0) - \f[V]sustain\f[R]: ADSR sustain level 0.0-1.0 (default
+1.0) - \f[V]release\f[R]: ADSR release time in seconds (default 0.01)
 .SS Sprite
 .PP
 \f[I]Inherits from: Drawable\f[R]
@@ -3463,8 +4499,7 @@ scale factor - \f[V]scale_y\f[R]: Vertical scale factor -
 When set, the drawable is rendered through the shader program.
 Set to None to disable shader effects.
 - \f[V]sprite_index\f[R]: Which sprite on the texture is shown -
-\f[V]sprite_number\f[R]: Sprite index (DEPRECATED: use sprite_index
-instead) - \f[V]texture\f[R]: Texture object - \f[V]uniforms\f[R]
+\f[V]texture\f[R]: Texture object - \f[V]uniforms\f[R]
 \f[I](read-only)\f[R]: Collection of shader uniforms (read-only access
 to collection).
 Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
@@ -3481,7 +4516,7 @@ coordinate of top-left corner - \f[V]z_index\f[R]: Z-order for rendering
 Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this drawable\[cq]s property.
 .PP
@@ -3493,8 +4528,10 @@ value - type depends on property (float, tuple for color/vector, etc.)
 - \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
 Easing function: Easing enum value, string name, or None for linear -
 \f[V]delta\f[R]: If True, target is relative to current value; if False,
-target is absolute - \f[V]callback\f[R]: Optional callable invoked when
-animation completes - \f[V]conflict_mode\f[R]: `replace' (default),
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
 `queue', or `error' if property already animating
 .PP
 \f[B]Returns:\f[R] Animation object for monitoring progress
@@ -3528,10 +4565,41 @@ size) - \f[V]height\f[R]: New height in pixels (or use size) -
 \f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
 .SS Texture
 .PP
-SFML Texture Object
+Texture(filename: str, sprite_width: int = 0, sprite_height: int = 0,
+display_size: tuple = None, display_origin: tuple = None)
 .PP
-\f[B]Properties:\f[R] - \f[V]sheet_height\f[R] \f[I](read-only)\f[R]:
-Number of sprite rows in the texture sheet (int, read-only).
+A texture atlas for sprites and tiles.
+.PP
+Args: filename: Path to an image file (PNG, BMP, etc.).
+sprite_width: Width of each sprite cell in pixels (0 = full image).
+sprite_height: Height of each sprite cell in pixels (0 = full image).
+display_size: Optional (w, h) actual content size within each cell.
+display_origin: Optional (x, y) content offset within each cell.
+.PP
+Properties: sprite_width, sprite_height (int, read-only): Cell
+dimensions.
+sheet_width, sheet_height (int, read-only): Grid dimensions in cells.
+sprite_count (int, read-only): Total number of sprite cells.
+source (str, read-only): File path used to load this texture.
+display_width, display_height (int, read-only): Content size within
+cells.
+display_offset_x, display_offset_y (int, read-only): Content offset
+within cells.
+.PP
+\f[B]Properties:\f[R] - \f[V]display_height\f[R] \f[I](read-only)\f[R]:
+Display height of sprite content within each cell (int, read-only).
+Defaults to sprite_height.
+- \f[V]display_offset_x\f[R] \f[I](read-only)\f[R]: X offset of sprite
+content within each cell (int, read-only).
+Default 0.
+- \f[V]display_offset_y\f[R] \f[I](read-only)\f[R]: Y offset of sprite
+content within each cell (int, read-only).
+Default 0.
+- \f[V]display_width\f[R] \f[I](read-only)\f[R]: Display width of sprite
+content within each cell (int, read-only).
+Defaults to sprite_width.
+- \f[V]sheet_height\f[R] \f[I](read-only)\f[R]: Number of sprite rows in
+the texture sheet (int, read-only).
 Calculated as texture_height / sprite_height.
 - \f[V]sheet_width\f[R] \f[I](read-only)\f[R]: Number of sprite columns
 in the texture sheet (int, read-only).
@@ -3550,35 +4618,83 @@ pixels (int, read-only).
 Specified during texture initialization.
 .PP
 \f[B]Methods:\f[R]
+.SS \f[V]composite(layers: list[Texture], sprite_width: int, sprite_height: int, name: str = \[aq]<composite>\[aq]) -> Texture\f[R]
+.PP
+Alpha-composite multiple texture layers into a single texture.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]layers\f[R]: List of Texture objects,
+composited bottom-to-top - \f[V]sprite_width\f[R]: Width of each sprite
+cell in the result - \f[V]sprite_height\f[R]: Height of each sprite cell
+in the result - \f[V]name\f[R]: Optional name for the composite texture
+.PP
+\f[B]Returns:\f[R] Texture: New texture with all layers composited
+.PP
+\f[B]Raises:\f[R] ValueError: If layers have different dimensions or
+list is empty This is a class method.
+Uses Porter-Duff `over' alpha compositing.
+.SS \f[V]from_bytes(data: bytes, width: int, height: int, sprite_width: int, sprite_height: int, name: str = \[aq]<generated>\[aq]) -> Texture\f[R]
+.PP
+Create a Texture from raw RGBA pixel data.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]data\f[R]: Raw RGBA bytes (length must equal
+width * height * 4) - \f[V]width\f[R]: Image width in pixels -
+\f[V]height\f[R]: Image height in pixels - \f[V]sprite_width\f[R]: Width
+of each sprite cell - \f[V]sprite_height\f[R]: Height of each sprite
+cell - \f[V]name\f[R]: Optional name for the texture (default: `')
+.PP
+\f[B]Returns:\f[R] Texture: New texture containing the pixel data
+.PP
+\f[B]Raises:\f[R] ValueError: If data length does not match width *
+height * 4 This is a class method.
+Useful for procedurally generated textures.
+.SS \f[V]hsl_shift(hue_shift: float, sat_shift: float = 0.0, lit_shift: float = 0.0) -> Texture\f[R]
+.PP
+Create a new texture with HSL color adjustments applied.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]hue_shift\f[R]: Hue rotation in degrees
+[0.0, 360.0) - \f[V]sat_shift\f[R]: Saturation adjustment [-1.0, 1.0]
+(default 0.0) - \f[V]lit_shift\f[R]: Lightness adjustment [-1.0, 1.0]
+(default 0.0)
+.PP
+\f[B]Returns:\f[R] Texture: New texture with color-shifted pixels
+Preserves alpha channel.
+Skips fully transparent pixels.
 .SS TileLayer
 .PP
-TileLayer(z_index=-1, texture=None, grid_size=None)
+TileLayer(z_index=-1, name=None, texture=None, grid_size=None)
 .PP
 A grid layer that stores sprite indices per cell for tile-based
 rendering.
 .PP
-TileLayers are typically created via Grid.add_layer(`tile', \&...)
-rather than instantiated directly.
-Each cell stores an integer index into the layer\[cq]s sprite atlas
-texture.
-An index of -1 means no tile (transparent/empty).
+TileLayers can be created standalone and attached to a Grid via
+add_layer() or passed to the Grid constructor\[cq]s layers parameter.
+Layers with size (0, 0) automatically resize to match the Grid when
+attached.
 .PP
 Args: z_index (int): Render order relative to entities.
 Negative values render below entities (as backgrounds), positive values
 render above entities (as overlays).
-Default: -1 (background) texture (Texture): Sprite atlas containing tile
-images.
+Default: -1 (background) name (str): Layer name for Grid.layer(name)
+lookup.
+Default: None texture (Texture): Sprite atlas containing tile images.
 The texture\[cq]s sprite_size determines individual tile dimensions.
 Required for rendering; can be set after creation.
 Default: None grid_size (tuple): Dimensions as (width, height).
-If None, the layer will inherit the parent Grid\[cq]s dimensions when
-attached.
+If None or (0, 0), the layer will auto-resize when attached to a Grid.
 Default: None
 .PP
 Attributes: z_index (int): Layer z-order relative to entities
-(read/write) visible (bool): Whether layer is rendered (read/write)
-texture (Texture): Sprite atlas for tile images (read/write) grid_size
-(tuple): Layer dimensions as (width, height) (read-only)
+(read/write) name (str): Layer name for lookup (read-only) visible
+(bool): Whether layer is rendered (read/write) texture (Texture): Sprite
+atlas for tile images (read/write) grid_size (tuple): Layer dimensions
+as (width, height) (read-only) grid (Grid): Parent Grid or None.
+Setting manages layer association.
 .PP
 Methods: at(x, y) -> int: Get the tile index at cell position (x, y)
 set(x, y, index): Set the tile index at cell position (x, y)
@@ -3588,14 +4704,16 @@ y, w, h, index): Fill a rectangular region with a tile index
 Tile Index Values: -1: No tile (transparent/empty cell) 0+: Index into
 the texture\[cq]s sprite atlas (row-major order)
 .PP
-Example: grid = mcrfpy.Grid(grid_size=(20, 15), texture=my_texture,
-pos=(50, 50), size=(640, 480)) layer = grid.add_layer(`tile', z_index=1,
-texture=overlay_texture) layer.fill(-1) # Clear layer (all transparent)
-layer.set(5, 5, 42) # Place tile index 42 at position (5, 5)
-layer.fill_rect(0, 0, 20, 1, 10) # Top row filled with tile 10
+Example: terrain = mcrfpy.TileLayer(z_index=-2, name=`terrain',
+texture=tileset) grid = mcrfpy.Grid(grid_size=(20, 15),
+layers=[terrain]) terrain.fill(0) # Fill with tile index 0
+grid.layer(`terrain').set(5, 5, 42) # Place tile 42 at (5, 5)
 .PP
-\f[B]Properties:\f[R] - \f[V]grid_size\f[R]: Layer dimensions as (width,
-height) tuple.
+\f[B]Properties:\f[R] - \f[V]grid\f[R]: Parent Grid or None.
+Setting manages layer association and handles lazy allocation.
+- \f[V]grid_size\f[R]: Layer dimensions as (width, height) tuple.
+- \f[V]name\f[R] \f[I](read-only)\f[R]: Layer name (str, read-only).
+Used for Grid.layer(name) lookup.
 - \f[V]texture\f[R]: Texture atlas for tile sprites.
 - \f[V]visible\f[R]: Whether the layer is rendered.
 - \f[V]z_index\f[R]: Layer z-order.
@@ -3636,6 +4754,160 @@ Use -1 for no tile.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
 Vector - \f[V]index\f[R]: Tile index (-1 for no tile)
+.SS TileMapFile
+.PP
+TileMapFile(path: str)
+.PP
+Load a Tiled map file (.tmx or .tmj).
+.PP
+Parses the map and its referenced tilesets, providing access to tile
+layers, object layers, and GID resolution.
+.PP
+Args: path: Path to the .tmx or .tmj map file.
+.PP
+Properties: width (int, read-only): Map width in tiles.
+height (int, read-only): Map height in tiles.
+tile_width (int, read-only): Tile width in pixels.
+tile_height (int, read-only): Tile height in pixels.
+orientation (str, read-only): Map orientation (e.g.\ `orthogonal').
+properties (dict, read-only): Custom map properties.
+tileset_count (int, read-only): Number of referenced tilesets.
+tile_layer_names (list, read-only): Names of tile layers.
+object_layer_names (list, read-only): Names of object layers.
+.PP
+Example: tm = mcrfpy.TileMapFile(`map.tmx') data =
+tm.tile_layer_data(`Ground') tm.apply_to_tile_layer(my_tile_layer,
+`Ground')
+.PP
+\f[B]Properties:\f[R] - \f[V]height\f[R] \f[I](read-only)\f[R]: Map
+height in tiles (int, read-only).
+- \f[V]object_layer_names\f[R] \f[I](read-only)\f[R]: List of object
+layer names (read-only).
+- \f[V]orientation\f[R] \f[I](read-only)\f[R]: Map orientation,
+e.g.\ `orthogonal' (str, read-only).
+- \f[V]properties\f[R] \f[I](read-only)\f[R]: Custom map properties as a
+dict (read-only).
+- \f[V]tile_height\f[R] \f[I](read-only)\f[R]: Tile height in pixels
+(int, read-only).
+- \f[V]tile_layer_names\f[R] \f[I](read-only)\f[R]: List of tile layer
+names (read-only).
+- \f[V]tile_width\f[R] \f[I](read-only)\f[R]: Tile width in pixels (int,
+read-only).
+- \f[V]tileset_count\f[R] \f[I](read-only)\f[R]: Number of referenced
+tilesets (int, read-only).
+- \f[V]width\f[R] \f[I](read-only)\f[R]: Map width in tiles (int,
+read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]apply_to_tile_layer(tile_layer: TileLayer, layer_name: str, tileset_index: int = 0) -> None\f[R]
+.PP
+Resolve GIDs and write sprite indices into a TileLayer.
+.PP
+\f[B]Arguments:\f[R] - \f[V]tile_layer\f[R]: Target TileLayer to write
+into - \f[V]layer_name\f[R]: Name of the tile layer in this map -
+\f[V]tileset_index\f[R]: Which tileset to resolve GIDs against (default
+0)
+.SS \f[V]object_layer(name: str) -> list[dict]\f[R]
+.PP
+Get objects from an object layer as Python dicts.
+.PP
+\f[B]Arguments:\f[R] - \f[V]name\f[R]: Name of the object layer
+.PP
+\f[B]Returns:\f[R] List of dicts with object properties (id, name, x, y,
+width, height, etc.).
+.PP
+\f[B]Raises:\f[R] KeyError: If no object layer with that name exists
+.SS \f[V]resolve_gid(gid: int) -> tuple[int, int]\f[R]
+.PP
+Resolve a global tile ID to tileset index and local tile ID.
+.PP
+\f[B]Arguments:\f[R] - \f[V]gid\f[R]: Global tile ID from
+tile_layer_data()
+.PP
+\f[B]Returns:\f[R] Tuple of (tileset_index, local_tile_id).
+(-1, -1) for empty/invalid.
+.SS \f[V]tile_layer_data(name: str) -> list[int]\f[R]
+.PP
+Get raw global GID data for a tile layer.
+.PP
+\f[B]Arguments:\f[R] - \f[V]name\f[R]: Name of the tile layer
+.PP
+\f[B]Returns:\f[R] Flat list of global GIDs (0 = empty tile).
+.PP
+\f[B]Raises:\f[R] KeyError: If no tile layer with that name exists
+.SS \f[V]tileset(index: int) -> tuple[int, TileSetFile]\f[R]
+.PP
+Get a referenced tileset by index.
+.PP
+\f[B]Arguments:\f[R] - \f[V]index\f[R]: Tileset index (0-based)
+.PP
+\f[B]Returns:\f[R] Tuple of (firstgid, TileSetFile).
+.SS TileSetFile
+.PP
+TileSetFile(path: str)
+.PP
+Load a Tiled tileset file (.tsx or .tsj).
+.PP
+Parses the tileset and provides access to tile metadata, properties,
+Wang sets, and texture creation.
+.PP
+Args: path: Path to the .tsx or .tsj tileset file.
+.PP
+Properties: name (str, read-only): Tileset name.
+tile_width (int, read-only): Width of each tile in pixels.
+tile_height (int, read-only): Height of each tile in pixels.
+tile_count (int, read-only): Total number of tiles.
+columns (int, read-only): Number of columns in the tileset image.
+image_source (str, read-only): Resolved path to the tileset image.
+properties (dict, read-only): Custom properties from the tileset.
+wang_sets (list, read-only): List of WangSet objects.
+.PP
+Example: ts = mcrfpy.TileSetFile(`tileset.tsx') texture =
+ts.to_texture() print(f\[cq]{ts.name}: {ts.tile_count} tiles\[cq])
+.PP
+\f[B]Properties:\f[R] - \f[V]columns\f[R] \f[I](read-only)\f[R]: Number
+of columns in tileset image (int, read-only).
+- \f[V]image_source\f[R] \f[I](read-only)\f[R]: Resolved path to the
+tileset image file (str, read-only).
+- \f[V]margin\f[R] \f[I](read-only)\f[R]: Margin around tiles in pixels
+(int, read-only).
+- \f[V]name\f[R] \f[I](read-only)\f[R]: Tileset name (str, read-only).
+- \f[V]properties\f[R] \f[I](read-only)\f[R]: Custom tileset properties
+as a dict (read-only).
+- \f[V]spacing\f[R] \f[I](read-only)\f[R]: Spacing between tiles in
+pixels (int, read-only).
+- \f[V]tile_count\f[R] \f[I](read-only)\f[R]: Total number of tiles
+(int, read-only).
+- \f[V]tile_height\f[R] \f[I](read-only)\f[R]: Height of each tile in
+pixels (int, read-only).
+- \f[V]tile_width\f[R] \f[I](read-only)\f[R]: Width of each tile in
+pixels (int, read-only).
+- \f[V]wang_sets\f[R] \f[I](read-only)\f[R]: List of WangSet objects
+from this tileset (read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]tile_info(tile_id: int) -> dict | None\f[R]
+.PP
+Get metadata for a specific tile.
+.PP
+\f[B]Arguments:\f[R] - \f[V]tile_id\f[R]: Local tile ID (0-based)
+.PP
+\f[B]Returns:\f[R] Dict with `properties' and `animation' keys, or None
+if no metadata.
+.SS \f[V]to_texture() -> Texture\f[R]
+.PP
+Create a Texture from the tileset image.
+.PP
+\f[B]Returns:\f[R] A Texture object for use with TileLayer.
+.SS \f[V]wang_set(name: str) -> WangSet\f[R]
+.PP
+Look up a WangSet by name.
+.PP
+\f[B]Arguments:\f[R] - \f[V]name\f[R]: Name of the Wang set
+.PP
+\f[B]Returns:\f[R] The WangSet object.
+.PP
+\f[B]Raises:\f[R] KeyError: If no WangSet with that name exists
 .SS Timer
 .PP
 Timer(name, callback, interval, once=False, start=True)
@@ -3885,9 +5157,98 @@ signed Determines whether two\[cq]s complement is used to represent the
 integer.
 If signed is False and a negative integer is given, an OverflowError is
 raised.
+.SS Trigger
+.PP
+\f[I]Inherits from: IntEnum\f[R]
+.PP
+Enum representing trigger types passed to entity step() callbacks.
+.PP
+Values: DONE: Behavior completed (path exhausted, sleep finished, etc.)
+BLOCKED: Movement blocked by wall or collision TARGET: Target entity
+spotted in FOV
+.PP
+\f[B]Properties:\f[R] - \f[V]denominator\f[R]: the denominator of a
+rational number in lowest terms - \f[V]imag\f[R]: the imaginary part of
+a complex number - \f[V]numerator\f[R]: the numerator of a rational
+number in lowest terms - \f[V]real\f[R]: the real part of a complex
+number
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]as_integer_ratio(...)\f[R]
+.PP
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio() (10, 1) >>> (-10).as_integer_ratio() (-10,
+1) >>> (0).as_integer_ratio() (0, 1)
+.SS \f[V]bit_count(...)\f[R]
+.PP
+Number of ones in the binary representation of the absolute value of
+self.
+Also known as the population count.
+>>> bin(13) `0b1101' >>> (13).bit_count() 3
+.SS \f[V]bit_length(...)\f[R]
+.PP
+Number of bits necessary to represent self in binary.
+>>> bin(37) `0b100101' >>> (37).bit_length() 6
+.SS \f[V]conjugate(...)\f[R]
+.PP
+Returns self, the complex conjugate of any int.
+.SS \f[V]from_bytes(...)\f[R]
+.PP
+Return the integer represented by the given array of bytes.
+bytes Holds the array of bytes to convert.
+The argument must either support the buffer protocol or be an iterable
+object producing bytes.
+Bytes and bytearray are examples of built-in objects that support the
+buffer protocol.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Indicates whether two\[cq]s complement is used to represent the
+integer.
+.SS \f[V]is_integer(...)\f[R]
+.PP
+Returns True.
+Exists for duck type compatibility with float.is_integer.
+.SS \f[V]to_bytes(...)\f[R]
+.PP
+Return an array of bytes representing an integer.
+length Length of bytes object to use.
+An OverflowError is raised if the integer is not representable with the
+given number of bytes.
+Default is length 1.
+byteorder The byte order used to represent the integer.
+If byteorder is `big', the most significant byte is at the beginning of
+the byte array.
+If byteorder is `little', the most significant byte is at the end of the
+byte array.
+To request the native byte order of the host system, use sys.byteorder
+as the byte order value.
+Default is to use `big'.
+signed Determines whether two\[cq]s complement is used to represent the
+integer.
+If signed is False and a negative integer is given, an OverflowError is
+raised.
 .SS Vector
 .PP
-SFML Vector Object
+Vector(x: float = 0, y: float = 0)
+.PP
+2D vector for positions, sizes, and directions.
+.PP
+Args: x: X component.
+y: Y component.
+.PP
+Supports arithmetic (+, -, *, /), abs(), len() == 2, indexing ([0] for
+x, [1] for y), hashing, and equality.
+.PP
+Properties: x (float): X component.
+y (float): Y component.
+int (tuple[int, int], read-only): Integer floor of (x, y).
 .PP
 \f[B]Properties:\f[R] - \f[V]int\f[R] \f[I](read-only)\f[R]: Integer
 tuple (floor of x and y) for use as dict keys.
@@ -3952,6 +5313,621 @@ Note:
 \f[B]Returns:\f[R] Vector: New normalized vector with magnitude 1.0 For
 zero vectors (magnitude 0.0), returns a zero vector rather than raising
 an exception
+.SS Viewport3D
+.PP
+\f[I]Inherits from: Drawable\f[R]
+.PP
+Viewport3D(pos=None, size=None, **kwargs)
+.PP
+A 3D rendering viewport that displays a 3D scene as a UI element.
+.PP
+Args: pos (tuple, optional): Position as (x, y) tuple.
+Default: (0, 0) size (tuple, optional): Display size as (width, height).
+Default: (320, 240)
+.PP
+Keyword Args: render_resolution (tuple): Internal render resolution
+(width, height).
+Default: (320, 240) fov (float): Camera field of view in degrees.
+Default: 60 camera_pos (tuple): Camera position (x, y, z).
+Default: (0, 0, 5) camera_target (tuple): Camera look-at point (x, y,
+z).
+Default: (0, 0, 0) bg_color (Color): Background clear color.
+Default: (25, 25, 50) enable_vertex_snap (bool): PS1-style vertex
+snapping.
+Default: True enable_affine (bool): PS1-style affine texture mapping.
+Default: True enable_dither (bool): PS1-style color dithering.
+Default: True enable_fog (bool): Distance fog.
+Default: True fog_color (Color): Fog color.
+Default: (128, 128, 153) fog_near (float): Fog start distance.
+Default: 10 fog_far (float): Fog end distance.
+Default: 100
+.PP
+\f[B]Properties:\f[R] - \f[V]bg_color\f[R]: Background clear color.
+- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]camera_pos\f[R]: Camera position as (x, y, z) tuple.
+- \f[V]camera_target\f[R]: Camera look-at target as (x, y, z) tuple.
+- \f[V]cell_size\f[R]: World units per navigation grid cell.
+- \f[V]enable_affine\f[R]: Enable PS1-style affine texture mapping
+(warped textures).
+- \f[V]enable_dither\f[R]: Enable PS1-style color dithering.
+- \f[V]enable_fog\f[R]: Enable distance fog.
+- \f[V]enable_vertex_snap\f[R]: Enable PS1-style vertex snapping
+(jittery vertices).
+- \f[V]entities\f[R] \f[I](read-only)\f[R]: Collection of Entity3D
+objects (read-only).
+Use append/remove to modify.
+- \f[V]fog_color\f[R]: Fog color.
+- \f[V]fog_far\f[R]: Fog end distance.
+- \f[V]fog_near\f[R]: Fog start distance.
+- \f[V]fov\f[R]: Camera field of view in degrees.
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
+Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
+position (read-only).
+Calculates absolute position by walking up the parent chain.
+- \f[V]grid_size\f[R]: Navigation grid dimensions as (width, depth)
+tuple.
+- \f[V]h\f[R]: Display height in pixels.
+- \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
+over this element (read-only).
+Updated automatically by the engine during mouse movement.
+- \f[V]on_click\f[R]: Callable executed when object is clicked.
+Function receives (pos: Vector, button: str, action: str).
+- \f[V]on_enter\f[R]: Callback for mouse enter events.
+Called with (pos: Vector, button: str, action: str) when mouse enters
+this element\[cq]s bounds.
+- \f[V]on_exit\f[R]: Callback for mouse exit events.
+Called with (pos: Vector, button: str, action: str) when mouse leaves
+this element\[cq]s bounds.
+- \f[V]on_move\f[R]: Callback for mouse movement within bounds.
+Called with (pos: Vector, button: str, action: str) for each mouse
+movement while inside.
+Performance note: Called frequently during movement - keep handlers
+fast.
+- \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
+Automatically clamped to valid range [0.0, 1.0].
+- \f[V]parent\f[R]: Parent drawable.
+Get: Returns the parent Frame/Grid if nested, or None if at scene level.
+Set: Assign a Frame/Grid to reparent, or None to remove from parent.
+- \f[V]pos\f[R]: Position as Vector (x, y).
+- \f[V]render_resolution\f[R]: Internal render resolution (width,
+height).
+Lower values for PS1 effect.
+- \f[V]visible\f[R]: Whether the object is visible (bool).
+Invisible objects are not rendered or clickable.
+- \f[V]w\f[R]: Display width in pixels.
+- \f[V]x\f[R]: X position in pixels.
+- \f[V]y\f[R]: Y position in pixels.
+- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+first).
+Automatically triggers scene resort when changed.
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]add_billboard(billboard)\f[R]
+.PP
+Add a Billboard to the viewport.
+.PP
+\f[B]Arguments:\f[R] - \f[V]billboard\f[R]: Billboard object to add
+.SS \f[V]add_layer(name, z_index=0) -> dict\f[R]
+.PP
+Add a new mesh layer to the viewport.
+.PP
+\f[B]Arguments:\f[R] - \f[V]name\f[R]: Unique identifier for the layer -
+\f[V]z_index\f[R]: Render order (lower = rendered first)
+.SS \f[V]add_mesh(layer_name, model, pos, rotation=0, scale=1.0) -> int\f[R]
+.PP
+Add a Model3D instance to a layer at the specified position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]layer_name\f[R]: Name of layer to add mesh
+to (created if needed) - \f[V]model\f[R]: Model3D object to place -
+\f[V]pos\f[R]: World position as (x, y, z) tuple - \f[V]rotation\f[R]:
+Y-axis rotation in degrees - \f[V]scale\f[R]: Uniform scale factor
+.PP
+\f[B]Returns:\f[R] Index of the mesh instance
+.SS \f[V]add_voxel_layer(voxel_grid, z_index=0)\f[R]
+.PP
+Add a VoxelGrid as a renderable layer.
+.PP
+\f[B]Arguments:\f[R] - \f[V]voxel_grid\f[R]: VoxelGrid object to render
+- \f[V]z_index\f[R]: Render order (lower = rendered first)
+.SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
+.PP
+Create and start an animation on this drawable\[cq]s property.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
+animate (e.g., `x', `fill_color', `opacity') - \f[V]target\f[R]: Target
+value - type depends on property (float, tuple for color/vector, etc.)
+- \f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
+.PP
+\f[B]Returns:\f[R] Animation object for monitoring progress
+.PP
+\f[B]Raises:\f[R] ValueError: If property name is not valid for this
+drawable type This is a convenience method that creates an Animation,
+starts it, and adds it to the AnimationManager.
+.SS \f[V]apply_heightmap(heightmap, y_scale=1.0)\f[R]
+.PP
+Set cell heights from HeightMap.
+.PP
+\f[B]Arguments:\f[R] - \f[V]heightmap\f[R]: HeightMap object -
+\f[V]y_scale\f[R]: Vertical scale factor
+.SS \f[V]apply_terrain_colors(layer_name, r_map, g_map, b_map)\f[R]
+.PP
+Apply per-vertex colors to terrain from RGB HeightMaps.
+.PP
+\f[B]Arguments:\f[R] - \f[V]layer_name\f[R]: Name of terrain layer to
+colorize - \f[V]r_map\f[R]: HeightMap for red channel (0-1 values) -
+\f[V]g_map\f[R]: HeightMap for green channel (0-1 values) -
+\f[V]b_map\f[R]: HeightMap for blue channel (0-1 values)
+.SS \f[V]apply_threshold(heightmap, min_height, max_height, walkable=True)\f[R]
+.PP
+Set cell walkability based on height thresholds.
+.PP
+\f[B]Arguments:\f[R] - \f[V]heightmap\f[R]: HeightMap object -
+\f[V]min_height\f[R]: Minimum height (0-1) - \f[V]max_height\f[R]:
+Maximum height (0-1) - \f[V]walkable\f[R]: Walkability value for cells
+in range
+.SS \f[V]at(x, z) -> VoxelPoint\f[R]
+.PP
+Get VoxelPoint at grid coordinates.
+.PP
+\f[B]Arguments:\f[R] - \f[V]x\f[R]: X coordinate in grid - \f[V]z\f[R]:
+Z coordinate in grid
+.PP
+\f[B]Returns:\f[R] VoxelPoint object for the cell
+.SS \f[V]billboard_count() -> int\f[R]
+.PP
+Get the number of billboards.
+.PP
+\f[B]Returns:\f[R] Number of billboards in the viewport
+.SS \f[V]build_terrain(layer_name, heightmap, y_scale=1.0, cell_size=1.0) -> int\f[R]
+.PP
+Build terrain mesh from HeightMap on specified layer.
+.PP
+\f[B]Arguments:\f[R] - \f[V]layer_name\f[R]: Name of layer to build
+terrain on (created if doesn\[cq]t exist) - \f[V]heightmap\f[R]:
+HeightMap object with height data - \f[V]y_scale\f[R]: Vertical
+exaggeration factor - \f[V]cell_size\f[R]: World-space size of each grid
+cell
+.PP
+\f[B]Returns:\f[R] Number of vertices in the generated mesh
+.SS \f[V]clear_billboards()\f[R]
+.PP
+Remove all billboards from the viewport.
+.SS \f[V]clear_meshes(layer_name)\f[R]
+.PP
+Clear all mesh instances from a layer.
+.PP
+\f[B]Arguments:\f[R] - \f[V]layer_name\f[R]: Name of layer to clear
+.SS \f[V]clear_voxel_nav_region(voxel_grid)\f[R]
+.PP
+Clear navigation cells in a voxel grid\[cq]s footprint.
+Resets walkability, transparency, height, and cost to defaults for all
+nav cells corresponding to the voxel grid\[cq]s XZ extent.
+.PP
+\f[B]Arguments:\f[R] - \f[V]voxel_grid\f[R]: VoxelGrid whose nav region
+to clear
+.SS \f[V]compute_fov(origin, radius=10) -> list\f[R]
+.PP
+Compute field of view from a position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]origin\f[R]: Origin point as (x, z) tuple -
+\f[V]radius\f[R]: FOV radius
+.PP
+\f[B]Returns:\f[R] List of visible (x, z) positions
+.SS \f[V]find_path(start, end) -> list\f[R]
+.PP
+Find A* path between two points.
+.PP
+\f[B]Arguments:\f[R] - \f[V]start\f[R]: Starting point as (x, z) tuple -
+\f[V]end\f[R]: End point as (x, z) tuple
+.PP
+\f[B]Returns:\f[R] List of (x, z) tuples forming the path, or empty list
+if no path
+.SS \f[V]follow(entity, distance=10, height=5, smoothing=1.0)\f[R]
+.PP
+Position camera to follow an entity.
+.PP
+\f[B]Arguments:\f[R] - \f[V]entity\f[R]: Entity3D to follow -
+\f[V]distance\f[R]: Distance behind entity - \f[V]height\f[R]: Camera
+height above entity - \f[V]smoothing\f[R]: Interpolation factor (0-1).
+1 = instant, lower = smoother
+.SS \f[V]get_billboard(index) -> Billboard\f[R]
+.PP
+Get a Billboard by index.
+.PP
+\f[B]Arguments:\f[R] - \f[V]index\f[R]: Index of the billboard
+.PP
+\f[B]Returns:\f[R] Billboard object
+.SS \f[V]get_layer(name) -> dict or None\f[R]
+.PP
+Get a layer by name.
+.SS \f[V]is_in_fov(x, z) -> bool\f[R]
+.PP
+Check if a cell is in the current FOV (after compute_fov).
+.PP
+\f[B]Arguments:\f[R] - \f[V]x\f[R]: X coordinate - \f[V]z\f[R]: Z
+coordinate
+.PP
+\f[B]Returns:\f[R] True if the cell is visible
+.SS \f[V]layer_count() -> int\f[R]
+.PP
+Get the number of mesh layers.
+.SS \f[V]move(dx, dy) or (delta) -> None\f[R]
+.PP
+Move the element by a relative offset.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
+delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
+\f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
+.SS \f[V]orbit_camera(angle=0, distance=10, height=5)\f[R]
+.PP
+Position camera to orbit around origin.
+.PP
+\f[B]Arguments:\f[R] - \f[V]angle\f[R]: Orbit angle in radians -
+\f[V]distance\f[R]: Distance from origin - \f[V]height\f[R]: Camera
+height above XZ plane
+.SS \f[V]place_blocking(grid_pos, footprint, walkable=False, transparent=False)\f[R]
+.PP
+Mark grid cells as blocking for pathfinding and FOV.
+.PP
+\f[B]Arguments:\f[R] - \f[V]grid_pos\f[R]: Top-left grid position as (x,
+z) tuple - \f[V]footprint\f[R]: Size in cells as (width, depth) tuple -
+\f[V]walkable\f[R]: Whether cells should be walkable (default: False) -
+\f[V]transparent\f[R]: Whether cells should be transparent (default:
+False)
+.SS \f[V]project_all_voxels_to_nav(headroom=2)\f[R]
+.PP
+Project all voxel layers to the navigation grid.
+Resets navigation grid and projects each voxel layer in z_index order.
+Later layers (higher z_index) overwrite earlier ones.
+.PP
+\f[B]Arguments:\f[R] - \f[V]headroom\f[R]: Required air voxels above
+floor for walkability (default: 2)
+.SS \f[V]project_voxel_to_nav(voxel_grid, headroom=2)\f[R]
+.PP
+Project a VoxelGrid to the navigation grid.
+Scans each column of the voxel grid and updates corresponding navigation
+cells with walkability, transparency, height, and cost.
+.PP
+\f[B]Arguments:\f[R] - \f[V]voxel_grid\f[R]: VoxelGrid to project -
+\f[V]headroom\f[R]: Required air voxels above floor for walkability
+(default: 2)
+.SS \f[V]realign() -> None\f[R]
+.PP
+Reapply alignment relative to parent, useful for responsive layouts.
+.PP
+Note: Call this to recalculate position after parent changes size.
+For elements with align=None, this has no effect.
+.SS \f[V]remove_billboard(billboard)\f[R]
+.PP
+Remove a Billboard from the viewport.
+.PP
+\f[B]Arguments:\f[R] - \f[V]billboard\f[R]: Billboard object to remove
+.SS \f[V]remove_layer(name) -> bool\f[R]
+.PP
+Remove a layer by name.
+Returns True if found and removed.
+.SS \f[V]remove_voxel_layer(voxel_grid) -> bool\f[R]
+.PP
+Remove a VoxelGrid layer from the viewport.
+.PP
+\f[B]Arguments:\f[R] - \f[V]voxel_grid\f[R]: VoxelGrid object to remove
+.PP
+\f[B]Returns:\f[R] True if the layer was found and removed
+.SS \f[V]resize(width, height) or (size) -> None\f[R]
+.PP
+Resize the element to new dimensions.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
+size) - \f[V]height\f[R]: New height in pixels (or use size) -
+\f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
+.SS \f[V]screen_to_world(x, y, y_plane=0.0) -> tuple or None\f[R]
+.PP
+Convert screen coordinates to world position via ray casting.
+.PP
+\f[B]Arguments:\f[R] - \f[V]x\f[R]: Screen X coordinate relative to
+viewport - \f[V]y\f[R]: Screen Y coordinate relative to viewport -
+\f[V]y_plane\f[R]: Y value of horizontal plane to intersect (default:
+0.0)
+.PP
+\f[B]Returns:\f[R] (x, y, z) world position tuple, or None if no
+intersection with the plane
+.SS \f[V]set_grid_size(width, depth)\f[R]
+.PP
+Initialize navigation grid with specified dimensions.
+.PP
+\f[B]Arguments:\f[R] - \f[V]width\f[R]: Grid width (X axis) -
+\f[V]depth\f[R]: Grid depth (Z axis)
+.SS \f[V]set_slope_cost(max_slope=0.5, cost_multiplier=1.0)\f[R]
+.PP
+Calculate slope costs and mark steep cells unwalkable.
+.PP
+\f[B]Arguments:\f[R] - \f[V]max_slope\f[R]: Maximum height difference
+before marking unwalkable - \f[V]cost_multiplier\f[R]: Cost increase per
+unit slope
+.SS \f[V]voxel_layer_count() -> int\f[R]
+.PP
+Get the number of voxel layers.
+.PP
+\f[B]Returns:\f[R] Number of voxel layers in the viewport
+.SS VoxelGrid
+.PP
+VoxelGrid(size: tuple[int, int, int], cell_size: float = 1.0)
+.PP
+A dense 3D grid of voxel material IDs with a material palette.
+.PP
+VoxelGrids provide volumetric storage for 3D structures like buildings,
+caves, and dungeon walls.
+Each cell stores a uint8 material ID (0-255), where 0 is always air.
+.PP
+Args: size: (width, height, depth) dimensions.
+Immutable after creation.
+cell_size: World units per voxel.
+Default 1.0.
+.PP
+Properties: size (tuple, read-only): Grid dimensions as (width, height,
+depth) width, height, depth (int, read-only): Individual dimensions
+cell_size (float, read-only): World units per voxel offset (tuple):
+World-space position (x, y, z) rotation (float): Y-axis rotation in
+degrees material_count (int, read-only): Number of defined materials
+.PP
+Example: voxels = mcrfpy.VoxelGrid(size=(16, 8, 16), cell_size=1.0)
+stone = voxels.add_material(`stone', color=mcrfpy.Color(128, 128, 128))
+voxels.set(5, 0, 5, stone) assert voxels.get(5, 0, 5) == stone
+print(f\[cq]Non-air voxels: {voxels.count_non_air()}\[cq])
+.PP
+\f[B]Properties:\f[R] - \f[V]cell_size\f[R] \f[I](read-only)\f[R]: World
+units per voxel.
+Read-only.
+- \f[V]depth\f[R] \f[I](read-only)\f[R]: Grid depth (Z dimension).
+Read-only.
+- \f[V]greedy_meshing\f[R]: Enable greedy meshing optimization (reduces
+vertex count for uniform regions).
+- \f[V]height\f[R] \f[I](read-only)\f[R]: Grid height (Y dimension).
+Read-only.
+- \f[V]material_count\f[R] \f[I](read-only)\f[R]: Number of materials in
+the palette.
+Read-only.
+- \f[V]offset\f[R]: World-space position (x, y, z) of the grid origin.
+- \f[V]rotation\f[R]: Y-axis rotation in degrees.
+- \f[V]size\f[R] \f[I](read-only)\f[R]: Dimensions (width, height,
+depth) of the grid.
+Read-only.
+- \f[V]vertex_count\f[R] \f[I](read-only)\f[R]: Number of vertices after
+mesh generation.
+Read-only.
+- \f[V]visible\f[R]: Show or hide this voxel grid in rendering.
+- \f[V]width\f[R] \f[I](read-only)\f[R]: Grid width (X dimension).
+Read-only.
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]add_material(name, color=Color(255,255,255), sprite_index=-1, transparent=False, path_cost=1.0) -> int\f[R]
+.PP
+Add a new material to the palette.
+Returns the material ID (1-indexed).
+Material 0 is always air (implicit, never stored in palette).
+Maximum 255 materials can be added.
+.SS \f[V]clear() -> None\f[R]
+.PP
+Clear the grid (fill with air, material 0).
+.SS \f[V]copy_region(min_coord, max_coord) -> VoxelRegion\f[R]
+.PP
+Copy a rectangular region to a VoxelRegion prefab.
+.PP
+\f[B]Arguments:\f[R] - \f[V]min_coord\f[R]: (x0, y0, z0) - minimum
+corner (inclusive) - \f[V]max_coord\f[R]: (x1, y1, z1) - maximum corner
+(inclusive)
+.PP
+\f[B]Returns:\f[R] VoxelRegion object that can be pasted elsewhere.
+.SS \f[V]count_material(material) -> int\f[R]
+.PP
+Count the number of voxels with the specified material ID.
+.SS \f[V]count_non_air() -> int\f[R]
+.PP
+Count the number of non-air voxels in the grid.
+.SS \f[V]fill(material) -> None\f[R]
+.PP
+Fill the entire grid with the specified material ID.
+.SS \f[V]fill_box(min_coord, max_coord, material) -> None\f[R]
+.PP
+Fill a rectangular region with the specified material.
+.PP
+\f[B]Arguments:\f[R] - \f[V]min_coord\f[R]: (x0, y0, z0) - minimum
+corner (inclusive) - \f[V]max_coord\f[R]: (x1, y1, z1) - maximum corner
+(inclusive) - \f[V]material\f[R]: material ID (0-255)
+.SS \f[V]fill_box_hollow(min_coord, max_coord, material, thickness=1) -> None\f[R]
+.PP
+Create a hollow rectangular room (walls only, hollow inside).
+.PP
+\f[B]Arguments:\f[R] - \f[V]min_coord\f[R]: (x0, y0, z0) - minimum
+corner (inclusive) - \f[V]max_coord\f[R]: (x1, y1, z1) - maximum corner
+(inclusive) - \f[V]material\f[R]: material ID for walls (0-255) -
+\f[V]thickness\f[R]: wall thickness in voxels (default 1)
+.SS \f[V]fill_cylinder(base_pos, radius, height, material) -> None\f[R]
+.PP
+Fill a vertical cylinder (Y-axis aligned).
+.PP
+\f[B]Arguments:\f[R] - \f[V]base_pos\f[R]: (cx, cy, cz) - base center
+position - \f[V]radius\f[R]: cylinder radius in voxels -
+\f[V]height\f[R]: cylinder height in voxels - \f[V]material\f[R]:
+material ID (0-255)
+.SS \f[V]fill_noise(min_coord, max_coord, material, threshold=0.5, scale=0.1, seed=0) -> None\f[R]
+.PP
+Fill region with 3D noise-based pattern (caves, clouds).
+.PP
+\f[B]Arguments:\f[R] - \f[V]min_coord\f[R]: (x0, y0, z0) - minimum
+corner - \f[V]max_coord\f[R]: (x1, y1, z1) - maximum corner -
+\f[V]material\f[R]: material ID for solid areas - \f[V]threshold\f[R]:
+noise threshold (0-1, higher = more solid) - \f[V]scale\f[R]: noise
+scale (smaller = larger features) - \f[V]seed\f[R]: random seed (0 for
+default)
+.SS \f[V]fill_sphere(center, radius, material) -> None\f[R]
+.PP
+Fill a spherical region.
+.PP
+\f[B]Arguments:\f[R] - \f[V]center\f[R]: (cx, cy, cz) - sphere center
+coordinates - \f[V]radius\f[R]: sphere radius in voxels -
+\f[V]material\f[R]: material ID (0-255, use 0 to carve)
+.SS \f[V]from_bytes(data) -> bool\f[R]
+.PP
+Load voxel data from a bytes object.
+.PP
+Note: This replaces the current grid data entirely.
+.PP
+\f[B]Arguments:\f[R] - \f[V]data\f[R]: bytes object containing
+serialized grid data
+.PP
+\f[B]Returns:\f[R] True on success, False on failure.
+.SS \f[V]get(x, y, z) -> int\f[R]
+.PP
+Get the material ID at integer coordinates.
+Returns 0 (air) for out-of-bounds coordinates.
+.SS \f[V]get_material(id) -> dict\f[R]
+.PP
+Get material properties by ID.
+Returns dict with keys: name, color, sprite_index, transparent,
+path_cost.
+ID 0 returns the implicit air material.
+.SS \f[V]load(path) -> bool\f[R]
+.PP
+Load voxel data from a binary file.
+.PP
+Note: This replaces the current grid data entirely, including
+.PP
+\f[B]Arguments:\f[R] - \f[V]path\f[R]: File path to load from
+.PP
+\f[B]Returns:\f[R] True on success, False on failure.
+dimensions and material palette.
+.SS \f[V]paste_region(region, position, skip_air=True) -> None\f[R]
+.PP
+Paste a VoxelRegion prefab at the specified position.
+.PP
+\f[B]Arguments:\f[R] - \f[V]region\f[R]: VoxelRegion from copy_region()
+- \f[V]position\f[R]: (x, y, z) - paste destination -
+\f[V]skip_air\f[R]: if True, air voxels don\[cq]t overwrite (default
+True)
+.SS \f[V]project_column(x, z, headroom=2) -> dict\f[R]
+.PP
+Project a single column to navigation info.
+Scans the column from top to bottom, finding the topmost floor (solid
+voxel with air above) and checking for adequate headroom.
+.PP
+\f[B]Arguments:\f[R] - \f[V]x\f[R]: X coordinate in voxel grid -
+\f[V]z\f[R]: Z coordinate in voxel grid - \f[V]headroom\f[R]: Required
+air voxels above floor (default 2)
+.PP
+\f[B]Returns:\f[R] dict with keys: height (float): World Y of floor
+surface walkable (bool): True if floor found with adequate headroom
+transparent (bool): True if no opaque voxels in column path_cost
+(float): Floor material\[cq]s path cost
+.SS \f[V]rebuild_mesh() -> None\f[R]
+.PP
+Force immediate mesh rebuild for rendering.
+.SS \f[V]save(path) -> bool\f[R]
+.PP
+Save the voxel grid to a binary file.
+.PP
+\f[B]Arguments:\f[R] - \f[V]path\f[R]: File path to save to (.mcvg
+extension recommended)
+.PP
+\f[B]Returns:\f[R] True on success, False on failure.
+The file format includes grid dimensions, cell size, material palette,
+and RLE-compressed voxel data.
+.SS \f[V]set(x, y, z, material) -> None\f[R]
+.PP
+Set the material ID at integer coordinates.
+Out-of-bounds coordinates are silently ignored.
+.SS \f[V]to_bytes() -> bytes\f[R]
+.PP
+Serialize the voxel grid to a bytes object.
+.PP
+\f[B]Returns:\f[R] bytes object containing the serialized grid data.
+Useful for network transmission or custom storage.
+.SS VoxelRegion
+.PP
+VoxelRegion - Portable voxel data for copy/paste operations.
+.PP
+Created by VoxelGrid.copy_region(), used with paste_region().
+Cannot be instantiated directly.
+.PP
+Properties: size (tuple, read-only): Dimensions as (width, height,
+depth) width, height, depth (int, read-only): Individual dimensions
+.PP
+\f[B]Properties:\f[R] - \f[V]depth\f[R] \f[I](read-only)\f[R]: Region
+depth.
+Read-only.
+- \f[V]height\f[R] \f[I](read-only)\f[R]: Region height.
+Read-only.
+- \f[V]size\f[R] \f[I](read-only)\f[R]: Dimensions (width, height,
+depth) of the region.
+Read-only.
+- \f[V]width\f[R] \f[I](read-only)\f[R]: Region width.
+Read-only.
+.PP
+\f[B]Methods:\f[R]
+.SS WangSet
+.PP
+WangSet - Wang terrain auto-tile set from a Tiled tileset.
+.PP
+WangSets are obtained from TileSetFile.wang_sets or
+TileSetFile.wang_set().
+They map abstract terrain types to concrete sprite indices using
+Tiled\[cq]s Wang tile algorithm.
+.PP
+Properties: name (str, read-only): Wang set name.
+type (str, read-only): `corner', `edge', or `mixed'.
+color_count (int, read-only): Number of terrain colors.
+colors (list, read-only): List of color dicts.
+.PP
+Example: ws = tileset.wang_set(`overworld') Terrain = ws.terrain_enum()
+tiles = ws.resolve(discrete_map)
+.PP
+\f[B]Properties:\f[R] - \f[V]color_count\f[R] \f[I](read-only)\f[R]:
+Number of terrain colors (int, read-only).
+- \f[V]colors\f[R] \f[I](read-only)\f[R]: List of color dicts with name,
+index, tile_id, probability (read-only).
+- \f[V]name\f[R] \f[I](read-only)\f[R]: Wang set name (str, read-only).
+- \f[V]type\f[R] \f[I](read-only)\f[R]: Wang set type: `corner', `edge',
+or `mixed' (str, read-only).
+.PP
+\f[B]Methods:\f[R]
+.SS \f[V]apply(discrete_map: DiscreteMap, tile_layer: TileLayer) -> None\f[R]
+.PP
+Resolve terrain and write tile indices directly into a TileLayer.
+.PP
+\f[B]Arguments:\f[R] - \f[V]discrete_map\f[R]: A DiscreteMap with
+terrain IDs - \f[V]tile_layer\f[R]: Target TileLayer to write resolved
+tiles into
+.SS \f[V]resolve(discrete_map: DiscreteMap) -> list[int]\f[R]
+.PP
+Resolve terrain data to tile indices using Wang tile rules.
+.PP
+\f[B]Arguments:\f[R] - \f[V]discrete_map\f[R]: A DiscreteMap with
+terrain IDs matching this WangSet\[cq]s colors
+.PP
+\f[B]Returns:\f[R] List of tile IDs (one per cell).
+-1 means no matching Wang tile.
+.SS \f[V]terrain_enum() -> IntEnum\f[R]
+.PP
+Generate a Python IntEnum from this WangSet\[cq]s terrain colors.
+.PP
+\f[B]Returns:\f[R] IntEnum class with NONE=0 and one member per color
+(UPPER_SNAKE_CASE).
 .SS Window
 .PP
 Window singleton for accessing and modifying the game window properties
