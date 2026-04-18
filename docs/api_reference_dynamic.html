@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2026-04-18 07:28:57</em></p>
+        <p><em>Generated on 2026-04-18 13:35:02</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -119,7 +119,6 @@
                     <ul>
                         <li><a href="#AStarPath">AStarPath</a></li>
                         <li><a href="#Alignment">Alignment</a></li>
-                        <li><a href="#Animation">Animation</a></li>
                         <li><a href="#Arc">Arc</a></li>
                         <li><a href="#AutoRuleSet">AutoRuleSet</a></li>
                         <li><a href="#BSP">BSP</a></li>
@@ -144,6 +143,7 @@
                         <li><a href="#Grid">Grid</a></li>
                         <li><a href="#GridView">GridView</a></li>
                         <li><a href="#HeightMap">HeightMap</a></li>
+                        <li><a href="#Heuristic">Heuristic</a></li>
                         <li><a href="#InputState">InputState</a></li>
                         <li><a href="#Key">Key</a></li>
                         <li><a href="#Keyboard">Keyboard</a></li>
@@ -476,122 +476,6 @@ Also known as the population count.
     Determines whether two&#x27;s complement is used to represent the integer.
     If signed is False and a negative integer is given, an OverflowError
     is raised.</p>
-            </div>
-        </div>
-
-        <div class="method-section">
-            <h3 id="Animation"><span class="class-name">Animation</span></h3>
-            <p>Animation(property: str, target: Any, duration: float, easing: str = &#x27;linear&#x27;, delta: bool = False, loop: bool = False, callback: Callable = None)
-
-Create an animation that interpolates a property value over time.
-
-Args:
-    property: Property name to animate. Valid properties depend on target type:
-        - Position/Size: &#x27;x&#x27;, &#x27;y&#x27;, &#x27;w&#x27;, &#x27;h&#x27;, &#x27;pos&#x27;, &#x27;size&#x27;
-        - Appearance: &#x27;fill_color&#x27;, &#x27;outline_color&#x27;, &#x27;outline&#x27;, &#x27;opacity&#x27;
-        - Sprite: &#x27;sprite_index&#x27;, &#x27;scale&#x27;
-        - Grid: &#x27;center&#x27;, &#x27;zoom&#x27;
-        - Caption: &#x27;text&#x27;
-        - Sub-properties: &#x27;fill_color.r&#x27;, &#x27;fill_color.g&#x27;, &#x27;fill_color.b&#x27;, &#x27;fill_color.a&#x27;
-    target: Target value for the animation. Type depends on property:
-        - float: For numeric properties (x, y, w, h, scale, opacity, zoom)
-        - int: For integer properties (sprite_index)
-        - tuple (r, g, b[, a]): For color properties
-        - tuple (x, y): For vector properties (pos, size, center)
-        - list[int]: For sprite animation sequences
-        - str: For text animation
-    duration: Animation duration in seconds.
-    easing: Easing function name. Options:
-        - &#x27;linear&#x27; (default)
-        - &#x27;easeIn&#x27;, &#x27;easeOut&#x27;, &#x27;easeInOut&#x27;
-        - &#x27;easeInQuad&#x27;, &#x27;easeOutQuad&#x27;, &#x27;easeInOutQuad&#x27;
-        - &#x27;easeInCubic&#x27;, &#x27;easeOutCubic&#x27;, &#x27;easeInOutCubic&#x27;
-        - &#x27;easeInQuart&#x27;, &#x27;easeOutQuart&#x27;, &#x27;easeInOutQuart&#x27;
-        - &#x27;easeInSine&#x27;, &#x27;easeOutSine&#x27;, &#x27;easeInOutSine&#x27;
-        - &#x27;easeInExpo&#x27;, &#x27;easeOutExpo&#x27;, &#x27;easeInOutExpo&#x27;
-        - &#x27;easeInCirc&#x27;, &#x27;easeOutCirc&#x27;, &#x27;easeInOutCirc&#x27;
-        - &#x27;easeInElastic&#x27;, &#x27;easeOutElastic&#x27;, &#x27;easeInOutElastic&#x27;
-        - &#x27;easeInBack&#x27;, &#x27;easeOutBack&#x27;, &#x27;easeInOutBack&#x27;
-        - &#x27;easeInBounce&#x27;, &#x27;easeOutBounce&#x27;, &#x27;easeInOutBounce&#x27;
-    delta: If True, target is relative to start value (additive). Default False.
-    loop: If True, animation repeats from start when it reaches the end. Default False.
-    callback: Function(target, property, value) called when animation completes.
-        Not called for looping animations (since they never complete).
-
-Example:
-    # Move a frame from current position to x=500 over 2 seconds
-    anim = mcrfpy.Animation(&#x27;x&#x27;, 500.0, 2.0, &#x27;easeInOut&#x27;)
-    anim.start(my_frame)
-
-    # Looping sprite animation
-    walk = mcrfpy.Animation(&#x27;sprite_index&#x27;, [0,1,2,3,2,1], 0.6, loop=True)
-    walk.start(my_sprite)
-</p>
-            <h4>Properties:</h4>
-            <ul>
-                <li><span class='property-name'>duration</span> (read-only): Animation duration in seconds (float, read-only). Total time for the animation to complete.</li>
-                <li><span class='property-name'>elapsed</span> (read-only): Elapsed time in seconds (float, read-only). Time since the animation started.</li>
-                <li><span class='property-name'>is_complete</span> (read-only): Whether animation is complete (bool, read-only). True when elapsed &gt;= duration or complete() was called.</li>
-                <li><span class='property-name'>is_delta</span> (read-only): Whether animation uses delta mode (bool, read-only). In delta mode, the target value is added to the starting value.</li>
-                <li><span class='property-name'>is_looping</span> (read-only): Whether animation loops (bool, read-only). Looping animations repeat from the start when they reach the end.</li>
-                <li><span class='property-name'>property</span> (read-only): Target property name (str, read-only). The property being animated (e.g., &#x27;pos&#x27;, &#x27;opacity&#x27;, &#x27;sprite_index&#x27;).</li>
-            </ul>
-            <h4>Methods:</h4>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">complete() -> None</code></h5>
-                <p>Complete the animation immediately by jumping to the final value.
-
-Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Sets elapsed = duration and applies target value immediately. Completion callback will be called if set.</p>
-            </div>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">get_current_value() -> Any</code></h5>
-                <p>Get the current interpolated value of the animation.
-
-Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Any: Current value (type depends on property: float, int, Color tuple, Vector tuple, or str) Return type matches the target property type. For sprite_index returns int, for pos returns (x, y), for fill_color returns (r, g, b, a).</p>
-            </div>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">hasValidTarget() -> bool</code></h5>
-                <p>Check if the animation still has a valid target.
-
-Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> bool: True if the target still exists, False if it was destroyed Animations automatically clean up when targets are destroyed. Use this to check if manual cleanup is needed.</p>
-            </div>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">start(target: UIDrawable, conflict_mode: str = 'replace') -> None</code></h5>
-                <p>Start the animation on a target UI element.
-
-Note:</p>
-                <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>target</span>: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)</div>
-                    <div><span class='arg-name'>conflict_mode</span>: How to handle conflicts if property is already animating: &#x27;replace&#x27; (default) - complete existing animation and start new one; &#x27;queue&#x27; - wait for existing animation to complete; &#x27;error&#x27; - raise RuntimeError if property is busy</div>
-                </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None</p>
-                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> RuntimeError: When conflict_mode=&#x27;error&#x27; and property is already animating The animation will automatically stop if the target is destroyed.</p>
-            </div>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">stop() -> None</code></h5>
-                <p>Stop the animation without completing it.
-
-Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Unlike complete(), this does NOT apply the final value and does NOT trigger the callback. The animation is simply cancelled and will be removed from the AnimationManager.</p>
-            </div>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">update(delta_time: float) -> bool</code></h5>
-                <p>Update the animation by the given time delta.
-
-Note:</p>
-                <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>delta_time</span>: Time elapsed since last update in seconds</div>
-                </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> bool: True if animation is still running, False if complete Typically called by AnimationManager automatically. Manual calls only needed for custom animation control.</p>
             </div>
         </div>
 
@@ -1568,12 +1452,34 @@ Example:
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">descent_step(pos) -> Vector | None</code></h5>
+                <p>Get the adjacent cell with the lowest distance (steepest descent).
+Unlike step_from (which follows the path set by path_from), descent_step
+always returns the best neighbor in a single hop. Useful for AI that
+reacts to the current distance field rather than following a fixed path.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>pos</span>: Current position as Vector, Entity, or (x, y) tuple.</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector, or None if pos is a local minimum or off-grid.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">distance(pos) -> float | None</code></h5>
                 <p>Get distance from position to root.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>pos</span>: Position as Vector, Entity, or (x, y) tuple.</div>
                 </div>
                 <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Float distance, or None if position is unreachable.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">invert() -> DijkstraMap</code></h5>
+                <p>Return a NEW DijkstraMap whose distance field is the safety field.
+Cells near a root become high values and cells far from any root become
+low values. Combined with step_from or descent_step, this gives flee
+behavior: descend the inverted map to move away from the original roots.
+The original DijkstraMap is unchanged.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> New DijkstraMap with inverted distances.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -3244,6 +3150,106 @@ Note:</p>
                 </div>
                 <p style='margin-left: 20px;'><span class='returns'>Returns:</span> HeightMap: New HeightMap (original is unchanged)</p>
                 <p style='margin-left: 20px;'><span class='raises'>Raises:</span> ValueError: min &gt; max</p>
+            </div>
+        </div>
+
+        <div class="method-section">
+            <h3 id="Heuristic"><span class="class-name">Heuristic</span></h3>
+            <p><em>Inherits from: IntEnum</em></p>
+            <p>Built-in A* heuristic function selector.
+
+Values:
+    EUCLIDEAN: sqrt((dx)^2 + (dy)^2). Admissible, default.
+    MANHATTAN: |dx| + |dy|. Admissible on 4-connected grids.
+    CHEBYSHEV: max(|dx|, |dy|). Admissible on 8-connected (diag=1).
+    DIAGONAL: Octile distance. Admissible on 8-connected (diag=sqrt(2)).
+    ZERO: Always returns 0. A* degenerates to Dijkstra.
+</p>
+            <h4>Properties:</h4>
+            <ul>
+                <li><span class='property-name'>denominator</span>: the denominator of a rational number in lowest terms</li>
+                <li><span class='property-name'>imag</span>: the imaginary part of a complex number</li>
+                <li><span class='property-name'>numerator</span>: the numerator of a rational number in lowest terms</li>
+                <li><span class='property-name'>real</span>: the real part of a complex number</li>
+            </ul>
+            <h4>Methods:</h4>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">as_integer_ratio(...)</code></h5>
+                <p>Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+&gt;&gt;&gt; (10).as_integer_ratio()
+(10, 1)
+&gt;&gt;&gt; (-10).as_integer_ratio()
+(-10, 1)
+&gt;&gt;&gt; (0).as_integer_ratio()
+(0, 1)</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">bit_count(...)</code></h5>
+                <p>Number of ones in the binary representation of the absolute value of self.
+Also known as the population count.
+&gt;&gt;&gt; bin(13)
+&#x27;0b1101&#x27;
+&gt;&gt;&gt; (13).bit_count()
+3</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">bit_length(...)</code></h5>
+                <p>Number of bits necessary to represent self in binary.
+&gt;&gt;&gt; bin(37)
+&#x27;0b100101&#x27;
+&gt;&gt;&gt; (37).bit_length()
+6</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">conjugate(...)</code></h5>
+                <p>Returns self, the complex conjugate of any int.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">from_bytes(...)</code></h5>
+                <p>Return the integer represented by the given array of bytes.
+  bytes
+    Holds the array of bytes to convert.  The argument must either
+    support the buffer protocol or be an iterable object producing bytes.
+    Bytes and bytearray are examples of built-in objects that support the
+    buffer protocol.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is &#x27;big&#x27;,
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is &#x27;little&#x27;, the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use &#x27;big&#x27;.
+  signed
+    Indicates whether two&#x27;s complement is used to represent the integer.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">is_integer(...)</code></h5>
+                <p>Returns True. Exists for duck type compatibility with float.is_integer.</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">to_bytes(...)</code></h5>
+                <p>Return an array of bytes representing an integer.
+  length
+    Length of bytes object to use.  An OverflowError is raised if the
+    integer is not representable with the given number of bytes.  Default
+    is length 1.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is &#x27;big&#x27;,
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is &#x27;little&#x27;, the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use &#x27;big&#x27;.
+  signed
+    Determines whether two&#x27;s complement is used to represent the integer.
+    If signed is False and a negative integer is given, an OverflowError
+    is raised.</p>
             </div>
         </div>
 

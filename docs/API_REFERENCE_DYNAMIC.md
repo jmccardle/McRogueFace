@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-04-18 07:28:57*
+*Generated on 2026-04-18 13:35:02*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -10,7 +10,6 @@
 - [Classes](#classes)
   - [AStarPath](#astarpath)
   - [Alignment](#alignment)
-  - [Animation](#animation)
   - [Arc](#arc)
   - [AutoRuleSet](#autoruleset)
   - [BSP](#bsp)
@@ -35,6 +34,7 @@
   - [Grid](#grid)
   - [GridView](#gridview)
   - [HeightMap](#heightmap)
+  - [Heuristic](#heuristic)
   - [InputState](#inputstate)
   - [Key](#key)
   - [Keyboard](#keyboard)
@@ -355,122 +355,6 @@ Return an array of bytes representing an integer.
     Determines whether two's complement is used to represent the integer.
     If signed is False and a negative integer is given, an OverflowError
     is raised.
-
-### Animation
-
-Animation(property: str, target: Any, duration: float, easing: str = 'linear', delta: bool = False, loop: bool = False, callback: Callable = None)
-
-Create an animation that interpolates a property value over time.
-
-Args:
-    property: Property name to animate. Valid properties depend on target type:
-        - Position/Size: 'x', 'y', 'w', 'h', 'pos', 'size'
-        - Appearance: 'fill_color', 'outline_color', 'outline', 'opacity'
-        - Sprite: 'sprite_index', 'scale'
-        - Grid: 'center', 'zoom'
-        - Caption: 'text'
-        - Sub-properties: 'fill_color.r', 'fill_color.g', 'fill_color.b', 'fill_color.a'
-    target: Target value for the animation. Type depends on property:
-        - float: For numeric properties (x, y, w, h, scale, opacity, zoom)
-        - int: For integer properties (sprite_index)
-        - tuple (r, g, b[, a]): For color properties
-        - tuple (x, y): For vector properties (pos, size, center)
-        - list[int]: For sprite animation sequences
-        - str: For text animation
-    duration: Animation duration in seconds.
-    easing: Easing function name. Options:
-        - 'linear' (default)
-        - 'easeIn', 'easeOut', 'easeInOut'
-        - 'easeInQuad', 'easeOutQuad', 'easeInOutQuad'
-        - 'easeInCubic', 'easeOutCubic', 'easeInOutCubic'
-        - 'easeInQuart', 'easeOutQuart', 'easeInOutQuart'
-        - 'easeInSine', 'easeOutSine', 'easeInOutSine'
-        - 'easeInExpo', 'easeOutExpo', 'easeInOutExpo'
-        - 'easeInCirc', 'easeOutCirc', 'easeInOutCirc'
-        - 'easeInElastic', 'easeOutElastic', 'easeInOutElastic'
-        - 'easeInBack', 'easeOutBack', 'easeInOutBack'
-        - 'easeInBounce', 'easeOutBounce', 'easeInOutBounce'
-    delta: If True, target is relative to start value (additive). Default False.
-    loop: If True, animation repeats from start when it reaches the end. Default False.
-    callback: Function(target, property, value) called when animation completes.
-        Not called for looping animations (since they never complete).
-
-Example:
-    # Move a frame from current position to x=500 over 2 seconds
-    anim = mcrfpy.Animation('x', 500.0, 2.0, 'easeInOut')
-    anim.start(my_frame)
-
-    # Looping sprite animation
-    walk = mcrfpy.Animation('sprite_index', [0,1,2,3,2,1], 0.6, loop=True)
-    walk.start(my_sprite)
-
-
-**Properties:**
-- `duration` *(read-only)*: Animation duration in seconds (float, read-only). Total time for the animation to complete.
-- `elapsed` *(read-only)*: Elapsed time in seconds (float, read-only). Time since the animation started.
-- `is_complete` *(read-only)*: Whether animation is complete (bool, read-only). True when elapsed >= duration or complete() was called.
-- `is_delta` *(read-only)*: Whether animation uses delta mode (bool, read-only). In delta mode, the target value is added to the starting value.
-- `is_looping` *(read-only)*: Whether animation loops (bool, read-only). Looping animations repeat from the start when they reach the end.
-- `property` *(read-only)*: Target property name (str, read-only). The property being animated (e.g., 'pos', 'opacity', 'sprite_index').
-
-**Methods:**
-
-#### `complete() -> None`
-
-Complete the animation immediately by jumping to the final value.
-
-Note:
-
-**Returns:** None Sets elapsed = duration and applies target value immediately. Completion callback will be called if set.
-
-#### `get_current_value() -> Any`
-
-Get the current interpolated value of the animation.
-
-Note:
-
-**Returns:** Any: Current value (type depends on property: float, int, Color tuple, Vector tuple, or str) Return type matches the target property type. For sprite_index returns int, for pos returns (x, y), for fill_color returns (r, g, b, a).
-
-#### `hasValidTarget() -> bool`
-
-Check if the animation still has a valid target.
-
-Note:
-
-**Returns:** bool: True if the target still exists, False if it was destroyed Animations automatically clean up when targets are destroyed. Use this to check if manual cleanup is needed.
-
-#### `start(target: UIDrawable, conflict_mode: str = 'replace') -> None`
-
-Start the animation on a target UI element.
-
-Note:
-
-**Arguments:**
-- `target`: The UI element to animate (Frame, Caption, Sprite, Grid, or Entity)
-- `conflict_mode`: How to handle conflicts if property is already animating: 'replace' (default) - complete existing animation and start new one; 'queue' - wait for existing animation to complete; 'error' - raise RuntimeError if property is busy
-
-**Returns:** None
-
-**Raises:** RuntimeError: When conflict_mode='error' and property is already animating The animation will automatically stop if the target is destroyed.
-
-#### `stop() -> None`
-
-Stop the animation without completing it.
-
-Note:
-
-**Returns:** None Unlike complete(), this does NOT apply the final value and does NOT trigger the callback. The animation is simply cancelled and will be removed from the AnimationManager.
-
-#### `update(delta_time: float) -> bool`
-
-Update the animation by the given time delta.
-
-Note:
-
-**Arguments:**
-- `delta_time`: Time elapsed since last update in seconds
-
-**Returns:** bool: True if animation is still running, False if complete Typically called by AnimationManager automatically. Manual calls only needed for custom animation control.
 
 ### Arc
 
@@ -1418,6 +1302,18 @@ Example:
 
 **Methods:**
 
+#### `descent_step(pos) -> Vector | None`
+
+Get the adjacent cell with the lowest distance (steepest descent).
+Unlike step_from (which follows the path set by path_from), descent_step
+always returns the best neighbor in a single hop. Useful for AI that
+reacts to the current distance field rather than following a fixed path.
+
+**Arguments:**
+- `pos`: Current position as Vector, Entity, or (x, y) tuple.
+
+**Returns:** Next position as Vector, or None if pos is a local minimum or off-grid.
+
 #### `distance(pos) -> float | None`
 
 Get distance from position to root.
@@ -1426,6 +1322,16 @@ Get distance from position to root.
 - `pos`: Position as Vector, Entity, or (x, y) tuple.
 
 **Returns:** Float distance, or None if position is unreachable.
+
+#### `invert() -> DijkstraMap`
+
+Return a NEW DijkstraMap whose distance field is the safety field.
+Cells near a root become high values and cells far from any root become
+low values. Combined with step_from or descent_step, this gives flee
+behavior: descend the inverted map to move away from the original roots.
+The original DijkstraMap is unchanged.
+
+**Returns:** New DijkstraMap with inverted distances.
 
 #### `path_from(pos) -> AStarPath`
 
@@ -3051,6 +2957,99 @@ Return NEW HeightMap with uniform value where in range, 0.0 elsewhere.
 **Returns:** HeightMap: New HeightMap (original is unchanged)
 
 **Raises:** ValueError: min > max
+
+### Heuristic
+
+*Inherits from: IntEnum*
+
+Built-in A* heuristic function selector.
+
+Values:
+    EUCLIDEAN: sqrt((dx)^2 + (dy)^2). Admissible, default.
+    MANHATTAN: |dx| + |dy|. Admissible on 4-connected grids.
+    CHEBYSHEV: max(|dx|, |dy|). Admissible on 8-connected (diag=1).
+    DIAGONAL: Octile distance. Admissible on 8-connected (diag=sqrt(2)).
+    ZERO: Always returns 0. A* degenerates to Dijkstra.
+
+
+**Properties:**
+- `denominator`: the denominator of a rational number in lowest terms
+- `imag`: the imaginary part of a complex number
+- `numerator`: the numerator of a rational number in lowest terms
+- `real`: the real part of a complex number
+
+**Methods:**
+
+#### `as_integer_ratio(...)`
+
+Return a pair of integers, whose ratio is equal to the original int.
+The ratio is in lowest terms and has a positive denominator.
+>>> (10).as_integer_ratio()
+(10, 1)
+>>> (-10).as_integer_ratio()
+(-10, 1)
+>>> (0).as_integer_ratio()
+(0, 1)
+
+#### `bit_count(...)`
+
+Number of ones in the binary representation of the absolute value of self.
+Also known as the population count.
+>>> bin(13)
+'0b1101'
+>>> (13).bit_count()
+3
+
+#### `bit_length(...)`
+
+Number of bits necessary to represent self in binary.
+>>> bin(37)
+'0b100101'
+>>> (37).bit_length()
+6
+
+#### `conjugate(...)`
+
+Returns self, the complex conjugate of any int.
+
+#### `from_bytes(...)`
+
+Return the integer represented by the given array of bytes.
+  bytes
+    Holds the array of bytes to convert.  The argument must either
+    support the buffer protocol or be an iterable object producing bytes.
+    Bytes and bytearray are examples of built-in objects that support the
+    buffer protocol.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is 'big',
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is 'little', the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use 'big'.
+  signed
+    Indicates whether two's complement is used to represent the integer.
+
+#### `is_integer(...)`
+
+Returns True. Exists for duck type compatibility with float.is_integer.
+
+#### `to_bytes(...)`
+
+Return an array of bytes representing an integer.
+  length
+    Length of bytes object to use.  An OverflowError is raised if the
+    integer is not representable with the given number of bytes.  Default
+    is length 1.
+  byteorder
+    The byte order used to represent the integer.  If byteorder is 'big',
+    the most significant byte is at the beginning of the byte array.  If
+    byteorder is 'little', the most significant byte is at the end of the
+    byte array.  To request the native byte order of the host system, use
+    sys.byteorder as the byte order value.  Default is to use 'big'.
+  signed
+    Determines whether two's complement is used to represent the integer.
+    If signed is False and a negative integer is given, an OverflowError
+    is raised.
 
 ### InputState
 

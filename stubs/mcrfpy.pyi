@@ -92,6 +92,14 @@ class FOV(IntEnum):
     SHADOW: int
     SYMMETRIC_SHADOWCAST: int
 
+class Heuristic(IntEnum):
+    """Built-in A* heuristic function selector."""
+    CHEBYSHEV: int
+    DIAGONAL: int
+    EUCLIDEAN: int
+    MANHATTAN: int
+    ZERO: int
+
 class InputState(IntEnum):
     """Enum representing input event states (pressed/released)."""
     PRESSED: int
@@ -253,34 +261,6 @@ class AStarPath:
         ...
     def walk(self) -> Vector:
         """Get and consume next step in the path."""
-        ...
-
-class Animation:
-    """Create an animation that interpolates a property value over time."""
-    def __init__(self, property: str, target: Any, duration: float, easing: str = 'linear', delta: bool = False, loop: bool = False, callback: Callable = None) -> None: ...
-    duration: float  # Animation duration in seconds (float, read-only). Total time for the animation to complete.
-    elapsed: float  # Elapsed time in seconds (float, read-only). Time since the animation started.
-    is_complete: bool  # Whether animation is complete (bool, read-only). True when elapsed >= duration or complete() was called.
-    is_delta: bool  # Whether animation uses delta mode (bool, read-only). In delta mode, the target value is added to the starting value.
-    is_looping: bool  # Whether animation loops (bool, read-only). Looping animations repeat from the start when they reach the end.
-    property: str  # Target property name (str, read-only). The property being animated (e.g., 'pos', 'opacity', 'sprite_index').
-    def complete(self) -> None:
-        """Complete the animation immediately by jumping to the final value."""
-        ...
-    def get_current_value(self) -> Any:
-        """Get the current interpolated value of the animation."""
-        ...
-    def hasValidTarget(self) -> bool:
-        """Check if the animation still has a valid target."""
-        ...
-    def start(self, target: UIDrawable, conflict_mode: str = 'replace') -> None:
-        """Start the animation on a target UI element."""
-        ...
-    def stop(self) -> None:
-        """Stop the animation without completing it."""
-        ...
-    def update(self, delta_time: float) -> bool:
-        """Update the animation by the given time delta."""
         ...
 
 class Arc:
@@ -558,8 +538,14 @@ class DijkstraMap:
     """A Dijkstra distance map from a fixed root position."""
     def __init__(self, *args, **kwargs) -> None: ...
     root: Vector  # Root position that distances are measured from (Vector, read-only).
+    def descent_step(self, pos) -> Vector | None:
+        """Get the adjacent cell with the lowest distance (steepest descent)."""
+        ...
     def distance(self, pos) -> float | None:
         """Get distance from position to root."""
+        ...
+    def invert(self) -> DijkstraMap:
+        """Return a NEW DijkstraMap whose distance field is the safety field."""
         ...
     def path_from(self, pos) -> AStarPath:
         """Get full path from position to root."""
