@@ -12,6 +12,7 @@
 #include "PyPositionHelper.h"
 #include "PyVector.h"
 #include "PythonObjectCache.h"
+#include "PySceneObject.h"  // parent= kwarg: Scene is a valid parent type
 #include <cmath>
 #include <algorithm>
 
@@ -372,15 +373,45 @@ bool UIGridView::hasProperty(const std::string& name) const
 
 int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
 {
+    // Extract parent= up front so it doesn't confuse downstream parsing in
+    // either init mode. parent_obj is borrowed from the original kwds (which
+    // the caller owns and outlives this function), so no INCREF is needed --
+    // but we must not delete from the caller's dict, so make a working copy.
+    PyObject* parent_obj = nullptr;
+    PyObject* dispatch_kwds = kwds;
+    if (kwds) {
+        parent_obj = PyDict_GetItemString(kwds, "parent");  // borrowed ref
+        if (parent_obj) {
+            dispatch_kwds = PyDict_Copy(kwds);
+            if (!dispatch_kwds) return -1;
+            PyDict_DelItemString(dispatch_kwds, "parent");
+        }
+    }
+
     // Determine mode by checking for 'grid' kwarg
     PyObject* grid_kwarg = nullptr;
-    if (kwds) {
-        grid_kwarg = PyDict_GetItemString(kwds, "grid");  // borrowed ref
+    if (dispatch_kwds) {
+        grid_kwarg = PyDict_GetItemString(dispatch_kwds, "grid");  // borrowed ref
     }
 
     bool explicit_view = (grid_kwarg && grid_kwarg != Py_None);
 
-    if (explicit_view) {
+    int rc = explicit_view
+        ? init_explicit_view(self, args, dispatch_kwds)
+        : init_with_data(self, args, dispatch_kwds);
+
+    if (dispatch_kwds != kwds) Py_DECREF(dispatch_kwds);
+    if (rc != 0) return rc;
+
+    if (parent_obj) {
+        UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
+    }
+    return 0;
+}
+
+int UIGridView::init_explicit_view(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
+{
+    {
         // Mode 1: View of existing grid data
         static const char* kwlist[] = {"grid", "pos", "size", "zoom", "fill_color", "name", nullptr};
         PyObject* grid_obj = nullptr;
@@ -454,9 +485,6 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridViewType;
 
         return 0;
-    } else {
-        // Mode 2: Factory mode - create UIGrid internally
-        return init_with_data(self, args, kwds);
     }
 }
 

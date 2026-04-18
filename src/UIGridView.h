@@ -86,6 +86,7 @@ public:
     // Python API
     // =========================================================================
     static int init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds);
+    static int init_explicit_view(PyUIGridViewObject* self, PyObject* args, PyObject* kwds);
     static int init_with_data(PyUIGridViewObject* self, PyObject* args, PyObject* kwds);
     static PyObject* repr(PyUIGridViewObject* self);
 
