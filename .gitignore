@@ -33,6 +33,9 @@ __lib_windows/
 build-windows/
 build_windows/
 _oldscripts/
+
+# Audit tooling virtualenv (tools/audit_pymethoddef.py)
+.venv-audit/
 assets/
 cellular_automata_fire/
 deps/
