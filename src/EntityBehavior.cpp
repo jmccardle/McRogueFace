@@ -2,8 +2,21 @@
 #include "UIEntity.h"
 #include "UIGrid.h"
 #include "UIGridPathfinding.h"
+#include "PathProvider.h"
 #include <random>
 #include <algorithm>
+
+// Out-of-line reset lives here so the header can forward-declare PathProvider.
+void EntityBehavior::reset() {
+    type = BehaviorType::IDLE;
+    waypoints.clear();
+    current_waypoint_index = 0;
+    patrol_direction = 1;
+    current_path.clear();
+    path_step_index = 0;
+    sleep_turns_remaining = 0;
+    path_provider.reset();
+}
 
 // Thread-local random engine for behavior randomness
 static thread_local std::mt19937 rng{std::random_device{}()};
@@ -226,78 +239,28 @@ static BehaviorOutput executeSleep(UIEntity& entity, UIGrid& grid) {
     return {BehaviorResult::NO_ACTION, {}};
 }
 
-static BehaviorOutput executeSeek(UIEntity& entity, UIGrid& grid) {
+// SEEK and FLEE share one implementation now: both delegate to the active
+// PathProvider. FLEE differs only in which map is stored in the provider -
+// DijkstraProvider over an inverted DijkstraMap descends away from the threat,
+// which matches the old max-distance-neighbor behavior.
+static BehaviorOutput executeProviderStep(UIEntity& entity, UIGrid& grid) {
     auto& behavior = entity.behavior;
-
-    if (!behavior.dijkstra_map) {
+    if (!behavior.path_provider) {
         return {BehaviorResult::NO_ACTION, {}};
     }
 
-    // Use Dijkstra map to find the lowest-distance neighbor (moving toward target)
     int cx = entity.cell_position.x;
     int cy = entity.cell_position.y;
-    float best_dist = std::numeric_limits<float>::max();
-    sf::Vector2i best_cell = {cx, cy};
-    bool found = false;
+    bool ok = false;
+    sf::Vector2i next = behavior.path_provider->nextStep({cx, cy}, grid, &ok);
 
-    sf::Vector2i dirs[] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0},
-                           {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
-
-    for (auto& dir : dirs) {
-        int nx = cx + dir.x;
-        int ny = cy + dir.y;
-        if (!isCellWalkable(grid, nx, ny)) continue;
-
-        float dist = behavior.dijkstra_map->getDistance(nx, ny);
-        if (dist >= 0 && dist < best_dist) {
-            best_dist = dist;
-            best_cell = {nx, ny};
-            found = true;
-        }
-    }
-
-    if (!found || (best_cell.x == cx && best_cell.y == cy)) {
+    if (!ok) {
         return {BehaviorResult::BLOCKED, {cx, cy}};
     }
-
-    return {BehaviorResult::MOVED, best_cell};
-}
-
-static BehaviorOutput executeFlee(UIEntity& entity, UIGrid& grid) {
-    auto& behavior = entity.behavior;
-
-    if (!behavior.dijkstra_map) {
-        return {BehaviorResult::NO_ACTION, {}};
-    }
-
-    // Use Dijkstra map to find the highest-distance neighbor (fleeing from target)
-    int cx = entity.cell_position.x;
-    int cy = entity.cell_position.y;
-    float best_dist = -1.0f;
-    sf::Vector2i best_cell = {cx, cy};
-    bool found = false;
-
-    sf::Vector2i dirs[] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0},
-                           {-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
-
-    for (auto& dir : dirs) {
-        int nx = cx + dir.x;
-        int ny = cy + dir.y;
-        if (!isCellWalkable(grid, nx, ny)) continue;
-
-        float dist = behavior.dijkstra_map->getDistance(nx, ny);
-        if (dist >= 0 && dist > best_dist) {
-            best_dist = dist;
-            best_cell = {nx, ny};
-            found = true;
-        }
-    }
-
-    if (!found || (best_cell.x == cx && best_cell.y == cy)) {
+    if (next.x == cx && next.y == cy) {
         return {BehaviorResult::BLOCKED, {cx, cy}};
     }
-
-    return {BehaviorResult::MOVED, best_cell};
+    return {BehaviorResult::MOVED, next};
 }
 
 // =============================================================================
@@ -314,8 +277,8 @@ BehaviorOutput executeBehavior(UIEntity& entity, UIGrid& grid) {
         case BehaviorType::PATROL:   return executePatrol(entity, grid);
         case BehaviorType::LOOP:     return executeLoop(entity, grid);
         case BehaviorType::SLEEP:    return executeSleep(entity, grid);
-        case BehaviorType::SEEK:     return executeSeek(entity, grid);
-        case BehaviorType::FLEE:     return executeFlee(entity, grid);
+        case BehaviorType::SEEK:     return executeProviderStep(entity, grid);
+        case BehaviorType::FLEE:     return executeProviderStep(entity, grid);
     }
     return {BehaviorResult::NO_ACTION, {}};
 }

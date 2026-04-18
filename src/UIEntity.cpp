@@ -2,6 +2,7 @@
 #include "UIGrid.h"
 #include "UIGridView.h"  // #252: Entity.grid accepts GridView
 #include "UIGridPathfinding.h"
+#include "PathProvider.h"
 #include "McRFPy_API.h"
 #include <algorithm>
 #include <cstring>
@@ -1512,14 +1513,16 @@ int UIEntity::set_sight_radius(PyUIEntityObject* self, PyObject* value, void* cl
 }
 
 PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"type", "waypoints", "turns", "path", nullptr};
+    static const char* kwlist[] = {"type", "waypoints", "turns", "path", "pathfinder", nullptr};
     int type_val = 0;
     PyObject* waypoints_obj = nullptr;
     int turns = 0;
     PyObject* path_obj = nullptr;
+    PyObject* pathfinder_obj = nullptr;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|OiO", const_cast<char**>(kwlist),
-                                     &type_val, &waypoints_obj, &turns, &path_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i|OiOO", const_cast<char**>(kwlist),
+                                     &type_val, &waypoints_obj, &turns, &path_obj,
+                                     &pathfinder_obj)) {
         return NULL;
     }
 
@@ -1580,6 +1583,35 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
     // Set sleep turns
     if (turns > 0) {
         behavior.sleep_turns_remaining = turns;
+    }
+
+    // Parse pathfinder (#315): DijkstraMap, AStarPath, or (x, y) target tuple.
+    if (pathfinder_obj && pathfinder_obj != Py_None) {
+        if (PyObject_IsInstance(pathfinder_obj, (PyObject*)&mcrfpydef::PyDijkstraMapType)) {
+            auto* dmap = (PyDijkstraMapObject*)pathfinder_obj;
+            if (!dmap->data) {
+                PyErr_SetString(PyExc_RuntimeError, "pathfinder: DijkstraMap is invalid");
+                return NULL;
+            }
+            behavior.path_provider = std::make_unique<DijkstraProvider>(dmap->data);
+        } else if (PyObject_IsInstance(pathfinder_obj, (PyObject*)&mcrfpydef::PyAStarPathType)) {
+            auto* apath = (PyAStarPathObject*)pathfinder_obj;
+            // Copy remaining steps - the provider owns its own iteration state.
+            std::vector<sf::Vector2i> steps(
+                apath->path.begin() + apath->current_index,
+                apath->path.end());
+            behavior.path_provider = std::make_unique<AStarProvider>(std::move(steps));
+        } else if (PyTuple_Check(pathfinder_obj) && PyTuple_Size(pathfinder_obj) == 2) {
+            long tx = PyLong_AsLong(PyTuple_GetItem(pathfinder_obj, 0));
+            long ty = PyLong_AsLong(PyTuple_GetItem(pathfinder_obj, 1));
+            if (PyErr_Occurred()) return NULL;
+            behavior.path_provider = std::make_unique<TargetProvider>(
+                sf::Vector2i(static_cast<int>(tx), static_cast<int>(ty)));
+        } else {
+            PyErr_SetString(PyExc_TypeError,
+                "pathfinder must be a DijkstraMap, AStarPath, or (x, y) tuple");
+            return NULL;
+        }
     }
 
     Py_RETURN_NONE;

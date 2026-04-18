@@ -8,6 +8,7 @@
 class UIEntity;
 class UIGrid;
 class DijkstraMap;
+class PathProvider;
 
 // =============================================================================
 // BehaviorType - matches Python mcrfpy.Behavior enum values
@@ -60,19 +61,11 @@ struct EntityBehavior {
     // Sleep data
     int sleep_turns_remaining = 0;
 
-    // Dijkstra map (for SEEK/FLEE)
-    std::shared_ptr<DijkstraMap> dijkstra_map;
+    // SEEK/FLEE pathfinding strategy (#315). Nullptr means NO_ACTION.
+    std::unique_ptr<PathProvider> path_provider;
 
-    void reset() {
-        type = BehaviorType::IDLE;
-        waypoints.clear();
-        current_waypoint_index = 0;
-        patrol_direction = 1;
-        current_path.clear();
-        path_step_index = 0;
-        sleep_turns_remaining = 0;
-        dijkstra_map = nullptr;
-    }
+    // Defined in EntityBehavior.cpp to avoid needing the full PathProvider type here.
+    void reset();
 };
 
 // =============================================================================
