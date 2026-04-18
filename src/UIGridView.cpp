@@ -1,6 +1,7 @@
 // UIGridView.cpp - Rendering view for GridData (#252)
 #include "UIGridView.h"
 #include "UIGrid.h"
+#include "UIGridPoint.h"
 #include "UIEntity.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
@@ -779,6 +780,69 @@ int UIGridView::set_float_member_gv(PyUIGridViewObject* self, PyObject* value, v
     self->data->markDirty();
     return 0;
 }
+
+// =========================================================================
+// Subscript protocol: grid[x, y] -> GridPoint (delegates to GridData).
+// Setitem raises TypeError (GridPoints are views, not assignable).
+// =========================================================================
+PyObject* UIGridView::subscript(PyUIGridViewObject* self, PyObject* key)
+{
+    if (!self->data || !self->data->grid_data) {
+        PyErr_SetString(PyExc_RuntimeError, "Grid has no underlying data");
+        return NULL;
+    }
+    if (!PyTuple_Check(key) || PyTuple_Size(key) != 2) {
+        PyErr_SetString(PyExc_TypeError, "Grid indices must be a 2-tuple (x, y)");
+        return NULL;
+    }
+    PyObject* x_obj = PyTuple_GetItem(key, 0);
+    PyObject* y_obj = PyTuple_GetItem(key, 1);
+    if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
+        PyErr_SetString(PyExc_TypeError, "Grid indices must be integers");
+        return NULL;
+    }
+    int x = (int)PyLong_AsLong(x_obj);
+    int y = (int)PyLong_AsLong(y_obj);
+
+    auto& grid_data = self->data->grid_data;
+    if (x < 0 || x >= grid_data->grid_w) {
+        PyErr_Format(PyExc_IndexError, "x index %d is out of range [0, %d)",
+            x, grid_data->grid_w);
+        return NULL;
+    }
+    if (y < 0 || y >= grid_data->grid_h) {
+        PyErr_Format(PyExc_IndexError, "y index %d is out of range [0, %d)",
+            y, grid_data->grid_h);
+        return NULL;
+    }
+
+    // Reconstruct shared_ptr<UIGrid> from GridData via aliasing constructor
+    // (mirrors UIGridView::get_grid).
+    auto grid_ptr = static_cast<UIGrid*>(grid_data.get());
+    auto grid_as_uigrid = std::shared_ptr<UIGrid>(grid_data, grid_ptr);
+
+    auto type = &mcrfpydef::PyUIGridPointType;
+    auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+    obj->grid = grid_as_uigrid;
+    obj->x = x;
+    obj->y = y;
+    return (PyObject*)obj;
+}
+
+int UIGridView::subscript_assign(PyUIGridViewObject* self, PyObject* key, PyObject* value)
+{
+    (void)self; (void)key; (void)value;
+    PyErr_SetString(PyExc_TypeError,
+        "Grid points are not assignable; modify properties on the returned point");
+    return -1;
+}
+
+PyMappingMethods UIGridView::mpmethods = {
+    .mp_length = NULL,
+    .mp_subscript = (binaryfunc)UIGridView::subscript,
+    .mp_ass_subscript = (objobjargproc)UIGridView::subscript_assign,
+};
 
 // #252: PyObjectType typedef for UIDRAWABLE_* macros
 typedef PyUIGridViewObject PyObjectType;

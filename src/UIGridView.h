@@ -110,6 +110,12 @@ public:
 
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
+
+    // Subscript protocol: grid[x, y] (delegates to underlying GridData).
+    // Setitem raises TypeError (GridPoints are views).
+    static PyObject* subscript(PyUIGridViewObject* self, PyObject* key);
+    static int subscript_assign(PyUIGridViewObject* self, PyObject* key, PyObject* value);
+    static PyMappingMethods mpmethods;
 };
 
 // Forward declaration of methods array
@@ -139,6 +145,7 @@ namespace mcrfpydef {
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)UIGridView::repr,
+        .tp_as_mapping = &UIGridView::mpmethods,  // grid[x, y] (delegates to GridData)
         .tp_getattro = UIGridView::getattro,  // #252: attribute delegation to Grid
         .tp_setattro = UIGridView::setattro,   // #252: attribute delegation to Grid
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
