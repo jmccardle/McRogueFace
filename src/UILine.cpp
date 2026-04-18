@@ -5,6 +5,10 @@
 #include "PyColor.h"
 #include "PythonObjectCache.h"
 #include "PyAlignment.h"
+#include "UIFrame.h"          // parent= kwarg: Frame parent type
+#include "UICaption.h"        // parent= kwarg: needed for ATTACH macro instantiation
+#include "UIGrid.h"           // parent= kwarg: Grid/GridView parent type
+#include "PySceneObject.h"    // parent= kwarg: Scene parent type
 #include <cmath>
 
 UILine::UILine()
@@ -565,18 +569,21 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     float margin = 0.0f;
     float horiz_margin = -1.0f;
     float vert_margin = -1.0f;
+    PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
     static const char* kwlist[] = {
         "start", "end", "thickness", "color",
         "on_click", "visible", "opacity", "z_index", "name",
         "align", "margin", "horiz_margin", "vert_margin",
+        "parent",
         nullptr
     };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOfOOifizOfff", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOfOOifizOfffO", const_cast<char**>(kwlist),
                                      &start_obj, &end_obj, &thickness, &color_obj,
                                      &click_handler, &visible, &opacity, &z_index, &name,
-                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
+                                     &align_obj, &margin, &horiz_margin, &vert_margin,
+                                     &parent_obj)) {
         return -1;
     }
 
@@ -662,6 +669,9 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUILineType;
+
+    // Auto-attach to parent's children collection if parent= was supplied
+    UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
 
     return 0;
 }

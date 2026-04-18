@@ -158,6 +158,33 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
         } \
     } while (0)
 
+// Macro for auto-attaching a newly constructed UI drawable to a parent's children.
+// Usage: UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
+// parent_obj must be a Frame, Scene, or Grid (anything with a .children UICollection).
+// Returns -1 on error (suitable for use in tp_init functions). No-op when parent_obj is null/None.
+#define UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self) \
+    do { \
+        if ((parent_obj) && (parent_obj) != Py_None) { \
+            if (!PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIFrameType) && \
+                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PySceneType) && \
+                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIGridType) && \
+                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIGridViewType)) { \
+                PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Scene, or Grid"); \
+                return -1; \
+            } \
+            PyObject* _children = PyObject_GetAttrString((parent_obj), "children"); \
+            if (!_children) { \
+                return -1; \
+            } \
+            PyObject* _result = PyObject_CallMethod(_children, "append", "O", (PyObject*)(self)); \
+            Py_DECREF(_children); \
+            if (!_result) { \
+                return -1; \
+            } \
+            Py_DECREF(_result); \
+        } \
+    } while (0)
+
 // Property getters/setters for visible and opacity
 template<typename T>
 static PyObject* UIDrawable_get_visible(T* self, void* closure)
