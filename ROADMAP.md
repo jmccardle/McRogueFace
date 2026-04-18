@@ -1,6 +1,6 @@
 # McRogueFace - Development Roadmap
 
-**Version**: 0.2.6-prerelease | **Era**: McRogueFace (2D roguelikes)
+**Version**: 0.2.7-prerelease | **Era**: McRogueFace (2D roguelikes) -- on the road to 1.0
 
 For detailed architecture, philosophy, and decision framework, see the [Strategic Direction](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Strategic-Direction) wiki page. For per-issue tracking, see the [Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap).
 
@@ -10,7 +10,7 @@ For detailed architecture, philosophy, and decision framework, see the [Strategi
 
 **Alpha 0.1** (2024) -- First complete release. Milestone: all datatypes behaving.
 
-**0.2 series** (Jan-Feb 2026) -- Weekly updates to GitHub. Key additions:
+**0.2 series** (Jan-Mar 2026) -- Weekly updates to GitHub. Key additions:
 - 3D/Voxel pipeline (experimental): Viewport3D, Camera3D, Entity3D, VoxelGrid with greedy meshing and serialization
 - Procedural generation: HeightMap, BSP, NoiseSource, DiscreteMap
 - Tiled and LDtk import with Wang tile / AutoRule resolution
@@ -19,37 +19,52 @@ For detailed architecture, philosophy, and decision framework, see the [Strategi
 - Multi-layer grid system with chunk-based rendering and dirty-flag caching
 - Documentation macro system with auto-generated API docs, man pages, and type stubs
 - Windows cross-compilation, mobile-ish WASM support, SDL2_mixer audio
+- Behavior/Trigger turn manager: `grid.step()`, entity labels, `cell_pos`, Dijkstra-backed pathfinding (#295-#303)
 
-**Proving grounds**: Crypt of Sokoban (7DRL 2025) was the first complete game. 7DRL 2026 is the current target.
-
----
-
-## Current Focus: 7DRL 2026
-
-**Dates**: February 28 -- March 8, 2026
-
-Engine preparation is complete. All 2D systems are production-ready. The jam will expose remaining rough edges in the workflow of building a complete game on McRogueFace.
-
-Open prep items:
-- **#248** -- Crypt of Sokoban Remaster (game content for the jam)
+**Proving grounds**: Crypt of Sokoban (7DRL 2025), then 7DRL 2026 -- both shipped on the same engine. The 2026 jam surfaced hotfix-worthy issues (SDL key scancodes, composite textures) that have since landed on master.
 
 ---
 
-## Post-7DRL: The Road to 1.0
+## Current Focus: API Freeze + Memory Safety Sweep
 
-After 7DRL, the priority shifts from feature development to **API stability**. 1.0 means the Python API is frozen: documented, stable, and not going to break.
+7DRL 2026 is behind us (Feb 28 -- Mar 8). The engine has two concurrent tracks to 1.0:
 
-### API Freeze Process
-1. Catalog every public Python class, method, and property
-2. Identify anything that should change before committing (naming, signatures, defaults)
-3. Make breaking changes in a single coordinated pass
+### Track 1: API Freeze
+The process is underway. Closed in this pass: camelCase module functions (#304), deprecated `sprite_number` (#305), legacy string enum comparisons (#306), `Color.__eq__`/`__ne__` (#307), `Grid.position` alias (#308).
+
+Remaining freeze work:
+1. Catalog every public Python class, method, and property -- audit against `stubs/mcrfpy.pyi` and generated docs
+2. Identify any last naming/signature/default changes before committing
+3. Final breaking-change pass, bundled
 4. Document the stable API as the contract
-5. Experimental modules (3D/Voxel) get an explicit `experimental` label and are exempt from the freeze
+5. Experimental modules (3D/Voxel) stay out of the freeze with an `experimental` label
 
-### Post-Jam Priorities
-- Fix pain points discovered during actual 7DRL game development
+### Track 2: Fuzz-Driven Bug Sweep
+The libFuzzer+ASan harness (#283) has nine work tranches merged: build plumbing (W1), native harness (W2/W3), then six targeted fuzzers under `tests/fuzz/`:
+- `fuzz_grid_entity` -- EntityCollection lifetime (W4, fixed #258-#263, #273, #274)
+- `fuzz_property_types` -- refcount / type confusion (W5, fixed #267, #268, #272)
+- `fuzz_anim_timer_scene` -- animation/timer/scene lifecycles (W6)
+- `fuzz_fov` -- compute_fov parameters (W8, fixed #310)
+- `fuzz_maps_procgen` -- HeightMap/DiscreteMap interfaces (W7)
+- `fuzz_pathfinding_behavior` -- Dijkstra + turn manager (W9, fixed #311)
+
+The active tier1 queue is empty. The last three findings (#309 Caption float→uint, #310 FOV enum, #311 DijkstraMap OOB) all landed on master in mid-April. Coverage extension to remaining public API surface is tracked under #312.
+
+### Recently Shipped (April 2026)
+- **#294** -- `entity.perspective_map` replaces flat `vector<UIGridPointState>` with a 3-state DiscreteMap (UNKNOWN/DISCOVERED/VISIBLE). Per-entity FOV memory is now serializable, swappable, and structurally enforces visible-as-subset-of-discovered.
+- **#315** -- Pathfinding API extended with built-in heuristics (Euclidean/Manhattan/Chebyshev/Diagonal/Zero), multi-root Dijkstra, FLEE primitives (invert + descent), and an interactive demo. EntityBehavior SEEK/FLEE refactored to a `PathProvider` strategy.
+- **Phase 5.2** -- six performance benchmark scripts under `tests/benchmarks/` covering grid.step(), FOV writeback cost, spatial hash vs. O(n), pathfinding with collision labels, multi-GridView render, and Dijkstra variants. Baselines under `tests/benchmarks/baseline/phase5_2/`.
+- **Phase 5.3** -- documentation regenerated; `tools/generate_stubs_v2.py` rewritten as introspection-based so it can no longer drift from the C++ source.
+
+### Active Follow-Ups
+- **#312** Extend fuzz coverage to remaining public API surface
+- **#313** Migrate `UIEntity::grid` from `shared_ptr<UIGrid>` to `shared_ptr<GridData>` (post-#252 refactor cleanup)
+- **#314** API audit follow-through: close gaps from `docs/api-audit-2026-04.md`
+- **#316** Sparse perspective writeback in `UIEntity::updateVisibility` (Phase 5.2 finding: full-grid demote+promote dominates over TCOD FOV cost)
+
+### Other Post-7DRL Priorities
 - Progress on the r/roguelikedev tutorial series (#167)
-- API consistency audit and freeze
+- Complete the API freeze catalog pass (#314)
 - Better pip/virtualenv integration for adding packages to McRogueFace's embedded interpreter
 
 ---
@@ -98,15 +113,18 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-30 open issues across the tracker. Key groupings:
+25 open issues across the tracker. Key groupings:
 
-- **Multi-tile entities** (#233-#237) -- Oversized sprites, composite entities, origin offsets
-- **Grid enhancements** (#152, #149, #67) -- Sparse layers, refactoring, infinite worlds
+- **Recent follow-ups** (#312, #313, #314, #316) -- Fuzz coverage extension, UIEntity grid refactor, API audit follow-through, sparse perspective writeback
+- **7DRL 2026 carry-over** (#248) -- Crypt of Sokoban remaster, superseded by the 7DRL 2026 entry but still relevant as a demo
+- **Tooling / infrastructure** (#282, #255) -- Modern Clang for TSan/fuzzing, performance profiling
+- **Demos / tutorials** (#167, #154, #156, #55) -- r/roguelikedev series, LLM agent simulations
+- **Grid enhancements** (#152, #67) -- Sparse layers, infinite worlds
 - **Performance** (#117, #124, #145) -- Memory pools, grid point animation, texture reuse
-- **LLM agent testbed** (#154, #156, #55) -- Multi-agent simulation, turn-based orchestration
 - **Platform/distribution** (#70, #54, #62, #53) -- Packaging, Jupyter, multiple windows, input methods
-- **WASM tooling** (#238-#240) -- Debug infrastructure, automated browser testing, troubleshooting docs
-- **Rendering** (#107, #218) -- Particle system, Color/Vector animation targets
+- **WASM tooling** (#239) -- Automated browser testing
+- **Rendering** (#107) -- Particle system
+- **Deferred** (#220, #46, #45) -- Subinterpreter support / tests, accessibility modes
 
 See the [Gitea issue tracker](https://gamedev.ffwf.net/gitea/john/McRogueFace/issues) for current status.
 
