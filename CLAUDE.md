@@ -710,12 +710,7 @@ timer = mcrfpy.Timer("test", run_test, 100)
 mcrfpy.current_scene = mcrfpy.Scene("test")
 demo_scene = mcrfpy.Scene("demo")
 
-# Animation: (property, target_value, duration, easing)
-# direct use of Animation object: deprecated
-#anim = mcrfpy.Animation("x", 500.0, 2.0, "easeInOut")
-#anim.start(frame)
-
-# preferred: create animations directly against the targeted object; use Enum of easing functions
+# Animation: construct via the object's .animate() method (mcrfpy.Animation no longer exported).
 frame.animate("x", 500.0, 2.0, mcrfpy.Easing.EASE_IN_OUT)
 
 # Animation callbacks (#229) receive (target, property, final_value):
@@ -732,6 +727,21 @@ grid.center = (120, 80)  # pixels: (cells * cell_size / 2)
 # grid center defaults to the position that puts (0, 0) in the top left corner of the grid's visible area.
 # set grid.center to focus on that position. To position the camera in tile coordinates, use grid.center_camera():
 grid.center_camera((14.5, 8.5)) # offset of 0.5 tiles to point at the middle of the tile
+
+# Grid.step (turn manager): advances all entities by n turns in turn_order order.
+grid.step(n=1, turn_order=None)  # turn_order=None = use each entity's .turn_order (ascending)
+
+# Entity behaviors (set_behavior + Behavior enum):
+enemy.set_behavior(mcrfpy.Behavior.SEEK, pathfinder=dijkstra_map)
+enemy.set_behavior(mcrfpy.Behavior.WAYPOINT, waypoints=[(5, 5), (10, 10)], turns=3)
+enemy.labels = {"hostile", "medium"}  # frozenset of str, for collision/targeting
+enemy.turn_order = 2                  # higher = later in turn; 0 = skip
+enemy.cell_pos                        # logical cell (Vector), distinct from draw_pos
+
+# Trigger callback (fires on DONE, BLOCKED, ARRIVED, etc.):
+def on_trigger(trigger, data):
+    if trigger == mcrfpy.Trigger.DONE: ...
+enemy.step = on_trigger
 
 # Keyboard handler (#184): receives Key and InputState enums
 def on_key(key, action):
