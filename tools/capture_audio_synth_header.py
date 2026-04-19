@@ -8,9 +8,10 @@ demo_path = (pathlib.Path(__file__).resolve().parent.parent /
              "tests" / "demo" / "audio_synth_demo.py")
 runpy.run_path(str(demo_path), run_name="__demo__")
 
-def shot(timer, runtime):
-    automation.screenshot(OUT)
-    print(f"Wrote {OUT}")
-    sys.exit(0)
+# In headless --exec mode timers never fire; use step() to advance the loop.
+for _ in range(30):
+    mcrfpy.step(0.01)
 
-mcrfpy.Timer("header_shot", shot, 150)
+automation.screenshot(OUT)
+print(f"Wrote {OUT}")
+sys.exit(0)
