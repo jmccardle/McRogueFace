@@ -236,3 +236,38 @@ Rationale:
 - Closing these also effectively closes the meta issue #279
 - High confidence of completing all 7 in one session
 - Clears the way for performance work (Group 9) which depends on correct caching
+
+---
+
+## Triage Completion Status (2026-04-20)
+
+### Groups 1–5: COMPLETE (overnight sessions, prior to this entry)
+
+All issues fixed or labeled. See commit history for details.
+
+### Groups 6–14: COMPLETE (2026-04-20)
+
+| Group | Issues | Status |
+|-------|--------|--------|
+| G6 Multi-tile entities | #233–#237 | All **closed** |
+| G7 Memory safety tooling | #279–#287 | All **closed** except #282 (open, labeled) |
+| G8 Grid data model | #149, #293, #294 | All **closed** |
+| G9 Performance | #117, #124, #145, #255 | Open, all labeled |
+| G10 WASM/Playground | #238, #239, #240 | #238/#240 closed; #239 open, labeled |
+| G11 LLM agent testbed | #55, #154, #156 | Open, all labeled |
+| G12 Demo games | #167, #248 | Open, all labeled |
+| G13 Platform/architecture | #53, #54, #62, #67, #70 | Open, all labeled |
+| G14 Concurrency | #220 | Open, labeled |
+
+**Label pass completed:** All open issues in groups 6–14 now have `system:*`, `priority:tier*`, and type labels applied.
+
+### Post-triage new issues (#312–#316, created 2026-04-19)
+
+These appeared after the triage document was written and have been labeled in the same session:
+
+| Issue | Title | Labels Applied |
+|-------|-------|----------------|
+| #312 | Extend fuzz coverage to remaining API surface | Minor Feature, system:performance, priority:tier2-foundation |
+| #313 | Migrate UIEntity::grid to shared_ptr\<GridData\> | Refactoring & Cleanup, system:grid, system:python-binding, priority:tier1-active |
+| #314 | API audit documentation follow-through | Documentation, system:documentation, priority:tier1-active |
+| #316 | Sparse perspective writeback in updateVisibility | Minor Feature, system:performance, system:grid, priority:tier2-foundation, workflow:needs-benchmark |

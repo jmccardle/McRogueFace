@@ -349,7 +349,7 @@ When developing features that must work in WebGL:
 
 | Feature | Desktop (SFML) | Web (SDL2) | Notes |
 |---------|----------------|------------|-------|
-| Audio | ✅ Full | ❌ Stubbed | SoundBuffer/Sound/Music do nothing |
+| Audio | ✅ Full | ✅ Full | SDL2_mixer via `-sUSE_SDL_MIXER=2`; SoundBuffer/Sound/Music work |
 | ImGui console | ✅ Full | ❌ Disabled | Debug overlay unavailable |
 | Dynamic assets | ✅ Filesystem | ❌ Preloaded | All assets bundled at build time |
 | Threading | ✅ Full | ⚠️ Limited | Single-threaded JS execution |
