@@ -942,3 +942,49 @@ Some types use raw string docstrings for methods instead of MCRF_METHOD macros. 
 | Deprecations to resolve | 3 |
 | Documentation gaps | 2 |
 | **Total findings** | **15** |
+
+---
+
+## #314 Freeze Decisions (2026-06, recorded before generating the API-surface snapshot)
+
+The April audit body above is partly stale. Live introspection of the built module gives the
+authoritative counts, and the snapshot test (`tests/unit/api_surface_snapshot_test.py`) is built
+from live introspection, not from this document.
+
+**Corrected live counts (2026-06):** 12 enums (audit said 10 — adds `Perspective` #294 and
+`Heuristic` #315), 46 exported classes, 12 module functions, 7 singletons/constants (incl. the
+`automation` submodule), 1 submodule. `GridPointState` was removed in #294 (its F14 row is moot).
+
+**Per-finding final status:** F1, F4, F6, F10, F11, F13, F14 = RESOLVED (verified in source via
+#304–#308). F2 = correct-by-design (docs-only). F5, F9 = cosmetic, unchanged. F7 (`Music.pitch`),
+F8 (`Font` methods) = Future, explicitly NOT 1.0 blockers.
+
+**Decisions locked for the freeze (the snapshot golden enshrines these):**
+
+- **F3 (cell-position canonical name):** `grid_pos` is canonical (matches the `grid_pos=`
+  constructor argument); `cell_pos`/`cell_x`/`cell_y` are documented aliases. Both share the same
+  getter/setter and remain interchangeable. Docstrings aligned at `src/UIEntity.cpp` getsetters.
+- **F12 (`set_scale`):** KEPT in the 1.0 surface as a documented-deprecated function. Removing it
+  now would itself be a new breaking change; the snapshot locks it in.
+- **`mcrfpy.automation`:** PyAutoGUI-compatibility camelCase (`moveRel`/`dragTo`/etc.) is EXEMPT
+  from the snake_case rule. The snapshot records it in a clearly-labeled section.
+- **`entity.texture` (new in #313):** additive read/write property; getter returns the entity's
+  real texture, `None` only in the degenerate (default_texture-null) case — never re-derefs a null
+  default_texture. Added to the frozen contract + stubs + docs when #313 lands (golden gains exactly
+  one line).
+
+**1.0 freeze scope — class classification** (the snapshot segregates FROZEN vs EXPERIMENTAL):
+
+- **FROZEN (stable 1.0):** core value types (Color, Vector, Font, Texture), UI drawables
+  (Drawable [root], Frame, Caption, Sprite, Line, Circle, Arc), Grid/GridView/Entity, Scene,
+  Window, Timer, Keyboard, Mouse, audio (Sound, SoundBuffer, Music), procgen (BSP, HeightMap,
+  NoiseSource, DijkstraMap, AStarPath), all 12 enums, the snake_case module functions, and the
+  singletons. (Provisionally frozen, flagged for confirmation at golden review: `ColorLayer`,
+  `TileLayer` [core grid layers, distinct from Tiled import], `DiscreteMap` [#293/#294 grid data].)
+- **EXPERIMENTAL (exempt, may change post-1.0):** 3D/Voxel (Billboard, Entity3D,
+  EntityCollection3D[Iter], Model3D, Viewport3D, VoxelGrid, VoxelRegion), Tiled import (TileSetFile,
+  TileMapFile, WangSet), LDtk import (LdtkProject, AutoRuleSet), Shader, and binding helpers
+  (CallableBinding, PropertyBinding).
+
+The snapshot test FAILS on any exported class not classified (forces a deliberate decision for
+future additions).

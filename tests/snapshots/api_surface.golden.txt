@@ -1,0 +1,1232 @@
+# McRogueFace Public API Surface Snapshot (#314 freeze net)
+# Regenerate intentionally: MCRF_UPDATE_API_SNAPSHOT=1
+# Singleton/constant VALUES are intentionally NOT captured.
+
+=== MODULE FUNCTIONS (12) ===
+func bresenham :: bresenham(start, end, *, include_start=True, include_end=True) -> list[tuple[int, int]]
+func end_benchmark :: end_benchmark() -> str
+func exit :: exit() -> None
+func find :: find(name: str, scene: str = None) -> UIDrawable | None
+func find_all :: find_all(pattern: str, scene: str = None) -> list
+func get_metrics :: get_metrics() -> dict
+func lock :: lock() -> _LockContext
+func log_benchmark :: log_benchmark(message: str) -> None
+func set_dev_console :: set_dev_console(enabled: bool) -> None
+func set_scale :: set_scale(multiplier: float) -> None
+func start_benchmark :: start_benchmark() -> None
+func step :: step(dt: float = None) -> float
+
+=== MODULE SINGLETONS / CONSTANTS (6) ===
+const default_font: Font
+const default_fov: FOV
+const default_texture: Texture
+const keyboard: Keyboard
+const mouse: Mouse
+const window: Window
+
+=== SUBMODULES (1) ===
+submodule automation
+
+=== ENUMS (FROZEN) (12) ===
+[Alignment]
+  BOTTOM_CENTER = 7
+  BOTTOM_LEFT = 6
+  BOTTOM_RIGHT = 8
+  CENTER = 4
+  CENTER_LEFT = 3
+  CENTER_RIGHT = 5
+  TOP_CENTER = 1
+  TOP_LEFT = 0
+  TOP_RIGHT = 2
+[Behavior]
+  CUSTOM = 1
+  FLEE = 10
+  IDLE = 0
+  LOOP = 7
+  NOISE4 = 2
+  NOISE8 = 3
+  PATH = 4
+  PATROL = 6
+  SEEK = 9
+  SLEEP = 8
+  WAYPOINT = 5
+[Easing]
+  EASE_IN = 1
+  EASE_IN_BACK = 25
+  EASE_IN_BOUNCE = 28
+  EASE_IN_CIRC = 19
+  EASE_IN_CUBIC = 7
+  EASE_IN_ELASTIC = 22
+  EASE_IN_EXPO = 16
+  EASE_IN_OUT = 3
+  EASE_IN_OUT_BACK = 27
+  EASE_IN_OUT_BOUNCE = 30
+  EASE_IN_OUT_CIRC = 21
+  EASE_IN_OUT_CUBIC = 9
+  EASE_IN_OUT_ELASTIC = 24
+  EASE_IN_OUT_EXPO = 18
+  EASE_IN_OUT_QUAD = 6
+  EASE_IN_OUT_QUART = 12
+  EASE_IN_OUT_SINE = 15
+  EASE_IN_QUAD = 4
+  EASE_IN_QUART = 10
+  EASE_IN_SINE = 13
+  EASE_OUT = 2
+  EASE_OUT_BACK = 26
+  EASE_OUT_BOUNCE = 29
+  EASE_OUT_CIRC = 20
+  EASE_OUT_CUBIC = 8
+  EASE_OUT_ELASTIC = 23
+  EASE_OUT_EXPO = 17
+  EASE_OUT_QUAD = 5
+  EASE_OUT_QUART = 11
+  EASE_OUT_SINE = 14
+  LINEAR = 0
+  PING_PONG = 31
+  PING_PONG_EASE_IN = 33
+  PING_PONG_EASE_IN_OUT = 35
+  PING_PONG_EASE_OUT = 34
+  PING_PONG_SMOOTH = 32
+[FOV]
+  BASIC = 0
+  DIAMOND = 1
+  PERMISSIVE_0 = 3
+  PERMISSIVE_1 = 4
+  PERMISSIVE_2 = 5
+  PERMISSIVE_3 = 6
+  PERMISSIVE_4 = 7
+  PERMISSIVE_5 = 8
+  PERMISSIVE_6 = 9
+  PERMISSIVE_7 = 10
+  PERMISSIVE_8 = 11
+  RESTRICTIVE = 12
+  SHADOW = 2
+  SYMMETRIC_SHADOWCAST = 13
+[Heuristic]
+  CHEBYSHEV = 2
+  DIAGONAL = 3
+  EUCLIDEAN = 0
+  MANHATTAN = 1
+  ZERO = 4
+[InputState]
+  PRESSED = 0
+  RELEASED = 1
+[Key]
+  A = 0
+  ADD = 67
+  APOSTROPHE = 51
+  B = 1
+  BACKSLASH = 53
+  BACKSPACE = 59
+  C = 2
+  COMMA = 49
+  D = 3
+  DELETE = 66
+  DIVIDE = 70
+  DOWN = 74
+  E = 4
+  END = 63
+  ENTER = 58
+  EQUAL = 55
+  ESCAPE = 36
+  F = 5
+  F1 = 85
+  F10 = 94
+  F11 = 95
+  F12 = 96
+  F13 = 97
+  F14 = 98
+  F15 = 99
+  F2 = 86
+  F3 = 87
+  F4 = 88
+  F5 = 89
+  F6 = 90
+  F7 = 91
+  F8 = 92
+  F9 = 93
+  G = 6
+  GRAVE = 54
+  H = 7
+  HOME = 64
+  HYPHEN = 56
+  I = 8
+  INSERT = 65
+  J = 9
+  K = 10
+  L = 11
+  LEFT = 71
+  LEFT_ALT = 39
+  LEFT_BRACKET = 46
+  LEFT_CONTROL = 37
+  LEFT_SHIFT = 38
+  LEFT_SYSTEM = 40
+  M = 12
+  MENU = 45
+  MULTIPLY = 69
+  N = 13
+  NUMPAD_0 = 75
+  NUMPAD_1 = 76
+  NUMPAD_2 = 77
+  NUMPAD_3 = 78
+  NUMPAD_4 = 79
+  NUMPAD_5 = 80
+  NUMPAD_6 = 81
+  NUMPAD_7 = 82
+  NUMPAD_8 = 83
+  NUMPAD_9 = 84
+  NUM_0 = 26
+  NUM_1 = 27
+  NUM_2 = 28
+  NUM_3 = 29
+  NUM_4 = 30
+  NUM_5 = 31
+  NUM_6 = 32
+  NUM_7 = 33
+  NUM_8 = 34
+  NUM_9 = 35
+  O = 14
+  P = 15
+  PAGE_DOWN = 62
+  PAGE_UP = 61
+  PAUSE = 100
+  PERIOD = 50
+  Q = 16
+  R = 17
+  RIGHT = 72
+  RIGHT_ALT = 43
+  RIGHT_BRACKET = 47
+  RIGHT_CONTROL = 41
+  RIGHT_SHIFT = 42
+  RIGHT_SYSTEM = 44
+  S = 18
+  SEMICOLON = 48
+  SLASH = 52
+  SPACE = 57
+  SUBTRACT = 68
+  T = 19
+  TAB = 60
+  U = 20
+  UNKNOWN = -1
+  UP = 73
+  V = 21
+  W = 22
+  X = 23
+  Y = 24
+  Z = 25
+[MouseButton]
+  LEFT = 0
+  MIDDLE = 2
+  RIGHT = 1
+  SCROLL_DOWN = 11
+  SCROLL_UP = 10
+  X1 = 3
+  X2 = 4
+[Perspective]
+  DISCOVERED = 1
+  UNKNOWN = 0
+  VISIBLE = 2
+[Transition]
+  FADE = 1
+  NONE = 0
+  SLIDE_DOWN = 5
+  SLIDE_LEFT = 2
+  SLIDE_RIGHT = 3
+  SLIDE_UP = 4
+[Traversal]
+  INVERTED_LEVEL_ORDER = 4
+  IN_ORDER = 1
+  LEVEL_ORDER = 3
+  POST_ORDER = 2
+  PRE_ORDER = 0
+[Trigger]
+  BLOCKED = 1
+  DONE = 0
+  TARGET = 2
+
+=== FROZEN TYPES (30) ===
+[AStarPath]
+  prop destination: Vector (ro)
+  prop origin: Vector (ro)
+  prop remaining: int (ro)
+  meth peek :: peek() -> Vector
+  meth walk :: walk() -> Vector
+[Arc]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop center: Any (rw)
+  prop color: Any (rw)
+  prop end_angle: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_pos: Any (rw)
+  prop grid_size: Any (rw)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop radius: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop start_angle: Any (rw)
+  prop thickness: Any (rw)
+  prop vert_margin: float (rw)
+  prop visible: bool (rw)
+  prop z_index: Any (rw)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth resize :: resize(width, height) or (size) -> None
+[BSP]
+  prop adjacency: Any (ro)
+  prop bounds: Any (ro)
+  prop pos: Any (ro)
+  prop root: Any (ro)
+  prop size: Any (ro)
+  meth clear :: clear() -> BSP
+  meth find :: find(pos: tuple[int, int]) -> BSPNode | None
+  meth get_leaf :: get_leaf(index: int) -> BSPNode
+  meth leaves :: leaves() -> Iterator[BSPNode]
+  meth split_once :: split_once(horizontal: bool, position: int) -> BSP
+  meth split_recursive :: split_recursive(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int = None) -> BSP
+  meth to_heightmap :: to_heightmap(size: tuple[int, int] = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0) -> HeightMap
+  meth traverse :: traverse(order: Traversal = Traversal.LEVEL_ORDER) -> Iterator[BSPNode]
+[Caption]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop fill_color: Any (rw)
+  prop font_size: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_pos: Any (rw)
+  prop grid_size: Any (rw)
+  prop h: Any (ro)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop outline: Any (rw)
+  prop outline_color: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop shader: Any (rw)
+  prop size: Any (ro)
+  prop text: Any (rw)
+  prop uniforms: Any (ro)
+  prop vert_margin: float (rw)
+  prop visible: bool (rw)
+  prop w: Any (ro)
+  prop x: Any (rw)
+  prop y: Any (rw)
+  prop z_index: Any (rw)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth resize :: resize(width, height) or (size) -> None
+[Circle]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop center: Any (rw)
+  prop fill_color: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_pos: Any (rw)
+  prop grid_size: Any (rw)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop outline: Any (rw)
+  prop outline_color: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop radius: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop vert_margin: float (rw)
+  prop visible: bool (rw)
+  prop z_index: Any (rw)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth resize :: resize(width, height) or (size) -> None
+[Color]
+  prop a: Any (rw)
+  prop b: Any (rw)
+  prop g: Any (rw)
+  prop r: Any (rw)
+  meth from_hex :: from_hex(hex_string: str) -> Color
+  meth lerp :: lerp(other: Color, t: float) -> Color
+  meth to_hex :: to_hex() -> str
+[ColorLayer]
+  prop grid: Any (rw)
+  prop grid_size: Any (rw)
+  prop name: str (ro)
+  prop visible: Any (rw)
+  prop z_index: Any (rw)
+  meth apply_gradient :: apply_gradient(source, range, color_low, color_high) -> ColorLayer
+  meth apply_perspective :: apply_perspective(entity, visible=None, discovered=None, unknown=None)
+  meth apply_ranges :: apply_ranges(source, ranges) -> ColorLayer
+  meth apply_threshold :: apply_threshold(source, range, color) -> ColorLayer
+  meth at :: at(pos) -> Color
+  meth clear_perspective :: clear_perspective()
+  meth draw_fov :: draw_fov(source, radius=None, fov=None, visible=None, discovered=None, unknown=None)
+  meth fill :: fill(color)
+  meth fill_rect :: fill_rect(pos, size, color)
+  meth set :: set(pos, color)
+  meth update_perspective :: update_perspective()
+[DijkstraMap]
+  prop root: Vector (ro)
+  meth descent_step :: descent_step(pos) -> Vector | None
+  meth distance :: distance(pos) -> float | None
+  meth invert :: invert() -> DijkstraMap
+  meth path_from :: path_from(pos) -> AStarPath
+  meth step_from :: step_from(pos) -> Vector | None
+  meth to_heightmap :: to_heightmap(size=None, unreachable=-1.0) -> HeightMap
+[DiscreteMap]
+  prop enum_type: Any (rw)
+  prop size: Any (ro)
+  meth add :: add(other: DiscreteMap | int, *, pos=None, source_pos=None, size=None) -> DiscreteMap
+  meth bitwise_and :: bitwise_and(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap
+  meth bitwise_or :: bitwise_or(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap
+  meth bitwise_xor :: bitwise_xor(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap
+  meth bool :: bool(condition: int | set | callable) -> DiscreteMap
+  meth clear :: clear() -> DiscreteMap
+  meth copy_from :: copy_from(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap
+  meth count :: count(value: int) -> int
+  meth count_range :: count_range(min_val: int, max_val: int) -> int
+  meth fill :: fill(value: int, *, pos=None, size=None) -> DiscreteMap
+  meth from_bytes :: from_bytes(data: bytes, size: tuple[int, int], *, enum: type = None) -> DiscreteMap
+  meth from_heightmap :: from_heightmap(hmap: HeightMap, mapping: list[tuple[tuple[float,float], int]], *, enum=None) -> DiscreteMap
+  meth get :: get(x, y) or (pos) -> int | Enum
+  meth histogram :: histogram() -> dict[int, int]
+  meth invert :: invert() -> DiscreteMap
+  meth mask :: mask() -> memoryview
+  meth max :: max(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap
+  meth min :: min(other: DiscreteMap, *, pos=None, source_pos=None, size=None) -> DiscreteMap
+  meth min_max :: min_max() -> tuple[int, int]
+  meth multiply :: multiply(factor: float, *, pos=None, size=None) -> DiscreteMap
+  meth set :: set(x: int, y: int, value: int) -> None
+  meth subtract :: subtract(other: DiscreteMap | int, *, pos=None, source_pos=None, size=None) -> DiscreteMap
+  meth to_bytes :: to_bytes() -> bytes
+  meth to_heightmap :: to_heightmap(mapping: dict[int, float] = None) -> HeightMap
+[Drawable]
+  prop on_click: Any (rw)
+  prop opacity: Any (rw)
+  prop visible: bool (rw)
+  prop z_index: Any (rw)
+  meth move :: move(dx, dy) or (delta) -> None
+  meth resize :: resize(width, height) or (size) -> None
+[Entity]
+  prop behavior_type: int (ro)
+  prop cell_pos: Vector (rw)
+  prop cell_x: Any (rw)
+  prop cell_y: Any (rw)
+  prop default_behavior: int (rw)
+  prop draw_pos: Vector (rw)
+  prop grid: Any (rw)
+  prop grid_pos: Vector (rw)
+  prop grid_x: Any (rw)
+  prop grid_y: Any (rw)
+  prop labels: frozenset (rw)
+  prop move_speed: float (rw)
+  prop name: Any (rw)
+  prop opacity: Any (rw)
+  prop perspective_map: DiscreteMap (rw)
+  prop pos: Vector (rw)
+  prop shader: Any (rw)
+  prop sight_radius: int (rw)
+  prop sprite_grid: Any (rw)
+  prop sprite_index: Any (rw)
+  prop sprite_offset: Vector (rw)
+  prop sprite_offset_x: Any (rw)
+  prop sprite_offset_y: Any (rw)
+  prop step: Any (rw)
+  prop target_label: Any (rw)
+  prop tile_height: int (rw)
+  prop tile_size: Any (rw)
+  prop tile_width: int (rw)
+  prop turn_order: int (rw)
+  prop uniforms: Any (ro)
+  prop visible: Any (rw)
+  prop x: Any (rw)
+  prop y: Any (rw)
+  meth add_label :: add_label(label: str) -> None
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth at :: at(x, y) or at(pos) -> GridPoint | None
+  meth die :: Remove this entity from its grid.
+  meth find_path :: find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None
+  meth has_label :: has_label(label: str) -> bool
+  meth index :: Return the index of this entity in its grid's entity collection
+  meth move :: move(dx, dy) or (delta) -> None
+  meth path_to :: path_to(x, y) or path_to(target) -> list
+  meth remove_label :: remove_label(label: str) -> None
+  meth resize :: resize(width, height) or (size) -> None
+  meth set_behavior :: set_behavior(type, waypoints=None, turns=0, path=None) -> None
+  meth update_visibility :: update_visibility() -> None
+  meth visible_entities :: visible_entities(fov=None, radius=None) -> list[Entity]
+[Font]
+  prop family: str (ro)
+  prop source: str (ro)
+[Frame]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop cache_subtree: Any (rw)
+  prop children: Any (rw)
+  prop clip_children: Any (rw)
+  prop fill_color: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_pos: Any (rw)
+  prop grid_size: Any (rw)
+  prop h: Any (rw)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop outline: Any (rw)
+  prop outline_color: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop shader: Any (rw)
+  prop uniforms: Any (ro)
+  prop vert_margin: float (rw)
+  prop visible: bool (rw)
+  prop w: Any (rw)
+  prop x: Any (rw)
+  prop y: Any (rw)
+  prop z_index: Any (rw)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth resize :: resize(width, height) or (size) -> None
+[Grid]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop camera_rotation: Any (rw)
+  prop center: Any (rw)
+  prop center_x: Any (rw)
+  prop center_y: Any (rw)
+  prop fill_color: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_data: Any (rw)
+  prop h: Any (rw)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop shader: Any (rw)
+  prop texture: Any (ro)
+  prop uniforms: Any (ro)
+  prop vert_margin: float (rw)
+  prop visible: bool (rw)
+  prop w: Any (rw)
+  prop x: Any (rw)
+  prop y: Any (rw)
+  prop z_index: Any (rw)
+  prop zoom: Any (rw)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth resize :: resize(width, height) or (size) -> None
+[GridView]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop camera_rotation: Any (rw)
+  prop center: Any (rw)
+  prop center_x: Any (rw)
+  prop center_y: Any (rw)
+  prop fill_color: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_data: Any (rw)
+  prop h: Any (rw)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop shader: Any (rw)
+  prop texture: Any (ro)
+  prop uniforms: Any (ro)
+  prop vert_margin: float (rw)
+  prop visible: bool (rw)
+  prop w: Any (rw)
+  prop x: Any (rw)
+  prop y: Any (rw)
+  prop z_index: Any (rw)
+  prop zoom: Any (rw)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth resize :: resize(width, height) or (size) -> None
+[HeightMap]
+  prop size: Any (ro)
+  meth add :: add(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap
+  meth add_bsp :: add_bsp(bsp: BSP, *, pos=None, select: str = 'leaves', nodes: list = None, shrink: int = 0, value: float = 1.0) -> HeightMap
+  meth add_constant :: add_constant(value: float, *, pos=None, size=None) -> HeightMap
+  meth add_hill :: add_hill(center, radius: float, height: float) -> HeightMap
+  meth add_noise :: add_noise(source: NoiseSource, world_origin: tuple = (0.0, 0.0), world_size: tuple = None, mode: str = 'fbm', octaves: int = 4, scale: float = 1.0) -> HeightMap
+  meth add_voronoi :: add_voronoi(num_points: int, coefficients: tuple = (1.0, -0.5), seed: int = None) -> HeightMap
+  meth clamp :: clamp(min: float = 0.0, max: float = 1.0, *, pos=None, size=None) -> HeightMap
+  meth clear :: clear() -> HeightMap
+  meth copy_from :: copy_from(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap
+  meth count_in_range :: count_in_range(range: tuple[float, float]) -> int
+  meth dig_bezier :: dig_bezier(points: tuple, start_radius: float, end_radius: float, start_height: float, end_height: float) -> HeightMap
+  meth dig_hill :: dig_hill(center, radius: float, target_height: float) -> HeightMap
+  meth fill :: fill(value: float, *, pos=None, size=None) -> HeightMap
+  meth get :: get(x, y) or (pos) -> float
+  meth get_interpolated :: get_interpolated(x, y) or (pos) -> float
+  meth get_normal :: get_normal(x, y, water_level=0.0) or (pos, water_level=0.0) -> tuple[float, float, float]
+  meth get_slope :: get_slope(x, y) or (pos) -> float
+  meth inverse :: inverse() -> HeightMap
+  meth lerp :: lerp(other: HeightMap, t: float, *, pos=None, source_pos=None, size=None) -> HeightMap
+  meth max :: max(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap
+  meth mid_point_displacement :: mid_point_displacement(roughness: float = 0.5, seed: int = None) -> HeightMap
+  meth min :: min(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap
+  meth min_max :: min_max() -> tuple[float, float]
+  meth multiply :: multiply(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap
+  meth multiply_bsp :: multiply_bsp(bsp: BSP, *, pos=None, select: str = 'leaves', nodes: list = None, shrink: int = 0, value: float = 1.0) -> HeightMap
+  meth multiply_noise :: multiply_noise(source: NoiseSource, world_origin: tuple = (0.0, 0.0), world_size: tuple = None, mode: str = 'fbm', octaves: int = 4, scale: float = 1.0) -> HeightMap
+  meth normalize :: normalize(min: float = 0.0, max: float = 1.0, *, pos=None, size=None) -> HeightMap
+  meth rain_erosion :: rain_erosion(drops: int, erosion: float = 0.1, sedimentation: float = 0.05, seed: int = None) -> HeightMap
+  meth scale :: scale(factor: float, *, pos=None, size=None) -> HeightMap
+  meth smooth :: smooth(iterations: int = 1) -> HeightMap
+  meth sparse_kernel :: sparse_kernel(weights: dict[tuple[int, int], float]) -> HeightMap
+  meth sparse_kernel_from :: sparse_kernel_from(source: HeightMap, weights: dict[tuple[int, int], float]) -> None
+  meth subtract :: subtract(other: HeightMap, *, pos=None, source_pos=None, size=None) -> HeightMap
+  meth threshold :: threshold(range: tuple[float, float]) -> HeightMap
+  meth threshold_binary :: threshold_binary(range: tuple[float, float], value: float = 1.0) -> HeightMap
+[Keyboard]
+  prop alt: Any (ro)
+  prop ctrl: Any (ro)
+  prop shift: Any (ro)
+  prop system: Any (ro)
+[Line]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop color: Any (rw)
+  prop end: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_pos: Any (rw)
+  prop grid_size: Any (rw)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop start: Any (rw)
+  prop thickness: Any (rw)
+  prop vert_margin: float (rw)
+  prop visible: bool (rw)
+  prop z_index: Any (rw)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth resize :: resize(width, height) or (size) -> None
+[Mouse]
+  prop grabbed: Any (rw)
+  prop left: Any (ro)
+  prop middle: Any (ro)
+  prop pos: Any (ro)
+  prop right: Any (ro)
+  prop visible: Any (rw)
+  prop x: Any (ro)
+  prop y: Any (ro)
+[Music]
+  prop duration: Any (ro)
+  prop loop: Any (rw)
+  prop playing: Any (ro)
+  prop position: Any (rw)
+  prop source: Any (ro)
+  prop volume: Any (rw)
+  meth pause :: pause() -> None
+  meth play :: play() -> None
+  meth stop :: stop() -> None
+[NoiseSource]
+  prop algorithm: Any (ro)
+  prop dimensions: Any (ro)
+  prop hurst: Any (ro)
+  prop lacunarity: Any (ro)
+  prop seed: Any (ro)
+  meth fbm :: fbm(pos: tuple[float, ...], octaves: int = 4) -> float
+  meth get :: get(pos: tuple[float, ...]) -> float
+  meth sample :: sample(size: tuple[int, int], world_origin: tuple[float, float] = (0.0, 0.0), world_size: tuple[float, float] = None, mode: str = 'fbm', octaves: int = 4) -> HeightMap
+  meth turbulence :: turbulence(pos: tuple[float, ...], octaves: int = 4) -> float
+[Scene]
+  prop active: bool (ro)
+  prop children: UICollection (ro)
+  prop name: str (ro)
+  prop on_key: Any (rw)
+  prop opacity: Any (rw)
+  prop pos: Vector (rw)
+  prop registered: bool (ro)
+  prop visible: bool (rw)
+  meth activate :: activate(transition: Transition = None, duration: float = None) -> None
+  meth realign :: realign() -> None
+  meth register :: register() -> None
+  meth unregister :: unregister() -> None
+[Sound]
+  prop buffer: Any (ro)
+  prop duration: Any (ro)
+  prop loop: Any (rw)
+  prop pitch: Any (rw)
+  prop playing: Any (ro)
+  prop source: Any (ro)
+  prop volume: Any (rw)
+  meth pause :: pause() -> None
+  meth play :: play() -> None
+  meth play_varied :: play_varied(pitch_range: float = 0.1, volume_range: float = 3.0) -> None
+  meth stop :: stop() -> None
+[SoundBuffer]
+  prop channels: Any (ro)
+  prop duration: Any (ro)
+  prop sample_count: Any (ro)
+  prop sample_rate: Any (ro)
+  prop sfxr_params: Any (ro)
+  meth bit_crush :: bit_crush(bits: int, rate_divisor: int) -> SoundBuffer
+  meth concat :: concat(buffers: list[SoundBuffer], overlap: float = 0.0) -> SoundBuffer
+  meth distortion :: distortion(drive: float) -> SoundBuffer
+  meth echo :: echo(delay_ms: float, feedback: float, wet: float) -> SoundBuffer
+  meth from_samples :: from_samples(data: bytes, channels: int, sample_rate: int) -> SoundBuffer
+  meth gain :: gain(factor: float) -> SoundBuffer
+  meth high_pass :: high_pass(cutoff_hz: float) -> SoundBuffer
+  meth low_pass :: low_pass(cutoff_hz: float) -> SoundBuffer
+  meth mix :: mix(buffers: list[SoundBuffer]) -> SoundBuffer
+  meth normalize :: normalize() -> SoundBuffer
+  meth pitch_shift :: pitch_shift(factor: float) -> SoundBuffer
+  meth reverb :: reverb(room_size: float, damping: float, wet: float) -> SoundBuffer
+  meth reverse :: reverse() -> SoundBuffer
+  meth sfxr :: sfxr(preset: str = None, seed: int = None, **params) -> SoundBuffer
+  meth sfxr_mutate :: sfxr_mutate(amount: float = 0.05, seed: int = None) -> SoundBuffer
+  meth slice :: slice(start: float, end: float) -> SoundBuffer
+  meth tone :: tone(frequency: float, duration: float, waveform: str = 'sine', ...) -> SoundBuffer
+[Sprite]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_pos: Any (rw)
+  prop grid_size: Any (rw)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop scale: Any (rw)
+  prop scale_x: Any (rw)
+  prop scale_y: Any (rw)
+  prop shader: Any (rw)
+  prop sprite_index: Any (rw)
+  prop texture: Any (rw)
+  prop uniforms: Any (ro)
+  prop vert_margin: float (rw)
+  prop visible: bool (rw)
+  prop x: Any (rw)
+  prop y: Any (rw)
+  prop z_index: Any (rw)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth resize :: resize(width, height) or (size) -> None
+[Texture]
+  prop display_height: int (ro)
+  prop display_offset_x: int (ro)
+  prop display_offset_y: int (ro)
+  prop display_width: int (ro)
+  prop sheet_height: int (ro)
+  prop sheet_width: int (ro)
+  prop source: str (ro)
+  prop sprite_count: int (ro)
+  prop sprite_height: int (ro)
+  prop sprite_width: int (ro)
+  meth composite :: composite(layers: list[Texture], sprite_width: int, sprite_height: int, name: str = '<composite>') -> Texture
+  meth from_bytes :: from_bytes(data: bytes, width: int, height: int, sprite_width: int, sprite_height: int, name: str = '<generated>') -> Texture
+  meth hsl_shift :: hsl_shift(hue_shift: float, sat_shift: float = 0.0, lit_shift: float = 0.0) -> Texture
+[TileLayer]
+  prop grid: Any (rw)
+  prop grid_size: Any (rw)
+  prop name: str (ro)
+  prop texture: Any (rw)
+  prop visible: Any (rw)
+  prop z_index: Any (rw)
+  meth apply_ranges :: apply_ranges(source, ranges) -> TileLayer
+  meth apply_threshold :: apply_threshold(source, range, tile) -> TileLayer
+  meth at :: at(pos) -> int
+  meth fill :: fill(index)
+  meth fill_rect :: fill_rect(pos, size, index)
+  meth set :: set(pos, index)
+[Timer]
+  prop active: bool (rw)
+  prop callback: Callable (rw)
+  prop interval: int (rw)
+  prop name: str (ro)
+  prop once: bool (rw)
+  prop paused: bool (ro)
+  prop remaining: int (ro)
+  prop stopped: bool (ro)
+  meth pause :: pause() -> None
+  meth restart :: restart() -> None
+  meth resume :: resume() -> None
+  meth start :: start() -> None
+  meth stop :: stop() -> None
+[Vector]
+  prop int: Any (ro)
+  prop x: float (rw)
+  prop y: float (rw)
+  meth angle :: angle() -> float
+  meth copy :: copy() -> Vector
+  meth distance_to :: distance_to(other: Vector) -> float
+  meth dot :: dot(other: Vector) -> float
+  meth floor :: floor() -> Vector
+  meth magnitude :: magnitude() -> float
+  meth magnitude_squared :: magnitude_squared() -> float
+  meth normalize :: normalize() -> Vector
+[Window]
+  prop framerate_limit: int (rw)
+  prop fullscreen: bool (rw)
+  prop game_resolution: Any (rw)
+  prop resolution: Any (rw)
+  prop scaling_mode: str (rw)
+  prop title: str (rw)
+  prop visible: bool (rw)
+  prop vsync: bool (rw)
+  meth center :: center() -> None
+  meth get :: get() -> Window
+  meth screenshot :: screenshot(filename: str = None) -> bytes | None
+
+=== EXPERIMENTAL TYPES (NOT FROZEN) (16) ===
+[AutoRuleSet]
+  prop grid_size: int (ro)
+  prop group_count: int (ro)
+  prop name: str (ro)
+  prop rule_count: int (ro)
+  prop value_count: int (ro)
+  prop values: Any (ro)
+  meth apply :: apply(discrete_map: DiscreteMap, tile_layer: TileLayer, seed: int = 0) -> None
+  meth resolve :: resolve(discrete_map: DiscreteMap, seed: int = 0) -> list[int]
+  meth terrain_enum :: terrain_enum() -> IntEnum
+[Billboard]
+  prop facing: str (rw)
+  prop opacity: float (rw)
+  prop phi: float (rw)
+  prop pos: Any (rw)
+  prop scale: float (rw)
+  prop sprite_index: int (rw)
+  prop texture: Any (rw)
+  prop theta: float (rw)
+  prop visible: bool (rw)
+[CallableBinding]
+  prop callable: Any (ro)
+  prop is_valid: bool (ro)
+  prop value: float (ro)
+[Entity3D]
+  prop anim_clip: Any (rw)
+  prop anim_frame: Any (ro)
+  prop anim_loop: Any (rw)
+  prop anim_paused: Any (rw)
+  prop anim_speed: Any (rw)
+  prop anim_time: Any (rw)
+  prop auto_animate: Any (rw)
+  prop color: Any (rw)
+  prop grid_pos: Any (rw)
+  prop idle_clip: Any (rw)
+  prop is_moving: Any (ro)
+  prop model: Model3D (rw)
+  prop name: str (rw)
+  prop on_anim_complete: Any (rw)
+  prop pos: Any (rw)
+  prop rotation: Any (rw)
+  prop scale: Any (rw)
+  prop viewport: Any (ro)
+  prop visible: Any (rw)
+  prop walk_clip: Any (rw)
+  prop world_pos: Any (ro)
+  meth animate :: animate(property, target, duration, easing=None, delta=False, callback=None, conflict_mode=None)
+  meth at :: at(x, z) -> dict
+  meth clear_path :: clear_path()
+  meth follow_path :: follow_path(path)
+  meth path_to :: path_to(x, z) or path_to(pos=(x, z)) -> list
+  meth teleport :: teleport(x, z) or teleport(pos=(x, z))
+  meth update_visibility :: update_visibility()
+[EntityCollection3D]
+  meth append :: append(entity)
+  meth clear :: clear()
+  meth extend :: extend(iterable)
+  meth find :: find(name) -> Entity3D or None
+  meth pop :: pop(index=-1) -> Entity3D
+  meth remove :: remove(entity)
+[EntityCollection3DIter]
+[LdtkProject]
+  prop enums: Any (ro)
+  prop level_names: Any (ro)
+  prop ruleset_names: Any (ro)
+  prop tileset_names: Any (ro)
+  prop version: str (ro)
+  meth level :: level(name: str) -> dict
+  meth ruleset :: ruleset(name: str) -> AutoRuleSet
+  meth tileset :: tileset(name: str) -> TileSetFile
+[Model3D]
+  prop animation_clips: Any (ro)
+  prop bone_count: Any (ro)
+  prop bounds: Any (ro)
+  prop has_skeleton: Any (ro)
+  prop mesh_count: Any (ro)
+  prop name: Any (ro)
+  prop triangle_count: Any (ro)
+  prop vertex_count: Any (ro)
+  meth cube :: cube(size=1.0) -> Model3D
+  meth plane :: plane(width=1.0, depth=1.0, segments=1) -> Model3D
+  meth sphere :: sphere(radius=0.5, segments=16, rings=12) -> Model3D
+[PropertyBinding]
+  prop is_valid: bool (ro)
+  prop property: str (ro)
+  prop target: Any (ro)
+  prop value: float (ro)
+[Shader]
+  prop dynamic: bool (rw)
+  prop is_valid: bool (ro)
+  prop source: str (ro)
+  meth set_uniform :: set_uniform(name: str, value: float|tuple) -> None
+[TileMapFile]
+  prop height: int (ro)
+  prop object_layer_names: Any (ro)
+  prop orientation: str (ro)
+  prop properties: Any (ro)
+  prop tile_height: int (ro)
+  prop tile_layer_names: Any (ro)
+  prop tile_width: int (ro)
+  prop tileset_count: int (ro)
+  prop width: int (ro)
+  meth apply_to_tile_layer :: apply_to_tile_layer(tile_layer: TileLayer, layer_name: str, tileset_index: int = 0) -> None
+  meth object_layer :: object_layer(name: str) -> list[dict]
+  meth resolve_gid :: resolve_gid(gid: int) -> tuple[int, int]
+  meth tile_layer_data :: tile_layer_data(name: str) -> list[int]
+  meth tileset :: tileset(index: int) -> tuple[int, TileSetFile]
+[TileSetFile]
+  prop columns: int (ro)
+  prop image_source: str (ro)
+  prop margin: int (ro)
+  prop name: str (ro)
+  prop properties: Any (ro)
+  prop spacing: int (ro)
+  prop tile_count: int (ro)
+  prop tile_height: int (ro)
+  prop tile_width: int (ro)
+  prop wang_sets: Any (ro)
+  meth tile_info :: tile_info(tile_id: int) -> dict | None
+  meth to_texture :: to_texture() -> Texture
+  meth wang_set :: wang_set(name: str) -> WangSet
+[Viewport3D]
+  prop bg_color: Any (rw)
+  prop bounds: Any (rw)
+  prop camera_pos: Any (rw)
+  prop camera_target: Any (rw)
+  prop cell_size: Any (rw)
+  prop enable_affine: Any (rw)
+  prop enable_dither: Any (rw)
+  prop enable_fog: Any (rw)
+  prop enable_vertex_snap: Any (rw)
+  prop entities: Any (ro)
+  prop fog_color: Any (rw)
+  prop fog_far: Any (rw)
+  prop fog_near: Any (rw)
+  prop fov: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_size: Any (rw)
+  prop h: Any (rw)
+  prop hovered: Any (ro)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop parent: Any (rw)
+  prop pos: Any (rw)
+  prop render_resolution: Any (rw)
+  prop visible: bool (rw)
+  prop w: Any (rw)
+  prop x: Any (rw)
+  prop y: Any (rw)
+  prop z_index: Any (rw)
+  meth add_billboard :: add_billboard(billboard)
+  meth add_layer :: add_layer(name, z_index=0) -> dict
+  meth add_mesh :: add_mesh(layer_name, model, pos, rotation=0, scale=1.0) -> int
+  meth add_voxel_layer :: add_voxel_layer(voxel_grid, z_index=0)
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth apply_heightmap :: apply_heightmap(heightmap, y_scale=1.0)
+  meth apply_terrain_colors :: apply_terrain_colors(layer_name, r_map, g_map, b_map)
+  meth apply_threshold :: apply_threshold(heightmap, min_height, max_height, walkable=True)
+  meth at :: at(x, z) -> VoxelPoint
+  meth billboard_count :: billboard_count() -> int
+  meth build_terrain :: build_terrain(layer_name, heightmap, y_scale=1.0, cell_size=1.0) -> int
+  meth clear_billboards :: clear_billboards()
+  meth clear_meshes :: clear_meshes(layer_name)
+  meth clear_voxel_nav_region :: clear_voxel_nav_region(voxel_grid)
+  meth compute_fov :: compute_fov(origin, radius=10) -> list
+  meth find_path :: find_path(start, end) -> list
+  meth follow :: follow(entity, distance=10, height=5, smoothing=1.0)
+  meth get_billboard :: get_billboard(index) -> Billboard
+  meth get_layer :: get_layer(name) -> dict or None
+  meth is_in_fov :: is_in_fov(x, z) -> bool
+  meth layer_count :: layer_count() -> int
+  meth move :: move(dx, dy) or (delta) -> None
+  meth orbit_camera :: orbit_camera(angle=0, distance=10, height=5)
+  meth place_blocking :: place_blocking(grid_pos, footprint, walkable=False, transparent=False)
+  meth project_all_voxels_to_nav :: project_all_voxels_to_nav(headroom=2)
+  meth project_voxel_to_nav :: project_voxel_to_nav(voxel_grid, headroom=2)
+  meth realign :: realign() -> None
+  meth remove_billboard :: remove_billboard(billboard)
+  meth remove_layer :: remove_layer(name) -> bool
+  meth remove_voxel_layer :: remove_voxel_layer(voxel_grid) -> bool
+  meth resize :: resize(width, height) or (size) -> None
+  meth screen_to_world :: screen_to_world(x, y, y_plane=0.0) -> tuple or None
+  meth set_grid_size :: set_grid_size(width, depth)
+  meth set_slope_cost :: set_slope_cost(max_slope=0.5, cost_multiplier=1.0)
+  meth voxel_layer_count :: voxel_layer_count() -> int
+[VoxelGrid]
+  prop cell_size: Any (ro)
+  prop depth: Any (ro)
+  prop greedy_meshing: Any (rw)
+  prop height: Any (ro)
+  prop material_count: Any (ro)
+  prop offset: Any (rw)
+  prop rotation: Any (rw)
+  prop size: Any (ro)
+  prop vertex_count: Any (ro)
+  prop visible: Any (rw)
+  prop width: Any (ro)
+  meth add_material :: add_material(name, color=Color(255,255,255), sprite_index=-1, transparent=False, path_cost=1.0) -> int
+  meth clear :: clear() -> None
+  meth copy_region :: copy_region(min_coord, max_coord) -> VoxelRegion
+  meth count_material :: count_material(material) -> int
+  meth count_non_air :: count_non_air() -> int
+  meth fill :: fill(material) -> None
+  meth fill_box :: fill_box(min_coord, max_coord, material) -> None
+  meth fill_box_hollow :: fill_box_hollow(min_coord, max_coord, material, thickness=1) -> None
+  meth fill_cylinder :: fill_cylinder(base_pos, radius, height, material) -> None
+  meth fill_noise :: fill_noise(min_coord, max_coord, material, threshold=0.5, scale=0.1, seed=0) -> None
+  meth fill_sphere :: fill_sphere(center, radius, material) -> None
+  meth from_bytes :: from_bytes(data) -> bool
+  meth get :: get(x, y, z) -> int
+  meth get_material :: get_material(id) -> dict
+  meth load :: load(path) -> bool
+  meth paste_region :: paste_region(region, position, skip_air=True) -> None
+  meth project_column :: project_column(x, z, headroom=2) -> dict
+  meth rebuild_mesh :: rebuild_mesh() -> None
+  meth save :: save(path) -> bool
+  meth set :: set(x, y, z, material) -> None
+  meth to_bytes :: to_bytes() -> bytes
+[VoxelRegion]
+  prop depth: Any (ro)
+  prop height: Any (ro)
+  prop size: Any (ro)
+  prop width: Any (ro)
+[WangSet]
+  prop color_count: int (ro)
+  prop colors: Any (ro)
+  prop name: str (ro)
+  prop type: str (ro)
+  meth apply :: apply(discrete_map: DiscreteMap, tile_layer: TileLayer) -> None
+  meth resolve :: resolve(discrete_map: DiscreteMap) -> list[int]
+  meth terrain_enum :: terrain_enum() -> IntEnum
+
+=== INTERNAL TYPES (reached via live instances) ===
+[_GridData]
+  prop align: Any (rw)
+  prop bounds: Any (rw)
+  prop camera_rotation: Any (rw)
+  prop center: Any (rw)
+  prop center_x: Any (rw)
+  prop center_y: Any (rw)
+  prop children: Any (rw)
+  prop entities: Any (rw)
+  prop fill_color: Any (rw)
+  prop fov: Any (rw)
+  prop fov_radius: Any (rw)
+  prop global_bounds: Any (rw)
+  prop global_position: Any (ro)
+  prop grid_h: Any (rw)
+  prop grid_pos: Any (rw)
+  prop grid_size: Any (rw)
+  prop grid_w: Any (rw)
+  prop h: Any (rw)
+  prop horiz_margin: float (rw)
+  prop hovered: Any (ro)
+  prop hovered_cell: Any (rw)
+  prop layers: ColorLayer (rw)
+  prop margin: float (rw)
+  prop name: Any (rw)
+  prop on_cell_click: Any (rw)
+  prop on_cell_enter: Any (rw)
+  prop on_cell_exit: Any (rw)
+  prop on_click: Any (rw)
+  prop on_enter: Any (rw)
+  prop on_exit: Any (rw)
+  prop on_move: Any (rw)
+  prop opacity: Any (rw)
+  prop origin: Any (rw)
+  prop parent: Any (rw)
+  prop perspective: Any (rw)
+  prop perspective_enabled: Any (rw)
+  prop pos: Any (rw)
+  prop rotate_with_camera: bool (rw)
+  prop rotation: Any (rw)
+  prop shader: Any (rw)
+  prop size: Any (rw)
+  prop texture: Any (rw)
+  prop uniforms: Any (ro)
+  prop vert_margin: float (rw)
+  prop view: Any (ro)
+  prop visible: bool (rw)
+  prop w: Any (rw)
+  prop x: Any (rw)
+  prop y: Any (rw)
+  prop z_index: Any (rw)
+  prop zoom: Any (rw)
+  meth add_layer :: add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer
+  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> Grid
+  meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid
+  meth at :: <no-doc>
+  meth center_camera :: center_camera(pos: tuple = None) -> None
+  meth clear_dijkstra_maps :: clear_dijkstra_maps() -> None
+  meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None
+  meth entities_in_radius :: entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]
+  meth find_path :: find_path(start, end, diagonal_cost=1.41, collide=None) -> AStarPath | None
+  meth get_dijkstra_map :: get_dijkstra_map(root, diagonal_cost=1.41, collide=None) -> DijkstraMap
+  meth is_in_fov :: is_in_fov(pos) -> bool
+  meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
+  meth move :: move(dx, dy) or (delta) -> None
+  meth realign :: realign() -> None
+  meth remove_layer :: remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None
+  meth resize :: resize(width, height) or (size) -> None
+  meth step :: step(n=1, turn_order=None) -> None
+[GridPoint]
+  prop entities: Any (ro)
+  prop grid_pos: Any (ro)
+  prop transparent: Any (rw)
+  prop walkable: Any (rw)
+[EntityCollection]
+  meth append :: append(entity)
+  meth count :: count(entity) -> int
+  meth extend :: extend(iterable)
+  meth find :: find(name) -> entity or list
+  meth index :: index(entity) -> int
+  meth insert :: insert(index, entity)
+  meth pop :: pop([index]) -> entity
+  meth remove :: remove(entity)
+[UICollection]
+  meth append :: append(element)
+  meth count :: count(element) -> int
+  meth extend :: extend(iterable)
+  meth find :: find(name, recursive=False) -> element or list
+  meth index :: index(element) -> int
+  meth insert :: insert(index, element)
+  meth pop :: pop([index]) -> element
+  meth remove :: remove(element)
+[UniformCollection]
+  meth clear :: Remove all uniforms
+  meth items :: Return list of (name, value) tuples
+  meth keys :: Return list of uniform names
+  meth values :: Return list of uniform values
+
+=== AUTOMATION (PyAutoGUI-compat, snake_case-exempt) ===
+func click :: click(pos=None, clicks=1, interval=0.0, button='left') - Click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
+func doubleClick :: doubleClick(pos=None) - Double click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
+func dragRel :: dragRel(offset, duration=0.0, button='left') - Drag mouse relative to current position. Accepts (x,y) tuple, [x,y] list, or Vector.
+func dragTo :: dragTo(pos, duration=0.0, button='left') - Drag mouse to position. Accepts (x,y) tuple, [x,y] list, or Vector.
+func hotkey :: hotkey(*keys) - Press a hotkey combination (e.g., hotkey('ctrl', 'c'))
+func keyDown :: keyDown(key) - Press and hold a key
+func keyUp :: keyUp(key) - Release a key
+func middleClick :: middleClick(pos=None) - Middle click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
+func mouseDown :: mouseDown(pos=None, button='left') - Press mouse button at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
+func mouseUp :: mouseUp(pos=None, button='left') - Release mouse button at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
+func moveRel :: moveRel(offset, duration=0.0) - Move mouse relative to current position. Accepts (x,y) tuple, [x,y] list, or Vector.
+func moveTo :: moveTo(pos, duration=0.0) - Move mouse to position. Accepts (x,y) tuple, [x,y] list, or Vector.
+func onScreen :: onScreen(pos) - Check if position is within screen bounds. Accepts (x,y) tuple, [x,y] list, or Vector.
+func position :: position() - Get current mouse position as Vector
+func rightClick :: rightClick(pos=None) - Right click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
+func screenshot :: screenshot(filename) - Save a screenshot to the specified file
+func scroll :: scroll(clicks, pos=None) - Scroll wheel at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
+func size :: size() - Get screen size as Vector
+func tripleClick :: tripleClick(pos=None) - Triple click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
+func typewrite :: typewrite(message, interval=0.0) - Type text with optional interval between keystrokes
+
+=== DELEGATION INTEGRITY (Grid instance -> _GridData) ===
+  delegated-resolved: 69/69
+
+=== WRITABILITY PROBES (#313-touched properties) ===
+  Entity.grid: writable
+  Entity.sprite_index: writable
+  Entity.texture: ABSENT

@@ -1780,20 +1780,23 @@ PyGetSetDef UIEntity::getsetters[] = {
      "Pixel Y position relative to grid. Requires entity to be attached to a grid.", (void*)1},
 
     // #295 - Integer cell position (decoupled from float draw_pos)
-    {"cell_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
-     "Integer logical cell position (Vector). Decoupled from draw_pos. "
-     "Determines which cell this entity logically occupies for collision, pathfinding, etc.", NULL},
-    {"cell_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     "Integer X cell coordinate.", (void*)0},
-    {"cell_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     "Integer Y cell coordinate.", (void*)1},
-    // grid_pos now aliases cell_pos (#295 BREAKING: no longer derives from float position)
+    // #314 F3: grid_pos is the CANONICAL name (matches the grid_pos= constructor
+    // argument); cell_pos/cell_x/cell_y are documented aliases. Both share the
+    // same getter/setter and remain fully interchangeable.
     {"grid_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
-     "Grid position as integer cell coordinates (Vector). Alias for cell_pos.", NULL},
+     "Integer logical cell position (Vector). Canonical cell-position property; "
+     "matches the 'grid_pos' constructor argument. Decoupled from draw_pos. "
+     "Determines which cell this entity logically occupies for collision, pathfinding, etc.", NULL},
     {"grid_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     "Grid X position as integer cell coordinate. Alias for cell_x.", (void*)0},
+     "Integer X cell coordinate. Canonical; matches grid_pos.", (void*)0},
     {"grid_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     "Grid Y position as integer cell coordinate. Alias for cell_y.", (void*)1},
+     "Integer Y cell coordinate. Canonical; matches grid_pos.", (void*)1},
+    {"cell_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
+     "Integer logical cell position (Vector). Alias for grid_pos (the canonical name).", NULL},
+    {"cell_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
+     "Integer X cell coordinate. Alias for grid_x.", (void*)0},
+    {"cell_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
+     "Integer Y cell coordinate. Alias for grid_y.", (void*)1},
 
     // Float tile coordinates (for smooth animation between tiles)
     {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position,
