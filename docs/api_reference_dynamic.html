@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2026-04-18 13:35:02</em></p>
+        <p><em>Generated on 2026-06-10 20:23:39</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -1935,6 +1935,7 @@ Attributes:
     grid_x, grid_y (int): Integer tile coordinate components
     draw_pos (Vector): Fractional tile position for smooth animation
     perspective_map (DiscreteMap | None): 3-state per-entity FOV memory
+    texture (Texture): Texture atlas used by the entity&#x27;s sprite
     sprite_index (int): Current sprite index
     visible (bool): Visibility state
     opacity (float): Opacity value
@@ -1945,15 +1946,15 @@ Attributes:
             <h4>Properties:</h4>
             <ul>
                 <li><span class='property-name'>behavior_type</span> (read-only): Current behavior type (int, read-only). Use set_behavior() to change.</li>
-                <li><span class='property-name'>cell_pos</span>: Integer logical cell position (Vector). Decoupled from draw_pos. Determines which cell this entity logically occupies for collision, pathfinding, etc.</li>
-                <li><span class='property-name'>cell_x</span>: Integer X cell coordinate.</li>
-                <li><span class='property-name'>cell_y</span>: Integer Y cell coordinate.</li>
+                <li><span class='property-name'>cell_pos</span>: Integer logical cell position (Vector). Alias for grid_pos (the canonical name).</li>
+                <li><span class='property-name'>cell_x</span>: Integer X cell coordinate. Alias for grid_x.</li>
+                <li><span class='property-name'>cell_y</span>: Integer Y cell coordinate. Alias for grid_y.</li>
                 <li><span class='property-name'>default_behavior</span>: Default behavior type (int, maps to Behavior enum). Entity reverts to this after DONE trigger. Default: 0 (IDLE).</li>
                 <li><span class='property-name'>draw_pos</span>: Fractional tile position for rendering (Vector). Use for smooth animation between grid cells.</li>
                 <li><span class='property-name'>grid</span>: Grid this entity belongs to. Get: Returns the Grid or None. Set: Assign a Grid to move entity, or None to remove from grid.</li>
-                <li><span class='property-name'>grid_pos</span>: Grid position as integer cell coordinates (Vector). Alias for cell_pos.</li>
-                <li><span class='property-name'>grid_x</span>: Grid X position as integer cell coordinate. Alias for cell_x.</li>
-                <li><span class='property-name'>grid_y</span>: Grid Y position as integer cell coordinate. Alias for cell_y.</li>
+                <li><span class='property-name'>grid_pos</span>: Integer logical cell position (Vector). Canonical cell-position property; matches the &#x27;grid_pos&#x27; constructor argument. Decoupled from draw_pos. Determines which cell this entity logically occupies for collision, pathfinding, etc.</li>
+                <li><span class='property-name'>grid_x</span>: Integer X cell coordinate. Canonical; matches grid_pos.</li>
+                <li><span class='property-name'>grid_y</span>: Integer Y cell coordinate. Canonical; matches grid_pos.</li>
                 <li><span class='property-name'>labels</span>: Set of string labels for collision/targeting (frozenset). Assign any iterable of strings to replace all labels.</li>
                 <li><span class='property-name'>move_speed</span>: Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15.</li>
                 <li><span class='property-name'>name</span>: Name for finding elements</li>
@@ -1969,6 +1970,7 @@ Attributes:
                 <li><span class='property-name'>sprite_offset_y</span>: Y component of sprite pixel offset.</li>
                 <li><span class='property-name'>step</span>: Step callback for grid.step() turn management. Called with (trigger, data) when behavior triggers fire. Set to None to clear.</li>
                 <li><span class='property-name'>target_label</span>: Label to search for with TARGET trigger (str or None). Default: None.</li>
+                <li><span class='property-name'>texture</span>: Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture when the entity is constructed without one. Setting preserves sprite_index (the index is not re-validated against the new atlas). The grid&#x27;s texture only determines cell size; entities draw with their own.</li>
                 <li><span class='property-name'>tile_height</span>: Entity height in tiles (int). Must be &gt;= 1. Default 1.</li>
                 <li><span class='property-name'>tile_size</span>: Entity size in tiles as (width, height) Vector. Default (1, 1).</li>
                 <li><span class='property-name'>tile_width</span>: Entity width in tiles (int). Must be &gt;= 1. Default 1.</li>

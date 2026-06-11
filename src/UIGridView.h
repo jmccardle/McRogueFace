@@ -138,8 +138,16 @@ namespace mcrfpydef {
             if (obj->weakreflist != NULL) {
                 PyObject_ClearWeakRefs(self);
             }
-            // Clear owning_view back-reference before releasing grid_data
-            if (obj->data && obj->data->grid_data) {
+            // Clear owning_view back-reference before releasing grid_data --
+            // but only when this wrapper is the LAST owner of the view (#251
+            // pattern, mirrors PyUIGridType) AND the dying view is actually
+            // the one owning_view points at. The previous ungated reset
+            // severed the back-reference whenever ANY Python wrapper was
+            // GC'd while the C++ view lived on (e.g. held by scene.children),
+            // breaking entity.grid -> Grid identity and the #313 data-layer
+            // dirty notifications.
+            if (obj->data && obj->data->grid_data && obj->data.use_count() <= 1 &&
+                obj->data->grid_data->owning_view.lock() == obj->data) {
                 obj->data->grid_data->owning_view.reset();
             }
             obj->data.reset();

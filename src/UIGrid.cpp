@@ -58,6 +58,12 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
     int cell_width = _ptex ? _ptex->sprite_width : DEFAULT_CELL_WIDTH;
     int cell_height = _ptex ? _ptex->sprite_height : DEFAULT_CELL_HEIGHT;
 
+    // #313: mirror into the GridData base so the data layer (and entities
+    // holding shared_ptr<GridData>) can do tile<->pixel math. ptex is
+    // write-once (ctor only), so this never goes stale.
+    cell_width_px = cell_width;
+    cell_height_px = cell_height;
+
     center_x = (gx/2) * cell_width;
     center_y = (gy/2) * cell_height;
 

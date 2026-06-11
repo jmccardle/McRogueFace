@@ -971,7 +971,11 @@ F8 (`Font` methods) = Future, explicitly NOT 1.0 blockers.
 - **`entity.texture` (new in #313):** additive read/write property; getter returns the entity's
   real texture, `None` only in the degenerate (default_texture-null) case — never re-derefs a null
   default_texture. Added to the frozen contract + stubs + docs when #313 lands (golden gains exactly
-  one line).
+  one line). Known edges, frozen as-is (2026-06-11 adversarial review): the getter mints a NEW
+  Texture wrapper per access and Texture has no `__eq__`, so `e.texture == e.texture` is False —
+  compare `.source`/sprite dims instead (same behavior as the pre-existing `Sprite.texture`);
+  setting does not re-validate `sprite_index` against the new atlas; setter rejects non-Texture
+  (TypeError), null-data Texture wrappers (ValueError, mirrors `Sprite.texture`), and deletion.
 
 **1.0 freeze scope — class classification** (the snapshot segregates FROZEN vs EXPERIMENTAL):
 

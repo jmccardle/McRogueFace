@@ -23,6 +23,7 @@
 #include <memory>
 
 class UIGrid;
+class GridData;
 
 // UIEntity
 /*
@@ -65,7 +66,12 @@ class UIEntity : public std::enable_shared_from_this<UIEntity>
 public:
     uint64_t serial_number = 0;  // For Python object cache
     PyObject* pyobject = nullptr;  // Strong ref: preserves Python subclass identity while in grid
-    std::shared_ptr<UIGrid> grid;
+    // #313: Entities depend on the grid DATA layer only (cells, entities,
+    // FOV, pathfinding, cell size). This is always an aliasing shared_ptr
+    // sharing a UIGrid's control block (GridData is never independently
+    // heap-allocated); Python wrappers that still need the full UIGrid use
+    // grid_as_uigrid() in UIEntity.cpp.
+    std::shared_ptr<GridData> grid;
     // Per-entity perspective memory (#294): 3-state DiscreteMap --
     // 0 = unknown, 1 = discovered, 2 = visible. Lazily allocated on first
     // access to entity.perspective_map (when a grid is set) and whenever
@@ -159,6 +165,9 @@ public:
     static int set_perspective_map(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_spritenumber(PyUIEntityObject* self, void* closure);
     static int set_spritenumber(PyUIEntityObject* self, PyObject* value, void* closure);
+    // #313 - texture property (thin wrapper over the entity's own UISprite)
+    static PyObject* get_texture(PyUIEntityObject* self, void* closure);
+    static int set_texture(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_float_member(PyUIEntityObject* self, void* closure);
     static int set_float_member(PyUIEntityObject* self, PyObject* value, void* closure);
 
@@ -265,6 +274,7 @@ namespace mcrfpydef {
                             "    grid_x, grid_y (int): Integer tile coordinate components\n"
                             "    draw_pos (Vector): Fractional tile position for smooth animation\n"
                             "    perspective_map (DiscreteMap | None): 3-state per-entity FOV memory\n"
+                            "    texture (Texture): Texture atlas used by the entity's sprite\n"
                             "    sprite_index (int): Current sprite index\n"
                             "    visible (bool): Visibility state\n"
                             "    opacity (float): Opacity value\n"

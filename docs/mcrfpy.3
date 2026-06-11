@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2026-04-18" "McRogueFace 0.2.7-prerelease-7drl2026-93-g0f7254e" ""
+.TH "MCRFPY" "3" "2026-06-10" "McRogueFace 0.2.7-prerelease-7drl2026-99-g16adc92" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2026-04-18 13:35:02\f[R]
+\f[I]Generated on 2026-06-10 20:23:39\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -1894,6 +1894,7 @@ attachment) grid_pos (Vector): Integer tile coordinates (logical game
 position) grid_x, grid_y (int): Integer tile coordinate components
 draw_pos (Vector): Fractional tile position for smooth animation
 perspective_map (DiscreteMap | None): 3-state per-entity FOV memory
+texture (Texture): Texture atlas used by the entity\[cq]s sprite
 sprite_index (int): Current sprite index visible (bool): Visibility
 state opacity (float): Opacity value name (str): Element name
 sprite_offset (Vector): Pixel offset for oversized sprites
@@ -1904,11 +1905,11 @@ sprite_offset_x (float): X component of sprite offset sprite_offset_y
 Current behavior type (int, read-only).
 Use set_behavior() to change.
 - \f[V]cell_pos\f[R]: Integer logical cell position (Vector).
-Decoupled from draw_pos.
-Determines which cell this entity logically occupies for collision,
-pathfinding, etc.
+Alias for grid_pos (the canonical name).
 - \f[V]cell_x\f[R]: Integer X cell coordinate.
+Alias for grid_x.
 - \f[V]cell_y\f[R]: Integer Y cell coordinate.
+Alias for grid_y.
 - \f[V]default_behavior\f[R]: Default behavior type (int, maps to
 Behavior enum).
 Entity reverts to this after DONE trigger.
@@ -1918,13 +1919,16 @@ Use for smooth animation between grid cells.
 - \f[V]grid\f[R]: Grid this entity belongs to.
 Get: Returns the Grid or None.
 Set: Assign a Grid to move entity, or None to remove from grid.
-- \f[V]grid_pos\f[R]: Grid position as integer cell coordinates
-(Vector).
-Alias for cell_pos.
-- \f[V]grid_x\f[R]: Grid X position as integer cell coordinate.
-Alias for cell_x.
-- \f[V]grid_y\f[R]: Grid Y position as integer cell coordinate.
-Alias for cell_y.
+- \f[V]grid_pos\f[R]: Integer logical cell position (Vector).
+Canonical cell-position property; matches the `grid_pos' constructor
+argument.
+Decoupled from draw_pos.
+Determines which cell this entity logically occupies for collision,
+pathfinding, etc.
+- \f[V]grid_x\f[R]: Integer X cell coordinate.
+Canonical; matches grid_pos.
+- \f[V]grid_y\f[R]: Integer Y cell coordinate.
+Canonical; matches grid_pos.
 - \f[V]labels\f[R]: Set of string labels for collision/targeting
 (frozenset).
 Assign any iterable of strings to replace all labels.
@@ -1970,6 +1974,13 @@ Set to None to clear.
 - \f[V]target_label\f[R]: Label to search for with TARGET trigger (str
 or None).
 Default: None.
+- \f[V]texture\f[R]: Sprite texture atlas (Texture).
+Defaults to mcrfpy.default_texture when the entity is constructed
+without one.
+Setting preserves sprite_index (the index is not re-validated against
+the new atlas).
+The grid\[cq]s texture only determines cell size; entities draw with
+their own.
 - \f[V]tile_height\f[R]: Entity height in tiles (int).
 Must be >= 1.
 Default 1.

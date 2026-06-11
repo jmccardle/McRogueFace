@@ -653,15 +653,15 @@ class Entity:
     """A game entity that exists on a grid with sprite rendering."""
     def __init__(self, grid_pos=None, texture=None, sprite_index=0, **kwargs) -> None: ...
     behavior_type: int  # Current behavior type (int, read-only). Use set_behavior() to change.
-    cell_pos: Vector  # Integer logical cell position (Vector). Decoupled from draw_pos. Determines which cell this entity logically occupies for collision, pathfinding, etc.
-    cell_x: Any  # Integer X cell coordinate.
-    cell_y: Any  # Integer Y cell coordinate.
+    cell_pos: Vector  # Integer logical cell position (Vector). Alias for grid_pos (the canonical name).
+    cell_x: Any  # Integer X cell coordinate. Alias for grid_x.
+    cell_y: Any  # Integer Y cell coordinate. Alias for grid_y.
     default_behavior: int  # Default behavior type (int, maps to Behavior enum). Entity reverts to this after DONE trigger. Default: 0 (IDLE).
     draw_pos: Vector  # Fractional tile position for rendering (Vector). Use for smooth animation between grid cells.
     grid: Any  # Grid this entity belongs to. Get: Returns the Grid or None. Set: Assign a Grid to move entity, or None to remove from grid.
-    grid_pos: Vector  # Grid position as integer cell coordinates (Vector). Alias for cell_pos.
-    grid_x: Any  # Grid X position as integer cell coordinate. Alias for cell_x.
-    grid_y: Any  # Grid Y position as integer cell coordinate. Alias for cell_y.
+    grid_pos: Vector  # Integer logical cell position (Vector). Canonical cell-position property; matches the 'grid_pos' constructor argument. Decoupled from draw_pos. Determines wh...
+    grid_x: Any  # Integer X cell coordinate. Canonical; matches grid_pos.
+    grid_y: Any  # Integer Y cell coordinate. Canonical; matches grid_pos.
     labels: frozenset  # Set of string labels for collision/targeting (frozenset). Assign any iterable of strings to replace all labels.
     move_speed: float  # Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15.
     name: Any  # Name for finding elements
@@ -677,6 +677,7 @@ class Entity:
     sprite_offset_y: Any  # Y component of sprite pixel offset.
     step: Any  # Step callback for grid.step() turn management. Called with (trigger, data) when behavior triggers fire. Set to None to clear.
     target_label: Any  # Label to search for with TARGET trigger (str or None). Default: None.
+    texture: Texture  # Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture when the entity is constructed without one. Setting preserves sprite_index (the index is n...
     tile_height: int  # Entity height in tiles (int). Must be >= 1. Default 1.
     tile_size: Any  # Entity size in tiles as (width, height) Vector. Default (1, 1).
     tile_width: int  # Entity width in tiles (int). Must be >= 1. Default 1.

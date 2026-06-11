@@ -46,6 +46,13 @@ public:
     UIGrid();
     UIGrid(int, int, std::shared_ptr<PyTexture>, sf::Vector2f, sf::Vector2f);
     ~UIGrid();
+
+    // #313: GridData also declares markDirty/markCompositeDirty (data-layer
+    // invalidation for entities holding shared_ptr<GridData>). Within UIGrid,
+    // keep resolving unqualified calls to the UIDrawable flag-setters --
+    // identical to pre-#313 behavior.
+    using UIDrawable::markDirty;
+    using UIDrawable::markCompositeDirty;
     void update();
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     PyObjectsEnum derived_type() override final;

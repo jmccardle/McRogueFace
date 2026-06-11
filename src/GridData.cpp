@@ -2,7 +2,26 @@
 #include "GridData.h"
 #include "UIEntity.h"
 #include "PyTexture.h"
+#include "UIGrid.h"      // #313 - markDirty forwards to the UIGrid subobject
+#include "UIGridView.h"  // #313 - and notifies owning_view
 #include <algorithm>
+
+// #313 - Render invalidation from the data layer (see GridData.h).
+// GridData is never independently heap-allocated (always a UIGrid base
+// subobject), so the downcast is valid; remove once #252 allows pure GridData.
+void GridData::markDirty() {
+    static_cast<UIGrid*>(this)->UIDrawable::markDirty();
+    if (auto view = owning_view.lock()) {
+        view->markDirty();
+    }
+}
+
+void GridData::markCompositeDirty() {
+    static_cast<UIGrid*>(this)->UIDrawable::markCompositeDirty();
+    if (auto view = owning_view.lock()) {
+        view->markCompositeDirty();
+    }
+}
 
 GridData::GridData()
 {

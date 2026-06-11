@@ -20,8 +20,21 @@
 #include "PyUniformCollection.h"  // #106: Uniform collection support
 // UIDrawable methods now in UIBase.h
 #include "UIEntityPyMethods.h"
+#include <cassert>
 
-
+// #313: UIEntity::grid holds the GridData base, but some Python wrappers
+// (PyUIGridObject, PyUIGridPointObject) and pathfinding helpers still take the
+// full UIGrid. GridData is never independently heap-allocated -- it is always
+// a UIGrid base subobject (see GridData.h) -- so this aliasing downcast is
+// valid and shares the original control block (never mints a new one, which
+// would double-free and break the #251 use_count dealloc gate).
+// TODO(#252): remove once those wrappers accept pure GridData.
+static std::shared_ptr<UIGrid> grid_as_uigrid(const std::shared_ptr<GridData>& grid)
+{
+    if (!grid) return nullptr;
+    assert(dynamic_cast<UIGrid*>(grid.get()) != nullptr);
+    return std::shared_ptr<UIGrid>(grid, static_cast<UIGrid*>(grid.get()));
+}
 
 UIEntity::UIEntity()
 : grid(nullptr), position(0.0f, 0.0f), sprite_offset(0.0f, 0.0f)
@@ -133,7 +146,7 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     auto type = &mcrfpydef::PyUIGridPointType;
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
     if (!obj) return NULL;
-    obj->grid = entity->grid;
+    obj->grid = grid_as_uigrid(entity->grid);  // #313: wrapper still holds UIGrid
     obj->x = x;
     obj->y = y;
     return (PyObject*)obj;
@@ -310,14 +323,11 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
     // Handle grid attachment
     if (grid_obj) {
-        std::shared_ptr<UIGrid> grid_ptr;
+        std::shared_ptr<GridData> grid_ptr;
         if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
-            // #252: GridView (unified Grid) - extract internal UIGrid
+            // #252: GridView (unified Grid) - share its grid data directly (#313)
             PyUIGridViewObject* pyview = (PyUIGridViewObject*)grid_obj;
-            if (pyview->data->grid_data) {
-                grid_ptr = std::shared_ptr<UIGrid>(
-                    pyview->data->grid_data, static_cast<UIGrid*>(pyview->data->grid_data.get()));
-            }
+            grid_ptr = pyview->data->grid_data;
         } else {
             // Internal _GridData type
             PyUIGridObject* pygrid = (PyUIGridObject*)grid_obj;
@@ -495,6 +505,50 @@ int UIEntity::set_spritenumber(PyUIEntityObject* self, PyObject* value, void* cl
     return 0;
 }
 
+// #313 - texture property: thin wrapper over the entity's own UISprite.
+// Entities render from their own texture (falling back to default_texture at
+// construction); the grid's texture is only used for cell-size math.
+PyObject* UIEntity::get_texture(PyUIEntityObject* self, void* closure) {
+    if (!self->data) {
+        // Entity.__new__ without __init__ leaves data null
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
+        return NULL;
+    }
+    auto tex = self->data->sprite.getTexture();
+    if (!tex) {
+        // Only reachable if default_texture was null at construction
+        Py_RETURN_NONE;
+    }
+    return tex->pyObject();
+}
+
+int UIEntity::set_texture(PyUIEntityObject* self, PyObject* value, void* closure) {
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
+        return -1;
+    }
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "Cannot delete texture attribute");
+        return -1;
+    }
+    int is_texture = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType);
+    if (is_texture == -1) return -1;  // isinstance itself raised
+    if (!is_texture) {
+        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
+        return -1;
+    }
+    auto pytexture = (PyTextureObject*)value;
+    if (!pytexture->data) {
+        // Texture.__new__ without __init__ leaves data null (same guard as UISprite)
+        PyErr_SetString(PyExc_ValueError, "Invalid texture object");
+        return -1;
+    }
+    // Preserves sprite_index (not re-validated against the new atlas)
+    self->data->sprite.setTexture(pytexture->data);
+    if (self->data->grid) self->data->grid->markDirty();
+    return 0;
+}
+
 PyObject* UIEntity::get_float_member(PyUIEntityObject* self, void* closure)
 {
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
@@ -550,14 +604,15 @@ int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* cl
 
 // #176 - Helper to get cell dimensions from grid
 static void get_cell_dimensions(UIEntity* entity, float& cell_width, float& cell_height) {
-    // Default cell dimensions when no texture
+    // Default cell dimensions when no grid is attached
     constexpr float DEFAULT_CELL_WIDTH = 16.0f;
     constexpr float DEFAULT_CELL_HEIGHT = 16.0f;
 
     if (entity->grid) {
-        auto ptex = entity->grid->getTexture();
-        cell_width = ptex ? static_cast<float>(ptex->sprite_width) : DEFAULT_CELL_WIDTH;
-        cell_height = ptex ? static_cast<float>(ptex->sprite_height) : DEFAULT_CELL_HEIGHT;
+        // #313: cell size lives on the data layer (mirrored from the grid's
+        // texture at construction) -- entities no longer reach into rendering.
+        cell_width = static_cast<float>(entity->grid->cell_width());
+        cell_height = static_cast<float>(entity->grid->cell_height());
     } else {
         cell_width = DEFAULT_CELL_WIDTH;
         cell_height = DEFAULT_CELL_HEIGHT;
@@ -737,8 +792,11 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
     }
 
     // Fallback: return internal _GridData wrapper (no owning view)
-    if (grid->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(grid->serial_number);
+    // #313: serial_number lives on the UIDrawable side; recover the full
+    // UIGrid via the aliasing helper (same control block, no new ownership).
+    auto uigrid = grid_as_uigrid(grid);
+    if (uigrid->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(uigrid->serial_number);
         if (cached) {
             return cached;
         }
@@ -748,15 +806,15 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
     auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
 
     if (pyGrid) {
-        pyGrid->data = grid;
+        pyGrid->data = uigrid;
         pyGrid->weakreflist = NULL;
 
-        if (grid->serial_number == 0) {
-            grid->serial_number = PythonObjectCache::getInstance().assignSerial();
+        if (uigrid->serial_number == 0) {
+            uigrid->serial_number = PythonObjectCache::getInstance().assignSerial();
         }
         PyObject* weakref = PyWeakref_NewRef((PyObject*)pyGrid, NULL);
         if (weakref) {
-            PythonObjectCache::getInstance().registerObject(grid->serial_number, weakref);
+            PythonObjectCache::getInstance().registerObject(uigrid->serial_number, weakref);
             Py_DECREF(weakref);
         }
     }
@@ -793,12 +851,11 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
     }
 
     // #252: Accept both internal _GridData and GridView (unified Grid)
-    std::shared_ptr<UIGrid> new_grid;
+    std::shared_ptr<GridData> new_grid;
     if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         PyUIGridViewObject* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
-            new_grid = std::shared_ptr<UIGrid>(
-                pyview->data->grid_data, static_cast<UIGrid*>(pyview->data->grid_data.get()));
+            new_grid = pyview->data->grid_data;  // #313: share data directly
         } else {
             PyErr_SetString(PyExc_ValueError, "Grid has no data");
             return -1;
@@ -1140,9 +1197,11 @@ PyObject* UIEntity::find_path(PyUIEntityObject* self, PyObject* args, PyObject* 
     auto grid = self->data->grid;
 
     // Extract target position
+    // #313: ExtractPosition still takes UIGrid*; the downcast is valid because
+    // GridData is always a UIGrid base subobject (see grid_as_uigrid).
     int target_x, target_y;
     if (!UIGridPathfinding::ExtractPosition(target_obj, &target_x, &target_y,
-                                            grid.get(), "target")) {
+                                            static_cast<UIGrid*>(grid.get()), "target")) {
         return NULL;
     }
 
@@ -1158,10 +1217,11 @@ PyObject* UIEntity::find_path(PyUIEntityObject* self, PyObject* args, PyObject* 
 
     // Build args to delegate to Grid.find_path
     // Create a temporary PyUIGridObject wrapper for the grid (internal _GridData type)
+    // #313: wrapper holds shared_ptr<UIGrid>; alias-cast from the data ptr.
     auto* grid_type = &mcrfpydef::PyUIGridType;
     auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
     if (!pyGrid) return NULL;
-    new (&pyGrid->data) std::shared_ptr<UIGrid>(grid);
+    new (&pyGrid->data) std::shared_ptr<UIGrid>(grid_as_uigrid(grid));
 
     // Build keyword args for Grid.find_path
     PyObject* start_tuple = Py_BuildValue("(ii)", start_x, start_y);
@@ -1817,6 +1877,12 @@ PyGetSetDef UIEntity::getsetters[] = {
      "Get: Returns the Grid or None. "
      "Set: Assign a Grid to move entity, or None to remove from grid.", NULL},
     {"sprite_index", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index on the texture on the display", NULL},
+    // #313 - entities render from their OWN texture, not the grid's
+    {"texture", (getter)UIEntity::get_texture, (setter)UIEntity::set_texture,
+     "Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture when "
+     "the entity is constructed without one. Setting preserves sprite_index "
+     "(the index is not re-validated against the new atlas). The grid's "
+     "texture only determines cell size; entities draw with their own.", NULL},
     {"visible", (getter)UIEntity_get_visible, (setter)UIEntity_set_visible, "Visibility flag", NULL},
     {"opacity", (getter)UIEntity_get_opacity, (setter)UIEntity_set_opacity, "Opacity (0.0 = transparent, 1.0 = opaque)", NULL},
     {"name", (getter)UIEntity_get_name, (setter)UIEntity_set_name, "Name for finding elements", NULL},

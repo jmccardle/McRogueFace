@@ -39,6 +39,14 @@ public:
     // =========================================================================
     int grid_w = 0, grid_h = 0;
 
+    // #313 - Cell pixel dimensions, mirrored from the owning UIGrid's texture
+    // at construction (UIGrid::ptex is write-once, ctor only). Lets the data
+    // layer do tile<->pixel math without reaching into rendering state.
+    int cell_width_px = 16;
+    int cell_height_px = 16;
+    int cell_width() const { return cell_width_px; }
+    int cell_height() const { return cell_height_px; }
+
     // #123 - Chunk-based storage for large grid support
     std::unique_ptr<ChunkManager> chunk_manager;
     // Legacy flat storage (kept for small grids or compatibility)
@@ -135,6 +143,17 @@ public:
     // #252 - Owning GridView back-reference (for Entity.grid → GridView lookup)
     // =========================================================================
     std::weak_ptr<UIGridView> owning_view;
+
+    // #313 - Render invalidation from the data layer. Entities hold
+    // shared_ptr<GridData> but still need to invalidate rendering when their
+    // visual state changes. These set the dirty flags on the UIGrid subobject
+    // (GridData is never independently heap-allocated -- always a UIGrid base)
+    // AND notify owning_view, covering both render paths (a bare _GridData
+    // rendered directly, and the normal GridView). Within UIGrid itself the
+    // UIDrawable versions win via using-declarations (see UIGrid.h).
+    // Multi-view broadcast (secondary views) is deferred to #252.
+    void markDirty();
+    void markCompositeDirty();
 
 protected:
     // Initialize grid storage (flat or chunked) and TCOD map

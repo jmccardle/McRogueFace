@@ -465,6 +465,7 @@ submodule automation
   prop sprite_offset_y: Any (rw)
   prop step: Any (rw)
   prop target_label: Any (rw)
+  prop texture: Texture (rw)
   prop tile_height: int (rw)
   prop tile_size: Any (rw)
   prop tile_width: int (rw)
@@ -1229,4 +1230,4 @@ func typewrite :: typewrite(message, interval=0.0) - Type text with optional int
 === WRITABILITY PROBES (#313-touched properties) ===
   Entity.grid: writable
   Entity.sprite_index: writable
-  Entity.texture: ABSENT
+  Entity.texture: writable

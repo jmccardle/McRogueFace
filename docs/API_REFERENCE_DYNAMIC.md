@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-04-18 13:35:02*
+*Generated on 2026-06-10 20:23:39*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -1775,6 +1775,7 @@ Attributes:
     grid_x, grid_y (int): Integer tile coordinate components
     draw_pos (Vector): Fractional tile position for smooth animation
     perspective_map (DiscreteMap | None): 3-state per-entity FOV memory
+    texture (Texture): Texture atlas used by the entity's sprite
     sprite_index (int): Current sprite index
     visible (bool): Visibility state
     opacity (float): Opacity value
@@ -1785,15 +1786,15 @@ Attributes:
 
 **Properties:**
 - `behavior_type` *(read-only)*: Current behavior type (int, read-only). Use set_behavior() to change.
-- `cell_pos`: Integer logical cell position (Vector). Decoupled from draw_pos. Determines which cell this entity logically occupies for collision, pathfinding, etc.
-- `cell_x`: Integer X cell coordinate.
-- `cell_y`: Integer Y cell coordinate.
+- `cell_pos`: Integer logical cell position (Vector). Alias for grid_pos (the canonical name).
+- `cell_x`: Integer X cell coordinate. Alias for grid_x.
+- `cell_y`: Integer Y cell coordinate. Alias for grid_y.
 - `default_behavior`: Default behavior type (int, maps to Behavior enum). Entity reverts to this after DONE trigger. Default: 0 (IDLE).
 - `draw_pos`: Fractional tile position for rendering (Vector). Use for smooth animation between grid cells.
 - `grid`: Grid this entity belongs to. Get: Returns the Grid or None. Set: Assign a Grid to move entity, or None to remove from grid.
-- `grid_pos`: Grid position as integer cell coordinates (Vector). Alias for cell_pos.
-- `grid_x`: Grid X position as integer cell coordinate. Alias for cell_x.
-- `grid_y`: Grid Y position as integer cell coordinate. Alias for cell_y.
+- `grid_pos`: Integer logical cell position (Vector). Canonical cell-position property; matches the 'grid_pos' constructor argument. Decoupled from draw_pos. Determines which cell this entity logically occupies for collision, pathfinding, etc.
+- `grid_x`: Integer X cell coordinate. Canonical; matches grid_pos.
+- `grid_y`: Integer Y cell coordinate. Canonical; matches grid_pos.
 - `labels`: Set of string labels for collision/targeting (frozenset). Assign any iterable of strings to replace all labels.
 - `move_speed`: Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15.
 - `name`: Name for finding elements
@@ -1809,6 +1810,7 @@ Attributes:
 - `sprite_offset_y`: Y component of sprite pixel offset.
 - `step`: Step callback for grid.step() turn management. Called with (trigger, data) when behavior triggers fire. Set to None to clear.
 - `target_label`: Label to search for with TARGET trigger (str or None). Default: None.
+- `texture`: Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture when the entity is constructed without one. Setting preserves sprite_index (the index is not re-validated against the new atlas). The grid's texture only determines cell size; entities draw with their own.
 - `tile_height`: Entity height in tiles (int). Must be >= 1. Default 1.
 - `tile_size`: Entity size in tiles as (width, height) Vector. Default (1, 1).
 - `tile_width`: Entity width in tiles (int). Must be >= 1. Default 1.
