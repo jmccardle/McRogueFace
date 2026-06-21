@@ -58,18 +58,15 @@ The active tier1 queue is empty. The last three findings (#309 Caption float→u
 
 ### Recently Shipped (June 2026)
 - **#313** -- `UIEntity::grid` migrated from `shared_ptr<UIGrid>` to `shared_ptr<GridData>` (post-#252 refactor cleanup), adding a new public `entity.texture` read/write property. Merged to master.
-- **#314 (partial)** -- API freeze decisions locked by a public API-surface snapshot regression test (`tests/unit/api_surface_snapshot_test.py`, golden enshrines the frozen contract; CI fails on any unclassified exported class). Merged to master.
-
-### In Progress
-- **#314** API audit follow-through (documentation loop): convert remaining raw method docstrings to `MCRF_*` macros (F15), regenerate docs (HTML/MD/man/.pyi), and verify against the 93-item catalog in `docs/api-audit-2026-04.md`. Breaking-change findings (F1/F4/F6/F11/F13) already closed; F7/F8/F10 deferred as non-1.0.
+- **#314** -- API audit follow-through complete. (1) Snapshot lock: a public API-surface regression test (`tests/unit/api_surface_snapshot_test.py`) enshrines the frozen contract. (2) **F15**: all 289 raw docstring slots across the 20 frozen binding files converted to `MCRF_*` macros (frozen surface 100% compliant), driven by two one-agent-per-file workflows with build/doc gates and an adversarial signature-accuracy verify pass. Property types now resolve to real types (not `Any`) and read-only flags are correct. (3) A strict frozen-docstring gate (`tools/check_frozen_docstrings.sh`, wired into `generate_all_docs.sh`) locks it against regression. Breaking-change findings (F1/F4/F6/F11/F13) closed earlier; F7/F8/F10 deferred as non-1.0. Code-level bugs surfaced by the verify pass filed as #317/#318/#319.
 
 ### Active Follow-Ups
 - **#312** Extend fuzz coverage to remaining public API surface
 - **#316** Sparse perspective writeback in `UIEntity::updateVisibility` (Phase 5.2 finding: full-grid demote+promote dominates over TCOD FOV cost)
+- **#317/#318/#319** Minor code bugs found during the #314 verify pass (automation.scroll x ignored; GridView.texture unimplemented; Entity.visible_entities(radius=None) raises)
 
 ### Other Post-7DRL Priorities
 - Progress on the r/roguelikedev tutorial series (#167)
-- Complete the API freeze catalog pass (#314)
 - Better pip/virtualenv integration for adding packages to McRogueFace's embedded interpreter
 
 ---
@@ -118,9 +115,10 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-24 open issues across the tracker. Key groupings:
+27 open issues across the tracker (#314 closes on merge of this branch). Key groupings:
 
-- **Recent follow-ups** (#312, #314, #316) -- Fuzz coverage extension, API audit follow-through, sparse perspective writeback
+- **Recent follow-ups** (#312, #316) -- Fuzz coverage extension, sparse perspective writeback
+- **Verify-pass code bugs** (#317, #318, #319) -- automation.scroll x ignored, GridView.texture unimplemented, visible_entities(radius=None) raises
 - **7DRL 2026 carry-over** (#248) -- Crypt of Sokoban remaster, superseded by the 7DRL 2026 entry but still relevant as a demo
 - **Tooling / infrastructure** (#282, #255) -- Modern Clang for TSan/fuzzing, performance profiling
 - **Demos / tutorials** (#167, #154, #156, #55) -- r/roguelikedev series, LLM agent simulations
