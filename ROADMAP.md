@@ -1,6 +1,6 @@
 # McRogueFace - Development Roadmap
 
-**Version**: 0.2.7-prerelease | **Era**: McRogueFace (2D roguelikes) -- on the road to 1.0
+**Version**: 0.2.8-7DRL-2026 | **Era**: McRogueFace (2D roguelikes) -- on the road to 1.0
 
 For detailed architecture, philosophy, and decision framework, see the [Strategic Direction](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Strategic-Direction) wiki page. For per-issue tracking, see the [Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap).
 
@@ -30,10 +30,10 @@ For detailed architecture, philosophy, and decision framework, see the [Strategi
 7DRL 2026 is behind us (Feb 28 -- Mar 8). The engine has two concurrent tracks to 1.0:
 
 ### Track 1: API Freeze
-The process is underway. Closed in this pass: camelCase module functions (#304), deprecated `sprite_number` (#305), legacy string enum comparisons (#306), `Color.__eq__`/`__ne__` (#307), `Grid.position` alias (#308).
+The process is underway. Closed in this pass: camelCase module functions (#304), deprecated `sprite_number` (#305), legacy string enum comparisons (#306), `Color.__eq__`/`__ne__` (#307), `Grid.position` alias (#308). The freeze decisions are now locked behind a public API-surface snapshot regression test (#314), so accidental signature drift fails CI.
 
 Remaining freeze work:
-1. Catalog every public Python class, method, and property -- audit against `stubs/mcrfpy.pyi` and generated docs
+1. Catalog every public Python class, method, and property -- audit against `stubs/mcrfpy.pyi` and generated docs (snapshot test now enforces the catalog)
 2. Identify any last naming/signature/default changes before committing
 3. Final breaking-change pass, bundled
 4. Document the stable API as the contract
@@ -56,10 +56,12 @@ The active tier1 queue is empty. The last three findings (#309 Caption float→u
 - **Phase 5.2** -- six performance benchmark scripts under `tests/benchmarks/` covering grid.step(), FOV writeback cost, spatial hash vs. O(n), pathfinding with collision labels, multi-GridView render, and Dijkstra variants. Baselines under `tests/benchmarks/baseline/phase5_2/`.
 - **Phase 5.3** -- documentation regenerated; `tools/generate_stubs_v2.py` rewritten as introspection-based so it can no longer drift from the C++ source.
 
+### On Deck (branch `feature/api-freeze-313-314`, pending merge to master)
+- **#313** -- `UIEntity::grid` migrated from `shared_ptr<UIGrid>` to `shared_ptr<GridData>` (post-#252 refactor cleanup). Adds a new public `entity.texture` property. Closes on merge.
+- **#314** -- API freeze decisions locked by a public API-surface snapshot regression test; audit follow-through against `docs/api-audit-2026-04.md` continues.
+
 ### Active Follow-Ups
 - **#312** Extend fuzz coverage to remaining public API surface
-- **#313** Migrate `UIEntity::grid` from `shared_ptr<UIGrid>` to `shared_ptr<GridData>` (post-#252 refactor cleanup)
-- **#314** API audit follow-through: close gaps from `docs/api-audit-2026-04.md`
 - **#316** Sparse perspective writeback in `UIEntity::updateVisibility` (Phase 5.2 finding: full-grid demote+promote dominates over TCOD FOV cost)
 
 ### Other Post-7DRL Priorities
