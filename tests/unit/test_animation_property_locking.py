@@ -2,6 +2,13 @@
 """
 Test Animation Property Locking (#120)
 Verifies that multiple animations on the same property are handled correctly.
+
+API note: the standalone ``mcrfpy.Animation(...)`` constructor was removed during
+the API freeze. Animations are now created via ``drawable.animate(...)``, which
+creates+starts the animation and returns the Animation handle. The conflict_mode
+semantics ('replace'/'queue'/'error') are unchanged -- they are now a keyword
+argument on ``animate()`` instead of on ``Animation.start()``. This file is the
+only coverage of conflict_mode in the suite.
 """
 
 import mcrfpy
@@ -34,17 +41,11 @@ def test_1_replace_mode_default():
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
-        # Start first animation
-        anim1 = mcrfpy.Animation("x", 500.0, 2.0, "linear")
-        anim1.start(frame)  # Default is replace mode
+        # Start first animation (default conflict_mode is 'replace')
+        frame.animate("x", 500.0, 2.0, "linear")
 
-        # Immediately start second animation on same property
-        anim2 = mcrfpy.Animation("x", 200.0, 1.0, "linear")
-        anim2.start(frame)  # Should replace anim1
-
-        # anim1 should have been completed (jumped to final value)
-        # and anim2 should now be active
-        # The frame should be at x=500 (anim1's final value) then animating to 200
+        # Immediately start second animation on same property -> replaces first
+        frame.animate("x", 200.0, 1.0, "linear")
 
         # If we got here without error, replace worked
         test_result("Replace mode (default)", True)
@@ -59,11 +60,8 @@ def test_2_replace_mode_explicit():
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
-        anim1 = mcrfpy.Animation("x", 500.0, 2.0, "linear")
-        anim1.start(frame, conflict_mode="replace")
-
-        anim2 = mcrfpy.Animation("x", 200.0, 1.0, "linear")
-        anim2.start(frame, conflict_mode="replace")
+        frame.animate("x", 500.0, 2.0, "linear", conflict_mode="replace")
+        frame.animate("x", 200.0, 1.0, "linear", conflict_mode="replace")
 
         test_result("Replace mode (explicit)", True)
     except Exception as e:
@@ -78,15 +76,12 @@ def test_3_queue_mode():
         ui.append(frame)
 
         # Start first animation (short duration for test)
-        anim1 = mcrfpy.Animation("y", 300.0, 0.5, "linear")
-        anim1.start(frame)
+        frame.animate("y", 300.0, 0.5, "linear")
 
-        # Queue second animation
-        anim2 = mcrfpy.Animation("y", 100.0, 0.5, "linear")
-        anim2.start(frame, conflict_mode="queue")
+        # Queue second animation -> starts after the first completes
+        frame.animate("y", 100.0, 0.5, "linear", conflict_mode="queue")
 
         # Both should be accepted without error
-        # anim2 will start after anim1 completes
         test_result("Queue mode", True)
     except Exception as e:
         test_result("Queue mode", False, str(e))
@@ -99,13 +94,11 @@ def test_4_error_mode():
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
-        anim1 = mcrfpy.Animation("w", 200.0, 2.0, "linear")
-        anim1.start(frame)
+        frame.animate("w", 200.0, 2.0, "linear")
 
         # Try to start second animation with error mode
-        anim2 = mcrfpy.Animation("w", 300.0, 1.0, "linear")
         try:
-            anim2.start(frame, conflict_mode="error")
+            frame.animate("w", 300.0, 1.0, "linear", conflict_mode="error")
             test_result("Error mode", False, "Expected RuntimeError but none was raised")
         except RuntimeError as e:
             # This is expected!
@@ -124,9 +117,8 @@ def test_5_invalid_conflict_mode():
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
-        anim = mcrfpy.Animation("h", 200.0, 1.0, "linear")
         try:
-            anim.start(frame, conflict_mode="invalid_mode")
+            frame.animate("h", 200.0, 1.0, "linear", conflict_mode="invalid_mode")
             test_result("Invalid conflict_mode", False, "Expected ValueError but none raised")
         except ValueError as e:
             if "invalid" in str(e).lower():
@@ -144,14 +136,10 @@ def test_6_different_properties_no_conflict():
         frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
         ui.append(frame)
 
-        # Animate different properties - should not conflict
-        anim_x = mcrfpy.Animation("x", 500.0, 1.0, "linear")
-        anim_y = mcrfpy.Animation("y", 500.0, 1.0, "linear")
-        anim_w = mcrfpy.Animation("w", 200.0, 1.0, "linear")
-
-        anim_x.start(frame, conflict_mode="error")
-        anim_y.start(frame, conflict_mode="error")
-        anim_w.start(frame, conflict_mode="error")
+        # Animate different properties with error mode - should not conflict
+        frame.animate("x", 500.0, 1.0, "linear", conflict_mode="error")
+        frame.animate("y", 500.0, 1.0, "linear", conflict_mode="error")
+        frame.animate("w", 200.0, 1.0, "linear", conflict_mode="error")
 
         # All should succeed without error since they're different properties
         test_result("Different properties no conflict", True)
@@ -171,11 +159,8 @@ def test_7_different_targets_no_conflict():
         ui.append(frame2)
 
         # Same property, different targets - should not conflict
-        anim1 = mcrfpy.Animation("x", 500.0, 1.0, "linear")
-        anim2 = mcrfpy.Animation("x", 600.0, 1.0, "linear")
-
-        anim1.start(frame1, conflict_mode="error")
-        anim2.start(frame2, conflict_mode="error")
+        frame1.animate("x", 500.0, 1.0, "linear", conflict_mode="error")
+        frame2.animate("x", 600.0, 1.0, "linear", conflict_mode="error")
 
         test_result("Different targets no conflict", True)
     except RuntimeError as e:
@@ -191,16 +176,13 @@ def test_8_replace_completes_old():
         frame = mcrfpy.Frame(pos=(0, 0), size=(100, 100))
         ui.append(frame)
 
-        # Start animation to move x to 500
-        anim1 = mcrfpy.Animation("x", 500.0, 10.0, "linear")  # Long duration
-        anim1.start(frame)
+        # Start animation to move x to 500 (long duration)
+        frame.animate("x", 500.0, 10.0, "linear")
 
-        # Immediately replace - should complete anim1 (jump to 500)
-        anim2 = mcrfpy.Animation("x", 200.0, 1.0, "linear")
-        anim2.start(frame, conflict_mode="replace")
+        # Immediately replace - should complete the old animation (jump to 500)
+        frame.animate("x", 200.0, 1.0, "linear", conflict_mode="replace")
 
-        # Frame should now be at x=500 (anim1's final) and animating to 200
-        # Due to immediate completion, x should equal 500 right now
+        # Due to immediate completion of the replaced animation, x should be 500 now
         if frame.x == 500.0:
             test_result("Replace completes old animation", True)
         else:

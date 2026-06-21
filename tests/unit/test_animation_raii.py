@@ -3,6 +3,12 @@
 Test the RAII AnimationManager implementation.
 This verifies that weak_ptr properly handles all crash scenarios.
 Uses mcrfpy.step() for synchronous test execution.
+
+API note: the standalone ``mcrfpy.Animation(...)`` constructor was removed during
+the API freeze. Animations are created via ``drawable.animate(prop, target,
+duration_seconds, easing)``, which returns the Animation handle. The handle still
+exposes ``hasValidTarget()``, ``complete()``, and ``stop()`` -- the weak_ptr
+target-lifetime safety this suite checks is unchanged. (Durations are in seconds.)
 """
 
 import mcrfpy
@@ -48,8 +54,7 @@ try:
     frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
     ui.append(frame)
 
-    anim = mcrfpy.Animation("x", 200.0, 1000, "linear")
-    anim.start(frame)
+    anim = frame.animate("x", 200.0, 1.0, "linear")
 
     if hasattr(anim, 'hasValidTarget'):
         valid = anim.hasValidTarget()
@@ -59,13 +64,12 @@ try:
 except Exception as e:
     test_result("Basic animation", False, str(e))
 
-# Test 2: Remove animated object - shared_ptr stays alive while Python ref exists
+# Test 2: Remove animated object - target invalid once last shared_ptr drops
 try:
     frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
     ui.append(frame)
 
-    anim = mcrfpy.Animation("x", 500.0, 2000, "easeInOut")
-    anim.start(frame)
+    anim = frame.animate("x", 500.0, 2.0, "easeInOut")
 
     ui.remove(frame)
     # Note: frame still holds a shared_ptr reference, so target is still valid
@@ -85,8 +89,7 @@ try:
     frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
     ui.append(frame)
 
-    anim = mcrfpy.Animation("x", 500.0, 2000, "linear")
-    anim.start(frame)
+    anim = frame.animate("x", 500.0, 2.0, "linear")
 
     if hasattr(anim, 'complete'):
         anim.complete()
@@ -96,14 +99,13 @@ try:
 except Exception as e:
     test_result("Animation complete method", False, str(e))
 
-# Test 4: Multiple animations rapidly
+# Test 4: Multiple animations rapidly (each replaces the prior on 'x')
 try:
     frame = mcrfpy.Frame(pos=(200, 200), size=(100, 100))
     ui.append(frame)
 
     for i in range(10):
-        anim = mcrfpy.Animation("x", 300.0 + i * 10, 1000, "linear")
-        anim.start(frame)
+        frame.animate("x", 300.0 + i * 10, 1.0, "linear")
 
     test_result("Multiple animations rapidly", True)
 except Exception as e:
@@ -116,8 +118,7 @@ try:
     for i in range(5):
         frame = mcrfpy.Frame(pos=(50 * i, 100), size=(40, 40))
         ui.append(frame)
-        anim = mcrfpy.Animation("y", 300.0, 2000, "easeOutBounce")
-        anim.start(frame)
+        frame.animate("y", 300.0, 2.0, "easeOutBounce")
 
     test2.activate()
     mcrfpy.step(0.1)
@@ -132,8 +133,7 @@ except Exception as e:
 try:
     frame = mcrfpy.Frame(pos=(100, 100), size=(100, 100))
     ui.append(frame)
-    anim = mcrfpy.Animation("w", 200.0, 1500, "easeInOutCubic")
-    anim.start(frame)
+    anim = frame.animate("w", 200.0, 1.5, "easeInOutCubic")
 
     # Clear all UI except background - iterate in reverse
     for i in range(len(ui) - 1, 0, -1):
