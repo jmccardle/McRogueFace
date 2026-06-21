@@ -264,6 +264,93 @@ def _op_die(stream, grids, entities):
     # the next op that touches it should hit defensive paths.
 
 
+def _op_grid_query(stream, grids, entities):
+    """Tier C (#312): grid spatial-query surface not covered elsewhere --
+    at(), grid[x,y] subscript, entities_in_radius, center_camera, hovered_cell.
+    Coords intentionally stray out of bounds to exercise the guards.
+    """
+    grid = _pick_grid(stream, grids)
+    if grid is None:
+        return
+    which = stream.u8() % 5
+    if which == 0:
+        x = stream.int_in_range(-3, MAX_GRID_DIM + 3)
+        y = stream.int_in_range(-3, MAX_GRID_DIM + 3)
+        gp = grid.at(x, y)
+        _ = gp.walkable
+        _ = gp.transparent
+        _ = gp.grid_pos
+        _ = gp.entities
+    elif which == 1:
+        x = stream.int_in_range(-3, MAX_GRID_DIM + 3)
+        y = stream.int_in_range(-3, MAX_GRID_DIM + 3)
+        _ = grid[x, y]
+    elif which == 2:
+        pos = (stream.int_in_range(-3, MAX_GRID_DIM + 3),
+               stream.int_in_range(-3, MAX_GRID_DIM + 3))
+        grid.entities_in_radius(pos, stream.float_in_range(-1.0, 24.0))
+    elif which == 3:
+        if stream.bool():
+            grid.center_camera((stream.float_in_range(-5.0, 40.0),
+                                stream.float_in_range(-5.0, 40.0)))
+        else:
+            grid.center_camera()
+    else:
+        _ = grid.hovered_cell
+
+
+def _op_gridpoint_attrs(stream, grids, entities):
+    """Tier C (#312): GridPoint __getattr__/__setattr__ named-layer access.
+
+    Ensures the grid has a named ColorLayer + TileLayer so the dynamic
+    attribute path (UIGridPoint::getattro/setattro) resolves to real layers,
+    then exercises built-in props, valid layer writes, a bogus layer name, and
+    a wrong-typed tile write.
+    """
+    grid = _pick_grid(stream, grids)
+    if grid is None:
+        return
+    try:
+        if len(grid.layers) == 0:
+            grid.add_layer(mcrfpy.ColorLayer(name="fuzzcolor", z_index=0))
+            grid.add_layer(mcrfpy.TileLayer(name="fuzztile", z_index=-1))
+    except EXPECTED_EXCEPTIONS:
+        pass
+    x = stream.int_in_range(0, MAX_GRID_DIM - 1)
+    y = stream.int_in_range(0, MAX_GRID_DIM - 1)
+    if (stream.u8() & 0x07) == 0:
+        x = stream.int_in_range(-3, MAX_GRID_DIM + 3)
+        y = stream.int_in_range(-3, MAX_GRID_DIM + 3)
+    try:
+        gp = grid.at(x, y)
+    except EXPECTED_EXCEPTIONS:
+        return
+    for setter in (("walkable", stream.bool()), ("transparent", stream.bool())):
+        try:
+            setattr(gp, setter[0], setter[1])
+        except EXPECTED_EXCEPTIONS:
+            pass
+    for name in ("fuzzcolor", "fuzztile", "nonexistent_layer"):
+        try:
+            _ = getattr(gp, name)
+        except EXPECTED_EXCEPTIONS:
+            pass
+    try:
+        gp.fuzzcolor = (stream.int_in_range(-20, 300),
+                        stream.int_in_range(-20, 300),
+                        stream.int_in_range(-20, 300))
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        gp.fuzztile = stream.int_in_range(-5, 4096)
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        gp.fuzztile = "not an int"   # wrong type -> TypeError path
+    except EXPECTED_EXCEPTIONS:
+        pass
+
+
 def _op_iterate_and_mutate(stream, grids, entities):
     """Iterate grid.entities and mid-loop call die() or reassign grid.
 
@@ -326,6 +413,8 @@ _OPS = [
     _op_set_grid_none,          # 11
     _op_die,                    # 12
     _op_iterate_and_mutate,     # 13
+    _op_grid_query,             # 14  (Tier C #312)
+    _op_gridpoint_attrs,        # 15  (Tier C #312)
 ]
 
 

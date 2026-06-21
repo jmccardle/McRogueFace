@@ -508,8 +508,64 @@ def _op_bsp_walk(stream, bsps):
         pass
 
 
+def _ordered_range(stream, lo=-3.0, hi=3.0):
+    a = stream.float_in_range(lo, hi)
+    b = stream.float_in_range(lo, hi)
+    return (a, b) if a <= b else (b, a)
+
+
+def _color_tuple(stream):
+    return (stream.int_in_range(-20, 300), stream.int_in_range(-20, 300),
+            stream.int_in_range(-20, 300), stream.int_in_range(-20, 300))
+
+
+def _op_layer_apply(stream, hms):
+    """Tier C (#312): ColorLayer/TileLayer terrain application from a HeightMap
+    source -- apply_threshold / apply_gradient / apply_ranges. Half the time the
+    source heightmap matches the layer dims (reaches the real mapping logic),
+    otherwise a pooled, possibly mismatched map is used (must raise, not crash).
+    """
+    w = stream.int_in_range(MIN_DIM, MAX_DIM)
+    h = stream.int_in_range(MIN_DIM, MAX_DIM)
+    try:
+        grid = mcrfpy.Grid(grid_size=(w, h))
+        clayer = mcrfpy.ColorLayer(name="terrain", z_index=0)
+        tlayer = mcrfpy.TileLayer(name="tiles", z_index=-1)
+        grid.add_layer(clayer)
+        grid.add_layer(tlayer)
+    except EXPECTED_EXCEPTIONS:
+        return
+
+    if stream.bool() or not hms:
+        src = mcrfpy.HeightMap(size=(w, h), fill=stream.float_in_range(-2.0, 2.0))
+        try:
+            src.add_voronoi(stream.int_in_range(1, 8), seed=stream.u32())
+        except EXPECTED_EXCEPTIONS:
+            pass
+    else:
+        src = hms[stream.int_in_range(0, len(hms) - 1)]
+
+    which = stream.u8() % 5
+    if which == 0:
+        clayer.apply_threshold(src, _ordered_range(stream), _color_tuple(stream))
+    elif which == 1:
+        clayer.apply_gradient(src, _ordered_range(stream),
+                              _color_tuple(stream), _color_tuple(stream))
+    elif which == 2:
+        n = stream.int_in_range(1, 4)
+        ranges = [(_ordered_range(stream), _color_tuple(stream)) for _ in range(n)]
+        clayer.apply_ranges(src, ranges)
+    elif which == 3:
+        tlayer.apply_threshold(src, _ordered_range(stream), stream.int_in_range(-5, 4096))
+    else:
+        n = stream.int_in_range(1, 4)
+        ranges = [(_ordered_range(stream), stream.int_in_range(-5, 4096)) for _ in range(n)]
+        tlayer.apply_ranges(src, ranges)
+
+
 def _dispatch(op, stream, hms, dms, nss, bsps):
-    # 23 distinct operations covering all four surfaces plus conversions.
+    # 24 distinct operations covering all four surfaces plus conversions, plus
+    # one Tier C (#312) layer-application op.
     if op == 0:
         _make_heightmap(stream, hms)
     elif op == 1:
@@ -558,9 +614,11 @@ def _dispatch(op, stream, hms, dms, nss, bsps):
         _op_bsp_split(stream, bsps)
     elif op == 23:
         _op_bsp_walk(stream, bsps)
+    elif op == 24:
+        _op_layer_apply(stream, hms)
 
 
-_NUM_OPS = 24
+_NUM_OPS = 25
 
 
 def fuzz_one_input(data):

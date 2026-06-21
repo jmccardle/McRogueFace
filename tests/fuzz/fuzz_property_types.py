@@ -79,6 +79,31 @@ TILELAYER_BOOL_PROPS = ("visible",)
 COLORLAYER_INT_PROPS = ("z_index",)
 COLORLAYER_BOOL_PROPS = ("visible",)
 
+# Tier C (#312): primitive shapes (Line/Circle/Arc) -- their setters were never
+# touched by the property-type fuzzer. Verified against src/UILine.cpp,
+# src/UICircle.cpp, src/UIArc.cpp.
+LINE_FLOAT_PROPS = ("x", "y", "thickness", "opacity", "rotation")
+LINE_INT_PROPS = ("z_index",)
+LINE_BOOL_PROPS = ("visible",)
+LINE_COLOR_PROPS = ("color",)
+LINE_VECTOR_PROPS = ("start", "end", "pos")
+LINE_STR_PROPS = ("name",)
+
+CIRCLE_FLOAT_PROPS = ("x", "y", "radius", "outline", "opacity", "rotation")
+CIRCLE_INT_PROPS = ("z_index",)
+CIRCLE_BOOL_PROPS = ("visible",)
+CIRCLE_COLOR_PROPS = ("fill_color", "outline_color")
+CIRCLE_VECTOR_PROPS = ("center", "pos")
+CIRCLE_STR_PROPS = ("name",)
+
+ARC_FLOAT_PROPS = ("x", "y", "radius", "start_angle", "end_angle", "thickness",
+                   "opacity", "rotation")
+ARC_INT_PROPS = ("z_index",)
+ARC_BOOL_PROPS = ("visible",)
+ARC_COLOR_PROPS = ("color",)
+ARC_VECTOR_PROPS = ("center", "pos")
+ARC_STR_PROPS = ("name",)
+
 
 def confused_value(stream):
     """Return a deliberately type-confused value for property setters.
@@ -563,6 +588,166 @@ def fuzz_hot_loop_reads(stream):
             pass
 
 
+# ----- Tier C (#312): shapes, Scene.children collections, module functions ---
+
+def _make_line(stream):
+    return mcrfpy.Line(
+        start=(stream.float_in_range(-100, 600), stream.float_in_range(-100, 600)),
+        end=(stream.float_in_range(-100, 600), stream.float_in_range(-100, 600)),
+        thickness=stream.float_in_range(-2, 12))
+
+
+def _make_circle(stream):
+    return mcrfpy.Circle(
+        center=(stream.float_in_range(-100, 600), stream.float_in_range(-100, 600)),
+        radius=stream.float_in_range(-5, 120))
+
+
+def _make_arc(stream):
+    return mcrfpy.Arc(
+        center=(stream.float_in_range(-100, 600), stream.float_in_range(-100, 600)),
+        radius=stream.float_in_range(-5, 120),
+        start_angle=stream.float_in_range(-720, 720),
+        end_angle=stream.float_in_range(-720, 720))
+
+
+# maker -> (correct-write groups, all-writable names for confused writes)
+_SHAPES = (
+    (_make_line,
+     (("float", LINE_FLOAT_PROPS), ("int", LINE_INT_PROPS),
+      ("bool", LINE_BOOL_PROPS), ("color", LINE_COLOR_PROPS),
+      ("vector", LINE_VECTOR_PROPS), ("str", LINE_STR_PROPS)),
+     LINE_FLOAT_PROPS + LINE_INT_PROPS + LINE_BOOL_PROPS + LINE_COLOR_PROPS
+     + LINE_VECTOR_PROPS + LINE_STR_PROPS),
+    (_make_circle,
+     (("float", CIRCLE_FLOAT_PROPS), ("int", CIRCLE_INT_PROPS),
+      ("bool", CIRCLE_BOOL_PROPS), ("color", CIRCLE_COLOR_PROPS),
+      ("vector", CIRCLE_VECTOR_PROPS), ("str", CIRCLE_STR_PROPS)),
+     CIRCLE_FLOAT_PROPS + CIRCLE_INT_PROPS + CIRCLE_BOOL_PROPS + CIRCLE_COLOR_PROPS
+     + CIRCLE_VECTOR_PROPS + CIRCLE_STR_PROPS),
+    (_make_arc,
+     (("float", ARC_FLOAT_PROPS), ("int", ARC_INT_PROPS),
+      ("bool", ARC_BOOL_PROPS), ("color", ARC_COLOR_PROPS),
+      ("vector", ARC_VECTOR_PROPS), ("str", ARC_STR_PROPS)),
+     ARC_FLOAT_PROPS + ARC_INT_PROPS + ARC_BOOL_PROPS + ARC_COLOR_PROPS
+     + ARC_VECTOR_PROPS + ARC_STR_PROPS),
+)
+
+
+def fuzz_shapes(stream):
+    """Build a Line/Circle/Arc and hammer its setters (correct + confused)."""
+    maker, groups, all_writable = _SHAPES[stream.u8() % len(_SHAPES)]
+    try:
+        shape = maker(stream)
+    except EXPECTED_EXCEPTIONS:
+        return
+    _write_correct(stream, shape, groups)
+    read_names = tuple(name for _t, names in groups for name in names)
+    _read_all(shape, read_names + ("bounds", "global_position", "shader", "uniforms"))
+    for _ in range(stream.int_in_range(1, 6)):
+        _write_confused(stream, shape, all_writable)
+
+
+def fuzz_scene_children(stream):
+    """Tier C (#312): Scene.children collection ops -- append/insert/index/
+    count/pop/remove/slice/iterate, exercised outside the grid-entity scope."""
+    scene = mcrfpy.Scene(stream.ascii_str(6) or "fz")
+    col = scene.children
+    for _ in range(stream.int_in_range(0, 6)):
+        kind = stream.u8() % 5
+        try:
+            if kind == 0:
+                col.append(_make_frame(stream))
+            elif kind == 1:
+                col.append(_make_caption(stream))
+            elif kind == 2:
+                col.append(_make_sprite(stream))
+            elif kind == 3:
+                col.append(_make_circle(stream))
+            else:
+                idx = stream.int_in_range(0, max(0, len(col)))
+                col.insert(idx, _make_line(stream))
+        except EXPECTED_EXCEPTIONS:
+            pass
+    try:
+        _ = len(col)
+    except EXPECTED_EXCEPTIONS:
+        pass
+    n = 0
+    try:
+        n = len(col)
+    except EXPECTED_EXCEPTIONS:
+        pass
+    if n > 0:
+        first = None
+        try:
+            first = col[stream.int_in_range(0, n - 1)]
+        except EXPECTED_EXCEPTIONS:
+            pass
+        for meth in ("index", "count"):
+            try:
+                getattr(col, meth)(first)
+            except EXPECTED_EXCEPTIONS:
+                pass
+        try:
+            col.find(stream.ascii_str(6))
+        except EXPECTED_EXCEPTIONS:
+            pass
+        try:
+            col.remove(first)
+        except EXPECTED_EXCEPTIONS:
+            pass
+    try:
+        a = stream.int_in_range(0, max(0, n))
+        b = stream.int_in_range(a, max(a, n))
+        _ = col[a:b]
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        for item in col:
+            _ = getattr(item, "x", None)
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        col.pop()
+    except EXPECTED_EXCEPTIONS:
+        pass
+
+
+def fuzz_module_functions(stream):
+    """Tier C (#312): mcrfpy.find / find_all / bresenham / lock.
+
+    NOTE: the benchmark triplet (start_benchmark/log_benchmark/end_benchmark) is
+    intentionally NOT fuzzed here -- end_benchmark() writes a log file to disk on
+    every call (g_benchmarkLogger.end()), which over a fuzz campaign would spam
+    the filesystem and throttle iteration without exercising any memory-safety
+    path. It is harness instrumentation, not API surface worth fuzzing.
+    """
+    try:
+        mcrfpy.find(stream.ascii_str(8))
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        mcrfpy.find(stream.ascii_str(8), stream.ascii_str(6))
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        mcrfpy.find_all(stream.ascii_str(8))
+    except EXPECTED_EXCEPTIONS:
+        pass
+    a = (stream.int_in_range(-80, 80), stream.int_in_range(-80, 80))
+    b = (stream.int_in_range(-80, 80), stream.int_in_range(-80, 80))
+    try:
+        mcrfpy.bresenham(a, b, stream.bool(), stream.bool())
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        with mcrfpy.lock():
+            pass
+    except EXPECTED_EXCEPTIONS:
+        pass
+
+
 # ----- Dispatch -----
 
 OPS = (
@@ -582,6 +767,9 @@ OPS = (
     fuzz_vector,
     fuzz_nested_reparent,
     fuzz_hot_loop_reads,
+    fuzz_shapes,            # Tier C (#312)
+    fuzz_scene_children,    # Tier C (#312)
+    fuzz_module_functions,  # Tier C (#312)
 )
 
 

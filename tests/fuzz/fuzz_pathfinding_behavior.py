@@ -102,7 +102,7 @@ def _pick_entity(stream, entities):
 # ---------------------------------------------------------------------------
 
 
-NUM_OPS = 17
+NUM_OPS = 18
 
 
 def _dispatch(op, stream, state):
@@ -252,6 +252,47 @@ def _dispatch(op, stream, state):
                         hx = stream.int_in_range(0, w - 1)
                         hy = stream.int_in_range(0, h - 1)
                         _ = hm[hx, hy]
+                    except EXPECTED_EXCEPTIONS:
+                        break
+
+    elif op == 17:
+        # Op 17 (Tier C #312): Grid.find_path -- the dedicated A* entry that
+        # path_from() doesn't reach -- then fully exercise the AStarPath object
+        # (peek / __len__ / __bool__ / iteration), not just walk()/properties.
+        start = _rand_coord(stream, w, h, oob_chance=True)
+        end = _rand_coord(stream, w, h, oob_chance=True)
+        kw = {}
+        if stream.bool():
+            kw["diagonal_cost"] = stream.float_in_range(-2.0, 10.0)
+        if stream.bool():
+            kw["collide"] = None if stream.bool() else stream.ascii_str(max_len=6)
+        path = grid.find_path(start, end, **kw)
+        if path is not None:
+            try:
+                _ = len(path)
+                _ = bool(path)
+                _ = path.peek()
+            except EXPECTED_EXCEPTIONS:
+                pass
+            mode = stream.u8() % 3
+            if mode == 0:
+                # Full iteration consumes the path.
+                count = 0
+                try:
+                    for _step in path:
+                        count += 1
+                        if count > 256:
+                            break
+                except EXPECTED_EXCEPTIONS:
+                    pass
+            else:
+                for _ in range(stream.int_in_range(0, 6)):
+                    try:
+                        if mode == 1:
+                            path.walk()
+                        else:
+                            path.peek()
+                            path.walk()
                     except EXPECTED_EXCEPTIONS:
                         break
 

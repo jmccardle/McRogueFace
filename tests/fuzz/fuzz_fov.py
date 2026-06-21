@@ -59,6 +59,78 @@ def _make_grid(stream):
     return grid, w, h
 
 
+def _color_or_none(stream):
+    """Return a (possibly out-of-range) RGBA tuple, or None, for color args."""
+    if stream.bool():
+        return None
+    return (stream.int_in_range(-20, 300), stream.int_in_range(-20, 300),
+            stream.int_in_range(-20, 300), stream.int_in_range(-20, 300))
+
+
+def _grid_with_color_layer(stream, name):
+    """Build a small grid with one named ColorLayer. Returns (grid, layer, w, h)
+    or (None, None, 0, 0) if construction failed."""
+    w = stream.int_in_range(2, 16)
+    h = stream.int_in_range(2, 16)
+    try:
+        grid = mcrfpy.Grid(grid_size=(w, h))
+        layer = mcrfpy.ColorLayer(name=name, z_index=0)
+        grid.add_layer(layer)
+    except EXPECTED_EXCEPTIONS:
+        return None, None, 0, 0
+    return grid, layer, w, h
+
+
+def _fuzz_perspective(stream):
+    """ColorLayer.apply_perspective / update_perspective / clear_perspective."""
+    grid, layer, w, h = _grid_with_color_layer(stream, "persp")
+    if layer is None:
+        return
+    ent = None
+    try:
+        ent = mcrfpy.Entity(grid_pos=(stream.int_in_range(0, w - 1),
+                                      stream.int_in_range(0, h - 1)), grid=grid)
+        ent.sight_radius = stream.int_in_range(-2, 20)
+    except EXPECTED_EXCEPTIONS:
+        pass
+    # Sometimes pass a non-entity to hit the type-check path.
+    target = ent if (ent is not None and stream.bool()) else stream.pick_one((None, "bad", ent))
+    try:
+        layer.apply_perspective(target, _color_or_none(stream),
+                                _color_or_none(stream), _color_or_none(stream))
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        layer.update_perspective()
+    except EXPECTED_EXCEPTIONS:
+        pass
+    try:
+        layer.clear_perspective()
+    except EXPECTED_EXCEPTIONS:
+        pass
+
+
+def _fuzz_draw_fov(stream):
+    """ColorLayer.draw_fov(source, radius, fov, visible, discovered, unknown)."""
+    grid, layer, w, h = _grid_with_color_layer(stream, "fov")
+    if layer is None:
+        return
+    source = (stream.int_in_range(-3, w + 3), stream.int_in_range(-3, h + 3))
+    kw = {}
+    if stream.bool():
+        kw["radius"] = stream.int_in_range(-2, 40)
+    if stream.bool():
+        kw["fov"] = stream.pick_one(_FOV_MEMBERS)
+    if stream.bool():
+        kw["visible"] = _color_or_none(stream)
+    if stream.bool():
+        kw["discovered"] = _color_or_none(stream)
+    try:
+        layer.draw_fov(source, **kw)
+    except EXPECTED_EXCEPTIONS:
+        pass
+
+
 def fuzz_one_input(data):
     stream = ByteStream(data)
     try:
@@ -68,7 +140,7 @@ def fuzz_one_input(data):
         for _ in range(n_ops):
             if stream.remaining < 1:
                 break
-            op = stream.u8() % 16
+            op = stream.u8() % 18
             try:
                 if op == 0:
                     # Replace the active grid (drop the old one).
@@ -246,7 +318,7 @@ def fuzz_one_input(data):
                         y = stream.int_in_range(0, max(0, h - 1))
                         grid.compute_fov((x, y), radius=5, algorithm="basic")
 
-                else:  # op == 15
+                elif op == 15:
                     # is_in_fov garbage args.
                     bad_choice = stream.u8() % 3
                     if bad_choice == 0:
@@ -255,6 +327,16 @@ def fuzz_one_input(data):
                         _ = grid.is_in_fov("a", "b")
                     else:
                         _ = grid.is_in_fov((1, 2, 3))
+
+                elif op == 16:
+                    # Tier C (#312): ColorLayer perspective system. Build a
+                    # self-contained grid + ColorLayer + Entity so the entity
+                    # visibility-perspective path resolves to real objects.
+                    _fuzz_perspective(stream)
+
+                else:  # op == 17
+                    # Tier C (#312): ColorLayer.draw_fov from a source cell.
+                    _fuzz_draw_fov(stream)
 
             except EXPECTED_EXCEPTIONS:
                 pass
