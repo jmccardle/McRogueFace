@@ -1056,7 +1056,7 @@ PyMethodDef UICollection::methods[] = {
 	 )},
 	{"extend", (PyCFunction)UICollection::extend, METH_O,
 	 MCRF_METHOD(UICollection, extend,
-	     MCRF_SIG("(iterable)", "None"),
+	     MCRF_SIG("(iterable: Iterable[Drawable])", "None"),
 	     MCRF_DESC("Add all elements from an iterable to the collection.")
 	     MCRF_ARGS_START
 	     MCRF_ARG("iterable", "Iterable of Drawable objects to add")

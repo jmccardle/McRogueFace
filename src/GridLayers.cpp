@@ -701,7 +701,7 @@ void TileLayer::render(sf::RenderTarget& target,
 PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
     {"at", (PyCFunction)PyGridLayerAPI::ColorLayer_at, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(ColorLayer, at,
-         MCRF_SIG("(pos) or (x: int, y: int)", "Color"),
+         MCRF_SIG("(pos: tuple | Vector) or (x: int, y: int)", "Color"),
          MCRF_DESC("Get the color at a cell position.")
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector; or pass x and y separately")
@@ -735,7 +735,7 @@ PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
      )},
     {"draw_fov", (PyCFunction)PyGridLayerAPI::ColorLayer_draw_fov, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(ColorLayer, draw_fov,
-         MCRF_SIG("(source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None)", "None"),
+         MCRF_SIG("(source: tuple, radius: int | None = None, fov: FOV | None = None, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None)", "None"),
          MCRF_DESC("Paint cells based on field-of-view visibility from a source position.")
          MCRF_ARGS_START
          MCRF_ARG("source", "FOV origin as (x, y)")
@@ -748,7 +748,7 @@ PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
      )},
     {"apply_perspective", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_perspective, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(ColorLayer, apply_perspective,
-         MCRF_SIG("(entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None)", "None"),
+         MCRF_SIG("(entity: Entity, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None)", "None"),
          MCRF_DESC("Bind this layer to an entity for automatic FOV updates. After binding, call update_perspective() when the entity moves.")
          MCRF_ARGS_START
          MCRF_ARG("entity", "The entity whose perspective to track")
@@ -1881,7 +1881,7 @@ PyObject* PyGridLayerAPI::ColorLayer_repr(PyColorLayerObject* self) {
 PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
     {"at", (PyCFunction)PyGridLayerAPI::TileLayer_at, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TileLayer, at,
-         MCRF_SIG("(pos) or (x: int, y: int)", "int"),
+         MCRF_SIG("(pos: tuple | Vector) or (x: int, y: int)", "int"),
          MCRF_DESC("Get the tile index at a cell position. Returns -1 if no tile is set.")
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector; or pass x and y separately")

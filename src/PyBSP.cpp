@@ -342,7 +342,7 @@ PyMethodDef PyBSP::methods[] = {
      )},
     {"split_recursive", (PyCFunction)PyBSP::split_recursive, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSP, split_recursive,
-         MCRF_SIG("(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int = None)", "BSP"),
+         MCRF_SIG("(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int | None = None)", "BSP"),
          MCRF_DESC("Recursively split to the specified depth. "
                    "WARNING: Invalidates all existing BSPNode references from this tree."),
          MCRF_ARGS_START
@@ -376,15 +376,16 @@ PyMethodDef PyBSP::methods[] = {
      )},
     {"find", (PyCFunction)PyBSP::find, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSP, find,
-         MCRF_SIG("(pos: tuple[int, int])", "BSPNode | None"),
+         MCRF_SIG("(pos: tuple[int, int] | list | Vector)", "BSPNode | None"),
          MCRF_DESC("Find the smallest (deepest) node containing the position."),
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
          MCRF_RETURNS("BSPNode if found, None if position is outside bounds")
+         MCRF_NOTE("Also accepts two separate int arguments: find(x, y)")
      )},
     {"to_heightmap", (PyCFunction)PyBSP::to_heightmap, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSP, to_heightmap,
-         MCRF_SIG("(size: tuple[int, int] = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0)", "HeightMap"),
+         MCRF_SIG("(size: tuple[int, int] | None = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0)", "HeightMap"),
          MCRF_DESC("Convert BSP node selection to a HeightMap."),
          MCRF_ARGS_START
          MCRF_ARG("size", "Output size (width, height). Default: bounds size.")
@@ -1055,11 +1056,12 @@ PyGetSetDef PyBSPNode::getsetters[] = {
 PyMethodDef PyBSPNode::methods[] = {
     {"contains", (PyCFunction)PyBSPNode::contains, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSPNode, contains,
-         MCRF_SIG("(pos: tuple[int, int])", "bool"),
+         MCRF_SIG("(pos: tuple[int, int] | list | Vector)", "bool"),
          MCRF_DESC("Check if position is inside this node's bounds."),
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
          MCRF_RETURNS("bool: True if position is inside bounds")
+         MCRF_NOTE("Also accepts two separate int arguments: contains(x, y)")
      )},
     {"center", (PyCFunction)PyBSPNode::center, METH_NOARGS,
      MCRF_METHOD(BSPNode, center,

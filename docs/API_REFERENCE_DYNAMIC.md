@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-06-21 01:18:30*
+*Generated on 2026-06-21 06:42:31*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -70,7 +70,7 @@
 
 ## Functions
 
-### `bresenham(start, end, *, include_start=True, include_end=True) -> list[tuple[int, int]]`
+### `bresenham(start, end, include_start=True, include_end=True) -> list[tuple[int, int]]`
 
 Compute grid cells along a line using Bresenham's algorithm.
 
@@ -130,7 +130,7 @@ Note:
 
 Get current performance metrics.
 
-**Returns:** dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds)
+**Returns:** dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (number of grid cells rendered this frame), entities_rendered (number of entities rendered this frame), total_entities (total entity count across all grids)
 
 ### `lock() -> _LockContext`
 
@@ -402,11 +402,11 @@ Attributes:
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `center`: Center position of the arc (Vector).
 - `color`: Arc fill color (Color).
 - `end_angle`: Ending angle in degrees (float).
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_pos`: Position in grid tile coordinates (Vector, only when parent is Grid).
 - `grid_size`: Size in grid tile coordinates (Vector, only when parent is Grid).
@@ -414,10 +414,10 @@ Attributes:
 - `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding this element (str).
-- `on_click`: Callable executed when arc is clicked. Function receives (pos: Vector, button: str, action: str).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_click`: Callable executed when arc is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -583,14 +583,16 @@ Remove all children, keeping only the root node with original bounds. WARNING: I
 
 **Returns:** BSP: self, for method chaining
 
-#### `find(pos: tuple[int, int]) -> BSPNode | None`
+#### `find(pos: tuple[int, int] | list | Vector) -> BSPNode | None`
 
 Find the smallest (deepest) node containing the position.
+
+Note:
 
 **Arguments:**
 - `pos`: Position as (x, y) tuple, list, or Vector
 
-**Returns:** BSPNode if found, None if position is outside bounds
+**Returns:** BSPNode if found, None if position is outside bounds Also accepts two separate int arguments: find(x, y)
 
 #### `get_leaf(index: int) -> BSPNode`
 
@@ -619,7 +621,7 @@ Split the root node once at the specified position. horizontal=True creates a ho
 
 **Returns:** BSP: self, for method chaining
 
-#### `split_recursive(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int = None) -> BSP`
+#### `split_recursive(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int | None = None) -> BSP`
 
 Recursively split to the specified depth. WARNING: Invalidates all existing BSPNode references from this tree.
 
@@ -631,7 +633,7 @@ Recursively split to the specified depth. WARNING: Invalidates all existing BSPN
 
 **Returns:** BSP: self, for method chaining
 
-#### `to_heightmap(size: tuple[int, int] = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0) -> HeightMap`
+#### `to_heightmap(size: tuple[int, int] | None = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0) -> HeightMap`
 
 Convert BSP node selection to a HeightMap.
 
@@ -867,10 +869,10 @@ Attributes:
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `fill_color`: Fill color of the text (Color). Returns a copy; modifying components requires reassignment. For animation, use 'fill_color.r', 'fill_color.g', etc.
 - `font_size`: Font size in points (int). Clamped to the range [0, 65535].
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_pos`: Position in grid tile coordinates (Vector). Only valid when parent is a Grid.
 - `grid_size`: Size in grid tile coordinates (Vector). Only valid when parent is a Grid.
@@ -879,10 +881,10 @@ Attributes:
 - `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding elements (str).
-- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `outline`: Thickness of the text outline border (float). Clamped to non-negative values.
@@ -997,10 +999,10 @@ Attributes:
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `center`: Center position of the circle (Vector).
 - `fill_color`: Fill color of the circle (Color).
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_pos`: Position in grid tile coordinates (Vector). Only meaningful when parent is a Grid.
 - `grid_size`: Size in grid tile coordinates (Vector). Only meaningful when parent is a Grid.
@@ -1008,10 +1010,10 @@ Attributes:
 - `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding this element (str).
-- `on_click`: Callable executed when circle is clicked (Callable | None). Function receives (pos: Vector, button: str, action: str).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_click`: Callable executed when circle is clicked (Callable | None). Function receives (pos: Vector, button: MouseButton, action: InputState).
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `outline`: Outline thickness in pixels (float). Use 0 for no outline.
@@ -1207,7 +1209,7 @@ Interpolate between two colors based on HeightMap value within a range. Uses the
 
 **Returns:** self for method chaining
 
-#### `apply_perspective(entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None`
+#### `apply_perspective(entity: Entity, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None`
 
 Bind this layer to an entity for automatic FOV updates. After binding, call update_perspective() when the entity moves.
 
@@ -1240,7 +1242,7 @@ Set a fixed color for cells where the HeightMap value falls within a range.
 
 **Returns:** self for method chaining
 
-#### `at(pos) or (x: int, y: int) -> Color`
+#### `at(pos: tuple | Vector) or (x: int, y: int) -> Color`
 
 Get the color at a cell position.
 
@@ -1255,7 +1257,7 @@ Get the color at a cell position.
 
 Remove the perspective binding from this layer.
 
-#### `draw_fov(source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None`
+#### `draw_fov(source: tuple, radius: int | None = None, fov: FOV | None = None, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None`
 
 Paint cells based on field-of-view visibility from a source position.
 
@@ -1657,7 +1659,7 @@ Convert to HeightMap, optionally mapping values to floats.
 Base class for all drawable UI elements
 
 **Properties:**
-- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
+- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
 - `z_index`: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
@@ -1860,7 +1862,7 @@ Create and start an animation on this entity's property.
 Note:
 
 **Arguments:**
-- `property`: Name of the property to animate: 'draw_x', 'draw_y' (tile coords), 'sprite_scale', 'sprite_index'
+- `property`: Name of the property to animate: 'draw_x', 'draw_y' (tile coords), 'sprite_scale', 'sprite_index', 'sprite_offset_x', 'sprite_offset_y'
 - `target`: Target value - float, int, or list of int (for sprite frame sequences)
 - `duration`: Animation duration in seconds
 - `easing`: Easing function: Easing enum value, string name, or None for linear
@@ -1871,7 +1873,7 @@ Note:
 
 **Returns:** Animation object for monitoring progress
 
-**Raises:** ValueError: If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index) Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells. Use list target with loop=True for repeating sprite frame animations.
+**Raises:** ValueError: If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index, sprite_offset_x, sprite_offset_y) Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells. Use list target with loop=True for repeating sprite frame animations. 'x' and 'y' are accepted as aliases for 'draw_x' and 'draw_y'.
 
 #### `at(x: int, y: int) -> GridPoint | None`
 
@@ -1987,17 +1989,19 @@ Note:
 
 **Returns:** None Called automatically when the entity moves if the grid has FOV configured.
 
-#### `visible_entities(fov=None, radius: int = None) -> list[Entity]`
+#### `visible_entities(fov=None, radius: int = -1) -> list[Entity]`
 
 Get list of other entities visible from this entity's position.
 
+Note:
+
 **Arguments:**
 - `fov`: FOV algorithm to use (FOV enum or None to use grid.fov)
-- `radius`: FOV radius (int or None to use grid.fov_radius)
+- `radius`: FOV radius as int; omit or pass -1 to use the grid's default fov_radius
 
 **Returns:** List of Entity objects within field of view, excluding self
 
-**Raises:** ValueError: If entity is not associated with a grid
+**Raises:** ValueError: If entity is not associated with a grid radius does not accept None; omit the argument entirely to use the grid default.
 
 ### Entity3D
 
@@ -2292,12 +2296,12 @@ Attributes:
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `cache_subtree`: Cache the frame and all children to a render texture for performance (bool). Useful for complex static subtrees.
 - `children` *(read-only)*: UICollection of child drawable objects rendered on top of this frame (UICollection, read-only).
 - `clip_children`: Whether to clip child elements to the frame's bounds (bool). Enables render-texture mode when True.
 - `fill_color`: Fill color of the rectangle (Color). Returns a copy; modifying components requires reassignment. For animation, use 'fill_color.r', 'fill_color.g', etc.
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_pos`: Position in grid tile coordinates (Vector). Only meaningful when this element's parent is a Grid.
 - `grid_size`: Size in grid tile coordinates (Vector). Only meaningful when this element's parent is a Grid.
@@ -2306,10 +2310,10 @@ Attributes:
 - `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding elements (str).
-- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `outline`: Thickness of the border in pixels (float).
@@ -2412,13 +2416,13 @@ Keyword Args:
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `camera_rotation`: Rotation of grid contents around camera center in degrees (float).
-- `center`: Camera center point in pixel coordinates (tuple).
+- `center`: Camera center point in pixel coordinates (Vector).
 - `center_x`: Camera center X-coordinate in pixel space (float).
 - `center_y`: Camera center Y-coordinate in pixel space (float).
 - `fill_color`: Background fill color (Color). Drawn behind all tiles and entities.
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_data`: The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid.
 - `h`: Visible widget height (float).
@@ -2427,9 +2431,9 @@ Keyword Args:
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding elements (str).
 - `on_click`: Callable executed when object is clicked (Callable | None).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -2437,7 +2441,7 @@ Keyword Args:
 - `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
 - `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
-- `texture` *(read-only)*: Texture used for tile rendering (Texture | None, read-only).
+- `texture` *(read-only)*: Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None.
 - `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
@@ -2532,13 +2536,13 @@ Keyword Args:
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `camera_rotation`: Rotation of grid contents around camera center in degrees (float).
-- `center`: Camera center point in pixel coordinates (tuple).
+- `center`: Camera center point in pixel coordinates (Vector).
 - `center_x`: Camera center X-coordinate in pixel space (float).
 - `center_y`: Camera center Y-coordinate in pixel space (float).
 - `fill_color`: Background fill color (Color). Drawn behind all tiles and entities.
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_data`: The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid.
 - `h`: Visible widget height (float).
@@ -2547,9 +2551,9 @@ Keyword Args:
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding elements (str).
 - `on_click`: Callable executed when object is clicked (Callable | None).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -2557,7 +2561,7 @@ Keyword Args:
 - `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
 - `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
-- `texture` *(read-only)*: Texture used for tile rendering (Texture | None, read-only).
+- `texture` *(read-only)*: Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None.
 - `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
@@ -3427,10 +3431,10 @@ Attributes:
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `color`: Line color as a Color object.
 - `end`: Ending point of the line as a Vector.
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_pos`: Position in grid tile coordinates (Vector, only when parent is Grid).
 - `grid_size`: Size in grid tile coordinates (Vector, only when parent is Grid).
@@ -3438,10 +3442,10 @@ Attributes:
 - `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding this element.
-- `on_click`: Callable executed when line is clicked. Function receives (pos: Vector, button: str, action: str).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_click`: Callable executed when line is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -4264,8 +4268,8 @@ Attributes:
 
 **Properties:**
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_pos`: Position in grid tile coordinates (Vector, only when parent is Grid).
 - `grid_size`: Size in grid tile coordinates (Vector, only when parent is Grid).
@@ -4273,10 +4277,10 @@ Attributes:
 - `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
 - `margin`: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).
 - `name`: Name for finding elements (str).
-- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `origin`: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -4508,7 +4512,7 @@ Set a tile index for cells where the HeightMap value falls within a range.
 
 **Returns:** self for method chaining
 
-#### `at(pos) or (x: int, y: int) -> int`
+#### `at(pos: tuple | Vector) or (x: int, y: int) -> int`
 
 Get the tile index at a cell position. Returns -1 if no tile is set.
 
@@ -5169,7 +5173,7 @@ Keyword Args:
 
 **Properties:**
 - `bg_color`: Background clear color.
-- `bounds`: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+- `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `camera_pos`: Camera position as (x, y, z) tuple.
 - `camera_target`: Camera look-at target as (x, y, z) tuple.
 - `cell_size`: World units per navigation grid cell.
@@ -5182,15 +5186,15 @@ Keyword Args:
 - `fog_far`: Fog end distance.
 - `fog_near`: Fog start distance.
 - `fov`: Camera field of view in degrees.
-- `global_bounds`: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+- `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.
 - `grid_size`: Navigation grid dimensions as (width, depth) tuple.
 - `h`: Display height in pixels.
 - `hovered` *(read-only)*: Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
-- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
-- `on_enter`: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-- `on_exit`: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
+- `on_click`: Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+- `on_enter`: Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+- `on_exit`: Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+- `on_move`: Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.
 - `opacity`: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
 - `parent`: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - `pos`: Position as Vector (x, y).

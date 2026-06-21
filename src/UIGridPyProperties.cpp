@@ -571,7 +571,7 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
-         "Function receives (pos: Vector, button: str, action: str)."
+         "Function receives (pos: Vector, button: MouseButton, action: InputState)."
      ), (void*)PyObjectsEnum::UIGRID},
 
     {"texture", (getter)UIGrid::get_texture, NULL,

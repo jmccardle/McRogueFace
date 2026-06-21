@@ -1394,13 +1394,14 @@ PyMethodDef UIEntity::methods[] = {
      )},
     {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Entity, visible_entities,
-         MCRF_SIG("(fov=None, radius: int = None)", "list[Entity]"),
+         MCRF_SIG("(fov=None, radius: int = -1)", "list[Entity]"),
          MCRF_DESC("Get list of other entities visible from this entity's position."),
          MCRF_ARGS_START
          MCRF_ARG("fov", "FOV algorithm to use (FOV enum or None to use grid.fov)")
-         MCRF_ARG("radius", "FOV radius (int or None to use grid.fov_radius)")
+         MCRF_ARG("radius", "FOV radius as int; omit or pass -1 to use the grid's default fov_radius")
          MCRF_RETURNS("List of Entity objects within field of view, excluding self")
          MCRF_RAISES("ValueError", "If entity is not associated with a grid")
+         MCRF_NOTE("radius does not accept None; omit the argument entirely to use the grid default.")
      )},
     {NULL, NULL, 0, NULL}
 };
@@ -1735,7 +1736,7 @@ PyMethodDef UIEntity_all_methods[] = {
          MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace')", "Animation"),
          MCRF_DESC("Create and start an animation on this entity's property."),
          MCRF_ARGS_START
-         MCRF_ARG("property", "Name of the property to animate: 'draw_x', 'draw_y' (tile coords), 'sprite_scale', 'sprite_index'")
+         MCRF_ARG("property", "Name of the property to animate: 'draw_x', 'draw_y' (tile coords), 'sprite_scale', 'sprite_index', 'sprite_offset_x', 'sprite_offset_y'")
          MCRF_ARG("target", "Target value - float, int, or list of int (for sprite frame sequences)")
          MCRF_ARG("duration", "Animation duration in seconds")
          MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear")
@@ -1744,9 +1745,10 @@ PyMethodDef UIEntity_all_methods[] = {
          MCRF_ARG("callback", "Optional callable invoked when animation completes (not called for looping animations)")
          MCRF_ARG("conflict_mode", "'replace' (default), 'queue', or 'error' if property already animating")
          MCRF_RETURNS("Animation object for monitoring progress")
-         MCRF_RAISES("ValueError", "If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index)")
+         MCRF_RAISES("ValueError", "If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index, sprite_offset_x, sprite_offset_y)")
          MCRF_NOTE("Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells. "
-                   "Use list target with loop=True for repeating sprite frame animations.")
+                   "Use list target with loop=True for repeating sprite frame animations. "
+                   "'x' and 'y' are accepted as aliases for 'draw_x' and 'draw_y'.")
      )},
     {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Entity, at,
@@ -1802,13 +1804,14 @@ PyMethodDef UIEntity_all_methods[] = {
      )},
     {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Entity, visible_entities,
-         MCRF_SIG("(fov=None, radius: int = None)", "list[Entity]"),
+         MCRF_SIG("(fov=None, radius: int = -1)", "list[Entity]"),
          MCRF_DESC("Get list of other entities visible from this entity's position."),
          MCRF_ARGS_START
          MCRF_ARG("fov", "FOV algorithm to use (FOV enum or None to use grid.fov)")
-         MCRF_ARG("radius", "FOV radius (int or None to use grid.fov_radius)")
+         MCRF_ARG("radius", "FOV radius as int; omit or pass -1 to use the grid's default fov_radius")
          MCRF_RETURNS("List of Entity objects within field of view, excluding self")
          MCRF_RAISES("ValueError", "If entity is not associated with a grid")
+         MCRF_NOTE("radius does not accept None; omit the argument entirely to use the grid default.")
      )},
     // #296 - Label methods
     {"add_label", (PyCFunction)UIEntity::py_add_label, METH_O,

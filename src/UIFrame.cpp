@@ -553,7 +553,7 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
-         "Function receives (pos: Vector, button: str, action: str)."
+         "Function receives (pos: Vector, button: MouseButton, action: InputState)."
      ), (void*)PyObjectsEnum::UIFRAME},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
      MCRF_PROPERTY(z_index,

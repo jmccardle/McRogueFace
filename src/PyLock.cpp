@@ -21,8 +21,12 @@ static PyMethodDef PyLockContext_methods[] = {
      )},
     {"__exit__", (PyCFunction)PyLockContext_exit, METH_VARARGS,
      MCRF_METHOD(LockContext, __exit__,
-         MCRF_SIG("(exc_type, exc_val, exc_tb)", "bool"),
+         MCRF_SIG("(exc_type, exc_val, exc_tb)", "bool | None"),
          MCRF_DESC("Release the frame lock. Does not suppress exceptions."),
+         MCRF_ARGS_START
+         MCRF_ARG("exc_type", "Exception type, or None if no exception occurred")
+         MCRF_ARG("exc_val", "Exception value, or None if no exception occurred")
+         MCRF_ARG("exc_tb", "Exception traceback, or None if no exception occurred")
          MCRF_RETURNS("False, so any active exception propagates normally")
      )},
     {NULL}

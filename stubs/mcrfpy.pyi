@@ -267,11 +267,11 @@ class Arc:
     """An arc UI element for drawing curved line segments."""
     def __init__(self, center=None, radius=0, start_angle=0, end_angle=90, color=None, thickness=1, **kwargs) -> None: ...
     align: Any  # Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None ...
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     center: Vector  # Center position of the arc (Vector).
     color: Color  # Arc fill color (Color).
     end_angle: float  # Ending angle in degrees (float).
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_pos: Vector  # Position in grid tile coordinates (Vector, only when parent is Grid).
     grid_size: Vector  # Size in grid tile coordinates (Vector, only when parent is Grid).
@@ -279,10 +279,10 @@ class Arc:
     hovered: Any  # Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
     margin: float  # General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueErr...
     name: str  # Name for finding this element (str).
-    on_click: Any  # Callable executed when arc is clicked. Function receives (pos: Vector, button: str, action: str).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_click: Any  # Callable executed when arc is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     origin: Any  # Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
     parent: Any  # Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -338,7 +338,7 @@ class BSP:
     def clear(self) -> BSP:
         """Remove all children, keeping only the root node with original bounds. WARNING: Invalidates all existing BSPNode references from this tree."""
         ...
-    def find(self, pos: tuple[int, int]) -> BSPNode | None:
+    def find(self, pos: tuple[int, int] | list | Vector) -> BSPNode | None:
         """Find the smallest (deepest) node containing the position."""
         ...
     def get_leaf(self, index: int) -> BSPNode:
@@ -350,10 +350,10 @@ class BSP:
     def split_once(self, horizontal: bool, position: int) -> BSP:
         """Split the root node once at the specified position. horizontal=True creates a horizontal divider, producing top/bottom rooms. horizontal=False creates a vert..."""
         ...
-    def split_recursive(self, depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int = None) -> BSP:
+    def split_recursive(self, depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int | None = None) -> BSP:
         """Recursively split to the specified depth. WARNING: Invalidates all existing BSPNode references from this tree."""
         ...
-    def to_heightmap(self, size: tuple[int, int] = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0) -> HeightMap:
+    def to_heightmap(self, size: tuple[int, int] | None = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0) -> HeightMap:
         """Convert BSP node selection to a HeightMap."""
         ...
     def traverse(self, order: Traversal = Traversal.LEVEL_ORDER) -> Iterator[BSPNode]:
@@ -384,10 +384,10 @@ class Caption:
     """A text display UI element with customizable font and styling."""
     def __init__(self, pos=None, font=None, text='', **kwargs) -> None: ...
     align: Any  # Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None ...
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     fill_color: Color  # Fill color of the text (Color). Returns a copy; modifying components requires reassignment. For animation, use 'fill_color.r', 'fill_color.g', etc.
     font_size: int  # Font size in points (int). Clamped to the range [0, 65535].
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_pos: Vector  # Position in grid tile coordinates (Vector). Only valid when parent is a Grid.
     grid_size: Vector  # Size in grid tile coordinates (Vector). Only valid when parent is a Grid.
@@ -396,10 +396,10 @@ class Caption:
     hovered: Any  # Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
     margin: float  # General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueErr...
     name: str  # Name for finding elements (str).
-    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     origin: Any  # Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
     outline: float  # Thickness of the text outline border (float). Clamped to non-negative values.
@@ -435,10 +435,10 @@ class Circle:
     """A circle UI element for drawing filled or outlined circles."""
     def __init__(self, radius=0, center=None, fill_color=None, outline_color=None, outline=0, **kwargs) -> None: ...
     align: Any  # Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None ...
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     center: Vector  # Center position of the circle (Vector).
     fill_color: Color  # Fill color of the circle (Color).
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_pos: Vector  # Position in grid tile coordinates (Vector). Only meaningful when parent is a Grid.
     grid_size: Vector  # Size in grid tile coordinates (Vector). Only meaningful when parent is a Grid.
@@ -446,10 +446,10 @@ class Circle:
     hovered: Any  # Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
     margin: float  # General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueErr...
     name: str  # Name for finding this element (str).
-    on_click: Callable | None  # Callable executed when circle is clicked (Callable | None). Function receives (pos: Vector, button: str, action: str).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_click: Callable | None  # Callable executed when circle is clicked (Callable | None). Function receives (pos: Vector, button: MouseButton, action: InputState).
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     origin: Any  # Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
     outline: float  # Outline thickness in pixels (float). Use 0 for no outline.
@@ -503,7 +503,7 @@ class ColorLayer:
     def apply_gradient(self, source: HeightMap, range: tuple, color_low: Color, color_high: Color) -> ColorLayer:
         """Interpolate between two colors based on HeightMap value within a range. Uses the original heightmap value for smooth transitions."""
         ...
-    def apply_perspective(self, entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None:
+    def apply_perspective(self, entity: Entity, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None:
         """Bind this layer to an entity for automatic FOV updates. After binding, call update_perspective() when the entity moves."""
         ...
     def apply_ranges(self, source: HeightMap, ranges: list) -> ColorLayer:
@@ -513,12 +513,12 @@ class ColorLayer:
         """Set a fixed color for cells where the HeightMap value falls within a range."""
         ...
     def at(self, *args, **kwargs) -> Any:
-        """at(pos) or (x: int, y: int) -> Color"""
+        """at(pos: tuple | Vector) or (x: int, y: int) -> Color"""
         ...
     def clear_perspective(self) -> None:
         """Remove the perspective binding from this layer."""
         ...
-    def draw_fov(self, source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None:
+    def draw_fov(self, source: tuple, radius: int | None = None, fov: FOV | None = None, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None:
         """Paint cells based on field-of-view visibility from a source position."""
         ...
     def fill(self, color: Color) -> None:
@@ -638,7 +638,7 @@ class DiscreteMap:
 class Drawable:
     """Base class for all drawable UI elements"""
     def __init__(self, *args, **kwargs) -> None: ...
-    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
+    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     visible: bool  # Whether the object is visible (bool). Invisible objects are not rendered or clickable.
     z_index: Any  # Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.
@@ -725,7 +725,7 @@ class Entity:
     def update_visibility(self) -> None:
         """Recompute which cells are visible from this entity's position and update perspective_map."""
         ...
-    def visible_entities(self, fov=None, radius: int = None) -> list[Entity]:
+    def visible_entities(self, fov=None, radius: int = -1) -> list[Entity]:
         """Get list of other entities visible from this entity's position."""
         ...
 
@@ -811,12 +811,12 @@ class Frame:
     """A rectangular frame UI element that can contain other drawable elements."""
     def __init__(self, pos=None, size=None, **kwargs) -> None: ...
     align: Any  # Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None ...
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     cache_subtree: bool  # Cache the frame and all children to a render texture for performance (bool). Useful for complex static subtrees.
     children: UICollection  # UICollection of child drawable objects rendered on top of this frame (UICollection, read-only).
     clip_children: bool  # Whether to clip child elements to the frame's bounds (bool). Enables render-texture mode when True.
     fill_color: Color  # Fill color of the rectangle (Color). Returns a copy; modifying components requires reassignment. For animation, use 'fill_color.r', 'fill_color.g', etc.
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_pos: Vector  # Position in grid tile coordinates (Vector). Only meaningful when this element's parent is a Grid.
     grid_size: Vector  # Size in grid tile coordinates (Vector). Only meaningful when this element's parent is a Grid.
@@ -825,10 +825,10 @@ class Frame:
     hovered: Any  # Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
     margin: float  # General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueErr...
     name: str  # Name for finding elements (str).
-    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     origin: Any  # Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
     outline: float  # Thickness of the border in pixels (float).
@@ -862,9 +862,9 @@ class Grid:
     """A grid-based UI element for tile-based rendering and entity management."""
     def __init__(self, grid_size=None, pos=None, size=None, texture=None, **kwargs) -> None: ...
     align: Any  # Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None ...
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     camera_rotation: float  # Rotation of grid contents around camera center in degrees (float).
-    center: tuple  # Camera center point in pixel coordinates (tuple).
+    center: Vector  # Camera center point in pixel coordinates (Vector).
     center_x: float  # Camera center X-coordinate in pixel space (float).
     center_y: float  # Camera center Y-coordinate in pixel space (float).
     children: UICollection  # UICollection of UIDrawable children such as speech bubbles, effects, and overlays (UICollection, read-only).
@@ -872,7 +872,7 @@ class Grid:
     fill_color: Color  # Background fill color (Color). Drawn behind all tiles and entities.
     fov: Any  # FOV algorithm for this grid (FOV enum). Used by entity.updateVisibility() and layer methods when fov=None.
     fov_radius: int  # Default FOV radius for this grid (int). Used when radius is not specified.
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_data: Grid | None  # The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid.
     grid_h: int  # Grid height in cells (int, read-only).
@@ -890,9 +890,9 @@ class Grid:
     on_cell_enter: Callable | None  # Callback when mouse enters a grid cell (Callable | None). Called with (cell_pos: Vector).
     on_cell_exit: Callable | None  # Callback when mouse exits a grid cell (Callable | None). Called with (cell_pos: Vector).
     on_click: Callable | None  # Callable executed when object is clicked (Callable | None).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     origin: Any  # Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
     parent: Any  # Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -903,7 +903,7 @@ class Grid:
     rotation: Any  # Rotation angle in degrees (clockwise around origin). Animatable property.
     shader: Any  # Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
     size: Vector  # Size of the grid widget as Vector (Vector, width x height in pixels).
-    texture: Texture | None  # Texture used for tile rendering (Texture | None, read-only).
+    texture: None  # Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None.
     uniforms: Any  # Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/...
     vert_margin: float  # Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
     view: GridView | None  # Auto-created GridView for rendering (GridView | None, read-only). When Grid is appended to a scene, this view is what actually renders.
@@ -934,19 +934,19 @@ class Grid:
     def clear_dijkstra_maps(self) -> None:
         """Clear all cached Dijkstra maps. Call this after modifying grid cell walkability to ensure pathfinding uses updated walkability data."""
         ...
-    def compute_fov(self, pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None:
+    def compute_fov(self, pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None:
         """Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."""
         ...
     def entities_in_radius(self, pos: tuple | Vector, radius: float) -> list:
         """Query entities within radius using spatial hash (O(k) where k = nearby entities)."""
         ...
-    def find_path(self, start, end, diagonal_cost: float = 1.41, collide: str = None) -> AStarPath | None:
+    def find_path(self, start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0) -> AStarPath | None:
         """Compute A* path between two points. The returned AStarPath can be iterated or walked step-by-step."""
         ...
-    def get_dijkstra_map(self, root, diagonal_cost: float = 1.41, collide: str = None) -> DijkstraMap:
+    def get_dijkstra_map(self, root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap:
         """Get or create a cached Dijkstra distance map for a root position. Call clear_dijkstra_maps() after changing grid walkability to invalidate."""
         ...
-    def is_in_fov(self, pos) -> bool:
+    def is_in_fov(self, x: int, y: int) -> bool:
         """Check if a cell is in the field of view. Must call compute_fov() first to calculate visibility."""
         ...
     def layer(self, name: str) -> ColorLayer | TileLayer | None:
@@ -972,9 +972,9 @@ class GridView:
     """A grid-based UI element for tile-based rendering and entity management."""
     def __init__(self, *args, **kwargs) -> None: ...
     align: Any  # Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None ...
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     camera_rotation: float  # Rotation of grid contents around camera center in degrees (float).
-    center: tuple  # Camera center point in pixel coordinates (tuple).
+    center: Vector  # Camera center point in pixel coordinates (Vector).
     center_x: float  # Camera center X-coordinate in pixel space (float).
     center_y: float  # Camera center Y-coordinate in pixel space (float).
     children: UICollection  # UICollection of UIDrawable children such as speech bubbles, effects, and overlays (UICollection, read-only).
@@ -982,7 +982,7 @@ class GridView:
     fill_color: Color  # Background fill color (Color). Drawn behind all tiles and entities.
     fov: Any  # FOV algorithm for this grid (FOV enum). Used by entity.updateVisibility() and layer methods when fov=None.
     fov_radius: int  # Default FOV radius for this grid (int). Used when radius is not specified.
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_data: Grid | None  # The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid.
     grid_h: int  # Grid height in cells (int, read-only).
@@ -1000,9 +1000,9 @@ class GridView:
     on_cell_enter: Callable | None  # Callback when mouse enters a grid cell (Callable | None). Called with (cell_pos: Vector).
     on_cell_exit: Callable | None  # Callback when mouse exits a grid cell (Callable | None). Called with (cell_pos: Vector).
     on_click: Callable | None  # Callable executed when object is clicked (Callable | None).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     origin: Any  # Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
     parent: Any  # Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -1013,7 +1013,7 @@ class GridView:
     rotation: Any  # Rotation angle in degrees (clockwise around origin). Animatable property.
     shader: Any  # Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
     size: Vector  # Size of the grid widget as Vector (Vector, width x height in pixels).
-    texture: Texture | None  # Texture used for tile rendering (Texture | None, read-only).
+    texture: None  # Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None.
     uniforms: Any  # Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/...
     vert_margin: float  # Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
     view: GridView | None  # Auto-created GridView for rendering (GridView | None, read-only). When Grid is appended to a scene, this view is what actually renders.
@@ -1044,19 +1044,19 @@ class GridView:
     def clear_dijkstra_maps(self) -> None:
         """Clear all cached Dijkstra maps. Call this after modifying grid cell walkability to ensure pathfinding uses updated walkability data."""
         ...
-    def compute_fov(self, pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None:
+    def compute_fov(self, pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None:
         """Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."""
         ...
     def entities_in_radius(self, pos: tuple | Vector, radius: float) -> list:
         """Query entities within radius using spatial hash (O(k) where k = nearby entities)."""
         ...
-    def find_path(self, start, end, diagonal_cost: float = 1.41, collide: str = None) -> AStarPath | None:
+    def find_path(self, start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0) -> AStarPath | None:
         """Compute A* path between two points. The returned AStarPath can be iterated or walked step-by-step."""
         ...
-    def get_dijkstra_map(self, root, diagonal_cost: float = 1.41, collide: str = None) -> DijkstraMap:
+    def get_dijkstra_map(self, root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap:
         """Get or create a cached Dijkstra distance map for a root position. Call clear_dijkstra_maps() after changing grid walkability to invalidate."""
         ...
-    def is_in_fov(self, pos) -> bool:
+    def is_in_fov(self, x: int, y: int) -> bool:
         """Check if a cell is in the field of view. Must call compute_fov() first to calculate visibility."""
         ...
     def layer(self, name: str) -> ColorLayer | TileLayer | None:
@@ -1218,10 +1218,10 @@ class Line:
     """A line UI element for drawing straight lines between two points."""
     def __init__(self, start=None, end=None, thickness=1.0, color=None, **kwargs) -> None: ...
     align: Any  # Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None ...
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     color: Any  # Line color as a Color object.
     end: Any  # Ending point of the line as a Vector.
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_pos: Vector  # Position in grid tile coordinates (Vector, only when parent is Grid).
     grid_size: Vector  # Size in grid tile coordinates (Vector, only when parent is Grid).
@@ -1229,10 +1229,10 @@ class Line:
     hovered: Any  # Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
     margin: float  # General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueErr...
     name: Any  # Name for finding this element.
-    on_click: Any  # Callable executed when line is clicked. Function receives (pos: Vector, button: str, action: str).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_click: Any  # Callable executed when line is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     origin: Any  # Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
     parent: Any  # Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -1459,8 +1459,8 @@ class Sprite:
     """A sprite UI element that displays a texture or portion of a texture atlas."""
     def __init__(self, pos=None, texture=None, sprite_index=0, **kwargs) -> None: ...
     align: Any  # Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None ...
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_pos: Vector  # Position in grid tile coordinates (Vector, only when parent is Grid).
     grid_size: Vector  # Size in grid tile coordinates (Vector, only when parent is Grid).
@@ -1468,10 +1468,10 @@ class Sprite:
     hovered: Any  # Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
     margin: float  # General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueErr...
     name: str  # Name for finding elements (str).
-    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     origin: Any  # Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
     parent: Any  # Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
@@ -1542,7 +1542,7 @@ class TileLayer:
         """Set a tile index for cells where the HeightMap value falls within a range."""
         ...
     def at(self, *args, **kwargs) -> Any:
-        """at(pos) or (x: int, y: int) -> int"""
+        """at(pos: tuple | Vector) or (x: int, y: int) -> int"""
         ...
     def fill(self, index: int) -> None:
         """Fill the entire layer with the specified tile index."""
@@ -1667,7 +1667,7 @@ class Viewport3D:
     """A 3D rendering viewport that displays a 3D scene as a UI element."""
     def __init__(self, pos=None, size=None, **kwargs) -> None: ...
     bg_color: Any  # Background clear color.
-    bounds: Any  # Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).
+    bounds: tuple  # Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     camera_pos: Any  # Camera position as (x, y, z) tuple.
     camera_target: Any  # Camera look-at target as (x, y, z) tuple.
     cell_size: Any  # World units per navigation grid cell.
@@ -1680,15 +1680,15 @@ class Viewport3D:
     fog_far: Any  # Fog end distance.
     fog_near: Any  # Fog start distance.
     fov: Any  # Camera field of view in degrees.
-    global_bounds: Any  # Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).
+    global_bounds: tuple  # Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
     global_position: Any  # Global screen position (read-only). Calculates absolute position by walking up the parent chain.
     grid_size: Any  # Navigation grid dimensions as (width, depth) tuple.
     h: Any  # Display height in pixels.
     hovered: Any  # Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.
-    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).
-    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds.
-    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds.
-    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called...
+    on_click: Any  # Callable executed when object is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState).
+    on_enter: Any  # Callback for mouse enter events. Called with (pos: Vector) when mouse enters this element's bounds.
+    on_exit: Any  # Callback for mouse exit events. Called with (pos: Vector) when mouse leaves this element's bounds.
+    on_move: Any  # Callback for mouse movement within bounds. Called with (pos: Vector) for each mouse movement while inside. Performance note: Called frequently during movemen...
     opacity: Any  # Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].
     parent: Any  # Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.
     pos: Any  # Position as Vector (x, y).
@@ -1980,8 +1980,8 @@ class _automation_module:
         """Move the mouse cursor to the specified position."""
         ...
     @staticmethod
-    def onScreen(pos: tuple | list | Vector) -> bool:
-        """Check if a position is within the screen bounds."""
+    def onScreen(self, *args, **kwargs) -> Any:
+        """onScreen(x: int, y: int) or (pos: tuple | list | Vector) -> bool"""
         ...
     @staticmethod
     def position() -> Vector:
@@ -2014,7 +2014,7 @@ class _automation_module:
 automation: _automation_module
 
 # --- Module-level functions ---------------------------------------------
-def bresenham(start, end, *, include_start=True, include_end=True) -> list[tuple[int, int]]:
+def bresenham(start, end, include_start=True, include_end=True) -> list[tuple[int, int]]:
     """Compute grid cells along a line using Bresenham's algorithm."""
     ...
 def end_benchmark() -> str:

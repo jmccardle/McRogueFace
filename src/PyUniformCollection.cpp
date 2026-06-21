@@ -121,7 +121,7 @@ PyMethodDef PyUniformCollectionType::methods[] = {
      MCRF_METHOD(UniformCollection, values,
          MCRF_SIG("()", "list"),
          MCRF_DESC("Return a list of all uniform values in this collection.")
-         MCRF_RETURNS("list of float or tuple: the values of all uniforms currently set")
+         MCRF_RETURNS("list[float | tuple | None]: values of all uniforms; PropertyBinding/CallableBinding entries are None if not yet evaluable")
      )},
     {"items", (PyCFunction)PyUniformCollectionType::items, METH_NOARGS,
      MCRF_METHOD(UniformCollection, items,

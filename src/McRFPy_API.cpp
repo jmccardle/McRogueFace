@@ -306,7 +306,7 @@ static PyMethodDef mcrfpyMethods[] = {
      MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
-         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds)")
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (number of grid cells rendered this frame), entities_rendered (number of entities rendered this frame), total_entities (total entity count across all grids)")
      )},
 
     {"set_dev_console", McRFPy_API::_setDevConsole, METH_VARARGS,
@@ -369,7 +369,7 @@ static PyMethodDef mcrfpyMethods[] = {
     // #215: Bresenham line algorithm (replaces mcrfpy.libtcod.line)
     {"bresenham", (PyCFunction)McRFPy_API::_bresenham, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(mcrfpy, bresenham,
-         MCRF_SIG("(start, end, *, include_start=True, include_end=True)", "list[tuple[int, int]]"),
+         MCRF_SIG("(start, end, include_start=True, include_end=True)", "list[tuple[int, int]]"),
          MCRF_DESC("Compute grid cells along a line using Bresenham's algorithm."),
          MCRF_ARGS_START
          MCRF_ARG("start", "(x, y) tuple or Vector - starting point")

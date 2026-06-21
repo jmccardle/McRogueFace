@@ -104,7 +104,7 @@ static PyGetSetDef PyDrawable_getsetters[] = {
     {"on_click", (getter)PyDrawable_get_click, (setter)PyDrawable_set_click,
      MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
-         "Function receives (pos: Vector, button: str, action: str)."
+         "Function receives (pos: Vector, button: MouseButton, action: InputState)."
      ), NULL},
     {"z_index", (getter)PyDrawable_get_z_index, (setter)PyDrawable_set_z_index,
      MCRF_PROPERTY(z_index,

@@ -974,6 +974,7 @@ PyMethodDef UIEntityCollection::methods[] = {
          MCRF_ARG("iterable", "Iterable of Entity objects to add")
          MCRF_RETURNS("None")
          MCRF_RAISES("TypeError", "If any item is not an Entity object")
+         MCRF_RAISES("RuntimeError", "If an Entity object in the iterable has invalid (null) internal state")
      )},
     {"insert", (PyCFunction)UIEntityCollection::insert, METH_VARARGS,
      MCRF_METHOD(EntityCollection, insert,
@@ -1021,7 +1022,7 @@ PyMethodDef UIEntityCollection::methods[] = {
      )},
     {"find", (PyCFunction)UIEntityCollection::find, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(EntityCollection, find,
-         MCRF_SIG("(name: str)", "Entity | list | None"),
+         MCRF_SIG("(name: str)", "Entity | list[Entity] | None"),
          MCRF_DESC("Find entities by name. Returns a single entity for exact matches or a list for wildcard patterns."),
          MCRF_ARGS_START
          MCRF_ARG("name", "Name to search for; supports wildcards: 'exact', 'prefix*', '*suffix', '*substring*'")

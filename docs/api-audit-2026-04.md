@@ -660,8 +660,8 @@ NoiseSource(dimensions=2, algorithm='simplex', hurst=0.5, lacunarity=2.0, seed=N
 
 | Methods | Signature |
 |---------|-----------|
-| `walk` | `() -> tuple` |
-| `peek` | `() -> tuple` |
+| `walk` | `() -> Vector` |
+| `peek` | `() -> Vector` |
 
 Protocols: `len`, `bool`, iteration
 
@@ -673,10 +673,10 @@ Protocols: `len`, `bool`, iteration
 
 | Methods | Signature |
 |---------|-----------|
-| `distance` | `(x, y) -> float` |
-| `path_from` | `(x, y) -> list` |
-| `step_from` | `(x, y) -> tuple` |
-| `to_heightmap` | `() -> HeightMap` |
+| `distance` | `(pos) -> float \| None` |
+| `path_from` | `(pos) -> AStarPath` |
+| `step_from` | `(pos) -> Vector \| None` |
+| `to_heightmap` | `(size=None, unreachable=-1.0) -> HeightMap` |
 
 ---
 

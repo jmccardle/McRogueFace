@@ -899,44 +899,51 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_ARG("y", "Row index (0-based)")
          MCRF_RETURNS("GridPoint: the cell at the given position")
          MCRF_RAISES("IndexError", "If x or y is out of range")
+         MCRF_NOTE("Also accepts a single positional tuple/list/Vector: at((x, y)) or at(vec), or keyword form: at(pos=(x, y)).")
      )},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Grid, compute_fov,
-         MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC)", "None"),
+         MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC)", "None"),
          MCRF_DESC("Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."),
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
          MCRF_ARG("radius", "Maximum view distance (0 = unlimited)")
          MCRF_ARG("light_walls", "Whether walls are lit when visible")
-         MCRF_ARG("algorithm", "FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)")
+         MCRF_ARG("algorithm", "FOV algorithm to use (FOV.BASIC, FOV.DIAMOND, FOV.SHADOW, FOV.PERMISSIVE_0-8)")
+         MCRF_RETURNS("None")
      )},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Grid, is_in_fov,
-         MCRF_SIG("(pos)", "bool"),
+         MCRF_SIG("(x: int, y: int)", "bool"),
          MCRF_DESC("Check if a cell is in the field of view. Must call compute_fov() first to calculate visibility."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("x", "Column index (0-based)")
+         MCRF_ARG("y", "Row index (0-based)")
          MCRF_RETURNS("True if the cell is visible, False otherwise")
+         MCRF_NOTE("Also accepts a single positional tuple/list/Vector: is_in_fov((x, y)) or is_in_fov(vec), or keyword form: is_in_fov(pos=(x, y)).")
      )},
     {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Grid, find_path,
-         MCRF_SIG("(start, end, diagonal_cost: float = 1.41, collide: str = None)", "AStarPath | None"),
+         MCRF_SIG("(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0)", "AStarPath | None"),
          MCRF_DESC("Compute A* path between two points. The returned AStarPath can be iterated or walked step-by-step."),
          MCRF_ARGS_START
          MCRF_ARG("start", "Starting position as Vector, Entity, or (x, y) tuple")
          MCRF_ARG("end", "Target position as Vector, Entity, or (x, y) tuple")
          MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
          MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
+         MCRF_ARG("heuristic", "Heuristic enum member, string name, or int (EUCLIDEAN=0, MANHATTAN=1, CHEBYSHEV=2). None uses default (Euclidean).")
+         MCRF_ARG("weight", "Heuristic weight multiplier. Values > 1.0 trade optimality for speed (weighted A*).")
          MCRF_RETURNS("AStarPath object if path exists, None otherwise")
      )},
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Grid, get_dijkstra_map,
-         MCRF_SIG("(root, diagonal_cost: float = 1.41, collide: str = None)", "DijkstraMap"),
+         MCRF_SIG("(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None)", "DijkstraMap"),
          MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. Call clear_dijkstra_maps() after changing grid walkability to invalidate."),
          MCRF_ARGS_START
-         MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple. Use 'root' for single-source maps (cached by position).")
          MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
          MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
+         MCRF_ARG("roots", "Sequence of root positions or a DiscreteMap mask for multi-source Dijkstra. Pass 'roots' instead of 'root' for multi-source maps (not cached).")
          MCRF_RETURNS("DijkstraMap object for querying distances and paths")
      )},
     {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
@@ -1024,44 +1031,51 @@ PyMethodDef UIGrid_all_methods[] = {
          MCRF_ARG("y", "Row index (0-based)")
          MCRF_RETURNS("GridPoint: the cell at the given position")
          MCRF_RAISES("IndexError", "If x or y is out of range")
+         MCRF_NOTE("Also accepts a single positional tuple/list/Vector: at((x, y)) or at(vec), or keyword form: at(pos=(x, y)).")
      )},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Grid, compute_fov,
-         MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC)", "None"),
+         MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC)", "None"),
          MCRF_DESC("Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."),
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
          MCRF_ARG("radius", "Maximum view distance (0 = unlimited)")
          MCRF_ARG("light_walls", "Whether walls are lit when visible")
-         MCRF_ARG("algorithm", "FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)")
+         MCRF_ARG("algorithm", "FOV algorithm to use (FOV.BASIC, FOV.DIAMOND, FOV.SHADOW, FOV.PERMISSIVE_0-8)")
+         MCRF_RETURNS("None")
      )},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Grid, is_in_fov,
-         MCRF_SIG("(pos)", "bool"),
+         MCRF_SIG("(x: int, y: int)", "bool"),
          MCRF_DESC("Check if a cell is in the field of view. Must call compute_fov() first to calculate visibility."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("x", "Column index (0-based)")
+         MCRF_ARG("y", "Row index (0-based)")
          MCRF_RETURNS("True if the cell is visible, False otherwise")
+         MCRF_NOTE("Also accepts a single positional tuple/list/Vector: is_in_fov((x, y)) or is_in_fov(vec), or keyword form: is_in_fov(pos=(x, y)).")
      )},
     {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Grid, find_path,
-         MCRF_SIG("(start, end, diagonal_cost: float = 1.41, collide: str = None)", "AStarPath | None"),
+         MCRF_SIG("(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0)", "AStarPath | None"),
          MCRF_DESC("Compute A* path between two points. The returned AStarPath can be iterated or walked step-by-step."),
          MCRF_ARGS_START
          MCRF_ARG("start", "Starting position as Vector, Entity, or (x, y) tuple")
          MCRF_ARG("end", "Target position as Vector, Entity, or (x, y) tuple")
          MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
          MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
+         MCRF_ARG("heuristic", "Heuristic enum member, string name, or int (EUCLIDEAN=0, MANHATTAN=1, CHEBYSHEV=2). None uses default (Euclidean).")
+         MCRF_ARG("weight", "Heuristic weight multiplier. Values > 1.0 trade optimality for speed (weighted A*).")
          MCRF_RETURNS("AStarPath object if path exists, None otherwise")
      )},
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Grid, get_dijkstra_map,
-         MCRF_SIG("(root, diagonal_cost: float = 1.41, collide: str = None)", "DijkstraMap"),
+         MCRF_SIG("(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None)", "DijkstraMap"),
          MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. Call clear_dijkstra_maps() after changing grid walkability to invalidate."),
          MCRF_ARGS_START
-         MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple. Use 'root' for single-source maps (cached by position).")
          MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
          MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
+         MCRF_ARG("roots", "Sequence of root positions or a DiscreteMap mask for multi-source Dijkstra. Pass 'roots' instead of 'root' for multi-source maps (not cached).")
          MCRF_RETURNS("DijkstraMap object for querying distances and paths")
      )},
     {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,

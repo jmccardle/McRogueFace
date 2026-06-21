@@ -259,21 +259,21 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
      ), (void*)type_enum}, \
     {"bounds", (getter)UIDrawable::get_bounds_py, NULL, \
      MCRF_PROPERTY(bounds, \
-         "Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height))." \
+         "Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height))." \
      ), (void*)type_enum}, \
     {"global_bounds", (getter)UIDrawable::get_global_bounds_py, NULL, \
      MCRF_PROPERTY(global_bounds, \
-         "Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height))." \
+         "Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height))." \
      ), (void*)type_enum}, \
     {"on_enter", (getter)UIDrawable::get_on_enter, (setter)UIDrawable::set_on_enter, \
      MCRF_PROPERTY(on_enter, \
          "Callback for mouse enter events. " \
-         "Called with (pos: Vector, button: str, action: str) when mouse enters this element's bounds." \
+         "Called with (pos: Vector) when mouse enters this element's bounds." \
      ), (void*)type_enum}, \
     {"on_exit", (getter)UIDrawable::get_on_exit, (setter)UIDrawable::set_on_exit, \
      MCRF_PROPERTY(on_exit, \
          "Callback for mouse exit events. " \
-         "Called with (pos: Vector, button: str, action: str) when mouse leaves this element's bounds." \
+         "Called with (pos: Vector) when mouse leaves this element's bounds." \
      ), (void*)type_enum}, \
     {"hovered", (getter)UIDrawable::get_hovered, NULL, \
      MCRF_PROPERTY(hovered, \
@@ -283,7 +283,7 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
     {"on_move", (getter)UIDrawable::get_on_move, (setter)UIDrawable::set_on_move, \
      MCRF_PROPERTY(on_move, \
          "Callback for mouse movement within bounds. " \
-         "Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. " \
+         "Called with (pos: Vector) for each mouse movement while inside. " \
          "Performance note: Called frequently during movement - keep handlers fast." \
      ), (void*)type_enum}
 

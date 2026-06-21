@@ -853,20 +853,22 @@ static PyMethodDef automationMethods[] = {
     {"position", McRFPy_Automation::_position, METH_NOARGS,
      MCRF_METHOD(automation, position,
          MCRF_SIG("()", "Vector"),
-         MCRF_DESC("Get the current mouse position as a Vector.")
+         MCRF_DESC("Get the current mouse position as a Vector."),
          MCRF_RETURNS("Vector: current mouse position in screen coordinates")
      )},
     {"size", McRFPy_Automation::_size, METH_NOARGS,
      MCRF_METHOD(automation, size,
          MCRF_SIG("()", "Vector"),
-         MCRF_DESC("Get the current screen (render target) size as a Vector.")
+         MCRF_DESC("Get the current screen (render target) size as a Vector."),
          MCRF_RETURNS("Vector: screen width and height in pixels")
      )},
     {"onScreen", (PyCFunction)McRFPy_Automation::_onScreen, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, onScreen,
-         MCRF_SIG("(pos: tuple | list | Vector)", "bool"),
+         MCRF_SIG("(x: int, y: int) or (pos: tuple | list | Vector)", "bool"),
          MCRF_DESC("Check if a position is within the screen bounds."),
          MCRF_ARGS_START
+         MCRF_ARG("x", "X coordinate (int), when passing two separate int arguments")
+         MCRF_ARG("y", "Y coordinate (int), when passing two separate int arguments")
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, or Vector")
          MCRF_RETURNS("True if the position is on screen, False otherwise")
      )},
@@ -951,6 +953,7 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARGS_START
          MCRF_ARG("clicks", "Number of scroll steps (positive = up, negative = down)")
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+         MCRF_NOTE("The x-coordinate of pos is currently unused; only the y-coordinate is applied to the scroll event position.")
      )},
     {"mouseDown", (PyCFunction)McRFPy_Automation::_mouseDown, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, mouseDown,

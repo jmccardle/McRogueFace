@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2026-06-21" "McRogueFace 0.2.7-prerelease-7drl2026-103-g39c2340" ""
+.TH "MCRFPY" "3" "2026-06-21" "McRogueFace 0.2.7-prerelease-7drl2026-104-g5725a4f" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2026-06-21 01:18:30\f[R]
+\f[I]Generated on 2026-06-21 06:42:31\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -148,7 +148,7 @@ Window
 .IP \[bu] 2
 Constants
 .SS Functions
-.SS \f[V]bresenham(start, end, *, include_start=True, include_end=True) -> list[tuple[int, int]]\f[R]
+.SS \f[V]bresenham(start, end, include_start=True, include_end=True) -> list[tuple[int, int]]\f[R]
 .PP
 Compute grid cells along a line using Bresenham\[cq]s algorithm.
 .PP
@@ -213,7 +213,14 @@ Get current performance metrics.
 frame duration in seconds), avg_frame_time (average frame time), fps
 (frames per second), draw_calls (number of draw calls), ui_elements
 (total UI element count), visible_elements (visible element count),
-current_frame (frame counter), runtime (total runtime in seconds)
+current_frame (frame counter), runtime (total runtime in seconds),
+grid_render_time (grid rendering time in ms), entity_render_time (entity
+rendering time in ms), fov_overlay_time (FOV overlay rendering time in
+ms), python_time (Python script execution time in ms), animation_time
+(animation processing time in ms), grid_cells_rendered (number of grid
+cells rendered this frame), entities_rendered (number of entities
+rendered this frame), total_entities (total entity count across all
+grids)
 .SS \f[V]lock() -> _LockContext\f[R]
 .PP
 Get a context manager for thread-safe UI updates from background
@@ -478,14 +485,15 @@ bounds (Alignment enum or None).
 When set, position is automatically calculated when parent is assigned
 or resized.
 Set to None to disable alignment and use manual positioning.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
 - \f[V]center\f[R]: Center position of the arc (Vector).
 - \f[V]color\f[R]: Arc fill color (Color).
 - \f[V]end_angle\f[R]: Ending angle in degrees (float).
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -505,16 +513,14 @@ Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
 - \f[V]name\f[R]: Name for finding this element (str).
 - \f[V]on_click\f[R]: Callable executed when arc is clicked.
-Function receives (pos: Vector, button: str, action: str).
+Function receives (pos: Vector, button: MouseButton, action:
+InputState).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
@@ -701,14 +707,17 @@ Remove all children, keeping only the root node with original bounds.
 WARNING: Invalidates all existing BSPNode references from this tree.
 .PP
 \f[B]Returns:\f[R] BSP: self, for method chaining
-.SS \f[V]find(pos: tuple[int, int]) -> BSPNode | None\f[R]
+.SS \f[V]find(pos: tuple[int, int] | list | Vector) -> BSPNode | None\f[R]
 .PP
 Find the smallest (deepest) node containing the position.
+.PP
+Note:
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
 Vector
 .PP
 \f[B]Returns:\f[R] BSPNode if found, None if position is outside bounds
+Also accepts two separate int arguments: find(x, y)
 .SS \f[V]get_leaf(index: int) -> BSPNode\f[R]
 .PP
 Get a leaf node by its index (0 to len(bsp)-1).
@@ -739,7 +748,7 @@ horizontal=False creates a vertical divider, producing left/right rooms.
 Split coordinate (y for horizontal, x for vertical)
 .PP
 \f[B]Returns:\f[R] BSP: self, for method chaining
-.SS \f[V]split_recursive(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int = None) -> BSP\f[R]
+.SS \f[V]split_recursive(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int | None = None) -> BSP\f[R]
 .PP
 Recursively split to the specified depth.
 WARNING: Invalidates all existing BSPNode references from this tree.
@@ -754,7 +763,7 @@ Default: 1.5.
 None for random.
 .PP
 \f[B]Returns:\f[R] BSP: self, for method chaining
-.SS \f[V]to_heightmap(size: tuple[int, int] = None, select: str = \[aq]leaves\[aq], shrink: int = 0, value: float = 1.0) -> HeightMap\f[R]
+.SS \f[V]to_heightmap(size: tuple[int, int] | None = None, select: str = \[aq]leaves\[aq], shrink: int = 0, value: float = 1.0) -> HeightMap\f[R]
 .PP
 Convert BSP node selection to a HeightMap.
 .PP
@@ -967,16 +976,17 @@ bounds (Alignment enum or None).
 When set, position is automatically calculated when parent is assigned
 or resized.
 Set to None to disable alignment and use manual positioning.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
 - \f[V]fill_color\f[R]: Fill color of the text (Color).
 Returns a copy; modifying components requires reassignment.
 For animation, use `fill_color.r', `fill_color.g', etc.
 - \f[V]font_size\f[R]: Font size in points (int).
 Clamped to the range [0, 65535].
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -998,16 +1008,14 @@ Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
 - \f[V]name\f[R]: Name for finding elements (str).
 - \f[V]on_click\f[R]: Callable executed when object is clicked.
-Function receives (pos: Vector, button: str, action: str).
+Function receives (pos: Vector, button: MouseButton, action:
+InputState).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
@@ -1144,13 +1152,14 @@ bounds (Alignment enum or None).
 When set, position is automatically calculated when parent is assigned
 or resized.
 Set to None to disable alignment and use manual positioning.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
 - \f[V]center\f[R]: Center position of the circle (Vector).
 - \f[V]fill_color\f[R]: Fill color of the circle (Color).
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -1171,16 +1180,14 @@ Invalid for CENTER alignment (raises ValueError).
 - \f[V]name\f[R]: Name for finding this element (str).
 - \f[V]on_click\f[R]: Callable executed when circle is clicked (Callable
 | None).
-Function receives (pos: Vector, button: str, action: str).
+Function receives (pos: Vector, button: MouseButton, action:
+InputState).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
@@ -1401,7 +1408,7 @@ layer dimensions) - \f[V]range\f[R]: Value range as (min, max) inclusive
 Color at range maximum
 .PP
 \f[B]Returns:\f[R] self for method chaining
-.SS \f[V]apply_perspective(entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None\f[R]
+.SS \f[V]apply_perspective(entity: Entity, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None\f[R]
 .PP
 Bind this layer to an entity for automatic FOV updates.
 After binding, call update_perspective() when the entity moves.
@@ -1434,7 +1441,7 @@ layer dimensions) - \f[V]range\f[R]: Value range as (min, max) inclusive
 range
 .PP
 \f[B]Returns:\f[R] self for method chaining
-.SS \f[V]at(pos) or (x: int, y: int) -> Color\f[R]
+.SS \f[V]at(pos: tuple | Vector) or (x: int, y: int) -> Color\f[R]
 .PP
 Get the color at a cell position.
 .PP
@@ -1447,7 +1454,7 @@ Vector; or pass x and y separately
 .SS \f[V]clear_perspective() -> None\f[R]
 .PP
 Remove the perspective binding from this layer.
-.SS \f[V]draw_fov(source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None\f[R]
+.SS \f[V]draw_fov(source: tuple, radius: int | None = None, fov: FOV | None = None, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None\f[R]
 .PP
 Paint cells based on field-of-view visibility from a source position.
 .PP
@@ -1813,7 +1820,8 @@ Base class for all drawable UI elements
 .PP
 \f[B]Properties:\f[R] - \f[V]on_click\f[R]: Callable executed when
 object is clicked.
-Function receives (pos: Vector, button: str, action: str).
+Function receives (pos: Vector, button: MouseButton, action:
+InputState).
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
 Automatically clamped to valid range [0.0, 1.0].
 - \f[V]visible\f[R]: Whether the object is visible (bool).
@@ -2058,23 +2066,25 @@ Note:
 .PP
 \f[B]Arguments:\f[R] - \f[V]property\f[R]: Name of the property to
 animate: `draw_x', `draw_y' (tile coords), `sprite_scale',
-`sprite_index' - \f[V]target\f[R]: Target value - float, int, or list of
-int (for sprite frame sequences) - \f[V]duration\f[R]: Animation
-duration in seconds - \f[V]easing\f[R]: Easing function: Easing enum
-value, string name, or None for linear - \f[V]delta\f[R]: If True,
-target is relative to current value; if False, target is absolute -
-\f[V]loop\f[R]: If True, animation repeats from start when it reaches
-the end (default False) - \f[V]callback\f[R]: Optional callable invoked
-when animation completes (not called for looping animations) -
-\f[V]conflict_mode\f[R]: `replace' (default), `queue', or `error' if
-property already animating
+`sprite_index', `sprite_offset_x', `sprite_offset_y' - \f[V]target\f[R]:
+Target value - float, int, or list of int (for sprite frame sequences) -
+\f[V]duration\f[R]: Animation duration in seconds - \f[V]easing\f[R]:
+Easing function: Easing enum value, string name, or None for linear -
+\f[V]delta\f[R]: If True, target is relative to current value; if False,
+target is absolute - \f[V]loop\f[R]: If True, animation repeats from
+start when it reaches the end (default False) - \f[V]callback\f[R]:
+Optional callable invoked when animation completes (not called for
+looping animations) - \f[V]conflict_mode\f[R]: `replace' (default),
+`queue', or `error' if property already animating
 .PP
 \f[B]Returns:\f[R] Animation object for monitoring progress
 .PP
 \f[B]Raises:\f[R] ValueError: If property name is not valid for Entity
-(draw_x, draw_y, sprite_scale, sprite_index) Use `draw_x'/`draw_y' to
-animate tile coordinates for smooth movement between grid cells.
+(draw_x, draw_y, sprite_scale, sprite_index, sprite_offset_x,
+sprite_offset_y) Use `draw_x'/`draw_y' to animate tile coordinates for
+smooth movement between grid cells.
 Use list target with loop=True for repeating sprite frame animations.
+`x' and `y' are accepted as aliases for `draw_x' and `draw_y'.
 .SS \f[V]at(x: int, y: int) -> GridPoint | None\f[R]
 .PP
 Return the GridPoint at (x, y) if currently VISIBLE to this entity\[cq]s
@@ -2184,18 +2194,22 @@ Note:
 .PP
 \f[B]Returns:\f[R] None Called automatically when the entity moves if
 the grid has FOV configured.
-.SS \f[V]visible_entities(fov=None, radius: int = None) -> list[Entity]\f[R]
+.SS \f[V]visible_entities(fov=None, radius: int = -1) -> list[Entity]\f[R]
 .PP
 Get list of other entities visible from this entity\[cq]s position.
 .PP
+Note:
+.PP
 \f[B]Arguments:\f[R] - \f[V]fov\f[R]: FOV algorithm to use (FOV enum or
-None to use grid.fov) - \f[V]radius\f[R]: FOV radius (int or None to use
-grid.fov_radius)
+None to use grid.fov) - \f[V]radius\f[R]: FOV radius as int; omit or
+pass -1 to use the grid\[cq]s default fov_radius
 .PP
 \f[B]Returns:\f[R] List of Entity objects within field of view,
 excluding self
 .PP
 \f[B]Raises:\f[R] ValueError: If entity is not associated with a grid
+radius does not accept None; omit the argument entirely to use the grid
+default.
 .SS Entity3D
 .PP
 Entity3D(pos=None, **kwargs)
@@ -2469,8 +2483,9 @@ bounds (Alignment enum or None).
 When set, position is automatically calculated when parent is assigned
 or resized.
 Set to None to disable alignment and use manual positioning.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
 - \f[V]cache_subtree\f[R]: Cache the frame and all children to a render
 texture for performance (bool).
 Useful for complex static subtrees.
@@ -2483,9 +2498,9 @@ Enables render-texture mode when True.
 - \f[V]fill_color\f[R]: Fill color of the rectangle (Color).
 Returns a copy; modifying components requires reassignment.
 For animation, use `fill_color.r', `fill_color.g', etc.
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -2506,16 +2521,14 @@ Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
 - \f[V]name\f[R]: Name for finding elements (str).
 - \f[V]on_click\f[R]: Callable executed when object is clicked.
-Function receives (pos: Vector, button: str, action: str).
+Function receives (pos: Vector, button: MouseButton, action:
+InputState).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
@@ -2643,18 +2656,19 @@ bounds (Alignment enum or None).
 When set, position is automatically calculated when parent is assigned
 or resized.
 Set to None to disable alignment and use manual positioning.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
 - \f[V]camera_rotation\f[R]: Rotation of grid contents around camera
 center in degrees (float).
-- \f[V]center\f[R]: Camera center point in pixel coordinates (tuple).
+- \f[V]center\f[R]: Camera center point in pixel coordinates (Vector).
 - \f[V]center_x\f[R]: Camera center X-coordinate in pixel space (float).
 - \f[V]center_y\f[R]: Camera center Y-coordinate in pixel space (float).
 - \f[V]fill_color\f[R]: Background fill color (Color).
 Drawn behind all tiles and entities.
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -2675,14 +2689,11 @@ Invalid for CENTER alignment (raises ValueError).
 - \f[V]on_click\f[R]: Callable executed when object is clicked (Callable
 | None).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
@@ -2706,7 +2717,8 @@ Animatable property.
 When set, the drawable is rendered through the shader program.
 Set to None to disable shader effects.
 - \f[V]texture\f[R] \f[I](read-only)\f[R]: Texture used for tile
-rendering (Texture | None, read-only).
+rendering (None, read-only).
+Texture return is not yet implemented; always returns None.
 - \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
 uniforms (read-only access to collection).
 Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
@@ -2809,18 +2821,19 @@ bounds (Alignment enum or None).
 When set, position is automatically calculated when parent is assigned
 or resized.
 Set to None to disable alignment and use manual positioning.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
 - \f[V]camera_rotation\f[R]: Rotation of grid contents around camera
 center in degrees (float).
-- \f[V]center\f[R]: Camera center point in pixel coordinates (tuple).
+- \f[V]center\f[R]: Camera center point in pixel coordinates (Vector).
 - \f[V]center_x\f[R]: Camera center X-coordinate in pixel space (float).
 - \f[V]center_y\f[R]: Camera center Y-coordinate in pixel space (float).
 - \f[V]fill_color\f[R]: Background fill color (Color).
 Drawn behind all tiles and entities.
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -2841,14 +2854,11 @@ Invalid for CENTER alignment (raises ValueError).
 - \f[V]on_click\f[R]: Callable executed when object is clicked (Callable
 | None).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
@@ -2872,7 +2882,8 @@ Animatable property.
 When set, the drawable is rendered through the shader program.
 Set to None to disable shader effects.
 - \f[V]texture\f[R] \f[I](read-only)\f[R]: Texture used for tile
-rendering (Texture | None, read-only).
+rendering (None, read-only).
+Texture return is not yet implemented; always returns None.
 - \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
 uniforms (read-only access to collection).
 Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
@@ -3666,13 +3677,14 @@ bounds (Alignment enum or None).
 When set, position is automatically calculated when parent is assigned
 or resized.
 Set to None to disable alignment and use manual positioning.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
 - \f[V]color\f[R]: Line color as a Color object.
 - \f[V]end\f[R]: Ending point of the line as a Vector.
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -3692,16 +3704,14 @@ Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
 - \f[V]name\f[R]: Name for finding this element.
 - \f[V]on_click\f[R]: Callable executed when line is clicked.
-Function receives (pos: Vector, button: str, action: str).
+Function receives (pos: Vector, button: MouseButton, action:
+InputState).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
@@ -4527,11 +4537,12 @@ bounds (Alignment enum or None).
 When set, position is automatically calculated when parent is assigned
 or resized.
 Set to None to disable alignment and use manual positioning.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -4551,16 +4562,14 @@ Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
 - \f[V]name\f[R]: Name for finding elements (str).
 - \f[V]on_click\f[R]: Callable executed when object is clicked.
-Function receives (pos: Vector, button: str, action: str).
+Function receives (pos: Vector, button: MouseButton, action:
+InputState).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).
@@ -4837,7 +4846,7 @@ layer dimensions) - \f[V]range\f[R]: Value range as (min, max) inclusive
 - \f[V]tile\f[R]: Tile index to set for cells in range
 .PP
 \f[B]Returns:\f[R] self for method chaining
-.SS \f[V]at(pos) or (x: int, y: int) -> int\f[R]
+.SS \f[V]at(pos: tuple | Vector) or (x: int, y: int) -> int\f[R]
 .PP
 Get the tile index at a cell position.
 Returns -1 if no tile is set.
@@ -5459,8 +5468,9 @@ Default: 10 fog_far (float): Fog end distance.
 Default: 100
 .PP
 \f[B]Properties:\f[R] - \f[V]bg_color\f[R]: Background clear color.
-- \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding box
+(tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y),
+Vector(width, height)).
 - \f[V]camera_pos\f[R]: Camera position as (x, y, z) tuple.
 - \f[V]camera_target\f[R]: Camera look-at target as (x, y, z) tuple.
 - \f[V]cell_size\f[R]: World units per navigation grid cell.
@@ -5477,9 +5487,9 @@ Use append/remove to modify.
 - \f[V]fog_far\f[R]: Fog end distance.
 - \f[V]fog_near\f[R]: Fog start distance.
 - \f[V]fov\f[R]: Camera field of view in degrees.
-- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
-in screen coordinates.
-Returns (Vector(x, y), Vector(width, height)).
+- \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding
+box in screen coordinates (tuple, read-only) as a (pos, size) pair of
+Vectors: (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
@@ -5490,16 +5500,14 @@ tuple.
 over this element (read-only).
 Updated automatically by the engine during mouse movement.
 - \f[V]on_click\f[R]: Callable executed when object is clicked.
-Function receives (pos: Vector, button: str, action: str).
+Function receives (pos: Vector, button: MouseButton, action:
+InputState).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
-Called with (pos: Vector, button: str, action: str) when mouse enters
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse enters this element\[cq]s bounds.
 - \f[V]on_exit\f[R]: Callback for mouse exit events.
-Called with (pos: Vector, button: str, action: str) when mouse leaves
-this element\[cq]s bounds.
+Called with (pos: Vector) when mouse leaves this element\[cq]s bounds.
 - \f[V]on_move\f[R]: Callback for mouse movement within bounds.
-Called with (pos: Vector, button: str, action: str) for each mouse
-movement while inside.
+Called with (pos: Vector) for each mouse movement while inside.
 Performance note: Called frequently during movement - keep handlers
 fast.
 - \f[V]opacity\f[R]: Opacity level (0.0 = transparent, 1.0 = opaque).

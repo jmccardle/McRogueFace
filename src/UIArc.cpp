@@ -506,7 +506,7 @@ PyGetSetDef UIArc::getsetters[] = {
     {"thickness", (getter)UIArc::get_thickness, (setter)UIArc::set_thickness,
      MCRF_PROPERTY(thickness, "Line thickness in pixels (float)."), NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     MCRF_PROPERTY(on_click, "Callable executed when arc is clicked. Function receives (pos: Vector, button: str, action: str)."), (void*)PyObjectsEnum::UIARC},
+     MCRF_PROPERTY(on_click, "Callable executed when arc is clicked. Function receives (pos: Vector, button: MouseButton, action: InputState)."), (void*)PyObjectsEnum::UIARC},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
      MCRF_PROPERTY(z_index, "Z-order for rendering (int, lower values rendered first)."), (void*)PyObjectsEnum::UIARC},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,

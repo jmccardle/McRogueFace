@@ -143,7 +143,7 @@ PyGetSetDef UIGridPoint::getsetters[] = {
     {"entities", (getter)UIGridPoint::get_entities, NULL,
      MCRF_PROPERTY(entities, "List of Entity objects currently occupying this cell (list, read-only)."), NULL},
     {"grid_pos", (getter)UIGridPoint::get_grid_pos, NULL,
-     MCRF_PROPERTY(grid_pos, "Grid coordinates as (x, y) tuple (read-only)."), NULL},
+     MCRF_PROPERTY(grid_pos, "Grid coordinates as an (x, y) position (tuple, read-only)."), NULL},
     {NULL}  /* Sentinel */
 };
 

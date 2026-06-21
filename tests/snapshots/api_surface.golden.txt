@@ -3,7 +3,7 @@
 # Singleton/constant VALUES are intentionally NOT captured.
 
 === MODULE FUNCTIONS (12) ===
-func bresenham :: bresenham(start, end, *, include_start=True, include_end=True) -> list[tuple[int, int]]
+func bresenham :: bresenham(start, end, include_start=True, include_end=True) -> list[tuple[int, int]]
 func end_benchmark :: end_benchmark() -> str
 func exit :: exit() -> None
 func find :: find(name: str, scene: str = None) -> UIDrawable | None
@@ -253,11 +253,11 @@ submodule automation
   meth walk :: walk() -> Vector
 [Arc]
   prop align: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop center: Vector (rw)
   prop color: Color (rw)
   prop end_angle: float (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_pos: Vector (rw)
   prop grid_size: Vector (rw)
@@ -292,19 +292,19 @@ submodule automation
   prop root: Any (ro)
   prop size: Any (ro)
   meth clear :: clear() -> BSP
-  meth find :: find(pos: tuple[int, int]) -> BSPNode | None
+  meth find :: find(pos: tuple[int, int] | list | Vector) -> BSPNode | None
   meth get_leaf :: get_leaf(index: int) -> BSPNode
   meth leaves :: leaves() -> Iterator[BSPNode]
   meth split_once :: split_once(horizontal: bool, position: int) -> BSP
-  meth split_recursive :: split_recursive(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int = None) -> BSP
-  meth to_heightmap :: to_heightmap(size: tuple[int, int] = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0) -> HeightMap
+  meth split_recursive :: split_recursive(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int | None = None) -> BSP
+  meth to_heightmap :: to_heightmap(size: tuple[int, int] | None = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0) -> HeightMap
   meth traverse :: traverse(order: Traversal = Traversal.LEVEL_ORDER) -> Iterator[BSPNode]
 [Caption]
   prop align: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop fill_color: Color (rw)
   prop font_size: int (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_pos: Vector (rw)
   prop grid_size: Vector (rw)
@@ -341,10 +341,10 @@ submodule automation
   meth resize :: resize(width, height) or (size) -> None
 [Circle]
   prop align: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop center: Vector (rw)
   prop fill_color: Color (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_pos: Vector (rw)
   prop grid_size: Vector (rw)
@@ -387,12 +387,12 @@ submodule automation
   prop visible: bool (rw)
   prop z_index: int (rw)
   meth apply_gradient :: apply_gradient(source: HeightMap, range: tuple, color_low: Color, color_high: Color) -> ColorLayer
-  meth apply_perspective :: apply_perspective(entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None
+  meth apply_perspective :: apply_perspective(entity: Entity, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None
   meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> ColorLayer
   meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, color: Color) -> ColorLayer
-  meth at :: at(pos) or (x: int, y: int) -> Color
+  meth at :: at(pos: tuple | Vector) or (x: int, y: int) -> Color
   meth clear_perspective :: clear_perspective() -> None
-  meth draw_fov :: draw_fov(source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None
+  meth draw_fov :: draw_fov(source: tuple, radius: int | None = None, fov: FOV | None = None, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None
   meth fill :: fill(color: Color) -> None
   meth fill_rect :: fill_rect(pos: tuple, size: tuple, color: Color) -> None
   meth set :: set(pos, color: Color) -> None
@@ -487,18 +487,18 @@ submodule automation
   meth resize :: resize(width, height) or (size) -> None
   meth set_behavior :: set_behavior(type, waypoints=None, turns: int = 0, path=None, pathfinder=None) -> None
   meth update_visibility :: update_visibility() -> None
-  meth visible_entities :: visible_entities(fov=None, radius: int = None) -> list[Entity]
+  meth visible_entities :: visible_entities(fov=None, radius: int = -1) -> list[Entity]
 [Font]
   prop family: str (ro)
   prop source: str (ro)
 [Frame]
   prop align: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop cache_subtree: bool (rw)
   prop children: UICollection (ro)
   prop clip_children: bool (rw)
   prop fill_color: Color (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_pos: Vector (rw)
   prop grid_size: Vector (rw)
@@ -533,13 +533,13 @@ submodule automation
   meth resize :: resize(width, height) or (size) -> None
 [Grid]
   prop align: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop camera_rotation: float (rw)
-  prop center: tuple (rw)
+  prop center: Vector (rw)
   prop center_x: float (rw)
   prop center_y: float (rw)
   prop fill_color: Color (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_data: Grid | None (rw)
   prop h: float (rw)
@@ -558,7 +558,7 @@ submodule automation
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
-  prop texture: Texture | None (ro)
+  prop texture: None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
@@ -573,13 +573,13 @@ submodule automation
   meth resize :: resize(width, height) or (size) -> None
 [GridView]
   prop align: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop camera_rotation: float (rw)
-  prop center: tuple (rw)
+  prop center: Vector (rw)
   prop center_x: float (rw)
   prop center_y: float (rw)
   prop fill_color: Color (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_data: Grid | None (rw)
   prop h: float (rw)
@@ -598,7 +598,7 @@ submodule automation
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
-  prop texture: Texture | None (ro)
+  prop texture: None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
@@ -655,10 +655,10 @@ submodule automation
   prop system: Any (ro)
 [Line]
   prop align: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop color: Any (rw)
   prop end: Any (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_pos: Vector (rw)
   prop grid_size: Vector (rw)
@@ -764,8 +764,8 @@ submodule automation
   meth tone :: tone(frequency: float, duration: float, waveform: str = 'sine', ...) -> SoundBuffer
 [Sprite]
   prop align: Any (rw)
-  prop bounds: Any (rw)
-  prop global_bounds: Any (rw)
+  prop bounds: tuple (ro)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_pos: Vector (rw)
   prop grid_size: Vector (rw)
@@ -822,7 +822,7 @@ submodule automation
   prop z_index: int (rw)
   meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> TileLayer
   meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, tile: int) -> TileLayer
-  meth at :: at(pos) or (x: int, y: int) -> int
+  meth at :: at(pos: tuple | Vector) or (x: int, y: int) -> int
   meth fill :: fill(index: int) -> None
   meth fill_rect :: fill_rect(pos: tuple, size: tuple, index: int) -> None
   meth set :: set(pos, index: int) -> None
@@ -989,7 +989,7 @@ submodule automation
   meth wang_set :: wang_set(name: str) -> WangSet
 [Viewport3D]
   prop bg_color: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop camera_pos: Any (rw)
   prop camera_target: Any (rw)
   prop cell_size: Any (rw)
@@ -1002,7 +1002,7 @@ submodule automation
   prop fog_far: Any (rw)
   prop fog_near: Any (rw)
   prop fov: Any (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_size: Any (rw)
   prop h: Any (rw)
@@ -1105,7 +1105,7 @@ submodule automation
 === INTERNAL TYPES (reached via live instances) ===
 [_GridData]
   prop align: Any (rw)
-  prop bounds: Any (rw)
+  prop bounds: tuple (ro)
   prop camera_rotation: float (rw)
   prop center: Vector (rw)
   prop center_x: float (rw)
@@ -1115,7 +1115,7 @@ submodule automation
   prop fill_color: Color (rw)
   prop fov: Any (rw)
   prop fov_radius: int (rw)
-  prop global_bounds: Any (rw)
+  prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
   prop grid_h: int (ro)
   prop grid_pos: Vector (rw)
@@ -1162,11 +1162,11 @@ submodule automation
   meth at :: at(x: int, y: int) -> GridPoint
   meth center_camera :: center_camera(pos: tuple = None) -> None
   meth clear_dijkstra_maps :: clear_dijkstra_maps() -> None
-  meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None
+  meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None
   meth entities_in_radius :: entities_in_radius(pos: tuple | Vector, radius: float) -> list
-  meth find_path :: find_path(start, end, diagonal_cost: float = 1.41, collide: str = None) -> AStarPath | None
-  meth get_dijkstra_map :: get_dijkstra_map(root, diagonal_cost: float = 1.41, collide: str = None) -> DijkstraMap
-  meth is_in_fov :: is_in_fov(pos) -> bool
+  meth find_path :: find_path(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0) -> AStarPath | None
+  meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
+  meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
   meth move :: move(dx, dy) or (delta) -> None
   meth realign :: realign() -> None
@@ -1175,14 +1175,14 @@ submodule automation
   meth step :: step(n: int = 1, turn_order: int = None) -> None
 [GridPoint]
   prop entities: list (ro)
-  prop grid_pos: Any (ro)
+  prop grid_pos: tuple (ro)
   prop transparent: bool (rw)
   prop walkable: bool (rw)
 [EntityCollection]
   meth append :: append(entity: Entity) -> None
   meth count :: count(entity: Entity) -> int
   meth extend :: extend(iterable) -> None
-  meth find :: find(name: str) -> Entity | list | None
+  meth find :: find(name: str) -> Entity | list[Entity] | None
   meth index :: index(entity: Entity) -> int
   meth insert :: insert(index: int, entity: Entity) -> None
   meth pop :: pop(index: int = -1) -> Entity
@@ -1190,7 +1190,7 @@ submodule automation
 [UICollection]
   meth append :: append(element: Drawable) -> None
   meth count :: count(element: Drawable) -> int
-  meth extend :: extend(iterable) -> None
+  meth extend :: extend(iterable: Iterable[Drawable]) -> None
   meth find :: find(name: str, recursive: bool = False) -> Drawable | list | None
   meth index :: index(element: Drawable) -> int
   meth insert :: insert(index: int, element: Drawable) -> None
@@ -1215,7 +1215,7 @@ func mouseDown :: mouseDown(pos: tuple | list | Vector | None = None, button: st
 func mouseUp :: mouseUp(pos: tuple | list | Vector | None = None, button: str = 'left') -> None
 func moveRel :: moveRel(offset: tuple | list | Vector, duration: float = 0.0) -> None
 func moveTo :: moveTo(pos: tuple | list | Vector, duration: float = 0.0) -> None
-func onScreen :: onScreen(pos: tuple | list | Vector) -> bool
+func onScreen :: onScreen(x: int, y: int) or (pos: tuple | list | Vector) -> bool
 func position :: position() -> Vector
 func rightClick :: rightClick(pos: tuple | list | Vector | None = None) -> None
 func screenshot :: screenshot(filename: str) -> bool
