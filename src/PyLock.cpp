@@ -2,6 +2,7 @@
 #include "PyLock.h"
 #include "GameEngine.h"
 #include "Resources.h"
+#include "McRFPy_Doc.h"
 
 // Forward declarations
 static PyObject* PyLockContext_enter(PyLockContextObject* self, PyObject* args);
@@ -12,9 +13,18 @@ static PyObject* PyLockContext_new(PyTypeObject* type, PyObject* args, PyObject*
 // Context manager methods
 static PyMethodDef PyLockContext_methods[] = {
     {"__enter__", (PyCFunction)PyLockContext_enter, METH_NOARGS,
-     "Acquire the frame lock, blocking until safe window opens"},
+     MCRF_METHOD(LockContext, __enter__,
+         MCRF_SIG("()", "_LockContext"),
+         MCRF_DESC("Acquire the frame lock, blocking until a safe window opens. No-op on the main thread."),
+         MCRF_RETURNS("self, for use in a `with` statement")
+         MCRF_RAISES("RuntimeError", "If the game engine is not initialized")
+     )},
     {"__exit__", (PyCFunction)PyLockContext_exit, METH_VARARGS,
-     "Release the frame lock"},
+     MCRF_METHOD(LockContext, __exit__,
+         MCRF_SIG("(exc_type, exc_val, exc_tb)", "bool"),
+         MCRF_DESC("Release the frame lock. Does not suppress exceptions."),
+         MCRF_RETURNS("False, so any active exception propagates normally")
+     )},
     {NULL}
 };
 

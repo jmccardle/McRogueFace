@@ -9,6 +9,7 @@
 #include "PyAlignment.h"
 #include "PyShader.h"  // #106: Shader support
 #include "PyUniformCollection.h"  // #106: Uniform collection support
+#include "McRFPy_Doc.h"
 // UIDrawable methods now in UIBase.h
 
 UIDrawable* UISprite::click_at(sf::Vector2f point)
@@ -416,13 +417,27 @@ PyMethodDef UISprite_methods[] = {
 };
 
 PyGetSetDef UISprite::getsetters[] = {
-    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "X coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UISPRITE << 8 | 0)},
-    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "Y coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UISPRITE << 8 | 1)},
-    {"scale", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Uniform size factor",                   (void*)2},
-    {"scale_x", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Horizontal scale factor",         (void*)3},
-    {"scale_y", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member, "Vertical scale factor",           (void*)4},
-    {"sprite_index", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member, "Which sprite on the texture is shown", NULL},
-    {"texture", (getter)UISprite::get_texture, (setter)UISprite::set_texture,     "Texture object",                    NULL},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(x, "X coordinate of top-left corner (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UISPRITE << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(y, "Y coordinate of top-left corner (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UISPRITE << 8 | 1)},
+    {"scale", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member,
+     MCRF_PROPERTY(scale, "Uniform size factor (float). Sets both horizontal and vertical scale to the same value."),
+     (void*)2},
+    {"scale_x", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member,
+     MCRF_PROPERTY(scale_x, "Horizontal scale factor (float)."),
+     (void*)3},
+    {"scale_y", (getter)UISprite::get_float_member, (setter)UISprite::set_float_member,
+     MCRF_PROPERTY(scale_y, "Vertical scale factor (float)."),
+     (void*)4},
+    {"sprite_index", (getter)UISprite::get_int_member, (setter)UISprite::set_int_member,
+     MCRF_PROPERTY(sprite_index, "Which sprite on the texture is shown (int). Index into the texture atlas; must be in range [0, sprite_count)."),
+     NULL},
+    {"texture", (getter)UISprite::get_texture, (setter)UISprite::set_texture,
+     MCRF_PROPERTY(texture, "Texture object (Texture). The texture atlas from which sprites are drawn."),
+     NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
@@ -433,10 +448,18 @@ PyGetSetDef UISprite::getsetters[] = {
          "Z-order for rendering (lower values rendered first). "
          "Automatically triggers scene resort when changed."
      ), (void*)PyObjectsEnum::UISPRITE},
-    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UISPRITE},
-    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UISPRITE},
-    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UISPRITE},
-    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UISPRITE},
+    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,
+     MCRF_PROPERTY(name, "Name for finding elements (str)."),
+     (void*)PyObjectsEnum::UISPRITE},
+    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
+     MCRF_PROPERTY(pos, "Position as a Vector (Vector)."),
+     (void*)PyObjectsEnum::UISPRITE},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
+     MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector, only when parent is Grid)."),
+     (void*)PyObjectsEnum::UISPRITE},
+    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size,
+     MCRF_PROPERTY(grid_size, "Size in grid tile coordinates (Vector, only when parent is Grid)."),
+     (void*)PyObjectsEnum::UISPRITE},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UISPRITE),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UISPRITE),

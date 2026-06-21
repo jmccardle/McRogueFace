@@ -1,4 +1,5 @@
 #include "GridLayers.h"
+#include "McRFPy_Doc.h"
 #include "UIGrid.h"
 #include "UIGridView.h"
 #include "UIEntity.h"
@@ -699,117 +700,121 @@ void TileLayer::render(sf::RenderTarget& target,
 
 PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
     {"at", (PyCFunction)PyGridLayerAPI::ColorLayer_at, METH_VARARGS | METH_KEYWORDS,
-     "at(pos) -> Color\nat(x, y) -> Color\n\n"
-     "Get the color at cell position.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n"
-     "    x, y: Position as separate integer arguments"},
+     MCRF_METHOD(ColorLayer, at,
+         MCRF_SIG("(pos) or (x: int, y: int)", "Color"),
+         MCRF_DESC("Get the color at a cell position.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector; or pass x and y separately")
+         MCRF_RETURNS("Color at the specified cell")
+         MCRF_RAISES("IndexError", "If coordinates are out of bounds")
+     )},
     {"set", (PyCFunction)PyGridLayerAPI::ColorLayer_set, METH_VARARGS,
-     "set(pos, color)\n\n"
-     "Set the color at cell position.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n"
-     "    color: Color object or (r, g, b[, a]) tuple"},
+     MCRF_METHOD(ColorLayer, set,
+         MCRF_SIG("(pos, color: Color)", "None"),
+         MCRF_DESC("Set the color at a cell position.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("color", "Color object or (r, g, b[, a]) tuple")
+         MCRF_RAISES("IndexError", "If coordinates are out of bounds")
+     )},
     {"fill", (PyCFunction)PyGridLayerAPI::ColorLayer_fill, METH_VARARGS,
-     "fill(color)\n\nFill the entire layer with the specified color."},
+     MCRF_METHOD(ColorLayer, fill,
+         MCRF_SIG("(color: Color)", "None"),
+         MCRF_DESC("Fill the entire layer with the specified color.")
+         MCRF_ARGS_START
+         MCRF_ARG("color", "Color object or (r, g, b[, a]) tuple")
+     )},
     {"fill_rect", (PyCFunction)PyGridLayerAPI::ColorLayer_fill_rect, METH_VARARGS | METH_KEYWORDS,
-     "fill_rect(pos, size, color)\n\n"
-     "Fill a rectangular region with a color.\n\n"
-     "Args:\n"
-     "    pos (tuple): Top-left corner as (x, y)\n"
-     "    size (tuple): Dimensions as (width, height)\n"
-     "    color: Color object or (r, g, b[, a]) tuple"},
+     MCRF_METHOD(ColorLayer, fill_rect,
+         MCRF_SIG("(pos: tuple, size: tuple, color: Color)", "None"),
+         MCRF_DESC("Fill a rectangular region with a color.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Top-left corner as (x, y)")
+         MCRF_ARG("size", "Dimensions as (width, height)")
+         MCRF_ARG("color", "Color object or (r, g, b[, a]) tuple")
+     )},
     {"draw_fov", (PyCFunction)PyGridLayerAPI::ColorLayer_draw_fov, METH_VARARGS | METH_KEYWORDS,
-     "draw_fov(source, radius=None, fov=None, visible=None, discovered=None, unknown=None)\n\n"
-     "Paint cells based on field-of-view visibility from source position.\n\n"
-     "Args:\n"
-     "    source (tuple): FOV origin as (x, y)\n"
-     "    radius (int): FOV radius. Default: grid's fov_radius\n"
-     "    fov (FOV): FOV algorithm. Default: grid's fov setting\n"
-     "    visible (Color): Color for currently visible cells\n"
-     "    discovered (Color): Color for previously seen cells\n"
-     "    unknown (Color): Color for never-seen cells\n\n"
-     "Note: Layer must be attached to a grid for FOV calculation."},
+     MCRF_METHOD(ColorLayer, draw_fov,
+         MCRF_SIG("(source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None)", "None"),
+         MCRF_DESC("Paint cells based on field-of-view visibility from a source position.")
+         MCRF_ARGS_START
+         MCRF_ARG("source", "FOV origin as (x, y)")
+         MCRF_ARG("radius", "FOV radius; defaults to the grid's fov_radius")
+         MCRF_ARG("fov", "FOV algorithm; defaults to the grid's fov setting")
+         MCRF_ARG("visible", "Color for currently visible cells")
+         MCRF_ARG("discovered", "Color for previously seen cells")
+         MCRF_ARG("unknown", "Color for never-seen cells")
+         MCRF_NOTE("Layer must be attached to a grid for FOV calculation.")
+     )},
     {"apply_perspective", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_perspective, METH_VARARGS | METH_KEYWORDS,
-     "apply_perspective(entity, visible=None, discovered=None, unknown=None)\n\n"
-     "Bind this layer to an entity for automatic FOV updates.\n\n"
-     "Args:\n"
-     "    entity (Entity): The entity whose perspective to track\n"
-     "    visible (Color): Color for currently visible cells\n"
-     "    discovered (Color): Color for previously seen cells\n"
-     "    unknown (Color): Color for never-seen cells\n\n"
-     "After binding, call update_perspective() when the entity moves."},
+     MCRF_METHOD(ColorLayer, apply_perspective,
+         MCRF_SIG("(entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None)", "None"),
+         MCRF_DESC("Bind this layer to an entity for automatic FOV updates. After binding, call update_perspective() when the entity moves.")
+         MCRF_ARGS_START
+         MCRF_ARG("entity", "The entity whose perspective to track")
+         MCRF_ARG("visible", "Color for currently visible cells")
+         MCRF_ARG("discovered", "Color for previously seen cells")
+         MCRF_ARG("unknown", "Color for never-seen cells")
+     )},
     {"update_perspective", (PyCFunction)PyGridLayerAPI::ColorLayer_update_perspective, METH_NOARGS,
-     "update_perspective()\n\n"
-     "Redraw FOV based on the bound entity's current position.\n\n"
-     "Call this after the entity moves to update the visibility layer."},
+     MCRF_METHOD(ColorLayer, update_perspective,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Redraw FOV based on the bound entity's current position. Call this after the entity moves to update the visibility layer.")
+         MCRF_RAISES("RuntimeError", "If no perspective binding has been set via apply_perspective()")
+     )},
     {"clear_perspective", (PyCFunction)PyGridLayerAPI::ColorLayer_clear_perspective, METH_NOARGS,
-     "clear_perspective()\n\n"
-     "Remove the perspective binding from this layer."},
+     MCRF_METHOD(ColorLayer, clear_perspective,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Remove the perspective binding from this layer.")
+     )},
     {"apply_threshold", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_hmap_threshold, METH_VARARGS | METH_KEYWORDS,
-     "apply_threshold(source, range, color) -> ColorLayer\n\n"
-     "Set fixed color for cells where HeightMap value is within range.\n\n"
-     "Args:\n"
-     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
-     "    range (tuple): Value range as (min, max) inclusive\n"
-     "    color: Color or (r, g, b[, a]) tuple to set for cells in range\n\n"
-     "Returns:\n"
-     "    self for method chaining\n\n"
-     "Example:\n"
-     "    layer.apply_threshold(terrain, (0.0, 0.3), (0, 0, 180))  # Blue for water"},
+     MCRF_METHOD(ColorLayer, apply_threshold,
+         MCRF_SIG("(source: HeightMap, range: tuple, color: Color)", "ColorLayer"),
+         MCRF_DESC("Set a fixed color for cells where the HeightMap value falls within a range.")
+         MCRF_ARGS_START
+         MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
+         MCRF_ARG("range", "Value range as (min, max) inclusive")
+         MCRF_ARG("color", "Color or (r, g, b[, a]) tuple to set for cells in range")
+         MCRF_RETURNS("self for method chaining")
+     )},
     {"apply_gradient", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_gradient, METH_VARARGS | METH_KEYWORDS,
-     "apply_gradient(source, range, color_low, color_high) -> ColorLayer\n\n"
-     "Interpolate between colors based on HeightMap value within range.\n\n"
-     "Args:\n"
-     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
-     "    range (tuple): Value range as (min, max) inclusive\n"
-     "    color_low: Color at range minimum\n"
-     "    color_high: Color at range maximum\n\n"
-     "Returns:\n"
-     "    self for method chaining\n\n"
-     "Note:\n"
-     "    Uses the original HeightMap value for interpolation, not binary.\n"
-     "    This allows smooth color transitions within a value range.\n\n"
-     "Example:\n"
-     "    layer.apply_gradient(terrain, (0.3, 0.7),\n"
-     "                         (50, 120, 50),    # Dark green at 0.3\n"
-     "                         (100, 200, 100))  # Light green at 0.7"},
+     MCRF_METHOD(ColorLayer, apply_gradient,
+         MCRF_SIG("(source: HeightMap, range: tuple, color_low: Color, color_high: Color)", "ColorLayer"),
+         MCRF_DESC("Interpolate between two colors based on HeightMap value within a range. Uses the original heightmap value for smooth transitions.")
+         MCRF_ARGS_START
+         MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
+         MCRF_ARG("range", "Value range as (min, max) inclusive")
+         MCRF_ARG("color_low", "Color at range minimum")
+         MCRF_ARG("color_high", "Color at range maximum")
+         MCRF_RETURNS("self for method chaining")
+     )},
     {"apply_ranges", (PyCFunction)PyGridLayerAPI::ColorLayer_apply_ranges, METH_VARARGS,
-     "apply_ranges(source, ranges) -> ColorLayer\n\n"
-     "Apply multiple color assignments in a single pass.\n\n"
-     "Args:\n"
-     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
-     "    ranges (list): List of range specifications. Each entry is:\n"
-     "        ((min, max), (r, g, b[, a])) - for fixed color\n"
-     "        ((min, max), ((r1, g1, b1[, a1]), (r2, g2, b2[, a2]))) - for gradient\n\n"
-     "Returns:\n"
-     "    self for method chaining\n\n"
-     "Note:\n"
-     "    Later ranges override earlier ones if overlapping.\n"
-     "    Cells not matching any range are left unchanged.\n\n"
-     "Example:\n"
-     "    layer.apply_ranges(terrain, [\n"
-     "        ((0.0, 0.3), (0, 0, 180)),                       # Fixed blue\n"
-     "        ((0.3, 0.7), ((50, 120, 50), (100, 200, 100))), # Gradient\n"
-     "        ((0.7, 1.0), ((100, 100, 100), (255, 255, 255))), # Gradient\n"
-     "    ])"},
+     MCRF_METHOD(ColorLayer, apply_ranges,
+         MCRF_SIG("(source: HeightMap, ranges: list)", "ColorLayer"),
+         MCRF_DESC("Apply multiple color assignments from a HeightMap in a single pass. Later ranges override earlier ones if overlapping.")
+         MCRF_ARGS_START
+         MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
+         MCRF_ARG("ranges", "List of range specs: ((min, max), color) for fixed or ((min, max), (color_low, color_high)) for gradient")
+         MCRF_RETURNS("self for method chaining")
+         MCRF_NOTE("Cells not matching any range are left unchanged.")
+     )},
     {NULL}
 };
 
 PyGetSetDef PyGridLayerAPI::ColorLayer_getsetters[] = {
     {"z_index", (getter)PyGridLayerAPI::ColorLayer_get_z_index,
                 (setter)PyGridLayerAPI::ColorLayer_set_z_index,
-     "Layer z-order. Negative values render below entities.", NULL},
+     MCRF_PROPERTY(z_index, "Layer z-order (int). Negative values render below entities."), NULL},
     {"visible", (getter)PyGridLayerAPI::ColorLayer_get_visible,
                 (setter)PyGridLayerAPI::ColorLayer_set_visible,
-     "Whether the layer is rendered.", NULL},
+     MCRF_PROPERTY(visible, "Whether the layer is rendered (bool)."), NULL},
     {"grid_size", (getter)PyGridLayerAPI::ColorLayer_get_grid_size, NULL,
-     "Layer dimensions as (width, height) tuple.", NULL},
+     MCRF_PROPERTY(grid_size, "Layer dimensions as (width, height) tuple (tuple, read-only)."), NULL},
     {"name", (getter)PyGridLayerAPI::ColorLayer_get_name, NULL,
-     "Layer name (str, read-only). Used for Grid.layer(name) lookup.", NULL},
+     MCRF_PROPERTY(name, "Layer name (str, read-only). Used for Grid.layer(name) lookup."), NULL},
     {"grid", (getter)PyGridLayerAPI::ColorLayer_get_grid,
              (setter)PyGridLayerAPI::ColorLayer_set_grid,
-     "Parent Grid or None. Setting manages layer association and handles lazy allocation.", NULL},
+     MCRF_PROPERTY(grid, "Parent Grid or None (Grid | None). Setting manages layer association and handles lazy allocation."), NULL},
     {NULL}
 };
 
@@ -1875,74 +1880,79 @@ PyObject* PyGridLayerAPI::ColorLayer_repr(PyColorLayerObject* self) {
 
 PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
     {"at", (PyCFunction)PyGridLayerAPI::TileLayer_at, METH_VARARGS | METH_KEYWORDS,
-     "at(pos) -> int\nat(x, y) -> int\n\n"
-     "Get the tile index at cell position. Returns -1 if no tile.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n"
-     "    x, y: Position as separate integer arguments"},
+     MCRF_METHOD(TileLayer, at,
+         MCRF_SIG("(pos) or (x: int, y: int)", "int"),
+         MCRF_DESC("Get the tile index at a cell position. Returns -1 if no tile is set.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector; or pass x and y separately")
+         MCRF_RETURNS("Tile index at the specified cell, or -1 if empty")
+         MCRF_RAISES("IndexError", "If coordinates are out of bounds")
+     )},
     {"set", (PyCFunction)PyGridLayerAPI::TileLayer_set, METH_VARARGS,
-     "set(pos, index)\n\n"
-     "Set the tile index at cell position. Use -1 for no tile.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n"
-     "    index: Tile index (-1 for no tile)"},
+     MCRF_METHOD(TileLayer, set,
+         MCRF_SIG("(pos, index: int)", "None"),
+         MCRF_DESC("Set the tile index at a cell position. Use -1 to clear the tile.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("index", "Tile index (-1 for no tile)")
+         MCRF_RAISES("IndexError", "If coordinates are out of bounds")
+     )},
     {"fill", (PyCFunction)PyGridLayerAPI::TileLayer_fill, METH_VARARGS,
-     "fill(index)\n\nFill the entire layer with the specified tile index."},
+     MCRF_METHOD(TileLayer, fill,
+         MCRF_SIG("(index: int)", "None"),
+         MCRF_DESC("Fill the entire layer with the specified tile index.")
+         MCRF_ARGS_START
+         MCRF_ARG("index", "Tile index to fill with (-1 for no tile)")
+     )},
     {"fill_rect", (PyCFunction)PyGridLayerAPI::TileLayer_fill_rect, METH_VARARGS | METH_KEYWORDS,
-     "fill_rect(pos, size, index)\n\n"
-     "Fill a rectangular region with a tile index.\n\n"
-     "Args:\n"
-     "    pos (tuple): Top-left corner as (x, y)\n"
-     "    size (tuple): Dimensions as (width, height)\n"
-     "    index (int): Tile index to fill with (-1 for no tile)"},
+     MCRF_METHOD(TileLayer, fill_rect,
+         MCRF_SIG("(pos: tuple, size: tuple, index: int)", "None"),
+         MCRF_DESC("Fill a rectangular region with a tile index.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Top-left corner as (x, y)")
+         MCRF_ARG("size", "Dimensions as (width, height)")
+         MCRF_ARG("index", "Tile index to fill with (-1 for no tile)")
+     )},
     {"apply_threshold", (PyCFunction)PyGridLayerAPI::TileLayer_apply_threshold, METH_VARARGS | METH_KEYWORDS,
-     "apply_threshold(source, range, tile) -> TileLayer\n\n"
-     "Set tile index for cells where HeightMap value is within range.\n\n"
-     "Args:\n"
-     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
-     "    range (tuple): Value range as (min, max) inclusive\n"
-     "    tile (int): Tile index to set for cells in range\n\n"
-     "Returns:\n"
-     "    self for method chaining\n\n"
-     "Example:\n"
-     "    layer.apply_threshold(terrain, (0.0, 0.3), WATER_TILE)"},
+     MCRF_METHOD(TileLayer, apply_threshold,
+         MCRF_SIG("(source: HeightMap, range: tuple, tile: int)", "TileLayer"),
+         MCRF_DESC("Set a tile index for cells where the HeightMap value falls within a range.")
+         MCRF_ARGS_START
+         MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
+         MCRF_ARG("range", "Value range as (min, max) inclusive")
+         MCRF_ARG("tile", "Tile index to set for cells in range")
+         MCRF_RETURNS("self for method chaining")
+     )},
     {"apply_ranges", (PyCFunction)PyGridLayerAPI::TileLayer_apply_ranges, METH_VARARGS,
-     "apply_ranges(source, ranges) -> TileLayer\n\n"
-     "Apply multiple tile assignments in a single pass.\n\n"
-     "Args:\n"
-     "    source (HeightMap): Source heightmap (must match layer dimensions)\n"
-     "    ranges (list): List of ((min, max), tile_index) tuples\n\n"
-     "Returns:\n"
-     "    self for method chaining\n\n"
-     "Note:\n"
-     "    Later ranges override earlier ones if overlapping.\n"
-     "    Cells not matching any range are left unchanged.\n\n"
-     "Example:\n"
-     "    layer.apply_ranges(terrain, [\n"
-     "        ((0.0, 0.2), DEEP_WATER),\n"
-     "        ((0.2, 0.3), SHALLOW_WATER),\n"
-     "        ((0.3, 0.7), GRASS),\n"
-     "    ])"},
+     MCRF_METHOD(TileLayer, apply_ranges,
+         MCRF_SIG("(source: HeightMap, ranges: list)", "TileLayer"),
+         MCRF_DESC("Apply multiple tile assignments from a HeightMap in a single pass. Later ranges override earlier ones if overlapping.")
+         MCRF_ARGS_START
+         MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
+         MCRF_ARG("ranges", "List of ((min, max), tile_index) tuples")
+         MCRF_RETURNS("self for method chaining")
+         MCRF_NOTE("Cells not matching any range are left unchanged.")
+     )},
     {NULL}
 };
 
 PyGetSetDef PyGridLayerAPI::TileLayer_getsetters[] = {
     {"z_index", (getter)PyGridLayerAPI::TileLayer_get_z_index,
                 (setter)PyGridLayerAPI::TileLayer_set_z_index,
-     "Layer z-order. Negative values render below entities.", NULL},
+     MCRF_PROPERTY(z_index, "Layer z-order (int). Negative values render below entities."), NULL},
     {"visible", (getter)PyGridLayerAPI::TileLayer_get_visible,
                 (setter)PyGridLayerAPI::TileLayer_set_visible,
-     "Whether the layer is rendered.", NULL},
+     MCRF_PROPERTY(visible, "Whether the layer is rendered (bool)."), NULL},
     {"texture", (getter)PyGridLayerAPI::TileLayer_get_texture,
                 (setter)PyGridLayerAPI::TileLayer_set_texture,
-     "Texture atlas for tile sprites.", NULL},
+     MCRF_PROPERTY(texture, "Texture atlas for tile sprites (Texture | None)."), NULL},
     {"grid_size", (getter)PyGridLayerAPI::TileLayer_get_grid_size, NULL,
-     "Layer dimensions as (width, height) tuple.", NULL},
+     MCRF_PROPERTY(grid_size, "Layer dimensions as (width, height) tuple (tuple, read-only)."), NULL},
     {"name", (getter)PyGridLayerAPI::TileLayer_get_name, NULL,
-     "Layer name (str, read-only). Used for Grid.layer(name) lookup.", NULL},
+     MCRF_PROPERTY(name, "Layer name (str, read-only). Used for Grid.layer(name) lookup."), NULL},
     {"grid", (getter)PyGridLayerAPI::TileLayer_get_grid,
              (setter)PyGridLayerAPI::TileLayer_set_grid,
-     "Parent Grid or None. Setting manages layer association and handles lazy allocation.", NULL},
+     MCRF_PROPERTY(grid, "Parent Grid or None (Grid | None). Setting manages layer association and handles lazy allocation."), NULL},
     {NULL}
 };
 

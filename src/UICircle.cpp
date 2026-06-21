@@ -1,6 +1,7 @@
 #include "UICircle.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 #include "PyVector.h"
 #include "PyColor.h"
 #include "PythonObjectCache.h"
@@ -439,25 +440,27 @@ typedef PyUICircleObject PyObjectType;
 
 PyGetSetDef UICircle::getsetters[] = {
     {"radius", (getter)UICircle::get_radius, (setter)UICircle::set_radius,
-     "Circle radius in pixels", NULL},
+     MCRF_PROPERTY(radius, "Circle radius in pixels (float)."), NULL},
     {"center", (getter)UICircle::get_center, (setter)UICircle::set_center,
-     "Center position of the circle", NULL},
+     MCRF_PROPERTY(center, "Center position of the circle (Vector)."), NULL},
     {"fill_color", (getter)UICircle::get_fill_color, (setter)UICircle::set_fill_color,
-     "Fill color of the circle", NULL},
+     MCRF_PROPERTY(fill_color, "Fill color of the circle (Color)."), NULL},
     {"outline_color", (getter)UICircle::get_outline_color, (setter)UICircle::set_outline_color,
-     "Outline color of the circle", NULL},
+     MCRF_PROPERTY(outline_color, "Outline color of the circle (Color)."), NULL},
     {"outline", (getter)UICircle::get_outline, (setter)UICircle::set_outline,
-     "Outline thickness (0 for no outline)", NULL},
+     MCRF_PROPERTY(outline, "Outline thickness in pixels (float). Use 0 for no outline."), NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     "Callable executed when circle is clicked. Function receives (pos: Vector, button: str, action: str).", (void*)PyObjectsEnum::UICIRCLE},
+     MCRF_PROPERTY(on_click, "Callable executed when circle is clicked (Callable | None). Function receives (pos: Vector, button: str, action: str)."), (void*)PyObjectsEnum::UICIRCLE},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
-     "Z-order for rendering (lower values rendered first).", (void*)PyObjectsEnum::UICIRCLE},
+     MCRF_PROPERTY(z_index, "Z-order for rendering (int). Lower values are rendered first."), (void*)PyObjectsEnum::UICIRCLE},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,
-     "Name for finding this element.", (void*)PyObjectsEnum::UICIRCLE},
+     MCRF_PROPERTY(name, "Name for finding this element (str)."), (void*)PyObjectsEnum::UICIRCLE},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
-     "Position as a Vector (same as center).", (void*)PyObjectsEnum::UICIRCLE},
-    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UICIRCLE},
-    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UICIRCLE},
+     MCRF_PROPERTY(pos, "Position as a Vector (same as center) (Vector)."), (void*)PyObjectsEnum::UICIRCLE},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
+     MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector). Only meaningful when parent is a Grid."), (void*)PyObjectsEnum::UICIRCLE},
+    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size,
+     MCRF_PROPERTY(grid_size, "Size in grid tile coordinates (Vector). Only meaningful when parent is a Grid."), (void*)PyObjectsEnum::UICIRCLE},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICIRCLE),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UICIRCLE),

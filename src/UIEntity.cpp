@@ -20,6 +20,7 @@
 #include "PyUniformCollection.h"  // #106: Uniform collection support
 // UIDrawable methods now in UIBase.h
 #include "UIEntityPyMethods.h"
+#include "McRFPy_Doc.h"
 #include <cassert>
 
 // #313: UIEntity::grid holds the GridData base, but some Python wrappers
@@ -1340,66 +1341,67 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
 
 PyMethodDef UIEntity::methods[] = {
     {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
-     "at(x, y) or at(pos) -> GridPoint | None\n\n"
-     "Return the GridPoint at (x, y) if currently VISIBLE to this entity's\n"
-     "perspective_map, otherwise None. Equivalent to:\n"
-     "    grid.at(x, y) if perspective_map[x, y] == Perspective.VISIBLE else None\n\n"
-     "To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y]\n"
-     "directly and use grid.at(x, y) for cell data.\n\n"
-     "Args:\n"
-     "    x, y: Grid coordinates as two integers, OR\n"
-     "    pos: Grid coordinates as tuple, list, or Vector\n\n"
-     "Example:\n"
-     "    point = entity.at(5, 3)\n"
-     "    if point is not None and point.walkable: ...\n"
-     "    point = entity.at((5, 3))\n"
-     "    point = entity.at(pos=(5, 3))"},
-    {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
+     MCRF_METHOD(Entity, at,
+         MCRF_SIG("(x: int, y: int)", "GridPoint | None"),
+         MCRF_DESC("Return the GridPoint at (x, y) if currently VISIBLE to this entity's perspective_map, otherwise None."),
+         MCRF_ARGS_START
+         MCRF_ARG("x", "Grid X coordinate (also accepts a tuple/Vector as first positional arg)")
+         MCRF_ARG("y", "Grid Y coordinate (omit when passing a tuple or Vector)")
+         MCRF_RETURNS("GridPoint if visible, None if undiscovered or not currently in FOV")
+         MCRF_NOTE("To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y] directly.")
+     )},
+    {"index", (PyCFunction)UIEntity::index, METH_NOARGS,
+     MCRF_METHOD(Entity, index,
+         MCRF_SIG("()", "int"),
+         MCRF_DESC("Return the index of this entity in its grid's entity collection."),
+         MCRF_RETURNS("Zero-based index of this entity in grid.entities")
+         MCRF_RAISES("RuntimeError", "If entity is not associated with a grid")
+     )},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS,
-     "Remove this entity from its grid.\n\n"
-     "Warning: Do not call during iteration over grid.entities.\n"
-     "Modifying the collection during iteration raises RuntimeError."},
+     MCRF_METHOD(Entity, die,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Remove this entity from its grid."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Do not call during iteration over grid.entities; modifying the collection during iteration raises RuntimeError.")
+     )},
     {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS,
-     "path_to(x, y) or path_to(target) -> list\n\n"
-     "Find a path to the target position using Dijkstra pathfinding.\n\n"
-     "Args:\n"
-     "    x, y: Target coordinates as two integers, OR\n"
-     "    target: Target coordinates as tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    List of (x, y) tuples representing the path.\n\n"
-     "Example:\n"
-     "    path = entity.path_to(10, 5)\n"
-     "    path = entity.path_to((10, 5))\n"
-     "    path = entity.path_to(pos=(10, 5))"},
+     MCRF_METHOD(Entity, path_to,
+         MCRF_SIG("(x: int, y: int)", "list"),
+         MCRF_DESC("Find a path to the target position using A* pathfinding."),
+         MCRF_ARGS_START
+         MCRF_ARG("x", "Target X coordinate (also accepts a tuple/Vector as first positional arg)")
+         MCRF_ARG("y", "Target Y coordinate (omit when passing a tuple or Vector)")
+         MCRF_RETURNS("List of (x, y) tuples representing the path from current position to target")
+         MCRF_RAISES("ValueError", "If entity has no grid or target is out of bounds")
+     )},
     {"find_path", (PyCFunction)UIEntity::find_path, METH_VARARGS | METH_KEYWORDS,
-     "find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None\n\n"
-     "Find a path from this entity to the target position.\n\n"
-     "Args:\n"
-     "    target: Target as Vector, Entity, or (x, y) tuple.\n"
-     "    diagonal_cost: Cost of diagonal movement (default 1.41).\n"
-     "    collide: Label string. Entities with this label block pathfinding.\n\n"
-     "Returns:\n"
-     "    AStarPath object, or None if no path exists.\n\n"
-     "Example:\n"
-     "    path = entity.find_path((10, 5))\n"
-     "    path = entity.find_path(player, collide='enemy')"},
+     MCRF_METHOD(Entity, find_path,
+         MCRF_SIG("(target, diagonal_cost: float = 1.41, collide: str = None)", "AStarPath | None"),
+         MCRF_DESC("Find a path from this entity to the target position."),
+         MCRF_ARGS_START
+         MCRF_ARG("target", "Target as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default 1.41)")
+         MCRF_ARG("collide", "Label string; entities with this label block pathfinding")
+         MCRF_RETURNS("AStarPath object, or None if no path exists")
+         MCRF_RAISES("ValueError", "If entity has no grid or positions are out of bounds")
+     )},
     {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS,
-     "update_visibility() -> None\n\n"
-     "Update entity's visibility state based on current FOV.\n\n"
-     "Recomputes which cells are visible from the entity's position and updates\n"
-     "the entity's perspective_map (see entity.perspective_map and mcrfpy.Perspective).\n"
-     "This is called automatically when the entity moves if it has a grid with\n"
-     "perspective set."},
+     MCRF_METHOD(Entity, update_visibility,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Recompute which cells are visible from this entity's position and update perspective_map."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Called automatically when the entity moves if the grid has FOV configured.")
+     )},
     {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
-     "visible_entities(fov=None, radius=None) -> list[Entity]\n\n"
-     "Get list of other entities visible from this entity's position.\n\n"
-     "Args:\n"
-     "    fov (FOV, optional): FOV algorithm to use. Default: grid.fov\n"
-     "    radius (int, optional): FOV radius. Default: grid.fov_radius\n\n"
-     "Returns:\n"
-     "    List of Entity objects that are within field of view.\n\n"
-     "Computes FOV from this entity's position and returns all other entities\n"
-     "whose positions fall within the visible area."},
+     MCRF_METHOD(Entity, visible_entities,
+         MCRF_SIG("(fov=None, radius: int = None)", "list[Entity]"),
+         MCRF_DESC("Get list of other entities visible from this entity's position."),
+         MCRF_ARGS_START
+         MCRF_ARG("fov", "FOV algorithm to use (FOV enum or None to use grid.fov)")
+         MCRF_ARG("radius", "FOV radius (int or None to use grid.fov_radius)")
+         MCRF_RETURNS("List of Entity objects within field of view, excluding self")
+         MCRF_RAISES("ValueError", "If entity is not associated with a grid")
+     )},
     {NULL, NULL, 0, NULL}
 };
 
@@ -1747,194 +1749,193 @@ PyMethodDef UIEntity_all_methods[] = {
                    "Use list target with loop=True for repeating sprite frame animations.")
      )},
     {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
-     "at(x, y) or at(pos) -> GridPoint | None\n\n"
-     "Return the GridPoint at (x, y) if currently VISIBLE to this entity's\n"
-     "perspective_map, otherwise None. Equivalent to:\n"
-     "    grid.at(x, y) if perspective_map[x, y] == Perspective.VISIBLE else None\n\n"
-     "To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y]\n"
-     "directly and use grid.at(x, y) for cell data.\n\n"
-     "Args:\n"
-     "    x, y: Grid coordinates as two integers, OR\n"
-     "    pos: Grid coordinates as tuple, list, or Vector\n\n"
-     "Example:\n"
-     "    point = entity.at(5, 3)\n"
-     "    if point is not None and point.walkable: ...\n"
-     "    point = entity.at((5, 3))\n"
-     "    point = entity.at(pos=(5, 3))"},
-    {"index", (PyCFunction)UIEntity::index, METH_NOARGS, "Return the index of this entity in its grid's entity collection"},
+     MCRF_METHOD(Entity, at,
+         MCRF_SIG("(x: int, y: int)", "GridPoint | None"),
+         MCRF_DESC("Return the GridPoint at (x, y) if currently VISIBLE to this entity's perspective_map, otherwise None."),
+         MCRF_ARGS_START
+         MCRF_ARG("x", "Grid X coordinate (also accepts a tuple/Vector as first positional arg)")
+         MCRF_ARG("y", "Grid Y coordinate (omit when passing a tuple or Vector)")
+         MCRF_RETURNS("GridPoint if visible, None if undiscovered or not currently in FOV")
+         MCRF_NOTE("To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y] directly.")
+     )},
+    {"index", (PyCFunction)UIEntity::index, METH_NOARGS,
+     MCRF_METHOD(Entity, index,
+         MCRF_SIG("()", "int"),
+         MCRF_DESC("Return the index of this entity in its grid's entity collection."),
+         MCRF_RETURNS("Zero-based index of this entity in grid.entities")
+         MCRF_RAISES("RuntimeError", "If entity is not associated with a grid")
+     )},
     {"die", (PyCFunction)UIEntity::die, METH_NOARGS,
-     "Remove this entity from its grid.\n\n"
-     "Warning: Do not call during iteration over grid.entities.\n"
-     "Modifying the collection during iteration raises RuntimeError."},
+     MCRF_METHOD(Entity, die,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Remove this entity from its grid."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Do not call during iteration over grid.entities; modifying the collection during iteration raises RuntimeError.")
+     )},
     {"path_to", (PyCFunction)UIEntity::path_to, METH_VARARGS | METH_KEYWORDS,
-     "path_to(x, y) or path_to(target) -> list\n\n"
-     "Find a path to the target position using Dijkstra pathfinding.\n\n"
-     "Args:\n"
-     "    x, y: Target coordinates as two integers, OR\n"
-     "    target: Target coordinates as tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    List of (x, y) tuples representing the path.\n\n"
-     "Example:\n"
-     "    path = entity.path_to(10, 5)\n"
-     "    path = entity.path_to((10, 5))\n"
-     "    path = entity.path_to(pos=(10, 5))"},
+     MCRF_METHOD(Entity, path_to,
+         MCRF_SIG("(x: int, y: int)", "list"),
+         MCRF_DESC("Find a path to the target position using A* pathfinding."),
+         MCRF_ARGS_START
+         MCRF_ARG("x", "Target X coordinate (also accepts a tuple/Vector as first positional arg)")
+         MCRF_ARG("y", "Target Y coordinate (omit when passing a tuple or Vector)")
+         MCRF_RETURNS("List of (x, y) tuples representing the path from current position to target")
+         MCRF_RAISES("ValueError", "If entity has no grid or target is out of bounds")
+     )},
     {"find_path", (PyCFunction)UIEntity::find_path, METH_VARARGS | METH_KEYWORDS,
-     "find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None\n\n"
-     "Find a path from this entity to the target position.\n\n"
-     "Args:\n"
-     "    target: Target as Vector, Entity, or (x, y) tuple.\n"
-     "    diagonal_cost: Cost of diagonal movement (default 1.41).\n"
-     "    collide: Label string. Entities with this label block pathfinding.\n\n"
-     "Returns:\n"
-     "    AStarPath object, or None if no path exists.\n\n"
-     "Example:\n"
-     "    path = entity.find_path((10, 5))\n"
-     "    path = entity.find_path(player, collide='enemy')"},
+     MCRF_METHOD(Entity, find_path,
+         MCRF_SIG("(target, diagonal_cost: float = 1.41, collide: str = None)", "AStarPath | None"),
+         MCRF_DESC("Find a path from this entity to the target position."),
+         MCRF_ARGS_START
+         MCRF_ARG("target", "Target as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default 1.41)")
+         MCRF_ARG("collide", "Label string; entities with this label block pathfinding")
+         MCRF_RETURNS("AStarPath object, or None if no path exists")
+         MCRF_RAISES("ValueError", "If entity has no grid or positions are out of bounds")
+     )},
     {"update_visibility", (PyCFunction)UIEntity::update_visibility, METH_NOARGS,
-     "update_visibility() -> None\n\n"
-     "Update entity's visibility state based on current FOV.\n\n"
-     "Recomputes which cells are visible from the entity's position and updates\n"
-     "the entity's perspective_map (see entity.perspective_map and mcrfpy.Perspective).\n"
-     "This is called automatically when the entity moves if it has a grid with\n"
-     "perspective set."},
+     MCRF_METHOD(Entity, update_visibility,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Recompute which cells are visible from this entity's position and update perspective_map."),
+         MCRF_RETURNS("None")
+         MCRF_NOTE("Called automatically when the entity moves if the grid has FOV configured.")
+     )},
     {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
-     "visible_entities(fov=None, radius=None) -> list[Entity]\n\n"
-     "Get list of other entities visible from this entity's position.\n\n"
-     "Args:\n"
-     "    fov (FOV, optional): FOV algorithm to use. Default: grid.fov\n"
-     "    radius (int, optional): FOV radius. Default: grid.fov_radius\n\n"
-     "Returns:\n"
-     "    List of Entity objects that are within field of view.\n\n"
-     "Computes FOV from this entity's position and returns all other entities\n"
-     "whose positions fall within the visible area."},
+     MCRF_METHOD(Entity, visible_entities,
+         MCRF_SIG("(fov=None, radius: int = None)", "list[Entity]"),
+         MCRF_DESC("Get list of other entities visible from this entity's position."),
+         MCRF_ARGS_START
+         MCRF_ARG("fov", "FOV algorithm to use (FOV enum or None to use grid.fov)")
+         MCRF_ARG("radius", "FOV radius (int or None to use grid.fov_radius)")
+         MCRF_RETURNS("List of Entity objects within field of view, excluding self")
+         MCRF_RAISES("ValueError", "If entity is not associated with a grid")
+     )},
     // #296 - Label methods
     {"add_label", (PyCFunction)UIEntity::py_add_label, METH_O,
-     "add_label(label: str) -> None\n\n"
-     "Add a label to this entity. Idempotent (adding same label twice is safe)."},
+     MCRF_METHOD(Entity, add_label,
+         MCRF_SIG("(label: str)", "None"),
+         MCRF_DESC("Add a label to this entity. Idempotent; adding the same label twice is safe."),
+         MCRF_ARGS_START
+         MCRF_ARG("label", "String label to add")
+         MCRF_RETURNS("None")
+     )},
     {"remove_label", (PyCFunction)UIEntity::py_remove_label, METH_O,
-     "remove_label(label: str) -> None\n\n"
-     "Remove a label from this entity. No-op if label not present."},
+     MCRF_METHOD(Entity, remove_label,
+         MCRF_SIG("(label: str)", "None"),
+         MCRF_DESC("Remove a label from this entity. No-op if label is not present."),
+         MCRF_ARGS_START
+         MCRF_ARG("label", "String label to remove")
+         MCRF_RETURNS("None")
+     )},
     {"has_label", (PyCFunction)UIEntity::py_has_label, METH_O,
-     "has_label(label: str) -> bool\n\n"
-     "Check if this entity has the given label."},
+     MCRF_METHOD(Entity, has_label,
+         MCRF_SIG("(label: str)", "bool"),
+         MCRF_DESC("Check if this entity has the given label."),
+         MCRF_ARGS_START
+         MCRF_ARG("label", "String label to check")
+         MCRF_RETURNS("True if the entity has the label, False otherwise")
+     )},
     // #300 - Behavior system
     {"set_behavior", (PyCFunction)UIEntity::py_set_behavior, METH_VARARGS | METH_KEYWORDS,
-     "set_behavior(type, waypoints=None, turns=0, path=None) -> None\n\n"
-     "Configure this entity's behavior for grid.step() turn management.\n\n"
-     "Args:\n"
-     "    type (int/Behavior): Behavior type (e.g., Behavior.PATROL)\n"
-     "    waypoints (list): List of (x, y) tuples for WAYPOINT/PATROL/LOOP\n"
-     "    turns (int): Number of turns for SLEEP behavior\n"
-     "    path (list): Pre-computed path as list of (x, y) tuples for PATH behavior"},
+     MCRF_METHOD(Entity, set_behavior,
+         MCRF_SIG("(type, waypoints=None, turns: int = 0, path=None, pathfinder=None)", "None"),
+         MCRF_DESC("Configure this entity's behavior for grid.step() turn management."),
+         MCRF_ARGS_START
+         MCRF_ARG("type", "Behavior type (int or Behavior enum, e.g., Behavior.PATROL)")
+         MCRF_ARG("waypoints", "List of (x, y) tuples for WAYPOINT/PATROL/LOOP behaviors")
+         MCRF_ARG("turns", "Number of turns for SLEEP behavior")
+         MCRF_ARG("path", "Pre-computed path as list of (x, y) tuples for PATH behavior")
+         MCRF_ARG("pathfinder", "DijkstraMap, AStarPath, or (x, y) target tuple for SEEK behavior")
+         MCRF_RETURNS("None")
+     )},
     {NULL}  // Sentinel
 };
 
 PyGetSetDef UIEntity::getsetters[] = {
     // #176 - Pixel coordinates (relative to grid, like UIDrawable.pos)
     {"pos", (getter)UIEntity::get_pixel_pos, (setter)UIEntity::set_pixel_pos,
-     "Pixel position relative to grid (Vector). Computed as draw_pos * tile_size. "
-     "Requires entity to be attached to a grid.", NULL},
+     MCRF_PROPERTY(pos, "Pixel position relative to grid (Vector). Computed as draw_pos * tile_size. Requires entity to be attached to a grid."), NULL},
     {"x", (getter)UIEntity::get_pixel_member, (setter)UIEntity::set_pixel_member,
-     "Pixel X position relative to grid. Requires entity to be attached to a grid.", (void*)0},
+     MCRF_PROPERTY(x, "Pixel X position relative to grid (float). Requires entity to be attached to a grid."), (void*)0},
     {"y", (getter)UIEntity::get_pixel_member, (setter)UIEntity::set_pixel_member,
-     "Pixel Y position relative to grid. Requires entity to be attached to a grid.", (void*)1},
+     MCRF_PROPERTY(y, "Pixel Y position relative to grid (float). Requires entity to be attached to a grid."), (void*)1},
 
     // #295 - Integer cell position (decoupled from float draw_pos)
     // #314 F3: grid_pos is the CANONICAL name (matches the grid_pos= constructor
     // argument); cell_pos/cell_x/cell_y are documented aliases. Both share the
     // same getter/setter and remain fully interchangeable.
     {"grid_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
-     "Integer logical cell position (Vector). Canonical cell-position property; "
-     "matches the 'grid_pos' constructor argument. Decoupled from draw_pos. "
-     "Determines which cell this entity logically occupies for collision, pathfinding, etc.", NULL},
+     MCRF_PROPERTY(grid_pos, "Integer logical cell position (Vector). Canonical cell-position property matching the 'grid_pos' constructor argument. Decoupled from draw_pos. Determines which cell this entity logically occupies for collision and pathfinding."), NULL},
     {"grid_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     "Integer X cell coordinate. Canonical; matches grid_pos.", (void*)0},
+     MCRF_PROPERTY(grid_x, "Integer X cell coordinate (int). Canonical; matches grid_pos."), (void*)0},
     {"grid_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     "Integer Y cell coordinate. Canonical; matches grid_pos.", (void*)1},
+     MCRF_PROPERTY(grid_y, "Integer Y cell coordinate (int). Canonical; matches grid_pos."), (void*)1},
     {"cell_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
-     "Integer logical cell position (Vector). Alias for grid_pos (the canonical name).", NULL},
+     MCRF_PROPERTY(cell_pos, "Integer logical cell position (Vector). Alias for grid_pos (the canonical name)."), NULL},
     {"cell_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     "Integer X cell coordinate. Alias for grid_x.", (void*)0},
+     MCRF_PROPERTY(cell_x, "Integer X cell coordinate (int). Alias for grid_x."), (void*)0},
     {"cell_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     "Integer Y cell coordinate. Alias for grid_y.", (void*)1},
+     MCRF_PROPERTY(cell_y, "Integer Y cell coordinate (int). Alias for grid_y."), (void*)1},
 
     // Float tile coordinates (for smooth animation between tiles)
     {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position,
-     "Fractional tile position for rendering (Vector). Use for smooth animation between grid cells.", (void*)0},
+     MCRF_PROPERTY(draw_pos, "Fractional tile position for rendering (Vector). Use for smooth animation between grid cells."), (void*)0},
 
     {"perspective_map", (getter)UIEntity::get_perspective_map, (setter)UIEntity::set_perspective_map,
-     "Per-entity FOV memory (DiscreteMap, read-write). 3-state values per cell: "
-     "0 = unknown (never seen), 1 = discovered (seen before, not currently visible), "
-     "2 = visible (in current FOV). Use mcrfpy.Perspective enum for clarity. "
-     "Lazy-allocated on first access once the entity has a grid; returns None otherwise. "
-     "The returned DiscreteMap is a live reference -- mutations are visible to subsequent "
-     "updateVisibility() calls. Assigning a DiscreteMap replaces the entity's memory; "
-     "the new map's size must match the grid's size or ValueError is raised. "
-     "Assign None to clear (will be lazy-reallocated on next access).",
+     MCRF_PROPERTY(perspective_map, "Per-entity FOV memory (DiscreteMap). 3-state values per cell: 0=unknown, 1=discovered, 2=visible. Lazy-allocated on first access once entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference. Assigning a DiscreteMap replaces the entity's memory; size must match the grid or ValueError is raised. Assign None to clear."),
      NULL},
     {"grid", (getter)UIEntity::get_grid, (setter)UIEntity::set_grid,
-     "Grid this entity belongs to. "
-     "Get: Returns the Grid or None. "
-     "Set: Assign a Grid to move entity, or None to remove from grid.", NULL},
-    {"sprite_index", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber, "Sprite index on the texture on the display", NULL},
+     MCRF_PROPERTY(grid, "Grid this entity belongs to (Grid or None). Assign a Grid to attach the entity, or None to remove it from its current grid."), NULL},
+    {"sprite_index", (getter)UIEntity::get_spritenumber, (setter)UIEntity::set_spritenumber,
+     MCRF_PROPERTY(sprite_index, "Sprite index into the entity's texture atlas (int)."), NULL},
     // #313 - entities render from their OWN texture, not the grid's
     {"texture", (getter)UIEntity::get_texture, (setter)UIEntity::set_texture,
-     "Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture when "
-     "the entity is constructed without one. Setting preserves sprite_index "
-     "(the index is not re-validated against the new atlas). The grid's "
-     "texture only determines cell size; entities draw with their own.", NULL},
-    {"visible", (getter)UIEntity_get_visible, (setter)UIEntity_set_visible, "Visibility flag", NULL},
-    {"opacity", (getter)UIEntity_get_opacity, (setter)UIEntity_set_opacity, "Opacity (0.0 = transparent, 1.0 = opaque)", NULL},
-    {"name", (getter)UIEntity_get_name, (setter)UIEntity_set_name, "Name for finding elements", NULL},
+     MCRF_PROPERTY(texture, "Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture at construction. Setting preserves sprite_index (not re-validated against the new atlas)."), NULL},
+    {"visible", (getter)UIEntity_get_visible, (setter)UIEntity_set_visible,
+     MCRF_PROPERTY(visible, "Visibility flag (bool). When False, the entity is not rendered."), NULL},
+    {"opacity", (getter)UIEntity_get_opacity, (setter)UIEntity_set_opacity,
+     MCRF_PROPERTY(opacity, "Render opacity (float). 0.0 = fully transparent, 1.0 = fully opaque."), NULL},
+    {"name", (getter)UIEntity_get_name, (setter)UIEntity_set_name,
+     MCRF_PROPERTY(name, "Entity name for lookup (str)."), NULL},
     {"shader", (getter)UIEntity_get_shader, (setter)UIEntity_set_shader,
-     "Shader for GPU visual effects (Shader or None). "
-     "When set, the entity is rendered through the shader program. "
-     "Set to None to disable shader effects.", NULL},
+     MCRF_PROPERTY(shader, "GPU shader for visual effects (Shader or None). Set to None to disable shader rendering."), NULL},
     {"uniforms", (getter)UIEntity_get_uniforms, NULL,
-     "Collection of shader uniforms (read-only access to collection). "
-     "Set uniforms via dict-like syntax: entity.uniforms['name'] = value. "
-     "Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.", NULL},
+     MCRF_PROPERTY(uniforms, "Collection of shader uniforms (UniformCollection, read-only). Set values via dict-like syntax: entity.uniforms['name'] = value."), NULL},
     {"sprite_offset", (getter)UIEntity::get_sprite_offset, (setter)UIEntity::set_sprite_offset,
-     "Pixel offset for oversized sprites (Vector). Applied pre-zoom during grid rendering.", NULL},
+     MCRF_PROPERTY(sprite_offset, "Pixel offset for oversized sprites (Vector). Applied pre-zoom during grid rendering."), NULL},
     {"sprite_offset_x", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
-     "X component of sprite pixel offset.", (void*)0},
+     MCRF_PROPERTY(sprite_offset_x, "X component of sprite pixel offset (float)."), (void*)0},
     {"sprite_offset_y", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
-     "Y component of sprite pixel offset.", (void*)1},
+     MCRF_PROPERTY(sprite_offset_y, "Y component of sprite pixel offset (float)."), (void*)1},
     // #236 - Multi-tile entity size
     {"tile_size", (getter)UIEntity::get_tile_size, (setter)UIEntity::set_tile_size,
-     "Entity size in tiles as (width, height) Vector. Default (1, 1).", NULL},
+     MCRF_PROPERTY(tile_size, "Entity size in tiles as (width, height) (Vector). Default (1, 1)."), NULL},
     {"tile_width", (getter)UIEntity::get_tile_width, (setter)UIEntity::set_tile_width,
-     "Entity width in tiles (int). Must be >= 1. Default 1.", NULL},
+     MCRF_PROPERTY(tile_width, "Entity width in tiles (int). Must be >= 1. Default 1."), NULL},
     {"tile_height", (getter)UIEntity::get_tile_height, (setter)UIEntity::set_tile_height,
-     "Entity height in tiles (int). Must be >= 1. Default 1.", NULL},
+     MCRF_PROPERTY(tile_height, "Entity height in tiles (int). Must be >= 1. Default 1."), NULL},
     // #237 - Composite sprite grid
     {"sprite_grid", (getter)UIEntity::get_sprite_grid, (setter)UIEntity::set_sprite_grid,
-     "Per-tile sprite indices for composite multi-tile entities (list of lists or None). "
-     "Row-major, dimensions must match tile_width x tile_height. Use -1 for empty tiles. "
-     "When set, each tile renders its own sprite index instead of the single entity sprite.", NULL},
+     MCRF_PROPERTY(sprite_grid, "Per-tile sprite indices for composite multi-tile entities (list of lists or None). Row-major, dimensions must match tile_width x tile_height. Use -1 for empty tiles."), NULL},
     // #296 - Label system
     {"labels", (getter)UIEntity::get_labels, (setter)UIEntity::set_labels,
-     "Set of string labels for collision/targeting (frozenset). "
-     "Assign any iterable of strings to replace all labels.", NULL},
+     MCRF_PROPERTY(labels, "String labels for collision and targeting (frozenset). Assign any iterable of strings to replace all labels."), NULL},
     // #299 - Step callback and default behavior
     {"step", (getter)UIEntity::get_step, (setter)UIEntity::set_step,
-     "Step callback for grid.step() turn management. "
-     "Called with (trigger, data) when behavior triggers fire. "
-     "Set to None to clear.", NULL},
+     MCRF_PROPERTY(step, "Step callback for grid.step() turn management (Callable or None). Called with (trigger, data) when behavior triggers fire."), NULL},
     {"default_behavior", (getter)UIEntity::get_default_behavior, (setter)UIEntity::set_default_behavior,
-     "Default behavior type (int, maps to Behavior enum). "
-     "Entity reverts to this after DONE trigger. Default: 0 (IDLE).", NULL},
+     MCRF_PROPERTY(default_behavior, "Default behavior type (int, maps to Behavior enum). Entity reverts to this after DONE trigger. Default: 0 (IDLE)."), NULL},
     // #300 - Behavior system
     {"behavior_type", (getter)UIEntity::get_behavior_type, NULL,
-     "Current behavior type (int, read-only). Use set_behavior() to change.", NULL},
+     MCRF_PROPERTY(behavior_type, "Current behavior type (int, read-only). Use set_behavior() to change."), NULL},
     {"turn_order", (getter)UIEntity::get_turn_order, (setter)UIEntity::set_turn_order,
-     "Turn order for grid.step() (int). 0 = skip, higher values go later. Default: 1.", NULL},
+     MCRF_PROPERTY(turn_order, "Turn order for grid.step() (int). 0 = skip, higher values go later. Default: 1."), NULL},
     {"move_speed", (getter)UIEntity::get_move_speed, (setter)UIEntity::set_move_speed,
-     "Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15.", NULL},
+     MCRF_PROPERTY(move_speed, "Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15."), NULL},
     {"target_label", (getter)UIEntity::get_target_label, (setter)UIEntity::set_target_label,
-     "Label to search for with TARGET trigger (str or None). Default: None.", NULL},
+     MCRF_PROPERTY(target_label, "Label to search for with TARGET trigger (str or None). Default: None."), NULL},
     {"sight_radius", (getter)UIEntity::get_sight_radius, (setter)UIEntity::set_sight_radius,
-     "FOV radius for TARGET trigger (int). Default: 10.", NULL},
+     MCRF_PROPERTY(sight_radius, "FOV radius for TARGET trigger (int). Default: 10."), NULL},
     {NULL}  /* Sentinel */
 };
 

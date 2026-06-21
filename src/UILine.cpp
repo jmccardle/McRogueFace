@@ -1,6 +1,7 @@
 #include "UILine.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 #include "PyVector.h"
 #include "PyColor.h"
 #include "PythonObjectCache.h"
@@ -527,8 +528,12 @@ PyGetSetDef UILine::getsetters[] = {
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
      MCRF_PROPERTY(pos, "Position as a Vector (midpoint of line)."),
      (void*)PyObjectsEnum::UILINE},
-    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UILINE},
-    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UILINE},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
+     MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector, only when parent is Grid)."),
+     (void*)PyObjectsEnum::UILINE},
+    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size,
+     MCRF_PROPERTY(grid_size, "Size in grid tile coordinates (Vector, only when parent is Grid)."),
+     (void*)PyObjectsEnum::UILINE},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UILINE),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UILINE),

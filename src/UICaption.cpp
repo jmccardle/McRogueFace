@@ -11,6 +11,7 @@
 #include "UIGrid.h"           // parent= kwarg: Grid/GridView parent type
 #include "PySceneObject.h"    // parent= kwarg: Scene parent type
 // UIDrawable methods now in UIBase.h
+#include "McRFPy_Doc.h"
 #include <algorithm>
 
 UICaption::UICaption()
@@ -373,24 +374,50 @@ PyObject* UICaption::get_h(PyUICaptionObject* self, void* closure)
 }
 
 PyGetSetDef UICaption::getsetters[] = {
-    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "X coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 0)},
-    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "Y coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 1)},
-    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "(x, y) vector", (void*)PyObjectsEnum::UICAPTION},
-    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UICAPTION},
-    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UICAPTION},
-    {"size", (getter)UICaption::get_size, NULL, "Text dimensions as Vector (read-only)", NULL},
-    {"w", (getter)UICaption::get_w, NULL, "Text width in pixels (read-only)", NULL},
-    {"h", (getter)UICaption::get_h, NULL, "Text height in pixels (read-only)", NULL},
-    {"outline", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Thickness of the border",   (void*)4},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(x, "X coordinate of top-left corner (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(y, "Y coordinate of top-left corner (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UICAPTION << 8 | 1)},
+    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
+     MCRF_PROPERTY(pos, "Position as (x, y) Vector."),
+     (void*)PyObjectsEnum::UICAPTION},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
+     MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector). Only valid when parent is a Grid."),
+     (void*)PyObjectsEnum::UICAPTION},
+    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size,
+     MCRF_PROPERTY(grid_size, "Size in grid tile coordinates (Vector). Only valid when parent is a Grid."),
+     (void*)PyObjectsEnum::UICAPTION},
+    {"size", (getter)UICaption::get_size, NULL,
+     MCRF_PROPERTY(size, "Text dimensions as Vector (read-only)."),
+     NULL},
+    {"w", (getter)UICaption::get_w, NULL,
+     MCRF_PROPERTY(w, "Text width in pixels (float, read-only)."),
+     NULL},
+    {"h", (getter)UICaption::get_h, NULL,
+     MCRF_PROPERTY(h, "Text height in pixels (float, read-only)."),
+     NULL},
+    {"outline", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member,
+     MCRF_PROPERTY(outline, "Thickness of the text outline border (float). Clamped to non-negative values."),
+     (void*)4},
     {"fill_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member,
-     "Fill color of the text. Returns a copy; modifying components requires reassignment. "
-     "For animation, use 'fill_color.r', 'fill_color.g', etc.", (void*)0},
+     MCRF_PROPERTY(fill_color,
+         "Fill color of the text (Color). Returns a copy; modifying components requires reassignment. "
+         "For animation, use 'fill_color.r', 'fill_color.g', etc."
+     ), (void*)0},
     {"outline_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member,
-     "Outline color of the text. Returns a copy; modifying components requires reassignment. "
-     "For animation, use 'outline_color.r', 'outline_color.g', etc.", (void*)1},
+     MCRF_PROPERTY(outline_color,
+         "Outline color of the text (Color). Returns a copy; modifying components requires reassignment. "
+         "For animation, use 'outline_color.r', 'outline_color.g', etc."
+     ), (void*)1},
     //{"children", (getter)PyUIFrame_get_children, NULL, "UICollection of objects on top of this one", NULL},
-    {"text", (getter)UICaption::get_text, (setter)UICaption::set_text, "The text displayed", NULL},
-    {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member, "Font size (integer) in points", (void*)5},
+    {"text", (getter)UICaption::get_text, (setter)UICaption::set_text,
+     MCRF_PROPERTY(text, "The text string displayed by this Caption (str)."),
+     NULL},
+    {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member,
+     MCRF_PROPERTY(font_size, "Font size in points (int). Clamped to the range [0, 65535]."),
+     (void*)5},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
@@ -401,7 +428,9 @@ PyGetSetDef UICaption::getsetters[] = {
          "Z-order for rendering (lower values rendered first). "
          "Automatically triggers scene resort when changed."
      ), (void*)PyObjectsEnum::UICAPTION},
-    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UICAPTION},
+    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,
+     MCRF_PROPERTY(name, "Name for finding elements (str)."),
+     (void*)PyObjectsEnum::UICAPTION},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UICAPTION),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UICAPTION),

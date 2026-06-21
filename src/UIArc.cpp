@@ -1,4 +1,5 @@
 #include "UIArc.h"
+#include "McRFPy_Doc.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
 #include "PyAlignment.h"
@@ -493,27 +494,29 @@ typedef PyUIArcObject PyObjectType;
 
 PyGetSetDef UIArc::getsetters[] = {
     {"center", (getter)UIArc::get_center, (setter)UIArc::set_center,
-     "Center position of the arc", NULL},
+     MCRF_PROPERTY(center, "Center position of the arc (Vector)."), NULL},
     {"radius", (getter)UIArc::get_radius, (setter)UIArc::set_radius,
-     "Arc radius in pixels", NULL},
+     MCRF_PROPERTY(radius, "Arc radius in pixels (float)."), NULL},
     {"start_angle", (getter)UIArc::get_start_angle, (setter)UIArc::set_start_angle,
-     "Starting angle in degrees", NULL},
+     MCRF_PROPERTY(start_angle, "Starting angle in degrees (float)."), NULL},
     {"end_angle", (getter)UIArc::get_end_angle, (setter)UIArc::set_end_angle,
-     "Ending angle in degrees", NULL},
+     MCRF_PROPERTY(end_angle, "Ending angle in degrees (float)."), NULL},
     {"color", (getter)UIArc::get_color, (setter)UIArc::set_color,
-     "Arc color", NULL},
+     MCRF_PROPERTY(color, "Arc fill color (Color)."), NULL},
     {"thickness", (getter)UIArc::get_thickness, (setter)UIArc::set_thickness,
-     "Line thickness", NULL},
+     MCRF_PROPERTY(thickness, "Line thickness in pixels (float)."), NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     "Callable executed when arc is clicked. Function receives (pos: Vector, button: str, action: str).", (void*)PyObjectsEnum::UIARC},
+     MCRF_PROPERTY(on_click, "Callable executed when arc is clicked. Function receives (pos: Vector, button: str, action: str)."), (void*)PyObjectsEnum::UIARC},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
-     "Z-order for rendering (lower values rendered first).", (void*)PyObjectsEnum::UIARC},
+     MCRF_PROPERTY(z_index, "Z-order for rendering (int, lower values rendered first)."), (void*)PyObjectsEnum::UIARC},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,
-     "Name for finding this element.", (void*)PyObjectsEnum::UIARC},
+     MCRF_PROPERTY(name, "Name for finding this element (str)."), (void*)PyObjectsEnum::UIARC},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
-     "Position as a Vector (same as center).", (void*)PyObjectsEnum::UIARC},
-    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UIARC},
-    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UIARC},
+     MCRF_PROPERTY(pos, "Position as a Vector (same as center)."), (void*)PyObjectsEnum::UIARC},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
+     MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector, only when parent is Grid)."), (void*)PyObjectsEnum::UIARC},
+    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size,
+     MCRF_PROPERTY(grid_size, "Size in grid tile coordinates (Vector, only when parent is Grid)."), (void*)PyObjectsEnum::UIARC},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIARC),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIARC),

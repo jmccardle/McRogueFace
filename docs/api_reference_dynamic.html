@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2026-06-10 20:23:39</em></p>
+        <p><em>Generated on 2026-06-21 01:18:30</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         
         <div class="toc">
@@ -346,16 +346,16 @@ Example:
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">peek() -> Vector</code></h5>
-                <p>See next step without consuming it.</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector.</p>
-                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If path is exhausted.</p>
+                <p>See the next step without consuming it.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If the path is exhausted</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">walk() -> Vector</code></h5>
-                <p>Get and consume next step in the path.</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector.</p>
-                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If path is exhausted.</p>
+                <p>Get and consume the next step in the path.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If the path is exhausted</p>
             </div>
         </div>
 
@@ -525,17 +525,17 @@ Attributes:
             <ul>
                 <li><span class='property-name'>align</span>: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.</li>
                 <li><span class='property-name'>bounds</span>: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).</li>
-                <li><span class='property-name'>center</span>: Center position of the arc</li>
-                <li><span class='property-name'>color</span>: Arc color</li>
-                <li><span class='property-name'>end_angle</span>: Ending angle in degrees</li>
+                <li><span class='property-name'>center</span>: Center position of the arc (Vector).</li>
+                <li><span class='property-name'>color</span>: Arc fill color (Color).</li>
+                <li><span class='property-name'>end_angle</span>: Ending angle in degrees (float).</li>
                 <li><span class='property-name'>global_bounds</span>: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
-                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (only when parent is Grid)</li>
-                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (only when parent is Grid)</li>
+                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (Vector, only when parent is Grid).</li>
+                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (Vector, only when parent is Grid).</li>
                 <li><span class='property-name'>horiz_margin</span>: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).</li>
                 <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
                 <li><span class='property-name'>margin</span>: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).</li>
-                <li><span class='property-name'>name</span>: Name for finding this element.</li>
+                <li><span class='property-name'>name</span>: Name for finding this element (str).</li>
                 <li><span class='property-name'>on_click</span>: Callable executed when arc is clicked. Function receives (pos: Vector, button: str, action: str).</li>
                 <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
@@ -544,14 +544,14 @@ Attributes:
                 <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
                 <li><span class='property-name'>pos</span>: Position as a Vector (same as center).</li>
-                <li><span class='property-name'>radius</span>: Arc radius in pixels</li>
+                <li><span class='property-name'>radius</span>: Arc radius in pixels (float).</li>
                 <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
                 <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
-                <li><span class='property-name'>start_angle</span>: Starting angle in degrees</li>
-                <li><span class='property-name'>thickness</span>: Line thickness</li>
+                <li><span class='property-name'>start_angle</span>: Starting angle in degrees (float).</li>
+                <li><span class='property-name'>thickness</span>: Line thickness in pixels (float).</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
-                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first).</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (int, lower values rendered first).</li>
             </ul>
             <h4>Methods:</h4>
 
@@ -1003,38 +1003,38 @@ Attributes:
             <ul>
                 <li><span class='property-name'>align</span>: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.</li>
                 <li><span class='property-name'>bounds</span>: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).</li>
-                <li><span class='property-name'>fill_color</span>: Fill color of the text. Returns a copy; modifying components requires reassignment. For animation, use &#x27;fill_color.r&#x27;, &#x27;fill_color.g&#x27;, etc.</li>
-                <li><span class='property-name'>font_size</span>: Font size (integer) in points</li>
+                <li><span class='property-name'>fill_color</span>: Fill color of the text (Color). Returns a copy; modifying components requires reassignment. For animation, use &#x27;fill_color.r&#x27;, &#x27;fill_color.g&#x27;, etc.</li>
+                <li><span class='property-name'>font_size</span>: Font size in points (int). Clamped to the range [0, 65535].</li>
                 <li><span class='property-name'>global_bounds</span>: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
-                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (only when parent is Grid)</li>
-                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (only when parent is Grid)</li>
-                <li><span class='property-name'>h</span> (read-only): Text height in pixels (read-only)</li>
+                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (Vector). Only valid when parent is a Grid.</li>
+                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (Vector). Only valid when parent is a Grid.</li>
+                <li><span class='property-name'>h</span> (read-only): Text height in pixels (float, read-only).</li>
                 <li><span class='property-name'>horiz_margin</span>: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).</li>
                 <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
                 <li><span class='property-name'>margin</span>: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).</li>
-                <li><span class='property-name'>name</span>: Name for finding elements</li>
+                <li><span class='property-name'>name</span>: Name for finding elements (str).</li>
                 <li><span class='property-name'>on_click</span>: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).</li>
                 <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
                 <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
-                <li><span class='property-name'>outline</span>: Thickness of the border</li>
-                <li><span class='property-name'>outline_color</span>: Outline color of the text. Returns a copy; modifying components requires reassignment. For animation, use &#x27;outline_color.r&#x27;, &#x27;outline_color.g&#x27;, etc.</li>
+                <li><span class='property-name'>outline</span>: Thickness of the text outline border (float). Clamped to non-negative values.</li>
+                <li><span class='property-name'>outline_color</span>: Outline color of the text (Color). Returns a copy; modifying components requires reassignment. For animation, use &#x27;outline_color.r&#x27;, &#x27;outline_color.g&#x27;, etc.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
-                <li><span class='property-name'>pos</span>: (x, y) vector</li>
+                <li><span class='property-name'>pos</span>: Position as (x, y) Vector.</li>
                 <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
                 <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
-                <li><span class='property-name'>size</span> (read-only): Text dimensions as Vector (read-only)</li>
-                <li><span class='property-name'>text</span>: The text displayed</li>
+                <li><span class='property-name'>size</span> (read-only): Text dimensions as Vector (read-only).</li>
+                <li><span class='property-name'>text</span>: The text string displayed by this Caption (str).</li>
                 <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
-                <li><span class='property-name'>w</span> (read-only): Text width in pixels (read-only)</li>
-                <li><span class='property-name'>x</span>: X coordinate of top-left corner</li>
-                <li><span class='property-name'>y</span>: Y coordinate of top-left corner</li>
+                <li><span class='property-name'>w</span> (read-only): Text width in pixels (float, read-only).</li>
+                <li><span class='property-name'>x</span>: X coordinate of top-left corner (float).</li>
+                <li><span class='property-name'>y</span>: Y coordinate of top-left corner (float).</li>
                 <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.</li>
             </ul>
             <h4>Methods:</h4>
@@ -1135,32 +1135,32 @@ Attributes:
             <ul>
                 <li><span class='property-name'>align</span>: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.</li>
                 <li><span class='property-name'>bounds</span>: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).</li>
-                <li><span class='property-name'>center</span>: Center position of the circle</li>
-                <li><span class='property-name'>fill_color</span>: Fill color of the circle</li>
+                <li><span class='property-name'>center</span>: Center position of the circle (Vector).</li>
+                <li><span class='property-name'>fill_color</span>: Fill color of the circle (Color).</li>
                 <li><span class='property-name'>global_bounds</span>: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
-                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (only when parent is Grid)</li>
-                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (only when parent is Grid)</li>
+                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (Vector). Only meaningful when parent is a Grid.</li>
+                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (Vector). Only meaningful when parent is a Grid.</li>
                 <li><span class='property-name'>horiz_margin</span>: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).</li>
                 <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
                 <li><span class='property-name'>margin</span>: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).</li>
-                <li><span class='property-name'>name</span>: Name for finding this element.</li>
-                <li><span class='property-name'>on_click</span>: Callable executed when circle is clicked. Function receives (pos: Vector, button: str, action: str).</li>
+                <li><span class='property-name'>name</span>: Name for finding this element (str).</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when circle is clicked (Callable | None). Function receives (pos: Vector, button: str, action: str).</li>
                 <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
                 <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
-                <li><span class='property-name'>outline</span>: Outline thickness (0 for no outline)</li>
-                <li><span class='property-name'>outline_color</span>: Outline color of the circle</li>
+                <li><span class='property-name'>outline</span>: Outline thickness in pixels (float). Use 0 for no outline.</li>
+                <li><span class='property-name'>outline_color</span>: Outline color of the circle (Color).</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
-                <li><span class='property-name'>pos</span>: Position as a Vector (same as center).</li>
-                <li><span class='property-name'>radius</span>: Circle radius in pixels</li>
+                <li><span class='property-name'>pos</span>: Position as a Vector (same as center) (Vector).</li>
+                <li><span class='property-name'>radius</span>: Circle radius in pixels (float).</li>
                 <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
                 <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
-                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first).</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (int). Lower values are rendered first.</li>
             </ul>
             <h4>Methods:</h4>
 
@@ -1327,95 +1327,122 @@ Example:
     grid.layer(&#x27;fog&#x27;).set(5, 5, mcrfpy.Color(255, 0, 0, 128))</p>
             <h4>Properties:</h4>
             <ul>
-                <li><span class='property-name'>grid</span>: Parent Grid or None. Setting manages layer association and handles lazy allocation.</li>
-                <li><span class='property-name'>grid_size</span>: Layer dimensions as (width, height) tuple.</li>
+                <li><span class='property-name'>grid</span>: Parent Grid or None (Grid | None). Setting manages layer association and handles lazy allocation.</li>
+                <li><span class='property-name'>grid_size</span> (read-only): Layer dimensions as (width, height) tuple (tuple, read-only).</li>
                 <li><span class='property-name'>name</span> (read-only): Layer name (str, read-only). Used for Grid.layer(name) lookup.</li>
-                <li><span class='property-name'>visible</span>: Whether the layer is rendered.</li>
-                <li><span class='property-name'>z_index</span>: Layer z-order. Negative values render below entities.</li>
+                <li><span class='property-name'>visible</span>: Whether the layer is rendered (bool).</li>
+                <li><span class='property-name'>z_index</span>: Layer z-order (int). Negative values render below entities.</li>
             </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">apply_gradient(source, range, color_low, color_high) -> ColorLayer</code></h5>
-                <p>Interpolate between colors based on HeightMap value within range.
-
-Note:</p>
+                <h5><code class="method-name">apply_gradient(source: HeightMap, range: tuple, color_low: Color, color_high: Color) -> ColorLayer</code></h5>
+                <p>Interpolate between two colors based on HeightMap value within a range. Uses the original heightmap value for smooth transitions.</p>
                 <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>source</span>: Source heightmap (must match layer dimensions)</div>
+                    <div><span class='arg-name'>range</span>: Value range as (min, max) inclusive</div>
                     <div><span class='arg-name'>color_low</span>: Color at range minimum</div>
                     <div><span class='arg-name'>color_high</span>: Color at range maximum</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> self for method chaining Uses the original HeightMap value for interpolation, not binary. This allows smooth color transitions within a value range.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> self for method chaining</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">apply_perspective(entity, visible=None, discovered=None, unknown=None)</code></h5>
-                <p>Bind this layer to an entity for automatic FOV updates.</p>
+                <h5><code class="method-name">apply_perspective(entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None</code></h5>
+                <p>Bind this layer to an entity for automatic FOV updates. After binding, call update_perspective() when the entity moves.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>entity</span>: The entity whose perspective to track</div>
+                    <div><span class='arg-name'>visible</span>: Color for currently visible cells</div>
+                    <div><span class='arg-name'>discovered</span>: Color for previously seen cells</div>
+                    <div><span class='arg-name'>unknown</span>: Color for never-seen cells</div>
+                </div>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">apply_ranges(source, ranges) -> ColorLayer</code></h5>
-                <p>Apply multiple color assignments in a single pass.
+                <h5><code class="method-name">apply_ranges(source: HeightMap, ranges: list) -> ColorLayer</code></h5>
+                <p>Apply multiple color assignments from a HeightMap in a single pass. Later ranges override earlier ones if overlapping.
 
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> self for method chaining Later ranges override earlier ones if overlapping. Cells not matching any range are left unchanged.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>source</span>: Source heightmap (must match layer dimensions)</div>
+                    <div><span class='arg-name'>ranges</span>: List of range specs: ((min, max), color) for fixed or ((min, max), (color_low, color_high)) for gradient</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> self for method chaining Cells not matching any range are left unchanged.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">apply_threshold(source, range, color) -> ColorLayer</code></h5>
-                <p>Set fixed color for cells where HeightMap value is within range.</p>
+                <h5><code class="method-name">apply_threshold(source: HeightMap, range: tuple, color: Color) -> ColorLayer</code></h5>
+                <p>Set a fixed color for cells where the HeightMap value falls within a range.</p>
                 <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>source</span>: Source heightmap (must match layer dimensions)</div>
+                    <div><span class='arg-name'>range</span>: Value range as (min, max) inclusive</div>
                     <div><span class='arg-name'>color</span>: Color or (r, g, b[, a]) tuple to set for cells in range</div>
                 </div>
                 <p style='margin-left: 20px;'><span class='returns'>Returns:</span> self for method chaining</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">at(pos) -> Color</code></h5>
-                <p>at(x, y) -&gt; Color
-Get the color at cell position.</p>
+                <h5><code class="method-name">at(pos) or (x: int, y: int) -> Color</code></h5>
+                <p>Get the color at a cell position.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>pos</span>: Position as (x, y) tuple, list, or Vector</div>
+                    <div><span class='arg-name'>pos</span>: Position as (x, y) tuple, list, or Vector; or pass x and y separately</div>
                 </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Color at the specified cell</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If coordinates are out of bounds</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">clear_perspective()</code></h5>
+                <h5><code class="method-name">clear_perspective() -> None</code></h5>
                 <p>Remove the perspective binding from this layer.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">draw_fov(source, radius=None, fov=None, visible=None, discovered=None, unknown=None)</code></h5>
-                <p>Paint cells based on field-of-view visibility from source position.
+                <h5><code class="method-name">draw_fov(source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None</code></h5>
+                <p>Paint cells based on field-of-view visibility from a source position.
 
-Note: Layer must be attached to a grid for FOV calculation.</p>
+Note:</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>source</span>: FOV origin as (x, y)</div>
+                    <div><span class='arg-name'>radius</span>: FOV radius; defaults to the grid&#x27;s fov_radius</div>
+                    <div><span class='arg-name'>fov</span>: FOV algorithm; defaults to the grid&#x27;s fov setting</div>
+                    <div><span class='arg-name'>visible</span>: Color for currently visible cells</div>
+                    <div><span class='arg-name'>discovered</span>: Color for previously seen cells</div>
+                    <div><span class='arg-name'>unknown</span>: Color for never-seen cells</div>
+                </div>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">fill(color)</code></h5>
+                <h5><code class="method-name">fill(color: Color) -> None</code></h5>
                 <p>Fill the entire layer with the specified color.</p>
-            </div>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">fill_rect(pos, size, color)</code></h5>
-                <p>Fill a rectangular region with a color.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>color</span>: Color object or (r, g, b[, a]) tuple</div>
                 </div>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">set(pos, color)</code></h5>
-                <p>Set the color at cell position.</p>
+                <h5><code class="method-name">fill_rect(pos: tuple, size: tuple, color: Color) -> None</code></h5>
+                <p>Fill a rectangular region with a color.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>pos</span>: Top-left corner as (x, y)</div>
+                    <div><span class='arg-name'>size</span>: Dimensions as (width, height)</div>
+                    <div><span class='arg-name'>color</span>: Color object or (r, g, b[, a]) tuple</div>
+                </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">set(pos, color: Color) -> None</code></h5>
+                <p>Set the color at a cell position.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>pos</span>: Position as (x, y) tuple, list, or Vector</div>
                     <div><span class='arg-name'>color</span>: Color object or (r, g, b[, a]) tuple</div>
                 </div>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If coordinates are out of bounds</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">update_perspective()</code></h5>
-                <p>Redraw FOV based on the bound entity&#x27;s current position.
-Call this after the entity moves to update the visibility layer.</p>
+                <h5><code class="method-name">update_perspective() -> None</code></h5>
+                <p>Redraw FOV based on the bound entity&#x27;s current position. Call this after the entity moves to update the visibility layer.</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> RuntimeError: If no perspective binding has been set via apply_perspective()</p>
             </div>
         </div>
 
@@ -1452,64 +1479,55 @@ Example:
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">descent_step(pos) -> Vector | None</code></h5>
-                <p>Get the adjacent cell with the lowest distance (steepest descent).
-Unlike step_from (which follows the path set by path_from), descent_step
-always returns the best neighbor in a single hop. Useful for AI that
-reacts to the current distance field rather than following a fixed path.</p>
+                <h5><code class="method-name">descent_step(pos: Vector | tuple) -> Vector | None</code></h5>
+                <p>Get the adjacent cell with the lowest distance (steepest descent). Unlike step_from, this always returns the best neighbor in a single hop without following a precomputed path.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>pos</span>: Current position as Vector, Entity, or (x, y) tuple.</div>
+                    <div><span class='arg-name'>pos</span>: Current position as Vector, Entity, or (x, y) tuple</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector, or None if pos is a local minimum or off-grid.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector, or None if pos is a local minimum or off-grid</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">distance(pos) -> float | None</code></h5>
+                <h5><code class="method-name">distance(pos: Vector | tuple) -> float | None</code></h5>
                 <p>Get distance from position to root.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>pos</span>: Position as Vector, Entity, or (x, y) tuple.</div>
+                    <div><span class='arg-name'>pos</span>: Position as Vector, Entity, or (x, y) tuple</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Float distance, or None if position is unreachable.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Float distance, or None if position is unreachable</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">invert() -> DijkstraMap</code></h5>
-                <p>Return a NEW DijkstraMap whose distance field is the safety field.
-Cells near a root become high values and cells far from any root become
-low values. Combined with step_from or descent_step, this gives flee
-behavior: descend the inverted map to move away from the original roots.
-The original DijkstraMap is unchanged.</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> New DijkstraMap with inverted distances.</p>
+                <p>Return a new DijkstraMap whose distance field is inverted (safety field). Cells near a root become high values; descend to flee from original roots. The original DijkstraMap is unchanged.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> New DijkstraMap with inverted distances</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">path_from(pos) -> AStarPath</code></h5>
+                <h5><code class="method-name">path_from(pos: Vector | tuple) -> AStarPath</code></h5>
                 <p>Get full path from position to root.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>pos</span>: Starting position as Vector, Entity, or (x, y) tuple.</div>
+                    <div><span class='arg-name'>pos</span>: Starting position as Vector, Entity, or (x, y) tuple</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> AStarPath from pos toward root.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> AStarPath from pos toward root</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">step_from(pos) -> Vector | None</code></h5>
+                <h5><code class="method-name">step_from(pos: Vector | tuple) -> Vector | None</code></h5>
                 <p>Get single step from position toward root.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>pos</span>: Current position as Vector, Entity, or (x, y) tuple.</div>
+                    <div><span class='arg-name'>pos</span>: Current position as Vector, Entity, or (x, y) tuple</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector, or None if at root or unreachable.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Next position as Vector, or None if at root or unreachable</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">to_heightmap(size=None, unreachable=-1.0) -> HeightMap</code></h5>
-                <p>Convert distance field to a HeightMap.
-Each cell&#x27;s height equals its pathfinding distance from the root.
-Useful for visualization, procedural terrain, or influence mapping.</p>
+                <p>Convert distance field to a HeightMap. Each cell&#x27;s height equals its pathfinding distance from the root, useful for visualization, procedural terrain, or influence mapping.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>size</span>: Optional (width, height) tuple. Defaults to dijkstra dimensions.</div>
-                    <div><span class='arg-name'>unreachable</span>: Value for cells that cannot reach root (default -1.0).</div>
+                    <div><span class='arg-name'>size</span>: Optional (width, height) tuple. Defaults to dijkstra dimensions</div>
+                    <div><span class='arg-name'>unreachable</span>: Value for cells that cannot reach root (default -1.0)</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> HeightMap with distance values as heights.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> HeightMap with distance values as heights</p>
             </div>
         </div>
 
@@ -1947,44 +1965,48 @@ Attributes:
             <ul>
                 <li><span class='property-name'>behavior_type</span> (read-only): Current behavior type (int, read-only). Use set_behavior() to change.</li>
                 <li><span class='property-name'>cell_pos</span>: Integer logical cell position (Vector). Alias for grid_pos (the canonical name).</li>
-                <li><span class='property-name'>cell_x</span>: Integer X cell coordinate. Alias for grid_x.</li>
-                <li><span class='property-name'>cell_y</span>: Integer Y cell coordinate. Alias for grid_y.</li>
+                <li><span class='property-name'>cell_x</span>: Integer X cell coordinate (int). Alias for grid_x.</li>
+                <li><span class='property-name'>cell_y</span>: Integer Y cell coordinate (int). Alias for grid_y.</li>
                 <li><span class='property-name'>default_behavior</span>: Default behavior type (int, maps to Behavior enum). Entity reverts to this after DONE trigger. Default: 0 (IDLE).</li>
                 <li><span class='property-name'>draw_pos</span>: Fractional tile position for rendering (Vector). Use for smooth animation between grid cells.</li>
-                <li><span class='property-name'>grid</span>: Grid this entity belongs to. Get: Returns the Grid or None. Set: Assign a Grid to move entity, or None to remove from grid.</li>
-                <li><span class='property-name'>grid_pos</span>: Integer logical cell position (Vector). Canonical cell-position property; matches the &#x27;grid_pos&#x27; constructor argument. Decoupled from draw_pos. Determines which cell this entity logically occupies for collision, pathfinding, etc.</li>
-                <li><span class='property-name'>grid_x</span>: Integer X cell coordinate. Canonical; matches grid_pos.</li>
-                <li><span class='property-name'>grid_y</span>: Integer Y cell coordinate. Canonical; matches grid_pos.</li>
-                <li><span class='property-name'>labels</span>: Set of string labels for collision/targeting (frozenset). Assign any iterable of strings to replace all labels.</li>
+                <li><span class='property-name'>grid</span>: Grid this entity belongs to (Grid or None). Assign a Grid to attach the entity, or None to remove it from its current grid.</li>
+                <li><span class='property-name'>grid_pos</span>: Integer logical cell position (Vector). Canonical cell-position property matching the &#x27;grid_pos&#x27; constructor argument. Decoupled from draw_pos. Determines which cell this entity logically occupies for collision and pathfinding.</li>
+                <li><span class='property-name'>grid_x</span>: Integer X cell coordinate (int). Canonical; matches grid_pos.</li>
+                <li><span class='property-name'>grid_y</span>: Integer Y cell coordinate (int). Canonical; matches grid_pos.</li>
+                <li><span class='property-name'>labels</span>: String labels for collision and targeting (frozenset). Assign any iterable of strings to replace all labels.</li>
                 <li><span class='property-name'>move_speed</span>: Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15.</li>
-                <li><span class='property-name'>name</span>: Name for finding elements</li>
-                <li><span class='property-name'>opacity</span>: Opacity (0.0 = transparent, 1.0 = opaque)</li>
-                <li><span class='property-name'>perspective_map</span>: Per-entity FOV memory (DiscreteMap, read-write). 3-state values per cell: 0 = unknown (never seen), 1 = discovered (seen before, not currently visible), 2 = visible (in current FOV). Use mcrfpy.Perspective enum for clarity. Lazy-allocated on first access once the entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference -- mutations are visible to subsequent updateVisibility() calls. Assigning a DiscreteMap replaces the entity&#x27;s memory; the new map&#x27;s size must match the grid&#x27;s size or ValueError is raised. Assign None to clear (will be lazy-reallocated on next access).</li>
+                <li><span class='property-name'>name</span>: Entity name for lookup (str).</li>
+                <li><span class='property-name'>opacity</span>: Render opacity (float). 0.0 = fully transparent, 1.0 = fully opaque.</li>
+                <li><span class='property-name'>perspective_map</span>: Per-entity FOV memory (DiscreteMap). 3-state values per cell: 0=unknown, 1=discovered, 2=visible. Lazy-allocated on first access once entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference. Assigning a DiscreteMap replaces the entity&#x27;s memory; size must match the grid or ValueError is raised. Assign None to clear.</li>
                 <li><span class='property-name'>pos</span>: Pixel position relative to grid (Vector). Computed as draw_pos * tile_size. Requires entity to be attached to a grid.</li>
-                <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the entity is rendered through the shader program. Set to None to disable shader effects.</li>
+                <li><span class='property-name'>shader</span>: GPU shader for visual effects (Shader or None). Set to None to disable shader rendering.</li>
                 <li><span class='property-name'>sight_radius</span>: FOV radius for TARGET trigger (int). Default: 10.</li>
-                <li><span class='property-name'>sprite_grid</span>: Per-tile sprite indices for composite multi-tile entities (list of lists or None). Row-major, dimensions must match tile_width x tile_height. Use -1 for empty tiles. When set, each tile renders its own sprite index instead of the single entity sprite.</li>
-                <li><span class='property-name'>sprite_index</span>: Sprite index on the texture on the display</li>
+                <li><span class='property-name'>sprite_grid</span>: Per-tile sprite indices for composite multi-tile entities (list of lists or None). Row-major, dimensions must match tile_width x tile_height. Use -1 for empty tiles.</li>
+                <li><span class='property-name'>sprite_index</span>: Sprite index into the entity&#x27;s texture atlas (int).</li>
                 <li><span class='property-name'>sprite_offset</span>: Pixel offset for oversized sprites (Vector). Applied pre-zoom during grid rendering.</li>
-                <li><span class='property-name'>sprite_offset_x</span>: X component of sprite pixel offset.</li>
-                <li><span class='property-name'>sprite_offset_y</span>: Y component of sprite pixel offset.</li>
-                <li><span class='property-name'>step</span>: Step callback for grid.step() turn management. Called with (trigger, data) when behavior triggers fire. Set to None to clear.</li>
+                <li><span class='property-name'>sprite_offset_x</span>: X component of sprite pixel offset (float).</li>
+                <li><span class='property-name'>sprite_offset_y</span>: Y component of sprite pixel offset (float).</li>
+                <li><span class='property-name'>step</span>: Step callback for grid.step() turn management (Callable or None). Called with (trigger, data) when behavior triggers fire.</li>
                 <li><span class='property-name'>target_label</span>: Label to search for with TARGET trigger (str or None). Default: None.</li>
-                <li><span class='property-name'>texture</span>: Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture when the entity is constructed without one. Setting preserves sprite_index (the index is not re-validated against the new atlas). The grid&#x27;s texture only determines cell size; entities draw with their own.</li>
+                <li><span class='property-name'>texture</span>: Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture at construction. Setting preserves sprite_index (not re-validated against the new atlas).</li>
                 <li><span class='property-name'>tile_height</span>: Entity height in tiles (int). Must be &gt;= 1. Default 1.</li>
-                <li><span class='property-name'>tile_size</span>: Entity size in tiles as (width, height) Vector. Default (1, 1).</li>
+                <li><span class='property-name'>tile_size</span>: Entity size in tiles as (width, height) (Vector). Default (1, 1).</li>
                 <li><span class='property-name'>tile_width</span>: Entity width in tiles (int). Must be &gt;= 1. Default 1.</li>
                 <li><span class='property-name'>turn_order</span>: Turn order for grid.step() (int). 0 = skip, higher values go later. Default: 1.</li>
-                <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: entity.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
-                <li><span class='property-name'>visible</span>: Visibility flag</li>
-                <li><span class='property-name'>x</span>: Pixel X position relative to grid. Requires entity to be attached to a grid.</li>
-                <li><span class='property-name'>y</span>: Pixel Y position relative to grid. Requires entity to be attached to a grid.</li>
+                <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (UniformCollection, read-only). Set values via dict-like syntax: entity.uniforms[&#x27;name&#x27;] = value.</li>
+                <li><span class='property-name'>visible</span>: Visibility flag (bool). When False, the entity is not rendered.</li>
+                <li><span class='property-name'>x</span>: Pixel X position relative to grid (float). Requires entity to be attached to a grid.</li>
+                <li><span class='property-name'>y</span>: Pixel Y position relative to grid (float). Requires entity to be attached to a grid.</li>
             </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">add_label(label: str) -> None</code></h5>
-                <p>Add a label to this entity. Idempotent (adding same label twice is safe).</p>
+                <p>Add a label to this entity. Idempotent; adding the same label twice is safe.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>label</span>: String label to add</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -2007,43 +2029,51 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">at(x, y) or at(pos) -> GridPoint | None</code></h5>
-                <p>Return the GridPoint at (x, y) if currently VISIBLE to this entity&#x27;s
-perspective_map, otherwise None. Equivalent to:
-    grid.at(x, y) if perspective_map[x, y] == Perspective.VISIBLE else None
-To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y]
-directly and use grid.at(x, y) for cell data.</p>
+                <h5><code class="method-name">at(x: int, y: int) -> GridPoint | None</code></h5>
+                <p>Return the GridPoint at (x, y) if currently VISIBLE to this entity&#x27;s perspective_map, otherwise None.
+
+Note:</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>pos</span>: Grid coordinates as tuple, list, or Vector</div>
+                    <div><span class='arg-name'>x</span>: Grid X coordinate (also accepts a tuple/Vector as first positional arg)</div>
+                    <div><span class='arg-name'>y</span>: Grid Y coordinate (omit when passing a tuple or Vector)</div>
                 </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> GridPoint if visible, None if undiscovered or not currently in FOV To inspect discovered-but-not-visible cells, read entity.perspective_map[x, y] directly.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">die(...)</code></h5>
+                <h5><code class="method-name">die() -> None</code></h5>
                 <p>Remove this entity from its grid.
-Warning: Do not call during iteration over grid.entities.
-Modifying the collection during iteration raises RuntimeError.</p>
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Do not call during iteration over grid.entities; modifying the collection during iteration raises RuntimeError.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None</code></h5>
+                <h5><code class="method-name">find_path(target, diagonal_cost: float = 1.41, collide: str = None) -> AStarPath | None</code></h5>
                 <p>Find a path from this entity to the target position.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>target</span>: Target as Vector, Entity, or (x, y) tuple.</div>
-                    <div><span class='arg-name'>diagonal_cost</span>: Cost of diagonal movement (default 1.41).</div>
-                    <div><span class='arg-name'>collide</span>: Label string. Entities with this label block pathfinding.</div>
+                    <div><span class='arg-name'>target</span>: Target as Vector, Entity, or (x, y) tuple</div>
+                    <div><span class='arg-name'>diagonal_cost</span>: Cost of diagonal movement (default 1.41)</div>
+                    <div><span class='arg-name'>collide</span>: Label string; entities with this label block pathfinding</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> AStarPath object, or None if no path exists.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> AStarPath object, or None if no path exists</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> ValueError: If entity has no grid or positions are out of bounds</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">has_label(label: str) -> bool</code></h5>
                 <p>Check if this entity has the given label.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>label</span>: String label to check</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> True if the entity has the label, False otherwise</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">index(...)</code></h5>
-                <p>Return the index of this entity in its grid&#x27;s entity collection</p>
+                <h5><code class="method-name">index() -> int</code></h5>
+                <p>Return the index of this entity in its grid&#x27;s entity collection.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Zero-based index of this entity in grid.entities</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> RuntimeError: If entity is not associated with a grid</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -2059,17 +2089,23 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">path_to(x, y) or path_to(target) -> list</code></h5>
-                <p>Find a path to the target position using Dijkstra pathfinding.</p>
+                <h5><code class="method-name">path_to(x: int, y: int) -> list</code></h5>
+                <p>Find a path to the target position using A* pathfinding.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>target</span>: Target coordinates as tuple, list, or Vector</div>
+                    <div><span class='arg-name'>x</span>: Target X coordinate (also accepts a tuple/Vector as first positional arg)</div>
+                    <div><span class='arg-name'>y</span>: Target Y coordinate (omit when passing a tuple or Vector)</div>
                 </div>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of (x, y) tuples representing the path.</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of (x, y) tuples representing the path from current position to target</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> ValueError: If entity has no grid or target is out of bounds</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">remove_label(label: str) -> None</code></h5>
-                <p>Remove a label from this entity. No-op if label not present.</p>
+                <p>Remove a label from this entity. No-op if label is not present.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>label</span>: String label to remove</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -2085,23 +2121,35 @@ Note:</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">set_behavior(type, waypoints=None, turns=0, path=None) -> None</code></h5>
+                <h5><code class="method-name">set_behavior(type, waypoints=None, turns: int = 0, path=None, pathfinder=None) -> None</code></h5>
                 <p>Configure this entity&#x27;s behavior for grid.step() turn management.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>type</span>: Behavior type (int or Behavior enum, e.g., Behavior.PATROL)</div>
+                    <div><span class='arg-name'>waypoints</span>: List of (x, y) tuples for WAYPOINT/PATROL/LOOP behaviors</div>
+                    <div><span class='arg-name'>turns</span>: Number of turns for SLEEP behavior</div>
+                    <div><span class='arg-name'>path</span>: Pre-computed path as list of (x, y) tuples for PATH behavior</div>
+                    <div><span class='arg-name'>pathfinder</span>: DijkstraMap, AStarPath, or (x, y) target tuple for SEEK behavior</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
                 <h5><code class="method-name">update_visibility() -> None</code></h5>
-                <p>Update entity&#x27;s visibility state based on current FOV.
-Recomputes which cells are visible from the entity&#x27;s position and updates
-the entity&#x27;s perspective_map (see entity.perspective_map and mcrfpy.Perspective).
-This is called automatically when the entity moves if it has a grid with
-perspective set.</p>
+                <p>Recompute which cells are visible from this entity&#x27;s position and update perspective_map.
+
+Note:</p>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> None Called automatically when the entity moves if the grid has FOV configured.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">visible_entities(fov=None, radius=None) -> list[Entity]</code></h5>
+                <h5><code class="method-name">visible_entities(fov=None, radius: int = None) -> list[Entity]</code></h5>
                 <p>Get list of other entities visible from this entity&#x27;s position.</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of Entity objects that are within field of view. Computes FOV from this entity&#x27;s position and returns all other entities whose positions fall within the visible area.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>fov</span>: FOV algorithm to use (FOV enum or None to use grid.fov)</div>
+                    <div><span class='arg-name'>radius</span>: FOV radius (int or None to use grid.fov_radius)</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> List of Entity objects within field of view, excluding self</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> ValueError: If entity is not associated with a grid</p>
             </div>
         </div>
 
@@ -2421,38 +2469,38 @@ Attributes:
             <ul>
                 <li><span class='property-name'>align</span>: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.</li>
                 <li><span class='property-name'>bounds</span>: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).</li>
-                <li><span class='property-name'>cache_subtree</span>: #144: Cache subtree rendering to texture for performance</li>
-                <li><span class='property-name'>children</span>: UICollection of objects on top of this one</li>
-                <li><span class='property-name'>clip_children</span>: Whether to clip children to frame bounds</li>
-                <li><span class='property-name'>fill_color</span>: Fill color of the rectangle. Returns a copy; modifying components requires reassignment. For animation, use &#x27;fill_color.r&#x27;, &#x27;fill_color.g&#x27;, etc.</li>
+                <li><span class='property-name'>cache_subtree</span>: Cache the frame and all children to a render texture for performance (bool). Useful for complex static subtrees.</li>
+                <li><span class='property-name'>children</span> (read-only): UICollection of child drawable objects rendered on top of this frame (UICollection, read-only).</li>
+                <li><span class='property-name'>clip_children</span>: Whether to clip child elements to the frame&#x27;s bounds (bool). Enables render-texture mode when True.</li>
+                <li><span class='property-name'>fill_color</span>: Fill color of the rectangle (Color). Returns a copy; modifying components requires reassignment. For animation, use &#x27;fill_color.r&#x27;, &#x27;fill_color.g&#x27;, etc.</li>
                 <li><span class='property-name'>global_bounds</span>: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
-                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (only when parent is Grid)</li>
-                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (only when parent is Grid)</li>
-                <li><span class='property-name'>h</span>: height of the rectangle</li>
+                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (Vector). Only meaningful when this element&#x27;s parent is a Grid.</li>
+                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (Vector). Only meaningful when this element&#x27;s parent is a Grid.</li>
+                <li><span class='property-name'>h</span>: Height of the rectangle (float).</li>
                 <li><span class='property-name'>horiz_margin</span>: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).</li>
                 <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
                 <li><span class='property-name'>margin</span>: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).</li>
-                <li><span class='property-name'>name</span>: Name for finding elements</li>
+                <li><span class='property-name'>name</span>: Name for finding elements (str).</li>
                 <li><span class='property-name'>on_click</span>: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).</li>
                 <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
                 <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
-                <li><span class='property-name'>outline</span>: Thickness of the border</li>
-                <li><span class='property-name'>outline_color</span>: Outline color of the rectangle. Returns a copy; modifying components requires reassignment. For animation, use &#x27;outline_color.r&#x27;, &#x27;outline_color.g&#x27;, etc.</li>
+                <li><span class='property-name'>outline</span>: Thickness of the border in pixels (float).</li>
+                <li><span class='property-name'>outline_color</span>: Outline color of the rectangle (Color). Returns a copy; modifying components requires reassignment. For animation, use &#x27;outline_color.r&#x27;, &#x27;outline_color.g&#x27;, etc.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
-                <li><span class='property-name'>pos</span>: Position as a Vector</li>
+                <li><span class='property-name'>pos</span>: Position as a Vector (Vector).</li>
                 <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
                 <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
                 <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
-                <li><span class='property-name'>w</span>: width of the rectangle</li>
-                <li><span class='property-name'>x</span>: X coordinate of top-left corner</li>
-                <li><span class='property-name'>y</span>: Y coordinate of top-left corner</li>
+                <li><span class='property-name'>w</span>: Width of the rectangle (float).</li>
+                <li><span class='property-name'>x</span>: X coordinate of the top-left corner (float).</li>
+                <li><span class='property-name'>y</span>: Y coordinate of the top-left corner (float).</li>
                 <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.</li>
             </ul>
             <h4>Methods:</h4>
@@ -2543,39 +2591,39 @@ Keyword Args:
             <ul>
                 <li><span class='property-name'>align</span>: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.</li>
                 <li><span class='property-name'>bounds</span>: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).</li>
-                <li><span class='property-name'>camera_rotation</span>: Rotation of grid contents around camera center (degrees).</li>
-                <li><span class='property-name'>center</span>: Camera center point in pixel coordinates.</li>
-                <li><span class='property-name'>center_x</span>: center of the view X-coordinate</li>
-                <li><span class='property-name'>center_y</span>: center of the view Y-coordinate</li>
-                <li><span class='property-name'>fill_color</span>: Background fill color.</li>
+                <li><span class='property-name'>camera_rotation</span>: Rotation of grid contents around camera center in degrees (float).</li>
+                <li><span class='property-name'>center</span>: Camera center point in pixel coordinates (tuple).</li>
+                <li><span class='property-name'>center_x</span>: Camera center X-coordinate in pixel space (float).</li>
+                <li><span class='property-name'>center_y</span>: Camera center Y-coordinate in pixel space (float).</li>
+                <li><span class='property-name'>fill_color</span>: Background fill color (Color). Drawn behind all tiles and entities.</li>
                 <li><span class='property-name'>global_bounds</span>: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
-                <li><span class='property-name'>grid_data</span>: The underlying grid data object (for multi-view scenarios).</li>
-                <li><span class='property-name'>h</span>: visible widget height</li>
+                <li><span class='property-name'>grid_data</span>: The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid.</li>
+                <li><span class='property-name'>h</span>: Visible widget height (float).</li>
                 <li><span class='property-name'>horiz_margin</span>: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).</li>
                 <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
                 <li><span class='property-name'>margin</span>: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).</li>
-                <li><span class='property-name'>name</span>: Name for finding elements</li>
-                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked.</li>
+                <li><span class='property-name'>name</span>: Name for finding elements (str).</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked (Callable | None).</li>
                 <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
                 <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
-                <li><span class='property-name'>pos</span>: Position of the grid as Vector</li>
+                <li><span class='property-name'>pos</span>: Position of the grid as Vector (Vector).</li>
                 <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
                 <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
-                <li><span class='property-name'>texture</span> (read-only): Texture used for tile rendering (read-only).</li>
+                <li><span class='property-name'>texture</span> (read-only): Texture used for tile rendering (Texture | None, read-only).</li>
                 <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
-                <li><span class='property-name'>w</span>: visible widget width</li>
-                <li><span class='property-name'>x</span>: top-left corner X-coordinate</li>
-                <li><span class='property-name'>y</span>: top-left corner Y-coordinate</li>
-                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first).</li>
-                <li><span class='property-name'>zoom</span>: Zoom level for rendering.</li>
+                <li><span class='property-name'>w</span>: Visible widget width (float).</li>
+                <li><span class='property-name'>x</span>: Top-left corner X-coordinate (float).</li>
+                <li><span class='property-name'>y</span>: Top-left corner Y-coordinate (float).</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (int). Lower values are rendered first.</li>
+                <li><span class='property-name'>zoom</span>: Zoom level for rendering (float). Values greater than 1.0 magnify; less than 1.0 shrink.</li>
             </ul>
             <h4>Methods:</h4>
 
@@ -2665,39 +2713,39 @@ Keyword Args:
             <ul>
                 <li><span class='property-name'>align</span>: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.</li>
                 <li><span class='property-name'>bounds</span>: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).</li>
-                <li><span class='property-name'>camera_rotation</span>: Rotation of grid contents around camera center (degrees).</li>
-                <li><span class='property-name'>center</span>: Camera center point in pixel coordinates.</li>
-                <li><span class='property-name'>center_x</span>: center of the view X-coordinate</li>
-                <li><span class='property-name'>center_y</span>: center of the view Y-coordinate</li>
-                <li><span class='property-name'>fill_color</span>: Background fill color.</li>
+                <li><span class='property-name'>camera_rotation</span>: Rotation of grid contents around camera center in degrees (float).</li>
+                <li><span class='property-name'>center</span>: Camera center point in pixel coordinates (tuple).</li>
+                <li><span class='property-name'>center_x</span>: Camera center X-coordinate in pixel space (float).</li>
+                <li><span class='property-name'>center_y</span>: Camera center Y-coordinate in pixel space (float).</li>
+                <li><span class='property-name'>fill_color</span>: Background fill color (Color). Drawn behind all tiles and entities.</li>
                 <li><span class='property-name'>global_bounds</span>: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
-                <li><span class='property-name'>grid_data</span>: The underlying grid data object (for multi-view scenarios).</li>
-                <li><span class='property-name'>h</span>: visible widget height</li>
+                <li><span class='property-name'>grid_data</span>: The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid.</li>
+                <li><span class='property-name'>h</span>: Visible widget height (float).</li>
                 <li><span class='property-name'>horiz_margin</span>: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).</li>
                 <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
                 <li><span class='property-name'>margin</span>: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).</li>
-                <li><span class='property-name'>name</span>: Name for finding elements</li>
-                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked.</li>
+                <li><span class='property-name'>name</span>: Name for finding elements (str).</li>
+                <li><span class='property-name'>on_click</span>: Callable executed when object is clicked (Callable | None).</li>
                 <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_move</span>: Callback for mouse movement within bounds. Called with (pos: Vector, button: str, action: str) for each mouse movement while inside. Performance note: Called frequently during movement - keep handlers fast.</li>
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
                 <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
-                <li><span class='property-name'>pos</span>: Position of the grid as Vector</li>
+                <li><span class='property-name'>pos</span>: Position of the grid as Vector (Vector).</li>
                 <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
                 <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
                 <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
-                <li><span class='property-name'>texture</span> (read-only): Texture used for tile rendering (read-only).</li>
+                <li><span class='property-name'>texture</span> (read-only): Texture used for tile rendering (Texture | None, read-only).</li>
                 <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
-                <li><span class='property-name'>w</span>: visible widget width</li>
-                <li><span class='property-name'>x</span>: top-left corner X-coordinate</li>
-                <li><span class='property-name'>y</span>: top-left corner Y-coordinate</li>
-                <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first).</li>
-                <li><span class='property-name'>zoom</span>: Zoom level for rendering.</li>
+                <li><span class='property-name'>w</span>: Visible widget width (float).</li>
+                <li><span class='property-name'>x</span>: Top-left corner X-coordinate (float).</li>
+                <li><span class='property-name'>y</span>: Top-left corner Y-coordinate (float).</li>
+                <li><span class='property-name'>z_index</span>: Z-order for rendering (int). Lower values are rendered first.</li>
+                <li><span class='property-name'>zoom</span>: Zoom level for rendering (float). Values greater than 1.0 magnify; less than 1.0 shrink.</li>
             </ul>
             <h4>Methods:</h4>
 
@@ -3582,8 +3630,8 @@ Attributes:
                 <li><span class='property-name'>end</span>: Ending point of the line as a Vector.</li>
                 <li><span class='property-name'>global_bounds</span>: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
-                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (only when parent is Grid)</li>
-                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (only when parent is Grid)</li>
+                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (Vector, only when parent is Grid).</li>
+                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (Vector, only when parent is Grid).</li>
                 <li><span class='property-name'>horiz_margin</span>: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).</li>
                 <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
                 <li><span class='property-name'>margin</span>: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).</li>
@@ -4468,12 +4516,12 @@ Attributes:
                 <li><span class='property-name'>bounds</span>: Bounding box as (pos, size) tuple of Vectors. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_bounds</span>: Bounding box as (pos, size) tuple of Vectors in screen coordinates. Returns (Vector(x, y), Vector(width, height)).</li>
                 <li><span class='property-name'>global_position</span> (read-only): Global screen position (read-only). Calculates absolute position by walking up the parent chain.</li>
-                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (only when parent is Grid)</li>
-                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (only when parent is Grid)</li>
+                <li><span class='property-name'>grid_pos</span>: Position in grid tile coordinates (Vector, only when parent is Grid).</li>
+                <li><span class='property-name'>grid_size</span>: Size in grid tile coordinates (Vector, only when parent is Grid).</li>
                 <li><span class='property-name'>horiz_margin</span>: Horizontal margin override (float, 0 = use general margin). Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER, CENTER).</li>
                 <li><span class='property-name'>hovered</span> (read-only): Whether mouse is currently over this element (read-only). Updated automatically by the engine during mouse movement.</li>
                 <li><span class='property-name'>margin</span>: General margin from edge when aligned (float). Applied to both horizontal and vertical edges unless overridden. Invalid for CENTER alignment (raises ValueError).</li>
-                <li><span class='property-name'>name</span>: Name for finding elements</li>
+                <li><span class='property-name'>name</span>: Name for finding elements (str).</li>
                 <li><span class='property-name'>on_click</span>: Callable executed when object is clicked. Function receives (pos: Vector, button: str, action: str).</li>
                 <li><span class='property-name'>on_enter</span>: Callback for mouse enter events. Called with (pos: Vector, button: str, action: str) when mouse enters this element&#x27;s bounds.</li>
                 <li><span class='property-name'>on_exit</span>: Callback for mouse exit events. Called with (pos: Vector, button: str, action: str) when mouse leaves this element&#x27;s bounds.</li>
@@ -4481,20 +4529,20 @@ Attributes:
                 <li><span class='property-name'>opacity</span>: Opacity level (0.0 = transparent, 1.0 = opaque). Automatically clamped to valid range [0.0, 1.0].</li>
                 <li><span class='property-name'>origin</span>: Transform origin as Vector (pivot point for rotation). Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.</li>
                 <li><span class='property-name'>parent</span>: Parent drawable. Get: Returns the parent Frame/Grid if nested, or None if at scene level. Set: Assign a Frame/Grid to reparent, or None to remove from parent.</li>
-                <li><span class='property-name'>pos</span>: Position as a Vector</li>
+                <li><span class='property-name'>pos</span>: Position as a Vector (Vector).</li>
                 <li><span class='property-name'>rotate_with_camera</span>: Whether to rotate visually with parent Grid&#x27;s camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.</li>
                 <li><span class='property-name'>rotation</span>: Rotation angle in degrees (clockwise around origin). Animatable property.</li>
-                <li><span class='property-name'>scale</span>: Uniform size factor</li>
-                <li><span class='property-name'>scale_x</span>: Horizontal scale factor</li>
-                <li><span class='property-name'>scale_y</span>: Vertical scale factor</li>
+                <li><span class='property-name'>scale</span>: Uniform size factor (float). Sets both horizontal and vertical scale to the same value.</li>
+                <li><span class='property-name'>scale_x</span>: Horizontal scale factor (float).</li>
+                <li><span class='property-name'>scale_y</span>: Vertical scale factor (float).</li>
                 <li><span class='property-name'>shader</span>: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.</li>
-                <li><span class='property-name'>sprite_index</span>: Which sprite on the texture is shown</li>
-                <li><span class='property-name'>texture</span>: Texture object</li>
+                <li><span class='property-name'>sprite_index</span>: Which sprite on the texture is shown (int). Index into the texture atlas; must be in range [0, sprite_count).</li>
+                <li><span class='property-name'>texture</span>: Texture object (Texture). The texture atlas from which sprites are drawn.</li>
                 <li><span class='property-name'>uniforms</span> (read-only): Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms[&#x27;name&#x27;] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.</li>
                 <li><span class='property-name'>vert_margin</span>: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).</li>
                 <li><span class='property-name'>visible</span>: Whether the object is visible (bool). Invisible objects are not rendered or clickable.</li>
-                <li><span class='property-name'>x</span>: X coordinate of top-left corner</li>
-                <li><span class='property-name'>y</span>: Y coordinate of top-left corner</li>
+                <li><span class='property-name'>x</span>: X coordinate of top-left corner (float).</li>
+                <li><span class='property-name'>y</span>: Y coordinate of top-left corner (float).</li>
                 <li><span class='property-name'>z_index</span>: Z-order for rendering (lower values rendered first). Automatically triggers scene resort when changed.</li>
             </ul>
             <h4>Methods:</h4>
@@ -4679,55 +4727,74 @@ Example:
     grid.layer(&#x27;terrain&#x27;).set(5, 5, 42)  # Place tile 42 at (5, 5)</p>
             <h4>Properties:</h4>
             <ul>
-                <li><span class='property-name'>grid</span>: Parent Grid or None. Setting manages layer association and handles lazy allocation.</li>
-                <li><span class='property-name'>grid_size</span>: Layer dimensions as (width, height) tuple.</li>
+                <li><span class='property-name'>grid</span>: Parent Grid or None (Grid | None). Setting manages layer association and handles lazy allocation.</li>
+                <li><span class='property-name'>grid_size</span> (read-only): Layer dimensions as (width, height) tuple (tuple, read-only).</li>
                 <li><span class='property-name'>name</span> (read-only): Layer name (str, read-only). Used for Grid.layer(name) lookup.</li>
-                <li><span class='property-name'>texture</span>: Texture atlas for tile sprites.</li>
-                <li><span class='property-name'>visible</span>: Whether the layer is rendered.</li>
-                <li><span class='property-name'>z_index</span>: Layer z-order. Negative values render below entities.</li>
+                <li><span class='property-name'>texture</span>: Texture atlas for tile sprites (Texture | None).</li>
+                <li><span class='property-name'>visible</span>: Whether the layer is rendered (bool).</li>
+                <li><span class='property-name'>z_index</span>: Layer z-order (int). Negative values render below entities.</li>
             </ul>
             <h4>Methods:</h4>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">apply_ranges(source, ranges) -> TileLayer</code></h5>
-                <p>Apply multiple tile assignments in a single pass.
+                <h5><code class="method-name">apply_ranges(source: HeightMap, ranges: list) -> TileLayer</code></h5>
+                <p>Apply multiple tile assignments from a HeightMap in a single pass. Later ranges override earlier ones if overlapping.
 
 Note:</p>
-                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> self for method chaining Later ranges override earlier ones if overlapping. Cells not matching any range are left unchanged.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>source</span>: Source heightmap (must match layer dimensions)</div>
+                    <div><span class='arg-name'>ranges</span>: List of ((min, max), tile_index) tuples</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> self for method chaining Cells not matching any range are left unchanged.</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">apply_threshold(source, range, tile) -> TileLayer</code></h5>
-                <p>Set tile index for cells where HeightMap value is within range.</p>
+                <h5><code class="method-name">apply_threshold(source: HeightMap, range: tuple, tile: int) -> TileLayer</code></h5>
+                <p>Set a tile index for cells where the HeightMap value falls within a range.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>source</span>: Source heightmap (must match layer dimensions)</div>
+                    <div><span class='arg-name'>range</span>: Value range as (min, max) inclusive</div>
+                    <div><span class='arg-name'>tile</span>: Tile index to set for cells in range</div>
+                </div>
                 <p style='margin-left: 20px;'><span class='returns'>Returns:</span> self for method chaining</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">at(pos) -> int</code></h5>
-                <p>at(x, y) -&gt; int
-Get the tile index at cell position. Returns -1 if no tile.</p>
+                <h5><code class="method-name">at(pos) or (x: int, y: int) -> int</code></h5>
+                <p>Get the tile index at a cell position. Returns -1 if no tile is set.</p>
                 <div style='margin-left: 20px;'>
-                    <div><span class='arg-name'>pos</span>: Position as (x, y) tuple, list, or Vector</div>
+                    <div><span class='arg-name'>pos</span>: Position as (x, y) tuple, list, or Vector; or pass x and y separately</div>
+                </div>
+                <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Tile index at the specified cell, or -1 if empty</p>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If coordinates are out of bounds</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">fill(index: int) -> None</code></h5>
+                <p>Fill the entire layer with the specified tile index.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>index</span>: Tile index to fill with (-1 for no tile)</div>
                 </div>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">fill(index)</code></h5>
-                <p>Fill the entire layer with the specified tile index.</p>
-            </div>
-
-            <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">fill_rect(pos, size, index)</code></h5>
+                <h5><code class="method-name">fill_rect(pos: tuple, size: tuple, index: int) -> None</code></h5>
                 <p>Fill a rectangular region with a tile index.</p>
+                <div style='margin-left: 20px;'>
+                    <div><span class='arg-name'>pos</span>: Top-left corner as (x, y)</div>
+                    <div><span class='arg-name'>size</span>: Dimensions as (width, height)</div>
+                    <div><span class='arg-name'>index</span>: Tile index to fill with (-1 for no tile)</div>
+                </div>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
-                <h5><code class="method-name">set(pos, index)</code></h5>
-                <p>Set the tile index at cell position. Use -1 for no tile.</p>
+                <h5><code class="method-name">set(pos, index: int) -> None</code></h5>
+                <p>Set the tile index at a cell position. Use -1 to clear the tile.</p>
                 <div style='margin-left: 20px;'>
                     <div><span class='arg-name'>pos</span>: Position as (x, y) tuple, list, or Vector</div>
                     <div><span class='arg-name'>index</span>: Tile index (-1 for no tile)</div>
                 </div>
+                <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If coordinates are out of bounds</p>
             </div>
         </div>
 

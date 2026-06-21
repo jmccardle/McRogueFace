@@ -7,6 +7,7 @@
 #include "UIEntity.h"
 #include "UIGrid.h"
 #include "McRFPy_API.h"
+#include "McRFPy_Doc.h"
 #include "PythonObjectCache.h"
 #include <sstream>
 #include <algorithm>
@@ -958,37 +959,74 @@ PyObject* UIEntityCollection::find(PyUIEntityCollectionObject* self, PyObject* a
 
 PyMethodDef UIEntityCollection::methods[] = {
     {"append", (PyCFunction)UIEntityCollection::append, METH_O,
-     "append(entity)\n\n"
-     "Add an entity to the end of the collection."},
+     MCRF_METHOD(EntityCollection, append,
+         MCRF_SIG("(entity: Entity)", "None"),
+         MCRF_DESC("Add an entity to the end of the collection."),
+         MCRF_ARGS_START
+         MCRF_ARG("entity", "Entity object to append")
+         MCRF_RETURNS("None")
+     )},
     {"extend", (PyCFunction)UIEntityCollection::extend, METH_O,
-     "extend(iterable)\n\n"
-     "Add all entities from an iterable to the collection."},
+     MCRF_METHOD(EntityCollection, extend,
+         MCRF_SIG("(iterable)", "None"),
+         MCRF_DESC("Add all entities from an iterable to the collection."),
+         MCRF_ARGS_START
+         MCRF_ARG("iterable", "Iterable of Entity objects to add")
+         MCRF_RETURNS("None")
+         MCRF_RAISES("TypeError", "If any item is not an Entity object")
+     )},
     {"insert", (PyCFunction)UIEntityCollection::insert, METH_VARARGS,
-     "insert(index, entity)\n\n"
-     "Insert entity at index. Like list.insert(), indices past the end append."},
+     MCRF_METHOD(EntityCollection, insert,
+         MCRF_SIG("(index: int, entity: Entity)", "None"),
+         MCRF_DESC("Insert entity at index. Like list.insert(), indices past the end append."),
+         MCRF_ARGS_START
+         MCRF_ARG("index", "Position at which to insert the entity")
+         MCRF_ARG("entity", "Entity object to insert")
+         MCRF_RETURNS("None")
+     )},
     {"remove", (PyCFunction)UIEntityCollection::remove, METH_O,
-     "remove(entity)\n\n"
-     "Remove first occurrence of entity. Raises ValueError if not found."},
+     MCRF_METHOD(EntityCollection, remove,
+         MCRF_SIG("(entity: Entity)", "None"),
+         MCRF_DESC("Remove first occurrence of entity from the collection."),
+         MCRF_ARGS_START
+         MCRF_ARG("entity", "Entity object to remove")
+         MCRF_RETURNS("None")
+         MCRF_RAISES("ValueError", "If the entity is not in the collection")
+     )},
     {"pop", (PyCFunction)UIEntityCollection::pop, METH_VARARGS,
-     "pop([index]) -> entity\n\n"
-     "Remove and return entity at index (default: last entity)."},
+     MCRF_METHOD(EntityCollection, pop,
+         MCRF_SIG("(index: int = -1)", "Entity"),
+         MCRF_DESC("Remove and return entity at index (default: last entity)."),
+         MCRF_ARGS_START
+         MCRF_ARG("index", "Index of entity to remove; defaults to -1 (last entity)")
+         MCRF_RETURNS("Entity: the removed entity")
+         MCRF_RAISES("IndexError", "If the collection is empty or index is out of range")
+     )},
     {"index", (PyCFunction)UIEntityCollection::index_method, METH_O,
-     "index(entity) -> int\n\n"
-     "Return index of first occurrence of entity. Raises ValueError if not found."},
+     MCRF_METHOD(EntityCollection, index,
+         MCRF_SIG("(entity: Entity)", "int"),
+         MCRF_DESC("Return index of first occurrence of entity in the collection."),
+         MCRF_ARGS_START
+         MCRF_ARG("entity", "Entity object to find")
+         MCRF_RETURNS("int: zero-based index of the entity")
+         MCRF_RAISES("ValueError", "If the entity is not in the collection")
+     )},
     {"count", (PyCFunction)UIEntityCollection::count, METH_O,
-     "count(entity) -> int\n\n"
-     "Count occurrences of entity in the collection."},
+     MCRF_METHOD(EntityCollection, count,
+         MCRF_SIG("(entity: Entity)", "int"),
+         MCRF_DESC("Count occurrences of entity in the collection."),
+         MCRF_ARGS_START
+         MCRF_ARG("entity", "Entity object to count")
+         MCRF_RETURNS("int: number of times entity appears in the collection")
+     )},
     {"find", (PyCFunction)UIEntityCollection::find, METH_VARARGS | METH_KEYWORDS,
-     "find(name) -> entity or list\n\n"
-     "Find entities by name.\n\n"
-     "Args:\n"
-     "    name (str): Name to search for. Supports wildcards:\n"
-     "        - 'exact' for exact match (returns single entity or None)\n"
-     "        - 'prefix*' for starts-with match (returns list)\n"
-     "        - '*suffix' for ends-with match (returns list)\n"
-     "        - '*substring*' for contains match (returns list)\n\n"
-     "Returns:\n"
-     "    Single entity if exact match, list if wildcard, None if not found."},
+     MCRF_METHOD(EntityCollection, find,
+         MCRF_SIG("(name: str)", "Entity | list | None"),
+         MCRF_DESC("Find entities by name. Returns a single entity for exact matches or a list for wildcard patterns."),
+         MCRF_ARGS_START
+         MCRF_ARG("name", "Name to search for; supports wildcards: 'exact', 'prefix*', '*suffix', '*substring*'")
+         MCRF_RETURNS("Entity if exact match found, list of Entity if wildcard pattern, None if no exact match")
+     )},
     {NULL, NULL, 0, NULL}
 };
 

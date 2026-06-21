@@ -1597,7 +1597,11 @@ PySequenceMethods PyBSPAdjacentTiles::sequence_methods = {
 
 PyMethodDef PyBSPAdjacentTiles::methods[] = {
     {"keys", (PyCFunction)PyBSPAdjacentTiles::keys, METH_NOARGS,
-     "Return tuple of adjacent neighbor indices."},
+     MCRF_METHOD(BSPAdjacentTiles, keys,
+         MCRF_SIG("()", "tuple[int, ...]"),
+         MCRF_DESC("Return tuple of adjacent neighbor indices."),
+         MCRF_RETURNS("tuple of int: indices of all leaf nodes adjacent to this one")
+     )},
     {NULL}
 };
 

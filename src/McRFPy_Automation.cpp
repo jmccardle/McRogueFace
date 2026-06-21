@@ -3,6 +3,7 @@
 #include "GameEngine.h"
 #include "PyPositionHelper.h"
 #include "PyVector.h"
+#include "McRFPy_Doc.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -840,49 +841,166 @@ PyObject* McRFPy_Automation::_dragRel(PyObject* self, PyObject* args, PyObject* 
 // Method definitions for the automation module
 static PyMethodDef automationMethods[] = {
     {"screenshot", McRFPy_Automation::_screenshot, METH_VARARGS,
-     "screenshot(filename) - Save a screenshot to the specified file"},
+     MCRF_METHOD(automation, screenshot,
+         MCRF_SIG("(filename: str)", "bool"),
+         MCRF_DESC("Save a screenshot of the current render target to the specified file."),
+         MCRF_ARGS_START
+         MCRF_ARG("filename", "Path to the output image file (PNG, JPG, etc.)")
+         MCRF_RETURNS("True if the file was saved successfully, False otherwise")
+         MCRF_RAISES("RuntimeError", "If the game engine or render target is not initialized")
+     )},
 
     {"position", McRFPy_Automation::_position, METH_NOARGS,
-     "position() - Get current mouse position as Vector"},
+     MCRF_METHOD(automation, position,
+         MCRF_SIG("()", "Vector"),
+         MCRF_DESC("Get the current mouse position as a Vector.")
+         MCRF_RETURNS("Vector: current mouse position in screen coordinates")
+     )},
     {"size", McRFPy_Automation::_size, METH_NOARGS,
-     "size() - Get screen size as Vector"},
+     MCRF_METHOD(automation, size,
+         MCRF_SIG("()", "Vector"),
+         MCRF_DESC("Get the current screen (render target) size as a Vector.")
+         MCRF_RETURNS("Vector: screen width and height in pixels")
+     )},
     {"onScreen", (PyCFunction)McRFPy_Automation::_onScreen, METH_VARARGS | METH_KEYWORDS,
-     "onScreen(pos) - Check if position is within screen bounds. Accepts (x,y) tuple, [x,y] list, or Vector."},
+     MCRF_METHOD(automation, onScreen,
+         MCRF_SIG("(pos: tuple | list | Vector)", "bool"),
+         MCRF_DESC("Check if a position is within the screen bounds."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, or Vector")
+         MCRF_RETURNS("True if the position is on screen, False otherwise")
+     )},
 
     {"moveTo", (PyCFunction)McRFPy_Automation::_moveTo, METH_VARARGS | METH_KEYWORDS,
-     "moveTo(pos, duration=0.0) - Move mouse to position. Accepts (x,y) tuple, [x,y] list, or Vector."},
+     MCRF_METHOD(automation, moveTo,
+         MCRF_SIG("(pos: tuple | list | Vector, duration: float = 0.0)", "None"),
+         MCRF_DESC("Move the mouse cursor to the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Target position as (x, y) tuple, [x, y] list, or Vector")
+         MCRF_ARG("duration", "Time in seconds to take for the movement (default 0.0)")
+     )},
     {"moveRel", (PyCFunction)McRFPy_Automation::_moveRel, METH_VARARGS | METH_KEYWORDS,
-     "moveRel(offset, duration=0.0) - Move mouse relative to current position. Accepts (x,y) tuple, [x,y] list, or Vector."},
+     MCRF_METHOD(automation, moveRel,
+         MCRF_SIG("(offset: tuple | list | Vector, duration: float = 0.0)", "None"),
+         MCRF_DESC("Move the mouse cursor relative to its current position."),
+         MCRF_ARGS_START
+         MCRF_ARG("offset", "Offset as (x, y) tuple, [x, y] list, or Vector")
+         MCRF_ARG("duration", "Time in seconds to take for the movement (default 0.0)")
+     )},
     {"dragTo", (PyCFunction)McRFPy_Automation::_dragTo, METH_VARARGS | METH_KEYWORDS,
-     "dragTo(pos, duration=0.0, button='left') - Drag mouse to position. Accepts (x,y) tuple, [x,y] list, or Vector."},
+     MCRF_METHOD(automation, dragTo,
+         MCRF_SIG("(pos: tuple | list | Vector, duration: float = 0.0, button: str = 'left')", "None"),
+         MCRF_DESC("Drag the mouse from the current position to the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Target position as (x, y) tuple, [x, y] list, or Vector")
+         MCRF_ARG("duration", "Time in seconds for the drag (default 0.0)")
+         MCRF_ARG("button", "Mouse button to use: 'left', 'right', or 'middle' (default 'left')")
+     )},
     {"dragRel", (PyCFunction)McRFPy_Automation::_dragRel, METH_VARARGS | METH_KEYWORDS,
-     "dragRel(offset, duration=0.0, button='left') - Drag mouse relative to current position. Accepts (x,y) tuple, [x,y] list, or Vector."},
+     MCRF_METHOD(automation, dragRel,
+         MCRF_SIG("(offset: tuple | list | Vector, duration: float = 0.0, button: str = 'left')", "None"),
+         MCRF_DESC("Drag the mouse relative to its current position."),
+         MCRF_ARGS_START
+         MCRF_ARG("offset", "Offset as (x, y) tuple, [x, y] list, or Vector")
+         MCRF_ARG("duration", "Time in seconds for the drag (default 0.0)")
+         MCRF_ARG("button", "Mouse button to use: 'left', 'right', or 'middle' (default 'left')")
+     )},
 
     {"click", (PyCFunction)McRFPy_Automation::_click, METH_VARARGS | METH_KEYWORDS,
-     "click(pos=None, clicks=1, interval=0.0, button='left') - Click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+     MCRF_METHOD(automation, click,
+         MCRF_SIG("(pos: tuple | list | Vector | None = None, clicks: int = 1, interval: float = 0.0, button: str = 'left')", "None"),
+         MCRF_DESC("Click the mouse at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+         MCRF_ARG("clicks", "Number of clicks to perform (default 1)")
+         MCRF_ARG("interval", "Seconds between clicks when clicks > 1 (default 0.0)")
+         MCRF_ARG("button", "Mouse button: 'left', 'right', or 'middle' (default 'left')")
+     )},
     {"rightClick", (PyCFunction)McRFPy_Automation::_rightClick, METH_VARARGS | METH_KEYWORDS,
-     "rightClick(pos=None) - Right click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+     MCRF_METHOD(automation, rightClick,
+         MCRF_SIG("(pos: tuple | list | Vector | None = None)", "None"),
+         MCRF_DESC("Right-click the mouse at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+     )},
     {"middleClick", (PyCFunction)McRFPy_Automation::_middleClick, METH_VARARGS | METH_KEYWORDS,
-     "middleClick(pos=None) - Middle click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+     MCRF_METHOD(automation, middleClick,
+         MCRF_SIG("(pos: tuple | list | Vector | None = None)", "None"),
+         MCRF_DESC("Middle-click the mouse at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+     )},
     {"doubleClick", (PyCFunction)McRFPy_Automation::_doubleClick, METH_VARARGS | METH_KEYWORDS,
-     "doubleClick(pos=None) - Double click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+     MCRF_METHOD(automation, doubleClick,
+         MCRF_SIG("(pos: tuple | list | Vector | None = None)", "None"),
+         MCRF_DESC("Double-click the mouse at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+     )},
     {"tripleClick", (PyCFunction)McRFPy_Automation::_tripleClick, METH_VARARGS | METH_KEYWORDS,
-     "tripleClick(pos=None) - Triple click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+     MCRF_METHOD(automation, tripleClick,
+         MCRF_SIG("(pos: tuple | list | Vector | None = None)", "None"),
+         MCRF_DESC("Triple-click the mouse at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+     )},
     {"scroll", (PyCFunction)McRFPy_Automation::_scroll, METH_VARARGS | METH_KEYWORDS,
-     "scroll(clicks, pos=None) - Scroll wheel at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+     MCRF_METHOD(automation, scroll,
+         MCRF_SIG("(clicks: int, pos: tuple | list | Vector | None = None)", "None"),
+         MCRF_DESC("Scroll the mouse wheel at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("clicks", "Number of scroll steps (positive = up, negative = down)")
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+     )},
     {"mouseDown", (PyCFunction)McRFPy_Automation::_mouseDown, METH_VARARGS | METH_KEYWORDS,
-     "mouseDown(pos=None, button='left') - Press mouse button at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+     MCRF_METHOD(automation, mouseDown,
+         MCRF_SIG("(pos: tuple | list | Vector | None = None, button: str = 'left')", "None"),
+         MCRF_DESC("Press and hold a mouse button at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+         MCRF_ARG("button", "Mouse button: 'left', 'right', or 'middle' (default 'left')")
+     )},
     {"mouseUp", (PyCFunction)McRFPy_Automation::_mouseUp, METH_VARARGS | METH_KEYWORDS,
-     "mouseUp(pos=None, button='left') - Release mouse button at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position."},
+     MCRF_METHOD(automation, mouseUp,
+         MCRF_SIG("(pos: tuple | list | Vector | None = None, button: str = 'left')", "None"),
+         MCRF_DESC("Release a mouse button at the specified position."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
+         MCRF_ARG("button", "Mouse button: 'left', 'right', or 'middle' (default 'left')")
+     )},
 
     {"typewrite", (PyCFunction)McRFPy_Automation::_typewrite, METH_VARARGS | METH_KEYWORDS,
-     "typewrite(message, interval=0.0) - Type text with optional interval between keystrokes"},
+     MCRF_METHOD(automation, typewrite,
+         MCRF_SIG("(message: str, interval: float = 0.0)", "None"),
+         MCRF_DESC("Type text by injecting keyboard events for each character."),
+         MCRF_ARGS_START
+         MCRF_ARG("message", "Text string to type")
+         MCRF_ARG("interval", "Seconds to wait between keystrokes (default 0.0)")
+     )},
     {"hotkey", McRFPy_Automation::_hotkey, METH_VARARGS,
-     "hotkey(*keys) - Press a hotkey combination (e.g., hotkey('ctrl', 'c'))"},
+     MCRF_METHOD(automation, hotkey,
+         MCRF_SIG("(*keys: str)", "None"),
+         MCRF_DESC("Press a hotkey combination by pressing all keys in order then releasing in reverse."),
+         MCRF_ARGS_START
+         MCRF_ARG("*keys", "Key names to press, e.g. 'ctrl', 'c'")
+         MCRF_RAISES("ValueError", "If any key name is not recognized")
+     )},
     {"keyDown", McRFPy_Automation::_keyDown, METH_VARARGS,
-     "keyDown(key) - Press and hold a key"},
+     MCRF_METHOD(automation, keyDown,
+         MCRF_SIG("(key: str)", "None"),
+         MCRF_DESC("Press and hold a keyboard key."),
+         MCRF_ARGS_START
+         MCRF_ARG("key", "Key name string, e.g. 'a', 'enter', 'ctrl', 'f1'")
+         MCRF_RAISES("ValueError", "If the key name is not recognized")
+     )},
     {"keyUp", McRFPy_Automation::_keyUp, METH_VARARGS,
-     "keyUp(key) - Release a key"},
+     MCRF_METHOD(automation, keyUp,
+         MCRF_SIG("(key: str)", "None"),
+         MCRF_DESC("Release a keyboard key."),
+         MCRF_ARGS_START
+         MCRF_ARG("key", "Key name string, e.g. 'a', 'enter', 'ctrl', 'f1'")
+         MCRF_RAISES("ValueError", "If the key name is not recognized")
+     )},
 
     {NULL, NULL, 0, NULL}
 };

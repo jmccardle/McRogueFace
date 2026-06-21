@@ -13,6 +13,7 @@
 #include "PyVector.h"
 #include "PythonObjectCache.h"
 #include "PySceneObject.h"  // parent= kwarg: Scene is a valid parent type
+#include "McRFPy_Doc.h"
 #include <cmath>
 #include <algorithm>
 
@@ -885,38 +886,38 @@ PyMethodDef UIGridView_all_methods[] = {
 // Data properties (entities, grid_size, layers, etc.) are accessed via getattro delegation.
 PyGetSetDef UIGridView::getsetters[] = {
     {"grid_data", (getter)UIGridView::get_grid, (setter)UIGridView::set_grid,
-     "The underlying grid data object (for multi-view scenarios).", NULL},
+     MCRF_PROPERTY(grid_data, "The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid."), NULL},
     {"center", (getter)UIGridView::get_center, (setter)UIGridView::set_center,
-     "Camera center point in pixel coordinates.", NULL},
+     MCRF_PROPERTY(center, "Camera center point in pixel coordinates (tuple)."), NULL},
     {"zoom", (getter)UIGridView::get_zoom, (setter)UIGridView::set_zoom,
-     "Zoom level for rendering.", NULL},
+     MCRF_PROPERTY(zoom, "Zoom level for rendering (float). Values greater than 1.0 magnify; less than 1.0 shrink."), NULL},
     {"fill_color", (getter)UIGridView::get_fill_color, (setter)UIGridView::set_fill_color,
-     "Background fill color.", NULL},
+     MCRF_PROPERTY(fill_color, "Background fill color (Color). Drawn behind all tiles and entities."), NULL},
     {"texture", (getter)UIGridView::get_texture, NULL,
-     "Texture used for tile rendering (read-only).", NULL},
+     MCRF_PROPERTY(texture, "Texture used for tile rendering (Texture | None, read-only)."), NULL},
     // UIDrawable base properties - applied to GridView (the rendered object)
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
-     "Position of the grid as Vector", (void*)PyObjectsEnum::UIGRIDVIEW},
+     MCRF_PROPERTY(pos, "Position of the grid as Vector (Vector)."), (void*)PyObjectsEnum::UIGRIDVIEW},
     {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
-     "top-left corner X-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRIDVIEW << 8 | 0)},
+     MCRF_PROPERTY(x, "Top-left corner X-coordinate (float)."), (void*)((intptr_t)PyObjectsEnum::UIGRIDVIEW << 8 | 0)},
     {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
-     "top-left corner Y-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRIDVIEW << 8 | 1)},
+     MCRF_PROPERTY(y, "Top-left corner Y-coordinate (float)."), (void*)((intptr_t)PyObjectsEnum::UIGRIDVIEW << 8 | 1)},
     {"w", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
-     "visible widget width", (void*)((intptr_t)PyObjectsEnum::UIGRIDVIEW << 8 | 2)},
+     MCRF_PROPERTY(w, "Visible widget width (float)."), (void*)((intptr_t)PyObjectsEnum::UIGRIDVIEW << 8 | 2)},
     {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
-     "visible widget height", (void*)((intptr_t)PyObjectsEnum::UIGRIDVIEW << 8 | 3)},
+     MCRF_PROPERTY(h, "Visible widget height (float)."), (void*)((intptr_t)PyObjectsEnum::UIGRIDVIEW << 8 | 3)},
     {"center_x", (getter)UIGridView::get_float_member_gv, (setter)UIGridView::set_float_member_gv,
-     "center of the view X-coordinate", (void*)4},
+     MCRF_PROPERTY(center_x, "Camera center X-coordinate in pixel space (float)."), (void*)4},
     {"center_y", (getter)UIGridView::get_float_member_gv, (setter)UIGridView::set_float_member_gv,
-     "center of the view Y-coordinate", (void*)5},
+     MCRF_PROPERTY(center_y, "Camera center Y-coordinate in pixel space (float)."), (void*)5},
     {"camera_rotation", (getter)UIGridView::get_float_member_gv, (setter)UIGridView::set_float_member_gv,
-     "Rotation of grid contents around camera center (degrees).", (void*)7},
+     MCRF_PROPERTY(camera_rotation, "Rotation of grid contents around camera center in degrees (float)."), (void*)7},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
-     "Callable executed when object is clicked.", (void*)PyObjectsEnum::UIGRIDVIEW},
+     MCRF_PROPERTY(on_click, "Callable executed when object is clicked (Callable | None)."), (void*)PyObjectsEnum::UIGRIDVIEW},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
-     "Z-order for rendering (lower values rendered first).", (void*)PyObjectsEnum::UIGRIDVIEW},
+     MCRF_PROPERTY(z_index, "Z-order for rendering (int). Lower values are rendered first."), (void*)PyObjectsEnum::UIGRIDVIEW},
     {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,
-     "Name for finding elements", (void*)PyObjectsEnum::UIGRIDVIEW},
+     MCRF_PROPERTY(name, "Name for finding elements (str)."), (void*)PyObjectsEnum::UIGRIDVIEW},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIGRIDVIEW),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIGRIDVIEW),

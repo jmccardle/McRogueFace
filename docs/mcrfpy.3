@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2026-06-10" "McRogueFace 0.2.7-prerelease-7drl2026-99-g16adc92" ""
+.TH "MCRFPY" "3" "2026-06-21" "McRogueFace 0.2.7-prerelease-7drl2026-103-g39c2340" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2026-06-10 20:23:39\f[R]
+\f[I]Generated on 2026-06-21 01:18:30\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -320,18 +320,18 @@ in the path (int, read-only).
 \f[B]Methods:\f[R]
 .SS \f[V]peek() -> Vector\f[R]
 .PP
-See next step without consuming it.
+See the next step without consuming it.
 .PP
-\f[B]Returns:\f[R] Next position as Vector.
+\f[B]Returns:\f[R] Next position as Vector
 .PP
-\f[B]Raises:\f[R] IndexError: If path is exhausted.
+\f[B]Raises:\f[R] IndexError: If the path is exhausted
 .SS \f[V]walk() -> Vector\f[R]
 .PP
-Get and consume next step in the path.
+Get and consume the next step in the path.
 .PP
-\f[B]Returns:\f[R] Next position as Vector.
+\f[B]Returns:\f[R] Next position as Vector
 .PP
-\f[B]Raises:\f[R] IndexError: If path is exhausted.
+\f[B]Raises:\f[R] IndexError: If the path is exhausted
 .SS Alignment
 .PP
 \f[I]Inherits from: IntEnum\f[R]
@@ -480,18 +480,21 @@ or resized.
 Set to None to disable alignment and use manual positioning.
 - \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
 Returns (Vector(x, y), Vector(width, height)).
-- \f[V]center\f[R]: Center position of the arc - \f[V]color\f[R]: Arc
-color - \f[V]end_angle\f[R]: Ending angle in degrees -
-\f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors in
-screen coordinates.
+- \f[V]center\f[R]: Center position of the arc (Vector).
+- \f[V]color\f[R]: Arc fill color (Color).
+- \f[V]end_angle\f[R]: Ending angle in degrees (float).
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
-parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
-(only when parent is Grid) - \f[V]horiz_margin\f[R]: Horizontal margin
-override (float, 0 = use general margin).
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (Vector, only
+when parent is Grid).
+- \f[V]grid_size\f[R]: Size in grid tile coordinates (Vector, only when
+parent is Grid).
+- \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
 - \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
@@ -500,7 +503,7 @@ Updated automatically by the engine during mouse movement.
 - \f[V]margin\f[R]: General margin from edge when aligned (float).
 Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
-- \f[V]name\f[R]: Name for finding this element.
+- \f[V]name\f[R]: Name for finding this element (str).
 - \f[V]on_click\f[R]: Callable executed when arc is clicked.
 Function receives (pos: Vector, button: str, action: str).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
@@ -523,23 +526,24 @@ Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
 - \f[V]pos\f[R]: Position as a Vector (same as center).
-- \f[V]radius\f[R]: Arc radius in pixels - \f[V]rotate_with_camera\f[R]:
-Whether to rotate visually with parent Grid\[cq]s camera_rotation
-(bool).
+- \f[V]radius\f[R]: Arc radius in pixels (float).
+- \f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+Grid\[cq]s camera_rotation (bool).
 False (default): stay screen-aligned.
 True: tilt with camera.
 Only affects children of UIGrid; ignored for other parents.
 - \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
 origin).
 Animatable property.
-- \f[V]start_angle\f[R]: Starting angle in degrees -
-\f[V]thickness\f[R]: Line thickness - \f[V]vert_margin\f[R]: Vertical
-margin override (float, 0 = use general margin).
+- \f[V]start_angle\f[R]: Starting angle in degrees (float).
+- \f[V]thickness\f[R]: Line thickness in pixels (float).
+- \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
+general margin).
 Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
 Invisible objects are not rendered or clickable.
-- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+- \f[V]z_index\f[R]: Z-order for rendering (int, lower values rendered
 first).
 .PP
 \f[B]Methods:\f[R]
@@ -965,21 +969,25 @@ or resized.
 Set to None to disable alignment and use manual positioning.
 - \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
 Returns (Vector(x, y), Vector(width, height)).
-- \f[V]fill_color\f[R]: Fill color of the text.
+- \f[V]fill_color\f[R]: Fill color of the text (Color).
 Returns a copy; modifying components requires reassignment.
 For animation, use `fill_color.r', `fill_color.g', etc.
-- \f[V]font_size\f[R]: Font size (integer) in points -
-\f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors in
-screen coordinates.
+- \f[V]font_size\f[R]: Font size in points (int).
+Clamped to the range [0, 65535].
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
-parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
-(only when parent is Grid) - \f[V]h\f[R] \f[I](read-only)\f[R]: Text
-height in pixels (read-only) - \f[V]horiz_margin\f[R]: Horizontal margin
-override (float, 0 = use general margin).
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (Vector).
+Only valid when parent is a Grid.
+- \f[V]grid_size\f[R]: Size in grid tile coordinates (Vector).
+Only valid when parent is a Grid.
+- \f[V]h\f[R] \f[I](read-only)\f[R]: Text height in pixels (float,
+read-only).
+- \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
 - \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
@@ -988,8 +996,8 @@ Updated automatically by the engine during mouse movement.
 - \f[V]margin\f[R]: General margin from edge when aligned (float).
 Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
-- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
-Callable executed when object is clicked.
+- \f[V]name\f[R]: Name for finding elements (str).
+- \f[V]on_click\f[R]: Callable executed when object is clicked.
 Function receives (pos: Vector, button: str, action: str).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
 Called with (pos: Vector, button: str, action: str) when mouse enters
@@ -1007,15 +1015,17 @@ Automatically clamped to valid range [0.0, 1.0].
 - \f[V]origin\f[R]: Transform origin as Vector (pivot point for
 rotation).
 Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
-- \f[V]outline\f[R]: Thickness of the border - \f[V]outline_color\f[R]:
-Outline color of the text.
+- \f[V]outline\f[R]: Thickness of the text outline border (float).
+Clamped to non-negative values.
+- \f[V]outline_color\f[R]: Outline color of the text (Color).
 Returns a copy; modifying components requires reassignment.
 For animation, use `outline_color.r', `outline_color.g', etc.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: (x, y) vector - \f[V]rotate_with_camera\f[R]: Whether
-to rotate visually with parent Grid\[cq]s camera_rotation (bool).
+- \f[V]pos\f[R]: Position as (x, y) Vector.
+- \f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+Grid\[cq]s camera_rotation (bool).
 False (default): stay screen-aligned.
 True: tilt with camera.
 Only affects children of UIGrid; ignored for other parents.
@@ -1026,9 +1036,10 @@ Animatable property.
 When set, the drawable is rendered through the shader program.
 Set to None to disable shader effects.
 - \f[V]size\f[R] \f[I](read-only)\f[R]: Text dimensions as Vector
-(read-only) - \f[V]text\f[R]: The text displayed - \f[V]uniforms\f[R]
-\f[I](read-only)\f[R]: Collection of shader uniforms (read-only access
-to collection).
+(read-only).
+- \f[V]text\f[R]: The text string displayed by this Caption (str).
+- \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
+uniforms (read-only access to collection).
 Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
 Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
@@ -1037,10 +1048,12 @@ Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
 Invisible objects are not rendered or clickable.
-- \f[V]w\f[R] \f[I](read-only)\f[R]: Text width in pixels (read-only) -
-\f[V]x\f[R]: X coordinate of top-left corner - \f[V]y\f[R]: Y coordinate
-of top-left corner - \f[V]z_index\f[R]: Z-order for rendering (lower
-values rendered first).
+- \f[V]w\f[R] \f[I](read-only)\f[R]: Text width in pixels (float,
+read-only).
+- \f[V]x\f[R]: X coordinate of top-left corner (float).
+- \f[V]y\f[R]: Y coordinate of top-left corner (float).
+- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+first).
 Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
@@ -1133,18 +1146,20 @@ or resized.
 Set to None to disable alignment and use manual positioning.
 - \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
 Returns (Vector(x, y), Vector(width, height)).
-- \f[V]center\f[R]: Center position of the circle -
-\f[V]fill_color\f[R]: Fill color of the circle -
-\f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors in
-screen coordinates.
+- \f[V]center\f[R]: Center position of the circle (Vector).
+- \f[V]fill_color\f[R]: Fill color of the circle (Color).
+- \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
+in screen coordinates.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
-parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
-(only when parent is Grid) - \f[V]horiz_margin\f[R]: Horizontal margin
-override (float, 0 = use general margin).
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (Vector).
+Only meaningful when parent is a Grid.
+- \f[V]grid_size\f[R]: Size in grid tile coordinates (Vector).
+Only meaningful when parent is a Grid.
+- \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
 - \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
@@ -1153,8 +1168,9 @@ Updated automatically by the engine during mouse movement.
 - \f[V]margin\f[R]: General margin from edge when aligned (float).
 Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
-- \f[V]name\f[R]: Name for finding this element.
-- \f[V]on_click\f[R]: Callable executed when circle is clicked.
+- \f[V]name\f[R]: Name for finding this element (str).
+- \f[V]on_click\f[R]: Callable executed when circle is clicked (Callable
+| None).
 Function receives (pos: Vector, button: str, action: str).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
 Called with (pos: Vector, button: str, action: str) when mouse enters
@@ -1172,14 +1188,15 @@ Automatically clamped to valid range [0.0, 1.0].
 - \f[V]origin\f[R]: Transform origin as Vector (pivot point for
 rotation).
 Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
-- \f[V]outline\f[R]: Outline thickness (0 for no outline) -
-\f[V]outline_color\f[R]: Outline color of the circle - \f[V]parent\f[R]:
-Parent drawable.
+- \f[V]outline\f[R]: Outline thickness in pixels (float).
+Use 0 for no outline.
+- \f[V]outline_color\f[R]: Outline color of the circle (Color).
+- \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: Position as a Vector (same as center).
-- \f[V]radius\f[R]: Circle radius in pixels -
-\f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+- \f[V]pos\f[R]: Position as a Vector (same as center) (Vector).
+- \f[V]radius\f[R]: Circle radius in pixels (float).
+- \f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
 Grid\[cq]s camera_rotation (bool).
 False (default): stay screen-aligned.
 True: tilt with camera.
@@ -1193,8 +1210,8 @@ Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
 Invisible objects are not rendered or clickable.
-- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
-first).
+- \f[V]z_index\f[R]: Z-order for rendering (int).
+Lower values are rendered first.
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
@@ -1361,81 +1378,115 @@ mcrfpy.Grid(grid_size=(20, 15), layers=[fog]) fog.fill(mcrfpy.Color(40,
 40, 40)) # Dark gray background grid.layer(`fog').set(5, 5,
 mcrfpy.Color(255, 0, 0, 128))
 .PP
-\f[B]Properties:\f[R] - \f[V]grid\f[R]: Parent Grid or None.
+\f[B]Properties:\f[R] - \f[V]grid\f[R]: Parent Grid or None (Grid |
+None).
 Setting manages layer association and handles lazy allocation.
-- \f[V]grid_size\f[R]: Layer dimensions as (width, height) tuple.
+- \f[V]grid_size\f[R] \f[I](read-only)\f[R]: Layer dimensions as (width,
+height) tuple (tuple, read-only).
 - \f[V]name\f[R] \f[I](read-only)\f[R]: Layer name (str, read-only).
 Used for Grid.layer(name) lookup.
-- \f[V]visible\f[R]: Whether the layer is rendered.
-- \f[V]z_index\f[R]: Layer z-order.
+- \f[V]visible\f[R]: Whether the layer is rendered (bool).
+- \f[V]z_index\f[R]: Layer z-order (int).
 Negative values render below entities.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]apply_gradient(source, range, color_low, color_high) -> ColorLayer\f[R]
+.SS \f[V]apply_gradient(source: HeightMap, range: tuple, color_low: Color, color_high: Color) -> ColorLayer\f[R]
 .PP
-Interpolate between colors based on HeightMap value within range.
+Interpolate between two colors based on HeightMap value within a range.
+Uses the original heightmap value for smooth transitions.
 .PP
-Note:
-.PP
-\f[B]Arguments:\f[R] - \f[V]color_low\f[R]: Color at range minimum -
-\f[V]color_high\f[R]: Color at range maximum
-.PP
-\f[B]Returns:\f[R] self for method chaining Uses the original HeightMap
-value for interpolation, not binary.
-This allows smooth color transitions within a value range.
-.SS \f[V]apply_perspective(entity, visible=None, discovered=None, unknown=None)\f[R]
-.PP
-Bind this layer to an entity for automatic FOV updates.
-.SS \f[V]apply_ranges(source, ranges) -> ColorLayer\f[R]
-.PP
-Apply multiple color assignments in a single pass.
-.PP
-Note:
-.PP
-\f[B]Returns:\f[R] self for method chaining Later ranges override
-earlier ones if overlapping.
-Cells not matching any range are left unchanged.
-.SS \f[V]apply_threshold(source, range, color) -> ColorLayer\f[R]
-.PP
-Set fixed color for cells where HeightMap value is within range.
-.PP
-\f[B]Arguments:\f[R] - \f[V]color\f[R]: Color or (r, g, b[, a]) tuple to
-set for cells in range
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: Source heightmap (must match
+layer dimensions) - \f[V]range\f[R]: Value range as (min, max) inclusive
+- \f[V]color_low\f[R]: Color at range minimum - \f[V]color_high\f[R]:
+Color at range maximum
 .PP
 \f[B]Returns:\f[R] self for method chaining
-.SS \f[V]at(pos) -> Color\f[R]
+.SS \f[V]apply_perspective(entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None\f[R]
 .PP
-at(x, y) -> Color Get the color at cell position.
+Bind this layer to an entity for automatic FOV updates.
+After binding, call update_perspective() when the entity moves.
+.PP
+\f[B]Arguments:\f[R] - \f[V]entity\f[R]: The entity whose perspective to
+track - \f[V]visible\f[R]: Color for currently visible cells -
+\f[V]discovered\f[R]: Color for previously seen cells -
+\f[V]unknown\f[R]: Color for never-seen cells
+.SS \f[V]apply_ranges(source: HeightMap, ranges: list) -> ColorLayer\f[R]
+.PP
+Apply multiple color assignments from a HeightMap in a single pass.
+Later ranges override earlier ones if overlapping.
+.PP
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: Source heightmap (must match
+layer dimensions) - \f[V]ranges\f[R]: List of range specs: ((min, max),
+color) for fixed or ((min, max), (color_low, color_high)) for gradient
+.PP
+\f[B]Returns:\f[R] self for method chaining Cells not matching any range
+are left unchanged.
+.SS \f[V]apply_threshold(source: HeightMap, range: tuple, color: Color) -> ColorLayer\f[R]
+.PP
+Set a fixed color for cells where the HeightMap value falls within a
+range.
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: Source heightmap (must match
+layer dimensions) - \f[V]range\f[R]: Value range as (min, max) inclusive
+- \f[V]color\f[R]: Color or (r, g, b[, a]) tuple to set for cells in
+range
+.PP
+\f[B]Returns:\f[R] self for method chaining
+.SS \f[V]at(pos) or (x: int, y: int) -> Color\f[R]
+.PP
+Get the color at a cell position.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
-Vector
-.SS \f[V]clear_perspective()\f[R]
+Vector; or pass x and y separately
+.PP
+\f[B]Returns:\f[R] Color at the specified cell
+.PP
+\f[B]Raises:\f[R] IndexError: If coordinates are out of bounds
+.SS \f[V]clear_perspective() -> None\f[R]
 .PP
 Remove the perspective binding from this layer.
-.SS \f[V]draw_fov(source, radius=None, fov=None, visible=None, discovered=None, unknown=None)\f[R]
+.SS \f[V]draw_fov(source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None\f[R]
 .PP
-Paint cells based on field-of-view visibility from source position.
+Paint cells based on field-of-view visibility from a source position.
 .PP
-Note: Layer must be attached to a grid for FOV calculation.
-.SS \f[V]fill(color)\f[R]
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: FOV origin as (x, y) -
+\f[V]radius\f[R]: FOV radius; defaults to the grid\[cq]s fov_radius -
+\f[V]fov\f[R]: FOV algorithm; defaults to the grid\[cq]s fov setting -
+\f[V]visible\f[R]: Color for currently visible cells -
+\f[V]discovered\f[R]: Color for previously seen cells -
+\f[V]unknown\f[R]: Color for never-seen cells
+.SS \f[V]fill(color: Color) -> None\f[R]
 .PP
 Fill the entire layer with the specified color.
-.SS \f[V]fill_rect(pos, size, color)\f[R]
-.PP
-Fill a rectangular region with a color.
 .PP
 \f[B]Arguments:\f[R] - \f[V]color\f[R]: Color object or (r, g, b[, a])
 tuple
-.SS \f[V]set(pos, color)\f[R]
+.SS \f[V]fill_rect(pos: tuple, size: tuple, color: Color) -> None\f[R]
 .PP
-Set the color at cell position.
+Fill a rectangular region with a color.
+.PP
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Top-left corner as (x, y) -
+\f[V]size\f[R]: Dimensions as (width, height) - \f[V]color\f[R]: Color
+object or (r, g, b[, a]) tuple
+.SS \f[V]set(pos, color: Color) -> None\f[R]
+.PP
+Set the color at a cell position.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
 Vector - \f[V]color\f[R]: Color object or (r, g, b[, a]) tuple
-.SS \f[V]update_perspective()\f[R]
+.PP
+\f[B]Raises:\f[R] IndexError: If coordinates are out of bounds
+.SS \f[V]update_perspective() -> None\f[R]
 .PP
 Redraw FOV based on the bound entity\[cq]s current position.
 Call this after the entity moves to update the visibility layer.
+.PP
+\f[B]Raises:\f[R] RuntimeError: If no perspective binding has been set
+via apply_perspective()
 .SS DijkstraMap
 .PP
 A Dijkstra distance map from a fixed root position.
@@ -1462,66 +1513,62 @@ enemies: dist = dijkstra.distance(enemy.pos) if dist and dist < 10: step
 position that distances are measured from (Vector, read-only).
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]descent_step(pos) -> Vector | None\f[R]
+.SS \f[V]descent_step(pos: Vector | tuple) -> Vector | None\f[R]
 .PP
 Get the adjacent cell with the lowest distance (steepest descent).
-Unlike step_from (which follows the path set by path_from), descent_step
-always returns the best neighbor in a single hop.
-Useful for AI that reacts to the current distance field rather than
-following a fixed path.
+Unlike step_from, this always returns the best neighbor in a single hop
+without following a precomputed path.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Current position as Vector,
-Entity, or (x, y) tuple.
+Entity, or (x, y) tuple
 .PP
 \f[B]Returns:\f[R] Next position as Vector, or None if pos is a local
-minimum or off-grid.
-.SS \f[V]distance(pos) -> float | None\f[R]
+minimum or off-grid
+.SS \f[V]distance(pos: Vector | tuple) -> float | None\f[R]
 .PP
 Get distance from position to root.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as Vector, Entity, or (x,
-y) tuple.
+y) tuple
 .PP
-\f[B]Returns:\f[R] Float distance, or None if position is unreachable.
+\f[B]Returns:\f[R] Float distance, or None if position is unreachable
 .SS \f[V]invert() -> DijkstraMap\f[R]
 .PP
-Return a NEW DijkstraMap whose distance field is the safety field.
-Cells near a root become high values and cells far from any root become
-low values.
-Combined with step_from or descent_step, this gives flee behavior:
-descend the inverted map to move away from the original roots.
+Return a new DijkstraMap whose distance field is inverted (safety
+field).
+Cells near a root become high values; descend to flee from original
+roots.
 The original DijkstraMap is unchanged.
 .PP
-\f[B]Returns:\f[R] New DijkstraMap with inverted distances.
-.SS \f[V]path_from(pos) -> AStarPath\f[R]
+\f[B]Returns:\f[R] New DijkstraMap with inverted distances
+.SS \f[V]path_from(pos: Vector | tuple) -> AStarPath\f[R]
 .PP
 Get full path from position to root.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Starting position as Vector,
-Entity, or (x, y) tuple.
+Entity, or (x, y) tuple
 .PP
-\f[B]Returns:\f[R] AStarPath from pos toward root.
-.SS \f[V]step_from(pos) -> Vector | None\f[R]
+\f[B]Returns:\f[R] AStarPath from pos toward root
+.SS \f[V]step_from(pos: Vector | tuple) -> Vector | None\f[R]
 .PP
 Get single step from position toward root.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Current position as Vector,
-Entity, or (x, y) tuple.
+Entity, or (x, y) tuple
 .PP
 \f[B]Returns:\f[R] Next position as Vector, or None if at root or
-unreachable.
+unreachable
 .SS \f[V]to_heightmap(size=None, unreachable=-1.0) -> HeightMap\f[R]
 .PP
 Convert distance field to a HeightMap.
-Each cell\[cq]s height equals its pathfinding distance from the root.
-Useful for visualization, procedural terrain, or influence mapping.
+Each cell\[cq]s height equals its pathfinding distance from the root,
+useful for visualization, procedural terrain, or influence mapping.
 .PP
 \f[B]Arguments:\f[R] - \f[V]size\f[R]: Optional (width, height) tuple.
-Defaults to dijkstra dimensions.
-- \f[V]unreachable\f[R]: Value for cells that cannot reach root (default
--1.0).
+Defaults to dijkstra dimensions - \f[V]unreachable\f[R]: Value for cells
+that cannot reach root (default -1.0)
 .PP
-\f[B]Returns:\f[R] HeightMap with distance values as heights.
+\f[B]Returns:\f[R] HeightMap with distance values as heights
 .SS DiscreteMap
 .PP
 DiscreteMap(size: tuple[int, int], fill: int = 0, enum: type[IntEnum] =
@@ -1906,9 +1953,9 @@ Current behavior type (int, read-only).
 Use set_behavior() to change.
 - \f[V]cell_pos\f[R]: Integer logical cell position (Vector).
 Alias for grid_pos (the canonical name).
-- \f[V]cell_x\f[R]: Integer X cell coordinate.
+- \f[V]cell_x\f[R]: Integer X cell coordinate (int).
 Alias for grid_x.
-- \f[V]cell_y\f[R]: Integer Y cell coordinate.
+- \f[V]cell_y\f[R]: Integer Y cell coordinate (int).
 Alias for grid_y.
 - \f[V]default_behavior\f[R]: Default behavior type (int, maps to
 Behavior enum).
@@ -1916,75 +1963,67 @@ Entity reverts to this after DONE trigger.
 Default: 0 (IDLE).
 - \f[V]draw_pos\f[R]: Fractional tile position for rendering (Vector).
 Use for smooth animation between grid cells.
-- \f[V]grid\f[R]: Grid this entity belongs to.
-Get: Returns the Grid or None.
-Set: Assign a Grid to move entity, or None to remove from grid.
+- \f[V]grid\f[R]: Grid this entity belongs to (Grid or None).
+Assign a Grid to attach the entity, or None to remove it from its
+current grid.
 - \f[V]grid_pos\f[R]: Integer logical cell position (Vector).
-Canonical cell-position property; matches the `grid_pos' constructor
+Canonical cell-position property matching the `grid_pos' constructor
 argument.
 Decoupled from draw_pos.
-Determines which cell this entity logically occupies for collision,
-pathfinding, etc.
-- \f[V]grid_x\f[R]: Integer X cell coordinate.
+Determines which cell this entity logically occupies for collision and
+pathfinding.
+- \f[V]grid_x\f[R]: Integer X cell coordinate (int).
 Canonical; matches grid_pos.
-- \f[V]grid_y\f[R]: Integer Y cell coordinate.
+- \f[V]grid_y\f[R]: Integer Y cell coordinate (int).
 Canonical; matches grid_pos.
-- \f[V]labels\f[R]: Set of string labels for collision/targeting
+- \f[V]labels\f[R]: String labels for collision and targeting
 (frozenset).
 Assign any iterable of strings to replace all labels.
 - \f[V]move_speed\f[R]: Animation duration for behavior movement in
 seconds (float).
 0 = instant.
 Default: 0.15.
-- \f[V]name\f[R]: Name for finding elements - \f[V]opacity\f[R]: Opacity
-(0.0 = transparent, 1.0 = opaque) - \f[V]perspective_map\f[R]:
-Per-entity FOV memory (DiscreteMap, read-write).
-3-state values per cell: 0 = unknown (never seen), 1 = discovered (seen
-before, not currently visible), 2 = visible (in current FOV).
-Use mcrfpy.Perspective enum for clarity.
-Lazy-allocated on first access once the entity has a grid; returns None
+- \f[V]name\f[R]: Entity name for lookup (str).
+- \f[V]opacity\f[R]: Render opacity (float).
+0.0 = fully transparent, 1.0 = fully opaque.
+- \f[V]perspective_map\f[R]: Per-entity FOV memory (DiscreteMap).
+3-state values per cell: 0=unknown, 1=discovered, 2=visible.
+Lazy-allocated on first access once entity has a grid; returns None
 otherwise.
-The returned DiscreteMap is a live reference \[en] mutations are visible
-to subsequent updateVisibility() calls.
-Assigning a DiscreteMap replaces the entity\[cq]s memory; the new
-map\[cq]s size must match the grid\[cq]s size or ValueError is raised.
-Assign None to clear (will be lazy-reallocated on next access).
+The returned DiscreteMap is a live reference.
+Assigning a DiscreteMap replaces the entity\[cq]s memory; size must
+match the grid or ValueError is raised.
+Assign None to clear.
 - \f[V]pos\f[R]: Pixel position relative to grid (Vector).
 Computed as draw_pos * tile_size.
 Requires entity to be attached to a grid.
-- \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
-When set, the entity is rendered through the shader program.
-Set to None to disable shader effects.
+- \f[V]shader\f[R]: GPU shader for visual effects (Shader or None).
+Set to None to disable shader rendering.
 - \f[V]sight_radius\f[R]: FOV radius for TARGET trigger (int).
 Default: 10.
 - \f[V]sprite_grid\f[R]: Per-tile sprite indices for composite
 multi-tile entities (list of lists or None).
 Row-major, dimensions must match tile_width x tile_height.
 Use -1 for empty tiles.
-When set, each tile renders its own sprite index instead of the single
-entity sprite.
-- \f[V]sprite_index\f[R]: Sprite index on the texture on the display -
-\f[V]sprite_offset\f[R]: Pixel offset for oversized sprites (Vector).
+- \f[V]sprite_index\f[R]: Sprite index into the entity\[cq]s texture
+atlas (int).
+- \f[V]sprite_offset\f[R]: Pixel offset for oversized sprites (Vector).
 Applied pre-zoom during grid rendering.
-- \f[V]sprite_offset_x\f[R]: X component of sprite pixel offset.
-- \f[V]sprite_offset_y\f[R]: Y component of sprite pixel offset.
-- \f[V]step\f[R]: Step callback for grid.step() turn management.
+- \f[V]sprite_offset_x\f[R]: X component of sprite pixel offset (float).
+- \f[V]sprite_offset_y\f[R]: Y component of sprite pixel offset (float).
+- \f[V]step\f[R]: Step callback for grid.step() turn management
+(Callable or None).
 Called with (trigger, data) when behavior triggers fire.
-Set to None to clear.
 - \f[V]target_label\f[R]: Label to search for with TARGET trigger (str
 or None).
 Default: None.
 - \f[V]texture\f[R]: Sprite texture atlas (Texture).
-Defaults to mcrfpy.default_texture when the entity is constructed
-without one.
-Setting preserves sprite_index (the index is not re-validated against
-the new atlas).
-The grid\[cq]s texture only determines cell size; entities draw with
-their own.
+Defaults to mcrfpy.default_texture at construction.
+Setting preserves sprite_index (not re-validated against the new atlas).
 - \f[V]tile_height\f[R]: Entity height in tiles (int).
 Must be >= 1.
 Default 1.
-- \f[V]tile_size\f[R]: Entity size in tiles as (width, height) Vector.
+- \f[V]tile_size\f[R]: Entity size in tiles as (width, height) (Vector).
 Default (1, 1).
 - \f[V]tile_width\f[R]: Entity width in tiles (int).
 Must be >= 1.
@@ -1993,20 +2032,24 @@ Default 1.
 0 = skip, higher values go later.
 Default: 1.
 - \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
-uniforms (read-only access to collection).
-Set uniforms via dict-like syntax: entity.uniforms[`name'] = value.
-Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
-- \f[V]visible\f[R]: Visibility flag - \f[V]x\f[R]: Pixel X position
-relative to grid.
+uniforms (UniformCollection, read-only).
+Set values via dict-like syntax: entity.uniforms[`name'] = value.
+- \f[V]visible\f[R]: Visibility flag (bool).
+When False, the entity is not rendered.
+- \f[V]x\f[R]: Pixel X position relative to grid (float).
 Requires entity to be attached to a grid.
-- \f[V]y\f[R]: Pixel Y position relative to grid.
+- \f[V]y\f[R]: Pixel Y position relative to grid (float).
 Requires entity to be attached to a grid.
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]add_label(label: str) -> None\f[R]
 .PP
 Add a label to this entity.
-Idempotent (adding same label twice is safe).
+Idempotent; adding the same label twice is safe.
+.PP
+\f[B]Arguments:\f[R] - \f[V]label\f[R]: String label to add
+.PP
+\f[B]Returns:\f[R] None
 .SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
 .PP
 Create and start an animation on this entity\[cq]s property.
@@ -2032,39 +2075,55 @@ property already animating
 (draw_x, draw_y, sprite_scale, sprite_index) Use `draw_x'/`draw_y' to
 animate tile coordinates for smooth movement between grid cells.
 Use list target with loop=True for repeating sprite frame animations.
-.SS \f[V]at(x, y) or at(pos) -> GridPoint | None\f[R]
+.SS \f[V]at(x: int, y: int) -> GridPoint | None\f[R]
 .PP
 Return the GridPoint at (x, y) if currently VISIBLE to this entity\[cq]s
 perspective_map, otherwise None.
-Equivalent to: grid.at(x, y) if perspective_map[x, y] ==
-Perspective.VISIBLE else None To inspect discovered-but-not-visible
-cells, read entity.perspective_map[x, y] directly and use grid.at(x, y)
-for cell data.
 .PP
-\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Grid coordinates as tuple, list,
-or Vector
-.SS \f[V]die(...)\f[R]
+Note:
+.PP
+\f[B]Arguments:\f[R] - \f[V]x\f[R]: Grid X coordinate (also accepts a
+tuple/Vector as first positional arg) - \f[V]y\f[R]: Grid Y coordinate
+(omit when passing a tuple or Vector)
+.PP
+\f[B]Returns:\f[R] GridPoint if visible, None if undiscovered or not
+currently in FOV To inspect discovered-but-not-visible cells, read
+entity.perspective_map[x, y] directly.
+.SS \f[V]die() -> None\f[R]
 .PP
 Remove this entity from its grid.
-Warning: Do not call during iteration over grid.entities.
-Modifying the collection during iteration raises RuntimeError.
-.SS \f[V]find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None\f[R]
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] None Do not call during iteration over grid.entities;
+modifying the collection during iteration raises RuntimeError.
+.SS \f[V]find_path(target, diagonal_cost: float = 1.41, collide: str = None) -> AStarPath | None\f[R]
 .PP
 Find a path from this entity to the target position.
 .PP
 \f[B]Arguments:\f[R] - \f[V]target\f[R]: Target as Vector, Entity, or
-(x, y) tuple.
-- \f[V]diagonal_cost\f[R]: Cost of diagonal movement (default 1.41).
-- \f[V]collide\f[R]: Label string.
-Entities with this label block pathfinding.
+(x, y) tuple - \f[V]diagonal_cost\f[R]: Cost of diagonal movement
+(default 1.41) - \f[V]collide\f[R]: Label string; entities with this
+label block pathfinding
 .PP
-\f[B]Returns:\f[R] AStarPath object, or None if no path exists.
+\f[B]Returns:\f[R] AStarPath object, or None if no path exists
+.PP
+\f[B]Raises:\f[R] ValueError: If entity has no grid or positions are out
+of bounds
 .SS \f[V]has_label(label: str) -> bool\f[R]
 .PP
 Check if this entity has the given label.
-.SS \f[V]index(...)\f[R]
 .PP
-Return the index of this entity in its grid\[cq]s entity collection
+\f[B]Arguments:\f[R] - \f[V]label\f[R]: String label to check
+.PP
+\f[B]Returns:\f[R] True if the entity has the label, False otherwise
+.SS \f[V]index() -> int\f[R]
+.PP
+Return the index of this entity in its grid\[cq]s entity collection.
+.PP
+\f[B]Returns:\f[R] Zero-based index of this entity in grid.entities
+.PP
+\f[B]Raises:\f[R] RuntimeError: If entity is not associated with a grid
 .SS \f[V]move(dx, dy) or (delta) -> None\f[R]
 .PP
 Move the element by a relative offset.
@@ -2074,18 +2133,27 @@ Note:
 \f[B]Arguments:\f[R] - \f[V]dx\f[R]: Horizontal offset in pixels (or use
 delta) - \f[V]dy\f[R]: Vertical offset in pixels (or use delta) -
 \f[V]delta\f[R]: Offset as tuple, list, or Vector: (dx, dy)
-.SS \f[V]path_to(x, y) or path_to(target) -> list\f[R]
+.SS \f[V]path_to(x: int, y: int) -> list\f[R]
 .PP
-Find a path to the target position using Dijkstra pathfinding.
+Find a path to the target position using A* pathfinding.
 .PP
-\f[B]Arguments:\f[R] - \f[V]target\f[R]: Target coordinates as tuple,
-list, or Vector
+\f[B]Arguments:\f[R] - \f[V]x\f[R]: Target X coordinate (also accepts a
+tuple/Vector as first positional arg) - \f[V]y\f[R]: Target Y coordinate
+(omit when passing a tuple or Vector)
 .PP
-\f[B]Returns:\f[R] List of (x, y) tuples representing the path.
+\f[B]Returns:\f[R] List of (x, y) tuples representing the path from
+current position to target
+.PP
+\f[B]Raises:\f[R] ValueError: If entity has no grid or target is out of
+bounds
 .SS \f[V]remove_label(label: str) -> None\f[R]
 .PP
 Remove a label from this entity.
-No-op if label not present.
+No-op if label is not present.
+.PP
+\f[B]Arguments:\f[R] - \f[V]label\f[R]: String label to remove
+.PP
+\f[B]Returns:\f[R] None
 .SS \f[V]resize(width, height) or (size) -> None\f[R]
 .PP
 Resize the element to new dimensions.
@@ -2095,24 +2163,39 @@ Note:
 \f[B]Arguments:\f[R] - \f[V]width\f[R]: New width in pixels (or use
 size) - \f[V]height\f[R]: New height in pixels (or use size) -
 \f[V]size\f[R]: Size as tuple, list, or Vector: (width, height)
-.SS \f[V]set_behavior(type, waypoints=None, turns=0, path=None) -> None\f[R]
+.SS \f[V]set_behavior(type, waypoints=None, turns: int = 0, path=None, pathfinder=None) -> None\f[R]
 .PP
 Configure this entity\[cq]s behavior for grid.step() turn management.
+.PP
+\f[B]Arguments:\f[R] - \f[V]type\f[R]: Behavior type (int or Behavior
+enum, e.g., Behavior.PATROL) - \f[V]waypoints\f[R]: List of (x, y)
+tuples for WAYPOINT/PATROL/LOOP behaviors - \f[V]turns\f[R]: Number of
+turns for SLEEP behavior - \f[V]path\f[R]: Pre-computed path as list of
+(x, y) tuples for PATH behavior - \f[V]pathfinder\f[R]: DijkstraMap,
+AStarPath, or (x, y) target tuple for SEEK behavior
+.PP
+\f[B]Returns:\f[R] None
 .SS \f[V]update_visibility() -> None\f[R]
 .PP
-Update entity\[cq]s visibility state based on current FOV.
-Recomputes which cells are visible from the entity\[cq]s position and
-updates the entity\[cq]s perspective_map (see entity.perspective_map and
-mcrfpy.Perspective).
-This is called automatically when the entity moves if it has a grid with
-perspective set.
-.SS \f[V]visible_entities(fov=None, radius=None) -> list[Entity]\f[R]
+Recompute which cells are visible from this entity\[cq]s position and
+update perspective_map.
+.PP
+Note:
+.PP
+\f[B]Returns:\f[R] None Called automatically when the entity moves if
+the grid has FOV configured.
+.SS \f[V]visible_entities(fov=None, radius: int = None) -> list[Entity]\f[R]
 .PP
 Get list of other entities visible from this entity\[cq]s position.
 .PP
-\f[B]Returns:\f[R] List of Entity objects that are within field of view.
-Computes FOV from this entity\[cq]s position and returns all other
-entities whose positions fall within the visible area.
+\f[B]Arguments:\f[R] - \f[V]fov\f[R]: FOV algorithm to use (FOV enum or
+None to use grid.fov) - \f[V]radius\f[R]: FOV radius (int or None to use
+grid.fov_radius)
+.PP
+\f[B]Returns:\f[R] List of Entity objects within field of view,
+excluding self
+.PP
+\f[B]Raises:\f[R] ValueError: If entity is not associated with a grid
 .SS Entity3D
 .PP
 Entity3D(pos=None, **kwargs)
@@ -2388,10 +2471,16 @@ or resized.
 Set to None to disable alignment and use manual positioning.
 - \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
 Returns (Vector(x, y), Vector(width, height)).
-- \f[V]cache_subtree\f[R]: #144: Cache subtree rendering to texture for
-performance - \f[V]children\f[R]: UICollection of objects on top of this
-one - \f[V]clip_children\f[R]: Whether to clip children to frame bounds
-- \f[V]fill_color\f[R]: Fill color of the rectangle.
+- \f[V]cache_subtree\f[R]: Cache the frame and all children to a render
+texture for performance (bool).
+Useful for complex static subtrees.
+- \f[V]children\f[R] \f[I](read-only)\f[R]: UICollection of child
+drawable objects rendered on top of this frame (UICollection,
+read-only).
+- \f[V]clip_children\f[R]: Whether to clip child elements to the
+frame\[cq]s bounds (bool).
+Enables render-texture mode when True.
+- \f[V]fill_color\f[R]: Fill color of the rectangle (Color).
 Returns a copy; modifying components requires reassignment.
 For animation, use `fill_color.r', `fill_color.g', etc.
 - \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
@@ -2400,10 +2489,12 @@ Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
-parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
-(only when parent is Grid) - \f[V]h\f[R]: height of the rectangle -
-\f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (Vector).
+Only meaningful when this element\[cq]s parent is a Grid.
+- \f[V]grid_size\f[R]: Size in grid tile coordinates (Vector).
+Only meaningful when this element\[cq]s parent is a Grid.
+- \f[V]h\f[R]: Height of the rectangle (float).
+- \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
 general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
@@ -2413,8 +2504,8 @@ Updated automatically by the engine during mouse movement.
 - \f[V]margin\f[R]: General margin from edge when aligned (float).
 Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
-- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
-Callable executed when object is clicked.
+- \f[V]name\f[R]: Name for finding elements (str).
+- \f[V]on_click\f[R]: Callable executed when object is clicked.
 Function receives (pos: Vector, button: str, action: str).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
 Called with (pos: Vector, button: str, action: str) when mouse enters
@@ -2432,16 +2523,16 @@ Automatically clamped to valid range [0.0, 1.0].
 - \f[V]origin\f[R]: Transform origin as Vector (pivot point for
 rotation).
 Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
-- \f[V]outline\f[R]: Thickness of the border - \f[V]outline_color\f[R]:
-Outline color of the rectangle.
+- \f[V]outline\f[R]: Thickness of the border in pixels (float).
+- \f[V]outline_color\f[R]: Outline color of the rectangle (Color).
 Returns a copy; modifying components requires reassignment.
 For animation, use `outline_color.r', `outline_color.g', etc.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: Position as a Vector - \f[V]rotate_with_camera\f[R]:
-Whether to rotate visually with parent Grid\[cq]s camera_rotation
-(bool).
+- \f[V]pos\f[R]: Position as a Vector (Vector).
+- \f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+Grid\[cq]s camera_rotation (bool).
 False (default): stay screen-aligned.
 True: tilt with camera.
 Only affects children of UIGrid; ignored for other parents.
@@ -2461,9 +2552,11 @@ Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
 Invisible objects are not rendered or clickable.
-- \f[V]w\f[R]: width of the rectangle - \f[V]x\f[R]: X coordinate of
-top-left corner - \f[V]y\f[R]: Y coordinate of top-left corner -
-\f[V]z_index\f[R]: Z-order for rendering (lower values rendered first).
+- \f[V]w\f[R]: Width of the rectangle (float).
+- \f[V]x\f[R]: X coordinate of the top-left corner (float).
+- \f[V]y\f[R]: Y coordinate of the top-left corner (float).
+- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+first).
 Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
@@ -2553,21 +2646,23 @@ Set to None to disable alignment and use manual positioning.
 - \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]camera_rotation\f[R]: Rotation of grid contents around camera
-center (degrees).
-- \f[V]center\f[R]: Camera center point in pixel coordinates.
-- \f[V]center_x\f[R]: center of the view X-coordinate -
-\f[V]center_y\f[R]: center of the view Y-coordinate -
-\f[V]fill_color\f[R]: Background fill color.
+center in degrees (float).
+- \f[V]center\f[R]: Camera center point in pixel coordinates (tuple).
+- \f[V]center_x\f[R]: Camera center X-coordinate in pixel space (float).
+- \f[V]center_y\f[R]: Camera center Y-coordinate in pixel space (float).
+- \f[V]fill_color\f[R]: Background fill color (Color).
+Drawn behind all tiles and entities.
 - \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
 in screen coordinates.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_data\f[R]: The underlying grid data object (for multi-view
-scenarios).
-- \f[V]h\f[R]: visible widget height - \f[V]horiz_margin\f[R]:
-Horizontal margin override (float, 0 = use general margin).
+- \f[V]grid_data\f[R]: The underlying grid data object (Grid | None).
+Used for multi-view scenarios where multiple GridViews share one Grid.
+- \f[V]h\f[R]: Visible widget height (float).
+- \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
 - \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
@@ -2576,8 +2671,9 @@ Updated automatically by the engine during mouse movement.
 - \f[V]margin\f[R]: General margin from edge when aligned (float).
 Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
-- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
-Callable executed when object is clicked.
+- \f[V]name\f[R]: Name for finding elements (str).
+- \f[V]on_click\f[R]: Callable executed when object is clicked (Callable
+| None).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
 Called with (pos: Vector, button: str, action: str) when mouse enters
 this element\[cq]s bounds.
@@ -2597,8 +2693,8 @@ Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: Position of the grid as Vector -
-\f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+- \f[V]pos\f[R]: Position of the grid as Vector (Vector).
+- \f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
 Grid\[cq]s camera_rotation (bool).
 False (default): stay screen-aligned.
 True: tilt with camera.
@@ -2610,7 +2706,7 @@ Animatable property.
 When set, the drawable is rendered through the shader program.
 Set to None to disable shader effects.
 - \f[V]texture\f[R] \f[I](read-only)\f[R]: Texture used for tile
-rendering (read-only).
+rendering (Texture | None, read-only).
 - \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
 uniforms (read-only access to collection).
 Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
@@ -2621,10 +2717,13 @@ Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
 Invisible objects are not rendered or clickable.
-- \f[V]w\f[R]: visible widget width - \f[V]x\f[R]: top-left corner
-X-coordinate - \f[V]y\f[R]: top-left corner Y-coordinate -
-\f[V]z_index\f[R]: Z-order for rendering (lower values rendered first).
-- \f[V]zoom\f[R]: Zoom level for rendering.
+- \f[V]w\f[R]: Visible widget width (float).
+- \f[V]x\f[R]: Top-left corner X-coordinate (float).
+- \f[V]y\f[R]: Top-left corner Y-coordinate (float).
+- \f[V]z_index\f[R]: Z-order for rendering (int).
+Lower values are rendered first.
+- \f[V]zoom\f[R]: Zoom level for rendering (float).
+Values greater than 1.0 magnify; less than 1.0 shrink.
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
@@ -2713,21 +2812,23 @@ Set to None to disable alignment and use manual positioning.
 - \f[V]bounds\f[R]: Bounding box as (pos, size) tuple of Vectors.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]camera_rotation\f[R]: Rotation of grid contents around camera
-center (degrees).
-- \f[V]center\f[R]: Camera center point in pixel coordinates.
-- \f[V]center_x\f[R]: center of the view X-coordinate -
-\f[V]center_y\f[R]: center of the view Y-coordinate -
-\f[V]fill_color\f[R]: Background fill color.
+center in degrees (float).
+- \f[V]center\f[R]: Camera center point in pixel coordinates (tuple).
+- \f[V]center_x\f[R]: Camera center X-coordinate in pixel space (float).
+- \f[V]center_y\f[R]: Camera center Y-coordinate in pixel space (float).
+- \f[V]fill_color\f[R]: Background fill color (Color).
+Drawn behind all tiles and entities.
 - \f[V]global_bounds\f[R]: Bounding box as (pos, size) tuple of Vectors
 in screen coordinates.
 Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_data\f[R]: The underlying grid data object (for multi-view
-scenarios).
-- \f[V]h\f[R]: visible widget height - \f[V]horiz_margin\f[R]:
-Horizontal margin override (float, 0 = use general margin).
+- \f[V]grid_data\f[R]: The underlying grid data object (Grid | None).
+Used for multi-view scenarios where multiple GridViews share one Grid.
+- \f[V]h\f[R]: Visible widget height (float).
+- \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
 - \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
@@ -2736,8 +2837,9 @@ Updated automatically by the engine during mouse movement.
 - \f[V]margin\f[R]: General margin from edge when aligned (float).
 Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
-- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
-Callable executed when object is clicked.
+- \f[V]name\f[R]: Name for finding elements (str).
+- \f[V]on_click\f[R]: Callable executed when object is clicked (Callable
+| None).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
 Called with (pos: Vector, button: str, action: str) when mouse enters
 this element\[cq]s bounds.
@@ -2757,8 +2859,8 @@ Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: Position of the grid as Vector -
-\f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+- \f[V]pos\f[R]: Position of the grid as Vector (Vector).
+- \f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
 Grid\[cq]s camera_rotation (bool).
 False (default): stay screen-aligned.
 True: tilt with camera.
@@ -2770,7 +2872,7 @@ Animatable property.
 When set, the drawable is rendered through the shader program.
 Set to None to disable shader effects.
 - \f[V]texture\f[R] \f[I](read-only)\f[R]: Texture used for tile
-rendering (read-only).
+rendering (Texture | None, read-only).
 - \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
 uniforms (read-only access to collection).
 Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
@@ -2781,10 +2883,13 @@ Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
 Invisible objects are not rendered or clickable.
-- \f[V]w\f[R]: visible widget width - \f[V]x\f[R]: top-left corner
-X-coordinate - \f[V]y\f[R]: top-left corner Y-coordinate -
-\f[V]z_index\f[R]: Z-order for rendering (lower values rendered first).
-- \f[V]zoom\f[R]: Zoom level for rendering.
+- \f[V]w\f[R]: Visible widget width (float).
+- \f[V]x\f[R]: Top-left corner X-coordinate (float).
+- \f[V]y\f[R]: Top-left corner Y-coordinate (float).
+- \f[V]z_index\f[R]: Z-order for rendering (int).
+Lower values are rendered first.
+- \f[V]zoom\f[R]: Zoom level for rendering (float).
+Values greater than 1.0 magnify; less than 1.0 shrink.
 .PP
 \f[B]Methods:\f[R]
 .SS \f[V]animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode=\[aq]replace\[aq]) -> Animation\f[R]
@@ -3571,10 +3676,12 @@ Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
-parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
-(only when parent is Grid) - \f[V]horiz_margin\f[R]: Horizontal margin
-override (float, 0 = use general margin).
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (Vector, only
+when parent is Grid).
+- \f[V]grid_size\f[R]: Size in grid tile coordinates (Vector, only when
+parent is Grid).
+- \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
 - \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
@@ -4428,10 +4535,12 @@ Returns (Vector(x, y), Vector(width, height)).
 - \f[V]global_position\f[R] \f[I](read-only)\f[R]: Global screen
 position (read-only).
 Calculates absolute position by walking up the parent chain.
-- \f[V]grid_pos\f[R]: Position in grid tile coordinates (only when
-parent is Grid) - \f[V]grid_size\f[R]: Size in grid tile coordinates
-(only when parent is Grid) - \f[V]horiz_margin\f[R]: Horizontal margin
-override (float, 0 = use general margin).
+- \f[V]grid_pos\f[R]: Position in grid tile coordinates (Vector, only
+when parent is Grid).
+- \f[V]grid_size\f[R]: Size in grid tile coordinates (Vector, only when
+parent is Grid).
+- \f[V]horiz_margin\f[R]: Horizontal margin override (float, 0 = use
+general margin).
 Invalid for vertically-centered alignments (TOP_CENTER, BOTTOM_CENTER,
 CENTER).
 - \f[V]hovered\f[R] \f[I](read-only)\f[R]: Whether mouse is currently
@@ -4440,8 +4549,8 @@ Updated automatically by the engine during mouse movement.
 - \f[V]margin\f[R]: General margin from edge when aligned (float).
 Applied to both horizontal and vertical edges unless overridden.
 Invalid for CENTER alignment (raises ValueError).
-- \f[V]name\f[R]: Name for finding elements - \f[V]on_click\f[R]:
-Callable executed when object is clicked.
+- \f[V]name\f[R]: Name for finding elements (str).
+- \f[V]on_click\f[R]: Callable executed when object is clicked.
 Function receives (pos: Vector, button: str, action: str).
 - \f[V]on_enter\f[R]: Callback for mouse enter events.
 Called with (pos: Vector, button: str, action: str) when mouse enters
@@ -4462,24 +4571,28 @@ Default (0,0) is top-left; set to (w/2, h/2) to rotate around center.
 - \f[V]parent\f[R]: Parent drawable.
 Get: Returns the parent Frame/Grid if nested, or None if at scene level.
 Set: Assign a Frame/Grid to reparent, or None to remove from parent.
-- \f[V]pos\f[R]: Position as a Vector - \f[V]rotate_with_camera\f[R]:
-Whether to rotate visually with parent Grid\[cq]s camera_rotation
-(bool).
+- \f[V]pos\f[R]: Position as a Vector (Vector).
+- \f[V]rotate_with_camera\f[R]: Whether to rotate visually with parent
+Grid\[cq]s camera_rotation (bool).
 False (default): stay screen-aligned.
 True: tilt with camera.
 Only affects children of UIGrid; ignored for other parents.
 - \f[V]rotation\f[R]: Rotation angle in degrees (clockwise around
 origin).
 Animatable property.
-- \f[V]scale\f[R]: Uniform size factor - \f[V]scale_x\f[R]: Horizontal
-scale factor - \f[V]scale_y\f[R]: Vertical scale factor -
-\f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
+- \f[V]scale\f[R]: Uniform size factor (float).
+Sets both horizontal and vertical scale to the same value.
+- \f[V]scale_x\f[R]: Horizontal scale factor (float).
+- \f[V]scale_y\f[R]: Vertical scale factor (float).
+- \f[V]shader\f[R]: Shader for GPU visual effects (Shader or None).
 When set, the drawable is rendered through the shader program.
 Set to None to disable shader effects.
-- \f[V]sprite_index\f[R]: Which sprite on the texture is shown -
-\f[V]texture\f[R]: Texture object - \f[V]uniforms\f[R]
-\f[I](read-only)\f[R]: Collection of shader uniforms (read-only access
-to collection).
+- \f[V]sprite_index\f[R]: Which sprite on the texture is shown (int).
+Index into the texture atlas; must be in range [0, sprite_count).
+- \f[V]texture\f[R]: Texture object (Texture).
+The texture atlas from which sprites are drawn.
+- \f[V]uniforms\f[R] \f[I](read-only)\f[R]: Collection of shader
+uniforms (read-only access to collection).
 Set uniforms via dict-like syntax: drawable.uniforms[`name'] = value.
 Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - \f[V]vert_margin\f[R]: Vertical margin override (float, 0 = use
@@ -4488,9 +4601,10 @@ Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT,
 CENTER).
 - \f[V]visible\f[R]: Whether the object is visible (bool).
 Invisible objects are not rendered or clickable.
-- \f[V]x\f[R]: X coordinate of top-left corner - \f[V]y\f[R]: Y
-coordinate of top-left corner - \f[V]z_index\f[R]: Z-order for rendering
-(lower values rendered first).
+- \f[V]x\f[R]: X coordinate of top-left corner (float).
+- \f[V]y\f[R]: Y coordinate of top-left corner (float).
+- \f[V]z_index\f[R]: Z-order for rendering (lower values rendered
+first).
 Automatically triggers scene resort when changed.
 .PP
 \f[B]Methods:\f[R]
@@ -4687,51 +4801,75 @@ texture=tileset) grid = mcrfpy.Grid(grid_size=(20, 15),
 layers=[terrain]) terrain.fill(0) # Fill with tile index 0
 grid.layer(`terrain').set(5, 5, 42) # Place tile 42 at (5, 5)
 .PP
-\f[B]Properties:\f[R] - \f[V]grid\f[R]: Parent Grid or None.
+\f[B]Properties:\f[R] - \f[V]grid\f[R]: Parent Grid or None (Grid |
+None).
 Setting manages layer association and handles lazy allocation.
-- \f[V]grid_size\f[R]: Layer dimensions as (width, height) tuple.
+- \f[V]grid_size\f[R] \f[I](read-only)\f[R]: Layer dimensions as (width,
+height) tuple (tuple, read-only).
 - \f[V]name\f[R] \f[I](read-only)\f[R]: Layer name (str, read-only).
 Used for Grid.layer(name) lookup.
-- \f[V]texture\f[R]: Texture atlas for tile sprites.
-- \f[V]visible\f[R]: Whether the layer is rendered.
-- \f[V]z_index\f[R]: Layer z-order.
+- \f[V]texture\f[R]: Texture atlas for tile sprites (Texture | None).
+- \f[V]visible\f[R]: Whether the layer is rendered (bool).
+- \f[V]z_index\f[R]: Layer z-order (int).
 Negative values render below entities.
 .PP
 \f[B]Methods:\f[R]
-.SS \f[V]apply_ranges(source, ranges) -> TileLayer\f[R]
+.SS \f[V]apply_ranges(source: HeightMap, ranges: list) -> TileLayer\f[R]
 .PP
-Apply multiple tile assignments in a single pass.
+Apply multiple tile assignments from a HeightMap in a single pass.
+Later ranges override earlier ones if overlapping.
 .PP
 Note:
 .PP
-\f[B]Returns:\f[R] self for method chaining Later ranges override
-earlier ones if overlapping.
-Cells not matching any range are left unchanged.
-.SS \f[V]apply_threshold(source, range, tile) -> TileLayer\f[R]
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: Source heightmap (must match
+layer dimensions) - \f[V]ranges\f[R]: List of ((min, max), tile_index)
+tuples
 .PP
-Set tile index for cells where HeightMap value is within range.
+\f[B]Returns:\f[R] self for method chaining Cells not matching any range
+are left unchanged.
+.SS \f[V]apply_threshold(source: HeightMap, range: tuple, tile: int) -> TileLayer\f[R]
+.PP
+Set a tile index for cells where the HeightMap value falls within a
+range.
+.PP
+\f[B]Arguments:\f[R] - \f[V]source\f[R]: Source heightmap (must match
+layer dimensions) - \f[V]range\f[R]: Value range as (min, max) inclusive
+- \f[V]tile\f[R]: Tile index to set for cells in range
 .PP
 \f[B]Returns:\f[R] self for method chaining
-.SS \f[V]at(pos) -> int\f[R]
+.SS \f[V]at(pos) or (x: int, y: int) -> int\f[R]
 .PP
-at(x, y) -> int Get the tile index at cell position.
-Returns -1 if no tile.
+Get the tile index at a cell position.
+Returns -1 if no tile is set.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
-Vector
-.SS \f[V]fill(index)\f[R]
+Vector; or pass x and y separately
+.PP
+\f[B]Returns:\f[R] Tile index at the specified cell, or -1 if empty
+.PP
+\f[B]Raises:\f[R] IndexError: If coordinates are out of bounds
+.SS \f[V]fill(index: int) -> None\f[R]
 .PP
 Fill the entire layer with the specified tile index.
-.SS \f[V]fill_rect(pos, size, index)\f[R]
+.PP
+\f[B]Arguments:\f[R] - \f[V]index\f[R]: Tile index to fill with (-1 for
+no tile)
+.SS \f[V]fill_rect(pos: tuple, size: tuple, index: int) -> None\f[R]
 .PP
 Fill a rectangular region with a tile index.
-.SS \f[V]set(pos, index)\f[R]
 .PP
-Set the tile index at cell position.
-Use -1 for no tile.
+\f[B]Arguments:\f[R] - \f[V]pos\f[R]: Top-left corner as (x, y) -
+\f[V]size\f[R]: Dimensions as (width, height) - \f[V]index\f[R]: Tile
+index to fill with (-1 for no tile)
+.SS \f[V]set(pos, index: int) -> None\f[R]
+.PP
+Set the tile index at a cell position.
+Use -1 to clear the tile.
 .PP
 \f[B]Arguments:\f[R] - \f[V]pos\f[R]: Position as (x, y) tuple, list, or
 Vector - \f[V]index\f[R]: Tile index (-1 for no tile)
+.PP
+\f[B]Raises:\f[R] IndexError: If coordinates are out of bounds
 .SS TileMapFile
 .PP
 TileMapFile(path: str)

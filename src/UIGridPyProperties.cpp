@@ -529,26 +529,44 @@ typedef PyUIGridObject PyObjectType;
 
 PyGetSetDef UIGrid::getsetters[] = {
 
-    {"grid_size", (getter)UIGrid::get_grid_size, NULL, "Grid dimensions (grid_w, grid_h)", NULL},
-    {"grid_w", (getter)UIGrid::get_grid_w, NULL, "Grid width in cells", NULL},
-    {"grid_h", (getter)UIGrid::get_grid_h, NULL, "Grid height in cells", NULL},
-    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position of the grid as Vector", (void*)PyObjectsEnum::UIGRID},
-    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in parent grid's tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UIGRID},
-    {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size, "Size of the grid as Vector (width, height)", NULL},
-    {"center", (getter)UIGrid::get_center, (setter)UIGrid::set_center, "Grid coordinate at the center of the Grid's view (pan)", NULL},
+    {"grid_size", (getter)UIGrid::get_grid_size, NULL,
+     MCRF_PROPERTY(grid_size, "Grid dimensions as (grid_w, grid_h) (Vector, read-only)."), NULL},
+    {"grid_w", (getter)UIGrid::get_grid_w, NULL,
+     MCRF_PROPERTY(grid_w, "Grid width in cells (int, read-only)."), NULL},
+    {"grid_h", (getter)UIGrid::get_grid_h, NULL,
+     MCRF_PROPERTY(grid_h, "Grid height in cells (int, read-only)."), NULL},
+    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
+     MCRF_PROPERTY(pos, "Position of the grid as Vector (Vector)."), (void*)PyObjectsEnum::UIGRID},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
+     MCRF_PROPERTY(grid_pos, "Position in parent grid's tile coordinates (Vector). Only valid when parent is a Grid."), (void*)PyObjectsEnum::UIGRID},
+    {"size", (getter)UIGrid::get_size, (setter)UIGrid::set_size,
+     MCRF_PROPERTY(size, "Size of the grid widget as Vector (Vector, width x height in pixels)."), NULL},
+    {"center", (getter)UIGrid::get_center, (setter)UIGrid::set_center,
+     MCRF_PROPERTY(center, "Camera center point in pixel coordinates (Vector). Controls which part of the grid world is visible (pan)."), NULL},
 
-    {"entities", (getter)UIGrid::get_entities, NULL, "EntityCollection of entities on this grid", NULL},
-    {"children", (getter)UIGrid::get_children, NULL, "UICollection of UIDrawable children (speech bubbles, effects, overlays)", NULL},
-    {"layers", (getter)UIGrid::get_layers, NULL, "List of grid layers (ColorLayer, TileLayer) sorted by z_index", NULL},
+    {"entities", (getter)UIGrid::get_entities, NULL,
+     MCRF_PROPERTY(entities, "EntityCollection of entities on this grid (EntityCollection, read-only)."), NULL},
+    {"children", (getter)UIGrid::get_children, NULL,
+     MCRF_PROPERTY(children, "UICollection of UIDrawable children such as speech bubbles, effects, and overlays (UICollection, read-only)."), NULL},
+    {"layers", (getter)UIGrid::get_layers, NULL,
+     MCRF_PROPERTY(layers, "Tuple of grid layers sorted by z_index (tuple, read-only). Contains ColorLayer and TileLayer objects."), NULL},
 
-    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "top-left corner X-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 0)},
-    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "top-left corner Y-coordinate", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 1)},
-    {"w", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "visible widget width", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 2)},
-    {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "visible widget height", (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 3)},
-    {"center_x", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "center of the view X-coordinate", (void*)4},
-    {"center_y", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "center of the view Y-coordinate", (void*)5},
-    {"zoom", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "zoom factor for displaying the Grid", (void*)6},
-    {"camera_rotation", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member, "Rotation of grid contents around camera center (degrees). The grid widget stays axis-aligned; only the view into the world rotates.", (void*)7},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(x, "Top-left corner X-coordinate in pixels (float)."), (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(y, "Top-left corner Y-coordinate in pixels (float)."), (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 1)},
+    {"w", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(w, "Visible widget width in pixels (float)."), (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 2)},
+    {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(h, "Visible widget height in pixels (float)."), (void*)((intptr_t)PyObjectsEnum::UIGRID << 8 | 3)},
+    {"center_x", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member,
+     MCRF_PROPERTY(center_x, "Camera center X-coordinate in pixels (float)."), (void*)4},
+    {"center_y", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member,
+     MCRF_PROPERTY(center_y, "Camera center Y-coordinate in pixels (float)."), (void*)5},
+    {"zoom", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member,
+     MCRF_PROPERTY(zoom, "Zoom factor for rendering the grid (float). Values > 1 zoom in; values < 1 zoom out."), (void*)6},
+    {"camera_rotation", (getter)UIGrid::get_float_member, (setter)UIGrid::set_float_member,
+     MCRF_PROPERTY(camera_rotation, "Rotation of grid contents around camera center in degrees (float). The grid widget stays axis-aligned; only the view into the world rotates."), (void*)7},
 
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
@@ -556,42 +574,56 @@ PyGetSetDef UIGrid::getsetters[] = {
          "Function receives (pos: Vector, button: str, action: str)."
      ), (void*)PyObjectsEnum::UIGRID},
 
-    {"texture", (getter)UIGrid::get_texture, NULL, "Texture of the grid", NULL},
+    {"texture", (getter)UIGrid::get_texture, NULL,
+     MCRF_PROPERTY(texture, "Texture used for tile rendering (Texture | None, read-only)."), NULL},
     {"fill_color", (getter)UIGrid::get_fill_color, (setter)UIGrid::set_fill_color,
-     "Background fill color of the grid. Returns a copy; modifying components requires reassignment. "
-     "For animation, use 'fill_color.r', 'fill_color.g', etc.", NULL},
+     MCRF_PROPERTY(fill_color,
+         "Background fill color of the grid (Color). "
+         "Returns a copy; modifying components requires reassignment. "
+         "For animation, use 'fill_color.r', 'fill_color.g', etc."
+     ), NULL},
     {"perspective", (getter)UIGrid::get_perspective, (setter)UIGrid::set_perspective,
-     "Entity whose perspective to use for FOV rendering (None for omniscient view). "
-     "Setting an entity automatically enables perspective mode.", NULL},
+     MCRF_PROPERTY(perspective,
+         "Entity whose perspective to use for FOV rendering (Entity | None). "
+         "Setting an entity automatically enables perspective mode. "
+         "Set to None for omniscient view."
+     ), NULL},
     {"perspective_enabled", (getter)UIGrid::get_perspective_enabled, (setter)UIGrid::set_perspective_enabled,
-     "Whether to use perspective-based FOV rendering. When True with no valid entity, "
-     "all cells appear undiscovered.", NULL},
+     MCRF_PROPERTY(perspective_enabled,
+         "Whether to use perspective-based FOV rendering (bool). "
+         "When True with no valid entity, all cells appear undiscovered."
+     ), NULL},
     {"fov", (getter)UIGrid::get_fov, (setter)UIGrid::set_fov,
-     "FOV algorithm for this grid (mcrfpy.FOV enum). "
-     "Used by entity.updateVisibility() and layer methods when fov=None.", NULL},
+     MCRF_PROPERTY(fov,
+         "FOV algorithm for this grid (FOV enum). "
+         "Used by entity.updateVisibility() and layer methods when fov=None."
+     ), NULL},
     {"fov_radius", (getter)UIGrid::get_fov_radius, (setter)UIGrid::set_fov_radius,
-     "Default FOV radius for this grid. Used when radius not specified.", NULL},
+     MCRF_PROPERTY(fov_radius, "Default FOV radius for this grid (int). Used when radius is not specified."), NULL},
     {"z_index", (getter)UIDrawable::get_int, (setter)UIDrawable::set_int,
      MCRF_PROPERTY(z_index,
          "Z-order for rendering (lower values rendered first). "
          "Automatically triggers scene resort when changed."
      ), (void*)PyObjectsEnum::UIGRID},
-    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIGRID},
+    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,
+     MCRF_PROPERTY(name, "Name for finding elements (str)."), (void*)PyObjectsEnum::UIGRID},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIGRID),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIGRID),
     UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UIGRID),
     {"on_cell_enter", (getter)UIGrid::get_on_cell_enter, (setter)UIGrid::set_on_cell_enter,
-     "Callback when mouse enters a grid cell. Called with (cell_pos: Vector).", NULL},
+     MCRF_PROPERTY(on_cell_enter, "Callback when mouse enters a grid cell (Callable | None). Called with (cell_pos: Vector)."), NULL},
     {"on_cell_exit", (getter)UIGrid::get_on_cell_exit, (setter)UIGrid::set_on_cell_exit,
-     "Callback when mouse exits a grid cell. Called with (cell_pos: Vector).", NULL},
+     MCRF_PROPERTY(on_cell_exit, "Callback when mouse exits a grid cell (Callable | None). Called with (cell_pos: Vector)."), NULL},
     {"on_cell_click", (getter)UIGrid::get_on_cell_click, (setter)UIGrid::set_on_cell_click,
-     "Callback when a grid cell is clicked. Called with (cell_pos: Vector).", NULL},
+     MCRF_PROPERTY(on_cell_click, "Callback when a grid cell is clicked (Callable | None). Called with (cell_pos: Vector, button: MouseButton, action: InputState)."), NULL},
     {"hovered_cell", (getter)UIGrid::get_hovered_cell, NULL,
-     "Currently hovered cell as (x, y) tuple, or None if not hovering.", NULL},
+     MCRF_PROPERTY(hovered_cell, "Currently hovered cell as (x, y) tuple, or None if not hovering (tuple | None, read-only)."), NULL},
     UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UIGRID),
     {"view", (getter)UIGrid::get_view, NULL,
-     "Auto-created GridView for rendering (read-only). "
-     "When Grid is appended to a scene, this view is what actually renders.", NULL},
+     MCRF_PROPERTY(view,
+         "Auto-created GridView for rendering (GridView | None, read-only). "
+         "When Grid is appended to a scene, this view is what actually renders."
+     ), NULL},
     {NULL}
 };

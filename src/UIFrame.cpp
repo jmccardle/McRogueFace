@@ -12,6 +12,7 @@
 #include "PyShader.h"  // #106: Shader support
 #include "PyUniformCollection.h"  // #106: Uniform collection
 #include <iostream>  // #106: for shader error output
+#include "McRFPy_Doc.h"
 // UIDrawable methods now in UIBase.h
 
 UIDrawable* UIFrame::click_at(sf::Vector2f point)
@@ -519,18 +520,36 @@ PyMethodDef UIFrame_methods[] = {
 };
 
 PyGetSetDef UIFrame::getsetters[] = {
-    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "X coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 0)},
-    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "Y coordinate of top-left corner", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 1)},
-    {"w", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "width of the rectangle", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 2)},
-    {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member, "height of the rectangle", (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 3)},
-    {"outline", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member, "Thickness of the border",   (void*)4},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(x, "X coordinate of the top-left corner (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(y, "Y coordinate of the top-left corner (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 1)},
+    {"w", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(w, "Width of the rectangle (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 2)},
+    {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(h, "Height of the rectangle (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 3)},
+    {"outline", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member,
+     MCRF_PROPERTY(outline, "Thickness of the border in pixels (float)."),
+     (void*)4},
     {"fill_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member,
-     "Fill color of the rectangle. Returns a copy; modifying components requires reassignment. "
-     "For animation, use 'fill_color.r', 'fill_color.g', etc.", (void*)0},
+     MCRF_PROPERTY(fill_color,
+         "Fill color of the rectangle (Color). "
+         "Returns a copy; modifying components requires reassignment. "
+         "For animation, use 'fill_color.r', 'fill_color.g', etc."
+     ), (void*)0},
     {"outline_color", (getter)UIFrame::get_color_member, (setter)UIFrame::set_color_member,
-     "Outline color of the rectangle. Returns a copy; modifying components requires reassignment. "
-     "For animation, use 'outline_color.r', 'outline_color.g', etc.", (void*)1},
-    {"children", (getter)UIFrame::get_children, NULL, "UICollection of objects on top of this one", NULL},
+     MCRF_PROPERTY(outline_color,
+         "Outline color of the rectangle (Color). "
+         "Returns a copy; modifying components requires reassignment. "
+         "For animation, use 'outline_color.r', 'outline_color.g', etc."
+     ), (void*)1},
+    {"children", (getter)UIFrame::get_children, NULL,
+     MCRF_PROPERTY(children, "UICollection of child drawable objects rendered on top of this frame (UICollection, read-only)."),
+     NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
          "Callable executed when object is clicked. "
@@ -541,12 +560,24 @@ PyGetSetDef UIFrame::getsetters[] = {
          "Z-order for rendering (lower values rendered first). "
          "Automatically triggers scene resort when changed."
      ), (void*)PyObjectsEnum::UIFRAME},
-    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name, "Name for finding elements", (void*)PyObjectsEnum::UIFRAME},
-    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos, "Position as a Vector", (void*)PyObjectsEnum::UIFRAME},
-    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos, "Position in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UIFRAME},
-    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size, "Size in grid tile coordinates (only when parent is Grid)", (void*)PyObjectsEnum::UIFRAME},
-    {"clip_children", (getter)UIFrame::get_clip_children, (setter)UIFrame::set_clip_children, "Whether to clip children to frame bounds", NULL},
-    {"cache_subtree", (getter)UIFrame::get_cache_subtree, (setter)UIFrame::set_cache_subtree, "#144: Cache subtree rendering to texture for performance", NULL},
+    {"name", (getter)UIDrawable::get_name, (setter)UIDrawable::set_name,
+     MCRF_PROPERTY(name, "Name for finding elements (str)."),
+     (void*)PyObjectsEnum::UIFRAME},
+    {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
+     MCRF_PROPERTY(pos, "Position as a Vector (Vector)."),
+     (void*)PyObjectsEnum::UIFRAME},
+    {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
+     MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector). Only meaningful when this element's parent is a Grid."),
+     (void*)PyObjectsEnum::UIFRAME},
+    {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size,
+     MCRF_PROPERTY(grid_size, "Size in grid tile coordinates (Vector). Only meaningful when this element's parent is a Grid."),
+     (void*)PyObjectsEnum::UIFRAME},
+    {"clip_children", (getter)UIFrame::get_clip_children, (setter)UIFrame::set_clip_children,
+     MCRF_PROPERTY(clip_children, "Whether to clip child elements to the frame's bounds (bool). Enables render-texture mode when True."),
+     NULL},
+    {"cache_subtree", (getter)UIFrame::get_cache_subtree, (setter)UIFrame::set_cache_subtree,
+     MCRF_PROPERTY(cache_subtree, "Cache the frame and all children to a render texture for performance (bool). Useful for complex static subtrees."),
+     NULL},
     UIDRAWABLE_GETSETTERS,
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIFRAME),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIFRAME),

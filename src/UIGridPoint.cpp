@@ -136,9 +136,12 @@ PyObject* UIGridPoint::get_grid_pos(PyUIGridPointObject* self, void* closure) {
 }
 
 PyGetSetDef UIGridPoint::getsetters[] = {
-    {"walkable", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member, "Is the GridPoint walkable", (void*)0},
-    {"transparent", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member, "Is the GridPoint transparent", (void*)1},
-    {"entities", (getter)UIGridPoint::get_entities, NULL, "List of entities at this grid cell (read-only)", NULL},
+    {"walkable", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member,
+     MCRF_PROPERTY(walkable, "Whether this cell can be walked through (bool). Affects pathfinding and TCOD map sync."), (void*)0},
+    {"transparent", (getter)UIGridPoint::get_bool_member, (setter)UIGridPoint::set_bool_member,
+     MCRF_PROPERTY(transparent, "Whether this cell allows line-of-sight to pass through (bool). Affects FOV computation and TCOD map sync."), (void*)1},
+    {"entities", (getter)UIGridPoint::get_entities, NULL,
+     MCRF_PROPERTY(entities, "List of Entity objects currently occupying this cell (list, read-only)."), NULL},
     {"grid_pos", (getter)UIGridPoint::get_grid_pos, NULL,
      MCRF_PROPERTY(grid_pos, "Grid coordinates as (x, y) tuple (read-only)."), NULL},
     {NULL}  /* Sentinel */

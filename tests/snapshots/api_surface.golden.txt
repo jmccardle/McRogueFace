@@ -254,17 +254,17 @@ submodule automation
 [Arc]
   prop align: Any (rw)
   prop bounds: Any (rw)
-  prop center: Any (rw)
-  prop color: Any (rw)
-  prop end_angle: Any (rw)
+  prop center: Vector (rw)
+  prop color: Color (rw)
+  prop end_angle: float (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_pos: Any (rw)
-  prop grid_size: Any (rw)
+  prop grid_pos: Vector (rw)
+  prop grid_size: Vector (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
   prop margin: float (rw)
-  prop name: Any (rw)
+  prop name: str (rw)
   prop on_click: Any (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
@@ -273,14 +273,14 @@ submodule automation
   prop origin: Any (rw)
   prop parent: Any (rw)
   prop pos: Any (rw)
-  prop radius: Any (rw)
+  prop radius: float (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
-  prop start_angle: Any (rw)
-  prop thickness: Any (rw)
+  prop start_angle: float (rw)
+  prop thickness: float (rw)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
-  prop z_index: Any (rw)
+  prop z_index: int (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
   meth realign :: realign() -> None
@@ -302,38 +302,38 @@ submodule automation
 [Caption]
   prop align: Any (rw)
   prop bounds: Any (rw)
-  prop fill_color: Any (rw)
-  prop font_size: Any (rw)
+  prop fill_color: Color (rw)
+  prop font_size: int (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_pos: Any (rw)
-  prop grid_size: Any (rw)
-  prop h: Any (ro)
+  prop grid_pos: Vector (rw)
+  prop grid_size: Vector (rw)
+  prop h: float (ro)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
   prop margin: float (rw)
-  prop name: Any (rw)
+  prop name: str (rw)
   prop on_click: Any (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
   prop on_move: Any (rw)
   prop opacity: Any (rw)
   prop origin: Any (rw)
-  prop outline: Any (rw)
-  prop outline_color: Any (rw)
+  prop outline: float (rw)
+  prop outline_color: Color (rw)
   prop parent: Any (rw)
   prop pos: Any (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
   prop size: Any (ro)
-  prop text: Any (rw)
+  prop text: str (rw)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
-  prop w: Any (ro)
-  prop x: Any (rw)
-  prop y: Any (rw)
+  prop w: float (ro)
+  prop x: float (rw)
+  prop y: float (rw)
   prop z_index: Any (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
@@ -342,32 +342,32 @@ submodule automation
 [Circle]
   prop align: Any (rw)
   prop bounds: Any (rw)
-  prop center: Any (rw)
-  prop fill_color: Any (rw)
+  prop center: Vector (rw)
+  prop fill_color: Color (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_pos: Any (rw)
-  prop grid_size: Any (rw)
+  prop grid_pos: Vector (rw)
+  prop grid_size: Vector (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
   prop margin: float (rw)
-  prop name: Any (rw)
-  prop on_click: Any (rw)
+  prop name: str (rw)
+  prop on_click: Callable | None (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
   prop on_move: Any (rw)
   prop opacity: Any (rw)
   prop origin: Any (rw)
-  prop outline: Any (rw)
-  prop outline_color: Any (rw)
+  prop outline: float (rw)
+  prop outline_color: Color (rw)
   prop parent: Any (rw)
-  prop pos: Any (rw)
-  prop radius: Any (rw)
+  prop pos: Vector (rw)
+  prop radius: float (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
-  prop z_index: Any (rw)
+  prop z_index: int (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
   meth realign :: realign() -> None
@@ -381,29 +381,29 @@ submodule automation
   meth lerp :: lerp(other: Color, t: float) -> Color
   meth to_hex :: to_hex() -> str
 [ColorLayer]
-  prop grid: Any (rw)
-  prop grid_size: Any (rw)
+  prop grid: Grid | None (rw)
+  prop grid_size: tuple (ro)
   prop name: str (ro)
-  prop visible: Any (rw)
-  prop z_index: Any (rw)
-  meth apply_gradient :: apply_gradient(source, range, color_low, color_high) -> ColorLayer
-  meth apply_perspective :: apply_perspective(entity, visible=None, discovered=None, unknown=None)
-  meth apply_ranges :: apply_ranges(source, ranges) -> ColorLayer
-  meth apply_threshold :: apply_threshold(source, range, color) -> ColorLayer
-  meth at :: at(pos) -> Color
-  meth clear_perspective :: clear_perspective()
-  meth draw_fov :: draw_fov(source, radius=None, fov=None, visible=None, discovered=None, unknown=None)
-  meth fill :: fill(color)
-  meth fill_rect :: fill_rect(pos, size, color)
-  meth set :: set(pos, color)
-  meth update_perspective :: update_perspective()
+  prop visible: bool (rw)
+  prop z_index: int (rw)
+  meth apply_gradient :: apply_gradient(source: HeightMap, range: tuple, color_low: Color, color_high: Color) -> ColorLayer
+  meth apply_perspective :: apply_perspective(entity: Entity, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None
+  meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> ColorLayer
+  meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, color: Color) -> ColorLayer
+  meth at :: at(pos) or (x: int, y: int) -> Color
+  meth clear_perspective :: clear_perspective() -> None
+  meth draw_fov :: draw_fov(source: tuple, radius: int = None, fov: FOV = None, visible: Color = None, discovered: Color = None, unknown: Color = None) -> None
+  meth fill :: fill(color: Color) -> None
+  meth fill_rect :: fill_rect(pos: tuple, size: tuple, color: Color) -> None
+  meth set :: set(pos, color: Color) -> None
+  meth update_perspective :: update_perspective() -> None
 [DijkstraMap]
   prop root: Vector (ro)
-  meth descent_step :: descent_step(pos) -> Vector | None
-  meth distance :: distance(pos) -> float | None
+  meth descent_step :: descent_step(pos: Vector | tuple) -> Vector | None
+  meth distance :: distance(pos: Vector | tuple) -> float | None
   meth invert :: invert() -> DijkstraMap
-  meth path_from :: path_from(pos) -> AStarPath
-  meth step_from :: step_from(pos) -> Vector | None
+  meth path_from :: path_from(pos: Vector | tuple) -> AStarPath
+  meth step_from :: step_from(pos: Vector | tuple) -> Vector | None
   meth to_heightmap :: to_heightmap(size=None, unreachable=-1.0) -> HeightMap
 [DiscreteMap]
   prop enum_type: Any (rw)
@@ -442,90 +442,90 @@ submodule automation
 [Entity]
   prop behavior_type: int (ro)
   prop cell_pos: Vector (rw)
-  prop cell_x: Any (rw)
-  prop cell_y: Any (rw)
+  prop cell_x: int (rw)
+  prop cell_y: int (rw)
   prop default_behavior: int (rw)
   prop draw_pos: Vector (rw)
   prop grid: Any (rw)
   prop grid_pos: Vector (rw)
-  prop grid_x: Any (rw)
-  prop grid_y: Any (rw)
+  prop grid_x: int (rw)
+  prop grid_y: int (rw)
   prop labels: frozenset (rw)
   prop move_speed: float (rw)
-  prop name: Any (rw)
-  prop opacity: Any (rw)
+  prop name: str (rw)
+  prop opacity: float (rw)
   prop perspective_map: DiscreteMap (rw)
   prop pos: Vector (rw)
   prop shader: Any (rw)
   prop sight_radius: int (rw)
   prop sprite_grid: Any (rw)
-  prop sprite_index: Any (rw)
+  prop sprite_index: int (rw)
   prop sprite_offset: Vector (rw)
-  prop sprite_offset_x: Any (rw)
-  prop sprite_offset_y: Any (rw)
+  prop sprite_offset_x: float (rw)
+  prop sprite_offset_y: float (rw)
   prop step: Any (rw)
   prop target_label: Any (rw)
   prop texture: Texture (rw)
   prop tile_height: int (rw)
-  prop tile_size: Any (rw)
+  prop tile_size: Vector (rw)
   prop tile_width: int (rw)
   prop turn_order: int (rw)
-  prop uniforms: Any (ro)
-  prop visible: Any (rw)
-  prop x: Any (rw)
-  prop y: Any (rw)
+  prop uniforms: UniformCollection (ro)
+  prop visible: bool (rw)
+  prop x: float (rw)
+  prop y: float (rw)
   meth add_label :: add_label(label: str) -> None
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
-  meth at :: at(x, y) or at(pos) -> GridPoint | None
-  meth die :: Remove this entity from its grid.
-  meth find_path :: find_path(target, diagonal_cost=1.41, collide=None) -> AStarPath | None
+  meth at :: at(x: int, y: int) -> GridPoint | None
+  meth die :: die() -> None
+  meth find_path :: find_path(target, diagonal_cost: float = 1.41, collide: str = None) -> AStarPath | None
   meth has_label :: has_label(label: str) -> bool
-  meth index :: Return the index of this entity in its grid's entity collection
+  meth index :: index() -> int
   meth move :: move(dx, dy) or (delta) -> None
-  meth path_to :: path_to(x, y) or path_to(target) -> list
+  meth path_to :: path_to(x: int, y: int) -> list
   meth remove_label :: remove_label(label: str) -> None
   meth resize :: resize(width, height) or (size) -> None
-  meth set_behavior :: set_behavior(type, waypoints=None, turns=0, path=None) -> None
+  meth set_behavior :: set_behavior(type, waypoints=None, turns: int = 0, path=None, pathfinder=None) -> None
   meth update_visibility :: update_visibility() -> None
-  meth visible_entities :: visible_entities(fov=None, radius=None) -> list[Entity]
+  meth visible_entities :: visible_entities(fov=None, radius: int = None) -> list[Entity]
 [Font]
   prop family: str (ro)
   prop source: str (ro)
 [Frame]
   prop align: Any (rw)
   prop bounds: Any (rw)
-  prop cache_subtree: Any (rw)
-  prop children: Any (rw)
-  prop clip_children: Any (rw)
-  prop fill_color: Any (rw)
+  prop cache_subtree: bool (rw)
+  prop children: UICollection (ro)
+  prop clip_children: bool (rw)
+  prop fill_color: Color (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_pos: Any (rw)
-  prop grid_size: Any (rw)
-  prop h: Any (rw)
+  prop grid_pos: Vector (rw)
+  prop grid_size: Vector (rw)
+  prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
   prop margin: float (rw)
-  prop name: Any (rw)
+  prop name: str (rw)
   prop on_click: Any (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
   prop on_move: Any (rw)
   prop opacity: Any (rw)
   prop origin: Any (rw)
-  prop outline: Any (rw)
-  prop outline_color: Any (rw)
+  prop outline: float (rw)
+  prop outline_color: Color (rw)
   prop parent: Any (rw)
-  prop pos: Any (rw)
+  prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
-  prop w: Any (rw)
-  prop x: Any (rw)
-  prop y: Any (rw)
+  prop w: float (rw)
+  prop x: float (rw)
+  prop y: float (rw)
   prop z_index: Any (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
@@ -534,39 +534,39 @@ submodule automation
 [Grid]
   prop align: Any (rw)
   prop bounds: Any (rw)
-  prop camera_rotation: Any (rw)
-  prop center: Any (rw)
-  prop center_x: Any (rw)
-  prop center_y: Any (rw)
-  prop fill_color: Any (rw)
+  prop camera_rotation: float (rw)
+  prop center: tuple (rw)
+  prop center_x: float (rw)
+  prop center_y: float (rw)
+  prop fill_color: Color (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_data: Any (rw)
-  prop h: Any (rw)
+  prop grid_data: Grid | None (rw)
+  prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
   prop margin: float (rw)
-  prop name: Any (rw)
-  prop on_click: Any (rw)
+  prop name: str (rw)
+  prop on_click: Callable | None (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
   prop on_move: Any (rw)
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
-  prop pos: Any (rw)
+  prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
-  prop texture: Any (ro)
+  prop texture: Texture | None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
-  prop w: Any (rw)
-  prop x: Any (rw)
-  prop y: Any (rw)
-  prop z_index: Any (rw)
-  prop zoom: Any (rw)
+  prop w: float (rw)
+  prop x: float (rw)
+  prop y: float (rw)
+  prop z_index: int (rw)
+  prop zoom: float (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
   meth realign :: realign() -> None
@@ -574,39 +574,39 @@ submodule automation
 [GridView]
   prop align: Any (rw)
   prop bounds: Any (rw)
-  prop camera_rotation: Any (rw)
-  prop center: Any (rw)
-  prop center_x: Any (rw)
-  prop center_y: Any (rw)
-  prop fill_color: Any (rw)
+  prop camera_rotation: float (rw)
+  prop center: tuple (rw)
+  prop center_x: float (rw)
+  prop center_y: float (rw)
+  prop fill_color: Color (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_data: Any (rw)
-  prop h: Any (rw)
+  prop grid_data: Grid | None (rw)
+  prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
   prop margin: float (rw)
-  prop name: Any (rw)
-  prop on_click: Any (rw)
+  prop name: str (rw)
+  prop on_click: Callable | None (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
   prop on_move: Any (rw)
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
-  prop pos: Any (rw)
+  prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
-  prop texture: Any (ro)
+  prop texture: Texture | None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
-  prop w: Any (rw)
-  prop x: Any (rw)
-  prop y: Any (rw)
-  prop z_index: Any (rw)
-  prop zoom: Any (rw)
+  prop w: float (rw)
+  prop x: float (rw)
+  prop y: float (rw)
+  prop z_index: int (rw)
+  prop zoom: float (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
   meth realign :: realign() -> None
@@ -660,8 +660,8 @@ submodule automation
   prop end: Any (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_pos: Any (rw)
-  prop grid_size: Any (rw)
+  prop grid_pos: Vector (rw)
+  prop grid_size: Vector (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
   prop margin: float (rw)
@@ -767,12 +767,12 @@ submodule automation
   prop bounds: Any (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_pos: Any (rw)
-  prop grid_size: Any (rw)
+  prop grid_pos: Vector (rw)
+  prop grid_size: Vector (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
   prop margin: float (rw)
-  prop name: Any (rw)
+  prop name: str (rw)
   prop on_click: Any (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
@@ -780,20 +780,20 @@ submodule automation
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
-  prop pos: Any (rw)
+  prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
-  prop scale: Any (rw)
-  prop scale_x: Any (rw)
-  prop scale_y: Any (rw)
+  prop scale: float (rw)
+  prop scale_x: float (rw)
+  prop scale_y: float (rw)
   prop shader: Any (rw)
-  prop sprite_index: Any (rw)
-  prop texture: Any (rw)
+  prop sprite_index: int (rw)
+  prop texture: Texture (rw)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
-  prop x: Any (rw)
-  prop y: Any (rw)
+  prop x: float (rw)
+  prop y: float (rw)
   prop z_index: Any (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
@@ -814,18 +814,18 @@ submodule automation
   meth from_bytes :: from_bytes(data: bytes, width: int, height: int, sprite_width: int, sprite_height: int, name: str = '<generated>') -> Texture
   meth hsl_shift :: hsl_shift(hue_shift: float, sat_shift: float = 0.0, lit_shift: float = 0.0) -> Texture
 [TileLayer]
-  prop grid: Any (rw)
-  prop grid_size: Any (rw)
+  prop grid: Grid | None (rw)
+  prop grid_size: tuple (ro)
   prop name: str (ro)
-  prop texture: Any (rw)
-  prop visible: Any (rw)
-  prop z_index: Any (rw)
-  meth apply_ranges :: apply_ranges(source, ranges) -> TileLayer
-  meth apply_threshold :: apply_threshold(source, range, tile) -> TileLayer
-  meth at :: at(pos) -> int
-  meth fill :: fill(index)
-  meth fill_rect :: fill_rect(pos, size, index)
-  meth set :: set(pos, index)
+  prop texture: Texture | None (rw)
+  prop visible: bool (rw)
+  prop z_index: int (rw)
+  meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> TileLayer
+  meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, tile: int) -> TileLayer
+  meth at :: at(pos) or (x: int, y: int) -> int
+  meth fill :: fill(index: int) -> None
+  meth fill_rect :: fill_rect(pos: tuple, size: tuple, index: int) -> None
+  meth set :: set(pos, index: int) -> None
 [Timer]
   prop active: bool (rw)
   prop callback: Callable (rw)
@@ -1106,31 +1106,31 @@ submodule automation
 [_GridData]
   prop align: Any (rw)
   prop bounds: Any (rw)
-  prop camera_rotation: Any (rw)
-  prop center: Any (rw)
-  prop center_x: Any (rw)
-  prop center_y: Any (rw)
-  prop children: Any (rw)
-  prop entities: Any (rw)
-  prop fill_color: Any (rw)
+  prop camera_rotation: float (rw)
+  prop center: Vector (rw)
+  prop center_x: float (rw)
+  prop center_y: float (rw)
+  prop children: UICollection (ro)
+  prop entities: EntityCollection (ro)
+  prop fill_color: Color (rw)
   prop fov: Any (rw)
-  prop fov_radius: Any (rw)
+  prop fov_radius: int (rw)
   prop global_bounds: Any (rw)
   prop global_position: Any (ro)
-  prop grid_h: Any (rw)
-  prop grid_pos: Any (rw)
-  prop grid_size: Any (rw)
-  prop grid_w: Any (rw)
-  prop h: Any (rw)
+  prop grid_h: int (ro)
+  prop grid_pos: Vector (rw)
+  prop grid_size: Vector (ro)
+  prop grid_w: int (ro)
+  prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
-  prop hovered_cell: Any (rw)
-  prop layers: ColorLayer (rw)
+  prop hovered_cell: tuple | None (ro)
+  prop layers: tuple (ro)
   prop margin: float (rw)
-  prop name: Any (rw)
-  prop on_cell_click: Any (rw)
-  prop on_cell_enter: Any (rw)
-  prop on_cell_exit: Any (rw)
+  prop name: str (rw)
+  prop on_cell_click: Callable | None (rw)
+  prop on_cell_enter: Callable | None (rw)
+  prop on_cell_exit: Callable | None (rw)
   prop on_click: Any (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
@@ -1138,91 +1138,91 @@ submodule automation
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
-  prop perspective: Any (rw)
-  prop perspective_enabled: Any (rw)
-  prop pos: Any (rw)
+  prop perspective: Entity | None (rw)
+  prop perspective_enabled: bool (rw)
+  prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
-  prop size: Any (rw)
-  prop texture: Any (rw)
+  prop size: Vector (rw)
+  prop texture: Texture | None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
-  prop view: Any (ro)
+  prop view: GridView | None (ro)
   prop visible: bool (rw)
-  prop w: Any (rw)
-  prop x: Any (rw)
-  prop y: Any (rw)
+  prop w: float (rw)
+  prop x: float (rw)
+  prop y: float (rw)
   prop z_index: Any (rw)
-  prop zoom: Any (rw)
+  prop zoom: float (rw)
   meth add_layer :: add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> Grid
   meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid
-  meth at :: <no-doc>
+  meth at :: at(x: int, y: int) -> GridPoint
   meth center_camera :: center_camera(pos: tuple = None) -> None
   meth clear_dijkstra_maps :: clear_dijkstra_maps() -> None
   meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None
-  meth entities_in_radius :: entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]
-  meth find_path :: find_path(start, end, diagonal_cost=1.41, collide=None) -> AStarPath | None
-  meth get_dijkstra_map :: get_dijkstra_map(root, diagonal_cost=1.41, collide=None) -> DijkstraMap
+  meth entities_in_radius :: entities_in_radius(pos: tuple | Vector, radius: float) -> list
+  meth find_path :: find_path(start, end, diagonal_cost: float = 1.41, collide: str = None) -> AStarPath | None
+  meth get_dijkstra_map :: get_dijkstra_map(root, diagonal_cost: float = 1.41, collide: str = None) -> DijkstraMap
   meth is_in_fov :: is_in_fov(pos) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
   meth move :: move(dx, dy) or (delta) -> None
   meth realign :: realign() -> None
   meth remove_layer :: remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None
   meth resize :: resize(width, height) or (size) -> None
-  meth step :: step(n=1, turn_order=None) -> None
+  meth step :: step(n: int = 1, turn_order: int = None) -> None
 [GridPoint]
-  prop entities: Any (ro)
+  prop entities: list (ro)
   prop grid_pos: Any (ro)
-  prop transparent: Any (rw)
-  prop walkable: Any (rw)
+  prop transparent: bool (rw)
+  prop walkable: bool (rw)
 [EntityCollection]
-  meth append :: append(entity)
-  meth count :: count(entity) -> int
-  meth extend :: extend(iterable)
-  meth find :: find(name) -> entity or list
-  meth index :: index(entity) -> int
-  meth insert :: insert(index, entity)
-  meth pop :: pop([index]) -> entity
-  meth remove :: remove(entity)
+  meth append :: append(entity: Entity) -> None
+  meth count :: count(entity: Entity) -> int
+  meth extend :: extend(iterable) -> None
+  meth find :: find(name: str) -> Entity | list | None
+  meth index :: index(entity: Entity) -> int
+  meth insert :: insert(index: int, entity: Entity) -> None
+  meth pop :: pop(index: int = -1) -> Entity
+  meth remove :: remove(entity: Entity) -> None
 [UICollection]
-  meth append :: append(element)
-  meth count :: count(element) -> int
-  meth extend :: extend(iterable)
-  meth find :: find(name, recursive=False) -> element or list
-  meth index :: index(element) -> int
-  meth insert :: insert(index, element)
-  meth pop :: pop([index]) -> element
-  meth remove :: remove(element)
+  meth append :: append(element: Drawable) -> None
+  meth count :: count(element: Drawable) -> int
+  meth extend :: extend(iterable) -> None
+  meth find :: find(name: str, recursive: bool = False) -> Drawable | list | None
+  meth index :: index(element: Drawable) -> int
+  meth insert :: insert(index: int, element: Drawable) -> None
+  meth pop :: pop(index: int = -1) -> Drawable
+  meth remove :: remove(element: Drawable) -> None
 [UniformCollection]
-  meth clear :: Remove all uniforms
-  meth items :: Return list of (name, value) tuples
-  meth keys :: Return list of uniform names
-  meth values :: Return list of uniform values
+  meth clear :: clear() -> None
+  meth items :: items() -> list
+  meth keys :: keys() -> list
+  meth values :: values() -> list
 
 === AUTOMATION (PyAutoGUI-compat, snake_case-exempt) ===
-func click :: click(pos=None, clicks=1, interval=0.0, button='left') - Click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
-func doubleClick :: doubleClick(pos=None) - Double click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
-func dragRel :: dragRel(offset, duration=0.0, button='left') - Drag mouse relative to current position. Accepts (x,y) tuple, [x,y] list, or Vector.
-func dragTo :: dragTo(pos, duration=0.0, button='left') - Drag mouse to position. Accepts (x,y) tuple, [x,y] list, or Vector.
-func hotkey :: hotkey(*keys) - Press a hotkey combination (e.g., hotkey('ctrl', 'c'))
-func keyDown :: keyDown(key) - Press and hold a key
-func keyUp :: keyUp(key) - Release a key
-func middleClick :: middleClick(pos=None) - Middle click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
-func mouseDown :: mouseDown(pos=None, button='left') - Press mouse button at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
-func mouseUp :: mouseUp(pos=None, button='left') - Release mouse button at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
-func moveRel :: moveRel(offset, duration=0.0) - Move mouse relative to current position. Accepts (x,y) tuple, [x,y] list, or Vector.
-func moveTo :: moveTo(pos, duration=0.0) - Move mouse to position. Accepts (x,y) tuple, [x,y] list, or Vector.
-func onScreen :: onScreen(pos) - Check if position is within screen bounds. Accepts (x,y) tuple, [x,y] list, or Vector.
-func position :: position() - Get current mouse position as Vector
-func rightClick :: rightClick(pos=None) - Right click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
-func screenshot :: screenshot(filename) - Save a screenshot to the specified file
-func scroll :: scroll(clicks, pos=None) - Scroll wheel at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
-func size :: size() - Get screen size as Vector
-func tripleClick :: tripleClick(pos=None) - Triple click at position. Accepts (x,y) tuple, [x,y] list, Vector, or None for current position.
-func typewrite :: typewrite(message, interval=0.0) - Type text with optional interval between keystrokes
+func click :: click(pos: tuple | list | Vector | None = None, clicks: int = 1, interval: float = 0.0, button: str = 'left') -> None
+func doubleClick :: doubleClick(pos: tuple | list | Vector | None = None) -> None
+func dragRel :: dragRel(offset: tuple | list | Vector, duration: float = 0.0, button: str = 'left') -> None
+func dragTo :: dragTo(pos: tuple | list | Vector, duration: float = 0.0, button: str = 'left') -> None
+func hotkey :: hotkey(*keys: str) -> None
+func keyDown :: keyDown(key: str) -> None
+func keyUp :: keyUp(key: str) -> None
+func middleClick :: middleClick(pos: tuple | list | Vector | None = None) -> None
+func mouseDown :: mouseDown(pos: tuple | list | Vector | None = None, button: str = 'left') -> None
+func mouseUp :: mouseUp(pos: tuple | list | Vector | None = None, button: str = 'left') -> None
+func moveRel :: moveRel(offset: tuple | list | Vector, duration: float = 0.0) -> None
+func moveTo :: moveTo(pos: tuple | list | Vector, duration: float = 0.0) -> None
+func onScreen :: onScreen(pos: tuple | list | Vector) -> bool
+func position :: position() -> Vector
+func rightClick :: rightClick(pos: tuple | list | Vector | None = None) -> None
+func screenshot :: screenshot(filename: str) -> bool
+func scroll :: scroll(clicks: int, pos: tuple | list | Vector | None = None) -> None
+func size :: size() -> Vector
+func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> None
+func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
 === DELEGATION INTEGRITY (Grid instance -> _GridData) ===
   delegated-resolved: 69/69

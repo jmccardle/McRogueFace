@@ -15,6 +15,7 @@
 #include "PyTrigger.h"
 #include "UIBase.h"
 #include "PyFOV.h"
+#include "McRFPy_Doc.h"
 
 // =========================================================================
 // Cell access: py_at, subscript, mpmethods
@@ -889,103 +890,124 @@ PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) 
 // =========================================================================
 
 PyMethodDef UIGrid::methods[] = {
-    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
+    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(Grid, at,
+         MCRF_SIG("(x: int, y: int)", "GridPoint"),
+         MCRF_DESC("Return the GridPoint cell at grid coordinates (x, y)."),
+         MCRF_ARGS_START
+         MCRF_ARG("x", "Column index (0-based)")
+         MCRF_ARG("y", "Row index (0-based)")
+         MCRF_RETURNS("GridPoint: the cell at the given position")
+         MCRF_RAISES("IndexError", "If x or y is out of range")
+     )},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
-     "compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
-     "Compute field of view from a position.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n"
-     "    radius: Maximum view distance (0 = unlimited)\n"
-     "    light_walls: Whether walls are lit when visible\n"
-     "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Updates the internal FOV state. Use is_in_fov(pos) to query visibility."},
+     MCRF_METHOD(Grid, compute_fov,
+         MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC)", "None"),
+         MCRF_DESC("Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("radius", "Maximum view distance (0 = unlimited)")
+         MCRF_ARG("light_walls", "Whether walls are lit when visible")
+         MCRF_ARG("algorithm", "FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)")
+     )},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
-     "is_in_fov(pos) -> bool\n\n"
-     "Check if a cell is in the field of view.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    True if the cell is visible, False otherwise\n\n"
-     "Must call compute_fov() first to calculate visibility."},
+     MCRF_METHOD(Grid, is_in_fov,
+         MCRF_SIG("(pos)", "bool"),
+         MCRF_DESC("Check if a cell is in the field of view. Must call compute_fov() first to calculate visibility."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_RETURNS("True if the cell is visible, False otherwise")
+     )},
     {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
-     "find_path(start, end, diagonal_cost=1.41, collide=None) -> AStarPath | None\n\n"
-     "Compute A* path between two points.\n\n"
-     "Args:\n"
-     "    start: Starting position as Vector, Entity, or (x, y) tuple\n"
-     "    end: Target position as Vector, Entity, or (x, y) tuple\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n"
-     "    collide: Label string. Entities with this label block pathfinding.\n\n"
-     "Returns:\n"
-     "    AStarPath object if path exists, None otherwise.\n\n"
-     "The returned AStarPath can be iterated or walked step-by-step."},
+     MCRF_METHOD(Grid, find_path,
+         MCRF_SIG("(start, end, diagonal_cost: float = 1.41, collide: str = None)", "AStarPath | None"),
+         MCRF_DESC("Compute A* path between two points. The returned AStarPath can be iterated or walked step-by-step."),
+         MCRF_ARGS_START
+         MCRF_ARG("start", "Starting position as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("end", "Target position as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
+         MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
+         MCRF_RETURNS("AStarPath object if path exists, None otherwise")
+     )},
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
-     "get_dijkstra_map(root, diagonal_cost=1.41, collide=None) -> DijkstraMap\n\n"
-     "Get or create a Dijkstra distance map for a root position.\n\n"
-     "Args:\n"
-     "    root: Root position as Vector, Entity, or (x, y) tuple\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n"
-     "    collide: Label string. Entities with this label block pathfinding.\n\n"
-     "Returns:\n"
-     "    DijkstraMap object for querying distances and paths.\n\n"
-     "Grid caches DijkstraMaps by (root, collide) key. Multiple requests for\n"
-     "the same root and collide label return the same cached map. Call\n"
-     "clear_dijkstra_maps() after changing grid walkability to invalidate."},
+     MCRF_METHOD(Grid, get_dijkstra_map,
+         MCRF_SIG("(root, diagonal_cost: float = 1.41, collide: str = None)", "DijkstraMap"),
+         MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. Call clear_dijkstra_maps() after changing grid walkability to invalidate."),
+         MCRF_ARGS_START
+         MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
+         MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
+         MCRF_RETURNS("DijkstraMap object for querying distances and paths")
+     )},
     {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
-     "clear_dijkstra_maps() -> None\n\n"
-     "Clear all cached Dijkstra maps.\n\n"
-     "Call this after modifying grid cell walkability to ensure pathfinding\n"
-     "uses updated walkability data."},
+     MCRF_METHOD(Grid, clear_dijkstra_maps,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Clear all cached Dijkstra maps. Call this after modifying grid cell walkability to ensure pathfinding uses updated walkability data.")
+     )},
     {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS,
-     "add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer"},
+     MCRF_METHOD(Grid, add_layer,
+         MCRF_SIG("(layer: ColorLayer | TileLayer)", "ColorLayer | TileLayer"),
+         MCRF_DESC("Add a layer to the grid. Layers with size (0, 0) are automatically resized to match the grid."),
+         MCRF_ARGS_START
+         MCRF_ARG("layer", "A ColorLayer or TileLayer object. Named layers replace any existing layer with the same name.")
+         MCRF_RETURNS("The added layer object")
+         MCRF_RAISES("ValueError", "If layer is already attached to another grid, or if layer size doesn't match grid (and isn't (0,0))")
+         MCRF_RAISES("TypeError", "If argument is not a ColorLayer or TileLayer")
+     )},
     {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
-     "remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None"},
+     MCRF_METHOD(Grid, remove_layer,
+         MCRF_SIG("(name_or_layer: str | ColorLayer | TileLayer)", "None"),
+         MCRF_DESC("Remove a layer from the grid by name or by object reference."),
+         MCRF_ARGS_START
+         MCRF_ARG("name_or_layer", "Either a layer name (str) or the layer object itself")
+         MCRF_RAISES("KeyError", "If name is provided but no layer with that name exists")
+         MCRF_RAISES("TypeError", "If argument is not a string, ColorLayer, or TileLayer")
+     )},
     {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
-     "layer(name: str) -> ColorLayer | TileLayer | None"},
+     MCRF_METHOD(Grid, layer,
+         MCRF_SIG("(name: str)", "ColorLayer | TileLayer | None"),
+         MCRF_DESC("Get a layer by its name."),
+         MCRF_ARGS_START
+         MCRF_ARG("name", "The name of the layer to find")
+         MCRF_RETURNS("The layer with the specified name, or None if not found")
+     )},
     {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
-     "entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]\n\n"
-     "Query entities within radius using spatial hash (O(k) where k = nearby entities).\n\n"
-     "Args:\n"
-     "    pos: Center position as (x, y) tuple, Vector, or other 2-element sequence\n"
-     "    radius: Search radius\n\n"
-     "Returns:\n"
-     "    List of Entity objects within the radius."},
+     MCRF_METHOD(Grid, entities_in_radius,
+         MCRF_SIG("(pos: tuple | Vector, radius: float)", "list"),
+         MCRF_DESC("Query entities within radius using spatial hash (O(k) where k = nearby entities)."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Center position as (x, y) tuple, Vector, or other 2-element sequence")
+         MCRF_ARG("radius", "Search radius")
+         MCRF_RETURNS("List of Entity objects within the radius")
+     )},
     {"center_camera", (PyCFunction)UIGrid::py_center_camera, METH_VARARGS,
-     "center_camera(pos: tuple = None) -> None\n\n"
-     "Center the camera on a tile coordinate.\n\n"
-     "Args:\n"
-     "    pos: Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.\n\n"
-     "Example:\n"
-     "    grid.center_camera()        # Center on middle of grid\n"
-     "    grid.center_camera((5, 10)) # Center on tile (5, 10)\n"
-     "    grid.center_camera((0, 0))  # Center on tile (0, 0)"},
+     MCRF_METHOD(Grid, center_camera,
+         MCRF_SIG("(pos: tuple = None)", "None"),
+         MCRF_DESC("Center the camera on a tile coordinate. If pos is None, centers on the grid's middle tile."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.")
+     )},
     {"apply_threshold", (PyCFunction)UIGrid::py_apply_threshold, METH_VARARGS | METH_KEYWORDS,
-     "apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid\n\n"
-     "Apply walkable/transparent properties where heightmap values are in range.\n\n"
-     "Args:\n"
-     "    source: HeightMap with values to check. Must match grid size.\n"
-     "    range: Tuple of (min, max) - cells with values in this range are affected.\n"
-     "    walkable: If not None, set walkable to this value for cells in range.\n"
-     "    transparent: If not None, set transparent to this value for cells in range.\n\n"
-     "Returns:\n"
-     "    Grid: self, for method chaining.\n\n"
-     "Raises:\n"
-     "    ValueError: If HeightMap size doesn't match grid size."},
+     MCRF_METHOD(Grid, apply_threshold,
+         MCRF_SIG("(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None)", "Grid"),
+         MCRF_DESC("Apply walkable/transparent properties to cells where heightmap values fall within range."),
+         MCRF_ARGS_START
+         MCRF_ARG("source", "HeightMap with values to check. Must match grid size.")
+         MCRF_ARG("range", "Tuple of (min, max) - cells with values in this range are affected")
+         MCRF_ARG("walkable", "If not None, set walkable to this value for cells in range")
+         MCRF_ARG("transparent", "If not None, set transparent to this value for cells in range")
+         MCRF_RETURNS("Grid: self, for method chaining")
+         MCRF_RAISES("ValueError", "If HeightMap size doesn't match grid size")
+     )},
     {"apply_ranges", (PyCFunction)UIGrid::py_apply_ranges, METH_VARARGS,
-     "apply_ranges(source: HeightMap, ranges: list) -> Grid\n\n"
-     "Apply multiple thresholds in a single pass.\n\n"
-     "Args:\n"
-     "    source: HeightMap with values to check. Must match grid size.\n"
-     "    ranges: List of (range_tuple, properties_dict) tuples.\n"
-     "            range_tuple: (min, max) value range\n"
-     "            properties_dict: {'walkable': bool, 'transparent': bool}\n\n"
-     "Returns:\n"
-     "    Grid: self, for method chaining.\n\n"
-     "Example:\n"
-     "    grid.apply_ranges(terrain, [\n"
-     "        ((0.0, 0.3), {'walkable': False, 'transparent': True}),   # Water\n"
-     "        ((0.3, 0.8), {'walkable': True, 'transparent': True}),    # Land\n"
-     "        ((0.8, 1.0), {'walkable': False, 'transparent': False}),  # Mountains\n"
-     "    ])"},
+     MCRF_METHOD(Grid, apply_ranges,
+         MCRF_SIG("(source: HeightMap, ranges: list)", "Grid"),
+         MCRF_DESC("Apply multiple walkability thresholds to the grid in a single pass."),
+         MCRF_ARGS_START
+         MCRF_ARG("source", "HeightMap with values to check. Must match grid size.")
+         MCRF_ARG("ranges", "List of (range_tuple, properties_dict) tuples where range_tuple=(min,max) and properties_dict has 'walkable'/'transparent' keys")
+         MCRF_RETURNS("Grid: self, for method chaining")
+     )},
     {NULL, NULL, 0, NULL}
 };
 
@@ -993,132 +1015,131 @@ typedef PyUIGridObject PyObjectType;
 
 PyMethodDef UIGrid_all_methods[] = {
     UIDRAWABLE_METHODS,
-    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS},
+    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(Grid, at,
+         MCRF_SIG("(x: int, y: int)", "GridPoint"),
+         MCRF_DESC("Return the GridPoint cell at grid coordinates (x, y)."),
+         MCRF_ARGS_START
+         MCRF_ARG("x", "Column index (0-based)")
+         MCRF_ARG("y", "Row index (0-based)")
+         MCRF_RETURNS("GridPoint: the cell at the given position")
+         MCRF_RAISES("IndexError", "If x or y is out of range")
+     )},
     {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
-     "compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC) -> None\n\n"
-     "Compute field of view from a position.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n"
-     "    radius: Maximum view distance (0 = unlimited)\n"
-     "    light_walls: Whether walls are lit when visible\n"
-     "    algorithm: FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)\n\n"
-     "Updates the internal FOV state. Use is_in_fov(pos) to query visibility."},
+     MCRF_METHOD(Grid, compute_fov,
+         MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: int = FOV_BASIC)", "None"),
+         MCRF_DESC("Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_ARG("radius", "Maximum view distance (0 = unlimited)")
+         MCRF_ARG("light_walls", "Whether walls are lit when visible")
+         MCRF_ARG("algorithm", "FOV algorithm to use (FOV_BASIC, FOV_DIAMOND, FOV_SHADOW, FOV_PERMISSIVE_0-8)")
+     )},
     {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
-     "is_in_fov(pos) -> bool\n\n"
-     "Check if a cell is in the field of view.\n\n"
-     "Args:\n"
-     "    pos: Position as (x, y) tuple, list, or Vector\n\n"
-     "Returns:\n"
-     "    True if the cell is visible, False otherwise\n\n"
-     "Must call compute_fov() first to calculate visibility."},
+     MCRF_METHOD(Grid, is_in_fov,
+         MCRF_SIG("(pos)", "bool"),
+         MCRF_DESC("Check if a cell is in the field of view. Must call compute_fov() first to calculate visibility."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
+         MCRF_RETURNS("True if the cell is visible, False otherwise")
+     )},
     {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
-     "find_path(start, end, diagonal_cost=1.41, collide=None) -> AStarPath | None\n\n"
-     "Compute A* path between two points.\n\n"
-     "Args:\n"
-     "    start: Starting position as Vector, Entity, or (x, y) tuple\n"
-     "    end: Target position as Vector, Entity, or (x, y) tuple\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n"
-     "    collide: Label string. Entities with this label block pathfinding.\n\n"
-     "Returns:\n"
-     "    AStarPath object if path exists, None otherwise.\n\n"
-     "The returned AStarPath can be iterated or walked step-by-step."},
+     MCRF_METHOD(Grid, find_path,
+         MCRF_SIG("(start, end, diagonal_cost: float = 1.41, collide: str = None)", "AStarPath | None"),
+         MCRF_DESC("Compute A* path between two points. The returned AStarPath can be iterated or walked step-by-step."),
+         MCRF_ARGS_START
+         MCRF_ARG("start", "Starting position as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("end", "Target position as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
+         MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
+         MCRF_RETURNS("AStarPath object if path exists, None otherwise")
+     )},
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
-     "get_dijkstra_map(root, diagonal_cost=1.41, collide=None) -> DijkstraMap\n\n"
-     "Get or create a Dijkstra distance map for a root position.\n\n"
-     "Args:\n"
-     "    root: Root position as Vector, Entity, or (x, y) tuple\n"
-     "    diagonal_cost: Cost of diagonal movement (default: 1.41)\n"
-     "    collide: Label string. Entities with this label block pathfinding.\n\n"
-     "Returns:\n"
-     "    DijkstraMap object for querying distances and paths.\n\n"
-     "Grid caches DijkstraMaps by (root, collide) key. Multiple requests for\n"
-     "the same root and collide label return the same cached map. Call\n"
-     "clear_dijkstra_maps() after changing grid walkability to invalidate."},
+     MCRF_METHOD(Grid, get_dijkstra_map,
+         MCRF_SIG("(root, diagonal_cost: float = 1.41, collide: str = None)", "DijkstraMap"),
+         MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. Call clear_dijkstra_maps() after changing grid walkability to invalidate."),
+         MCRF_ARGS_START
+         MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple")
+         MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
+         MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
+         MCRF_RETURNS("DijkstraMap object for querying distances and paths")
+     )},
     {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
-     "clear_dijkstra_maps() -> None\n\n"
-     "Clear all cached Dijkstra maps.\n\n"
-     "Call this after modifying grid cell walkability to ensure pathfinding\n"
-     "uses updated walkability data."},
+     MCRF_METHOD(Grid, clear_dijkstra_maps,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Clear all cached Dijkstra maps. Call this after modifying grid cell walkability to ensure pathfinding uses updated walkability data.")
+     )},
     {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS,
-     "add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer\n\n"
-     "Add a layer to the grid.\n\n"
-     "Args:\n"
-     "    layer: A ColorLayer or TileLayer object. Layers with size (0, 0) are\n"
-     "           automatically resized to match the grid. Named layers replace\n"
-     "           any existing layer with the same name.\n\n"
-     "Returns:\n"
-     "    The added layer object.\n\n"
-     "Raises:\n"
-     "    ValueError: If layer is already attached to another grid, or if\n"
-     "                layer size doesn't match grid (and isn't (0,0)).\n"
-     "    TypeError: If argument is not a ColorLayer or TileLayer."},
+     MCRF_METHOD(Grid, add_layer,
+         MCRF_SIG("(layer: ColorLayer | TileLayer)", "ColorLayer | TileLayer"),
+         MCRF_DESC("Add a layer to the grid. Layers with size (0, 0) are automatically resized to match the grid."),
+         MCRF_ARGS_START
+         MCRF_ARG("layer", "A ColorLayer or TileLayer object. Named layers replace any existing layer with the same name.")
+         MCRF_RETURNS("The added layer object")
+         MCRF_RAISES("ValueError", "If layer is already attached to another grid, or if layer size doesn't match grid (and isn't (0,0))")
+         MCRF_RAISES("TypeError", "If argument is not a ColorLayer or TileLayer")
+     )},
     {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
-     "remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None\n\n"
-     "Remove a layer from the grid.\n\n"
-     "Args:\n"
-     "    name_or_layer: Either a layer name (str) or the layer object itself.\n\n"
-     "Raises:\n"
-     "    KeyError: If name is provided but no layer with that name exists.\n"
-     "    TypeError: If argument is not a string, ColorLayer, or TileLayer."},
+     MCRF_METHOD(Grid, remove_layer,
+         MCRF_SIG("(name_or_layer: str | ColorLayer | TileLayer)", "None"),
+         MCRF_DESC("Remove a layer from the grid by name or by object reference."),
+         MCRF_ARGS_START
+         MCRF_ARG("name_or_layer", "Either a layer name (str) or the layer object itself")
+         MCRF_RAISES("KeyError", "If name is provided but no layer with that name exists")
+         MCRF_RAISES("TypeError", "If argument is not a string, ColorLayer, or TileLayer")
+     )},
     {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
-     "layer(name: str) -> ColorLayer | TileLayer | None\n\n"
-     "Get a layer by its name.\n\n"
-     "Args:\n"
-     "    name: The name of the layer to find.\n\n"
-     "Returns:\n"
-     "    The layer with the specified name, or None if not found."},
+     MCRF_METHOD(Grid, layer,
+         MCRF_SIG("(name: str)", "ColorLayer | TileLayer | None"),
+         MCRF_DESC("Get a layer by its name."),
+         MCRF_ARGS_START
+         MCRF_ARG("name", "The name of the layer to find")
+         MCRF_RETURNS("The layer with the specified name, or None if not found")
+     )},
     {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
-     "entities_in_radius(pos: tuple|Vector, radius: float) -> list[Entity]\n\n"
-     "Query entities within radius using spatial hash (O(k) where k = nearby entities).\n\n"
-     "Args:\n"
-     "    pos: Center position as (x, y) tuple, Vector, or other 2-element sequence\n"
-     "    radius: Search radius\n\n"
-     "Returns:\n"
-     "    List of Entity objects within the radius."},
+     MCRF_METHOD(Grid, entities_in_radius,
+         MCRF_SIG("(pos: tuple | Vector, radius: float)", "list"),
+         MCRF_DESC("Query entities within radius using spatial hash (O(k) where k = nearby entities)."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Center position as (x, y) tuple, Vector, or other 2-element sequence")
+         MCRF_ARG("radius", "Search radius")
+         MCRF_RETURNS("List of Entity objects within the radius")
+     )},
     {"center_camera", (PyCFunction)UIGrid::py_center_camera, METH_VARARGS,
-     "center_camera(pos: tuple = None) -> None\n\n"
-     "Center the camera on a tile coordinate.\n\n"
-     "Args:\n"
-     "    pos: Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.\n\n"
-     "Example:\n"
-     "    grid.center_camera()        # Center on middle of grid\n"
-     "    grid.center_camera((5, 10)) # Center on tile (5, 10)\n"
-     "    grid.center_camera((0, 0))  # Center on tile (0, 0)"},
+     MCRF_METHOD(Grid, center_camera,
+         MCRF_SIG("(pos: tuple = None)", "None"),
+         MCRF_DESC("Center the camera on a tile coordinate. If pos is None, centers on the grid's middle tile."),
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.")
+     )},
     {"apply_threshold", (PyCFunction)UIGrid::py_apply_threshold, METH_VARARGS | METH_KEYWORDS,
-     "apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid\n\n"
-     "Apply walkable/transparent properties where heightmap values are in range.\n\n"
-     "Args:\n"
-     "    source: HeightMap with values to check. Must match grid size.\n"
-     "    range: Tuple of (min, max) - cells with values in this range are affected.\n"
-     "    walkable: If not None, set walkable to this value for cells in range.\n"
-     "    transparent: If not None, set transparent to this value for cells in range.\n\n"
-     "Returns:\n"
-     "    Grid: self, for method chaining.\n\n"
-     "Raises:\n"
-     "    ValueError: If HeightMap size doesn't match grid size."},
+     MCRF_METHOD(Grid, apply_threshold,
+         MCRF_SIG("(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None)", "Grid"),
+         MCRF_DESC("Apply walkable/transparent properties to cells where heightmap values fall within range."),
+         MCRF_ARGS_START
+         MCRF_ARG("source", "HeightMap with values to check. Must match grid size.")
+         MCRF_ARG("range", "Tuple of (min, max) - cells with values in this range are affected")
+         MCRF_ARG("walkable", "If not None, set walkable to this value for cells in range")
+         MCRF_ARG("transparent", "If not None, set transparent to this value for cells in range")
+         MCRF_RETURNS("Grid: self, for method chaining")
+         MCRF_RAISES("ValueError", "If HeightMap size doesn't match grid size")
+     )},
     {"apply_ranges", (PyCFunction)UIGrid::py_apply_ranges, METH_VARARGS,
-     "apply_ranges(source: HeightMap, ranges: list) -> Grid\n\n"
-     "Apply multiple thresholds in a single pass.\n\n"
-     "Args:\n"
-     "    source: HeightMap with values to check. Must match grid size.\n"
-     "    ranges: List of (range_tuple, properties_dict) tuples.\n"
-     "            range_tuple: (min, max) value range\n"
-     "            properties_dict: {'walkable': bool, 'transparent': bool}\n\n"
-     "Returns:\n"
-     "    Grid: self, for method chaining.\n\n"
-     "Example:\n"
-     "    grid.apply_ranges(terrain, [\n"
-     "        ((0.0, 0.3), {'walkable': False, 'transparent': True}),   # Water\n"
-     "        ((0.3, 0.8), {'walkable': True, 'transparent': True}),    # Land\n"
-     "        ((0.8, 1.0), {'walkable': False, 'transparent': False}),  # Mountains\n"
-     "    ])"},
+     MCRF_METHOD(Grid, apply_ranges,
+         MCRF_SIG("(source: HeightMap, ranges: list)", "Grid"),
+         MCRF_DESC("Apply multiple walkability thresholds to the grid in a single pass."),
+         MCRF_ARGS_START
+         MCRF_ARG("source", "HeightMap with values to check. Must match grid size.")
+         MCRF_ARG("ranges", "List of (range_tuple, properties_dict) tuples where range_tuple=(min,max) and properties_dict has 'walkable'/'transparent' keys")
+         MCRF_RETURNS("Grid: self, for method chaining")
+     )},
     {"step", (PyCFunction)UIGrid::py_step, METH_VARARGS | METH_KEYWORDS,
-     "step(n=1, turn_order=None) -> None\n\n"
-     "Execute n rounds of turn-based entity behavior.\n\n"
-     "Args:\n"
-     "    n (int): Number of rounds to execute. Default: 1\n"
-     "    turn_order (int, optional): Only process entities with this turn_order value\n\n"
-     "Each round: entities grouped by turn_order (ascending), behaviors executed,\n"
-     "triggers fired (TARGET, DONE, BLOCKED), movement animated."},
+     MCRF_METHOD(Grid, step,
+         MCRF_SIG("(n: int = 1, turn_order: int = None)", "None"),
+         MCRF_DESC("Execute n rounds of turn-based entity behavior. Each round: entities grouped by turn_order (ascending), behaviors executed, triggers fired (TARGET, DONE, BLOCKED), movement animated."),
+         MCRF_ARGS_START
+         MCRF_ARG("n", "Number of rounds to execute (default: 1)")
+         MCRF_ARG("turn_order", "If provided, only process entities with this turn_order value")
+     )},
     {NULL}
 };

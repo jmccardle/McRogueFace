@@ -7,6 +7,7 @@
 #include "PyPositionHelper.h"
 #include "PyHeuristic.h"
 #include "PyDiscreteMap.h"
+#include "McRFPy_Doc.h"
 
 //=============================================================================
 // DijkstraMap Implementation
@@ -914,20 +915,20 @@ namespace mcrfpydef {
 // AStarPath methods
 PyMethodDef PyAStarPath_methods[] = {
     {"walk", (PyCFunction)UIGridPathfinding::AStarPath_walk, METH_NOARGS,
-     "walk() -> Vector\n\n"
-     "Get and consume next step in the path.\n\n"
-     "Returns:\n"
-     "    Next position as Vector.\n\n"
-     "Raises:\n"
-     "    IndexError: If path is exhausted."},
+     MCRF_METHOD(AStarPath, walk,
+         MCRF_SIG("()", "Vector"),
+         MCRF_DESC("Get and consume the next step in the path.")
+         MCRF_RETURNS("Next position as Vector")
+         MCRF_RAISES("IndexError", "If the path is exhausted")
+     )},
 
     {"peek", (PyCFunction)UIGridPathfinding::AStarPath_peek, METH_NOARGS,
-     "peek() -> Vector\n\n"
-     "See next step without consuming it.\n\n"
-     "Returns:\n"
-     "    Next position as Vector.\n\n"
-     "Raises:\n"
-     "    IndexError: If path is exhausted."},
+     MCRF_METHOD(AStarPath, peek,
+         MCRF_SIG("()", "Vector"),
+         MCRF_DESC("See the next step without consuming it.")
+         MCRF_RETURNS("Next position as Vector")
+         MCRF_RAISES("IndexError", "If the path is exhausted")
+     )},
 
     {NULL}
 };
@@ -935,13 +936,13 @@ PyMethodDef PyAStarPath_methods[] = {
 // AStarPath getsetters
 PyGetSetDef PyAStarPath_getsetters[] = {
     {"origin", (getter)UIGridPathfinding::AStarPath_get_origin, NULL,
-     "Starting position of the path (Vector, read-only).", NULL},
+     MCRF_PROPERTY(origin, "Starting position of the path (Vector, read-only)."), NULL},
 
     {"destination", (getter)UIGridPathfinding::AStarPath_get_destination, NULL,
-     "Ending position of the path (Vector, read-only).", NULL},
+     MCRF_PROPERTY(destination, "Ending position of the path (Vector, read-only)."), NULL},
 
     {"remaining", (getter)UIGridPathfinding::AStarPath_get_remaining, NULL,
-     "Number of steps remaining in the path (int, read-only).", NULL},
+     MCRF_PROPERTY(remaining, "Number of steps remaining in the path (int, read-only)."), NULL},
 
     {NULL}
 };
@@ -1005,60 +1006,57 @@ PyTypeObject PyAStarPathIterType = {
 // DijkstraMap methods
 PyMethodDef PyDijkstraMap_methods[] = {
     {"distance", (PyCFunction)UIGridPathfinding::DijkstraMap_distance, METH_VARARGS | METH_KEYWORDS,
-     "distance(pos) -> float | None\n\n"
-     "Get distance from position to root.\n\n"
-     "Args:\n"
-     "    pos: Position as Vector, Entity, or (x, y) tuple.\n\n"
-     "Returns:\n"
-     "    Float distance, or None if position is unreachable."},
+     MCRF_METHOD(DijkstraMap, distance,
+         MCRF_SIG("(pos: Vector | tuple)", "float | None"),
+         MCRF_DESC("Get distance from position to root.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as Vector, Entity, or (x, y) tuple")
+         MCRF_RETURNS("Float distance, or None if position is unreachable")
+     )},
 
     {"path_from", (PyCFunction)UIGridPathfinding::DijkstraMap_path_from, METH_VARARGS | METH_KEYWORDS,
-     "path_from(pos) -> AStarPath\n\n"
-     "Get full path from position to root.\n\n"
-     "Args:\n"
-     "    pos: Starting position as Vector, Entity, or (x, y) tuple.\n\n"
-     "Returns:\n"
-     "    AStarPath from pos toward root."},
+     MCRF_METHOD(DijkstraMap, path_from,
+         MCRF_SIG("(pos: Vector | tuple)", "AStarPath"),
+         MCRF_DESC("Get full path from position to root.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Starting position as Vector, Entity, or (x, y) tuple")
+         MCRF_RETURNS("AStarPath from pos toward root")
+     )},
 
     {"step_from", (PyCFunction)UIGridPathfinding::DijkstraMap_step_from, METH_VARARGS | METH_KEYWORDS,
-     "step_from(pos) -> Vector | None\n\n"
-     "Get single step from position toward root.\n\n"
-     "Args:\n"
-     "    pos: Current position as Vector, Entity, or (x, y) tuple.\n\n"
-     "Returns:\n"
-     "    Next position as Vector, or None if at root or unreachable."},
+     MCRF_METHOD(DijkstraMap, step_from,
+         MCRF_SIG("(pos: Vector | tuple)", "Vector | None"),
+         MCRF_DESC("Get single step from position toward root.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Current position as Vector, Entity, or (x, y) tuple")
+         MCRF_RETURNS("Next position as Vector, or None if at root or unreachable")
+     )},
 
     {"to_heightmap", (PyCFunction)UIGridPathfinding::DijkstraMap_to_heightmap, METH_VARARGS | METH_KEYWORDS,
-     "to_heightmap(size=None, unreachable=-1.0) -> HeightMap\n\n"
-     "Convert distance field to a HeightMap.\n\n"
-     "Each cell's height equals its pathfinding distance from the root.\n"
-     "Useful for visualization, procedural terrain, or influence mapping.\n\n"
-     "Args:\n"
-     "    size: Optional (width, height) tuple. Defaults to dijkstra dimensions.\n"
-     "    unreachable: Value for cells that cannot reach root (default -1.0).\n\n"
-     "Returns:\n"
-     "    HeightMap with distance values as heights."},
+     MCRF_METHOD(DijkstraMap, to_heightmap,
+         MCRF_SIG("(size=None, unreachable=-1.0)", "HeightMap"),
+         MCRF_DESC("Convert distance field to a HeightMap. Each cell's height equals its pathfinding distance from the root, useful for visualization, procedural terrain, or influence mapping.")
+         MCRF_ARGS_START
+         MCRF_ARG("size", "Optional (width, height) tuple. Defaults to dijkstra dimensions")
+         MCRF_ARG("unreachable", "Value for cells that cannot reach root (default -1.0)")
+         MCRF_RETURNS("HeightMap with distance values as heights")
+     )},
 
     {"invert", (PyCFunction)UIGridPathfinding::DijkstraMap_invert, METH_NOARGS,
-     "invert() -> DijkstraMap\n\n"
-     "Return a NEW DijkstraMap whose distance field is the safety field.\n\n"
-     "Cells near a root become high values and cells far from any root become\n"
-     "low values. Combined with step_from or descent_step, this gives flee\n"
-     "behavior: descend the inverted map to move away from the original roots.\n\n"
-     "The original DijkstraMap is unchanged.\n\n"
-     "Returns:\n"
-     "    New DijkstraMap with inverted distances."},
+     MCRF_METHOD(DijkstraMap, invert,
+         MCRF_SIG("()", "DijkstraMap"),
+         MCRF_DESC("Return a new DijkstraMap whose distance field is inverted (safety field). Cells near a root become high values; descend to flee from original roots. The original DijkstraMap is unchanged.")
+         MCRF_RETURNS("New DijkstraMap with inverted distances")
+     )},
 
     {"descent_step", (PyCFunction)UIGridPathfinding::DijkstraMap_descent_step, METH_VARARGS | METH_KEYWORDS,
-     "descent_step(pos) -> Vector | None\n\n"
-     "Get the adjacent cell with the lowest distance (steepest descent).\n\n"
-     "Unlike step_from (which follows the path set by path_from), descent_step\n"
-     "always returns the best neighbor in a single hop. Useful for AI that\n"
-     "reacts to the current distance field rather than following a fixed path.\n\n"
-     "Args:\n"
-     "    pos: Current position as Vector, Entity, or (x, y) tuple.\n\n"
-     "Returns:\n"
-     "    Next position as Vector, or None if pos is a local minimum or off-grid."},
+     MCRF_METHOD(DijkstraMap, descent_step,
+         MCRF_SIG("(pos: Vector | tuple)", "Vector | None"),
+         MCRF_DESC("Get the adjacent cell with the lowest distance (steepest descent). Unlike step_from, this always returns the best neighbor in a single hop without following a precomputed path.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Current position as Vector, Entity, or (x, y) tuple")
+         MCRF_RETURNS("Next position as Vector, or None if pos is a local minimum or off-grid")
+     )},
 
     {NULL}
 };
@@ -1066,7 +1064,7 @@ PyMethodDef PyDijkstraMap_methods[] = {
 // DijkstraMap getsetters
 PyGetSetDef PyDijkstraMap_getsetters[] = {
     {"root", (getter)UIGridPathfinding::DijkstraMap_get_root, NULL,
-     "Root position that distances are measured from (Vector, read-only).", NULL},
+     MCRF_PROPERTY(root, "Root position that distances are measured from (Vector, read-only)."), NULL},
 
     {NULL}
 };

@@ -16,6 +16,9 @@
 #define MCRF_LINK(ref, text) "\nSee also: " text " (" ref ")\n"
 
 // Main documentation macros
+// name: stringified method name; sig: MCRF_SIG(...); desc: MCRF_DESC(...);
+// remaining sections (MCRF_ARGS_START, MCRF_ARG, MCRF_RETURNS, etc.) go in __VA_ARGS__
+// as adjacent string literals with NO commas between them.
 #define MCRF_METHOD_DOC(name, sig, desc, ...) \
     name sig desc __VA_ARGS__
 

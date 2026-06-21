@@ -112,13 +112,28 @@ const UniformEntry* UniformCollection::getEntry(const std::string& name) const {
 
 PyMethodDef PyUniformCollectionType::methods[] = {
     {"keys", (PyCFunction)PyUniformCollectionType::keys, METH_NOARGS,
-     "Return list of uniform names"},
+     MCRF_METHOD(UniformCollection, keys,
+         MCRF_SIG("()", "list"),
+         MCRF_DESC("Return a list of all uniform names in this collection.")
+         MCRF_RETURNS("list of str: the names of all uniforms currently set")
+     )},
     {"values", (PyCFunction)PyUniformCollectionType::values, METH_NOARGS,
-     "Return list of uniform values"},
+     MCRF_METHOD(UniformCollection, values,
+         MCRF_SIG("()", "list"),
+         MCRF_DESC("Return a list of all uniform values in this collection.")
+         MCRF_RETURNS("list of float or tuple: the values of all uniforms currently set")
+     )},
     {"items", (PyCFunction)PyUniformCollectionType::items, METH_NOARGS,
-     "Return list of (name, value) tuples"},
+     MCRF_METHOD(UniformCollection, items,
+         MCRF_SIG("()", "list"),
+         MCRF_DESC("Return a list of (name, value) tuples for all uniforms in this collection.")
+         MCRF_RETURNS("list of tuple: (str, float | tuple) pairs for each uniform")
+     )},
     {"clear", (PyCFunction)PyUniformCollectionType::clear, METH_NOARGS,
-     "Remove all uniforms"},
+     MCRF_METHOD(UniformCollection, clear,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Remove all uniforms from this collection.")
+     )},
     {NULL}
 };
 

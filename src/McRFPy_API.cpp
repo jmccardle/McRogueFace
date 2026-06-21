@@ -256,7 +256,7 @@ static PyMethodDef mcrfpyMethods[] = {
 
     // Note: setTimer and delTimer removed in #173 - use Timer objects instead
     {"step", McRFPy_API::_step, METH_VARARGS,
-     MCRF_FUNCTION(step,
+     MCRF_METHOD(mcrfpy, step,
          MCRF_SIG("(dt: float = None)", "float"),
          MCRF_DESC("Advance simulation time (headless mode only)."),
          MCRF_ARGS_START
@@ -265,14 +265,14 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("In windowed mode, this is a no-op and returns 0.0. Use this for deterministic simulation control in headless/testing scenarios.")
      )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
-     MCRF_FUNCTION(exit,
+     MCRF_METHOD(mcrfpy, exit,
          MCRF_SIG("()", "None"),
          MCRF_DESC("Cleanly shut down the game engine and exit the application."),
          MCRF_RETURNS("None")
          MCRF_NOTE("This immediately closes the window and terminates the program.")
      )},
     {"set_scale", McRFPy_API::_setScale, METH_VARARGS,
-     MCRF_FUNCTION(set_scale,
+     MCRF_METHOD(mcrfpy, set_scale,
          MCRF_SIG("(multiplier: float)", "None"),
          MCRF_DESC("Deprecated: use Window.resolution instead. Scale the game window size."),
          MCRF_ARGS_START
@@ -282,7 +282,7 @@ static PyMethodDef mcrfpyMethods[] = {
      )},
 
     {"find", McRFPy_API::_find, METH_VARARGS,
-     MCRF_FUNCTION(find,
+     MCRF_METHOD(mcrfpy, find,
          MCRF_SIG("(name: str, scene: str = None)", "UIDrawable | None"),
          MCRF_DESC("Find the first UI element with the specified name."),
          MCRF_ARGS_START
@@ -292,7 +292,7 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("Searches scene UI elements and entities within grids.")
      )},
     {"find_all", McRFPy_API::_findAll, METH_VARARGS,
-     MCRF_FUNCTION(find_all,
+     MCRF_METHOD(mcrfpy, find_all,
          MCRF_SIG("(pattern: str, scene: str = None)", "list"),
          MCRF_DESC("Find all UI elements matching a name pattern."),
          MCRF_ARGS_START
@@ -303,14 +303,14 @@ static PyMethodDef mcrfpyMethods[] = {
      )},
 
     {"get_metrics", McRFPy_API::_getMetrics, METH_NOARGS,
-     MCRF_FUNCTION(get_metrics,
+     MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
          MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds)")
      )},
 
     {"set_dev_console", McRFPy_API::_setDevConsole, METH_VARARGS,
-     MCRF_FUNCTION(set_dev_console,
+     MCRF_METHOD(mcrfpy, set_dev_console,
          MCRF_SIG("(enabled: bool)", "None"),
          MCRF_DESC("Enable or disable the developer console overlay."),
          MCRF_ARGS_START
@@ -320,7 +320,7 @@ static PyMethodDef mcrfpyMethods[] = {
      )},
 
     {"start_benchmark", McRFPy_API::_startBenchmark, METH_NOARGS,
-     MCRF_FUNCTION(start_benchmark,
+     MCRF_METHOD(mcrfpy, start_benchmark,
          MCRF_SIG("()", "None"),
          MCRF_DESC("Start capturing benchmark data to a file."),
          MCRF_RETURNS("None")
@@ -329,7 +329,7 @@ static PyMethodDef mcrfpyMethods[] = {
      )},
 
     {"end_benchmark", McRFPy_API::_endBenchmark, METH_NOARGS,
-     MCRF_FUNCTION(end_benchmark,
+     MCRF_METHOD(mcrfpy, end_benchmark,
          MCRF_SIG("()", "str"),
          MCRF_DESC("Stop benchmark capture and write data to JSON file."),
          MCRF_RETURNS("str: The filename of the written benchmark data")
@@ -338,7 +338,7 @@ static PyMethodDef mcrfpyMethods[] = {
      )},
 
     {"log_benchmark", McRFPy_API::_logBenchmark, METH_VARARGS,
-     MCRF_FUNCTION(log_benchmark,
+     MCRF_METHOD(mcrfpy, log_benchmark,
          MCRF_SIG("(message: str)", "None"),
          MCRF_DESC("Add a log message to the current benchmark frame."),
          MCRF_ARGS_START
@@ -350,11 +350,14 @@ static PyMethodDef mcrfpyMethods[] = {
 
     // #151: Module-level attribute access for current_scene and scenes
     {"__getattr__", mcrfpy_module_getattr, METH_VARARGS,
-     "Module-level __getattr__ for dynamic properties (current_scene, scenes)"},
+     MCRF_METHOD(mcrfpy, __getattr__,
+         MCRF_SIG("(name: str)", "object"),
+         MCRF_DESC("Module-level attribute access for dynamic properties (current_scene, scenes).")
+     )},
 
     // #219: Thread synchronization
     {"lock", PyLock::lock, METH_NOARGS,
-     MCRF_FUNCTION(lock,
+     MCRF_METHOD(mcrfpy, lock,
          MCRF_SIG("()", "_LockContext"),
          MCRF_DESC("Get a context manager for thread-safe UI updates from background threads."),
          MCRF_RETURNS("_LockContext: A context manager that blocks until safe to modify UI")
@@ -365,7 +368,7 @@ static PyMethodDef mcrfpyMethods[] = {
 
     // #215: Bresenham line algorithm (replaces mcrfpy.libtcod.line)
     {"bresenham", (PyCFunction)McRFPy_API::_bresenham, METH_VARARGS | METH_KEYWORDS,
-     MCRF_FUNCTION(bresenham,
+     MCRF_METHOD(mcrfpy, bresenham,
          MCRF_SIG("(start, end, *, include_start=True, include_end=True)", "list[tuple[int, int]]"),
          MCRF_DESC("Compute grid cells along a line using Bresenham's algorithm."),
          MCRF_ARGS_START
@@ -379,7 +382,7 @@ static PyMethodDef mcrfpyMethods[] = {
      )},
 
     {"_sync_storage", mcrfpy_sync_storage, METH_NOARGS,
-     MCRF_FUNCTION(_sync_storage,
+     MCRF_METHOD(mcrfpy, _sync_storage,
          MCRF_SIG("()", "None"),
          MCRF_DESC("Flush save directory to persistent storage."),
          MCRF_RETURNS("None")

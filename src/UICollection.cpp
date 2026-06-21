@@ -1,4 +1,5 @@
 #include "UICollection.h"
+#include "McRFPy_Doc.h"
 
 #include "UIFrame.h"
 #include "UICaption.h"
@@ -1047,42 +1048,72 @@ PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObjec
 
 PyMethodDef UICollection::methods[] = {
 	{"append", (PyCFunction)UICollection::append, METH_O,
-	 "append(element)\n\n"
-	 "Add an element to the end of the collection."},
+	 MCRF_METHOD(UICollection, append,
+	     MCRF_SIG("(element: Drawable)", "None"),
+	     MCRF_DESC("Add an element to the end of the collection.")
+	     MCRF_ARGS_START
+	     MCRF_ARG("element", "Drawable object to add")
+	 )},
 	{"extend", (PyCFunction)UICollection::extend, METH_O,
-	 "extend(iterable)\n\n"
-	 "Add all elements from an iterable to the collection."},
+	 MCRF_METHOD(UICollection, extend,
+	     MCRF_SIG("(iterable)", "None"),
+	     MCRF_DESC("Add all elements from an iterable to the collection.")
+	     MCRF_ARGS_START
+	     MCRF_ARG("iterable", "Iterable of Drawable objects to add")
+	 )},
 	{"insert", (PyCFunction)UICollection::insert, METH_VARARGS,
-	 "insert(index, element)\n\n"
-	 "Insert element at index. Like list.insert(), indices past the end append.\n\n"
-	 "Note: If using z_index for sorting, insertion order may not persist after\n"
-	 "the next render. Use name-based .find() for stable element access."},
+	 MCRF_METHOD(UICollection, insert,
+	     MCRF_SIG("(index: int, element: Drawable)", "None"),
+	     MCRF_DESC("Insert element at index. Like list.insert(), indices past the end append.")
+	     MCRF_ARGS_START
+	     MCRF_ARG("index", "Position at which to insert the element")
+	     MCRF_ARG("element", "Drawable object to insert")
+	     MCRF_NOTE("If using z_index for sorting, insertion order may not persist after the next render. Use name-based .find() for stable element access.")
+	 )},
 	{"remove", (PyCFunction)UICollection::remove, METH_O,
-	 "remove(element)\n\n"
-	 "Remove first occurrence of element. Raises ValueError if not found."},
+	 MCRF_METHOD(UICollection, remove,
+	     MCRF_SIG("(element: Drawable)", "None"),
+	     MCRF_DESC("Remove first occurrence of element.")
+	     MCRF_ARGS_START
+	     MCRF_ARG("element", "Drawable object to remove")
+	     MCRF_RAISES("ValueError", "If the element is not in the collection")
+	 )},
 	{"pop", (PyCFunction)UICollection::pop, METH_VARARGS,
-	 "pop([index]) -> element\n\n"
-	 "Remove and return element at index (default: last element).\n\n"
-	 "Note: If using z_index for sorting, indices may shift after render.\n"
-	 "Use name-based .find() for stable element access."},
+	 MCRF_METHOD(UICollection, pop,
+	     MCRF_SIG("(index: int = -1)", "Drawable"),
+	     MCRF_DESC("Remove and return element at index (default: last element).")
+	     MCRF_ARGS_START
+	     MCRF_ARG("index", "Position of element to remove (default -1 = last)")
+	     MCRF_RETURNS("Drawable: the removed element")
+	     MCRF_RAISES("IndexError", "If the collection is empty or index is out of range")
+	     MCRF_NOTE("If using z_index for sorting, indices may shift after render. Use name-based .find() for stable element access.")
+	 )},
 	{"index", (PyCFunction)UICollection::index_method, METH_O,
-	 "index(element) -> int\n\n"
-	 "Return index of first occurrence of element. Raises ValueError if not found."},
+	 MCRF_METHOD(UICollection, index,
+	     MCRF_SIG("(element: Drawable)", "int"),
+	     MCRF_DESC("Return index of first occurrence of element.")
+	     MCRF_ARGS_START
+	     MCRF_ARG("element", "Drawable object to search for")
+	     MCRF_RETURNS("int: index of the first occurrence")
+	     MCRF_RAISES("ValueError", "If the element is not in the collection")
+	 )},
 	{"count", (PyCFunction)UICollection::count, METH_O,
-	 "count(element) -> int\n\n"
-	 "Count occurrences of element in the collection."},
+	 MCRF_METHOD(UICollection, count,
+	     MCRF_SIG("(element: Drawable)", "int"),
+	     MCRF_DESC("Count occurrences of element in the collection.")
+	     MCRF_ARGS_START
+	     MCRF_ARG("element", "Drawable object to count")
+	     MCRF_RETURNS("int: number of occurrences")
+	 )},
 	{"find", (PyCFunction)UICollection::find, METH_VARARGS | METH_KEYWORDS,
-	 "find(name, recursive=False) -> element or list\n\n"
-	 "Find elements by name.\n\n"
-	 "Args:\n"
-	 "    name (str): Name to search for. Supports wildcards:\n"
-	 "        - 'exact' for exact match (returns single element or None)\n"
-	 "        - 'prefix*' for starts-with match (returns list)\n"
-	 "        - '*suffix' for ends-with match (returns list)\n"
-	 "        - '*substring*' for contains match (returns list)\n"
-	 "    recursive (bool): If True, search in Frame children recursively.\n\n"
-	 "Returns:\n"
-	 "    Single element if exact match, list if wildcard, None if not found."},
+	 MCRF_METHOD(UICollection, find,
+	     MCRF_SIG("(name: str, recursive: bool = False)", "Drawable | list | None"),
+	     MCRF_DESC("Find elements by name. Supports wildcard patterns.")
+	     MCRF_ARGS_START
+	     MCRF_ARG("name", "Name to search for. Use 'exact' for exact match, 'prefix*', '*suffix', or '*substring*' for wildcard matches")
+	     MCRF_ARG("recursive", "If True, search in Frame children recursively")
+	     MCRF_RETURNS("Single Drawable for exact match, list for wildcard match, None if not found")
+	 )},
 	{NULL, NULL, 0, NULL}
 };
 
