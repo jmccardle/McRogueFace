@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2026-06-21" "McRogueFace 0.2.7-prerelease-7drl2026-104-g5725a4f" ""
+.TH "MCRFPY" "3" "2026-06-21" "McRogueFace 0.2.7-prerelease-7drl2026-107-g3f39ee0" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2026-06-21 06:42:31\f[R]
+\f[I]Generated on 2026-06-21 09:39:04\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -1999,9 +1999,16 @@ Default: 0.15.
 Lazy-allocated on first access once entity has a grid; returns None
 otherwise.
 The returned DiscreteMap is a live reference.
-Assigning a DiscreteMap replaces the entity\[cq]s memory; size must
-match the grid or ValueError is raised.
+Assigning a DiscreteMap replaces the entity\[cq]s memory (e.g.\ loading
+a saved perspective via from_bytes); size must match the grid or
+ValueError is raised, and the next updateVisibility() demotes any loaded
+visible cells to discovered before recomputing FOV.
 Assign None to clear.
+Note: updateVisibility() only auto-demotes visible cells the engine
+itself promoted; if you write 2 (visible) into the live map by hand at a
+cell outside the entity\[cq]s current FOV, it will not be auto-demoted
+\[en] use 1 (discovered) to reveal remembered cells, or assign a whole
+map to set arbitrary state.
 - \f[V]pos\f[R]: Pixel position relative to grid (Vector).
 Computed as draw_pos * tile_size.
 Requires entity to be attached to a grid.

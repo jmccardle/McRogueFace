@@ -25,3 +25,14 @@ void DiscreteMap::demoteVisible()
         if (values_[i] == 2) values_[i] = 1;
     }
 }
+
+void DiscreteMap::demoteVisibleRect(int x0, int y0, int x1, int y1)
+{
+    // Caller guarantees clamped, half-open bounds (see header).
+    for (int gy = y0; gy < y1; ++gy) {
+        uint8_t* row = values_ + static_cast<size_t>(gy) * w_;
+        for (int gx = x0; gx < x1; ++gx) {
+            if (row[gx] == 2) row[gx] = 1;
+        }
+    }
+}

@@ -28,6 +28,14 @@ public:
     // per-tick demotion of "was visible last tick" to "discovered".
     void demoteVisible();
 
+    // #316: Windowed variant of demoteVisible(). Demotes cells with value == 2
+    // back to 1, restricted to the half-open rectangle [x0,x1) x [y0,y1).
+    // Callers must clamp the bounds to the map (0 <= x0 <= x1 <= width,
+    // 0 <= y0 <= y1 <= height); no bounds checking is performed here. Used by
+    // UIEntity::updateVisibility() to demote only last tick's FOV window
+    // instead of walking the entire W*H buffer.
+    void demoteVisibleRect(int x0, int y0, int x1, int y1);
+
 private:
     int w_;
     int h_;

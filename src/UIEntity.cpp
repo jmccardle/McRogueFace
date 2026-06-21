@@ -60,34 +60,82 @@ void UIEntity::updateVisibility()
     // Lazy-allocate or resize perspective_map if grid dimensions changed.
     // Dimension mismatch wipes prior state -- the entity's memory has no
     // identity with a differently-sized grid, so starting fresh is correct.
+    // On (re)allocation, reset the cached previous-FOV window (#316) so we never
+    // demote a stale rect against a freshly-sized buffer (would be wrong/OOB).
     size_t expected = static_cast<size_t>(grid->grid_w) * grid->grid_h;
+    bool fresh = false;
     if (!perspective_map || perspective_map->size() != expected) {
         perspective_map = std::make_shared<DiscreteMap>(grid->grid_w, grid->grid_h, 0);
+        fresh = true;
+        prev_fov_x0 = prev_fov_y0 = prev_fov_x1 = prev_fov_y1 = 0;
+        // A fresh buffer is all-zero: nothing to demote, and any pending
+        // external-assignment demote is moot (the assigned map was discarded).
+        perspective_full_demote_pending = false;
     }
-
-    // Demote visible (2) -> discovered (1) from prior tick. The invariant
-    // `visible subset of discovered` is structural in the 3-state model: cells
-    // currently visible will be re-promoted to 2 below, and cells that
-    // just left FOV fall to discovered.
-    perspective_map->demoteVisible();
 
     // Compute FOV from entity's cell position (#114, #295)
     int x = cell_position.x;
     int y = cell_position.y;
+    int r = grid->fov_radius;
+
+    // #316: Clip both the demote and promote passes to an AABB sized to the FOV
+    // radius around the entity, instead of walking the whole W*H buffer twice.
+    // Margins of +/-1 (with half-open +1) cover light_walls lighting a wall one
+    // cell beyond the radius. r <= 0 means unlimited == full grid (matches TCOD
+    // radius 0); store the full-grid window so the next tick demotes correctly.
+    int cx0, cy0, cx1, cy1;
+    if (r > 0) {
+        cx0 = std::max(0, x - r - 1);
+        cy0 = std::max(0, y - r - 1);
+        cx1 = std::min(grid->grid_w, x + r + 2);
+        cy1 = std::min(grid->grid_h, y + r + 2);
+    } else {
+        cx0 = 0; cy0 = 0;
+        cx1 = grid->grid_w; cy1 = grid->grid_h;
+    }
+
+    // Demote visible (2) -> discovered (1) from the LAST tick's promoted window
+    // (NOT the current one). Demoting the current window would leave cells the
+    // entity saw last tick -- now outside the new window after a move -- stuck
+    // at VISIBLE=2 forever (ghost vision trailing the entity). The cells we
+    // promoted last tick are exactly the only cells that can be 2 right now.
+    // On a fresh map there is nothing to demote.
+    //
+    // EXCEPTION (#316): when a whole map was just assigned externally (e.g. a
+    // from_bytes load/resume), prev_fov no longer bounds the VISIBLE cells -- the
+    // assigned map can hold 2s anywhere. Fall back to a single full-buffer demote
+    // so loaded VISIBLE cells correctly become DISCOVERED before the FOV recompute,
+    // matching the pre-#316 semantics. This one-shot cost is paid only on the tick
+    // after an assignment, never on the per-turn movement hot path.
+    if (fresh) {
+        // nothing to demote
+    } else if (perspective_full_demote_pending) {
+        perspective_map->demoteVisible();
+        perspective_full_demote_pending = false;
+    } else if (prev_fov_x1 > prev_fov_x0 && prev_fov_y1 > prev_fov_y0) {
+        perspective_map->demoteVisibleRect(prev_fov_x0, prev_fov_y0,
+                                           prev_fov_x1, prev_fov_y1);
+    }
 
     // Use grid's configured FOV algorithm and radius
     grid->computeFOV(x, y, grid->fov_radius, true, grid->fov_algorithm);
 
-    // Promote visible cells to 2 (VISIBLE). Cells going 0 -> 2 are
-    // freshly discovered; cells going 1 -> 2 were already discovered.
+    // Promote visible cells to 2 (VISIBLE), clipped to the current window.
+    // Cells going 0 -> 2 are freshly discovered; cells going 1 -> 2 were
+    // already discovered.
     uint8_t* buf = perspective_map->data();
-    for (int gy = 0; gy < grid->grid_h; gy++) {
-        for (int gx = 0; gx < grid->grid_w; gx++) {
+    int W = grid->grid_w;
+    for (int gy = cy0; gy < cy1; ++gy) {
+        for (int gx = cx0; gx < cx1; ++gx) {
             if (grid->isInFOV(gx, gy)) {
-                buf[gy * grid->grid_w + gx] = PyPerspective::VISIBLE;
+                buf[gy * W + gx] = PyPerspective::VISIBLE;
             }
         }
     }
+
+    // Cache this tick's promoted window so the next call demotes exactly it.
+    prev_fov_x0 = cx0; prev_fov_y0 = cy0;
+    prev_fov_x1 = cx1; prev_fov_y1 = cy1;
 
     // #113 - Update any ColorLayers bound to this entity via perspective
     // Get shared_ptr to self for comparison
@@ -457,6 +505,9 @@ int UIEntity::set_perspective_map(PyUIEntityObject* self, PyObject* value, void*
 
     if (value == NULL || value == Py_None) {
         entity->perspective_map.reset();
+        // Lazy realloc on next access produces an all-zero buffer (handled by
+        // the fresh path in updateVisibility), so no pending full demote.
+        entity->perspective_full_demote_pending = false;
         return 0;
     }
 
@@ -489,6 +540,10 @@ int UIEntity::set_perspective_map(PyUIEntityObject* self, PyObject* value, void*
     }
 
     entity->perspective_map = incoming->data;  // share ownership
+    // #316: an externally-assigned map may hold VISIBLE=2 cells anywhere, so the
+    // cached prev_fov window can no longer bound the demote. Force a one-shot
+    // full demote on the next updateVisibility() (load/resume correctness).
+    entity->perspective_full_demote_pending = true;
     return 0;
 }
 
@@ -1885,7 +1940,7 @@ PyGetSetDef UIEntity::getsetters[] = {
      MCRF_PROPERTY(draw_pos, "Fractional tile position for rendering (Vector). Use for smooth animation between grid cells."), (void*)0},
 
     {"perspective_map", (getter)UIEntity::get_perspective_map, (setter)UIEntity::set_perspective_map,
-     MCRF_PROPERTY(perspective_map, "Per-entity FOV memory (DiscreteMap). 3-state values per cell: 0=unknown, 1=discovered, 2=visible. Lazy-allocated on first access once entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference. Assigning a DiscreteMap replaces the entity's memory; size must match the grid or ValueError is raised. Assign None to clear."),
+     MCRF_PROPERTY(perspective_map, "Per-entity FOV memory (DiscreteMap). 3-state values per cell: 0=unknown, 1=discovered, 2=visible. Lazy-allocated on first access once entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference. Assigning a DiscreteMap replaces the entity's memory (e.g. loading a saved perspective via from_bytes); size must match the grid or ValueError is raised, and the next updateVisibility() demotes any loaded visible cells to discovered before recomputing FOV. Assign None to clear. Note: updateVisibility() only auto-demotes visible cells the engine itself promoted; if you write 2 (visible) into the live map by hand at a cell outside the entity's current FOV, it will not be auto-demoted -- use 1 (discovered) to reveal remembered cells, or assign a whole map to set arbitrary state."),
      NULL},
     {"grid", (getter)UIEntity::get_grid, (setter)UIEntity::set_grid,
      MCRF_PROPERTY(grid, "Grid this entity belongs to (Grid or None). Assign a Grid to attach the entity, or None to remove it from its current grid."), NULL},

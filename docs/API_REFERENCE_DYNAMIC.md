@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-06-21 06:42:31*
+*Generated on 2026-06-21 09:39:04*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -1823,7 +1823,7 @@ Attributes:
 - `move_speed`: Animation duration for behavior movement in seconds (float). 0 = instant. Default: 0.15.
 - `name`: Entity name for lookup (str).
 - `opacity`: Render opacity (float). 0.0 = fully transparent, 1.0 = fully opaque.
-- `perspective_map`: Per-entity FOV memory (DiscreteMap). 3-state values per cell: 0=unknown, 1=discovered, 2=visible. Lazy-allocated on first access once entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference. Assigning a DiscreteMap replaces the entity's memory; size must match the grid or ValueError is raised. Assign None to clear.
+- `perspective_map`: Per-entity FOV memory (DiscreteMap). 3-state values per cell: 0=unknown, 1=discovered, 2=visible. Lazy-allocated on first access once entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference. Assigning a DiscreteMap replaces the entity's memory (e.g. loading a saved perspective via from_bytes); size must match the grid or ValueError is raised, and the next updateVisibility() demotes any loaded visible cells to discovered before recomputing FOV. Assign None to clear. Note: updateVisibility() only auto-demotes visible cells the engine itself promoted; if you write 2 (visible) into the live map by hand at a cell outside the entity's current FOV, it will not be auto-demoted -- use 1 (discovered) to reveal remembered cells, or assign a whole map to set arbitrary state.
 - `pos`: Pixel position relative to grid (Vector). Computed as draw_pos * tile_size. Requires entity to be attached to a grid.
 - `shader`: GPU shader for visual effects (Shader or None). Set to None to disable shader rendering.
 - `sight_radius`: FOV radius for TARGET trigger (int). Default: 10.

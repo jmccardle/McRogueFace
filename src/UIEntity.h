@@ -78,6 +78,21 @@ public:
     // updateVisibility() runs with a grid whose dimensions differ from the
     // current map. See PyPerspective for the Python-side enum.
     std::shared_ptr<DiscreteMap> perspective_map;
+    // #316: AABB of the cells promoted to VISIBLE on the previous
+    // updateVisibility() tick. That rectangle is exactly the set of cells that
+    // can currently be VISIBLE=2, so it is the region we must demote before the
+    // next promote pass. Empty when x1 <= x0 (initial value 0,0,0,0 => nothing
+    // to demote on the first call). Reset to 0 whenever perspective_map is
+    // (re)allocated so a stale rect is never demoted against a fresh buffer.
+    int prev_fov_x0 = 0, prev_fov_y0 = 0, prev_fov_x1 = 0, prev_fov_y1 = 0;
+    // #316: the windowed demote above is only valid while the engine exclusively
+    // owns perspective_map. When a whole map is assigned externally (e.g. a
+    // from_bytes load/resume), it may carry VISIBLE=2 cells anywhere, so the
+    // prev_fov window no longer bounds the set of cells that can be 2. This flag
+    // forces a single full-buffer demote on the next updateVisibility() so loaded
+    // VISIBLE cells correctly fall to DISCOVERED before the FOV is recomputed.
+    // Set by set_perspective_map(); cleared after the one-shot full demote.
+    bool perspective_full_demote_pending = false;
     UISprite sprite;
     sf::Vector2f position; //(x,y) in grid coordinates; float for animation
     sf::Vector2i cell_position{0, 0}; // #295: integer logical position (decoupled from float position)
