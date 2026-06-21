@@ -41,6 +41,14 @@ if [ -x "./.venv-audit/bin/python3" ] && [ -f "./tools/audit_pymethoddef.py" ]; 
     echo ""
     echo "=== PyMethodDef / PyGetSetDef Macro Compliance Audit ==="
     ./.venv-audit/bin/python3 ./tools/audit_pymethoddef.py --quiet || true
+
+    # Hard gate (#314 F15): the frozen (non-3D) binding surface must stay 100%
+    # MCRF_* macro compliant. This fails the doc build if any frozen file
+    # regresses to a raw docstring -- the docstring analog of the API-surface
+    # snapshot test. Experimental src/3d/ bindings are exempt.
+    echo ""
+    echo "=== Frozen docstring gate (strict) ==="
+    ./tools/check_frozen_docstrings.sh
 elif [ -f "./tools/audit_pymethoddef.py" ]; then
     echo ""
     echo "(skipping audit_pymethoddef.py: .venv-audit not found - run"
