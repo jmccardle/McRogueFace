@@ -8,6 +8,7 @@
 #include "Resources.h"
 #include "Profiler.h"
 #include "PyShader.h"
+#include "PyTexture.h"
 #include "PyUniformCollection.h"
 #include "PyPositionHelper.h"
 #include "PyVector.h"
@@ -771,9 +772,16 @@ int UIGridView::set_fill_color(PyUIGridViewObject* self, PyObject* value, void* 
 
 PyObject* UIGridView::get_texture(PyUIGridViewObject* self, void* closure)
 {
-    if (!self->data->ptex) Py_RETURN_NONE;
-    // TODO: return texture wrapper
-    Py_RETURN_NONE;
+    // #318: return a Texture wrapper sharing the underlying shared_ptr<PyTexture>,
+    // mirroring UIGrid::get_texture. None only when the view has no texture.
+    auto& texture = self->data->ptex;
+    if (!texture) Py_RETURN_NONE;
+
+    auto type = &mcrfpydef::PyTextureType;
+    auto obj = (PyTextureObject*)type->tp_alloc(type, 0);
+    if (!obj) return NULL;
+    obj->data = texture;
+    return (PyObject*)obj;
 }
 
 // Float member getters/setters for GridView-specific float members (center_x, center_y, zoom, camera_rotation)
@@ -893,8 +901,10 @@ PyGetSetDef UIGridView::getsetters[] = {
      MCRF_PROPERTY(zoom, "Zoom level for rendering (float). Values greater than 1.0 magnify; less than 1.0 shrink."), NULL},
     {"fill_color", (getter)UIGridView::get_fill_color, (setter)UIGridView::set_fill_color,
      MCRF_PROPERTY(fill_color, "Background fill color (Color). Drawn behind all tiles and entities."), NULL},
+    // #318/#252: this type is exposed as BOTH mcrfpy.Grid and mcrfpy.GridView, so the
+    // docstring is kept type-neutral (accurate for either name).
     {"texture", (getter)UIGridView::get_texture, NULL,
-     MCRF_PROPERTY(texture, "Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None."), NULL},
+     MCRF_PROPERTY(texture, "Texture used for tile rendering (Texture | None, read-only)."), NULL},
     // UIDrawable base properties - applied to GridView (the rendered object)
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
      MCRF_PROPERTY(pos, "Position of the grid as Vector (Vector)."), (void*)PyObjectsEnum::UIGRIDVIEW},

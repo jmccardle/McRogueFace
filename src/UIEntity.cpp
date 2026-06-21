@@ -1315,11 +1315,24 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
 {
     static const char* keywords[] = {"fov", "radius", nullptr};
     PyObject* fov_arg = nullptr;
+    PyObject* radius_arg = nullptr;
     int radius = -1;  // -1 means use grid default
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Oi", const_cast<char**>(keywords),
-                                     &fov_arg, &radius)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OO", const_cast<char**>(keywords),
+                                     &fov_arg, &radius_arg)) {
         return NULL;
+    }
+
+    // #319: radius accepts an int, or None / omitted to use the grid default.
+    // The 'i' format code rejects None, so parse as an object and convert here.
+    if (radius_arg && radius_arg != Py_None) {
+        if (!PyLong_Check(radius_arg)) {
+            PyErr_SetString(PyExc_TypeError,
+                "visible_entities() radius must be an int or None");
+            return NULL;
+        }
+        radius = static_cast<int>(PyLong_AsLong(radius_arg));
+        if (radius == -1 && PyErr_Occurred()) return NULL;
     }
 
     // Check if entity has a grid
@@ -1449,14 +1462,14 @@ PyMethodDef UIEntity::methods[] = {
      )},
     {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Entity, visible_entities,
-         MCRF_SIG("(fov=None, radius: int = -1)", "list[Entity]"),
+         MCRF_SIG("(fov=None, radius: int | None = None)", "list[Entity]"),
          MCRF_DESC("Get list of other entities visible from this entity's position."),
          MCRF_ARGS_START
          MCRF_ARG("fov", "FOV algorithm to use (FOV enum or None to use grid.fov)")
-         MCRF_ARG("radius", "FOV radius as int; omit or pass -1 to use the grid's default fov_radius")
+         MCRF_ARG("radius", "FOV radius as int; pass None, omit, or pass -1 to use the grid's default fov_radius")
          MCRF_RETURNS("List of Entity objects within field of view, excluding self")
          MCRF_RAISES("ValueError", "If entity is not associated with a grid")
-         MCRF_NOTE("radius does not accept None; omit the argument entirely to use the grid default.")
+         MCRF_RAISES("TypeError", "If radius is neither an int nor None")
      )},
     {NULL, NULL, 0, NULL}
 };
@@ -1859,14 +1872,14 @@ PyMethodDef UIEntity_all_methods[] = {
      )},
     {"visible_entities", (PyCFunction)UIEntity::visible_entities, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Entity, visible_entities,
-         MCRF_SIG("(fov=None, radius: int = -1)", "list[Entity]"),
+         MCRF_SIG("(fov=None, radius: int | None = None)", "list[Entity]"),
          MCRF_DESC("Get list of other entities visible from this entity's position."),
          MCRF_ARGS_START
          MCRF_ARG("fov", "FOV algorithm to use (FOV enum or None to use grid.fov)")
-         MCRF_ARG("radius", "FOV radius as int; omit or pass -1 to use the grid's default fov_radius")
+         MCRF_ARG("radius", "FOV radius as int; pass None, omit, or pass -1 to use the grid's default fov_radius")
          MCRF_RETURNS("List of Entity objects within field of view, excluding self")
          MCRF_RAISES("ValueError", "If entity is not associated with a grid")
-         MCRF_NOTE("radius does not accept None; omit the argument entirely to use the grid default.")
+         MCRF_RAISES("TypeError", "If radius is neither an int nor None")
      )},
     // #296 - Label methods
     {"add_label", (PyCFunction)UIEntity::py_add_label, METH_O,

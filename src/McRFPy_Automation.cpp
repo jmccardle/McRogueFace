@@ -114,7 +114,7 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
 }
 
 // Inject mouse event into the game engine
-void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button) {
+void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button, float scrollDelta) {
     auto engine = getGameEngine();
     if (!engine) return;
 
@@ -141,8 +141,8 @@ void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y
             break;
         case sf::Event::MouseWheelScrolled:
             event.mouseWheelScroll.wheel = sf::Mouse::VerticalWheel;
-            event.mouseWheelScroll.delta = static_cast<float>(x); // x is used for scroll amount
-            event.mouseWheelScroll.x = x;
+            event.mouseWheelScroll.delta = scrollDelta; // #317: scroll amount is its own arg
+            event.mouseWheelScroll.x = x;               // position now honored on both axes
             event.mouseWheelScroll.y = y;
             break;
         default:
@@ -600,8 +600,9 @@ PyObject* McRFPy_Automation::_scroll(PyObject* self, PyObject* args, PyObject* k
         }
     }
 
-    // Inject scroll event
-    injectMouseEvent(sf::Event::MouseWheelScrolled, clicks, y);
+    // Inject scroll event (#317: forward the resolved x/y position; clicks is
+    // the scroll delta, passed via its own argument).
+    injectMouseEvent(sf::Event::MouseWheelScrolled, x, y, sf::Mouse::Left, static_cast<float>(clicks));
 
     Py_RETURN_NONE;
 }
@@ -953,7 +954,7 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARGS_START
          MCRF_ARG("clicks", "Number of scroll steps (positive = up, negative = down)")
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
-         MCRF_NOTE("The x-coordinate of pos is currently unused; only the y-coordinate is applied to the scroll event position.")
+         MCRF_NOTE("Both the x and y of pos are applied to the scroll event position.")
      )},
     {"mouseDown", (PyCFunction)McRFPy_Automation::_mouseDown, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, mouseDown,

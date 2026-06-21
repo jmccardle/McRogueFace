@@ -725,7 +725,7 @@ class Entity:
     def update_visibility(self) -> None:
         """Recompute which cells are visible from this entity's position and update perspective_map."""
         ...
-    def visible_entities(self, fov=None, radius: int = -1) -> list[Entity]:
+    def visible_entities(self, fov=None, radius: int | None = None) -> list[Entity]:
         """Get list of other entities visible from this entity's position."""
         ...
 
@@ -903,7 +903,7 @@ class Grid:
     rotation: Any  # Rotation angle in degrees (clockwise around origin). Animatable property.
     shader: Any  # Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
     size: Vector  # Size of the grid widget as Vector (Vector, width x height in pixels).
-    texture: None  # Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None.
+    texture: Texture | None  # Texture used for tile rendering (Texture | None, read-only).
     uniforms: Any  # Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/...
     vert_margin: float  # Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
     view: GridView | None  # Auto-created GridView for rendering (GridView | None, read-only). When Grid is appended to a scene, this view is what actually renders.
@@ -1013,7 +1013,7 @@ class GridView:
     rotation: Any  # Rotation angle in degrees (clockwise around origin). Animatable property.
     shader: Any  # Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
     size: Vector  # Size of the grid widget as Vector (Vector, width x height in pixels).
-    texture: None  # Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None.
+    texture: Texture | None  # Texture used for tile rendering (Texture | None, read-only).
     uniforms: Any  # Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/...
     vert_margin: float  # Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
     view: GridView | None  # Auto-created GridView for rendering (GridView | None, read-only). When Grid is appended to a scene, this view is what actually renders.

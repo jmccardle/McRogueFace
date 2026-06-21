@@ -43,7 +43,7 @@ public:
     static PyObject* _keyUp(PyObject* self, PyObject* args);
     
     // Helper functions
-    static void injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button = sf::Mouse::Left);
+    static void injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button = sf::Mouse::Left, float scrollDelta = 0.0f);
     static void injectKeyEvent(sf::Event::EventType type, sf::Keyboard::Key key);
     static void injectTextEvent(sf::Uint32 unicode);
     static sf::Keyboard::Key stringToKey(const std::string& keyName);

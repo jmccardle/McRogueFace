@@ -487,7 +487,7 @@ submodule automation
   meth resize :: resize(width, height) or (size) -> None
   meth set_behavior :: set_behavior(type, waypoints=None, turns: int = 0, path=None, pathfinder=None) -> None
   meth update_visibility :: update_visibility() -> None
-  meth visible_entities :: visible_entities(fov=None, radius: int = -1) -> list[Entity]
+  meth visible_entities :: visible_entities(fov=None, radius: int | None = None) -> list[Entity]
 [Font]
   prop family: str (ro)
   prop source: str (ro)
@@ -558,7 +558,7 @@ submodule automation
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
-  prop texture: None (ro)
+  prop texture: Texture | None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
@@ -598,7 +598,7 @@ submodule automation
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
-  prop texture: None (ro)
+  prop texture: Texture | None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)

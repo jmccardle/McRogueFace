@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-06-21 09:39:04*
+*Generated on 2026-06-21 10:11:50*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -1989,19 +1989,17 @@ Note:
 
 **Returns:** None Called automatically when the entity moves if the grid has FOV configured.
 
-#### `visible_entities(fov=None, radius: int = -1) -> list[Entity]`
+#### `visible_entities(fov=None, radius: int | None = None) -> list[Entity]`
 
 Get list of other entities visible from this entity's position.
 
-Note:
-
 **Arguments:**
 - `fov`: FOV algorithm to use (FOV enum or None to use grid.fov)
-- `radius`: FOV radius as int; omit or pass -1 to use the grid's default fov_radius
+- `radius`: FOV radius as int; pass None, omit, or pass -1 to use the grid's default fov_radius
 
 **Returns:** List of Entity objects within field of view, excluding self
 
-**Raises:** ValueError: If entity is not associated with a grid radius does not accept None; omit the argument entirely to use the grid default.
+**Raises:** ValueError: If entity is not associated with a grid TypeError: If radius is neither an int nor None
 
 ### Entity3D
 
@@ -2441,7 +2439,7 @@ Keyword Args:
 - `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
 - `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
-- `texture` *(read-only)*: Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None.
+- `texture` *(read-only)*: Texture used for tile rendering (Texture | None, read-only).
 - `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
@@ -2561,7 +2559,7 @@ Keyword Args:
 - `rotate_with_camera`: Whether to rotate visually with parent Grid's camera_rotation (bool). False (default): stay screen-aligned. True: tilt with camera. Only affects children of UIGrid; ignored for other parents.
 - `rotation`: Rotation angle in degrees (clockwise around origin). Animatable property.
 - `shader`: Shader for GPU visual effects (Shader or None). When set, the drawable is rendered through the shader program. Set to None to disable shader effects.
-- `texture` *(read-only)*: Texture used for tile rendering (None, read-only). Texture return is not yet implemented; always returns None.
+- `texture` *(read-only)*: Texture used for tile rendering (Texture | None, read-only).
 - `uniforms` *(read-only)*: Collection of shader uniforms (read-only access to collection). Set uniforms via dict-like syntax: drawable.uniforms['name'] = value. Supports float, vec2/3/4 tuples, PropertyBinding, and CallableBinding.
 - `vert_margin`: Vertical margin override (float, 0 = use general margin). Invalid for horizontally-centered alignments (CENTER_LEFT, CENTER_RIGHT, CENTER).
 - `visible`: Whether the object is visible (bool). Invisible objects are not rendered or clickable.
