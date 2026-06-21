@@ -57,13 +57,13 @@ The active tier1 queue is empty. The last three findings (#309 Caption float→u
 - **Phase 5.3** -- documentation regenerated; `tools/generate_stubs_v2.py` rewritten as introspection-based so it can no longer drift from the C++ source.
 
 ### Recently Shipped (June 2026)
+- **#317 / #318 / #319** -- The three code-level bugs surfaced by the #314 docstring-accuracy verify pass, fixed together. #317: `automation.scroll()` dropped the x of its position argument (the scroll delta now has its own `injectMouseEvent` parameter, so the real x/y is forwarded). #318: `GridView.texture` always returned `None` (a TODO stub) -- it now returns a `Texture` wrapper (and since `mcrfpy.Grid`/`mcrfpy.GridView` are one type post-#252, both names benefit). #319: `Entity.visible_entities(radius=None)` raised `TypeError` (the `i` format code rejects `None`) -- radius is now parsed as an object so `None`/omitted/`-1` mean "grid default". Regression tests for each; api-surface snapshot re-baselined and docs/stubs regenerated.
 - **#316** -- Sparse (windowed) perspective writeback in `UIEntity::updateVisibility`. The demote+promote passes are now clipped to an AABB sized to `fov_radius` (with a `prev_fov` window cache so a moving entity leaves no trailing "ghost vision"), replacing two full-`W*H` walks per entity. The Phase 5.2 benchmark's flat ~25-36 ms/entity writeback overhead on a 1000x1000 grid collapses to single-digit microseconds (384x-6577x on the cheap algorithms; lost in timing noise on the rest). Adversarial verify caught a regression the happy-path test missed -- externally-assigned maps (the documented `from_bytes` load/resume path) need a one-shot full demote (`perspective_full_demote_pending`) since `prev_fov` only bounds engine-promoted cells; fixed and locked with a 7-section regression test.
 - **#313** -- `UIEntity::grid` migrated from `shared_ptr<UIGrid>` to `shared_ptr<GridData>` (post-#252 refactor cleanup), adding a new public `entity.texture` read/write property. Merged to master.
 - **#314** -- API audit follow-through complete. (1) Snapshot lock: a public API-surface regression test (`tests/unit/api_surface_snapshot_test.py`) enshrines the frozen contract. (2) **F15**: all 289 raw docstring slots across the 20 frozen binding files converted to `MCRF_*` macros (frozen surface 100% compliant), driven by two one-agent-per-file workflows with build/doc gates and an adversarial signature-accuracy verify pass. Property types now resolve to real types (not `Any`) and read-only flags are correct. (3) A strict frozen-docstring gate (`tools/check_frozen_docstrings.sh`, wired into `generate_all_docs.sh`) locks it against regression. Breaking-change findings (F1/F4/F6/F11/F13) closed earlier; F7/F8/F10 deferred as non-1.0. Code-level bugs surfaced by the verify pass filed as #317/#318/#319.
 
 ### Active Follow-Ups
 - **#312** Extend fuzz coverage to remaining public API surface
-- **#317/#318/#319** Minor code bugs found during the #314 verify pass (automation.scroll x ignored; GridView.texture unimplemented; Entity.visible_entities(radius=None) raises)
 
 ### Other Post-7DRL Priorities
 - Progress on the r/roguelikedev tutorial series (#167)
@@ -115,10 +115,9 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-26 open issues across the tracker (#316 closes on merge of this branch). Key groupings:
+22 open issues across the tracker. Key groupings:
 
 - **Recent follow-ups** (#312) -- Fuzz coverage extension
-- **Verify-pass code bugs** (#317, #318, #319) -- automation.scroll x ignored, GridView.texture unimplemented, visible_entities(radius=None) raises
 - **7DRL 2026 carry-over** (#248) -- Crypt of Sokoban remaster, superseded by the 7DRL 2026 entry but still relevant as a demo
 - **Tooling / infrastructure** (#282, #255) -- Modern Clang for TSan/fuzzing, performance profiling
 - **Demos / tutorials** (#167, #154, #156, #55) -- r/roguelikedev series, LLM agent simulations
