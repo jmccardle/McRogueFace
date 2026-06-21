@@ -56,9 +56,12 @@ The active tier1 queue is empty. The last three findings (#309 Caption float→u
 - **Phase 5.2** -- six performance benchmark scripts under `tests/benchmarks/` covering grid.step(), FOV writeback cost, spatial hash vs. O(n), pathfinding with collision labels, multi-GridView render, and Dijkstra variants. Baselines under `tests/benchmarks/baseline/phase5_2/`.
 - **Phase 5.3** -- documentation regenerated; `tools/generate_stubs_v2.py` rewritten as introspection-based so it can no longer drift from the C++ source.
 
-### On Deck (branch `feature/api-freeze-313-314`, pending merge to master)
-- **#313** -- `UIEntity::grid` migrated from `shared_ptr<UIGrid>` to `shared_ptr<GridData>` (post-#252 refactor cleanup). Adds a new public `entity.texture` property. Closes on merge.
-- **#314** -- API freeze decisions locked by a public API-surface snapshot regression test; audit follow-through against `docs/api-audit-2026-04.md` continues.
+### Recently Shipped (June 2026)
+- **#313** -- `UIEntity::grid` migrated from `shared_ptr<UIGrid>` to `shared_ptr<GridData>` (post-#252 refactor cleanup), adding a new public `entity.texture` read/write property. Merged to master.
+- **#314 (partial)** -- API freeze decisions locked by a public API-surface snapshot regression test (`tests/unit/api_surface_snapshot_test.py`, golden enshrines the frozen contract; CI fails on any unclassified exported class). Merged to master.
+
+### In Progress
+- **#314** API audit follow-through (documentation loop): convert remaining raw method docstrings to `MCRF_*` macros (F15), regenerate docs (HTML/MD/man/.pyi), and verify against the 93-item catalog in `docs/api-audit-2026-04.md`. Breaking-change findings (F1/F4/F6/F11/F13) already closed; F7/F8/F10 deferred as non-1.0.
 
 ### Active Follow-Ups
 - **#312** Extend fuzz coverage to remaining public API surface
@@ -115,9 +118,9 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-25 open issues across the tracker. Key groupings:
+24 open issues across the tracker. Key groupings:
 
-- **Recent follow-ups** (#312, #313, #314, #316) -- Fuzz coverage extension, UIEntity grid refactor, API audit follow-through, sparse perspective writeback
+- **Recent follow-ups** (#312, #314, #316) -- Fuzz coverage extension, API audit follow-through, sparse perspective writeback
 - **7DRL 2026 carry-over** (#248) -- Crypt of Sokoban remaster, superseded by the 7DRL 2026 entry but still relevant as a demo
 - **Tooling / infrastructure** (#282, #255) -- Modern Clang for TSan/fuzzing, performance profiling
 - **Demos / tutorials** (#167, #154, #156, #55) -- r/roguelikedev series, LLM agent simulations
