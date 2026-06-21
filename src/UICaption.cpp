@@ -482,12 +482,13 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     float vert_margin = -1.0f;
     PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
 
-    // Keywords list: pos and text are positional-or-keyword. Everything after
-    // the '$' separator (font and friends) is keyword-only.
+    // Keywords list: pos, font, and text are positional-or-keyword (matching the
+    // documented Caption(pos, font, text, ...) signature and the Sprite/Entity
+    // convention). Everything after the '$' separator is keyword-only. (#320)
     static const char* kwlist[] = {
-        "pos", "text",
+        "pos", "font", "text",
         // Keyword-only args follow:
-        "font", "fill_color", "outline_color", "outline", "font_size", "on_click",
+        "fill_color", "outline_color", "outline", "font_size", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y",
         "align", "margin", "horiz_margin", "vert_margin",
         "parent",
@@ -495,9 +496,9 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     };
 
     // '$' marker makes all following args keyword-only (Python 3.3+ format extension).
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Oz$OOOffOifizffOfffO", const_cast<char**>(kwlist),
-                                     &pos_obj, &text,  // pos+text are positional-or-keyword
-                                     &font, &fill_color, &outline_color, &outline, &font_size, &click_handler,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOz$OOffOifizffOfffO", const_cast<char**>(kwlist),
+                                     &pos_obj, &font, &text,  // pos+font+text are positional-or-keyword
+                                     &fill_color, &outline_color, &outline, &font_size, &click_handler,
                                      &visible, &opacity, &z_index, &name, &x, &y,
                                      &align_obj, &margin, &horiz_margin, &vert_margin,
                                      &parent_obj)) {
