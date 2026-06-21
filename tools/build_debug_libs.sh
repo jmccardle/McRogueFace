@@ -80,18 +80,20 @@ fi
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
-CMAKE_EXTRA_FLAGS=""
+# Use an array so multi-word sanitizer flags stay a single -D argument each.
+# (A plain string word-splits, sending e.g. -fno-omit-frame-pointer to cmake as
+# a bare unknown argument.)
+CMAKE_EXTRA_FLAGS=()
 if [ -n "$SANITIZER_FLAGS" ]; then
-    CMAKE_EXTRA_FLAGS="-DCMAKE_C_FLAGS=$SANITIZER_FLAGS -DCMAKE_CXX_FLAGS=$SANITIZER_FLAGS"
+    CMAKE_EXTRA_FLAGS=("-DCMAKE_C_FLAGS=$SANITIZER_FLAGS" "-DCMAKE_CXX_FLAGS=$SANITIZER_FLAGS")
 fi
 
 if [ ! -f Makefile ]; then
     echo "Configuring libtcod-headless ($MODE)..."
-    # shellcheck disable=SC2086
     cmake "$LIBTCOD_DIR" \
         -DCMAKE_BUILD_TYPE=Debug \
         -DBUILD_SHARED_LIBS=ON \
-        $CMAKE_EXTRA_FLAGS
+        "${CMAKE_EXTRA_FLAGS[@]}"
     echo "Configuration complete."
 else
     echo "Makefile exists, skipping configure (use --clean to reconfigure)."
