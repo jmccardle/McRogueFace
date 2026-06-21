@@ -14,11 +14,11 @@
 . ftr VB CB
 . ftr VBI CBI
 .\}
-.TH "MCRFPY" "3" "2026-06-21" "McRogueFace 0.2.7-prerelease-7drl2026-108-g2654253" ""
+.TH "MCRFPY" "3" "2026-06-21" "McRogueFace 0.2.7-prerelease-7drl2026-112-g5eecb2b" ""
 .hy
 .SH McRogueFace API Reference
 .PP
-\f[I]Generated on 2026-06-21 10:11:50\f[R]
+\f[I]Generated on 2026-06-21 12:15:59\f[R]
 .PP
 \f[I]This documentation was dynamically generated from the compiled
 module.\f[R]
@@ -982,6 +982,9 @@ Vector(width, height)).
 - \f[V]fill_color\f[R]: Fill color of the text (Color).
 Returns a copy; modifying components requires reassignment.
 For animation, use `fill_color.r', `fill_color.g', etc.
+- \f[V]font\f[R] \f[I](read-only)\f[R]: Font used for text rendering
+(Font, read-only).
+Reflects the engine default font when none was provided at construction.
 - \f[V]font_size\f[R]: Font size in points (int).
 Clamped to the range [0, 65535].
 - \f[V]global_bounds\f[R] \f[I](read-only)\f[R]: Axis-aligned bounding

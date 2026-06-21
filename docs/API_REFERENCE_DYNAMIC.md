@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-06-21 10:11:50*
+*Generated on 2026-06-21 12:15:59*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -871,6 +871,7 @@ Attributes:
 - `align`: Alignment relative to parent bounds (Alignment enum or None). When set, position is automatically calculated when parent is assigned or resized. Set to None to disable alignment and use manual positioning.
 - `bounds` *(read-only)*: Axis-aligned bounding box (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `fill_color`: Fill color of the text (Color). Returns a copy; modifying components requires reassignment. For animation, use 'fill_color.r', 'fill_color.g', etc.
+- `font` *(read-only)*: Font used for text rendering (Font, read-only). Reflects the engine default font when none was provided at construction.
 - `font_size`: Font size in points (int). Clamped to the range [0, 65535].
 - `global_bounds` *(read-only)*: Axis-aligned bounding box in screen coordinates (tuple, read-only) as a (pos, size) pair of Vectors: (Vector(x, y), Vector(width, height)).
 - `global_position` *(read-only)*: Global screen position (read-only). Calculates absolute position by walking up the parent chain.

@@ -355,6 +355,17 @@ int UICaption::set_text(PyUICaptionObject* self, PyObject* value, void* closure)
     return 0;
 }
 
+PyObject* UICaption::get_font(PyUICaptionObject* self, void* closure)
+{
+    // #320: read-only Font getter. self->font is populated at construction with
+    // either the supplied Font or a wrapper around the engine default font.
+    if (self->font) {
+        Py_INCREF(self->font);
+        return self->font;
+    }
+    Py_RETURN_NONE;
+}
+
 PyObject* UICaption::get_size(PyUICaptionObject* self, void* closure)
 {
     auto bounds = self->data->text.getGlobalBounds();
@@ -415,6 +426,11 @@ PyGetSetDef UICaption::getsetters[] = {
     {"text", (getter)UICaption::get_text, (setter)UICaption::set_text,
      MCRF_PROPERTY(text, "The text string displayed by this Caption (str)."),
      NULL},
+    {"font", (getter)UICaption::get_font, NULL,
+     MCRF_PROPERTY(font,
+         "Font used for text rendering (Font, read-only). Reflects the engine "
+         "default font when none was provided at construction."
+     ), NULL},
     {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member,
      MCRF_PROPERTY(font_size, "Font size in points (int). Clamped to the range [0, 65535]."),
      (void*)5},
@@ -551,13 +567,18 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     if (outline < 0.0f) outline = 0.0f;
     self->data->text.setOutlineThickness(outline);
 
-    // Set the font
+    // Set the font, and remember the Python Font object for the read-only
+    // `font` getter (#320). When no font was provided, expose the engine default
+    // font rather than None so the getter reflects what is actually rendered.
     if (pyfont) {
         self->data->text.setFont(pyfont->font);
+        Py_INCREF(font);
+        Py_XSETREF(self->font, font);
     } else {
         // Use default font when None or not provided
         if (McRFPy_API::default_font) {
             self->data->text.setFont(McRFPy_API::default_font->font);
+            Py_XSETREF(self->font, McRFPy_API::default_font->pyObject());
         }
     }
 

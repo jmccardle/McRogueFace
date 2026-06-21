@@ -27,20 +27,28 @@ def check(label, cond):
 
 font = mcrfpy.Font("assets/JetbrainsMono.ttf")
 
-# Note: Caption has no readable 'font' getter (font is consumed at construction),
-# so the positional order is proven by *acceptance* of a real Font in slot 2 vs.
-# *rejection* of a string there, plus text landing in slot 3.
-
 # --- the bug: 3 positional args (pos, font, text) must work -----------------
 c = mcrfpy.Caption((50, 100), font, "Hello World")
 check("Caption((pos), font, text) does not raise", True)
 check("  -> text bound to 3rd positional", c.text == "Hello World")
 check("  -> x from pos", c.x == 50)
 check("  -> y from pos", c.y == 100)
+check("  -> font getter returns the passed Font (identity)", c.font is font)
 
 # --- font=None positionally still selects the default font -----------------
 c2 = mcrfpy.Caption((10, 20), None, "Defaulted")
 check("Caption((pos), None, text) works (None font -> default)", c2.text == "Defaulted")
+check("  -> font getter reflects default font (not None)", c2.font is not None)
+check("  -> default font is a Font instance", isinstance(c2.font, mcrfpy.Font))
+
+# --- font getter is read-only ----------------------------------------------
+try:
+    c2.font = font
+    check("Caption.font is read-only", False)
+except AttributeError:
+    check("Caption.font is read-only", True)
+except Exception as e:
+    check("Caption.font is read-only (got %s)" % type(e).__name__, False)
 
 # --- font is the 2nd positional (matches Sprite/Entity resource-2nd order) --
 # A real Font in slot 2 must be accepted as the font, NOT misread as text.

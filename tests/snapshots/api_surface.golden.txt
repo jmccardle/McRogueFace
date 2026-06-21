@@ -303,6 +303,7 @@ submodule automation
   prop align: Any (rw)
   prop bounds: tuple (ro)
   prop fill_color: Color (rw)
+  prop font: Font (ro)
   prop font_size: int (rw)
   prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
