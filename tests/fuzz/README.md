@@ -43,9 +43,19 @@ dir). Seed inputs committed to `tests/fuzz/seeds/<target>/` are read-only.
 | `fuzz_grid_entity.py` | EntityCollection append/remove/insert/extend/slice across differently-sized grids, `entity.die` during iteration | #258-#263, #273, #274 |
 | `fuzz_property_types.py` | Random property get/set with type confusion on Frame/Caption/Sprite/Entity/Grid/TileLayer/ColorLayer | #267, #268, #272 |
 | `fuzz_anim_timer_scene.py` | Animation + Timer state machine, Frame reparenting, scene swap in callbacks | #269, #270, #275, #277 |
-| `fuzz_maps_procgen.py` | HeightMap/DiscreteMap ops and conversions, NoiseSource.sample, BSP.to_heightmap | new |
-| `fuzz_fov.py` | grid.compute_fov + is_in_fov, transparent toggling | new |
-| `fuzz_pathfinding_behavior.py` | DijkstraMap, grid.step, entity behavior fields | #273-adjacent |
+| `fuzz_maps_procgen.py` | HeightMap/DiscreteMap ops and conversions, NoiseSource.sample, BSP.to_heightmap, ColorLayer/TileLayer `apply_threshold`/`apply_ranges`/`apply_gradient` | new |
+| `fuzz_fov.py` | grid.compute_fov + is_in_fov, transparent toggling, ColorLayer perspective (`apply_perspective`/`update_perspective`/`clear_perspective`/`draw_fov`) | new |
+| `fuzz_pathfinding_behavior.py` | DijkstraMap, grid.step, entity behavior fields, `Grid.find_path` + full AStarPath (peek/len/bool/iter) | #273-adjacent |
+| `fuzz_audio_dsp.py` | SoundBuffer DSP chain: from_samples/tone/sfxr, concat/mix, pitch_shift/lp/hp/echo/reverb/distortion/bit_crush/gain/normalize/reverse/slice/sfxr_mutate | #312 |
+| `fuzz_import_parsers.py` | Tiled/LDtk external file parsers (`TileSetFile`/`TileMapFile`/`LdtkProject`) via temp-file mutation of real fixtures | #312 |
+| `fuzz_texture_factory.py` | `Texture.from_bytes`/`composite`/`hsl_shift` byte-ingestion + pixel transforms | #312 |
+| `fuzz_shader_bindings.py` | Shader uniform binding lifetime: `uniforms[]`, `PropertyBinding`/`CallableBinding`, target destroyed mid-flight (#270/#271/#277 pattern) | #312 |
+
+Tier C surfaces from #312 are folded into existing targets rather than new
+files: Line/Circle/Arc, `Scene.children` collection ops, and `find`/`find_all`/
+`bresenham`/`lock` live in `fuzz_property_types.py`; grid spatial queries +
+GridPoint dynamic attrs in `fuzz_grid_entity.py`. (The benchmark triplet is
+deliberately excluded — `end_benchmark()` writes a file per call.)
 
 Any target not yet implemented is a stub that still compiles and runs cleanly
 — `make fuzz` reports it as a no-op.

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="4" height="4" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="3">
+ <properties>
+  <property name="map_name" value="test"/>
+ </properties>
+ <tileset firstgid="1" source="test_tileset.tsx"/>
+ <layer id="1" name="Ground" width="4" height="4">
+  <data encoding="csv">
+1,2,1,1,
+2,2,1,3,
+1,1,1,1,
+3,3,2,1
+</data>
+ </layer>
+ <layer id="2" name="Overlay" width="4" height="4">
+  <data encoding="csv">
+0,0,0,0,
+0,9,10,0,
+0,11,12,0,
+0,0,0,0
+</data>
+ </layer>
+ <objectgroup id="3" name="Objects">
+  <object id="1" name="spawn" type="point" x="32" y="32">
+   <properties>
+    <property name="player_start" type="bool" value="true"/>
+   </properties>
+   <point/>
+  </object>
+  <object id="2" name="trigger_zone" x="0" y="0" width="64" height="64">
+   <properties>
+    <property name="zone_id" type="int" value="42"/>
+   </properties>
+  </object>
+ </objectgroup>
+</map>

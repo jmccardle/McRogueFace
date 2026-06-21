@@ -120,7 +120,7 @@ asan-test: asan
 # a Python `fuzz_one_input(data)` function loaded from the script named by
 # the MCRF_FUZZ_TARGET env var. libFuzzer instruments the C++ engine code
 # where all the #258-#278 bugs live. No atheris dependency.
-FUZZ_TARGETS := grid_entity property_types anim_timer_scene maps_procgen fov pathfinding_behavior
+FUZZ_TARGETS := grid_entity property_types anim_timer_scene maps_procgen fov pathfinding_behavior audio_dsp import_parsers texture_factory shader_bindings
 FUZZ_SECONDS ?= 30
 
 # Shared env for running the fuzz binary. PYTHONHOME points at the build-fuzz
