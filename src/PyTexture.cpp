@@ -476,6 +476,13 @@ PyObject* PyTexture::hsl_shift(PyTextureObject* self, PyObject* args, PyObject* 
             &hue_shift, &sat_shift, &lit_shift))
         return NULL;
 
+    // NaN/inf shifts propagate to NaN h/s/l and make the float->Uint8 pixel
+    // casts in hsl_to_rgb undefined behavior; reject them up front. #324
+    if (!std::isfinite(hue_shift) || !std::isfinite(sat_shift) || !std::isfinite(lit_shift)) {
+        PyErr_SetString(PyExc_ValueError, "hsl_shift arguments must be finite");
+        return NULL;
+    }
+
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Texture has invalid internal data");
         return NULL;

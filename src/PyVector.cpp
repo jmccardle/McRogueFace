@@ -607,7 +607,16 @@ PyObject* PyVector::sequence_item(PyObject* obj, Py_ssize_t index)
 PyObject* PyVector::get_int(PyObject* obj, void* closure)
 {
     PyVectorObject* self = (PyVectorObject*)obj;
-    long ix = (long)std::floor(self->data.x);
-    long iy = (long)std::floor(self->data.y);
-    return Py_BuildValue("(ll)", ix, iy);
+    double fx = std::floor(self->data.x);
+    double fy = std::floor(self->data.y);
+    // Reject non-finite or out-of-long-range components: casting NaN/inf (or a
+    // value outside [LONG_MIN, LONG_MAX]) to long is undefined behavior. #325
+    const double LMIN = -9223372036854775808.0;  // -2^63
+    const double LMAX =  9223372036854775808.0;   //  2^63 (exclusive upper bound)
+    if (!(fx >= LMIN && fx < LMAX) || !(fy >= LMIN && fy < LMAX)) {
+        PyErr_SetString(PyExc_OverflowError,
+            "cannot convert non-finite or out-of-range Vector component to int");
+        return NULL;
+    }
+    return Py_BuildValue("(ll)", (long)fx, (long)fy);
 }

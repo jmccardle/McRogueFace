@@ -14,7 +14,7 @@ namespace AudioEffects {
 // ============================================================================
 
 std::vector<int16_t> pitchShift(const std::vector<int16_t>& samples, unsigned int channels, double factor) {
-    if (samples.empty() || factor <= 0.0) return samples;
+    if (samples.empty() || !std::isfinite(factor) || factor <= 0.0) return samples;
 
     size_t frames = samples.size() / channels;
     size_t newFrames = static_cast<size_t>(frames / factor);

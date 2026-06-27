@@ -377,7 +377,7 @@ PyObject* PySoundBuffer::pitch_shift(PySoundBufferObject* self, PyObject* args) 
     double factor;
     if (!PyArg_ParseTuple(args, "d", &factor)) return NULL;
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
-    if (factor <= 0.0) { PyErr_SetString(PyExc_ValueError, "pitch factor must be positive"); return NULL; }
+    if (!std::isfinite(factor) || factor <= 0.0) { PyErr_SetString(PyExc_ValueError, "pitch factor must be a positive finite number"); return NULL; }
 
     auto result = AudioEffects::pitchShift(self->data->samples, self->data->channels, factor);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
