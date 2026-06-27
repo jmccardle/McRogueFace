@@ -129,7 +129,12 @@ PyObject* PyAutoRuleSet::terrain_enum(PyAutoRuleSetObject* self, PyObject*) {
 
     // NONE = 0 (empty terrain)
     PyObject* zero = PyLong_FromLong(0);
-    PyDict_SetItemString(members, "NONE", zero);
+    if (!zero || PyDict_SetItemString(members, "NONE", zero) < 0) {
+        Py_XDECREF(zero);
+        Py_DECREF(members);
+        Py_DECREF(int_enum);
+        return NULL;
+    }
     Py_DECREF(zero);
 
     for (const auto& v : rs.intgrid_values) {
@@ -139,15 +144,33 @@ PyObject* PyAutoRuleSet::terrain_enum(PyAutoRuleSetObject* self, PyObject*) {
             key = "VALUE_" + std::to_string(v.value);
         }
         PyObject* val = PyLong_FromLong(v.value);
-        PyDict_SetItemString(members, key.c_str(), val);
+        // An intgrid value name carrying invalid UTF-8 (untrusted import data)
+        // makes PyDict_SetItemString fail and leaves an exception pending; bail
+        // now rather than calling more Python API with that error set, which
+        // trips a _PyErr_Occurred assertion / abort. #322
+        if (!val || PyDict_SetItemString(members, key.c_str(), val) < 0) {
+            Py_XDECREF(val);
+            Py_DECREF(members);
+            Py_DECREF(int_enum);
+            return NULL;
+        }
         Py_DECREF(val);
     }
 
     // Create enum class: IntEnum(rs.name, members)
     PyObject* name = PyUnicode_FromString(rs.name.c_str());
+    if (!name) {
+        Py_DECREF(members);
+        Py_DECREF(int_enum);
+        return NULL;
+    }
     PyObject* args = PyTuple_Pack(2, name, members);
     Py_DECREF(name);
     Py_DECREF(members);
+    if (!args) {
+        Py_DECREF(int_enum);
+        return NULL;
+    }
 
     PyObject* enum_class = PyObject_Call(int_enum, args, NULL);
     Py_DECREF(args);
