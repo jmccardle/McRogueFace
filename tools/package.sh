@@ -200,8 +200,11 @@ package_linux() {
     if [ -d "$PROJECT_ROOT/__lib" ]; then
         # Copy only essential runtime libraries (not test modules)
         # Core libraries: libpython, libsfml-*, libtcod
+        # NOTE: libtcod.so.2 is the SONAME the executable records in DT_NEEDED;
+        # ship the real object under that exact name (not the bare libtcod.so),
+        # otherwise the runtime loader cannot find it on a clean machine.
         for lib in libpython3.14.so.1.0 libsfml-graphics.so.2.6.1 libsfml-window.so.2.6.1 \
-                   libsfml-system.so.2.6.1 libsfml-audio.so.2.6.1 libtcod.so; do
+                   libsfml-system.so.2.6.1 libsfml-audio.so.2.6.1 libtcod.so.2; do
             [ -f "$PROJECT_ROOT/__lib/$lib" ] && cp "$PROJECT_ROOT/__lib/$lib" "$package_dir/lib/"
         done
 
@@ -215,7 +218,8 @@ package_linux() {
             ln -sf libsfml-system.so.2.6.1 libsfml-system.so.2.6 && \
             ln -sf libsfml-system.so.2.6.1 libsfml-system.so && \
             ln -sf libsfml-audio.so.2.6.1 libsfml-audio.so.2.6 && \
-            ln -sf libsfml-audio.so.2.6.1 libsfml-audio.so)
+            ln -sf libsfml-audio.so.2.6.1 libsfml-audio.so && \
+            ln -sf libtcod.so.2 libtcod.so)
 
         # Copy Python extension modules to correct location (excluding test modules)
         # Must match structure: lib/Python/lib.linux-x86_64-3.14/
