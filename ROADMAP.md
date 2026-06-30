@@ -67,7 +67,7 @@ Coverage extension (#312) added four more: `fuzz_audio_dsp` (SoundBuffer DSP), `
 - **#314** -- API audit follow-through complete. (1) Snapshot lock: a public API-surface regression test (`tests/unit/api_surface_snapshot_test.py`) enshrines the frozen contract. (2) **F15**: all 289 raw docstring slots across the 20 frozen binding files converted to `MCRF_*` macros (frozen surface 100% compliant), driven by two one-agent-per-file workflows with build/doc gates and an adversarial signature-accuracy verify pass. Property types now resolve to real types (not `Any`) and read-only flags are correct. (3) A strict frozen-docstring gate (`tools/check_frozen_docstrings.sh`, wired into `generate_all_docs.sh`) locks it against regression. Breaking-change findings (F1/F4/F6/F11/F13) closed earlier; F7/F8/F10 deferred as non-1.0. Code-level bugs surfaced by the verify pass filed as #317/#318/#319.
 
 ### Active Follow-Ups
-- The #312 fuzz-surfaced bug batch (#321-#325) is now fully fixed on-branch and verified under UBSan/ASan; see Recently Shipped. No open follow-ups from the fuzz run remain -- pending merge to master.
+- The #312 fuzz-surfaced bug batch (#321-#325) is fixed, verified under UBSan/ASan, and merged to master (5ff1198); see Recently Shipped. No open follow-ups from the fuzz run remain. Release note: the gitignored shipped `__lib/libtcod.so` must still be rebuilt from submodule commit 79abc66 so release binaries carry the #321 FOV fix.
 
 ### Other Post-7DRL Priorities
 - Progress on the r/roguelikedev tutorial series (#167)
@@ -119,9 +119,8 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-26 open issues across the tracker. Key groupings:
+21 open issues across the tracker. Key groupings:
 
-- **Fuzz-surfaced bugs** (#321-#325) -- all fixed on-branch (FOV overflow, terrain_enum error-pending abort, three float->int UB casts), pending merge to master
 - **7DRL 2026 carry-over** (#248) -- Crypt of Sokoban remaster, superseded by the 7DRL 2026 entry but still relevant as a demo
 - **Tooling / infrastructure** (#282, #255) -- Modern Clang for TSan/fuzzing, performance profiling
 - **Demos / tutorials** (#167, #154, #156, #55) -- r/roguelikedev series, LLM agent simulations
