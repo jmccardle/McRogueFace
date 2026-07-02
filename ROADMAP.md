@@ -2,7 +2,7 @@
 
 **Version**: 0.2.8 | **Era**: McRogueFace (2D roguelikes) -- on the road to 1.0
 
-For detailed architecture, philosophy, and decision framework, see the [Strategic Direction](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Strategic-Direction) wiki page. For per-issue tracking, see the [Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap).
+For detailed architecture, philosophy, and decision framework, see the [Strategic Direction](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Strategic-Direction) wiki page. For per-issue tracking, see the [Issue Roadmap](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Issue-Roadmap).
 
 ---
 
@@ -68,6 +68,7 @@ Coverage extension (#312) added four more: `fuzz_audio_dsp` (SoundBuffer DSP), `
 - **#314** -- API audit follow-through complete. (1) Snapshot lock: a public API-surface regression test (`tests/unit/api_surface_snapshot_test.py`) enshrines the frozen contract. (2) **F15**: all 289 raw docstring slots across the 20 frozen binding files converted to `MCRF_*` macros (frozen surface 100% compliant), driven by two one-agent-per-file workflows with build/doc gates and an adversarial signature-accuracy verify pass. Property types now resolve to real types (not `Any`) and read-only flags are correct. (3) A strict frozen-docstring gate (`tools/check_frozen_docstrings.sh`, wired into `generate_all_docs.sh`) locks it against regression. Breaking-change findings (F1/F4/F6/F11/F13) closed earlier; F7/F8/F10 deferred as non-1.0. Code-level bugs surfaced by the verify pass filed as #317/#318/#319.
 
 ### Active Follow-Ups
+- **Pre-1.0 memory-model review (July 2026)** filed #326-#338. Five of them are tier1 freeze decisions that must be resolved before the API contract is locked: Color/Vector copy semantics (#326), the `mcrfpy.lock()` threading contract (#327), the bulk-edit convention for future array/buffer APIs (#328), O(n) `grid.entities[i]` indexing (#329), and documenting subinterpreters as out of 1.x scope (#330).
 - The #312 fuzz-surfaced bug batch (#321-#325) is fixed, verified under UBSan/ASan, and merged to master (5ff1198); see Recently Shipped. No open follow-ups from the fuzz run remain.
 - 0.2.8 is released to master (`cf844f4`, pushed) but the `0.2.8` git tag is still local-only -- push it when ready to publish the release.
 
@@ -109,7 +110,7 @@ These are ideas on the horizon -- not yet concrete enough for issues, but worth 
 A spiritual port to MicroPython targeting the PicoCalc and other microcontrollers. Could provide a migration path to retro ROMs or compete in the Pico-8 space. The core idea: strip McRogueFace down to its essential tile/entity/scene model and run it on constrained hardware.
 
 ### McVectorFace Era
-The next major capability expansion. Sparse grid layers, a polygon/shape rendering class, and eventually physics integration. This would support games that aren't purely tile-based -- top-down action, strategy maps with irregular regions, or hybrid tile+vector visuals. See the [Strategic Direction](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Strategic-Direction) wiki for the full era model.
+The next major capability expansion. Sparse grid layers, a polygon/shape rendering class, and eventually physics integration. This would support games that aren't purely tile-based -- top-down action, strategy maps with irregular regions, or hybrid tile+vector visuals. See the [Strategic Direction](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Strategic-Direction) wiki for the full era model.
 
 ### McRogueFace Standard Library
 A built-in collection of reusable GUI widgets and game UI patterns: menus, dialogs, inventory screens, stat bars, text input fields, scrollable lists. These would ship with the engine as importable Python modules, saving every game from reimplementing the same UI primitives. Think of it as `mcrfpy.widgets` -- batteries included.
@@ -121,8 +122,9 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-21 open issues across the tracker. Key groupings:
+34 open issues across the tracker. Key groupings:
 
+- **Memory-model review, July 2026** (#326-#338) -- five tier1 pre-freeze decisions (#326-#330); buffer-protocol/numpy views and perf foundations (#331, #332, #334, #335); longer-horizon refactors and free-threading/numpy strategy (#333, #336, #337, #338)
 - **7DRL 2026 carry-over** (#248) -- Crypt of Sokoban remaster, superseded by the 7DRL 2026 entry but still relevant as a demo
 - **Tooling / infrastructure** (#282, #255) -- Modern Clang for TSan/fuzzing, performance profiling
 - **Demos / tutorials** (#167, #154, #156, #55) -- r/roguelikedev series, LLM agent simulations
@@ -133,13 +135,13 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 - **Rendering** (#107) -- Particle system
 - **Deferred** (#220, #46, #45) -- Subinterpreter support / tests, accessibility modes
 
-See the [Gitea issue tracker](https://gamedev.ffwf.net/gitea/john/McRogueFace/issues) for current status.
+See the [Forgejo issue tracker](https://dev.ffwf.net/forgejo/john/McRogueFace/issues) for current status.
 
 ---
 
 ## Resources
 
-- **Issue Tracker**: [Gitea Issues](https://gamedev.ffwf.net/gitea/john/McRogueFace/issues)
-- **Wiki**: [Strategic Direction](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Strategic-Direction), [Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap), [Development Workflow](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Development-Workflow)
+- **Issue Tracker**: [Forgejo Issues](https://dev.ffwf.net/forgejo/john/McRogueFace/issues)
+- **Wiki**: [Strategic Direction](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Strategic-Direction), [Issue Roadmap](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Issue-Roadmap), [Development Workflow](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Development-Workflow)
 - **Build Guide**: See `CLAUDE.md` for build instructions
 - **Tutorial**: `roguelike_tutorial/` for implementation examples
