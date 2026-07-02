@@ -8,7 +8,7 @@ from time import time
 print("Fetching issues...", end='')
 start = time()
 from gitea import Gitea, Repository, Issue
-g = Gitea("https://gamedev.ffwf.net/gitea", token_text="febad52bd50f87fb17691c5e972597d6fff73452")
+g = Gitea("https://dev.ffwf.net/forgejo", token_text="febad52bd50f87fb17691c5e972597d6fff73452")
 repo = Repository.request(g, "john", "McRogueFace")
 issues = repo.get_issues()
 dur = time() - start

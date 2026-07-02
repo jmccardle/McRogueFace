@@ -143,16 +143,16 @@ scene.activate()
 
 For comprehensive documentation about systems, architecture, and development workflows:
 
-**[Project Wiki](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki)**
+**[Project Wiki](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki)**
 
 Key wiki pages:
 
-- **[Home](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Home)** - Documentation hub with multiple entry points
-- **[Grid System](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Grid-System)** - Three-layer grid architecture
-- **[Python Binding System](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Python-Binding-System)** - C++/Python integration
-- **[Performance and Profiling](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Performance-and-Profiling)** - Optimization tools
-- **[Adding Python Bindings](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Adding-Python-Bindings)** - Step-by-step binding guide
-- **[Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap)** - All open issues organized by system
+- **[Home](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Home)** - Documentation hub with multiple entry points
+- **[Grid System](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Grid-System)** - Three-layer grid architecture
+- **[Python Binding System](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Python-Binding-System)** - C++/Python integration
+- **[Performance and Profiling](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Performance-and-Profiling)** - Optimization tools
+- **[Adding Python Bindings](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Adding-Python-Bindings)** - Step-by-step binding guide
+- **[Issue Roadmap](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Issue-Roadmap)** - All open issues organized by system
 
 ### 📖 Development Guides
 
@@ -207,13 +207,13 @@ PRs will be considered! Please include explicit mention that your contribution i
 
 ### Issue Tracking
 
-The project uses [Gitea Issues](https://gamedev.ffwf.net/gitea/john/McRogueFace/issues) for task tracking and bug reports. Issues are organized with labels:
+The project uses [Forgejo Issues](https://dev.ffwf.net/forgejo/john/McRogueFace/issues) for task tracking and bug reports. Issues are organized with labels:
 
 - **System labels** (grid, animation, python-binding, etc.) - identify which codebase area
 - **Priority labels** (tier1-active, tier2-foundation, tier3-future) - development timeline
 - **Type labels** (Major Feature, Minor Feature, Bugfix, etc.) - effort and scope
 
-See the [Issue Roadmap](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Issue-Roadmap) on the wiki for organized view of all open tasks.
+See the [Issue Roadmap](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Issue-Roadmap) on the wiki for organized view of all open tasks.
 
 ## License
 

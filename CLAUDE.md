@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **IMPORTANT**: This project uses Gitea for issue tracking, documentation, and project management. Always consult and update Gitea resources before and during development work.
 
-**Gitea Instance**: https://gamedev.ffwf.net/gitea/john/McRogueFace
+**Forgejo Instance**: https://dev.ffwf.net/forgejo/john/McRogueFace
 
 ### Core Principles
 
@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 2. **Always Check Gitea First**
    - Before starting work: Check open issues for related tasks or blockers
-   - Before implementing: Read relevant wiki pages per the [Development Workflow](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Development-Workflow) consultation table
+   - Before implementing: Read relevant wiki pages per the [Development Workflow](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Development-Workflow) consultation table
    - When using `/roadmap` command: Query Gitea for up-to-date issue status
    - When researching a feature: Search Gitea wiki and issues before grepping codebase
    - When encountering a bug: Check if an issue already exists
@@ -33,7 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - When discovering undocumented behavior: Note it for wiki update
    - When documentation misleads you: Note it for wiki correction
    - After committing code changes: Update relevant wiki pages (with user permission)
-   - Follow the [Development Workflow](https://gamedev.ffwf.net/gitea/john/McRogueFace/wiki/Development-Workflow) for wiki update procedures
+   - Follow the [Development Workflow](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Development-Workflow) for wiki update procedures
 
 5. **Cross-Reference Everything**
    - Commit messages should reference issue numbers (e.g., "Fixes #104", "Addresses #125")
@@ -95,15 +95,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### MCP Tools Available
 
-Claude Code has access to Gitea MCP tools for:
-- `list_repo_issues` - Query current issues with filtering
-- `get_issue` - Get detailed issue information
-- `create_issue` - Create new issues programmatically
-- `create_issue_comment` - Add comments to issues
-- `edit_issue` - Update issue status, title, body
-- `add_issue_labels` - Tag issues appropriately
-- `add_issue_dependency` / `add_issue_blocking` - Link related issues
-- Plus wiki, milestone, and label management tools
+Claude Code has access to the `forgejo` MCP server (John's own project, `/home/john/Development/forgejo-mcp`). It exposes seven resource-oriented tools plus a built-in manual:
+- `list_gitea` - List issues, labels (with IDs), milestones, comments, releases, wiki pages, PRs, etc.
+- `get_gitea` - Get a single issue, PR, wiki page, or repository
+- `create_gitea` - Create issues (supports `labels=[ids]` at creation), comments, labels, milestones, releases, wiki pages, PRs
+- `edit_gitea` - Edit issues (including `state="closed"`), comments, labels, milestones, releases, wiki pages
+- `delete_gitea` - Delete comments, labels, milestones, releases, wiki pages
+- `link_gitea` / `unlink_gitea` - Add/remove issue labels (`type="issue_label"`), dependencies, and blocking relationships
+- `gitea_manual` - Look up full documentation for any action/resource combination
 
 Use these tools liberally to keep the project organized!
 
@@ -124,11 +123,13 @@ The project uses a structured label system to organize issues:
    - `system:input` - Input handling and events
    - `system:performance` - Performance optimization and profiling
    - `system:documentation` - Documentation infrastructure
+   - `system:procgen` - Procedural Generation (Noise, BSP, Heightmap)
 
 2. **Priority Labels** (development timeline):
    - `priority:tier1-active` - Current development focus - critical path to v1.0
    - `priority:tier2-foundation` - Important foundation work - not blocking v1.0
    - `priority:tier3-future` - Future features - deferred until after v1.0
+   - `priority:tier4-deferred` - Deferred indefinitely
 
 3. **Type/Scope Labels** (effort and complexity):
    - `Major Feature` - Significant time and effort required
@@ -156,17 +157,14 @@ The project uses a structured label system to organize issues:
 - Python API improvement: `system:python-binding`, `priority:tier1-active`, `Minor Feature`
 - Performance work: `system:performance`, `priority:tier1-active`, `Major Feature`, `workflow:needs-benchmark`
 
-**⚠️ CRITICAL BUG**: The Gitea MCP tool (v0.07) has a label application bug documented in `GITEA_MCP_LABEL_BUG_REPORT.md`:
-- `add_issue_labels` and `replace_issue_labels` behave inconsistently
-- Single ID arrays produce different results than multi-ID arrays for the SAME IDs
-- Label IDs do not map reliably to actual labels
+**Applying labels via MCP** (validated 2026-07-02): label operations work correctly with multi-ID arrays.
+- At creation: `create_gitea(resource="issue", labels=[3, 14], ...)`
+- On existing issues: `link_gitea(type="issue_label", index=N, labels=[ids])` (additive) / `unlink_gitea(type="issue_label", index=N, label_id=id)`
+- To look up IDs at runtime: `list_gitea(resource="label")` includes each label's numeric ID
 
-**Workaround Options:**
-1. **Best**: Apply labels manually via web interface: `https://gamedev.ffwf.net/gitea/john/McRogueFace/issues/<number>`
-2. **Automated**: Apply labels ONE AT A TIME using single-element arrays (slower but more reliable)
-3. **Use single-ID mapping** (documented below)
+(An older Gitea MCP server, v0.07, had an ID-mapping bug — report archived in `.archive/GITEA_MCP_LABEL_BUG_REPORT.md`. The one-label-at-a-time workaround is no longer needed.)
 
-**Label ID Reference** (queried from Gitea API 2026-04-09):
+**Label ID Reference** (re-validated against `list_gitea` 2026-07-02):
 ```
 1=Major Feature, 2=Minor Feature, 3=Tiny Feature, 4=Demo Target, 5=Documentation,
 6=Alpha Release Requirement, 7=Refactoring & Cleanup, 8=Bugfix,
