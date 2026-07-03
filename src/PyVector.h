@@ -84,7 +84,14 @@ namespace mcrfpydef {
             "Properties:\n"
             "    x (float): X component.\n"
             "    y (float): Y component.\n"
-            "    int (tuple[int, int], read-only): Integer floor of (x, y).\n"
+            "    int (tuple[int, int], read-only): Integer floor of (x, y).\n\n"
+            "Note:\n"
+            "    Vector is a VALUE TYPE (frozen 1.0 contract): properties that return a\n"
+            "    Vector return a fresh COPY, so mutating a component of the returned object\n"
+            "    is a silent no-op on the original. Use read-modify-writeback\n"
+            "    (v = obj.pos; v.x = 5; obj.pos = v) or whole-value assignment\n"
+            "    (obj.pos = mcrfpy.Vector(5, 0)).\n"
+            "    See also: API stability policy (docs/api-stability.md)\n"
         ),
         .tp_richcompare = PyVector::richcompare,
         .tp_methods = PyVector::methods,

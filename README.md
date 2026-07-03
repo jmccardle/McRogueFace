@@ -160,7 +160,11 @@ In the repository root:
 
 - **[CLAUDE.md](CLAUDE.md)** - Build instructions, testing guidelines, common tasks
 - **[ROADMAP.md](ROADMAP.md)** - Strategic vision and development phases
+- **[docs/api-stability.md](docs/api-stability.md)** - 1.0 compatibility policy (value semantics, bulk-edit convention, subinterpreter exclusion)
+- **[docs/threading-model.md](docs/threading-model.md)** - Threading contract for off-main-thread access via `mcrfpy.lock()`
 - **[roguelike_tutorial/](roguelike_tutorial/)** - Complete roguelike tutorial implementations
+
+> **Note:** Running mcrfpy in a Python subinterpreter is unsupported in 1.x; the module declares `m_size = -1` and will refuse or misbehave. See [#220](https://dev.ffwf.net/forgejo/john/McRogueFace/issues/220).
 
 ## Build Requirements
 
