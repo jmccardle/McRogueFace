@@ -47,7 +47,12 @@ def trial_meta():
 
 # ------------------------------------------------------------------ results
 def build_results_scene(record):
-    baseline = baseline_io.load_baseline()
+    # If this run was just promoted to baseline.json, it IS the baseline --
+    # show FIRST RUN rather than comparing the run against itself.
+    if record.get("_promoted_baseline"):
+        baseline = None
+    else:
+        baseline = baseline_io.load_baseline()
     cmp = baseline_io.compare(record, baseline)
     meta = trial_meta()
 

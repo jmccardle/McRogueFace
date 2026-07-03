@@ -20,7 +20,9 @@ class PathfinderRush(Trial):
     unit = "queries/tick"
     accent = (76, 194, 110)
     description = "A* find_path queries across a static maze"
-    base_load = 5
+    # Queries are issued in a burst on the 100 ms sim tick, so even a handful
+    # spike a single frame; start the ramp at 1 so the sustainable level is found.
+    base_load = 1
     growth = 1.6
 
     def setup(self, scene, ui):
