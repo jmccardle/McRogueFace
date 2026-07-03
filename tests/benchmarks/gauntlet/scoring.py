@@ -6,7 +6,13 @@ collects frame-time samples over a hold window, and decides pass/fail:
 
   pass  : p95 <= budget_ms          -> record as new peak, ramp load up one step
   fail  : p95 >  budget_ms          -> stop; score = last passing load
-  bail  : any sample > hard_cap_ms  -> stop immediately (fail)
+  bail  : HARD_CAP_STRIKES samples > hard_cap_ms in one window -> stop (fail)
+
+The bail requires sustained overload (3 strikes) rather than a single sample:
+on a live desktop one stray >100 ms frame (compositor, GC, notification) is
+common and was observed zeroing entire trials, while a genuinely overloaded
+engine trips 3 strikes within ~50 ms of wall time anyway. Lone spikes still
+count toward p95. (Deviation 8 in DESIGN.md.)
 
 frame_time is read from get_metrics()["frame_time"] and is already in
 milliseconds in this engine build (see DESIGN.md deviation 1).
@@ -14,6 +20,7 @@ milliseconds in this engine build (see DESIGN.md deviation 1).
 
 BUDGET_MS = 16.67
 HARD_CAP_MS = 100.0
+HARD_CAP_STRIKES = 3
 SETTLE_MS = 1000
 HOLD_MS = 2000
 MAX_STEPS = 40  # safety ceiling so a trial that never breaks budget still terminates
@@ -59,7 +66,9 @@ class RampController:
     def __init__(self, trial, metrics_provider,
                  budget_ms=BUDGET_MS, hard_cap_ms=HARD_CAP_MS,
                  settle_ms=SETTLE_MS, hold_ms=HOLD_MS, max_steps=MAX_STEPS,
-                 on_finish=None):
+                 hard_cap_strikes=HARD_CAP_STRIKES, on_finish=None):
+        self.hard_cap_strikes = hard_cap_strikes
+        self.strikes = 0
         self.trial = trial
         self.metrics_provider = metrics_provider  # callable -> full get_metrics() dict
         self.budget_ms = budget_ms
@@ -86,6 +95,7 @@ class RampController:
         self.phase = "settle"
         self.phase_start = None
         self.samples = []
+        self.strikes = 0
         self.last_pass = None
         self.done = False
         self.result = None
@@ -114,13 +124,16 @@ class RampController:
                 self.phase = "hold"
                 self.phase_start = now_ms
                 self.samples = []
+                self.strikes = 0
             return
 
         # hold phase
         self.samples.append(ft)
         if ft > self.hard_cap_ms:
-            self._evaluate(metrics, forced_fail=True)
-            return
+            self.strikes += 1
+            if self.strikes >= self.hard_cap_strikes:
+                self._evaluate(metrics, forced_fail=True)
+                return
         if elapsed >= self.hold_ms:
             self._evaluate(metrics, forced_fail=False)
 

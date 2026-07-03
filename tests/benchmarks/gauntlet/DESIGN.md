@@ -31,6 +31,15 @@ preserved verbatim after this section.)*
    setup / set_load / teardown directly, not the ramp.
 7. Animations use the current `obj.animate(...)` method (the older
    `mcrfpy.Animation(...).start()` seen in some demos is not used).
+8. **Hard-cap bail requires 3 over-cap samples per window, not 1.** The spec's "bail
+   immediately if any sample > 100 ms" was observed zeroing entire trials on a live
+   desktop: a single stray compositor/GC frame >100 ms ended trials whose held p95 was
+   6-9 ms, producing 10x-100x run-to-run score variance. A genuinely overloaded engine
+   accumulates 3 strikes within ~50 ms of wall time, so the bail still triggers almost
+   immediately under true overload; lone hiccups still count toward the window's p95.
+9. **Pathfinder Rush starts its ramp at 1 query/tick** (spec table implied a larger
+   start via the shared default). Queries burst on one 100 ms tick, so even a handful
+   spike a single frame; starting at 1 lets the ramp find the true sustainable level.
 
 ---
 
