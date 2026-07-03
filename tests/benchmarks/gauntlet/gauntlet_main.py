@@ -232,8 +232,8 @@ class Gauntlet:
             info = "unit: %s" % cls.unit
             base = bt.get(cls.key)
             if base:
-                info += "    baseline: %d %s" % (base.get("max_load", 0), cls.unit)
-            ic = mcrfpy.Caption(text=info, pos=(690, y + 4))
+                info += "    baseline: %d" % base.get("max_load", 0)
+            ic = mcrfpy.Caption(text=info, pos=(640, y + 4))
             ic.font_size = 14
             ic.fill_color = color(DIM)
             scene.children.append(ic)

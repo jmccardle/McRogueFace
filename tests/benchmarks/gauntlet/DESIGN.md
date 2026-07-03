@@ -40,6 +40,13 @@ preserved verbatim after this section.)*
 9. **Pathfinder Rush starts its ramp at 1 query/tick** (spec table implied a larger
    start via the shared default). Queries burst on one 100 ms tick, so even a handful
    spike a single frame; starting at 1 lets the ramp find the true sustainable level.
+10. **Committed baseline provenance + variance caveat.** The committed
+    `tests/benchmarks/baseline/gauntlet/baseline.json` is real data from a windowed run
+    on the implementer's machine (2026-07-02, live desktop with Xorg/Firefox running).
+    Even with the strike-based bail, run-to-run scores for callback-heavy trials
+    (notably ANIMATION STORM) varied several-fold between runs on the busy desktop.
+    Treat per-trial deltas below ~2x as noise until a baseline is captured on a quiet
+    system; delete baseline.json and re-run `run_gauntlet.py` to recapture.
 
 ---
 
