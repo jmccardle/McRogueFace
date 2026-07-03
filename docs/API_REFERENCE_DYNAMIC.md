@@ -1,8 +1,10 @@
 # McRogueFace API Reference
 
-*Generated on 2026-06-21 12:15:59*
+*Generated on 2026-07-02 20:21:29*
 
 *This documentation was dynamically generated from the compiled module.*
+
+**Threading:** any access to mcrfpy objects from a non-main thread must happen inside `with mcrfpy.lock():`; behavior outside the lock is undefined. See [docs/threading-model.md](threading-model.md).
 
 ## Table of Contents
 
@@ -134,11 +136,11 @@ Get current performance metrics.
 
 ### `lock() -> _LockContext`
 
-Get a context manager for thread-safe UI updates from background threads.
+Get a context manager for thread-safe access to mcrfpy objects from background threads.
 
 Note:
 
-**Returns:** _LockContext: A context manager that blocks until safe to modify UI Use with `with mcrfpy.lock():` to safely modify UI objects from a background thread. The context manager blocks until the render loop reaches a safe point between frames. Without this, modifying UI from threads may cause visual glitches or crashes.
+**Returns:** _LockContext: A context manager that blocks until safe to touch engine objects Any access to mcrfpy objects from a non-main thread must happen inside `with mcrfpy.lock():`; behavior outside the lock is undefined. On a worker thread the context manager blocks (GIL released) until the render loop opens a safe window between frames; on the main thread it is a no-op. See also: Threading Model (docs/threading-model.md)
 
 ### `log_benchmark(message: str) -> None`
 
@@ -1092,21 +1094,23 @@ Args:
     a: Alpha component (0-255, default 255 = opaque)
 
 Note:
-    When accessing colors from UI elements (e.g., frame.fill_color),
-    you receive a COPY of the color. Modifying it doesn't affect the
-    original. To change a component:
+    Color is a VALUE TYPE (frozen 1.0 contract): properties that return a
+    Color (e.g. frame.fill_color) return a fresh COPY, so mutating a component
+    of the returned object is a silent no-op on the original. The two supported
+    idioms are read-modify-writeback and whole-value assignment:
 
         # This does NOT work:
         frame.fill_color.r = 255  # Modifies a temporary copy
 
-        # Do this instead:
+        # Read-modify-writeback:
         c = frame.fill_color
         c.r = 255
         frame.fill_color = c
 
-        # Or use Animation for sub-properties:
-        anim = mcrfpy.Animation('fill_color.r', 255, 0.5, 'linear')
-        anim.start(frame)
+        # Whole-value assignment:
+        frame.fill_color = mcrfpy.Color(255, 0, 0)
+
+    See also: API stability policy (docs/api-stability.md)
 
 
 **Properties:**
@@ -5074,6 +5078,14 @@ Properties:
     x (float): X component.
     y (float): Y component.
     int (tuple[int, int], read-only): Integer floor of (x, y).
+
+Note:
+    Vector is a VALUE TYPE (frozen 1.0 contract): properties that return a
+    Vector return a fresh COPY, so mutating a component of the returned object
+    is a silent no-op on the original. Use read-modify-writeback
+    (v = obj.pos; v.x = 5; obj.pos = v) or whole-value assignment
+    (obj.pos = mcrfpy.Vector(5, 0)).
+    See also: API stability policy (docs/api-stability.md)
 
 
 **Properties:**

@@ -2034,7 +2034,7 @@ def get_metrics() -> dict:
     """Get current performance metrics."""
     ...
 def lock() -> _LockContext:
-    """Get a context manager for thread-safe UI updates from background threads."""
+    """Get a context manager for thread-safe access to mcrfpy objects from background threads."""
     ...
 def log_benchmark(message: str) -> None:
     """Add a log message to the current benchmark frame."""

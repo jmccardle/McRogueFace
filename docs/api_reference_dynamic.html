@@ -108,9 +108,10 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2026-06-21 12:15:59</em></p>
+        <p><em>Generated on 2026-07-02 20:21:29</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
-        
+        <p><strong>Threading:</strong> any access to mcrfpy objects from a non-main thread must happen inside <code>with mcrfpy.lock():</code>; behavior outside the lock is undefined. See <a href="threading-model.md">docs/threading-model.md</a>.</p>
+
         <div class="toc">
             <h2>Table of Contents</h2>
             <ul>
@@ -249,10 +250,10 @@ Note:</p>
 
         <div class="method-section">
             <h3><code class="function-signature">lock() -> _LockContext</code></h3>
-            <p>Get a context manager for thread-safe UI updates from background threads.
+            <p>Get a context manager for thread-safe access to mcrfpy objects from background threads.
 
 Note:</p>
-            <p><span class='returns'>Returns:</span> _LockContext: A context manager that blocks until safe to modify UI Use with `with mcrfpy.lock():` to safely modify UI objects from a background thread. The context manager blocks until the render loop reaches a safe point between frames. Without this, modifying UI from threads may cause visual glitches or crashes.</p>
+            <p><span class='returns'>Returns:</span> _LockContext: A context manager that blocks until safe to touch engine objects Any access to mcrfpy objects from a non-main thread must happen inside `with mcrfpy.lock():`; behavior outside the lock is undefined. On a worker thread the context manager blocks (GIL released) until the render loop opens a safe window between frames; on the main thread it is a no-op. See also: Threading Model (docs/threading-model.md)</p>
         </div>
 
         <div class="method-section">
@@ -1232,21 +1233,23 @@ Args:
     a: Alpha component (0-255, default 255 = opaque)
 
 Note:
-    When accessing colors from UI elements (e.g., frame.fill_color),
-    you receive a COPY of the color. Modifying it doesn&#x27;t affect the
-    original. To change a component:
+    Color is a VALUE TYPE (frozen 1.0 contract): properties that return a
+    Color (e.g. frame.fill_color) return a fresh COPY, so mutating a component
+    of the returned object is a silent no-op on the original. The two supported
+    idioms are read-modify-writeback and whole-value assignment:
 
         # This does NOT work:
         frame.fill_color.r = 255  # Modifies a temporary copy
 
-        # Do this instead:
+        # Read-modify-writeback:
         c = frame.fill_color
         c.r = 255
         frame.fill_color = c
 
-        # Or use Animation for sub-properties:
-        anim = mcrfpy.Animation(&#x27;fill_color.r&#x27;, 255, 0.5, &#x27;linear&#x27;)
-        anim.start(frame)
+        # Whole-value assignment:
+        frame.fill_color = mcrfpy.Color(255, 0, 0)
+
+    See also: API stability policy (docs/api-stability.md)
 </p>
             <h4>Properties:</h4>
             <ul>
@@ -5351,6 +5354,14 @@ Properties:
     x (float): X component.
     y (float): Y component.
     int (tuple[int, int], read-only): Integer floor of (x, y).
+
+Note:
+    Vector is a VALUE TYPE (frozen 1.0 contract): properties that return a
+    Vector return a fresh COPY, so mutating a component of the returned object
+    is a silent no-op on the original. Use read-modify-writeback
+    (v = obj.pos; v.x = 5; obj.pos = v) or whole-value assignment
+    (obj.pos = mcrfpy.Vector(5, 0)).
+    See also: API stability policy (docs/api-stability.md)
 </p>
             <h4>Properties:</h4>
             <ul>

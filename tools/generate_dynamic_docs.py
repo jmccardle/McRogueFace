@@ -369,7 +369,8 @@ def generate_html_docs():
         <h1>McRogueFace API Reference</h1>
         <p><em>Generated on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
-        
+        <p><strong>Threading:</strong> any access to mcrfpy objects from a non-main thread must happen inside <code>with mcrfpy.lock():</code>; behavior outside the lock is undefined. See <a href="threading-model.md">docs/threading-model.md</a>.</p>
+
         <div class="toc">
             <h2>Table of Contents</h2>
             <ul>
@@ -516,6 +517,8 @@ def generate_markdown_docs():
 *Generated on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
 
 *This documentation was dynamically generated from the compiled module.*
+
+**Threading:** any access to mcrfpy objects from a non-main thread must happen inside `with mcrfpy.lock():`; behavior outside the lock is undefined. See [docs/threading-model.md](threading-model.md).
 
 ## Table of Contents
 
