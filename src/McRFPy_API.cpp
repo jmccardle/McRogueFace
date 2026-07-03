@@ -359,11 +359,13 @@ static PyMethodDef mcrfpyMethods[] = {
     {"lock", PyLock::lock, METH_NOARGS,
      MCRF_METHOD(mcrfpy, lock,
          MCRF_SIG("()", "_LockContext"),
-         MCRF_DESC("Get a context manager for thread-safe UI updates from background threads."),
-         MCRF_RETURNS("_LockContext: A context manager that blocks until safe to modify UI")
-         MCRF_NOTE("Use with `with mcrfpy.lock():` to safely modify UI objects from a background thread. "
-                   "The context manager blocks until the render loop reaches a safe point between frames. "
-                   "Without this, modifying UI from threads may cause visual glitches or crashes.")
+         MCRF_DESC("Get a context manager for thread-safe access to mcrfpy objects from background threads."),
+         MCRF_RETURNS("_LockContext: A context manager that blocks until safe to touch engine objects")
+         MCRF_NOTE("Any access to mcrfpy objects from a non-main thread must happen inside "
+                   "`with mcrfpy.lock():`; behavior outside the lock is undefined. On a worker "
+                   "thread the context manager blocks (GIL released) until the render loop opens a "
+                   "safe window between frames; on the main thread it is a no-op.")
+         MCRF_LINK("docs/threading-model.md", "Threading Model")
      )},
 
     // #215: Bresenham line algorithm (replaces mcrfpy.libtcod.line)
