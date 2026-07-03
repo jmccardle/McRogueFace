@@ -55,7 +55,7 @@ class EntitySwarm(Trial):
                 break
         e = mcrfpy.Entity((x, y), grid=self.grid)
         e.sprite_index = self.rng.choice((84, 85, 86, 100, 101))
-        e.move_speed = 0.0
+        e.move_speed = 0.3  # animate between cells so the swarm spreads visually
         e.set_behavior(SEEK, pathfinder=self.dmap)
         self.entities.append(e)
 
@@ -81,7 +81,7 @@ class EntitySwarm(Trial):
 
     def tick(self, dt_ms):
         self.ticks += 1
-        if self.ticks % 6 == 0:
+        if self.ticks % 4 == 0:
             self._move_target()
         self.grid.step()
 
