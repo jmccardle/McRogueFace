@@ -61,7 +61,11 @@ public:
     // =========================================================================
     // Entity management
     // =========================================================================
-    std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> entities;
+    // #329 - std::vector (was std::list) so grid.entities[i] is O(1). Entity
+    // addresses stay stable via shared_ptr; only node-iterator assumptions
+    // changed (audited: none remain -- all call sites use begin/end/erase/
+    // push_back/find_if, and grid.step() snapshots into a local vector).
+    std::shared_ptr<std::vector<std::shared_ptr<UIEntity>>> entities;
     SpatialHash spatial_hash;  // O(1) entity queries (#115)
 
     // =========================================================================

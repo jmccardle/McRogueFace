@@ -2,13 +2,18 @@
 // UIEntityCollection.h - Collection type for managing entities on a grid
 //
 // Extracted from UIGrid.cpp as part of code organization cleanup.
-// This is a Python sequence/mapping type that wraps std::list<std::shared_ptr<UIEntity>>
+// This is a Python sequence/mapping type that wraps std::vector<std::shared_ptr<UIEntity>>
 // with grid-aware semantics (entities can only belong to one grid at a time).
+//
+// #329 - Backing container is std::vector (was std::list) so indexed access
+// grid.entities[i] is O(1). The iterator is index-based (not a raw container
+// iterator) so mutating the collection mid-iteration can never dangle; a
+// size-change guard raises RuntimeError as before.
 
 #include "Common.h"
 #include "Python.h"
 #include "structmember.h"
-#include <list>
+#include <vector>
 #include <memory>
 
 // Forward declarations
@@ -18,17 +23,20 @@ class UIGrid;
 // Python object for EntityCollection
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> data;
+    std::shared_ptr<std::vector<std::shared_ptr<UIEntity>>> data;
     std::shared_ptr<UIGrid> grid;
 } PyUIEntityCollectionObject;
 
 // Python object for EntityCollection iterator
+// #329 - index-based cursor over the vector. Storing an index (rather than a
+// container iterator) means an erase/insert during iteration can never leave
+// a dangling iterator; the start_size guard still raises RuntimeError on any
+// size change, and the bounds check keeps access memory-safe regardless.
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<std::list<std::shared_ptr<UIEntity>>> data;
-    std::list<std::shared_ptr<UIEntity>>::iterator current;  // Actual list iterator - O(1) increment
-    std::list<std::shared_ptr<UIEntity>>::iterator end;      // End iterator for bounds check
-    int start_size;  // For detecting modification during iteration
+    std::shared_ptr<std::vector<std::shared_ptr<UIEntity>>> data;
+    Py_ssize_t index;      // Current position (O(1) increment, bounds-checked)
+    int start_size;        // For detecting modification during iteration
 } PyUIEntityCollectionIterObject;
 
 // UIEntityCollection - Python collection wrapper

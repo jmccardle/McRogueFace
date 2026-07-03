@@ -31,16 +31,18 @@ PyObject* UIEntityCollectionIter::next(PyUIEntityCollectionIterObject* self)
         return NULL;
     }
 
-    // Check if we've reached the end
-    if (self->current == self->end)
+    // Check if we've reached the end (bounds-checked against live size so a
+    // shrink during iteration can never read past the vector even if the
+    // size-change guard above were bypassed).
+    if (self->index >= static_cast<Py_ssize_t>(self->data->size()))
     {
         PyErr_SetNone(PyExc_StopIteration);
         return NULL;
     }
 
-    // Get current element and advance iterator - O(1) operation
-    auto target = *self->current;
-    ++self->current;
+    // Get current element and advance the index - O(1) random access
+    auto target = (*self->data)[self->index];
+    ++self->index;
 
     // Check cache first to preserve derived class identity
     if (target->serial_number != 0) {
@@ -67,9 +69,8 @@ PyObject* UIEntityCollectionIter::repr(PyUIEntityCollectionIterObject* self)
     if (!self->data) {
         ss << "<UIEntityCollectionIter (invalid internal object)>";
     } else {
-        auto remaining = std::distance(self->current, self->end);
         auto total = self->data->size();
-        ss << "<UIEntityCollectionIter (" << (total - remaining) << "/" << total << " entities)>";
+        ss << "<UIEntityCollectionIter (" << self->index << "/" << total << " entities)>";
     }
     std::string repr_str = ss.str();
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
@@ -98,9 +99,8 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
         return NULL;
     }
 
-    auto it = vec->begin();
-    std::advance(it, index);
-    auto target = *it;
+    // #329 - O(1) random access (was std::advance over a std::list, O(n))
+    auto target = (*vec)[index];
 
     // Check cache first to preserve derived class
     if (target->serial_number != 0) {
@@ -1059,8 +1059,7 @@ PyObject* UIEntityCollection::iter(PyUIEntityCollectionObject* self)
     }
 
     iterObj->data = self->data;
-    iterObj->current = self->data->begin();
-    iterObj->end = self->data->end();
+    iterObj->index = 0;
     iterObj->start_size = self->data->size();
 
     return (PyObject*)iterObj;

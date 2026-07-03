@@ -25,7 +25,7 @@ void GridData::markCompositeDirty() {
 
 GridData::GridData()
 {
-    entities = std::make_shared<std::list<std::shared_ptr<UIEntity>>>();
+    entities = std::make_shared<std::vector<std::shared_ptr<UIEntity>>>();  // #329
     children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
 }
 
