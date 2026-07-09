@@ -63,17 +63,9 @@ static bool ValidateHeightMapSize(PyHeightMapObject* hmap, int grid_x, int grid_
     return true;
 }
 
-// Helper to check if an object is a HeightMap (runtime lookup to avoid static type issues)
+// Helper to check if an object is a HeightMap
 static bool IsHeightMapObject(PyObject* obj, PyHeightMapObject** out_hmap) {
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return false;
-
-    auto* heightmap_type = PyObject_GetAttrString(mcrfpy_module, "HeightMap");
-    Py_DECREF(mcrfpy_module);
-    if (!heightmap_type) return false;
-
-    bool result = PyObject_IsInstance(obj, heightmap_type);
-    Py_DECREF(heightmap_type);
+    bool result = PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyHeightMapType);
 
     if (result && out_hmap) {
         *out_hmap = (PyHeightMapObject*)obj;
@@ -88,19 +80,10 @@ static bool ParseColorArg(PyObject* obj, sf::Color& out_color, const char* arg_n
         return false;
     }
 
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return false;
-
-    auto* color_type = PyObject_GetAttrString(mcrfpy_module, "Color");
-    Py_DECREF(mcrfpy_module);
-    if (!color_type) return false;
-
-    if (PyObject_IsInstance(obj, color_type)) {
+    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyColorType)) {
         out_color = ((PyColorObject*)obj)->data;
-        Py_DECREF(color_type);
         return true;
     }
-    Py_DECREF(color_type);
 
     if (PyTuple_Check(obj) || PyList_Check(obj)) {
         PyObject* seq = PySequence_Fast(obj, "color must be sequence");
@@ -894,19 +877,8 @@ PyObject* PyGridLayerAPI::ColorLayer_at(PyColorLayerObject* self, PyObject* args
         return NULL;
     }
 
-    const sf::Color& color = self->data->at(x, y);
-
-    // Return as mcrfpy.Color
-    auto* color_type = (PyTypeObject*)PyObject_GetAttrString(
-        PyImport_ImportModule("mcrfpy"), "Color");
-    if (!color_type) return NULL;
-
-    PyColorObject* color_obj = (PyColorObject*)color_type->tp_alloc(color_type, 0);
-    Py_DECREF(color_type);
-    if (!color_obj) return NULL;
-
-    color_obj->data = color;
-    return (PyObject*)color_obj;
+    // Return as mcrfpy.Color (#331: direct allocation, no module import per read)
+    return PyColor(self->data->at(x, y)).pyObject();
 }
 
 PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* args) {
@@ -933,24 +905,15 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
 
     // Parse color
     sf::Color color;
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return NULL;
-
-    auto* color_type = PyObject_GetAttrString(mcrfpy_module, "Color");
-    Py_DECREF(mcrfpy_module);
-    if (!color_type) return NULL;
-
-    if (PyObject_IsInstance(color_obj, color_type)) {
+    if (PyObject_IsInstance(color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
         color = ((PyColorObject*)color_obj)->data;
     } else if (PyTuple_Check(color_obj)) {
         int r, g, b, a = 255;
         if (!PyArg_ParseTuple(color_obj, "iii|i", &r, &g, &b, &a)) {
-            Py_DECREF(color_type);
             return NULL;
         }
         // #213 - Validate color component range
         if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
-            Py_DECREF(color_type);
             PyErr_Format(PyExc_ValueError,
                 "color components must be in range 0-255, got (%d, %d, %d, %d)",
                 r, g, b, a);
@@ -958,11 +921,9 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
         }
         color = sf::Color(r, g, b, a);
     } else {
-        Py_DECREF(color_type);
         PyErr_SetString(PyExc_TypeError, "color must be a Color object or (r, g, b[, a]) tuple");
         return NULL;
     }
-    Py_DECREF(color_type);
 
     self->data->at(x, y) = color;
     self->data->markDirty(x, y);  // Mark only the affected chunk
@@ -1006,17 +967,8 @@ PyObject* PyGridLayerAPI::ColorLayer_subscript(PyColorLayerObject* self, PyObjec
         return NULL;
     }
 
-    const sf::Color& color = self->data->at(x, y);
-
-    // Wrap as mcrfpy.Color
-    auto* color_type = (PyTypeObject*)PyObject_GetAttrString(
-        PyImport_ImportModule("mcrfpy"), "Color");
-    if (!color_type) return NULL;
-    PyColorObject* color_obj = (PyColorObject*)color_type->tp_alloc(color_type, 0);
-    Py_DECREF(color_type);
-    if (!color_obj) return NULL;
-    color_obj->data = color;
-    return (PyObject*)color_obj;
+    // Wrap as mcrfpy.Color (#331: direct allocation, no module import per read)
+    return PyColor(self->data->at(x, y)).pyObject();
 }
 
 int PyGridLayerAPI::ColorLayer_subscript_assign(PyColorLayerObject* self, PyObject* key, PyObject* value) {
@@ -1066,24 +1018,15 @@ PyObject* PyGridLayerAPI::ColorLayer_fill(PyColorLayerObject* self, PyObject* ar
 
     // Parse color
     sf::Color color;
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return NULL;
-
-    auto* color_type = PyObject_GetAttrString(mcrfpy_module, "Color");
-    Py_DECREF(mcrfpy_module);
-    if (!color_type) return NULL;
-
-    if (PyObject_IsInstance(color_obj, color_type)) {
+    if (PyObject_IsInstance(color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
         color = ((PyColorObject*)color_obj)->data;
     } else if (PyTuple_Check(color_obj)) {
         int r, g, b, a = 255;
         if (!PyArg_ParseTuple(color_obj, "iii|i", &r, &g, &b, &a)) {
-            Py_DECREF(color_type);
             return NULL;
         }
         // #213 - Validate color component range
         if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
-            Py_DECREF(color_type);
             PyErr_Format(PyExc_ValueError,
                 "color components must be in range 0-255, got (%d, %d, %d, %d)",
                 r, g, b, a);
@@ -1091,11 +1034,9 @@ PyObject* PyGridLayerAPI::ColorLayer_fill(PyColorLayerObject* self, PyObject* ar
         }
         color = sf::Color(r, g, b, a);
     } else {
-        Py_DECREF(color_type);
         PyErr_SetString(PyExc_TypeError, "color must be a Color object or (r, g, b[, a]) tuple");
         return NULL;
     }
-    Py_DECREF(color_type);
 
     self->data->fill(color);
     Py_RETURN_NONE;
@@ -1141,24 +1082,15 @@ PyObject* PyGridLayerAPI::ColorLayer_fill_rect(PyColorLayerObject* self, PyObjec
 
     // Parse color
     sf::Color color;
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return NULL;
-
-    auto* color_type = PyObject_GetAttrString(mcrfpy_module, "Color");
-    Py_DECREF(mcrfpy_module);
-    if (!color_type) return NULL;
-
-    if (PyObject_IsInstance(color_obj, color_type)) {
+    if (PyObject_IsInstance(color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
         color = ((PyColorObject*)color_obj)->data;
     } else if (PyTuple_Check(color_obj)) {
         int r, g, b, a = 255;
         if (!PyArg_ParseTuple(color_obj, "iii|i", &r, &g, &b, &a)) {
-            Py_DECREF(color_type);
             return NULL;
         }
         // #213 - Validate color component range
         if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
-            Py_DECREF(color_type);
             PyErr_Format(PyExc_ValueError,
                 "color components must be in range 0-255, got (%d, %d, %d, %d)",
                 r, g, b, a);
@@ -1166,11 +1098,9 @@ PyObject* PyGridLayerAPI::ColorLayer_fill_rect(PyColorLayerObject* self, PyObjec
         }
         color = sf::Color(r, g, b, a);
     } else {
-        Py_DECREF(color_type);
         PyErr_SetString(PyExc_TypeError, "color must be a Color object or (r, g, b[, a]) tuple");
         return NULL;
     }
-    Py_DECREF(color_type);
 
     self->data->fillRect(x, y, width, height, color);
     Py_RETURN_NONE;
@@ -1233,29 +1163,18 @@ PyObject* PyGridLayerAPI::ColorLayer_draw_fov(PyColorLayerObject* self, PyObject
             return true;
         }
 
-        auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-        if (!mcrfpy_module) return false;
-
-        auto* color_type = PyObject_GetAttrString(mcrfpy_module, "Color");
-        Py_DECREF(mcrfpy_module);
-        if (!color_type) return false;
-
-        if (PyObject_IsInstance(obj, color_type)) {
+        if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyColorType)) {
             out = ((PyColorObject*)obj)->data;
-            Py_DECREF(color_type);
             return true;
         } else if (PyTuple_Check(obj)) {
             int r, g, b, a = 255;
             if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
-                Py_DECREF(color_type);
                 return false;
             }
             out = sf::Color(r, g, b, a);
-            Py_DECREF(color_type);
             return true;
         }
 
-        Py_DECREF(color_type);
         PyErr_Format(PyExc_TypeError, "%s must be a Color object or (r, g, b[, a]) tuple", name);
         return false;
     };
@@ -1295,20 +1214,10 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_perspective(PyColorLayerObject* self,
         return NULL;
     }
 
-    // Get the Entity type
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return NULL;
-
-    auto* entity_type = PyObject_GetAttrString(mcrfpy_module, "Entity");
-    Py_DECREF(mcrfpy_module);
-    if (!entity_type) return NULL;
-
-    if (!PyObject_IsInstance(entity_obj, entity_type)) {
-        Py_DECREF(entity_type);
+    if (!PyObject_IsInstance(entity_obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
         PyErr_SetString(PyExc_TypeError, "entity must be an Entity object");
         return NULL;
     }
-    Py_DECREF(entity_type);
 
     // Get the shared_ptr to the entity
     PyUIEntityObject* py_entity = (PyUIEntityObject*)entity_obj;
@@ -1324,29 +1233,18 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_perspective(PyColorLayerObject* self,
             return true;
         }
 
-        auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-        if (!mcrfpy_module) return false;
-
-        auto* color_type = PyObject_GetAttrString(mcrfpy_module, "Color");
-        Py_DECREF(mcrfpy_module);
-        if (!color_type) return false;
-
-        if (PyObject_IsInstance(obj, color_type)) {
+        if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyColorType)) {
             out = ((PyColorObject*)obj)->data;
-            Py_DECREF(color_type);
             return true;
         } else if (PyTuple_Check(obj)) {
             int r, g, b, a = 255;
             if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
-                Py_DECREF(color_type);
                 return false;
             }
             out = sf::Color(r, g, b, a);
-            Py_DECREF(color_type);
             return true;
         }
 
-        Py_DECREF(color_type);
         PyErr_Format(PyExc_TypeError, "%s must be a Color object or (r, g, b[, a]) tuple", name);
         return false;
     };
@@ -1982,22 +1880,12 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
     // Parse texture
     std::shared_ptr<PyTexture> texture;
     if (texture_obj && texture_obj != Py_None) {
-        // Check if it's a PyTexture
-        auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-        if (!mcrfpy_module) return -1;
-
-        auto* texture_type = PyObject_GetAttrString(mcrfpy_module, "Texture");
-        Py_DECREF(mcrfpy_module);
-        if (!texture_type) return -1;
-
-        if (PyObject_IsInstance(texture_obj, texture_type)) {
+        if (PyObject_IsInstance(texture_obj, (PyObject*)&mcrfpydef::PyTextureType)) {
             texture = ((PyTextureObject*)texture_obj)->data;
         } else {
-            Py_DECREF(texture_type);
             PyErr_SetString(PyExc_TypeError, "texture must be a Texture object");
             return -1;
         }
-        Py_DECREF(texture_type);
     }
 
     // Parse grid_size if provided
@@ -2403,12 +2291,8 @@ PyObject* PyGridLayerAPI::TileLayer_get_texture(PyTileLayerObject* self, void* c
         Py_RETURN_NONE;
     }
 
-    auto* texture_type = (PyTypeObject*)PyObject_GetAttrString(
-        PyImport_ImportModule("mcrfpy"), "Texture");
-    if (!texture_type) return NULL;
-
+    auto* texture_type = &mcrfpydef::PyTextureType;
     PyTextureObject* tex_obj = (PyTextureObject*)texture_type->tp_alloc(texture_type, 0);
-    Py_DECREF(texture_type);
     if (!tex_obj) return NULL;
 
     tex_obj->data = self->data->texture;
@@ -2427,19 +2311,10 @@ int PyGridLayerAPI::TileLayer_set_texture(PyTileLayerObject* self, PyObject* val
         return 0;
     }
 
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return -1;
-
-    auto* texture_type = PyObject_GetAttrString(mcrfpy_module, "Texture");
-    Py_DECREF(mcrfpy_module);
-    if (!texture_type) return -1;
-
-    if (!PyObject_IsInstance(value, texture_type)) {
-        Py_DECREF(texture_type);
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType)) {
         PyErr_SetString(PyExc_TypeError, "texture must be a Texture object or None");
         return -1;
     }
-    Py_DECREF(texture_type);
 
     self->data->texture = ((PyTextureObject*)value)->data;
     self->data->markDirty();  // Mark ALL chunks for re-render (texture change affects all)

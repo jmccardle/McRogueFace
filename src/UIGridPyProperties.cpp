@@ -385,22 +385,8 @@ PyObject* UIGrid::get_layers(PyUIGridObject* self, void* closure) {
     PyObject* tuple = PyTuple_New(self->data->layers.size());
     if (!tuple) return NULL;
 
-    auto* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) {
-        Py_DECREF(tuple);
-        return NULL;
-    }
-
-    auto* color_layer_type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "ColorLayer");
-    auto* tile_layer_type = (PyTypeObject*)PyObject_GetAttrString(mcrfpy_module, "TileLayer");
-    Py_DECREF(mcrfpy_module);
-
-    if (!color_layer_type || !tile_layer_type) {
-        if (color_layer_type) Py_DECREF(color_layer_type);
-        if (tile_layer_type) Py_DECREF(tile_layer_type);
-        Py_DECREF(tuple);
-        return NULL;
-    }
+    auto* color_layer_type = &mcrfpydef::PyColorLayerType;
+    auto* tile_layer_type = &mcrfpydef::PyTileLayerType;
 
     for (size_t i = 0; i < self->data->layers.size(); ++i) {
         auto& layer = self->data->layers[i];
@@ -423,8 +409,6 @@ PyObject* UIGrid::get_layers(PyUIGridObject* self, void* closure) {
         }
 
         if (!py_layer) {
-            Py_DECREF(color_layer_type);
-            Py_DECREF(tile_layer_type);
             Py_DECREF(tuple);
             return NULL;
         }
@@ -432,8 +416,6 @@ PyObject* UIGrid::get_layers(PyUIGridObject* self, void* closure) {
         PyTuple_SET_ITEM(tuple, i, py_layer);
     }
 
-    Py_DECREF(color_layer_type);
-    Py_DECREF(tile_layer_type);
     return tuple;
 }
 

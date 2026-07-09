@@ -1,6 +1,7 @@
 #include "PyTileSetFile.h"
 #include "TiledParse.h"
 #include "PyWangSet.h"
+#include "PyTexture.h"
 #include "McRFPy_Doc.h"
 
 using namespace mcrf::tiled;
@@ -109,22 +110,13 @@ PyObject* PyTileSetFile::get_wang_sets(PyTileSetFileObject* self, void*) {
 
 PyObject* PyTileSetFile::to_texture(PyTileSetFileObject* self, PyObject* args) {
     // Create a PyTexture using the image source and tile dimensions
-    // Get the Texture type from the mcrfpy module (safe cross-compilation-unit access)
-    PyObject* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-    if (!mcrfpy_module) return NULL;
-
-    PyObject* tex_type = PyObject_GetAttrString(mcrfpy_module, "Texture");
-    Py_DECREF(mcrfpy_module);
-    if (!tex_type) return NULL;
-
     PyObject* tex_args = Py_BuildValue("(sii)",
         self->data->image_source.c_str(),
         self->data->tile_width,
         self->data->tile_height);
-    if (!tex_args) { Py_DECREF(tex_type); return NULL; }
+    if (!tex_args) return NULL;
 
-    PyObject* tex = PyObject_Call(tex_type, tex_args, NULL);
-    Py_DECREF(tex_type);
+    PyObject* tex = PyObject_Call((PyObject*)&mcrfpydef::PyTextureType, tex_args, NULL);
     Py_DECREF(tex_args);
     return tex;
 }

@@ -106,16 +106,10 @@ PyObject* PyLdtkProject::tileset(PyLdtkProjectObject* self, PyObject* args) {
         if (self->data->tilesets[i]->name == name) {
             // Return a TileSetFile-compatible object
             // We create a PyTileSetFileObject wrapping our existing TileSetData
-            PyObject* mcrfpy_module = PyImport_ImportModule("mcrfpy");
-            if (!mcrfpy_module) return NULL;
-
-            PyObject* tsf_type = PyObject_GetAttrString(mcrfpy_module, "TileSetFile");
-            Py_DECREF(mcrfpy_module);
-            if (!tsf_type) return NULL;
+            auto* tsf_type = &mcrfpydef::PyTileSetFileType;
 
             // Allocate without calling init (we set data directly)
-            PyObject* tsf_obj = ((PyTypeObject*)tsf_type)->tp_alloc((PyTypeObject*)tsf_type, 0);
-            Py_DECREF(tsf_type);
+            PyObject* tsf_obj = tsf_type->tp_alloc(tsf_type, 0);
             if (!tsf_obj) return NULL;
 
             // Construct the shared_ptr in place using the proper type

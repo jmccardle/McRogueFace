@@ -577,20 +577,8 @@ PyObject* UIDrawable::get_pos(PyObject* self, void* closure) {
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return NULL;
 
-    // Create a Python Vector object from position
-    PyObject* module = PyImport_ImportModule("mcrfpy");
-    if (!module) return NULL;
-    
-    PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
-    Py_DECREF(module);
-    if (!vector_type) return NULL;
-    
-    PyObject* args = Py_BuildValue("(ff)", drawable->position.x, drawable->position.y);
-    PyObject* result = PyObject_CallObject(vector_type, args);
-    Py_DECREF(vector_type);
-    Py_DECREF(args);
-    
-    return result;
+    // #331: direct allocation fast path — no module import or type call per read
+    return PyVector(drawable->position).pyObject();
 }
 
 int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
@@ -619,17 +607,7 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
         }
     } else {
         // Try to get as Vector
-        PyObject* module = PyImport_ImportModule("mcrfpy");
-        if (!module) return -1;
-        
-        PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
-        Py_DECREF(module);
-        if (!vector_type) return -1;
-        
-        int is_vector = PyObject_IsInstance(value, vector_type);
-        Py_DECREF(vector_type);
-        
-        if (is_vector) {
+        if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyVectorType)) {
             PyVectorObject* vec = (PyVectorObject*)value;
             x = vec->data.x;
             y = vec->data.y;
@@ -680,20 +658,8 @@ PyObject* UIDrawable::get_origin(PyObject* self, void* closure) {
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return NULL;
 
-    // Create a Python Vector object from origin
-    PyObject* module = PyImport_ImportModule("mcrfpy");
-    if (!module) return NULL;
-
-    PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
-    Py_DECREF(module);
-    if (!vector_type) return NULL;
-
-    PyObject* args = Py_BuildValue("(ff)", drawable->origin.x, drawable->origin.y);
-    PyObject* result = PyObject_CallObject(vector_type, args);
-    Py_DECREF(vector_type);
-    Py_DECREF(args);
-
-    return result;
+    // #331: direct allocation fast path — no module import or type call per read
+    return PyVector(drawable->origin).pyObject();
 }
 
 int UIDrawable::set_origin(PyObject* self, PyObject* value, void* closure) {
@@ -722,17 +688,7 @@ int UIDrawable::set_origin(PyObject* self, PyObject* value, void* closure) {
         }
     } else {
         // Try to get as Vector
-        PyObject* module = PyImport_ImportModule("mcrfpy");
-        if (!module) return -1;
-
-        PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
-        Py_DECREF(module);
-        if (!vector_type) return -1;
-
-        int is_vector = PyObject_IsInstance(value, vector_type);
-        Py_DECREF(vector_type);
-
-        if (is_vector) {
+        if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyVectorType)) {
             PyVectorObject* vec = (PyVectorObject*)value;
             x = vec->data.x;
             y = vec->data.y;
@@ -1550,22 +1506,8 @@ PyObject* UIDrawable::get_global_pos(PyObject* self, void* closure) {
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return NULL;
 
-    sf::Vector2f global_pos = drawable->get_global_position();
-
-    // Create a Python Vector object
-    PyObject* module = PyImport_ImportModule("mcrfpy");
-    if (!module) return NULL;
-
-    PyObject* vector_type = PyObject_GetAttrString(module, "Vector");
-    Py_DECREF(module);
-    if (!vector_type) return NULL;
-
-    PyObject* args = Py_BuildValue("(ff)", global_pos.x, global_pos.y);
-    PyObject* result = PyObject_CallObject(vector_type, args);
-    Py_DECREF(vector_type);
-    Py_DECREF(args);
-
-    return result;
+    // #331: direct allocation fast path — no module import or type call per read
+    return PyVector(drawable->get_global_position()).pyObject();
 }
 
 // #138, #188 - Python API for bounds property - returns (pos, size) as pair of Vectors
