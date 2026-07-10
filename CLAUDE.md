@@ -541,6 +541,22 @@ make windows        # Windows cross-compile
 make clean && make  # Full rebuild
 ```
 
+### Profiling the Engine (native C++)
+
+For diagnosing/validating C++ hot-path work, use the dedicated profiling build — the
+default Release build omits frame pointers and DWARF, so it can't be annotated. See
+[docs/profiling.md](docs/profiling.md) for the full workflow. Quick version:
+
+```bash
+make profile                                    # build-profile/ : RelWithDebInfo + frame pointers
+make callgrind SCRIPT=tests/benchmarks/foo.py   # deterministic instruction counts, no perms needed
+callgrind_annotate build-profile/callgrind.out | head -60
+```
+
+Callgrind is deterministic (exact `Ir` counts + source line attribution) — ideal for
+A/B-validating optimizations like #331/#342. `perf record --call-graph fp` gives
+wall-clock sampling but needs `sudo sysctl kernel.perf_event_paranoid=1` first.
+
 ### Running and Capturing Output
 ```bash
 # Run with timeout and capture output

@@ -31,6 +31,7 @@ option(MCRF_DEBUG_PYTHON "Link against debug CPython from __lib_debug/" OFF)
 option(MCRF_FREE_THREADED_PYTHON "Link against free-threaded CPython (python3.14t)" OFF)
 option(MCRF_WASM_DEBUG "Build WASM with DWARF debug info and source maps" OFF)
 option(MCRF_FUZZER "Build with libFuzzer coverage instrumentation for atheris" OFF)
+option(MCRF_PROFILE "Keep frame pointers for perf/Callgrind profiling (use with RelWithDebInfo)" OFF)
 
 # Validate mutually exclusive sanitizers
 if(MCRF_SANITIZE_ADDRESS AND MCRF_SANITIZE_THREAD)
@@ -332,6 +333,14 @@ if(MCRF_SANITIZE_THREAD)
         -fsanitize=thread -g -O1)
     target_link_options(mcrogueface PRIVATE
         -fsanitize=thread)
+endif()
+
+# Profiling instrumentation (#345) — retain frame pointers so perf --call-graph fp
+# and Callgrind can unwind through optimized code. Optimization/-g come from the
+# RelWithDebInfo build type; this only adds the frame pointer. Binary is NOT stripped.
+if(MCRF_PROFILE)
+    message(STATUS "Profiling build: frame pointers retained (perf/Callgrind)")
+    target_compile_options(mcrogueface PRIVATE -fno-omit-frame-pointer)
 endif()
 
 if(MCRF_FUZZER)

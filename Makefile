@@ -7,6 +7,10 @@
 #   make clean-windows - Clean Windows build
 #   make run          - Run the Linux build
 #
+# Profiling (see docs/profiling.md):
+#   make profile      - RelWithDebInfo + frame pointers build in build-profile/
+#   make callgrind SCRIPT=tests/benchmarks/foo.py - Callgrind a headless benchmark
+#
 # WebAssembly / Emscripten:
 #   make wasm         - Build full game for web (requires emsdk activated)
 #   make wasm-game    - Build game for web with fullscreen canvas (no REPL)
@@ -31,6 +35,7 @@
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
+.PHONY: profile callgrind clean-profile
 
 # Number of parallel jobs for compilation
 JOBS := $(shell nproc 2>/dev/null || echo 4)
@@ -73,7 +78,7 @@ clean-dist:
 	@echo "Cleaning distribution packages..."
 	@rm -rf dist
 
-clean-all: clean clean-windows clean-wasm clean-debug clean-dist
+clean-all: clean clean-windows clean-wasm clean-debug clean-profile clean-dist
 	@echo "All builds and packages cleaned."
 
 run: linux
@@ -93,6 +98,32 @@ debug-test: debug
 	cd tests && MCRF_BUILD_DIR=../build-debug \
 		MCRF_LIB_DIR=../__lib_debug \
 		python3 run_tests.py -v
+
+# Profiling build (#345): RelWithDebInfo (-O2 -g) + frame pointers, self-contained
+# in build-profile/ (lib/assets/scripts copied like the normal build). Suited to
+# both Callgrind (deterministic, no perms) and perf (--call-graph fp).
+profile:
+	@echo "Building McRogueFace for profiling (RelWithDebInfo + frame pointers)..."
+	@mkdir -p build-profile
+	@cd build-profile && cmake .. \
+		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DMCRF_PROFILE=ON && make -j$(JOBS)
+	@echo "Profile build complete! Binary: build-profile/mcrogueface"
+
+# Callgrind a headless benchmark script. Deterministic, exact instruction counts,
+# no special permissions. Usage: make callgrind SCRIPT=tests/benchmarks/foo.py
+# Output: callgrind.out (feed to callgrind_annotate).
+SCRIPT ?= tests/benchmarks/issue_331_property_read_bench.py
+callgrind: profile
+	@echo "Running Callgrind on $(SCRIPT)..."
+	@cd build-profile && valgrind --tool=callgrind \
+		--callgrind-out-file=callgrind.out \
+		./mcrogueface --headless --exec ../$(SCRIPT)
+	@echo "Done. Annotate with: callgrind_annotate build-profile/callgrind.out | head -60"
+
+clean-profile:
+	@echo "Cleaning profile build..."
+	@rm -rf build-profile
 
 asan:
 	@echo "Building McRogueFace with ASan + UBSan..."
