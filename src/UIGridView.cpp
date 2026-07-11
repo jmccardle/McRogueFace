@@ -29,7 +29,17 @@ UIGridView::UIGridView()
     box.setFillColor(sf::Color(0, 0, 0, 0));
 }
 
-UIGridView::~UIGridView() {}
+UIGridView::~UIGridView() {
+    // #348: release the persistent internal-Grid wrapper. Guard with
+    // Py_IsInitialized() because this destructor may run during interpreter
+    // shutdown (mirrors Animation::~Animation).
+    if (cached_grid_wrapper && Py_IsInitialized()) {
+        PyGILState_STATE gstate = PyGILState_Ensure();
+        Py_DECREF(cached_grid_wrapper);
+        PyGILState_Release(gstate);
+    }
+    cached_grid_wrapper = nullptr;
+}
 
 PyObjectsEnum UIGridView::derived_type()
 {
@@ -658,16 +668,33 @@ PyObject* UIGridView::get_grid(PyUIGridViewObject* self, void* closure)
 {
     if (!self->data->grid_data) Py_RETURN_NONE;
 
+    // #348: fast path -- the view holds a persistent strong ref to the internal
+    // Grid wrapper, so repeated access (grid.at(), grid.entities, layer writes,
+    // per-cell procgen loops) reuses one object instead of allocating a fresh
+    // wrapper + weakref every call (previously 0% cache-hit alloc churn).
+    if (self->data->cached_grid_wrapper) {
+        Py_INCREF(self->data->cached_grid_wrapper);
+        return self->data->cached_grid_wrapper;
+    }
+
     // grid_data is an aliasing shared_ptr into a UIGrid (GridData is a base of UIGrid).
     // Reconstruct shared_ptr<UIGrid> to return the proper Python wrapper.
     auto grid_ptr = static_cast<UIGrid*>(self->data->grid_data.get());
     auto grid_as_uigrid = std::shared_ptr<UIGrid>(
         self->data->grid_data, grid_ptr);
 
-    // Check cache via UIDrawable::serial_number
+    // A wrapper may already exist (user holds grid.grid_data, another view cached
+    // it): honor the serial-number cache, then adopt it as this view's persistent
+    // wrapper so subsequent accesses hit the fast path above.
     if (grid_ptr->serial_number != 0) {
         PyObject* cached = PythonObjectCache::getInstance().lookup(grid_ptr->serial_number);
-        if (cached) return cached;
+        if (cached) {
+            // lookup() returns a new strong ref; keep it as the view's cache and
+            // hand a second ref to the caller.
+            self->data->cached_grid_wrapper = cached;
+            Py_INCREF(cached);
+            return cached;
+        }
     }
 
     auto grid_type = &mcrfpydef::PyUIGridType;
@@ -685,11 +712,19 @@ PyObject* UIGridView::get_grid(PyUIGridViewObject* self, void* closure)
         PythonObjectCache::getInstance().registerObject(grid_ptr->serial_number, weakref);
         Py_DECREF(weakref);
     }
+
+    // Hold one strong ref for the view's lifetime (#348 cache); return a second
+    // ref to the caller.
+    self->data->cached_grid_wrapper = (PyObject*)pyGrid;
+    Py_INCREF((PyObject*)pyGrid);
     return (PyObject*)pyGrid;
 }
 
 int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closure)
 {
+    // #348: the persistent wrapper tracks the *current* grid_data; any reassign
+    // (including to None) invalidates it so get_grid rebuilds for the new data.
+    Py_CLEAR(self->data->cached_grid_wrapper);
     if (value == Py_None) {
         if (self->data->grid_data) {
             self->data->grid_data->owning_view.reset();

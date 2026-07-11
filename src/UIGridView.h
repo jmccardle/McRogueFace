@@ -45,6 +45,14 @@ public:
     // The grid data this view renders
     std::shared_ptr<GridData> grid_data;
 
+    // #348 - Persistent wrapper for the internal UIGrid, so that repeated
+    // attribute delegation (grid.at(), grid.entities, etc.) reuses one Python
+    // object instead of allocating a throwaway wrapper + weakref per access.
+    // The view owns one strong ref for its lifetime; released in ~UIGridView.
+    // No ownership cycle: this wrapper aliases the UIGrid control block, which
+    // is a different object/control block than the view's own PyObject.
+    PyObject* cached_grid_wrapper = nullptr;
+
     // Rendering state (independent per view)
     std::shared_ptr<PyTexture> ptex;
     sf::RectangleShape box;
@@ -187,12 +195,18 @@ namespace mcrfpydef {
                 PyObject* callback = obj->data->click_callable->borrow();
                 if (callback && callback != Py_None) Py_VISIT(callback);
             }
+            // #348: the view owns a strong ref to the internal Grid wrapper.
+            if (obj->data && obj->data->cached_grid_wrapper) {
+                Py_VISIT(obj->data->cached_grid_wrapper);
+            }
             return 0;
         },
         .tp_clear = [](PyObject* self) -> int {
             PyUIGridViewObject* obj = (PyUIGridViewObject*)self;
             if (obj->data) {
                 obj->data->click_unregister();
+                // #348: drop the persistent wrapper; get_grid rebuilds on demand.
+                Py_CLEAR(obj->data->cached_grid_wrapper);
             }
             return 0;
         },
