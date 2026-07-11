@@ -115,6 +115,12 @@ private:
     std::weak_ptr<UIDrawable> targetWeak;
     std::weak_ptr<UIEntity> entityTargetWeak;
     std::weak_ptr<mcrf::Entity3D> entity3dTargetWeak;
+
+    // #342 - Fast path: a scalar-float animation (targetValue holds float) can
+    // interpolate and apply directly, skipping the two per-frame std::variant
+    // std::visit dispatches (interpolate() + applyValue()), which profiling
+    // showed to be ~13% of the animation hot path. Set once at construction.
+    bool isSimpleFloatAnim = false;
     
     // Callback support
     PyObject* pythonCallback = nullptr;  // Python callback function (we own a reference)
@@ -126,6 +132,10 @@ private:
     
     // Helper to interpolate between values
     AnimationValue interpolate(float t) const;
+
+    // #342 - Direct scalar-float interpolation, no std::variant visit. Returns
+    // the eased value; only valid when isSimpleFloatAnim is true.
+    float interpolateFloat(float easedT) const;
     
     // Helper to apply value to target
     void applyValue(UIDrawable* target, const AnimationValue& value);

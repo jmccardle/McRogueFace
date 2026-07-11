@@ -48,6 +48,12 @@ Animation::Animation(const std::string& targetProperty,
     if (pythonCallback) {
         Py_INCREF(pythonCallback);
     }
+
+    // #342 - Scalar-float animations (the overwhelmingly common case: x, y, w, h,
+    // opacity, rotation, color channels...) can interpolate and apply without the
+    // two per-frame std::variant visits. startValue is always float-holding for a
+    // float targetValue (start() only writes float there), so the fast path is safe.
+    isSimpleFloatAnim = std::holds_alternative<float>(targetValue);
 }
 
 Animation::~Animation() {
@@ -311,16 +317,27 @@ bool Animation::update(float deltaTime) {
     float t = duration > 0 ? elapsed / duration : 1.0f;
     float easedT = easingFunc(t);
 
-    // Get interpolated value
-    AnimationValue currentValue = interpolate(easedT);
-
     // Apply to whichever target is valid
-    if (target) {
-        applyValue(target.get(), currentValue);
-    } else if (entity) {
-        applyValue(entity.get(), currentValue);
-    } else if (entity3d) {
-        applyValue(entity3d.get(), currentValue);
+    if (isSimpleFloatAnim) {
+        // #342 - fast path: direct float interpolate + setProperty, skipping the
+        // two per-frame std::variant visits (interpolate() and applyValue()).
+        float v = interpolateFloat(easedT);
+        if (target) {
+            target->setProperty(targetProperty, v);
+        } else if (entity) {
+            entity->setProperty(targetProperty, v);
+        } else if (entity3d) {
+            entity3d->setProperty(targetProperty, v);
+        }
+    } else {
+        AnimationValue currentValue = interpolate(easedT);
+        if (target) {
+            applyValue(target.get(), currentValue);
+        } else if (entity) {
+            applyValue(entity.get(), currentValue);
+        } else if (entity3d) {
+            applyValue(entity3d.get(), currentValue);
+        }
     }
 
     // Trigger callback when animation completes
@@ -336,6 +353,16 @@ AnimationValue Animation::getCurrentValue() const {
     float t = duration > 0 ? elapsed / duration : 1.0f;
     float easedT = easingFunc(t);
     return interpolate(easedT);
+}
+
+float Animation::interpolateFloat(float t) const {
+    // #342 - mirrors the float branch of interpolate() without the std::visit.
+    const float* start = std::get_if<float>(&startValue);
+    const float* tgt = std::get_if<float>(&targetValue);
+    if (!tgt) return start ? *start : 0.0f;   // unreachable when isSimpleFloatAnim
+    if (!start) return *tgt;                  // matches interpolate()'s type-mismatch return
+    if (delta) return *start + *tgt * t;
+    return *start + (*tgt - *start) * t;
 }
 
 AnimationValue Animation::interpolate(float t) const {
