@@ -153,11 +153,12 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
     if (has_camera_rotation) {
         // Ensure rotation texture is large enough
         unsigned int needed_size = static_cast<unsigned int>(std::max(aabb_w, aabb_h) + 1);
+        if (!rotationTexture) rotationTexture = std::make_unique<sf::RenderTexture>();  // #338
         if (rotationTextureSize < needed_size) {
-            rotationTexture.create(needed_size, needed_size);
+            rotationTexture->create(needed_size, needed_size);
             rotationTextureSize = needed_size;
         }
-        activeTexture = &rotationTexture;
+        activeTexture = rotationTexture.get();
         activeTexture->clear(fill_color);
     } else {
         output.setPosition(box.getPosition() + offset);
@@ -385,7 +386,7 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
         renderTexture.clear(fill_color);
 
         // Create sprite from the larger rotated texture
-        sf::Sprite rotatedSprite(rotationTexture.getTexture());
+        sf::Sprite rotatedSprite(rotationTexture->getTexture());
 
         // Set origin to center of the rendered content
         float tex_center_x = aabb_w / 2.0f;

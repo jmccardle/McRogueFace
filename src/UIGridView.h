@@ -82,7 +82,7 @@ public:
     sf::RenderTexture renderTexture;
     sf::Vector2u renderTextureSize{0, 0};
     void ensureRenderTextureSize();
-    sf::RenderTexture rotationTexture;
+    std::unique_ptr<sf::RenderTexture> rotationTexture;  // #338 - lazy: only rotating grids allocate it
     unsigned int rotationTextureSize = 0;
 
     // Property system for animations

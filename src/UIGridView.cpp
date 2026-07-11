@@ -192,11 +192,12 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     if (has_camera_rotation) {
         unsigned int needed_size = static_cast<unsigned int>(std::max(aabb_w, aabb_h) + 1);
+        if (!rotationTexture) rotationTexture = std::make_unique<sf::RenderTexture>();  // #338
         if (rotationTextureSize < needed_size) {
-            rotationTexture.create(needed_size, needed_size);
+            rotationTexture->create(needed_size, needed_size);
             rotationTextureSize = needed_size;
         }
-        activeTexture = &rotationTexture;
+        activeTexture = rotationTexture.get();
         activeTexture->clear(fill_color);
     } else {
         output.setPosition(box.getPosition() + offset);
@@ -322,7 +323,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Camera rotation compositing
     if (has_camera_rotation) {
         renderTexture.clear(fill_color);
-        sf::Sprite rotatedSprite(rotationTexture.getTexture());
+        sf::Sprite rotatedSprite(rotationTexture->getTexture());
         float tex_center_x = aabb_w / 2.0f;
         float tex_center_y = aabb_h / 2.0f;
         rotatedSprite.setOrigin(tex_center_x, tex_center_y);
