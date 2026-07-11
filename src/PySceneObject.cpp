@@ -402,6 +402,14 @@ void PySceneClass::call_on_key(PySceneObject* self, const std::string& key, cons
 
 void PySceneClass::call_update(PySceneObject* self, float dt)
 {
+    // #343: base mcrfpy.Scene defines no update() and has no instance __dict__,
+    // so only Python subclasses can supply one. Skip the per-frame attribute
+    // lookup entirely for non-subclassed scenes (the common case) -- mirrors the
+    // is_python_subclass hover fast-path. Verified in the real doFrame loop:
+    // 4,559 Ir/frame -> 3 Ir/frame (headless step() bypasses this path).
+    if ((PyObject*)Py_TYPE(self) == (PyObject*)&mcrfpydef::PySceneType) {
+        return;
+    }
     PyObject* method = PyObject_GetAttrString((PyObject*)self, "update");
     if (method && PyCallable_Check(method)) {
         PyObject* result = PyObject_CallFunction(method, "f", dt);
