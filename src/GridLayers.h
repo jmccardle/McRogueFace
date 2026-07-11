@@ -193,6 +193,19 @@ typedef struct {
     std::shared_ptr<UIGrid> grid;
 } PyTileLayerObject;
 
+// #335 - context manager returned by ColorLayer.edit()/TileLayer.edit().
+// Supports the buffer protocol (zero-copy numpy/memoryview view of the layer's
+// dense data) and __enter__/__exit__; __exit__ conservatively invalidates the
+// whole layer via markDirty() (#328). Not directly instantiable from Python.
+typedef struct {
+    PyObject_HEAD
+    std::shared_ptr<GridLayer> layer;
+    PyObject* layer_pyobj;   // strong ref keeping the layer's Python wrapper alive
+    Py_ssize_t shape[3];
+    Py_ssize_t strides[3];
+    bool active;
+} PyLayerEditObject;
+
 // Python API classes
 class PyGridLayerAPI {
 public:
@@ -248,6 +261,17 @@ public:
     static PyObject* TileLayer_subscript(PyTileLayerObject* self, PyObject* key);
     static int TileLayer_subscript_assign(PyTileLayerObject* self, PyObject* key, PyObject* value);
     static PyMappingMethods TileLayer_mapping_methods;
+
+    // #335 - layer.edit() context manager: zero-copy writable numpy/memoryview
+    // view of layer data; __exit__ conservatively invalidates (markDirty()).
+    static PyObject* ColorLayer_edit(PyColorLayerObject* self, PyObject* Py_UNUSED(args));
+    static PyObject* TileLayer_edit(PyTileLayerObject* self, PyObject* Py_UNUSED(args));
+    static PyObject* LayerEdit_enter(PyObject* self, PyObject* Py_UNUSED(args));
+    static PyObject* LayerEdit_exit(PyObject* self, PyObject* args);
+    static int LayerEdit_getbuffer(PyObject* exporter, Py_buffer* view, int flags);
+    static void LayerEdit_dealloc(PyObject* self);
+    static PyMethodDef LayerEdit_methods[];
+    static PyBufferProcs LayerEdit_as_buffer;
 
     // Method and getset arrays
     static PyMethodDef ColorLayer_methods[];
@@ -368,5 +392,25 @@ namespace mcrfpydef {
             PyTileLayerObject* self = (PyTileLayerObject*)type->tp_alloc(type, 0);
             return (PyObject*)self;
         }
+    };
+
+    // #335 - layer.edit() context manager / buffer exporter
+    inline PyTypeObject PyLayerEditType = {
+        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .tp_name = "mcrfpy._LayerEdit",
+        .tp_basicsize = sizeof(PyLayerEditObject),
+        .tp_itemsize = 0,
+        .tp_dealloc = (destructor)PyGridLayerAPI::LayerEdit_dealloc,
+        .tp_as_buffer = &PyGridLayerAPI::LayerEdit_as_buffer,
+        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_doc = PyDoc_STR(
+            "Context manager returned by ColorLayer.edit() / TileLayer.edit().\n\n"
+            "Use `with layer.edit() as view:` to obtain a zero-copy, writable\n"
+            "numpy/memoryview of the layer's data (ColorLayer -> (h, w, 4) uint8;\n"
+            "TileLayer -> (h, w) int32). On exit the whole layer is invalidated so\n"
+            "the change is re-rendered. Not directly instantiable."
+        ),
+        .tp_methods = PyGridLayerAPI::LayerEdit_methods,
+        .tp_new = NULL,  // internal only
     };
 }

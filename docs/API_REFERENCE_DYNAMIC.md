@@ -1,6 +1,6 @@
 # McRogueFace API Reference
 
-*Generated on 2026-07-02 20:21:29*
+*Generated on 2026-07-11 02:02:32*
 
 *This documentation was dynamically generated from the compiled module.*
 
@@ -1275,6 +1275,15 @@ Note:
 - `visible`: Color for currently visible cells
 - `discovered`: Color for previously seen cells
 - `unknown`: Color for never-seen cells
+
+#### `edit() -> context manager`
+
+Context manager yielding a zero-copy, writable view of the layer's RGBA data with shape (height, width, 4), dtype uint8. Writes to the view alias the layer's storage (no copy). On exit the whole layer is invalidated and re-rendered.
+
+Note:
+    Use as `with layer.edit() as view:` -- e.g. np.asarray(view)[...] = ....
+
+**See also:** [Bulk-edit convention](#328) (docs/api-stability.md)
 
 #### `fill(color: Color) -> None`
 
@@ -4525,6 +4534,15 @@ Get the tile index at a cell position. Returns -1 if no tile is set.
 **Returns:** Tile index at the specified cell, or -1 if empty
 
 **Raises:** IndexError: If coordinates are out of bounds
+
+#### `edit() -> context manager`
+
+Context manager yielding a zero-copy, writable view of the layer's tile indices with shape (height, width), dtype int32 (-1 = no tile). Writes to the view alias the layer's storage (no copy). On exit the whole layer is invalidated and re-rendered.
+
+Note:
+    Use as `with layer.edit() as view:` -- e.g. np.asarray(view)[...] = ....
+
+**See also:** [Bulk-edit convention](#328) (docs/api-stability.md)
 
 #### `fill(index: int) -> None`
 

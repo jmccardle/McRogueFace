@@ -394,6 +394,7 @@ submodule automation
   meth at :: at(pos: tuple | Vector) or (x: int, y: int) -> Color
   meth clear_perspective :: clear_perspective() -> None
   meth draw_fov :: draw_fov(source: tuple, radius: int | None = None, fov: FOV | None = None, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None
+  meth edit :: edit() -> context manager
   meth fill :: fill(color: Color) -> None
   meth fill_rect :: fill_rect(pos: tuple, size: tuple, color: Color) -> None
   meth set :: set(pos, color: Color) -> None
@@ -824,6 +825,7 @@ submodule automation
   meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> TileLayer
   meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, tile: int) -> TileLayer
   meth at :: at(pos: tuple | Vector) or (x: int, y: int) -> int
+  meth edit :: edit() -> context manager
   meth fill :: fill(index: int) -> None
   meth fill_rect :: fill_rect(pos: tuple, size: tuple, index: int) -> None
   meth set :: set(pos, index: int) -> None

@@ -522,6 +522,9 @@ class ColorLayer:
     def draw_fov(self, source: tuple, radius: int | None = None, fov: FOV | None = None, visible: Color | None = None, discovered: Color | None = None, unknown: Color | None = None) -> None:
         """Paint cells based on field-of-view visibility from a source position."""
         ...
+    def edit(self) -> context manager:
+        """Context manager yielding a zero-copy, writable view of the layer's RGBA data with shape (height, width, 4), dtype uint8. Writes to the view alias the layer's..."""
+        ...
     def fill(self, color: Color) -> None:
         """Fill the entire layer with the specified color."""
         ...
@@ -1544,6 +1547,9 @@ class TileLayer:
         ...
     def at(self, *args, **kwargs) -> Any:
         """at(pos: tuple | Vector) or (x: int, y: int) -> int"""
+        ...
+    def edit(self) -> context manager:
+        """Context manager yielding a zero-copy, writable view of the layer's tile indices with shape (height, width), dtype int32 (-1 = no tile). Writes to the view al..."""
         ...
     def fill(self, index: int) -> None:
         """Fill the entire layer with the specified tile index."""

@@ -557,6 +557,9 @@ PyObject* PyInit_mcrfpy()
         /*game map data - returned by Grid.at() but not directly instantiable*/
         &PyUIGridPointType,
 
+        /*#335: layer.edit() context manager - returned by ColorLayer/TileLayer.edit(), not instantiable*/
+        &mcrfpydef::PyLayerEditType,
+
         /*3D navigation grid - returned by Viewport3D.at() but not directly instantiable*/
         &mcrfpydef::PyVoxelPointType,
 

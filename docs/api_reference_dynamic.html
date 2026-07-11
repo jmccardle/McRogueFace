@@ -108,7 +108,7 @@
 <body>
     <div class="container">
         <h1>McRogueFace API Reference</h1>
-        <p><em>Generated on 2026-07-02 20:21:29</em></p>
+        <p><em>Generated on 2026-07-11 02:02:32</em></p>
         <p><em>This documentation was dynamically generated from the compiled module.</em></p>
         <p><strong>Threading:</strong> any access to mcrfpy objects from a non-main thread must happen inside <code>with mcrfpy.lock():</code>; behavior outside the lock is undefined. See <a href="threading-model.md">docs/threading-model.md</a>.</p>
 
@@ -1415,6 +1415,15 @@ Note:</p>
                     <div><span class='arg-name'>discovered</span>: Color for previously seen cells</div>
                     <div><span class='arg-name'>unknown</span>: Color for never-seen cells</div>
                 </div>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">edit() -> context manager</code></h5>
+                <p>Context manager yielding a zero-copy, writable view of the layer&#x27;s RGBA data with shape (height, width, 4), dtype uint8. Writes to the view alias the layer&#x27;s storage (no copy). On exit the whole layer is invalidated and re-rendered.
+
+Note:
+    Use as `with layer.edit() as view:` -- e.g. np.asarray(view)[...] = ....
+<p class="see-also">See also: <a href="#328">Bulk-edit convention</a></p> (docs/api-stability.md)</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">
@@ -4773,6 +4782,15 @@ Note:</p>
                 </div>
                 <p style='margin-left: 20px;'><span class='returns'>Returns:</span> Tile index at the specified cell, or -1 if empty</p>
                 <p style='margin-left: 20px;'><span class='raises'>Raises:</span> IndexError: If coordinates are out of bounds</p>
+            </div>
+
+            <div style="margin-left: 20px; margin-bottom: 15px;">
+                <h5><code class="method-name">edit() -> context manager</code></h5>
+                <p>Context manager yielding a zero-copy, writable view of the layer&#x27;s tile indices with shape (height, width), dtype int32 (-1 = no tile). Writes to the view alias the layer&#x27;s storage (no copy). On exit the whole layer is invalidated and re-rendered.
+
+Note:
+    Use as `with layer.edit() as view:` -- e.g. np.asarray(view)[...] = ....
+<p class="see-also">See also: <a href="#328">Bulk-edit convention</a></p> (docs/api-stability.md)</p>
             </div>
 
             <div style="margin-left: 20px; margin-bottom: 15px;">

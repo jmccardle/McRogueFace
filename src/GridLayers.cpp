@@ -683,7 +683,129 @@ void TileLayer::render(sf::RenderTarget& target,
 // Python API - ColorLayer
 // =============================================================================
 
+// ============================================================================
+// #335 - layer.edit() zero-copy buffer context manager
+//   with layer.edit() as view:   # ColorLayer -> (h,w,4) uint8; TileLayer -> (h,w) int32
+//       view[...] = ...          # writes alias the layer's data (no copy)
+//   # on __exit__ the whole layer is conservatively invalidated (markDirty),
+//   # so the edit re-renders. Writable views are ONLY reachable via edit() (#328).
+// ============================================================================
+int PyGridLayerAPI::LayerEdit_getbuffer(PyObject* exporter, Py_buffer* view, int flags) {
+    PyLayerEditObject* self = (PyLayerEditObject*)exporter;
+    GridLayer* L = self->layer.get();
+    if (!L) {
+        PyErr_SetString(PyExc_RuntimeError, "layer edit view is no longer valid");
+        view->obj = nullptr;
+        return -1;
+    }
+    const Py_ssize_t w = L->grid_x;
+    const Py_ssize_t h = L->grid_y;
+    if (L->type == GridLayerType::Color) {
+        ColorLayer* cl = static_cast<ColorLayer*>(L);
+        view->buf = cl->colors.data();                 // sf::Color == 4 contiguous uint8 (r,g,b,a)
+        view->len = w * h * 4;
+        view->itemsize = 1;
+        view->format = (flags & PyBUF_FORMAT) ? const_cast<char*>("B") : nullptr;
+        view->ndim = 3;
+        self->shape[0] = h; self->shape[1] = w; self->shape[2] = 4;
+        self->strides[0] = w * 4; self->strides[1] = 4; self->strides[2] = 1;
+    } else {
+        TileLayer* tl = static_cast<TileLayer*>(L);
+        view->buf = tl->tiles.data();
+        view->len = w * h * (Py_ssize_t)sizeof(int);
+        view->itemsize = sizeof(int);
+        view->format = (flags & PyBUF_FORMAT) ? const_cast<char*>("i") : nullptr;  // int32
+        view->ndim = 2;
+        self->shape[0] = h; self->shape[1] = w;
+        self->strides[0] = w * (Py_ssize_t)sizeof(int); self->strides[1] = sizeof(int);
+    }
+    view->obj = exporter;
+    Py_INCREF(exporter);
+    view->readonly = 0;
+    view->shape = self->shape;
+    view->strides = (flags & PyBUF_STRIDES) ? self->strides : nullptr;
+    view->suboffsets = nullptr;
+    view->internal = nullptr;
+    return 0;
+}
+
+PyObject* PyGridLayerAPI::LayerEdit_enter(PyObject* self, PyObject* Py_UNUSED(args)) {
+    PyLayerEditObject* e = (PyLayerEditObject*)self;
+    if (!e->layer) {
+        PyErr_SetString(PyExc_RuntimeError, "layer edit view is no longer valid");
+        return nullptr;
+    }
+    e->active = true;
+    return PyMemoryView_FromObject(self);  // memoryview holds a ref to self (the exporter)
+}
+
+PyObject* PyGridLayerAPI::LayerEdit_exit(PyObject* self, PyObject* args) {
+    (void)args;
+    PyLayerEditObject* e = (PyLayerEditObject*)self;
+    if (e->active && e->layer) {
+        e->layer->markDirty();  // #328 conservative whole-layer invalidation (bumps content_generation, #351)
+    }
+    e->active = false;
+    Py_RETURN_FALSE;  // do not suppress exceptions raised inside the with-block
+}
+
+void PyGridLayerAPI::LayerEdit_dealloc(PyObject* self) {
+    PyLayerEditObject* e = (PyLayerEditObject*)self;
+    Py_XDECREF(e->layer_pyobj);
+    e->layer.reset();
+    Py_TYPE(self)->tp_free(self);
+}
+
+PyMethodDef PyGridLayerAPI::LayerEdit_methods[] = {
+    {"__enter__", (PyCFunction)PyGridLayerAPI::LayerEdit_enter, METH_NOARGS,
+     MCRF_METHOD(_LayerEdit, __enter__,
+         MCRF_SIG("()", "memoryview"),
+         MCRF_DESC("Enter the edit context; returns a writable zero-copy view of the layer data.")
+     )},
+    {"__exit__", (PyCFunction)PyGridLayerAPI::LayerEdit_exit, METH_VARARGS,
+     MCRF_METHOD(_LayerEdit, __exit__,
+         MCRF_SIG("(exc_type, exc_value, traceback)", "bool"),
+         MCRF_DESC("Exit the edit context; conservatively invalidates the whole layer so the edit re-renders.")
+     )},
+    {NULL}
+};
+
+PyBufferProcs PyGridLayerAPI::LayerEdit_as_buffer = {
+    .bf_getbuffer = PyGridLayerAPI::LayerEdit_getbuffer,
+    .bf_releasebuffer = nullptr,
+};
+
+static PyObject* makeLayerEdit(std::shared_ptr<GridLayer> layer, PyObject* layer_pyobj) {
+    auto* e = (PyLayerEditObject*)mcrfpydef::PyLayerEditType.tp_alloc(&mcrfpydef::PyLayerEditType, 0);
+    if (!e) return nullptr;
+    e->layer = layer;                 // tp_alloc zero-inits -> valid empty shared_ptr to assign into
+    e->layer_pyobj = layer_pyobj;
+    Py_XINCREF(layer_pyobj);
+    e->active = false;
+    return (PyObject*)e;
+}
+
+PyObject* PyGridLayerAPI::ColorLayer_edit(PyColorLayerObject* self, PyObject* Py_UNUSED(args)) {
+    if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "ColorLayer not initialized"); return nullptr; }
+    return makeLayerEdit(self->data, (PyObject*)self);
+}
+
+PyObject* PyGridLayerAPI::TileLayer_edit(PyTileLayerObject* self, PyObject* Py_UNUSED(args)) {
+    if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "TileLayer not initialized"); return nullptr; }
+    return makeLayerEdit(self->data, (PyObject*)self);
+}
+
 PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
+    {"edit", (PyCFunction)PyGridLayerAPI::ColorLayer_edit, METH_NOARGS,
+     MCRF_METHOD(ColorLayer, edit,
+         MCRF_SIG("()", "context manager"),
+         MCRF_DESC("Context manager yielding a zero-copy, writable view of the layer's "
+                   "RGBA data with shape (height, width, 4), dtype uint8. Writes to the "
+                   "view alias the layer's storage (no copy). On exit the whole layer is "
+                   "invalidated and re-rendered.")
+         MCRF_NOTE("Use as `with layer.edit() as view:` -- e.g. np.asarray(view)[...] = ....")
+         MCRF_LINK("docs/api-stability.md", "Bulk-edit convention (#328)")
+     )},
     {"at", (PyCFunction)PyGridLayerAPI::ColorLayer_at, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(ColorLayer, at,
          MCRF_SIG("(pos: tuple | Vector) or (x: int, y: int)", "Color"),
@@ -1779,6 +1901,16 @@ PyObject* PyGridLayerAPI::ColorLayer_repr(PyColorLayerObject* self) {
 // =============================================================================
 
 PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
+    {"edit", (PyCFunction)PyGridLayerAPI::TileLayer_edit, METH_NOARGS,
+     MCRF_METHOD(TileLayer, edit,
+         MCRF_SIG("()", "context manager"),
+         MCRF_DESC("Context manager yielding a zero-copy, writable view of the layer's "
+                   "tile indices with shape (height, width), dtype int32 (-1 = no tile). "
+                   "Writes to the view alias the layer's storage (no copy). On exit the "
+                   "whole layer is invalidated and re-rendered.")
+         MCRF_NOTE("Use as `with layer.edit() as view:` -- e.g. np.asarray(view)[...] = ....")
+         MCRF_LINK("docs/api-stability.md", "Bulk-edit convention (#328)")
+     )},
     {"at", (PyCFunction)PyGridLayerAPI::TileLayer_at, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TileLayer, at,
          MCRF_SIG("(pos: tuple | Vector) or (x: int, y: int)", "int"),
