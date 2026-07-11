@@ -386,6 +386,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
             self->data->grid = grid_ptr;
             grid_ptr->entities->push_back(self->data);
             grid_ptr->spatial_hash.insert(self->data);
+            grid_ptr->markDirty();  // #351 - entity added; re-raster view
         }
     }
     return 0;
@@ -468,6 +469,7 @@ int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closur
     // Update spatial hash if grid exists (#115)
     if (self->data->grid) {
         self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+        self->data->grid->markCompositeDirty();  // #351 - entity moved; re-raster view
     }
 
     return 0;
@@ -558,6 +560,7 @@ int UIEntity::set_spritenumber(PyUIEntityObject* self, PyObject* value, void* cl
     }
     //self->data->sprite.sprite_index = val;
     self->data->sprite.setSpriteIndex(val); // todone - I don't like ".sprite.sprite" in this stack of UIEntity.UISprite.sf::Sprite
+    if (self->data->grid) self->data->grid->markDirty();  // #351 - sprite changed; re-raster view
     return 0;
 }
 
@@ -898,6 +901,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
             if (it != entities->end()) {
                 entities->erase(it);
             }
+            self->data->grid->markDirty();  // #351 - entity removed; re-raster view
             self->data->grid.reset();
 
             // Release identity strong ref -- entity left grid
@@ -934,6 +938,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         if (it != old_entities->end()) {
             old_entities->erase(it);
         }
+        self->data->grid->markDirty();  // #351 - entity left old grid; re-raster
     }
 
     // Add to new grid
@@ -941,6 +946,7 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         new_grid->entities->push_back(self->data);
         self->data->grid = new_grid;
         new_grid->spatial_hash.insert(self->data);  // #274
+        new_grid->markDirty();  // #351 - entity added to new grid; re-raster
         // #294: perspective_map is lazy -- the next updateVisibility() call
         // (or first `entity.perspective_map` access) allocates sized to the
         // new grid. We deliberately do NOT preserve or clear the old map:
@@ -1167,6 +1173,7 @@ PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
         grid->spatial_hash.remove(self->data);
 
         entities->erase(it);
+        grid->markDirty();  // #351 - entity died; re-raster view
         // Clear the grid reference
         self->data->grid.reset();
 

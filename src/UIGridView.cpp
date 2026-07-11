@@ -134,6 +134,45 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     ensureRenderTextureSize();
 
+    // #351 - clean-state early-out: re-blit the cached RenderTexture when nothing
+    // affecting the raster changed since last frame. Camera params are compared
+    // directly (view-local); grid content changes bump content_generation. The
+    // perspective overlay (checked authoritatively on the UIGrid, since the view's
+    // copy is not resynced at runtime) and any grid children are conservative
+    // always-render carve-outs until tracked precisely (#352).
+    UIGrid* ugrid = static_cast<UIGrid*>(grid_data.get());
+    bool perspective_active = perspective_enabled || (ugrid && ugrid->perspective_enabled);
+    bool can_skip =
+        has_rendered_once
+        && !perspective_active
+        && (!grid_data->children || grid_data->children->empty())
+        && grid_data->content_generation == last_content_gen
+        && center_x == last_center_x && center_y == last_center_y
+        && zoom == last_zoom && camera_rotation == last_camera_rotation
+        && box.getSize() == last_box_size
+        && fill_color == last_fill_color
+        && renderTextureSize == last_render_tex_size;
+    if (can_skip) {
+        if (rotation != 0.0f) {
+            output.setOrigin(origin);
+            output.setRotation(rotation);
+            output.setPosition(box.getPosition() + offset + origin);
+        } else {
+            output.setOrigin(0, 0);
+            output.setRotation(0);
+            output.setPosition(box.getPosition() + offset);
+        }
+        if (shader && shader->shader) {
+            sf::Vector2f resolution(box.getSize().x, box.getSize().y);
+            PyShader::applyEngineUniforms(*shader->shader, resolution);
+            if (uniforms) uniforms->applyTo(*shader->shader);
+            target.draw(output, shader->shader.get());
+        } else {
+            target.draw(output);
+        }
+        return;
+    }
+
     int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
     int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
 
@@ -304,6 +343,17 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         output.setOrigin(0, 0);
         output.setRotation(0);
     }
+
+    // #351 - record the inputs this raster was built from for next frame's early-out.
+    has_rendered_once = true;
+    last_content_gen = grid_data->content_generation;
+    last_center_x = center_x;
+    last_center_y = center_y;
+    last_zoom = zoom;
+    last_camera_rotation = camera_rotation;
+    last_box_size = box.getSize();
+    last_fill_color = fill_color;
+    last_render_tex_size = renderTextureSize;
 
     if (shader && shader->shader) {
         sf::Vector2f resolution(box.getSize().x, box.getSize().y);

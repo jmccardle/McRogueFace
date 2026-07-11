@@ -64,6 +64,19 @@ public:
     std::weak_ptr<UIEntity> perspective_entity;
     bool perspective_enabled = false;
 
+    // #351 - clean-state render early-out cache. These record the inputs the
+    // current RenderTexture was rasterized from; render() re-blits the cached
+    // texture instead of clear+redraw when none changed. Camera params are
+    // view-local (compared directly); grid content changes bump
+    // GridData::content_generation. Perspective overlays and grid children are
+    // dynamic sources not tracked precisely yet (#352) -> conservative full render.
+    bool has_rendered_once = false;
+    uint64_t last_content_gen = 0;
+    float last_center_x = 0.f, last_center_y = 0.f, last_zoom = 0.f, last_camera_rotation = 0.f;
+    sf::Vector2f last_box_size{-1.f, -1.f};
+    sf::Color last_fill_color{0, 0, 0, 0};
+    sf::Vector2u last_render_tex_size{0, 0};
+
     // Render textures
     sf::Sprite sprite_proto, output;
     sf::RenderTexture renderTexture;

@@ -163,6 +163,7 @@ void GridLayer::initChunks() {
 void GridLayer::markDirty() {
     // Mark ALL chunks as dirty
     std::fill(chunk_dirty.begin(), chunk_dirty.end(), true);
+    if (parent_grid) parent_grid->content_generation++;  // #351 - view early-out
 }
 
 void GridLayer::markDirty(int cell_x, int cell_y) {
@@ -173,6 +174,7 @@ void GridLayer::markDirty(int cell_x, int cell_y) {
     if (chunk_idx >= 0 && chunk_idx < static_cast<int>(chunk_dirty.size())) {
         chunk_dirty[chunk_idx] = true;
     }
+    if (parent_grid) parent_grid->content_generation++;  // #351 - view early-out
 }
 
 int GridLayer::getChunkIndex(int cell_x, int cell_y) const {

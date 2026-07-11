@@ -148,6 +148,13 @@ public:
     // =========================================================================
     std::weak_ptr<UIGridView> owning_view;
 
+    // #351 - Monotonic counter bumped whenever grid content drawn into a view's
+    // RenderTexture changes (entities added/removed/moved, sprite changes, layer
+    // edits, layer add/remove). UIGridView compares it against the generation it
+    // last rendered to skip re-rasterizing an unchanged grid. Camera parameters
+    // live on the view and are compared there directly, not counted here.
+    uint64_t content_generation = 0;
+
     // #313 - Render invalidation from the data layer. Entities hold
     // shared_ptr<GridData> but still need to invalidate rendering when their
     // visual state changes. These set the dirty flags on the UIGrid subobject

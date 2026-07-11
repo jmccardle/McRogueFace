@@ -10,6 +10,7 @@
 // GridData is never independently heap-allocated (always a UIGrid base
 // subobject), so the downcast is valid; remove once #252 allows pure GridData.
 void GridData::markDirty() {
+    content_generation++;  // #351 - content changed; invalidate view early-out
     static_cast<UIGrid*>(this)->UIDrawable::markDirty();
     if (auto view = owning_view.lock()) {
         view->markDirty();
@@ -17,6 +18,7 @@ void GridData::markDirty() {
 }
 
 void GridData::markCompositeDirty() {
+    content_generation++;  // #351 - content changed; invalidate view early-out
     static_cast<UIGrid*>(this)->UIDrawable::markCompositeDirty();
     if (auto view = owning_view.lock()) {
         view->markCompositeDirty();
@@ -176,6 +178,7 @@ std::shared_ptr<ColorLayer> GridData::addColorLayer(int z_index, const std::stri
     layer->name = name;
     layers.push_back(layer);
     layers_need_sort = true;
+    content_generation++;  // #351 - layer set changed
     return layer;
 }
 
@@ -185,6 +188,7 @@ std::shared_ptr<TileLayer> GridData::addTileLayer(int z_index, std::shared_ptr<P
     layer->name = name;
     layers.push_back(layer);
     layers_need_sort = true;
+    content_generation++;  // #351 - layer set changed
     return layer;
 }
 
@@ -197,6 +201,7 @@ void GridData::removeLayer(std::shared_ptr<GridLayer> layer)
     if (layer) {
         layer->parent_grid = nullptr;
     }
+    content_generation++;  // #351 - layer set changed
 }
 
 void GridData::sortLayers()
