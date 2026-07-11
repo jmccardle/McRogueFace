@@ -1318,6 +1318,49 @@ PyObject* PyDiscreteMap::mask(PyDiscreteMapObject* self, PyObject* Py_UNUSED(arg
 }
 
 // ============================================================================
+// Buffer protocol (#334) - zero-copy 2D (h, w) uint8 view.
+//   np.asarray(dmap)  ->  shape (h, w), dtype uint8, C-contiguous, writable.
+// The exporter (this object) owns the buffer via its shared_ptr<DiscreteMap>;
+// INCREF keeps it alive for the view's lifetime (balanced by the default
+// PyBuffer_Release DECREF -- no bf_releasebuffer needed). shape/strides live on
+// the object (dimensions are immutable after construction, so concurrent views
+// safely share them).
+// ============================================================================
+int PyDiscreteMap::getbuffer(PyObject* exporter, Py_buffer* view, int flags)
+{
+    PyDiscreteMapObject* self = reinterpret_cast<PyDiscreteMapObject*>(exporter);
+    if (!self->values) {
+        PyErr_SetString(PyExc_RuntimeError, "DiscreteMap not initialized");
+        view->obj = nullptr;
+        return -1;
+    }
+
+    self->buf_shape[0] = self->h;      // rows
+    self->buf_shape[1] = self->w;      // cols
+    self->buf_strides[0] = self->w;    // itemsize == 1, so byte strides == element strides
+    self->buf_strides[1] = 1;
+
+    view->buf = self->values;
+    view->obj = exporter;
+    Py_INCREF(exporter);
+    view->len = static_cast<Py_ssize_t>(self->w) * static_cast<Py_ssize_t>(self->h);
+    view->readonly = 0;
+    view->itemsize = 1;
+    view->format = (flags & PyBUF_FORMAT) ? const_cast<char*>("B") : nullptr;
+    view->ndim = 2;
+    view->shape = self->buf_shape;
+    view->strides = (flags & PyBUF_STRIDES) ? self->buf_strides : nullptr;
+    view->suboffsets = nullptr;
+    view->internal = nullptr;
+    return 0;
+}
+
+PyBufferProcs PyDiscreteMap::as_buffer = {
+    .bf_getbuffer = PyDiscreteMap::getbuffer,
+    .bf_releasebuffer = nullptr,
+};
+
+// ============================================================================
 // Serialization
 // ============================================================================
 

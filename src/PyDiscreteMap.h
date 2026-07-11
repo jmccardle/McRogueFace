@@ -22,6 +22,8 @@ typedef struct {
     uint8_t* values;                    // cached data->data()
     int w, h;                           // cached data->width()/height()
     PyObject* enum_type;                // Optional Python IntEnum for value interpretation
+    Py_ssize_t buf_shape[2];            // #334 - buffer-protocol (h, w) view shape
+    Py_ssize_t buf_strides[2];          // #334 - row-major strides {w, 1}
 } PyDiscreteMapObject;
 
 class PyDiscreteMap
@@ -74,6 +76,10 @@ public:
     static PyObject* to_bool(PyDiscreteMapObject* self, PyObject* args, PyObject* kwds);
     static PyObject* mask(PyDiscreteMapObject* self, PyObject* Py_UNUSED(args));
 
+    // Buffer protocol (#334) - zero-copy numpy view: np.asarray(dmap) -> (h, w) uint8
+    static int getbuffer(PyObject* exporter, Py_buffer* view, int flags);
+    static PyBufferProcs as_buffer;
+
     // Serialization
     static PyObject* to_bytes(PyDiscreteMapObject* self, PyObject* Py_UNUSED(args));
     static PyObject* from_bytes(PyTypeObject* type, PyObject* args, PyObject* kwds);
@@ -99,6 +105,7 @@ namespace mcrfpydef {
         .tp_dealloc = (destructor)PyDiscreteMap::dealloc,
         .tp_repr = PyDiscreteMap::repr,
         .tp_as_mapping = &PyDiscreteMap::mapping_methods,  // dmap[x, y] subscript
+        .tp_as_buffer = &PyDiscreteMap::as_buffer,         // #334 - np.asarray zero-copy
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR(
             "DiscreteMap(size: tuple[int, int], fill: int = 0, enum: type[IntEnum] = None)\n\n"
