@@ -17,6 +17,7 @@ import mcrfpy
 
 from gauntlet_main import Gauntlet, disable_vsync
 import baseline_io
+import safety
 
 
 def _print_summary(record):
@@ -37,6 +38,17 @@ def _print_summary(record):
 
 
 def main():
+    # Machine-saver: hard-cap this process's address space so a runaway trial
+    # allocation aborts THIS process cleanly instead of exhausting system RAM
+    # and hard-locking the desktop (observed 2026-07-11). The per-trial
+    # predict_bytes / RSS guards should stop the ramp long before this fires;
+    # this is the backstop for when they don't.
+    cap = safety.install_address_space_cap()
+    if cap is not None:
+        print("[safety] address-space cap: %.0f MB  (RSS ceiling %.0f MB)"
+              % (cap, safety.DEFAULT_RSS_CEILING_MB))
+        sys.stdout.flush()
+
     disable_vsync()
     app = Gauntlet(autorun=True)
 

@@ -25,6 +25,17 @@ SETTLE_MS = 1000
 HOLD_MS = 2000
 MAX_STEPS = 40  # safety ceiling so a trial that never breaks budget still terminates
 
+try:
+    from safety import rss_mb, DEFAULT_RSS_CEILING_MB
+except ImportError:  # allow importing scoring.py without the package on sys.path
+    def rss_mb():
+        return 0.0
+    DEFAULT_RSS_CEILING_MB = 1500
+
+# Grid-data budget for a single trial's predicted footprint (bytes). A load
+# whose predict_bytes() exceeds this is refused before allocation.
+MEM_BUDGET_MB = 512
+
 
 def percentile(values, q):
     """Nearest-rank percentile of an unsorted list. q in [0, 1]."""
@@ -66,7 +77,8 @@ class RampController:
     def __init__(self, trial, metrics_provider,
                  budget_ms=BUDGET_MS, hard_cap_ms=HARD_CAP_MS,
                  settle_ms=SETTLE_MS, hold_ms=HOLD_MS, max_steps=MAX_STEPS,
-                 hard_cap_strikes=HARD_CAP_STRIKES, on_finish=None):
+                 hard_cap_strikes=HARD_CAP_STRIKES, on_finish=None,
+                 mem_budget_mb=MEM_BUDGET_MB, rss_ceiling_mb=DEFAULT_RSS_CEILING_MB):
         self.hard_cap_strikes = hard_cap_strikes
         self.strikes = 0
         self.trial = trial
@@ -77,6 +89,8 @@ class RampController:
         self.hold_ms = hold_ms
         self.max_steps = max_steps
         self.on_finish = on_finish
+        self.mem_budget_mb = mem_budget_mb
+        self.rss_ceiling_mb = rss_ceiling_mb
 
         self.k = 0
         self.load = trial.base_load
@@ -86,6 +100,7 @@ class RampController:
         self.last_pass = None        # dict of last passing window
         self.done = False
         self.result = None
+        self.stop_reason = None      # budget | hard_cap | max_load | mem_predict | mem_rss | max_steps
 
     # -- public API -------------------------------------------------------
     def start(self):
@@ -152,20 +167,41 @@ class RampController:
                 "metrics_at_peak": dict(metrics),
             }
             if self.k + 1 > self.max_steps:
-                self._finish()
+                self._finish("max_steps")
                 return
-            self.k += 1
-            self.load = load_at_step(self.trial.base_load, self.trial.growth, self.k)
+
+            next_k = self.k + 1
+            next_load = load_at_step(self.trial.base_load, self.trial.growth, next_k)
+
+            # -- memory guards: never allocate past the budget/cap ------------
+            cap = getattr(self.trial, "max_load", None)
+            if cap is not None and next_load > cap:
+                self._finish("max_load")
+                return
+            predicted = self.trial.predict_bytes(next_load)
+            if predicted is not None and predicted > self.mem_budget_mb * 1024 * 1024:
+                self._finish("mem_predict")
+                return
+
+            self.k = next_k
+            self.load = next_load
             self.trial.set_load(self.load)
+
+            # -- RSS watchdog: bail if the allocation we just did overshot -----
+            if self.rss_ceiling_mb and rss_mb() > self.rss_ceiling_mb:
+                self._finish("mem_rss")
+                return
+
             self.phase = "settle"
             self.phase_start = None
             self.samples = []
         else:
-            self._finish()
+            self._finish("hard_cap" if forced_fail else "budget")
 
-    def _finish(self):
+    def _finish(self, reason="budget"):
         self.phase = "done"
         self.done = True
+        self.stop_reason = reason
         if self.last_pass is not None:
             lp = self.last_pass
             self.result = {
@@ -175,6 +211,7 @@ class RampController:
                 "p95_ms": lp["p95_ms"],
                 "samples": lp["samples"],
                 "metrics_at_peak": lp["metrics_at_peak"],
+                "stop_reason": reason,
             }
         else:
             # First load already failed -- record a zero score honestly.
@@ -185,6 +222,7 @@ class RampController:
                 "p95_ms": round(percentile(self.samples, 0.95), 3),
                 "samples": len(self.samples),
                 "metrics_at_peak": self.metrics_provider(),
+                "stop_reason": reason,
             }
         if self.on_finish:
             self.on_finish(self)

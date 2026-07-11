@@ -24,6 +24,18 @@ class GridTitan(Trial):
     base_load = 20
     growth = 1.4
 
+    # Cost scales as S*S (cells) but the render is viewport-bounded, so frame
+    # time can stay under budget while allocation runs away. Cap the grid side
+    # and predict the footprint so the ramp bails BEFORE a fatal allocation.
+    # ~28 bytes/cell: 2 uint8 planes + int32 TileLayer + RGBA ColorLayer + TCOD
+    # map cell + slack. max_load derived from a 512 MB grid-data budget.
+    CELL_BYTES_EST = 28
+    max_load = 4300  # ~4300^2 * 28 B ~= 494 MB
+
+    def predict_bytes(self, load):
+        side = max(4, int(load))
+        return side * side * self.CELL_BYTES_EST
+
     def setup(self, scene, ui):
         super().setup(scene, ui)
         self.grid = None

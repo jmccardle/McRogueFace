@@ -19,6 +19,20 @@ class Trial:
     base_load = 50
     growth = 1.6
 
+    # -- safety (see safety.py) -------------------------------------------
+    # Absolute hard cap on load; the ramp will not set a load above this even
+    # if the frame budget still holds. None = no explicit cap (the RSS watchdog
+    # and address-space backstop still apply). Trials whose cost grows faster
+    # than their frame time (e.g. grid side -> S*S cells) MUST set this.
+    max_load = None
+
+    def predict_bytes(self, load):
+        """Estimate the resident footprint (bytes) this trial would allocate at
+        `load`. Return None if unpredictable. The ramp refuses a load whose
+        prediction exceeds the memory budget BEFORE allocating it, so a
+        geometric jump cannot OOM between two frame-time samples."""
+        return None
+
     # -- lifecycle --------------------------------------------------------
     def __init__(self):
         self.scene = None
