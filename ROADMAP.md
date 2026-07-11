@@ -57,6 +57,7 @@ Coverage extension (#312) added four more: `fuzz_audio_dsp` (SoundBuffer DSP), `
 - **Phase 5.3** -- documentation regenerated; `tools/generate_stubs_v2.py` rewritten as introspection-based so it can no longer drift from the C++ source.
 
 ### Recently Shipped (July 2026)
+- **Native profiling rig + hot-path perf batch (#345, #331, #342/#343/#344/#348)** -- a Callgrind/perf profiling workflow (`make profile` -> `build-profile/` RelWithDebInfo + frame pointers; `make callgrind SCRIPT=...`; `docs/profiling.md`) landed as **#345**, then drove five measured fixes. **#331**: hot property getters stop re-importing `mcrfpy` per call. **#348** (found *by* Callgrind, not by guessing): `UIGridView::get_grid` re-allocated a throwaway Grid wrapper + weakref every call at 0% cache hit -- now holds one persistent strong ref (`get_grid` inclusive **72.6M -> 2.1M Ir, -97%**). **#342**: scalar-float animation fast path bypasses two per-frame `std::variant` visits (`Animation::update` **-18%**, variant machinery **473M -> 99M Ir**) -- the profiler *disproved* the guessed strcmp-cascade and weak_ptr-lock hypotheses and found the real cost. **#344**: memoized Key/InputState enum members instead of rebuilding via `EnumMeta.__call__` per event (enum-ctor **19.18M -> 0.228M Ir, -99%**; wall-clock -31%). **#343**: skip the per-frame `GetAttrString("update")` for non-subclassed scenes (**4,559 -> 3 Ir/frame** on the real `doFrame` loop; measuring it required bypassing headless `step()`, which doesn't call `updatePythonScenes()` -- filed as **#350**). Harness total instructions **3,522.9M -> 3,211.5M (-8.8%)**; suite 307/307 with new regression tests `issue_34{2,4,8}_*`. Durable sprint doc with A/B numbers at `docs/sprint-perf-342-348.md`. Spun out **#349** (hybrid declarative scene serialization, Major Feature, tier2) from the finding that `automation.screenshot()` PNG encode is ~96% of a render-profile's instructions.
 - **Tier1 memory-model batch resolved** -- all five pre-1.0 freeze decisions from the 2026-07-02 review are closed on master. **#326**: Color/Vector are value types forever (copies at every property boundary; write-through proxies rejected); **#328**: `with layer.edit() as view:` is the single bulk-edit convention for future buffer/numpy APIs (conservative invalidation on `__exit__`; unblocks #335); **#327**: threading contract documented -- `docs/threading-model.md` + normative `mcrfpy.lock()` docstring ("off-main-thread access outside the lock is undefined"); **#330**: subinterpreters explicitly excluded from 1.x compatibility; **#329**: `grid.entities` re-backed by `std::vector` -- indexing is O(1) (5000-entity indexed sweep: 49.7 ms -> 0.5 ms), iterator is index-based with the same mutation-guard semantics, suite 304/304. #326/#328/#330 are recorded in the new `docs/api-stability.md` compatibility policy, enforced by the api-surface snapshot test.
 - **#340 The Gauntlet** -- interactive on-screen stress benchmark (`tests/benchmarks/gauntlet/`). Six trials (ENTITY SWARM, ANIMATION STORM, GRID TITAN, PATHFINDER RUSH, UI AVALANCHE, SIGHTLINE SIEGE) ramp load geometrically until p95 frame time breaks the 16.67 ms budget; live HUD with frame-time sparkline; menu + results screens diff against a committed JSON baseline with letter grades and a geometric-mean GAUNTLET SCORE. First real baseline captured windowed on 0.2.8 (e.g. 10,555 entities, 450 pathfinding queries/tick, 4,123 UI elements at budget). Caveat: desktop noise made callback-heavy trials vary run-to-run -- recapture on a quiet system for a canonical baseline. Found #341 (get_metrics draw_calls/render counters read 0).
 
@@ -72,7 +73,8 @@ Coverage extension (#312) added four more: `fuzz_audio_dsp` (SoundBuffer DSP), `
 - **#314** -- API audit follow-through complete. (1) Snapshot lock: a public API-surface regression test (`tests/unit/api_surface_snapshot_test.py`) enshrines the frozen contract. (2) **F15**: all 289 raw docstring slots across the 20 frozen binding files converted to `MCRF_*` macros (frozen surface 100% compliant), driven by two one-agent-per-file workflows with build/doc gates and an adversarial signature-accuracy verify pass. Property types now resolve to real types (not `Any`) and read-only flags are correct. (3) A strict frozen-docstring gate (`tools/check_frozen_docstrings.sh`, wired into `generate_all_docs.sh`) locks it against regression. Breaking-change findings (F1/F4/F6/F11/F13) closed earlier; F7/F8/F10 deferred as non-1.0. Code-level bugs surfaced by the verify pass filed as #317/#318/#319.
 
 ### Active Follow-Ups
-- The five tier1 memory-model freeze decisions (#326-#330) are **resolved** on master (see Recently Shipped, July 2026). Remaining memory-model issues (#331-#338) are tier2/tier3 follow-through: buffer-protocol views, GridData SoA, free-threading hardening, numpy strategy.
+- The five tier1 memory-model freeze decisions (#326-#330) are **resolved** on master (see Recently Shipped, July 2026); #331 (hot-getter fast path) also shipped with the perf batch. Remaining memory-model issues (#332-#338) are tier2/tier3 follow-through: buffer-protocol views, GridData SoA, free-threading hardening, numpy strategy.
+- #350 (headless `mcrfpy.step()` bypasses `updatePythonScenes()`, so `scene.update()` never fires under `step()` -- a testability gap surfaced while benchmarking #343) is open, tier2. #349 (declarative scene serialization) is an open tier2 design proposal.
 - Gauntlet baseline should be recaptured on a quiet system (`tests/benchmarks/gauntlet/run_gauntlet.py`) -- the committed first baseline is real but desktop-noisy for the callback-heavy trials. #341 (render counters read 0 in get_metrics) blocks richer per-subsystem attribution in the HUD.
 - 0.2.8 is released to master (`cf844f4`, pushed) but the `0.2.8` git tag is still local-only -- push it when ready to publish the release. Master also carries the unpushed July batch (tier1 decisions + Gauntlet); pushing closes #326-#330 and #340.
 
@@ -126,18 +128,18 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-30 open issues across the tracker (after the July tier1 batch lands). Key groupings:
+33 open issues across the tracker. Key groupings:
 
-- **Memory-model review, July 2026** (#331-#338 remaining; #326-#330 resolved) -- buffer-protocol/numpy views and perf foundations (#331, #332, #334, #335); longer-horizon refactors and free-threading/numpy strategy (#333, #336, #337, #338)
-- **Benchmarking** (#341) -- get_metrics render counters read 0; found by the Gauntlet (#340)
+- **Memory-model review, July 2026** (#332-#338 remaining; #326-#331 resolved) -- buffer-protocol/numpy views and perf foundations (#332, #334, #335); longer-horizon refactors and free-threading/numpy strategy (#333, #336, #337, #338)
+- **Benchmarking / profiling** (#341, #350, #349) -- get_metrics render counters read 0 (found by the Gauntlet #340); headless `step()` bypasses `updatePythonScenes()` (#350); declarative scene serialization proposal (#349)
 - **7DRL 2026 carry-over** (#248) -- Crypt of Sokoban remaster, superseded by the 7DRL 2026 entry but still relevant as a demo
 - **Tooling / infrastructure** (#282, #255) -- Modern Clang for TSan/fuzzing, performance profiling
 - **Demos / tutorials** (#167, #154, #156, #55) -- r/roguelikedev series, LLM agent simulations
 - **Grid enhancements** (#152, #67) -- Sparse layers, infinite worlds
 - **Performance** (#117, #124, #145) -- Memory pools, grid point animation, texture reuse
 - **Platform/distribution** (#70, #54, #62, #53) -- Packaging, Jupyter, multiple windows, input methods
-- **WASM tooling** (#239) -- Automated browser testing
-- **Rendering** (#107) -- Particle system
+- **WASM tooling** (#239, #346) -- Automated browser testing; web-build profiling docs (sibling to #345)
+- **Rendering** (#107, #347) -- Particle system; SFML vs SDL2/WebGL renderer parity
 - **Deferred** (#220, #46, #45) -- Subinterpreter support / tests, accessibility modes
 
 See the [Forgejo issue tracker](https://dev.ffwf.net/forgejo/john/McRogueFace/issues) for current status.
