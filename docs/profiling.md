@@ -52,6 +52,31 @@ counts). Because it's deterministic, any delta is the change, not noise. `kcache
 Caveat: Callgrind models an idealized cache and counts instructions, not wall-clock —
 great for "did this do less work," not for real-time behavior.
 
+## Profiling the render path — and the screenshot/PNG trap
+
+In headless mode `mcrfpy.step()` does **not** render (the render path is stubbed); the
+only way to force a real render is `automation.screenshot()`, which flushes the
+off-screen target to a PNG. That has a sharp consequence for profiling: **PNG encoding
+dominates the profile**. On a representative full-loop workload, ~96% of instructions
+landed in libsfml's `stbi_zlib_compress` / `stbiw__encode_png_line` — the actual engine
+render/update/animation work was buried under 3%.
+
+Implications:
+
+- To profile **update / animation** logic, use a `step()`-only workload with **no**
+  screenshots — the render cost (and the PNG artifact) is absent, so engine work is the
+  whole profile.
+- To profile the **render path** itself, expect to subtract the PNG cost (filter out
+  `stbi_*` / libsfml-graphics symbols) or drive rendering by another means.
+- The per-frame PNG cost is an artifact of the screenshot *serialization format*, not of
+  rendering. A faster capture path (e.g. QOI encoding, plus a McRogueFace-specific UI-tree
+  serialization) is explored in the wiki proposal
+  [Hybrid Scene Serialization](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Proposal%3A-Hybrid-Scene-Serialization);
+  if adopted it would also make screenshot-driven profiling far less noisy.
+
+A ready full-loop workload (textured grid + moving entities + animated nested UI, with
+forced renders) lives at `tests/benchmarks/profile_workload.py`.
+
 ## perf — real wall-clock sampling
 
 For the interactive game where you need actual time spent (draw calls, SFML/Python cost
