@@ -139,9 +139,9 @@ void PyKeyCallable::call(std::string key, std::string action)
 {
     if (target == Py_None || target == NULL) return;
 
-    // Convert key string to Key enum
+    // Convert key string to Key enum (#344: cached member, not EnumMeta.__call__)
     sf::Keyboard::Key sfml_key = PyKey::from_legacy_string(key.c_str());
-    PyObject* key_enum = PyObject_CallFunction(PyKey::key_enum_class, "i", static_cast<int>(sfml_key));
+    PyObject* key_enum = PyKey::get_enum_member(static_cast<int>(sfml_key));
     if (!key_enum) {
         std::cerr << "Failed to create Key enum for key: " << key << std::endl;
         PyErr_Print();
@@ -149,9 +149,9 @@ void PyKeyCallable::call(std::string key, std::string action)
         return;
     }
 
-    // Convert action string to InputState enum
+    // Convert action string to InputState enum (#344: cached member)
     int action_val = (action == "start" || action == "pressed") ? 0 : 1;  // PRESSED = 0, RELEASED = 1
-    PyObject* action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
+    PyObject* action_enum = PyInputState::get_enum_member(action_val);
     if (!action_enum) {
         Py_DECREF(key_enum);
         std::cerr << "Failed to create InputState enum for action: " << action << std::endl;

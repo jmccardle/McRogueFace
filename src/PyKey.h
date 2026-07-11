@@ -34,6 +34,13 @@ public:
     // Cached reference to the Key enum class for fast type checking
     static PyObject* key_enum_class;
 
+    // #344 - Return the cached Key enum member for an sf::Keyboard::Key value as
+    // a NEW reference. Members are built once and memoized for the interpreter
+    // lifetime, so per-event dispatch avoids the expensive EnumMeta.__call__
+    // (PyObject_CallFunction) path. Returns nullptr with an exception set on
+    // failure. Caller owns the returned reference.
+    static PyObject* get_enum_member(int value);
+
     // Number of keys (matches sf::Keyboard::KeyCount)
     static const int NUM_KEYS = sf::Keyboard::KeyCount;
 };

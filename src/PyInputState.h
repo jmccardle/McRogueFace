@@ -24,6 +24,12 @@ public:
     // Cached reference to the InputState enum class for fast type checking
     static PyObject* input_state_enum_class;
 
+    // #344 - Return the cached InputState enum member for a value (0=PRESSED,
+    // 1=RELEASED) as a NEW reference. Members are memoized for the interpreter
+    // lifetime so per-event dispatch avoids EnumMeta.__call__. Returns nullptr
+    // with an exception set on failure. Caller owns the returned reference.
+    static PyObject* get_enum_member(int value);
+
     // Number of input states
     static const int NUM_INPUT_STATES = 2;
 };

@@ -1,8 +1,29 @@
 #include "PyInputState.h"
 #include <sstream>
+#include <unordered_map>
 
 // Static storage for cached enum class reference
 PyObject* PyInputState::input_state_enum_class = nullptr;
+
+// #344 - memoized enum members (value -> strong ref to InputState member).
+static std::unordered_map<int, PyObject*> input_state_member_cache;
+
+PyObject* PyInputState::get_enum_member(int value) {
+    if (!input_state_enum_class) {
+        PyErr_SetString(PyExc_RuntimeError, "InputState enum class not initialized");
+        return nullptr;
+    }
+    auto it = input_state_member_cache.find(value);
+    if (it != input_state_member_cache.end()) {
+        Py_INCREF(it->second);
+        return it->second;
+    }
+    PyObject* member = PyObject_CallFunction(input_state_enum_class, "i", value);
+    if (!member) return nullptr;
+    Py_INCREF(member);                          // strong ref held by the cache
+    input_state_member_cache[value] = member;
+    return member;                              // caller owns the other ref
+}
 
 // InputState entries - maps enum name to value
 struct InputStateEntry {

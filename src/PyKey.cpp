@@ -1,9 +1,32 @@
 #include "PyKey.h"
 #include <sstream>
 #include <cstring>
+#include <unordered_map>
 
 // Static storage for cached enum class reference
 PyObject* PyKey::key_enum_class = nullptr;
+
+// #344 - memoized enum members (int value -> strong ref to Key member).
+// Populated lazily; entries live for the interpreter lifetime.
+static std::unordered_map<int, PyObject*> key_member_cache;
+
+PyObject* PyKey::get_enum_member(int value) {
+    if (!key_enum_class) {
+        PyErr_SetString(PyExc_RuntimeError, "Key enum class not initialized");
+        return nullptr;
+    }
+    auto it = key_member_cache.find(value);
+    if (it != key_member_cache.end()) {
+        Py_INCREF(it->second);
+        return it->second;
+    }
+    // Build once via EnumMeta.__call__, then memoize a strong ref.
+    PyObject* member = PyObject_CallFunction(key_enum_class, "i", value);
+    if (!member) return nullptr;
+    Py_INCREF(member);                    // strong ref held by the cache
+    key_member_cache[value] = member;
+    return member;                        // caller owns the other ref
+}
 
 // Key entries - maps enum name to SFML value and legacy string
 struct KeyEntry {
