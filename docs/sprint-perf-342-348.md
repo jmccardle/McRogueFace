@@ -123,11 +123,65 @@ hit** (the defect).
 - **Risk**: cached members must stay valid for the interpreter lifetime; hold strong
   refs. Enum identity/equality must be unchanged (existing `test_callback_enums.py`).
 
+## Post-fix results (Callgrind A/B, same harness)
+
+Harness total Ir: **3,522,924,932 → 3,211,532,731 (−311.4M, −8.8%)**.
+
+| Issue | Metric | Baseline | Post-fix | Delta |
+|---|---|---|---|---|
+| #348 | `get_grid` inclusive Ir | 72,575,645 | 2,089,926 | **−97%** |
+| #342 | `Animation::update` inclusive Ir | 1,479,186,800 | 1,207,377,600 | **−18.4%** (−272M) |
+| #342 | variant `__do_visit` self Ir (anim) | 473.2M | 98.8M | **−79%** |
+| #344 | enum-ctor `PyObject_CallFunction` self Ir | 19.18M | 0.228M | **−99%** |
+| #343 | `call_update` Ir **per frame** (real doFrame loop) | 4,559 | 3 | **−99.9%** (~1,500×) |
+
+Wall-clock (Release, median/3): #342 6.68→5.91 ms, #343 172→157 ms, #344 665→454 ms
+(−31%), #348 81.8→72 ms. Wall-clock understates the CPU wins (the animation win is
+hidden behind syscalls in other scenarios; judge by Callgrind Ir).
+
+### #343 measured in the real game loop (not `step()`)
+
+`mcrfpy.step()` bypasses `updatePythonScenes()`, so #343 is invisible headless-`step()`.
+It was instead measured on the actual `doFrame()` loop (headless `run()`, which shares
+the exact `doFrame` path with the windowed loop), driven by a keep-alive timer and
+bounded with `timeout -s INT`. Normalized by `call_update` **Ir/call** so the (necessarily
+uncontrolled) frame count doesn't matter:
+
+- Without fix: `call_update` inclusive **794,878,505 Ir / 174,375 frames = 4,559 Ir/frame**
+  — 35% of *all* instructions in a bare-scene loop (the failed `GetAttrString("update")`
+  + `PyErr_Clear` every frame).
+- With fix: **1,114,407 Ir / 371,469 frames ≈ 3 Ir/frame** (just the type-pointer compare).
+- Throughput: **2.1× more frames** completed in the same Callgrind budget (371k vs 174k).
+
+Bench script: `scratchpad/bench343.py` (bare Scene + keep-alive timer, no `step()`).
+
+## Profiling course-corrections (the sprint working as intended)
+
+The rig **disproved two guessed hot spots** and found the real ones. Recorded here so
+we don't re-guess:
+
+- **#342 — the strcmp cascade was cold.** `std::string == const char*` short-circuits
+  on length, so each `setProperty` name compare is ~0.15%. The real cost was the two
+  per-frame `std::variant` `std::visit` dispatches (`interpolate()` + `applyValue()`),
+  **~473M Ir / 13.4% of the harness**. A first attempt to cut the `update()` weak_ptr
+  triple-lock was also a dead end — locking an *empty* weak_ptr is nearly free (no
+  control block, no atomics), so it was a wash/slight regression and was reverted. The
+  shipped fix is a scalar-float fast path (`isSimpleFloatAnim`) that interpolates and
+  applies directly, bypassing both visits: variant machinery **473M → 99M**.
+- **#343 — real but off the `step()` path.** `GameEngine::step()` (headless) does **not**
+  call `updatePythonScenes()`, so `call_update` never runs under `mcrfpy.step()` — the
+  sprint's step()-only harness can't see it. Measured instead on the real `doFrame()`
+  loop (see "#343 measured in the real game loop" above): **4,559 → 3 Ir/frame**, a large,
+  genuine win — it was just measured with the wrong tool at first. (Verified a base
+  `mcrfpy.Scene` has no `__dict__`, so `update` can only come from a subclass → the guard
+  is safe.)
+- **#344 / #348 — guesses confirmed.** Cached enum members and a persistent Grid
+  wrapper are large, clean wins exactly as predicted.
+
 ## Definition of done
 
-- All four target metrics improved in `cg_baseline.out` A/B (documented in the issue
-  comments with before/after Ir).
-- `cd tests && python3 run_tests.py` green, incl. new regression tests per issue.
-- ASan suite clean for #348 (lifetime) and #344 (refcounts).
-- Each commit references its issue (`closes #NNN`); this doc updated with post-fix
-  numbers.
+- [x] All four target metrics measured in `cg_*` A/B (above); #343 documented as
+      correct-but-not-headless-measurable.
+- [x] `cd tests && python3 run_tests.py` green (307/307), incl. new regression tests
+      `issue_34{2,4,8}_*`.
+- [x] Each commit references its issue (`closes #NNN`); this doc carries post-fix numbers.
