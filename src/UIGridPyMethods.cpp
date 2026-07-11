@@ -715,6 +715,11 @@ PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) 
     auto& grid = self->data;
     if (!grid->entities) Py_RETURN_NONE;
 
+    // #351 - the turn manager mutates entity positions directly (bypassing the
+    // Python setters that invalidate the view). Track whether any entity moved
+    // so we can invalidate the view's render cache once after all rounds.
+    bool content_changed = false;
+
     for (int round = 0; round < n; round++) {
         std::vector<std::shared_ptr<UIEntity>> snapshot;
         for (auto& entity : *grid->entities) {
@@ -792,15 +797,10 @@ PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) 
                         entity->cell_position = output.target_cell;
                         grid->spatial_hash.updateCell(entity, old_x, old_y);
 
-                        if (entity->move_speed > 0) {
-                            entity->position = sf::Vector2f(
-                                static_cast<float>(output.target_cell.x),
-                                static_cast<float>(output.target_cell.y));
-                        } else {
-                            entity->position = sf::Vector2f(
-                                static_cast<float>(output.target_cell.x),
-                                static_cast<float>(output.target_cell.y));
-                        }
+                        entity->position = sf::Vector2f(
+                            static_cast<float>(output.target_cell.x),
+                            static_cast<float>(output.target_cell.y));
+                        content_changed = true;  // #351 - view render cache is now stale
                         break;
                     }
                     case BehaviorResult::DONE: {
@@ -825,6 +825,12 @@ PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) 
             next_entity:;
         }
     }
+
+    // #351 - invalidate the view's render early-out once if anything moved.
+    // Must call the GridData override explicitly: UIGrid's `using
+    // UIDrawable::markCompositeDirty` would otherwise shadow it and skip the
+    // content_generation bump + owning_view notification.
+    if (content_changed) grid->GridData::markCompositeDirty();
 
     Py_RETURN_NONE;
 }
