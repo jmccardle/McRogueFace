@@ -5,9 +5,9 @@
 #include "McRFPy_Doc.h"  // #177 - for MCRF_PROPERTY macro
 #include <cstring>       // #150 - for strcmp
 
-UIGridPoint::UIGridPoint()
-: walkable(false), transparent(false), grid_x(-1), grid_y(-1), parent_grid(nullptr)
-{}
+// #332 - cell storage moved to GridData's dense uint8 planes; UIGridPoint no
+// longer holds per-cell data. The Python GridPoint wrapper reaches walkable/
+// transparent through the grid's plane accessors keyed by (x, y).
 
 // Utility function to convert sf::Color to PyObject*
 PyObject* sfColor_to_PyObject(sf::Color color) {
@@ -40,56 +40,46 @@ sf::Color PyObject_to_sfColor(PyObject* obj) {
 
 // #150 - Removed get_color/set_color - now handled by layers
 
-// Helper to safely get the GridPoint data from coordinates
-// Routes through UIGrid::at() which handles both flat and chunked storage
-static UIGridPoint* getGridPointData(PyUIGridPointObject* self) {
-    if (!self->grid) return nullptr;
-    if (self->x < 0 || self->x >= self->grid->grid_w ||
-        self->y < 0 || self->y >= self->grid->grid_h) return nullptr;
-    return &self->grid->at(self->x, self->y);
+// #332 - validate the wrapper's (grid, x, y) still name a live in-bounds cell.
+static bool gridPointValid(PyUIGridPointObject* self) {
+    return self->grid &&
+        self->x >= 0 && self->x < self->grid->grid_w &&
+        self->y >= 0 && self->y < self->grid->grid_h;
 }
 
 PyObject* UIGridPoint::get_bool_member(PyUIGridPointObject* self, void* closure) {
-    auto* data = getGridPointData(self);
-    if (!data) {
+    if (!gridPointValid(self)) {
         PyErr_SetString(PyExc_RuntimeError, "GridPoint data is no longer valid");
         return NULL;
     }
     if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
-        return PyBool_FromLong(data->walkable);
+        return PyBool_FromLong(self->grid->isWalkable(self->x, self->y));
     } else { // transparent
-        return PyBool_FromLong(data->transparent);
+        return PyBool_FromLong(self->grid->isTransparent(self->x, self->y));
     }
 }
 
 int UIGridPoint::set_bool_member(PyUIGridPointObject* self, PyObject* value, void* closure) {
-    auto* data = getGridPointData(self);
-    if (!data) {
+    if (!gridPointValid(self)) {
         PyErr_SetString(PyExc_RuntimeError, "GridPoint data is no longer valid");
         return -1;
     }
-    if (value == Py_True) {
-        if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
-            data->walkable = true;
-        } else { // transparent
-            data->transparent = true;
-        }
-    } else if (value == Py_False) {
-        if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
-            data->walkable = false;
-        } else { // transparent
-            data->transparent = false;
-        }
-    } else {
+    bool bv;
+    if (value == Py_True) bv = true;
+    else if (value == Py_False) bv = false;
+    else {
         PyErr_SetString(PyExc_ValueError, "Expected a boolean value");
         return -1;
     }
 
-    // Sync with TCOD map if parent grid exists
-    if (data->parent_grid && data->grid_x >= 0 && data->grid_y >= 0) {
-        data->parent_grid->syncTCODMapCell(data->grid_x, data->grid_y);
+    if (reinterpret_cast<intptr_t>(closure) == 0) { // walkable
+        self->grid->setWalkable(self->x, self->y, bv);
+    } else { // transparent
+        self->grid->setTransparent(self->x, self->y, bv);
     }
 
+    // Per-cell TCOD sync (unchanged behavior; #333 will make this lazy)
+    self->grid->syncTCODMapCell(self->x, self->y);
     return 0;
 }
 
@@ -149,11 +139,10 @@ PyGetSetDef UIGridPoint::getsetters[] = {
 
 PyObject* UIGridPoint::repr(PyUIGridPointObject* self) {
     std::ostringstream ss;
-    auto* gp = getGridPointData(self);
-    if (!gp) ss << "<GridPoint (invalid internal object)>";
+    if (!gridPointValid(self)) ss << "<GridPoint (invalid internal object)>";
     else {
-        ss << "<GridPoint (walkable=" << (gp->walkable ? "True" : "False")
-           << ", transparent=" << (gp->transparent ? "True" : "False")
+        ss << "<GridPoint (walkable=" << (self->grid->isWalkable(self->x, self->y) ? "True" : "False")
+           << ", transparent=" << (self->grid->isTransparent(self->x, self->y) ? "True" : "False")
            << ") at (" << self->x << ", " << self->y << ")>";
     }
     std::string repr_str = ss.str();

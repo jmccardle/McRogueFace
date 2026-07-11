@@ -515,12 +515,11 @@ PyObject* UIGrid::py_apply_threshold(PyUIGridObject* self, PyObject* args, PyObj
         for (int x = 0; x < self->data->grid_w; x++) {
             float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
             if (value >= range_min && value <= range_max) {
-                UIGridPoint& point = self->data->at(x, y);
                 if (set_walkable) {
-                    point.walkable = walkable_value;
+                    self->data->setWalkable(x, y, walkable_value);
                 }
                 if (set_transparent) {
-                    point.transparent = transparent_value;
+                    self->data->setTransparent(x, y, transparent_value);
                 }
             }
         }
@@ -623,15 +622,14 @@ PyObject* UIGrid::py_apply_ranges(PyUIGridObject* self, PyObject* args) {
     for (int y = 0; y < self->data->grid_h; y++) {
         for (int x = 0; x < self->data->grid_w; x++) {
             float value = TCOD_heightmap_get_value(hmap->heightmap, x, y);
-            UIGridPoint& point = self->data->at(x, y);
 
             for (const auto& re : entries) {
                 if (value >= re.min && value <= re.max) {
                     if (re.set_walkable) {
-                        point.walkable = re.walkable_value;
+                        self->data->setWalkable(x, y, re.walkable_value);
                     }
                     if (re.set_transparent) {
-                        point.transparent = re.transparent_value;
+                        self->data->setTransparent(x, y, re.transparent_value);
                     }
                     break;
                 }

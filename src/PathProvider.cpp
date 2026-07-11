@@ -5,7 +5,7 @@
 
 static bool cellWalkable(UIGrid& grid, int x, int y) {
     if (x < 0 || x >= grid.grid_w || y < 0 || y >= grid.grid_h) return false;
-    return grid.at(x, y).walkable;
+    return grid.isWalkable(x, y);  // #332
 }
 
 // -----------------------------------------------------------------------------

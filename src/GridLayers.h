@@ -25,7 +25,8 @@ enum class GridLayerType {
 // Abstract base class for grid layers
 class GridLayer {
 public:
-    // Chunk size for per-chunk dirty tracking (matches GridChunk::CHUNK_SIZE)
+    // Chunk size for per-chunk render-cache dirty tracking (render-only; logic
+    // cell storage is dense planes on GridData since #332)
     static constexpr int CHUNK_SIZE = 64;
 
     GridLayerType type;

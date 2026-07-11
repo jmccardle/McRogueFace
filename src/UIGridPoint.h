@@ -26,16 +26,14 @@ typedef struct {
     int x, y;  // Grid coordinates - compute data pointer on access
 } PyUIGridPointObject;
 
-// UIGridPoint - grid cell data for pathfinding and layer access
-// #150 - Layer-related properties (color, tilesprite, etc.) removed; now handled by layers
+// UIGridPoint - namespaces the Python GridPoint type's accessors.
+// #150 - Layer-related properties (color, tilesprite, etc.) removed; now handled by layers.
+// #332 - per-cell data (walkable/transparent) moved to GridData's dense uint8
+// planes (SoA); this class no longer stores cell state. The Python wrapper
+// (PyUIGridPointObject) holds (grid, x, y) and reads/writes via GridData accessors.
 class UIGridPoint
 {
 public:
-    bool walkable, transparent;  // Pathfinding/FOV properties
-    int grid_x, grid_y;          // Position in parent grid
-    GridData* parent_grid;       // Parent grid reference for TCOD sync (#252)
-    UIGridPoint();
-
     // Built-in property accessors (walkable, transparent only)
     static PyGetSetDef getsetters[];
     static int set_bool_member(PyUIGridPointObject* self, PyObject* value, void* closure);

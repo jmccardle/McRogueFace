@@ -23,7 +23,6 @@
 #include "UIDrawable.h"
 #include "UIBase.h"
 #include "GridLayers.h"
-#include "GridChunk.h"
 #include "SpatialHash.h"
 #include "UIEntityCollection.h"  // EntityCollection types (extracted from UIGrid)
 #include "GridData.h"  // #252 - Data layer base class

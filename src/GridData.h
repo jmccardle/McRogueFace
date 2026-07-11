@@ -20,7 +20,6 @@
 #include "UIGridPoint.h"
 #include "SpatialHash.h"
 #include "GridLayers.h"
-#include "GridChunk.h"
 
 // Forward declarations
 class DijkstraMap;
@@ -47,16 +46,20 @@ public:
     int cell_width() const { return cell_width_px; }
     int cell_height() const { return cell_height_px; }
 
-    // #123 - Chunk-based storage for large grid support
-    std::unique_ptr<ChunkManager> chunk_manager;
-    // Legacy flat storage (kept for small grids or compatibility)
-    std::vector<UIGridPoint> points;
-    // Use chunks for grids larger than this threshold
-    static constexpr int CHUNK_THRESHOLD = 64;
-    bool use_chunks = false;
+    // #332 - Logic cell storage as two dense row-major uint8 planes (SoA).
+    // Replaces the 24-byte-per-cell array-of-UIGridPoint (walkable/transparent
+    // were only 2 bytes of payload; grid_x/grid_y/parent_grid were derivable or
+    // back-reference bookkeeping). 12x smaller, cache-friendly, and contiguous
+    // at ANY size -- chunking is dropped for logic data (render caches still
+    // chunk independently in GridLayers). Indexed y*grid_w + x. The Python
+    // GridPoint wrapper holds (grid, x, y) and reads/writes via these accessors.
+    std::vector<uint8_t> walkable_plane;
+    std::vector<uint8_t> transparent_plane;
 
-    // Cell access (handles both flat and chunked storage)
-    UIGridPoint& at(int x, int y);
+    bool isWalkable(int x, int y) const { return walkable_plane[(size_t)y * grid_w + x] != 0; }
+    bool isTransparent(int x, int y) const { return transparent_plane[(size_t)y * grid_w + x] != 0; }
+    void setWalkable(int x, int y, bool v) { walkable_plane[(size_t)y * grid_w + x] = v ? 1 : 0; }
+    void setTransparent(int x, int y, bool v) { transparent_plane[(size_t)y * grid_w + x] = v ? 1 : 0; }
 
     // =========================================================================
     // Entity management

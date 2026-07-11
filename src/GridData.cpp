@@ -39,23 +39,8 @@ GridData::~GridData()
         if (layer) layer->parent_grid = nullptr;
     }
 
-    // #271: Null out parent_grid in all grid points (flat storage)
-    for (auto& p : points) {
-        p.parent_grid = nullptr;
-    }
-
-    // #277: Null out parent_grid in chunks and chunk manager
-    if (chunk_manager) {
-        for (auto& chunk : chunk_manager->chunks) {
-            if (chunk) {
-                chunk->parent_grid = nullptr;
-                for (auto& cell : chunk->cells) {
-                    cell.parent_grid = nullptr;
-                }
-            }
-        }
-        chunk_manager->parent_grid = nullptr;
-    }
+    // #332: cell storage is now plain uint8 planes (no per-cell back-pointers
+    // to null out; they free with the vectors).
 
     cleanupTCOD();
 }
@@ -73,49 +58,17 @@ void GridData::initStorage(int gx, int gy, GridData* parent_ref)
 {
     grid_w = gx;
     grid_h = gy;
-    use_chunks = (gx > CHUNK_THRESHOLD || gy > CHUNK_THRESHOLD);
+    (void)parent_ref;  // #332 - planes need no per-cell back-pointer
 
     if (tcod_map) delete tcod_map;
     tcod_map = new TCODMap(gx, gy);
 
-    if (use_chunks) {
-        chunk_manager = std::make_unique<ChunkManager>(gx, gy, parent_ref);
-        for (int cy = 0; cy < chunk_manager->chunks_y; ++cy) {
-            for (int cx = 0; cx < chunk_manager->chunks_x; ++cx) {
-                GridChunk* chunk = chunk_manager->getChunk(cx, cy);
-                if (!chunk) continue;
-                for (int ly = 0; ly < chunk->height; ++ly) {
-                    for (int lx = 0; lx < chunk->width; ++lx) {
-                        auto& cell = chunk->at(lx, ly);
-                        cell.grid_x = chunk->world_x + lx;
-                        cell.grid_y = chunk->world_y + ly;
-                        cell.parent_grid = parent_ref;
-                    }
-                }
-            }
-        }
-    } else {
-        points.resize(gx * gy);
-        for (int y = 0; y < gy; y++) {
-            for (int x = 0; x < gx; x++) {
-                int idx = y * gx + x;
-                points[idx].grid_x = x;
-                points[idx].grid_y = y;
-                points[idx].parent_grid = parent_ref;
-            }
-        }
-    }
+    // #332 - dense uint8 planes; default cells are not walkable / not
+    // transparent (matches the former UIGridPoint() default).
+    walkable_plane.assign((size_t)gx * (size_t)gy, 0);
+    transparent_plane.assign((size_t)gx * (size_t)gy, 0);
 
     syncTCODMap();
-}
-
-// Cell access
-UIGridPoint& GridData::at(int x, int y)
-{
-    if (use_chunks && chunk_manager) {
-        return chunk_manager->at(x, y);
-    }
-    return points[y * grid_w + x];
 }
 
 // TCOD integration
@@ -124,8 +77,7 @@ void GridData::syncTCODMap()
     if (!tcod_map) return;
     for (int y = 0; y < grid_h; y++) {
         for (int x = 0; x < grid_w; x++) {
-            const UIGridPoint& point = at(x, y);
-            tcod_map->setProperties(x, y, point.transparent, point.walkable);
+            tcod_map->setProperties(x, y, isTransparent(x, y), isWalkable(x, y));
         }
     }
     fov_dirty = true;
@@ -135,8 +87,7 @@ void GridData::syncTCODMap()
 void GridData::syncTCODMapCell(int x, int y)
 {
     if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return;
-    const UIGridPoint& point = at(x, y);
-    tcod_map->setProperties(x, y, point.transparent, point.walkable);
+    tcod_map->setProperties(x, y, isTransparent(x, y), isWalkable(x, y));
     fov_dirty = true;
     transparency_generation++;
 }

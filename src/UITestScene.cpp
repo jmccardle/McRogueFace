@@ -113,8 +113,8 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     // Use layers for visual rendering; GridPoint only has walkable/transparent
     // The default "tilesprite" TileLayer is created automatically
     // Example: e5->layers[0]->at(x, y) = tile_index for TileLayer
-    e5->points[0].walkable = true;
-    e5->points[0].transparent = true;
+    e5->setWalkable(0, 0, true);   // #332
+    e5->setTransparent(0, 0, true);
 
     ui_elements->push_back(e5);
 
