@@ -53,6 +53,7 @@
 #include <emscripten.h>
 #endif
 #include <sys/stat.h>  // mkdir
+#include <unordered_set>  // #359 - dedupe shared GridData during find/findAll walk
 // ImGui is only available for SFML builds
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 #include "ImGuiConsole.h"
@@ -1587,11 +1588,21 @@ static bool name_matches_pattern(const std::string& name, const std::string& pat
     return pattern_pos == pattern.length() && name_pos == name.length();
 }
 
-// Helper to recursively search a collection for named elements
-static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collection, const std::string& pattern, 
-                             bool find_all, PyObject* results) {
+// Also search Grid entities (forward-declared: find_in_collection recurses
+// into grid children via GridData, and the two helpers are mutually called).
+static void find_in_grid_entities(GridData* grid, const std::string& pattern,
+                                bool find_all, PyObject* results);
+
+// Helper to recursively search a collection for named elements.
+// visited_grids: #359 - N views can share ONE GridData (split-screen/minimap).
+// asGridData() returns the same GridData* from each of them, so without this set
+// the shared grid's entities and overlay children are walked (and appended) once
+// per view -- findAll() would return N duplicate wrappers for the same object.
+static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collection, const std::string& pattern,
+                             bool find_all, PyObject* results,
+                             std::unordered_set<GridData*>& visited_grids) {
     if (!collection) return;
-    
+
     for (auto& drawable : *collection) {
         if (!drawable) continue;
         
@@ -1671,38 +1682,67 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
         // Recursively search in Frame children
         if (drawable->derived_type() == PyObjectsEnum::UIFRAME) {
             auto frame = std::static_pointer_cast<UIFrame>(drawable);
-            find_in_collection(frame->children.get(), pattern, find_all, results);
+            find_in_collection(frame->children.get(), pattern, find_all, results, visited_grids);
             if (!find_all && PyList_Size(results) > 0) {
                 return;  // Found one, stop searching
+            }
+        }
+
+        // #357 - Recursively search a grid's own overlay children and its
+        // entities. Dispatch via asGridData() (#355), not derived_type(): a
+        // real mcrfpy.Grid() is a UIGridView (PyObjectsEnum::UIGRIDVIEW), so
+        // gating on UIGRID here would be structurally unreachable again.
+        // #359 - visit each GridData exactly once per search: several views may
+        // point at the same data.
+        if (GridData* gd = drawable->asGridData()) {
+            if (visited_grids.insert(gd).second) {
+                find_in_grid_entities(gd, pattern, find_all, results);
+                if (!find_all && PyList_Size(results) > 0) {
+                    return;
+                }
+
+                find_in_collection(gd->children.get(), pattern, find_all, results, visited_grids);
+                if (!find_all && PyList_Size(results) > 0) {
+                    return;
+                }
             }
         }
     }
 }
 
-// Also search Grid entities
-static void find_in_grid_entities(UIGrid* grid, const std::string& pattern, 
+static void find_in_grid_entities(GridData* grid, const std::string& pattern,
                                 bool find_all, PyObject* results) {
     if (!grid || !grid->entities) return;
-    
+
     for (auto& entity : *grid->entities) {
         if (!entity) continue;
-        
+
         // Entities delegate name to their sprite
         if (name_matches_pattern(entity->sprite.name, pattern)) {
-            auto type = &mcrfpydef::PyUIEntityType;
-            auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
-            if (o) {
-                o->data = entity;
-                PyObject* py_obj = (PyObject*)o;
-                
-                if (find_all) {
-                    PyList_Append(results, py_obj);
-                    Py_DECREF(py_obj);
-                } else {
-                    PyList_Append(results, py_obj);
-                    Py_DECREF(py_obj);
-                    return;
+            // #266/#357: the cache is the ONLY correct way to wrap an existing
+            // entity. A fresh tp_alloc would (a) return a base-class Entity for
+            // a Python subclass instance, losing identity and its __dict__, and
+            // (b) leak the entity's strong self-reference when that duplicate
+            // wrapper is deallocated -- PyUIEntityType's tp_dealloc clears
+            // data->pyobject unconditionally. Mirrors UIEntityCollection::getitem.
+            PyObject* py_obj = nullptr;
+            if (entity->serial_number != 0) {
+                py_obj = PythonObjectCache::getInstance().lookup(entity->serial_number);  // new ref
+            }
+            if (!py_obj) {
+                auto type = &mcrfpydef::PyUIEntityType;
+                auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
+                if (o) {
+                    o->data = entity;
+                    o->weakreflist = NULL;
+                    py_obj = (PyObject*)o;
                 }
+            }
+
+            if (py_obj) {
+                PyList_Append(results, py_obj);
+                Py_DECREF(py_obj);
+                if (!find_all) return;
             }
         }
     }
@@ -1739,20 +1779,11 @@ PyObject* McRFPy_API::_find(PyObject* self, PyObject* args) {
         ui_elements = current->ui_elements;
     }
     
-    // Search the scene's UI elements
-    find_in_collection(ui_elements.get(), name, false, results);
-    
-    // Also search all grids in the scene for entities
-    if (PyList_Size(results) == 0 && ui_elements) {
-        for (auto& drawable : *ui_elements) {
-            if (drawable && drawable->derived_type() == PyObjectsEnum::UIGRID) {
-                auto grid = std::static_pointer_cast<UIGrid>(drawable);
-                find_in_grid_entities(grid.get(), name, false, results);
-                if (PyList_Size(results) > 0) break;
-            }
-        }
-    }
-    
+    // Search the scene's UI elements. find_in_collection recurses into a
+    // grid's entities and overlay children via asGridData() (#355/#357).
+    std::unordered_set<GridData*> visited_grids;  // #359 - shared GridData visited once
+    find_in_collection(ui_elements.get(), name, false, results, visited_grids);
+
     // Return the first result or None
     if (PyList_Size(results) > 0) {
         PyObject* result = PyList_GetItem(results, 0);
@@ -1796,19 +1827,11 @@ PyObject* McRFPy_API::_findAll(PyObject* self, PyObject* args) {
         ui_elements = current->ui_elements;
     }
     
-    // Search the scene's UI elements
-    find_in_collection(ui_elements.get(), pattern, true, results);
-    
-    // Also search all grids in the scene for entities
-    if (ui_elements) {
-        for (auto& drawable : *ui_elements) {
-            if (drawable && drawable->derived_type() == PyObjectsEnum::UIGRID) {
-                auto grid = std::static_pointer_cast<UIGrid>(drawable);
-                find_in_grid_entities(grid.get(), pattern, true, results);
-            }
-        }
-    }
-    
+    // Search the scene's UI elements. find_in_collection recurses into a
+    // grid's entities and overlay children via asGridData() (#355/#357).
+    std::unordered_set<GridData*> visited_grids;  // #359 - shared GridData visited once
+    find_in_collection(ui_elements.get(), pattern, true, results, visited_grids);
+
     return results;
 }
 
