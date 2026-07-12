@@ -102,6 +102,40 @@ create_stdlib_zip() {
         --output "$output_dir"
 }
 
+# Copy the rendered API docs + committed manifest into <package>/docs/.
+# These are generated (rendered docs live outside git as of the generated-docs
+# .gitignore block) but MUST ship inside every release artifact.
+copy_release_docs() {
+    local package_dir=$1
+    local docs_out="$package_dir/docs"
+
+    log_info "Bundling API documentation into docs/"
+    mkdir -p "$docs_out"
+
+    # "src (relative to PROJECT_ROOT) : dest (relative to <package>/docs)"
+    local pairs=(
+        "docs/API_REFERENCE_DYNAMIC.md:API_REFERENCE_DYNAMIC.md"
+        "docs/api_reference_dynamic.html:api_reference_dynamic.html"
+        "docs/mcrfpy.3:mcrfpy.3"
+        "stubs/mcrfpy.pyi:mcrfpy.pyi"
+        "docs/generated/api_full.json:generated/api_full.json"
+        "api/manifest.json:manifest.json"
+    )
+
+    local pair src dst
+    for pair in "${pairs[@]}"; do
+        src="${pair%%:*}"
+        dst="${pair#*:}"
+        if [ -f "$PROJECT_ROOT/$src" ]; then
+            mkdir -p "$(dirname "$docs_out/$dst")"
+            cp "$PROJECT_ROOT/$src" "$docs_out/$dst"
+        else
+            log_warn "Release doc missing (NOT bundled): $src"
+            log_warn "  run 'bash tools/generate_all_docs.sh' and regenerate the manifest before packaging"
+        fi
+    done
+}
+
 package_windows() {
     local preset=$1
     local build_dir="$PROJECT_ROOT/build-windows"
@@ -164,6 +198,9 @@ package_windows() {
     if [ -f "$build_dir/python314.zip" ]; then
         cp "$build_dir/python314.zip" "$package_dir/"
     fi
+
+    # Bundle rendered API docs + manifest
+    copy_release_docs "$package_dir"
 
     # Create the distribution archive
     log_info "Creating archive: ${package_name}.zip"
@@ -278,6 +315,9 @@ package_linux() {
         find "$package_dir/lib/Python/Lib" -name "test_*.py" -delete 2>/dev/null || true
         find "$package_dir/lib/Python/Lib" -name "*_test.py" -delete 2>/dev/null || true
     fi
+
+    # Bundle rendered API docs + manifest
+    copy_release_docs "$package_dir"
 
     # Create run script
     cat > "$package_dir/run.sh" << 'EOF'

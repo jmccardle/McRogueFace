@@ -36,6 +36,7 @@
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
 .PHONY: profile callgrind clean-profile
+.PHONY: install-hooks
 
 # Number of parallel jobs for compilation
 JOBS := $(shell nproc 2>/dev/null || echo 4)
@@ -83,6 +84,17 @@ clean-all: clean clean-windows clean-wasm clean-debug clean-profile clean-dist
 
 run: linux
 	@cd build && ./mcrogueface
+
+# Install git hooks by symlinking tools/hooks/* into .git/hooks/ (idempotent).
+install-hooks:
+	@hooks_dir="$$(git rev-parse --git-path hooks)"; \
+	mkdir -p "$$hooks_dir"; \
+	for hook in tools/hooks/*; do \
+		[ -e "$$hook" ] || continue; \
+		name="$$(basename "$$hook")"; \
+		ln -sf "$$(pwd)/$$hook" "$$hooks_dir/$$name"; \
+		echo "Linked $$hooks_dir/$$name -> $$hook"; \
+	done
 
 # Debug and sanitizer targets
 debug:

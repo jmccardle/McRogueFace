@@ -1,0 +1,104 @@
+#!/bin/bash
+#
+# McRogueFace pre-commit hook
+#
+# Purpose: keep the committed API manifest (api/manifest.json) in lockstep with
+# the C++ binding surface, and never let a commit that touches src/ land with a
+# broken build or a regressed frozen-docstring surface.
+#
+# Fast path: if no staged path is under src/, this hook exits 0 immediately --
+# doc/asset/test-only commits pay no build cost.
+#
+# Slow path (staged changes under src/):
+#   1. Incremental `make -j$(nproc)` from the repo root. Build failure aborts
+#      the commit (log tail printed).
+#   2. Frozen-docstring gate, run exactly the way tools/generate_all_docs.sh
+#      runs it (audit_pymethoddef.py + check_frozen_docstrings.sh). A regressed
+#      frozen docstring aborts the commit.
+#   3. Regenerate the rendered docs via tools/generate_all_docs.sh.
+#   4. Regenerate api/manifest.json from the freshly-built binary.
+#   5. `git add api/manifest.json` (the ONLY index mutation this hook performs).
+#   6. Best-effort one-line API delta summary (non-fatal).
+#
+# Install with: make install-hooks
+#
+set -uo pipefail
+
+# Resolve repo root; all subsequent steps run from there.
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT" || exit 1
+
+# ---------------------------------------------------------------------------
+# Fast path: bail out unless something under src/ is staged.
+# ---------------------------------------------------------------------------
+STAGED="$(git diff --cached --name-only)"
+if ! grep -q '^src/' <<< "$STAGED"; then
+    exit 0
+fi
+
+echo "[pre-commit] src/ changes staged -- running build + docs/manifest refresh"
+
+JOBS="$(nproc 2>/dev/null || echo 4)"
+BUILD_LOG="$(mktemp -t mcrf-precommit-build.XXXXXX.log)"
+trap 'rm -f "$BUILD_LOG"' EXIT
+
+# ---------------------------------------------------------------------------
+# 1. Incremental build. Failure aborts the commit.
+# ---------------------------------------------------------------------------
+echo "[pre-commit] make -j$JOBS ..."
+if ! make -j"$JOBS" > "$BUILD_LOG" 2>&1; then
+    echo "[pre-commit] BUILD FAILED -- commit aborted. Last 40 lines:" >&2
+    tail -n 40 "$BUILD_LOG" >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 2. Frozen-docstring gate (mirrors tools/generate_all_docs.sh).
+#    Only runs when the .venv-audit tooling is present, exactly as the doc
+#    generator gates it. A failure here aborts the commit.
+# ---------------------------------------------------------------------------
+if [ -x "./.venv-audit/bin/python3" ] && [ -f "./tools/audit_pymethoddef.py" ]; then
+    echo "[pre-commit] PyMethodDef/PyGetSetDef macro compliance audit ..."
+    ./.venv-audit/bin/python3 ./tools/audit_pymethoddef.py --quiet || true
+
+    echo "[pre-commit] frozen docstring gate (strict) ..."
+    if ! ./tools/check_frozen_docstrings.sh; then
+        echo "[pre-commit] FROZEN DOCSTRING GATE FAILED -- commit aborted." >&2
+        exit 1
+    fi
+else
+    echo "[pre-commit] (skipping frozen docstring gate: .venv-audit not found)"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Regenerate rendered docs (gitignored; shipped inside release artifacts).
+# ---------------------------------------------------------------------------
+echo "[pre-commit] regenerating rendered docs ..."
+if ! bash tools/generate_all_docs.sh; then
+    echo "[pre-commit] doc generation FAILED -- commit aborted." >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Regenerate the committed compact manifest from the fresh binary.
+# ---------------------------------------------------------------------------
+echo "[pre-commit] regenerating api/manifest.json ..."
+if ! ( cd build && ./mcrogueface --headless --exec ../tools/generate_api_manifest.py ); then
+    echo "[pre-commit] manifest generation FAILED -- commit aborted." >&2
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Stage the refreshed manifest. This is the ONLY git-index write in the hook.
+# ---------------------------------------------------------------------------
+git add api/manifest.json
+
+# ---------------------------------------------------------------------------
+# 6. Best-effort one-line API delta summary (non-fatal if the tool is absent).
+# ---------------------------------------------------------------------------
+if [ -f "./tools/api_delta.py" ]; then
+    python3 tools/api_delta.py HEAD . --format md 2>/dev/null || true
+fi
+
+echo "[pre-commit] done -- api/manifest.json staged."
+exit 0
