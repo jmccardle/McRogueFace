@@ -373,7 +373,21 @@ PyGetSetDef UIGrid::getsetters[] = {
     {"entities", (getter)UIGrid::get_entities, NULL,
      MCRF_PROPERTY(entities, "EntityCollection of entities on this grid (EntityCollection, read-only)."), NULL},
     {"children", (getter)UIGrid::get_children, NULL,
-     MCRF_PROPERTY(children, "UICollection of UIDrawable children such as speech bubbles, effects, and overlays (UICollection, read-only)."), NULL},
+     MCRF_PROPERTY(children,
+         "UICollection of UIDrawable children such as speech bubbles, effects, and range "
+         "indicators anchored to grid content (UICollection, read-only)."
+         MCRF_NOTE(
+             "Grid children are positioned in the grid's pixel-world coordinates -- the same "
+             "origin as Entity positions -- NOT in the grid widget's screen-space pixels. They "
+             "pan and zoom with the grid camera (center, zoom), so a child placed near an "
+             "entity stays near that entity as the camera moves. This differs from "
+             "Frame.children, which are frame-local: since a Frame cannot pan its content, "
+             "Frame children are effectively already in screen coordinates. If you want UI "
+             "that floats over the grid regardless of camera position (e.g. a HUD), do not use "
+             "Grid.children -- add a sibling Frame with the same pos/size as the Grid instead."
+         )
+         MCRF_LINK("docs/grid-coordinate-spaces.md", "Grid Coordinate Spaces & Overlay Pattern")
+     ), NULL},
     {"layers", (getter)UIGrid::get_layers, NULL,
      MCRF_PROPERTY(layers, "Tuple of grid layers sorted by z_index (tuple, read-only). Contains ColorLayer and TileLayer objects."), NULL},
 

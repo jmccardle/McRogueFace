@@ -548,7 +548,16 @@ PyGetSetDef UIFrame::getsetters[] = {
          "For animation, use 'outline_color.r', 'outline_color.g', etc."
      ), (void*)1},
     {"children", (getter)UIFrame::get_children, NULL,
-     MCRF_PROPERTY(children, "UICollection of child drawable objects rendered on top of this frame (UICollection, read-only)."),
+     MCRF_PROPERTY(children,
+         "UICollection of child drawable objects rendered on top of this frame (UICollection, "
+         "read-only)."
+         MCRF_NOTE(
+             "Child positions are frame-local (relative to this Frame's top-left corner). A "
+             "Frame has no camera, so it cannot pan its content -- frame-local is effectively "
+             "screen space. Contrast with Grid.children, which are positioned in the grid's "
+             "pixel-world coordinates and pan/zoom with the grid camera."
+         )
+     ),
      NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
