@@ -547,8 +547,12 @@ submodule automation
   prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
+  prop hovered_cell: tuple | None (ro)
   prop margin: float (rw)
   prop name: str (rw)
+  prop on_cell_click: Callable | None (rw)
+  prop on_cell_enter: Callable | None (rw)
+  prop on_cell_exit: Callable | None (rw)
   prop on_click: Callable | None (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
@@ -556,6 +560,8 @@ submodule automation
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
+  prop perspective: Entity | None (rw)
+  prop perspective_enabled: bool (rw)
   prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
@@ -587,8 +593,12 @@ submodule automation
   prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
+  prop hovered_cell: tuple | None (ro)
   prop margin: float (rw)
   prop name: str (rw)
+  prop on_cell_click: Callable | None (rw)
+  prop on_cell_enter: Callable | None (rw)
+  prop on_cell_exit: Callable | None (rw)
   prop on_click: Callable | None (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
@@ -596,6 +606,8 @@ submodule automation
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
+  prop perspective: Entity | None (rw)
+  prop perspective_enabled: bool (rw)
   prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
@@ -1127,13 +1139,9 @@ submodule automation
   prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
-  prop hovered_cell: tuple | None (ro)
   prop layers: tuple (ro)
   prop margin: float (rw)
   prop name: str (rw)
-  prop on_cell_click: Callable | None (rw)
-  prop on_cell_enter: Callable | None (rw)
-  prop on_cell_exit: Callable | None (rw)
   prop on_click: Any (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
@@ -1141,8 +1149,6 @@ submodule automation
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
-  prop perspective: Entity | None (rw)
-  prop perspective_enabled: bool (rw)
   prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
@@ -1151,7 +1157,6 @@ submodule automation
   prop texture: Texture | None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
-  prop view: GridView | None (ro)
   prop visible: bool (rw)
   prop w: float (rw)
   prop x: float (rw)
@@ -1228,7 +1233,7 @@ func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> Non
 func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
 === DELEGATION INTEGRITY (Grid instance -> _GridData) ===
-  delegated-resolved: 69/69
+  delegated-resolved: 62/62
 
 === WRITABILITY PROBES (#313-touched properties) ===
   Entity.grid: writable

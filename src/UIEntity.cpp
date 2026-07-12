@@ -821,10 +821,14 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
 
     auto& grid = self->data->grid;
 
-    // #252: If the grid has an owning GridView, return that instead.
+    // #252/#359: If the grid has a registered GridView, return that instead.
     // This preserves the unified Grid API where entity.grid returns the same
-    // object the user created via mcrfpy.Grid(...).
-    auto owning_view = grid->owning_view.lock();
+    // object the user created via mcrfpy.Grid(...). primaryView() is
+    // deterministic even with multiple views sharing this GridData: it's
+    // views.front(), the view that actually created the data (a fresh
+    // GridData is only ever produced by the Grid() factory path), or the
+    // first still-alive secondary view if that original view has since died.
+    auto owning_view = grid->primaryView();
     if (owning_view) {
         // Check cache for the GridView
         if (owning_view->serial_number != 0) {

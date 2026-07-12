@@ -22,7 +22,7 @@ class UniformCollection;
 // PyShaderObject is a typedef, forward declare as a struct with explicit typedef
 typedef struct PyShaderObjectStruct PyShaderObject;
 
-class UIFrame; class UICaption; class UISprite; class UIEntity; class UIGrid;
+class UIFrame; class UICaption; class UISprite; class UIEntity; class UIGrid; class GridData;
 
 enum PyObjectsEnum : int
 {
@@ -54,6 +54,27 @@ public:
     virtual UIDrawable* click_at(sf::Vector2f point) = 0;
     void click_register(PyObject*);
     void click_unregister();
+
+    // #355 - Grid cell input. Defaults are inert: no caller may switch on grid-ness.
+    //
+    // dispatchCellClick: called by PyScene after click_at() resolved this drawable as
+    // the click target. Takes no point: click_at() already resolved the cell in the
+    // coordinate space of the hit (parent-local), which PyScene does not have.
+    // Returns true if a cell callback consumed the click.
+    virtual bool dispatchCellClick(const std::string& button, const std::string& action)
+    { (void)button; (void)action; return false; }
+
+    // updateHover: called by PyScene::do_mouse_hover for every drawable, with the
+    // mouse position in this drawable's PARENT-local coordinate space (the same
+    // convention click_at() uses; at the top level that is global space).
+    // hit_allowed is false when an ancestor already determined the mouse cannot be
+    // over this subtree -- such a call may only clear hover state, never set it.
+    virtual void updateHover(sf::Vector2f point, bool hit_allowed)
+    { (void)point; (void)hit_allowed; }
+
+    // asGridData: non-null only for drawables that own or view grid data.
+    // (#357 find/findAll and #358 ImGuiSceneExplorer will use this same primitive.)
+    virtual GridData* asGridData() { return nullptr; }
 
     // #140 - Mouse enter/exit callbacks
     void on_enter_register(PyObject*);

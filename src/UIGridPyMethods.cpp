@@ -829,7 +829,7 @@ PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) 
     // #351 - invalidate the view's render early-out once if anything moved.
     // Must call the GridData override explicitly: UIGrid's `using
     // UIDrawable::markCompositeDirty` would otherwise shadow it and skip the
-    // content_generation bump + owning_view notification.
+    // content_generation bump + registered-views notification.
     if (content_changed) grid->GridData::markCompositeDirty();
 
     Py_RETURN_NONE;

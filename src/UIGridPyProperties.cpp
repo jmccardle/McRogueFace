@@ -156,22 +156,6 @@ int UIGrid::set_float_member(PyUIGridObject* self, PyObject* value, void* closur
     else if (member_ptr == 7)
         self->data->camera_rotation = val;
 
-    if (self->view) {
-        if (member_ptr == 0)
-            self->view->box.setPosition(val, self->view->box.getPosition().y);
-        else if (member_ptr == 1)
-            self->view->box.setPosition(self->view->box.getPosition().x, val);
-        else if (member_ptr == 2)
-            self->view->box.setSize(sf::Vector2f(val, self->view->box.getSize().y));
-        else if (member_ptr == 3)
-            self->view->box.setSize(sf::Vector2f(self->view->box.getSize().x, val));
-        else if (member_ptr == 4) self->view->center_x = val;
-        else if (member_ptr == 5) self->view->center_y = val;
-        else if (member_ptr == 6) self->view->zoom = val;
-        else if (member_ptr == 7) self->view->camera_rotation = val;
-        self->view->position = self->view->box.getPosition();
-    }
-
     if (member_ptr == 0 || member_ptr == 1) {
         self->data->markCompositeDirty();
     } else {
@@ -223,72 +207,6 @@ int UIGrid::set_fill_color(PyUIGridObject* self, PyObject* value, void* closure)
     self->data->markDirty();
     return 0;
 }
-
-// =========================================================================
-// Perspective properties
-// =========================================================================
-
-PyObject* UIGrid::get_perspective(PyUIGridObject* self, void* closure)
-{
-    auto locked = self->data->perspective_entity.lock();
-    if (locked) {
-        if (locked->serial_number != 0) {
-            PyObject* cached = PythonObjectCache::getInstance().lookup(locked->serial_number);
-            if (cached) {
-                return cached;
-            }
-        }
-
-        auto type = &mcrfpydef::PyUIEntityType;
-        auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
-        if (o) {
-            o->data = locked;
-            o->weakreflist = NULL;
-            return (PyObject*)o;
-        }
-    }
-    Py_RETURN_NONE;
-}
-
-int UIGrid::set_perspective(PyUIGridObject* self, PyObject* value, void* closure)
-{
-    if (value == Py_None) {
-        self->data->perspective_entity.reset();
-        self->data->markDirty();
-        return 0;
-    }
-
-    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIEntityType)) {
-        PyErr_SetString(PyExc_TypeError, "perspective must be a UIEntity or None");
-        return -1;
-    }
-
-    PyUIEntityObject* entity_obj = (PyUIEntityObject*)value;
-    self->data->perspective_entity = entity_obj->data;
-    self->data->perspective_enabled = true;
-    self->data->markDirty();
-    return 0;
-}
-
-PyObject* UIGrid::get_perspective_enabled(PyUIGridObject* self, void* closure)
-{
-    return PyBool_FromLong(self->data->perspective_enabled);
-}
-
-int UIGrid::set_perspective_enabled(PyUIGridObject* self, PyObject* value, void* closure)
-{
-    int enabled = PyObject_IsTrue(value);
-    if (enabled == -1) {
-        return -1;
-    }
-    self->data->perspective_enabled = enabled;
-    self->data->markDirty();
-    return 0;
-}
-
-// =========================================================================
-// FOV properties
-// =========================================================================
 
 PyObject* UIGrid::get_fov(PyUIGridObject* self, void* closure)
 {
@@ -368,17 +286,6 @@ PyObject* UIGrid::get_children(PyUIGridObject* self, void* closure)
     return (PyObject*)o;
 }
 
-PyObject* UIGrid::get_view(PyUIGridObject* self, void* closure)
-{
-    if (!self->view) Py_RETURN_NONE;
-    auto type = &mcrfpydef::PyUIGridViewType;
-    auto obj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
-    if (!obj) return PyErr_NoMemory();
-    obj->data = self->view;
-    obj->weakreflist = NULL;
-    return (PyObject*)obj;
-}
-
 PyObject* UIGrid::get_layers(PyUIGridObject* self, void* closure) {
     self->data->sortLayers();
 
@@ -438,70 +345,7 @@ PyObject* UIGrid::repr(PyUIGridObject* self)
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
 }
 
-// =========================================================================
-// Cell callback properties
-// =========================================================================
-
-PyObject* UIGrid::get_on_cell_enter(PyUIGridObject* self, void* closure) {
-    if (self->data->on_cell_enter_callable) {
-        PyObject* cb = self->data->on_cell_enter_callable->borrow();
-        Py_INCREF(cb);
-        return cb;
-    }
-    Py_RETURN_NONE;
-}
-
-int UIGrid::set_on_cell_enter(PyUIGridObject* self, PyObject* value, void* closure) {
-    if (value == Py_None) {
-        self->data->on_cell_enter_callable.reset();
-    } else {
-        self->data->on_cell_enter_callable = std::make_unique<PyCellHoverCallable>(value);
-    }
-    return 0;
-}
-
-PyObject* UIGrid::get_on_cell_exit(PyUIGridObject* self, void* closure) {
-    if (self->data->on_cell_exit_callable) {
-        PyObject* cb = self->data->on_cell_exit_callable->borrow();
-        Py_INCREF(cb);
-        return cb;
-    }
-    Py_RETURN_NONE;
-}
-
-int UIGrid::set_on_cell_exit(PyUIGridObject* self, PyObject* value, void* closure) {
-    if (value == Py_None) {
-        self->data->on_cell_exit_callable.reset();
-    } else {
-        self->data->on_cell_exit_callable = std::make_unique<PyCellHoverCallable>(value);
-    }
-    return 0;
-}
-
-PyObject* UIGrid::get_on_cell_click(PyUIGridObject* self, void* closure) {
-    if (self->data->on_cell_click_callable) {
-        PyObject* cb = self->data->on_cell_click_callable->borrow();
-        Py_INCREF(cb);
-        return cb;
-    }
-    Py_RETURN_NONE;
-}
-
-int UIGrid::set_on_cell_click(PyUIGridObject* self, PyObject* value, void* closure) {
-    if (value == Py_None) {
-        self->data->on_cell_click_callable.reset();
-    } else {
-        self->data->on_cell_click_callable = std::make_unique<PyClickCallable>(value);
-    }
-    return 0;
-}
-
-PyObject* UIGrid::get_hovered_cell(PyUIGridObject* self, void* closure) {
-    if (self->data->hovered_cell.has_value()) {
-        return Py_BuildValue("(ii)", self->data->hovered_cell->x, self->data->hovered_cell->y);
-    }
-    Py_RETURN_NONE;
-}
+// #355 - cell callback properties moved to UIGridView (src/UIGridView.cpp)
 
 // =========================================================================
 // getsetters[] table
@@ -564,17 +408,6 @@ PyGetSetDef UIGrid::getsetters[] = {
          "Returns a copy; modifying components requires reassignment. "
          "For animation, use 'fill_color.r', 'fill_color.g', etc."
      ), NULL},
-    {"perspective", (getter)UIGrid::get_perspective, (setter)UIGrid::set_perspective,
-     MCRF_PROPERTY(perspective,
-         "Entity whose perspective to use for FOV rendering (Entity | None). "
-         "Setting an entity automatically enables perspective mode. "
-         "Set to None for omniscient view."
-     ), NULL},
-    {"perspective_enabled", (getter)UIGrid::get_perspective_enabled, (setter)UIGrid::set_perspective_enabled,
-     MCRF_PROPERTY(perspective_enabled,
-         "Whether to use perspective-based FOV rendering (bool). "
-         "When True with no valid entity, all cells appear undiscovered."
-     ), NULL},
     {"fov", (getter)UIGrid::get_fov, (setter)UIGrid::set_fov,
      MCRF_PROPERTY(fov,
          "FOV algorithm for this grid (FOV enum). "
@@ -593,19 +426,6 @@ PyGetSetDef UIGrid::getsetters[] = {
     UIDRAWABLE_PARENT_GETSETTERS(PyObjectsEnum::UIGRID),
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIGRID),
     UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UIGRID),
-    {"on_cell_enter", (getter)UIGrid::get_on_cell_enter, (setter)UIGrid::set_on_cell_enter,
-     MCRF_PROPERTY(on_cell_enter, "Callback when mouse enters a grid cell (Callable | None). Called with (cell_pos: Vector)."), NULL},
-    {"on_cell_exit", (getter)UIGrid::get_on_cell_exit, (setter)UIGrid::set_on_cell_exit,
-     MCRF_PROPERTY(on_cell_exit, "Callback when mouse exits a grid cell (Callable | None). Called with (cell_pos: Vector)."), NULL},
-    {"on_cell_click", (getter)UIGrid::get_on_cell_click, (setter)UIGrid::set_on_cell_click,
-     MCRF_PROPERTY(on_cell_click, "Callback when a grid cell is clicked (Callable | None). Called with (cell_pos: Vector, button: MouseButton, action: InputState)."), NULL},
-    {"hovered_cell", (getter)UIGrid::get_hovered_cell, NULL,
-     MCRF_PROPERTY(hovered_cell, "Currently hovered cell as (x, y) tuple, or None if not hovering (tuple | None, read-only)."), NULL},
     UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UIGRID),
-    {"view", (getter)UIGrid::get_view, NULL,
-     MCRF_PROPERTY(view,
-         "Auto-created GridView for rendering (GridView | None, read-only). "
-         "When Grid is appended to a scene, this view is what actually renders."
-     ), NULL},
     {NULL}
 };

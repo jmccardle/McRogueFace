@@ -119,26 +119,10 @@ public:
     std::shared_ptr<GridLayer> getLayerByName(const std::string& name);
     static bool isProtectedLayerName(const std::string& name);
 
-    // =========================================================================
-    // Cell callbacks (#142, #230)
-    // =========================================================================
-    std::unique_ptr<PyCellHoverCallable> on_cell_enter_callable;
-    std::unique_ptr<PyCellHoverCallable> on_cell_exit_callable;
-    std::unique_ptr<PyClickCallable> on_cell_click_callable;
-    std::optional<sf::Vector2i> hovered_cell;
-    std::optional<sf::Vector2i> last_clicked_cell;
-
-    struct CellCallbackCache {
-        uint32_t generation = 0;
-        bool valid = false;
-        bool has_on_cell_click = false;
-        bool has_on_cell_enter = false;
-        bool has_on_cell_exit = false;
-    };
-    CellCallbackCache cell_callback_cache;
-
-    // fireCellClick/Enter/Exit and refreshCellCallbackCache are on UIGrid
-    // because they need access to UIDrawable::serial_number/is_python_subclass
+    // #355 - Cell input (callbacks, hovered/last-clicked cell, subclass-dispatch
+    // cache) moved to UIGridView: input is a property of the VIEW (camera), not of
+    // the data. Two views over one GridData must track hover independently, and
+    // the subclassable Python type (mcrfpy.Grid) IS UIGridView.
 
     // =========================================================================
     // UIDrawable children (speech bubbles, effects, overlays)
@@ -147,9 +131,27 @@ public:
     bool children_need_sort = true;
 
     // =========================================================================
-    // #252 - Owning GridView back-reference (for Entity.grid → GridView lookup)
+    // #252/#359 - GridView back-references. Multiple GridViews can share one
+    // GridData (split-screen, minimap, multiple cameras); a single weak_ptr
+    // cannot represent that, so this is a vector. A fresh GridData is only
+    // ever produced by UIGridView::init_with_data (the Grid() factory path --
+    // UIGridView::init_explicit_view / set_grid can only ATTACH to an
+    // EXISTING GridData, never create one), so views.front() is always the
+    // view that created this data: that ordering guarantee is what lets
+    // primaryView() give UIEntity::get_grid a deterministic (not arbitrary)
+    // answer for API identity, even once secondary views are registered.
     // =========================================================================
-    std::weak_ptr<UIGridView> owning_view;
+    std::vector<std::weak_ptr<UIGridView>> views;
+
+    // Append view (idempotent -- a view already present is not duplicated).
+    void registerView(const std::shared_ptr<UIGridView>& view);
+    // Remove view by identity (prunes expired entries too). Safe to call even
+    // if view was never registered.
+    void unregisterView(UIGridView* view);
+    // The view that created this GridData (views.front()), or the first
+    // still-alive view if the creator has since been destroyed while
+    // secondary views live on. nullptr if no view is alive.
+    std::shared_ptr<UIGridView> primaryView() const;
 
     // #351 - Monotonic counter bumped whenever grid content drawn into a view's
     // RenderTexture changes (entities added/removed/moved, sprite changes, layer
@@ -158,14 +160,21 @@ public:
     // live on the view and are compared there directly, not counted here.
     uint64_t content_generation = 0;
 
-    // #313 - Render invalidation from the data layer. Entities hold
+    // #313/#359 - Render invalidation from the data layer. Entities hold
     // shared_ptr<GridData> but still need to invalidate rendering when their
     // visual state changes. These set the dirty flags on the UIGrid subobject
     // (GridData is never independently heap-allocated -- always a UIGrid base)
-    // AND notify owning_view, covering both render paths (a bare _GridData
-    // rendered directly, and the normal GridView). Within UIGrid itself the
-    // UIDrawable versions win via using-declarations (see UIGrid.h).
-    // Multi-view broadcast (secondary views) is deferred to #252.
+    // AND notify every registered view (see `views` above), covering both
+    // render paths (a bare _GridData rendered directly, and every GridView
+    // sharing this data) and every view's own ancestor chain (e.g. a
+    // Frame(use_render_texture=True) wrapping ANY of the N views needs its
+    // own cache invalidated, not just the creator's). Note the #351 render
+    // early-out itself does NOT depend on this notification -- it polls
+    // content_generation directly in UIGridView::render() -- this push is only
+    // for propagating markContentDirty/markCompositeDirty up a view's parent
+    // chain, which is a bottom-up push, not something pollable from a
+    // top-down render traversal. Within UIGrid itself the UIDrawable versions
+    // win via using-declarations (see UIGrid.h).
     void markDirty();
     void markCompositeDirty();
 

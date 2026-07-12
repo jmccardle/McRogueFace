@@ -31,7 +31,6 @@ class UIGridView;
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<UIGrid> data;
-    std::shared_ptr<UIGridView> view;  // #252: auto-created rendering view (shim)
     PyObject* weakreflist;  // Weak reference support
 } PyUIGridObject;
 

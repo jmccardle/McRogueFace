@@ -3,7 +3,7 @@
 #include "UIEntity.h"
 #include "PyTexture.h"
 #include "UIGrid.h"      // #313 - markDirty forwards to the UIGrid subobject
-#include "UIGridView.h"  // #313 - and notifies owning_view
+#include "UIGridView.h"  // #313/#359 - and notifies registered views
 #include <algorithm>
 
 // #313 - Render invalidation from the data layer (see GridData.h).
@@ -12,17 +12,44 @@
 void GridData::markDirty() {
     content_generation++;  // #351 - content changed; invalidate view early-out
     static_cast<UIGrid*>(this)->UIDrawable::markDirty();
-    if (auto view = owning_view.lock()) {
-        view->markDirty();
+    for (auto& weak_view : views) {
+        if (auto view = weak_view.lock()) view->markDirty();
     }
 }
 
 void GridData::markCompositeDirty() {
     content_generation++;  // #351 - content changed; invalidate view early-out
     static_cast<UIGrid*>(this)->UIDrawable::markCompositeDirty();
-    if (auto view = owning_view.lock()) {
-        view->markCompositeDirty();
+    for (auto& weak_view : views) {
+        if (auto view = weak_view.lock()) view->markCompositeDirty();
     }
+}
+
+// #359 - View registry (see GridData.h). Kept small (typically 1-2 entries:
+// split-screen / minimap use cases), so linear scan is fine.
+void GridData::registerView(const std::shared_ptr<UIGridView>& view) {
+    if (!view) return;
+    for (auto& weak_view : views) {
+        if (weak_view.lock() == view) return;  // already registered
+    }
+    views.push_back(view);
+}
+
+void GridData::unregisterView(UIGridView* view) {
+    views.erase(
+        std::remove_if(views.begin(), views.end(),
+            [view](const std::weak_ptr<UIGridView>& weak_view) {
+                auto locked = weak_view.lock();
+                return !locked || locked.get() == view;  // prune expired too
+            }),
+        views.end());
+}
+
+std::shared_ptr<UIGridView> GridData::primaryView() const {
+    for (auto& weak_view : views) {
+        if (auto view = weak_view.lock()) return view;
+    }
+    return nullptr;
 }
 
 GridData::GridData()

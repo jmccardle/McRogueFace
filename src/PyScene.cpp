@@ -257,41 +257,19 @@ void PyScene::do_mouse_input(std::string button, std::string type)
             // #184: Try property-assigned callable first (fast path)
             if (target->click_callable && !target->click_callable->isNone()) {
                 target->click_callable->call(mousepos, button, type);
-
-                // Also fire grid cell click if applicable
-                if (target->derived_type() == PyObjectsEnum::UIGRID) {
-                    auto grid = static_cast<UIGrid*>(target);
-                    if (grid->last_clicked_cell.has_value()) {
-                        grid->fireCellClick(grid->last_clicked_cell.value(), button, type);
-                        grid->last_clicked_cell = std::nullopt;
-                    }
-                }
+                target->dispatchCellClick(button, type);     // #355 (no-op unless grid view)
                 return; // Stop after first handler
             }
 
             // #184: Try Python subclass method
             if (tryCallPythonMethod(target, "on_click", mousepos, button.c_str(), type.c_str())) {
-                // Also fire grid cell click if applicable
-                if (target->derived_type() == PyObjectsEnum::UIGRID) {
-                    auto grid = static_cast<UIGrid*>(target);
-                    if (grid->last_clicked_cell.has_value()) {
-                        grid->fireCellClick(grid->last_clicked_cell.value(), button, type);
-                        grid->last_clicked_cell = std::nullopt;
-                    }
-                }
+                target->dispatchCellClick(button, type);     // #355
                 return; // Stop after first handler
             }
 
-            // Fire grid cell click even if no on_click handler (but has cell click handler)
-            if (target->derived_type() == PyObjectsEnum::UIGRID) {
-                auto grid = static_cast<UIGrid*>(target);
-                if (grid->last_clicked_cell.has_value()) {
-                    bool handled = grid->fireCellClick(grid->last_clicked_cell.value(), button, type);
-                    grid->last_clicked_cell = std::nullopt;
-                    if (handled) {
-                        return; // Stop after handling cell click
-                    }
-                }
+            // #355: cell click fires even without a whole-grid on_click handler
+            if (target->dispatchCellClick(button, type)) {
+                return; // Stop after handling cell click
             }
 
             // Element claimed the click but had no handler - still stop propagation
@@ -326,11 +304,28 @@ void PyScene::do_mouse_hover(int x, int y)
         mousepos = game->windowToGameCoords(sf::Vector2f(static_cast<float>(x), static_cast<float>(y)));
     }
 
-    // Helper function to process hover for a single drawable and its children
-    std::function<void(UIDrawable*)> processHover = [&](UIDrawable* drawable) {
+    // Helper function to process hover for a single drawable and its children.
+    //
+    // `point` is in the drawable's PARENT-local coordinate space -- the same
+    // convention click_at() uses. At the top level that is the global/scene space
+    // (identical to the old contains_point() behavior, since global position is
+    // just the sum of ancestor positions). Descending into a Frame subtracts the
+    // frame's position; descending into a Grid applies the view's camera
+    // (localToGridWorld), which is what makes grid children hoverable at all (#355).
+    //
+    // `hit_allowed` is false while walking the children of a grid the mouse is NOT
+    // over: the camera transform is affine, so an outside point still maps to some
+    // grid-world coordinate, which could land on an off-screen child. Those subtrees
+    // must only ever fire exits, never enters.
+    std::function<void(UIDrawable*, sf::Vector2f, bool)> processHover =
+        [&](UIDrawable* drawable, sf::Vector2f point, bool hit_allowed) {
         if (!drawable || !drawable->visible) return;
 
-        bool is_inside = drawable->contains_point(mousepos.x, mousepos.y);
+        // Same rect get_global_bounds() builds (position + bounds SIZE), just
+        // expressed in parent-local space instead of accumulated global space.
+        sf::FloatRect b = drawable->get_bounds();
+        bool is_inside = hit_allowed &&
+            sf::FloatRect(drawable->position.x, drawable->position.y, b.width, b.height).contains(point);
         bool was_hovered = drawable->hovered;
 
         if (is_inside && !was_hovered) {
@@ -367,26 +362,33 @@ void PyScene::do_mouse_hover(int x, int y)
             }
         }
 
-        // Process children for Frame elements
+        // #355 - cell enter/exit (no-op for non-grid drawables)
+        drawable->updateHover(point, hit_allowed);
+
+        // Process children for Frame elements (children are positioned relative
+        // to the frame's own position).
         if (drawable->derived_type() == PyObjectsEnum::UIFRAME) {
             auto frame = static_cast<UIFrame*>(drawable);
             if (frame->children) {
+                sf::Vector2f child_point = point - frame->position;
                 for (auto& child : *frame->children) {
-                    processHover(child.get());
+                    processHover(child.get(), child_point, hit_allowed);
                 }
             }
         }
-        // Process children for Grid elements
-        else if (drawable->derived_type() == PyObjectsEnum::UIGRID) {
-            auto grid = static_cast<UIGrid*>(drawable);
-
-            // #142 - Update cell hover tracking for grid
-            // Pass "none" for button and "move" for action during hover
-            grid->updateCellHover(mousepos, "none", "move");
-
-            if (grid->children) {
-                for (auto& child : *grid->children) {
-                    processHover(child.get());
+        // #355 - Grid overlay children live in GRID-WORLD PIXEL coordinates, so the
+        // mouse point must go through the view's camera exactly as UIGridView::click_at
+        // does. Children are always visited (even when the mouse is outside the view)
+        // so a child that was hovered still receives its on_exit.
+        else if (drawable->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
+            auto view = static_cast<UIGridView*>(drawable);
+            if (view->grid_data && view->grid_data->children) {
+                sf::Vector2f local = point - view->box.getPosition();
+                sf::Vector2f grid_world = view->localToGridWorld(local);
+                bool inside_view = hit_allowed &&
+                    sf::FloatRect(sf::Vector2f(0.f, 0.f), view->box.getSize()).contains(local);
+                for (auto& child : *view->grid_data->children) {
+                    processHover(child.get(), grid_world, inside_view);
                 }
             }
         }
@@ -394,7 +396,7 @@ void PyScene::do_mouse_hover(int x, int y)
 
     // Process all top-level UI elements
     for (auto& element : *ui_elements) {
-        processHover(element.get());
+        processHover(element.get(), mousepos, true);
     }
 }
 

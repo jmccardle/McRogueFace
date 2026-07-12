@@ -56,6 +56,7 @@ public:
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     PyObjectsEnum derived_type() override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
+    GridData* asGridData() override { return static_cast<GridData*>(this); }  // #355
 
     // Phase 1 virtual method implementations
     sf::FloatRect get_bounds() const override;
@@ -80,20 +81,12 @@ public:
     // Background rendering
     sf::Color fill_color;
 
-    // Perspective system
-    std::weak_ptr<UIEntity> perspective_entity;
-    bool perspective_enabled;
+    // #355: the perspective system (entity + enabled flag) lives on UIGridView,
+    // which renders the FOV overlay. Keeping a copy here was a dead duplicate.
 
-    // Cell callback firing (needs UIDrawable::is_python_subclass, serial_number)
-    bool fireCellClick(sf::Vector2i cell, const std::string& button, const std::string& action);
-    bool fireCellEnter(sf::Vector2i cell);
-    bool fireCellExit(sf::Vector2i cell);
-    void refreshCellCallbackCache(PyObject* pyObj);
-
-    // #142 - Cell coordinate conversion (needs texture for cell size)
-    std::optional<sf::Vector2i> screenToCell(sf::Vector2f screen_pos) const;
+    // #355 - cell callback firing, screenToCell and cell hover moved to UIGridView.
+    // getEffectiveCellSize stays: UIDrawable uses it for grid_pos <-> pixel math.
     sf::Vector2f getEffectiveCellSize() const;
-    void updateCellHover(sf::Vector2f mousepos, const std::string& button, const std::string& action);
 
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
@@ -122,10 +115,6 @@ public:
     static PyObject* get_texture(PyUIGridObject* self, void* closure);
     static PyObject* get_fill_color(PyUIGridObject* self, void* closure);
     static int set_fill_color(PyUIGridObject* self, PyObject* value, void* closure);
-    static PyObject* get_perspective(PyUIGridObject* self, void* closure);
-    static int set_perspective(PyUIGridObject* self, PyObject* value, void* closure);
-    static PyObject* get_perspective_enabled(PyUIGridObject* self, void* closure);
-    static int set_perspective_enabled(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_fov(PyUIGridObject* self, void* closure);
     static int set_fov(PyUIGridObject* self, PyObject* value, void* closure);
     static PyObject* get_fov_radius(PyUIGridObject* self, void* closure);
@@ -149,15 +138,6 @@ public:
     static PyObject* get_children(PyUIGridObject* self, void* closure);
     static PyObject* repr(PyUIGridObject* self);
 
-    static PyObject* get_on_cell_enter(PyUIGridObject* self, void* closure);
-    static int set_on_cell_enter(PyUIGridObject* self, PyObject* value, void* closure);
-    static PyObject* get_on_cell_exit(PyUIGridObject* self, void* closure);
-    static int set_on_cell_exit(PyUIGridObject* self, PyObject* value, void* closure);
-    static PyObject* get_on_cell_click(PyUIGridObject* self, void* closure);
-    static int set_on_cell_click(PyUIGridObject* self, PyObject* value, void* closure);
-    static PyObject* get_hovered_cell(PyUIGridObject* self, void* closure);
-
-    static PyObject* get_view(PyUIGridObject* self, void* closure);  // #252 shim
     static PyObject* py_add_layer(PyUIGridObject* self, PyObject* args);
     static PyObject* py_remove_layer(PyUIGridObject* self, PyObject* args);
     static PyObject* get_layers(PyUIGridObject* self, void* closure);
@@ -190,12 +170,8 @@ namespace mcrfpydef {
                 obj->data->on_enter_unregister();
                 obj->data->on_exit_unregister();
                 obj->data->on_move_unregister();
-                // Grid-specific cell callbacks (now on GridData base)
-                obj->data->on_cell_enter_callable.reset();
-                obj->data->on_cell_exit_callable.reset();
-                obj->data->on_cell_click_callable.reset();
+                // #355: cell callbacks now live on UIGridView, not GridData.
             }
-            obj->view.reset();  // #252: release GridView shim
             obj->data.reset();
             Py_TYPE(self)->tp_free(self);
         },
@@ -215,7 +191,6 @@ namespace mcrfpydef {
                             "    center_x (float): X coordinate of center point. Default: 0\n"
                             "    center_y (float): Y coordinate of center point. Default: 0\n"
                             "    zoom (float): Zoom level for rendering. Default: 1.0\n"
-                            "    perspective (int): Entity perspective index (-1 for omniscient). Default: -1\n"
                             "    visible (bool): Visibility state. Default: True\n"
                             "    opacity (float): Opacity (0.0-1.0). Default: 1.0\n"
                             "    z_index (int): Rendering order. Default: 0\n"
@@ -243,7 +218,12 @@ namespace mcrfpydef {
                             "    texture (Texture): Tile texture atlas\n"
                             "    fill_color (Color): Background color\n"
                             "    entities (EntityCollection): Collection of entities in the grid\n"
-                            "    perspective (int): Entity perspective index\n"
+                            "    children (UICollection): UIDrawable children (speech bubbles, markers, "
+                            "range indicators) anchored to grid content -- positioned in the grid's "
+                            "pixel-world coordinates, same origin as entities, and pan/zoom with the "
+                            "camera. NOT the same coordinate space as Frame.children. For screen-space "
+                            "UI that floats over the grid, use a sibling Frame instead; see "
+                            "docs/grid-coordinate-spaces.md\n"
                             "    click (callable): Click event handler\n"
                             "    visible (bool): Visibility state\n"
                             "    opacity (float): Opacity value\n"
@@ -272,18 +252,6 @@ namespace mcrfpydef {
                     PyObject* callback = obj->data->on_move_callable->borrow();
                     if (callback && callback != Py_None) Py_VISIT(callback);
                 }
-                if (obj->data->on_cell_enter_callable) {
-                    PyObject* callback = obj->data->on_cell_enter_callable->borrow();
-                    if (callback && callback != Py_None) Py_VISIT(callback);
-                }
-                if (obj->data->on_cell_exit_callable) {
-                    PyObject* callback = obj->data->on_cell_exit_callable->borrow();
-                    if (callback && callback != Py_None) Py_VISIT(callback);
-                }
-                if (obj->data->on_cell_click_callable) {
-                    PyObject* callback = obj->data->on_cell_click_callable->borrow();
-                    if (callback && callback != Py_None) Py_VISIT(callback);
-                }
             }
             return 0;
         },
@@ -294,9 +262,6 @@ namespace mcrfpydef {
                 obj->data->on_enter_unregister();
                 obj->data->on_exit_unregister();
                 obj->data->on_move_unregister();
-                obj->data->on_cell_enter_callable.reset();
-                obj->data->on_cell_exit_callable.reset();
-                obj->data->on_cell_click_callable.reset();
             }
             return 0;
         },
@@ -309,8 +274,6 @@ namespace mcrfpydef {
             PyUIGridObject* self = (PyUIGridObject*)type->tp_alloc(type, 0);
             if (self) {
                 self->data = std::make_shared<UIGrid>();
-                // Placement-new the shared_ptr<UIGridView> (tp_alloc zero-fills, not construct)
-                new (&self->view) std::shared_ptr<UIGridView>();
             }
             return (PyObject*)self;
         }

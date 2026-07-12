@@ -25,8 +25,7 @@
 UIGrid::UIGrid()
 : GridData(),  // Initialize data layer (entities, children, FOV defaults)
   zoom(1.0f), center_x(0.0f), center_y(0.0f), ptex(nullptr),
-  fill_color(8, 8, 8, 255),
-  perspective_enabled(false)
+  fill_color(8, 8, 8, 255)
 {
     // Initialize box with safe defaults
     box.setSize(sf::Vector2f(0, 0));
@@ -51,8 +50,7 @@ UIGrid::UIGrid(int gx, int gy, std::shared_ptr<PyTexture> _ptex, sf::Vector2f _x
 : GridData(),  // Initialize data layer
   zoom(1.0f),
   ptex(_ptex),
-  fill_color(8, 8, 8, 255),
-  perspective_enabled(false)
+  fill_color(8, 8, 8, 255)
 {
     // Use texture dimensions if available, otherwise use defaults
     int cell_width = _ptex ? _ptex->sprite_width : DEFAULT_CELL_WIDTH;
@@ -286,76 +284,8 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
         }
     }
 
-    // top layer - opacity for discovered / visible status based on perspective
-    // Only render visibility overlay if perspective is enabled
-    if (perspective_enabled) {
-        ScopedTimer fovTimer(Resources::game->metrics.fovOverlayTime);
-        auto entity = perspective_entity.lock();
-        
-        // Create rectangle for overlays
-        sf::RectangleShape overlay;
-        overlay.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
-        
-        if (entity && entity->perspective_map) {
-            // #294: perspective_map values -- 0=unknown, 1=discovered, 2=visible.
-            const uint8_t* pm = entity->perspective_map->data();
-            const int pm_w = entity->perspective_map->width();
-            const int pm_h = entity->perspective_map->height();
-            for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
-                x < x_limit;
-                x+=1)
-            {
-                for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
-                    y < y_limit;
-                    y+=1)
-                {
-                    // Skip out-of-bounds cells
-                    if (x < 0 || x >= grid_w || y < 0 || y >= grid_h) continue;
-                    if (x >= pm_w || y >= pm_h) continue;
-
-                    auto pixel_pos = sf::Vector2f(
-                            (x*cell_width - left_spritepixels) * zoom,
-                            (y*cell_height - top_spritepixels) * zoom );
-
-                    uint8_t state = pm[y * pm_w + x];
-                    overlay.setPosition(pixel_pos);
-
-                    if (state == 0) {
-                        overlay.setFillColor(sf::Color(0, 0, 0, 255));
-                        activeTexture->draw(overlay);
-                    } else if (state == 1) {
-                        overlay.setFillColor(sf::Color(32, 32, 40, 192));
-                        activeTexture->draw(overlay);
-                    }
-                    // state == 2: visible -- no overlay
-                }
-            }
-        } else {
-            // Invalid/destroyed entity with perspective_enabled = true
-            // Show all cells as undiscovered (black)
-            for (int x = (left_edge - 1 >= 0 ? left_edge - 1 : 0);
-                x < x_limit;
-                x+=1)
-            {
-                for (int y = (top_edge - 1 >= 0 ? top_edge - 1 : 0);
-                    y < y_limit;
-                    y+=1)
-                {
-                    // Skip out-of-bounds cells
-                    if (x < 0 || x >= grid_w || y < 0 || y >= grid_h) continue;
-                    
-                    auto pixel_pos = sf::Vector2f(
-                            (x*cell_width - left_spritepixels) * zoom,
-                            (y*cell_height - top_spritepixels) * zoom );
-                    
-                    overlay.setPosition(pixel_pos);
-                    overlay.setFillColor(sf::Color(0, 0, 0, 255));
-                    activeTexture->draw(overlay);
-                }
-            }
-        }
-    }
-    // else: omniscient view (no overlays)
+    // #355: the perspective/FOV overlay is drawn by UIGridView::render, which owns
+    // the perspective state. UIGrid (the internal _GridData) no longer duplicates it.
 
     // grid lines for testing & validation
     /*
@@ -522,100 +452,13 @@ std::shared_ptr<PyTexture> UIGrid::getTexture()
     return ptex;
 }
 
-UIDrawable* UIGrid::click_at(sf::Vector2f point)
+UIDrawable* UIGrid::click_at(sf::Vector2f)
 {
-    // Check grid bounds first
-    if (!box.getGlobalBounds().contains(point)) {
-        return nullptr;
-    }
-    
-    // Transform to local coordinates
-    sf::Vector2f localPoint = point - box.getPosition();
-    
-    // Get cell dimensions
-    int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
-    int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-    
-    // Calculate visible area parameters (from render function)
-    float center_x_sq = center_x / cell_width;
-    float center_y_sq = center_y / cell_height;
-    float width_sq = box.getSize().x / (cell_width * zoom);
-    float height_sq = box.getSize().y / (cell_height * zoom);
-    
-    int left_spritepixels = center_x - (box.getSize().x / 2.0 / zoom);
-    int top_spritepixels = center_y - (box.getSize().y / 2.0 / zoom);
-    
-    // Convert click position to grid-world pixel coordinates
-    float grid_world_x = localPoint.x / zoom + left_spritepixels;
-    float grid_world_y = localPoint.y / zoom + top_spritepixels;
-
-    // Convert to grid cell coordinates
-    float grid_x = grid_world_x / cell_width;
-    float grid_y = grid_world_y / cell_height;
-
-    // Check children first (they render on top, so they get priority)
-    // Children are positioned in grid-world pixel coordinates
-    if (children && !children->empty()) {
-        // Check in reverse z-order (highest z_index first, rendered last = on top)
-        for (auto it = children->rbegin(); it != children->rend(); ++it) {
-            auto& child = *it;
-            if (!child->visible) continue;
-
-            // Transform click to child's local coordinate space
-            // Children's position is in grid-world pixels
-            sf::Vector2f childLocalPoint = sf::Vector2f(grid_world_x, grid_world_y);
-
-            if (auto target = child->click_at(childLocalPoint)) {
-                return target;
-            }
-        }
-    }
-
-    // Check entities in reverse order (assuming they should be checked top to bottom)
-    // Note: entities list is not sorted by z-index currently, but we iterate in reverse
-    // to match the render order assumption
-    if (entities) {
-        for (auto it = entities->rbegin(); it != entities->rend(); ++it) {
-            auto& entity = *it;
-            if (!entity || !entity->sprite.visible) continue;
-            
-            // Check if click is within entity's grid cell
-            // Entities occupy a 1x1 grid cell centered on their position
-            float dx = grid_x - entity->position.x;
-            float dy = grid_y - entity->position.y;
-            
-            if (dx >= -0.5f && dx < 0.5f && dy >= -0.5f && dy < 0.5f) {
-                // Click is within the entity's cell
-                // Check if entity sprite has a click handler
-                // For now, we return the entity's sprite as the click target
-                // Note: UIEntity doesn't derive from UIDrawable, so we check its sprite
-                if (entity->sprite.click_callable) {
-                    return &entity->sprite;
-                }
-            }
-        }
-    }
-    
-    // No entity handled it, check if grid itself has handler
-    // #184: Also check for Python subclass (might have on_click or on_cell_click method)
-
-    // Store clicked cell for later callback firing (with button/action from PyScene)
-    int cell_x = static_cast<int>(std::floor(grid_x));
-    int cell_y = static_cast<int>(std::floor(grid_y));
-    if (cell_x >= 0 && cell_x < this->grid_w && cell_y >= 0 && cell_y < this->grid_h) {
-        last_clicked_cell = sf::Vector2i(cell_x, cell_y);
-    } else {
-        last_clicked_cell = std::nullopt;
-    }
-
-    // Return this if we have any handler (property callback, subclass method, or cell callback)
-    if (click_callable || is_python_subclass || on_cell_click_callable) {
-        return this;
-    }
-
+    // #355: a bare _GridData is never an input target -- the scene graph holds
+    // UIGridView, which owns the camera and all cell/child/entity hit testing.
+    // #361 removes UIDrawable from GridData entirely, which deletes this override.
     return nullptr;
 }
-
 
 int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     // Define all parameters with defaults
@@ -782,8 +625,7 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     }
     self->data->center_x = center_x;
     self->data->center_y = center_y;
-    // perspective is now handled by perspective_entity and perspective_enabled
-    // self->data->perspective = perspective;
+    // #355: perspective lives on UIGridView (the object that renders the overlay).
     self->data->visible = visible;
     self->data->opacity = opacity;
     self->data->z_index = z_index;
@@ -984,32 +826,15 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridType;
 
-    // #252 shim: auto-create a GridView for rendering
-    // The GridView shares GridData (via aliasing shared_ptr) and copies rendering state
-    {
-        auto view = std::make_shared<UIGridView>();
-        // Share grid data (aliasing shared_ptr: shares UIGrid ownership, points to GridData base)
-        view->grid_data = std::shared_ptr<GridData>(
-            self->data, static_cast<GridData*>(self->data.get()));
-        // Copy rendering state from UIGrid to GridView
-        view->ptex = texture_ptr;
-        view->box.setPosition(self->data->box.getPosition());
-        view->box.setSize(self->data->box.getSize());
-        view->position = self->data->position;
-        view->center_x = self->data->center_x;
-        view->center_y = self->data->center_y;
-        view->zoom = self->data->zoom;
-        view->fill_color = self->data->fill_color;
-        view->camera_rotation = self->data->camera_rotation;
-        view->perspective_entity = self->data->perspective_entity;
-        view->perspective_enabled = self->data->perspective_enabled;
-        view->visible = self->data->visible;
-        view->opacity = self->data->opacity;
-        view->z_index = self->data->z_index;
-        view->name = self->data->name;
-        view->ensureRenderTextureSize();
-        self->view = view;
-    }
+    // #359: previously constructed an extra "shim" GridView here (self->view)
+    // that copied rendering state and allocated its own RenderTexture, but was
+    // NEVER used -- UIGridView::init_with_data (the only caller of UIGrid::init,
+    // see UIGridView.cpp) discards this PyUIGridObject wrapper immediately after
+    // stealing its GridData via an aliasing shared_ptr, and builds the REAL,
+    // user-visible view directly on itself. The shim was dead weight (a wasted
+    // RenderTexture allocation on every Grid() construction) backing a field
+    // (PyUIGridObject::view / `_GridData.view`) nothing ever read. Removed along
+    // with the field itself.
 
     return 0; // Success
 }
@@ -1017,331 +842,11 @@ int UIGrid::init(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
 // Python property getters/setters moved to UIGridPyProperties.cpp
 // Python method implementations moved to UIGridPyMethods.cpp
 
-// #142 - Convert screen coordinates to cell coordinates
-std::optional<sf::Vector2i> UIGrid::screenToCell(sf::Vector2f screen_pos) const {
-    // Get grid's global position
-    sf::Vector2f global_pos = get_global_position();
-    sf::Vector2f local_pos = screen_pos - global_pos;
-
-    // Check if within grid bounds
-    sf::FloatRect bounds = box.getGlobalBounds();
-    if (local_pos.x < 0 || local_pos.y < 0 ||
-        local_pos.x >= bounds.width || local_pos.y >= bounds.height) {
-        return std::nullopt;
-    }
-
-    // Get cell size from texture or default
-    float cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
-    float cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-
-    // Apply zoom
-    cell_width *= zoom;
-    cell_height *= zoom;
-
-    // Calculate grid space position (account for center/pan)
-    float half_width = bounds.width / 2.0f;
-    float half_height = bounds.height / 2.0f;
-    float grid_space_x = (local_pos.x - half_width) / zoom + center_x;
-    float grid_space_y = (local_pos.y - half_height) / zoom + center_y;
-
-    // Convert to cell coordinates
-    int cell_x = static_cast<int>(std::floor(grid_space_x / (ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH)));
-    int cell_y = static_cast<int>(std::floor(grid_space_y / (ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT)));
-
-    // Check if within valid cell range
-    if (cell_x < 0 || cell_x >= grid_w || cell_y < 0 || cell_y >= grid_h) {
-        return std::nullopt;
-    }
-
-    return sf::Vector2i(cell_x, cell_y);
-}
-
 // #221 - Get effective cell size (texture size * zoom)
 sf::Vector2f UIGrid::getEffectiveCellSize() const {
     float cell_w = ptex ? static_cast<float>(ptex->sprite_width) : static_cast<float>(DEFAULT_CELL_WIDTH);
     float cell_h = ptex ? static_cast<float>(ptex->sprite_height) : static_cast<float>(DEFAULT_CELL_HEIGHT);
     return sf::Vector2f(cell_w * zoom, cell_h * zoom);
-}
-
-// Helper function to convert button string to MouseButton enum value
-static int buttonStringToEnum(const std::string& button) {
-    if (button == "left") return 0;       // MouseButton.LEFT
-    if (button == "right") return 1;      // MouseButton.RIGHT
-    if (button == "middle") return 2;     // MouseButton.MIDDLE
-    if (button == "wheel_up") return 3;   // MouseButton.WHEEL_UP
-    if (button == "wheel_down") return 4; // MouseButton.WHEEL_DOWN
-    return 0; // Default to LEFT
-}
-
-// Helper function to convert action string to InputState enum value
-static int actionStringToEnum(const std::string& action) {
-    if (action == "start" || action == "pressed") return 0;   // InputState.PRESSED
-    if (action == "end" || action == "released") return 1;    // InputState.RELEASED
-    return 0; // Default to PRESSED
-}
-
-// #142 - Refresh cell callback cache for Python subclass method support
-void UIGrid::refreshCellCallbackCache(PyObject* pyObj) {
-    if (!pyObj || !is_python_subclass) {
-        cell_callback_cache.valid = false;
-        return;
-    }
-
-    // Get the class's callback generation counter
-    PyObject* cls = (PyObject*)Py_TYPE(pyObj);
-    uint32_t current_gen = 0;
-    PyObject* gen_obj = PyObject_GetAttrString(cls, "_mcrf_callback_gen");
-    if (gen_obj) {
-        current_gen = static_cast<uint32_t>(PyLong_AsUnsignedLong(gen_obj));
-        Py_DECREF(gen_obj);
-    } else {
-        PyErr_Clear();
-    }
-
-    // Check if cache is still valid
-    if (cell_callback_cache.valid && cell_callback_cache.generation == current_gen) {
-        return; // Cache is fresh
-    }
-
-    // Refresh cache - check for each cell callback method
-    cell_callback_cache.has_on_cell_click = false;
-    cell_callback_cache.has_on_cell_enter = false;
-    cell_callback_cache.has_on_cell_exit = false;
-
-    // Check class hierarchy for each method
-    PyTypeObject* type = Py_TYPE(pyObj);
-    while (type && type != &mcrfpydef::PyUIGridType && type != &PyBaseObject_Type) {
-        if (type->tp_dict) {
-            if (!cell_callback_cache.has_on_cell_click) {
-                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_click");
-                if (method && PyCallable_Check(method)) {
-                    cell_callback_cache.has_on_cell_click = true;
-                }
-            }
-            if (!cell_callback_cache.has_on_cell_enter) {
-                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_enter");
-                if (method && PyCallable_Check(method)) {
-                    cell_callback_cache.has_on_cell_enter = true;
-                }
-            }
-            if (!cell_callback_cache.has_on_cell_exit) {
-                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_exit");
-                if (method && PyCallable_Check(method)) {
-                    cell_callback_cache.has_on_cell_exit = true;
-                }
-            }
-        }
-        type = type->tp_base;
-    }
-
-    cell_callback_cache.generation = current_gen;
-    cell_callback_cache.valid = true;
-}
-
-// Helper to create typed cell callback arguments: (Vector, MouseButton, InputState)
-static PyObject* createCellCallbackArgs(sf::Vector2i cell, const std::string& button, const std::string& action) {
-    // Create Vector object for cell position
-    PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)cell.x, (float)cell.y);
-    if (!cell_pos) {
-        PyErr_Print();
-        return nullptr;
-    }
-
-    // Create MouseButton enum
-    int button_val = buttonStringToEnum(button);
-    PyObject* button_enum = PyObject_CallFunction(PyMouseButton::mouse_button_enum_class, "i", button_val);
-    if (!button_enum) {
-        Py_DECREF(cell_pos);
-        PyErr_Print();
-        return nullptr;
-    }
-
-    // Create InputState enum
-    int action_val = actionStringToEnum(action);
-    PyObject* action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
-    if (!action_enum) {
-        Py_DECREF(cell_pos);
-        Py_DECREF(button_enum);
-        PyErr_Print();
-        return nullptr;
-    }
-
-    PyObject* args = Py_BuildValue("(OOO)", cell_pos, button_enum, action_enum);
-    Py_DECREF(cell_pos);
-    Py_DECREF(button_enum);
-    Py_DECREF(action_enum);
-    return args;
-}
-
-// #230 - Helper to create cell hover callback arguments: (Vector) only
-static PyObject* createCellHoverArgs(sf::Vector2i cell) {
-    // Create Vector object for cell position
-    PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ii", cell.x, cell.y);
-    if (!cell_pos) {
-        PyErr_Print();
-        return nullptr;
-    }
-
-    PyObject* args = Py_BuildValue("(O)", cell_pos);
-    Py_DECREF(cell_pos);
-    return args;
-}
-
-// Fire cell click callback with full signature (cell_pos, button, action)
-bool UIGrid::fireCellClick(sf::Vector2i cell, const std::string& button, const std::string& action) {
-    // Try property-assigned callback first
-    if (on_cell_click_callable && !on_cell_click_callable->isNone()) {
-        PyObject* args = createCellCallbackArgs(cell, button, action);
-        if (args) {
-            PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
-            Py_DECREF(args);
-            if (!result) {
-                std::cerr << "Cell click callback raised an exception:" << std::endl;
-                PyErr_Print();
-                PyErr_Clear();
-            } else {
-                Py_DECREF(result);
-            }
-            return true;
-        }
-    }
-
-    // Try Python subclass method
-    if (is_python_subclass) {
-        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
-        if (pyObj) {
-            refreshCellCallbackCache(pyObj);
-            if (cell_callback_cache.has_on_cell_click) {
-                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_click");
-                if (method && PyCallable_Check(method)) {
-                    PyObject* args = createCellCallbackArgs(cell, button, action);
-                    if (args) {
-                        PyObject* result = PyObject_CallObject(method, args);
-                        Py_DECREF(args);
-                        Py_DECREF(method);
-                        Py_DECREF(pyObj);
-                        if (!result) {
-                            std::cerr << "Cell click method raised an exception:" << std::endl;
-                            PyErr_Print();
-                            PyErr_Clear();
-                        } else {
-                            Py_DECREF(result);
-                        }
-                        return true;
-                    }
-                }
-                Py_XDECREF(method);
-            }
-            Py_DECREF(pyObj);
-        }
-    }
-    return false;
-}
-
-// #230 - Fire cell enter callback with position-only signature (cell_pos)
-bool UIGrid::fireCellEnter(sf::Vector2i cell) {
-    // Try property-assigned callback first (now PyCellHoverCallable)
-    if (on_cell_enter_callable && !on_cell_enter_callable->isNone()) {
-        on_cell_enter_callable->call(cell);
-        return true;
-    }
-
-    // Try Python subclass method
-    if (is_python_subclass) {
-        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
-        if (pyObj) {
-            refreshCellCallbackCache(pyObj);
-            if (cell_callback_cache.has_on_cell_enter) {
-                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_enter");
-                if (method && PyCallable_Check(method)) {
-                    // #230: Cell hover takes only (cell_pos)
-                    PyObject* args = createCellHoverArgs(cell);
-                    if (args) {
-                        PyObject* result = PyObject_CallObject(method, args);
-                        Py_DECREF(args);
-                        Py_DECREF(method);
-                        Py_DECREF(pyObj);
-                        if (!result) {
-                            std::cerr << "Cell enter method raised an exception:" << std::endl;
-                            PyErr_Print();
-                            PyErr_Clear();
-                        } else {
-                            Py_DECREF(result);
-                        }
-                        return true;
-                    }
-                }
-                Py_XDECREF(method);
-            }
-            Py_DECREF(pyObj);
-        }
-    }
-    return false;
-}
-
-// #230 - Fire cell exit callback with position-only signature (cell_pos)
-bool UIGrid::fireCellExit(sf::Vector2i cell) {
-    // Try property-assigned callback first (now PyCellHoverCallable)
-    if (on_cell_exit_callable && !on_cell_exit_callable->isNone()) {
-        on_cell_exit_callable->call(cell);
-        return true;
-    }
-
-    // Try Python subclass method
-    if (is_python_subclass) {
-        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
-        if (pyObj) {
-            refreshCellCallbackCache(pyObj);
-            if (cell_callback_cache.has_on_cell_exit) {
-                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_exit");
-                if (method && PyCallable_Check(method)) {
-                    // #230: Cell hover takes only (cell_pos)
-                    PyObject* args = createCellHoverArgs(cell);
-                    if (args) {
-                        PyObject* result = PyObject_CallObject(method, args);
-                        Py_DECREF(args);
-                        Py_DECREF(method);
-                        Py_DECREF(pyObj);
-                        if (!result) {
-                            std::cerr << "Cell exit method raised an exception:" << std::endl;
-                            PyErr_Print();
-                            PyErr_Clear();
-                        } else {
-                            Py_DECREF(result);
-                        }
-                        return true;
-                    }
-                }
-                Py_XDECREF(method);
-            }
-            Py_DECREF(pyObj);
-        }
-    }
-    return false;
-}
-
-// #142 - Update cell hover state and fire callbacks
-// #230 - Cell hover callbacks now take only (cell_pos), no button/action
-void UIGrid::updateCellHover(sf::Vector2f mousepos, const std::string& button, const std::string& action) {
-    (void)button;  // #230 - No longer used for hover callbacks
-    (void)action;  // #230 - No longer used for hover callbacks
-
-    auto new_cell = screenToCell(mousepos);
-
-    // Check if cell changed
-    if (new_cell != hovered_cell) {
-        // Fire exit callback for old cell
-        if (hovered_cell.has_value()) {
-            fireCellExit(hovered_cell.value());
-        }
-
-        // Fire enter callback for new cell
-        if (new_cell.has_value()) {
-            fireCellEnter(new_cell.value());
-        }
-
-        hovered_cell = new_cell;
-    }
 }
 
 // UIEntityCollection code has been moved to UIEntityCollection.cpp
