@@ -11,8 +11,8 @@
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
 #include "UIGridView.h"
+#include "GridData.h"
 #include "UIEntity.h"
 #include "ImGuiConsole.h"
 #include "PythonObjectCache.h"
@@ -118,20 +118,23 @@ void ImGuiSceneExplorer::renderDrawableNode(std::shared_ptr<UIDrawable> drawable
     // Check if this node has children
     bool hasChildren = false;
     UIFrame* frame = nullptr;
-    UIGrid* grid = nullptr;
+    // #358: dispatch on the asGridData() virtual (#355), not derived_type() --
+    // nothing in a scene graph is ever a bare UIGRID since #252 (Grid nodes are
+    // UIGridView instances), so a UIGRID enum arm here is always dead code.
+    GridData* gridData = drawable->asGridData();
 
     switch (drawable->derived_type()) {
         case PyObjectsEnum::UIFRAME:
             frame = static_cast<UIFrame*>(drawable.get());
             hasChildren = frame->children && !frame->children->empty();
             break;
-        case PyObjectsEnum::UIGRID:
-            grid = static_cast<UIGrid*>(drawable.get());
-            hasChildren = (grid->entities && !grid->entities->empty()) ||
-                         (grid->children && !grid->children->empty());
-            break;
         default:
             break;
+    }
+
+    if (gridData) {
+        hasChildren = (gridData->entities && !gridData->entities->empty()) ||
+                     (gridData->children && !gridData->children->empty());
     }
 
     if (!hasChildren) {
@@ -168,14 +171,14 @@ void ImGuiSceneExplorer::renderDrawableNode(std::shared_ptr<UIDrawable> drawable
             }
         }
 
-        if (grid) {
+        if (gridData) {
             // Render entities
-            if (grid->entities && !grid->entities->empty()) {
+            if (gridData->entities && !gridData->entities->empty()) {
                 ImGuiTreeNodeFlags entityGroupFlags = ImGuiTreeNodeFlags_OpenOnArrow;
                 bool entitiesOpen = ImGui::TreeNodeEx("Entities", entityGroupFlags, "Entities (%zu)",
-                                                       grid->entities->size());
+                                                       gridData->entities->size());
                 if (entitiesOpen) {
-                    for (auto& entity : *grid->entities) {
+                    for (auto& entity : *gridData->entities) {
                         if (entity) {
                             renderEntityNode(entity);
                         }
@@ -185,12 +188,12 @@ void ImGuiSceneExplorer::renderDrawableNode(std::shared_ptr<UIDrawable> drawable
             }
 
             // Render grid's drawable children (overlays)
-            if (grid->children && !grid->children->empty()) {
+            if (gridData->children && !gridData->children->empty()) {
                 ImGuiTreeNodeFlags overlayGroupFlags = ImGuiTreeNodeFlags_OpenOnArrow;
                 bool overlaysOpen = ImGui::TreeNodeEx("Overlays", overlayGroupFlags, "Overlays (%zu)",
-                                                       grid->children->size());
+                                                       gridData->children->size());
                 if (overlaysOpen) {
-                    for (auto& child : *grid->children) {
+                    for (auto& child : *gridData->children) {
                         if (child) {
                             renderDrawableNode(child, depth + 1);
                         }
