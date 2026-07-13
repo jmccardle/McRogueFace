@@ -304,6 +304,27 @@ void PyScene::do_mouse_hover(int x, int y)
         mousepos = game->windowToGameCoords(sf::Vector2f(static_cast<float>(x), static_cast<float>(y)));
     }
 
+    last_mouse_pos = mousepos;
+    dispatch_hover(mousepos, true);
+}
+
+// #363 - The cursor left the window. sf::Event::MouseLeft carries no coordinates,
+// and no further MouseMoved will arrive, so without this every drawable the mouse
+// was over stays hovered forever: on_exit / on_cell_exit never fire and
+// grid.hovered_cell keeps reporting a cell the cursor is nowhere near.
+//
+// This is the ordinary hover walk with hit_allowed=false at the root, which is
+// exactly "the mouse is over nothing": every hovered drawable takes its normal exit
+// path and none can enter. Exit callbacks get the last known cursor position -- the
+// same convention the DOM's mouseleave uses; there is no more recent position to
+// report, and inventing one would be a lie.
+void PyScene::do_mouse_leave()
+{
+    dispatch_hover(last_mouse_pos, false);
+}
+
+void PyScene::dispatch_hover(sf::Vector2f mousepos, bool in_window)
+{
     // Helper function to process hover for a single drawable and its children.
     //
     // `point` is in the drawable's PARENT-local coordinate space -- the same
@@ -394,9 +415,11 @@ void PyScene::do_mouse_hover(int x, int y)
         }
     };
 
-    // Process all top-level UI elements
+    // Process all top-level UI elements. in_window is false only on the #363
+    // mouse-left-the-window path, where it propagates down as hit_allowed=false and
+    // turns the whole walk into a pure exit sweep.
     for (auto& element : *ui_elements) {
-        processHover(element.get(), mousepos, true);
+        processHover(element.get(), mousepos, in_window);
     }
 }
 

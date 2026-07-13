@@ -326,6 +326,15 @@ PyObject* McRFPy_Automation::_moveTo(PyObject* self, PyObject* args, PyObject* k
     Py_RETURN_NONE;
 }
 
+// #363 - Simulate the cursor leaving the window. sf::Event::MouseLeft carries no
+// coordinates, so this takes none; the engine reports the last known position to the
+// exit callbacks it fires. The simulated position is deliberately NOT moved -- the
+// cursor is outside the window, not at some new point inside it.
+PyObject* McRFPy_Automation::_mouseLeave(PyObject* self, PyObject* args) {
+    injectMouseEvent(sf::Event::MouseLeft, simulated_mouse_pos.x, simulated_mouse_pos.y);
+    Py_RETURN_NONE;
+}
+
 // Move mouse relative - accepts moveRel(offset, duration)
 PyObject* McRFPy_Automation::_moveRel(PyObject* self, PyObject* args, PyObject* kwargs) {
     static const char* kwlist[] = {"offset", "duration", NULL};
@@ -971,6 +980,15 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
          MCRF_ARG("button", "Mouse button: 'left', 'right', or 'middle' (default 'left')")
+     )},
+    {"mouseLeave", (PyCFunction)McRFPy_Automation::_mouseLeave, METH_NOARGS,
+     MCRF_METHOD(automation, mouseLeave,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Simulate the cursor leaving the window, clearing all hover state. "
+                   "Every hovered drawable fires its on_exit, every hovered grid fires "
+                   "on_cell_exit, and Grid.hovered_cell becomes None."),
+         MCRF_NOTE("Takes no position: the cursor is outside the window, so there is none. "
+                   "Exit callbacks receive the last position passed to moveTo/click.")
      )},
 
     {"typewrite", (PyCFunction)McRFPy_Automation::_typewrite, METH_VARARGS | METH_KEYWORDS,

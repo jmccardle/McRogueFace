@@ -621,6 +621,15 @@ void GameEngine::processEvent(const sf::Event& event)
         }
         return;
     }
+    // #363 - The cursor left the window. No further MouseMoved will arrive, so
+    // whatever is hovered must be exited now or it stays hovered forever.
+    else if (event.type == sf::Event::MouseLeft)
+    {
+        if (auto* pyscene = dynamic_cast<PyScene*>(currentScene())) {
+            pyscene->do_mouse_leave();
+        }
+        return;
+    }
     else
         return;
 

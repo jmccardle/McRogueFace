@@ -1220,6 +1220,7 @@ func keyDown :: keyDown(key: str) -> None
 func keyUp :: keyUp(key: str) -> None
 func middleClick :: middleClick(pos: tuple | list | Vector | None = None) -> None
 func mouseDown :: mouseDown(pos: tuple | list | Vector | None = None, button: str = 'left') -> None
+func mouseLeave :: mouseLeave() -> None
 func mouseUp :: mouseUp(pos: tuple | list | Vector | None = None, button: str = 'left') -> None
 func moveRel :: moveRel(offset: tuple | list | Vector, duration: float = 0.0) -> None
 func moveTo :: moveTo(pos: tuple | list | Vector, duration: float = 0.0) -> None

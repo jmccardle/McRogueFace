@@ -35,6 +35,7 @@ public:
     static PyObject* _scroll(PyObject* self, PyObject* args, PyObject* kwargs);
     static PyObject* _mouseDown(PyObject* self, PyObject* args, PyObject* kwargs);
     static PyObject* _mouseUp(PyObject* self, PyObject* args, PyObject* kwargs);
+    static PyObject* _mouseLeave(PyObject* self, PyObject* args);  // #363
     
     // Keyboard
     static PyObject* _typewrite(PyObject* self, PyObject* args, PyObject* kwargs);
