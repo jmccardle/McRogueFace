@@ -1127,12 +1127,15 @@ PyObject* UICollection::repr(PyUICollectionObject* self)
 	    // Count each type
 	    int frame_count = 0, caption_count = 0, sprite_count = 0, grid_count = 0, other_count = 0;
 	    for (auto& item : *self->data) {
+	        // #366: detect grid-ness with the asGridData() virtual (#355), not
+	        // derived_type(). Every mcrfpy.Grid in a collection is a UIGRIDVIEW --
+	        // the UIGRID arm this used to key on has not appeared in a scene graph
+	        // since #252, so grids were tallied as "other".
+	        if (item->asGridData()) { grid_count++; continue; }
 	        switch(item->derived_type()) {
 	            case PyObjectsEnum::UIFRAME: frame_count++; break;
 	            case PyObjectsEnum::UICAPTION: caption_count++; break;
 	            case PyObjectsEnum::UISPRITE: sprite_count++; break;
-	            case PyObjectsEnum::UIGRID: grid_count++; break;
-	            case PyObjectsEnum::UIGRIDVIEW: other_count++; break;
 	            default: other_count++; break;
 	        }
 	    }
