@@ -36,6 +36,7 @@ public:
     static PyObject* _mouseDown(PyObject* self, PyObject* args, PyObject* kwargs);
     static PyObject* _mouseUp(PyObject* self, PyObject* args, PyObject* kwargs);
     static PyObject* _mouseLeave(PyObject* self, PyObject* args);  // #363
+    static PyObject* _loseFocus(PyObject* self, PyObject* args);   // #367
     
     // Keyboard
     static PyObject* _typewrite(PyObject* self, PyObject* args, PyObject* kwargs);
@@ -45,6 +46,9 @@ public:
     
     // Helper functions
     static void injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button = sf::Mouse::Left, float scrollDelta = 0.0f);
+    // #367 - Window-level events (LostFocus, GainedFocus) carry no payload at all, so
+    // they do not belong in injectMouseEvent's coordinate-bearing signature.
+    static void injectWindowEvent(sf::Event::EventType type);
     static void injectKeyEvent(sf::Event::EventType type, sf::Keyboard::Key key);
     static void injectTextEvent(sf::Uint32 unicode);
     static sf::Keyboard::Key stringToKey(const std::string& keyName);

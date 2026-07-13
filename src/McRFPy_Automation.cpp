@@ -113,6 +113,17 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
     return sf::Keyboard::Unknown;
 }
 
+// #367 - Inject a window-level event. These carry no coordinates and no button, which
+// is why they get their own entry point rather than riding injectMouseEvent.
+void McRFPy_Automation::injectWindowEvent(sf::Event::EventType type) {
+    auto engine = getGameEngine();
+    if (!engine) return;
+
+    sf::Event event;
+    event.type = type;
+    engine->processEvent(event);
+}
+
 // Inject mouse event into the game engine
 void McRFPy_Automation::injectMouseEvent(sf::Event::EventType type, int x, int y, sf::Mouse::Button button, float scrollDelta) {
     auto engine = getGameEngine();
@@ -332,6 +343,15 @@ PyObject* McRFPy_Automation::_moveTo(PyObject* self, PyObject* args, PyObject* k
 // cursor is outside the window, not at some new point inside it.
 PyObject* McRFPy_Automation::_mouseLeave(PyObject* self, PyObject* args) {
     injectMouseEvent(sf::Event::MouseLeft, simulated_mouse_pos.x, simulated_mouse_pos.y);
+    Py_RETURN_NONE;
+}
+
+// #367 - Simulate the window losing focus (alt-tab). Like a window-leave, this clears
+// all hover state: an unfocused window receives no MouseMoved, so any drawable still
+// marked hovered would stay lit indefinitely. The simulated cursor position is left
+// alone -- focus and pointer location are independent, and the pointer has not moved.
+PyObject* McRFPy_Automation::_loseFocus(PyObject* self, PyObject* args) {
+    injectWindowEvent(sf::Event::LostFocus);
     Py_RETURN_NONE;
 }
 
@@ -989,6 +1009,16 @@ static PyMethodDef automationMethods[] = {
                    "on_cell_exit, and Grid.hovered_cell becomes None."),
          MCRF_NOTE("Takes no position: the cursor is outside the window, so there is none. "
                    "Exit callbacks receive the last position passed to moveTo/click.")
+     )},
+    {"loseFocus", (PyCFunction)McRFPy_Automation::_loseFocus, METH_NOARGS,
+     MCRF_METHOD(automation, loseFocus,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Simulate the window losing focus (alt-tab), clearing all hover state. "
+                   "Every hovered drawable fires its on_exit, every hovered grid fires "
+                   "on_cell_exit, and Grid.hovered_cell becomes None."),
+         MCRF_NOTE("An unfocused window is delivered no mouse motion, so the engine cannot "
+                   "know where the pointer is; hovering nothing is the only truthful state. "
+                   "Hover is restored by the next mouse movement after focus returns.")
      )},
 
     {"typewrite", (PyCFunction)McRFPy_Automation::_typewrite, METH_VARARGS | METH_KEYWORDS,

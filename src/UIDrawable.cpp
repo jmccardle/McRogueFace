@@ -1046,15 +1046,32 @@ bool UIDrawable::contains_point(float x, float y) const {
 }
 
 // #144: Content dirty - texture needs rebuild
+//
+// #368 - The walk up the parent chain is UNCONDITIONAL. It used to be gated on
+// `(!was_dirty || !p->render_dirty)`, which is sound only if render_dirty is reliably
+// cleared once a drawable has been drawn. It is not: clearDirty() is called by the two
+// classes that actually *cache* a raster (UIFrame's render-texture path, UIGridView),
+// and by nobody else. For every ordinary Frame/Caption/Sprite/Line/Circle/Arc,
+// render_dirty is a write-once latch -- true from the first mutation until death.
+//
+// With the flag stuck true, `was_dirty` was always true and the parent's render_dirty
+// was always true, so the guard was always false and content invalidation propagated
+// NOWHERE. A caching ancestor (Frame(cache_subtree=True), or a GridView) went on
+// re-blitting a stale composite: text never updated, colors never changed. Only
+// position changes survived, because markCompositeDirty (below) already walked
+// unconditionally.
+//
+// Restoring the guard would mean making every drawable clear the flag honestly, and
+// then trusting that every future drawable remembers to. The invariant here is worth
+// more than the walk it saves: parent chains are shallow, and this is exactly the cost
+// markCompositeDirty has always paid on every move without anyone noticing.
 void UIDrawable::markContentDirty() {
-    bool was_dirty = render_dirty;
     render_dirty = true;
     composite_dirty = true;  // If content changed, composite also needs update
 
     // Propagate to parent - parent's composite is dirty (child content changed)
-    // Propagate if: we weren't already dirty, OR parent was cleared (rendered) since last propagation
     auto p = parent.lock();
-    if (p && (!was_dirty || !p->render_dirty)) {
+    if (p) {
         p->markContentDirty();  // Parent also needs to rebuild to include our changes
     }
 }

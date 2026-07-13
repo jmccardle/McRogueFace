@@ -1205,6 +1205,7 @@ func dragTo :: dragTo(pos: tuple | list | Vector, duration: float = 0.0, button:
 func hotkey :: hotkey(*keys: str) -> None
 func keyDown :: keyDown(key: str) -> None
 func keyUp :: keyUp(key: str) -> None
+func loseFocus :: loseFocus() -> None
 func middleClick :: middleClick(pos: tuple | list | Vector | None = None) -> None
 func mouseDown :: mouseDown(pos: tuple | list | Vector | None = None, button: str = 'left') -> None
 func mouseLeave :: mouseLeave() -> None
