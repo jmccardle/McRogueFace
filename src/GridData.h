@@ -28,9 +28,14 @@ class UIDrawable;
 class UIGridView;
 class PyTexture;
 
+// GridData is a MAP, not a widget (#361). It has no position, no size, no
+// camera, and no render(). Only UIGridView -- which holds a camera and points
+// at a GridData -- is a UIDrawable. `mcrfpy.Grid` is a GridView that creates
+// its own GridData; N views may share one GridData (split-screen, minimap).
 class GridData {
 public:
     GridData();
+    GridData(int gx, int gy, std::shared_ptr<PyTexture> texture);
     virtual ~GridData();
 
     // =========================================================================
@@ -38,9 +43,25 @@ public:
     // =========================================================================
     int grid_w = 0, grid_h = 0;
 
-    // #313 - Cell pixel dimensions, mirrored from the owning UIGrid's texture
-    // at construction (UIGrid::ptex is write-once, ctor only). Lets the data
-    // layer do tile<->pixel math without reaching into rendering state.
+    // #361 - The tile atlas. This is DATA, not rendering state: it is what
+    // defines the cell size in pixels, which every tile<->pixel conversion in
+    // the engine (entity positions, layer geometry, a view's camera math)
+    // depends on. Views copy it to draw with; they do not own it. Write-once
+    // at construction, so cell_width_px/cell_height_px never go stale.
+    std::shared_ptr<PyTexture> ptex;
+    std::shared_ptr<PyTexture> getTexture() const { return ptex; }
+
+    static constexpr int DEFAULT_CELL_WIDTH = 16;
+    static constexpr int DEFAULT_CELL_HEIGHT = 16;
+
+    // #361 - PythonObjectCache identity. GridData used to inherit this from
+    // UIDrawable; now that it is not a drawable it carries its own, so that
+    // `entity.grid`, `view.grid_data` and the GridPoint/layer back-references
+    // all resolve to ONE Python wrapper instead of a fresh one per access.
+    uint64_t serial_number = 0;
+
+    // #313 - Cell pixel dimensions, mirrored from ptex at construction. Lets
+    // the data layer do tile<->pixel math without reaching into a view.
     int cell_width_px = 16;
     int cell_height_px = 16;
     int cell_width() const { return cell_width_px; }
@@ -170,19 +191,21 @@ public:
 
     // #313/#359 - Render invalidation from the data layer. Entities hold
     // shared_ptr<GridData> but still need to invalidate rendering when their
-    // visual state changes. These set the dirty flags on the UIGrid subobject
-    // (GridData is never independently heap-allocated -- always a UIGrid base)
-    // AND notify every registered view (see `views` above), covering both
-    // render paths (a bare _GridData rendered directly, and every GridView
-    // sharing this data) and every view's own ancestor chain (e.g. a
-    // Frame(use_render_texture=True) wrapping ANY of the N views needs its
-    // own cache invalidated, not just the creator's). Note the #351 render
-    // early-out itself does NOT depend on this notification -- it polls
-    // content_generation directly in UIGridView::render() -- this push is only
-    // for propagating markContentDirty/markCompositeDirty up a view's parent
-    // chain, which is a bottom-up push, not something pollable from a
-    // top-down render traversal. Within UIGrid itself the UIDrawable versions
-    // win via using-declarations (see UIGrid.h).
+    // visual state changes, so the data notifies every registered view (see
+    // `views` above) -- and each view then pushes up its OWN ancestor chain,
+    // since a Frame(cache_subtree=True) wrapping ANY of the N views needs its
+    // cache invalidated, not just the creator's.
+    //
+    // #361: these used to ALSO downcast `this` to UIGrid and set the dirty
+    // flags on its UIDrawable half, feeding a second, stale render path (a
+    // bare _GridData appended to a scene drew the map through a frozen camera).
+    // That path is gone: GridData is not a drawable, so there is nothing to
+    // notify but the views.
+    //
+    // Note the #351 render early-out does NOT depend on this push -- it polls
+    // content_generation directly in UIGridView::render(). This is only for
+    // bottom-up propagation through a view's parent chain, which a top-down
+    // render traversal cannot poll for.
     void markDirty();
     void markCompositeDirty();
 

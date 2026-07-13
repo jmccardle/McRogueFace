@@ -160,8 +160,8 @@ public:
     // Python API
     // =========================================================================
     static int init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds);
-    static int init_explicit_view(PyUIGridViewObject* self, PyObject* args, PyObject* kwds);
-    static int init_with_data(PyUIGridViewObject* self, PyObject* args, PyObject* kwds);
+    // #361: one init() for both modes -- Grid(grid_size=...) creates its own
+    // GridData, Grid(grid=data) attaches to an existing one.
     static PyObject* repr(PyUIGridViewObject* self);
 
     // #252 - Attribute delegation to underlying Grid
@@ -177,6 +177,11 @@ public:
     static int set_center(PyUIGridViewObject* self, PyObject* value, void* closure);
     static PyObject* get_zoom(PyUIGridViewObject* self, void* closure);
     static int set_zoom(PyUIGridViewObject* self, PyObject* value, void* closure);
+    // #361 - `size` and `center_camera()` used to delegate to the internal UIGrid's
+    // ghost camera, making them silent no-ops on the widget being rendered.
+    static PyObject* get_size(PyUIGridViewObject* self, void* closure);
+    static int set_size(PyUIGridViewObject* self, PyObject* value, void* closure);
+    static PyObject* py_center_camera(PyUIGridViewObject* self, PyObject* args);
     static PyObject* get_fill_color(PyUIGridViewObject* self, void* closure);
     static int set_fill_color(PyUIGridViewObject* self, PyObject* value, void* closure);
     static PyObject* get_texture(PyUIGridViewObject* self, void* closure);
@@ -220,7 +225,9 @@ namespace mcrfpydef {
     // Attribute access delegates to underlying Grid for data properties/methods.
     inline PyTypeObject PyUIGridViewType = {
         .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
-        .tp_name = "mcrfpy.Grid",  // #252: primary name is Grid
+        // #361: the canonical name is GridView -- it IS the camera/widget. "Grid"
+        // is bound to this same type object as an alias (see McRFPy_API.cpp).
+        .tp_name = "mcrfpy.GridView",
         .tp_basicsize = sizeof(PyUIGridViewObject),
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self)
@@ -232,7 +239,7 @@ namespace mcrfpydef {
             }
             // #359: Unregister from the GridData's view list before releasing
             // grid_data -- but only when this wrapper is the LAST owner of the
-            // view (#251 pattern, mirrors PyUIGridType). An ungated unregister
+            // view (#251 pattern, mirrors PyGridDataType). An ungated unregister
             // would sever the back-reference whenever ANY Python wrapper was
             // GC'd while the C++ view lived on (e.g. held by scene.children),
             // breaking entity.grid -> Grid identity and the #313 data-layer

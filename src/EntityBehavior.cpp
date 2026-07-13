@@ -1,6 +1,6 @@
 #include "EntityBehavior.h"
 #include "UIEntity.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridPathfinding.h"
 #include "PathProvider.h"
 #include <random>
@@ -25,21 +25,21 @@ static thread_local std::mt19937 rng{std::random_device{}()};
 // Per-behavior execution functions
 // =============================================================================
 
-static BehaviorOutput executeIdle(UIEntity& entity, UIGrid& grid) {
+static BehaviorOutput executeIdle(UIEntity& entity, GridData& grid) {
     return {BehaviorResult::NO_ACTION, {}};
 }
 
-static BehaviorOutput executeCustom(UIEntity& entity, UIGrid& grid) {
+static BehaviorOutput executeCustom(UIEntity& entity, GridData& grid) {
     // CUSTOM does nothing built-in — step callback handles everything
     return {BehaviorResult::NO_ACTION, {}};
 }
 
-static bool isCellWalkable(UIGrid& grid, int x, int y) {
+static bool isCellWalkable(GridData& grid, int x, int y) {
     if (x < 0 || x >= grid.grid_w || y < 0 || y >= grid.grid_h) return false;
     return grid.isWalkable(x, y);  // #332
 }
 
-static BehaviorOutput executeNoise(UIEntity& entity, UIGrid& grid, bool include_diagonals) {
+static BehaviorOutput executeNoise(UIEntity& entity, GridData& grid, bool include_diagonals) {
     int cx = entity.cell_position.x;
     int cy = entity.cell_position.y;
 
@@ -70,7 +70,7 @@ static BehaviorOutput executeNoise(UIEntity& entity, UIGrid& grid, bool include_
     return {BehaviorResult::MOVED, target};
 }
 
-static BehaviorOutput executePath(UIEntity& entity, UIGrid& grid) {
+static BehaviorOutput executePath(UIEntity& entity, GridData& grid) {
     auto& behavior = entity.behavior;
 
     if (behavior.path_step_index >= static_cast<int>(behavior.current_path.size())) {
@@ -87,7 +87,7 @@ static BehaviorOutput executePath(UIEntity& entity, UIGrid& grid) {
     return {BehaviorResult::MOVED, target};
 }
 
-static BehaviorOutput executeWaypoint(UIEntity& entity, UIGrid& grid) {
+static BehaviorOutput executeWaypoint(UIEntity& entity, GridData& grid) {
     auto& behavior = entity.behavior;
 
     if (behavior.waypoints.empty()) {
@@ -136,7 +136,7 @@ static BehaviorOutput executeWaypoint(UIEntity& entity, UIGrid& grid) {
     return {BehaviorResult::MOVED, target};
 }
 
-static BehaviorOutput executePatrol(UIEntity& entity, UIGrid& grid) {
+static BehaviorOutput executePatrol(UIEntity& entity, GridData& grid) {
     auto& behavior = entity.behavior;
 
     if (behavior.waypoints.empty()) {
@@ -184,7 +184,7 @@ static BehaviorOutput executePatrol(UIEntity& entity, UIGrid& grid) {
     return {BehaviorResult::MOVED, target};
 }
 
-static BehaviorOutput executeLoop(UIEntity& entity, UIGrid& grid) {
+static BehaviorOutput executeLoop(UIEntity& entity, GridData& grid) {
     auto& behavior = entity.behavior;
 
     if (behavior.waypoints.empty()) {
@@ -227,7 +227,7 @@ static BehaviorOutput executeLoop(UIEntity& entity, UIGrid& grid) {
     return {BehaviorResult::MOVED, target};
 }
 
-static BehaviorOutput executeSleep(UIEntity& entity, UIGrid& grid) {
+static BehaviorOutput executeSleep(UIEntity& entity, GridData& grid) {
     auto& behavior = entity.behavior;
 
     if (behavior.sleep_turns_remaining > 0) {
@@ -243,7 +243,7 @@ static BehaviorOutput executeSleep(UIEntity& entity, UIGrid& grid) {
 // PathProvider. FLEE differs only in which map is stored in the provider -
 // DijkstraProvider over an inverted DijkstraMap descends away from the threat,
 // which matches the old max-distance-neighbor behavior.
-static BehaviorOutput executeProviderStep(UIEntity& entity, UIGrid& grid) {
+static BehaviorOutput executeProviderStep(UIEntity& entity, GridData& grid) {
     auto& behavior = entity.behavior;
     if (!behavior.path_provider) {
         return {BehaviorResult::NO_ACTION, {}};
@@ -266,7 +266,7 @@ static BehaviorOutput executeProviderStep(UIEntity& entity, UIGrid& grid) {
 // =============================================================================
 // Main dispatch
 // =============================================================================
-BehaviorOutput executeBehavior(UIEntity& entity, UIGrid& grid) {
+BehaviorOutput executeBehavior(UIEntity& entity, GridData& grid) {
     switch (entity.behavior.type) {
         case BehaviorType::IDLE:     return executeIdle(entity, grid);
         case BehaviorType::CUSTOM:   return executeCustom(entity, grid);

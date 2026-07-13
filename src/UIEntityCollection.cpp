@@ -5,7 +5,7 @@
 
 #include "UIEntityCollection.h"
 #include "UIEntity.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "PythonObjectCache.h"

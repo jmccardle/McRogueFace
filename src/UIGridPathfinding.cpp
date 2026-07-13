@@ -1,5 +1,5 @@
 #include "UIGridPathfinding.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIEntity.h"
 #include "PyVector.h"
 #include "McRFPy_API.h"
@@ -130,7 +130,7 @@ sf::Vector2i DijkstraMap::descentStep(int x, int y, bool* valid) const {
 //=============================================================================
 
 bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
-                                        UIGrid* expected_grid,
+                                        GridData* expected_grid,
                                         const char* arg_name) {
     // Check if it's an Entity
     if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
@@ -610,7 +610,7 @@ static void restoreCollisionLabel(GridData* grid,
     }
 }
 
-PyObject* UIGridPathfinding::Grid_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
+PyObject* UIGridPathfinding::Grid_find_path(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {"start", "end", "diagonal_cost", "collide",
                                    "heuristic", "weight", NULL};
     PyObject* start_obj = NULL;
@@ -715,7 +715,7 @@ PyObject* UIGridPathfinding::Grid_find_path(PyUIGridObject* self, PyObject* args
 //   - a DiscreteMap mask (non-zero cells become roots)
 // Returns true on success; populates `out_roots` and `out_mask_used`.
 // If a DiscreteMap mask is used, caller should prefer the masked C path.
-static bool collectRoots(PyObject* root_obj, UIGrid* grid,
+static bool collectRoots(PyObject* root_obj, GridData* grid,
                          std::vector<sf::Vector2i>* out_roots,
                          PyDiscreteMapObject** out_mask)
 {
@@ -795,7 +795,7 @@ static bool collectRoots(PyObject* root_obj, UIGrid* grid,
     return false;
 }
 
-PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
+PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {"root", "diagonal_cost", "collide", "roots", NULL};
     PyObject* root_obj = NULL;
     PyObject* roots_obj = NULL;
@@ -896,7 +896,7 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyUIGridObject* self, PyObjec
     return (PyObject*)result;
 }
 
-PyObject* UIGridPathfinding::Grid_clear_dijkstra_maps(PyUIGridObject* self, PyObject* args) {
+PyObject* UIGridPathfinding::Grid_clear_dijkstra_maps(PyGridDataObject* self, PyObject* args) {
     if (!self->data) {
         PyErr_SetString(PyExc_RuntimeError, "Grid is invalid");
         return NULL;

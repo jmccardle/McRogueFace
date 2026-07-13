@@ -4,7 +4,7 @@
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridView.h"
 #include "UILine.h"
 #include "UICircle.h"
@@ -64,17 +64,6 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UISprite>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIGRID:
-        {
-            type = &PyUIGridType;
-            auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
                 pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;
@@ -163,8 +152,9 @@ static std::shared_ptr<UIDrawable> extractDrawable(PyObject* o) {
         return ((PyUICaptionObject*)o)->data;
     if (PyObject_IsInstance(o, (PyObject*)&PyUISpriteType))
         return ((PyUISpriteObject*)o)->data;
-    if (PyObject_IsInstance(o, (PyObject*)&PyUIGridType))
-        return ((PyUIGridObject*)o)->data;
+    // #361: a GridData is NOT a drawable and cannot be appended to a collection.
+    // It falls through to the caller's TypeError -- appending a map to a scene used
+    // to draw the whole grid a second time through a frozen, invisible camera.
     if (PyObject_IsInstance(o, (PyObject*)&PyUIGridViewType))
         return ((PyUIGridViewObject*)o)->data;
     if (PyObject_IsInstance(o, (PyObject*)&PyUILineType))

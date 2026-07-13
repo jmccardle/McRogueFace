@@ -30,12 +30,13 @@ cameras over one dataset):
       dead property is gone, not silently still None.
 
 Design note carried over from the fix: GridData::views is a *list*, not a
-single pointer, specifically because N views can share one GridData. Index 0
-is guaranteed (by construction: a fresh GridData is only ever produced by
-Grid()'s factory path, `init_with_data`; `init_explicit_view` can only ATTACH
-to an already-existing GridData) to be the view that created the data, so
-UIEntity.grid identity (test 2) stays deterministic even with secondary
-views registered -- not an arbitrary pick from an unordered set.
+single pointer, specifically because N views can share one GridData.
+
+#361 update: entity.grid no longer returns a view at all -- it returns the
+GridData. The "which view is primary?" question that views.front() answered for
+identity purposes is gone, because the answer was always arbitrary dressed up as
+deterministic. The registry itself remains, and is still load-bearing for
+dirty-notification fan-out (test 3).
 """
 import sys
 import os
@@ -95,18 +96,20 @@ def test_1_two_views_render_shared_mutations():
 
 
 def test_2_entity_grid_identity():
-    """entity.grid returns the SAME object as the Grid() that actually
-    created the data (GridData::views.front()), not the secondary view, not
-    None, and not a fresh throwaway wrapper -- even once a secondary view is
-    registered on the same GridData."""
+    """entity.grid is the shared GridData -- one stable object, the same one both
+    views are looking at, and NOT either view (#361)."""
     print("(2) entity.grid identity with a secondary view registered...")
     grid_a = mcrfpy.Grid(grid_size=(5, 5))
-    grid_b = mcrfpy.Grid(grid=grid_a, pos=(0, 0), size=(80, 80))  # noqa: F841 (keep alive)
+    grid_b = mcrfpy.Grid(grid=grid_a, pos=(0, 0), size=(80, 80))
 
     e = mcrfpy.Entity((1, 1), grid=grid_a)
 
-    assert e.grid is grid_a, f"entity.grid identity broken: {e.grid!r} is not grid_a ({grid_a!r})"
-    assert e.grid is not grid_b, "entity.grid returned the secondary view instead of the creator"
+    data = grid_a.grid_data
+    assert grid_b.grid_data is data, "the two views do not share one GridData"
+    assert e.grid is data, f"entity.grid identity broken: {e.grid!r} is not {data!r}"
+    assert e.grid is e.grid, "entity.grid is not stable across reads"
+    assert e.grid is not grid_a and e.grid is not grid_b, \
+        "entity.grid returned a view; it must return the map (#361)"
     print("    OK")
 
 

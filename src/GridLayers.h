@@ -8,7 +8,7 @@
 #include <string>
 
 // Forward declarations
-class UIGrid;
+class GridData;
 class GridData;
 class PyTexture;
 class UIEntity;
@@ -178,19 +178,19 @@ public:
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<GridLayer> data;
-    std::shared_ptr<UIGrid> grid;  // Parent grid reference
+    std::shared_ptr<GridData> grid;  // Parent grid reference
 } PyGridLayerObject;
 
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<ColorLayer> data;
-    std::shared_ptr<UIGrid> grid;
+    std::shared_ptr<GridData> grid;
 } PyColorLayerObject;
 
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<TileLayer> data;
-    std::shared_ptr<UIGrid> grid;
+    std::shared_ptr<GridData> grid;
 } PyTileLayerObject;
 
 // #335 - context manager returned by ColorLayer.edit()/TileLayer.edit().

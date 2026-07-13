@@ -1,8 +1,9 @@
-// UIGridPyMethods.cpp — Python method implementations for UIGrid
-// Extracted from UIGrid.cpp (#149) for maintainability.
+// PyGridDataMethods.cpp - Python method implementations for GridData.
+// #361: center_camera() moved to UIGridView (a map has no camera), and the
+// UIDrawable method set is gone (a map is not a widget).
 // Contains: FOV, layer management, spatial queries, camera, heightmap ops,
 //           step/behavior system, py_at/subscript, and method table arrays.
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridView.h"
 #include "UIGridPathfinding.h"
 #include "McRFPy_API.h"
@@ -21,7 +22,7 @@
 // Cell access: py_at, subscript, mpmethods
 // =========================================================================
 
-PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+PyObject* PyGridData::py_at(PyGridDataObject* self, PyObject* args, PyObject* kwds)
 {
     int x, y;
 
@@ -46,7 +47,7 @@ PyObject* UIGrid::py_at(PyUIGridObject* self, PyObject* args, PyObject* kwds)
     return (PyObject*)obj;
 }
 
-PyObject* UIGrid::subscript(PyUIGridObject* self, PyObject* key)
+PyObject* PyGridData::subscript(PyGridDataObject* self, PyObject* key)
 {
     if (!PyTuple_Check(key) || PyTuple_Size(key) != 2) {
         PyErr_SetString(PyExc_TypeError, "Grid indices must be a tuple of (x, y)");
@@ -84,7 +85,7 @@ PyObject* UIGrid::subscript(PyUIGridObject* self, PyObject* key)
 }
 
 // Setitem on _GridData / Grid: GridPoints are views, not assignable.
-static int UIGrid_subscript_assign(PyUIGridObject* self, PyObject* key, PyObject* value)
+static int UIGrid_subscript_assign(PyGridDataObject* self, PyObject* key, PyObject* value)
 {
     (void)self; (void)key; (void)value;
     PyErr_SetString(PyExc_TypeError,
@@ -92,9 +93,9 @@ static int UIGrid_subscript_assign(PyUIGridObject* self, PyObject* key, PyObject
     return -1;
 }
 
-PyMappingMethods UIGrid::mpmethods = {
+PyMappingMethods PyGridData::mpmethods = {
     .mp_length = NULL,
-    .mp_subscript = (binaryfunc)UIGrid::subscript,
+    .mp_subscript = (binaryfunc)PyGridData::subscript,
     .mp_ass_subscript = (objobjargproc)UIGrid_subscript_assign,
 };
 
@@ -102,7 +103,7 @@ PyMappingMethods UIGrid::mpmethods = {
 // FOV methods
 // =========================================================================
 
-PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+PyObject* PyGridData::py_compute_fov(PyGridDataObject* self, PyObject* args, PyObject* kwds)
 {
     static const char* kwlist[] = {"pos", "radius", "light_walls", "algorithm", NULL};
     PyObject* pos_obj = NULL;
@@ -135,7 +136,7 @@ PyObject* UIGrid::py_compute_fov(PyUIGridObject* self, PyObject* args, PyObject*
     Py_RETURN_NONE;
 }
 
-PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+PyObject* PyGridData::py_is_in_fov(PyGridDataObject* self, PyObject* args, PyObject* kwds)
 {
     int x, y;
     if (!PyPosition_ParseInt(args, kwds, &x, &y)) {
@@ -150,7 +151,7 @@ PyObject* UIGrid::py_is_in_fov(PyUIGridObject* self, PyObject* args, PyObject* k
 // Layer management
 // =========================================================================
 
-PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args) {
+PyObject* PyGridData::py_add_layer(PyGridDataObject* self, PyObject* args) {
     PyObject* layer_obj;
     if (!PyArg_ParseTuple(args, "O", &layer_obj)) {
         return NULL;
@@ -177,7 +178,7 @@ PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args) {
         layer = py_layer->data;
         py_layer_ref = layer_obj;
 
-        if (!layer->name.empty() && UIGrid::isProtectedLayerName(layer->name)) {
+        if (!layer->name.empty() && GridData::isProtectedLayerName(layer->name)) {
             PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", layer->name.c_str());
             return NULL;
         }
@@ -219,7 +220,7 @@ PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args) {
         layer = py_layer->data;
         py_layer_ref = layer_obj;
 
-        if (!layer->name.empty() && UIGrid::isProtectedLayerName(layer->name)) {
+        if (!layer->name.empty() && GridData::isProtectedLayerName(layer->name)) {
             PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", layer->name.c_str());
             return NULL;
         }
@@ -260,7 +261,7 @@ PyObject* UIGrid::py_add_layer(PyUIGridObject* self, PyObject* args) {
     return py_layer_ref;
 }
 
-PyObject* UIGrid::py_remove_layer(PyUIGridObject* self, PyObject* args) {
+PyObject* PyGridData::py_remove_layer(PyGridDataObject* self, PyObject* args) {
     PyObject* layer_obj;
     if (!PyArg_ParseTuple(args, "O", &layer_obj)) {
         return NULL;
@@ -305,7 +306,7 @@ PyObject* UIGrid::py_remove_layer(PyUIGridObject* self, PyObject* args) {
     return NULL;
 }
 
-PyObject* UIGrid::py_layer(PyUIGridObject* self, PyObject* args) {
+PyObject* PyGridData::py_layer(PyGridDataObject* self, PyObject* args) {
     const char* name_str;
     if (!PyArg_ParseTuple(args, "s", &name_str)) {
         return NULL;
@@ -339,7 +340,7 @@ PyObject* UIGrid::py_layer(PyUIGridObject* self, PyObject* args) {
 // Spatial queries
 // =========================================================================
 
-PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, PyObject* kwds)
+PyObject* PyGridData::py_entities_in_radius(PyGridDataObject* self, PyObject* args, PyObject* kwds)
 {
     static const char* kwlist[] = {"pos", "radius", NULL};
     PyObject* pos_obj;
@@ -391,73 +392,10 @@ PyObject* UIGrid::py_entities_in_radius(PyUIGridObject* self, PyObject* args, Py
 }
 
 // =========================================================================
-// Camera positioning
-// =========================================================================
-
-void UIGrid::center_camera() {
-    int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
-    int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-    center_x = (grid_w / 2.0f) * cell_width;
-    center_y = (grid_h / 2.0f) * cell_height;
-    markDirty();
-}
-
-void UIGrid::center_camera(float tile_x, float tile_y) {
-    int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
-    int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-    float half_viewport_x = box.getSize().x / zoom / 2.0f;
-    float half_viewport_y = box.getSize().y / zoom / 2.0f;
-    center_x = tile_x * cell_width + half_viewport_x;
-    center_y = tile_y * cell_height + half_viewport_y;
-    markDirty();
-}
-
-PyObject* UIGrid::py_center_camera(PyUIGridObject* self, PyObject* args) {
-    PyObject* pos_arg = nullptr;
-
-    if (!PyArg_ParseTuple(args, "|O", &pos_arg)) {
-        return nullptr;
-    }
-
-    if (pos_arg == nullptr || pos_arg == Py_None) {
-        self->data->center_camera();
-    } else if (PyTuple_Check(pos_arg) && PyTuple_Size(pos_arg) == 2) {
-        PyObject* x_obj = PyTuple_GetItem(pos_arg, 0);
-        PyObject* y_obj = PyTuple_GetItem(pos_arg, 1);
-
-        float tile_x, tile_y;
-        if (PyFloat_Check(x_obj)) {
-            tile_x = PyFloat_AsDouble(x_obj);
-        } else if (PyLong_Check(x_obj)) {
-            tile_x = (float)PyLong_AsLong(x_obj);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "tile coordinates must be numeric");
-            return nullptr;
-        }
-
-        if (PyFloat_Check(y_obj)) {
-            tile_y = PyFloat_AsDouble(y_obj);
-        } else if (PyLong_Check(y_obj)) {
-            tile_y = (float)PyLong_AsLong(y_obj);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "tile coordinates must be numeric");
-            return nullptr;
-        }
-
-        self->data->center_camera(tile_x, tile_y);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "center_camera() takes an optional tuple (tile_x, tile_y)");
-        return nullptr;
-    }
-
-    Py_RETURN_NONE;
-}
-
-// =========================================================================
 // HeightMap application methods
 // =========================================================================
 
-PyObject* UIGrid::py_apply_threshold(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
+PyObject* PyGridData::py_apply_threshold(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
     static const char* keywords[] = {"source", "range", "walkable", "transparent", nullptr};
     PyObject* source_obj = nullptr;
     PyObject* range_obj = nullptr;
@@ -533,7 +471,7 @@ PyObject* UIGrid::py_apply_threshold(PyUIGridObject* self, PyObject* args, PyObj
     return (PyObject*)self;
 }
 
-PyObject* UIGrid::py_apply_ranges(PyUIGridObject* self, PyObject* args) {
+PyObject* PyGridData::py_apply_ranges(PyGridDataObject* self, PyObject* args) {
     PyObject* source_obj = nullptr;
     PyObject* ranges_obj = nullptr;
 
@@ -696,7 +634,7 @@ static void fireStepCallback(std::shared_ptr<UIEntity>& entity, int trigger_int,
     Py_DECREF(trigger_obj);
 }
 
-PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) {
+PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {"n", "turn_order", nullptr};
     int n = 1;
     PyObject* turn_order_filter = nullptr;
@@ -827,10 +765,7 @@ PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) 
     }
 
     // #351 - invalidate the view's render early-out once if anything moved.
-    // Must call the GridData override explicitly: UIGrid's `using
-    // UIDrawable::markCompositeDirty` would otherwise shadow it and skip the
-    // content_generation bump + registered-views notification.
-    if (content_changed) grid->GridData::markCompositeDirty();
+    if (content_changed) grid->markCompositeDirty();
 
     Py_RETURN_NONE;
 }
@@ -839,9 +774,11 @@ PyObject* UIGrid::py_step(PyUIGridObject* self, PyObject* args, PyObject* kwds) 
 // Method tables
 // =========================================================================
 
-PyMethodDef UIGrid::methods[] = {
-    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, at,
+typedef PyGridDataObject PyObjectType;
+
+PyMethodDef PyGridData_all_methods[] = {
+    {"at", (PyCFunction)PyGridData::py_at, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(GridData, at,
          MCRF_SIG("(x: int, y: int)", "GridPoint"),
          MCRF_DESC("Return the GridPoint cell at grid coordinates (x, y)."),
          MCRF_ARGS_START
@@ -851,8 +788,8 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_RAISES("IndexError", "If x or y is out of range")
          MCRF_NOTE("Also accepts a single positional tuple/list/Vector: at((x, y)) or at(vec), or keyword form: at(pos=(x, y)).")
      )},
-    {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, compute_fov,
+    {"compute_fov", (PyCFunction)PyGridData::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(GridData, compute_fov,
          MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC)", "None"),
          MCRF_DESC("Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."),
          MCRF_ARGS_START
@@ -862,8 +799,8 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_ARG("algorithm", "FOV algorithm to use (FOV.BASIC, FOV.DIAMOND, FOV.SHADOW, FOV.PERMISSIVE_0-8)")
          MCRF_RETURNS("None")
      )},
-    {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, is_in_fov,
+    {"is_in_fov", (PyCFunction)PyGridData::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(GridData, is_in_fov,
          MCRF_SIG("(x: int, y: int)", "bool"),
          MCRF_DESC("Check if a cell is in the field of view. Must call compute_fov() first to calculate visibility."),
          MCRF_ARGS_START
@@ -873,7 +810,7 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_NOTE("Also accepts a single positional tuple/list/Vector: is_in_fov((x, y)) or is_in_fov(vec), or keyword form: is_in_fov(pos=(x, y)).")
      )},
     {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, find_path,
+     MCRF_METHOD(GridData, find_path,
          MCRF_SIG("(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0)", "AStarPath | None"),
          MCRF_DESC("Compute A* path between two points. The returned AStarPath can be iterated or walked step-by-step."),
          MCRF_ARGS_START
@@ -886,7 +823,7 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_RETURNS("AStarPath object if path exists, None otherwise")
      )},
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, get_dijkstra_map,
+     MCRF_METHOD(GridData, get_dijkstra_map,
          MCRF_SIG("(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None)", "DijkstraMap"),
          MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. Call clear_dijkstra_maps() after changing grid walkability to invalidate."),
          MCRF_ARGS_START
@@ -897,12 +834,12 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_RETURNS("DijkstraMap object for querying distances and paths")
      )},
     {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
-     MCRF_METHOD(Grid, clear_dijkstra_maps,
+     MCRF_METHOD(GridData, clear_dijkstra_maps,
          MCRF_SIG("()", "None"),
          MCRF_DESC("Clear all cached Dijkstra maps. Call this after modifying grid cell walkability to ensure pathfinding uses updated walkability data.")
      )},
-    {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS,
-     MCRF_METHOD(Grid, add_layer,
+    {"add_layer", (PyCFunction)PyGridData::py_add_layer, METH_VARARGS,
+     MCRF_METHOD(GridData, add_layer,
          MCRF_SIG("(layer: ColorLayer | TileLayer)", "ColorLayer | TileLayer"),
          MCRF_DESC("Add a layer to the grid. Layers with size (0, 0) are automatically resized to match the grid."),
          MCRF_ARGS_START
@@ -911,8 +848,8 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_RAISES("ValueError", "If layer is already attached to another grid, or if layer size doesn't match grid (and isn't (0,0))")
          MCRF_RAISES("TypeError", "If argument is not a ColorLayer or TileLayer")
      )},
-    {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
-     MCRF_METHOD(Grid, remove_layer,
+    {"remove_layer", (PyCFunction)PyGridData::py_remove_layer, METH_VARARGS,
+     MCRF_METHOD(GridData, remove_layer,
          MCRF_SIG("(name_or_layer: str | ColorLayer | TileLayer)", "None"),
          MCRF_DESC("Remove a layer from the grid by name or by object reference."),
          MCRF_ARGS_START
@@ -920,16 +857,16 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_RAISES("KeyError", "If name is provided but no layer with that name exists")
          MCRF_RAISES("TypeError", "If argument is not a string, ColorLayer, or TileLayer")
      )},
-    {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
-     MCRF_METHOD(Grid, layer,
+    {"layer", (PyCFunction)PyGridData::py_layer, METH_VARARGS,
+     MCRF_METHOD(GridData, layer,
          MCRF_SIG("(name: str)", "ColorLayer | TileLayer | None"),
          MCRF_DESC("Get a layer by its name."),
          MCRF_ARGS_START
          MCRF_ARG("name", "The name of the layer to find")
          MCRF_RETURNS("The layer with the specified name, or None if not found")
      )},
-    {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, entities_in_radius,
+    {"entities_in_radius", (PyCFunction)PyGridData::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(GridData, entities_in_radius,
          MCRF_SIG("(pos: tuple | Vector, radius: float)", "list"),
          MCRF_DESC("Query entities within radius using spatial hash (O(k) where k = nearby entities)."),
          MCRF_ARGS_START
@@ -937,168 +874,29 @@ PyMethodDef UIGrid::methods[] = {
          MCRF_ARG("radius", "Search radius")
          MCRF_RETURNS("List of Entity objects within the radius")
      )},
-    {"center_camera", (PyCFunction)UIGrid::py_center_camera, METH_VARARGS,
-     MCRF_METHOD(Grid, center_camera,
-         MCRF_SIG("(pos: tuple = None)", "None"),
-         MCRF_DESC("Center the camera on a tile coordinate. If pos is None, centers on the grid's middle tile."),
-         MCRF_ARGS_START
-         MCRF_ARG("pos", "Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.")
-     )},
-    {"apply_threshold", (PyCFunction)UIGrid::py_apply_threshold, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, apply_threshold,
-         MCRF_SIG("(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None)", "Grid"),
+    {"apply_threshold", (PyCFunction)PyGridData::py_apply_threshold, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(GridData, apply_threshold,
+         MCRF_SIG("(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None)", "GridData"),
          MCRF_DESC("Apply walkable/transparent properties to cells where heightmap values fall within range."),
          MCRF_ARGS_START
          MCRF_ARG("source", "HeightMap with values to check. Must match grid size.")
          MCRF_ARG("range", "Tuple of (min, max) - cells with values in this range are affected")
          MCRF_ARG("walkable", "If not None, set walkable to this value for cells in range")
          MCRF_ARG("transparent", "If not None, set transparent to this value for cells in range")
-         MCRF_RETURNS("Grid: self, for method chaining")
+         MCRF_RETURNS("GridData: self, for method chaining")
          MCRF_RAISES("ValueError", "If HeightMap size doesn't match grid size")
      )},
-    {"apply_ranges", (PyCFunction)UIGrid::py_apply_ranges, METH_VARARGS,
-     MCRF_METHOD(Grid, apply_ranges,
-         MCRF_SIG("(source: HeightMap, ranges: list)", "Grid"),
+    {"apply_ranges", (PyCFunction)PyGridData::py_apply_ranges, METH_VARARGS,
+     MCRF_METHOD(GridData, apply_ranges,
+         MCRF_SIG("(source: HeightMap, ranges: list)", "GridData"),
          MCRF_DESC("Apply multiple walkability thresholds to the grid in a single pass."),
          MCRF_ARGS_START
          MCRF_ARG("source", "HeightMap with values to check. Must match grid size.")
          MCRF_ARG("ranges", "List of (range_tuple, properties_dict) tuples where range_tuple=(min,max) and properties_dict has 'walkable'/'transparent' keys")
-         MCRF_RETURNS("Grid: self, for method chaining")
+         MCRF_RETURNS("GridData: self, for method chaining")
      )},
-    {NULL, NULL, 0, NULL}
-};
-
-typedef PyUIGridObject PyObjectType;
-
-PyMethodDef UIGrid_all_methods[] = {
-    UIDRAWABLE_METHODS,
-    {"at", (PyCFunction)UIGrid::py_at, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, at,
-         MCRF_SIG("(x: int, y: int)", "GridPoint"),
-         MCRF_DESC("Return the GridPoint cell at grid coordinates (x, y)."),
-         MCRF_ARGS_START
-         MCRF_ARG("x", "Column index (0-based)")
-         MCRF_ARG("y", "Row index (0-based)")
-         MCRF_RETURNS("GridPoint: the cell at the given position")
-         MCRF_RAISES("IndexError", "If x or y is out of range")
-         MCRF_NOTE("Also accepts a single positional tuple/list/Vector: at((x, y)) or at(vec), or keyword form: at(pos=(x, y)).")
-     )},
-    {"compute_fov", (PyCFunction)UIGrid::py_compute_fov, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, compute_fov,
-         MCRF_SIG("(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC)", "None"),
-         MCRF_DESC("Compute field of view from a position. Updates the internal FOV state; use is_in_fov() to query visibility."),
-         MCRF_ARGS_START
-         MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
-         MCRF_ARG("radius", "Maximum view distance (0 = unlimited)")
-         MCRF_ARG("light_walls", "Whether walls are lit when visible")
-         MCRF_ARG("algorithm", "FOV algorithm to use (FOV.BASIC, FOV.DIAMOND, FOV.SHADOW, FOV.PERMISSIVE_0-8)")
-         MCRF_RETURNS("None")
-     )},
-    {"is_in_fov", (PyCFunction)UIGrid::py_is_in_fov, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, is_in_fov,
-         MCRF_SIG("(x: int, y: int)", "bool"),
-         MCRF_DESC("Check if a cell is in the field of view. Must call compute_fov() first to calculate visibility."),
-         MCRF_ARGS_START
-         MCRF_ARG("x", "Column index (0-based)")
-         MCRF_ARG("y", "Row index (0-based)")
-         MCRF_RETURNS("True if the cell is visible, False otherwise")
-         MCRF_NOTE("Also accepts a single positional tuple/list/Vector: is_in_fov((x, y)) or is_in_fov(vec), or keyword form: is_in_fov(pos=(x, y)).")
-     )},
-    {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, find_path,
-         MCRF_SIG("(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0)", "AStarPath | None"),
-         MCRF_DESC("Compute A* path between two points. The returned AStarPath can be iterated or walked step-by-step."),
-         MCRF_ARGS_START
-         MCRF_ARG("start", "Starting position as Vector, Entity, or (x, y) tuple")
-         MCRF_ARG("end", "Target position as Vector, Entity, or (x, y) tuple")
-         MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
-         MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
-         MCRF_ARG("heuristic", "Heuristic enum member, string name, or int (EUCLIDEAN=0, MANHATTAN=1, CHEBYSHEV=2). None uses default (Euclidean).")
-         MCRF_ARG("weight", "Heuristic weight multiplier. Values > 1.0 trade optimality for speed (weighted A*).")
-         MCRF_RETURNS("AStarPath object if path exists, None otherwise")
-     )},
-    {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, get_dijkstra_map,
-         MCRF_SIG("(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None)", "DijkstraMap"),
-         MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. Call clear_dijkstra_maps() after changing grid walkability to invalidate."),
-         MCRF_ARGS_START
-         MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple. Use 'root' for single-source maps (cached by position).")
-         MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
-         MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
-         MCRF_ARG("roots", "Sequence of root positions or a DiscreteMap mask for multi-source Dijkstra. Pass 'roots' instead of 'root' for multi-source maps (not cached).")
-         MCRF_RETURNS("DijkstraMap object for querying distances and paths")
-     )},
-    {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
-     MCRF_METHOD(Grid, clear_dijkstra_maps,
-         MCRF_SIG("()", "None"),
-         MCRF_DESC("Clear all cached Dijkstra maps. Call this after modifying grid cell walkability to ensure pathfinding uses updated walkability data.")
-     )},
-    {"add_layer", (PyCFunction)UIGrid::py_add_layer, METH_VARARGS,
-     MCRF_METHOD(Grid, add_layer,
-         MCRF_SIG("(layer: ColorLayer | TileLayer)", "ColorLayer | TileLayer"),
-         MCRF_DESC("Add a layer to the grid. Layers with size (0, 0) are automatically resized to match the grid."),
-         MCRF_ARGS_START
-         MCRF_ARG("layer", "A ColorLayer or TileLayer object. Named layers replace any existing layer with the same name.")
-         MCRF_RETURNS("The added layer object")
-         MCRF_RAISES("ValueError", "If layer is already attached to another grid, or if layer size doesn't match grid (and isn't (0,0))")
-         MCRF_RAISES("TypeError", "If argument is not a ColorLayer or TileLayer")
-     )},
-    {"remove_layer", (PyCFunction)UIGrid::py_remove_layer, METH_VARARGS,
-     MCRF_METHOD(Grid, remove_layer,
-         MCRF_SIG("(name_or_layer: str | ColorLayer | TileLayer)", "None"),
-         MCRF_DESC("Remove a layer from the grid by name or by object reference."),
-         MCRF_ARGS_START
-         MCRF_ARG("name_or_layer", "Either a layer name (str) or the layer object itself")
-         MCRF_RAISES("KeyError", "If name is provided but no layer with that name exists")
-         MCRF_RAISES("TypeError", "If argument is not a string, ColorLayer, or TileLayer")
-     )},
-    {"layer", (PyCFunction)UIGrid::py_layer, METH_VARARGS,
-     MCRF_METHOD(Grid, layer,
-         MCRF_SIG("(name: str)", "ColorLayer | TileLayer | None"),
-         MCRF_DESC("Get a layer by its name."),
-         MCRF_ARGS_START
-         MCRF_ARG("name", "The name of the layer to find")
-         MCRF_RETURNS("The layer with the specified name, or None if not found")
-     )},
-    {"entities_in_radius", (PyCFunction)UIGrid::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, entities_in_radius,
-         MCRF_SIG("(pos: tuple | Vector, radius: float)", "list"),
-         MCRF_DESC("Query entities within radius using spatial hash (O(k) where k = nearby entities)."),
-         MCRF_ARGS_START
-         MCRF_ARG("pos", "Center position as (x, y) tuple, Vector, or other 2-element sequence")
-         MCRF_ARG("radius", "Search radius")
-         MCRF_RETURNS("List of Entity objects within the radius")
-     )},
-    {"center_camera", (PyCFunction)UIGrid::py_center_camera, METH_VARARGS,
-     MCRF_METHOD(Grid, center_camera,
-         MCRF_SIG("(pos: tuple = None)", "None"),
-         MCRF_DESC("Center the camera on a tile coordinate. If pos is None, centers on the grid's middle tile."),
-         MCRF_ARGS_START
-         MCRF_ARG("pos", "Optional (tile_x, tile_y) tuple. If None, centers on grid's middle tile.")
-     )},
-    {"apply_threshold", (PyCFunction)UIGrid::py_apply_threshold, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, apply_threshold,
-         MCRF_SIG("(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None)", "Grid"),
-         MCRF_DESC("Apply walkable/transparent properties to cells where heightmap values fall within range."),
-         MCRF_ARGS_START
-         MCRF_ARG("source", "HeightMap with values to check. Must match grid size.")
-         MCRF_ARG("range", "Tuple of (min, max) - cells with values in this range are affected")
-         MCRF_ARG("walkable", "If not None, set walkable to this value for cells in range")
-         MCRF_ARG("transparent", "If not None, set transparent to this value for cells in range")
-         MCRF_RETURNS("Grid: self, for method chaining")
-         MCRF_RAISES("ValueError", "If HeightMap size doesn't match grid size")
-     )},
-    {"apply_ranges", (PyCFunction)UIGrid::py_apply_ranges, METH_VARARGS,
-     MCRF_METHOD(Grid, apply_ranges,
-         MCRF_SIG("(source: HeightMap, ranges: list)", "Grid"),
-         MCRF_DESC("Apply multiple walkability thresholds to the grid in a single pass."),
-         MCRF_ARGS_START
-         MCRF_ARG("source", "HeightMap with values to check. Must match grid size.")
-         MCRF_ARG("ranges", "List of (range_tuple, properties_dict) tuples where range_tuple=(min,max) and properties_dict has 'walkable'/'transparent' keys")
-         MCRF_RETURNS("Grid: self, for method chaining")
-     )},
-    {"step", (PyCFunction)UIGrid::py_step, METH_VARARGS | METH_KEYWORDS,
-     MCRF_METHOD(Grid, step,
+    {"step", (PyCFunction)PyGridData::py_step, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(GridData, step,
          MCRF_SIG("(n: int = 1, turn_order: int = None)", "None"),
          MCRF_DESC("Execute n rounds of turn-based entity behavior. Each round: entities grouped by turn_order (ascending), behaviors executed, triggers fired (TARGET, DONE, BLOCKED), movement animated."),
          MCRF_ARGS_START

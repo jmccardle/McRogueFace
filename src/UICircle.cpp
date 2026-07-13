@@ -8,7 +8,7 @@
 #include "PyAlignment.h"
 #include "UIFrame.h"          // parent= kwarg: Frame parent type
 #include "UICaption.h"        // parent= kwarg: needed for ATTACH macro instantiation
-#include "UIGrid.h"           // parent= kwarg: Grid/GridView parent type
+#include "PyGridData.h"           // parent= kwarg: Grid/GridView parent type
 #include "PySceneObject.h"    // parent= kwarg: Scene parent type
 #include <cmath>
 

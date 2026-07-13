@@ -26,13 +26,13 @@ typedef struct {
     PyObject* weakreflist;  // Weak reference support
 } PyUICaptionObject;
 
-class UIGrid;
+class GridData;
 class UIGridView;
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<UIGrid> data;
+    std::shared_ptr<GridData> data;
     PyObject* weakreflist;  // Weak reference support
-} PyUIGridObject;
+} PyGridDataObject;
 
 class UISprite;
 typedef struct {
@@ -166,7 +166,7 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
         if ((parent_obj) && (parent_obj) != Py_None) { \
             if (!PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIFrameType) && \
                 !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PySceneType) && \
-                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIGridType) && \
+                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyGridDataType) && \
                 !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIGridViewType)) { \
                 PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Scene, or Grid"); \
                 return -1; \

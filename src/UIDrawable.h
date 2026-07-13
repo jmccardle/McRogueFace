@@ -22,14 +22,15 @@ class UniformCollection;
 // PyShaderObject is a typedef, forward declare as a struct with explicit typedef
 typedef struct PyShaderObjectStruct PyShaderObject;
 
-class UIFrame; class UICaption; class UISprite; class UIEntity; class UIGrid; class GridData;
+class UIFrame; class UICaption; class UISprite; class UIEntity; class GridData;
 
 enum PyObjectsEnum : int
 {
     UIFRAME = 1,
     UICAPTION,
     UISPRITE,
-    UIGRID,
+    // #361: no UIGRID. GridData is not a UIDrawable, so it has no derived_type()
+    // and can never appear in a scene graph. Every grid node IS a UIGRIDVIEW.
     UILINE,
     UICIRCLE,
     UIARC,
@@ -130,7 +131,7 @@ public:
     static PyObject* get_rotate_with_camera(PyObject* self, void* closure);
     static int set_rotate_with_camera(PyObject* self, PyObject* value, void* closure);
 
-    // #221 - Grid coordinate properties (only valid when parent is UIGrid)
+    // #221 - Grid coordinate properties (only valid when the parent is a Grid/UIGridView)
     static PyObject* get_grid_pos(PyObject* self, void* closure);
     static int set_grid_pos(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_grid_size(PyObject* self, void* closure);
@@ -380,7 +381,7 @@ static PyObject* PyUIDrawable_get_click(PyObject* self, void* closure) {
             ptr = ((PyUISpriteObject*)self)->data->click_callable->borrow();
             break;
         case PyObjectsEnum::UIGRID:
-            ptr = ((PyUIGridObject*)self)->data->click_callable->borrow();
+            ptr = ((PyGridDataObject*)self)->data->click_callable->borrow();
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _get_click");
@@ -409,7 +410,7 @@ static int PyUIDrawable_set_click(PyObject* self, PyObject* value, void* closure
             target = (((PyUISpriteObject*)self)->data.get());
             break;
         case PyObjectsEnum::UIGRID:
-            target = (((PyUIGridObject*)self)->data.get());
+            target = (((PyGridDataObject*)self)->data.get());
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _set_click");

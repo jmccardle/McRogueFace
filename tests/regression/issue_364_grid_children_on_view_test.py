@@ -55,8 +55,10 @@ def case_child_parent_is_the_view():
     grid.children.append(bubble)
 
     check("1a: child.parent is the grid view", bubble.parent.name == "the_view")
-    check("1b: child.parent is a Grid, not a _GridData",
-          type(bubble.parent).__name__ == "Grid")
+    # #361: mcrfpy.Grid IS mcrfpy.GridView (one type object, two names), and the
+    # canonical tp_name is GridView.
+    check("1b: child.parent is a Grid, not a GridData",
+          isinstance(bubble.parent, mcrfpy.Grid))
 
 
 def case_children_are_per_view_entities_are_shared():
@@ -87,11 +89,11 @@ def case_griddata_is_not_a_parent():
     orphan = mcrfpy.Frame(pos=(0, 0), size=(10, 10))
     try:
         orphan.parent = grid.grid_data
-        check("3a: assigning a _GridData as parent raises TypeError", False)
+        check("3a: assigning a GridData as parent raises TypeError", False)
     except TypeError:
-        check("3a: assigning a _GridData as parent raises TypeError", True)
+        check("3a: assigning a GridData as parent raises TypeError", True)
 
-    check("3b: _GridData exposes no children collection",
+    check("3b: GridData exposes no children collection",
           not hasattr(grid.grid_data, "children"))
 
 

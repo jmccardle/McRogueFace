@@ -472,7 +472,7 @@ PyObject* PyInit_mcrfpy()
     // #184: Set the metaclass for UI types that support callback methods
     // This must be done BEFORE PyType_Ready is called on these types
     PyTypeObject* ui_types_with_callbacks[] = {
-        &PyUIFrameType, &PyUICaptionType, &PyUISpriteType, &PyUIGridType,
+        &PyUIFrameType, &PyUICaptionType, &PyUISpriteType, &PyGridDataType,
         &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
         &mcrfpydef::PyUIGridViewType,
         nullptr
@@ -492,7 +492,8 @@ PyObject* PyInit_mcrfpy()
         /*UI widgets*/
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType,
         &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
-        &mcrfpydef::PyUIGridViewType,  // #252: GridView IS the primary "Grid" type
+        &mcrfpydef::PyUIGridViewType,  // #252/#361: the widget. "Grid" is an alias.
+        &PyGridDataType,               // #361: the map. Public, and NOT a drawable.
 
         /*3D entities*/
         &mcrfpydef::PyEntity3DType, &mcrfpydef::PyEntityCollection3DType,
@@ -552,9 +553,6 @@ PyObject* PyInit_mcrfpy()
     // Types that are used internally but NOT exported to module namespace (#189)
     // These still need PyType_Ready() but are not added to module
     PyTypeObject* internal_types[] = {
-        /*#252: internal grid data type - UIGrid is now internal, GridView is "Grid"*/
-        &PyUIGridType,
-
         /*game map data - returned by Grid.at() but not directly instantiable*/
         &PyUIGridPointType,
 
@@ -652,7 +650,7 @@ PyObject* PyInit_mcrfpy()
     PyUIFrameType.tp_weaklistoffset = offsetof(PyUIFrameObject, weakreflist);
     PyUICaptionType.tp_weaklistoffset = offsetof(PyUICaptionObject, weakreflist);
     PyUISpriteType.tp_weaklistoffset = offsetof(PyUISpriteObject, weakreflist);
-    PyUIGridType.tp_weaklistoffset = offsetof(PyUIGridObject, weakreflist);
+    PyGridDataType.tp_weaklistoffset = offsetof(PyGridDataObject, weakreflist);
     mcrfpydef::PyUIGridViewType.tp_weaklistoffset = offsetof(PyUIGridViewObject, weakreflist);
     PyUIEntityType.tp_weaklistoffset = offsetof(PyUIEntityObject, weakreflist);
     PyUILineType.tp_weaklistoffset = offsetof(PyUILineObject, weakreflist);
@@ -697,10 +695,13 @@ PyObject* PyInit_mcrfpy()
         t = internal_types[i];
     }
 
-    // #252: Add "GridView" as an alias for the Grid type (which is PyUIGridViewType)
-    // This allows both mcrfpy.Grid(...) and mcrfpy.GridView(...) to work
+    // #361: "Grid" is an alias for GridView -- the SAME type object, not a subclass,
+    // so isinstance() works in both directions and there is no MRO to explain.
+    // It is NOT deprecated: now that GridData is a separate public type,
+    // Grid(grid_size=...) is simply "a GridView that creates its own GridData" --
+    // a constructor overload, not legacy behavior.
     Py_INCREF(&mcrfpydef::PyUIGridViewType);
-    PyModule_AddObject(m, "GridView", (PyObject*)&mcrfpydef::PyUIGridViewType);
+    PyModule_AddObject(m, "Grid", (PyObject*)&mcrfpydef::PyUIGridViewType);
 
     // Add default_font and default_texture to module
     McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
@@ -1638,16 +1639,6 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
                     auto o = (PyUISpriteObject*)type->tp_alloc(type, 0);
                     if (o) {
                         o->data = sprite;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                case PyObjectsEnum::UIGRID: {
-                    auto grid = std::static_pointer_cast<UIGrid>(drawable);
-                    auto type = &mcrfpydef::PyUIGridType;
-                    auto o = (PyUIGridObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = grid;
                         py_obj = (PyObject*)o;
                     }
                     break;

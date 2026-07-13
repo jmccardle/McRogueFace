@@ -4,7 +4,7 @@
 #include "PyVector.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "PySceneObject.h"  // parent= kwarg: Scene parent type
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
@@ -789,7 +789,6 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
             if (!PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIFrameType) &&
                 !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUICaptionType) &&
                 !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUISpriteType) &&
-                !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridType) &&
                 !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
                 Py_DECREF(child);
                 PyErr_SetString(PyExc_TypeError, "children must contain only Frame, Caption, Sprite, or Grid objects");
@@ -806,9 +805,8 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
                 drawable = ((PyUISpriteObject*)child)->data;
             } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
                 drawable = ((PyUIGridViewObject*)child)->data;
-            } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridType)) {
-                drawable = ((PyUIGridObject*)child)->data;
             }
+            // #361: a GridData is not a drawable -- it is rejected above.
             
             if (drawable) {
                 drawable->setParent(self->data);  // Set parent before adding (enables alignment)

@@ -294,8 +294,7 @@ const char* ImGuiSceneExplorer::getTypeName(UIDrawable* drawable) {
         case PyObjectsEnum::UIFRAME:      return "Frame";
         case PyObjectsEnum::UICAPTION:    return "Caption";
         case PyObjectsEnum::UISPRITE:     return "Sprite";
-        case PyObjectsEnum::UIGRID:       return "Grid";
-        case PyObjectsEnum::UIGRIDVIEW:   return "GridView";
+        case PyObjectsEnum::UIGRIDVIEW:   return "Grid";
         case PyObjectsEnum::UILINE:       return "Line";
         case PyObjectsEnum::UICIRCLE:     return "Circle";
         case PyObjectsEnum::UIARC:        return "Arc";

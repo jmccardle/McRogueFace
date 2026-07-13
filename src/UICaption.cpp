@@ -8,7 +8,7 @@
 #include "PyShader.h"  // #106: Shader support
 #include "PyUniformCollection.h"  // #106: Uniform collection support
 #include "UIFrame.h"          // parent= kwarg: Frame parent type
-#include "UIGrid.h"           // parent= kwarg: Grid/GridView parent type
+#include "PyGridData.h"           // parent= kwarg: Grid/GridView parent type
 #include "PySceneObject.h"    // parent= kwarg: Scene parent type
 // UIDrawable methods now in UIBase.h
 #include "McRFPy_Doc.h"

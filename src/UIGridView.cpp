@@ -1,6 +1,6 @@
 // UIGridView.cpp - Rendering view for GridData (#252)
 #include "UIGridView.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridPoint.h"
 #include "UIEntity.h"
 #include "GameEngine.h"
@@ -91,7 +91,7 @@ void UIGridView::resize(float w, float h)
     box.setSize(sf::Vector2f(w, h));
 
     // #364: aligned children re-anchor against the widget's new bounds. This ran in
-    // UIGrid::resize before children moved to the view; it belongs here now.
+    // PyGridData::resize before children moved to the view; it belongs here now.
     if (children) {
         for (auto& child : *children) {
             if (child->getAlignment() != AlignmentType::NONE) {
@@ -186,7 +186,7 @@ void UIGridView::center_camera(float tile_x, float tile_y)
 }
 
 // =========================================================================
-// Render -- adapted from UIGrid::render()
+// Render -- adapted from PyGridData::render()
 // =========================================================================
 void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
@@ -572,192 +572,180 @@ bool UIGridView::hasProperty(const std::string& name) const
 
 int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
 {
-    // Extract parent= up front so it doesn't confuse downstream parsing in
-    // either init mode. parent_obj is borrowed from the original kwds (which
-    // the caller owns and outlives this function), so no INCREF is needed --
-    // but we must not delete from the caller's dict, so make a working copy.
+    // #361: ONE parse for both construction modes.
+    //
+    //   Grid(grid_size=(80,40), pos=..., size=...)   -- creates its own GridData
+    //   Grid(grid=data, pos=..., size=...)           -- a camera onto existing data
+    //
+    // This used to be two functions, and the factory mode built a throwaway
+    // Python _GridData object just to steal its GridData base subobject via an
+    // aliasing shared_ptr, then copied a dozen fields of rendering state out of
+    // the discarded wrapper. The view now constructs the GridData directly. As a
+    // side effect the view-mode kwarg set is no longer a crippled subset: z_index,
+    // visible, opacity, on_click and align work on a second view too, which they
+    // silently did not before (they raised TypeError).
+    PyObject* pos_obj = nullptr;
+    PyObject* size_obj = nullptr;
+    PyObject* grid_size_obj = nullptr;
+    PyObject* texture_obj = nullptr;
+    PyObject* grid_obj = nullptr;
+    PyObject* fill_color_obj = nullptr;
+    PyObject* click_handler = nullptr;
+    PyObject* layers_obj = nullptr;
     PyObject* parent_obj = nullptr;
-    PyObject* dispatch_kwds = kwds;
-    if (kwds) {
-        parent_obj = PyDict_GetItemString(kwds, "parent");  // borrowed ref
-        if (parent_obj) {
-            dispatch_kwds = PyDict_Copy(kwds);
-            if (!dispatch_kwds) return -1;
-            PyDict_DelItemString(dispatch_kwds, "parent");
-        }
+    PyObject* align_obj = nullptr;
+    // #169 - NaN sentinel: distinguishes "user passed a center" from "default it".
+    float center_x = std::numeric_limits<float>::quiet_NaN();
+    float center_y = std::numeric_limits<float>::quiet_NaN();
+    float zoom = 1.0f;
+    int visible = 1;
+    float opacity = 1.0f;
+    int z_index = 0;
+    const char* name = nullptr;
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    int grid_w = 2, grid_h = 2;
+    float margin = 0.0f, horiz_margin = -1.0f, vert_margin = -1.0f;
+
+    static const char* kwlist[] = {
+        "pos", "size", "grid_size", "texture",   // positional
+        "grid", "fill_color", "on_click", "center_x", "center_y", "zoom",
+        "visible", "opacity", "z_index", "name", "x", "y", "w", "h",
+        "grid_w", "grid_h", "layers", "parent",
+        "align", "margin", "horiz_margin", "vert_margin",
+        nullptr
+    };
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOfffifizffffiiOOOfff",
+                                     const_cast<char**>(kwlist),
+                                     &pos_obj, &size_obj, &grid_size_obj, &texture_obj,
+                                     &grid_obj, &fill_color_obj, &click_handler,
+                                     &center_x, &center_y, &zoom,
+                                     &visible, &opacity, &z_index, &name,
+                                     &x, &y, &w, &h, &grid_w, &grid_h,
+                                     &layers_obj, &parent_obj,
+                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
+        return -1;
     }
 
-    // Determine mode by checking for 'grid' kwarg
-    PyObject* grid_kwarg = nullptr;
-    if (dispatch_kwds) {
-        grid_kwarg = PyDict_GetItemString(dispatch_kwds, "grid");  // borrowed ref
-    }
+    const bool attaching = (grid_obj && grid_obj != Py_None);
 
-    bool explicit_view = (grid_kwarg && grid_kwarg != Py_None);
-
-    int rc = explicit_view
-        ? init_explicit_view(self, args, dispatch_kwds)
-        : init_with_data(self, args, dispatch_kwds);
-
-    if (dispatch_kwds != kwds) Py_DECREF(dispatch_kwds);
-    if (rc != 0) return rc;
-
-    if (parent_obj) {
-        UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
-    }
-    return 0;
-}
-
-int UIGridView::init_explicit_view(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
-{
-    {
-        // Mode 1: View of existing grid data
-        static const char* kwlist[] = {"grid", "pos", "size", "zoom", "fill_color", "name", nullptr};
-        PyObject* grid_obj = nullptr;
-        PyObject* pos_obj = nullptr;
-        PyObject* size_obj = nullptr;
-        float zoom_val = 1.0f;
-        PyObject* fill_obj = nullptr;
-        const char* name_str = nullptr;
-
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOfOz", const_cast<char**>(kwlist),
-                                         &grid_obj, &pos_obj, &size_obj, &zoom_val, &fill_obj, &name_str)) {
+    // --------------------------------------------------------------------
+    // The map: attach to an existing one, or build a new one.
+    // --------------------------------------------------------------------
+    if (attaching) {
+        // A camera onto someone else's map cannot also specify that map's shape.
+        // Silently ignoring these would quietly hand back a view of a DIFFERENT
+        // size than asked for.
+        if (grid_size_obj || texture_obj || layers_obj) {
+            PyErr_SetString(PyExc_TypeError,
+                "grid= names an existing GridData; grid_size/texture/layers describe a "
+                "new one. Pass one or the other, not both.");
             return -1;
         }
 
-        self->data->zoom = zoom_val;
-        if (name_str) self->data->UIDrawable::name = std::string(name_str);
+        if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType)) {
+            self->data->grid_data = ((PyGridDataObject*)grid_obj)->data;
+        } else if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+            // Another Grid/GridView: share the map it is looking at.
+            self->data->grid_data = ((PyUIGridViewObject*)grid_obj)->data->grid_data;
+        } else {
+            PyErr_SetString(PyExc_TypeError, "grid must be a GridData or a Grid");
+            return -1;
+        }
+        if (!self->data->grid_data) {
+            PyErr_SetString(PyExc_ValueError, "grid has no data to view");
+            return -1;
+        }
+        self->data->ptex = self->data->grid_data->getTexture();
+    } else {
+        std::shared_ptr<PyTexture> texture;
+        if (PyGridData::parse_grid_shape(grid_size_obj, texture_obj,
+                                         grid_w, grid_h, texture) < 0) {
+            return -1;
+        }
+        self->data->grid_data = std::make_shared<GridData>(grid_w, grid_h, texture);
+        if (PyGridData::apply_layers_arg(self->data->grid_data, layers_obj, texture) < 0) {
+            return -1;
+        }
+        self->data->ptex = texture;
+    }
 
-        // Accept both internal _GridData and GridView (unified Grid) as grid source
-        if (grid_obj && grid_obj != Py_None) {
-            if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType)) {
-                // Internal _GridData object
-                PyUIGridObject* pygrid = (PyUIGridObject*)grid_obj;
-                self->data->grid_data = std::shared_ptr<GridData>(
-                    pygrid->data, static_cast<GridData*>(pygrid->data.get()));
-                self->data->ptex = pygrid->data->getTexture();
-            } else if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
-                // Another GridView (unified Grid) - share its grid_data
-                PyUIGridViewObject* pyview = (PyUIGridViewObject*)grid_obj;
-                if (pyview->data->grid_data) {
-                    self->data->grid_data = pyview->data->grid_data;
-                    self->data->ptex = pyview->data->ptex;
-                }
-            } else {
-                PyErr_SetString(PyExc_TypeError, "grid must be a Grid object");
+    auto& grid_data = self->data->grid_data;
+
+    // --------------------------------------------------------------------
+    // The camera: this view's own rendering state.
+    // --------------------------------------------------------------------
+    if (pos_obj && pos_obj != Py_None) {
+        PyVectorObject* vec = PyVector::from_arg(pos_obj);
+        if (vec) {
+            x = vec->data.x;
+            y = vec->data.y;
+            Py_DECREF(vec);
+        } else {
+            PyErr_Clear();
+            sf::Vector2f p = PyObject_to_sfVector2f(pos_obj);
+            if (PyErr_Occurred()) {
+                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
                 return -1;
             }
-        }
-
-        if (pos_obj && pos_obj != Py_None) {
-            sf::Vector2f pos = PyObject_to_sfVector2f(pos_obj);
-            if (PyErr_Occurred()) return -1;
-            self->data->position = pos;
-            self->data->box.setPosition(pos);
-        }
-        if (size_obj && size_obj != Py_None) {
-            sf::Vector2f size = PyObject_to_sfVector2f(size_obj);
-            if (PyErr_Occurred()) return -1;
-            self->data->box.setSize(size);
-        }
-        if (fill_obj && fill_obj != Py_None) {
-            self->data->fill_color = PyColor::fromPy(fill_obj);
-            if (PyErr_Occurred()) return -1;
-        }
-
-        if (self->data->grid_data) {
-            self->data->center_camera();
-            self->data->ensureRenderTextureSize();
-            // #359 - Register this view so it receives markDirty/markCompositeDirty
-            // notifications (its own ancestor chain -- e.g. a Frame(use_render_texture=
-            // True) wrapping this view -- needs invalidating too, not just the
-            // creating view's). Does NOT disturb identity: primaryView() (used by
-            // UIEntity::get_grid) is views.front(), which is always the view that
-            // created this GridData via init_with_data, since init_explicit_view can
-            // only attach to grid_data that already exists.
-            self->data->grid_data->registerView(self->data);
-        }
-
-        self->weakreflist = NULL;
-
-        // Register in Python object cache
-        if (self->data->serial_number == 0) {
-            self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-            PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-            if (weakref) {
-                PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-                Py_DECREF(weakref);
-            }
-        }
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridViewType;
-
-        return 0;
-    }
-}
-
-int UIGridView::init_with_data(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
-{
-    // Create a temporary UIGrid using the user's kwargs.
-    // This reuses UIGrid::init's complex parsing for grid_size, texture, layers, etc.
-
-    // Remove 'grid' key from kwds if present (e.g. grid=None)
-    PyObject* filtered_kwds = kwds ? PyDict_Copy(kwds) : PyDict_New();
-    if (!filtered_kwds) return -1;
-    if (PyDict_DelItemString(filtered_kwds, "grid") < 0) {
-        PyErr_Clear();  // OK if "grid" wasn't in dict
-    }
-
-    // Create UIGrid via Python type system, forwarding positional args
-    PyObject* grid_type = (PyObject*)&mcrfpydef::PyUIGridType;
-    PyObject* grid_py = PyObject_Call(grid_type, args, filtered_kwds);
-    Py_DECREF(filtered_kwds);
-
-    if (!grid_py) return -1;
-
-    PyUIGridObject* pygrid = (PyUIGridObject*)grid_py;
-
-    // Take UIGrid data via aliasing shared_ptr
-    self->data->grid_data = std::shared_ptr<GridData>(
-        pygrid->data, static_cast<GridData*>(pygrid->data.get()));
-    self->data->ptex = pygrid->data->getTexture();
-
-    // Copy rendering state from UIGrid to GridView
-    self->data->position = pygrid->data->position;
-    self->data->box.setPosition(pygrid->data->box.getPosition());
-    self->data->box.setSize(pygrid->data->box.getSize());
-    self->data->zoom = pygrid->data->zoom;
-    self->data->center_x = pygrid->data->center_x;
-    self->data->center_y = pygrid->data->center_y;
-    self->data->fill_color = sf::Color(pygrid->data->box.getFillColor());
-    self->data->visible = pygrid->data->visible;
-    self->data->opacity = pygrid->data->opacity;
-    self->data->z_index = pygrid->data->z_index;
-    self->data->name = pygrid->data->name;
-    self->data->camera_rotation = pygrid->data->camera_rotation;
-
-    // Copy alignment
-    self->data->align_type = pygrid->data->align_type;
-    self->data->align_margin = pygrid->data->align_margin;
-    self->data->align_horiz_margin = pygrid->data->align_horiz_margin;
-    self->data->align_vert_margin = pygrid->data->align_vert_margin;
-
-    // Copy click callback if set
-    if (pygrid->data->click_callable) {
-        PyObject* cb = pygrid->data->click_callable->borrow();
-        if (cb && cb != Py_None) {
-            self->data->click_register(cb);
+            x = p.x;
+            y = p.y;
         }
     }
 
-    // #359 - Register this view on the GridData (dirty-notification + identity)
-    self->data->grid_data->registerView(self->data);
+    if (size_obj && size_obj != Py_None) {
+        sf::Vector2f s = PyObject_to_sfVector2f(size_obj);
+        if (PyErr_Occurred()) {
+            PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h)");
+            return -1;
+        }
+        w = s.x;
+        h = s.y;
+    } else if (w == 0.0f && h == 0.0f) {
+        // Default: show the whole map at 1:1.
+        w = grid_data->grid_w * static_cast<float>(grid_data->cell_width());
+        h = grid_data->grid_h * static_cast<float>(grid_data->cell_height());
+    }
+
+    self->data->zoom = zoom;
+    self->data->position = sf::Vector2f(x, y);
+    self->data->box.setPosition(self->data->position);
+    self->data->box.setSize(sf::Vector2f(w, h));
+    self->data->visible = visible;
+    self->data->opacity = opacity;
+    self->data->z_index = z_index;
+    if (name) self->data->UIDrawable::name = std::string(name);
+
+    // #169 - default camera puts tile (0,0) at the widget's top-left.
+    if (std::isnan(center_x)) center_x = w / (2.0f * zoom);
+    if (std::isnan(center_y)) center_y = h / (2.0f * zoom);
+    self->data->center_x = center_x;
+    self->data->center_y = center_y;
+
+    if (fill_color_obj && fill_color_obj != Py_None) {
+        self->data->fill_color = PyColor::fromPy(fill_color_obj);
+        if (PyErr_Occurred()) return -1;
+    }
+
+    if (click_handler && click_handler != Py_None) {
+        if (!PyCallable_Check(click_handler)) {
+            PyErr_SetString(PyExc_TypeError, "on_click must be callable");
+            return -1;
+        }
+        self->data->click_register(click_handler);
+    }
+
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
 
     self->data->ensureRenderTextureSize();
 
-    Py_DECREF(grid_py);
+    // #359 - Register with the map so data-layer mutations invalidate THIS view's
+    // cache and push dirt up ITS ancestor chain. Registration order matters: the
+    // creating view is views.front().
+    grid_data->registerView(self->data);
+
     self->weakreflist = NULL;
 
-    // Register in Python object cache
     if (self->data->serial_number == 0) {
         self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
         PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
@@ -766,7 +754,12 @@ int UIGridView::init_with_data(PyUIGridViewObject* self, PyObject* args, PyObjec
             Py_DECREF(weakref);
         }
     }
-    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridViewType;
+    self->data->is_python_subclass =
+        (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridViewType;
+
+    if (parent_obj && parent_obj != Py_None) {
+        UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
+    }
 
     return 0;
 }
@@ -774,7 +767,7 @@ int UIGridView::init_with_data(PyUIGridViewObject* self, PyObject* args, PyObjec
 PyObject* UIGridView::repr(PyUIGridViewObject* self)
 {
     std::ostringstream ss;
-    ss << "<Grid";
+    ss << "<GridView";
     if (self->data->grid_data) {
         ss << " (" << self->data->grid_data->grid_w << "x" << self->data->grid_data->grid_h << ")";
     } else {
@@ -872,47 +865,19 @@ PyObject* UIGridView::get_grid(PyUIGridViewObject* self, void* closure)
         return self->data->cached_grid_wrapper;
     }
 
-    // grid_data is an aliasing shared_ptr into a UIGrid (GridData is a base of UIGrid).
-    // Reconstruct shared_ptr<UIGrid> to return the proper Python wrapper.
-    auto grid_ptr = static_cast<UIGrid*>(self->data->grid_data.get());
-    auto grid_as_uigrid = std::shared_ptr<UIGrid>(
-        self->data->grid_data, grid_ptr);
+    // #361: build (or find) the map's one Python wrapper, then adopt it as this
+    // view's persistent cache so subsequent accesses hit the fast path above.
+    // The aliasing shared_ptr this used to reconstruct -- to recover the "full
+    // UIGrid" that every GridData was secretly a base subobject of -- is gone
+    // along with UIGrid itself.
+    PyObject* pyGrid = PyGridData::pyobject_for(self->data->grid_data);
+    if (!pyGrid || pyGrid == Py_None) return pyGrid;
 
-    // A wrapper may already exist (user holds grid.grid_data, another view cached
-    // it): honor the serial-number cache, then adopt it as this view's persistent
-    // wrapper so subsequent accesses hit the fast path above.
-    if (grid_ptr->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(grid_ptr->serial_number);
-        if (cached) {
-            // lookup() returns a new strong ref; keep it as the view's cache and
-            // hand a second ref to the caller.
-            self->data->cached_grid_wrapper = cached;
-            Py_INCREF(cached);
-            return cached;
-        }
-    }
-
-    auto grid_type = &mcrfpydef::PyUIGridType;
-    auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
-    if (!pyGrid) return PyErr_NoMemory();
-
-    pyGrid->data = grid_as_uigrid;
-    pyGrid->weakreflist = NULL;
-
-    if (grid_ptr->serial_number == 0) {
-        grid_ptr->serial_number = PythonObjectCache::getInstance().assignSerial();
-    }
-    PyObject* weakref = PyWeakref_NewRef((PyObject*)pyGrid, NULL);
-    if (weakref) {
-        PythonObjectCache::getInstance().registerObject(grid_ptr->serial_number, weakref);
-        Py_DECREF(weakref);
-    }
-
-    // Hold one strong ref for the view's lifetime (#348 cache); return a second
-    // ref to the caller.
-    self->data->cached_grid_wrapper = (PyObject*)pyGrid;
-    Py_INCREF((PyObject*)pyGrid);
-    return (PyObject*)pyGrid;
+    // pyobject_for returns a strong ref; keep it as the view's cache and hand a
+    // second ref to the caller.
+    self->data->cached_grid_wrapper = pyGrid;
+    Py_INCREF(pyGrid);
+    return pyGrid;
 }
 
 int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closure)
@@ -930,16 +895,16 @@ int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closur
         self->data->grid_data = nullptr;
         return 0;
     }
-    // Accept internal _GridData (UIGrid) objects
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
-        PyUIGridObject* pygrid = (PyUIGridObject*)value;
-        self->data->grid_data = std::shared_ptr<GridData>(
-            pygrid->data, static_cast<GridData*>(pygrid->data.get()));
+    // A GridData: point this camera at that map. (#361: no aliasing cast -- the
+    // wrapper holds the GridData itself, not a UIGrid it was a base subobject of.)
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+        PyGridDataObject* pygrid = (PyGridDataObject*)value;
+        self->data->grid_data = pygrid->data;
         self->data->ptex = pygrid->data->getTexture();
         self->data->grid_data->registerView(self->data);
         return 0;
     }
-    // Accept GridView (unified Grid) objects - share their grid_data
+    // A Grid/GridView: share the map it is looking at.
     if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         PyUIGridViewObject* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
@@ -954,7 +919,7 @@ int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closur
         self->data->grid_data = nullptr;
         return 0;
     }
-    PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
+    PyErr_SetString(PyExc_TypeError, "grid_data must be a GridData, a Grid, or None");
     return -1;
 }
 
@@ -982,7 +947,75 @@ int UIGridView::set_zoom(PyUIGridViewObject* self, PyObject* value, void* closur
     double val = PyFloat_AsDouble(value);
     if (val == -1.0 && PyErr_Occurred()) return -1;
     self->data->zoom = static_cast<float>(val);
+    self->data->markDirty();
     return 0;
+}
+
+// #361 - `size` and `center_camera()` were NEVER on the view. They resolved, via
+// getattro delegation, to the internal UIGrid's copies -- the ghost camera nobody
+// renders -- so `grid.size = (w, h)` and `grid.center_camera(...)` were SILENT
+// NO-OPS on the widget the user was actually looking at. Deleting the ghost is
+// what surfaced them.
+PyObject* UIGridView::get_size(PyUIGridViewObject* self, void* closure)
+{
+    return PyVector(self->data->box.getSize()).pyObject();
+}
+
+int UIGridView::set_size(PyUIGridViewObject* self, PyObject* value, void* closure)
+{
+    float w, h;
+    PyVectorObject* vec = PyVector::from_arg(value);
+    if (vec) {
+        w = vec->data.x;
+        h = vec->data.y;
+        Py_DECREF(vec);
+    } else {
+        PyErr_Clear();
+        if (!PyArg_ParseTuple(value, "ff", &w, &h)) {
+            PyErr_SetString(PyExc_TypeError, "size must be a Vector or tuple (w, h)");
+            return -1;
+        }
+    }
+    self->data->resize(w, h);
+    return 0;
+}
+
+PyObject* UIGridView::py_center_camera(PyUIGridViewObject* self, PyObject* args)
+{
+    PyObject* pos_arg = nullptr;
+    if (!PyArg_ParseTuple(args, "|O", &pos_arg)) return nullptr;
+
+    if (pos_arg == nullptr || pos_arg == Py_None) {
+        self->data->center_camera();
+        Py_RETURN_NONE;
+    }
+
+    float tile_x, tile_y;
+    PyVectorObject* vec = PyVector::from_arg(pos_arg);
+    if (vec) {
+        tile_x = vec->data.x;
+        tile_y = vec->data.y;
+        Py_DECREF(vec);
+    } else {
+        PyErr_Clear();
+        if (!PyTuple_Check(pos_arg) || PyTuple_Size(pos_arg) != 2) {
+            PyErr_SetString(PyExc_TypeError,
+                "center_camera() takes an optional (tile_x, tile_y) tuple or Vector");
+            return nullptr;
+        }
+        PyObject* x_obj = PyTuple_GetItem(pos_arg, 0);
+        PyObject* y_obj = PyTuple_GetItem(pos_arg, 1);
+        if (!(PyFloat_Check(x_obj) || PyLong_Check(x_obj)) ||
+            !(PyFloat_Check(y_obj) || PyLong_Check(y_obj))) {
+            PyErr_SetString(PyExc_TypeError, "tile coordinates must be numeric");
+            return nullptr;
+        }
+        tile_x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : (float)PyLong_AsLong(x_obj);
+        tile_y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : (float)PyLong_AsLong(y_obj);
+    }
+
+    self->data->center_camera(tile_x, tile_y);
+    Py_RETURN_NONE;
 }
 
 PyObject* UIGridView::get_fill_color(PyUIGridViewObject* self, void* closure)
@@ -1004,7 +1037,7 @@ int UIGridView::set_fill_color(PyUIGridViewObject* self, PyObject* value, void* 
 // Perspective (#355 fix): OWNED BY THE VIEW. The FOV overlay is drawn by
 // UIGridView::render, so the state it gates on must live here -- previously
 // `grid.perspective` fell through getattro to the internal _GridData and wrote
-// UIGrid::perspective_enabled, which render() never read: the overlay was dead.
+// PyGridData::perspective_enabled, which render() never read: the overlay was dead.
 // Per-view ownership is also the correct semantics for shared GridData (#359):
 // two views of one map can follow two different entities' FOV.
 // =========================================================================
@@ -1065,7 +1098,7 @@ int UIGridView::set_perspective_enabled(PyUIGridViewObject* self, PyObject* valu
 PyObject* UIGridView::get_texture(PyUIGridViewObject* self, void* closure)
 {
     // #318: return a Texture wrapper sharing the underlying shared_ptr<PyTexture>,
-    // mirroring UIGrid::get_texture. None only when the view has no texture.
+    // mirroring PyGridData::get_texture. None only when the view has no texture.
     auto& texture = self->data->ptex;
     if (!texture) Py_RETURN_NONE;
 
@@ -1495,15 +1528,10 @@ PyObject* UIGridView::subscript(PyUIGridViewObject* self, PyObject* key)
         return NULL;
     }
 
-    // Reconstruct shared_ptr<UIGrid> from GridData via aliasing constructor
-    // (mirrors UIGridView::get_grid).
-    auto grid_ptr = static_cast<UIGrid*>(grid_data.get());
-    auto grid_as_uigrid = std::shared_ptr<UIGrid>(grid_data, grid_ptr);
-
     auto type = &mcrfpydef::PyUIGridPointType;
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
     if (!obj) return NULL;
-    obj->grid = grid_as_uigrid;
+    obj->grid = grid_data;  // #361: the GridPoint holds the map directly
     obj->x = x;
     obj->y = y;
     return (PyObject*)obj;
@@ -1529,6 +1557,17 @@ typedef PyUIGridViewObject PyObjectType;
 // Methods and getsetters arrays
 PyMethodDef UIGridView_all_methods[] = {
     UIDRAWABLE_METHODS,
+    {"center_camera", (PyCFunction)UIGridView::py_center_camera, METH_VARARGS,
+     MCRF_METHOD(GridView, center_camera,
+         MCRF_SIG("(pos: tuple = None)", "None"),
+         MCRF_DESC("Point this view's camera at a tile, or at the middle of the map when "
+                   "called with no argument.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "(tile_x, tile_y) to center on. Offset by 0.5 to aim at a tile's "
+                         "middle rather than its top-left corner.")
+         MCRF_NOTE("The camera belongs to the VIEW, not the map: two views of one GridData "
+                   "pan independently.")
+     )},
     {NULL}
 };
 
@@ -1561,6 +1600,9 @@ PyGetSetDef UIGridView::getsetters[] = {
      ), NULL},
     {"center", (getter)UIGridView::get_center, (setter)UIGridView::set_center,
      MCRF_PROPERTY(center, "Camera center point in pixel coordinates (Vector)."), NULL},
+    {"size", (getter)UIGridView::get_size, (setter)UIGridView::set_size,
+     MCRF_PROPERTY(size, "Size of the grid widget in pixels as (w, h) (Vector). This is the "
+                         "viewport, not the map: the map's dimensions are grid_size."), NULL},
     {"zoom", (getter)UIGridView::get_zoom, (setter)UIGridView::set_zoom,
      MCRF_PROPERTY(zoom, "Zoom level for rendering (float). Values greater than 1.0 magnify; less than 1.0 shrink."), NULL},
     {"fill_color", (getter)UIGridView::get_fill_color, (setter)UIGridView::set_fill_color,

@@ -3,7 +3,7 @@
 #include "Resources.h"
 #include "PyCallable.h"
 #include "UIFrame.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridView.h"
 #include "McRFPy_Automation.h"  // #111 - For simulated mouse position
 #include "PythonObjectCache.h"  // #184 - For subclass callback support

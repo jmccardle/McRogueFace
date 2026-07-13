@@ -6,7 +6,7 @@
 
 // Forward declarations
 class UIEntity;
-class UIGrid;
+class GridData;
 class DijkstraMap;
 class PathProvider;
 
@@ -71,4 +71,4 @@ struct EntityBehavior {
 // =============================================================================
 // Behavior execution - does NOT modify entity position, just returns intent
 // =============================================================================
-BehaviorOutput executeBehavior(UIEntity& entity, UIGrid& grid);
+BehaviorOutput executeBehavior(UIEntity& entity, GridData& grid);

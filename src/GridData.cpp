@@ -2,16 +2,15 @@
 #include "GridData.h"
 #include "UIEntity.h"
 #include "PyTexture.h"
-#include "UIGrid.h"      // #313 - markDirty forwards to the UIGrid subobject
-#include "UIGridView.h"  // #313/#359 - and notifies registered views
+#include "UIGridView.h"        // #313/#359 - markDirty notifies registered views
+#include "PythonObjectCache.h" // #361 - GridData owns its own cache serial
 #include <algorithm>
 
-// #313 - Render invalidation from the data layer (see GridData.h).
-// GridData is never independently heap-allocated (always a UIGrid base
-// subobject), so the downcast is valid; remove once #252 allows pure GridData.
+// #313/#361 - Render invalidation from the data layer (see GridData.h).
+// Notifies every registered view; there is no longer a drawable half of `this`
+// to notify.
 void GridData::markDirty() {
     content_generation++;  // #351 - content changed; invalidate view early-out
-    static_cast<UIGrid*>(this)->UIDrawable::markDirty();
     for (auto& weak_view : views) {
         if (auto view = weak_view.lock()) view->markDirty();
     }
@@ -19,7 +18,6 @@ void GridData::markDirty() {
 
 void GridData::markCompositeDirty() {
     content_generation++;  // #351 - content changed; invalidate view early-out
-    static_cast<UIGrid*>(this)->UIDrawable::markCompositeDirty();
     for (auto& weak_view : views) {
         if (auto view = weak_view.lock()) view->markCompositeDirty();
     }
@@ -58,8 +56,26 @@ GridData::GridData()
     // #364: children live on UIGridView, not here -- see GridData.h.
 }
 
+// #361 - The real constructor. Cell size comes from the texture and is mirrored
+// into the plane dimensions; a GridData with no texture falls back to 16x16 so
+// tile<->pixel math stays defined for a map that is never drawn.
+GridData::GridData(int gx, int gy, std::shared_ptr<PyTexture> texture)
+: ptex(texture)
+{
+    entities = std::make_shared<std::vector<std::shared_ptr<UIEntity>>>();  // #329
+    cell_width_px  = ptex ? ptex->sprite_width  : DEFAULT_CELL_WIDTH;
+    cell_height_px = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    initStorage(gx, gy, this);
+}
+
 GridData::~GridData()
 {
+    // #361: GridData carries its own PythonObjectCache serial now that it is
+    // not a UIDrawable (which used to do this in ~UIDrawable).
+    if (serial_number != 0) {
+        PythonObjectCache::getInstance().remove(serial_number);
+    }
+
     // #270: Null out parent_grid in all layers so surviving shared_ptrs
     // (held by Python wrappers) don't dangle after grid destruction
     for (auto& layer : layers) {

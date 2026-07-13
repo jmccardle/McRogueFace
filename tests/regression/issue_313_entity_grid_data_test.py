@@ -7,8 +7,9 @@
 #   (c) entity pixel position (x/y/pos) is derived from the GRID's cell size,
 #       NOT the entity's own texture -- setting a different-sized texture on the
 #       entity must not move it
-#   (d) entity.grid returns the same Grid (GridView) object across step/FOV cycles
-#       (PythonObjectCache identity)
+#   (d) entity.grid returns the same GridData object across step/FOV cycles
+#       (PythonObjectCache identity). #361 changed WHAT it returns -- the map, not
+#       a view -- but the identity guarantee this test exists for is unchanged.
 #   (e) find_path() and at() still work, and constructing their temporary internal
 #       grid wrappers does not destroy the grid's cell callbacks (#251 guard)
 #   (f) a GridPoint obtained from entity.at() outlives the entity and the grid
@@ -79,10 +80,15 @@ def main():
           "(c) pixel pos unchanged after setting a different-sized entity texture")
 
     # --- (d) entity.grid identity across a step/FOV cycle ---
-    check(entity.grid is grid, "(d) entity.grid is the user-created Grid object")
+    # #361: entity.grid is the GridData (the map), not the Grid (a camera onto it).
+    # An entity can be on a map with no view at all, or with several; "the grid an
+    # entity is in" is not a camera. It is still one stable object, which is what
+    # the PythonObjectCache identity guarantee here is about.
+    check(entity.grid is grid.grid_data, "(d) entity.grid is the map this Grid views")
+    check(isinstance(entity.grid, mcrfpy.GridData), "(d) entity.grid is a GridData")
     grid.compute_fov((2, 2), radius=5)
     grid.step(1)
-    check(entity.grid is grid, "(d) entity.grid identity survives step + compute_fov")
+    check(entity.grid is grid.grid_data, "(d) entity.grid identity survives step + compute_fov")
 
     # --- (e) find_path / at() work; cell callbacks survive temp grid wrappers ---
     grid.on_cell_click = lambda pos, btn, action: None
@@ -131,18 +137,22 @@ def main():
     except RuntimeError:
         check(True, "(g) uninitialized Entity texture set raises RuntimeError")
 
-    # --- (h) owning_view survives Python wrapper GC while the C++ view lives ---
-    # The canonical idiom: append the Grid to a scene, drop the Python
-    # reference. The data-layer dirty notifications and entity.grid -> Grid
-    # identity both depend on owning_view staying intact.
+    # --- (h) entity.grid survives GC of the view's Python wrapper ---
+    # The canonical idiom: append the Grid to a scene, drop the Python reference.
+    # The C++ view lives on in the scene graph; the entity's map must stay valid
+    # and identical. (#361: entity.grid is the GridData, so this no longer depends
+    # on a view existing at all -- but the wrapper-GC hazard is the same one.)
     scene = mcrfpy.Scene("issue313_ov")
     g2 = mcrfpy.Grid(grid_size=(4, 4), texture=tex16, pos=(0, 0), size=(64, 64))
     e2 = mcrfpy.Entity(grid_pos=(1, 1), texture=tex16, grid=g2)
+    data2 = g2.grid_data
     scene.children.append(g2)
     del g2
     gc.collect()
-    check(type(e2.grid).__name__ == "Grid",
-          "(h) entity.grid still returns Grid after wrapper GC (owning_view intact)")
+    check(e2.grid is data2,
+          "(h) entity.grid is the same GridData after the view wrapper is GC'd")
+    check(e2.grid.at(1, 1) is not None,
+          "(h) that GridData is still usable after the view wrapper is GC'd")
 
     # --- (f) GridPoint outlives entity + grid references ---
     entity.die()

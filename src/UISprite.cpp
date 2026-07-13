@@ -4,7 +4,7 @@
 #include "PythonObjectCache.h"
 #include "UIFrame.h"  // #144: For snapshot= parameter
 #include "UICaption.h"        // parent= kwarg: needed for ATTACH macro instantiation
-#include "UIGrid.h"           // parent= kwarg: Grid/GridView parent type
+#include "PyGridData.h"           // parent= kwarg: Grid/GridView parent type
 #include "PySceneObject.h"    // parent= kwarg: Scene parent type
 #include "PyAlignment.h"
 #include "PyShader.h"  // #106: Shader support
