@@ -32,6 +32,16 @@ UIGridView::UIGridView()
 }
 
 UIGridView::~UIGridView() {
+    // #362: drop ourselves from the GridData's view registry. This is the only
+    // place guaranteed to run exactly once per view: tp_dealloc's unregister is
+    // gated on data.use_count() <= 1 (the #251 pattern), so a view that outlives
+    // its Python wrapper -- the normal case, when the scene holds the last ref --
+    // would otherwise leave an expired weak_ptr in `views` forever. markDirty()
+    // walks that vector on every entity move.
+    if (grid_data) {
+        grid_data->unregisterView(this);
+    }
+
     // #348: release the persistent internal-Grid wrapper. Guard with
     // Py_IsInitialized() because this destructor may run during interpreter
     // shutdown (mirrors Animation::~Animation).
