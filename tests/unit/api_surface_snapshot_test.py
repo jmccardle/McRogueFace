@@ -13,7 +13,7 @@ Intentional re-baseline (after a deliberate, reviewed API change):
 
 Design notes (see docs/plan-313-314.md):
   * mcrfpy.Grid IS mcrfpy.GridView and delegates its real API to an internal
-    _GridData via tp_getattro -- that surface is INVISIBLE to dir(). We therefore
+    GridData via tp_getattro -- that surface is INVISIBLE to dir(). We therefore
     walk grid.grid_data explicitly AND probe delegation integrity on a live instance.
   * Singleton/constant VALUES are never captured (build/platform/object dependent);
     only their type name is recorded.
@@ -60,7 +60,7 @@ def _internal_type_probes():
         g = mcrfpy.Grid(grid_size=(3, 3))
         gd = getattr(g, "grid_data", None)
         if gd is not None:
-            probes.append(("_GridData", type(gd)))
+            probes.append(("GridData", type(gd)))
         try:
             probes.append(("GridPoint", type(g.at(0, 0))))
         except Exception:
@@ -200,8 +200,8 @@ def enum_lines(cls):
 # Delegation + writability probes (catch breaks invisible to type introspection)
 # --------------------------------------------------------------------------- #
 def delegation_probe_lines():
-    """Assert the GridView instance still resolves its delegated _GridData surface
-    via tp_getattro. A break here leaves the _GridData type unchanged (invisible to
+    """Assert the GridView instance still resolves its delegated GridData surface
+    via tp_getattro. A break here leaves the GridData type unchanged (invisible to
     the type snapshot) but breaks the user-facing Grid contract."""
     lines = []
     try:
@@ -337,7 +337,7 @@ def build_snapshot():
                 out.append("func %s :: %s" % (n, first_doc_line(v.__doc__) or "<no-doc>"))
 
     out.append("")
-    out.append("=== DELEGATION INTEGRITY (Grid instance -> _GridData) ===")
+    out.append("=== DELEGATION INTEGRITY (Grid instance -> GridData) ===")
     out.extend(delegation_probe_lines())
 
     out.append("")

@@ -10,7 +10,7 @@
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridView.h"
 #include "UILine.h"
 #include "UICircle.h"
@@ -569,17 +569,6 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UISprite>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIGRID:
-        {
-            type = &mcrfpydef::PyUIGridType;
-            auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
                 pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;

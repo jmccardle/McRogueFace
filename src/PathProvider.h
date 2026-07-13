@@ -3,7 +3,7 @@
 #include <memory>
 #include <vector>
 
-class UIGrid;
+class GridData;
 class DijkstraMap;
 
 // =============================================================================
@@ -22,7 +22,7 @@ public:
     // DijkstraProvider relies on the TCOD map used at compute time,
     // TargetProvider re-queries the live grid, AStarProvider trusts the
     // pre-computed path.
-    virtual sf::Vector2i nextStep(sf::Vector2i from, UIGrid& grid, bool* ok) = 0;
+    virtual sf::Vector2i nextStep(sf::Vector2i from, GridData& grid, bool* ok) = 0;
 
     // Hint for providers that hold iteration state (currently only A*).
     virtual void reset() {}
@@ -33,7 +33,7 @@ public:
 class DijkstraProvider : public PathProvider {
 public:
     explicit DijkstraProvider(std::shared_ptr<DijkstraMap> map);
-    sf::Vector2i nextStep(sf::Vector2i from, UIGrid& grid, bool* ok) override;
+    sf::Vector2i nextStep(sf::Vector2i from, GridData& grid, bool* ok) override;
 
 private:
     std::shared_ptr<DijkstraMap> map_;
@@ -43,7 +43,7 @@ private:
 class AStarProvider : public PathProvider {
 public:
     explicit AStarProvider(std::vector<sf::Vector2i> path);
-    sf::Vector2i nextStep(sf::Vector2i from, UIGrid& grid, bool* ok) override;
+    sf::Vector2i nextStep(sf::Vector2i from, GridData& grid, bool* ok) override;
     void reset() override { index_ = 0; }
 
 private:
@@ -57,7 +57,7 @@ private:
 class TargetProvider : public PathProvider {
 public:
     explicit TargetProvider(sf::Vector2i target);
-    sf::Vector2i nextStep(sf::Vector2i from, UIGrid& grid, bool* ok) override;
+    sf::Vector2i nextStep(sf::Vector2i from, GridData& grid, bool* ok) override;
 
 private:
     sf::Vector2i target_;

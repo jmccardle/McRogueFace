@@ -19,5 +19,5 @@
 #include "UISprite.h"
 #include "UIGridPoint.h"
 #include "UIEntity.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UICollection.h"

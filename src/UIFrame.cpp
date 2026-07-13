@@ -4,7 +4,7 @@
 #include "PyVector.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "PySceneObject.h"  // parent= kwarg: Scene parent type
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
@@ -548,7 +548,16 @@ PyGetSetDef UIFrame::getsetters[] = {
          "For animation, use 'outline_color.r', 'outline_color.g', etc."
      ), (void*)1},
     {"children", (getter)UIFrame::get_children, NULL,
-     MCRF_PROPERTY(children, "UICollection of child drawable objects rendered on top of this frame (UICollection, read-only)."),
+     MCRF_PROPERTY(children,
+         "UICollection of child drawable objects rendered on top of this frame (UICollection, "
+         "read-only)."
+         MCRF_NOTE(
+             "Child positions are frame-local (relative to this Frame's top-left corner). A "
+             "Frame has no camera, so it cannot pan its content -- frame-local is effectively "
+             "screen space. Contrast with Grid.children, which are positioned in the grid's "
+             "pixel-world coordinates and pan/zoom with the grid camera."
+         )
+     ),
      NULL},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
@@ -780,7 +789,6 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
             if (!PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIFrameType) &&
                 !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUICaptionType) &&
                 !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUISpriteType) &&
-                !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridType) &&
                 !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
                 Py_DECREF(child);
                 PyErr_SetString(PyExc_TypeError, "children must contain only Frame, Caption, Sprite, or Grid objects");
@@ -797,9 +805,8 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
                 drawable = ((PyUISpriteObject*)child)->data;
             } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
                 drawable = ((PyUIGridViewObject*)child)->data;
-            } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridType)) {
-                drawable = ((PyUIGridObject*)child)->data;
             }
+            // #361: a GridData is not a drawable -- it is rejected above.
             
             if (drawable) {
                 drawable->setParent(self->data);  // Set parent before adding (enables alignment)

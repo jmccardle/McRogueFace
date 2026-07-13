@@ -3,7 +3,7 @@
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridView.h"
 #include "UILine.h"
 #include "UICircle.h"
@@ -28,8 +28,6 @@ static UIDrawable* extractDrawable(PyObject* self, PyObjectsEnum objtype) {
             return ((PyUICaptionObject*)self)->data.get();
         case PyObjectsEnum::UISPRITE:
             return ((PyUISpriteObject*)self)->data.get();
-        case PyObjectsEnum::UIGRID:
-            return ((PyUIGridObject*)self)->data.get();
         case PyObjectsEnum::UILINE:
             return ((PyUILineObject*)self)->data.get();
         case PyObjectsEnum::UICIRCLE:
@@ -53,8 +51,6 @@ static std::shared_ptr<UIDrawable> extractDrawableShared(PyObject* self, PyObjec
             return ((PyUICaptionObject*)self)->data;
         case PyObjectsEnum::UISPRITE:
             return ((PyUISpriteObject*)self)->data;
-        case PyObjectsEnum::UIGRID:
-            return ((PyUIGridObject*)self)->data;
         case PyObjectsEnum::UILINE:
             return ((PyUILineObject*)self)->data;
         case PyObjectsEnum::UICIRCLE:
@@ -259,12 +255,6 @@ PyObject* UIDrawable::get_click(PyObject* self, void* closure) {
             else
                 ptr = NULL;
             break;
-        case PyObjectsEnum::UIGRID:
-            if (((PyUIGridObject*)self)->data->click_callable)
-                ptr = ((PyUIGridObject*)self)->data->click_callable->borrow();
-            else
-                ptr = NULL;
-            break;
         case PyObjectsEnum::UILINE:
             if (((PyUILineObject*)self)->data->click_callable)
                 ptr = ((PyUILineObject*)self)->data->click_callable->borrow();
@@ -313,9 +303,6 @@ int UIDrawable::set_click(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UISPRITE:
             target = (((PyUISpriteObject*)self)->data.get());
-            break;
-        case PyObjectsEnum::UIGRID:
-            target = (((PyUIGridObject*)self)->data.get());
             break;
         case PyObjectsEnum::UILINE:
             target = (((PyUILineObject*)self)->data.get());
@@ -727,20 +714,21 @@ int UIDrawable::set_rotate_with_camera(PyObject* self, PyObject* value, void* cl
     return 0;
 }
 
-// #221 - Grid coordinate properties (only valid when parent is UIGrid)
+// #221 - Grid coordinate properties (only valid when the parent is a Grid, i.e. a UIGridView)
 PyObject* UIDrawable::get_grid_pos(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return NULL;
 
-    // Check if parent is a UIGrid
+    // Check if parent is a Grid (UIGridView) -- #361: GridData is not a drawable
+    // and can never be a parent.
     auto parent_ptr = drawable->getParent();
     if (!parent_ptr) {
         PyErr_SetString(PyExc_RuntimeError, "drawable is not a child of a Grid");
         return NULL;
     }
 
-    UIGrid* grid = dynamic_cast<UIGrid*>(parent_ptr.get());
+    UIGridView* grid = dynamic_cast<UIGridView*>(parent_ptr.get());
     if (!grid) {
         PyErr_SetString(PyExc_RuntimeError, "drawable is not a direct child of a Grid");
         return NULL;
@@ -766,14 +754,15 @@ int UIDrawable::set_grid_pos(PyObject* self, PyObject* value, void* closure) {
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return -1;
 
-    // Check if parent is a UIGrid
+    // Check if parent is a Grid (UIGridView) -- #361: GridData is not a drawable
+    // and can never be a parent.
     auto parent_ptr = drawable->getParent();
     if (!parent_ptr) {
         PyErr_SetString(PyExc_RuntimeError, "drawable is not a child of a Grid");
         return -1;
     }
 
-    UIGrid* grid = dynamic_cast<UIGrid*>(parent_ptr.get());
+    UIGridView* grid = dynamic_cast<UIGridView*>(parent_ptr.get());
     if (!grid) {
         PyErr_SetString(PyExc_RuntimeError, "drawable is not a direct child of a Grid");
         return -1;
@@ -843,14 +832,15 @@ PyObject* UIDrawable::get_grid_size(PyObject* self, void* closure) {
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return NULL;
 
-    // Check if parent is a UIGrid
+    // Check if parent is a Grid (UIGridView) -- #361: GridData is not a drawable
+    // and can never be a parent.
     auto parent_ptr = drawable->getParent();
     if (!parent_ptr) {
         PyErr_SetString(PyExc_RuntimeError, "drawable is not a child of a Grid");
         return NULL;
     }
 
-    UIGrid* grid = dynamic_cast<UIGrid*>(parent_ptr.get());
+    UIGridView* grid = dynamic_cast<UIGridView*>(parent_ptr.get());
     if (!grid) {
         PyErr_SetString(PyExc_RuntimeError, "drawable is not a direct child of a Grid");
         return NULL;
@@ -877,14 +867,15 @@ int UIDrawable::set_grid_size(PyObject* self, PyObject* value, void* closure) {
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return -1;
 
-    // Check if parent is a UIGrid
+    // Check if parent is a Grid (UIGridView) -- #361: GridData is not a drawable
+    // and can never be a parent.
     auto parent_ptr = drawable->getParent();
     if (!parent_ptr) {
         PyErr_SetString(PyExc_RuntimeError, "drawable is not a child of a Grid");
         return -1;
     }
 
-    UIGrid* grid = dynamic_cast<UIGrid*>(parent_ptr.get());
+    UIGridView* grid = dynamic_cast<UIGridView*>(parent_ptr.get());
     if (!grid) {
         PyErr_SetString(PyExc_RuntimeError, "drawable is not a direct child of a Grid");
         return -1;
@@ -1007,29 +998,19 @@ void UIDrawable::removeFromParent() {
         }
         frame->children_need_sort = true;
     }
-    else if (p->derived_type() == PyObjectsEnum::UIGRID) {
-        auto grid = std::static_pointer_cast<UIGrid>(p);
-        auto& children = *grid->children;
-
-        for (auto it = children.begin(); it != children.end(); ++it) {
-            if (it->get() == this) {
-                children.erase(it);
-                break;
-            }
-        }
-        grid->children_need_sort = true;
-    }
+    // #364: a grid child's parent is the UIGridView. The internal UIGrid (_GridData)
+    // holds no drawables, so it can never be a parent and needs no arm here.
     else if (p->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
         auto view = std::static_pointer_cast<UIGridView>(p);
-        if (view->grid_data && view->grid_data->children) {
-            auto& children = *view->grid_data->children;
+        if (view->children) {
+            auto& children = *view->children;
             for (auto it = children.begin(); it != children.end(); ++it) {
                 if (it->get() == this) {
                     children.erase(it);
                     break;
                 }
             }
-            view->grid_data->children_need_sort = true;
+            view->children_need_sort = true;
         }
     }
 
@@ -1065,15 +1046,32 @@ bool UIDrawable::contains_point(float x, float y) const {
 }
 
 // #144: Content dirty - texture needs rebuild
+//
+// #368 - The walk up the parent chain is UNCONDITIONAL. It used to be gated on
+// `(!was_dirty || !p->render_dirty)`, which is sound only if render_dirty is reliably
+// cleared once a drawable has been drawn. It is not: clearDirty() is called by the two
+// classes that actually *cache* a raster (UIFrame's render-texture path, UIGridView),
+// and by nobody else. For every ordinary Frame/Caption/Sprite/Line/Circle/Arc,
+// render_dirty is a write-once latch -- true from the first mutation until death.
+//
+// With the flag stuck true, `was_dirty` was always true and the parent's render_dirty
+// was always true, so the guard was always false and content invalidation propagated
+// NOWHERE. A caching ancestor (Frame(cache_subtree=True), or a GridView) went on
+// re-blitting a stale composite: text never updated, colors never changed. Only
+// position changes survived, because markCompositeDirty (below) already walked
+// unconditionally.
+//
+// Restoring the guard would mean making every drawable clear the flag honestly, and
+// then trusting that every future drawable remembers to. The invariant here is worth
+// more than the walk it saves: parent chains are shallow, and this is exactly the cost
+// markCompositeDirty has always paid on every move without anyone noticing.
 void UIDrawable::markContentDirty() {
-    bool was_dirty = render_dirty;
     render_dirty = true;
     composite_dirty = true;  // If content changed, composite also needs update
 
     // Propagate to parent - parent's composite is dirty (child content changed)
-    // Propagate if: we weren't already dirty, OR parent was cleared (rendered) since last propagation
     auto p = parent.lock();
-    if (p && (!was_dirty || !p->render_dirty)) {
+    if (p) {
         p->markContentDirty();  // Parent also needs to rebuild to include our changes
     }
 }
@@ -1346,17 +1344,6 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
             obj = (PyObject*)pyObj;
             break;
         }
-        case PyObjectsEnum::UIGRID:
-        {
-            type = &mcrfpydef::PyUIGridType;
-            auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIGrid>(parent_ptr);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
         case PyObjectsEnum::UIGRIDVIEW:
         {
             type = &mcrfpydef::PyUIGridViewType;
@@ -1391,9 +1378,6 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         case PyObjectsEnum::UISPRITE:
             drawable = ((PyUISpriteObject*)self)->data;
             break;
-        case PyObjectsEnum::UIGRID:
-            drawable = ((PyUIGridObject*)self)->data;
-            break;
         case PyObjectsEnum::UILINE:
             drawable = ((PyUILineObject*)self)->data;
             break;
@@ -1417,13 +1401,14 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         return 0;
     }
 
-    // Value must be a Frame, Grid, or Scene (things with children collections)
+    // Value must be a Frame, Grid, or Scene (things with children collections).
+    // #364: the internal _GridData (PyGridDataType) is NOT among them -- it holds
+    // entities and cells, never drawables -- so it falls through to the TypeError.
     bool is_frame = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIFrameType);
-    bool is_grid = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType);
     bool is_gridview = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType);
     bool is_scene = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PySceneType);
 
-    if (!is_frame && !is_grid && !is_gridview && !is_scene) {
+    if (!is_frame && !is_gridview && !is_scene) {
         PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Grid, Scene, or None");
         return -1;
     }
@@ -1468,16 +1453,10 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         children_ptr = &frame->children;
         new_parent = frame;
     } else if (is_gridview) {
-        // #252: GridView (unified Grid) - access children through grid_data
+        // #364: overlay children belong to the view itself, not to the grid data.
         auto view = ((PyUIGridViewObject*)value)->data;
-        if (view->grid_data) {
-            children_ptr = &view->grid_data->children;
-        }
+        children_ptr = &view->children;
         new_parent = view;
-    } else if (is_grid) {
-        auto grid = ((PyUIGridObject*)value)->data;
-        children_ptr = &grid->children;
-        new_parent = grid;
     }
 
     if (children_ptr && *children_ptr) {
@@ -1592,10 +1571,6 @@ PyObject* UIDrawable::get_on_enter(PyObject* self, void* closure) {
             if (((PyUISpriteObject*)self)->data->on_enter_callable)
                 ptr = ((PyUISpriteObject*)self)->data->on_enter_callable->borrow();
             break;
-        case PyObjectsEnum::UIGRID:
-            if (((PyUIGridObject*)self)->data->on_enter_callable)
-                ptr = ((PyUIGridObject*)self)->data->on_enter_callable->borrow();
-            break;
         case PyObjectsEnum::UILINE:
             if (((PyUILineObject*)self)->data->on_enter_callable)
                 ptr = ((PyUILineObject*)self)->data->on_enter_callable->borrow();
@@ -1636,9 +1611,6 @@ int UIDrawable::set_on_enter(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UISPRITE:
             target = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            target = ((PyUIGridObject*)self)->data.get();
             break;
         case PyObjectsEnum::UILINE:
             target = ((PyUILineObject*)self)->data.get();
@@ -1683,10 +1655,6 @@ PyObject* UIDrawable::get_on_exit(PyObject* self, void* closure) {
             if (((PyUISpriteObject*)self)->data->on_exit_callable)
                 ptr = ((PyUISpriteObject*)self)->data->on_exit_callable->borrow();
             break;
-        case PyObjectsEnum::UIGRID:
-            if (((PyUIGridObject*)self)->data->on_exit_callable)
-                ptr = ((PyUIGridObject*)self)->data->on_exit_callable->borrow();
-            break;
         case PyObjectsEnum::UILINE:
             if (((PyUILineObject*)self)->data->on_exit_callable)
                 ptr = ((PyUILineObject*)self)->data->on_exit_callable->borrow();
@@ -1727,9 +1695,6 @@ int UIDrawable::set_on_exit(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UISPRITE:
             target = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            target = ((PyUIGridObject*)self)->data.get();
             break;
         case PyObjectsEnum::UILINE:
             target = ((PyUILineObject*)self)->data.get();
@@ -1783,10 +1748,6 @@ PyObject* UIDrawable::get_on_move(PyObject* self, void* closure) {
             if (((PyUISpriteObject*)self)->data->on_move_callable)
                 ptr = ((PyUISpriteObject*)self)->data->on_move_callable->borrow();
             break;
-        case PyObjectsEnum::UIGRID:
-            if (((PyUIGridObject*)self)->data->on_move_callable)
-                ptr = ((PyUIGridObject*)self)->data->on_move_callable->borrow();
-            break;
         case PyObjectsEnum::UILINE:
             if (((PyUILineObject*)self)->data->on_move_callable)
                 ptr = ((PyUILineObject*)self)->data->on_move_callable->borrow();
@@ -1827,9 +1788,6 @@ int UIDrawable::set_on_move(PyObject* self, PyObject* value, void* closure) {
             break;
         case PyObjectsEnum::UISPRITE:
             target = ((PyUISpriteObject*)self)->data.get();
-            break;
-        case PyObjectsEnum::UIGRID:
-            target = ((PyUIGridObject*)self)->data.get();
             break;
         case PyObjectsEnum::UILINE:
             target = ((PyUILineObject*)self)->data.get();
@@ -2195,7 +2153,6 @@ PyObject* UIDrawable::py_realign(PyObject* self, PyObject* args) {
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUICaptionType)) objtype = PyObjectsEnum::UICAPTION;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUISpriteType)) objtype = PyObjectsEnum::UISPRITE;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIGridViewType)) objtype = PyObjectsEnum::UIGRIDVIEW;
-    else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIGridType)) objtype = PyObjectsEnum::UIGRID;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUILineType)) objtype = PyObjectsEnum::UILINE;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUICircleType)) objtype = PyObjectsEnum::UICIRCLE;
     else if (PyObject_IsInstance(self, (PyObject*)&mcrfpydef::PyUIArcType)) objtype = PyObjectsEnum::UIARC;

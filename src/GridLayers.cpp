@@ -1,6 +1,6 @@
 #include "GridLayers.h"
 #include "McRFPy_Doc.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridView.h"
 #include "UIEntity.h"
 #include "PyColor.h"
@@ -941,7 +941,7 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
 
     // Validate grid kwarg type up-front (before allocating data).
     if (grid_obj && grid_obj != Py_None &&
-        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType) &&
+        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType) &&
         !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
@@ -1773,8 +1773,8 @@ PyObject* PyGridLayerAPI::ColorLayer_get_grid(PyColorLayerObject* self, void* cl
     }
 
     // No cached wrapper — allocate a new one
-    auto* grid_type = &mcrfpydef::PyUIGridType;
-    PyUIGridObject* py_grid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
+    auto* grid_type = &mcrfpydef::PyGridDataType;
+    PyGridDataObject* py_grid = (PyGridDataObject*)grid_type->tp_alloc(grid_type, 0);
     if (!py_grid) return NULL;
 
     py_grid->data = self->grid;
@@ -1810,21 +1810,21 @@ int PyGridLayerAPI::ColorLayer_set_grid(PyColorLayerObject* self, PyObject* valu
 
     // Validate it's a Grid (GridView) or internal _GridData
     if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType) &&
-        !PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
+        !PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
         return -1;
     }
 
     // Extract UIGrid shared_ptr from Grid (UIGridView) or _GridData (UIGrid)
-    std::shared_ptr<UIGrid> target_grid;
+    std::shared_ptr<GridData> target_grid;
     if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         auto* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
             // GridView's grid_data is aliased from a UIGrid, cast back
-            target_grid = std::static_pointer_cast<UIGrid>(pyview->data->grid_data);
+            target_grid = std::static_pointer_cast<GridData>(pyview->data->grid_data);
         }
-    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
-        target_grid = ((PyUIGridObject*)value)->data;
+    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+        target_grid = ((PyGridDataObject*)value)->data;
     }
     if (!target_grid) {
         PyErr_SetString(PyExc_RuntimeError, "Grid has no data");
@@ -1843,7 +1843,7 @@ int PyGridLayerAPI::ColorLayer_set_grid(PyColorLayerObject* self, PyObject* valu
     }
 
     // Check for protected names
-    if (!self->data->name.empty() && UIGrid::isProtectedLayerName(self->data->name)) {
+    if (!self->data->name.empty() && GridData::isProtectedLayerName(self->data->name)) {
         PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", self->data->name.c_str());
         self->grid.reset();
         return -1;
@@ -2005,7 +2005,7 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
 
     // Validate grid kwarg type up-front (before allocating data).
     if (grid_obj && grid_obj != Py_None &&
-        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType) &&
+        !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType) &&
         !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
@@ -2497,8 +2497,8 @@ PyObject* PyGridLayerAPI::TileLayer_get_grid(PyTileLayerObject* self, void* clos
     }
 
     // No cached wrapper — allocate a new one
-    auto* grid_type = &mcrfpydef::PyUIGridType;
-    PyUIGridObject* py_grid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
+    auto* grid_type = &mcrfpydef::PyGridDataType;
+    PyGridDataObject* py_grid = (PyGridDataObject*)grid_type->tp_alloc(grid_type, 0);
     if (!py_grid) return NULL;
 
     py_grid->data = self->grid;
@@ -2534,20 +2534,20 @@ int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value,
 
     // Validate it's a Grid (GridView) or internal _GridData
     if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType) &&
-        !PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
+        !PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
         return -1;
     }
 
     // Extract UIGrid shared_ptr from Grid (UIGridView) or _GridData (UIGrid)
-    std::shared_ptr<UIGrid> target_grid;
+    std::shared_ptr<GridData> target_grid;
     if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         auto* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
-            target_grid = std::static_pointer_cast<UIGrid>(pyview->data->grid_data);
+            target_grid = std::static_pointer_cast<GridData>(pyview->data->grid_data);
         }
-    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
-        target_grid = ((PyUIGridObject*)value)->data;
+    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+        target_grid = ((PyGridDataObject*)value)->data;
     }
     if (!target_grid) {
         PyErr_SetString(PyExc_RuntimeError, "Grid has no data");
@@ -2566,7 +2566,7 @@ int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value,
     }
 
     // Check for protected names
-    if (!self->data->name.empty() && UIGrid::isProtectedLayerName(self->data->name)) {
+    if (!self->data->name.empty() && GridData::isProtectedLayerName(self->data->name)) {
         PyErr_Format(PyExc_ValueError, "Layer name '%s' is reserved", self->data->name.c_str());
         self->grid.reset();
         return -1;

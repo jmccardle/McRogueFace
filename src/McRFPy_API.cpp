@@ -53,6 +53,7 @@
 #include <emscripten.h>
 #endif
 #include <sys/stat.h>  // mkdir
+#include <unordered_set>  // #359 - dedupe shared GridData during find/findAll walk
 // ImGui is only available for SFML builds
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 #include "ImGuiConsole.h"
@@ -471,7 +472,7 @@ PyObject* PyInit_mcrfpy()
     // #184: Set the metaclass for UI types that support callback methods
     // This must be done BEFORE PyType_Ready is called on these types
     PyTypeObject* ui_types_with_callbacks[] = {
-        &PyUIFrameType, &PyUICaptionType, &PyUISpriteType, &PyUIGridType,
+        &PyUIFrameType, &PyUICaptionType, &PyUISpriteType, &PyGridDataType,
         &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
         &mcrfpydef::PyUIGridViewType,
         nullptr
@@ -491,7 +492,8 @@ PyObject* PyInit_mcrfpy()
         /*UI widgets*/
         &PyUICaptionType, &PyUISpriteType, &PyUIFrameType, &PyUIEntityType,
         &PyUILineType, &PyUICircleType, &PyUIArcType, &PyViewport3DType,
-        &mcrfpydef::PyUIGridViewType,  // #252: GridView IS the primary "Grid" type
+        &mcrfpydef::PyUIGridViewType,  // #252/#361: the widget. "Grid" is an alias.
+        &PyGridDataType,               // #361: the map. Public, and NOT a drawable.
 
         /*3D entities*/
         &mcrfpydef::PyEntity3DType, &mcrfpydef::PyEntityCollection3DType,
@@ -551,9 +553,6 @@ PyObject* PyInit_mcrfpy()
     // Types that are used internally but NOT exported to module namespace (#189)
     // These still need PyType_Ready() but are not added to module
     PyTypeObject* internal_types[] = {
-        /*#252: internal grid data type - UIGrid is now internal, GridView is "Grid"*/
-        &PyUIGridType,
-
         /*game map data - returned by Grid.at() but not directly instantiable*/
         &PyUIGridPointType,
 
@@ -651,7 +650,7 @@ PyObject* PyInit_mcrfpy()
     PyUIFrameType.tp_weaklistoffset = offsetof(PyUIFrameObject, weakreflist);
     PyUICaptionType.tp_weaklistoffset = offsetof(PyUICaptionObject, weakreflist);
     PyUISpriteType.tp_weaklistoffset = offsetof(PyUISpriteObject, weakreflist);
-    PyUIGridType.tp_weaklistoffset = offsetof(PyUIGridObject, weakreflist);
+    PyGridDataType.tp_weaklistoffset = offsetof(PyGridDataObject, weakreflist);
     mcrfpydef::PyUIGridViewType.tp_weaklistoffset = offsetof(PyUIGridViewObject, weakreflist);
     PyUIEntityType.tp_weaklistoffset = offsetof(PyUIEntityObject, weakreflist);
     PyUILineType.tp_weaklistoffset = offsetof(PyUILineObject, weakreflist);
@@ -696,10 +695,13 @@ PyObject* PyInit_mcrfpy()
         t = internal_types[i];
     }
 
-    // #252: Add "GridView" as an alias for the Grid type (which is PyUIGridViewType)
-    // This allows both mcrfpy.Grid(...) and mcrfpy.GridView(...) to work
+    // #361: "Grid" is an alias for GridView -- the SAME type object, not a subclass,
+    // so isinstance() works in both directions and there is no MRO to explain.
+    // It is NOT deprecated: now that GridData is a separate public type,
+    // Grid(grid_size=...) is simply "a GridView that creates its own GridData" --
+    // a constructor overload, not legacy behavior.
     Py_INCREF(&mcrfpydef::PyUIGridViewType);
-    PyModule_AddObject(m, "GridView", (PyObject*)&mcrfpydef::PyUIGridViewType);
+    PyModule_AddObject(m, "Grid", (PyObject*)&mcrfpydef::PyUIGridViewType);
 
     // Add default_font and default_texture to module
     McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
@@ -1587,11 +1589,21 @@ static bool name_matches_pattern(const std::string& name, const std::string& pat
     return pattern_pos == pattern.length() && name_pos == name.length();
 }
 
-// Helper to recursively search a collection for named elements
-static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collection, const std::string& pattern, 
-                             bool find_all, PyObject* results) {
+// Also search Grid entities (forward-declared: find_in_collection recurses
+// into grid children via GridData, and the two helpers are mutually called).
+static void find_in_grid_entities(GridData* grid, const std::string& pattern,
+                                bool find_all, PyObject* results);
+
+// Helper to recursively search a collection for named elements.
+// visited_grids: #359 - N views can share ONE GridData (split-screen/minimap).
+// asGridData() returns the same GridData* from each of them, so without this set
+// the shared grid's entities and overlay children are walked (and appended) once
+// per view -- findAll() would return N duplicate wrappers for the same object.
+static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collection, const std::string& pattern,
+                             bool find_all, PyObject* results,
+                             std::unordered_set<GridData*>& visited_grids) {
     if (!collection) return;
-    
+
     for (auto& drawable : *collection) {
         if (!drawable) continue;
         
@@ -1631,16 +1643,6 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
                     }
                     break;
                 }
-                case PyObjectsEnum::UIGRID: {
-                    auto grid = std::static_pointer_cast<UIGrid>(drawable);
-                    auto type = &mcrfpydef::PyUIGridType;
-                    auto o = (PyUIGridObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = grid;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
                 case PyObjectsEnum::UIGRIDVIEW: {
                     auto gridview = std::static_pointer_cast<UIGridView>(drawable);
                     auto type = &mcrfpydef::PyUIGridViewType;
@@ -1671,38 +1673,73 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
         // Recursively search in Frame children
         if (drawable->derived_type() == PyObjectsEnum::UIFRAME) {
             auto frame = std::static_pointer_cast<UIFrame>(drawable);
-            find_in_collection(frame->children.get(), pattern, find_all, results);
+            find_in_collection(frame->children.get(), pattern, find_all, results, visited_grids);
             if (!find_all && PyList_Size(results) > 0) {
                 return;  // Found one, stop searching
+            }
+        }
+
+        // #364 - A grid's overlay children belong to the VIEW, so they are searched
+        // per view and NOT deduplicated: two views over one GridData hold different
+        // children, and each must be visited.
+        if (drawable->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
+            auto view = std::static_pointer_cast<UIGridView>(drawable);
+            find_in_collection(view->children.get(), pattern, find_all, results, visited_grids);
+            if (!find_all && PyList_Size(results) > 0) {
+                return;
+            }
+        }
+
+        // #357 - Recursively search a grid's entities. Dispatch via asGridData()
+        // (#355), not derived_type(): a real mcrfpy.Grid() is a UIGridView
+        // (PyObjectsEnum::UIGRIDVIEW), so gating on UIGRID here would be
+        // structurally unreachable again.
+        // #359 - entities are shared world content, so visit each GridData exactly
+        // once per search: several views may point at the same data.
+        if (GridData* gd = drawable->asGridData()) {
+            if (visited_grids.insert(gd).second) {
+                find_in_grid_entities(gd, pattern, find_all, results);
+                if (!find_all && PyList_Size(results) > 0) {
+                    return;
+                }
             }
         }
     }
 }
 
-// Also search Grid entities
-static void find_in_grid_entities(UIGrid* grid, const std::string& pattern, 
+static void find_in_grid_entities(GridData* grid, const std::string& pattern,
                                 bool find_all, PyObject* results) {
     if (!grid || !grid->entities) return;
-    
+
     for (auto& entity : *grid->entities) {
         if (!entity) continue;
-        
+
         // Entities delegate name to their sprite
         if (name_matches_pattern(entity->sprite.name, pattern)) {
-            auto type = &mcrfpydef::PyUIEntityType;
-            auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
-            if (o) {
-                o->data = entity;
-                PyObject* py_obj = (PyObject*)o;
-                
-                if (find_all) {
-                    PyList_Append(results, py_obj);
-                    Py_DECREF(py_obj);
-                } else {
-                    PyList_Append(results, py_obj);
-                    Py_DECREF(py_obj);
-                    return;
+            // #266/#357: the cache is the ONLY correct way to wrap an existing
+            // entity. A fresh tp_alloc would (a) return a base-class Entity for
+            // a Python subclass instance, losing identity and its __dict__, and
+            // (b) leak the entity's strong self-reference when that duplicate
+            // wrapper is deallocated -- PyUIEntityType's tp_dealloc clears
+            // data->pyobject unconditionally. Mirrors UIEntityCollection::getitem.
+            PyObject* py_obj = nullptr;
+            if (entity->serial_number != 0) {
+                py_obj = PythonObjectCache::getInstance().lookup(entity->serial_number);  // new ref
+            }
+            if (!py_obj) {
+                auto type = &mcrfpydef::PyUIEntityType;
+                auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
+                if (o) {
+                    o->data = entity;
+                    o->weakreflist = NULL;
+                    py_obj = (PyObject*)o;
                 }
+            }
+
+            if (py_obj) {
+                PyList_Append(results, py_obj);
+                Py_DECREF(py_obj);
+                if (!find_all) return;
             }
         }
     }
@@ -1739,20 +1776,11 @@ PyObject* McRFPy_API::_find(PyObject* self, PyObject* args) {
         ui_elements = current->ui_elements;
     }
     
-    // Search the scene's UI elements
-    find_in_collection(ui_elements.get(), name, false, results);
-    
-    // Also search all grids in the scene for entities
-    if (PyList_Size(results) == 0 && ui_elements) {
-        for (auto& drawable : *ui_elements) {
-            if (drawable && drawable->derived_type() == PyObjectsEnum::UIGRID) {
-                auto grid = std::static_pointer_cast<UIGrid>(drawable);
-                find_in_grid_entities(grid.get(), name, false, results);
-                if (PyList_Size(results) > 0) break;
-            }
-        }
-    }
-    
+    // Search the scene's UI elements. find_in_collection recurses into a
+    // grid's entities and overlay children via asGridData() (#355/#357).
+    std::unordered_set<GridData*> visited_grids;  // #359 - shared GridData visited once
+    find_in_collection(ui_elements.get(), name, false, results, visited_grids);
+
     // Return the first result or None
     if (PyList_Size(results) > 0) {
         PyObject* result = PyList_GetItem(results, 0);
@@ -1796,19 +1824,11 @@ PyObject* McRFPy_API::_findAll(PyObject* self, PyObject* args) {
         ui_elements = current->ui_elements;
     }
     
-    // Search the scene's UI elements
-    find_in_collection(ui_elements.get(), pattern, true, results);
-    
-    // Also search all grids in the scene for entities
-    if (ui_elements) {
-        for (auto& drawable : *ui_elements) {
-            if (drawable && drawable->derived_type() == PyObjectsEnum::UIGRID) {
-                auto grid = std::static_pointer_cast<UIGrid>(drawable);
-                find_in_grid_entities(grid.get(), pattern, true, results);
-            }
-        }
-    }
-    
+    // Search the scene's UI elements. find_in_collection recurses into a
+    // grid's entities and overlay children via asGridData() (#355/#357).
+    std::unordered_set<GridData*> visited_grids;  // #359 - shared GridData visited once
+    find_in_collection(ui_elements.get(), pattern, true, results, visited_grids);
+
     return results;
 }
 

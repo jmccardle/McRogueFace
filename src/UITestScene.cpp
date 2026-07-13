@@ -104,10 +104,19 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     std::cout << "pointer to ui_elements now shows size=" << ui->size() << std::endl;
     */
 
-    // UIGrid test:                (in grid cells)         (          in screen pixels            )
-    //              constructor args:  w  h  texture             x    y                  w    h
-    auto e5 = std::make_shared<UIGrid>(4, 4, ptex, sf::Vector2f(550, 150), sf::Vector2f(200, 200));
-    e5->zoom=2.0;
+    // Grid test. #361: the map (GridData) and the camera onto it (UIGridView) are
+    // separate objects now -- only the view goes in the scene.
+    auto e5 = std::make_shared<GridData>(4, 4, ptex);
+    auto e5_view = std::make_shared<UIGridView>();
+    e5_view->grid_data = e5;
+    e5_view->ptex = ptex;
+    e5_view->position = sf::Vector2f(550, 150);
+    e5_view->box.setPosition(e5_view->position);
+    e5_view->box.setSize(sf::Vector2f(200, 200));
+    e5_view->zoom = 2.0;
+    e5_view->center_camera();
+    e5_view->ensureRenderTextureSize();
+    e5->registerView(e5_view);
 
     // #150 - GridPoint no longer has color/tilesprite properties
     // Use layers for visual rendering; GridPoint only has walkable/transparent
@@ -116,7 +125,7 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     e5->setWalkable(0, 0, true);   // #332
     e5->setTransparent(0, 0, true);
 
-    ui_elements->push_back(e5);
+    ui_elements->push_back(e5_view);
 
     //UIEntity test:
     // asdf

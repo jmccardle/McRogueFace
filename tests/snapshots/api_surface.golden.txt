@@ -244,7 +244,7 @@ submodule automation
   DONE = 0
   TARGET = 2
 
-=== FROZEN TYPES (30) ===
+=== FROZEN TYPES (31) ===
 [AStarPath]
   prop destination: Vector (ro)
   prop origin: Vector (ro)
@@ -540,6 +540,7 @@ submodule automation
   prop center: Vector (rw)
   prop center_x: float (rw)
   prop center_y: float (rw)
+  prop children: UICollection (ro)
   prop fill_color: Color (rw)
   prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
@@ -547,8 +548,12 @@ submodule automation
   prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
+  prop hovered_cell: tuple | None (ro)
   prop margin: float (rw)
   prop name: str (rw)
+  prop on_cell_click: Callable | None (rw)
+  prop on_cell_enter: Callable | None (rw)
+  prop on_cell_exit: Callable | None (rw)
   prop on_click: Callable | None (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
@@ -556,10 +561,13 @@ submodule automation
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
+  prop perspective: Entity | None (rw)
+  prop perspective_enabled: bool (rw)
   prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
+  prop size: Vector (rw)
   prop texture: Texture | None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
@@ -570,9 +578,32 @@ submodule automation
   prop z_index: int (rw)
   prop zoom: float (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth center_camera :: center_camera(pos: tuple = None) -> None
   meth move :: move(dx, dy) or (delta) -> None
   meth realign :: realign() -> None
   meth resize :: resize(width, height) or (size) -> None
+[GridData]
+  prop entities: EntityCollection (ro)
+  prop fov: Any (rw)
+  prop fov_radius: int (rw)
+  prop grid_h: int (ro)
+  prop grid_size: Vector (ro)
+  prop grid_w: int (ro)
+  prop layers: tuple (ro)
+  prop texture: Texture | None (ro)
+  meth add_layer :: add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer
+  meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> GridData
+  meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> GridData
+  meth at :: at(x: int, y: int) -> GridPoint
+  meth clear_dijkstra_maps :: clear_dijkstra_maps() -> None
+  meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None
+  meth entities_in_radius :: entities_in_radius(pos: tuple | Vector, radius: float) -> list
+  meth find_path :: find_path(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0) -> AStarPath | None
+  meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
+  meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
+  meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
+  meth remove_layer :: remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None
+  meth step :: step(n: int = 1, turn_order: int = None) -> None
 [GridView]
   prop align: Any (rw)
   prop bounds: tuple (ro)
@@ -580,6 +611,7 @@ submodule automation
   prop center: Vector (rw)
   prop center_x: float (rw)
   prop center_y: float (rw)
+  prop children: UICollection (ro)
   prop fill_color: Color (rw)
   prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
@@ -587,8 +619,12 @@ submodule automation
   prop h: float (rw)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
+  prop hovered_cell: tuple | None (ro)
   prop margin: float (rw)
   prop name: str (rw)
+  prop on_cell_click: Callable | None (rw)
+  prop on_cell_enter: Callable | None (rw)
+  prop on_cell_exit: Callable | None (rw)
   prop on_click: Callable | None (rw)
   prop on_enter: Any (rw)
   prop on_exit: Any (rw)
@@ -596,10 +632,13 @@ submodule automation
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
+  prop perspective: Entity | None (rw)
+  prop perspective_enabled: bool (rw)
   prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
+  prop size: Vector (rw)
   prop texture: Texture | None (ro)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
@@ -610,6 +649,7 @@ submodule automation
   prop z_index: int (rw)
   prop zoom: float (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
+  meth center_camera :: center_camera(pos: tuple = None) -> None
   meth move :: move(dx, dy) or (delta) -> None
   meth realign :: realign() -> None
   meth resize :: resize(width, height) or (size) -> None
@@ -1106,64 +1146,19 @@ submodule automation
   meth terrain_enum :: terrain_enum() -> IntEnum
 
 === INTERNAL TYPES (reached via live instances) ===
-[_GridData]
-  prop align: Any (rw)
-  prop bounds: tuple (ro)
-  prop camera_rotation: float (rw)
-  prop center: Vector (rw)
-  prop center_x: float (rw)
-  prop center_y: float (rw)
-  prop children: UICollection (ro)
+[GridData]
   prop entities: EntityCollection (ro)
-  prop fill_color: Color (rw)
   prop fov: Any (rw)
   prop fov_radius: int (rw)
-  prop global_bounds: tuple (ro)
-  prop global_position: Any (ro)
   prop grid_h: int (ro)
-  prop grid_pos: Vector (rw)
   prop grid_size: Vector (ro)
   prop grid_w: int (ro)
-  prop h: float (rw)
-  prop horiz_margin: float (rw)
-  prop hovered: Any (ro)
-  prop hovered_cell: tuple | None (ro)
   prop layers: tuple (ro)
-  prop margin: float (rw)
-  prop name: str (rw)
-  prop on_cell_click: Callable | None (rw)
-  prop on_cell_enter: Callable | None (rw)
-  prop on_cell_exit: Callable | None (rw)
-  prop on_click: Any (rw)
-  prop on_enter: Any (rw)
-  prop on_exit: Any (rw)
-  prop on_move: Any (rw)
-  prop opacity: Any (rw)
-  prop origin: Any (rw)
-  prop parent: Any (rw)
-  prop perspective: Entity | None (rw)
-  prop perspective_enabled: bool (rw)
-  prop pos: Vector (rw)
-  prop rotate_with_camera: bool (rw)
-  prop rotation: Any (rw)
-  prop shader: Any (rw)
-  prop size: Vector (rw)
   prop texture: Texture | None (ro)
-  prop uniforms: Any (ro)
-  prop vert_margin: float (rw)
-  prop view: GridView | None (ro)
-  prop visible: bool (rw)
-  prop w: float (rw)
-  prop x: float (rw)
-  prop y: float (rw)
-  prop z_index: Any (rw)
-  prop zoom: float (rw)
   meth add_layer :: add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer
-  meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
-  meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> Grid
-  meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> Grid
+  meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> GridData
+  meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> GridData
   meth at :: at(x: int, y: int) -> GridPoint
-  meth center_camera :: center_camera(pos: tuple = None) -> None
   meth clear_dijkstra_maps :: clear_dijkstra_maps() -> None
   meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None
   meth entities_in_radius :: entities_in_radius(pos: tuple | Vector, radius: float) -> list
@@ -1171,10 +1166,7 @@ submodule automation
   meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
   meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
-  meth move :: move(dx, dy) or (delta) -> None
-  meth realign :: realign() -> None
   meth remove_layer :: remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None
-  meth resize :: resize(width, height) or (size) -> None
   meth step :: step(n: int = 1, turn_order: int = None) -> None
 [GridPoint]
   prop entities: list (ro)
@@ -1213,8 +1205,10 @@ func dragTo :: dragTo(pos: tuple | list | Vector, duration: float = 0.0, button:
 func hotkey :: hotkey(*keys: str) -> None
 func keyDown :: keyDown(key: str) -> None
 func keyUp :: keyUp(key: str) -> None
+func loseFocus :: loseFocus() -> None
 func middleClick :: middleClick(pos: tuple | list | Vector | None = None) -> None
 func mouseDown :: mouseDown(pos: tuple | list | Vector | None = None, button: str = 'left') -> None
+func mouseLeave :: mouseLeave() -> None
 func mouseUp :: mouseUp(pos: tuple | list | Vector | None = None, button: str = 'left') -> None
 func moveRel :: moveRel(offset: tuple | list | Vector, duration: float = 0.0) -> None
 func moveTo :: moveTo(pos: tuple | list | Vector, duration: float = 0.0) -> None
@@ -1227,8 +1221,8 @@ func size :: size() -> Vector
 func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> None
 func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
-=== DELEGATION INTEGRITY (Grid instance -> _GridData) ===
-  delegated-resolved: 69/69
+=== DELEGATION INTEGRITY (Grid instance -> GridData) ===
+  delegated-resolved: 21/21
 
 === WRITABILITY PROBES (#313-touched properties) ===
   Entity.grid: writable

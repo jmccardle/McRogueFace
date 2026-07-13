@@ -3,7 +3,7 @@
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
@@ -162,8 +162,15 @@ int PyPropertyBindingType::init(PyPropertyBindingObject* self, PyObject* args, P
         target_ptr = ((PyUICaptionObject*)target_obj)->data;
     } else if (strcmp(type_name, "mcrfpy.Sprite") == 0) {
         target_ptr = ((PyUISpriteObject*)target_obj)->data;
-    } else if (strcmp(type_name, "mcrfpy.Grid") == 0) {
-        target_ptr = ((PyUIGridObject*)target_obj)->data;
+    } else if (strcmp(type_name, "mcrfpy.Grid") == 0 ||
+               strcmp(type_name, "mcrfpy.GridView") == 0) {
+        // #361: mcrfpy.Grid IS the GridView. This arm used to cast the object to
+        // PyUIGridObject (the _GridData wrapper) and read its shared_ptr<UIGrid>
+        // out of a PyUIGridViewObject -- type confusion that only "worked" because
+        // both wrappers had identical layout and both C++ classes happened to put
+        // UIDrawable at offset 0. Now that GridData is not a drawable the compiler
+        // rejects it, which is how it surfaced.
+        target_ptr = ((PyUIGridViewObject*)target_obj)->data;
     } else if (strcmp(type_name, "mcrfpy.Line") == 0) {
         target_ptr = ((PyUILineObject*)target_obj)->data;
     } else if (strcmp(type_name, "mcrfpy.Circle") == 0) {

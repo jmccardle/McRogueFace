@@ -11,8 +11,8 @@
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
 #include "UIGridView.h"
+#include "GridData.h"
 #include "UIEntity.h"
 #include "ImGuiConsole.h"
 #include "PythonObjectCache.h"
@@ -118,20 +118,28 @@ void ImGuiSceneExplorer::renderDrawableNode(std::shared_ptr<UIDrawable> drawable
     // Check if this node has children
     bool hasChildren = false;
     UIFrame* frame = nullptr;
-    UIGrid* grid = nullptr;
+    // #358: dispatch on the asGridData() virtual (#355), not derived_type() --
+    // nothing in a scene graph is ever a bare UIGRID since #252 (Grid nodes are
+    // UIGridView instances), so a UIGRID enum arm here is always dead code.
+    GridData* gridData = drawable->asGridData();
+    // #364: overlay children hang off the VIEW; entities off the shared data.
+    UIGridView* gridView = nullptr;
 
     switch (drawable->derived_type()) {
         case PyObjectsEnum::UIFRAME:
             frame = static_cast<UIFrame*>(drawable.get());
             hasChildren = frame->children && !frame->children->empty();
             break;
-        case PyObjectsEnum::UIGRID:
-            grid = static_cast<UIGrid*>(drawable.get());
-            hasChildren = (grid->entities && !grid->entities->empty()) ||
-                         (grid->children && !grid->children->empty());
+        case PyObjectsEnum::UIGRIDVIEW:
+            gridView = static_cast<UIGridView*>(drawable.get());
             break;
         default:
             break;
+    }
+
+    if (gridData) {
+        hasChildren = (gridData->entities && !gridData->entities->empty()) ||
+                     (gridView && gridView->children && !gridView->children->empty());
     }
 
     if (!hasChildren) {
@@ -168,14 +176,14 @@ void ImGuiSceneExplorer::renderDrawableNode(std::shared_ptr<UIDrawable> drawable
             }
         }
 
-        if (grid) {
+        if (gridData) {
             // Render entities
-            if (grid->entities && !grid->entities->empty()) {
+            if (gridData->entities && !gridData->entities->empty()) {
                 ImGuiTreeNodeFlags entityGroupFlags = ImGuiTreeNodeFlags_OpenOnArrow;
                 bool entitiesOpen = ImGui::TreeNodeEx("Entities", entityGroupFlags, "Entities (%zu)",
-                                                       grid->entities->size());
+                                                       gridData->entities->size());
                 if (entitiesOpen) {
-                    for (auto& entity : *grid->entities) {
+                    for (auto& entity : *gridData->entities) {
                         if (entity) {
                             renderEntityNode(entity);
                         }
@@ -184,13 +192,14 @@ void ImGuiSceneExplorer::renderDrawableNode(std::shared_ptr<UIDrawable> drawable
                 }
             }
 
-            // Render grid's drawable children (overlays)
-            if (grid->children && !grid->children->empty()) {
+            // Render the view's drawable children (overlays) -- #364: owned by the
+            // view, not the shared data, so a second view lists its own.
+            if (gridView && gridView->children && !gridView->children->empty()) {
                 ImGuiTreeNodeFlags overlayGroupFlags = ImGuiTreeNodeFlags_OpenOnArrow;
                 bool overlaysOpen = ImGui::TreeNodeEx("Overlays", overlayGroupFlags, "Overlays (%zu)",
-                                                       grid->children->size());
+                                                       gridView->children->size());
                 if (overlaysOpen) {
-                    for (auto& child : *grid->children) {
+                    for (auto& child : *gridView->children) {
                         if (child) {
                             renderDrawableNode(child, depth + 1);
                         }
@@ -285,8 +294,7 @@ const char* ImGuiSceneExplorer::getTypeName(UIDrawable* drawable) {
         case PyObjectsEnum::UIFRAME:      return "Frame";
         case PyObjectsEnum::UICAPTION:    return "Caption";
         case PyObjectsEnum::UISPRITE:     return "Sprite";
-        case PyObjectsEnum::UIGRID:       return "Grid";
-        case PyObjectsEnum::UIGRIDVIEW:   return "GridView";
+        case PyObjectsEnum::UIGRIDVIEW:   return "Grid";
         case PyObjectsEnum::UILINE:       return "Line";
         case PyObjectsEnum::UICIRCLE:     return "Circle";
         case PyObjectsEnum::UIARC:        return "Arc";

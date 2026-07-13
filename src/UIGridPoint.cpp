@@ -1,5 +1,5 @@
 #include "UIGridPoint.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIEntity.h"    // #114 - for GridPoint.entities
 #include "GridLayers.h"  // #150 - for GridLayerType, ColorLayer, TileLayer
 #include "McRFPy_Doc.h"  // #177 - for MCRF_PROPERTY macro

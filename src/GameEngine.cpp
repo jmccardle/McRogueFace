@@ -621,6 +621,22 @@ void GameEngine::processEvent(const sf::Event& event)
         }
         return;
     }
+    // #363 - The cursor left the window. No further MouseMoved will arrive, so
+    // whatever is hovered must be exited now or it stays hovered forever.
+    //
+    // #367 - Losing focus strands hover identically. The cursor may still be physically
+    // over the window, but an unfocused window is delivered no MouseMoved, so the hover
+    // walk never runs and the last hovered drawable stays lit while the game sits in the
+    // background. Once unfocused we genuinely do not know where the pointer is, and
+    // "hovering nothing" is the only truthful state to hold; the next MouseMoved after
+    // focus returns restores hover.
+    else if (event.type == sf::Event::MouseLeft || event.type == sf::Event::LostFocus)
+    {
+        if (auto* pyscene = dynamic_cast<PyScene*>(currentScene())) {
+            pyscene->do_mouse_leave();
+        }
+        return;
+    }
     else
         return;
 

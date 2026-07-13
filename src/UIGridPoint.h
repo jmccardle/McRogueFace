@@ -22,7 +22,7 @@ class UIGridPoint;
 
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<UIGrid> grid;
+    std::shared_ptr<GridData> grid;
     int x, y;  // Grid coordinates - compute data pointer on access
 } PyUIGridPointObject;
 

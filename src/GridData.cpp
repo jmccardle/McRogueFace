@@ -2,37 +2,80 @@
 #include "GridData.h"
 #include "UIEntity.h"
 #include "PyTexture.h"
-#include "UIGrid.h"      // #313 - markDirty forwards to the UIGrid subobject
-#include "UIGridView.h"  // #313 - and notifies owning_view
+#include "UIGridView.h"        // #313/#359 - markDirty notifies registered views
+#include "PythonObjectCache.h" // #361 - GridData owns its own cache serial
 #include <algorithm>
 
-// #313 - Render invalidation from the data layer (see GridData.h).
-// GridData is never independently heap-allocated (always a UIGrid base
-// subobject), so the downcast is valid; remove once #252 allows pure GridData.
+// #313/#361 - Render invalidation from the data layer (see GridData.h).
+// Notifies every registered view; there is no longer a drawable half of `this`
+// to notify.
 void GridData::markDirty() {
     content_generation++;  // #351 - content changed; invalidate view early-out
-    static_cast<UIGrid*>(this)->UIDrawable::markDirty();
-    if (auto view = owning_view.lock()) {
-        view->markDirty();
+    for (auto& weak_view : views) {
+        if (auto view = weak_view.lock()) view->markDirty();
     }
 }
 
 void GridData::markCompositeDirty() {
     content_generation++;  // #351 - content changed; invalidate view early-out
-    static_cast<UIGrid*>(this)->UIDrawable::markCompositeDirty();
-    if (auto view = owning_view.lock()) {
-        view->markCompositeDirty();
+    for (auto& weak_view : views) {
+        if (auto view = weak_view.lock()) view->markCompositeDirty();
     }
+}
+
+// #359 - View registry (see GridData.h). Kept small (typically 1-2 entries:
+// split-screen / minimap use cases), so linear scan is fine.
+void GridData::registerView(const std::shared_ptr<UIGridView>& view) {
+    if (!view) return;
+    for (auto& weak_view : views) {
+        if (weak_view.lock() == view) return;  // already registered
+    }
+    views.push_back(view);
+}
+
+void GridData::unregisterView(UIGridView* view) {
+    views.erase(
+        std::remove_if(views.begin(), views.end(),
+            [view](const std::weak_ptr<UIGridView>& weak_view) {
+                auto locked = weak_view.lock();
+                return !locked || locked.get() == view;  // prune expired too
+            }),
+        views.end());
+}
+
+std::shared_ptr<UIGridView> GridData::primaryView() const {
+    for (auto& weak_view : views) {
+        if (auto view = weak_view.lock()) return view;
+    }
+    return nullptr;
 }
 
 GridData::GridData()
 {
     entities = std::make_shared<std::vector<std::shared_ptr<UIEntity>>>();  // #329
-    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
+    // #364: children live on UIGridView, not here -- see GridData.h.
+}
+
+// #361 - The real constructor. Cell size comes from the texture and is mirrored
+// into the plane dimensions; a GridData with no texture falls back to 16x16 so
+// tile<->pixel math stays defined for a map that is never drawn.
+GridData::GridData(int gx, int gy, std::shared_ptr<PyTexture> texture)
+: ptex(texture)
+{
+    entities = std::make_shared<std::vector<std::shared_ptr<UIEntity>>>();  // #329
+    cell_width_px  = ptex ? ptex->sprite_width  : DEFAULT_CELL_WIDTH;
+    cell_height_px = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    initStorage(gx, gy, this);
 }
 
 GridData::~GridData()
 {
+    // #361: GridData carries its own PythonObjectCache serial now that it is
+    // not a UIDrawable (which used to do this in ~UIDrawable).
+    if (serial_number != 0) {
+        PythonObjectCache::getInstance().remove(serial_number);
+    }
+
     // #270: Null out parent_grid in all layers so surviving shared_ptrs
     // (held by Python wrappers) don't dangle after grid destruction
     for (auto& layer : layers) {

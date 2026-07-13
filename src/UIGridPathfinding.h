@@ -1,14 +1,14 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
-#include "UIBase.h"  // For PyUIGridObject typedef
+#include "UIBase.h"  // For PyGridDataObject typedef
 #include <libtcod.h>
 #include <vector>
 #include <memory>
 #include <map>
 
 // Forward declarations
-class UIGrid;
+class GridData;
 
 //=============================================================================
 // AStarPath - A computed A* path result, consumed like an iterator
@@ -91,7 +91,7 @@ namespace UIGridPathfinding {
     // Sets Python error and returns false on failure
     // If expected_grid is provided and obj is Entity, validates grid membership
     bool ExtractPosition(PyObject* obj, int* x, int* y,
-                         UIGrid* expected_grid = nullptr,
+                         GridData* expected_grid = nullptr,
                          const char* arg_name = "position");
 
     //=========================================================================
@@ -143,13 +143,13 @@ namespace UIGridPathfinding {
     //=========================================================================
 
     // Grid.find_path() -> AStarPath | None
-    PyObject* Grid_find_path(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    PyObject* Grid_find_path(PyGridDataObject* self, PyObject* args, PyObject* kwds);
 
     // Grid.get_dijkstra_map() -> DijkstraMap
-    PyObject* Grid_get_dijkstra_map(PyUIGridObject* self, PyObject* args, PyObject* kwds);
+    PyObject* Grid_get_dijkstra_map(PyGridDataObject* self, PyObject* args, PyObject* kwds);
 
     // Grid.clear_dijkstra_maps() -> None
-    PyObject* Grid_clear_dijkstra_maps(PyUIGridObject* self, PyObject* args);
+    PyObject* Grid_clear_dijkstra_maps(PyGridDataObject* self, PyObject* args);
 }
 
 //=============================================================================

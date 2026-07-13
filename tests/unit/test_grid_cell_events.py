@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
-"""Test #142: Grid Cell Mouse Events"""
+"""Test #142: Grid Cell Mouse Events
+
+#355 follow-up: this file used to treat "zero events fired" as a soft
+"PARTIAL" print and still exit(0). That masked the #355 regression (grid
+cell click/hover dispatch is entirely dead for mcrfpy.Grid, which is a
+UIGridView under the hood) as a passing test suite. Every path below now
+hard-asserts; a callback that fails to fire is a test failure, not a
+"maybe interactive mode" shrug.
+
+Coordinate math: with an unmodified (default) camera and an explicit
+`size=`, UIGridView's default center is exactly size/(2*zoom), which
+equals the viewport's own half-width/half-height. That makes grid_space
+== local screen-relative position when zoom==1 (the two halves cancel),
+so cell = floor(local_offset / cell_pixel_size) with the default 16x16
+texture. All screen coordinates below are chosen with that arithmetic,
+landing deliberately mid-cell (not on a boundary) to avoid float-edge
+ambiguity.
+"""
 import sys
 import mcrfpy
 from mcrfpy import automation
@@ -47,7 +64,7 @@ def test_properties():
 
 
 def test_cell_hover():
-    """Test cell hover events"""
+    """Test cell hover events fire with the correct cells, across a boundary."""
     print("Testing cell hover events...")
 
     test_hover = mcrfpy.Scene("test_hover")
@@ -70,23 +87,31 @@ def test_cell_hover():
     grid.on_cell_enter = on_enter
     grid.on_cell_exit = on_exit
 
-    # Move into grid and between cells
-    automation.moveTo((150, 150))
+    # local=(40,40) -> cell (2,2); local=(56,40) -> cell (3,2) (adjacent, same row)
+    automation.moveTo((140, 140))
     mcrfpy.step(0.05)
-    automation.moveTo((200, 200))
+    automation.moveTo((156, 140))
     mcrfpy.step(0.05)
 
-    print(f"  Enter events: {len(enter_events)}, Exit events: {len(exit_events)}")
+    print(f"  Enter events: {enter_events}, Exit events: {exit_events}")
     print(f"  Hovered cell: {grid.hovered_cell}")
 
-    if len(enter_events) >= 1:
-        print("  - Hover: PASS")
-    else:
-        print("  - Hover: PARTIAL (events may require interactive mode)")
+    assert (2, 2) in enter_events, \
+        f"expected on_cell_enter to fire for cell (2,2); got {enter_events}"
+    assert (3, 2) in enter_events, \
+        f"expected on_cell_enter to fire for cell (3,2) after crossing the boundary; got {enter_events}"
+    assert (2, 2) in exit_events, \
+        f"expected on_cell_exit to fire for cell (2,2) when leaving it; got {exit_events}"
+    assert grid.hovered_cell is not None, "grid.hovered_cell should be set after hovering"
+    # hovered_cell is an (x, y) tuple (see its docstring / api_surface golden).
+    assert tuple(grid.hovered_cell) == (3, 2), \
+        f"expected grid.hovered_cell == (3,2), got {grid.hovered_cell}"
+
+    print("  - Hover: PASS")
 
 
 def test_cell_click():
-    """Test cell click events"""
+    """Test cell click events fire with the correct cell."""
     print("Testing cell click events...")
 
     test_click = mcrfpy.Scene("test_click")
@@ -100,19 +125,23 @@ def test_cell_click():
 
     # #230 - cell click receives (cell_pos: Vector, button: MouseButton, action: InputState)
     def on_click(pos, button, action):
-        click_events.append((pos.x, pos.y))
+        click_events.append((pos.x, pos.y, button, action))
 
     grid.on_cell_click = on_click
 
-    automation.click((200, 200))
+    # local=(36,52) -> cell (2,3)
+    automation.click((136, 152))
     mcrfpy.step(0.05)
 
-    print(f"  Click events: {len(click_events)}")
+    print(f"  Click events: {click_events}")
 
-    if len(click_events) >= 1:
-        print("  - Click: PASS")
-    else:
-        print("  - Click: PARTIAL (events may require interactive mode)")
+    assert len(click_events) >= 1, \
+        "expected on_cell_click to fire at least once for a click inside the grid"
+    cx, cy, button, action = click_events[0]
+    assert (cx, cy) == (2, 3), f"expected cell (2,3), got ({cx},{cy})"
+    assert button == mcrfpy.MouseButton.LEFT, f"expected LEFT button, got {button}"
+
+    print("  - Click: PASS")
 
 
 if __name__ == "__main__":

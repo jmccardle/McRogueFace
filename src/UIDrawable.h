@@ -22,14 +22,15 @@ class UniformCollection;
 // PyShaderObject is a typedef, forward declare as a struct with explicit typedef
 typedef struct PyShaderObjectStruct PyShaderObject;
 
-class UIFrame; class UICaption; class UISprite; class UIEntity; class UIGrid;
+class UIFrame; class UICaption; class UISprite; class UIEntity; class GridData;
 
 enum PyObjectsEnum : int
 {
     UIFRAME = 1,
     UICAPTION,
     UISPRITE,
-    UIGRID,
+    // #361: no UIGRID. GridData is not a UIDrawable, so it has no derived_type()
+    // and can never appear in a scene graph. Every grid node IS a UIGRIDVIEW.
     UILINE,
     UICIRCLE,
     UIARC,
@@ -54,6 +55,27 @@ public:
     virtual UIDrawable* click_at(sf::Vector2f point) = 0;
     void click_register(PyObject*);
     void click_unregister();
+
+    // #355 - Grid cell input. Defaults are inert: no caller may switch on grid-ness.
+    //
+    // dispatchCellClick: called by PyScene after click_at() resolved this drawable as
+    // the click target. Takes no point: click_at() already resolved the cell in the
+    // coordinate space of the hit (parent-local), which PyScene does not have.
+    // Returns true if a cell callback consumed the click.
+    virtual bool dispatchCellClick(const std::string& button, const std::string& action)
+    { (void)button; (void)action; return false; }
+
+    // updateHover: called by PyScene::do_mouse_hover for every drawable, with the
+    // mouse position in this drawable's PARENT-local coordinate space (the same
+    // convention click_at() uses; at the top level that is global space).
+    // hit_allowed is false when an ancestor already determined the mouse cannot be
+    // over this subtree -- such a call may only clear hover state, never set it.
+    virtual void updateHover(sf::Vector2f point, bool hit_allowed)
+    { (void)point; (void)hit_allowed; }
+
+    // asGridData: non-null only for drawables that own or view grid data.
+    // (#357 find/findAll and #358 ImGuiSceneExplorer will use this same primitive.)
+    virtual GridData* asGridData() { return nullptr; }
 
     // #140 - Mouse enter/exit callbacks
     void on_enter_register(PyObject*);
@@ -109,7 +131,7 @@ public:
     static PyObject* get_rotate_with_camera(PyObject* self, void* closure);
     static int set_rotate_with_camera(PyObject* self, PyObject* value, void* closure);
 
-    // #221 - Grid coordinate properties (only valid when parent is UIGrid)
+    // #221 - Grid coordinate properties (only valid when the parent is a Grid/UIGridView)
     static PyObject* get_grid_pos(PyObject* self, void* closure);
     static int set_grid_pos(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_grid_size(PyObject* self, void* closure);
@@ -134,7 +156,7 @@ public:
     sf::Vector2f origin;
 
     // Whether to rotate visually with parent Grid's camera_rotation
-    // Only affects children of UIGrid; ignored for other parents
+    // Only affects children of a Grid (UIGridView); ignored for other parents
     bool rotate_with_camera = false;
 
     // Parent-child hierarchy (#122)
@@ -359,7 +381,7 @@ static PyObject* PyUIDrawable_get_click(PyObject* self, void* closure) {
             ptr = ((PyUISpriteObject*)self)->data->click_callable->borrow();
             break;
         case PyObjectsEnum::UIGRID:
-            ptr = ((PyUIGridObject*)self)->data->click_callable->borrow();
+            ptr = ((PyGridDataObject*)self)->data->click_callable->borrow();
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _get_click");
@@ -388,7 +410,7 @@ static int PyUIDrawable_set_click(PyObject* self, PyObject* value, void* closure
             target = (((PyUISpriteObject*)self)->data.get());
             break;
         case PyObjectsEnum::UIGRID:
-            target = (((PyUIGridObject*)self)->data.get());
+            target = (((PyGridDataObject*)self)->data.get());
             break;
         default:
             PyErr_SetString(PyExc_TypeError, "no idea how you did that; invalid UIDrawable derived instance for _set_click");

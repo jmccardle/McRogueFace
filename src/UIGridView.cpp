@@ -1,6 +1,6 @@
 // UIGridView.cpp - Rendering view for GridData (#252)
 #include "UIGridView.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridPoint.h"
 #include "UIEntity.h"
 #include "GameEngine.h"
@@ -15,6 +15,8 @@
 #include "PythonObjectCache.h"
 #include "PySceneObject.h"  // parent= kwarg: Scene is a valid parent type
 #include "McRFPy_Doc.h"
+#include "PyMouseButton.h"  // #355 - MouseButton enum for cell click args
+#include "PyInputState.h"   // #355 - InputState enum for cell click args
 #include <cmath>
 #include <algorithm>
 
@@ -27,9 +29,20 @@ UIGridView::UIGridView()
     output.setTexture(renderTexture.getTexture());
     box.setSize(sf::Vector2f(256, 256));
     box.setFillColor(sf::Color(0, 0, 0, 0));
+    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();  // #364
 }
 
 UIGridView::~UIGridView() {
+    // #362: drop ourselves from the GridData's view registry. This is the only
+    // place guaranteed to run exactly once per view: tp_dealloc's unregister is
+    // gated on data.use_count() <= 1 (the #251 pattern), so a view that outlives
+    // its Python wrapper -- the normal case, when the scene holds the last ref --
+    // would otherwise leave an expired weak_ptr in `views` forever. markDirty()
+    // walks that vector on every entity move.
+    if (grid_data) {
+        grid_data->unregisterView(this);
+    }
+
     // #348: release the persistent internal-Grid wrapper. Guard with
     // Py_IsInitialized() because this destructor may run during interpreter
     // shutdown (mirrors Animation::~Animation).
@@ -76,6 +89,24 @@ void UIGridView::move(float dx, float dy)
 void UIGridView::resize(float w, float h)
 {
     box.setSize(sf::Vector2f(w, h));
+
+    // #364: aligned children re-anchor against the widget's new bounds. This ran in
+    // PyGridData::resize before children moved to the view; it belongs here now.
+    if (children) {
+        for (auto& child : *children) {
+            if (child->getAlignment() != AlignmentType::NONE) {
+                child->applyAlignment();
+            }
+        }
+    }
+}
+
+void UIGridView::onPositionChanged()
+{
+    // #355: UIDrawable::set_pos/set_float_member write `position` and call this;
+    // without it the rendered box (and every hit test derived from it) stayed at
+    // the construction-time origin.
+    box.setPosition(position);
 }
 
 sf::Vector2f UIGridView::getEffectiveCellSize() const
@@ -85,24 +116,53 @@ sf::Vector2f UIGridView::getEffectiveCellSize() const
     return sf::Vector2f(cw * zoom, ch * zoom);
 }
 
-std::optional<sf::Vector2i> UIGridView::screenToCell(sf::Vector2f screen_pos) const
+sf::Vector2f UIGridView::localToGridWorld(sf::Vector2f local) const
+{
+    // Exact inverse of render()'s rasterize-then-composite transform (including
+    // the int truncation of left/top_spritepixels), so hit testing matches what
+    // is drawn -- rotated camera included.
+    //
+    // render(): grid-world -> texture pixel
+    //     T = (gw - spritepixels) * zoom          [texture is aabb_w x aabb_h]
+    // then the texture is blitted rotated by camera_rotation about its center,
+    // landing on the widget center:
+    //     L - box_center = R(camera_rotation) * (T - tex_center)
+    // Inverting: T = R(-camera_rotation) * (L - box_center) + tex_center,
+    //            gw = T / zoom + spritepixels.
+    const float grid_w_px = box.getSize().x;
+    const float grid_h_px = box.getSize().y;
+
+    const float rad = camera_rotation * (float)(M_PI / 180.0);
+    const float cos_r = std::cos(rad);
+    const float sin_r = std::sin(rad);
+    // Same AABB the renderer rasterizes into (equals the box when unrotated).
+    const float aabb_w = grid_w_px * std::abs(cos_r) + grid_h_px * std::abs(sin_r);
+    const float aabb_h = grid_w_px * std::abs(sin_r) + grid_h_px * std::abs(cos_r);
+
+    const float dx = local.x - grid_w_px / 2.0f;
+    const float dy = local.y - grid_h_px / 2.0f;
+    // R(-camera_rotation) applied to (dx, dy), then re-centered on the AABB.
+    const float tx =  dx * cos_r + dy * sin_r + aabb_w / 2.0f;
+    const float ty = -dx * sin_r + dy * cos_r + aabb_h / 2.0f;
+
+    int left_spritepixels = center_x - (aabb_w / 2.0 / zoom);
+    int top_spritepixels  = center_y - (aabb_h / 2.0 / zoom);
+    return sf::Vector2f(tx / zoom + left_spritepixels,
+                        ty / zoom + top_spritepixels);
+}
+
+std::optional<sf::Vector2i> UIGridView::cellAtLocal(sf::Vector2f local) const
 {
     if (!grid_data) return std::nullopt;
-    if (!box.getGlobalBounds().contains(screen_pos)) return std::nullopt;
-
-    int cw = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
+    if (local.x < 0 || local.y < 0 ||
+        local.x >= box.getSize().x || local.y >= box.getSize().y) {
+        return std::nullopt;
+    }
+    int cw = ptex ? ptex->sprite_width  : DEFAULT_CELL_WIDTH;
     int ch = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-
-    sf::Vector2f local = screen_pos - box.getPosition();
-    int left_sp = center_x - (box.getSize().x / 2.0 / zoom);
-    int top_sp = center_y - (box.getSize().y / 2.0 / zoom);
-
-    float gx = (local.x / zoom + left_sp) / cw;
-    float gy = (local.y / zoom + top_sp) / ch;
-
-    int cx = static_cast<int>(std::floor(gx));
-    int cy = static_cast<int>(std::floor(gy));
-
+    sf::Vector2f gw = localToGridWorld(local);
+    int cx = static_cast<int>(std::floor(gw.x / cw));
+    int cy = static_cast<int>(std::floor(gw.y / ch));
     if (cx < 0 || cx >= grid_data->grid_w || cy < 0 || cy >= grid_data->grid_h)
         return std::nullopt;
     return sf::Vector2i(cx, cy);
@@ -126,7 +186,7 @@ void UIGridView::center_camera(float tile_x, float tile_y)
 }
 
 // =========================================================================
-// Render -- adapted from UIGrid::render()
+// Render -- adapted from PyGridData::render()
 // =========================================================================
 void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
@@ -137,15 +197,23 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     // #351 - clean-state early-out: re-blit the cached RenderTexture when nothing
     // affecting the raster changed since last frame. Camera params are compared
     // directly (view-local); grid content changes bump content_generation. The
-    // perspective overlay (checked authoritatively on the UIGrid, since the view's
-    // copy is not resynced at runtime) and any grid children are conservative
+    // perspective overlay (single source of truth: this view's own
+    // perspective_enabled, see #355 fix) and any grid children are conservative
     // always-render carve-outs until tracked precisely (#352).
-    UIGrid* ugrid = static_cast<UIGrid*>(grid_data.get());
-    bool perspective_active = perspective_enabled || (ugrid && ugrid->perspective_enabled);
+    // last_perspective_enabled: the cached raster HAS an overlay baked into it, so
+    // the frame that turns perspective off must re-rasterize even though every
+    // other input is unchanged (otherwise the fog stays on screen forever).
     bool can_skip =
         has_rendered_once
-        && !perspective_active
-        && (!grid_data->children || grid_data->children->empty())
+        // #364 - a child mutation (move, recolor, add, remove) reaches us as
+        // render_dirty via the parent chain, because grid children now parent to the
+        // view. The children carve-out below cannot catch the removal of the LAST
+        // child -- children is empty by then, so the carve-out lifts and the cached
+        // raster, which still has that child baked into it, would be re-blitted.
+        && !render_dirty
+        && !perspective_enabled
+        && !last_perspective_enabled
+        && (!children || children->empty())
         && grid_data->content_generation == last_content_gen
         && center_x == last_center_x && center_y == last_center_y
         && zoom == last_zoom && camera_rotation == last_camera_rotation
@@ -252,14 +320,14 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }
 
-    // Children (grid-world pixel coordinates)
-    if (grid_data->children && !grid_data->children->empty()) {
-        if (grid_data->children_need_sort) {
-            std::sort(grid_data->children->begin(), grid_data->children->end(),
+    // Children (grid-world pixel coordinates; owned by this view -- #364)
+    if (children && !children->empty()) {
+        if (children_need_sort) {
+            std::sort(children->begin(), children->end(),
                 [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
-            grid_data->children_need_sort = false;
+            children_need_sort = false;
         }
-        for (auto& child : *grid_data->children) {
+        for (auto& child : *children) {
             if (!child->visible) continue;
             float child_grid_x = child->position.x / cell_width;
             float child_grid_y = child->position.y / cell_height;
@@ -273,8 +341,9 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         }
     }
 
-    // Perspective overlay
+    // Perspective overlay (#355: state owned by the view -- see get/set_perspective)
     if (perspective_enabled) {
+        ScopedTimer fovTimer(Resources::game->metrics.fovOverlayTime);
         auto entity = perspective_entity.lock();
         sf::RectangleShape overlay;
         overlay.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
@@ -347,6 +416,11 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // #351 - record the inputs this raster was built from for next frame's early-out.
     has_rendered_once = true;
+    // #364 - the raster is now current with every child mutation that pushed dirt up
+    // the parent chain into us. Clearing here is what makes render_dirty a usable
+    // early-out input (see can_skip): without it the flag latches true forever after
+    // the first child edit and the early-out could never fire again.
+    clearDirty();
     last_content_gen = grid_data->content_generation;
     last_center_x = center_x;
     last_center_y = center_y;
@@ -355,6 +429,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     last_box_size = box.getSize();
     last_fill_color = fill_color;
     last_render_tex_size = renderTextureSize;
+    last_perspective_enabled = perspective_enabled;
 
     if (shader && shader->shader) {
         sf::Vector2f resolution(box.getSize().x, box.getSize().y);
@@ -368,8 +443,69 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 
 UIDrawable* UIGridView::click_at(sf::Vector2f point)
 {
+    // point is in PARENT-LOCAL space (UIFrame::click_at passes point - position down).
     if (!box.getGlobalBounds().contains(point)) return nullptr;
-    return this;  // GridView consumes clicks within its bounds
+    if (!grid_data) {
+        // #365: a view with no cells cannot produce a cell event. Drop any cell
+        // stashed by an earlier click, or dispatchCellClick would fire it for a
+        // grid that no longer exists.
+        last_clicked_cell = std::nullopt;
+        return (click_callable || is_python_subclass) ? this : nullptr;
+    }
+
+    sf::Vector2f local = point - box.getPosition();
+    sf::Vector2f gw    = localToGridWorld(local);
+
+    int cw = ptex ? ptex->sprite_width  : DEFAULT_CELL_WIDTH;
+    int ch = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    float grid_x = gw.x / cw;
+    float grid_y = gw.y / ch;
+
+    // 1. Children first (drawn on top). Children of a grid live in GRID-WORLD PIXEL
+    //    coordinates -- NOT view-local, NOT screen (#360, by design: moving the
+    //    camera must not move a child's logical position). Do not "fix" this.
+    if (children && !children->empty()) {
+        if (children_need_sort) {
+            std::sort(children->begin(), children->end(),
+                [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
+            children_need_sort = false;
+        }
+        for (auto it = children->rbegin(); it != children->rend(); ++it) {
+            auto& child = *it;
+            if (!child->visible) continue;
+            if (auto target = child->click_at(gw)) return target;
+        }
+    }
+
+    // 2. Entities: 1x1 cell hit box matching the renderer, which draws the sprite at
+    //    position.x * cell_width -- i.e. cell [pos, pos+1).
+    //    NOTE: unreachable from Python today -- Entity exposes no on_click/sprite
+    //    binding, so entity->sprite.click_callable can never be set, and this branch
+    //    cannot fire. Implemented per #355; dead until an Entity.on_click binding
+    //    exists (needs its own issue).
+    if (grid_data->entities) {
+        for (auto it = grid_data->entities->rbegin(); it != grid_data->entities->rend(); ++it) {
+            auto& entity = *it;
+            if (!entity || !entity->sprite.visible) continue;
+            float dx = grid_x - entity->position.x;
+            float dy = grid_y - entity->position.y;
+            if (dx >= 0.0f && dx < 1.0f && dy >= 0.0f && dy < 1.0f) {
+                if (entity->sprite.click_callable) return &entity->sprite;
+            }
+        }
+    }
+
+    // 3. The cell itself. Stash for dispatchCellClick (PyScene has only global coords).
+    //    #365: only stash when we are actually returning ourselves as the click
+    //    target. Returning nullptr means PyScene never calls dispatchCellClick, so
+    //    nothing would consume the stash (dispatchCellClick clears it on read) and
+    //    the cell would linger until some later dispatch fired it.
+    if (click_callable || is_python_subclass || on_cell_click_callable) {
+        last_clicked_cell = cellAtLocal(local);
+        return this;
+    }
+    last_clicked_cell = std::nullopt;
+    return nullptr;
 }
 
 // Property system
@@ -436,184 +572,180 @@ bool UIGridView::hasProperty(const std::string& name) const
 
 int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
 {
-    // Extract parent= up front so it doesn't confuse downstream parsing in
-    // either init mode. parent_obj is borrowed from the original kwds (which
-    // the caller owns and outlives this function), so no INCREF is needed --
-    // but we must not delete from the caller's dict, so make a working copy.
+    // #361: ONE parse for both construction modes.
+    //
+    //   Grid(grid_size=(80,40), pos=..., size=...)   -- creates its own GridData
+    //   Grid(grid=data, pos=..., size=...)           -- a camera onto existing data
+    //
+    // This used to be two functions, and the factory mode built a throwaway
+    // Python _GridData object just to steal its GridData base subobject via an
+    // aliasing shared_ptr, then copied a dozen fields of rendering state out of
+    // the discarded wrapper. The view now constructs the GridData directly. As a
+    // side effect the view-mode kwarg set is no longer a crippled subset: z_index,
+    // visible, opacity, on_click and align work on a second view too, which they
+    // silently did not before (they raised TypeError).
+    PyObject* pos_obj = nullptr;
+    PyObject* size_obj = nullptr;
+    PyObject* grid_size_obj = nullptr;
+    PyObject* texture_obj = nullptr;
+    PyObject* grid_obj = nullptr;
+    PyObject* fill_color_obj = nullptr;
+    PyObject* click_handler = nullptr;
+    PyObject* layers_obj = nullptr;
     PyObject* parent_obj = nullptr;
-    PyObject* dispatch_kwds = kwds;
-    if (kwds) {
-        parent_obj = PyDict_GetItemString(kwds, "parent");  // borrowed ref
-        if (parent_obj) {
-            dispatch_kwds = PyDict_Copy(kwds);
-            if (!dispatch_kwds) return -1;
-            PyDict_DelItemString(dispatch_kwds, "parent");
-        }
+    PyObject* align_obj = nullptr;
+    // #169 - NaN sentinel: distinguishes "user passed a center" from "default it".
+    float center_x = std::numeric_limits<float>::quiet_NaN();
+    float center_y = std::numeric_limits<float>::quiet_NaN();
+    float zoom = 1.0f;
+    int visible = 1;
+    float opacity = 1.0f;
+    int z_index = 0;
+    const char* name = nullptr;
+    float x = 0.0f, y = 0.0f, w = 0.0f, h = 0.0f;
+    int grid_w = 2, grid_h = 2;
+    float margin = 0.0f, horiz_margin = -1.0f, vert_margin = -1.0f;
+
+    static const char* kwlist[] = {
+        "pos", "size", "grid_size", "texture",   // positional
+        "grid", "fill_color", "on_click", "center_x", "center_y", "zoom",
+        "visible", "opacity", "z_index", "name", "x", "y", "w", "h",
+        "grid_w", "grid_h", "layers", "parent",
+        "align", "margin", "horiz_margin", "vert_margin",
+        nullptr
+    };
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOOOOOfffifizffffiiOOOfff",
+                                     const_cast<char**>(kwlist),
+                                     &pos_obj, &size_obj, &grid_size_obj, &texture_obj,
+                                     &grid_obj, &fill_color_obj, &click_handler,
+                                     &center_x, &center_y, &zoom,
+                                     &visible, &opacity, &z_index, &name,
+                                     &x, &y, &w, &h, &grid_w, &grid_h,
+                                     &layers_obj, &parent_obj,
+                                     &align_obj, &margin, &horiz_margin, &vert_margin)) {
+        return -1;
     }
 
-    // Determine mode by checking for 'grid' kwarg
-    PyObject* grid_kwarg = nullptr;
-    if (dispatch_kwds) {
-        grid_kwarg = PyDict_GetItemString(dispatch_kwds, "grid");  // borrowed ref
-    }
+    const bool attaching = (grid_obj && grid_obj != Py_None);
 
-    bool explicit_view = (grid_kwarg && grid_kwarg != Py_None);
-
-    int rc = explicit_view
-        ? init_explicit_view(self, args, dispatch_kwds)
-        : init_with_data(self, args, dispatch_kwds);
-
-    if (dispatch_kwds != kwds) Py_DECREF(dispatch_kwds);
-    if (rc != 0) return rc;
-
-    if (parent_obj) {
-        UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
-    }
-    return 0;
-}
-
-int UIGridView::init_explicit_view(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
-{
-    {
-        // Mode 1: View of existing grid data
-        static const char* kwlist[] = {"grid", "pos", "size", "zoom", "fill_color", "name", nullptr};
-        PyObject* grid_obj = nullptr;
-        PyObject* pos_obj = nullptr;
-        PyObject* size_obj = nullptr;
-        float zoom_val = 1.0f;
-        PyObject* fill_obj = nullptr;
-        const char* name_str = nullptr;
-
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOOfOz", const_cast<char**>(kwlist),
-                                         &grid_obj, &pos_obj, &size_obj, &zoom_val, &fill_obj, &name_str)) {
+    // --------------------------------------------------------------------
+    // The map: attach to an existing one, or build a new one.
+    // --------------------------------------------------------------------
+    if (attaching) {
+        // A camera onto someone else's map cannot also specify that map's shape.
+        // Silently ignoring these would quietly hand back a view of a DIFFERENT
+        // size than asked for.
+        if (grid_size_obj || texture_obj || layers_obj) {
+            PyErr_SetString(PyExc_TypeError,
+                "grid= names an existing GridData; grid_size/texture/layers describe a "
+                "new one. Pass one or the other, not both.");
             return -1;
         }
 
-        self->data->zoom = zoom_val;
-        if (name_str) self->data->UIDrawable::name = std::string(name_str);
+        if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType)) {
+            self->data->grid_data = ((PyGridDataObject*)grid_obj)->data;
+        } else if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
+            // Another Grid/GridView: share the map it is looking at.
+            self->data->grid_data = ((PyUIGridViewObject*)grid_obj)->data->grid_data;
+        } else {
+            PyErr_SetString(PyExc_TypeError, "grid must be a GridData or a Grid");
+            return -1;
+        }
+        if (!self->data->grid_data) {
+            PyErr_SetString(PyExc_ValueError, "grid has no data to view");
+            return -1;
+        }
+        self->data->ptex = self->data->grid_data->getTexture();
+    } else {
+        std::shared_ptr<PyTexture> texture;
+        if (PyGridData::parse_grid_shape(grid_size_obj, texture_obj,
+                                         grid_w, grid_h, texture) < 0) {
+            return -1;
+        }
+        self->data->grid_data = std::make_shared<GridData>(grid_w, grid_h, texture);
+        if (PyGridData::apply_layers_arg(self->data->grid_data, layers_obj, texture) < 0) {
+            return -1;
+        }
+        self->data->ptex = texture;
+    }
 
-        // Accept both internal _GridData and GridView (unified Grid) as grid source
-        if (grid_obj && grid_obj != Py_None) {
-            if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType)) {
-                // Internal _GridData object
-                PyUIGridObject* pygrid = (PyUIGridObject*)grid_obj;
-                self->data->grid_data = std::shared_ptr<GridData>(
-                    pygrid->data, static_cast<GridData*>(pygrid->data.get()));
-                self->data->ptex = pygrid->data->getTexture();
-            } else if (PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
-                // Another GridView (unified Grid) - share its grid_data
-                PyUIGridViewObject* pyview = (PyUIGridViewObject*)grid_obj;
-                if (pyview->data->grid_data) {
-                    self->data->grid_data = pyview->data->grid_data;
-                    self->data->ptex = pyview->data->ptex;
-                }
-            } else {
-                PyErr_SetString(PyExc_TypeError, "grid must be a Grid object");
+    auto& grid_data = self->data->grid_data;
+
+    // --------------------------------------------------------------------
+    // The camera: this view's own rendering state.
+    // --------------------------------------------------------------------
+    if (pos_obj && pos_obj != Py_None) {
+        PyVectorObject* vec = PyVector::from_arg(pos_obj);
+        if (vec) {
+            x = vec->data.x;
+            y = vec->data.y;
+            Py_DECREF(vec);
+        } else {
+            PyErr_Clear();
+            sf::Vector2f p = PyObject_to_sfVector2f(pos_obj);
+            if (PyErr_Occurred()) {
+                PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y) or Vector");
                 return -1;
             }
-        }
-
-        if (pos_obj && pos_obj != Py_None) {
-            sf::Vector2f pos = PyObject_to_sfVector2f(pos_obj);
-            if (PyErr_Occurred()) return -1;
-            self->data->position = pos;
-            self->data->box.setPosition(pos);
-        }
-        if (size_obj && size_obj != Py_None) {
-            sf::Vector2f size = PyObject_to_sfVector2f(size_obj);
-            if (PyErr_Occurred()) return -1;
-            self->data->box.setSize(size);
-        }
-        if (fill_obj && fill_obj != Py_None) {
-            self->data->fill_color = PyColor::fromPy(fill_obj);
-            if (PyErr_Occurred()) return -1;
-        }
-
-        if (self->data->grid_data) {
-            self->data->center_camera();
-            self->data->ensureRenderTextureSize();
-        }
-
-        self->weakreflist = NULL;
-
-        // Register in Python object cache
-        if (self->data->serial_number == 0) {
-            self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-            PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-            if (weakref) {
-                PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-                Py_DECREF(weakref);
-            }
-        }
-        self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridViewType;
-
-        return 0;
-    }
-}
-
-int UIGridView::init_with_data(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
-{
-    // Create a temporary UIGrid using the user's kwargs.
-    // This reuses UIGrid::init's complex parsing for grid_size, texture, layers, etc.
-
-    // Remove 'grid' key from kwds if present (e.g. grid=None)
-    PyObject* filtered_kwds = kwds ? PyDict_Copy(kwds) : PyDict_New();
-    if (!filtered_kwds) return -1;
-    if (PyDict_DelItemString(filtered_kwds, "grid") < 0) {
-        PyErr_Clear();  // OK if "grid" wasn't in dict
-    }
-
-    // Create UIGrid via Python type system, forwarding positional args
-    PyObject* grid_type = (PyObject*)&mcrfpydef::PyUIGridType;
-    PyObject* grid_py = PyObject_Call(grid_type, args, filtered_kwds);
-    Py_DECREF(filtered_kwds);
-
-    if (!grid_py) return -1;
-
-    PyUIGridObject* pygrid = (PyUIGridObject*)grid_py;
-
-    // Take UIGrid data via aliasing shared_ptr
-    self->data->grid_data = std::shared_ptr<GridData>(
-        pygrid->data, static_cast<GridData*>(pygrid->data.get()));
-    self->data->ptex = pygrid->data->getTexture();
-
-    // Copy rendering state from UIGrid to GridView
-    self->data->position = pygrid->data->position;
-    self->data->box.setPosition(pygrid->data->box.getPosition());
-    self->data->box.setSize(pygrid->data->box.getSize());
-    self->data->zoom = pygrid->data->zoom;
-    self->data->center_x = pygrid->data->center_x;
-    self->data->center_y = pygrid->data->center_y;
-    self->data->fill_color = sf::Color(pygrid->data->box.getFillColor());
-    self->data->visible = pygrid->data->visible;
-    self->data->opacity = pygrid->data->opacity;
-    self->data->z_index = pygrid->data->z_index;
-    self->data->name = pygrid->data->name;
-    self->data->camera_rotation = pygrid->data->camera_rotation;
-
-    // Copy alignment
-    self->data->align_type = pygrid->data->align_type;
-    self->data->align_margin = pygrid->data->align_margin;
-    self->data->align_horiz_margin = pygrid->data->align_horiz_margin;
-    self->data->align_vert_margin = pygrid->data->align_vert_margin;
-
-    // Copy click callback if set
-    if (pygrid->data->click_callable) {
-        PyObject* cb = pygrid->data->click_callable->borrow();
-        if (cb && cb != Py_None) {
-            self->data->click_register(cb);
+            x = p.x;
+            y = p.y;
         }
     }
 
-    // Set owning_view back-reference on the GridData
-    self->data->grid_data->owning_view = self->data;
+    if (size_obj && size_obj != Py_None) {
+        sf::Vector2f s = PyObject_to_sfVector2f(size_obj);
+        if (PyErr_Occurred()) {
+            PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h)");
+            return -1;
+        }
+        w = s.x;
+        h = s.y;
+    } else if (w == 0.0f && h == 0.0f) {
+        // Default: show the whole map at 1:1.
+        w = grid_data->grid_w * static_cast<float>(grid_data->cell_width());
+        h = grid_data->grid_h * static_cast<float>(grid_data->cell_height());
+    }
+
+    self->data->zoom = zoom;
+    self->data->position = sf::Vector2f(x, y);
+    self->data->box.setPosition(self->data->position);
+    self->data->box.setSize(sf::Vector2f(w, h));
+    self->data->visible = visible;
+    self->data->opacity = opacity;
+    self->data->z_index = z_index;
+    if (name) self->data->UIDrawable::name = std::string(name);
+
+    // #169 - default camera puts tile (0,0) at the widget's top-left.
+    if (std::isnan(center_x)) center_x = w / (2.0f * zoom);
+    if (std::isnan(center_y)) center_y = h / (2.0f * zoom);
+    self->data->center_x = center_x;
+    self->data->center_y = center_y;
+
+    if (fill_color_obj && fill_color_obj != Py_None) {
+        self->data->fill_color = PyColor::fromPy(fill_color_obj);
+        if (PyErr_Occurred()) return -1;
+    }
+
+    if (click_handler && click_handler != Py_None) {
+        if (!PyCallable_Check(click_handler)) {
+            PyErr_SetString(PyExc_TypeError, "on_click must be callable");
+            return -1;
+        }
+        self->data->click_register(click_handler);
+    }
+
+    UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
 
     self->data->ensureRenderTextureSize();
 
-    Py_DECREF(grid_py);
+    // #359 - Register with the map so data-layer mutations invalidate THIS view's
+    // cache and push dirt up ITS ancestor chain. Registration order matters: the
+    // creating view is views.front().
+    grid_data->registerView(self->data);
+
     self->weakreflist = NULL;
 
-    // Register in Python object cache
     if (self->data->serial_number == 0) {
         self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
         PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
@@ -622,7 +754,12 @@ int UIGridView::init_with_data(PyUIGridViewObject* self, PyObject* args, PyObjec
             Py_DECREF(weakref);
         }
     }
-    self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridViewType;
+    self->data->is_python_subclass =
+        (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridViewType;
+
+    if (parent_obj && parent_obj != Py_None) {
+        UIDRAWABLE_ATTACH_TO_PARENT(parent_obj, self);
+    }
 
     return 0;
 }
@@ -630,7 +767,7 @@ int UIGridView::init_with_data(PyUIGridViewObject* self, PyObject* args, PyObjec
 PyObject* UIGridView::repr(PyUIGridViewObject* self)
 {
     std::ostringstream ss;
-    ss << "<Grid";
+    ss << "<GridView";
     if (self->data->grid_data) {
         ss << " (" << self->data->grid_data->grid_w << "x" << self->data->grid_data->grid_h << ")";
     } else {
@@ -728,47 +865,19 @@ PyObject* UIGridView::get_grid(PyUIGridViewObject* self, void* closure)
         return self->data->cached_grid_wrapper;
     }
 
-    // grid_data is an aliasing shared_ptr into a UIGrid (GridData is a base of UIGrid).
-    // Reconstruct shared_ptr<UIGrid> to return the proper Python wrapper.
-    auto grid_ptr = static_cast<UIGrid*>(self->data->grid_data.get());
-    auto grid_as_uigrid = std::shared_ptr<UIGrid>(
-        self->data->grid_data, grid_ptr);
+    // #361: build (or find) the map's one Python wrapper, then adopt it as this
+    // view's persistent cache so subsequent accesses hit the fast path above.
+    // The aliasing shared_ptr this used to reconstruct -- to recover the "full
+    // UIGrid" that every GridData was secretly a base subobject of -- is gone
+    // along with UIGrid itself.
+    PyObject* pyGrid = PyGridData::pyobject_for(self->data->grid_data);
+    if (!pyGrid || pyGrid == Py_None) return pyGrid;
 
-    // A wrapper may already exist (user holds grid.grid_data, another view cached
-    // it): honor the serial-number cache, then adopt it as this view's persistent
-    // wrapper so subsequent accesses hit the fast path above.
-    if (grid_ptr->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(grid_ptr->serial_number);
-        if (cached) {
-            // lookup() returns a new strong ref; keep it as the view's cache and
-            // hand a second ref to the caller.
-            self->data->cached_grid_wrapper = cached;
-            Py_INCREF(cached);
-            return cached;
-        }
-    }
-
-    auto grid_type = &mcrfpydef::PyUIGridType;
-    auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
-    if (!pyGrid) return PyErr_NoMemory();
-
-    pyGrid->data = grid_as_uigrid;
-    pyGrid->weakreflist = NULL;
-
-    if (grid_ptr->serial_number == 0) {
-        grid_ptr->serial_number = PythonObjectCache::getInstance().assignSerial();
-    }
-    PyObject* weakref = PyWeakref_NewRef((PyObject*)pyGrid, NULL);
-    if (weakref) {
-        PythonObjectCache::getInstance().registerObject(grid_ptr->serial_number, weakref);
-        Py_DECREF(weakref);
-    }
-
-    // Hold one strong ref for the view's lifetime (#348 cache); return a second
-    // ref to the caller.
-    self->data->cached_grid_wrapper = (PyObject*)pyGrid;
-    Py_INCREF((PyObject*)pyGrid);
-    return (PyObject*)pyGrid;
+    // pyobject_for returns a strong ref; keep it as the view's cache and hand a
+    // second ref to the caller.
+    self->data->cached_grid_wrapper = pyGrid;
+    Py_INCREF(pyGrid);
+    return pyGrid;
 }
 
 int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closure)
@@ -776,41 +885,41 @@ int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closur
     // #348: the persistent wrapper tracks the *current* grid_data; any reassign
     // (including to None) invalidates it so get_grid rebuilds for the new data.
     Py_CLEAR(self->data->cached_grid_wrapper);
+    // #359 - Unregister self from whatever grid_data it was viewing before
+    // reassignment. unregisterView matches by identity (self->data.get()), so
+    // this is safe even when other views also share the old grid_data.
+    if (self->data->grid_data) {
+        self->data->grid_data->unregisterView(self->data.get());
+    }
     if (value == Py_None) {
-        if (self->data->grid_data) {
-            self->data->grid_data->owning_view.reset();
-        }
         self->data->grid_data = nullptr;
         return 0;
     }
-    // Accept internal _GridData (UIGrid) objects
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
-        PyUIGridObject* pygrid = (PyUIGridObject*)value;
-        if (self->data->grid_data) {
-            self->data->grid_data->owning_view.reset();
-        }
-        self->data->grid_data = std::shared_ptr<GridData>(
-            pygrid->data, static_cast<GridData*>(pygrid->data.get()));
+    // A GridData: point this camera at that map. (#361: no aliasing cast -- the
+    // wrapper holds the GridData itself, not a UIGrid it was a base subobject of.)
+    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+        PyGridDataObject* pygrid = (PyGridDataObject*)value;
+        self->data->grid_data = pygrid->data;
         self->data->ptex = pygrid->data->getTexture();
-        self->data->grid_data->owning_view = self->data;
+        self->data->grid_data->registerView(self->data);
         return 0;
     }
-    // Accept GridView (unified Grid) objects - share their grid_data
+    // A Grid/GridView: share the map it is looking at.
     if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         PyUIGridViewObject* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
-            if (self->data->grid_data) {
-                self->data->grid_data->owning_view.reset();
-            }
             self->data->grid_data = pyview->data->grid_data;
             self->data->ptex = pyview->data->ptex;
-            // Don't override owning_view - original owner keeps it
+            // #359: register self alongside the original owner (and any other
+            // secondary views) -- does not disturb primaryView() identity,
+            // which stays views.front() (the original creator).
+            self->data->grid_data->registerView(self->data);
             return 0;
         }
         self->data->grid_data = nullptr;
         return 0;
     }
-    PyErr_SetString(PyExc_TypeError, "grid must be a Grid object or None");
+    PyErr_SetString(PyExc_TypeError, "grid_data must be a GridData, a Grid, or None");
     return -1;
 }
 
@@ -838,7 +947,75 @@ int UIGridView::set_zoom(PyUIGridViewObject* self, PyObject* value, void* closur
     double val = PyFloat_AsDouble(value);
     if (val == -1.0 && PyErr_Occurred()) return -1;
     self->data->zoom = static_cast<float>(val);
+    self->data->markDirty();
     return 0;
+}
+
+// #361 - `size` and `center_camera()` were NEVER on the view. They resolved, via
+// getattro delegation, to the internal UIGrid's copies -- the ghost camera nobody
+// renders -- so `grid.size = (w, h)` and `grid.center_camera(...)` were SILENT
+// NO-OPS on the widget the user was actually looking at. Deleting the ghost is
+// what surfaced them.
+PyObject* UIGridView::get_size(PyUIGridViewObject* self, void* closure)
+{
+    return PyVector(self->data->box.getSize()).pyObject();
+}
+
+int UIGridView::set_size(PyUIGridViewObject* self, PyObject* value, void* closure)
+{
+    float w, h;
+    PyVectorObject* vec = PyVector::from_arg(value);
+    if (vec) {
+        w = vec->data.x;
+        h = vec->data.y;
+        Py_DECREF(vec);
+    } else {
+        PyErr_Clear();
+        if (!PyArg_ParseTuple(value, "ff", &w, &h)) {
+            PyErr_SetString(PyExc_TypeError, "size must be a Vector or tuple (w, h)");
+            return -1;
+        }
+    }
+    self->data->resize(w, h);
+    return 0;
+}
+
+PyObject* UIGridView::py_center_camera(PyUIGridViewObject* self, PyObject* args)
+{
+    PyObject* pos_arg = nullptr;
+    if (!PyArg_ParseTuple(args, "|O", &pos_arg)) return nullptr;
+
+    if (pos_arg == nullptr || pos_arg == Py_None) {
+        self->data->center_camera();
+        Py_RETURN_NONE;
+    }
+
+    float tile_x, tile_y;
+    PyVectorObject* vec = PyVector::from_arg(pos_arg);
+    if (vec) {
+        tile_x = vec->data.x;
+        tile_y = vec->data.y;
+        Py_DECREF(vec);
+    } else {
+        PyErr_Clear();
+        if (!PyTuple_Check(pos_arg) || PyTuple_Size(pos_arg) != 2) {
+            PyErr_SetString(PyExc_TypeError,
+                "center_camera() takes an optional (tile_x, tile_y) tuple or Vector");
+            return nullptr;
+        }
+        PyObject* x_obj = PyTuple_GetItem(pos_arg, 0);
+        PyObject* y_obj = PyTuple_GetItem(pos_arg, 1);
+        if (!(PyFloat_Check(x_obj) || PyLong_Check(x_obj)) ||
+            !(PyFloat_Check(y_obj) || PyLong_Check(y_obj))) {
+            PyErr_SetString(PyExc_TypeError, "tile coordinates must be numeric");
+            return nullptr;
+        }
+        tile_x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : (float)PyLong_AsLong(x_obj);
+        tile_y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : (float)PyLong_AsLong(y_obj);
+    }
+
+    self->data->center_camera(tile_x, tile_y);
+    Py_RETURN_NONE;
 }
 
 PyObject* UIGridView::get_fill_color(PyUIGridViewObject* self, void* closure)
@@ -856,10 +1033,72 @@ int UIGridView::set_fill_color(PyUIGridViewObject* self, PyObject* value, void* 
     return 0;
 }
 
+// =========================================================================
+// Perspective (#355 fix): OWNED BY THE VIEW. The FOV overlay is drawn by
+// UIGridView::render, so the state it gates on must live here -- previously
+// `grid.perspective` fell through getattro to the internal _GridData and wrote
+// PyGridData::perspective_enabled, which render() never read: the overlay was dead.
+// Per-view ownership is also the correct semantics for shared GridData (#359):
+// two views of one map can follow two different entities' FOV.
+// =========================================================================
+PyObject* UIGridView::get_perspective(PyUIGridViewObject* self, void* closure)
+{
+    auto locked = self->data->perspective_entity.lock();
+    if (!locked) Py_RETURN_NONE;
+
+    // Honor the cache so Entity subclass identity survives (#266).
+    if (locked->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(locked->serial_number);
+        if (cached) return cached;  // new ref
+    }
+
+    auto type = &mcrfpydef::PyUIEntityType;
+    auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
+    if (!o) return PyErr_NoMemory();
+    o->data = locked;
+    o->weakreflist = NULL;
+    return (PyObject*)o;
+}
+
+int UIGridView::set_perspective(PyUIGridViewObject* self, PyObject* value, void* closure)
+{
+    if (value == Py_None) {
+        self->data->perspective_entity.reset();
+        self->data->perspective_enabled = false;
+        self->data->markDirty();
+        return 0;
+    }
+
+    if (!PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIEntityType)) {
+        PyErr_SetString(PyExc_TypeError, "perspective must be an Entity or None");
+        return -1;
+    }
+
+    PyUIEntityObject* entity_obj = (PyUIEntityObject*)value;
+    self->data->perspective_entity = entity_obj->data;
+    self->data->perspective_enabled = true;
+    self->data->markDirty();
+    return 0;
+}
+
+PyObject* UIGridView::get_perspective_enabled(PyUIGridViewObject* self, void* closure)
+{
+    return PyBool_FromLong(self->data->perspective_enabled);
+}
+
+int UIGridView::set_perspective_enabled(PyUIGridViewObject* self, PyObject* value, void* closure)
+{
+    int enabled = PyObject_IsTrue(value);
+    if (enabled == -1) return -1;
+    self->data->perspective_enabled = enabled;
+    self->data->markDirty();
+    return 0;
+}
+
 PyObject* UIGridView::get_texture(PyUIGridViewObject* self, void* closure)
 {
     // #318: return a Texture wrapper sharing the underlying shared_ptr<PyTexture>,
-    // mirroring UIGrid::get_texture. None only when the view has no texture.
+    // mirroring PyGridData::get_texture. None only when the view has no texture.
     auto& texture = self->data->ptex;
     if (!texture) Py_RETURN_NONE;
 
@@ -905,6 +1144,356 @@ int UIGridView::set_float_member_gv(PyUIGridViewObject* self, PyObject* value, v
 }
 
 // =========================================================================
+// #355 - Cell input machinery (moved verbatim from UIGrid, retargeted to the view)
+// =========================================================================
+
+// Helper function to convert button string to MouseButton enum value
+static int buttonStringToEnum(const std::string& button) {
+    if (button == "left") return 0;       // MouseButton.LEFT
+    if (button == "right") return 1;      // MouseButton.RIGHT
+    if (button == "middle") return 2;     // MouseButton.MIDDLE
+    if (button == "wheel_up") return 3;   // MouseButton.WHEEL_UP
+    if (button == "wheel_down") return 4; // MouseButton.WHEEL_DOWN
+    return 0; // Default to LEFT
+}
+
+// Helper function to convert action string to InputState enum value
+static int actionStringToEnum(const std::string& action) {
+    if (action == "start" || action == "pressed") return 0;   // InputState.PRESSED
+    if (action == "end" || action == "released") return 1;    // InputState.RELEASED
+    return 0; // Default to PRESSED
+}
+
+// Helper to create typed cell callback arguments: (Vector, MouseButton, InputState)
+static PyObject* createCellCallbackArgs(sf::Vector2i cell, const std::string& button, const std::string& action) {
+    PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)cell.x, (float)cell.y);
+    if (!cell_pos) {
+        PyErr_Print();
+        return nullptr;
+    }
+
+    int button_val = buttonStringToEnum(button);
+    PyObject* button_enum = PyObject_CallFunction(PyMouseButton::mouse_button_enum_class, "i", button_val);
+    if (!button_enum) {
+        Py_DECREF(cell_pos);
+        PyErr_Print();
+        return nullptr;
+    }
+
+    int action_val = actionStringToEnum(action);
+    PyObject* action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
+    if (!action_enum) {
+        Py_DECREF(cell_pos);
+        Py_DECREF(button_enum);
+        PyErr_Print();
+        return nullptr;
+    }
+
+    PyObject* args = Py_BuildValue("(OOO)", cell_pos, button_enum, action_enum);
+    Py_DECREF(cell_pos);
+    Py_DECREF(button_enum);
+    Py_DECREF(action_enum);
+    return args;
+}
+
+// #230 - Helper to create cell hover callback arguments: (Vector) only
+static PyObject* createCellHoverArgs(sf::Vector2i cell) {
+    PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ii", cell.x, cell.y);
+    if (!cell_pos) {
+        PyErr_Print();
+        return nullptr;
+    }
+
+    PyObject* args = Py_BuildValue("(O)", cell_pos);
+    Py_DECREF(cell_pos);
+    return args;
+}
+
+// #142 - Refresh cell callback cache for Python subclass method support
+void UIGridView::refreshCellCallbackCache(PyObject* pyObj) {
+    if (!pyObj || !is_python_subclass) {
+        cell_callback_cache.valid = false;
+        return;
+    }
+
+    // Get the class's callback generation counter
+    PyObject* cls = (PyObject*)Py_TYPE(pyObj);
+    uint32_t current_gen = 0;
+    PyObject* gen_obj = PyObject_GetAttrString(cls, "_mcrf_callback_gen");
+    if (gen_obj) {
+        current_gen = static_cast<uint32_t>(PyLong_AsUnsignedLong(gen_obj));
+        Py_DECREF(gen_obj);
+    } else {
+        PyErr_Clear();
+    }
+
+    if (cell_callback_cache.valid && cell_callback_cache.generation == current_gen) {
+        return; // Cache is fresh
+    }
+
+    cell_callback_cache.has_on_cell_click = false;
+    cell_callback_cache.has_on_cell_enter = false;
+    cell_callback_cache.has_on_cell_exit = false;
+
+    // Walk the class hierarchy down to (but not including) the base Grid type.
+    // #355: sentinel is PyUIGridViewType -- mcrfpy.Grid IS UIGridView.
+    PyTypeObject* type = Py_TYPE(pyObj);
+    while (type && type != &mcrfpydef::PyUIGridViewType && type != &PyBaseObject_Type) {
+        if (type->tp_dict) {
+            if (!cell_callback_cache.has_on_cell_click) {
+                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_click");
+                if (method && PyCallable_Check(method)) {
+                    cell_callback_cache.has_on_cell_click = true;
+                }
+            }
+            if (!cell_callback_cache.has_on_cell_enter) {
+                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_enter");
+                if (method && PyCallable_Check(method)) {
+                    cell_callback_cache.has_on_cell_enter = true;
+                }
+            }
+            if (!cell_callback_cache.has_on_cell_exit) {
+                PyObject* method = PyDict_GetItemString(type->tp_dict, "on_cell_exit");
+                if (method && PyCallable_Check(method)) {
+                    cell_callback_cache.has_on_cell_exit = true;
+                }
+            }
+        }
+        type = type->tp_base;
+    }
+
+    cell_callback_cache.generation = current_gen;
+    cell_callback_cache.valid = true;
+}
+
+// Fire cell click callback with full signature (cell_pos, button, action)
+bool UIGridView::fireCellClick(sf::Vector2i cell, const std::string& button, const std::string& action) {
+    // Try property-assigned callback first
+    if (on_cell_click_callable && !on_cell_click_callable->isNone()) {
+        PyObject* args = createCellCallbackArgs(cell, button, action);
+        if (args) {
+            PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
+            Py_DECREF(args);
+            if (!result) {
+                std::cerr << "Cell click callback raised an exception:" << std::endl;
+                PyErr_Print();
+                PyErr_Clear();
+            } else {
+                Py_DECREF(result);
+            }
+            return true;
+        }
+    }
+
+    // Try Python subclass method
+    if (is_python_subclass) {
+        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        if (pyObj) {
+            refreshCellCallbackCache(pyObj);
+            if (cell_callback_cache.has_on_cell_click) {
+                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_click");
+                if (method && PyCallable_Check(method)) {
+                    PyObject* args = createCellCallbackArgs(cell, button, action);
+                    if (args) {
+                        PyObject* result = PyObject_CallObject(method, args);
+                        Py_DECREF(args);
+                        Py_DECREF(method);
+                        Py_DECREF(pyObj);
+                        if (!result) {
+                            std::cerr << "Cell click method raised an exception:" << std::endl;
+                            PyErr_Print();
+                            PyErr_Clear();
+                        } else {
+                            Py_DECREF(result);
+                        }
+                        return true;
+                    }
+                }
+                Py_XDECREF(method);
+            }
+            Py_DECREF(pyObj);
+        }
+    }
+    return false;
+}
+
+// #230 - Fire cell enter callback with position-only signature (cell_pos)
+bool UIGridView::fireCellEnter(sf::Vector2i cell) {
+    if (on_cell_enter_callable && !on_cell_enter_callable->isNone()) {
+        on_cell_enter_callable->call(cell);
+        return true;
+    }
+
+    if (is_python_subclass) {
+        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        if (pyObj) {
+            refreshCellCallbackCache(pyObj);
+            if (cell_callback_cache.has_on_cell_enter) {
+                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_enter");
+                if (method && PyCallable_Check(method)) {
+                    PyObject* args = createCellHoverArgs(cell);
+                    if (args) {
+                        PyObject* result = PyObject_CallObject(method, args);
+                        Py_DECREF(args);
+                        Py_DECREF(method);
+                        Py_DECREF(pyObj);
+                        if (!result) {
+                            std::cerr << "Cell enter method raised an exception:" << std::endl;
+                            PyErr_Print();
+                            PyErr_Clear();
+                        } else {
+                            Py_DECREF(result);
+                        }
+                        return true;
+                    }
+                }
+                Py_XDECREF(method);
+            }
+            Py_DECREF(pyObj);
+        }
+    }
+    return false;
+}
+
+// #230 - Fire cell exit callback with position-only signature (cell_pos)
+bool UIGridView::fireCellExit(sf::Vector2i cell) {
+    if (on_cell_exit_callable && !on_cell_exit_callable->isNone()) {
+        on_cell_exit_callable->call(cell);
+        return true;
+    }
+
+    if (is_python_subclass) {
+        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        if (pyObj) {
+            refreshCellCallbackCache(pyObj);
+            if (cell_callback_cache.has_on_cell_exit) {
+                PyObject* method = PyObject_GetAttrString(pyObj, "on_cell_exit");
+                if (method && PyCallable_Check(method)) {
+                    PyObject* args = createCellHoverArgs(cell);
+                    if (args) {
+                        PyObject* result = PyObject_CallObject(method, args);
+                        Py_DECREF(args);
+                        Py_DECREF(method);
+                        Py_DECREF(pyObj);
+                        if (!result) {
+                            std::cerr << "Cell exit method raised an exception:" << std::endl;
+                            PyErr_Print();
+                            PyErr_Clear();
+                        } else {
+                            Py_DECREF(result);
+                        }
+                        return true;
+                    }
+                }
+                Py_XDECREF(method);
+            }
+            Py_DECREF(pyObj);
+        }
+    }
+    return false;
+}
+
+// #355 - UIDrawable input virtuals
+bool UIGridView::dispatchCellClick(const std::string& button, const std::string& action)
+{
+    if (!last_clicked_cell.has_value()) return false;
+    sf::Vector2i cell = last_clicked_cell.value();
+    last_clicked_cell = std::nullopt;
+    return fireCellClick(cell, button, action);
+}
+
+void UIGridView::updateHover(sf::Vector2f point, bool hit_allowed)
+{
+    // point is PARENT-local (same space as click_at); the view's own box position
+    // takes it to widget-local, and cellAtLocal applies this view's camera.
+    std::optional<sf::Vector2i> new_cell = std::nullopt;
+    if (hit_allowed) new_cell = cellAtLocal(point - box.getPosition());
+    if (new_cell != hovered_cell) {
+        if (hovered_cell.has_value()) fireCellExit(hovered_cell.value());
+        if (new_cell.has_value())     fireCellEnter(new_cell.value());
+        hovered_cell = new_cell;
+    }
+}
+
+// =========================================================================
+// #355 - Cell callback properties (moved from UIGrid)
+// =========================================================================
+PyObject* UIGridView::get_on_cell_enter(PyUIGridViewObject* self, void* closure) {
+    if (self->data->on_cell_enter_callable) {
+        PyObject* cb = self->data->on_cell_enter_callable->borrow();
+        Py_INCREF(cb);
+        return cb;
+    }
+    Py_RETURN_NONE;
+}
+
+int UIGridView::set_on_cell_enter(PyUIGridViewObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        self->data->on_cell_enter_callable.reset();
+    } else {
+        self->data->on_cell_enter_callable = std::make_unique<PyCellHoverCallable>(value);
+    }
+    return 0;
+}
+
+PyObject* UIGridView::get_on_cell_exit(PyUIGridViewObject* self, void* closure) {
+    if (self->data->on_cell_exit_callable) {
+        PyObject* cb = self->data->on_cell_exit_callable->borrow();
+        Py_INCREF(cb);
+        return cb;
+    }
+    Py_RETURN_NONE;
+}
+
+int UIGridView::set_on_cell_exit(PyUIGridViewObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        self->data->on_cell_exit_callable.reset();
+    } else {
+        self->data->on_cell_exit_callable = std::make_unique<PyCellHoverCallable>(value);
+    }
+    return 0;
+}
+
+PyObject* UIGridView::get_on_cell_click(PyUIGridViewObject* self, void* closure) {
+    if (self->data->on_cell_click_callable) {
+        PyObject* cb = self->data->on_cell_click_callable->borrow();
+        Py_INCREF(cb);
+        return cb;
+    }
+    Py_RETURN_NONE;
+}
+
+int UIGridView::set_on_cell_click(PyUIGridViewObject* self, PyObject* value, void* closure) {
+    if (value == Py_None) {
+        self->data->on_cell_click_callable.reset();
+    } else {
+        self->data->on_cell_click_callable = std::make_unique<PyClickCallable>(value);
+    }
+    return 0;
+}
+
+// #364 - Overlay children. The collection's owner is the VIEW, so UICollection::append
+// parents each child to a drawable that is actually in the scene graph: its dirty push
+// then reaches this view and every caching ancestor above it.
+PyObject* UIGridView::get_children(PyUIGridViewObject* self, void* closure)
+{
+    PyTypeObject* type = &mcrfpydef::PyUICollectionType;
+    auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
+    if (o) {
+        o->data = self->data->children;
+        o->owner = self->data;
+    }
+    return (PyObject*)o;
+}
+
+PyObject* UIGridView::get_hovered_cell(PyUIGridViewObject* self, void* closure) {
+    if (self->data->hovered_cell.has_value()) {
+        return Py_BuildValue("(ii)", self->data->hovered_cell->x, self->data->hovered_cell->y);
+    }
+    Py_RETURN_NONE;
+}
+
+// =========================================================================
 // Subscript protocol: grid[x, y] -> GridPoint (delegates to GridData).
 // Setitem raises TypeError (GridPoints are views, not assignable).
 // =========================================================================
@@ -939,15 +1528,10 @@ PyObject* UIGridView::subscript(PyUIGridViewObject* self, PyObject* key)
         return NULL;
     }
 
-    // Reconstruct shared_ptr<UIGrid> from GridData via aliasing constructor
-    // (mirrors UIGridView::get_grid).
-    auto grid_ptr = static_cast<UIGrid*>(grid_data.get());
-    auto grid_as_uigrid = std::shared_ptr<UIGrid>(grid_data, grid_ptr);
-
     auto type = &mcrfpydef::PyUIGridPointType;
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
     if (!obj) return NULL;
-    obj->grid = grid_as_uigrid;
+    obj->grid = grid_data;  // #361: the GridPoint holds the map directly
     obj->x = x;
     obj->y = y;
     return (PyObject*)obj;
@@ -973,6 +1557,17 @@ typedef PyUIGridViewObject PyObjectType;
 // Methods and getsetters arrays
 PyMethodDef UIGridView_all_methods[] = {
     UIDRAWABLE_METHODS,
+    {"center_camera", (PyCFunction)UIGridView::py_center_camera, METH_VARARGS,
+     MCRF_METHOD(GridView, center_camera,
+         MCRF_SIG("(pos: tuple = None)", "None"),
+         MCRF_DESC("Point this view's camera at a tile, or at the middle of the map when "
+                   "called with no argument.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "(tile_x, tile_y) to center on. Offset by 0.5 to aim at a tile's "
+                         "middle rather than its top-left corner.")
+         MCRF_NOTE("The camera belongs to the VIEW, not the map: two views of one GridData "
+                   "pan independently.")
+     )},
     {NULL}
 };
 
@@ -981,8 +1576,33 @@ PyMethodDef UIGridView_all_methods[] = {
 PyGetSetDef UIGridView::getsetters[] = {
     {"grid_data", (getter)UIGridView::get_grid, (setter)UIGridView::set_grid,
      MCRF_PROPERTY(grid_data, "The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid."), NULL},
+    {"children", (getter)UIGridView::get_children, NULL,
+     MCRF_PROPERTY(children,
+         "UICollection of UIDrawable children such as speech bubbles, effects, and range "
+         "indicators anchored to grid content (UICollection, read-only)."
+         MCRF_NOTE(
+             "Grid children are positioned in the grid's pixel-world coordinates -- the same "
+             "origin as Entity positions -- NOT in the grid widget's screen-space pixels. They "
+             "pan and zoom with the grid camera (center, zoom), so a child placed near an "
+             "entity stays near that entity as the camera moves. This differs from "
+             "Frame.children, which are frame-local: since a Frame cannot pan its content, "
+             "Frame children are effectively already in screen coordinates. If you want UI "
+             "that floats over the grid regardless of camera position (e.g. a HUD), do not use "
+             "Grid.children -- add a sibling Frame with the same pos/size as the Grid instead."
+         )
+         MCRF_NOTE(
+             "Children belong to the VIEW, not to the shared grid data: they are overlays drawn "
+             "through this camera, so two views over one grid have independent children (a "
+             "minimap does not inherit the main view's speech bubbles) while sharing every "
+             "entity. Entities are the world contents; children are annotations over them."
+         )
+         MCRF_LINK("docs/grid-coordinate-spaces.md", "Grid Coordinate Spaces & Overlay Pattern")
+     ), NULL},
     {"center", (getter)UIGridView::get_center, (setter)UIGridView::set_center,
      MCRF_PROPERTY(center, "Camera center point in pixel coordinates (Vector)."), NULL},
+    {"size", (getter)UIGridView::get_size, (setter)UIGridView::set_size,
+     MCRF_PROPERTY(size, "Size of the grid widget in pixels as (w, h) (Vector). This is the "
+                         "viewport, not the map: the map's dimensions are grid_size."), NULL},
     {"zoom", (getter)UIGridView::get_zoom, (setter)UIGridView::set_zoom,
      MCRF_PROPERTY(zoom, "Zoom level for rendering (float). Values greater than 1.0 magnify; less than 1.0 shrink."), NULL},
     {"fill_color", (getter)UIGridView::get_fill_color, (setter)UIGridView::set_fill_color,
@@ -1019,5 +1639,26 @@ PyGetSetDef UIGridView::getsetters[] = {
     UIDRAWABLE_ALIGNMENT_GETSETTERS(PyObjectsEnum::UIGRIDVIEW),
     UIDRAWABLE_ROTATION_GETSETTERS(PyObjectsEnum::UIGRIDVIEW),
     UIDRAWABLE_SHADER_GETSETTERS(PyObjectsEnum::UIGRIDVIEW),
+    // #355 - cell input properties (moved from _GridData to the view)
+    {"on_cell_enter", (getter)UIGridView::get_on_cell_enter, (setter)UIGridView::set_on_cell_enter,
+     MCRF_PROPERTY(on_cell_enter, "Callback when mouse enters a grid cell (Callable | None). Called with (cell_pos: Vector)."), NULL},
+    {"on_cell_exit", (getter)UIGridView::get_on_cell_exit, (setter)UIGridView::set_on_cell_exit,
+     MCRF_PROPERTY(on_cell_exit, "Callback when mouse exits a grid cell (Callable | None). Called with (cell_pos: Vector)."), NULL},
+    {"on_cell_click", (getter)UIGridView::get_on_cell_click, (setter)UIGridView::set_on_cell_click,
+     MCRF_PROPERTY(on_cell_click, "Callback when a grid cell is clicked (Callable | None). Called with (cell_pos: Vector, button: MouseButton, action: InputState)."), NULL},
+    {"hovered_cell", (getter)UIGridView::get_hovered_cell, NULL,
+     MCRF_PROPERTY(hovered_cell, "Currently hovered cell as (x, y) tuple, or None if not hovering (tuple | None, read-only)."), NULL},
+    // #355 - perspective moved from _GridData to the view: render() draws the FOV
+    // overlay, so the view must own the state it gates on. Per-view, so two views
+    // of one grid can follow different entities.
+    {"perspective", (getter)UIGridView::get_perspective, (setter)UIGridView::set_perspective,
+     MCRF_PROPERTY(perspective,
+         "Entity whose perspective_map drives fog-of-war rendering in this view (Entity | None). "
+         "Setting an entity enables perspective mode; setting None disables it. "
+         "Cells the entity has never seen are drawn black, discovered-but-not-visible cells dimmed."), NULL},
+    {"perspective_enabled", (getter)UIGridView::get_perspective_enabled, (setter)UIGridView::set_perspective_enabled,
+     MCRF_PROPERTY(perspective_enabled,
+         "Whether this view renders the perspective/FOV overlay (bool). "
+         "Set automatically when assigning perspective; set False to show the whole map without clearing the entity."), NULL},
     {NULL}
 };

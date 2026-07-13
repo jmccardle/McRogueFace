@@ -26,14 +26,13 @@ typedef struct {
     PyObject* weakreflist;  // Weak reference support
 } PyUICaptionObject;
 
-class UIGrid;
+class GridData;
 class UIGridView;
 typedef struct {
     PyObject_HEAD
-    std::shared_ptr<UIGrid> data;
-    std::shared_ptr<UIGridView> view;  // #252: auto-created rendering view (shim)
+    std::shared_ptr<GridData> data;
     PyObject* weakreflist;  // Weak reference support
-} PyUIGridObject;
+} PyGridDataObject;
 
 class UISprite;
 typedef struct {
@@ -167,7 +166,7 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
         if ((parent_obj) && (parent_obj) != Py_None) { \
             if (!PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIFrameType) && \
                 !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PySceneType) && \
-                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIGridType) && \
+                !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyGridDataType) && \
                 !PyObject_IsInstance((parent_obj), (PyObject*)&mcrfpydef::PyUIGridViewType)) { \
                 PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Scene, or Grid"); \
                 return -1; \
@@ -328,7 +327,7 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
      MCRF_PROPERTY(rotate_with_camera, \
          "Whether to rotate visually with parent Grid's camera_rotation (bool). " \
          "False (default): stay screen-aligned. True: tilt with camera. " \
-         "Only affects children of UIGrid; ignored for other parents." \
+         "Only affects children of a Grid; ignored for other parents." \
      ), (void*)type_enum}
 
 // #106: Shader support - GPU-accelerated visual effects

@@ -10,7 +10,7 @@ class GameEngine;
 class UIDrawable;
 class UIEntity;
 class UIFrame;
-class UIGrid;
+class GridData;
 
 /**
  * @brief ImGui-based scene tree explorer for debugging

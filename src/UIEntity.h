@@ -22,7 +22,7 @@
 #include "DiscreteMap.h"
 #include <memory>
 
-class UIGrid;
+class GridData;
 class GridData;
 
 // UIEntity

@@ -6,7 +6,7 @@
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIEntity.h"
 #include "UI.h"  // For the PyTypeObject definitions
 #include <cstring>  // For strcmp in parseConflictMode
@@ -253,14 +253,8 @@ PyObject* PyAnimation::start(PyAnimationObject* self, PyObject* args, PyObject* 
             handled = true;
         }
     }
-    else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIGridType)) {
-        PyUIGridObject* grid = (PyUIGridObject*)target_obj;
-        if (grid->data) {
-            self->data->start(grid->data);
-            AnimationManager::getInstance().addAnimation(self->data, conflict_mode);
-            handled = true;
-        }
-    }
+    // #361: a GridData is NOT an animation target -- it has no position, size,
+    // color or camera to tween. Animate the Grid (GridView) that displays it.
     else if (PyObject_IsInstance(target_obj, (PyObject*)&mcrfpydef::PyUIEntityType)) {
         // Special handling for Entity since it doesn't inherit from UIDrawable
         PyUIEntityObject* entity = (PyUIEntityObject*)target_obj;

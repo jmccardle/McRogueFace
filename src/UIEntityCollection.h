@@ -18,13 +18,13 @@
 
 // Forward declarations
 class UIEntity;
-class UIGrid;
+class GridData;
 
 // Python object for EntityCollection
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<std::vector<std::shared_ptr<UIEntity>>> data;
-    std::shared_ptr<UIGrid> grid;
+    std::shared_ptr<GridData> grid;
 } PyUIEntityCollectionObject;
 
 // Python object for EntityCollection iterator

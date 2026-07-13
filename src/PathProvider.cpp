@@ -1,9 +1,9 @@
 #include "PathProvider.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridPathfinding.h"
 #include "UIGridPoint.h"
 
-static bool cellWalkable(UIGrid& grid, int x, int y) {
+static bool cellWalkable(GridData& grid, int x, int y) {
     if (x < 0 || x >= grid.grid_w || y < 0 || y >= grid.grid_h) return false;
     return grid.isWalkable(x, y);  // #332
 }
@@ -14,7 +14,7 @@ static bool cellWalkable(UIGrid& grid, int x, int y) {
 DijkstraProvider::DijkstraProvider(std::shared_ptr<DijkstraMap> map)
     : map_(std::move(map)) {}
 
-sf::Vector2i DijkstraProvider::nextStep(sf::Vector2i from, UIGrid& /*grid*/, bool* ok) {
+sf::Vector2i DijkstraProvider::nextStep(sf::Vector2i from, GridData& /*grid*/, bool* ok) {
     if (!map_) {
         if (ok) *ok = false;
         return {-1, -1};
@@ -31,7 +31,7 @@ sf::Vector2i DijkstraProvider::nextStep(sf::Vector2i from, UIGrid& /*grid*/, boo
 AStarProvider::AStarProvider(std::vector<sf::Vector2i> path)
     : path_(std::move(path)) {}
 
-sf::Vector2i AStarProvider::nextStep(sf::Vector2i /*from*/, UIGrid& /*grid*/, bool* ok) {
+sf::Vector2i AStarProvider::nextStep(sf::Vector2i /*from*/, GridData& /*grid*/, bool* ok) {
     if (index_ >= path_.size()) {
         if (ok) *ok = false;
         return {-1, -1};
@@ -46,7 +46,7 @@ sf::Vector2i AStarProvider::nextStep(sf::Vector2i /*from*/, UIGrid& /*grid*/, bo
 TargetProvider::TargetProvider(sf::Vector2i target)
     : target_(target) {}
 
-sf::Vector2i TargetProvider::nextStep(sf::Vector2i from, UIGrid& grid, bool* ok) {
+sf::Vector2i TargetProvider::nextStep(sf::Vector2i from, GridData& grid, bool* ok) {
     int dx = target_.x - from.x;
     int dy = target_.y - from.y;
     if (dx == 0 && dy == 0) {

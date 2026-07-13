@@ -4,7 +4,7 @@
 #include "UIFrame.h"
 #include "UICaption.h"
 #include "UISprite.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridView.h"
 #include "UILine.h"
 #include "UICircle.h"
@@ -64,17 +64,6 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
             auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
             if (pyObj) {
                 pyObj->data = std::static_pointer_cast<UISprite>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIGRID:
-        {
-            type = &PyUIGridType;
-            auto pyObj = (PyUIGridObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIGrid>(drawable);
                 pyObj->weakreflist = NULL;
             }
             obj = (PyObject*)pyObj;
@@ -163,8 +152,9 @@ static std::shared_ptr<UIDrawable> extractDrawable(PyObject* o) {
         return ((PyUICaptionObject*)o)->data;
     if (PyObject_IsInstance(o, (PyObject*)&PyUISpriteType))
         return ((PyUISpriteObject*)o)->data;
-    if (PyObject_IsInstance(o, (PyObject*)&PyUIGridType))
-        return ((PyUIGridObject*)o)->data;
+    // #361: a GridData is NOT a drawable and cannot be appended to a collection.
+    // It falls through to the caller's TypeError -- appending a map to a scene used
+    // to draw the whole grid a second time through a frozen, invisible camera.
     if (PyObject_IsInstance(o, (PyObject*)&PyUIGridViewType))
         return ((PyUIGridViewObject*)o)->data;
     if (PyObject_IsInstance(o, (PyObject*)&PyUILineType))
@@ -1127,12 +1117,15 @@ PyObject* UICollection::repr(PyUICollectionObject* self)
 	    // Count each type
 	    int frame_count = 0, caption_count = 0, sprite_count = 0, grid_count = 0, other_count = 0;
 	    for (auto& item : *self->data) {
+	        // #366: detect grid-ness with the asGridData() virtual (#355), not
+	        // derived_type(). Every mcrfpy.Grid in a collection is a UIGRIDVIEW --
+	        // the UIGRID arm this used to key on has not appeared in a scene graph
+	        // since #252, so grids were tallied as "other".
+	        if (item->asGridData()) { grid_count++; continue; }
 	        switch(item->derived_type()) {
 	            case PyObjectsEnum::UIFRAME: frame_count++; break;
 	            case PyObjectsEnum::UICAPTION: caption_count++; break;
 	            case PyObjectsEnum::UISPRITE: sprite_count++; break;
-	            case PyObjectsEnum::UIGRID: grid_count++; break;
-	            case PyObjectsEnum::UIGRIDVIEW: other_count++; break;
 	            default: other_count++; break;
 	        }
 	    }

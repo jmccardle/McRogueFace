@@ -28,9 +28,14 @@ class UIDrawable;
 class UIGridView;
 class PyTexture;
 
+// GridData is a MAP, not a widget (#361). It has no position, no size, no
+// camera, and no render(). Only UIGridView -- which holds a camera and points
+// at a GridData -- is a UIDrawable. `mcrfpy.Grid` is a GridView that creates
+// its own GridData; N views may share one GridData (split-screen, minimap).
 class GridData {
 public:
     GridData();
+    GridData(int gx, int gy, std::shared_ptr<PyTexture> texture);
     virtual ~GridData();
 
     // =========================================================================
@@ -38,9 +43,25 @@ public:
     // =========================================================================
     int grid_w = 0, grid_h = 0;
 
-    // #313 - Cell pixel dimensions, mirrored from the owning UIGrid's texture
-    // at construction (UIGrid::ptex is write-once, ctor only). Lets the data
-    // layer do tile<->pixel math without reaching into rendering state.
+    // #361 - The tile atlas. This is DATA, not rendering state: it is what
+    // defines the cell size in pixels, which every tile<->pixel conversion in
+    // the engine (entity positions, layer geometry, a view's camera math)
+    // depends on. Views copy it to draw with; they do not own it. Write-once
+    // at construction, so cell_width_px/cell_height_px never go stale.
+    std::shared_ptr<PyTexture> ptex;
+    std::shared_ptr<PyTexture> getTexture() const { return ptex; }
+
+    static constexpr int DEFAULT_CELL_WIDTH = 16;
+    static constexpr int DEFAULT_CELL_HEIGHT = 16;
+
+    // #361 - PythonObjectCache identity. GridData used to inherit this from
+    // UIDrawable; now that it is not a drawable it carries its own, so that
+    // `entity.grid`, `view.grid_data` and the GridPoint/layer back-references
+    // all resolve to ONE Python wrapper instead of a fresh one per access.
+    uint64_t serial_number = 0;
+
+    // #313 - Cell pixel dimensions, mirrored from ptex at construction. Lets
+    // the data layer do tile<->pixel math without reaching into a view.
     int cell_width_px = 16;
     int cell_height_px = 16;
     int cell_width() const { return cell_width_px; }
@@ -119,37 +140,47 @@ public:
     std::shared_ptr<GridLayer> getLayerByName(const std::string& name);
     static bool isProtectedLayerName(const std::string& name);
 
-    // =========================================================================
-    // Cell callbacks (#142, #230)
-    // =========================================================================
-    std::unique_ptr<PyCellHoverCallable> on_cell_enter_callable;
-    std::unique_ptr<PyCellHoverCallable> on_cell_exit_callable;
-    std::unique_ptr<PyClickCallable> on_cell_click_callable;
-    std::optional<sf::Vector2i> hovered_cell;
-    std::optional<sf::Vector2i> last_clicked_cell;
+    // #355 - Cell input (callbacks, hovered/last-clicked cell, subclass-dispatch
+    // cache) moved to UIGridView: input is a property of the VIEW (camera), not of
+    // the data. Two views over one GridData must track hover independently, and
+    // the subclassable Python type (mcrfpy.Grid) IS UIGridView.
 
-    struct CellCallbackCache {
-        uint32_t generation = 0;
-        bool valid = false;
-        bool has_on_cell_click = false;
-        bool has_on_cell_enter = false;
-        bool has_on_cell_exit = false;
-    };
-    CellCallbackCache cell_callback_cache;
-
-    // fireCellClick/Enter/Exit and refreshCellCallbackCache are on UIGrid
-    // because they need access to UIDrawable::serial_number/is_python_subclass
+    // #364 - UIDrawable children (speech bubbles, markers, range indicators) moved
+    // to UIGridView. They are OVERLAYS painted over the map through one camera, not
+    // world contents: nothing collides with them, they occupy no cell, and the turn
+    // manager cannot see them. Entities are the world contents, and those stay here,
+    // shared by every view.
+    //
+    // Ownership follows from that. A UIDrawable has exactly one `parent`, but a
+    // GridData may have N views -- so a child owned by the data could only ever name
+    // one of them as parent, arbitrarily, and would dangle if that view died while
+    // the others kept rendering it. Owned by the view, a child's parent is a real
+    // scene-graph drawable, so its dirty push reaches the view and every caching
+    // ancestor above it, and its grid-world position resolves through exactly one
+    // camera.
 
     // =========================================================================
-    // UIDrawable children (speech bubbles, effects, overlays)
+    // #252/#359 - GridView back-references. Multiple GridViews can share one
+    // GridData (split-screen, minimap, multiple cameras); a single weak_ptr
+    // cannot represent that, so this is a vector. A fresh GridData is only
+    // ever produced by UIGridView::init_with_data (the Grid() factory path --
+    // UIGridView::init_explicit_view / set_grid can only ATTACH to an
+    // EXISTING GridData, never create one), so views.front() is always the
+    // view that created this data: that ordering guarantee is what lets
+    // primaryView() give UIEntity::get_grid a deterministic (not arbitrary)
+    // answer for API identity, even once secondary views are registered.
     // =========================================================================
-    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
-    bool children_need_sort = true;
+    std::vector<std::weak_ptr<UIGridView>> views;
 
-    // =========================================================================
-    // #252 - Owning GridView back-reference (for Entity.grid → GridView lookup)
-    // =========================================================================
-    std::weak_ptr<UIGridView> owning_view;
+    // Append view (idempotent -- a view already present is not duplicated).
+    void registerView(const std::shared_ptr<UIGridView>& view);
+    // Remove view by identity (prunes expired entries too). Safe to call even
+    // if view was never registered.
+    void unregisterView(UIGridView* view);
+    // The view that created this GridData (views.front()), or the first
+    // still-alive view if the creator has since been destroyed while
+    // secondary views live on. nullptr if no view is alive.
+    std::shared_ptr<UIGridView> primaryView() const;
 
     // #351 - Monotonic counter bumped whenever grid content drawn into a view's
     // RenderTexture changes (entities added/removed/moved, sprite changes, layer
@@ -158,14 +189,23 @@ public:
     // live on the view and are compared there directly, not counted here.
     uint64_t content_generation = 0;
 
-    // #313 - Render invalidation from the data layer. Entities hold
+    // #313/#359 - Render invalidation from the data layer. Entities hold
     // shared_ptr<GridData> but still need to invalidate rendering when their
-    // visual state changes. These set the dirty flags on the UIGrid subobject
-    // (GridData is never independently heap-allocated -- always a UIGrid base)
-    // AND notify owning_view, covering both render paths (a bare _GridData
-    // rendered directly, and the normal GridView). Within UIGrid itself the
-    // UIDrawable versions win via using-declarations (see UIGrid.h).
-    // Multi-view broadcast (secondary views) is deferred to #252.
+    // visual state changes, so the data notifies every registered view (see
+    // `views` above) -- and each view then pushes up its OWN ancestor chain,
+    // since a Frame(cache_subtree=True) wrapping ANY of the N views needs its
+    // cache invalidated, not just the creator's.
+    //
+    // #361: these used to ALSO downcast `this` to UIGrid and set the dirty
+    // flags on its UIDrawable half, feeding a second, stale render path (a
+    // bare _GridData appended to a scene drew the map through a frozen camera).
+    // That path is gone: GridData is not a drawable, so there is nothing to
+    // notify but the views.
+    //
+    // Note the #351 render early-out does NOT depend on this push -- it polls
+    // content_generation directly in UIGridView::render(). This is only for
+    // bottom-up propagation through a view's parent chain, which a top-down
+    // render traversal cannot poll for.
     void markDirty();
     void markCompositeDirty();
 

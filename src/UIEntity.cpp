@@ -1,5 +1,5 @@
 #include "UIEntity.h"
-#include "UIGrid.h"
+#include "PyGridData.h"
 #include "UIGridView.h"  // #252: Entity.grid accepts GridView
 #include "UIGridPathfinding.h"
 #include "PathProvider.h"
@@ -23,19 +23,10 @@
 #include "McRFPy_Doc.h"
 #include <cassert>
 
-// #313: UIEntity::grid holds the GridData base, but some Python wrappers
-// (PyUIGridObject, PyUIGridPointObject) and pathfinding helpers still take the
-// full UIGrid. GridData is never independently heap-allocated -- it is always
-// a UIGrid base subobject (see GridData.h) -- so this aliasing downcast is
-// valid and shares the original control block (never mints a new one, which
-// would double-free and break the #251 use_count dealloc gate).
-// TODO(#252): remove once those wrappers accept pure GridData.
-static std::shared_ptr<UIGrid> grid_as_uigrid(const std::shared_ptr<GridData>& grid)
-{
-    if (!grid) return nullptr;
-    assert(dynamic_cast<UIGrid*>(grid.get()) != nullptr);
-    return std::shared_ptr<UIGrid>(grid, static_cast<UIGrid*>(grid.get()));
-}
+// #361: grid_as_uigrid() is gone. It existed to recover the "full UIGrid" that
+// every GridData was secretly a base subobject of, so that Python wrappers and
+// pathfinding helpers could get at the drawable half. There is no drawable half
+// any more -- GridData is the whole object, and every wrapper takes it directly.
 
 UIEntity::UIEntity()
 : grid(nullptr), position(0.0f, 0.0f), sprite_offset(0.0f, 0.0f)
@@ -195,7 +186,7 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     auto type = &mcrfpydef::PyUIGridPointType;
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
     if (!obj) return NULL;
-    obj->grid = grid_as_uigrid(entity->grid);  // #313: wrapper still holds UIGrid
+    obj->grid = entity->grid;
     obj->x = x;
     obj->y = y;
     return (PyObject*)obj;
@@ -290,7 +281,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     }
     
     // Handle grid argument - accept both internal _GridData and GridView (unified Grid)
-    if (grid_obj && !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridType) &&
+    if (grid_obj && !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType) &&
         !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
         PyErr_SetString(PyExc_TypeError, "grid must be a mcrfpy.Grid instance");
         return -1;
@@ -379,7 +370,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
             grid_ptr = pyview->data->grid_data;
         } else {
             // Internal _GridData type
-            PyUIGridObject* pygrid = (PyUIGridObject*)grid_obj;
+            PyGridDataObject* pygrid = (PyGridDataObject*)grid_obj;
             grid_ptr = pygrid->data;
         }
         if (grid_ptr) {
@@ -819,65 +810,20 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
         Py_RETURN_NONE;
     }
 
-    auto& grid = self->data->grid;
-
-    // #252: If the grid has an owning GridView, return that instead.
-    // This preserves the unified Grid API where entity.grid returns the same
-    // object the user created via mcrfpy.Grid(...).
-    auto owning_view = grid->owning_view.lock();
-    if (owning_view) {
-        // Check cache for the GridView
-        if (owning_view->serial_number != 0) {
-            PyObject* cached = PythonObjectCache::getInstance().lookup(owning_view->serial_number);
-            if (cached) return cached;
-        }
-
-        auto view_type = &mcrfpydef::PyUIGridViewType;
-        auto pyView = (PyUIGridViewObject*)view_type->tp_alloc(view_type, 0);
-        if (pyView) {
-            pyView->data = owning_view;
-            pyView->weakreflist = NULL;
-
-            if (owning_view->serial_number == 0) {
-                owning_view->serial_number = PythonObjectCache::getInstance().assignSerial();
-            }
-            PyObject* weakref = PyWeakref_NewRef((PyObject*)pyView, NULL);
-            if (weakref) {
-                PythonObjectCache::getInstance().registerObject(owning_view->serial_number, weakref);
-                Py_DECREF(weakref);
-            }
-        }
-        return (PyObject*)pyView;
-    }
-
-    // Fallback: return internal _GridData wrapper (no owning view)
-    // #313: serial_number lives on the UIDrawable side; recover the full
-    // UIGrid via the aliasing helper (same control block, no new ownership).
-    auto uigrid = grid_as_uigrid(grid);
-    if (uigrid->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(uigrid->serial_number);
-        if (cached) {
-            return cached;
-        }
-    }
-
-    auto grid_type = &mcrfpydef::PyUIGridType;
-    auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
-
-    if (pyGrid) {
-        pyGrid->data = uigrid;
-        pyGrid->weakreflist = NULL;
-
-        if (uigrid->serial_number == 0) {
-            uigrid->serial_number = PythonObjectCache::getInstance().assignSerial();
-        }
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)pyGrid, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(uigrid->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
-    return (PyObject*)pyGrid;
+    // #361 - Returns the GridData (the MAP), not a view.
+    //
+    // This is a deliberate, user-visible break. It used to return primaryView() --
+    // the Grid whose constructor happened to create this data -- falling back to a
+    // bare _GridData wrapper when no view existed. But "the grid an entity is in"
+    // is not a camera: an entity may live on a map with NO view (an offscreen
+    // level, still steppable and queryable) or with SEVERAL, and picking
+    // views.front() was an arbitrary answer dressed up as a deterministic one.
+    //
+    // Migration: `player.grid.center_camera(player.pos)` becomes
+    // `view.center_camera(player.pos)` on the view you are actually rendering.
+    // Everything that is genuinely about the map -- at(), entities, layers,
+    // compute_fov(), find_path(), step() -- is unchanged.
+    return PyGridData::pyobject_for(self->data->grid);
 }
 
 int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
@@ -920,8 +866,8 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
             PyErr_SetString(PyExc_ValueError, "Grid has no data");
             return -1;
         }
-    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType)) {
-        new_grid = ((PyUIGridObject*)value)->data;
+    } else if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
+        new_grid = ((PyGridDataObject*)value)->data;
     } else {
         PyErr_SetString(PyExc_TypeError, "grid must be a Grid or None");
         return -1;
@@ -1259,12 +1205,9 @@ PyObject* UIEntity::find_path(PyUIEntityObject* self, PyObject* args, PyObject* 
 
     auto grid = self->data->grid;
 
-    // Extract target position
-    // #313: ExtractPosition still takes UIGrid*; the downcast is valid because
-    // GridData is always a UIGrid base subobject (see grid_as_uigrid).
     int target_x, target_y;
     if (!UIGridPathfinding::ExtractPosition(target_obj, &target_x, &target_y,
-                                            static_cast<UIGrid*>(grid.get()), "target")) {
+                                            grid.get(), "target")) {
         return NULL;
     }
 
@@ -1278,13 +1221,9 @@ PyObject* UIEntity::find_path(PyUIEntityObject* self, PyObject* args, PyObject* 
         return NULL;
     }
 
-    // Build args to delegate to Grid.find_path
-    // Create a temporary PyUIGridObject wrapper for the grid (internal _GridData type)
-    // #313: wrapper holds shared_ptr<UIGrid>; alias-cast from the data ptr.
-    auto* grid_type = &mcrfpydef::PyUIGridType;
-    auto pyGrid = (PyUIGridObject*)grid_type->tp_alloc(grid_type, 0);
+    // Delegate to GridData.find_path on the map's one Python wrapper (#361).
+    PyObject* pyGrid = PyGridData::pyobject_for(grid);
     if (!pyGrid) return NULL;
-    new (&pyGrid->data) std::shared_ptr<UIGrid>(grid_as_uigrid(grid));
 
     // Build keyword args for Grid.find_path
     PyObject* start_tuple = Py_BuildValue("(ii)", start_x, start_y);
@@ -1303,7 +1242,7 @@ PyObject* UIEntity::find_path(PyUIEntityObject* self, PyObject* args, PyObject* 
         Py_DECREF(py_collide);
     }
 
-    PyObject* result = UIGridPathfinding::Grid_find_path(pyGrid, fwd_args, fwd_kwds);
+    PyObject* result = UIGridPathfinding::Grid_find_path((PyGridDataObject*)pyGrid, fwd_args, fwd_kwds);
 
     Py_DECREF(fwd_args);
     Py_DECREF(fwd_kwds);
