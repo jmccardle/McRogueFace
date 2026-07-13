@@ -135,7 +135,7 @@ public:
     static PyMappingMethods mpmethods;
     static PyObject* subscript(PyUIGridObject* self, PyObject* key);
     static PyObject* get_entities(PyUIGridObject* self, void* closure);
-    static PyObject* get_children(PyUIGridObject* self, void* closure);
+    // #364: get_children lives on UIGridView -- overlay children belong to the view.
     static PyObject* repr(PyUIGridObject* self);
 
     static PyObject* py_add_layer(PyUIGridObject* self, PyObject* args);
@@ -218,12 +218,6 @@ namespace mcrfpydef {
                             "    texture (Texture): Tile texture atlas\n"
                             "    fill_color (Color): Background color\n"
                             "    entities (EntityCollection): Collection of entities in the grid\n"
-                            "    children (UICollection): UIDrawable children (speech bubbles, markers, "
-                            "range indicators) anchored to grid content -- positioned in the grid's "
-                            "pixel-world coordinates, same origin as entities, and pan/zoom with the "
-                            "camera. NOT the same coordinate space as Frame.children. For screen-space "
-                            "UI that floats over the grid, use a sibling Frame instead; see "
-                            "docs/grid-coordinate-spaces.md\n"
                             "    click (callable): Click event handler\n"
                             "    visible (bool): Visibility state\n"
                             "    opacity (float): Opacity value\n"

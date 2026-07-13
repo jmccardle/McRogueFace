@@ -1007,29 +1007,19 @@ void UIDrawable::removeFromParent() {
         }
         frame->children_need_sort = true;
     }
-    else if (p->derived_type() == PyObjectsEnum::UIGRID) {
-        auto grid = std::static_pointer_cast<UIGrid>(p);
-        auto& children = *grid->children;
-
-        for (auto it = children.begin(); it != children.end(); ++it) {
-            if (it->get() == this) {
-                children.erase(it);
-                break;
-            }
-        }
-        grid->children_need_sort = true;
-    }
+    // #364: a grid child's parent is the UIGridView. The internal UIGrid (_GridData)
+    // holds no drawables, so it can never be a parent and needs no arm here.
     else if (p->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
         auto view = std::static_pointer_cast<UIGridView>(p);
-        if (view->grid_data && view->grid_data->children) {
-            auto& children = *view->grid_data->children;
+        if (view->children) {
+            auto& children = *view->children;
             for (auto it = children.begin(); it != children.end(); ++it) {
                 if (it->get() == this) {
                     children.erase(it);
                     break;
                 }
             }
-            view->grid_data->children_need_sort = true;
+            view->children_need_sort = true;
         }
     }
 
@@ -1417,13 +1407,14 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         return 0;
     }
 
-    // Value must be a Frame, Grid, or Scene (things with children collections)
+    // Value must be a Frame, Grid, or Scene (things with children collections).
+    // #364: the internal _GridData (PyUIGridType) is NOT among them -- it holds
+    // entities and cells, never drawables -- so it falls through to the TypeError.
     bool is_frame = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIFrameType);
-    bool is_grid = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridType);
     bool is_gridview = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyUIGridViewType);
     bool is_scene = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PySceneType);
 
-    if (!is_frame && !is_grid && !is_gridview && !is_scene) {
+    if (!is_frame && !is_gridview && !is_scene) {
         PyErr_SetString(PyExc_TypeError, "parent must be a Frame, Grid, Scene, or None");
         return -1;
     }
@@ -1468,16 +1459,10 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         children_ptr = &frame->children;
         new_parent = frame;
     } else if (is_gridview) {
-        // #252: GridView (unified Grid) - access children through grid_data
+        // #364: overlay children belong to the view itself, not to the grid data.
         auto view = ((PyUIGridViewObject*)value)->data;
-        if (view->grid_data) {
-            children_ptr = &view->grid_data->children;
-        }
+        children_ptr = &view->children;
         new_parent = view;
-    } else if (is_grid) {
-        auto grid = ((PyUIGridObject*)value)->data;
-        children_ptr = &grid->children;
-        new_parent = grid;
     }
 
     if (children_ptr && *children_ptr) {

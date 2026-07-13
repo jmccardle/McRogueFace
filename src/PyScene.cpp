@@ -403,12 +403,12 @@ void PyScene::dispatch_hover(sf::Vector2f mousepos, bool in_window)
         // so a child that was hovered still receives its on_exit.
         else if (drawable->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
             auto view = static_cast<UIGridView*>(drawable);
-            if (view->grid_data && view->grid_data->children) {
+            if (view->children) {
                 sf::Vector2f local = point - view->box.getPosition();
                 sf::Vector2f grid_world = view->localToGridWorld(local);
                 bool inside_view = hit_allowed &&
                     sf::FloatRect(sf::Vector2f(0.f, 0.f), view->box.getSize()).contains(local);
-                for (auto& child : *view->grid_data->children) {
+                for (auto& child : *view->children) {
                     processHover(child.get(), grid_world, inside_view);
                 }
             }

@@ -252,37 +252,9 @@ void UIGrid::render(sf::Vector2f offset, sf::RenderTarget& target)
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }
 
-    // Children layer - UIDrawables in grid-world pixel coordinates
-    // Positioned between entities and FOV overlay for proper z-ordering
-    if (children && !children->empty()) {
-        // Sort by z_index if needed
-        if (children_need_sort) {
-            std::sort(children->begin(), children->end(),
-                [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
-            children_need_sort = false;
-        }
-
-        for (auto& child : *children) {
-            if (!child->visible) continue;
-
-            // Cull children outside visible region (convert pixel pos to cell coords)
-            float child_grid_x = child->position.x / cell_width;
-            float child_grid_y = child->position.y / cell_height;
-
-            if (child_grid_x < left_edge - 2 || child_grid_x >= left_edge + width_sq + 2 ||
-                child_grid_y < top_edge - 2 || child_grid_y >= top_edge + height_sq + 2) {
-                continue; // Not visible, skip rendering
-            }
-
-            // Transform grid-world pixel position to RenderTexture pixel position
-            auto pixel_pos = sf::Vector2f(
-                (child->position.x - left_spritepixels) * zoom,
-                (child->position.y - top_spritepixels) * zoom
-            );
-
-            child->render(pixel_pos, *activeTexture);
-        }
-    }
+    // #364: overlay children are drawn by UIGridView, which owns them. This legacy
+    // render path (a bare _GridData drawn directly -- the ghost view #361 deletes)
+    // has no children to draw.
 
     // #355: the perspective/FOV overlay is drawn by UIGridView::render, which owns
     // the perspective state. UIGrid (the internal _GridData) no longer duplicates it.
@@ -430,14 +402,8 @@ void UIGrid::resize(float w, float h)
         output.setTexture(renderTexture.getTexture());
     }
 
-    // Notify aligned children to recalculate their positions
-    if (children) {
-        for (auto& child : *children) {
-            if (child->getAlignment() != AlignmentType::NONE) {
-                child->applyAlignment();
-            }
-        }
-    }
+    // #364: children (and therefore alignment against the widget's bounds) belong to
+    // UIGridView::resize -- this class no longer holds any.
 }
 
 void UIGrid::onPositionChanged()

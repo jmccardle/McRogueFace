@@ -55,7 +55,7 @@ std::shared_ptr<UIGridView> GridData::primaryView() const {
 GridData::GridData()
 {
     entities = std::make_shared<std::vector<std::shared_ptr<UIEntity>>>();  // #329
-    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
+    // #364: children live on UIGridView, not here -- see GridData.h.
 }
 
 GridData::~GridData()

@@ -29,6 +29,7 @@ UIGridView::UIGridView()
     output.setTexture(renderTexture.getTexture());
     box.setSize(sf::Vector2f(256, 256));
     box.setFillColor(sf::Color(0, 0, 0, 0));
+    children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();  // #364
 }
 
 UIGridView::~UIGridView() {
@@ -88,6 +89,16 @@ void UIGridView::move(float dx, float dy)
 void UIGridView::resize(float w, float h)
 {
     box.setSize(sf::Vector2f(w, h));
+
+    // #364: aligned children re-anchor against the widget's new bounds. This ran in
+    // UIGrid::resize before children moved to the view; it belongs here now.
+    if (children) {
+        for (auto& child : *children) {
+            if (child->getAlignment() != AlignmentType::NONE) {
+                child->applyAlignment();
+            }
+        }
+    }
 }
 
 void UIGridView::onPositionChanged()
@@ -194,9 +205,15 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     // other input is unchanged (otherwise the fog stays on screen forever).
     bool can_skip =
         has_rendered_once
+        // #364 - a child mutation (move, recolor, add, remove) reaches us as
+        // render_dirty via the parent chain, because grid children now parent to the
+        // view. The children carve-out below cannot catch the removal of the LAST
+        // child -- children is empty by then, so the carve-out lifts and the cached
+        // raster, which still has that child baked into it, would be re-blitted.
+        && !render_dirty
         && !perspective_enabled
         && !last_perspective_enabled
-        && (!grid_data->children || grid_data->children->empty())
+        && (!children || children->empty())
         && grid_data->content_generation == last_content_gen
         && center_x == last_center_x && center_y == last_center_y
         && zoom == last_zoom && camera_rotation == last_camera_rotation
@@ -303,14 +320,14 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
     }
 
-    // Children (grid-world pixel coordinates)
-    if (grid_data->children && !grid_data->children->empty()) {
-        if (grid_data->children_need_sort) {
-            std::sort(grid_data->children->begin(), grid_data->children->end(),
+    // Children (grid-world pixel coordinates; owned by this view -- #364)
+    if (children && !children->empty()) {
+        if (children_need_sort) {
+            std::sort(children->begin(), children->end(),
                 [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
-            grid_data->children_need_sort = false;
+            children_need_sort = false;
         }
-        for (auto& child : *grid_data->children) {
+        for (auto& child : *children) {
             if (!child->visible) continue;
             float child_grid_x = child->position.x / cell_width;
             float child_grid_y = child->position.y / cell_height;
@@ -399,6 +416,11 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // #351 - record the inputs this raster was built from for next frame's early-out.
     has_rendered_once = true;
+    // #364 - the raster is now current with every child mutation that pushed dirt up
+    // the parent chain into us. Clearing here is what makes render_dirty a usable
+    // early-out input (see can_skip): without it the flag latches true forever after
+    // the first child edit and the early-out could never fire again.
+    clearDirty();
     last_content_gen = grid_data->content_generation;
     last_center_x = center_x;
     last_center_y = center_y;
@@ -442,13 +464,13 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
     // 1. Children first (drawn on top). Children of a grid live in GRID-WORLD PIXEL
     //    coordinates -- NOT view-local, NOT screen (#360, by design: moving the
     //    camera must not move a child's logical position). Do not "fix" this.
-    if (grid_data->children && !grid_data->children->empty()) {
-        if (grid_data->children_need_sort) {
-            std::sort(grid_data->children->begin(), grid_data->children->end(),
+    if (children && !children->empty()) {
+        if (children_need_sort) {
+            std::sort(children->begin(), children->end(),
                 [](const auto& a, const auto& b) { return a->z_index < b->z_index; });
-            grid_data->children_need_sort = false;
+            children_need_sort = false;
         }
-        for (auto it = grid_data->children->rbegin(); it != grid_data->children->rend(); ++it) {
+        for (auto it = children->rbegin(); it != children->rend(); ++it) {
             auto& child = *it;
             if (!child->visible) continue;
             if (auto target = child->click_at(gw)) return target;
@@ -1417,6 +1439,20 @@ int UIGridView::set_on_cell_click(PyUIGridViewObject* self, PyObject* value, voi
     return 0;
 }
 
+// #364 - Overlay children. The collection's owner is the VIEW, so UICollection::append
+// parents each child to a drawable that is actually in the scene graph: its dirty push
+// then reaches this view and every caching ancestor above it.
+PyObject* UIGridView::get_children(PyUIGridViewObject* self, void* closure)
+{
+    PyTypeObject* type = &mcrfpydef::PyUICollectionType;
+    auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
+    if (o) {
+        o->data = self->data->children;
+        o->owner = self->data;
+    }
+    return (PyObject*)o;
+}
+
 PyObject* UIGridView::get_hovered_cell(PyUIGridViewObject* self, void* closure) {
     if (self->data->hovered_cell.has_value()) {
         return Py_BuildValue("(ii)", self->data->hovered_cell->x, self->data->hovered_cell->y);
@@ -1501,6 +1537,28 @@ PyMethodDef UIGridView_all_methods[] = {
 PyGetSetDef UIGridView::getsetters[] = {
     {"grid_data", (getter)UIGridView::get_grid, (setter)UIGridView::set_grid,
      MCRF_PROPERTY(grid_data, "The underlying grid data object (Grid | None). Used for multi-view scenarios where multiple GridViews share one Grid."), NULL},
+    {"children", (getter)UIGridView::get_children, NULL,
+     MCRF_PROPERTY(children,
+         "UICollection of UIDrawable children such as speech bubbles, effects, and range "
+         "indicators anchored to grid content (UICollection, read-only)."
+         MCRF_NOTE(
+             "Grid children are positioned in the grid's pixel-world coordinates -- the same "
+             "origin as Entity positions -- NOT in the grid widget's screen-space pixels. They "
+             "pan and zoom with the grid camera (center, zoom), so a child placed near an "
+             "entity stays near that entity as the camera moves. This differs from "
+             "Frame.children, which are frame-local: since a Frame cannot pan its content, "
+             "Frame children are effectively already in screen coordinates. If you want UI "
+             "that floats over the grid regardless of camera position (e.g. a HUD), do not use "
+             "Grid.children -- add a sibling Frame with the same pos/size as the Grid instead."
+         )
+         MCRF_NOTE(
+             "Children belong to the VIEW, not to the shared grid data: they are overlays drawn "
+             "through this camera, so two views over one grid have independent children (a "
+             "minimap does not inherit the main view's speech bubbles) while sharing every "
+             "entity. Entities are the world contents; children are annotations over them."
+         )
+         MCRF_LINK("docs/grid-coordinate-spaces.md", "Grid Coordinate Spaces & Overlay Pattern")
+     ), NULL},
     {"center", (getter)UIGridView::get_center, (setter)UIGridView::set_center,
      MCRF_PROPERTY(center, "Camera center point in pixel coordinates (Vector)."), NULL},
     {"zoom", (getter)UIGridView::get_zoom, (setter)UIGridView::set_zoom,

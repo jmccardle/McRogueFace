@@ -54,6 +54,20 @@ public:
     // is a different object/control block than the view's own PyObject.
     PyObject* cached_grid_wrapper = nullptr;
 
+    // =====================================================================
+    // #364 - Overlay children (speech bubbles, markers, range indicators).
+    // Owned by the VIEW, not GridData: a child is an annotation drawn over the
+    // map through THIS camera, not world content. Two views over one GridData
+    // therefore have independent children (a minimap does not want the main
+    // view's speech bubbles) while sharing every entity.
+    //
+    // Positions are in GRID-WORLD PIXEL coordinates (#360) -- not view-local,
+    // not screen -- so panning the camera does not move a child's logical
+    // position. The view's camera maps them to screen at render/hit-test time.
+    // =====================================================================
+    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
+    bool children_need_sort = true;
+
     // Rendering state (independent per view)
     std::shared_ptr<PyTexture> ptex;
     sf::RectangleShape box;
@@ -168,6 +182,9 @@ public:
     static PyObject* get_texture(PyUIGridViewObject* self, void* closure);
     static PyObject* get_float_member_gv(PyUIGridViewObject* self, void* closure);
     static int set_float_member_gv(PyUIGridViewObject* self, PyObject* value, void* closure);
+
+    // #364 - overlay children (moved from GridData)
+    static PyObject* get_children(PyUIGridViewObject* self, void* closure);
 
     // #355 - cell callback properties (moved from UIGrid)
     static PyObject* get_on_cell_enter(PyUIGridViewObject* self, void* closure);

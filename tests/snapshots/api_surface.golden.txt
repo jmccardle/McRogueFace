@@ -540,6 +540,7 @@ submodule automation
   prop center: Vector (rw)
   prop center_x: float (rw)
   prop center_y: float (rw)
+  prop children: UICollection (ro)
   prop fill_color: Color (rw)
   prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
@@ -586,6 +587,7 @@ submodule automation
   prop center: Vector (rw)
   prop center_x: float (rw)
   prop center_y: float (rw)
+  prop children: UICollection (ro)
   prop fill_color: Color (rw)
   prop global_bounds: tuple (ro)
   prop global_position: Any (ro)
@@ -1125,7 +1127,6 @@ submodule automation
   prop center: Vector (rw)
   prop center_x: float (rw)
   prop center_y: float (rw)
-  prop children: UICollection (ro)
   prop entities: EntityCollection (ro)
   prop fill_color: Color (rw)
   prop fov: Any (rw)
@@ -1234,7 +1235,7 @@ func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> Non
 func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
 === DELEGATION INTEGRITY (Grid instance -> _GridData) ===
-  delegated-resolved: 62/62
+  delegated-resolved: 61/61
 
 === WRITABILITY PROBES (#313-touched properties) ===
   Entity.grid: writable

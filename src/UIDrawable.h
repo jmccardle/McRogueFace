@@ -155,7 +155,7 @@ public:
     sf::Vector2f origin;
 
     // Whether to rotate visually with parent Grid's camera_rotation
-    // Only affects children of UIGrid; ignored for other parents
+    // Only affects children of a Grid (UIGridView); ignored for other parents
     bool rotate_with_camera = false;
 
     // Parent-child hierarchy (#122)

@@ -327,7 +327,7 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
      MCRF_PROPERTY(rotate_with_camera, \
          "Whether to rotate visually with parent Grid's camera_rotation (bool). " \
          "False (default): stay screen-aligned. True: tilt with camera. " \
-         "Only affects children of UIGrid; ignored for other parents." \
+         "Only affects children of a Grid; ignored for other parents." \
      ), (void*)type_enum}
 
 // #106: Shader support - GPU-accelerated visual effects

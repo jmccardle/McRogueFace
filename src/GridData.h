@@ -124,11 +124,19 @@ public:
     // the data. Two views over one GridData must track hover independently, and
     // the subclassable Python type (mcrfpy.Grid) IS UIGridView.
 
-    // =========================================================================
-    // UIDrawable children (speech bubbles, effects, overlays)
-    // =========================================================================
-    std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
-    bool children_need_sort = true;
+    // #364 - UIDrawable children (speech bubbles, markers, range indicators) moved
+    // to UIGridView. They are OVERLAYS painted over the map through one camera, not
+    // world contents: nothing collides with them, they occupy no cell, and the turn
+    // manager cannot see them. Entities are the world contents, and those stay here,
+    // shared by every view.
+    //
+    // Ownership follows from that. A UIDrawable has exactly one `parent`, but a
+    // GridData may have N views -- so a child owned by the data could only ever name
+    // one of them as parent, arbitrarily, and would dangle if that view died while
+    // the others kept rendering it. Owned by the view, a child's parent is a real
+    // scene-graph drawable, so its dirty push reaches the view and every caching
+    // ancestor above it, and its grid-world position resolves through exactly one
+    // camera.
 
     // =========================================================================
     // #252/#359 - GridView back-references. Multiple GridViews can share one

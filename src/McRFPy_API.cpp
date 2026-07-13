@@ -1688,20 +1688,26 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
             }
         }
 
-        // #357 - Recursively search a grid's own overlay children and its
-        // entities. Dispatch via asGridData() (#355), not derived_type(): a
-        // real mcrfpy.Grid() is a UIGridView (PyObjectsEnum::UIGRIDVIEW), so
-        // gating on UIGRID here would be structurally unreachable again.
-        // #359 - visit each GridData exactly once per search: several views may
-        // point at the same data.
+        // #364 - A grid's overlay children belong to the VIEW, so they are searched
+        // per view and NOT deduplicated: two views over one GridData hold different
+        // children, and each must be visited.
+        if (drawable->derived_type() == PyObjectsEnum::UIGRIDVIEW) {
+            auto view = std::static_pointer_cast<UIGridView>(drawable);
+            find_in_collection(view->children.get(), pattern, find_all, results, visited_grids);
+            if (!find_all && PyList_Size(results) > 0) {
+                return;
+            }
+        }
+
+        // #357 - Recursively search a grid's entities. Dispatch via asGridData()
+        // (#355), not derived_type(): a real mcrfpy.Grid() is a UIGridView
+        // (PyObjectsEnum::UIGRIDVIEW), so gating on UIGRID here would be
+        // structurally unreachable again.
+        // #359 - entities are shared world content, so visit each GridData exactly
+        // once per search: several views may point at the same data.
         if (GridData* gd = drawable->asGridData()) {
             if (visited_grids.insert(gd).second) {
                 find_in_grid_entities(gd, pattern, find_all, results);
-                if (!find_all && PyList_Size(results) > 0) {
-                    return;
-                }
-
-                find_in_collection(gd->children.get(), pattern, find_all, results, visited_grids);
                 if (!find_all && PyList_Size(results) > 0) {
                     return;
                 }
