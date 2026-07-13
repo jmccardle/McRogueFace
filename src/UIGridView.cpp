@@ -414,6 +414,10 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
     // point is in PARENT-LOCAL space (UIFrame::click_at passes point - position down).
     if (!box.getGlobalBounds().contains(point)) return nullptr;
     if (!grid_data) {
+        // #365: a view with no cells cannot produce a cell event. Drop any cell
+        // stashed by an earlier click, or dispatchCellClick would fire it for a
+        // grid that no longer exists.
+        last_clicked_cell = std::nullopt;
         return (click_callable || is_python_subclass) ? this : nullptr;
     }
 
@@ -460,9 +464,15 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
     }
 
     // 3. The cell itself. Stash for dispatchCellClick (PyScene has only global coords).
-    last_clicked_cell = cellAtLocal(local);
-
-    if (click_callable || is_python_subclass || on_cell_click_callable) return this;
+    //    #365: only stash when we are actually returning ourselves as the click
+    //    target. Returning nullptr means PyScene never calls dispatchCellClick, so
+    //    nothing would consume the stash (dispatchCellClick clears it on read) and
+    //    the cell would linger until some later dispatch fired it.
+    if (click_callable || is_python_subclass || on_cell_click_callable) {
+        last_clicked_cell = cellAtLocal(local);
+        return this;
+    }
+    last_clicked_cell = std::nullopt;
     return nullptr;
 }
 
