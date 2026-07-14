@@ -23,6 +23,31 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
     return UIDrawable::pyobject_for(drawable);
 }
 
+// #377: the parent link is the inverse of collection membership, so EVERY mutator
+// has to maintain it -- not just append(), which was the only one that did. These
+// two helpers are the single place that knows how: a scene collection parents via
+// setParentScene() (it has no owner drawable, so owner.lock() is null and
+// setParent() would silently unparent the child), a drawable-owned one via
+// setParent().
+//
+// #373: they are also the pin points. setParent()/setParentScene() re-evaluate the
+// strong ref that keeps a Python subclass wrapper alive while its C++ object is in
+// a collection, so linking and unlinking here is what makes the pin correct.
+static void link_child(PyUICollectionObject* self, std::shared_ptr<UIDrawable> drawable) {
+    if (!self->scene_name.empty()) {
+        drawable->setParentScene(self->scene_name);
+    } else {
+        drawable->setParent(self->owner.lock());
+    }
+}
+
+// Call BEFORE erasing from the vector: setParent(nullptr) may drop the last strong
+// ref to the wrapper, whose dealloc releases its shared_ptr to the drawable. While
+// the vector still holds the element, `drawable` cannot be freed under us.
+static void unlink_child(std::shared_ptr<UIDrawable> drawable) {
+    drawable->setParent(nullptr);
+}
+
 // Helper to extract shared_ptr<UIDrawable> from any UIDrawable Python subclass.
 // Returns nullptr without setting an error if the type doesn't match.
 static std::shared_ptr<UIDrawable> extractDrawable(PyObject* o) {
@@ -109,8 +134,12 @@ PyObject* UICollection::getitem(PyUICollectionObject* self, Py_ssize_t index) {
         PyErr_SetString(PyExc_RuntimeError, "the collection store returned a null pointer");
         return NULL;
     }
-    while (index < 0) index += self->data->size();
-    if (index > self->data->size() - 1)
+    // Same two traps as setitem(): the old `while (index < 0) index += size()` spun
+    // forever on an empty collection, and `index > size() - 1` underflowed to SIZE_MAX
+    // when size() was 0 -- so the bounds check passed and we indexed an empty vector.
+    Py_ssize_t size = static_cast<Py_ssize_t>(vec->size());
+    if (index < 0) index += size;
+    if (index < 0 || index >= size)
     {
         PyErr_SetString(PyExc_IndexError, "UICollection index out of range");
         return NULL;
@@ -128,19 +157,21 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
         return -1;
     }
     
-    // Handle negative indexing
-    while (index < 0) index += self->data->size();
-    
+    // Handle negative indexing. NOT a `while (index < 0) index += size()` loop: on an
+    // empty collection that adds zero forever, and `children[-1] = x` hung the engine.
+    Py_ssize_t size = static_cast<Py_ssize_t>(self->data->size());
+    if (index < 0) index += size;
+
     // Bounds check
-    if (index >= self->data->size()) {
+    if (index < 0 || index >= size) {
         PyErr_SetString(PyExc_IndexError, "UICollection assignment index out of range");
         return -1;
     }
-    
+
     // Handle deletion
     if (value == NULL) {
         // #122: Clear the parent before removing
-        (*self->data)[index]->setParent(nullptr);
+        unlink_child((*self->data)[index]);
         self->data->erase(self->data->begin() + index);
         // #288: Invalidate parent Frame's render cache
         auto owner_ptr = self->owner.lock();
@@ -156,21 +187,30 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
         PyErr_SetString(PyExc_TypeError, "UICollection can only contain Drawable objects");
         return -1;
     }
-    int old_z_index = (*vec)[index]->z_index;  // Preserve the z_index
+    // #183: Remove from old parent, which may be a scene rather than a drawable.
+    // Do this BEFORE indexing: if the incoming drawable is already a member of THIS
+    // collection, detaching it erases it from `vec` and shifts every later element,
+    // so an index validated against the old size could write past the end.
+    new_drawable->removeFromParent();
+
+    if (index >= static_cast<Py_ssize_t>(vec->size())) {
+        PyErr_SetString(PyExc_IndexError, "UICollection assignment index out of range");
+        return -1;
+    }
+
+    // Hold a strong ref: unlinking may release the last ref to the old element's
+    // Python wrapper, whose dealloc drops the wrapper's shared_ptr to it.
+    std::shared_ptr<UIDrawable> old_drawable = (*vec)[index];
+    int old_z_index = old_drawable->z_index;  // Preserve the z_index
 
     // #122: Clear parent of old element
-    (*vec)[index]->setParent(nullptr);
-
-    // #122: Remove new drawable from its old parent if it has one
-    if (auto old_parent = new_drawable->getParent()) {
-        new_drawable->removeFromParent();
-    }
+    unlink_child(old_drawable);
 
     // Preserve the z_index of the replaced element
     new_drawable->z_index = old_z_index;
 
-    // #122: Set new parent
-    new_drawable->setParent(self->owner.lock());
+    // #377: parent to the scene, not to a null owner, when this is a scene collection
+    link_child(self, new_drawable);
 
     // Replace the element
     (*vec)[index] = new_drawable;
@@ -367,10 +407,16 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
                 // Sort in descending order and delete
                 std::sort(indices.begin(), indices.end(), std::greater<Py_ssize_t>());
                 for (Py_ssize_t idx : indices) {
+                    // #377: unlink before erasing -- a slice delete used to leave the
+                    // removed child pointing at a parent that no longer contains it
+                    unlink_child((*self->data)[idx]);
                     self->data->erase(self->data->begin() + idx);
                 }
             } else {
                 // Contiguous slice - can delete in one go
+                for (Py_ssize_t i = start; i < stop; i++) {
+                    unlink_child((*self->data)[i]);
+                }
                 self->data->erase(self->data->begin() + start, self->data->begin() + stop);
             }
             
@@ -419,38 +465,67 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
                 new_items.push_back(drawable);
             }
             
-            // Now perform the assignment
+            if (step != 1 && slicelength != value_len) {
+                PyErr_Format(PyExc_ValueError,
+                    "attempt to assign sequence of size %zd to extended slice of size %zd",
+                    value_len, slicelength);
+                return -1;
+            }
+
+            // #377: build the post-assignment contents as an independent vector before
+            // touching anything. An incoming item may already be a member of THIS
+            // collection, and detaching it from its old parent mutates the very vector
+            // we would otherwise be indexing into -- shifting `start`/`stop` out from
+            // under the erase. Assembling a copy first makes aliasing a non-issue.
+            //
+            // `previous` also holds a strong ref to every displaced element, so
+            // unlinking one (which may release the last ref to its Python wrapper,
+            // whose dealloc drops the wrapper's shared_ptr) cannot free it under us.
+            std::vector<std::shared_ptr<UIDrawable>> previous = *self->data;
+            std::vector<std::shared_ptr<UIDrawable>> result = previous;
+
             if (step == 1) {
-                // Contiguous slice
                 if (slicelength != value_len) {
-                    // Need to resize
-                    auto it_start = self->data->begin() + start;
-                    auto it_stop = self->data->begin() + stop;
-                    self->data->erase(it_start, it_stop);
-                    self->data->insert(self->data->begin() + start, new_items.begin(), new_items.end());
+                    result.erase(result.begin() + start, result.begin() + stop);
+                    result.insert(result.begin() + start, new_items.begin(), new_items.end());
                 } else {
-                    // Same size, just replace
                     for (Py_ssize_t i = 0; i < slicelength; i++) {
-                        // Preserve z_index
-                        new_items[i]->z_index = (*self->data)[start + i]->z_index;
-                        (*self->data)[start + i] = new_items[i];
+                        new_items[i]->z_index = previous[start + i]->z_index;  // Preserve z_index
+                        result[start + i] = new_items[i];
                     }
                 }
             } else {
-                // Extended slice
-                if (slicelength != value_len) {
-                    PyErr_Format(PyExc_ValueError,
-                        "attempt to assign sequence of size %zd to extended slice of size %zd",
-                        value_len, slicelength);
-                    return -1;
-                }
                 for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
-                    // Preserve z_index
-                    new_items[i]->z_index = (*self->data)[cur]->z_index;
-                    (*self->data)[cur] = new_items[i];
+                    new_items[i]->z_index = previous[cur]->z_index;  // Preserve z_index
+                    result[cur] = new_items[i];
                 }
             }
-            
+
+            auto contains_ptr = [](const std::vector<std::shared_ptr<UIDrawable>>& v,
+                                   const UIDrawable* p) {
+                return std::any_of(v.begin(), v.end(),
+                                   [p](const std::shared_ptr<UIDrawable>& e) { return e.get() == p; });
+            };
+
+            // Detach incoming items from whatever parent they had. Safe to do now:
+            // this can only mutate `*self->data`, which we are about to overwrite.
+            for (auto& item : new_items) {
+                item->removeFromParent();
+            }
+
+            *self->data = result;
+
+            // Anything the slice displaced is no longer a member -- drop its parent link.
+            for (auto& old_item : previous) {
+                if (!contains_ptr(result, old_item.get())) {
+                    unlink_child(old_item);
+                }
+            }
+            for (auto& item : result) {
+                link_child(self, item);
+            }
+
+
             // Mark scene as needing resort after slice assignment
             McRFPy_API::markSceneNeedsSort();
             // #288: Invalidate parent Frame's render cache
@@ -519,12 +594,7 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
     drawable->z_index = new_z_index;
 
     // #183: Set new parent - either scene or drawable
-    if (!self->scene_name.empty()) {
-        drawable->setParentScene(self->scene_name);
-    } else {
-        std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
-        drawable->setParent(owner_ptr);
-    }
+    link_child(self, drawable);
 
     self->data->push_back(drawable);
 
@@ -576,7 +646,9 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
 
         drawable->removeFromParent();
         drawable->z_index = current_z_index;
-        drawable->setParent(owner_ptr);
+        // #377: was setParent(owner_ptr), which unparented the drawable outright on a
+        // scene collection (no owner drawable => owner.lock() is null)
+        link_child(self, drawable);
         self->data->push_back(drawable);
 
         Py_DECREF(item);
@@ -621,7 +693,7 @@ PyObject* UICollection::remove(PyUICollectionObject* self, PyObject* o)
     for (auto it = vec->begin(); it != vec->end(); ++it) {
         if (it->get() == search_drawable.get()) {
             // #122: Clear the parent before removing
-            (*it)->setParent(nullptr);
+            unlink_child(*it);
             vec->erase(it);
             McRFPy_API::markSceneNeedsSort();
             // #288: Invalidate parent Frame's render cache
@@ -671,7 +743,7 @@ PyObject* UICollection::pop(PyUICollectionObject* self, PyObject* args)
     std::shared_ptr<UIDrawable> drawable = (*vec)[index];
 
     // #122: Clear the parent before removing
-    drawable->setParent(nullptr);
+    unlink_child(drawable);
 
     // Remove from vector
     vec->erase(vec->begin() + index);
@@ -711,6 +783,12 @@ PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
         return NULL;
     }
 
+    // #183: Remove from old parent, which may be a scene rather than a drawable.
+    // Do this BEFORE resolving the index: if the drawable is already a member of
+    // THIS collection, detaching it erases it from `vec`, and an index clamped
+    // against the old size could then land one past the end.
+    drawable->removeFromParent();
+
     // Handle negative indexing and clamping (Python list.insert behavior)
     Py_ssize_t size = static_cast<Py_ssize_t>(vec->size());
     if (index < 0) {
@@ -722,13 +800,8 @@ PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
         index = size;
     }
 
-    // #122: Remove from old parent if it has one
-    if (auto old_parent = drawable->getParent()) {
-        drawable->removeFromParent();
-    }
-
-    // #122: Set new parent
-    drawable->setParent(self->owner.lock());
+    // #377: parent to the scene, not to a null owner, when this is a scene collection
+    link_child(self, drawable);
 
     // Insert at position
     vec->insert(vec->begin() + index, drawable);
