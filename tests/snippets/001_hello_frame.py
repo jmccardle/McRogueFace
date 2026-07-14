@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Frame,Scene] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Color,Frame,Scene] verified=0.2.8-dev status=ok
 # Hello Frame - The simplest UI element
 import mcrfpy
 

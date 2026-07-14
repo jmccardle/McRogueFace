@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Vector] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Vector] verified=0.2.8-dev status=ok
 # Vector Basics - 2D vector operations
 import mcrfpy
 

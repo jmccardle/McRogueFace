@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Caption,Color,ColorLayer,Frame,Grid,Scene,Traversal] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[BSP,Caption,Color,ColorLayer,Frame,Grid,Scene,Traversal] verified=0.2.8-dev status=ok
 # BSP Traversal - Different traversal orders
 import mcrfpy
 

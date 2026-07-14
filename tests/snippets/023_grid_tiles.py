@@ -1,4 +1,4 @@
-# mcrf: objects=[Grid,Scene] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Grid,Scene] verified=0.2.8-dev status=ok
 # Grid Tiles - Different tile types
 import mcrfpy
 

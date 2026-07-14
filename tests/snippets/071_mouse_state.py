@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Timer,Vector] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Timer,Vector] verified=0.2.8-dev status=ok
 # Mouse State - Track mouse position and buttons
 import mcrfpy
 

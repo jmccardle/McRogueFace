@@ -19,7 +19,8 @@ touched the file, and 130 of them said "ok" while nothing had ever executed them
 script makes the header a MEASUREMENT:
 
   * `status`   comes from actually running the snippet through tests/snippets/_harness.py
-  * `verified` comes from the engine that ran it (version@commit, out of api/manifest.json)
+  * `verified` comes from the engine that ran it (the release version, out of
+               api/manifest.json) -- a stable "0.2.8-dev" during a cycle, "0.2.9" at a tag
   * `objects`  is derived from the source, intersected with the objects the engine
                actually exports -- so a snippet that starts using a new type gets tagged
                for it without anyone remembering to.
@@ -119,9 +120,14 @@ def derive_objects(source, known):
     return sorted(used & known)
 
 
-def build_header(objects, version, commit, status):
+def build_header(objects, version, status):
+    # `verified` is the release version, NOT version@commit. A commit hash would churn
+    # every one of these headers on every commit for zero signal git history doesn't
+    # already carry -- and `--check` ignores `verified` anyway. During a dev cycle the
+    # version is a stable "0.2.8-dev"; at a tagged release it becomes "0.2.9", which is
+    # the marker that freezes a version into the docs site's history.
     return (f"# mcrf: objects=[{','.join(objects)}] "
-            f"verified={version}@{commit} status={status}")
+            f"verified={version} status={status}")
 
 
 def restamp(source, header):
@@ -176,7 +182,7 @@ def main():
                              f"!= actual {objects}")
             continue
 
-        updated = restamp(source, build_header(objects, version, commit, status))
+        updated = restamp(source, build_header(objects, version, status))
         if updated != source:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(updated)

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Scene] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Scene] verified=0.2.8-dev status=ok
 # Entity At - Query entity's view of grid
 import mcrfpy
 

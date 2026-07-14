@@ -1,4 +1,4 @@
-# mcrf: objects=[Alignment,Caption,Color,Frame,Scene] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Alignment,Caption,Color,Frame,Scene] verified=0.2.8-dev status=ok
 # Alignment Margins - Spacing from edges
 import mcrfpy
 

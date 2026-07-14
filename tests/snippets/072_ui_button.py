@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.2.8-dev status=ok
 # UI Button - Interactive button with hover
 import mcrfpy
 

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene,Timer] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene,Timer] verified=0.2.8-dev status=ok
 # Game Turn-Based - Simple turn system
 import mcrfpy
 

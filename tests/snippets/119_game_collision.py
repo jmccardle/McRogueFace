@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene] verified=0.2.8-dev status=ok
 # Game Collision - Simple collision detection
 import mcrfpy
 

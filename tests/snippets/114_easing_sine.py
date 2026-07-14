@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.2.8-dev status=ok
 # Easing Sine - Sinusoidal easing
 import mcrfpy
 

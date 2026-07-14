@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,InputState,Scene,Timer] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,InputState,Scene,Timer] verified=0.2.8-dev status=ok
 # Effect Floating Text - Damage numbers
 import mcrfpy
 import random

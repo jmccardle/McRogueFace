@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,Grid,Scene] verified=0.2.8-dev@a7ba486 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,Grid,Scene] verified=0.2.8-dev status=ok
 # FOV Basic - Field of view computation
 import mcrfpy
 
