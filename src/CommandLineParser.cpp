@@ -86,6 +86,12 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
             continue;
         }
         
+        if (arg == "--run-forever") {
+            config.run_forever = true;
+            current_arg++;
+            continue;
+        }
+
         if (arg == "--audio-off") {
             config.audio_enabled = false;
             current_arg++;

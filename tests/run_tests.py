@@ -113,6 +113,13 @@ def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT,
         passed = result.returncode == 0
         output = result.stdout + result.stderr
 
+        # An uncaught exception is never a pass. Exit code alone was not enough:
+        # a script that raised during setup registered no timers, was auto-exited 0
+        # by the engine, and was scored PASS -- 59 tests sat rotted this way, their
+        # assertions never once executing. (#341/#350/#372)
+        if 'Traceback (most recent call last)' in output:
+            passed = False
+
         # Check for PASS/FAIL in output
         if 'FAIL' in output and 'PASS' not in output.split('FAIL')[-1]:
             passed = False

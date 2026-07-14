@@ -537,3 +537,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    sys.exit(0)  # #350: headless --exec must declare its outcome

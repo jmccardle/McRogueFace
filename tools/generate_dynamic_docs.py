@@ -679,3 +679,4 @@ if __name__ == "__main__":
     generate_html_docs()
     generate_markdown_docs()
     print("Documentation generation complete!")
+    sys.exit(0)  # #350: headless --exec must declare its outcome
