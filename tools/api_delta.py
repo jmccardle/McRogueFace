@@ -58,6 +58,14 @@ def load_manifest(ref, repo):
             return json.load(f)
     rc, out, err = git_output(["show", "%s:api/manifest.json" % ref], repo)
     if rc != 0:
+        # Distinguish "this ref predates the manifest" from "the ref is broken". The
+        # manifest infrastructure landed in 54624b3, so every tag older than that --
+        # 0.2.8 included -- genuinely has no API baseline. That is a fact to report,
+        # not a crash: there is nothing to diff against, and saying so is the honest
+        # answer to "what changed since 0.2.8?". An unknown ref is still an error.
+        rc_ref, _, _ = git_output(["rev-parse", "--verify", "%s^{commit}" % ref], repo)
+        if rc_ref == 0:
+            return None
         raise SystemExit("error: cannot read api/manifest.json at ref '%s': %s"
                          % (ref, err.strip()))
     return json.loads(out)
@@ -408,6 +416,15 @@ def main(argv=None):
     repo = repo_root()
     a = load_manifest(args.ref1, repo)
     b = load_manifest(args.ref2, repo)
+
+    if a is None:
+        print("# API delta: %s -> %s\n" % (args.ref1, args.ref2))
+        print("**No baseline.** `%s` predates the API manifest (added in 54624b3), so "
+              "there is nothing to diff against -- every object in the current API would "
+              "read as \"added\", which is noise rather than a delta.\n"
+              % args.ref1)
+        print("This release establishes the baseline: the next one can diff against it.")
+        return 0
 
     object_pages = scan_site(args.site_dir) if args.site_dir else None
 

@@ -94,6 +94,25 @@ def run_snippet(path):
     return "ok", ""
 
 
+def parse_header(source):
+    """Read the existing `# mcrf:` claims back out of a snippet."""
+    for line in source.splitlines()[:5]:
+        m = HEADER_RE.match(line.rstrip("\n"))
+        if not m:
+            continue
+        payload = m.group(1)
+        out = {}
+        objs = re.search(r"objects=\[([^\]]*)\]", payload)
+        out["objects"] = ([o.strip() for o in objs.group(1).split(",") if o.strip()]
+                          if objs else [])
+        st = re.search(r"status=(\S+)", payload)
+        out["status"] = st.group(1) if st else None
+        ver = re.search(r"verified=(\S+)", payload)
+        out["verified"] = ver.group(1) if ver else None
+        return out
+    return {"objects": [], "status": None, "verified": None}
+
+
 def derive_objects(source, known):
     """Which engine objects does this snippet actually touch?"""
     used = set(re.findall(r"\bmcrfpy\.([A-Z]\w*)", source))
@@ -135,26 +154,39 @@ def main():
             source = f.read()
 
         status, detail = run_snippet(path)
-        header = build_header(derive_objects(source, known), version, commit, status)
-        updated = restamp(source, header)
+        objects = derive_objects(source, known)
 
         if status == "fail":
             failed.append((name, detail))
             print(f"  FAIL {name}: {detail}")
 
+        if args.check:
+            # Compare only the CLAIMS -- status and objects. Deliberately NOT `verified`:
+            # that field records the engine a snippet was last confirmed against, which
+            # is provenance, not a freshness assertion. If --check demanded it equal
+            # HEAD, every commit would invalidate all 130 stamps and the gate would cry
+            # wolf until people stopped listening. `verified` is refreshed at release
+            # time by `make stamp-snippets`.
+            old = parse_header(source)
+            if old.get("status") != status:
+                stale.append(f"{name}: header says status={old.get('status')!r}, "
+                             f"actual run is {status!r}")
+            elif old.get("objects") != objects:
+                stale.append(f"{name}: header objects {old.get('objects')} "
+                             f"!= actual {objects}")
+            continue
+
+        updated = restamp(source, build_header(objects, version, commit, status))
         if updated != source:
-            if args.check:
-                stale.append(name)
-            else:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(updated)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(updated)
 
     print(f"\n{len(paths) - len(failed)}/{len(paths)} snippets ok")
 
     if args.check and stale:
         print(f"\n{len(stale)} snippet(s) have a stale `# mcrf:` stamp:")
-        for name in stale:
-            print(f"  - {name}")
+        for line in stale:
+            print(f"  - {line}")
         print("\nRun: python3 tools/stamp_snippets.py")
         return 1
 

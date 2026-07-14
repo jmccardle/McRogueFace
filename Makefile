@@ -96,6 +96,78 @@ install-hooks:
 		echo "Linked $$hooks_dir/$$name -> $$hook"; \
 	done
 
+# ---------------------------------------------------------------------------
+# Documentation / release
+#
+# Every piece of the docs pipeline already existed; nothing chained them, so the
+# site drifted 26 engine commits behind without anything noticing. These targets
+# are the chain.
+#
+# SITE_DIR is the mcrogueface.github.io checkout. Override if yours lives elsewhere:
+#     make release-docs SITE_DIR=/path/to/mcrogueface.github.io
+# ---------------------------------------------------------------------------
+SITE_DIR ?= $(CURDIR)/../mcrogueface.github.io
+
+# Two DIFFERENT refs, easily conflated:
+#
+#   BASE_REF     the PREVIOUS release. The API delta is measured against it, to answer
+#                "what changed, and which pages does that oblige us to revisit?"
+#   RELEASE_REF  the tag being CUT. The site pins its source links to it, which is what
+#                freezes this version into the site's history.
+#
+# When cutting a release, set both:
+#     make release-docs BASE_REF=0.2.8 RELEASE_REF=0.2.9
+#
+# Note: BASE_REF must carry api/manifest.json. The manifest infrastructure landed in
+# 54624b3, so tags older than that (0.2.8 included) have no baseline to diff against --
+# api_delta will say so rather than inventing one.
+BASE_REF    ?= $(shell git describe --tags --abbrev=0 2>/dev/null)
+RELEASE_REF ?= $(shell git describe --tags --always --abbrev=0 2>/dev/null)
+
+# Regenerate everything derived from the compiled module: man page, API reference
+# (HTML + Markdown), type stubs, and the tracked api/manifest.json.
+docs: linux
+	@./tools/generate_all_docs.sh
+	@./build/mcrogueface --headless --exec ../tools/generate_api_manifest.py
+
+# Re-run every docs snippet and stamp its `# mcrf:` header with what actually
+# happened (status from the run, verified from the engine, objects from the source).
+stamp-snippets: linux
+	@python3 tools/stamp_snippets.py
+
+# CI gate: fail if any snippet is broken or its stamp is stale. Writes nothing.
+check-snippets: linux
+	@python3 tools/stamp_snippets.py --check
+
+# What changed in the API since the last release, and which site pages that
+# obligates you to update (resolved via each page's `mcrf.objects` frontmatter).
+api-delta:
+	@python3 tools/api_delta.py $(BASE_REF) . --site-dir $(SITE_DIR) --format md
+
+# The full release documentation pass. Run this when cutting a tag: it refreshes
+# everything the engine derives, proves the published samples still run, rebuilds
+# the site's generated reference + snippet library against this engine, and prints
+# the checklist of hand-written pages the API change obligates you to revisit.
+#
+# Deliberately NOT automatic: it does not commit, and it does not touch the
+# hand-written pages. It tells you what it found and leaves the judgment to you.
+release-docs: docs stamp-snippets
+	@echo ""
+	@echo "=== Regenerating the site against this engine (SITE_DIR=$(SITE_DIR)) ==="
+	@test -d "$(SITE_DIR)" || { echo "SITE_DIR not found: $(SITE_DIR)"; exit 1; }
+	@cd "$(SITE_DIR)" && python3 tools/build_reference.py
+	@cd "$(SITE_DIR)" && python3 tools/build_library.py --ref $(RELEASE_REF)
+	@echo ""
+	@echo "=== API delta $(BASE_REF) -> now, and the pages it obligates ==="
+	@python3 tools/api_delta.py $(BASE_REF) . --site-dir $(SITE_DIR) --format md
+	@echo ""
+	@echo "Site pinned to RELEASE_REF=$(RELEASE_REF); delta measured from BASE_REF=$(BASE_REF)."
+	@echo "Next: review the delta above, update the hand-written pages it names,"
+	@echo "      then commit both repos. For a Gitea checklist issue instead, run:"
+	@echo "      python3 tools/api_delta.py $(BASE_REF) . --site-dir $(SITE_DIR) --format gitea"
+
+.PHONY: docs stamp-snippets check-snippets api-delta release-docs
+
 # Debug and sanitizer targets
 debug:
 	@echo "Building McRogueFace with debug Python (pydebug assertions)..."
