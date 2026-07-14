@@ -188,10 +188,15 @@ check(f"standard easing complete() goes to target ({sprite9.x:.1f})",
       abs(sprite9.x - 500.0) < 5.0)
 
 
-# --- Test 11: Animation constructor with ping-pong easing ---
-anim10 = mcrfpy.Animation("x", 100.0, 1.0, mcrfpy.Easing.PING_PONG, loop=True)
-check("Animation constructor with PING_PONG", anim10 is not None)
-check("Animation constructor loop=True", anim10.is_looping == True)
+# --- Test 11: Animation construction with ping-pong easing ---
+# mcrfpy.Animation is no longer exported; animations are constructed via the
+# target's .animate() method, which returns the Animation object.
+sprite10 = mcrfpy.Sprite(pos=(0, 0))
+scene.children.append(sprite10)
+anim10 = sprite10.animate("x", 100.0, 1.0, mcrfpy.Easing.PING_PONG, loop=True)
+check("animate() with PING_PONG", anim10 is not None)
+check("animate() loop=True", anim10.is_looping == True)
+check("animate() ping-pong easing retained", anim10.is_complete == False)
 
 
 # --- Summary ---

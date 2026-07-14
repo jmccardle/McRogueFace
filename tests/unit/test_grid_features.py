@@ -7,7 +7,7 @@ print("Testing Grid features...")
 
 # Create a texture first
 print("Loading texture...")
-texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
+texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 print(f"Texture loaded: {texture}")
 
 # Create grid
@@ -53,6 +53,10 @@ if not hasattr(pos, 'x'):
     sys.exit(1)
 
 print(f"pos.x={pos.x}, pos.y={pos.y}")
+
+if pos.x != 50 or pos.y != 100:
+    print(f"FAIL: pos should be (50, 100), got ({pos.x}, {pos.y})")
+    sys.exit(1)
 
 print("PASS: Grid Vector properties work correctly!")
 sys.exit(0)

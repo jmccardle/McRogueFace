@@ -4,6 +4,14 @@ Dijkstra Demo - Cycles Through Different Path Combinations
 ==========================================================
 
 Shows paths between different entity pairs, skipping impossible paths.
+
+Headless verification of the original demo's claims:
+  - Entity 1 is walled into a pocket and can reach nobody.
+  - Entities 2 and 3 can reach each other (both directions), so exactly two
+    path combinations exist.
+  - Each generated path is a contiguous chain of walkable cells ending on the
+    target entity.
+  - Cycling through the combinations recolors the ColorLayer accordingly.
 """
 
 import mcrfpy
@@ -18,24 +26,33 @@ END_COLOR = mcrfpy.Color(100, 100, 255)    # Light blue
 
 # Global state
 grid = None
+grid_data = None
 color_layer = None
 entities = []
 current_path_index = 0
 path_combinations = []
 current_path = []
+failures = []
+
+def check(condition, message):
+    """Record a failed assertion without aborting the demo"""
+    if not condition:
+        failures.append(message)
+        print(f"  FAIL: {message}")
+    return condition
 
 def create_map():
     """Create the map with entities"""
-    global grid, color_layer, entities
+    global grid, grid_data, color_layer, entities
 
-    dijkstra_cycle = mcrfpy.Scene("dijkstra_cycle")
-
-    # Create grid
-    grid = mcrfpy.Grid(grid_w=14, grid_h=10)
+    # Create grid (grid_size= replaces the old grid_w=/grid_h= kwargs)
+    grid = mcrfpy.Grid(grid_size=(14, 10))
+    grid_data = grid.grid_data
     grid.fill_color = mcrfpy.Color(0, 0, 0)
 
-    # Add color layer for cell coloring
-    color_layer = grid.add_layer("color", z_index=-1)
+    # Add color layer for cell coloring. Cells no longer have a .color;
+    # ColorLayer objects are constructed then attached (add_layer takes no kwargs).
+    color_layer = grid_data.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
 
     # Map layout
     map_layout = [
@@ -55,14 +72,14 @@ def create_map():
     entity_positions = []
     for y, row in enumerate(map_layout):
         for x, char in enumerate(row):
-            cell = grid.at(x, y)
+            cell = grid_data.at(x, y)
 
             if char == 'W':
                 cell.walkable = False
-                color_layer.set(x, y, WALL_COLOR)
+                color_layer.set((x, y), WALL_COLOR)
             else:
                 cell.walkable = True
-                color_layer.set(x, y, FLOOR_COLOR)
+                color_layer.set((x, y), FLOOR_COLOR)
 
                 if char == 'E':
                     entity_positions.append((x, y))
@@ -70,58 +87,89 @@ def create_map():
     # Create entities
     entities = []
     for i, (x, y) in enumerate(entity_positions):
-        entity = mcrfpy.Entity((x, y), grid=grid)
+        entity = mcrfpy.Entity(grid_pos=(x, y), grid=grid)
         entity.sprite_index = 49 + i  # '1', '2', '3'
         entities.append(entity)
-    
+
     print("Entities created:")
     for i, (x, y) in enumerate(entity_positions):
         print(f"  Entity {i+1} at ({x}, {y})")
-    
+
+    check(entity_positions == [(10, 2), (6, 4), (0, 5)],
+          f"expected entities at [(10,2),(6,4),(0,5)], got {entity_positions}")
+
     # Check which entity is trapped
     print("\nChecking accessibility:")
+    reachability = []
     for i, e in enumerate(entities):
         # Try to path to each other entity
         can_reach = []
         for j, other in enumerate(entities):
             if i != j:
-                path = e.path_to(int(other.x), int(other.y))
+                path = e.path_to(other.grid_x, other.grid_y)
                 if path:
                     can_reach.append(j+1)
-        
+
+        reachability.append(can_reach)
         if not can_reach:
-            print(f"  Entity {i+1} at ({int(e.x)}, {int(e.y)}) is TRAPPED!")
+            print(f"  Entity {i+1} at ({e.grid_x}, {e.grid_y}) is TRAPPED!")
         else:
             print(f"  Entity {i+1} can reach entities: {can_reach}")
-    
+
+    # Entity 1 sits in a sealed pocket; entities 2 and 3 share the open area.
+    check(reachability[0] == [], "Entity 1 should be trapped (no reachable entities)")
+    check(reachability[1] == [3], f"Entity 2 should reach only Entity 3, got {reachability[1]}")
+    check(reachability[2] == [2], f"Entity 3 should reach only Entity 2, got {reachability[2]}")
+
     # Generate valid path combinations (excluding trapped entity)
     global path_combinations
     path_combinations = []
-    
+
     # Only paths between entities 2 and 3 (indices 1 and 2) will work
     # since entity 1 (index 0) is trapped
     if len(entities) >= 3:
         # Entity 2 to Entity 3
-        path = entities[1].path_to(int(entities[2].x), int(entities[2].y))
+        path = entities[1].path_to(entities[2].grid_x, entities[2].grid_y)
         if path:
             path_combinations.append((1, 2, path))
-        
+
         # Entity 3 to Entity 2
-        path = entities[2].path_to(int(entities[1].x), int(entities[1].y))
+        path = entities[2].path_to(entities[1].grid_x, entities[1].grid_y)
         if path:
             path_combinations.append((2, 1, path))
-    
+
     print(f"\nFound {len(path_combinations)} valid paths")
+    check(len(path_combinations) == 2, f"expected 2 valid path combinations, got {len(path_combinations)}")
+
+def validate_path(from_idx, to_idx, path):
+    """A path must be a contiguous chain of walkable cells ending on the target"""
+    e_from = entities[from_idx]
+    e_to = entities[to_idx]
+
+    check(len(path) > 0, f"path {from_idx+1}->{to_idx+1} is empty")
+    if not path:
+        return
+
+    check(tuple(path[-1]) == (e_to.grid_x, e_to.grid_y),
+          f"path {from_idx+1}->{to_idx+1} does not end on target: {path[-1]}")
+
+    # path_to() excludes the entity's own cell, so walk from the entity position
+    prev = (e_from.grid_x, e_from.grid_y)
+    for (x, y) in path:
+        check(grid_data.at(x, y).walkable, f"path crosses non-walkable cell ({x}, {y})")
+        step = max(abs(x - prev[0]), abs(y - prev[1]))
+        check(step == 1, f"path is not contiguous: {prev} -> ({x}, {y})")
+        prev = (x, y)
 
 def clear_path_colors():
     """Reset all floor tiles to original color"""
     global current_path
 
-    for y in range(grid.grid_h):
-        for x in range(grid.grid_w):
-            cell = grid.at(x, y)
+    for y in range(grid_data.grid_h):
+        for x in range(grid_data.grid_w):
+            cell = grid_data.at(x, y)
             if cell.walkable:
-                color_layer.set(x, y, FLOOR_COLOR)
+                color_layer.set((x, y), FLOOR_COLOR)
 
     current_path = []
 
@@ -147,16 +195,16 @@ def show_path(index):
     current_path = path
     if path:
         # Color start and end
-        color_layer.set(int(e_from.x), int(e_from.y), START_COLOR)
-        color_layer.set(int(e_to.x), int(e_to.y), END_COLOR)
+        color_layer.set((e_from.grid_x, e_from.grid_y), START_COLOR)
+        color_layer.set((e_to.grid_x, e_to.grid_y), END_COLOR)
 
-        # Color intermediate steps
-        for i, (x, y) in enumerate(path):
-            if i > 0 and i < len(path) - 1:
-                color_layer.set(x, y, PATH_COLOR)
+        # Color intermediate steps. path_to() excludes the entity's own cell,
+        # so every element except the last (the target) is an intermediate step.
+        for (x, y) in path[:-1]:
+            color_layer.set((x, y), PATH_COLOR)
 
     # Update status
-    status_text.text = f"Path {current_path_index + 1}/{len(path_combinations)}: Entity {from_idx+1} → Entity {to_idx+1} ({len(path)} steps)"
+    status_text.text = f"Path {current_path_index + 1}/{len(path_combinations)}: Entity {from_idx+1} -> Entity {to_idx+1} ({len(path)} steps)"
 
     # Update path display
     path_display = []
@@ -164,7 +212,7 @@ def show_path(index):
         path_display.append(f"({x},{y})")
     if len(path) > 5:
         path_display.append("...")
-    path_text.text = "Path: " + " → ".join(path_display) if path_display else "Path: None"
+    path_text.text = "Path: " + " -> ".join(path_display) if path_display else "Path: None"
 
 def handle_keypress(key_str, state):
     """Handle keyboard input"""
@@ -185,6 +233,8 @@ print("Dijkstra Path Cycling Demo")
 print("==========================")
 print("Note: Entity 1 is trapped by walls!")
 print()
+
+dijkstra_cycle = mcrfpy.Scene("dijkstra_cycle")
 
 create_map()
 
@@ -231,9 +281,34 @@ if path_combinations:
 else:
     status_text.text = "No valid paths! Entity 1 is trapped!"
 
-print("\nDemo ready!")
-print("Controls:")
-print("  SPACE or N - Next path")
-print("  P - Previous path")
-print("  R - Refresh current path")
-print("  Q - Quit")
+# --- Headless verification: cycle every combination the demo would show ---
+print("\nCycling paths:")
+for i in range(len(path_combinations)):
+    show_path(i)
+    from_idx, to_idx, path = path_combinations[current_path_index]
+    print(f"  {status_text.text}")
+    check(current_path_index == i, f"show_path({i}) selected index {current_path_index}")
+    validate_path(from_idx, to_idx, path)
+
+    # The colored overlay must reflect the displayed path
+    e_from, e_to = entities[from_idx], entities[to_idx]
+    check(color_layer.at((e_from.grid_x, e_from.grid_y)) == START_COLOR,
+          "start cell not colored START_COLOR")
+    check(color_layer.at((e_to.grid_x, e_to.grid_y)) == END_COLOR,
+          "end cell not colored END_COLOR")
+    for (x, y) in path[:-1]:
+        check(color_layer.at((x, y)) == PATH_COLOR, f"path cell ({x},{y}) not colored PATH_COLOR")
+
+# Cycling wraps around (what SPACE/N does)
+show_path(len(path_combinations))
+check(current_path_index == 0, "cycling past the last path should wrap to 0")
+
+# Render once to prove the scene is drawable with the layers attached
+mcrfpy.automation.screenshot("dijkstra_cycle_paths.png")
+
+if failures:
+    print(f"\nFAIL: {len(failures)} check(s) failed")
+    sys.exit(1)
+
+print("\nPASS")
+sys.exit(0)

@@ -22,7 +22,7 @@ print("=" * 60)
 test = mcrfpy.Scene("test")
 mcrfpy.current_scene = test
 ui = test.children
-texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
+texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 
 grid = mcrfpy.Grid(pos=(0,0), size=(400,300), grid_size=(50, 50), texture=texture)
 ui.append(grid)
@@ -34,13 +34,15 @@ for y in range(50):
         cell.walkable = True
         cell.transparent = True
 
-# Add some walls to test blocking
-for i in range(10, 20):
-    grid.at(i, 25).transparent = False
-    grid.at(i, 25).walkable = False
+# Add a wall that actually occludes: a vertical run at x=20, spanning the
+# rows around the viewer at (25,25). Cells at x < 20 on row 25 are then
+# within radius but geometrically behind the wall.
+for j in range(20, 31):
+    grid.at(20, j).transparent = False
+    grid.at(20, j).walkable = False
 
 print("\n--- Test 1: compute_fov() returns None ---")
-result = grid.compute_fov(25, 25, radius=10)
+result = grid.compute_fov((25, 25), radius=10)
 if result is None:
     print("  PASS: compute_fov() returned None")
 else:
@@ -55,16 +57,16 @@ else:
     print("  FAIL: Center should be in FOV")
     sys.exit(1)
 
-# Cell within radius should be visible
-if grid.is_in_fov(20, 25):
-    print("  PASS: Cell (20,25) within radius is in FOV")
+# Cell within radius and in front of the wall should be visible
+if grid.is_in_fov(22, 25):
+    print("  PASS: Cell (22,25) within radius is in FOV")
 else:
-    print("  FAIL: Cell (20,25) should be in FOV")
+    print("  FAIL: Cell (22,25) should be in FOV")
     sys.exit(1)
 
-# Cell behind wall should NOT be visible
-if not grid.is_in_fov(15, 30):
-    print("  PASS: Cell (15,30) behind wall is NOT in FOV")
+# Cell behind the wall (within radius) should NOT be visible
+if not grid.is_in_fov(18, 25):
+    print("  PASS: Cell (18,25) behind wall is NOT in FOV")
 else:
     print("  FAIL: Cell behind wall should not be in FOV")
     sys.exit(1)
@@ -89,7 +91,7 @@ for y in range(0, 200, 5):  # Sample for speed
 times = []
 for i in range(5):
     t0 = time.perf_counter()
-    grid_large.compute_fov(100, 100, radius=15)
+    grid_large.compute_fov((100, 100), radius=15)
     elapsed = (time.perf_counter() - t0) * 1000
     times.append(elapsed)
 

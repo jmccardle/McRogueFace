@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
-"""Test the new Entity.path_to() method"""
+"""Test the Entity.path_to() method"""
 
 import mcrfpy
+import sys
 
 print("Testing Entity.path_to() method...")
 print("=" * 50)
 
+failures = []
+
+def check(label, condition, detail=""):
+    if condition:
+        print(f"  PASS {label}")
+    else:
+        print(f"  FAIL {label}: {detail}")
+        failures.append(label)
+
 # Create scene and grid
 path_test = mcrfpy.Scene("path_test")
-grid = mcrfpy.Grid(grid_w=10, grid_h=10)
+grid = mcrfpy.Grid(grid_size=(10, 10))
 
 # Set up a simple map with some walls
 for y in range(10):
@@ -24,48 +34,76 @@ for x, y in walls:
 # Create entity
 entity = mcrfpy.Entity((2, 2), grid=grid)
 
-print(f"Entity at: ({entity.x}, {entity.y})")
+# NOTE: entity.x/.y are pixel draw coords now; the logical cell is entity.cell_pos.
+start = (int(entity.cell_pos.x), int(entity.cell_pos.y))
+print(f"Entity at cell: {start}")
+check("entity starts at (2, 2)", start == (2, 2), f"got {start}")
 
-# Test 1: Simple path
+
+def validate_path(path, target):
+    """A path must be a contiguous, wall-free walk ending on the target."""
+    if not path:
+        return "path is empty"
+    if tuple(path[-1]) != target:
+        return f"path does not end at {target}: {path[-1]}"
+    prev = start
+    for step in path:
+        step = tuple(step)
+        if step in walls:
+            return f"path walks through wall {step}"
+        dx, dy = abs(step[0] - prev[0]), abs(step[1] - prev[1])
+        if max(dx, dy) != 1:
+            return f"non-adjacent step {prev} -> {step}"
+        prev = step
+    return None
+
+
+# Test 1: Simple path (positional x, y)
 print("\nTest 1: Path to (6, 6)")
-try:
-    path = entity.path_to(6, 6)
-    print(f"  Path: {path}")
-    print(f"  Length: {len(path)} steps")
-    print("  ✓ SUCCESS")
-except Exception as e:
-    print(f"  ✗ FAILED: {e}")
+path = entity.path_to(6, 6)
+print(f"  Path: {path}")
+err = validate_path(path, (6, 6))
+check("path_to(6, 6) returns a valid walk to (6, 6)", err is None, err or "")
 
-# Test 2: Path with target_x/target_y keywords
-print("\nTest 2: Path using keyword arguments")
-try:
-    path = entity.path_to(target_x=7, target_y=7)
-    print(f"  Path: {path}")
-    print(f"  Length: {len(path)} steps")
-    print("  ✓ SUCCESS")
-except Exception as e:
-    print(f"  ✗ FAILED: {e}")
+# Test 2: Path using keyword arguments.
+# API CHANGE: the old target_x=/target_y= keywords are gone; the position-spec
+# parser now accepts pos=(x, y) (or a bare tuple/Vector).
+print("\nTest 2: Path using keyword argument pos=(7, 7)")
+path = entity.path_to(pos=(7, 7))
+print(f"  Path: {path}")
+err = validate_path(path, (7, 7))
+check("path_to(pos=(7, 7)) returns a valid walk to (7, 7)", err is None, err or "")
 
-# Test 3: Path to unreachable location
+# Test 3: Path to current position is empty (already there)
 print("\nTest 3: Path to current position")
-try:
-    path = entity.path_to(2, 2)
-    print(f"  Path: {path}")
-    print(f"  Length: {len(path)} steps")
-    print("  ✓ SUCCESS")
-except Exception as e:
-    print(f"  ✗ FAILED: {e}")
+path = entity.path_to(2, 2)
+print(f"  Path: {path}")
+check("path_to(own position) is empty", path == [], f"got {path}")
 
 # Test 4: Error cases
 print("\nTest 4: Error handling")
 try:
-    # Out of bounds
-    path = entity.path_to(15, 15)
-    print("  ✗ Should have failed for out of bounds")
+    entity.path_to(15, 15)
+    check("out-of-bounds target raises ValueError", False, "no exception raised")
 except ValueError as e:
-    print(f"  ✓ Correctly caught out of bounds: {e}")
+    check("out-of-bounds target raises ValueError", True)
+    print(f"    ({e})")
 except Exception as e:
-    print(f"  ✗ Wrong exception type: {e}")
+    check("out-of-bounds target raises ValueError", False,
+          f"wrong exception type {type(e).__name__}: {e}")
+
+# Test 5: Unreachable target -> empty path (wall off a cell completely)
+print("\nTest 5: Unreachable target")
+for x, y in [(8, 0), (8, 1), (9, 1)]:
+    grid.at(x, y).walkable = False
+path = entity.path_to(9, 0)
+print(f"  Path: {path}")
+check("walled-off target yields empty path", path == [], f"got {path}")
 
 print("\n" + "=" * 50)
+if failures:
+    print(f"FAILED: {len(failures)} check(s): {failures}")
+    sys.exit(1)
 print("Entity.path_to() testing complete!")
+print("PASS")
+sys.exit(0)

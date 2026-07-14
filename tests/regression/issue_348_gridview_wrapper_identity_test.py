@@ -26,9 +26,13 @@ def main():
         c.walkable = (i % 2 == 0)
     assert g.at(0, 0).walkable is True
 
-    # entity.grid round-trips to the same Grid object
+    # entity.grid round-trips to the owning GridData wrapper.
+    # (#313/#361: entity.grid returns the shared GridData, NOT the Grid view.
+    # The #348 cache guarantee is what matters here: the same wrapper object
+    # comes back every time, and it is the *same* wrapper the view hands out.)
     e = mcrfpy.Entity((1, 1), grid=g)
-    assert e.grid is g, "entity.grid should be the owning Grid"
+    assert e.grid is g.grid_data, "entity.grid should be the owning GridData"
+    assert e.grid is e.grid, "entity.grid must have stable wrapper identity"
 
     # Reassigning grid_data invalidates the cache: new wrapper for new data
     g2 = mcrfpy.Grid(grid_size=(4, 4), pos=(0, 0), size=(40, 40))

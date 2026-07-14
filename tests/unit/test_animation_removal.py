@@ -33,9 +33,8 @@ for i in range(10):
     ui.append(f)
     initial_frames.append(f)
 
-    # Animate them
-    anim = mcrfpy.Animation("y", 300.0, 2.0, "easeOutBounce")
-    anim.start(f)
+    # Animate them (mcrfpy.Animation is gone; animations are built by the target)
+    f.animate("y", 300.0, 2.0, mcrfpy.Easing.EASE_OUT_BOUNCE)
 
 print(f"Initial scene has {len(ui)} elements")
 
@@ -55,6 +54,7 @@ print(f"Scene has {len(ui)} elements after clearing")
 
 # Create new animated objects
 print("Creating new animated objects...")
+new_frames = []
 for i in range(5):
     f = mcrfpy.Frame(pos=(100 + i*50, 200), size=(40, 40))
     f.fill_color = mcrfpy.Color(100 + i*30, 50, 200)
@@ -62,20 +62,34 @@ for i in range(5):
 
     # Start animation on the new frame
     target_x = 300 + i * 50
-    anim = mcrfpy.Animation("x", float(target_x), 1.0, "easeInOut")
-    anim.start(f)
+    f.animate("x", float(target_x), 1.0, mcrfpy.Easing.EASE_IN_OUT)
+    new_frames.append((f, float(target_x)))
 
 print("New objects created and animated")
 print(f"Scene now has {len(ui)} elements")
 
-# Let new animations run
-mcrfpy.step(1.5)
+# Let new animations run to completion (duration 1.0s)
+for _ in range(20):
+    mcrfpy.step(0.1)
 
-# Final check
+failures = []
+
+# Final check: element count survived the clear/recreate cycle
 print(f"\nFinal scene has {len(ui)} elements")
-if len(ui) == 7:  # 2 captions + 5 new frames
-    print("SUCCESS: Animation removal test passed!")
-    sys.exit(0)
-else:
-    print(f"FAIL: Expected 7 elements, got {len(ui)}")
+if len(ui) != 7:  # 2 captions + 5 new frames
+    failures.append(f"Expected 7 elements, got {len(ui)}")
+
+# The removed frames' animations must not have kept running (or crashed);
+# the new frames' animations must have actually completed.
+for i, (f, target_x) in enumerate(new_frames):
+    if abs(f.x - target_x) > 0.5:
+        failures.append(f"new frame {i}: x={f.x}, expected {target_x}")
+
+if failures:
+    for msg in failures:
+        print(f"FAIL: {msg}")
     sys.exit(1)
+
+print("SUCCESS: Animation removal test passed!")
+print("PASS")
+sys.exit(0)

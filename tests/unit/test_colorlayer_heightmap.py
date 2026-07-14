@@ -8,12 +8,23 @@ import sys
 import mcrfpy
 
 
+def make_color_layer(size=(10, 10)):
+    """Create a Grid with an attached ColorLayer, returning (grid, layer).
+
+    add_layer() takes a layer object and no keyword arguments; the ColorLayer
+    constructor is what accepts name/z_index.
+    """
+    grid = mcrfpy.Grid(grid_size=size)
+    layer = mcrfpy.ColorLayer(name='color', z_index=0)
+    grid.add_layer(layer)
+    return grid, layer
+
+
 def test_apply_threshold_basic():
     """apply_threshold sets colors in range"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
     layer.fill((0, 0, 0, 0))  # Clear all
 
     # Apply threshold - all cells should get blue
@@ -32,8 +43,7 @@ def test_apply_threshold_with_alpha():
     """apply_threshold handles RGBA colors"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     layer.apply_threshold(hmap, (0.0, 1.0), (100, 150, 200, 128))
 
@@ -47,8 +57,7 @@ def test_apply_threshold_preserves_outside():
     """apply_threshold doesn't modify cells outside range"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
     layer.fill((255, 0, 0))  # Fill with red
 
     # Apply threshold for range that doesn't include 0.5
@@ -65,8 +74,7 @@ def test_apply_threshold_with_color_object():
     """apply_threshold accepts Color objects"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     color = mcrfpy.Color(50, 100, 150)
     layer.apply_threshold(hmap, (0.0, 1.0), color)
@@ -80,8 +88,7 @@ def test_apply_threshold_size_mismatch():
     """apply_threshold rejects mismatched HeightMap size"""
     hmap = mcrfpy.HeightMap((5, 5))  # Different size
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     try:
         layer.apply_threshold(hmap, (0.0, 1.0), (255, 0, 0))
@@ -97,8 +104,7 @@ def test_apply_gradient_basic():
     """apply_gradient interpolates colors"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     # Apply gradient from black to white
     result = layer.apply_gradient(hmap, (0.0, 1.0), (0, 0, 0), (255, 255, 255))
@@ -118,8 +124,7 @@ def test_apply_gradient_full_range():
     # Test at minimum of range
     hmap_low = mcrfpy.HeightMap((10, 10), fill=0.0)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     layer.apply_gradient(hmap_low, (0.0, 1.0), (100, 0, 0), (200, 255, 0))
 
@@ -144,8 +149,7 @@ def test_apply_gradient_preserves_outside():
     """apply_gradient doesn't modify cells outside range"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
     layer.fill((255, 0, 0))  # Fill with red
 
     # Apply gradient for range that doesn't include 0.5
@@ -161,8 +165,7 @@ def test_apply_ranges_fixed_colors():
     """apply_ranges with fixed colors"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
     layer.fill((0, 0, 0))
 
     result = layer.apply_ranges(hmap, [
@@ -183,8 +186,7 @@ def test_apply_ranges_gradient():
     """apply_ranges with gradient specification"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     # Gradient from (0,0,0) to (255,255,255) over range [0,1]
     # At value 0.5, should be ~(127,127,127)
@@ -201,8 +203,7 @@ def test_apply_ranges_mixed():
     """apply_ranges with mixed fixed and gradient entries"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
     layer.fill((0, 0, 0))
 
     # Test mixed: gradient that includes 0.5
@@ -222,8 +223,7 @@ def test_apply_ranges_later_wins():
     """apply_ranges: later ranges override earlier ones"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     layer.apply_ranges(hmap, [
         ((0.0, 1.0), (255, 0, 0)),   # Red, matches everything
@@ -240,8 +240,7 @@ def test_apply_ranges_no_match_unchanged():
     """apply_ranges leaves unmatched cells unchanged"""
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
     layer.fill((128, 128, 128))  # Gray marker
 
     layer.apply_ranges(hmap, [
@@ -259,8 +258,7 @@ def test_apply_threshold_invalid_range():
     """apply_threshold rejects min > max"""
     hmap = mcrfpy.HeightMap((10, 10))
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     try:
         layer.apply_threshold(hmap, (1.0, 0.0), (255, 0, 0))
@@ -277,8 +275,7 @@ def test_apply_gradient_narrow_range():
     # Use a value exactly at the range
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
-    grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('color', z_index=0)
+    grid, layer = make_color_layer()
 
     # Apply gradient over exact value (min == max)
     layer.apply_gradient(hmap, (0.5, 0.5), (0, 0, 0), (255, 255, 255))

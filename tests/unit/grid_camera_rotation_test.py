@@ -28,6 +28,7 @@ for i in range(1, 8):
 # Apply camera rotation
 grid.camera_rotation = 30.0  # 30 degree rotation
 grid.center_camera((4, 4))   # Center on middle of grid
+assert grid.camera_rotation == 30.0, "camera_rotation should round-trip"
 
 ui.append(grid)
 
@@ -46,6 +47,10 @@ for i in range(1, 8):
 
 grid2.camera_rotation = 0.0  # No rotation
 grid2.center_camera((4, 4))
+assert grid2.camera_rotation == 0.0, "camera_rotation=0 should round-trip"
+
+# camera_rotation is per-view state: rotating grid must not disturb grid2
+assert grid.camera_rotation == 30.0, "camera_rotation must be per-grid, not shared"
 
 ui.append(grid2)
 
@@ -69,6 +74,9 @@ for i in range(6):
 grid3.rotation = 15.0
 grid3.origin = (100, 75)  # Center origin for rotation
 grid3.center_camera((3, 3))
+assert grid3.rotation == 15.0, "viewport rotation should round-trip"
+# viewport rotation is distinct from camera rotation
+assert grid3.camera_rotation == 0.0, "setting .rotation must not set .camera_rotation"
 
 ui.append(grid3)
 
@@ -76,9 +84,9 @@ label3 = mcrfpy.Caption(text="Grid with viewport rotation=15 (rotates entire wid
 ui.append(label3)
 
 # Test center_camera computes correct pixel center
+# (GridView has no .cell_size accessor; the raw cell metrics aren't needed here --
+#  center_camera is verified by the relationships between the centers it produces.)
 test_grid = mcrfpy.Grid(grid_size=(20, 15), pos=(0, 0), size=(320, 240))
-cell_w = test_grid.cell_size[0]
-cell_h = test_grid.cell_size[1]
 
 # center_camera((0, 0)) should put tile (0,0) at view center
 test_grid.center_camera((0, 0))
@@ -90,6 +98,8 @@ c0 = test_grid.center
 test_grid.center_camera((10, 7))
 c1 = test_grid.center
 assert c0.x != c1.x or c0.y != c1.y, "center_camera at different positions should give different centers"
+# ...and it should move monotonically with the tile coordinate
+assert c1.x > c0.x and c1.y > c0.y, "center_camera to a larger tile should increase the center"
 
 # center_camera at same position twice should be idempotent
 test_grid.center_camera((5, 5))

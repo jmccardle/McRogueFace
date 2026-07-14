@@ -12,9 +12,18 @@ while small grids use the original flat storage. Verifies that:
 NOTE: This test uses ColorLayer for color operations since cell.color
 is no longer supported. The chunk system affects internal storage, which
 ColorLayer also uses.
+
+API notes (current contract):
+- add_layer() takes a layer OBJECT and no keyword arguments:
+      grid.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
+- ColorLayer.set()/at() take a POSITION tuple, not separate x/y args to set().
+- GridPoint no longer has .tilesprite; cell read/write coverage is preserved
+  by exercising .walkable (a real per-cell field that lives in the same
+  chunked storage the issue is about).
 """
 
 import mcrfpy
+from mcrfpy import automation
 import sys
 
 def test_small_grid():
@@ -23,21 +32,26 @@ def test_small_grid():
 
     # Small grid should use flat storage
     grid = mcrfpy.Grid(grid_size=(50, 50), pos=(10, 10), size=(400, 400))
-    color_layer = grid.add_layer("color", z_index=-1)
+    color_layer = grid.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
 
     # Set some cells
     for y in range(50):
         for x in range(50):
             cell = grid.at(x, y)
-            color_layer.set(x, y, mcrfpy.Color((x * 5) % 256, (y * 5) % 256, 128, 255))
-            cell.tilesprite = -1
+            color_layer.set((x, y), mcrfpy.Color((x * 5) % 256, (y * 5) % 256, 128, 255))
+            cell.walkable = ((x + y) % 2 == 0)
 
     # Verify cells
     expected_r = (25 * 5) % 256
     expected_g = (25 * 5) % 256
-    color = color_layer.at(25, 25)
+    color = color_layer.at((25, 25))
     if color.r != expected_r or color.g != expected_g:
         print(f"FAIL: Small grid cell color mismatch. Expected ({expected_r}, {expected_g}), got ({color.r}, {color.g})")
+        return False
+
+    # Verify per-cell (non-color) storage round-trips
+    if not grid.at(24, 24).walkable or grid.at(25, 24).walkable:
+        print("FAIL: Small grid cell walkable mismatch")
         return False
 
     print("  Small grid: PASS")
@@ -49,7 +63,7 @@ def test_large_grid():
 
     # Large grid should use chunk storage (100 > 64)
     grid = mcrfpy.Grid(grid_size=(100, 100), pos=(10, 10), size=(400, 400))
-    color_layer = grid.add_layer("color", z_index=-1)
+    color_layer = grid.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
 
     # Set cells across multiple chunks
     # Chunks are 64x64, so a 100x100 grid has 2x2 = 4 chunks
@@ -65,14 +79,17 @@ def test_large_grid():
 
     for x, y in test_points:
         cell = grid.at(x, y)
-        color_layer.set(x, y, mcrfpy.Color(x, y, 100, 255))
-        cell.tilesprite = -1
+        color_layer.set((x, y), mcrfpy.Color(x, y, 100, 255))
+        cell.walkable = False
 
     # Verify cells
     for x, y in test_points:
-        color = color_layer.at(x, y)
+        color = color_layer.at((x, y))
         if color.r != x or color.g != y:
             print(f"FAIL: Large grid cell ({x},{y}) color mismatch. Expected ({x}, {y}), got ({color.r}, {color.g})")
+            return False
+        if grid.at(x, y).walkable:
+            print(f"FAIL: Large grid cell ({x},{y}) walkable not persisted across chunk boundary")
             return False
 
     print("  Large grid cell access: PASS")
@@ -84,7 +101,7 @@ def test_very_large_grid():
 
     # 500x500 = 250,000 cells, should use ~64 chunks (8x8)
     grid = mcrfpy.Grid(grid_size=(500, 500), pos=(10, 10), size=(400, 400))
-    color_layer = grid.add_layer("color", z_index=-1)
+    color_layer = grid.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
 
     # Set some cells at various positions
     test_points = [
@@ -98,11 +115,11 @@ def test_very_large_grid():
     ]
 
     for x, y in test_points:
-        color_layer.set(x, y, mcrfpy.Color(x % 256, y % 256, 200, 255))
+        color_layer.set((x, y), mcrfpy.Color(x % 256, y % 256, 200, 255))
 
     # Verify
     for x, y in test_points:
-        color = color_layer.at(x, y)
+        color = color_layer.at((x, y))
         if color.r != (x % 256) or color.g != (y % 256):
             print(f"FAIL: Very large grid cell ({x},{y}) color mismatch")
             return False
@@ -116,18 +133,18 @@ def test_boundary_case():
 
     # 64x64 should use flat storage (not exceeding threshold)
     grid_64 = mcrfpy.Grid(grid_size=(64, 64), pos=(10, 10), size=(400, 400))
-    color_layer_64 = grid_64.add_layer("color", z_index=-1)
-    color_layer_64.set(63, 63, mcrfpy.Color(255, 0, 0, 255))
-    color = color_layer_64.at(63, 63)
+    color_layer_64 = grid_64.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
+    color_layer_64.set((63, 63), mcrfpy.Color(255, 0, 0, 255))
+    color = color_layer_64.at((63, 63))
     if color.r != 255:
         print(f"FAIL: 64x64 grid boundary cell not set correctly, got r={color.r}")
         return False
 
     # 65x65 should use chunk storage (exceeding threshold)
     grid_65 = mcrfpy.Grid(grid_size=(65, 65), pos=(10, 10), size=(400, 400))
-    color_layer_65 = grid_65.add_layer("color", z_index=-1)
-    color_layer_65.set(64, 64, mcrfpy.Color(0, 255, 0, 255))
-    color = color_layer_65.at(64, 64)
+    color_layer_65 = grid_65.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
+    color_layer_65.set((64, 64), mcrfpy.Color(0, 255, 0, 255))
+    color = color_layer_65.at((64, 64))
     if color.g != 255:
         print(f"FAIL: 65x65 grid cell not set correctly, got g={color.g}")
         return False
@@ -141,21 +158,46 @@ def test_edge_cases():
 
     # Create 100x100 grid
     grid = mcrfpy.Grid(grid_size=(100, 100), pos=(10, 10), size=(400, 400))
-    color_layer = grid.add_layer("color", z_index=-1)
+    color_layer = grid.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
 
     # Test all corners
     corners = [(0, 0), (99, 0), (0, 99), (99, 99)]
     for i, (x, y) in enumerate(corners):
-        color_layer.set(x, y, mcrfpy.Color(i * 60, i * 60, i * 60, 255))
+        color_layer.set((x, y), mcrfpy.Color(i * 60, i * 60, i * 60, 255))
 
     for i, (x, y) in enumerate(corners):
         expected = i * 60
-        color = color_layer.at(x, y)
+        color = color_layer.at((x, y))
         if color.r != expected:
             print(f"FAIL: Corner ({x},{y}) color mismatch, expected {expected}, got {color.r}")
             return False
 
     print("  Edge cases: PASS")
+    return True
+
+def test_rendering(scene):
+    """Test that both storage modes actually render (flat + chunked on screen)"""
+    print("Testing rendering of flat and chunked grids...")
+
+    small = mcrfpy.Grid(grid_size=(50, 50), pos=(10, 10), size=(200, 200))
+    small_colors = small.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
+    large = mcrfpy.Grid(grid_size=(100, 100), pos=(220, 10), size=(200, 200))
+    large_colors = large.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
+
+    for i in range(50):
+        small_colors.set((i, i), mcrfpy.Color(255, 0, 0, 255))
+    for i in range(100):
+        large_colors.set((i, i), mcrfpy.Color(0, 0, 255, 255))
+
+    scene.children.append(small)
+    scene.children.append(large)
+
+    # Rendering is orthogonal to sim time; screenshot forces a render pass.
+    if not automation.screenshot("issue_123_chunk_render.png"):
+        print("FAIL: screenshot of flat + chunked grids failed")
+        return False
+
+    print("  Rendering: PASS")
     return True
 
 # Main
@@ -173,9 +215,11 @@ if __name__ == "__main__":
     results.append(test_very_large_grid())
     results.append(test_boundary_case())
     results.append(test_edge_cases())
+    results.append(test_rendering(test))
 
     if all(results):
         print("\n=== ALL TESTS PASSED ===")
+        print("PASS")
         sys.exit(0)
     else:
         print("\n=== SOME TESTS FAILED ===")

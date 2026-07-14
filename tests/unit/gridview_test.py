@@ -73,24 +73,31 @@ def test_gridview_repr():
     print("PASS: GridView repr")
 
 def test_gridview_grid_property():
-    """GridView.grid returns the correct Grid with identity preservation."""
+    """GridView.grid_data returns the shared GridData with identity preservation.
+
+    Contract change (#313/#361): a view no longer exposes `.grid` (the source view);
+    Grid and GridView are the same type, and the map they share is `.grid_data`.
+    """
     tex = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
     grid = mcrfpy.Grid(grid_size=(15, 10), texture=tex, pos=(0, 0), size=(240, 160))
     view = mcrfpy.GridView(grid=grid, pos=(250, 0), size=(240, 160))
 
-    assert view.grid is grid, "view.grid should be the same Grid object"
-    assert view.grid.grid_w == 15
+    assert view.grid_data is grid.grid_data, "view must share the source Grid's GridData"
+    assert view.grid_data.grid_w == 15
     # Identity preserved on repeated access
-    assert view.grid is view.grid
-    print("PASS: GridView.grid property with identity")
+    assert view.grid_data is view.grid_data
+    print("PASS: GridView.grid_data property with identity")
 
-def test_gridview_no_grid():
-    """GridView without a grid doesn't crash."""
+def test_gridview_default_grid():
+    """GridView with no source grid doesn't crash; it gets its own default GridData."""
     view = mcrfpy.GridView()
-    assert view.grid is None
+    gd = view.grid_data
+    assert gd is not None, "a bare GridView still owns a default GridData"
+    assert gd.grid_w > 0 and gd.grid_h > 0
+    assert gd is view.grid_data  # identity preserved
     r = repr(view)
-    assert "None" in r
-    print("PASS: GridView without grid")
+    assert "GridView" in r
+    print("PASS: GridView without a source grid")
 
 if __name__ == "__main__":
     test_gridview_creation()
@@ -99,6 +106,6 @@ if __name__ == "__main__":
     test_gridview_multi_view()
     test_gridview_repr()
     test_gridview_grid_property()
-    test_gridview_no_grid()
+    test_gridview_default_grid()
     print("All GridView tests passed")
     sys.exit(0)

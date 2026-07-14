@@ -66,12 +66,16 @@ def test_apply_threshold_out_of_range():
 
 
 def test_apply_threshold_returns_self():
-    """apply_threshold returns self for chaining"""
+    """apply_threshold returns the GridData for chaining
+
+    Current contract (#313/#361): the apply_* methods live on GridData, and the
+    Grid view forwards to it. They return the GridData ("self"), not the view.
+    """
     grid = mcrfpy.Grid(grid_size=(10, 10))
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
     result = grid.apply_threshold(hmap, range=(0.0, 1.0), walkable=True)
-    assert result is grid, "apply_threshold should return self"
+    assert result is grid.grid_data, "apply_threshold should return the GridData (self)"
     print("PASS: test_apply_threshold_returns_self")
 
 
@@ -159,7 +163,7 @@ def test_apply_ranges_returns_self():
     result = grid.apply_ranges(hmap, [
         ((0.0, 1.0), {"walkable": True}),
     ])
-    assert result is grid, "apply_ranges should return self"
+    assert result is grid.grid_data, "apply_ranges should return the GridData (self)"
     print("PASS: test_apply_ranges_returns_self")
 
 
@@ -275,7 +279,7 @@ def test_chaining():
                   ((0.4, 0.6), {"walkable": True, "transparent": True}),
               ]))
 
-    assert result is grid
+    assert result is grid.grid_data
     print("PASS: test_chaining")
 
 

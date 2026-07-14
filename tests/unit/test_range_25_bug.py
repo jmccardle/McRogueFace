@@ -1,102 +1,87 @@
 #!/usr/bin/env python3
-"""Demonstrate the range(25) bug precisely"""
+"""Regression test for the historical range(25) bug.
+
+A nested grid.at()/walkable loop over a 25x15 grid used to corrupt the
+interpreter (refcount / memory corruption in the C++ binding), so that a
+plain `range(25)` afterwards raised. This test drives the exact scenario and
+asserts that (a) the interpreter survives intact and (b) the grid.at() writes
+actually stick.
+"""
 
 import mcrfpy
+import sys
 
-print("Demonstrating range(25) bug...")
-print("=" * 50)
+failures = []
 
-# Test 1: range(25) works fine normally
-print("Test 1: range(25) before any mcrfpy operations")
-try:
-    for i in range(25):
-        pass
-    print("  ✓ range(25) works fine initially")
-except Exception as e:
-    print(f"  ✗ Error: {e}")
 
-# Test 2: range(25) after creating scene/grid
-print("\nTest 2: range(25) after creating 25x15 grid")
-try:
-    test = mcrfpy.Scene("test")
-    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
-    
-    for i in range(25):
-        pass
-    print("  ✓ range(25) still works after grid creation")
-except Exception as e:
-    print(f"  ✗ Error: {e}")
+def check(condition, label):
+    if condition:
+        print("  PASS: %s" % label)
+    else:
+        print("  FAIL: %s" % label)
+        failures.append(label)
 
-# Test 3: The killer combination
-print("\nTest 3: range(25) after 15x25 grid.at() operations")
-try:
-    test3 = mcrfpy.Scene("test3")
-    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
-    
-    # Do the nested loop that triggers the bug
+
+def exercise_grid(w, h):
+    """Nested grid.at() loop -- the operation that used to corrupt memory."""
+    grid = mcrfpy.Grid(grid_size=(w, h))
     count = 0
-    for y in range(15):
-        for x in range(25):
+    for y in range(h):
+        for x in range(w):
             grid.at(x, y).walkable = True
             count += 1
-    
-    print(f"  ✓ Completed {count} grid.at() calls")
-    
-    # This should fail
-    print("  Testing range(25) now...")
-    for i in range(25):
-        pass
-    print("  ✓ range(25) works (unexpected!)")
-    
-except Exception as e:
-    print(f"  ✗ range(25) failed as expected: {type(e).__name__}")
+    return grid, count
 
-# Test 4: Does range(24) still work?
+
+print("Testing the range(25) bug scenario...")
+print("=" * 50)
+
+# Test 1: range(25) works fine normally (baseline sanity)
+print("Test 1: range(25) before any mcrfpy operations")
+check(list(range(25)) == list(range(25)), "range(25) works initially")
+
+# Test 2: range(25) after creating a 25x15 grid
+print("\nTest 2: range(25) after creating 25x15 grid")
+mcrfpy.Scene("test2")
+grid = mcrfpy.Grid(grid_size=(25, 15))
+check(len(list(range(25))) == 25, "range(25) still works after grid creation")
+check(tuple(grid.grid_size) == (25, 15), "grid is 25x15")
+
+# Test 3: The killer combination -- 15x25 nested grid.at() loop, then range(25)
+print("\nTest 3: range(25) after 15x25 grid.at() operations")
+mcrfpy.Scene("test3")
+grid, count = exercise_grid(25, 15)
+check(count == 375, "completed %d grid.at() calls (expected 375)" % count)
+check(list(range(25)) == list(range(25)), "range(25) works after grid.at() loop")
+check(sum(range(25)) == 300, "range(25) still produces correct values")
+check(all(grid.at(x, y).walkable for y in range(15) for x in range(25)),
+      "every cell readback is walkable (writes stuck)")
+
+# Test 4: range(24) after the same operations
 print("\nTest 4: range(24) after same operations")
-try:
-    test4 = mcrfpy.Scene("test4")
-    grid = mcrfpy.Grid(grid_w=25, grid_h=15)
-    
-    for y in range(15):
-        for x in range(24):  # One less
-            grid.at(x, y).walkable = True
-    
-    for i in range(24):
-        pass
-    print("  ✓ range(24) works")
-    
-    # What about range(25)?
-    for i in range(25):
-        pass
-    print("  ✓ range(25) also works when grid ops used range(24)")
-    
-except Exception as e:
-    print(f"  ✗ Error: {e}")
+mcrfpy.Scene("test4")
+grid = mcrfpy.Grid(grid_size=(25, 15))
+for y in range(15):
+    for x in range(24):  # One less
+        grid.at(x, y).walkable = True
+check(len(list(range(24))) == 24, "range(24) works")
+check(len(list(range(25))) == 25, "range(25) also works when grid ops used range(24)")
+check(not grid.at(24, 0).walkable, "untouched column 24 stayed unwalkable")
 
-# Test 5: Is it about the specific combination of 15 and 25?
+# Test 5: Different grid dimensions -- not specific to 15/25
 print("\nTest 5: Different grid dimensions")
-try:
-    test5 = mcrfpy.Scene("test5")
-    grid = mcrfpy.Grid(grid_w=30, grid_h=20)
-    
-    for y in range(20):
-        for x in range(30):
-            grid.at(x, y).walkable = True
-    
-    # Test various ranges
-    for i in range(25):
-        pass
-    print("  ✓ range(25) works with 30x20 grid")
-    
-    for i in range(30):
-        pass
-    print("  ✓ range(30) works with 30x20 grid")
-    
-except Exception as e:
-    print(f"  ✗ Error: {e}")
+mcrfpy.Scene("test5")
+grid, count = exercise_grid(30, 20)
+check(count == 600, "completed %d grid.at() calls on 30x20 grid" % count)
+check(len(list(range(25))) == 25, "range(25) works with 30x20 grid")
+check(len(list(range(30))) == 30, "range(30) works with 30x20 grid")
 
-print("\nConclusion: There's a specific bug triggered by:")
-print("1. Creating a grid with grid_w=25")
-print("2. Using range(25) in a nested loop with grid.at() calls")
-print("3. Then trying to use range(25) again")
-print("\nThis appears to be a memory corruption or reference counting issue in the C++ code.")
+print("\n" + "=" * 50)
+if failures:
+    print("FAIL: %d check(s) failed:" % len(failures))
+    for f in failures:
+        print("  - %s" % f)
+    sys.exit(1)
+
+print("PASS: the range(25) bug is fixed; grid.at() loops do not corrupt the interpreter")
+sys.exit(0)

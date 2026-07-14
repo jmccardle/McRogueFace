@@ -9,10 +9,13 @@ Tests cover:
 """
 
 import sys
+import os
 import math
+import traceback
 
-# Import the geometry module
-sys.path.insert(0, '/home/john/Development/McRogueFace/src/scripts')
+# Import the geometry module (src/scripts, relative to this test file)
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..', '..', 'src', 'scripts'))
 from geometry import (
     # Utilities
     distance, distance_squared, angle_between, normalize_angle,
@@ -601,4 +604,13 @@ def run_all_tests():
     print("=" * 50)
 
 if __name__ == "__main__":
-    run_all_tests()
+    # Exit contract (#350): headless --exec scripts must call sys.exit() explicitly.
+    # Any failed assertion is a real failure -> report it and exit nonzero.
+    try:
+        run_all_tests()
+    except Exception:
+        traceback.print_exc()
+        print("FAIL")
+        sys.exit(1)
+    print("PASS")
+    sys.exit(0)
