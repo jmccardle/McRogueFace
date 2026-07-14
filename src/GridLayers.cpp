@@ -1707,8 +1707,13 @@ int PyGridLayerAPI::ColorLayer_set_z_index(PyColorLayerObject* self, PyObject* v
     }
     long z = PyLong_AsLong(value);
     if (PyErr_Occurred()) return -1;
-    self->data->z_index = z;
-    // TODO: Trigger re-sort in parent grid
+    if (z != self->data->z_index) {
+        self->data->z_index = z;
+        // #376: the render early-out (#351) keys on content_generation, which only
+        // markDirty() bumps. Without this the view re-blits its stale cached texture
+        // and the new layer order never appears. (sortLayers() runs every render.)
+        self->data->markDirty();
+    }
     return 0;
 }
 
@@ -1727,7 +1732,12 @@ int PyGridLayerAPI::ColorLayer_set_visible(PyColorLayerObject* self, PyObject* v
     }
     int v = PyObject_IsTrue(value);
     if (v < 0) return -1;
-    self->data->visible = v;
+    if (v != self->data->visible) {
+        self->data->visible = v;
+        // #376: data mutators (fill/set/edit) markDirty(); this setter did not, so
+        // hiding or showing a layer left the cached render untouched in both directions.
+        self->data->markDirty();
+    }
     return 0;
 }
 
@@ -2391,8 +2401,10 @@ int PyGridLayerAPI::TileLayer_set_z_index(PyTileLayerObject* self, PyObject* val
     }
     long z = PyLong_AsLong(value);
     if (PyErr_Occurred()) return -1;
-    self->data->z_index = z;
-    // TODO: Trigger re-sort in parent grid
+    if (z != self->data->z_index) {
+        self->data->z_index = z;
+        self->data->markDirty();  // #376: see ColorLayer_set_z_index
+    }
     return 0;
 }
 
@@ -2411,7 +2423,10 @@ int PyGridLayerAPI::TileLayer_set_visible(PyTileLayerObject* self, PyObject* val
     }
     int v = PyObject_IsTrue(value);
     if (v < 0) return -1;
-    self->data->visible = v;
+    if (v != self->data->visible) {
+        self->data->visible = v;
+        self->data->markDirty();  // #376: see ColorLayer_set_visible
+    }
     return 0;
 }
 
