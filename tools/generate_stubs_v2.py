@@ -14,6 +14,7 @@ Run via McRogueFace itself so the mcrfpy module is importable:
 import os
 import re
 import sys
+import ast
 import types
 import inspect
 from pathlib import Path
@@ -170,6 +171,20 @@ def _sanitize_params(params):
     return ", ".join(fixed)
 
 
+def _sanitize_return(ret):
+    """Return type phrases in MCRF_SIG are authored as prose (e.g. 'context
+    manager'), which is not a valid annotation and makes the whole .pyi
+    unparseable. Keep anything that is a valid Python expression; otherwise
+    fall back to Any."""
+    if not ret:
+        return "Any"
+    try:
+        ast.parse(f"def _() -> {ret}: ...")
+    except SyntaxError:
+        return "Any"
+    return ret
+
+
 def emit_function(name, doc, is_method=False, is_static=False):
     """Emit a def line for a free function or method. Always returns a str
     ending with `: ...` plus an optional one-line docstring."""
@@ -183,7 +198,7 @@ def emit_function(name, doc, is_method=False, is_static=False):
         params = _sanitize_params(params)
         if is_method and not is_static:
             params = "self" + (", " + params if params else "")
-    ret = ret or "Any"
+    ret = _sanitize_return(ret)
 
     decorator = ("@staticmethod\n" if is_static and is_method else "")
     summary = first_description_paragraph(doc) or first_line(doc)
