@@ -15,7 +15,8 @@ class GridDemo(DemoScreen):
         grid.fill_color = mcrfpy.Color(20, 20, 40)
 
         # Add a color layer for the checkerboard pattern (z_index=-1 = below entities)
-        color_layer = grid.add_layer("color", z_index=-1)
+        # #372: add_layer() takes a layer OBJECT and no keyword arguments.
+        color_layer = grid.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
 
         # Center camera on middle of grid (in pixel coordinates: cells * cell_size / 2)
         # For 15x10 grid with 16x16 cells: center = (15*16/2, 10*16/2) = (120, 80)
@@ -28,13 +29,13 @@ class GridDemo(DemoScreen):
                 point = grid.at(x, y)
                 # Checkerboard pattern
                 if (x + y) % 2 == 0:
-                    color_layer.set(x, y, mcrfpy.Color(40, 40, 60))
+                    color_layer.set((x, y), mcrfpy.Color(40, 40, 60))
                 else:
-                    color_layer.set(x, y, mcrfpy.Color(30, 30, 50))
+                    color_layer.set((x, y), mcrfpy.Color(30, 30, 50))
 
                 # Border
                 if x == 0 or x == 14 or y == 0 or y == 9:
-                    color_layer.set(x, y, mcrfpy.Color(80, 60, 40))
+                    color_layer.set((x, y), mcrfpy.Color(80, 60, 40))
                     point.walkable = False
 
         # Add some children to the grid
@@ -74,7 +75,7 @@ class GridDemo(DemoScreen):
         # Code example
         code = """# Grid with layers
 grid = mcrfpy.Grid(grid_size=(20, 15), pos=(50, 50), size=(320, 240), layers={})
-layer = grid.add_layer("color", z_index=-1)  # Below entities
-layer.set(5, 5, mcrfpy.Color(255, 0, 0))  # Red tile
+layer = grid.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))  # Below entities
+layer.set((5, 5), mcrfpy.Color(255, 0, 0))  # Red tile
 grid.children.append(mcrfpy.Caption("Label", pos=(80, 48)))"""
         self.add_code_example(code, y=420)

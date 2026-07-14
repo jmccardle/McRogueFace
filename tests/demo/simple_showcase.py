@@ -9,12 +9,13 @@ NOTE: In headless mode, automation.screenshot() is SYNCHRONOUS - it renders
 and captures immediately. No timer dance needed!
 """
 import mcrfpy
+import docs_output
 from mcrfpy import automation
 import sys
 import os
 
 # Output
-OUTPUT_PATH = "/opt/goblincorps/repos/mcrogueface.github.io/images/tutorials/part_01_grid_movement.png"
+OUTPUT_PATH = os.path.join(docs_output.image_dir("tutorials"), "part_01_grid_movement.png")  # #372
 
 # Tile sprites from the labeled tileset
 PLAYER_KNIGHT = 84

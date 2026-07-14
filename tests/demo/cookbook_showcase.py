@@ -8,12 +8,13 @@ Run with: xvfb-run -a ./build/mcrogueface --headless --exec tests/demo/cookbook_
 In headless mode, automation.screenshot() is SYNCHRONOUS - no timer dance needed!
 """
 import mcrfpy
+import docs_output
 from mcrfpy import automation
 import sys
 import os
 
 # Output directory - in the docs site images folder
-OUTPUT_DIR = "/opt/goblincorps/repos/mcrogueface.github.io/images/cookbook"
+OUTPUT_DIR = docs_output.image_dir("cookbook")  # #372: was a hardcoded absolute path
 
 # Tile sprites from the labeled tileset
 TILES = {

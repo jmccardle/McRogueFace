@@ -9,8 +9,11 @@ class DemoScreen:
 
     def __init__(self, scene_name):
         self.scene_name = scene_name
-        _scene = mcrfpy.Scene(scene_name)
-        self.ui = mcrfpy.sceneUI(scene_name)
+        # #372: mcrfpy.sceneUI() was removed with the pre-Scene-object API. The Scene
+        # owns its UI collection directly, and the demos need the Scene anyway to
+        # activate themselves.
+        self.scene = mcrfpy.Scene(scene_name)
+        self.ui = self.scene.children
 
     def setup(self):
         """Override to set up the screen content."""
