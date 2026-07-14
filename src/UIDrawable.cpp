@@ -8,6 +8,7 @@
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
+#include "3d/Viewport3D.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
@@ -1284,6 +1285,133 @@ PyObject* UIDrawable::get_uniforms(PyObject* self, void* closure) {
     return (PyObject*)collection;
 }
 
+// #369: single cache-aware conversion from a C++ drawable to its Python wrapper.
+// Every path that hands a drawable back to Python must go through here, or object
+// identity breaks (`x.parent is x.parent` -> False) and Python subclasses are lost.
+PyObject* UIDrawable::pyobject_for(std::shared_ptr<UIDrawable> drawable) {
+    if (!drawable) {
+        Py_RETURN_NONE;
+    }
+
+    // A live wrapper wins: it carries the caller's subclass and identity.
+    if (drawable->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+        if (cached) {
+            return cached;  // lookup() already INCREF'd
+        }
+    }
+
+    PyTypeObject* type = nullptr;
+    PyObject* obj = nullptr;
+
+    switch (drawable->derived_type()) {
+        case PyObjectsEnum::UIFRAME:
+        {
+            type = &mcrfpydef::PyUIFrameType;
+            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICAPTION:
+        {
+            type = &mcrfpydef::PyUICaptionType;
+            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICaption>(drawable);
+                pyObj->font = nullptr;
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UISPRITE:
+        {
+            type = &mcrfpydef::PyUISpriteType;
+            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UISprite>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIGRIDVIEW:
+        {
+            type = &mcrfpydef::PyUIGridViewType;
+            auto pyObj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIGridView>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UILINE:
+        {
+            type = &mcrfpydef::PyUILineType;
+            auto pyObj = (PyUILineObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UILine>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICIRCLE:
+        {
+            type = &mcrfpydef::PyUICircleType;
+            auto pyObj = (PyUICircleObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICircle>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIARC:
+        {
+            type = &mcrfpydef::PyUIArcType;
+            auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIArc>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIVIEWPORT3D:
+        {
+            type = &mcrfpydef::PyViewport3DType;
+            auto pyObj = (PyViewport3DObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<mcrf::Viewport3D>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        default:
+            PyErr_SetString(PyExc_TypeError, "Unknown UIDrawable derived type");
+            return nullptr;
+    }
+
+    // Register the fresh wrapper so the next lookup returns this same object.
+    // Covers C++-created drawables whose original wrapper was GC'd.
+    if (obj && drawable->serial_number != 0) {
+        PyObject* weakref = PyWeakref_NewRef(obj, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(drawable->serial_number, weakref);
+            Py_DECREF(weakref);
+        }
+    }
+
+    return obj;
+}
+
 // Python API - get parent drawable
 PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
@@ -1299,67 +1427,7 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
         // Scene not found in python_scenes (shouldn't happen, but fall through to None)
     }
 
-    auto parent_ptr = drawable->getParent();
-    if (!parent_ptr) {
-        Py_RETURN_NONE;
-    }
-
-    // Convert parent to Python object using the cache/conversion system
-    // Re-use the pattern from UICollection
-    PyTypeObject* type = nullptr;
-    PyObject* obj = nullptr;
-
-    switch (parent_ptr->derived_type()) {
-        case PyObjectsEnum::UIFRAME:
-        {
-            type = &mcrfpydef::PyUIFrameType;
-            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIFrame>(parent_ptr);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UICAPTION:
-        {
-            type = &mcrfpydef::PyUICaptionType;
-            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UICaption>(parent_ptr);
-                pyObj->font = nullptr;
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UISPRITE:
-        {
-            type = &mcrfpydef::PyUISpriteType;
-            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UISprite>(parent_ptr);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIGRIDVIEW:
-        {
-            type = &mcrfpydef::PyUIGridViewType;
-            auto pyObj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIGridView>(parent_ptr);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        default:
-            Py_RETURN_NONE;
-    }
-
-    return obj;
+    return UIDrawable::pyobject_for(drawable->getParent());
 }
 
 // Python API - set parent drawable (or None to remove from parent)

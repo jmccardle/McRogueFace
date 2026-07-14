@@ -12,6 +12,40 @@
 #include <sstream>
 #include <algorithm>
 
+// #369: single cache-aware conversion from a C++ entity to its Python wrapper.
+// Raw tp_alloc here is not merely an identity bug as it is for drawables: a duplicate
+// wrapper's tp_dealloc unconditionally clears UIEntity::pyobject, destroying the #266
+// subclass-identity ref held by the *original* wrapper. Every site must use this.
+static PyObject* convertEntityToPython(std::shared_ptr<UIEntity> entity) {
+    if (!entity) {
+        Py_RETURN_NONE;
+    }
+
+    if (entity->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(entity->serial_number);
+        if (cached) {
+            return cached;  // lookup() already INCREF'd
+        }
+    }
+
+    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
+    auto o = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
+    if (!o) return NULL;
+
+    o->data = entity;
+    o->weakreflist = NULL;
+
+    if (entity->serial_number != 0) {
+        PyObject* weakref = PyWeakref_NewRef((PyObject*)o, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(entity->serial_number, weakref);
+            Py_DECREF(weakref);
+        }
+    }
+
+    return (PyObject*)o;
+}
+
 // ============================================================================
 // UIEntityCollectionIter implementation
 // ============================================================================
@@ -44,23 +78,7 @@ PyObject* UIEntityCollectionIter::next(PyUIEntityCollectionIterObject* self)
     auto target = (*self->data)[self->index];
     ++self->index;
 
-    // Check cache first to preserve derived class identity
-    if (target->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(target->serial_number);
-        if (cached) {
-            return cached;  // Already INCREF'd by lookup
-        }
-    }
-
-    // Otherwise create and return a new Python Entity object
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-    auto o = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-    if (!o) return NULL;
-
-    o->data = std::static_pointer_cast<UIEntity>(target);
-    o->weakreflist = NULL;
-    return (PyObject*)o;
+    return convertEntityToPython(std::static_pointer_cast<UIEntity>(target));
 }
 
 PyObject* UIEntityCollectionIter::repr(PyUIEntityCollectionIterObject* self)
@@ -102,35 +120,7 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
     // #329 - O(1) random access (was std::advance over a std::list, O(n))
     auto target = (*vec)[index];
 
-    // Check cache first to preserve derived class
-    if (target->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(target->serial_number);
-        if (cached) {
-            return cached;  // Already INCREF'd by lookup
-        }
-    }
-
-    // Create a new base Entity object
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-    auto o = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-    if (!o) return NULL;
-
-    o->data = std::static_pointer_cast<UIEntity>(target);
-    o->weakreflist = NULL;
-
-    // Re-register in cache if the entity has a serial number
-    // This handles the case where the original Python wrapper was GC'd
-    // but the C++ object persists (e.g., inline-created objects added to collections)
-    if (target->serial_number != 0) {
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)o, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(target->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
-
-    return (PyObject*)o;
+    return convertEntityToPython(std::static_pointer_cast<UIEntity>(target));
 }
 
 int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t index, PyObject* value) {
@@ -244,19 +234,15 @@ PyObject* UIEntityCollection::concat(PyUIEntityCollectionObject* self, PyObject*
         return NULL;
     }
 
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
     // Add all elements from self
     Py_ssize_t idx = 0;
     for (const auto& entity : *self->data) {
-        auto obj = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
+        PyObject* obj = convertEntityToPython(entity);
         if (!obj) {
             Py_DECREF(result_list);
             return NULL;
         }
-        obj->data = entity;
-        obj->weakreflist = NULL;
-        PyList_SET_ITEM(result_list, idx++, (PyObject*)obj);
+        PyList_SET_ITEM(result_list, idx++, obj);
     }
 
     // Add all elements from other
@@ -358,21 +344,13 @@ PyObject* UIEntityCollection::subscript(PyUIEntityCollectionObject* self, PyObje
             return NULL;
         }
 
-        PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-        auto it = self->data->begin();
         for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
-            auto cur_it = it;
-            std::advance(cur_it, cur);
-
-            auto obj = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
+            PyObject* obj = convertEntityToPython((*self->data)[cur]);
             if (!obj) {
                 Py_DECREF(result_list);
                 return NULL;
             }
-            obj->data = *cur_it;
-            obj->weakreflist = NULL;
-            PyList_SET_ITEM(result_list, i, (PyObject*)obj);
+            PyList_SET_ITEM(result_list, i, obj);
         }
 
         return result_list;

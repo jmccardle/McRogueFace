@@ -44,17 +44,14 @@ def shot():
 def case_child_parent_is_the_view():
     """The child's parent is the Grid (UIGridView), not the internal _GridData.
 
-    Identity (`child.parent is grid`) is NOT asserted: `.parent` allocates a fresh
-    wrapper on every read, so `is` fails for Frames too -- even `kid.parent is
-    kid.parent` is False. That is a pre-existing engine-wide gap, not this bug, and
-    it is filed separately. Here we assert the parent's TYPE and identify the view by
-    name, which is what #364 actually turns on.
+    Identity is asserted directly now that #369 routes .parent through the object
+    cache; this originally had to settle for comparing .name.
     """
     grid = mcrfpy.Grid(grid_size=(10, 10), pos=(0, 0), size=(200, 200), name="the_view")
     bubble = mcrfpy.Frame(pos=(32, 32), size=(20, 20))
     grid.children.append(bubble)
 
-    check("1a: child.parent is the grid view", bubble.parent.name == "the_view")
+    check("1a: child.parent is the grid view", bubble.parent is grid)
     # #361: mcrfpy.Grid IS mcrfpy.GridView (one type object, two names), and the
     # canonical tp_name is GridView.
     check("1b: child.parent is a Grid, not a GridData",
@@ -72,7 +69,7 @@ def case_children_are_per_view_entities_are_shared():
     v1.children.append(marker)
     check("2b: child appended to v1 is in v1.children", len(v1.children) == 1)
     check("2c: child appended to v1 is NOT in v2.children", len(v2.children) == 0)
-    check("2d: the child's parent is v1, not v2", marker.parent.name == "v1")
+    check("2d: the child's parent is v1, not v2", marker.parent is v1)
 
     v2.children.append(mcrfpy.Frame(pos=(64, 64), size=(20, 20)))
     check("2e: v2 keeps its own children", len(v2.children) == 1 and len(v1.children) == 1)

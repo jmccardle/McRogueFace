@@ -180,6 +180,12 @@ public:
     // Get the global (screen) position by walking up the parent chain (#102)
     sf::Vector2f get_global_position() const;
 
+    // #369: the single cache-aware C++ -> Python wrapper conversion for drawables.
+    // Returns the live wrapper for this drawable if one exists (preserving object
+    // identity and any Python subclass), otherwise allocates one and registers it.
+    // Returns a new reference, or nullptr with an exception set.
+    static PyObject* pyobject_for(std::shared_ptr<UIDrawable> drawable);
+
     // Python API for parent/global_position
     static PyObject* get_parent(PyObject* self, void* closure);
     static int set_parent(PyObject* self, PyObject* value, void* closure);

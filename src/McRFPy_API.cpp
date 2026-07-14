@@ -1609,54 +1609,16 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
         
         // Check this element's name
         if (name_matches_pattern(drawable->name, pattern)) {
-            // Convert to Python object using RET_PY_INSTANCE logic
-            PyObject* py_obj = nullptr;
-            
-            switch (drawable->derived_type()) {
-                case PyObjectsEnum::UIFRAME: {
-                    auto frame = std::static_pointer_cast<UIFrame>(drawable);
-                    auto type = &mcrfpydef::PyUIFrameType;
-                    auto o = (PyUIFrameObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = frame;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                case PyObjectsEnum::UICAPTION: {
-                    auto caption = std::static_pointer_cast<UICaption>(drawable);
-                    auto type = &mcrfpydef::PyUICaptionType;
-                    auto o = (PyUICaptionObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = caption;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                case PyObjectsEnum::UISPRITE: {
-                    auto sprite = std::static_pointer_cast<UISprite>(drawable);
-                    auto type = &mcrfpydef::PyUISpriteType;
-                    auto o = (PyUISpriteObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = sprite;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                case PyObjectsEnum::UIGRIDVIEW: {
-                    auto gridview = std::static_pointer_cast<UIGridView>(drawable);
-                    auto type = &mcrfpydef::PyUIGridViewType;
-                    auto o = (PyUIGridViewObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = gridview;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                default:
-                    break;
+            // #369: go through the cache-aware converter so find() returns the caller's
+            // existing wrapper (and Python subclass), not a fresh identity-less one.
+            PyObject* py_obj = UIDrawable::pyobject_for(drawable);
+            if (py_obj == Py_None) {
+                Py_DECREF(py_obj);
+                py_obj = nullptr;
+            } else if (!py_obj) {
+                PyErr_Clear();  // unknown derived type: skip, as the old switch did
             }
-            
+
             if (py_obj) {
                 if (find_all) {
                     PyList_Append(results, py_obj);
