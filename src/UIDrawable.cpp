@@ -943,6 +943,8 @@ void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
     parent = new_parent;
     parent_scene.clear();  // #183: Clear scene parent when setting drawable parent
 
+    updatePyIdentityPin();  // #373
+
     // Apply alignment when parent is set (if alignment is configured)
     if (new_parent && align_type != AlignmentType::NONE) {
         applyAlignment();
@@ -953,9 +955,50 @@ void UIDrawable::setParentScene(const std::string& scene_name) {
     parent.reset();        // #183: Clear drawable parent when setting scene parent
     parent_scene = scene_name;
 
+    updatePyIdentityPin();  // #373
+
     // Apply alignment when scene parent is set (if alignment is configured)
     if (!scene_name.empty() && align_type != AlignmentType::NONE) {
         applyAlignment();
+    }
+}
+
+// #373: hold a strong ref to the Python wrapper while, and only while, this drawable
+// is a member of a children collection. See the comment on py_identity in UIDrawable.h.
+void UIDrawable::updatePyIdentityPin() {
+    // Only subclasses carry state worth preserving, and only they can lose anything
+    // when a wrapper is re-created from the cache miss.
+    if (!is_python_subclass) return;
+
+    const bool in_collection = !parent.expired() || !parent_scene.empty();
+
+    if (in_collection) {
+        if (py_identity) return;  // already pinned
+        if (serial_number == 0 || !Py_IsInitialized()) return;
+        // The wrapper necessarily exists: is_python_subclass is only ever set from a
+        // subclass's tp_init, so Python allocated one. A cache miss here would mean the
+        // wrapper was already collected, and there is nothing left to pin.
+        py_identity = PythonObjectCache::getInstance().lookup(serial_number);  // new ref
+    } else {
+        releasePyIdentity();
+    }
+}
+
+void UIDrawable::releaseChildPins(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children) {
+    if (!children) return;
+    for (auto& child : *children) {
+        if (child) child->releasePyIdentity();
+    }
+}
+
+void UIDrawable::releasePyIdentity() {
+    if (!py_identity) return;
+    // Null the member BEFORE the DECREF: the wrapper's dealloc drops its shared_ptr to
+    // this drawable, which can re-enter here if that was the last strong ref.
+    PyObject* tmp = py_identity;
+    py_identity = nullptr;
+    if (Py_IsInitialized()) {
+        Py_DECREF(tmp);
     }
 }
 
@@ -963,6 +1006,12 @@ std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
     return parent.lock();
 }
 
+// #373: this drops the parent link, so it also drops the Python-identity pin -- which
+// may release the last reference to the wrapper, whose dealloc drops the wrapper's
+// shared_ptr to this drawable. Callers must therefore hold their own strong ref for the
+// duration (every one does: they come through a local shared_ptr from extractDrawable).
+// updatePyIdentityPin() is the LAST statement on both paths so that even in that case
+// no member of a freed `this` is touched afterwards.
 void UIDrawable::removeFromParent() {
     // #183: Handle scene parent removal
     if (!parent_scene.empty()) {
@@ -976,6 +1025,7 @@ void UIDrawable::removeFromParent() {
             }
         }
         parent_scene.clear();
+        updatePyIdentityPin();
         return;
     }
 
@@ -1016,6 +1066,7 @@ void UIDrawable::removeFromParent() {
     }
 
     parent.reset();
+    updatePyIdentityPin();
 }
 
 // #102 - Global position calculation

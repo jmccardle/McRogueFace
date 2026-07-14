@@ -33,6 +33,9 @@ UIGridView::UIGridView()
 }
 
 UIGridView::~UIGridView() {
+    // #373: drop the Python-identity pins of our overlay children before the vector dies
+    UIDrawable::releaseChildPins(children);
+
     // #362: drop ourselves from the GridData's view registry. This is the only
     // place guaranteed to run exactly once per view: tp_dealloc's unregister is
     // gated on data.use_count() <= 1 (the #251 pattern), so a view that outlives

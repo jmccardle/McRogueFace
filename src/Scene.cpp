@@ -8,6 +8,11 @@ Scene::Scene(GameEngine* g)
     game = g; 
     ui_elements = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
 }
+
+Scene::~Scene()
+{
+    UIDrawable::releaseChildPins(ui_elements);  // #373
+}
 void Scene::registerAction(int code, std::string name)
 {
     actions[code] = name;

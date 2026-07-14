@@ -29,6 +29,9 @@ protected:
 public:
     //Scene();
     Scene(GameEngine*);
+    // #373: releases the Python-identity pins of ui_elements. Virtual because Scene is
+    // a polymorphic base held and deleted by GameEngine through a Scene*.
+    virtual ~Scene();
     virtual void update() = 0;
     virtual void render() = 0;
     virtual void doAction(std::string, std::string) = 0;
