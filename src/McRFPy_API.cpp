@@ -378,7 +378,10 @@ static PyMethodDef mcrfpyMethods[] = {
      MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
-         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (number of grid cells rendered this frame), entities_rendered (number of entities rendered this frame), total_entities (total entity count across all grids)")
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids)")
+         MCRF_NOTE("All per-frame counters and timing breakdowns describe the last COMPLETED frame. "
+                   "Python callbacks run before the frame is rendered, so the in-progress frame's "
+                   "values are not available yet; frame_time, fps, runtime and current_frame are live.")
      )},
 
     {"set_dev_console", McRFPy_API::_setDevConsole, METH_VARARGS,
@@ -1871,22 +1874,27 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     PyDict_SetItemString(dict, "avg_frame_time", PyFloat_FromDouble(game->metrics.avgFrameTime));
     PyDict_SetItemString(dict, "fps", PyLong_FromLong(game->metrics.fps));
 
+    // #341: report the last COMPLETED frame's per-frame values, not the live
+    // accumulators. Python callbacks run before render(), and the accumulators are
+    // zeroed at the top of the frame -- so reading them live always returned 0.
+    const auto& pub = game->metrics.published;
+
     // Add draw call metrics
-    PyDict_SetItemString(dict, "draw_calls", PyLong_FromLong(game->metrics.drawCalls));
-    PyDict_SetItemString(dict, "ui_elements", PyLong_FromLong(game->metrics.uiElements));
-    PyDict_SetItemString(dict, "visible_elements", PyLong_FromLong(game->metrics.visibleElements));
+    PyDict_SetItemString(dict, "draw_calls", PyLong_FromLong(pub.drawCalls));
+    PyDict_SetItemString(dict, "ui_elements", PyLong_FromLong(pub.uiElements));
+    PyDict_SetItemString(dict, "visible_elements", PyLong_FromLong(pub.visibleElements));
 
     // #144 - Add detailed timing breakdown (in milliseconds)
-    PyDict_SetItemString(dict, "grid_render_time", PyFloat_FromDouble(game->metrics.gridRenderTime));
-    PyDict_SetItemString(dict, "entity_render_time", PyFloat_FromDouble(game->metrics.entityRenderTime));
-    PyDict_SetItemString(dict, "fov_overlay_time", PyFloat_FromDouble(game->metrics.fovOverlayTime));
-    PyDict_SetItemString(dict, "python_time", PyFloat_FromDouble(game->metrics.pythonScriptTime));
-    PyDict_SetItemString(dict, "animation_time", PyFloat_FromDouble(game->metrics.animationTime));
+    PyDict_SetItemString(dict, "grid_render_time", PyFloat_FromDouble(pub.gridRenderTime));
+    PyDict_SetItemString(dict, "entity_render_time", PyFloat_FromDouble(pub.entityRenderTime));
+    PyDict_SetItemString(dict, "fov_overlay_time", PyFloat_FromDouble(pub.fovOverlayTime));
+    PyDict_SetItemString(dict, "python_time", PyFloat_FromDouble(pub.pythonScriptTime));
+    PyDict_SetItemString(dict, "animation_time", PyFloat_FromDouble(pub.animationTime));
 
     // #144 - Add grid-specific metrics
-    PyDict_SetItemString(dict, "grid_cells_rendered", PyLong_FromLong(game->metrics.gridCellsRendered));
-    PyDict_SetItemString(dict, "entities_rendered", PyLong_FromLong(game->metrics.entitiesRendered));
-    PyDict_SetItemString(dict, "total_entities", PyLong_FromLong(game->metrics.totalEntities));
+    PyDict_SetItemString(dict, "grid_cells_rendered", PyLong_FromLong(pub.gridCellsRendered));
+    PyDict_SetItemString(dict, "entities_rendered", PyLong_FromLong(pub.entitiesRendered));
+    PyDict_SetItemString(dict, "total_entities", PyLong_FromLong(pub.totalEntities));
 
     // Add general metrics
     PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));

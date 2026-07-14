@@ -289,16 +289,33 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     int y_limit = top_edge + height_sq + 2;
     if (y_limit > grid_data->grid_h) y_limit = grid_data->grid_h;
 
+    // #341: re-instrument the grid render counters. These were declared and reset
+    // every frame but never incremented anywhere -- the increments were lost in the
+    // GridView/chunk refactor, so grid_cells_rendered/entities_rendered/
+    // grid_render_time have read 0 ever since. Accumulating (not assigning) so that
+    // two views over one map sum rather than clobber each other.
+    auto& metrics = Resources::game->metrics;
+    ScopedAccumTimer gridTimer(metrics.gridRenderTime);
+
+    // Cells actually inside the viewport window, per layer drawn.
+    const int x_start = std::max(0, static_cast<int>(left_edge));
+    const int y_start = std::max(0, static_cast<int>(top_edge));
+    const int visible_cells = std::max(0, x_limit - x_start) * std::max(0, y_limit - y_start);
+
     // Render layers below entities (z_index <= 0)
     grid_data->sortLayers();
+    int layers_drawn = 0;
     for (auto& layer : grid_data->layers) {
         if (layer->z_index > 0) break;  // #257: z_index=0 is ground level (below entities)
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
+        ++layers_drawn;
     }
 
     // Render entities
     if (grid_data->entities) {
+        ScopedAccumTimer entityTimer(metrics.entityRenderTime);
+        metrics.totalEntities += static_cast<int>(grid_data->entities->size());
         for (auto& e : *grid_data->entities) {
             if (e->position.x < left_edge - 2 || e->position.x >= left_edge + width_sq + 2 ||
                 e->position.y < top_edge - 2 || e->position.y >= top_edge + height_sq + 2) {
@@ -310,6 +327,7 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
                 (e->position.x*cell_width - left_spritepixels + e->sprite_offset.x) * zoom,
                 (e->position.y*cell_height - top_spritepixels + e->sprite_offset.y) * zoom);
             drawent.render(pixel_pos, *activeTexture);
+            ++metrics.entitiesRendered;
         }
     }
 
@@ -318,7 +336,11 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         if (layer->z_index <= 0) continue;  // #257: skip ground-level and below
         layer->render(*activeTexture, left_spritepixels, top_spritepixels,
                      left_edge, top_edge, x_limit, y_limit, zoom, cell_width, cell_height);
+        ++layers_drawn;
     }
+
+    // One "cell rendered" per cell per layer drawn -- i.e. cell draw operations.
+    metrics.gridCellsRendered += visible_cells * layers_drawn;
 
     // Children (grid-world pixel coordinates; owned by this view -- #364)
     if (children && !children->empty()) {
@@ -343,7 +365,9 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 
     // Perspective overlay (#355: state owned by the view -- see get/set_perspective)
     if (perspective_enabled) {
-        ScopedTimer fovTimer(Resources::game->metrics.fovOverlayTime);
+        // #341: accumulate -- with two perspective views on screen, assignment made
+        // the second view's time silently replace the first's.
+        ScopedAccumTimer fovTimer(Resources::game->metrics.fovOverlayTime);
         auto entity = perspective_entity.lock();
         sf::RectangleShape overlay;
         overlay.setSize(sf::Vector2f(cell_width * zoom, cell_height * zoom));
