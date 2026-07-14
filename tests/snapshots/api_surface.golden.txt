@@ -24,6 +24,15 @@ const keyboard: Keyboard
 const mouse: Mouse
 const window: Window
 
+=== MODULE DYNAMIC ATTRIBUTES (7) ===
+attr animations (ro) :: Tuple of all currently running Animation objects (tuple, read-only).
+attr current_scene (rw) :: The active scene (Scene). Assign a Scene object, or a scene name as a string, to switch scenes.
+attr default_transition (rw) :: Default transition (Transition) applied when switching scenes without an explicit transition.
+attr default_transition_duration (rw) :: Default scene-transition duration in seconds (float). Must be non-negative.
+attr save_dir (ro) :: Directory used for persistent save data (str, read-only). '/save' under Emscripten.
+attr scenes (ro) :: Tuple of all registered Scene objects (tuple, read-only).
+attr timers (ro) :: Tuple of all active Timer objects (tuple, read-only).
+
 === SUBMODULES (1) ===
 submodule automation
 

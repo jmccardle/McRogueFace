@@ -127,108 +127,175 @@ static PyObject* mcrfpy_sync_storage(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
-// #151: Module-level __getattr__ for dynamic properties (current_scene, scenes)
-static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
+// #151/#356: the module's dynamic attributes, as real descriptors on the module type.
+//
+// These were originally a PEP-562 `__getattr__` plus a string-matching `tp_setattro`.
+// That worked for getattr/setattr but left them invisible to `dir(mcrfpy)`, and every
+// doc/stub/manifest generator discovers module symbols via dir() -- so the single most
+// common idiom in the engine (`mcrfpy.current_scene = ...`) appeared in no generated
+// documentation at all. Descriptors are introspectable and carry their own docstrings.
+
+static PyObject* mcrfpy_get_current_scene(PyObject* self, void* closure)
 {
-    const char* name;
-    if (!PyArg_ParseTuple(args, "s", &name)) {
+    return McRFPy_API::api_get_current_scene();
+}
+
+static int mcrfpy_set_current_scene(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'current_scene'");
+        return -1;
+    }
+    return McRFPy_API::api_set_current_scene(value);
+}
+
+static PyObject* mcrfpy_get_scenes(PyObject* self, void* closure)
+{
+    return McRFPy_API::api_get_scenes();
+}
+
+static PyObject* mcrfpy_get_timers(PyObject* self, void* closure)
+{
+    return McRFPy_API::api_get_timers();
+}
+
+static PyObject* mcrfpy_get_animations(PyObject* self, void* closure)
+{
+    return McRFPy_API::api_get_animations();
+}
+
+static PyObject* mcrfpy_get_default_transition(PyObject* self, void* closure)
+{
+    return PyTransition::to_python(PyTransition::default_transition);
+}
+
+static int mcrfpy_set_default_transition(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'default_transition'");
+        return -1;
+    }
+    TransitionType trans;
+    if (!PyTransition::from_arg(value, &trans, nullptr)) {
+        return -1;
+    }
+    PyTransition::default_transition = trans;
+    return 0;
+}
+
+static PyObject* mcrfpy_get_default_transition_duration(PyObject* self, void* closure)
+{
+    return PyFloat_FromDouble(PyTransition::default_duration);
+}
+
+static int mcrfpy_set_default_transition_duration(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'default_transition_duration'");
+        return -1;
+    }
+    double duration;
+    if (PyFloat_Check(value)) {
+        duration = PyFloat_AsDouble(value);
+    } else if (PyLong_Check(value)) {
+        duration = PyLong_AsDouble(value);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "default_transition_duration must be a number");
+        return -1;
+    }
+    if (duration < 0.0) {
+        PyErr_SetString(PyExc_ValueError, "default_transition_duration must be non-negative");
+        return -1;
+    }
+    PyTransition::default_duration = static_cast<float>(duration);
+    return 0;
+}
+
+static PyObject* mcrfpy_get_save_dir(PyObject* self, void* closure)
+{
+#ifdef __EMSCRIPTEN__
+    return PyUnicode_FromString("/save");
+#else
+    return PyUnicode_FromString("save");
+#endif
+}
+
+static PyGetSetDef mcrfpy_module_getset[] = {
+    {"current_scene", mcrfpy_get_current_scene, mcrfpy_set_current_scene,
+     MCRF_PROPERTY(current_scene,
+         "The active scene (Scene). Assign a Scene object, or a scene name as a string, "
+         "to switch scenes."
+     ), NULL},
+    {"scenes", mcrfpy_get_scenes, NULL,
+     MCRF_PROPERTY(scenes,
+         "Tuple of all registered Scene objects (tuple, read-only)."
+     ), NULL},
+    {"timers", mcrfpy_get_timers, NULL,
+     MCRF_PROPERTY(timers,
+         "Tuple of all active Timer objects (tuple, read-only)."
+     ), NULL},
+    {"animations", mcrfpy_get_animations, NULL,
+     MCRF_PROPERTY(animations,
+         "Tuple of all currently running Animation objects (tuple, read-only)."
+     ), NULL},
+    {"default_transition", mcrfpy_get_default_transition, mcrfpy_set_default_transition,
+     MCRF_PROPERTY(default_transition,
+         "Default transition (Transition) applied when switching scenes without an "
+         "explicit transition."
+     ), NULL},
+    {"default_transition_duration", mcrfpy_get_default_transition_duration,
+     mcrfpy_set_default_transition_duration,
+     MCRF_PROPERTY(default_transition_duration,
+         "Default scene-transition duration in seconds (float). Must be non-negative."
+     ), NULL},
+    {"save_dir", mcrfpy_get_save_dir, NULL,
+     MCRF_PROPERTY(save_dir,
+         "Directory used for persistent save data (str, read-only). '/save' under Emscripten."
+     ), NULL},
+    {NULL}  // Sentinel
+};
+
+// #356: PyModule_Type.__dir__ returns only the module __dict__ keys, so descriptors
+// living on the module *type* would still be invisible to dir(). Override it to union
+// the two -- this is what actually makes the generators (and tab-completion) see them.
+static PyObject* mcrfpy_module_dir(PyObject* self, PyObject* Py_UNUSED(ignored))
+{
+    PyObject* dict = PyModule_GetDict(self);  // borrowed
+    if (!dict) return NULL;
+
+    PyObject* names = PyDict_Keys(dict);
+    if (!names) return NULL;
+
+    for (PyGetSetDef* gs = mcrfpy_module_getset; gs->name != NULL; gs++) {
+        PyObject* name = PyUnicode_FromString(gs->name);
+        if (!name || PyList_Append(names, name) < 0) {
+            Py_XDECREF(name);
+            Py_DECREF(names);
+            return NULL;
+        }
+        Py_DECREF(name);
+    }
+
+    if (PyList_Sort(names) < 0) {
+        Py_DECREF(names);
         return NULL;
     }
-
-    if (strcmp(name, "current_scene") == 0) {
-        return McRFPy_API::api_get_current_scene();
-    }
-
-    if (strcmp(name, "scenes") == 0) {
-        return McRFPy_API::api_get_scenes();
-    }
-
-    if (strcmp(name, "timers") == 0) {
-        return McRFPy_API::api_get_timers();
-    }
-
-    if (strcmp(name, "animations") == 0) {
-        return McRFPy_API::api_get_animations();
-    }
-
-    if (strcmp(name, "default_transition") == 0) {
-        return PyTransition::to_python(PyTransition::default_transition);
-    }
-
-    if (strcmp(name, "default_transition_duration") == 0) {
-        return PyFloat_FromDouble(PyTransition::default_duration);
-    }
-
-    if (strcmp(name, "save_dir") == 0) {
-#ifdef __EMSCRIPTEN__
-        return PyUnicode_FromString("/save");
-#else
-        return PyUnicode_FromString("save");
-#endif
-    }
-
-    // Attribute not found - raise AttributeError
-    PyErr_Format(PyExc_AttributeError, "module 'mcrfpy' has no attribute '%s'", name);
-    return NULL;
+    return names;
 }
 
-// #151: Custom module type with __setattr__ support for current_scene
-static int mcrfpy_module_setattro(PyObject* self, PyObject* name, PyObject* value)
-{
-    const char* name_str = PyUnicode_AsUTF8(name);
-    if (!name_str) return -1;
+static PyMethodDef mcrfpy_module_type_methods[] = {
+    {"__dir__", mcrfpy_module_dir, METH_NOARGS,
+     MCRF_METHOD(mcrfpy, __dir__,
+         MCRF_SIG("()", "list"),
+         MCRF_DESC("Names of the module's attributes, including the dynamic properties "
+                   "(current_scene, scenes, timers, ...) that live as descriptors on the "
+                   "module type rather than in the module dict."),
+         MCRF_RETURNS("list: sorted attribute names")
+     )},
+    {NULL}  // Sentinel
+};
 
-    if (strcmp(name_str, "current_scene") == 0) {
-        return McRFPy_API::api_set_current_scene(value);
-    }
-
-    if (strcmp(name_str, "scenes") == 0) {
-        PyErr_SetString(PyExc_AttributeError, "'scenes' is read-only");
-        return -1;
-    }
-
-    if (strcmp(name_str, "timers") == 0) {
-        PyErr_SetString(PyExc_AttributeError, "'timers' is read-only");
-        return -1;
-    }
-
-    if (strcmp(name_str, "animations") == 0) {
-        PyErr_SetString(PyExc_AttributeError, "'animations' is read-only");
-        return -1;
-    }
-
-    if (strcmp(name_str, "default_transition") == 0) {
-        TransitionType trans;
-        if (!PyTransition::from_arg(value, &trans, nullptr)) {
-            return -1;
-        }
-        PyTransition::default_transition = trans;
-        return 0;
-    }
-
-    if (strcmp(name_str, "default_transition_duration") == 0) {
-        double duration;
-        if (PyFloat_Check(value)) {
-            duration = PyFloat_AsDouble(value);
-        } else if (PyLong_Check(value)) {
-            duration = PyLong_AsDouble(value);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "default_transition_duration must be a number");
-            return -1;
-        }
-        if (duration < 0.0) {
-            PyErr_SetString(PyExc_ValueError, "default_transition_duration must be non-negative");
-            return -1;
-        }
-        PyTransition::default_duration = static_cast<float>(duration);
-        return 0;
-    }
-
-    // For other attributes, use default module setattr
-    return PyObject_GenericSetAttr(self, name, value);
-}
-
-// Custom module type that inherits from PyModule_Type but has our __setattr__
+// Custom module type: carries the dynamic properties as descriptors (#151, #356)
 static PyTypeObject McRFPyModuleType = {
     .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
     .tp_name = "mcrfpy.module",
@@ -246,11 +313,15 @@ static PyTypeObject McRFPyModuleType = {
     .tp_hash = NULL,
     .tp_call = NULL,
     .tp_str = NULL,
+    // tp_getattro/tp_setattro inherited from PyModule_Type: generic attribute access
+    // finds the tp_getset data descriptors below before touching the module dict.
     .tp_getattro = NULL,
-    .tp_setattro = mcrfpy_module_setattro,
+    .tp_setattro = NULL,
     .tp_as_buffer = NULL,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_doc = "McRogueFace module with property support",
+    .tp_methods = mcrfpy_module_type_methods,
+    .tp_getset = mcrfpy_module_getset,
 };
 
 static PyMethodDef mcrfpyMethods[] = {
@@ -349,12 +420,8 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("Messages appear in the 'logs' array of each frame in the output JSON.")
      )},
 
-    // #151: Module-level attribute access for current_scene and scenes
-    {"__getattr__", mcrfpy_module_getattr, METH_VARARGS,
-     MCRF_METHOD(mcrfpy, __getattr__,
-         MCRF_SIG("(name: str)", "object"),
-         MCRF_DESC("Module-level attribute access for dynamic properties (current_scene, scenes).")
-     )},
+    // #356: the module's dynamic attributes (current_scene, scenes, timers, ...) are
+    // real descriptors on McRFPyModuleType now, not a PEP-562 __getattr__ shim.
 
     // #219: Thread synchronization
     {"lock", PyLock::lock, METH_NOARGS,

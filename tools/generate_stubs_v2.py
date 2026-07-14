@@ -440,13 +440,31 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 '''
 
 
+def module_attributes():
+    """#356: the module's dynamic attributes (current_scene, scenes, ...).
+
+    These are getset descriptors on type(mcrfpy), not entries in the module dict.
+    Introspecting the *descriptor* gives the declared type and read-only flag from
+    its docstring; introspecting the module's live *value* does not -- at generation
+    time current_scene is None, which is how it was previously typed 'NoneType'.
+    """
+    attrs = {}
+    for name, descr in vars(type(mcrfpy)).items():
+        if name.startswith("_"):
+            continue
+        if isinstance(descr, types.GetSetDescriptorType):
+            attrs[name] = descr.__doc__ or ""
+    return attrs
+
+
 def classify_module():
     classes = {}
     functions = {}
     constants = {}
     submodules = {}
+    dynamic = module_attributes()
     for name in sorted(dir(mcrfpy)):
-        if name.startswith("_"):
+        if name.startswith("_") or name in dynamic:
             continue
         attr = getattr(mcrfpy, name)
         if isinstance(attr, types.ModuleType):
@@ -457,11 +475,11 @@ def classify_module():
             functions[name] = attr
         else:
             constants[name] = attr
-    return classes, functions, constants, submodules
+    return classes, functions, constants, submodules, dynamic
 
 
 def main():
-    classes, functions, constants, submodules = classify_module()
+    classes, functions, constants, submodules, dynamic = classify_module()
 
     out_lines = [HEADER]
 
@@ -496,6 +514,14 @@ def main():
         t = type(v).__name__
         out_lines.append(f"{n}: {t}")
 
+    out_lines.append("")
+    out_lines.append("# --- Module-level dynamic attributes (#356) -----------------------------")
+    for n in sorted(dynamic):
+        doc = dynamic[n]
+        t = property_type_hint(doc)
+        note = "  # read-only" if property_is_readonly(doc) else ""
+        out_lines.append(f"{n}: {t}{note}")
+
     out_text = "\n".join(out_lines).rstrip() + "\n"
 
     stubs_dir = Path("stubs")
@@ -505,7 +531,8 @@ def main():
 
     print(f"Wrote stubs/mcrfpy.pyi ({len(out_text)} bytes, "
           f"{len(classes)} classes, {len(functions)} functions, "
-          f"{len(constants)} constants, {len(submodules)} submodules)")
+          f"{len(constants)} constants, {len(dynamic)} dynamic attributes, "
+          f"{len(submodules)} submodules)")
 
 
 if __name__ == "__main__":
