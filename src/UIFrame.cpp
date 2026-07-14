@@ -81,6 +81,7 @@ UIFrame::UIFrame(float _x, float _y, float _w, float _h)
 
 UIFrame::~UIFrame()
 {
+    UIDrawable::releaseChildPins(children);  // #373
     children.reset();
 }
 

@@ -3,17 +3,26 @@
 
 import mcrfpy
 from mcrfpy import automation
+import os
 import sys
 
-def capture_sprites(timer, runtime):
-    """Capture sprite examples after render loop starts"""
+SCREENSHOT = "ui_sprite_example.png"
 
-    # Take screenshot
-    automation.screenshot("mcrogueface.github.io/images/ui_sprite_example.png")
+results = []
+
+def check(label, condition):
+    results.append((label, bool(condition)))
+    print(f"{'PASS' if condition else 'FAIL'}: {label}")
+
+def capture_sprites(timer, runtime):
+    """Capture sprite examples once the timer fires"""
+
+    # Take screenshot (rendering is on-demand in headless: screenshot forces a render)
+    automation.screenshot(SCREENSHOT)
     print("Sprite screenshot saved!")
 
-    # Exit after capturing
-    sys.exit(0)
+    check("screenshot file created", os.path.exists(SCREENSHOT))
+    check("screenshot is non-empty", os.path.exists(SCREENSHOT) and os.path.getsize(SCREENSHOT) > 0)
 
 # Create scene
 sprites = mcrfpy.Scene("sprites")
@@ -21,9 +30,8 @@ sprites = mcrfpy.Scene("sprites")
 # Load texture
 texture = mcrfpy.Texture("assets/kenney_TD_MR_IP.png", 16, 16)
 
-# Title
-title = mcrfpy.Caption(pos=(400, 30), text="Sprite Examples")
-title.font = mcrfpy.default_font
+# Title (Caption.font is read-only: pass it to the constructor)
+title = mcrfpy.Caption(pos=(400, 30), font=mcrfpy.default_font, text="Sprite Examples")
 title.font_size = 24
 title.fill_color = mcrfpy.Color(255, 255, 255)
 
@@ -33,102 +41,71 @@ frame.fill_color = mcrfpy.Color(64, 64, 128)
 frame.outline = 2
 
 # Player sprite
-player_label = mcrfpy.Caption(pos=(100, 120), text="Player")
-player_label.font = mcrfpy.default_font
+player_label = mcrfpy.Caption(pos=(100, 120), font=mcrfpy.default_font, text="Player")
 player_label.fill_color = mcrfpy.Color(255, 255, 255)
 
-player = mcrfpy.Sprite(120, 150)
-player.texture = texture
-player.sprite_index = 84  # Player sprite
-player.scale = (3.0, 3.0)
+player = mcrfpy.Sprite(pos=(120, 150), texture=texture, sprite_index=84)  # Player sprite
+player.scale = 3.0
 
 # Enemy sprites
-enemy_label = mcrfpy.Caption(pos=(250, 120), text="Enemies")
-enemy_label.font = mcrfpy.default_font
+enemy_label = mcrfpy.Caption(pos=(250, 120), font=mcrfpy.default_font, text="Enemies")
 enemy_label.fill_color = mcrfpy.Color(255, 255, 255)
 
-rat = mcrfpy.Sprite(250, 150)
-rat.texture = texture
-rat.sprite_index = 123  # Rat
-rat.scale = (3.0, 3.0)
+rat = mcrfpy.Sprite(pos=(250, 150), texture=texture, sprite_index=123)  # Rat
+rat.scale = 3.0
 
-big_rat = mcrfpy.Sprite(320, 150)
-big_rat.texture = texture
-big_rat.sprite_index = 130  # Big rat
-big_rat.scale = (3.0, 3.0)
+big_rat = mcrfpy.Sprite(pos=(320, 150), texture=texture, sprite_index=130)  # Big rat
+big_rat.scale = 3.0
 
-cyclops = mcrfpy.Sprite(390, 150)
-cyclops.texture = texture
-cyclops.sprite_index = 109  # Cyclops
-cyclops.scale = (3.0, 3.0)
+cyclops = mcrfpy.Sprite(pos=(390, 150), texture=texture, sprite_index=109)  # Cyclops
+cyclops.scale = 3.0
 
 # Items row
-items_label = mcrfpy.Caption(pos=(100, 250), text="Items")
-items_label.font = mcrfpy.default_font
+items_label = mcrfpy.Caption(pos=(100, 250), font=mcrfpy.default_font, text="Items")
 items_label.fill_color = mcrfpy.Color(255, 255, 255)
 
 # Boulder
-boulder = mcrfpy.Sprite(100, 280)
-boulder.texture = texture
-boulder.sprite_index = 66  # Boulder
-boulder.scale = (3.0, 3.0)
+boulder = mcrfpy.Sprite(pos=(100, 280), texture=texture, sprite_index=66)  # Boulder
+boulder.scale = 3.0
 
 # Chest
-chest = mcrfpy.Sprite(170, 280)
-chest.texture = texture
-chest.sprite_index = 89  # Closed chest
-chest.scale = (3.0, 3.0)
+chest = mcrfpy.Sprite(pos=(170, 280), texture=texture, sprite_index=89)  # Closed chest
+chest.scale = 3.0
 
 # Key
-key = mcrfpy.Sprite(240, 280)
-key.texture = texture
-key.sprite_index = 384  # Key
-key.scale = (3.0, 3.0)
+key = mcrfpy.Sprite(pos=(240, 280), texture=texture, sprite_index=384)  # Key
+key.scale = 3.0
 
 # Button
-button = mcrfpy.Sprite(310, 280)
-button.texture = texture
-button.sprite_index = 250  # Button
-button.scale = (3.0, 3.0)
+button = mcrfpy.Sprite(pos=(310, 280), texture=texture, sprite_index=250)  # Button
+button.scale = 3.0
 
 # UI elements row
-ui_label = mcrfpy.Caption(pos=(100, 380), text="UI Elements")
-ui_label.font = mcrfpy.default_font
+ui_label = mcrfpy.Caption(pos=(100, 380), font=mcrfpy.default_font, text="UI Elements")
 ui_label.fill_color = mcrfpy.Color(255, 255, 255)
 
 # Hearts
-heart_full = mcrfpy.Sprite(100, 410)
-heart_full.texture = texture
-heart_full.sprite_index = 210  # Full heart
-heart_full.scale = (3.0, 3.0)
+heart_full = mcrfpy.Sprite(pos=(100, 410), texture=texture, sprite_index=210)  # Full heart
+heart_full.scale = 3.0
 
-heart_half = mcrfpy.Sprite(170, 410)
-heart_half.texture = texture
-heart_half.sprite_index = 209  # Half heart
-heart_half.scale = (3.0, 3.0)
+heart_half = mcrfpy.Sprite(pos=(170, 410), texture=texture, sprite_index=209)  # Half heart
+heart_half.scale = 3.0
 
-heart_empty = mcrfpy.Sprite(240, 410)
-heart_empty.texture = texture
-heart_empty.sprite_index = 208  # Empty heart
-heart_empty.scale = (3.0, 3.0)
+heart_empty = mcrfpy.Sprite(pos=(240, 410), texture=texture, sprite_index=208)  # Empty heart
+heart_empty.scale = 3.0
 
 # Armor
-armor = mcrfpy.Sprite(340, 410)
-armor.texture = texture
-armor.sprite_index = 211  # Armor
-armor.scale = (3.0, 3.0)
+armor = mcrfpy.Sprite(pos=(340, 410), texture=texture, sprite_index=211)  # Armor
+armor.scale = 3.0
 
 # Scale demonstration
-scale_label = mcrfpy.Caption(pos=(500, 120), text="Scale Demo")
-scale_label.font = mcrfpy.default_font
+scale_label = mcrfpy.Caption(pos=(500, 120), font=mcrfpy.default_font, text="Scale Demo")
 scale_label.fill_color = mcrfpy.Color(255, 255, 255)
 
 # Same sprite at different scales
 for i, scale in enumerate([1.0, 2.0, 3.0, 4.0]):
-    s = mcrfpy.Sprite(500 + i * 60, 150)
-    s.texture = texture
-    s.sprite_index = 84  # Player
-    s.scale = (scale, scale)
+    s = mcrfpy.Sprite(pos=(500 + i * 60, 150), texture=texture, sprite_index=84)  # Player
+    s.scale = scale
     sprites.children.append(s)
 
 # Add all elements to scene
@@ -156,5 +133,22 @@ ui.append(scale_label)
 # Switch to scene
 sprites.activate()
 
-# Set timer to capture after rendering starts
+# Everything got built and attached
+check("scene populated with sprite showcase", len(sprites.children) == 23)
+check("sprite scale applied", player.scale == 3.0)
+check("sprite index applied", player.sprite_index == 84)
+
+# Set timer to capture; headless has no clock of its own, so drive it with step()
 capture_timer = mcrfpy.Timer("capture", capture_sprites, 100, once=True)
+for _ in range(4):
+    mcrfpy.step(0.05)
+
+check("capture timer fired", any(label.startswith("screenshot") for label, _ in results))
+
+failures = [label for label, ok in results if not ok]
+if failures:
+    print(f"FAIL - {len(failures)} check(s) failed: {failures}")
+    sys.exit(1)
+
+print("PASS")
+sys.exit(0)

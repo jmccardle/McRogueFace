@@ -270,7 +270,16 @@ def build_snapshot():
     out.append("# Regenerate intentionally: MCRF_UPDATE_API_SNAPSHOT=1")
     out.append("# Singleton/constant VALUES are intentionally NOT captured.")
 
-    names = [n for n in dir(mcrfpy) if not n.startswith("_")]
+    # #356: the dynamic module attributes are getset descriptors on type(mcrfpy).
+    # Capture them from the DESCRIPTOR, not from getattr(): their value is runtime
+    # state (current_scene is None here, a Scene in a running game), so snapshotting
+    # type(value) would make the golden depend on engine state.
+    dynamic_attrs = sorted(
+        n for n, d in vars(type(mcrfpy)).items()
+        if not n.startswith("_") and isinstance(d, types.GetSetDescriptorType)
+    )
+
+    names = [n for n in dir(mcrfpy) if not n.startswith("_") and n not in dynamic_attrs]
     enums, classes, funcs, singletons, submodules = [], [], [], [], []
     for n in names:
         v = getattr(mcrfpy, n)
@@ -297,6 +306,16 @@ def build_snapshot():
     out.append("=== MODULE SINGLETONS / CONSTANTS (%d) ===" % len(singletons))
     for n, tn in sorted(singletons):
         out.append("const %s: %s" % (n, tn))
+
+    out.append("")
+    out.append("=== MODULE DYNAMIC ATTRIBUTES (%d) ===" % len(dynamic_attrs))
+    for n in dynamic_attrs:
+        descr = getattr(type(mcrfpy), n)
+        doc = descr.__doc__ or ""
+        # A getset_descriptor is always a data descriptor (it exposes __set__ even
+        # with a NULL setter), so read-only-ness can only be read off the docstring.
+        rw = "ro" if "read-only" in doc.lower() else "rw"
+        out.append("attr %s (%s) :: %s" % (n, rw, first_doc_line(doc) or "<no-doc>"))
 
     out.append("")
     out.append("=== SUBMODULES (%d) ===" % len(submodules))

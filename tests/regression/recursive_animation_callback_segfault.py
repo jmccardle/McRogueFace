@@ -25,8 +25,7 @@ def recursive_callback(target, prop, value):
     callback_count += 1
 
     if callback_count >= MAX_CALLBACKS:
-        print(f"PASS - {callback_count} recursive animation callbacks completed without segfault")
-        sys.exit(0)
+        return
 
     # Chain another animation - this used to cause segfault due to iterator invalidation
     target.animate("x", 100 + (callback_count * 20), 0.1, mcrfpy.Easing.LINEAR, callback=recursive_callback)
@@ -34,13 +33,29 @@ def recursive_callback(target, prop, value):
 # Start the chain
 frame.animate("x", 200, 0.1, mcrfpy.Easing.LINEAR, callback=recursive_callback)
 
-def timeout_check(timer, runtime):
-    """Safety timeout"""
-    if callback_count >= MAX_CALLBACKS:
-        print(f"PASS - {callback_count} callbacks completed")
-        sys.exit(0)
-    else:
-        print(f"FAIL - only {callback_count}/{MAX_CALLBACKS} callbacks executed")
-        sys.exit(1)
+# In headless mode mcrfpy.step() is the only clock: drive the animation chain forward.
+# Each link is 0.1s; MAX_CALLBACKS links need >= 1.0s of simulated time. Step generously
+# and bail out as soon as the chain is complete.
+MAX_STEPS = 400
+steps = 0
+while callback_count < MAX_CALLBACKS and steps < MAX_STEPS:
+    mcrfpy.step(0.02)
+    steps += 1
 
-safety_timer = mcrfpy.Timer("safety", timeout_check, 5000, once=True)
+if callback_count < MAX_CALLBACKS:
+    print(f"FAIL - only {callback_count}/{MAX_CALLBACKS} callbacks executed after {steps} steps")
+    sys.exit(1)
+
+# The chain completed without segfault (iterator invalidation in AnimationManager::update).
+# The final animation of the chain targets x = 100 + (MAX_CALLBACKS-1)*20; run a few more
+# steps so it settles, proving the manager is still healthy after the recursive churn.
+for _ in range(20):
+    mcrfpy.step(0.02)
+
+expected_x = 100 + (MAX_CALLBACKS - 1) * 20
+if abs(frame.x - expected_x) > 0.5:
+    print(f"FAIL - final animation did not complete: frame.x={frame.x}, expected {expected_x}")
+    sys.exit(1)
+
+print(f"PASS - {callback_count} recursive animation callbacks completed without segfault; frame.x={frame.x}")
+sys.exit(0)

@@ -24,7 +24,7 @@ def on_click_handler(pos, button, action):
 frame.on_click = on_click_handler
 
 # Click inside the frame
-automation.click(150, 150)
+automation.click((150, 150))
 mcrfpy.step(0.05)
 
 if len(start_clicks) >= 1:
@@ -50,7 +50,7 @@ def on_miss_handler(pos, button, action):
 frame2.on_click = on_miss_handler
 
 # Click outside the frame
-automation.click(50, 50)
+automation.click((50, 50))
 mcrfpy.step(0.05)
 
 if len(miss_clicks) > 0:
@@ -58,7 +58,7 @@ if len(miss_clicks) > 0:
 
 # Test 3: Position tracking
 print("Testing position tracking...")
-automation.moveTo(123, 456)
+automation.moveTo((123, 456))
 pos = automation.position()
 if pos[0] != 123 or pos[1] != 456:
     errors.append(f"Position tracking: expected (123,456), got {pos}")

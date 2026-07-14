@@ -251,12 +251,34 @@ def get_constants():
             }
     return constants
 
+def get_module_attributes():
+    """#356: dynamic module attributes (current_scene, scenes, timers, ...).
+
+    They are getset descriptors on type(mcrfpy) rather than module-dict entries, so
+    the dir()+getattr() sweep above cannot describe them: getattr returns the live
+    *value* (None, at generation time), not the declared type. Read the descriptor.
+    """
+    import types as _types
+    attrs = {}
+    for name, descr in vars(type(mcrfpy)).items():
+        if name.startswith('_'):
+            continue
+        if isinstance(descr, _types.GetSetDescriptorType):
+            doc = descr.__doc__ or ""
+            attrs[name] = {
+                "name": name,
+                "doc": doc,
+                "readonly": "read-only" in doc.lower(),
+            }
+    return attrs
+
 def generate_html_docs():
     """Generate HTML documentation."""
     functions = get_all_functions()
     classes = get_all_classes()
     constants = get_constants()
-    
+    module_attrs = get_module_attributes()
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -385,10 +407,26 @@ def generate_html_docs():
     
     html_content += """                    </ul>
                 </li>
+                <li><a href="#module-attributes">Module Attributes</a></li>
                 <li><a href="#constants">Constants</a></li>
             </ul>
         </div>
-        
+
+        <h2 id="module-attributes">Module Attributes</h2>
+        <p>Dynamic attributes of the <code>mcrfpy</code> module itself.</p>
+"""
+
+    for attr_name in sorted(module_attrs.keys()):
+        attr_info = module_attrs[attr_name]
+        ro = ' <em>(read-only)</em>' if attr_info["readonly"] else ''
+        html_content += f"""
+        <div class="method-section">
+            <h3><code class="function-signature">mcrfpy.{attr_name}</code>{ro}</h3>
+            <p>{html.escape(attr_info["doc"])}</p>
+        </div>
+"""
+
+    html_content += """
         <h2 id="functions">Functions</h2>
 """
     
@@ -511,7 +549,8 @@ def generate_markdown_docs():
     functions = get_all_functions()
     classes = get_all_classes()
     constants = get_constants()
-    
+    module_attrs = get_module_attributes()
+
     md_content = f"""# McRogueFace API Reference
 
 *Generated on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
@@ -530,8 +569,17 @@ def generate_markdown_docs():
     for class_name in sorted(classes.keys()):
         md_content += f"  - [{class_name}](#{class_name.lower()})\n"
     
+    md_content += "- [Module Attributes](#module-attributes)\n"
     md_content += "- [Constants](#constants)\n\n"
-    
+
+    # Module attributes (#356)
+    md_content += "## Module Attributes\n\n"
+    md_content += "Dynamic attributes of the `mcrfpy` module itself.\n\n"
+    for attr_name in sorted(module_attrs.keys()):
+        attr_info = module_attrs[attr_name]
+        ro = " *(read-only)*" if attr_info["readonly"] else ""
+        md_content += f"### `mcrfpy.{attr_name}`{ro}\n\n{attr_info['doc']}\n\n"
+
     # Functions
     md_content += "## Functions\n\n"
     
@@ -631,3 +679,4 @@ if __name__ == "__main__":
     generate_html_docs()
     generate_markdown_docs()
     print("Documentation generation complete!")
+    sys.exit(0)  # #350: headless --exec must declare its outcome

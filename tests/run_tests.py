@@ -41,7 +41,18 @@ SANITIZER_PATTERNS = [
 ]
 
 # Test directories to run (in order)
-TEST_DIRS = ['unit', 'integration', 'regression']
+TEST_DIRS = ['unit', 'integration', 'regression', 'demo']
+
+# #372: tests/demo/ was never run by anything, so the demo screens -- which CLAUDE.md
+# points at as the canonical API-usage examples -- silently bitrotted until they could
+# not even import. Smoke-gate the entry point that exercises screens/base.py and every
+# wired DemoScreen, so "read the demos for correct usage" stays true.
+#
+# An allowlist, not a glob: the other scripts under tests/demo/ are standalone
+# showcases that are not part of the demo_main path (see the follow-up issue for
+# adopting them). Demos render, so they need a longer timeout than a unit test.
+DEMO_SMOKE_TESTS = ['demo_main.py']
+DEMO_TIMEOUT = 60  # seconds
 
 # ANSI colors
 GREEN = '\033[92m'
@@ -113,6 +124,13 @@ def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT,
         passed = result.returncode == 0
         output = result.stdout + result.stderr
 
+        # An uncaught exception is never a pass. Exit code alone was not enough:
+        # a script that raised during setup registered no timers, was auto-exited 0
+        # by the engine, and was scored PASS -- 59 tests sat rotted this way, their
+        # assertions never once executing. (#341/#350/#372)
+        if 'Traceback (most recent call last)' in output:
+            passed = False
+
         # Check for PASS/FAIL in output
         if 'FAIL' in output and 'PASS' not in output.split('FAIL')[-1]:
             passed = False
@@ -150,6 +168,9 @@ def find_tests(directory):
     test_dir = TESTS_DIR / directory
     if not test_dir.exists():
         return []
+    if directory == 'demo':
+        # #372: allowlisted entry points only -- see DEMO_SMOKE_TESTS.
+        return [test_dir / name for name in DEMO_SMOKE_TESTS if (test_dir / name).exists()]
     return sorted(test_dir.glob("*.py"))
 
 def main():
@@ -203,8 +224,11 @@ def main():
 
         for test_path in tests:
             test_name = test_path.name
+            # Demos render several scenes; they need more headroom than a unit test.
+            test_timeout = (DEMO_TIMEOUT * timeout_multiplier
+                            if test_dir == 'demo' else effective_timeout)
             passed, duration, output, san_errors = run_test(
-                test_path, verbose, effective_timeout,
+                test_path, verbose, test_timeout,
                 sanitizer_mode=sanitizer_mode,
                 valgrind_mode=valgrind_mode
             )

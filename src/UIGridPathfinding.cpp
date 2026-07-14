@@ -65,6 +65,15 @@ float DijkstraMap::getDistance(int x, int y) const {
     return TCOD_dijkstra_get_distance(tcod_dijkstra, x, y);
 }
 
+// #375: emit the path in origin->destination order, matching find_path()'s convention
+// (excludes the origin, includes the root).
+//
+// libtcod builds its internal list as [pos, ..., root_adjacent] and
+// TCOD_dijkstra_path_walk() pops from the BACK, so walking yields
+// [root_adjacent, ..., pos] -- the exact reverse of what path_from's docstring,
+// AStarPath.origin/.destination, and step_from all promise. stepFrom() inherited the
+// error and returned a cell adjacent to the ROOT rather than to the query position,
+// i.e. an arbitrarily long teleport.
 std::vector<sf::Vector2i> DijkstraMap::getPathFrom(int x, int y) const {
     std::vector<sf::Vector2i> path;
     if (!tcod_dijkstra) return path;
@@ -75,6 +84,18 @@ std::vector<sf::Vector2i> DijkstraMap::getPathFrom(int x, int y) const {
             path.push_back(sf::Vector2i(px, py));
         }
     }
+    if (path.empty()) return path;  // already at a root, or unreachable
+
+    std::reverse(path.begin(), path.end());  // -> [pos, ..., root_adjacent]
+    path.erase(path.begin());                // drop the origin
+
+    // The walk stops one cell short of the root. Append the root this path descends
+    // into -- via descentStep, so the multi-root case lands on the correct root.
+    bool ok = false;
+    sf::Vector2i last = path.empty() ? sf::Vector2i(x, y) : path.back();
+    sf::Vector2i root_cell = descentStep(last.x, last.y, &ok);
+    if (ok) path.push_back(root_cell);
+
     return path;
 }
 
@@ -84,15 +105,11 @@ sf::Vector2i DijkstraMap::stepFrom(int x, int y, bool* valid) const {
         return sf::Vector2i(-1, -1);
     }
 
-    if (!TCOD_dijkstra_path_set(tcod_dijkstra, x, y)) {
-        if (valid) *valid = false;
-        return sf::Vector2i(-1, -1);
-    }
-
-    int px, py;
-    if (TCOD_dijkstra_path_walk(tcod_dijkstra, &px, &py)) {
+    // #375: the first cell of the corrected path -- guaranteed adjacent to (x, y).
+    std::vector<sf::Vector2i> path = getPathFrom(x, y);
+    if (!path.empty()) {
         if (valid) *valid = true;
-        return sf::Vector2i(px, py);
+        return path.front();
     }
 
     if (valid) *valid = false;

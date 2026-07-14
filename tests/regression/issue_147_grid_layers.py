@@ -7,6 +7,13 @@ Tests:
 2. TileLayer creation and manipulation
 3. Layer z_index ordering relative to entities
 4. Layer management (add_layer, remove_layer, layers property)
+
+API notes (current contract):
+- Layers are constructed standalone (TileLayer/ColorLayer ctors take kwargs) and then
+  attached with grid_data.add_layer(layer) -- add_layer takes an object, not kwargs.
+- Layer management (add_layer / remove_layer / layer) lives on GridData
+  (grid.grid_data); the Grid view exposes the read-only `layers` tuple.
+- Layers are looked up BY NAME, not by z_index (grid_data.layer(name)).
 """
 import mcrfpy
 import sys
@@ -19,21 +26,22 @@ print("=" * 60)
 test = mcrfpy.Scene("test")
 mcrfpy.current_scene = test
 ui = test.children
-texture = mcrfpy.Texture("assets/kenney_ice.png", 16, 16)
+texture = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 
 # Create grid with explicit empty layers (#150 migration)
-grid = mcrfpy.Grid(pos=(50, 50), size=(400, 300), grid_size=(20, 15), texture=texture, layers={})
+grid = mcrfpy.Grid(pos=(50, 50), size=(400, 300), grid_size=(20, 15), texture=texture, layers=[])
 ui.append(grid)
+grid_data = grid.grid_data
 
 print("\n--- Test 1: Initial state (no layers) ---")
 if len(grid.layers) == 0:
-    print("  PASS: Grid starts with no layers (layers={})")
+    print("  PASS: Grid starts with no layers (layers=[])")
 else:
     print(f"  FAIL: Expected 0 layers, got {len(grid.layers)}")
     sys.exit(1)
 
 print("\n--- Test 2: Add ColorLayer ---")
-color_layer = grid.add_layer("color", z_index=-1)
+color_layer = grid_data.add_layer(mcrfpy.ColorLayer(name="color", z_index=-1))
 print(f"  Created: {color_layer}")
 if color_layer is not None:
     print("  PASS: ColorLayer created")
@@ -63,7 +71,7 @@ else:
 
 print("\n--- Test 3: ColorLayer cell access ---")
 # Set a color
-color_layer.set(5, 5, mcrfpy.Color(255, 0, 0, 128))
+color_layer.set((5, 5), mcrfpy.Color(255, 0, 0, 128))
 color = color_layer.at(5, 5)
 if color.r == 255 and color.g == 0 and color.b == 0 and color.a == 128:
     print(f"  PASS: Color at (5,5) is {color.r}, {color.g}, {color.b}, {color.a}")
@@ -81,7 +89,7 @@ else:
     sys.exit(1)
 
 print("\n--- Test 4: Add TileLayer ---")
-tile_layer = grid.add_layer("tile", z_index=-2, texture=texture)
+tile_layer = grid_data.add_layer(mcrfpy.TileLayer(name="tile", z_index=-2, texture=texture))
 print(f"  Created: {tile_layer}")
 if tile_layer is not None:
     print("  PASS: TileLayer created")
@@ -97,7 +105,7 @@ else:
 
 print("\n--- Test 5: TileLayer cell access ---")
 # Set a tile
-tile_layer.set(3, 3, 42)
+tile_layer.set((3, 3), 42)
 tile = tile_layer.at(3, 3)
 if tile == 42:
     print(f"  PASS: Tile at (3,3) is {tile}")
@@ -129,30 +137,34 @@ else:
     print(f"  FAIL: Layers not sorted")
     sys.exit(1)
 
-print("\n--- Test 7: Get layer by z_index ---")
-layer = grid.layer(-1)
-if layer is not None and layer.z_index == -1:
-    print("  PASS: grid.layer(-1) returns ColorLayer")
+print("\n--- Test 7: Get layer by name ---")
+# Layer lookup is by NAME now (grid.layer(z_index) no longer exists); z_index is still
+# the ordering key, verified in Test 6. Note: layer lookups return a fresh wrapper each
+# call (layers are not in PythonObjectCache), so compare identity via the shared data,
+# not `is`.
+layer = grid_data.layer("color")
+if layer is not None and layer.z_index == -1 and layer.at(5, 5).b == color_layer.at(5, 5).b:
+    print("  PASS: grid_data.layer('color') returns the ColorLayer")
 else:
-    print("  FAIL: Could not get layer by z_index")
+    print("  FAIL: Could not get ColorLayer by name")
     sys.exit(1)
 
-layer = grid.layer(-2)
-if layer is not None and layer.z_index == -2:
-    print("  PASS: grid.layer(-2) returns TileLayer")
+layer = grid_data.layer("tile")
+if layer is not None and layer.z_index == -2 and layer.at(3, 3) == tile_layer.at(3, 3):
+    print("  PASS: grid_data.layer('tile') returns the TileLayer")
 else:
-    print("  FAIL: Could not get layer by z_index")
+    print("  FAIL: Could not get TileLayer by name")
     sys.exit(1)
 
-layer = grid.layer(999)
+layer = grid_data.layer("nonexistent")
 if layer is None:
-    print("  PASS: grid.layer(999) returns None for non-existent layer")
+    print("  PASS: grid_data.layer('nonexistent') returns None for non-existent layer")
 else:
     print("  FAIL: Should return None for non-existent layer")
     sys.exit(1)
 
 print("\n--- Test 8: Layer above entities (z_index >= 0) ---")
-fog_layer = grid.add_layer("color", z_index=1)
+fog_layer = grid_data.add_layer(mcrfpy.ColorLayer(name="fog", z_index=1))
 if fog_layer.z_index == 1:
     print("  PASS: Created layer with z_index=1 (above entities)")
 else:
@@ -165,7 +177,7 @@ print("  PASS: Fog layer filled")
 
 print("\n--- Test 9: Remove layer ---")
 initial_count = len(grid.layers)
-grid.remove_layer(fog_layer)
+grid_data.remove_layer(fog_layer)
 final_count = len(grid.layers)
 if final_count == initial_count - 1:
     print(f"  PASS: Layer removed ({initial_count} -> {final_count})")

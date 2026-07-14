@@ -6,11 +6,12 @@ Generates screenshots for the new API cookbook recipes.
 Run with: xvfb-run -a ./build/mcrogueface --headless --exec tests/demo/new_features_showcase.py
 """
 import mcrfpy
+import docs_output
 from mcrfpy import automation
 import sys
 import os
 
-OUTPUT_DIR = "/opt/goblincorps/repos/mcrogueface.github.io/images/cookbook"
+OUTPUT_DIR = docs_output.image_dir("cookbook")  # #372: was a hardcoded absolute path
 
 
 def screenshot_alignment():

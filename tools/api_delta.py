@@ -210,6 +210,17 @@ def compute_delta(a, b, object_pages):
         elif kind == "doc":
             functions_doc_changed.append(m)
 
+    # #356: dynamic module attributes (current_scene, scenes, ...) are their own
+    # manifest section; without this they drift silently.
+    a_attrs = a.get("module_attributes", {})
+    b_attrs = b.get("module_attributes", {})
+    attrs_added = sorted(set(b_attrs) - set(a_attrs))
+    attrs_removed = sorted(set(a_attrs) - set(b_attrs))
+    attrs_changed = []
+    for m in sorted(set(a_attrs) & set(b_attrs)):
+        if member_changed(a_attrs[m], b_attrs[m]):
+            attrs_changed.append(m)
+
     return {
         "ref1": None,
         "ref2": None,
@@ -220,13 +231,18 @@ def compute_delta(a, b, object_pages):
         "functions_removed": functions_removed,
         "functions_signature_changed": functions_sig_changed,
         "functions_doc_changed": functions_doc_changed,
+        "module_attributes_added": attrs_added,
+        "module_attributes_removed": attrs_removed,
+        "module_attributes_changed": attrs_changed,
     }
 
 
 def delta_is_empty(d):
     return not (d["objects_added"] or d["objects_removed"] or d["objects_changed"]
                 or d["functions_added"] or d["functions_removed"]
-                or d["functions_signature_changed"] or d["functions_doc_changed"])
+                or d["functions_signature_changed"] or d["functions_doc_changed"]
+                or d["module_attributes_added"] or d["module_attributes_removed"]
+                or d["module_attributes_changed"])
 
 
 # ---------------------------------------------------------------------------
@@ -303,6 +319,22 @@ def render_md(d):
         out.append("| change | functions |")
         out.append("| --- | --- |")
         for label, members in fn_rows:
+            if members:
+                out.append("| %s | %s |"
+                           % (label, ", ".join("`%s`" % m for m in members)))
+        out.append("")
+
+    attr_rows = [
+        ("added", d["module_attributes_added"]),
+        ("removed", d["module_attributes_removed"]),
+        ("changed", d["module_attributes_changed"]),
+    ]
+    if any(members for _, members in attr_rows):
+        out.append("## Module attributes")
+        out.append("")
+        out.append("| change | attributes |")
+        out.append("| --- | --- |")
+        for label, members in attr_rows:
             if members:
                 out.append("| %s | %s |"
                            % (label, ", ".join("`%s`" % m for m in members)))

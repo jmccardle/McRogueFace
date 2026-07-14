@@ -177,8 +177,48 @@ public:
     // Remove this drawable from its current parent's children (or scene)
     void removeFromParent();
 
+    // #373: strong ref to this drawable's Python wrapper, held for exactly as long as
+    // the drawable is a member of a children collection (a Frame's, a GridView's, or a
+    // Scene's). PythonObjectCache holds only weakrefs, so without this a subclass
+    // wrapper that Python stops referencing is collected while C++ still owns the
+    // object -- and the next .parent / find() / indexing lookup misses the cache and
+    // hands back a freshly allocated BASE-type wrapper, silently dropping the subclass
+    // and every attribute the user set on it.
+    //
+    // Membership is the boundary, exactly as grid membership is for UIEntity (#266).
+    // It is represented by the parent link, so the pin is re-evaluated in setParent()
+    // and setParentScene() -- the two choke points every collection mutator goes
+    // through. Only subclassed drawables are pinned: a base-type wrapper carries no
+    // state of its own (the types have no __dict__), so re-creating one is unobservable.
+    //
+    // The pin is a reference cycle (wrapper -> shared_ptr -> drawable -> wrapper) that
+    // Python's GC cannot see through the C++ side, so it MUST be released on the way
+    // out. Every exit is covered: unlinking calls setParent(nullptr), and an owner
+    // destroyed while still holding children releases its children's pins first.
+    PyObject* py_identity = nullptr;
+
+    // Acquire or drop py_identity to match the current parent link. Idempotent.
+    void updatePyIdentityPin();
+
+    // Unconditionally drop the pin. Called by an owner tearing down its children vector.
+    void releasePyIdentity();
+
+    // #373: an owner (Frame, GridView, Scene) destroyed while it still holds children
+    // must drop their pins. Nothing calls setParent(nullptr) on that path -- the vector
+    // simply dies -- so without this the wrapper <-> drawable cycle would strand the
+    // entire subtree in memory. Releasing a child's pin cannot free it here: the vector
+    // still holds a strong ref. It dies with the vector, and its own destructor then
+    // releases the next level down.
+    static void releaseChildPins(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children);
+
     // Get the global (screen) position by walking up the parent chain (#102)
     sf::Vector2f get_global_position() const;
+
+    // #369: the single cache-aware C++ -> Python wrapper conversion for drawables.
+    // Returns the live wrapper for this drawable if one exists (preserving object
+    // identity and any Python subclass), otherwise allocates one and registers it.
+    // Returns a new reference, or nullptr with an exception set.
+    static PyObject* pyobject_for(std::shared_ptr<UIDrawable> drawable);
 
     // Python API for parent/global_position
     static PyObject* get_parent(PyObject* self, void* closure);

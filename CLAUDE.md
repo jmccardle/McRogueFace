@@ -609,34 +609,29 @@ echo 'import mcrfpy; print("Test"); scene = mcrfpy.Scene("test"); scene.activate
 
 ### Understanding Key Macros and Patterns
 
-#### RET_PY_INSTANCE Macro (UIDrawable.h)
-This macro handles converting C++ UI objects to their Python equivalents:
+#### Returning a C++ object to Python (#369)
+
+**Never `tp_alloc` a wrapper for a C++ object that might already have one.** A fresh
+wrapper breaks object identity (`x.parent is x.parent` -> False) and silently downgrades
+a Python subclass to its base type. `RET_PY_INSTANCE`, which older docs described here,
+no longer exists; use the cache-aware converters instead:
+
 ```cpp
-RET_PY_INSTANCE(target);
-// Expands to a switch on target->derived_type() that:
-// 1. Allocates the correct Python object type (Frame, Caption, Sprite, Grid)
-// 2. Sets the shared_ptr data member
-// 3. Returns the PyObject*
+// Drawables (Frame, Caption, Sprite, GridView, Line, Circle, Arc, Viewport3D)
+PyObject* obj = UIDrawable::pyobject_for(drawable_shared_ptr);   // UIDrawable.h
+
+// Entities  -- convertEntityToPython(), file-local to UIEntityCollection.cpp
+// GridData  -- PyGridData::pyobject_for()
 ```
+
+Each looks the object up in `PythonObjectCache` by `serial_number` and returns the live
+wrapper if one exists, only allocating (and re-registering) on a miss. `tp_alloc` is
+correct **only** in a type's own `tp_init`, where the object is genuinely new.
 
 #### Collection Patterns
 - `UICollection` wraps `std::vector<std::shared_ptr<UIDrawable>>`
-- `UIEntityCollection` wraps `std::list<std::shared_ptr<UIEntity>>`
-- Different containers require different iteration code (vector vs list)
-
-#### Python Object Creation Patterns
-```cpp
-// Pattern 1: Using tp_alloc (most common)
-auto o = (PyUIFrameObject*)type->tp_alloc(type, 0);
-o->data = std::make_shared<UIFrame>();
-
-// Pattern 2: Getting type from module
-auto type = (PyTypeObject*)PyObject_GetAttrString(McRFPy_API::mcrf_module, "Entity");
-auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
-
-// Pattern 3: Direct shared_ptr assignment
-iterObj->data = self->data;  // Shares the C++ object
-```
+- `UIEntityCollection` wraps `std::vector<std::shared_ptr<UIEntity>>` (#329: was a
+  `std::list`; indexing is O(1) now, so don't reintroduce `std::advance`)
 
 ### Working Directory Structure
 ```

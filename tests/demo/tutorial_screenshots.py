@@ -8,13 +8,14 @@ Usage:
 Extracts code from tutorial markdown files and generates screenshots.
 """
 import mcrfpy
+import docs_output
 from mcrfpy import automation
 import sys
 import os
 import re
 
 # Paths
-DOCS_REPO = "/opt/goblincorps/repos/mcrogueface.github.io"
+DOCS_REPO = docs_output.docs_repo() or os.path.dirname(os.path.abspath(__file__))  # #372
 TUTORIAL_DIR = os.path.join(DOCS_REPO, "tutorial")
 OUTPUT_DIR = os.path.join(DOCS_REPO, "images", "tutorials")
 

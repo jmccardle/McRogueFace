@@ -5,6 +5,10 @@ Dijkstra Demo - Shows ALL Path Combinations (Including Invalid)
 
 Cycles through every possible entity pair to demonstrate both
 valid paths and properly handled invalid paths (empty lists).
+
+Entity 1 is sealed inside a 2x2 pocket of walls, so every path to or from
+it must come back as an empty list; the two reachable entities must produce
+real, contiguous, walkable paths.
 """
 
 import mcrfpy
@@ -20,24 +24,35 @@ NO_PATH_COLOR = mcrfpy.Color(255, 0, 0)    # Pure red for unreachable
 
 # Global state
 grid = None
+grid_data = None
 color_layer = None
 entities = []
 current_combo_index = 0
 all_combinations = []  # All possible pairs
 current_path = []
+failures = []
+
+dijkstra_all = mcrfpy.Scene("dijkstra_all")
+
+def check(condition, message):
+    """Record a failed expectation instead of aborting the whole run."""
+    if not condition:
+        failures.append(message)
+        print(f"FAIL: {message}")
+    return condition
 
 def create_map():
     """Create the map with entities"""
-    global grid, color_layer, entities, all_combinations
+    global grid, grid_data, color_layer, entities, all_combinations
 
-    dijkstra_all = mcrfpy.Scene("dijkstra_all")
-
-    # Create grid
-    grid = mcrfpy.Grid(grid_w=14, grid_h=10)
+    # Create grid (grid_size= replaces the old grid_w/grid_h kwargs)
+    grid = mcrfpy.Grid(grid_size=(14, 10))
     grid.fill_color = mcrfpy.Color(0, 0, 0)
+    grid_data = grid.grid_data
 
-    # Add color layer for cell coloring
-    color_layer = grid.add_layer("color", z_index=-1)
+    # Add color layer for cell coloring (GridPoint has no .color anymore)
+    color_layer = mcrfpy.ColorLayer(name="color", z_index=-1)
+    grid.add_layer(color_layer)
 
     # Map layout - Entity 1 is intentionally trapped!
     map_layout = [
@@ -57,14 +72,14 @@ def create_map():
     entity_positions = []
     for y, row in enumerate(map_layout):
         for x, char in enumerate(row):
-            cell = grid.at(x, y)
+            cell = grid_data.at(x, y)
 
             if char == 'W':
                 cell.walkable = False
-                color_layer.set(x, y, WALL_COLOR)
+                color_layer.set((x, y), WALL_COLOR)
             else:
                 cell.walkable = True
-                color_layer.set(x, y, FLOOR_COLOR)
+                color_layer.set((x, y), FLOOR_COLOR)
 
                 if char == 'E':
                     entity_positions.append((x, y))
@@ -72,38 +87,41 @@ def create_map():
     # Create entities
     entities = []
     for i, (x, y) in enumerate(entity_positions):
-        entity = mcrfpy.Entity((x, y), grid=grid)
+        entity = mcrfpy.Entity(grid_pos=(x, y), grid=grid)
         entity.sprite_index = 49 + i  # '1', '2', '3'
         entities.append(entity)
-    
+
     print("Map Analysis:")
     print("=============")
     for i, (x, y) in enumerate(entity_positions):
         print(f"Entity {i+1} at ({x}, {y})")
-    
+
+    check(len(entities) == 3, f"expected 3 entities from the map, got {len(entities)}")
+    check(entity_positions == [(10, 2), (6, 4), (0, 5)],
+          f"unexpected entity positions: {entity_positions}")
+
     # Generate ALL combinations (including invalid ones)
     all_combinations = []
     for i in range(len(entities)):
         for j in range(len(entities)):
             if i != j:  # Skip self-paths
                 all_combinations.append((i, j))
-    
+
     print(f"\nTotal path combinations to test: {len(all_combinations)}")
 
 def clear_path_colors():
     """Reset all floor tiles to original color"""
     global current_path
 
-    for y in range(grid.grid_h):
-        for x in range(grid.grid_w):
-            cell = grid.at(x, y)
-            if cell.walkable:
-                color_layer.set(x, y, FLOOR_COLOR)
+    for y in range(grid_data.grid_h):
+        for x in range(grid_data.grid_w):
+            if grid_data.at(x, y).walkable:
+                color_layer.set((x, y), FLOOR_COLOR)
 
     current_path = []
 
 def show_combination(index):
-    """Show a specific path combination (valid or invalid)"""
+    """Show a specific path combination (valid or invalid); returns the path"""
     global current_combo_index, current_path
 
     current_combo_index = index % len(all_combinations)
@@ -116,44 +134,63 @@ def show_combination(index):
     e_from = entities[from_idx]
     e_to = entities[to_idx]
 
-    # Calculate path
-    path = e_from.path_to(int(e_to.x), int(e_to.y))
+    # Calculate path (grid_x/grid_y are tile coords; .x/.y are pixels now)
+    path = e_from.path_to(e_to.grid_x, e_to.grid_y)
     current_path = path if path else []
 
     # Always color start and end positions
-    color_layer.set(int(e_from.x), int(e_from.y), START_COLOR)
-    color_layer.set(int(e_to.x), int(e_to.y), NO_PATH_COLOR if not path else END_COLOR)
+    color_layer.set((e_from.grid_x, e_from.grid_y), START_COLOR)
+    color_layer.set((e_to.grid_x, e_to.grid_y),
+                    NO_PATH_COLOR if not path else END_COLOR)
 
     # Color the path if it exists
     if path:
         # Color intermediate steps
         for i, (x, y) in enumerate(path):
             if i > 0 and i < len(path) - 1:
-                color_layer.set(x, y, PATH_COLOR)
+                color_layer.set((x, y), PATH_COLOR)
 
-        status_text.text = f"Path {current_combo_index + 1}/{len(all_combinations)}: Entity {from_idx+1} → Entity {to_idx+1} = {len(path)} steps"
+        status_text.text = f"Path {current_combo_index + 1}/{len(all_combinations)}: Entity {from_idx+1} -> Entity {to_idx+1} = {len(path)} steps"
         status_text.fill_color = mcrfpy.Color(100, 255, 100)  # Green for valid
 
         # Show path steps
         path_display = []
-        for i, (x, y) in enumerate(path[:5]):
+        for (x, y) in path[:5]:
             path_display.append(f"({x},{y})")
         if len(path) > 5:
             path_display.append("...")
-        path_text.text = "Path: " + " → ".join(path_display)
+        path_text.text = "Path: " + " -> ".join(path_display)
     else:
-        status_text.text = f"Path {current_combo_index + 1}/{len(all_combinations)}: Entity {from_idx+1} → Entity {to_idx+1} = NO PATH!"
+        status_text.text = f"Path {current_combo_index + 1}/{len(all_combinations)}: Entity {from_idx+1} -> Entity {to_idx+1} = NO PATH!"
         status_text.fill_color = mcrfpy.Color(255, 100, 100)  # Red for invalid
         path_text.text = "Path: [] (No valid path exists)"
 
     # Update info
-    info_text.text = f"From: Entity {from_idx+1} at ({int(e_from.x)}, {int(e_from.y)}) | To: Entity {to_idx+1} at ({int(e_to.x)}, {int(e_to.y)})"
+    info_text.text = f"From: Entity {from_idx+1} at ({e_from.grid_x}, {e_from.grid_y}) | To: Entity {to_idx+1} at ({e_to.grid_x}, {e_to.grid_y})"
+
+    return path
+
+def validate_path(path, e_from, e_to, label):
+    """A valid path must be contiguous, walkable, and connect the endpoints"""
+    check(path[-1] == (e_to.grid_x, e_to.grid_y),
+          f"{label}: path does not end at the target: {path[-1]}")
+    # path_to() excludes the source cell; the first step must be adjacent to it
+    sx, sy = e_from.grid_x, e_from.grid_y
+    check((sx, sy) not in path, f"{label}: path should not include the source cell")
+    check(max(abs(path[0][0] - sx), abs(path[0][1] - sy)) == 1,
+          f"{label}: first step {path[0]} is not adjacent to source ({sx}, {sy})")
+    for (x, y) in path:
+        check(grid_data.at(x, y).walkable,
+              f"{label}: path crosses unwalkable cell ({x}, {y})")
+    for (ax, ay), (bx, by) in zip(path, path[1:]):
+        check(max(abs(ax - bx), abs(ay - by)) == 1,
+              f"{label}: non-contiguous step ({ax},{ay}) -> ({bx},{by})")
 
 def handle_keypress(key_str, state):
-    """Handle keyboard input"""
+    """Handle keyboard input (interactive mode only)"""
     global current_combo_index
     if state == mcrfpy.InputState.RELEASED: return
-    
+
     if key_str == mcrfpy.Key.ESCAPE or key_str == mcrfpy.Key.Q:
         print("\nExiting...")
         sys.exit(0)
@@ -164,8 +201,8 @@ def handle_keypress(key_str, state):
     elif key_str == mcrfpy.Key.R:
         show_combination(current_combo_index)
     else:
-        num_keys = {mcrfpy.Key.NUM_1: 0, mcrfpy.Key.NUM_2: 1, mcrfpy.Key.NUM_3: 2,
-                    mcrfpy.Key.NUM_4: 3, mcrfpy.Key.NUM_5: 4, mcrfpy.Key.NUM_6: 5}
+        num_keys = {mcrfpy.Key.Num1: 0, mcrfpy.Key.Num2: 1, mcrfpy.Key.Num3: 2,
+                    mcrfpy.Key.Num4: 3, mcrfpy.Key.Num5: 4, mcrfpy.Key.Num6: 5}
         if key_str in num_keys:
             combo_num = num_keys[key_str]
             if combo_num < len(all_combinations):
@@ -214,12 +251,12 @@ controls.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(controls)
 
 # Add legend
-legend = mcrfpy.Caption(pos=(120, 560), text="Red Start→Blue End (valid) | Red Start→Red End (invalid)")
+legend = mcrfpy.Caption(pos=(120, 560), text="Red Start->Blue End (valid) | Red Start->Red End (invalid)")
 legend.fill_color = mcrfpy.Color(150, 150, 150)
 ui.append(legend)
 
 # Expected results info
-expected = mcrfpy.Caption(pos=(120, 580), text="Entity 1 is trapped: paths 1→2, 1→3, 2→1, 3→1 will fail")
+expected = mcrfpy.Caption(pos=(120, 580), text="Entity 1 is trapped: paths 1->2, 1->3, 2->1, 3->1 will fail")
 expected.fill_color = mcrfpy.Color(255, 150, 150)
 ui.append(expected)
 
@@ -227,14 +264,36 @@ ui.append(expected)
 dijkstra_all.activate()
 dijkstra_all.on_key = handle_keypress
 
-# Show first combination
-show_combination(0)
+print("\nExpected results:")
+print("  Path 1: Entity 1->2 = NO PATH (Entity 1 is trapped)")
+print("  Path 2: Entity 1->3 = NO PATH (Entity 1 is trapped)")
+print("  Path 3: Entity 2->1 = NO PATH (Entity 1 is trapped)")
+print("  Path 4: Entity 2->3 = Valid path")
+print("  Path 5: Entity 3->1 = NO PATH (Entity 1 is trapped)")
+print("  Path 6: Entity 3->2 = Valid path")
+print()
 
-print("\nDemo ready!")
-print("Expected results:")
-print("  Path 1: Entity 1→2 = NO PATH (Entity 1 is trapped)")
-print("  Path 2: Entity 1→3 = NO PATH (Entity 1 is trapped)")
-print("  Path 3: Entity 2→1 = NO PATH (Entity 1 is trapped)")
-print("  Path 4: Entity 2→3 = Valid path")
-print("  Path 5: Entity 3→1 = NO PATH (Entity 1 is trapped)")
-print("  Path 6: Entity 3→2 = Valid path")
+# Drive every combination and verify the outcome. Entity index 0 is trapped,
+# so any pair involving it must yield an empty list; the other pairs must be
+# real paths.
+for combo_index, (from_idx, to_idx) in enumerate(all_combinations):
+    path = show_combination(combo_index)
+    label = f"Entity {from_idx+1}->{to_idx+1}"
+    if 0 in (from_idx, to_idx):
+        check(path == [],
+              f"{label}: expected NO PATH (entity 1 is walled in), got {path}")
+        print(f"  {label}: [] (correctly unreachable)")
+    else:
+        if check(bool(path), f"{label}: expected a valid path, got {path}"):
+            validate_path(path, entities[from_idx], entities[to_idx], label)
+            print(f"  {label}: {len(path)} steps, ends at {path[-1]}")
+
+# Render once so the coloring path is exercised too (rendering costs no sim time)
+mcrfpy.automation.screenshot("dijkstra_all_paths.png")
+
+if failures:
+    print(f"\n{len(failures)} check(s) failed")
+    sys.exit(1)
+
+print("\nPASS")
+sys.exit(0)

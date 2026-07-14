@@ -394,8 +394,9 @@ void GameEngine::run()
 
 void GameEngine::doFrame()
 {
-    // Reset per-frame metrics
-    metrics.resetPerFrame();
+    // #341: simulation metrics belong to this frame's sim pass; render counters are
+    // cleared/published around the render pass below.
+    metrics.beginSimFrame();
 
     currentScene()->update();
     testTimers();
@@ -426,6 +427,8 @@ void GameEngine::doFrame()
     {
     }
 
+    metrics.beginRender();  // #341
+
     // Handle scene transitions
     if (transition.type != TransitionType::None)
     {
@@ -452,6 +455,8 @@ void GameEngine::doFrame()
         // Normal scene rendering
         currentScene()->render();
     }
+
+    metrics.endRender();  // #341: publish this frame's counters for get_metrics()
 
     // Update and render profiler overlay (if enabled)
     if (profilerOverlay && !headless) {
@@ -923,12 +928,20 @@ float GameEngine::step(float dt) {
         simulation_time += static_cast<int>(dt * 1000.0f);  // Convert seconds to ms
     }
 
-    // Update animations with the dt in seconds
-    if (actual_dt > 0.0f && actual_dt < 10.0f) {  // Sanity check
-        AnimationManager::getInstance().update(actual_dt);
-    }
+    // #350: step() is a full SIMULATION frame -- everything doFrame() does except
+    // render and input, which are deliberately not on the clock (render costs zero
+    // simulation time; see renderScene()). Previously step() advanced only animations
+    // and timers, so under step() a Scene.update() override never fired, scene
+    // transitions never progressed or completed, and current_frame never advanced --
+    // headless behaved measurably differently from a real frame.
+    metrics.beginSimFrame();
 
-    // Test timers with the new simulation time
+    // C++ scene update
+    currentScene()->update();
+
+    // Test timers with the new simulation time.
+    // Kept on simulation_time (not runtime): step() is the deterministic headless
+    // clock, which is the whole point of driving time explicitly from a test.
     auto it = timers.begin();
     while (it != timers.end()) {
         auto timer = it->second;
@@ -946,12 +959,45 @@ float GameEngine::step(float dt) {
         }
     }
 
+    // Python Scene.update(dt) hook -- the originally-filed omission
+    {
+        ScopedTimer pyTimer(metrics.pythonScriptTime);
+        McRFPy_API::updatePythonScenes(actual_dt);
+    }
+
+    // Update animations with the dt in seconds
+    if (actual_dt > 0.0f && actual_dt < 10.0f) {  // Sanity check
+        ScopedTimer animTimer(metrics.animationTime);
+        AnimationManager::getInstance().update(actual_dt);
+    }
+
+    // Advance scene transitions, and finalize them when complete. Without this a
+    // transition started headlessly would never end, and the scene never changed.
+    if (transition.type != TransitionType::None) {
+        transition.update(actual_dt);
+        if (transition.isComplete()) {
+            scene = transition.toScene;
+            transition.type = TransitionType::None;
+            McRFPy_API::triggerSceneChange(transition.fromScene, transition.toScene);
+        }
+    }
+
+    metrics.endSimFrame();
+    metrics.updateFrameTime(actual_dt * 1000.0f);  // ms
+    currentFrame++;
+
     return actual_dt;
 }
 
 // #153 - Force render the current scene (for synchronous screenshots)
+// Render the current state on demand, advancing NO simulation time (#341/#350).
+// Rendering is orthogonal to the clock: any state can be drawn at any moment. This is
+// the path a screenshot takes, and -- since step() deliberately never renders -- it is
+// how a headless script gets real render metrics without the clock moving.
 void GameEngine::renderScene() {
     if (!render_target) return;
+
+    metrics.beginRender();
 
     // Handle scene transitions
     if (transition.type != TransitionType::None) {
@@ -962,6 +1008,8 @@ void GameEngine::renderScene() {
         // Normal scene rendering
         currentScene()->render();
     }
+
+    metrics.endRender();
 
     // For RenderTexture (headless), we need to call display()
     if (headless && headless_renderer) {

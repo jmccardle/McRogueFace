@@ -4,10 +4,12 @@
 Uses Frame-based visualization since Grid cell colors use ColorLayer API.
 """
 import mcrfpy
+import os
+import docs_output
 from mcrfpy import automation
 import sys
 
-OUTPUT_DIR = "/opt/goblincorps/repos/mcrogueface.github.io/images/cookbook"
+OUTPUT_DIR = docs_output.image_dir("cookbook")  # #372: was a hardcoded absolute path
 
 # Simple PRNG
 _seed = 42

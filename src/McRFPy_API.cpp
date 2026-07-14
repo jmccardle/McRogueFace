@@ -127,108 +127,175 @@ static PyObject* mcrfpy_sync_storage(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
-// #151: Module-level __getattr__ for dynamic properties (current_scene, scenes)
-static PyObject* mcrfpy_module_getattr(PyObject* self, PyObject* args)
+// #151/#356: the module's dynamic attributes, as real descriptors on the module type.
+//
+// These were originally a PEP-562 `__getattr__` plus a string-matching `tp_setattro`.
+// That worked for getattr/setattr but left them invisible to `dir(mcrfpy)`, and every
+// doc/stub/manifest generator discovers module symbols via dir() -- so the single most
+// common idiom in the engine (`mcrfpy.current_scene = ...`) appeared in no generated
+// documentation at all. Descriptors are introspectable and carry their own docstrings.
+
+static PyObject* mcrfpy_get_current_scene(PyObject* self, void* closure)
 {
-    const char* name;
-    if (!PyArg_ParseTuple(args, "s", &name)) {
+    return McRFPy_API::api_get_current_scene();
+}
+
+static int mcrfpy_set_current_scene(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'current_scene'");
+        return -1;
+    }
+    return McRFPy_API::api_set_current_scene(value);
+}
+
+static PyObject* mcrfpy_get_scenes(PyObject* self, void* closure)
+{
+    return McRFPy_API::api_get_scenes();
+}
+
+static PyObject* mcrfpy_get_timers(PyObject* self, void* closure)
+{
+    return McRFPy_API::api_get_timers();
+}
+
+static PyObject* mcrfpy_get_animations(PyObject* self, void* closure)
+{
+    return McRFPy_API::api_get_animations();
+}
+
+static PyObject* mcrfpy_get_default_transition(PyObject* self, void* closure)
+{
+    return PyTransition::to_python(PyTransition::default_transition);
+}
+
+static int mcrfpy_set_default_transition(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'default_transition'");
+        return -1;
+    }
+    TransitionType trans;
+    if (!PyTransition::from_arg(value, &trans, nullptr)) {
+        return -1;
+    }
+    PyTransition::default_transition = trans;
+    return 0;
+}
+
+static PyObject* mcrfpy_get_default_transition_duration(PyObject* self, void* closure)
+{
+    return PyFloat_FromDouble(PyTransition::default_duration);
+}
+
+static int mcrfpy_set_default_transition_duration(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'default_transition_duration'");
+        return -1;
+    }
+    double duration;
+    if (PyFloat_Check(value)) {
+        duration = PyFloat_AsDouble(value);
+    } else if (PyLong_Check(value)) {
+        duration = PyLong_AsDouble(value);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "default_transition_duration must be a number");
+        return -1;
+    }
+    if (duration < 0.0) {
+        PyErr_SetString(PyExc_ValueError, "default_transition_duration must be non-negative");
+        return -1;
+    }
+    PyTransition::default_duration = static_cast<float>(duration);
+    return 0;
+}
+
+static PyObject* mcrfpy_get_save_dir(PyObject* self, void* closure)
+{
+#ifdef __EMSCRIPTEN__
+    return PyUnicode_FromString("/save");
+#else
+    return PyUnicode_FromString("save");
+#endif
+}
+
+static PyGetSetDef mcrfpy_module_getset[] = {
+    {"current_scene", mcrfpy_get_current_scene, mcrfpy_set_current_scene,
+     MCRF_PROPERTY(current_scene,
+         "The active scene (Scene). Assign a Scene object, or a scene name as a string, "
+         "to switch scenes."
+     ), NULL},
+    {"scenes", mcrfpy_get_scenes, NULL,
+     MCRF_PROPERTY(scenes,
+         "Tuple of all registered Scene objects (tuple, read-only)."
+     ), NULL},
+    {"timers", mcrfpy_get_timers, NULL,
+     MCRF_PROPERTY(timers,
+         "Tuple of all active Timer objects (tuple, read-only)."
+     ), NULL},
+    {"animations", mcrfpy_get_animations, NULL,
+     MCRF_PROPERTY(animations,
+         "Tuple of all currently running Animation objects (tuple, read-only)."
+     ), NULL},
+    {"default_transition", mcrfpy_get_default_transition, mcrfpy_set_default_transition,
+     MCRF_PROPERTY(default_transition,
+         "Default transition (Transition) applied when switching scenes without an "
+         "explicit transition."
+     ), NULL},
+    {"default_transition_duration", mcrfpy_get_default_transition_duration,
+     mcrfpy_set_default_transition_duration,
+     MCRF_PROPERTY(default_transition_duration,
+         "Default scene-transition duration in seconds (float). Must be non-negative."
+     ), NULL},
+    {"save_dir", mcrfpy_get_save_dir, NULL,
+     MCRF_PROPERTY(save_dir,
+         "Directory used for persistent save data (str, read-only). '/save' under Emscripten."
+     ), NULL},
+    {NULL}  // Sentinel
+};
+
+// #356: PyModule_Type.__dir__ returns only the module __dict__ keys, so descriptors
+// living on the module *type* would still be invisible to dir(). Override it to union
+// the two -- this is what actually makes the generators (and tab-completion) see them.
+static PyObject* mcrfpy_module_dir(PyObject* self, PyObject* Py_UNUSED(ignored))
+{
+    PyObject* dict = PyModule_GetDict(self);  // borrowed
+    if (!dict) return NULL;
+
+    PyObject* names = PyDict_Keys(dict);
+    if (!names) return NULL;
+
+    for (PyGetSetDef* gs = mcrfpy_module_getset; gs->name != NULL; gs++) {
+        PyObject* name = PyUnicode_FromString(gs->name);
+        if (!name || PyList_Append(names, name) < 0) {
+            Py_XDECREF(name);
+            Py_DECREF(names);
+            return NULL;
+        }
+        Py_DECREF(name);
+    }
+
+    if (PyList_Sort(names) < 0) {
+        Py_DECREF(names);
         return NULL;
     }
-
-    if (strcmp(name, "current_scene") == 0) {
-        return McRFPy_API::api_get_current_scene();
-    }
-
-    if (strcmp(name, "scenes") == 0) {
-        return McRFPy_API::api_get_scenes();
-    }
-
-    if (strcmp(name, "timers") == 0) {
-        return McRFPy_API::api_get_timers();
-    }
-
-    if (strcmp(name, "animations") == 0) {
-        return McRFPy_API::api_get_animations();
-    }
-
-    if (strcmp(name, "default_transition") == 0) {
-        return PyTransition::to_python(PyTransition::default_transition);
-    }
-
-    if (strcmp(name, "default_transition_duration") == 0) {
-        return PyFloat_FromDouble(PyTransition::default_duration);
-    }
-
-    if (strcmp(name, "save_dir") == 0) {
-#ifdef __EMSCRIPTEN__
-        return PyUnicode_FromString("/save");
-#else
-        return PyUnicode_FromString("save");
-#endif
-    }
-
-    // Attribute not found - raise AttributeError
-    PyErr_Format(PyExc_AttributeError, "module 'mcrfpy' has no attribute '%s'", name);
-    return NULL;
+    return names;
 }
 
-// #151: Custom module type with __setattr__ support for current_scene
-static int mcrfpy_module_setattro(PyObject* self, PyObject* name, PyObject* value)
-{
-    const char* name_str = PyUnicode_AsUTF8(name);
-    if (!name_str) return -1;
+static PyMethodDef mcrfpy_module_type_methods[] = {
+    {"__dir__", mcrfpy_module_dir, METH_NOARGS,
+     MCRF_METHOD(mcrfpy, __dir__,
+         MCRF_SIG("()", "list"),
+         MCRF_DESC("Names of the module's attributes, including the dynamic properties "
+                   "(current_scene, scenes, timers, ...) that live as descriptors on the "
+                   "module type rather than in the module dict."),
+         MCRF_RETURNS("list: sorted attribute names")
+     )},
+    {NULL}  // Sentinel
+};
 
-    if (strcmp(name_str, "current_scene") == 0) {
-        return McRFPy_API::api_set_current_scene(value);
-    }
-
-    if (strcmp(name_str, "scenes") == 0) {
-        PyErr_SetString(PyExc_AttributeError, "'scenes' is read-only");
-        return -1;
-    }
-
-    if (strcmp(name_str, "timers") == 0) {
-        PyErr_SetString(PyExc_AttributeError, "'timers' is read-only");
-        return -1;
-    }
-
-    if (strcmp(name_str, "animations") == 0) {
-        PyErr_SetString(PyExc_AttributeError, "'animations' is read-only");
-        return -1;
-    }
-
-    if (strcmp(name_str, "default_transition") == 0) {
-        TransitionType trans;
-        if (!PyTransition::from_arg(value, &trans, nullptr)) {
-            return -1;
-        }
-        PyTransition::default_transition = trans;
-        return 0;
-    }
-
-    if (strcmp(name_str, "default_transition_duration") == 0) {
-        double duration;
-        if (PyFloat_Check(value)) {
-            duration = PyFloat_AsDouble(value);
-        } else if (PyLong_Check(value)) {
-            duration = PyLong_AsDouble(value);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "default_transition_duration must be a number");
-            return -1;
-        }
-        if (duration < 0.0) {
-            PyErr_SetString(PyExc_ValueError, "default_transition_duration must be non-negative");
-            return -1;
-        }
-        PyTransition::default_duration = static_cast<float>(duration);
-        return 0;
-    }
-
-    // For other attributes, use default module setattr
-    return PyObject_GenericSetAttr(self, name, value);
-}
-
-// Custom module type that inherits from PyModule_Type but has our __setattr__
+// Custom module type: carries the dynamic properties as descriptors (#151, #356)
 static PyTypeObject McRFPyModuleType = {
     .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
     .tp_name = "mcrfpy.module",
@@ -246,11 +313,15 @@ static PyTypeObject McRFPyModuleType = {
     .tp_hash = NULL,
     .tp_call = NULL,
     .tp_str = NULL,
+    // tp_getattro/tp_setattro inherited from PyModule_Type: generic attribute access
+    // finds the tp_getset data descriptors below before touching the module dict.
     .tp_getattro = NULL,
-    .tp_setattro = mcrfpy_module_setattro,
+    .tp_setattro = NULL,
     .tp_as_buffer = NULL,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_doc = "McRogueFace module with property support",
+    .tp_methods = mcrfpy_module_type_methods,
+    .tp_getset = mcrfpy_module_getset,
 };
 
 static PyMethodDef mcrfpyMethods[] = {
@@ -307,7 +378,10 @@ static PyMethodDef mcrfpyMethods[] = {
      MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
-         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in seconds), avg_frame_time (average frame time), fps (frames per second), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (number of grid cells rendered this frame), entities_rendered (number of entities rendered this frame), total_entities (total entity count across all grids)")
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids)")
+         MCRF_NOTE("All per-frame counters and timing breakdowns describe the last COMPLETED frame. "
+                   "Python callbacks run before the frame is rendered, so the in-progress frame's "
+                   "values are not available yet; frame_time, fps, runtime and current_frame are live.")
      )},
 
     {"set_dev_console", McRFPy_API::_setDevConsole, METH_VARARGS,
@@ -349,12 +423,8 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("Messages appear in the 'logs' array of each frame in the output JSON.")
      )},
 
-    // #151: Module-level attribute access for current_scene and scenes
-    {"__getattr__", mcrfpy_module_getattr, METH_VARARGS,
-     MCRF_METHOD(mcrfpy, __getattr__,
-         MCRF_SIG("(name: str)", "object"),
-         MCRF_DESC("Module-level attribute access for dynamic properties (current_scene, scenes).")
-     )},
+    // #356: the module's dynamic attributes (current_scene, scenes, timers, ...) are
+    // real descriptors on McRFPyModuleType now, not a PEP-562 __getattr__ shim.
 
     // #219: Thread synchronization
     {"lock", PyLock::lock, METH_NOARGS,
@@ -1609,54 +1679,16 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
         
         // Check this element's name
         if (name_matches_pattern(drawable->name, pattern)) {
-            // Convert to Python object using RET_PY_INSTANCE logic
-            PyObject* py_obj = nullptr;
-            
-            switch (drawable->derived_type()) {
-                case PyObjectsEnum::UIFRAME: {
-                    auto frame = std::static_pointer_cast<UIFrame>(drawable);
-                    auto type = &mcrfpydef::PyUIFrameType;
-                    auto o = (PyUIFrameObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = frame;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                case PyObjectsEnum::UICAPTION: {
-                    auto caption = std::static_pointer_cast<UICaption>(drawable);
-                    auto type = &mcrfpydef::PyUICaptionType;
-                    auto o = (PyUICaptionObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = caption;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                case PyObjectsEnum::UISPRITE: {
-                    auto sprite = std::static_pointer_cast<UISprite>(drawable);
-                    auto type = &mcrfpydef::PyUISpriteType;
-                    auto o = (PyUISpriteObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = sprite;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                case PyObjectsEnum::UIGRIDVIEW: {
-                    auto gridview = std::static_pointer_cast<UIGridView>(drawable);
-                    auto type = &mcrfpydef::PyUIGridViewType;
-                    auto o = (PyUIGridViewObject*)type->tp_alloc(type, 0);
-                    if (o) {
-                        o->data = gridview;
-                        py_obj = (PyObject*)o;
-                    }
-                    break;
-                }
-                default:
-                    break;
+            // #369: go through the cache-aware converter so find() returns the caller's
+            // existing wrapper (and Python subclass), not a fresh identity-less one.
+            PyObject* py_obj = UIDrawable::pyobject_for(drawable);
+            if (py_obj == Py_None) {
+                Py_DECREF(py_obj);
+                py_obj = nullptr;
+            } else if (!py_obj) {
+                PyErr_Clear();  // unknown derived type: skip, as the old switch did
             }
-            
+
             if (py_obj) {
                 if (find_all) {
                     PyList_Append(results, py_obj);
@@ -1842,22 +1874,27 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     PyDict_SetItemString(dict, "avg_frame_time", PyFloat_FromDouble(game->metrics.avgFrameTime));
     PyDict_SetItemString(dict, "fps", PyLong_FromLong(game->metrics.fps));
 
+    // #341: report the last COMPLETED frame's per-frame values, not the live
+    // accumulators. Python callbacks run before render(), and the accumulators are
+    // zeroed at the top of the frame -- so reading them live always returned 0.
+    const auto& pub = game->metrics.published;
+
     // Add draw call metrics
-    PyDict_SetItemString(dict, "draw_calls", PyLong_FromLong(game->metrics.drawCalls));
-    PyDict_SetItemString(dict, "ui_elements", PyLong_FromLong(game->metrics.uiElements));
-    PyDict_SetItemString(dict, "visible_elements", PyLong_FromLong(game->metrics.visibleElements));
+    PyDict_SetItemString(dict, "draw_calls", PyLong_FromLong(pub.drawCalls));
+    PyDict_SetItemString(dict, "ui_elements", PyLong_FromLong(pub.uiElements));
+    PyDict_SetItemString(dict, "visible_elements", PyLong_FromLong(pub.visibleElements));
 
     // #144 - Add detailed timing breakdown (in milliseconds)
-    PyDict_SetItemString(dict, "grid_render_time", PyFloat_FromDouble(game->metrics.gridRenderTime));
-    PyDict_SetItemString(dict, "entity_render_time", PyFloat_FromDouble(game->metrics.entityRenderTime));
-    PyDict_SetItemString(dict, "fov_overlay_time", PyFloat_FromDouble(game->metrics.fovOverlayTime));
-    PyDict_SetItemString(dict, "python_time", PyFloat_FromDouble(game->metrics.pythonScriptTime));
-    PyDict_SetItemString(dict, "animation_time", PyFloat_FromDouble(game->metrics.animationTime));
+    PyDict_SetItemString(dict, "grid_render_time", PyFloat_FromDouble(pub.gridRenderTime));
+    PyDict_SetItemString(dict, "entity_render_time", PyFloat_FromDouble(pub.entityRenderTime));
+    PyDict_SetItemString(dict, "fov_overlay_time", PyFloat_FromDouble(pub.fovOverlayTime));
+    PyDict_SetItemString(dict, "python_time", PyFloat_FromDouble(pub.pythonScriptTime));
+    PyDict_SetItemString(dict, "animation_time", PyFloat_FromDouble(pub.animationTime));
 
     // #144 - Add grid-specific metrics
-    PyDict_SetItemString(dict, "grid_cells_rendered", PyLong_FromLong(game->metrics.gridCellsRendered));
-    PyDict_SetItemString(dict, "entities_rendered", PyLong_FromLong(game->metrics.entitiesRendered));
-    PyDict_SetItemString(dict, "total_entities", PyLong_FromLong(game->metrics.totalEntities));
+    PyDict_SetItemString(dict, "grid_cells_rendered", PyLong_FromLong(pub.gridCellsRendered));
+    PyDict_SetItemString(dict, "entities_rendered", PyLong_FromLong(pub.entitiesRendered));
+    PyDict_SetItemString(dict, "total_entities", PyLong_FromLong(pub.totalEntities));
 
     // Add general metrics
     PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));

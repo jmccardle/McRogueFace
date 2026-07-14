@@ -45,6 +45,38 @@ public:
 };
 
 /**
+ * @brief Like ScopedTimer, but ADDS its elapsed time to the target (#341).
+ *
+ * ScopedTimer assigns, which is correct for a metric measured once per frame
+ * (workTime, pythonScriptTime). It is wrong for anything measured once per
+ * *object* per frame -- with two grid views on screen, assignment means the
+ * second view's time overwrites the first's rather than summing. Use this for
+ * any per-frame total accumulated across multiple call sites.
+ *
+ * The target must be zeroed once per frame (ProfilingMetrics::resetPerFrame).
+ */
+class ScopedAccumTimer {
+private:
+    std::chrono::high_resolution_clock::time_point start;
+    float& target_ms;
+
+public:
+    explicit ScopedAccumTimer(float& target)
+        : target_ms(target)
+    {
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    ~ScopedAccumTimer() {
+        auto end = std::chrono::high_resolution_clock::now();
+        target_ms += std::chrono::duration<float, std::milli>(end - start).count();
+    }
+
+    ScopedAccumTimer(const ScopedAccumTimer&) = delete;
+    ScopedAccumTimer& operator=(const ScopedAccumTimer&) = delete;
+};
+
+/**
  * @brief Accumulating timer that adds elapsed time to existing value
  *
  * Useful for measuring total time across multiple calls in a single frame

@@ -1,107 +1,128 @@
 #!/usr/bin/env python3
-"""Find the exact threshold where range() starts failing"""
+"""Regression: range() (and general interpreter state) must survive grid operations.
+
+Historically, iterating a grid with grid.at(x, y) at certain sizes corrupted the
+Python interpreter state and a subsequent range() raised SystemError. This test
+sweeps grid/range sizes and asserts that never happens again.
+"""
 
 import mcrfpy
+import sys
 
 print("Finding range() failure threshold...")
 print("=" * 50)
 
+failures = []
+
 def test_range_size(n):
-    """Test if range(n) works after grid operations"""
+    """Test if range(n) works after grid operations on an n x n grid"""
     try:
-        mcrfpy.createScene(f"test_{n}")
-        grid = mcrfpy.Grid(grid_w=n, grid_h=n)
-        
+        mcrfpy.Scene(f"test_{n}")
+        grid = mcrfpy.Grid(grid_size=(n, n))
+
         # Do grid operations
         for y in range(min(n, 10)):  # Limit outer loop
             for x in range(n):
                 if x < n and y < n:
                     grid.at(x, y).walkable = True
-        
+
         # Now test if range(n) still works
         test_list = []
         for i in range(n):
             test_list.append(i)
-        
+
         return True, len(test_list)
     except SystemError as e:
         return False, str(e)
     except Exception as e:
         return False, f"Other error: {type(e).__name__}: {e}"
 
-# Binary search for the threshold
+# Sweep a range of sizes; every one of them must work.
 print("Testing different range sizes...")
 
-# Test powers of 2 first
 for n in [2, 4, 8, 16, 32]:
     success, result = test_range_size(n)
     if success:
-        print(f"  range({n:2d}): ✓ Success - created list of {result} items")
+        print(f"  range({n:2d}): OK - created list of {result} items")
+        if result != n:
+            failures.append(f"range({n}) produced {result} items, expected {n}")
     else:
-        print(f"  range({n:2d}): ✗ Failed - {result}")
+        print(f"  range({n:2d}): FAIL - {result}")
+        failures.append(f"range({n}) after {n}x{n} grid ops: {result}")
 
 print()
 
-# Narrow down between working and failing values
-print("Narrowing down exact threshold...")
+# The original bug was reported as "10 works, 25 fails" -- walk the whole span
+# and require that every size in it works.
+print("Sweeping the historically suspect span (10..25)...")
 
-# From our tests: 10 works, 25 fails
-low = 10
-high = 25
-
-while low < high - 1:
-    mid = (low + high) // 2
-    success, result = test_range_size(mid)
-    
+for n in range(10, 26):
+    success, result = test_range_size(n)
     if success:
-        print(f"  range({mid}): ✓ Works")
-        low = mid
+        print(f"  range({n}): OK")
+        if result != n:
+            failures.append(f"range({n}) produced {result} items, expected {n}")
     else:
-        print(f"  range({mid}): ✗ Fails")
-        high = mid
+        print(f"  range({n}): FAIL - {result}")
+        failures.append(f"range({n}) after {n}x{n} grid ops: {result}")
 
-print()
-print(f"Threshold found: range({low}) works, range({high}) fails")
-
-# Test if it's specifically about range or about the grid size
 print()
 print("Testing if it's about grid size vs range size...")
 
 try:
     # Small grid, large range
-    test_small_grid = mcrfpy.Scene("test_small_grid")
-    grid = mcrfpy.Grid(grid_w=5, grid_h=5)
-    
+    mcrfpy.Scene("test_small_grid")
+    grid = mcrfpy.Grid(grid_size=(5, 5))
+
     # Do minimal grid operations
     grid.at(0, 0).walkable = True
-    
+
     # Test large range
+    count = 0
     for i in range(25):
-        pass
-    print("  ✓ range(25) works with small grid (5x5)")
-    
+        count += 1
+    assert count == 25, f"range(25) yielded {count} items"
+    print("  OK: range(25) works with small grid (5x5)")
+
 except Exception as e:
-    print(f"  ✗ range(25) fails with small grid: {e}")
+    print(f"  FAIL: range(25) fails with small grid: {type(e).__name__}: {e}")
+    failures.append(f"small grid / large range: {type(e).__name__}: {e}")
 
 try:
     # Large grid, see what happens
-    test_large_grid = mcrfpy.Scene("test_large_grid")
-    grid = mcrfpy.Grid(grid_w=20, grid_h=20)
-    
+    mcrfpy.Scene("test_large_grid")
+    grid = mcrfpy.Grid(grid_size=(20, 20))
+
     # Do operations on large grid
+    touched = 0
     for y in range(20):
         for x in range(20):
             grid.at(x, y).walkable = True
-    
-    print("  ✓ Completed 20x20 grid operations")
-    
+            touched += 1
+    assert touched == 400, f"touched {touched} cells, expected 400"
+    print("  OK: Completed 20x20 grid operations")
+
     # Now test range
+    count = 0
     for i in range(20):
-        pass
-    print("  ✓ range(20) works after 20x20 grid operations")
-    
+        count += 1
+    assert count == 20, f"range(20) yielded {count} items"
+    print("  OK: range(20) works after 20x20 grid operations")
+
+    # And the values written are readable back
+    assert grid.at(19, 19).walkable is True, "walkable did not persist at (19,19)"
+
 except Exception as e:
-    print(f"  ✗ Error with 20x20 grid: {e}")
+    print(f"  FAIL: Error with 20x20 grid: {type(e).__name__}: {e}")
+    failures.append(f"20x20 grid: {type(e).__name__}: {e}")
 
 print()
+if failures:
+    print("Analysis complete: FAILURES")
+    for f in failures:
+        print(f"  - {f}")
+    sys.exit(1)
+
 print("Analysis complete.")
+print("PASS")
+sys.exit(0)

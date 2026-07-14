@@ -14,7 +14,7 @@ def test_apply_threshold_basic():
 
     # Create a grid and get a tile layer
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
     layer.fill(-1)  # Clear all tiles
 
     # Apply threshold - all cells should get tile 5
@@ -36,7 +36,7 @@ def test_apply_threshold_partial():
     hmap.fill(0.0)  # Start with 0
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
     layer.fill(-1)
 
     # Apply threshold for range that doesn't match (0.5-1.0 when values are 0.0)
@@ -52,7 +52,7 @@ def test_apply_threshold_preserves_outside():
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
     layer.fill(99)  # Fill with marker value
 
     # Apply threshold for range that doesn't include 0.5
@@ -68,7 +68,7 @@ def test_apply_threshold_invalid_range():
     hmap = mcrfpy.HeightMap((10, 10))
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
 
     try:
         layer.apply_threshold(hmap, (1.0, 0.0), 5)  # min > max
@@ -85,7 +85,7 @@ def test_apply_threshold_size_mismatch():
     hmap = mcrfpy.HeightMap((5, 5))  # Different size
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
 
     try:
         layer.apply_threshold(hmap, (0.0, 1.0), 5)
@@ -102,7 +102,7 @@ def test_apply_ranges_basic():
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
     layer.fill(-1)
 
     # Apply ranges - 0.5 falls in the second range
@@ -122,7 +122,7 @@ def test_apply_ranges_later_wins():
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
     layer.fill(-1)
 
     # Apply overlapping ranges - later should win
@@ -141,7 +141,7 @@ def test_apply_ranges_no_match_unchanged():
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
     layer.fill(99)
 
     # Apply ranges that don't match 0.5
@@ -160,7 +160,7 @@ def test_apply_ranges_invalid_format():
     hmap = mcrfpy.HeightMap((10, 10))
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
 
     # Missing tile index
     try:
@@ -178,7 +178,7 @@ def test_apply_threshold_boundary():
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
     layer.fill(-1)
 
     # Range includes 0.5 exactly
@@ -193,7 +193,7 @@ def test_apply_threshold_accepts_list():
     hmap = mcrfpy.HeightMap((10, 10), fill=0.5)
 
     grid = mcrfpy.Grid(grid_size=(10, 10))
-    layer = grid.add_layer('tile', z_index=0)
+    layer = grid.add_layer(mcrfpy.TileLayer(name='tile', z_index=0))
     layer.fill(-1)
 
     # Use list instead of tuple
@@ -225,5 +225,11 @@ def run_all_tests():
 
 
 # Run tests directly
-run_all_tests()
+try:
+    run_all_tests()
+except AssertionError as e:
+    print(f"FAIL: assertion failed: {e}")
+    sys.exit(1)
+
+print("PASS")
 sys.exit(0)

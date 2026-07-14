@@ -1,17 +1,32 @@
 #!/usr/bin/env python3
-"""Test script to verify the profiling metrics system"""
+"""Test script to verify the profiling metrics system
+
+Updated for the #350 headless model: mcrfpy.step(dt) is the only clock (timers never
+fire on their own), and step() never renders -- render counters (draw_calls,
+ui_elements, visible_elements) are only published by an actual render pass, which we
+force with automation.screenshot().
+"""
 
 import mcrfpy
+from mcrfpy import automation
 import sys
-import time
+import os
+import tempfile
 
 # Track success across callbacks
 success = True
+done = False
+
+SHOT = os.path.join(tempfile.gettempdir(), "test_metrics.png")
+
 
 def test_metrics(timer, runtime):
-    """Test the metrics after timer starts"""
+    """Test the metrics after the timer fires"""
     global success
     print("\nRunning metrics test...")
+
+    # step() never renders, so force a render pass to publish the render counters.
+    automation.screenshot(SHOT)
 
     # Get metrics
     metrics = mcrfpy.get_metrics()
@@ -43,14 +58,21 @@ def test_metrics(timer, runtime):
     else:
         print(f"  PASS: FPS {metrics['fps']} is reasonable")
 
-    # UI elements count (may be 0 if scene hasn't rendered yet)
-    if metrics['ui_elements'] < 0:
-        print(f"  FAIL: UI elements count {metrics['ui_elements']} is negative")
+    # UI elements count -- a render happened, so the scene's drawables were counted
+    if metrics['ui_elements'] <= 0:
+        print(f"  FAIL: UI elements count {metrics['ui_elements']} should be positive after a render")
         success = False
     else:
         print(f"  PASS: UI element count {metrics['ui_elements']} is valid")
 
-    # Visible elements should be <= total elements
+    # Draw calls should be positive after a render
+    if metrics['draw_calls'] <= 0:
+        print(f"  FAIL: Draw calls {metrics['draw_calls']} should be positive after a render")
+        success = False
+    else:
+        print(f"  PASS: Draw call count {metrics['draw_calls']} is valid")
+
+    # Visible elements should be <= total elements (one frame is invisible)
     if metrics['visible_elements'] > metrics['ui_elements']:
         print("  FAIL: Visible elements > total elements")
         success = False
@@ -78,9 +100,9 @@ def test_metrics(timer, runtime):
     initial_frame = metrics['current_frame']
     initial_runtime = metrics['runtime']
 
-    # Schedule another check after 100ms
+    # Schedule another check after 100ms of simulated time
     def check_later(timer2, runtime2):
-        global success
+        global success, done
         metrics2 = mcrfpy.get_metrics()
 
         print(f"\nMetrics after 100ms:")
@@ -103,15 +125,10 @@ def test_metrics(timer, runtime):
             print("  FAIL: Runtime did not increase")
             success = False
 
-        print("\n" + "="*50)
-        if success:
-            print("ALL METRICS TESTS PASSED!")
-        else:
-            print("SOME METRICS TESTS FAILED!")
-
-        sys.exit(0 if success else 1)
+        done = True
 
     mcrfpy.Timer("check_later", check_later, 100, once=True)
+
 
 # Set up test scene
 print("Setting up metrics test scene...")
@@ -137,10 +154,33 @@ frame2 = mcrfpy.Frame(pos=(300, 10), size=(100, 100))
 frame2.visible = False
 ui.append(frame2)
 
-grid = mcrfpy.Grid(10, 10, mcrfpy.default_texture, (10, 200), (200, 200))
+# Grid ctor is keyword-based now; grid_size= describes a new GridData.
+grid = mcrfpy.Grid(grid_size=(10, 10), pos=(10, 200), size=(200, 200))
 ui.append(grid)
 
 print(f"Created {len(ui)} UI elements (1 invisible)")
 
-# Schedule test to run after render loop starts
+# Schedule test to run after 50ms of simulated time
 mcrfpy.Timer("test", test_metrics, 50, once=True)
+
+# step() is the clock in headless mode: drive time until both timers have fired.
+for _ in range(200):
+    if done:
+        break
+    mcrfpy.step(0.016)
+
+if os.path.exists(SHOT):
+    os.remove(SHOT)
+
+print("\n" + "=" * 50)
+if not done:
+    print("FAIL: timer callbacks never completed")
+    success = False
+
+if success:
+    print("ALL METRICS TESTS PASSED!")
+    print("PASS")
+    sys.exit(0)
+else:
+    print("SOME METRICS TESTS FAILED!")
+    sys.exit(1)

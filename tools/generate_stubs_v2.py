@@ -14,6 +14,7 @@ Run via McRogueFace itself so the mcrfpy module is importable:
 import os
 import re
 import sys
+import ast
 import types
 import inspect
 from pathlib import Path
@@ -170,6 +171,20 @@ def _sanitize_params(params):
     return ", ".join(fixed)
 
 
+def _sanitize_return(ret):
+    """Return type phrases in MCRF_SIG are authored as prose (e.g. 'context
+    manager'), which is not a valid annotation and makes the whole .pyi
+    unparseable. Keep anything that is a valid Python expression; otherwise
+    fall back to Any."""
+    if not ret:
+        return "Any"
+    try:
+        ast.parse(f"def _() -> {ret}: ...")
+    except SyntaxError:
+        return "Any"
+    return ret
+
+
 def emit_function(name, doc, is_method=False, is_static=False):
     """Emit a def line for a free function or method. Always returns a str
     ending with `: ...` plus an optional one-line docstring."""
@@ -183,7 +198,7 @@ def emit_function(name, doc, is_method=False, is_static=False):
         params = _sanitize_params(params)
         if is_method and not is_static:
             params = "self" + (", " + params if params else "")
-    ret = ret or "Any"
+    ret = _sanitize_return(ret)
 
     decorator = ("@staticmethod\n" if is_static and is_method else "")
     summary = first_description_paragraph(doc) or first_line(doc)
@@ -440,13 +455,31 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 '''
 
 
+def module_attributes():
+    """#356: the module's dynamic attributes (current_scene, scenes, ...).
+
+    These are getset descriptors on type(mcrfpy), not entries in the module dict.
+    Introspecting the *descriptor* gives the declared type and read-only flag from
+    its docstring; introspecting the module's live *value* does not -- at generation
+    time current_scene is None, which is how it was previously typed 'NoneType'.
+    """
+    attrs = {}
+    for name, descr in vars(type(mcrfpy)).items():
+        if name.startswith("_"):
+            continue
+        if isinstance(descr, types.GetSetDescriptorType):
+            attrs[name] = descr.__doc__ or ""
+    return attrs
+
+
 def classify_module():
     classes = {}
     functions = {}
     constants = {}
     submodules = {}
+    dynamic = module_attributes()
     for name in sorted(dir(mcrfpy)):
-        if name.startswith("_"):
+        if name.startswith("_") or name in dynamic:
             continue
         attr = getattr(mcrfpy, name)
         if isinstance(attr, types.ModuleType):
@@ -457,11 +490,11 @@ def classify_module():
             functions[name] = attr
         else:
             constants[name] = attr
-    return classes, functions, constants, submodules
+    return classes, functions, constants, submodules, dynamic
 
 
 def main():
-    classes, functions, constants, submodules = classify_module()
+    classes, functions, constants, submodules, dynamic = classify_module()
 
     out_lines = [HEADER]
 
@@ -496,6 +529,14 @@ def main():
         t = type(v).__name__
         out_lines.append(f"{n}: {t}")
 
+    out_lines.append("")
+    out_lines.append("# --- Module-level dynamic attributes (#356) -----------------------------")
+    for n in sorted(dynamic):
+        doc = dynamic[n]
+        t = property_type_hint(doc)
+        note = "  # read-only" if property_is_readonly(doc) else ""
+        out_lines.append(f"{n}: {t}{note}")
+
     out_text = "\n".join(out_lines).rstrip() + "\n"
 
     stubs_dir = Path("stubs")
@@ -505,8 +546,10 @@ def main():
 
     print(f"Wrote stubs/mcrfpy.pyi ({len(out_text)} bytes, "
           f"{len(classes)} classes, {len(functions)} functions, "
-          f"{len(constants)} constants, {len(submodules)} submodules)")
+          f"{len(constants)} constants, {len(dynamic)} dynamic attributes, "
+          f"{len(submodules)} submodules)")
 
 
 if __name__ == "__main__":
     main()
+    sys.exit(0)  # #350: headless --exec must declare its outcome

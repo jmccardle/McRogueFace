@@ -90,12 +90,21 @@ for _ in range(10):
 check("replacement anim completes", anim5b.is_complete == True)
 
 
-# --- Test 6: Animation object created with loop=True via constructor ---
-anim6 = mcrfpy.Animation("x", 100.0, 1.0, loop=True)
-check("Animation constructor loop=True", anim6.is_looping == True)
+# --- Test 6: loop flag set at Animation creation time ---
+# mcrfpy.Animation is no longer exported; the successor factory is target.animate(),
+# which returns the Animation object. Same intent: the loop keyword is honored at
+# creation, and defaults to False.
+sprite6 = mcrfpy.Sprite(pos=(0, 0))
+scene.children.append(sprite6)
 
-anim7 = mcrfpy.Animation("x", 100.0, 1.0)
-check("Animation constructor default loop=False", anim7.is_looping == False)
+anim6 = sprite6.animate("x", 100.0, 1.0, loop=True)
+check("animate(loop=True) sets is_looping", anim6.is_looping == True)
+
+anim7 = sprite6.animate("y", 100.0, 1.0)
+check("animate() default loop=False", anim7.is_looping == False)
+
+anim8 = sprite6.animate("z_index", 5, 1.0, loop=False)
+check("animate(loop=False) sets is_looping False", anim8.is_looping == False)
 
 
 # --- Summary ---

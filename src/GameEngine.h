@@ -53,37 +53,90 @@ struct ProfilingMetrics {
     static constexpr int HISTORY_SIZE = 60;
     float frameTimeHistory[HISTORY_SIZE] = {0};
     int historyIndex = 0;
+    int historyCount = 0;             // #341: frames recorded so far, capped at HISTORY_SIZE
+
+    /**
+     * @brief Per-frame values from the last COMPLETED frame (#341).
+     *
+     * The counters above are live accumulators: they are zeroed at the top of the
+     * frame and filled during render(), which runs AFTER every Python callback.
+     * A script calling get_metrics() therefore always read zeros. These published
+     * copies hold the previous frame's totals, which is what Python should see.
+     *
+     * In-engine consumers that run after render() (ProfilerOverlay, BenchmarkLogger)
+     * keep reading the live values -- they are fresher and already correct there.
+     */
+    struct PublishedFrame {
+        int drawCalls = 0;
+        int uiElements = 0;
+        int visibleElements = 0;
+        int gridCellsRendered = 0;
+        int entitiesRendered = 0;
+        int totalEntities = 0;
+        float gridRenderTime = 0.0f;
+        float entityRenderTime = 0.0f;
+        float fovOverlayTime = 0.0f;
+        float pythonScriptTime = 0.0f;
+        float animationTime = 0.0f;
+    } published;
 
     void updateFrameTime(float deltaMs) {
         frameTime = deltaMs;
         frameTimeHistory[historyIndex] = deltaMs;
         historyIndex = (historyIndex + 1) % HISTORY_SIZE;
+        if (historyCount < HISTORY_SIZE) ++historyCount;
 
-        // Calculate average
+        // Average over frames actually recorded. Dividing by the full HISTORY_SIZE
+        // while the zero-initialized buffer is still filling diluted the average and
+        // reported a wildly inflated FPS for the first 60 frames (#341).
         float sum = 0.0f;
-        for (int i = 0; i < HISTORY_SIZE; ++i) {
+        for (int i = 0; i < historyCount; ++i) {
             sum += frameTimeHistory[i];
         }
-        avgFrameTime = sum / HISTORY_SIZE;
+        avgFrameTime = historyCount > 0 ? sum / historyCount : 0.0f;
         fps = avgFrameTime > 0 ? static_cast<int>(1000.0f / avgFrameTime) : 0;
     }
 
-    void resetPerFrame() {
+    // #341/#350: simulation and rendering are separate passes with separate metrics.
+    //
+    // Rendering costs zero simulation time and can happen at any moment (a screenshot
+    // renders arbitrary state without advancing the clock), so the render counters are
+    // owned by the render pass and the simulation timings by the step/frame pass.
+    // Keeping them separate means a step() cannot wipe the counters from the last
+    // render, and a render cannot disturb the simulation clock.
+
+    void beginRender() {
         drawCalls = 0;
         uiElements = 0;
         visibleElements = 0;
-
-        // Reset per-frame timing metrics
-        gridRenderTime = 0.0f;
-        entityRenderTime = 0.0f;
-        fovOverlayTime = 0.0f;
-        pythonScriptTime = 0.0f;
-        animationTime = 0.0f;
-
-        // Reset per-frame counters
         gridCellsRendered = 0;
         entitiesRendered = 0;
         totalEntities = 0;
+        gridRenderTime = 0.0f;
+        entityRenderTime = 0.0f;
+        fovOverlayTime = 0.0f;
+    }
+
+    void endRender() {
+        published.drawCalls = drawCalls;
+        published.uiElements = uiElements;
+        published.visibleElements = visibleElements;
+        published.gridCellsRendered = gridCellsRendered;
+        published.entitiesRendered = entitiesRendered;
+        published.totalEntities = totalEntities;
+        published.gridRenderTime = gridRenderTime;
+        published.entityRenderTime = entityRenderTime;
+        published.fovOverlayTime = fovOverlayTime;
+    }
+
+    void beginSimFrame() {
+        pythonScriptTime = 0.0f;
+        animationTime = 0.0f;
+    }
+
+    void endSimFrame() {
+        published.pythonScriptTime = pythonScriptTime;
+        published.animationTime = animationTime;
     }
 };
 

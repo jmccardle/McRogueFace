@@ -2,25 +2,36 @@
 """Test edge cases for Entity.path_to() method"""
 
 import mcrfpy
+import sys
+
+failures = []
+
+def check(condition, message):
+    """Record a pass/fail instead of just printing it."""
+    if condition:
+        print("  [ok] %s" % message)
+    else:
+        print("  [FAIL] %s" % message)
+        failures.append(message)
 
 print("Testing Entity.path_to() edge cases...")
 print("=" * 50)
 
 # Test 1: Entity without grid
 print("Test 1: Entity not in grid")
+entity = mcrfpy.Entity(grid_pos=(5, 5))
 try:
-    entity = mcrfpy.Entity((5, 5))
     path = entity.path_to(8, 8)
-    print("  ✗ Should have failed for entity not in grid")
+    check(False, "path_to() on a grid-less entity should raise ValueError, got %r" % (path,))
 except ValueError as e:
-    print(f"  ✓ Correctly caught no grid error: {e}")
+    check(True, "correctly raised ValueError with no grid: %s" % e)
 except Exception as e:
-    print(f"  ✗ Wrong exception type: {e}")
+    check(False, "wrong exception type: %s: %s" % (type(e).__name__, e))
 
 # Test 2: Entity in grid with walls blocking path
 print("\nTest 2: Completely blocked path")
 blocked_test = mcrfpy.Scene("blocked_test")
-grid = mcrfpy.Grid(grid_w=5, grid_h=5)
+grid = mcrfpy.Grid(grid_size=(5, 5))
 
 # Make all tiles walkable first
 for y in range(5):
@@ -31,25 +42,28 @@ for y in range(5):
 for x in range(5):
     grid.at(x, 2).walkable = False
 
-entity = mcrfpy.Entity((1, 1), grid=grid)
+entity = mcrfpy.Entity(grid_pos=(1, 1), grid=grid)
 
-try:
-    path = entity.path_to(1, 4)
-    if path:
-        print(f"  Path found: {path}")
-    else:
-        print("  ✓ No path found (empty list returned)")
-except Exception as e:
-    print(f"  ✗ Unexpected error: {e}")
+path = entity.path_to(1, 4)
+check(path == [], "no path across the full-width wall, got %r" % (path,))
 
-# Test 3: Alternative parameter parsing
+# Test 3: Alternative parameter parsing (keyword x/y)
 print("\nTest 3: Alternative parameter names")
-try:
-    path = entity.path_to(x=3, y=1)
-    print(f"  Path with x/y params: {path}")
-    print("  ✓ SUCCESS")
-except Exception as e:
-    print(f"  ✗ FAILED: {e}")
+path = entity.path_to(x=3, y=1)
+check(path == [(2, 1), (3, 1)],
+      "path_to(x=, y=) walked the open row: %r" % (path,))
+
+# The same target via positional args must agree with the keyword form.
+check(entity.path_to(3, 1) == path,
+      "positional path_to(3, 1) matches the keyword form")
 
 print("\n" + "=" * 50)
+if failures:
+    print("Edge case testing FAILED (%d):" % len(failures))
+    for f in failures:
+        print("  - %s" % f)
+    sys.exit(1)
+
 print("Edge case testing complete!")
+print("PASS")
+sys.exit(0)

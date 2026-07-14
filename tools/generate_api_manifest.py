@@ -215,11 +215,35 @@ def collect_classes():
     return classes
 
 
+def collect_module_attributes():
+    """#356: dynamic module attributes, as getset descriptors on type(mcrfpy).
+
+    dir()+getattr() cannot describe these -- getattr yields the live value (None for
+    current_scene at generation time), not the declared type -- so read the descriptor.
+    """
+    import types as _types
+    attrs = {}
+    for name, descr in sorted(vars(type(mcrfpy)).items()):
+        if name.startswith("_"):
+            continue
+        if not isinstance(descr, _types.GetSetDescriptorType):
+            continue
+        doc = descr.__doc__ or ""
+        attrs[name] = {
+            "kind": "attribute",
+            "readonly": "read-only" in doc.lower(),
+            "doc": doc,
+            "doc_sha": doc_hash(doc),
+        }
+    return attrs
+
+
 def collect_functions():
     """Return {func_name: full_entry_without_lifecycle}."""
     functions = {}
+    dynamic = collect_module_attributes()
     for name in sorted(dir(mcrfpy)):
-        if name.startswith("_"):
+        if name.startswith("_") or name in dynamic:
             continue
         obj = getattr(mcrfpy, name)
         if isinstance(obj, type):
@@ -266,11 +290,12 @@ def assign_lifecycle(cur, prev, new_since, version, commit, has_signature):
     return lifecycle
 
 
-def build_tree(classes, functions, prev, first_run, base_version, version, commit):
+def build_tree(classes, functions, module_attrs, prev, first_run, base_version, version, commit):
     """Produce the full tree (entries retain 'doc'); lifecycle is computed here."""
     new_since = base_version if first_run else version
     prev_objects = (prev or {}).get("objects", {})
     prev_functions = (prev or {}).get("functions", {})
+    prev_attrs = (prev or {}).get("module_attributes", {})
 
     objects_out = {}
     for cname, centry in classes.items():
@@ -303,7 +328,14 @@ def build_tree(classes, functions, prev, first_run, base_version, version, commi
             fentry, prev_fn, new_since, version, commit, has_signature=True)
         functions_out[fname] = fentry
 
-    return objects_out, functions_out
+    attrs_out = {}
+    for aname, aentry in module_attrs.items():
+        aentry = dict(aentry)
+        aentry["lifecycle"] = assign_lifecycle(
+            aentry, prev_attrs.get(aname), new_since, version, commit, has_signature=False)
+        attrs_out[aname] = aentry
+
+    return objects_out, functions_out, attrs_out
 
 
 def strip_docs(node):
@@ -328,9 +360,10 @@ def main():
 
     classes = collect_classes()
     functions = collect_functions()
+    module_attrs = collect_module_attributes()
 
-    objects_out, functions_out = build_tree(
-        classes, functions, prev, first_run, base_version, version, commit)
+    objects_out, functions_out, attrs_out = build_tree(
+        classes, functions, module_attrs, prev, first_run, base_version, version, commit)
 
     full = {
         "schema": SCHEMA_VERSION,
@@ -340,6 +373,7 @@ def main():
         "seeded": first_run,
         "objects": objects_out,
         "functions": functions_out,
+        "module_attributes": attrs_out,
     }
 
     manifest = strip_docs(full)
@@ -366,7 +400,8 @@ def main():
     print("manifest: %s" % manifest_path)
     print("full:     %s" % full_path)
     print("version=%s commit=%s dirty=%s seeded=%s" % (version, commit, dirty, first_run))
-    print("objects=%d members=%d functions=%d" % (n_obj, n_mem, n_fn))
+    print("objects=%d members=%d functions=%d module_attributes=%d"
+          % (n_obj, n_mem, n_fn, len(attrs_out)))
 
 
 if __name__ == "__main__":

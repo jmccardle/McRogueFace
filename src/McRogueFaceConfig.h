@@ -32,6 +32,13 @@ struct McRogueFaceConfig {
     // Auto-exit when no timers remain (for --headless --exec automation)
     bool auto_exit_after_exec = false;
 
+    // Keep running after --exec scripts finish, instead of exiting (#350).
+    // Headless --exec normally exits when the scripts are done: step() is the only
+    // headless clock, so the engine cannot advance timers on its own and would
+    // otherwise spin forever. Pass --run-forever for a long-lived headless process
+    // (a server, a REPL host) that drives itself.
+    bool run_forever = false;
+
     // Exception handling: exit on first Python callback exception (default: true)
     // Use --continue-after-exceptions to disable
     bool exit_on_exception = true;

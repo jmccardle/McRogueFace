@@ -215,9 +215,37 @@ int run_python_interpreter(const McRogueFaceConfig& config)
     else if (!config.exec_scripts.empty()) {
         // Execute startup scripts on the existing engine (not in constructor to prevent double-execution)
         engine->executeStartupScripts();
-        if (config.headless) {
-            engine->setAutoExitAfterExec(true);
+
+        // A script that called sys.exit() has already decided the outcome.
+        if (McRFPy_API::shouldExit()) {
+            int code = McRFPy_API::exit_code.load();
+            McRFPy_API::api_shutdown();
+            delete engine;
+            return code;
         }
+
+        // #350: headless --exec that falls off the end without exiting is an error.
+        //
+        // step() is the only headless clock, so the run loop cannot advance timers on
+        // its own: entering it here used to spin forever with a frozen clock, and any
+        // headless script with a pending timer hung until it was killed. Worse, a
+        // script that died during setup registered no timers, auto-exited 0, and was
+        // scored as a passing test.
+        //
+        // An --exec script must state its outcome with sys.exit(). If a long-lived
+        // headless process is genuinely wanted (a server, a REPL host), say so with
+        // --run-forever.
+        if (config.headless && !config.run_forever) {
+            std::cerr << "mcrogueface: --exec scripts finished without calling sys.exit().\n"
+                      << "  In headless mode the engine cannot advance time on its own: "
+                      << "mcrfpy.step() is the clock.\n"
+                      << "  End the script with sys.exit(0), or pass --run-forever to keep "
+                      << "the process alive.\n";
+            McRFPy_API::api_shutdown();
+            delete engine;
+            return 1;
+        }
+
         engine->run();
         McRFPy_API::api_shutdown();
         delete engine;

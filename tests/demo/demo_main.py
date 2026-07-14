@@ -40,6 +40,7 @@ class DemoRunner:
 
     def __init__(self):
         self.screens = []
+        self.menu = None
         self.current_index = 0
         self.headless = self._detect_headless()
         self.screenshot_dir = os.path.join(os.path.dirname(__file__), "screenshots")
@@ -65,7 +66,10 @@ class DemoRunner:
 
     def create_menu(self):
         """Create the main menu screen."""
-        menu = mcrfpy.Scene("menu")
+        # #372: was a local, but run_interactive() referenced `menu` -- NameError on
+        # every interactive launch. Keep it on the runner.
+        self.menu = mcrfpy.Scene("menu")
+        menu = self.menu
         ui = menu.children
 
         # Title
@@ -104,46 +108,30 @@ class DemoRunner:
         ui.append(instr)
 
     def run_headless(self):
-        """Run in headless mode - generate all screenshots."""
-        print(f"Generating {len(self.screens)} demo screenshots...")
+        """Run in headless mode - generate all screenshots.
 
-        # Ensure screenshot directory exists
+        #372/#350: this used to drive a Timer and wait for render frames. Headless
+        timers only advance under mcrfpy.step(), so that loop never fired. It is also
+        unnecessary: a screenshot renders the current state synchronously and costs
+        zero simulation time, so we can just activate each scene and shoot it.
+        """
+        print(f"Generating {len(self.screens)} demo screenshots...")
         os.makedirs(self.screenshot_dir, exist_ok=True)
 
-        # Use timer to take screenshots after game loop renders each scene
-        self.current_index = 0
-        self.render_wait = 0
+        for i, screen in enumerate(self.screens):
+            # #372: was `mcrfpy.current_scene = screen` -- a DemoScreen, not a Scene,
+            # which raised TypeError and broke the headless path outright.
+            screen.scene.activate()
+            filename = os.path.join(self.screenshot_dir, screen.get_screenshot_name())
+            automation.screenshot(filename)
+            print(f"  [{i+1}/{len(self.screens)}] {filename}")
 
-        def screenshot_cycle(timer, runtime):
-            if self.render_wait == 0:
-                # Set scene and wait for render
-                if self.current_index >= len(self.screens):
-                    print("Done!")
-                    sys.exit(0)
-                    return
-                screen = self.screens[self.current_index]
-                mcrfpy.current_scene = screen
-                self.render_wait = 1
-            elif self.render_wait < 2:
-                # Wait additional frame
-                self.render_wait += 1
-            else:
-                # Take screenshot
-                screen = self.screens[self.current_index]
-                filename = os.path.join(self.screenshot_dir, screen.get_screenshot_name())
-                automation.screenshot(filename)
-                print(f"  [{self.current_index+1}/{len(self.screens)}] {filename}")
-                self.current_index += 1
-                self.render_wait = 0
-                if self.current_index >= len(self.screens):
-                    print("Done!")
-                    sys.exit(0)
-
-        self.screenshot_timer = mcrfpy.Timer("screenshot", screenshot_cycle, 50)
+        print("Done!")
 
     def run_interactive(self):
         """Run in interactive mode with menu."""
         self.create_menu()
+        menu = self.menu
 
         def handle_key(key, state):
             if state != mcrfpy.InputState.PRESSED:
@@ -156,7 +144,8 @@ class DemoRunner:
             if key in _num_key_map:
                 idx = _num_key_map[key]
                 if idx < len(self.screens):
-                    mcrfpy.setScene(self.screens[idx].scene_name)
+                    # #372: mcrfpy.setScene() no longer exists.
+                    self.screens[idx].scene.activate()
 
             # ESC returns to menu
             elif key == mcrfpy.Key.ESCAPE:
@@ -166,14 +155,10 @@ class DemoRunner:
             elif key == mcrfpy.Key.Q:
                 sys.exit(0)
 
-        # Register keyboard handler on menu scene
-        menu.activate()
+        # The same handler serves the menu and every demo scene, so ESC always works.
         menu.on_key = handle_key
-
-        # Also register keyboard handler on all demo scenes
         for screen in self.screens:
-            mcrfpy.current_scene = screen
-            menu.on_key = handle_key
+            screen.scene.on_key = handle_key
 
         # Start on menu
         menu.activate()
@@ -185,6 +170,8 @@ def main():
 
     if runner.headless:
         runner.run_headless()
+        # #350: a headless --exec script must declare its outcome.
+        sys.exit(0)
     else:
         runner.run_interactive()
 

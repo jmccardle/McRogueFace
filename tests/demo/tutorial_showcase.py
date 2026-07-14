@@ -8,12 +8,13 @@ Run with: xvfb-run -a ./build/mcrogueface --headless --exec tests/demo/tutorial_
 In headless mode, automation.screenshot() is SYNCHRONOUS - no timer dance needed!
 """
 import mcrfpy
+import docs_output
 from mcrfpy import automation
 import sys
 import os
 
 # Output directory
-OUTPUT_DIR = "/opt/goblincorps/repos/mcrogueface.github.io/images/tutorials"
+OUTPUT_DIR = docs_output.image_dir("tutorials")  # #372: was a hardcoded absolute path
 
 # Tile meanings from the labeled tileset - the FUN sprites!
 TILES = {

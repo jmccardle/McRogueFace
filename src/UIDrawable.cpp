@@ -8,6 +8,7 @@
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
+#include "3d/Viewport3D.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
@@ -942,6 +943,8 @@ void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
     parent = new_parent;
     parent_scene.clear();  // #183: Clear scene parent when setting drawable parent
 
+    updatePyIdentityPin();  // #373
+
     // Apply alignment when parent is set (if alignment is configured)
     if (new_parent && align_type != AlignmentType::NONE) {
         applyAlignment();
@@ -952,9 +955,50 @@ void UIDrawable::setParentScene(const std::string& scene_name) {
     parent.reset();        // #183: Clear drawable parent when setting scene parent
     parent_scene = scene_name;
 
+    updatePyIdentityPin();  // #373
+
     // Apply alignment when scene parent is set (if alignment is configured)
     if (!scene_name.empty() && align_type != AlignmentType::NONE) {
         applyAlignment();
+    }
+}
+
+// #373: hold a strong ref to the Python wrapper while, and only while, this drawable
+// is a member of a children collection. See the comment on py_identity in UIDrawable.h.
+void UIDrawable::updatePyIdentityPin() {
+    // Only subclasses carry state worth preserving, and only they can lose anything
+    // when a wrapper is re-created from the cache miss.
+    if (!is_python_subclass) return;
+
+    const bool in_collection = !parent.expired() || !parent_scene.empty();
+
+    if (in_collection) {
+        if (py_identity) return;  // already pinned
+        if (serial_number == 0 || !Py_IsInitialized()) return;
+        // The wrapper necessarily exists: is_python_subclass is only ever set from a
+        // subclass's tp_init, so Python allocated one. A cache miss here would mean the
+        // wrapper was already collected, and there is nothing left to pin.
+        py_identity = PythonObjectCache::getInstance().lookup(serial_number);  // new ref
+    } else {
+        releasePyIdentity();
+    }
+}
+
+void UIDrawable::releaseChildPins(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children) {
+    if (!children) return;
+    for (auto& child : *children) {
+        if (child) child->releasePyIdentity();
+    }
+}
+
+void UIDrawable::releasePyIdentity() {
+    if (!py_identity) return;
+    // Null the member BEFORE the DECREF: the wrapper's dealloc drops its shared_ptr to
+    // this drawable, which can re-enter here if that was the last strong ref.
+    PyObject* tmp = py_identity;
+    py_identity = nullptr;
+    if (Py_IsInitialized()) {
+        Py_DECREF(tmp);
     }
 }
 
@@ -962,6 +1006,12 @@ std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
     return parent.lock();
 }
 
+// #373: this drops the parent link, so it also drops the Python-identity pin -- which
+// may release the last reference to the wrapper, whose dealloc drops the wrapper's
+// shared_ptr to this drawable. Callers must therefore hold their own strong ref for the
+// duration (every one does: they come through a local shared_ptr from extractDrawable).
+// updatePyIdentityPin() is the LAST statement on both paths so that even in that case
+// no member of a freed `this` is touched afterwards.
 void UIDrawable::removeFromParent() {
     // #183: Handle scene parent removal
     if (!parent_scene.empty()) {
@@ -975,6 +1025,7 @@ void UIDrawable::removeFromParent() {
             }
         }
         parent_scene.clear();
+        updatePyIdentityPin();
         return;
     }
 
@@ -1015,6 +1066,7 @@ void UIDrawable::removeFromParent() {
     }
 
     parent.reset();
+    updatePyIdentityPin();
 }
 
 // #102 - Global position calculation
@@ -1284,6 +1336,133 @@ PyObject* UIDrawable::get_uniforms(PyObject* self, void* closure) {
     return (PyObject*)collection;
 }
 
+// #369: single cache-aware conversion from a C++ drawable to its Python wrapper.
+// Every path that hands a drawable back to Python must go through here, or object
+// identity breaks (`x.parent is x.parent` -> False) and Python subclasses are lost.
+PyObject* UIDrawable::pyobject_for(std::shared_ptr<UIDrawable> drawable) {
+    if (!drawable) {
+        Py_RETURN_NONE;
+    }
+
+    // A live wrapper wins: it carries the caller's subclass and identity.
+    if (drawable->serial_number != 0) {
+        PyObject* cached = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+        if (cached) {
+            return cached;  // lookup() already INCREF'd
+        }
+    }
+
+    PyTypeObject* type = nullptr;
+    PyObject* obj = nullptr;
+
+    switch (drawable->derived_type()) {
+        case PyObjectsEnum::UIFRAME:
+        {
+            type = &mcrfpydef::PyUIFrameType;
+            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICAPTION:
+        {
+            type = &mcrfpydef::PyUICaptionType;
+            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICaption>(drawable);
+                pyObj->font = nullptr;
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UISPRITE:
+        {
+            type = &mcrfpydef::PyUISpriteType;
+            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UISprite>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIGRIDVIEW:
+        {
+            type = &mcrfpydef::PyUIGridViewType;
+            auto pyObj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIGridView>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UILINE:
+        {
+            type = &mcrfpydef::PyUILineType;
+            auto pyObj = (PyUILineObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UILine>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UICIRCLE:
+        {
+            type = &mcrfpydef::PyUICircleType;
+            auto pyObj = (PyUICircleObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UICircle>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIARC:
+        {
+            type = &mcrfpydef::PyUIArcType;
+            auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<UIArc>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        case PyObjectsEnum::UIVIEWPORT3D:
+        {
+            type = &mcrfpydef::PyViewport3DType;
+            auto pyObj = (PyViewport3DObject*)type->tp_alloc(type, 0);
+            if (pyObj) {
+                pyObj->data = std::static_pointer_cast<mcrf::Viewport3D>(drawable);
+                pyObj->weakreflist = NULL;
+            }
+            obj = (PyObject*)pyObj;
+            break;
+        }
+        default:
+            PyErr_SetString(PyExc_TypeError, "Unknown UIDrawable derived type");
+            return nullptr;
+    }
+
+    // Register the fresh wrapper so the next lookup returns this same object.
+    // Covers C++-created drawables whose original wrapper was GC'd.
+    if (obj && drawable->serial_number != 0) {
+        PyObject* weakref = PyWeakref_NewRef(obj, NULL);
+        if (weakref) {
+            PythonObjectCache::getInstance().registerObject(drawable->serial_number, weakref);
+            Py_DECREF(weakref);
+        }
+    }
+
+    return obj;
+}
+
 // Python API - get parent drawable
 PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
     PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
@@ -1299,67 +1478,7 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
         // Scene not found in python_scenes (shouldn't happen, but fall through to None)
     }
 
-    auto parent_ptr = drawable->getParent();
-    if (!parent_ptr) {
-        Py_RETURN_NONE;
-    }
-
-    // Convert parent to Python object using the cache/conversion system
-    // Re-use the pattern from UICollection
-    PyTypeObject* type = nullptr;
-    PyObject* obj = nullptr;
-
-    switch (parent_ptr->derived_type()) {
-        case PyObjectsEnum::UIFRAME:
-        {
-            type = &mcrfpydef::PyUIFrameType;
-            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIFrame>(parent_ptr);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UICAPTION:
-        {
-            type = &mcrfpydef::PyUICaptionType;
-            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UICaption>(parent_ptr);
-                pyObj->font = nullptr;
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UISPRITE:
-        {
-            type = &mcrfpydef::PyUISpriteType;
-            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UISprite>(parent_ptr);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIGRIDVIEW:
-        {
-            type = &mcrfpydef::PyUIGridViewType;
-            auto pyObj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIGridView>(parent_ptr);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        default:
-            Py_RETURN_NONE;
-    }
-
-    return obj;
+    return UIDrawable::pyobject_for(drawable->getParent());
 }
 
 // Python API - set parent drawable (or None to remove from parent)

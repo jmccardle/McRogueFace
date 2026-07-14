@@ -1,220 +1,246 @@
 #!/usr/bin/env python3
 """
-Comprehensive test for Issue #9: Recreate RenderTexture when UIGrid is resized
+Regression test for Issue #9: Recreate RenderTexture when a grid view is resized
 
-This test demonstrates that UIGrid has a hardcoded RenderTexture size of 1920x1080,
-which causes rendering issues when the grid is resized beyond these dimensions.
+The bug: UIGrid::render() created its RenderTexture once, at a hardcoded size, and
+never recreated it. Resizing the grid widget beyond that texture left the new area
+unrendered (clipped), and shrinking it left stale content blitted outside the box.
 
-The bug: UIGrid::render() creates a RenderTexture with fixed size (1920x1080) once,
-but never recreates it when the grid is resized, causing clipping and rendering artifacts.
+The fix (UIGridView::ensureRenderTextureSize()) sizes the RenderTexture from the game
+resolution and recreates it whenever that changes; the blit is clipped to the widget
+box. So today a grid must render *correctly across its whole box at every size*:
+
+  * enlarging the widget renders content in the newly exposed area (was clipped),
+  * shrinking it leaves no stale pixels outside the new box,
+  * content never spills past the widget bounds,
+  * a widget larger than the window still renders its visible portion.
+
+This test asserts those four properties on real screenshot pixels. The old version of
+this file only printed "check the screenshots by eye" and, worse, died in setup on
+grid.at(x, y).color (removed -- per-cell color lives on a ColorLayer now), so none of
+it ever ran.
+
+API notes for the update: GridPoint has no .color -> mcrfpy.ColorLayer; Grid takes
+grid_size=/pos=/size= kwargs; mcrfpy.setScene/sceneUI -> mcrfpy.Scene + scene.children;
+step() is the clock and never renders, automation.screenshot() forces the render.
+Window.resolution cannot change in headless, so the resolution-driven recreation path
+is exercised via widget resizes only.
 """
 
 import mcrfpy
 from mcrfpy import automation
+import struct
 import sys
-import os
+import zlib
 
-def create_checkerboard_pattern(grid, grid_width, grid_height, cell_size=2):
-    """Create a checkerboard pattern on the grid for visibility"""
+FAILURES = []
+
+# Grid data is large enough (160 x 160 cells) that its content covers every widget
+# size used below, so "no content here" always means a rendering failure.
+GRID_CELLS = 160
+
+WHITE = (255, 255, 255)
+GRAY = (100, 100, 100)
+RED = (255, 0, 0)
+BACKGROUND = (0, 0, 0)     # scene clear color, outside any grid
+CONTENT_COLORS = (WHITE, GRAY, RED)
+
+
+def check(label, condition, detail=""):
+    if condition:
+        print("  PASS: %s" % label)
+    else:
+        print("  FAIL: %s %s" % (label, detail))
+        FAILURES.append(label)
+
+
+# --------------------------------------------------------------------------- #
+# Minimal PNG reader (stdlib only), same as tests/unit/validate_screenshot_test.py
+# --------------------------------------------------------------------------- #
+def read_png(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n", "not a PNG"
+    pos = 8
+    idat = b""
+    width = height = depth = color = None
+    while pos < len(data):
+        (length,) = struct.unpack(">I", data[pos:pos + 4])
+        ctype = data[pos + 4:pos + 8]
+        chunk = data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+        if ctype == b"IHDR":
+            width, height, depth, color, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
+            assert depth == 8, "unexpected bit depth %d" % depth
+            assert color in (2, 6), "unexpected color type %d" % color
+            assert interlace == 0, "interlaced PNG not supported"
+        elif ctype == b"IDAT":
+            idat += chunk
+        elif ctype == b"IEND":
+            break
+
+    raw = zlib.decompress(idat)
+    channels = 3 if color == 2 else 4
+    stride = width * channels
+    out = bytearray(height * stride)
+    prev = bytearray(stride)
+    p = 0
+    for y in range(height):
+        filt = raw[p]
+        p += 1
+        line = bytearray(raw[p:p + stride])
+        p += stride
+        if filt == 1:      # Sub
+            for i in range(channels, stride):
+                line[i] = (line[i] + line[i - channels]) & 0xFF
+        elif filt == 2:    # Up
+            for i in range(stride):
+                line[i] = (line[i] + prev[i]) & 0xFF
+        elif filt == 3:    # Average
+            for i in range(stride):
+                a = line[i - channels] if i >= channels else 0
+                line[i] = (line[i] + ((a + prev[i]) >> 1)) & 0xFF
+        elif filt == 4:    # Paeth
+            for i in range(stride):
+                a = line[i - channels] if i >= channels else 0
+                b = prev[i]
+                c = prev[i - channels] if i >= channels else 0
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+                line[i] = (line[i] + pr) & 0xFF
+        elif filt != 0:
+            raise AssertionError("bad PNG filter %d" % filt)
+        out[y * stride:(y + 1) * stride] = line
+        prev = line
+    return width, height, channels, bytes(out)
+
+
+class Image:
+    def __init__(self, path):
+        self.w, self.h, self.ch, self.px = read_png(path)
+
+    def at(self, x, y):
+        i = (y * self.w + x) * self.ch
+        return tuple(self.px[i:i + 3])
+
+
+def create_checkerboard_pattern(layer, grid_width, grid_height, cell_size=2):
+    """Create a checkerboard pattern on the color layer for visibility"""
     for x in range(grid_width):
         for y in range(grid_height):
             if (x // cell_size + y // cell_size) % 2 == 0:
-                grid.at(x, y).color = mcrfpy.Color(255, 255, 255, 255)  # White
+                layer.set((x, y), mcrfpy.Color(*WHITE))
             else:
-                grid.at(x, y).color = mcrfpy.Color(100, 100, 100, 255)  # Gray
+                layer.set((x, y), mcrfpy.Color(*GRAY))
 
-def add_border_markers(grid, grid_width, grid_height):
+
+def add_border_markers(layer, grid_width, grid_height):
     """Add colored markers at the borders to test rendering limits"""
-    # Red border on top
     for x in range(grid_width):
-        grid.at(x, 0).color = mcrfpy.Color(255, 0, 0, 255)
-
-    # Green border on right
+        layer.set((x, 0), mcrfpy.Color(*RED))
+        layer.set((x, grid_height - 1), mcrfpy.Color(*RED))
     for y in range(grid_height):
-        grid.at(grid_width-1, y).color = mcrfpy.Color(0, 255, 0, 255)
+        layer.set((0, y), mcrfpy.Color(*RED))
+        layer.set((grid_width - 1, y), mcrfpy.Color(*RED))
 
-    # Blue border on bottom
-    for x in range(grid_width):
-        grid.at(x, grid_height-1).color = mcrfpy.Color(0, 0, 255, 255)
 
-    # Yellow border on left
-    for y in range(grid_height):
-        grid.at(0, y).color = mcrfpy.Color(255, 255, 0, 255)
+def render(path):
+    """step() advances the sim; the screenshot is what forces a render."""
+    mcrfpy.step(0.01)
+    automation.screenshot(path)
+    return Image(path)
 
-# Set up the test scene
+
+def anchor_camera(grid):
+    """Keep tile (0,0) at the widget's top-left after a resize (#169 default)."""
+    grid.center = (grid.w / 2.0, grid.h / 2.0)
+
+
+def is_content(px):
+    return px in CONTENT_COLORS
+
+
+print("=== Testing grid RenderTexture resize (Issue #9) ===\n")
+
 test = mcrfpy.Scene("test")
 mcrfpy.current_scene = test
-
-print("=== Testing UIGrid RenderTexture Resize (Issue #9) ===\n")
-
 scene_ui = test.children
 
-# Test 1: Small grid (should work fine)
-print("--- Test 1: Small Grid (400x300) ---")
-grid1 = mcrfpy.Grid(20, 15)  # 20x15 tiles
-grid1.x = 10
-grid1.y = 10
-grid1.w = 400
-grid1.h = 300
-scene_ui.append(grid1)
+GRID_X, GRID_Y = 10, 10
+grid = mcrfpy.Grid(grid_size=(GRID_CELLS, GRID_CELLS), pos=(GRID_X, GRID_Y), size=(200, 150))
+colors = mcrfpy.ColorLayer(name="cells")
+grid.add_layer(colors)
+create_checkerboard_pattern(colors, GRID_CELLS, GRID_CELLS)
+add_border_markers(colors, GRID_CELLS, GRID_CELLS)
+scene_ui.append(grid)
 
-create_checkerboard_pattern(grid1, 20, 15)
-add_border_markers(grid1, 20, 15)
+# --- Test 1: small grid renders its whole box, and nothing outside it ---------
+print("--- Test 1: Small Grid (200x150) ---")
+anchor_camera(grid)
+img = render("/tmp/issue_9_small_grid.png")
 
-mcrfpy.step(0.01)
-automation.screenshot("/tmp/issue_9_small_grid.png")
-print("PASS: Small grid created and rendered")
+check("top-left tile of small grid is the red border marker",
+      img.at(GRID_X + 2, GRID_Y + 2) == RED,
+      "got %s" % (img.at(GRID_X + 2, GRID_Y + 2),))
+check("interior of small grid is rendered content",
+      is_content(img.at(100, 100)), "got %s" % (img.at(100, 100),))
+check("far corner of small grid box is rendered content",
+      is_content(img.at(GRID_X + 195, GRID_Y + 145)),
+      "got %s" % (img.at(GRID_X + 195, GRID_Y + 145),))
+check("nothing rendered outside the small grid box",
+      img.at(500, 400) == BACKGROUND, "got %s" % (img.at(500, 400),))
 
-# Test 2: Medium grid at 1920x1080 limit
-print("\n--- Test 2: Medium Grid at 1920x1080 Limit ---")
-grid2 = mcrfpy.Grid(64, 36)  # 64x36 tiles at 30px each = 1920x1080
-grid2.x = 10
-grid2.y = 320
-grid2.w = 1920
-grid2.h = 1080
-scene_ui.append(grid2)
+# --- Test 2: enlarging the widget must render the newly exposed area ----------
+# This is the heart of #9: (500,400) and (880,690) were outside the previous render
+# area. With a stale RenderTexture they stay blank/clipped.
+print("\n--- Test 2: Resize 200x150 -> 900x700 ---")
+grid.w = 900
+grid.h = 700
+anchor_camera(grid)
+img = render("/tmp/issue_9_resized.png")
 
-create_checkerboard_pattern(grid2, 64, 36, 4)
-add_border_markers(grid2, 64, 36)
+check("area exposed by the resize is rendered (500,400)",
+      is_content(img.at(500, 400)), "got %s" % (img.at(500, 400),))
+check("far corner of the enlarged box is rendered (880,690)",
+      is_content(img.at(880, 690)), "got %s" % (img.at(880, 690),))
+check("enlarged grid does not spill past its right edge",
+      img.at(GRID_X + 900 + 5, 100) == BACKGROUND,
+      "got %s" % (img.at(GRID_X + 900 + 5, 100),))
+check("enlarged grid does not spill past its bottom edge",
+      img.at(100, GRID_Y + 700 + 5) == BACKGROUND,
+      "got %s" % (img.at(100, GRID_Y + 700 + 5),))
 
-mcrfpy.step(0.01)
-automation.screenshot("/tmp/issue_9_limit_grid.png")
-print("PASS: Grid at RenderTexture limit created")
+# --- Test 3: widget larger than the window still renders its visible portion --
+print("\n--- Test 3: Grid larger than the window (2400x1400) ---")
+grid.w = 2400
+grid.h = 1400
+anchor_camera(grid)
+img = render("/tmp/issue_9_beyond_window.png")
 
-# Test 3: Resize grid1 beyond limits
-print("\n--- Test 3: Resizing Small Grid Beyond 1920x1080 ---")
-print("Original size: 400x300")
-grid1.w = 2400
-grid1.h = 1400
-print(f"Resized to: {grid1.w}x{grid1.h}")
+check("oversized grid renders at the far edge of the window (1000,700)",
+      is_content(img.at(1000, 700)), "got %s" % (img.at(1000, 700),))
+check("oversized grid renders near the window origin (20,20)",
+      is_content(img.at(20, 20)), "got %s" % (img.at(20, 20),))
 
-# The content should still be visible but may be clipped
-mcrfpy.step(0.01)
-automation.screenshot("/tmp/issue_9_resized_beyond_limit.png")
-print("EXPECTED ISSUE: Grid resized beyond RenderTexture limits")
-print("  Content beyond 1920x1080 will be clipped!")
+# --- Test 4: shrinking must not leave stale pixels outside the new box --------
+print("\n--- Test 4: Shrink back to 200x150 ---")
+grid.w = 200
+grid.h = 150
+anchor_camera(grid)
+img = render("/tmp/issue_9_shrunk.png")
 
-# Test 4: Create large grid from start
-print("\n--- Test 4: Large Grid from Start (2400x1400) ---")
-# Clear previous grids
-while len(scene_ui) > 0:
-    scene_ui.remove(0)
+check("shrunken grid still renders inside its box",
+      is_content(img.at(100, 100)), "got %s" % (img.at(100, 100),))
+check("no stale content left outside the shrunken box (500,400)",
+      img.at(500, 400) == BACKGROUND, "got %s" % (img.at(500, 400),))
+check("no stale content left outside the shrunken box (880,690)",
+      img.at(880, 690) == BACKGROUND, "got %s" % (img.at(880, 690),))
 
-grid3 = mcrfpy.Grid(80, 50)  # Large tile count
-grid3.x = 10
-grid3.y = 10
-grid3.w = 2400
-grid3.h = 1400
-scene_ui.append(grid3)
-
-create_checkerboard_pattern(grid3, 80, 50, 5)
-add_border_markers(grid3, 80, 50)
-
-# Add markers at specific positions to test rendering
-# Mark the center
-center_x, center_y = 40, 25
-for dx in range(-2, 3):
-    for dy in range(-2, 3):
-        grid3.at(center_x + dx, center_y + dy).color = mcrfpy.Color(255, 0, 255, 255)  # Magenta
-
-# Mark position at 1920 pixel boundary (64 tiles * 30 pixels/tile = 1920)
-if 64 < 80:  # Only if within grid bounds
-    for y in range(min(50, 10)):
-        grid3.at(64, y).color = mcrfpy.Color(255, 128, 0, 255)  # Orange
-
-mcrfpy.step(0.01)
-automation.screenshot("/tmp/issue_9_large_grid.png")
-print("EXPECTED ISSUE: Large grid created")
-print("  Content beyond 1920x1080 will not render!")
-print("  Look for missing orange line at x=1920 boundary")
-
-# Test 5: Dynamic resize test
-print("\n--- Test 5: Dynamic Resize Test ---")
-scene_ui.remove(0)
-
-grid4 = mcrfpy.Grid(100, 100)
-grid4.x = 10
-grid4.y = 10
-scene_ui.append(grid4)
-
-sizes = [(500, 500), (1000, 1000), (1500, 1500), (2000, 2000), (2500, 2500)]
-
-for i, (w, h) in enumerate(sizes):
-    grid4.w = w
-    grid4.h = h
-
-    # Add pattern at current size
-    visible_tiles_x = min(100, w // 30)
-    visible_tiles_y = min(100, h // 30)
-
-    # Clear and create new pattern
-    for x in range(visible_tiles_x):
-        for y in range(visible_tiles_y):
-            if x == visible_tiles_x - 1 or y == visible_tiles_y - 1:
-                # Edge markers
-                grid4.at(x, y).color = mcrfpy.Color(255, 255, 0, 255)
-            elif (x + y) % 10 == 0:
-                # Diagonal lines
-                grid4.at(x, y).color = mcrfpy.Color(0, 255, 255, 255)
-
-    mcrfpy.step(0.01)
-    automation.screenshot(f"/tmp/issue_9_resize_{w}x{h}.png")
-
-    if w > 1920 or h > 1080:
-        print(f"FAIL: Size {w}x{h}: Content clipped at 1920x1080")
-    else:
-        print(f"PASS: Size {w}x{h}: Rendered correctly")
-
-# Test 6: Verify exact clipping boundary
-print("\n--- Test 6: Exact Clipping Boundary Test ---")
-scene_ui.remove(0)
-
-grid5 = mcrfpy.Grid(70, 40)
-grid5.x = 0
-grid5.y = 0
-grid5.w = 2100  # 70 * 30 = 2100 pixels
-grid5.h = 1200  # 40 * 30 = 1200 pixels
-scene_ui.append(grid5)
-
-# Create a pattern that shows the boundary clearly
-for x in range(70):
-    for y in range(40):
-        pixel_x = x * 30
-        pixel_y = y * 30
-
-        if pixel_x == 1920 - 30:  # Last tile before boundary
-            grid5.at(x, y).color = mcrfpy.Color(255, 0, 0, 255)  # Red
-        elif pixel_x == 1920:  # First tile after boundary
-            grid5.at(x, y).color = mcrfpy.Color(0, 255, 0, 255)  # Green
-        elif pixel_y == 1080 - 30:  # Last row before boundary
-            grid5.at(x, y).color = mcrfpy.Color(0, 0, 255, 255)  # Blue
-        elif pixel_y == 1080:  # First row after boundary
-            grid5.at(x, y).color = mcrfpy.Color(255, 255, 0, 255)  # Yellow
-        else:
-            # Normal checkerboard
-            if (x + y) % 2 == 0:
-                grid5.at(x, y).color = mcrfpy.Color(200, 200, 200, 255)
-
-mcrfpy.step(0.01)
-automation.screenshot("/tmp/issue_9_boundary_test.png")
-print("Screenshot saved showing clipping boundary")
-print("- Red tiles: Last visible column (x=1890-1919)")
-print("- Green tiles: First clipped column (x=1920+)")
-print("- Blue tiles: Last visible row (y=1050-1079)")
-print("- Yellow tiles: First clipped row (y=1080+)")
-
-# Summary
 print("\n=== SUMMARY ===")
-print("Issue #9: UIGrid uses a hardcoded RenderTexture size of 1920x1080")
-print("Problems demonstrated:")
-print("1. Grids larger than 1920x1080 are clipped")
-print("2. Resizing grids doesn't recreate the RenderTexture")
-print("3. Content beyond the boundary is not rendered")
-print("\nThe fix should:")
-print("1. Recreate RenderTexture when grid size changes")
-print("2. Use the actual grid dimensions instead of hardcoded values")
-print("3. Consider memory limits for very large grids")
+if FAILURES:
+    print("FAIL: %d check(s) failed: %s" % (len(FAILURES), ", ".join(FAILURES)))
+    sys.exit(1)
 
-print(f"\nScreenshots saved to /tmp/issue_9_*.png")
-print("\nTest complete - check screenshots for visual verification")
+print("Screenshots saved to /tmp/issue_9_*.png")
+print("PASS")
 sys.exit(0)
