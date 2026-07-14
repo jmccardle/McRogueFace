@@ -257,12 +257,24 @@ void GameEngine::changeScene(std::string sceneName, TransitionType transitionTyp
         return;
     }
     
-    if (transitionType == TransitionType::None || duration <= 0.0f)
+    // #379: a transition needs something to transition FROM. Until the first Python
+    // scene is activated the engine sits on the internal "uitest" bootstrap scene, which
+    // is not a PyScene and has no Python wrapper -- so mcrfpy.current_scene reports None
+    // for it. Because current_scene reports the OUTGOING scene until a transition
+    // completes, fading from the bootstrap left current_scene as None for the whole
+    // transition, right after the user had assigned it. Nothing meaningful to transition
+    // from means change now.
+    const bool have_outgoing_scene =
+        !scene.empty() &&
+        scenes.find(scene) != scenes.end() &&
+        dynamic_cast<PyScene*>(scenes[scene].get()) != nullptr;
+
+    if (transitionType == TransitionType::None || duration <= 0.0f || !have_outgoing_scene)
     {
         // Immediate scene change
         std::string old_scene = scene;
         scene = sceneName;
-        
+
         // Trigger Python scene lifecycle events
         McRFPy_API::triggerSceneChange(old_scene, sceneName);
     }

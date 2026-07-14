@@ -41,7 +41,17 @@ SANITIZER_PATTERNS = [
 ]
 
 # Test directories to run (in order)
-TEST_DIRS = ['unit', 'integration', 'regression', 'demo']
+TEST_DIRS = ['unit', 'integration', 'regression', 'demo', 'snippets']
+
+# tests/snippets/ holds the code samples published on mcrogueface.github.io. They live
+# here, in the engine repo, so that breaking the API breaks the build -- the docs site
+# pulls them from here rather than keeping its own copy to rot in parallel. Before this,
+# 130 snippets were executed by nothing at all and carried a hand-typed "status=ok"
+# header that no run had ever verified.
+#
+# They are display scripts with no sys.exit(), because they must stay copy-pasteable, so
+# _harness.py is chained as a second --exec to supply the ending (see its docstring).
+SNIPPET_HARNESS = 'tests/snippets/_harness.py'
 
 # #372: tests/demo/ was never run by anything, so the demo screens -- which CLAUDE.md
 # points at as the canonical API-usage examples -- silently bitrotted until they could
@@ -111,6 +121,10 @@ def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT,
 
     cmd.extend([str(MCROGUEFACE), '--headless', '--exec', str(test_path)])
 
+    # A snippet has no ending of its own; chain the harness to supply one.
+    if test_path.parent.name == 'snippets':
+        cmd.extend(['--exec', str(TESTS_DIR / 'snippets' / '_harness.py')])
+
     try:
         result = subprocess.run(
             cmd,
@@ -171,7 +185,8 @@ def find_tests(directory):
     if directory == 'demo':
         # #372: allowlisted entry points only -- see DEMO_SMOKE_TESTS.
         return [test_dir / name for name in DEMO_SMOKE_TESTS if (test_dir / name).exists()]
-    return sorted(test_dir.glob("*.py"))
+    # Leading underscore = support file, not a test (tests/snippets/_harness.py).
+    return sorted(p for p in test_dir.glob("*.py") if not p.name.startswith('_'))
 
 def main():
     verbose = '-v' in sys.argv or '--verbose' in sys.argv
