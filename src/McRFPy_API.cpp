@@ -330,11 +330,22 @@ static PyMethodDef mcrfpyMethods[] = {
     {"step", McRFPy_API::_step, METH_VARARGS,
      MCRF_METHOD(mcrfpy, step,
          MCRF_SIG("(dt: float = None)", "float"),
-         MCRF_DESC("Advance simulation time (headless mode only)."),
+         MCRF_DESC("Run one full simulation frame (headless mode only). Advances the scene "
+                   "update, timers, Python Scene.update() callbacks, animations, and scene "
+                   "transitions (including their completion), records frame-time metrics, and "
+                   "increments the frame counter -- everything a windowed frame does except "
+                   "render and input.")
          MCRF_ARGS_START
          MCRF_ARG("dt", "Time to advance in seconds. If None, advances to the next scheduled event (timer/animation).")
          MCRF_RETURNS("float: Actual time advanced in seconds. Returns 0.0 in windowed mode.")
-         MCRF_NOTE("In windowed mode, this is a no-op and returns 0.0. Use this for deterministic simulation control in headless/testing scenarios.")
+         MCRF_NOTE("Rendering is deliberately excluded: it is orthogonal to the clock and costs "
+                   "zero simulation time, so a screenshot draws arbitrary state without time "
+                   "passing. In windowed mode this is a no-op returning 0.0. Timers run on "
+                   "simulation time -- explicit, deterministic time is the point of driving a "
+                   "headless test with step().")
+         MCRF_NOTE("A headless --exec script must end by calling sys.exit(), because step() is "
+                   "the only headless clock: without it the engine cannot advance itself. Pass "
+                   "--run-forever for a long-lived headless process that drives itself.")
      )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
      MCRF_METHOD(mcrfpy, exit,
@@ -1076,6 +1087,20 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     }
 
     PyStatus status;
+
+    // #378: pre-initialize in UTF-8 mode. Without this, the filesystem encoding falls
+    // back to ASCII -- so open() with no explicit encoding= cannot read a UTF-8 file,
+    // even though sys.getdefaultencoding() and the locale both say UTF-8. This is the
+    // init path main.cpp uses; init_python() above has always done this correctly.
+    PyPreConfig preconfig;
+    PyPreConfig_InitIsolatedConfig(&preconfig);
+    preconfig.utf8_mode = 1;
+
+    status = Py_PreInitialize(&preconfig);
+    if (PyStatus_Exception(status)) {
+        return status;
+    }
+
     PyConfig pyconfig;
     PyConfig_InitIsolatedConfig(&pyconfig);
 

@@ -184,6 +184,8 @@ void CommandLineParser::print_help() {
               << "McRogueFace specific options:\n"
               << "  --exec file  : execute script before main program (can be used multiple times)\n"
               << "  --headless   : run without creating a window (implies --audio-off)\n"
+              << "  --run-forever : keep running after --exec scripts finish, instead of\n"
+              << "                       exiting (for a long-lived headless process)\n"
               << "  --audio-off  : disable audio\n"
               << "  --audio-on   : enable audio (even in headless mode)\n"
               << "  --screenshot [path] : take a screenshot in headless mode\n"
