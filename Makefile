@@ -157,7 +157,7 @@ api-delta:
 #
 # Deliberately NOT automatic: it does not commit, and it does not touch the
 # hand-written pages. It tells you what it found and leaves the judgment to you.
-release-docs: docs stamp-snippets
+release-docs: docs stamp-snippets snippet-shots
 	@echo ""
 	@echo "=== Regenerating the site against this engine (SITE_DIR=$(SITE_DIR)) ==="
 	@test -d "$(SITE_DIR)" || { echo "SITE_DIR not found: $(SITE_DIR)"; exit 1; }
