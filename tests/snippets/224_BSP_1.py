@@ -17,7 +17,7 @@ scene.children.append(grid)
 bsp = mcrfpy.BSP(pos=(0, 0), size=(80, 50))
 
 # Split recursively into rooms
-bsp.split_recursive(depth=4, min_size=(8, 8))
+bsp.split_recursive(depth=4, min_size=(8, 8), seed=42)
 
 # Iterate over leaf nodes (rooms)
 room_layer = mcrfpy.ColorLayer(z_index=1, name="rooms")

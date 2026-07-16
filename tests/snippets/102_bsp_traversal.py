@@ -9,7 +9,7 @@ scene.children.append(mcrfpy.Frame(pos=(0, 0), size=(1024, 768), fill_color=mcrf
 
 # Create BSP tree
 bsp = mcrfpy.BSP(pos=(0, 0), size=(16, 12))
-bsp.split_recursive(depth=3, min_size=(3, 3))
+bsp.split_recursive(depth=3, min_size=(3, 3), seed=42)
 
 # Visualize in a grid
 grid = mcrfpy.Grid(

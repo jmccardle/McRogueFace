@@ -23,7 +23,7 @@ hmap.multiply(noise_map)  # Apply as mask
 
 # Convert BSP to heightmap
 bsp = mcrfpy.BSP(pos=(0, 0), size=(20, 20))
-bsp.split_recursive(depth=3, min_size=(4, 4))
+bsp.split_recursive(depth=3, min_size=(4, 4), seed=42)
 rooms = bsp.to_heightmap(select='leaves', shrink=1)
 hmap.add(rooms)
 

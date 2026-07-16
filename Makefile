@@ -139,6 +139,12 @@ stamp-snippets: linux
 check-snippets: linux
 	@python3 tools/stamp_snippets.py --check
 
+# Render a deterministic preview PNG for every snippet into snippet-shots/ (gitignored;
+# the images belong in the doc-site repo, which pulls them from here -- see #381). The
+# images are a visual-regression oracle: a changed PNG means behaviour changed.
+snippet-shots: linux
+	@python3 tools/generate_snippet_shots.py
+
 # What changed in the API since the last release, and which site pages that
 # obligates you to update (resolved via each page's `mcrf.objects` frontmatter).
 api-delta:
@@ -166,7 +172,7 @@ release-docs: docs stamp-snippets
 	@echo "      then commit both repos. For a Gitea checklist issue instead, run:"
 	@echo "      python3 tools/api_delta.py $(BASE_REF) . --site-dir $(SITE_DIR) --format gitea"
 
-.PHONY: docs stamp-snippets check-snippets api-delta release-docs
+.PHONY: docs stamp-snippets check-snippets snippet-shots api-delta release-docs
 
 # Debug and sanitizer targets
 debug:

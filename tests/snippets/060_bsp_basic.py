@@ -26,7 +26,7 @@ for y in range(12):
 
 # Create BSP tree (pos and size as tuples)
 bsp = mcrfpy.BSP(pos=(0, 0), size=(16, 12))
-bsp.split_recursive(depth=3, min_size=(3, 3))
+bsp.split_recursive(depth=3, min_size=(3, 3), seed=42)
 
 # Room colors
 colors = [
