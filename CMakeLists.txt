@@ -435,7 +435,7 @@ if(EMSCRIPTEN)
         -sUSE_SQLITE3=1
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=2097152
-        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS
+        -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,IDBFS
         -sEXPORTED_FUNCTIONS=_main,_run_python_string,_run_python_string_with_output,_reset_python_environment,_notify_canvas_resize,_sync_storage
         -lidbfs.js
         -sASSERTIONS=2
