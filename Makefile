@@ -18,6 +18,7 @@
 #   make serve        - Serve the clean game (build-wasm-game) locally on port 8080
 #   make serve-game   - Serve the clean game (build-wasm-game) locally on port 8080
 #   make serve-dev    - Serve the wasm dev build with REPL console (build-emscripten)
+#   make deploy-playground - Copy build-playground/ into SITE_DIR/playground/ for the site
 #   make clean-wasm   - Clean Emscripten builds
 #
 # Packaging:
@@ -32,7 +33,7 @@
 #     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
-.PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground clean-wasm
+.PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground deploy-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
@@ -437,6 +438,22 @@ serve-playground:
 	@echo "Serving Playground build at http://localhost:8080"
 	@echo "Press Ctrl+C to stop"
 	@cd build-playground && python3 -m http.server 8080
+
+# Copy the built playground into the site checkout's /playground/ so a Jekyll
+# rebuild + push ships it. index.html is the directory-served copy of
+# mcrogueface.html (GitHub Pages serves index.html at /playground/).
+# Requires 'make playground' first; SITE_DIR points at the mcrogueface.github.io checkout.
+deploy-playground:
+	@test -f build-playground/mcrogueface.wasm || { \
+		echo "Error: build-playground/mcrogueface.wasm not found. Run 'make playground' first."; exit 1; }
+	@test -d "$(SITE_DIR)/playground" || { \
+		echo "Error: $(SITE_DIR)/playground not found (SITE_DIR=$(SITE_DIR))."; exit 1; }
+	@echo "Deploying build-playground/ -> $(SITE_DIR)/playground/"
+	@cp build-playground/mcrogueface.data build-playground/mcrogueface.js \
+		build-playground/mcrogueface.wasm build-playground/mcrogueface.html \
+		"$(SITE_DIR)/playground/"
+	@cp build-playground/mcrogueface.html "$(SITE_DIR)/playground/index.html"
+	@echo "Deployed. Next: rebuild Jekyll in $(SITE_DIR) and commit/push the updated /playground/ binaries."
 
 wasm-game:
 	@if ! command -v emcmake >/dev/null 2>&1; then \
