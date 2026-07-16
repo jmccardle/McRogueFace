@@ -76,10 +76,10 @@ Coverage extension (#312) added four more: `fuzz_audio_dsp` (SoundBuffer DSP), `
 
 ### Active Follow-Ups
 - The memory-model review (#326-#338) is nearly closed out: the five tier1 freeze decisions (#326-#330), #331 (hot-getter fast path), #332 (GridData SoA), #333 (lazy TCOD map rebuild), #334 (DiscreteMap buffer protocol), and #335 (numpy layer views) are all **resolved** on master. Still open: **#338** (per-instance memory diet -- shipped as a safe subset, the `render_sprite` relocation deferred), **#336** (free-threading hardening), **#337** (numpy availability strategy), and **#352** (perspective-grid render early-out).
-- Two bugs surfaced by the grid type-split are open: **#369** (`.parent` allocates a fresh wrapper on every read, so `child.parent is parent` is always False -- the same identity problem the type split fixed elsewhere) and **#372** (`tests/demo/` is rotted and unrunnable -- `screens/base.py` calls `mcrfpy.sceneUI`, removed long ago; the demos are not in the test suite, so nothing caught it). **#356** (doc/stub generators miss module-level dynamic attributes like `current_scene`, `scenes`) is also open.
-- #350 (headless `mcrfpy.step()` bypasses `updatePythonScenes()`, so `scene.update()` never fires under `step()` -- a testability gap surfaced while benchmarking #343) is open, tier2. #349 (declarative scene serialization) is an open tier2 design proposal.
-- Gauntlet baseline should be recaptured on a quiet system (`tests/benchmarks/gauntlet/run_gauntlet.py`) -- the committed first baseline is real but desktop-noisy for the callback-heavy trials. #341 (render counters read 0 in get_metrics) blocks richer per-subsystem attribution in the HUD.
-- 0.2.8 is released to master (`cf844f4`, pushed) but the `0.2.8` git tag is still local-only -- push it when ready to publish the release. Master is current at `36e74e0` (grid input revival + type split); the `closes #...` commit trailers took their issues down on merge.
+- The grid type-split bugs and the profiling/Gauntlet testability gaps are now **closed**: #369 (`.parent` identity churn), #372 (rotted `tests/demo/`, superseded by #374), #356 (doc/stub generators miss module-level dynamic attributes), #341 (get_metrics render counters read 0), and #350 (headless `step()` bypasses `updatePythonScenes()`).
+- #349 (declarative scene serialization) is an open tier2 design proposal.
+- Gauntlet baseline should be recaptured on a quiet system (`tests/benchmarks/gauntlet/run_gauntlet.py`) -- the committed first baseline is real but desktop-noisy for the callback-heavy trials. (#341, render counters read 0 in get_metrics, which blocked richer per-subsystem HUD attribution, is now closed.)
+- 0.2.8 is released and published: commit `cf844f4` and the `0.2.8` tag are both pushed, and the distribution artifacts are uploaded. Master has since advanced past `36e74e0` (grid input revival + type split) through the July perf/grid sprints and the docs-as-tests thread; the `closes #...` commit trailers take their issues down on merge.
 
 ### Other Post-7DRL Priorities
 - Progress on the r/roguelikedev tutorial series (#167)
@@ -131,9 +131,9 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-29 open issues across the tracker. Key groupings:
+26 open issues across the tracker. Key groupings:
 
-- **Bugs** (#369, #372, #356, #341, #350) -- `.parent` identity churn; rotted `tests/demo/`; doc generators miss module-level dynamic attributes; get_metrics render counters read 0 (found by the Gauntlet #340); headless `step()` bypasses `updatePythonScenes()`
+- **Docs-as-tests fallout** (#380, #374) -- shipped `templates/*/` example programs are gated by nothing; 19 orphan scripts under `tests/demo/screens/` need adoption or retirement. Both spun out of the July snippets-as-tests thread (the docs site's code samples are now in the gated suite). The earlier bug batch (#369 `.parent` identity, #372 rotted `tests/demo/`, #356 doc generators miss module attrs, #341 get_metrics counters, #350 headless `step()` bypass) is **closed**.
 - **Memory-model review, July 2026** (#336, #337, #338 remaining; #326-#335 resolved) -- per-instance memory diet, free-threading hardening, numpy availability strategy
 - **Grid / rendering** (#352, #152, #67, #124, #107, #347) -- perspective-grid render early-out; sparse layers; infinite worlds; grid point animation; particle system; SFML vs SDL2/WebGL renderer parity
 - **Design proposals** (#349) -- hybrid declarative scene serialization (test oracle + save/load)
