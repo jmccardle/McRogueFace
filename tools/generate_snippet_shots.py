@@ -20,15 +20,20 @@ at import); _screenshot.py advances a few frames and saves the PNG. Output lands
 gitignored SHOT_DIR -- the images belong in the doc-site repo, not this one; the site
 build pulls them from here.
 
-CAPTURE MODEL (Phase 1: STATIC only)
-Every snippet defaults to a static capture: step a few frames, then screenshot. That is
-correct for the ~180 snippets whose visual is fully drawn at load. The exceptions live
-in OVERRIDES below:
-  * noshot=True        -- no meaningful single frame (API/audio/text-only demos); skip.
-  * setup_steps=N      -- needs more frames than default (e.g. a first timer fire that
-                          fills a caption at t>=0.1s).
-Animation target-time (shot_at) and scripted interaction (action) are later phases and
-are not captured yet; snippets needing them get a default static frame for now.
+CAPTURE MODEL
+Every snippet defaults to a static capture: step a few frames, then screenshot -- correct
+for the ~180 snippets whose visual is fully drawn at load. Snippets driven by .animate()
+are handled automatically by _screenshot.py: it reads mcrfpy.animations and captures at
+60% of the longest animation's duration, so no per-snippet entry is needed for those.
+The remaining exceptions live in OVERRIDES below:
+  * noshot=True   -- no meaningful single frame (API/audio/text-only demos); skip.
+  * setup_steps=N -- needs more static frames than default (e.g. a first timer fire that
+                     fills a caption at t>=0.1s).
+  * shot_at=SECS  -- explicit capture time, for effects the animation list can't see:
+                     timer-driven pulses/flashes (Timers, not .animate()) and fades whose
+                     60%-of-duration frame is nearly blank.
+Scripted interaction (action) is a later phase; snippets needing it get whichever of the
+above applies for now.
 """
 
 import argparse
@@ -66,6 +71,22 @@ OVERRIDES = {
     # placeholder text at the default 3 steps (~0.048s).
     85:  {"setup_steps": 12},  # entity_visibility status caption
     91:  {"setup_steps": 12},  # metrics_display labels
+    # shot_at: timer-driven effects (not in mcrfpy.animations, so auto-derivation can't
+    # see them) and fade-to-invisible animations whose 60% frame is nearly blank.
+    46:  {"shot_at": 1.6},   # timer ticker -- past a few 500ms fires
+    47:  {"shot_at": 2.3},   # timer once=True at 2000ms -- show the fired state
+    75:  {"shot_at": 3.5},   # message log Timer 1000ms -- accumulate a few lines
+    79:  {"shot_at": 0.5},   # pulse Timer 50ms -- a representative phase
+    129: {"shot_at": 1.0},   # Scene.update orbiter (not .animate) -- offset visible
+    132: {"shot_at": 0.75},  # color pulse peak
+    133: {"shot_at": 0.75},
+    134: {"shot_at": 0.75},
+    135: {"shot_at": 0.75},
+    136: {"shot_at": 0.75},
+    137: {"shot_at": 0.1},   # damage flash -- flash-on frame
+    138: {"shot_at": 0.1},
+    139: {"shot_at": 0.1},
+    227: {"shot_at": 0.4},   # caption fade-out (2.0s) -- early, before it vanishes
 }
 
 
@@ -95,6 +116,8 @@ def capture(path, env_base):
     env = env_base.copy()
     env["MCRF_SHOT_OUT"] = out
     env["MCRF_SHOT_SETUP_STEPS"] = str(cfg.get("setup_steps", DEFAULT_SETUP_STEPS))
+    if "shot_at" in cfg:
+        env["MCRF_SHOT_AT"] = str(cfg["shot_at"])
 
     try:
         proc = subprocess.run(
