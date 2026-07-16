@@ -12,11 +12,12 @@
 #   make callgrind SCRIPT=tests/benchmarks/foo.py - Callgrind a headless benchmark
 #
 # WebAssembly / Emscripten:
-#   make wasm         - Build full game for web (requires emsdk activated)
-#   make wasm-game    - Build game for web with fullscreen canvas (no REPL)
+#   make wasm         - Build full game for web WITH the REPL console (dev/debug build)
+#   make wasm-game    - Build the clean full game for web (fullscreen, no REPL) -- shipped
 #   make playground   - Build minimal playground for web REPL
-#   make serve        - Serve wasm build locally on port 8080
-#   make serve-game   - Serve wasm-game build locally on port 8080
+#   make serve        - Serve the clean game (build-wasm-game) locally on port 8080
+#   make serve-game   - Serve the clean game (build-wasm-game) locally on port 8080
+#   make serve-dev    - Serve the wasm dev build with REPL console (build-emscripten)
 #   make clean-wasm   - Clean Emscripten builds
 #
 # Packaging:
@@ -31,7 +32,7 @@
 #     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
-.PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-playground clean-wasm
+.PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
@@ -139,6 +140,12 @@ stamp-snippets: linux
 check-snippets: linux
 	@python3 tools/stamp_snippets.py --check
 
+# Render a deterministic preview PNG for every snippet into snippet-shots/ (gitignored;
+# the images belong in the doc-site repo, which pulls them from here -- see #381). The
+# images are a visual-regression oracle: a changed PNG means behaviour changed.
+snippet-shots: linux
+	@python3 tools/generate_snippet_shots.py
+
 # What changed in the API since the last release, and which site pages that
 # obligates you to update (resolved via each page's `mcrf.objects` frontmatter).
 api-delta:
@@ -151,7 +158,7 @@ api-delta:
 #
 # Deliberately NOT automatic: it does not commit, and it does not touch the
 # hand-written pages. It tells you what it found and leaves the judgment to you.
-release-docs: docs stamp-snippets
+release-docs: docs stamp-snippets snippet-shots
 	@echo ""
 	@echo "=== Regenerating the site against this engine (SITE_DIR=$(SITE_DIR)) ==="
 	@test -d "$(SITE_DIR)" || { echo "SITE_DIR not found: $(SITE_DIR)"; exit 1; }
@@ -166,7 +173,7 @@ release-docs: docs stamp-snippets
 	@echo "      then commit both repos. For a Gitea checklist issue instead, run:"
 	@echo "      python3 tools/api_delta.py $(BASE_REF) . --site-dir $(SITE_DIR) --format gitea"
 
-.PHONY: docs stamp-snippets check-snippets api-delta release-docs
+.PHONY: docs stamp-snippets check-snippets snippet-shots api-delta release-docs
 
 # Debug and sanitizer targets
 debug:
@@ -393,8 +400,8 @@ wasm:
 	fi
 	@echo "Building McRogueFace for WebAssembly..."
 	@emmake make -C build-emscripten -j$(JOBS)
-	@echo "WebAssembly build complete! Files in build-emscripten/"
-	@echo "Run 'make serve' to test locally"
+	@echo "WebAssembly dev build complete (game + REPL console)! Files in build-emscripten/"
+	@echo "Run 'make serve-dev' to test locally. For the clean shipped game, use 'make wasm-game' + 'make serve'."
 
 playground:
 	@if ! command -v emcmake >/dev/null 2>&1; then \
@@ -415,7 +422,14 @@ playground:
 	@echo "Run 'make serve-playground' to test locally"
 
 serve:
-	@echo "Serving WebAssembly build at http://localhost:8080"
+	@echo "Serving the clean game build (build-wasm-game) at http://localhost:8080"
+	@echo "(Run 'make wasm-game' first if it is not built. For the REPL dev build, use 'make serve-dev'.)"
+	@echo "Press Ctrl+C to stop"
+	@cd build-wasm-game && python3 -m http.server 8080
+
+serve-dev:
+	@echo "Serving the wasm DEV build with REPL console (build-emscripten) at http://localhost:8080"
+	@echo "(Run 'make wasm' first if it is not built.)"
 	@echo "Press Ctrl+C to stop"
 	@cd build-emscripten && python3 -m http.server 8080
 
@@ -439,8 +453,8 @@ wasm-game:
 	fi
 	@echo "Building McRogueFace game for WebAssembly..."
 	@emmake make -C build-wasm-game -j$(JOBS)
-	@echo "Game build complete! Files in build-wasm-game/"
-	@echo "Run 'make serve-game' to test locally"
+	@echo "Clean game build complete (no REPL console)! Files in build-wasm-game/"
+	@echo "Run 'make serve' (or 'make serve-game') to test locally"
 
 serve-game:
 	@echo "Serving game build at http://localhost:8080"
@@ -557,10 +571,10 @@ endif
 	fi
 	$(MAKE) package-linux-full
 	$(MAKE) package-windows-full
-	$(MAKE) wasm
-	@echo "Packaging WASM build..."
+	$(MAKE) wasm-game
+	@echo "Packaging WASM build (clean game, no REPL console)..."
 	@mkdir -p dist
-	cd build-emscripten && zip -r ../dist/McRogueFace-$(CURRENT_VERSION)-WASM.zip \
+	cd build-wasm-game && zip -r ../dist/McRogueFace-$(CURRENT_VERSION)-WASM.zip \
 		mcrogueface.html mcrogueface.js mcrogueface.wasm mcrogueface.data
 	@echo ""
 	@echo "Bumping version: $(CURRENT_VERSION) -> $(NEXT_VERSION)"

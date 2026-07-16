@@ -6,6 +6,20 @@
 #include "McRFPy_Doc.h"
 #include <sstream>
 
+// #383: A timer's epoch must come from the SAME clock that ticks it. In headless mode
+// that is GameEngine::simulation_time -- the deterministic clock step() advances
+// explicitly -- NOT runtime, which is an sf::Clock reading wall time. step() tests
+// timers against simulation_time; if a timer stamps its epoch from wall time, the two
+// clocks are in unrelated frames and the first fire depends on process-startup timing,
+// making headless replay nondeterministic. Windowed mode has no step() and keeps using
+// runtime.
+static int timer_now() {
+    if (!Resources::game) return 0;
+    return Resources::game->isHeadless()
+        ? Resources::game->getSimulationTime()
+        : Resources::game->runtime.getElapsedTime().asMilliseconds();
+}
+
 PyObject* PyTimer::repr(PyObject* self) {
     PyTimerObject* timer = (PyTimerObject*)self;
     std::ostringstream oss;
@@ -23,7 +37,7 @@ PyObject* PyTimer::repr(PyObject* self) {
             // Get current time to show remaining
             int current_time = 0;
             if (Resources::game) {
-                current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+                current_time = timer_now();
             }
             oss << " (remaining=" << timer->data->getRemaining(current_time) << "ms)";
         } else if (timer->data->isActive()) {
@@ -77,7 +91,7 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
     // Get current time from game engine
     int current_time = 0;
     if (Resources::game) {
-        current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+        current_time = timer_now();
     }
 
     // Create the timer with start parameter and name (#180)
@@ -136,7 +150,7 @@ PyObject* PyTimer::start(PyTimerObject* self, PyObject* Py_UNUSED(ignored)) {
 
     int current_time = 0;
     if (Resources::game) {
-        current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+        current_time = timer_now();
 
         // If another timer has this name, stop it first
         auto it = Resources::game->timers.find(self->name);
@@ -177,7 +191,7 @@ PyObject* PyTimer::pause(PyTimerObject* self, PyObject* Py_UNUSED(ignored)) {
 
     int current_time = 0;
     if (Resources::game) {
-        current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+        current_time = timer_now();
     }
 
     self->data->pause(current_time);
@@ -192,7 +206,7 @@ PyObject* PyTimer::resume(PyTimerObject* self, PyObject* Py_UNUSED(ignored)) {
 
     int current_time = 0;
     if (Resources::game) {
-        current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+        current_time = timer_now();
     }
 
     self->data->resume(current_time);
@@ -207,7 +221,7 @@ PyObject* PyTimer::restart(PyTimerObject* self, PyObject* Py_UNUSED(ignored)) {
 
     int current_time = 0;
     if (Resources::game) {
-        current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+        current_time = timer_now();
 
         // Ensure timer is in engine map
         auto it = Resources::game->timers.find(self->name);
@@ -266,7 +280,7 @@ PyObject* PyTimer::get_remaining(PyTimerObject* self, void* closure) {
     
     int current_time = 0;
     if (Resources::game) {
-        current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+        current_time = timer_now();
     }
     
     return PyLong_FromLong(self->data->getRemaining(current_time));
@@ -307,7 +321,7 @@ int PyTimer::set_active(PyTimerObject* self, PyObject* value, void* closure) {
 
     int current_time = 0;
     if (Resources::game) {
-        current_time = Resources::game->runtime.getElapsedTime().asMilliseconds();
+        current_time = timer_now();
     }
 
     if (want_active) {

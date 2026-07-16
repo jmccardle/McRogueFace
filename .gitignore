@@ -19,6 +19,9 @@ my_games
 # images are produced by many tests
 *.png
 
+# generated snippet preview screenshots (#381); consumed/committed by the doc-site repo
+snippet-shots/
+
 # WASM stdlib for Emscripten build
 !wasm_stdlib/
 

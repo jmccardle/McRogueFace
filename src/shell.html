@@ -488,7 +488,39 @@
                 return { type: 'gist', gistId: gistParam, file: file };
             }
 
+            // Handle #url=<encoded raw file url>. Used for snippets whose
+            // inline #src= fragment would be impractically long: the docs site
+            // links to the raw file at a pinned commit and we fetch it here.
+            if (params.has('url')) {
+                return { type: 'url', url: params.get('url') };
+            }
+
             return null;
+        }
+
+        // Only these hosts may be fetched by #url=. Keeping this strict stops
+        // the playground from being turned into a generic cross-origin fetch
+        // proxy; raw.githubusercontent.com serves `Access-Control-Allow-Origin: *`.
+        const ALLOWED_FETCH_HOSTS = ['raw.githubusercontent.com'];
+
+        async function loadRawUrl(rawUrl) {
+            let u;
+            try {
+                u = new URL(rawUrl);
+            } catch (e) {
+                throw new Error(`Malformed url: ${rawUrl}`);
+            }
+            if (u.protocol !== 'https:' ||
+                    !ALLOWED_FETCH_HOSTS.includes(u.hostname)) {
+                throw new Error(
+                    `Refusing to fetch from ${u.hostname || rawUrl}; only ` +
+                    `${ALLOWED_FETCH_HOSTS.join(', ')} is allowed.`);
+            }
+            const resp = await fetch(u.href);
+            if (!resp.ok) {
+                throw new Error(`Fetch failed (${resp.status}) for ${u.href}`);
+            }
+            return { code: await resp.text(), url: u.href };
         }
 
         async function loadGist(gistId, preferredFile) {
@@ -663,6 +695,19 @@
                         sourceIndicator.classList.remove('hidden');
                     } catch (e) {
                         editor.setValue(`# Failed to load gist: ${e.message}\n# Check the console for details.`);
+                    }
+                } else if (source.type === 'url') {
+                    editor.setValue(`# Loading ${source.url} ...`);
+
+                    try {
+                        const loaded = await loadRawUrl(source.url);
+                        editor.setValue(loaded.code);
+
+                        const name = loaded.url.split('/').pop();
+                        sourceIndicator.innerHTML = `From: <a href="${loaded.url}" target="_blank">${name}</a>`;
+                        sourceIndicator.classList.remove('hidden');
+                    } catch (e) {
+                        editor.setValue(`# Failed to load ${source.url}: ${e.message}\n# Check the console for details.`);
                     }
                 }
             }
