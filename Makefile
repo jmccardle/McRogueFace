@@ -38,6 +38,7 @@
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
 .PHONY: profile callgrind clean-profile
+.PHONY: test-wasm-setup test-wasm test-wasm-diff
 .PHONY: install-hooks
 
 # Number of parallel jobs for compilation
@@ -460,9 +461,9 @@ deploy-playground:
 WASM_TEST_VENV ?= .venv-wasmtest
 test-wasm-setup:
 	@python3 -m venv $(WASM_TEST_VENV)
-	@$(WASM_TEST_VENV)/bin/pip install --quiet --upgrade pip playwright
+	@$(WASM_TEST_VENV)/bin/pip install --quiet --upgrade pip playwright pillow numpy
 	@$(WASM_TEST_VENV)/bin/python -m playwright install chromium-headless-shell
-	@echo "WASM test env ready in $(WASM_TEST_VENV)/. Run 'make test-wasm'."
+	@echo "WASM test env ready in $(WASM_TEST_VENV)/. Run 'make test-wasm' / 'make test-wasm-diff'."
 
 test-wasm:
 	@test -x $(WASM_TEST_VENV)/bin/python || { \
@@ -470,6 +471,18 @@ test-wasm:
 	@test -f build-playground/mcrogueface.html || { \
 		echo "Playground not built. Run 'make playground' first."; exit 1; }
 	@$(WASM_TEST_VENV)/bin/python tests/wasm/run_wasm_tests.py
+
+# #388: cross-backend screenshot diff. Renders the snippet corpus on web (SDL2/
+# WebGL) in headless Chromium and diffs each frame against the desktop-headless
+# oracle from `make snippet-shots`. Needs both oracles and a built playground.
+test-wasm-diff:
+	@test -x $(WASM_TEST_VENV)/bin/python || { \
+		echo "Playwright venv missing. Run 'make test-wasm-setup' first."; exit 1; }
+	@test -f build-playground/mcrogueface.html || { \
+		echo "Playground not built. Run 'make playground' first."; exit 1; }
+	@test -d snippet-shots || { \
+		echo "No oracle shots. Run 'make snippet-shots' first."; exit 1; }
+	@$(WASM_TEST_VENV)/bin/python tests/wasm/snippet_diff.py $(SNIPPETS)
 
 wasm-game:
 	@if ! command -v emcmake >/dev/null 2>&1; then \

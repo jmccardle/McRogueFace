@@ -47,6 +47,46 @@ Or directly:
 
 Exit code `0` = all passed, `1` = a test failed, `2` = setup/harness error.
 
+## Cross-backend screenshot diff (#388)
+
+`snippet_diff.py` renders the `tests/snippets/` corpus on the **web** (SDL2/WebGL)
+backend in headless Chromium, captures the canvas, and diffs each frame against
+the **desktop-headless oracle** PNG from `tools/generate_snippet_shots.py` (#381).
+A diff above threshold is a desktop↔web divergence to triage (feeds #347/#390).
+
+```bash
+source ~/emsdk/emsdk_env.sh
+make snippet-shots     # generate desktop oracle PNGs (needs a native build)
+make playground        # build build-playground/
+make test-wasm-diff              # diff the whole corpus
+make test-wasm-diff SNIPPETS="1 6 8"   # or a subset
+```
+
+Direct invocation exposes the thresholds:
+
+```bash
+.venv-wasmtest/bin/python tests/wasm/snippet_diff.py 1 6 8 -v \
+    --channel-tol 40 --frac-gate 0.03
+```
+
+Outputs: web captures in `snippet-shots/web/`, divergence masks (white = differing
+pixel) in `snippet-shots/web-diff/`. Exit `0` = no divergences, `1` = ≥1 DIVERGE,
+`2` = harness/setup error.
+
+**Capture:** the WebGL context has no `preserveDrawingBuffer`, so an out-of-frame
+readback reads a cleared (black) buffer. The harness forces `preserveDrawingBuffer:
+true` with an `add_init_script` `getContext` shim that runs before SDL creates the
+context — a host-side capture concern, **no engine/build change**. It waits for two
+identical consecutive frames before reading, so it never grabs a mid-render frame.
+
+**Determinism boundary (Fail-Early, no silent skips):** the desktop oracle is
+captured on a *virtual* clock; the web build advances on the browser's rAF *wall
+clock*, so a frame mid-animation is not reproducible cross-backend. The harness
+diffs **static** snippets only and explicitly reports every skip — a snippet with
+no oracle (`noshot`), still-active `mcrfpy.animations`, or that raised on web.
+Deterministic animated capture (pause the main loop, step a virtual clock via
+`Module.pauseMainLoop` + `mcrfpy.step`) is a documented follow-up.
+
 ## Notes
 
 - The runner serves the build in-process with the correct `application/wasm`
@@ -56,3 +96,5 @@ Exit code `0` = all passed, `1` = a test failed, `2` = setup/harness error.
   a broken shell is a failure.
 - Playwright pins a specific Chromium build; `chromium-headless-shell` is the
   smaller headless-only download and is sufficient here.
+- `test-wasm-diff` additionally needs `pillow` + `numpy` (installed by
+  `make test-wasm-setup`).
