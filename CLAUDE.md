@@ -345,13 +345,20 @@ Game code remains unchanged because `SDL2Types.h` provides SFML-compatible type 
 
 When developing features that must work in WebGL:
 
-| Feature | Desktop (SFML) | Web (SDL2) | Notes |
-|---------|----------------|------------|-------|
-| Audio | ✅ Full | ✅ Full | SDL2_mixer via `-sUSE_SDL_MIXER=2`; SoundBuffer/Sound/Music work |
-| ImGui console | ✅ Full | ❌ Disabled | Debug overlay unavailable |
-| Dynamic assets | ✅ Filesystem | ❌ Preloaded | All assets bundled at build time |
-| Threading | ✅ Full | ⚠️ Limited | Single-threaded JS execution |
-| Input | ✅ Full | ✅ Full | SDL events translated to SFML enums |
+**Full audited parity matrix: [docs/web-parity-matrix.md](docs/web-parity-matrix.md)** — the living, per-row desktop↔web matrix with an honest **test-coverage** column (cites the real test or says `unverified`/`manual only`/`planned: #388`). Consult it before assuming a feature works on web. The trimmed summary below is only a quick reference:
+
+| Feature | Desktop (SFML) | Web (SDL2) | Test coverage |
+|---------|----------------|------------|---------------|
+| Audio | ✅ Full | ✅ Full | manual only |
+| Input (Key/MouseButton/mods) | ✅ Full | ✅ Full | ✅ `tests/unit/input_parity_test.py` (#389) |
+| Web boot / Python / UI / errors | n/a | ✅ Works | ✅ `tests/wasm/run_wasm_tests.py` (#239) |
+| Dynamic assets | ✅ Filesystem | ⚠️ Preloaded | unverified (build-time invariant) |
+| ImGui console | ✅ Full | ❌ Disabled | n/a (absent by design) |
+| Threading | ✅ Full | ⚠️ Single-threaded | unverified |
+| Shaders (custom) | ✅ Full | ⚠️ Wired (#390), pixel-unverified | planned: #388 (see #347 §1a) |
+| Text (kerning + UTF-8) | ✅ Full | ❌ Diverges | planned: #388 (see #347 §3d) |
+| RenderTexture / pixel scaling | ✅ Full | ⚠️ Verify | planned: #388 |
+| Multi-window / free-threading / numpy | ⚠️ Planned | ❌ Desktop-only | n/a (#62 / #336 / #337) |
 
 ### Development Workflow
 
