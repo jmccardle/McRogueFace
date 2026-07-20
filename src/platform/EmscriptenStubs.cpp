@@ -105,11 +105,19 @@ except SyntaxError:
     try:
         exec(_mcrf_user_code, globals())
     except Exception as e:
+        # Fail-Early: never let a missing/broken traceback module erase the
+        # error. Prefer a full traceback, but degrade to a basic message.
+        try:
+            import traceback
+            _mcrf_exec_error = traceback.format_exc()
+        except BaseException:
+            _mcrf_exec_error = type(e).__name__ + ': ' + str(e) + '\n'
+except Exception as e:
+    try:
         import traceback
         _mcrf_exec_error = traceback.format_exc()
-except Exception as e:
-    import traceback
-    _mcrf_exec_error = traceback.format_exc()
+    except BaseException:
+        _mcrf_exec_error = type(e).__name__ + ': ' + str(e) + '\n'
 
 sys.stdout = _mcrf_old_stdout
 sys.stderr = _mcrf_old_stderr
