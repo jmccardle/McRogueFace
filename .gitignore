@@ -25,6 +25,9 @@ snippet-shots/
 # WASM stdlib for Emscripten build
 !wasm_stdlib/
 
+# Playwright venv for the WASM browser tests (tests/wasm, #239)
+.venv-wasmtest/
+
 .cache/
 7DRL2025 Release/
 CMakeFiles/

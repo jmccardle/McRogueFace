@@ -455,6 +455,22 @@ deploy-playground:
 	@cp build-playground/mcrogueface.html "$(SITE_DIR)/playground/index.html"
 	@echo "Deployed. Next: rebuild Jekyll in $(SITE_DIR) and commit/push the updated /playground/ binaries."
 
+# Host-side headless-browser tests for the WASM playground (#239). Separate
+# from the mcrfpy test suite; needs a Playwright venv (make test-wasm-setup).
+WASM_TEST_VENV ?= .venv-wasmtest
+test-wasm-setup:
+	@python3 -m venv $(WASM_TEST_VENV)
+	@$(WASM_TEST_VENV)/bin/pip install --quiet --upgrade pip playwright
+	@$(WASM_TEST_VENV)/bin/python -m playwright install chromium-headless-shell
+	@echo "WASM test env ready in $(WASM_TEST_VENV)/. Run 'make test-wasm'."
+
+test-wasm:
+	@test -x $(WASM_TEST_VENV)/bin/python || { \
+		echo "Playwright venv missing. Run 'make test-wasm-setup' first."; exit 1; }
+	@test -f build-playground/mcrogueface.html || { \
+		echo "Playground not built. Run 'make playground' first."; exit 1; }
+	@$(WASM_TEST_VENV)/bin/python tests/wasm/run_wasm_tests.py
+
 wasm-game:
 	@if ! command -v emcmake >/dev/null 2>&1; then \
 		echo "Error: emcmake not found. Run 'source ~/emsdk/emsdk_env.sh' first."; \
