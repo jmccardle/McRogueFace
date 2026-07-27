@@ -612,6 +612,7 @@ submodule automation
   meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
   meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
+  meth observe :: observe(origin=None, fov_radius: int = None, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> dict
   meth remove_layer :: remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None
   meth step :: step(n: int = 1, turn_order: int = None) -> None
 [GridView]
@@ -918,7 +919,7 @@ submodule automation
   meth get :: get() -> Window
   meth screenshot :: screenshot(filename: str = None) -> bytes | None
 
-=== EXPERIMENTAL TYPES (NOT FROZEN) (16) ===
+=== EXPERIMENTAL TYPES (NOT FROZEN) (17) ===
 [AutoRuleSet]
   prop grid_size: int (ro)
   prop group_count: int (ro)
@@ -1108,6 +1109,14 @@ submodule automation
   meth set_grid_size :: set_grid_size(width, depth)
   meth set_slope_cost :: set_slope_cost(max_slope=0.5, cost_multiplier=1.0)
   meth voxel_layer_count :: voxel_layer_count() -> int
+[VisibilityMask]
+  prop algorithm: int (ro)
+  prop cells: frozenset (ro)
+  prop fov_radius: int | None (ro)
+  prop grid_size: tuple (ro)
+  prop light_walls: bool (ro)
+  prop origin: tuple | None (ro)
+  prop tick: int (ro)
 [VoxelGrid]
   prop cell_size: Any (ro)
   prop depth: Any (ro)
@@ -1176,6 +1185,7 @@ submodule automation
   meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
   meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
+  meth observe :: observe(origin=None, fov_radius: int = None, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> dict
   meth remove_layer :: remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None
   meth step :: step(n: int = 1, turn_order: int = None) -> None
 [GridPoint]
@@ -1232,7 +1242,7 @@ func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> Non
 func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
 === DELEGATION INTEGRITY (Grid instance -> GridData) ===
-  delegated-resolved: 21/21
+  delegated-resolved: 22/22
 
 === WRITABILITY PROBES (#313-touched properties) ===
   Entity.grid: writable

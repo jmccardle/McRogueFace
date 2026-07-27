@@ -48,6 +48,7 @@
 #include "tiled/PyWangSet.h"      // Wang auto-tile sets
 #include "ldtk/PyLdtkProject.h"   // LDtk project loading
 #include "ldtk/PyAutoRuleSet.h"   // LDtk auto-rule sets
+#include "PyVisibilityMask.h"     // GridData.observe() result mask (fog-of-war/AI perception)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #ifdef __EMSCRIPTEN__
@@ -659,6 +660,9 @@ PyObject* PyInit_mcrfpy()
         /*LDtk project loading*/
         &mcrfpydef::PyLdtkProjectType,
         &mcrfpydef::PyAutoRuleSetType,
+
+        /*masked observation - result of GridData.observe() (fog-of-war/AI perception)*/
+        &mcrfpydef::PyVisibilityMaskType,
 
         nullptr};
 

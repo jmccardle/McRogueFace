@@ -72,6 +72,7 @@ struct PyGridData
     static PyObject* py_compute_fov(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_is_in_fov(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_entities_in_radius(PyGridDataObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_observe(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_apply_threshold(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_apply_ranges(PyGridDataObject* self, PyObject* args);
     static PyObject* py_step(PyGridDataObject* self, PyObject* args, PyObject* kwds);
