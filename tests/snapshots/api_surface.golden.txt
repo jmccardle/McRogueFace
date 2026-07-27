@@ -2,7 +2,7 @@
 # Regenerate intentionally: MCRF_UPDATE_API_SNAPSHOT=1
 # Singleton/constant VALUES are intentionally NOT captured.
 
-=== MODULE FUNCTIONS (13) ===
+=== MODULE FUNCTIONS (15) ===
 func advance :: advance(ms: int) -> int
 func bresenham :: bresenham(start, end, include_start=True, include_end=True) -> list[tuple[int, int]]
 func end_benchmark :: end_benchmark() -> str
@@ -10,9 +10,11 @@ func exit :: exit() -> None
 func find :: find(name: str, scene: str = None) -> UIDrawable | None
 func find_all :: find_all(pattern: str, scene: str = None) -> list
 func get_metrics :: get_metrics() -> dict
+func get_random_seed :: get_random_seed() -> int
 func lock :: lock() -> _LockContext
 func log_benchmark :: log_benchmark(message: str) -> None
 func set_dev_console :: set_dev_console(enabled: bool) -> None
+func set_random_seed :: set_random_seed(seed: int) -> None
 func set_scale :: set_scale(multiplier: float) -> None
 func start_benchmark :: start_benchmark() -> None
 func step :: step(dt: float = None) -> float
@@ -790,7 +792,7 @@ submodule automation
   prop volume: Any (rw)
   meth pause :: pause() -> None
   meth play :: play() -> None
-  meth play_varied :: play_varied(pitch_range: float = 0.1, volume_range: float = 3.0) -> None
+  meth play_varied :: play_varied(pitch_range: float = 0.1, volume_range: float = 3.0) -> tuple[float, float]
   meth stop :: stop() -> None
 [SoundBuffer]
   prop channels: Any (ro)

@@ -1,4 +1,5 @@
 #include "McRFPy_API.h"
+#include "EngineRandom.h"
 #include <climits>
 #include "UIDrawable.h"
 #include "McRFPy_Automation.h"
@@ -425,6 +426,39 @@ static PyMethodDef mcrfpyMethods[] = {
                    "moves only when step()/advance() is called, which is headless-only -- in "
                    "windowed mode it stays 0 and timers run on runtime instead. Rendering costs "
                    "zero simulation_time_ms, so a screenshot never moves it.")
+     )},
+
+    {"set_random_seed", McRFPy_API::_setRandomSeed, METH_VARARGS,
+     MCRF_METHOD(mcrfpy, set_random_seed,
+         MCRF_SIG("(seed: int)", "None"),
+         MCRF_DESC("Seed the engine's internal random streams and reset them to their start. "
+                   "Call this before anything consumes randomness to make a run reproducible."),
+         MCRF_ARGS_START
+         MCRF_ARG("seed", "Unsigned 32-bit integer, 0 to 4294967295 inclusive")
+         MCRF_RETURNS("None")
+         MCRF_RAISES("TypeError", "seed is not an integer")
+         MCRF_RAISES("ValueError", "seed is negative or larger than 4294967295")
+         MCRF_NOTE("Covers the randomness the engine generates on its own behalf: entity "
+                   "behaviour selection (Behavior.NOISE4 / NOISE8) and Sound.play_varied(). "
+                   "Objects that take their own seed -- NoiseSource, BSP.split_recursive, "
+                   "SoundBuffer.sfxr -- are unaffected; seed those individually.")
+         MCRF_NOTE("Each subsystem gets an independent stream derived from this one seed, so "
+                   "playing sounds does not shift entity behaviour. Reordering or removing a "
+                   "stream would change every sequence at a given seed.")
+     )},
+
+    {"get_random_seed", McRFPy_API::_getRandomSeed, METH_NOARGS,
+     MCRF_METHOD(mcrfpy, get_random_seed,
+         MCRF_SIG("()", "int"),
+         MCRF_DESC("The seed the engine's internal random streams are using."),
+         MCRF_RETURNS("int: the seed set by set_random_seed(), or -- if none was ever set -- "
+                      "a seed generated from the system entropy source, recorded, and used "
+                      "from then on. This never fails to answer, so a run that was not seeded "
+                      "explicitly can still be replayed afterwards by passing this value to "
+                      "set_random_seed().")
+         MCRF_NOTE("Calling this before any randomness is consumed fixes the seed for the rest "
+                   "of the process -- it materialises the value rather than reporting a "
+                   "placeholder. Record it in a run log if reproducibility matters.")
      )},
 
     {"set_dev_console", McRFPy_API::_setDevConsole, METH_VARARGS,
@@ -1957,6 +1991,45 @@ PyObject* McRFPy_API::_findAll(PyObject* self, PyObject* args) {
     find_in_collection(ui_elements.get(), pattern, true, results, visited_grids);
 
     return results;
+}
+
+// #394 -- seed the engine's internal random streams from Python.
+//
+// Deliberately strict about range: std::mt19937 takes a 32-bit seed, so silently
+// truncating 2**32 to 0 would make two "different" seeds produce identical runs and
+// nothing would report it. An out-of-range seed raises instead.
+PyObject* McRFPy_API::_setRandomSeed(PyObject* self, PyObject* args) {
+    PyObject* seed_obj = nullptr;
+    if (!PyArg_ParseTuple(args, "O", &seed_obj)) {
+        return NULL;
+    }
+    // Reject bool explicitly: PyLong_Check(True) is true, and set_random_seed(True)
+    // is far more likely to be a mistake than a request to seed with 1.
+    if (PyBool_Check(seed_obj) || !PyLong_Check(seed_obj)) {
+        PyErr_Format(PyExc_TypeError, "seed must be an integer, got %s",
+                     Py_TYPE(seed_obj)->tp_name);
+        return NULL;
+    }
+
+    int overflow = 0;
+    long long value = PyLong_AsLongLongAndOverflow(seed_obj, &overflow);
+    if (value == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    if (overflow != 0 || value < 0 || value > 0xFFFFFFFFLL) {
+        PyErr_SetString(PyExc_ValueError,
+            "seed must be in [0, 4294967295] (an unsigned 32-bit integer)");
+        return NULL;
+    }
+
+    mcrf::EngineRandom::setSeed(static_cast<uint32_t>(value));
+    Py_RETURN_NONE;
+}
+
+PyObject* McRFPy_API::_getRandomSeed(PyObject* self, PyObject* args) {
+    // seed() materialises and records a seed if none was set, so this always
+    // reports the number actually in use -- never a placeholder, never None.
+    return PyLong_FromUnsignedLong(mcrf::EngineRandom::seed());
 }
 
 PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {

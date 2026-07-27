@@ -3,6 +3,7 @@
 #include "PyGridData.h"
 #include "UIGridPathfinding.h"
 #include "PathProvider.h"
+#include "EngineRandom.h"
 #include <random>
 #include <algorithm>
 
@@ -18,8 +19,15 @@ void EntityBehavior::reset() {
     path_provider.reset();
 }
 
-// Thread-local random engine for behavior randomness
-static thread_local std::mt19937 rng{std::random_device{}()};
+// #394: behaviour randomness draws from the engine's BEHAVIOR stream, which is
+// seedable from Python (mcrfpy.set_random_seed) and reports the seed it used even
+// when nobody set one (mcrfpy.get_random_seed). It used to be a namespace-scope
+// thread_local seeded from std::random_device -- unreachable, unrecordable, and a
+// different sequence per thread, so a run could not be replayed even in principle.
+static std::mt19937& behaviorRng()
+{
+    return mcrf::EngineRandom::stream(mcrf::RandomStream::BEHAVIOR);
+}
 
 // =============================================================================
 // Per-behavior execution functions
@@ -66,7 +74,7 @@ static BehaviorOutput executeNoise(UIEntity& entity, GridData& grid, bool includ
     }
 
     std::uniform_int_distribution<int> dist(0, candidates.size() - 1);
-    auto target = candidates[dist(rng)];
+    auto target = candidates[dist(behaviorRng())];
     return {BehaviorResult::MOVED, target};
 }
 

@@ -2,6 +2,7 @@
 #include "PySoundBuffer.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
+#include "EngineRandom.h"
 #include <sstream>
 #include <random>
 
@@ -221,13 +222,20 @@ PyObject* PySound::py_play_varied(PySoundObject* self, PyObject* args, PyObject*
     float origPitch = self->data->getPitch();
     float origVolume = self->data->getVolume();
 
-    // Randomize
-    static std::mt19937 rng(std::random_device{}());
+    // Randomize. #394: draws from the engine's AUDIO stream rather than a private
+    // std::random_device-seeded static, so the variation is reproducible at a fixed
+    // mcrfpy.set_random_seed(). The AUDIO stream is INDEPENDENT of the BEHAVIOR
+    // stream, so playing sounds does not shift entity behaviour -- an audio-on and
+    // an audio-off run at the same seed produce the same world.
+    std::mt19937& rng = mcrf::EngineRandom::stream(mcrf::RandomStream::AUDIO);
     std::uniform_real_distribution<double> pitchDist(-pitch_range, pitch_range);
     std::uniform_real_distribution<double> volDist(-volume_range, volume_range);
 
-    self->data->setPitch(std::max(0.01f, origPitch + static_cast<float>(pitchDist(rng))));
-    self->data->setVolume(std::max(0.0f, std::min(100.0f, origVolume + static_cast<float>(volDist(rng)))));
+    float variedPitch = std::max(0.01f, origPitch + static_cast<float>(pitchDist(rng)));
+    float variedVolume = std::max(0.0f, std::min(100.0f, origVolume + static_cast<float>(volDist(rng))));
+
+    self->data->setPitch(variedPitch);
+    self->data->setVolume(variedVolume);
 
     self->data->play();
 
@@ -236,7 +244,12 @@ PyObject* PySound::py_play_varied(PySoundObject* self, PyObject* args, PyObject*
     self->data->setPitch(origPitch);
     self->data->setVolume(origVolume);
 
-    Py_RETURN_NONE;
+    // Return what was actually drawn. The restore above makes the variation
+    // invisible on the object, so without this the values a run played at are
+    // unobservable from Python -- and an unobservable random draw cannot be
+    // checked against the seed that produced it.
+    return Py_BuildValue("(dd)", static_cast<double>(variedPitch),
+                                 static_cast<double>(variedVolume));
 }
 
 // Property getters/setters
@@ -363,11 +376,19 @@ PyMethodDef PySound::methods[] = {
      )},
     {"play_varied", (PyCFunction)PySound::py_play_varied, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Sound, play_varied,
-         MCRF_SIG("(pitch_range: float = 0.1, volume_range: float = 3.0)", "None"),
+         MCRF_SIG("(pitch_range: float = 0.1, volume_range: float = 3.0)", "tuple[float, float]"),
          MCRF_DESC("Play with randomized pitch and volume for natural variation."),
          MCRF_ARGS_START
          MCRF_ARG("pitch_range", "Random pitch offset range (default 0.1)")
          MCRF_ARG("volume_range", "Random volume offset range (default 3.0)")
+         MCRF_RETURNS("tuple[float, float]: the (pitch, volume) actually drawn for this "
+                      "playback. The sound's own pitch/volume properties are restored "
+                      "before returning, so this return value is the only record of the draw.")
+         MCRF_NOTE("The randomness comes from the engine's AUDIO random stream. Set "
+                   "mcrfpy.set_random_seed() to make the variation reproducible; read "
+                   "mcrfpy.get_random_seed() to learn the seed a run used. The AUDIO stream "
+                   "is independent of the entity-behaviour stream, so playing sounds never "
+                   "changes how entities move.")
      )},
     {NULL}
 };

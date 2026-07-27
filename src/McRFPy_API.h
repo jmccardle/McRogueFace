@@ -69,6 +69,10 @@ public:
     // Profiling/metrics
     static PyObject* _getMetrics(PyObject*, PyObject*);
 
+    // Engine-internal RNG seeding (#394)
+    static PyObject* _setRandomSeed(PyObject*, PyObject*);
+    static PyObject* _getRandomSeed(PyObject*, PyObject*);
+
     // Benchmark logging (#104)
     static PyObject* _startBenchmark(PyObject*, PyObject*);
     static PyObject* _endBenchmark(PyObject*, PyObject*);
