@@ -1112,11 +1112,11 @@ submodule automation
   meth set_slope_cost :: set_slope_cost(max_slope=0.5, cost_multiplier=1.0)
   meth voxel_layer_count :: voxel_layer_count() -> int
 [VisibilityMask]
-  prop algorithm: int (ro)
+  prop algorithm: int | None (ro)
   prop cells: frozenset (ro)
   prop fov_radius: int | None (ro)
   prop grid_size: tuple (ro)
-  prop light_walls: bool (ro)
+  prop light_walls: bool | None (ro)
   prop origin: tuple | None (ro)
   prop tick: int (ro)
 [VoxelGrid]

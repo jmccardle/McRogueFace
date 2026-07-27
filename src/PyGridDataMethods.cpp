@@ -239,12 +239,12 @@ PyObject* PyGridData::py_observe(PyGridDataObject* self, PyObject* args, PyObjec
     std::vector<uint8_t> visible((size_t)w * h);
     if (has_origin) {
         int tcod_radius = has_finite_radius ? (int)radius_val : 0;  // 0 = unlimited, to TCOD
-        self->data->computeFOV(ox, oy, tcod_radius, light_walls != 0, algorithm);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                visible[(size_t)y * w + x] = self->data->isInFOV(x, y) ? 1 : 0;
-            }
-        }
+        // #402: computeFOVInto(), NOT computeFOV()+isInFOV(). The latter pair writes
+        // and then reads the ONE shared per-grid TCOD FOV buffer, so an observe() run
+        // between another caller's compute_fov() and its is_in_fov() reads silently
+        // re-answered that caller's question from this origin. observe() promises a
+        // result that "holds no live references"; it must also leave no live state.
+        self->data->computeFOVInto(ox, oy, tcod_radius, light_walls != 0, algorithm, visible);
     } else {
         std::fill(visible.begin(), visible.end(), 1);
     }
@@ -392,8 +392,12 @@ PyObject* PyGridData::py_observe(PyGridDataObject* self, PyObject* args, PyObjec
         }
 
         // create() steals cells_set, cells_ordered, mask_origin, mask_radius.
+        // #404: has_origin is exactly "an FOV computation ran". Without an origin the
+        // plane is std::fill(1) and light_walls/algorithm were never consulted, so the
+        // mask reports them as None rather than as inert-but-plausible values.
         PyObject* mask = PyVisibilityMask::create(cells_set, cells_ordered, mask_origin, mask_radius,
-                                                  tick, w, h, light_walls != 0, (int)algorithm);
+                                                  tick, w, h, has_origin,
+                                                  light_walls != 0, (int)algorithm);
         if (!mask) {
             Py_DECREF(walkable_set); Py_DECREF(transparent_set); Py_DECREF(entities_tuple);
             return NULL;
@@ -1122,9 +1126,11 @@ PyMethodDef PyGridData_all_methods[] = {
          MCRF_NOTE("Grid layers are NOT projected. They are appearance, not world state.")
          MCRF_NOTE("The tick is read once, at the projection instant, and is the same value carried by "
              "mask.tick. Calling observe() inside mcrfpy.lock() is what makes that instant a frame barrier.")
-         MCRF_NOTE("observe(origin=...) recomputes the grid's FOV state exactly as compute_fov() does -- "
-             "it is the same shared per-grid TCOD FOV buffer. observe() with no origin touches no FOV "
-             "state at all.")
+         MCRF_NOTE("observe() is side-effect-free with or without an origin (#402): it computes its FOV "
+             "in a scratch buffer private to the call and never writes the shared per-grid FOV state that "
+             "compute_fov()/is_in_fov() use. A background observer projecting from an NPC's position "
+             "therefore cannot disturb a field of view the player or the renderer just computed, and two "
+             "observers on one grid do not interfere.")
          MCRF_NOTE("observe() never advances a frame and never releases the GIL: the snapshot is atomic "
              "with respect to other Python threads. It does NOT take the lock for you -- wrap the call "
              "in mcrfpy.lock() yourself when you need it to be atomic with respect to the frame.")

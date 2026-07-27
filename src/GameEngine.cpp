@@ -28,19 +28,50 @@ bool GameEngine::shaderIntermediateInitialized = false;
 
 void FrameLock::acquire() {
     waiting++;
-    std::unique_lock<std::mutex> lock(mtx);
 
-    // Release GIL while waiting for safe window
+    // #412 - THE GIL IS RELEASED BEFORE `mtx` IS TAKEN, AND RE-ACQUIRED ONLY AFTER IT
+    // IS DROPPED. Do not reorder these; it is a lock-ordering constraint, not a
+    // performance choice.
+    //
+    // The previous shape took `mtx` while still holding the GIL and then held `mtx`
+    // across Py_END_ALLOW_THREADS (cv.wait re-locks the mutex before returning). With
+    // two background threads that is a textbook ABBA inversion:
+    //
+    //   thread A: woken from cv.wait, HOLDS mtx, blocks acquiring the GIL
+    //   thread B: HOLDS the GIL, blocks acquiring mtx
+    //
+    // Neither can proceed, and because one of them is holding the GIL the entire
+    // interpreter stops with it -- the main thread, every timer, every other thread.
+    // Verified by backtrace: A parked in take_gil() under FrameLock::acquire(),
+    // B parked in pthread_mutex_lock() under FrameLock::acquire().
+    //
+    // It needed exactly two threads and no unusual usage; one thread never hit it,
+    // which is why it survived until FrameLock got contention coverage (#395).
+    //
+    // With the GIL released for the whole critical section, no thread ever holds `mtx`
+    // while blocking on the GIL, so the cycle cannot form. release() and openWindow()
+    // take `mtx` while holding the GIL, but they never wait for the GIL, so they are
+    // only ever the second edge -- and the other holders (this function and
+    // closeWindow(), both GIL-free) release `mtx` inside cv.wait(), so they cannot
+    // hold it for long either.
     Py_BEGIN_ALLOW_THREADS
-    cv.wait(lock, [this]{ return safe_window; });
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [this]{ return safe_window; });
+        // Under `mtx`, so closeWindow()'s two predicates observe the handoff from
+        // `waiting` to `active` as a single step and cannot see a moment where this
+        // thread counts as neither.
+        waiting--;
+        active++;
+    }
     Py_END_ALLOW_THREADS
 
-    waiting--;
-    active++;
+    depth()++;  // B7: this thread is now a holder; see heldByCurrentThread()
 }
 
 void FrameLock::release() {
     std::unique_lock<std::mutex> lock(mtx);
+    depth()--;  // B7: symmetric with acquire(); PyLockContext only ever pairs them
     active--;
     if (active == 0) {
         cv.notify_all();  // Wake up closeWindow() if it's waiting

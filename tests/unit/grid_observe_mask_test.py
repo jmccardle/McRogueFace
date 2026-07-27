@@ -23,11 +23,16 @@ removed.** A test that always passes is not a gate. Concretely:
     and that a stored mask's tick/cells do not change even after further steps and a
     grid mutation -- proving it is a record of a past instant, not a live query.
   - Section 4 exercises the mask's read/iteration protocol and every documented
-    argument-validation error path.
+    argument-validation error path, and gates #404 (an unbounded mask reports
+    light_walls/algorithm as None) in BOTH directions on one grid: None when
+    unbounded, and the real, DIFFERING values on bounded masks taken with
+    light_walls True vs False and with two different algorithms.
   - Section 5 cross-checks the mask against the engine's PRE-EXISTING FOV API
     (compute_fov/is_in_fov) cell by cell, so the mask cannot be an independent
     invention that merely looks plausible -- and measures that the occluder is
-    doing real work (visible cell count is far below the grid area).
+    doing real work (visible cell count is far below the grid area). It also gates
+    mask.origin/fov_radius/tick/grid_size on a BOUNDED mask, which is where those
+    fields carry information; section 4 sees them only as the constant None.
   - Section 6 measures resident-set growth across 5000 projections. observe()
     allocates a few hundred Python objects per call; a missing decref anywhere in
     the projection would show up here as tens of MB, so the number is a gate rather
@@ -35,6 +40,10 @@ removed.** A test that always passes is not a gate. Concretely:
 
 Every number this test relies on was measured against the live binary first (see the
 Section 1 item 5 comment below) rather than asserted into existence.
+
+The grids in sections 4 and 5 are deliberately NON-SQUARE (7x5 and 15x11). On a square
+grid a transposed grid_size -- or a transposed origin -- is undetectable by construction,
+so a square fixture cannot gate either field no matter what it asserts.
 
 This file is also the target of a C++ mutation A/B recorded in the task report: with
 `observe()` altered to ignore the mask, to leak entities past the mask, to emit
@@ -199,8 +208,8 @@ def section3_tick():
     grid = make_grid(6, 6)
     gd = grid.grid_data
 
-    # IDENTITY first, then the delta. Freeze v1 §4 and §13.3 do not say the tick advances
-    # in step with current_frame -- they say the tick IS current_frame. A delta cannot
+    # IDENTITY first, then the delta. The contract is not that the tick advances in
+    # step with current_frame -- it is that the tick IS current_frame. A delta cannot
     # establish that: any affine offset of the counter (including an off-by-one at the
     # barrier, the realistic mistake) produces the same delta forever. get_metrics()'s
     # current_frame is the engine's own reading of the same counter.
@@ -238,12 +247,16 @@ def section3_tick():
 
 def section4_protocol_and_validation():
     print("Section 4: mask protocol and argument validation")
-    grid = make_grid(6, 6)
+    # 7 wide x 5 tall, deliberately NOT square. Every grid in this file used to be
+    # square, which made a transposed grid_size (or any other w/h mix-up) invisible:
+    # (6, 6) is its own transpose, so `mask.grid_size == (6, 6)` gated nothing.
+    W, H = 7, 5
+    grid = make_grid(W, H)
     gd = grid.grid_data
     snap = gd.observe()
     mask = snap["mask"]
 
-    check("len(mask)", len(mask), 36)
+    check("len(mask)", len(mask), W * H)
     check_true("(3,3) in mask", (3, 3) in mask)
     ordered = list(mask)
     row_major = sorted(ordered, key=lambda p: (p[1], p[0]))
@@ -253,9 +266,16 @@ def section4_protocol_and_validation():
 
     check("mask.origin (unbounded)", mask.origin, None)
     check("mask.fov_radius (unbounded)", mask.fov_radius, None)
-    check("mask.grid_size", mask.grid_size, (6, 6))
-    check("mask.light_walls default", mask.light_walls, True)
-    check("mask.algorithm default", mask.algorithm, int(mcrfpy.FOV.BASIC))
+    check("mask.grid_size is (w, h) of a NON-SQUARE grid, so a transpose cannot hide",
+          mask.grid_size, (W, H))
+    # #404: an unbounded mask ran no FOV computation at all -- the visibility plane is
+    # filled with 1s -- so light_walls and algorithm did not participate in this result
+    # and are reported as None rather than as the values that were parsed and ignored.
+    # A mask never reports a setting that had no effect on it; a record that cannot
+    # distinguish "shaped the result" from "present and inert" reads as more specified
+    # than it is. The both-directions gate is at the end of this section.
+    check("mask.light_walls (unbounded: no FOV ran, so None -- #404)", mask.light_walls, None)
+    check("mask.algorithm (unbounded: no FOV ran, so None -- #404)", mask.algorithm, None)
 
     check_true("mask.cells type is frozenset", type(mask.cells) is frozenset)
     check("set(iter(mask)) == mask.cells", set(iter(mask)), mask.cells)
@@ -314,6 +334,66 @@ def section4_protocol_and_validation():
     check_true("(2,2) in mask.cells", (2, 2) in m2)
     check_true("(2,2) not in walkable (it was made non-walkable)", (2, 2) not in walkable)
 
+    # ---- #404, gated in BOTH directions on this one grid. ----
+    #
+    # `unbounded.light_walls is None` on its own is not a gate: it passes just as well
+    # for an implementation that answers None for EVERY mask. Nor is
+    # `bounded.light_walls is True`: that passes for one that answers True for every
+    # mask. What follows leaves no constant that satisfies all of it -- None unbounded,
+    # True for light_walls=True, False for light_walls=False, and each of two bounded
+    # masks reporting its OWN, different algorithm.
+    #
+    # Occluders first. On a fully open grid every algorithm returns every cell and
+    # light_walls has no wall to light, so "the two algorithms produce different cell
+    # sets" -- the measurement that stops the algorithm field from being pinned without
+    # anything noticing -- would be vacuously false. MEASURED on this fixture (7x5,
+    # three pillars, origin (0, 2), unlimited radius): BASIC sees 21 cells, SHADOW 27,
+    # symmetric difference 6; light_walls=False drops BASIC to 18.
+    for px, py in ((2, 1), (3, 2), (4, 3)):
+        grid.at(px, py).transparent = False
+
+    bounded_origin = (0, 2)
+    unbounded = gd.observe()["mask"]
+    check_true("#404 unbounded: origin is None", unbounded.origin is None)
+    check_true("#404 unbounded: fov_radius is None", unbounded.fov_radius is None)
+    check_true("#404 unbounded: light_walls is None (no FOV ran)", unbounded.light_walls is None)
+    check_true("#404 unbounded: algorithm is None (no algorithm ran)", unbounded.algorithm is None)
+
+    lw_on = gd.observe(origin=bounded_origin, light_walls=True)["mask"]
+    lw_off = gd.observe(origin=bounded_origin, light_walls=False)["mask"]
+    print(f"  bounded from {bounded_origin}: light_walls=True -> {len(lw_on)} cells, "
+          f"light_walls=False -> {len(lw_off)} cells")
+    check_true("#404 bounded, light_walls=True: reports exactly True",
+               lw_on.light_walls is True)
+    # The assertion that rules out both "always None" and "always True".
+    check_true("#404 bounded, light_walls=False: reports exactly False",
+               lw_off.light_walls is False)
+    check_true("bounded light_walls is a bool, not an int or a truthy stand-in",
+               type(lw_on.light_walls) is bool and type(lw_off.light_walls) is bool)
+    # Non-vacuity for the pair above: light_walls actually changed what was seen, so the
+    # field is reporting a setting that did something.
+    check_true(f"light_walls=False sees strictly fewer cells than light_walls=True "
+               f"({len(lw_off)} < {len(lw_on)}), so the recorded flag had an effect",
+               len(lw_off) < len(lw_on))
+
+    basic = gd.observe(origin=bounded_origin, algorithm=mcrfpy.FOV.BASIC)["mask"]
+    shadow = gd.observe(origin=bounded_origin, algorithm=mcrfpy.FOV.SHADOW)["mask"]
+    check("#404 bounded: BASIC mask reports BASIC", basic.algorithm, int(mcrfpy.FOV.BASIC))
+    check("#404 bounded: SHADOW mask reports SHADOW", shadow.algorithm, int(mcrfpy.FOV.SHADOW))
+    check_true("the two masks report DIFFERENT algorithms, so the field is not pinned",
+               basic.algorithm != shadow.algorithm)
+    check_true("bounded algorithm is an int",
+               type(basic.algorithm) is int and type(shadow.algorithm) is int)
+    # ...and the algorithms genuinely disagree on this fixture. Without this, `algorithm`
+    # could be a value carried through from the call while the FOV was always computed
+    # one way, and nothing above would notice.
+    sym = basic.cells ^ shadow.cells
+    print(f"  BASIC = {len(basic)} cells, SHADOW = {len(shadow)} cells, "
+          f"symmetric_difference = {len(sym)}")
+    check_true(f"BASIC and SHADOW produce DIFFERENT cell sets on this fixture "
+               f"({len(sym)} cells differ), so the algorithm is not decorative",
+               len(sym) > 0)
+
 
 def section5_fov_crosscheck():
     """The mask must be the SAME set the engine's pre-existing FOV API reports.
@@ -324,19 +404,26 @@ def section5_fov_crosscheck():
     engine's native partial-observation mode -- is what ties the new surface to the old.
     """
     print("Section 5: the mask agrees with compute_fov()/is_in_fov(), cell for cell")
-    W = H = 15
+    # 15 wide x 11 tall -- NON-SQUARE on purpose, see the module docstring.
+    W, H = 15, 11
     grid = make_grid(W, H)
     gd = grid.grid_data
 
-    # A full-height wall at x=7 with a single doorway at (7, 7). The wall is also solid
-    # underfoot except at the doorway -- walkability and transparency are independent
-    # properties, and making them differ is what stops the walkable/mask comparison below
-    # from being trivially true.
+    # A full-height wall at x=9 with a single doorway at (9, 7), plus a solid horizontal
+    # wall at y=5 across the left side. That splits the left half into a top room and a
+    # bottom room, which is what makes the asymmetric origin (3, 7) and its transpose
+    # (7, 3) land in DIFFERENT rooms -- see the origin gate below. Both walls are solid
+    # underfoot as well as opaque: walkability and transparency are independent
+    # properties, and making them differ is what stops the walkable/mask comparison
+    # below from being trivially true.
     for y in range(H):
-        grid.at(7, y).transparent = False
-        grid.at(7, y).walkable = False
-    grid.at(7, 7).transparent = True
-    grid.at(7, 7).walkable = True
+        grid.at(9, y).transparent = False
+        grid.at(9, y).walkable = False
+    grid.at(9, 7).transparent = True
+    grid.at(9, 7).walkable = True
+    for x in range(9):
+        grid.at(x, 5).transparent = False
+        grid.at(x, 5).walkable = False
 
     origin, radius = (3, 7), 9
     snap = gd.observe(origin=origin, fov_radius=radius)
@@ -354,21 +441,109 @@ def section5_fov_crosscheck():
     # equality above would be trivially true.
     check_true(f"the occluder actually occludes ({len(mask_cells)} of {W * H} cells visible)",
                len(mask_cells) < W * H)
-    check_true("the doorway cell (7,7) is visible through the wall", (7, 7) in mask_cells)
+    check_true("the doorway cell (9,7) is visible through the wall", (9, 7) in mask_cells)
 
     # Beyond the wall, only a cone through the doorway is visible. MEASURED FIRST rather
-    # than asserted: the first version of this check guessed that the wall cell (7, 0)
-    # would be invisible and was wrong -- light_walls=True lights it, because (6, 0) next
-    # to it is visible floor. The engine was right and the guess was wrong, which is the
-    # reason this section compares against a measurement instead of an intuition.
-    far_side = {(x, y) for (x, y) in mask_cells if x > 7}
-    print(f"  cells visible beyond the wall (x > 7) = {len(far_side)} of {7 * H}: "
+    # than asserted: an earlier version of this check guessed that the wall cell directly
+    # in line with the observer would be invisible and was wrong -- light_walls=True
+    # lights it, because the visible floor next to it lights it. The engine was right and
+    # the guess was wrong, which is the reason this section compares against a
+    # measurement instead of an intuition. Measured here: exactly 3 far-side cells,
+    # [(10,7), (11,7), (12,7)], of the 55 beyond the wall.
+    far_side_total = (W - 10) * H
+    far_side = {(x, y) for (x, y) in mask_cells if x > 9}
+    print(f"  cells visible beyond the wall (x > 9) = {len(far_side)} of {far_side_total}: "
           f"{sorted(far_side)}")
-    check_true("only a narrow cone reaches past the doorway (< 15 of 105 far-side cells)",
-               len(far_side) < 15)
-    check_true("(8,0), directly behind the wall and far from the doorway, is not visible",
-               (8, 0) not in mask_cells)
+    check_true(f"only a narrow cone reaches past the doorway "
+               f"({len(far_side)} of {far_side_total} far-side cells)",
+               len(far_side) < far_side_total // 4)
+    check_true("(10,0), directly behind the wall and far from the doorway, is not visible",
+               (10, 0) not in mask_cells)
     check_true("(12,0), deep behind the wall, is not visible", (12, 0) not in mask_cells)
+    check_true("(0,0), in the OTHER room on this side of the wall, is not visible",
+               (0, 0) not in mask_cells)
+
+    # ---- mask.origin / fov_radius / tick / grid_size, gated on a BOUNDED mask. ----
+    #
+    # A known hole, and a measured one: two earlier reviewer mutations -- origin recorded
+    # transposed as (oy, ox), and fov_radius recorded as radius + 1 -- BOTH survived this
+    # file, because origin and fov_radius were only ever asserted in section 4, on an
+    # unbounded mask where both are the constant None. On a bounded mask they are the
+    # record of what was seen from where, and a wrong value there is a silently wrong
+    # belief state.
+    #
+    # The origin (3, 7) is ASYMMETRIC on purpose and its transpose (7, 3) is a different,
+    # in-bounds cell in the OTHER room. That is verified below by measurement, not
+    # assumed: if the two origins happened to see the same thing, a transposition would
+    # be undetectable no matter what this asserts.
+    transposed = (origin[1], origin[0])
+    t_cells = gd.observe(origin=transposed, fov_radius=radius)["mask"].cells
+    sym = mask_cells ^ t_cells
+    print(f"  FOV from {origin} = {len(mask_cells)} cells; from its transpose {transposed} = "
+          f"{len(t_cells)} cells; symmetric_difference = {len(sym)} of {W * H}")
+    check_true(f"the transposed origin sees a SUBSTANTIALLY different set "
+               f"({len(sym)} of {W * H} cells differ), so the origin check below is not vacuous",
+               len(sym) > len(mask_cells) // 2)
+
+    mask = snap["mask"]
+    check("mask.origin is the origin passed in, not its transpose", mask.origin, origin)
+    check_true("mask.origin type is exactly tuple", type(mask.origin) is tuple)
+    check_true("mask.origin components are int",
+               all(type(c) is int for c in mask.origin))
+    # Independent of the equality: the stated vantage point must be a cell the mask can
+    # actually see, and the transpose is not one -- these two rooms do not see each other.
+    check_true("the origin is inside its own mask", mask.origin in mask_cells)
+    check_true("the transposed origin is NOT in this mask (it is in the other room)",
+               transposed not in mask_cells)
+
+    check("mask.fov_radius is the radius passed in", mask.fov_radius, radius)
+    check("mask.tick is the snapshot's tick", mask.tick, snap["tick"])
+    check("mask.grid_size is the source grid's (w, h), non-square", mask.grid_size, (W, H))
+
+    # A SECOND observe from the same origin at a different radius: it must record its own
+    # radius and see strictly fewer cells, so fov_radius is read from the call rather than
+    # pinned to a constant (or to whatever the first call used). Measured: radius 9 sees
+    # 63 cells, radius 3 sees 30.
+    tighter_radius = 3
+    tighter = gd.observe(origin=origin, fov_radius=tighter_radius)["mask"]
+    check("a second observe records its OWN, different fov_radius",
+          tighter.fov_radius, tighter_radius)
+    check("...from the same origin", tighter.origin, origin)
+    check_true(f"...and sees strictly fewer cells ({len(tighter)} < {len(mask_cells)})",
+               len(tighter) < len(mask_cells))
+
+    # ---- BOUNDED but UNLIMITED: origin given, fov_radius omitted. ----
+    #
+    # This is the case that separates #404's ACTUAL rule -- "did an FOV computation run"
+    # -- from the plausible wrong rule someone might implement instead, "is fov_radius
+    # None". An FOV computation DID run here (occlusion applies; the far room is not
+    # visible), so light_walls and algorithm must report their real values, NOT None,
+    # even though fov_radius is None. Gate the two apart or an implementation keyed on
+    # the wrong field passes every other check in this file. Same defect class as the
+    # origin/fov_radius hole above: a field asserted only where it is a constant.
+    unlimited = gd.observe(origin=origin)["mask"]
+    print(f"  bounded+unlimited from {origin}: {len(unlimited)} cells "
+          f"(radius {radius} saw {len(mask_cells)}; grid area {W * H})")
+    check("bounded+unlimited: origin is the real origin, not None", unlimited.origin, origin)
+    check_true("bounded+unlimited: origin is a tuple, so this mask is bounded",
+               type(unlimited.origin) is tuple)
+    check("bounded+unlimited: fov_radius is None (no radius cap)", unlimited.fov_radius, None)
+    # The point of the whole block:
+    check_true("bounded+unlimited: light_walls is True, NOT None -- an FOV computation "
+               "ran, so the setting participated (#404 keys on origin, not on fov_radius)",
+               unlimited.light_walls is True)
+    check("bounded+unlimited: algorithm is the real algorithm, NOT None",
+          unlimited.algorithm, int(mcrfpy.FOV.BASIC))
+
+    # ...and "unlimited" is neither vacuously everything nor accidentally identical to a
+    # finite radius. MEASURED: 65 cells, exactly the radius-9 set plus (13,7) and (14,7)
+    # -- the two cells further down the doorway cone than radius 9 reached -- out of 165.
+    check_true(f"bounded+unlimited is a STRICT superset of the radius-{radius} mask "
+               f"({len(unlimited)} > {len(mask_cells)}), so the cap really was lifted",
+               unlimited.cells > mask_cells)
+    check_true(f"bounded+unlimited still occludes ({len(unlimited)} of {W * H} cells), so "
+               "'unlimited' is not 'everything'",
+               len(unlimited) < W * H)
 
     # ---- The terrain projection, gated under a BOUNDED mask. ----
     #

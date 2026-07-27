@@ -10,7 +10,7 @@
 PyObject* PyVisibilityMask::create(PyObject* cells_set, PyObject* cells_ordered,
                                    PyObject* origin, PyObject* fov_radius,
                                    int tick, int grid_w, int grid_h,
-                                   bool light_walls, int algorithm)
+                                   bool fov_ran, bool light_walls, int algorithm)
 {
     PyVisibilityMaskObject* self = (PyVisibilityMaskObject*)
         mcrfpydef::PyVisibilityMaskType.tp_alloc(&mcrfpydef::PyVisibilityMaskType, 0);
@@ -30,6 +30,7 @@ PyObject* PyVisibilityMask::create(PyObject* cells_set, PyObject* cells_ordered,
     self->tick = tick;
     self->grid_w = grid_w;
     self->grid_h = grid_h;
+    self->fov_ran = fov_ran ? 1 : 0;
     self->light_walls = light_walls ? 1 : 0;
     self->algorithm = algorithm;
 
@@ -91,13 +92,19 @@ PyObject* PyVisibilityMask::get_grid_size(PyVisibilityMaskObject* self, void* cl
     return Py_BuildValue("(ii)", self->grid_w, self->grid_h);
 }
 
+// #404 - None, not a plausible-looking default, when no FOV computation ran. An
+// unbounded mask is every in-bounds cell by construction; light_walls and algorithm
+// were never consulted, and a record that cannot distinguish "shaped the result"
+// from "present and inert" is a record that reads as more specified than it is.
 PyObject* PyVisibilityMask::get_light_walls(PyVisibilityMaskObject* self, void* closure)
 {
+    if (!self->fov_ran) Py_RETURN_NONE;
     return PyBool_FromLong(self->light_walls);
 }
 
 PyObject* PyVisibilityMask::get_algorithm(PyVisibilityMaskObject* self, void* closure)
 {
+    if (!self->fov_ran) Py_RETURN_NONE;
     return PyLong_FromLong(self->algorithm);
 }
 
@@ -155,11 +162,13 @@ PyGetSetDef PyVisibilityMask::getsetters[] = {
     {"light_walls", (getter)PyVisibilityMask::get_light_walls, NULL,
      MCRF_PROPERTY(light_walls,
          "Whether walls were lit when visible in the FOV computation that produced this "
-         "mask (bool, read-only)."), NULL},
+         "mask, or None on an unbounded mask (origin=None), where no FOV computation ran "
+         "and the setting had no effect (bool | None, read-only)."), NULL},
     {"algorithm", (getter)PyVisibilityMask::get_algorithm, NULL,
      MCRF_PROPERTY(algorithm,
          "FOV algorithm used to compute this mask, matching one of the mcrfpy.FOV.* "
-         "values (int, read-only)."), NULL},
+         "values, or None on an unbounded mask (origin=None), where no algorithm ran "
+         "(int | None, read-only)."), NULL},
     {NULL}
 };
 
@@ -194,8 +203,14 @@ namespace mcrfpydef {
             "    tick (int, read-only): Engine current_frame when this mask was taken\n"
             "    cells (frozenset, read-only): The visible (x, y) cells\n"
             "    grid_size (tuple, read-only): (w, h) of the source grid\n"
-            "    light_walls (bool, read-only): Whether walls were lit when visible\n"
-            "    algorithm (int, read-only): FOV algorithm used (mcrfpy.FOV.*)\n\n"
+            "    light_walls (bool | None, read-only): Whether walls were lit when\n"
+            "                        visible, or None if no FOV computation ran\n"
+            "    algorithm (int | None, read-only): FOV algorithm used (mcrfpy.FOV.*),\n"
+            "                        or None if no FOV computation ran\n\n"
+            "An UNBOUNDED mask (origin=None) reports origin, fov_radius, light_walls and\n"
+            "algorithm all as None: every in-bounds cell is visible by construction, so\n"
+            "none of those parameters participated. A mask never reports a setting that\n"
+            "had no effect on it.\n\n"
             "Protocol:\n"
             "    (x, y) in mask   -- O(1) membership test; raises TypeError if the\n"
             "                        key is not a position (an entity, a 3-tuple, ...),\n"

@@ -200,6 +200,28 @@ public:
      * @brief Check if any threads are waiting for the lock
      */
     bool hasWaiting() const { return waiting.load() > 0; }
+
+    /**
+     * @brief Does the CALLING thread currently hold the frame lock? (B7 / #395)
+     *
+     * Per-thread, not global: `active` counts holders across all threads and cannot
+     * answer "am I one of them". The depth is a counter rather than a flag because
+     * `with mcrfpy.lock():` nests legally -- an inner acquire() succeeds while the
+     * safe window is already open, so a flag would clear on the inner release and
+     * report a still-holding thread as free.
+     *
+     * The main thread never acquires (mcrfpy.lock() is a documented no-op there,
+     * src/PyLock.cpp), so its depth stays 0 and this correctly answers false. That
+     * is why `with mcrfpy.lock(): mcrfpy.step()` on the main thread keeps working:
+     * there is no lock held, so there is nothing to re-enter.
+     */
+    static bool heldByCurrentThread() { return depth() > 0; }
+
+private:
+    // Function-local static, not a namespace-scope thread_local: construction on
+    // first use with no static-initialisation-order dependency on any other
+    // translation unit (same reasoning as mcrf::EngineRandom, #394).
+    static int& depth() { static thread_local int d = 0; return d; }
 };
 
 class GameEngine

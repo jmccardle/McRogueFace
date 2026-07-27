@@ -105,6 +105,29 @@ public:
     bool isInFOV(int x, int y) const;
     TCODMap* getTCODMap() const { return tcod_map; }
 
+    // #402 - Side-effect-free FOV.
+    //
+    // computeFOV()/isInFOV() are a two-call API over ONE shared per-grid TCOD map:
+    // the compute writes the map's fov bits and the read consumes them. Anything
+    // that computes between another caller's compute and its reads silently
+    // answers that caller's question from the wrong vantage point. GridData.observe()
+    // used to be exactly that "anything" -- a background observer projecting from an
+    // NPC's position clobbered whatever the player or the renderer had just computed.
+    //
+    // computeFOVInto() answers the same question without touching any shared state.
+    // The scratch TCODMap is a local of the call, so isolation is structural rather
+    // than disciplinary: there is no shared buffer left to clobber, and no ordering
+    // rule for a caller to get wrong. It also does not participate in the #292
+    // dedup memo -- a scratch computation must never be able to answer a later
+    // shared computeFOV() from cache.
+    //
+    // `out` is resized to grid_w * grid_h and filled row-major with 0/1.
+    // radius <= 0 means unlimited, matching libtcod's own convention.
+    // Returns false (leaving `out` zero-filled) if there is no map or the origin
+    // is out of bounds -- the same guard conditions computeFOV() has.
+    bool computeFOVInto(int x, int y, int radius, bool light_walls,
+                        TCOD_fov_algorithm_t algo, std::vector<uint8_t>& out) const;
+
     // #114 - FOV algorithm and radius defaults
     TCOD_fov_algorithm_t fov_algorithm = FOV_BASIC;
     int fov_radius = 10;

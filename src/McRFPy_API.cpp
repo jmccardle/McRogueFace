@@ -353,6 +353,12 @@ static PyMethodDef mcrfpyMethods[] = {
                    "intervals: step(10.0) fires a 1000ms repeating timer once, not ten times, "
                    "and re-phases it to the end of the step. Use advance() to let a span of "
                    "simulated time pass with every interval honored.")
+         MCRF_RAISES("RuntimeError", "Called from a background thread that currently holds "
+                   "mcrfpy.lock(). Advancing a frame from inside the lock re-enters the frame "
+                   "the lock synchronises with, which cannot complete until the caller releases. "
+                   "Inside the lock, mutate only. (Main-thread lock() is a no-op, so this cannot "
+                   "fire from script init or a timer callback.)")
+         MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"advance", McRFPy_API::_advance, METH_VARARGS,
      MCRF_METHOD(mcrfpy, advance,
@@ -373,6 +379,9 @@ static PyMethodDef mcrfpyMethods[] = {
                    "all -- use step(0.0) to run a frame without moving the clock.")
          MCRF_NOTE("Read the resulting clock with get_metrics()['simulation_time_ms'] (milliseconds). "
                    "The 'runtime' key is wall clock and is unrelated to simulated time.")
+         MCRF_RAISES("RuntimeError", "Called from a background thread that currently holds "
+                   "mcrfpy.lock(); see step(). Inside the lock, mutate only.")
+         MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
      MCRF_METHOD(mcrfpy, exit,
@@ -513,7 +522,13 @@ static PyMethodDef mcrfpyMethods[] = {
                    "`with mcrfpy.lock():`; behavior outside the lock is undefined. On a worker "
                    "thread the context manager blocks (GIL released) until the render loop opens a "
                    "safe window between frames; on the main thread it is a no-op.")
-         MCRF_LINK("docs/threading-model.md", "Threading Model")
+         MCRF_NOTE("INSIDE THE LOCK, MUTATE ONLY. The main thread parks until every holder "
+                   "releases, so hold time is added to frame time roughly 1:1 -- a 10 ms hold "
+                   "costs the frame 10 ms, and presents as engine stutter rather than as a "
+                   "misbehaving handler. Do I/O, waiting, and computation OUTSIDE the block and "
+                   "apply the result inside it. Calling mcrfpy.step() or mcrfpy.advance() while "
+                   "holding the lock raises RuntimeError rather than deadlocking.")
+         MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
 
     // #215: Bresenham line algorithm (replaces mcrfpy.libtcod.line)
@@ -1652,6 +1667,49 @@ PyObject* McRFPy_API::api_get_animations()
     return tuple;
 }
 
+// B7 (#395) - Driving a frame from inside mcrfpy.lock() is refused, loudly.
+//
+// A background thread holding the frame lock that calls step()/advance() re-enters
+// runSimFrame(). If any other thread is waiting, the re-entered frame's closeWindow()
+// waits for `active` to reach 0 -- and the caller's own hold is part of `active`, so
+// it never can. The main thread is already parked in the outer frame's closeWindow()
+// waiting on the same count. Nothing times out: FrameLock's condition variable has no
+// deadline (that was #398). The process hangs with no error, no log line, and no
+// stack to look at, and it presents as "the engine froze".
+//
+// Even in the one case that does NOT hang -- no other thread waiting, so hasWaiting()
+// short-circuits the safe window -- the call still runs a whole simulation frame from
+// a non-main thread while the main thread is parked mid-frame: timers, Scene.update(),
+// animations, transitions, and currentFrame++ all execute off the clock's owner. That
+// is the mutate-only rule (never drive a frame from inside the lock) violated in the
+// exact way rule 1 exists to forbid, and its "success" is worse than the hang because
+// it produces a plausible-looking trace with two frame bodies interleaved.
+//
+// So: raise. The two alternatives were both considered and both rejected.
+//   * A silent no-op returns 0.0 to a caller that asked for time to pass. The world
+//     does not advance, the trace merely looks sparse, and nothing says why -- the
+//     same failure shape SimClock.advance() is explicitly contracted against.
+//   * A re-entrancy guard that runs the frame but skips the safe window makes the
+//     deadlock go away while leaving the off-thread frame body in place, i.e. it
+//     hides the symptom of the thing that is actually wrong.
+// A RuntimeError names the rule at the call site, in the offending thread, at the
+// instant of the mistake. Fail Early.
+//
+// Note this cannot fire on the main thread: mcrfpy.lock() is a no-op there, so the
+// main thread never becomes a holder and `with mcrfpy.lock(): mcrfpy.step()` in a
+// script or a timer callback keeps working exactly as before.
+static bool frameAdvanceAllowed(const char* fname)
+{
+    if (!Resources::game->getFrameLock().heldByCurrentThread()) return true;
+    PyErr_Format(PyExc_RuntimeError,
+        "mcrfpy.%s() cannot be called while this thread holds mcrfpy.lock(): it would "
+        "re-enter the frame the lock is synchronising with, and the frame cannot complete "
+        "until this thread releases. Inside the lock, mutate only -- no frame advance, no "
+        "I/O, no blocking wait. Compute outside the lock and apply inside it.",
+        fname);
+    return false;
+}
+
 // #153 - Headless simulation control
 PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
     PyObject* dt_obj = Py_None;
@@ -1674,6 +1732,7 @@ PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
         PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
         return NULL;
     }
+    if (!frameAdvanceAllowed("step")) return NULL;
 
     float actual_dt = game->step(dt);
     return PyFloat_FromDouble(actual_dt);
@@ -1710,6 +1769,7 @@ PyObject* McRFPy_API::_advance(PyObject* self, PyObject* args) {
         PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
         return NULL;
     }
+    if (!frameAdvanceAllowed("advance")) return NULL;
 
     return PyLong_FromLong(game->advance(static_cast<int>(ms)));
 }

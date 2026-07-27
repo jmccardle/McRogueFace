@@ -29,7 +29,15 @@ struct PyVisibilityMaskObject {
     PyObject* fov_radius;     // int, or Py_None for unbounded/unlimited radius
     int tick;                 // engine current_frame when the mask was taken
     int grid_w, grid_h;       // dimensions of the grid this mask was taken from
-    int light_walls;          // 0/1, as passed to the FOV computation
+    // #404 - fov_ran distinguishes "this parameter shaped the result" from "this
+    // parameter was present and inert". An UNBOUNDED mask (origin=None) runs no FOV
+    // computation at all -- every in-bounds cell is visible by construction -- so
+    // light_walls and algorithm had no effect on it. Reporting them anyway makes a
+    // stored belief-state record read as more specified than it is: anyone later
+    // grouping runs by `algorithm` would pool masks that never ran an algorithm.
+    // When fov_ran == 0, both properties answer None.
+    int fov_ran;              // 1 if an FOV computation produced this mask, else 0
+    int light_walls;          // 0/1, as passed to the FOV computation (fov_ran only)
     int algorithm;            // TCOD_fov_algorithm_t value used (matches mcrfpy.FOV.*)
 };
 
@@ -43,10 +51,13 @@ public:
     // either a PyLong or Py_None, same ownership rule.
     // Returns a new reference to a fully-formed mcrfpy.VisibilityMask, or NULL
     // (with an exception set, and all four inputs already released) on failure.
+    // #404: `fov_ran` says whether an FOV computation actually produced this mask.
+    // light_walls/algorithm are recorded only when it did, and read back as None
+    // otherwise -- a record must not report parameters that did not participate.
     static PyObject* create(PyObject* cells_set, PyObject* cells_ordered,
                             PyObject* origin, PyObject* fov_radius,
                             int tick, int grid_w, int grid_h,
-                            bool light_walls, int algorithm);
+                            bool fov_ran, bool light_walls, int algorithm);
 
     static void dealloc(PyVisibilityMaskObject* self);
     static PyObject* repr(PyVisibilityMaskObject* self);
