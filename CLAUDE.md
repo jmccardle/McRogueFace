@@ -276,6 +276,53 @@ Packaging tools:
 - `tools/package_stdlib.py` - Creates filtered stdlib archives
 - `tools/stdlib_modules.yaml` - Module categorization config
 
+**Caveat (#399): the light/full split is currently aspirational, not mechanical.**
+`create_stdlib_zip()` in `tools/package.sh` is defined but never called, so both
+presets copy the entire `__lib/Python/Lib` and differ only by the hardcoded `rm -rf`
+list. Do not assume editing `stdlib_modules.yaml` changes what ships.
+
+#### Networking / async guarantee
+
+The **`make package-linux-full`** configuration is the named, gated one for embedders
+who run a network client (message bus, telemetry feed) on a background thread inside
+the engine process. In that artifact, `socket`, `ssl`, `asyncio` and `selectors` all
+import and work from the package's own `lib/Python/Lib` — Python sources and the
+`_socket` / `_ssl` / `_asyncio` / `select` C extensions alike.
+
+This is gated, not assumed:
+
+| Test | Proves |
+|------|--------|
+| `tests/packaging/network_stdlib_packaged_test.py` | Builds the real tarball, extracts it outside the source tree, and imports+uses all four **from the packaged binary**. Each module is mutation-checked: removing it must break the probe, so the test cannot silently lose its teeth. |
+| `tests/integration/background_thread_network_test.py` | A background thread does real socket / selectors / TLS / asyncio work **off the main thread** while the main thread keeps completing frames, then hands its result back under `mcrfpy.lock()`. |
+
+Both run in the default suite. The alternate-build suites (`make debug-test`,
+`asan-test`, `tsan-test`, `valgrind-test`) pass `--exclude=packaging`, because
+`tools/package.sh` packages the Release `build/` regardless of which build the suite
+is driving — that exclusion is at the invocation site, not inside the test.
+
+`nats-py` and friends are **not** engine dependencies and must never be vendored. The
+engine's obligation stops at "the interpreter we ship can do sockets and asyncio from
+a background thread"; installing a client library is the embedder's job.
+
+#### Mutating the world from a background thread
+
+Use `mcrfpy.lock()`, and treat it as a **mutation-only** critical section:
+
+```python
+data = bus.poll()                 # I/O OUTSIDE the lock
+with mcrfpy.lock():
+    entity.cell_pos = data.pos    # assignment only
+```
+
+The main thread parks until every lock holder returns, so I/O, `await`, or any blocking
+wait inside the block is indistinguishable from engine stutter. The window opens once
+per frame in both frame paths — `doFrame()` (windowed) and `runSimFrame()` (headless
+`step()`/`advance()`). `acquire()` has no timeout, so a frame path that fails to open
+the window blocks holders forever; that was #398, gated by
+`tests/regression/issue_398_headless_frame_lock_test.py` (pre-fix: 12.2M `step()`
+calls and the lock never opens; post-fix: 1).
+
 ### Troubleshooting
 
 **"No rule to make target 'linux'"**: You're in the wrong directory. Run `make` from project root.

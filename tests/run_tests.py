@@ -11,6 +11,7 @@ Usage:
     python3 tests/run_tests.py --timeout=30  # Custom timeout
     python3 tests/run_tests.py --sanitizer  # Detect ASan/UBSan errors in output
     python3 tests/run_tests.py --valgrind   # Run tests under Valgrind memcheck
+    python3 tests/run_tests.py --exclude=packaging  # Run everything but one directory
 
 Environment variables:
     MCRF_BUILD_DIR          Build directory (default: ../build)
@@ -41,7 +42,7 @@ SANITIZER_PATTERNS = [
 ]
 
 # Test directories to run (in order)
-TEST_DIRS = ['unit', 'integration', 'regression', 'demo', 'snippets']
+TEST_DIRS = ['unit', 'integration', 'regression', 'demo', 'snippets', 'packaging']
 
 # tests/snippets/ holds the code samples published on mcrogueface.github.io. They live
 # here, in the engine repo, so that breaking the API breaks the build -- the docs site
@@ -63,6 +64,16 @@ SNIPPET_HARNESS = 'tests/snippets/_harness.py'
 # adopting them). Demos render, so they need a longer timeout than a unit test.
 DEMO_SMOKE_TESTS = ['demo_main.py']
 DEMO_TIMEOUT = 60  # seconds
+
+# tests/packaging/ drives the real `tools/package.sh linux full` pipeline (the same
+# thing `make package-linux-full` calls) end to end: build the tarball, extract it
+# OUTSIDE the source tree, and prove the packaged binary's own filtered stdlib can
+# still import and USE the networking/async modules (socket/ssl/asyncio/selectors)
+# that docs/CLAUDE.md promise ship in the "full" preset. Nothing previously verified
+# that the shipped, filtered interpreter -- as opposed to the dev tree's __lib/ --
+# actually works. Building the tarball + running the packaged binary several times
+# is much slower than a unit test, so it gets its own generous timeout.
+PACKAGING_TIMEOUT = 180  # seconds
 
 # ANSI colors
 GREEN = '\033[92m'
@@ -207,6 +218,26 @@ def main():
     timeout_multiplier = float(os.environ.get('MCRF_TIMEOUT_MULTIPLIER', '1'))
     effective_timeout = timeout * timeout_multiplier
 
+    # Parse --exclude=a,b -- drop whole directories from this run.
+    #
+    # Exists for the alternate-build targets (debug-test/asan-test/tsan-test/
+    # valgrind-test). Those point MCRF_BUILD_DIR at build-debug/build-asan/build-tsan,
+    # but tests/packaging/ drives tools/package.sh, which packages the RELEASE build/
+    # no matter what the suite is driving -- so it is orthogonal to sanitizer coverage
+    # and would fail outright in a job that never built build/. Excluding a directory
+    # is deliberate and visible at the invocation site; it is not a test quietly
+    # skipping itself, and the default run (and CI's release job) still includes
+    # everything.
+    excluded = []
+    for arg in sys.argv[1:]:
+        if arg.startswith('--exclude='):
+            excluded.extend(d.strip() for d in arg.split('=', 1)[1].split(',') if d.strip())
+    unknown = [d for d in excluded if d not in TEST_DIRS]
+    if unknown:
+        print(f"{RED}Unknown directory in --exclude: {', '.join(unknown)}{RESET}")
+        print(f"Known directories: {', '.join(TEST_DIRS)}")
+        sys.exit(2)
+
     # Determine which directories to test
     dirs_to_test = []
     for arg in sys.argv[1:]:
@@ -214,6 +245,7 @@ def main():
             dirs_to_test.append(arg)
     if not dirs_to_test:
         dirs_to_test = TEST_DIRS
+    dirs_to_test = [d for d in dirs_to_test if d not in excluded]
 
     # Header
     mode_str = ""
@@ -240,8 +272,12 @@ def main():
         for test_path in tests:
             test_name = test_path.name
             # Demos render several scenes; they need more headroom than a unit test.
-            test_timeout = (DEMO_TIMEOUT * timeout_multiplier
-                            if test_dir == 'demo' else effective_timeout)
+            if test_dir == 'demo':
+                test_timeout = DEMO_TIMEOUT * timeout_multiplier
+            elif test_dir == 'packaging':
+                test_timeout = PACKAGING_TIMEOUT * timeout_multiplier
+            else:
+                test_timeout = effective_timeout
             passed, duration, output, san_errors = run_test(
                 test_path, verbose, test_timeout,
                 sanitizer_mode=sanitizer_mode,

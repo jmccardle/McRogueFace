@@ -1010,6 +1010,28 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
 
     metrics.endSimFrame();
     metrics.updateFrameTime(actual_dt * 1000.0f);  // ms
+
+    // #219 safe window for background threads, in headless too.
+    //
+    // doFrame() opens this window after display() (see renderScene's caller); a
+    // simulation frame never gets there, so before this a background thread that
+    // entered `with mcrfpy.lock():` under a step()/advance()-driven main loop blocked
+    // in FrameLock::acquire() forever -- the condition variable it waits on was only
+    // ever signalled from the render path. Headless is the mode embedders drive a
+    // world from, so it is precisely the mode where a bus/worker thread needs to
+    // hand mutations back safely.
+    //
+    // Placed after the frame's work and before currentFrame++, matching doFrame():
+    // lock holders observe a fully-settled frame, and the main thread parks here (GIL
+    // released) until every holder is done. Guarded by hasWaiting(), so the no-threads
+    // case is one relaxed atomic load per frame.
+    if (frameLock.hasWaiting()) {
+        frameLock.openWindow();
+        Py_BEGIN_ALLOW_THREADS
+        frameLock.closeWindow();  // Wait for all lock holders to complete
+        Py_END_ALLOW_THREADS
+    }
+
     currentFrame++;
 
     return actual_dt;

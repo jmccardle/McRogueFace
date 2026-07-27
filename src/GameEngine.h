@@ -144,11 +144,19 @@ struct ProfilingMetrics {
  * @brief Thread synchronization primitive for safe UI updates from background threads (#219)
  *
  * Allows background Python threads to safely update UI objects by waiting for
- * a "safe window" between frames when the render loop is not iterating the scene graph.
+ * a "safe window" between frames when the main thread is not iterating the scene graph.
+ *
+ * The window is opened once per frame in BOTH frame paths: doFrame() (windowed, after
+ * display()) and runSimFrame() (headless, driven by mcrfpy.step()/advance()). It must
+ * stay that way -- a mode that never opens the window blocks lock() holders forever,
+ * since acquire() waits on a condition variable with no timeout.
  *
  * Usage from Python:
  *   with mcrfpy.lock():
  *       frame.x = new_value  # Safe to modify UI here
+ *
+ * Mutation only, inside the block: the main thread is parked until every holder
+ * returns, so I/O or a blocking wait under the lock stalls the whole engine.
  */
 class FrameLock {
 private:
@@ -176,14 +184,15 @@ public:
     /**
      * @brief Open the safe window, allowing waiting threads to proceed
      *
-     * Called by render loop between frames
+     * Called once per frame by doFrame() (windowed) and runSimFrame() (headless)
      */
     void openWindow();
 
     /**
      * @brief Close the safe window, waiting for all active threads to finish
      *
-     * Called by render loop before resuming rendering
+     * Called once per frame by doFrame() (windowed) and runSimFrame() (headless),
+     * before the main thread resumes
      */
     void closeWindow();
 

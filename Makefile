@@ -188,7 +188,7 @@ debug-test: debug
 	@echo "Running test suite with debug Python..."
 	cd tests && MCRF_BUILD_DIR=../build-debug \
 		MCRF_LIB_DIR=../__lib_debug \
-		python3 run_tests.py -v
+		python3 run_tests.py -v --exclude=packaging
 
 # Profiling build (#345): RelWithDebInfo (-O2 -g) + frame pointers, self-contained
 # in build-profile/ (lib/assets/scripts copied like the normal build). Suited to
@@ -234,7 +234,7 @@ asan-test: asan
 		ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:print_summary=1" \
 		LSAN_OPTIONS="suppressions=$(CURDIR)/sanitizers/asan.supp" \
 		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
-		python3 run_tests.py -v --sanitizer
+		python3 run_tests.py -v --sanitizer --exclude=packaging
 
 # Fuzzing targets (clang-18 + libFuzzer + ASan + UBSan).
 # Design: ONE instrumented executable `mcrfpy_fuzz` that embeds CPython,
@@ -320,7 +320,7 @@ tsan-test: tsan
 	cd tests && MCRF_BUILD_DIR=../build-tsan \
 		MCRF_LIB_DIR=../__lib_debug \
 		TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1" \
-		python3 run_tests.py -v --sanitizer
+		python3 run_tests.py -v --sanitizer --exclude=packaging
 
 valgrind-test: debug
 	@echo "Running test suite under Valgrind memcheck..."
@@ -328,7 +328,7 @@ valgrind-test: debug
 		MCRF_LIB_DIR=../__lib_debug \
 		MCRF_TIMEOUT_MULTIPLIER=50 \
 		PYTHONMALLOC=malloc \
-		python3 run_tests.py -v --valgrind
+		python3 run_tests.py -v --valgrind --exclude=packaging
 
 massif-test: debug
 	@echo "Running heap profiling under Valgrind Massif..."
