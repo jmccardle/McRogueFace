@@ -2,7 +2,8 @@
 # Regenerate intentionally: MCRF_UPDATE_API_SNAPSHOT=1
 # Singleton/constant VALUES are intentionally NOT captured.
 
-=== MODULE FUNCTIONS (12) ===
+=== MODULE FUNCTIONS (13) ===
+func advance :: advance(ms: int) -> int
 func bresenham :: bresenham(start, end, include_start=True, include_end=True) -> list[tuple[int, int]]
 func end_benchmark :: end_benchmark() -> str
 func exit :: exit() -> None

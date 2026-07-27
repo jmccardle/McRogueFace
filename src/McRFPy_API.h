@@ -47,6 +47,7 @@ public:
 
     // #153 - Headless simulation control
     static PyObject* _step(PyObject*, PyObject*);
+    static PyObject* _advance(PyObject*, PyObject*);
 
     static PyObject* _exit(PyObject*, PyObject*);
     static PyObject* _setScale(PyObject*, PyObject*);

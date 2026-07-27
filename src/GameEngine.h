@@ -266,6 +266,13 @@ private:
 
     void testTimers();
 
+    // #396 - The single simulation-frame implementation shared by step() and advance().
+    // ms is the exact integer millisecond advance applied to simulation_time; actual_dt
+    // is what the frame reports to animations/Scene.update(). They are passed separately
+    // so step(float) can keep handing callers the exact float they supplied while
+    // advance() keeps the clock on exact integers.
+    float runSimFrame(int ms, float actual_dt);
+
 public:
     sf::Clock runtime;
     std::map<std::string, std::shared_ptr<Timer>> timers;
@@ -330,7 +337,11 @@ public:
     static bool isShaderIntermediateReady() { return shaderIntermediateInitialized; }
 
     // #153 - Headless simulation control
-    float step(float dt = -1.0f);  // Advance simulation; dt<0 means advance to next event
+    float step(float dt = -1.0f);  // Advance simulation ONE frame; dt<0 means advance to next event
+    // #396 - Advance the simulation clock by exactly `ms` milliseconds, running one
+    // simulation frame per timer-interval boundary crossed so no repeating timer skips
+    // an interval. Returns the milliseconds actually advanced (0 in windowed mode).
+    int advance(int ms);
     int getSimulationTime() const { return simulation_time; }
     void renderScene();  // Force render current scene (for synchronous screenshot)
 

@@ -909,6 +909,7 @@ float GameEngine::step(float dt) {
     }
 
     float actual_dt;
+    int advance_ms;
 
     if (dt < 0) {
         // dt < 0 means "advance to next event"
@@ -933,12 +934,25 @@ float GameEngine::step(float dt) {
         }
 
         actual_dt = static_cast<float>(min_remaining) / 1000.0f;  // Convert to seconds
-        simulation_time += min_remaining;
+        advance_ms = min_remaining;
     } else {
         // Advance by specified amount
         actual_dt = dt;
-        simulation_time += static_cast<int>(dt * 1000.0f);  // Convert seconds to ms
+        advance_ms = static_cast<int>(dt * 1000.0f);  // Convert seconds to ms
     }
+
+    return runSimFrame(advance_ms, actual_dt);
+}
+
+// #396 - Advance the clock by exactly `ms` and run ONE simulation frame.
+//
+// step() and advance() share this body so there is exactly one place that moves
+// simulation_time and exactly one definition of "a simulation frame". `ms` is applied to
+// the clock as an integer (no float round-trip, so advance() lands on timer boundaries
+// exactly), while `dt_seconds` is the value the frame reports to animations and
+// Scene.update() -- step(float) still passes through the caller's own float unchanged.
+float GameEngine::runSimFrame(int ms, float actual_dt) {
+    simulation_time += ms;
 
     // #350: step() is a full SIMULATION frame -- everything doFrame() does except
     // render and input, which are deliberately not on the clock (render costs zero
@@ -999,6 +1013,58 @@ float GameEngine::step(float dt) {
     currentFrame++;
 
     return actual_dt;
+}
+
+// #396 - Advance the clock by exactly `ms`, honoring EVERY timer interval in the span.
+//
+// step(dt) is one frame, and one frame tests each timer at most once: a single step of
+// 10000ms fires a 1000ms repeating timer ONCE, not ten times, and (because Timer::test
+// stamps last_ran = now) silently re-phases it to the end of the step. That makes a wide
+// step lossy -- fine for "run a frame", wrong for "let ten seconds pass".
+//
+// advance() closes that gap by walking the span boundary by boundary: it repeatedly finds
+// the nearest pending timer deadline inside the remaining span and runs one simulation
+// frame that lands exactly on it, then a final frame for any residual. Because each frame
+// lands exactly on last_ran + interval, Timer::test's last_ran = now is exact and no phase
+// drift accumulates -- the residual is carried, not discarded.
+//
+// This is a loop over step()'s own frame body, NOT a second clock: simulation_time is
+// still the only counter and runSimFrame() is still the only thing that moves it.
+int GameEngine::advance(int ms) {
+    // In windowed mode, advance() is a no-op (same contract as step())
+    if (!headless) {
+        return 0;
+    }
+    if (ms <= 0) {
+        // Zero (or nothing) to advance: the clock does not move and no frame runs.
+        // Use step(0.0) to run a frame without advancing time.
+        return 0;
+    }
+
+    const int target = simulation_time + ms;
+
+    while (simulation_time < target) {
+        // Nearest timer deadline strictly ahead of now, clamped to the end of the span.
+        int next = target;
+        for (auto& [name, timer] : timers) {
+            if (timer && timer->isActive()) {
+                int remaining = timer->getRemaining(simulation_time);
+                // remaining <= 0 means the timer is ALREADY overdue at the current
+                // instant; it is not a future boundary. It fires at the end of the next
+                // frame regardless, which is no later than it would have fired anyway.
+                if (remaining > 0 && simulation_time + remaining < next) {
+                    next = simulation_time + remaining;
+                }
+            }
+        }
+
+        // next > simulation_time always (target > simulation_time in the loop condition,
+        // and every candidate boundary uses remaining > 0), so this terminates.
+        const int delta = next - simulation_time;
+        runSimFrame(delta, static_cast<float>(delta) / 1000.0f);
+    }
+
+    return ms;
 }
 
 // #153 - Force render the current scene (for synchronous screenshots)

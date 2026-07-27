@@ -1,4 +1,5 @@
 #include "McRFPy_API.h"
+#include <climits>
 #include "UIDrawable.h"
 #include "McRFPy_Automation.h"
 // Note: McRFPy_Libtcod.h removed in #215 - functionality moved to mcrfpy.bresenham()
@@ -346,6 +347,30 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("A headless --exec script must end by calling sys.exit(), because step() is "
                    "the only headless clock: without it the engine cannot advance itself. Pass "
                    "--run-forever for a long-lived headless process that drives itself.")
+         MCRF_NOTE("One frame tests each timer at most ONCE, so a single wide step skips "
+                   "intervals: step(10.0) fires a 1000ms repeating timer once, not ten times, "
+                   "and re-phases it to the end of the step. Use advance() to let a span of "
+                   "simulated time pass with every interval honored.")
+     )},
+    {"advance", McRFPy_API::_advance, METH_VARARGS,
+     MCRF_METHOD(mcrfpy, advance,
+         MCRF_SIG("(ms: int)", "int"),
+         MCRF_DESC("Advance the simulation clock by exactly ms milliseconds (headless mode only), "
+                   "running one simulation frame per timer deadline crossed so that every "
+                   "repeating timer fires once per elapsed interval.")
+         MCRF_ARGS_START
+         MCRF_ARG("ms", "Milliseconds of simulated time to advance. Must be an int >= 0.")
+         MCRF_RETURNS("int: Milliseconds actually advanced. Returns 0 in windowed mode, and 0 for advance(0).")
+         MCRF_RAISES("TypeError", "ms is not an int (step() is the one that takes float seconds)")
+         MCRF_RAISES("ValueError", "ms is negative -- the simulation clock does not run backwards")
+         MCRF_NOTE("advance(10000) fires a 1000ms repeating timer exactly 10 times, whereas "
+                   "step(10.0) fires it once. Partial intervals are carried, not discarded: "
+                   "advance(10500) fires it 10 times and leaves it 500ms from its next deadline.")
+         MCRF_NOTE("Each boundary is a full simulation frame, so current_frame advances once per "
+                   "timer deadline crossed plus once for any residual. advance(0) does nothing at "
+                   "all -- use step(0.0) to run a frame without moving the clock.")
+         MCRF_NOTE("Read the resulting clock with get_metrics()['simulation_time_ms'] (milliseconds). "
+                   "The 'runtime' key is wall clock and is unrelated to simulated time.")
      )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
      MCRF_METHOD(mcrfpy, exit,
@@ -389,10 +414,16 @@ static PyMethodDef mcrfpyMethods[] = {
      MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
-         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids)")
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (WALL-CLOCK seconds since engine start), simulation_time_ms (SIMULATED milliseconds, the deterministic counter advanced only by step()/advance() and the clock headless timers run on), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids)")
          MCRF_NOTE("All per-frame counters and timing breakdowns describe the last COMPLETED frame. "
                    "Python callbacks run before the frame is rendered, so the in-progress frame's "
-                   "values are not available yet; frame_time, fps, runtime and current_frame are live.")
+                   "values are not available yet; frame_time, fps, runtime, simulation_time_ms and "
+                   "current_frame are live.")
+         MCRF_NOTE("'runtime' and 'simulation_time_ms' are DIFFERENT clocks: runtime is wall time in "
+                   "seconds and advances on its own; simulation_time_ms is simulated MILLISECONDS and "
+                   "moves only when step()/advance() is called, which is headless-only -- in "
+                   "windowed mode it stays 0 and timers run on runtime instead. Rendering costs "
+                   "zero simulation_time_ms, so a screenshot never moves it.")
      )},
 
     {"set_dev_console", McRFPy_API::_setDevConsole, METH_VARARGS,
@@ -1610,6 +1641,41 @@ PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
     return PyFloat_FromDouble(actual_dt);
 }
 
+// #396 - Bounded simulation advance with per-interval timer semantics
+PyObject* McRFPy_API::_advance(PyObject* self, PyObject* args) {
+    PyObject* ms_obj = nullptr;
+    if (!PyArg_ParseTuple(args, "O", &ms_obj)) return NULL;
+
+    // Milliseconds, integer only. Deliberately NOT accepting a float: step() takes float
+    // seconds, and silently reinterpreting advance(1.0) as one millisecond would be a
+    // trap. The simulation clock is integer milliseconds; keep the argument in its units.
+    if (!PyLong_Check(ms_obj) || PyBool_Check(ms_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "advance() argument must be an int number of MILLISECONDS "
+            "(step() is the one that takes float seconds)");
+        return NULL;
+    }
+
+    long ms = PyLong_AsLong(ms_obj);
+    if (ms == -1 && PyErr_Occurred()) return NULL;
+
+    if (ms < 0) {
+        PyErr_SetString(PyExc_ValueError, "advance() milliseconds must be >= 0; the simulation clock does not run backwards");
+        return NULL;
+    }
+    if (ms > INT_MAX) {
+        PyErr_SetString(PyExc_OverflowError, "advance() milliseconds too large for the simulation clock");
+        return NULL;
+    }
+
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
+        return NULL;
+    }
+
+    return PyLong_FromLong(game->advance(static_cast<int>(ms)));
+}
+
 PyObject* McRFPy_API::_exit(PyObject* self, PyObject* args) {
     game->quit();
     Py_INCREF(Py_None);
@@ -1924,6 +1990,16 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // Add general metrics
     PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));
     PyDict_SetItemString(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds()));
+
+    // #396 - The SIMULATION clock, in integer milliseconds. The _ms suffix is deliberate:
+    // the sibling "runtime" key is float SECONDS, and mistaking one for the other is the
+    // exact confusion this key exists to end. The two are different clocks, not different
+    // units of one -- runtime is wall clock and keeps ticking while a headless script
+    // thinks about its next move; simulation_time_ms is the
+    // deterministic counter that only step()/advance() move, and the one timers run on in
+    // headless mode. Exposed here rather than as a parallel API so there is one place to
+    // ask the engine what time it is.
+    PyDict_SetItemString(dict, "simulation_time_ms", PyLong_FromLong(game->getSimulationTime()));
 
     return dict;
 }
