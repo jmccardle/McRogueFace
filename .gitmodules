@@ -1,22 +1,22 @@
 [submodule "modules/imgui"]
 	path = modules/imgui
-	url = git@github.com:SFML/imgui-sfml.git
+	url = https://github.com/ocornut/imgui.git
 [submodule "modules/imgui-sfml"]
 	path = modules/imgui-sfml
-	url = git@github.com:SFML/imgui-sfml.git
+	url = https://github.com/SFML/imgui-sfml.git
 [submodule "modules/cpython"]
 	path = modules/cpython
-	url = git@github.com:python/cpython.git
+	url = https://github.com/python/cpython.git
 [submodule "modules/SFML"]
 	path = modules/SFML
-	url = git@github.com:SFML/SFML.git
+	url = https://github.com/SFML/SFML.git
 [submodule "modules/libtcod-headless"]
 	path = modules/libtcod-headless
-	url = git@github.com:jmccardle/libtcod-headless.git
+	url = https://github.com/jmccardle/libtcod-headless.git
 	branch = 2.2.1-headless
 [submodule "modules/RapidXML"]
 	path = modules/RapidXML
 	url = https://github.com/Fe-Bell/RapidXML
 [submodule "modules/json"]
 	path = modules/json
-	url = git@github.com:nlohmann/json.git
+	url = https://github.com/nlohmann/json.git
