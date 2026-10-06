@@ -1,6 +1,22 @@
 #include "McRFPy_API.h"
 #include "EngineRandom.h"
 #include <climits>
+
+// Embedded-interpreter version strings, derived from the CPython headers we
+// compile against (patchlevel.h) so bumping the interpreter needs no edits here.
+#define MCRF_STR2(x) #x
+#define MCRF_STR(x) MCRF_STR2(x)
+#define MCRF_WSTR2(x) L ## #x
+#define MCRF_WSTR(x) MCRF_WSTR2(x)
+#define MCRF_PY_VER MCRF_STR(PY_MAJOR_VERSION) "." MCRF_STR(PY_MINOR_VERSION)
+#define MCRF_PY_VER_W MCRF_WSTR(PY_MAJOR_VERSION) L"." MCRF_WSTR(PY_MINOR_VERSION)
+#define MCRF_PY_HOME_W L"/lib/python" MCRF_PY_VER_W
+#ifdef Py_GIL_DISABLED
+#define MCRF_PY_STDLIB_DIRNAME "python" MCRF_PY_VER "t"   // venv layout: lib/python3.Xt/
+#else
+#define MCRF_PY_STDLIB_DIRNAME "python" MCRF_PY_VER
+#endif
+
 #include "UIDrawable.h"
 #include "McRFPy_Automation.h"
 // Note: McRFPy_Libtcod.h removed in #215 - functionality moved to mcrfpy.bresenham()
@@ -300,7 +316,7 @@ static PyMethodDef mcrfpy_module_type_methods[] = {
 
 // Custom module type: carries the dynamic properties as descriptors (#151, #356)
 static PyTypeObject McRFPyModuleType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.module",
     .tp_basicsize = 0,  // Inherited from base
     .tp_itemsize = 0,
@@ -559,6 +575,22 @@ static PyMethodDef mcrfpyMethods[] = {
     {NULL, NULL, 0, NULL}
 };
 
+static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def);
+
+// Multi-phase init, used only to declare the module's threading/interpreter
+// contract; the real setup still happens once, in mcrfpy_module_create().
+static PyModuleDef_Slot mcrfpySlots[] = {
+    {Py_mod_create, (void*)mcrfpy_module_create},
+    // The engine (GameEngine, static PyTypeObjects, PythonObjectCache) is
+    // process-global. Refuse every subinterpreter -- including 'legacy' ones,
+    // which would otherwise get a copy of the main interpreter's module dict.
+    {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
+    // Explicit: mcrfpy relies on the GIL (FrameLock/#219, borrowed refs). On a
+    // free-threaded build this keeps the GIL enabled until that is audited.
+    {Py_mod_gil, Py_MOD_GIL_USED},
+    {0, NULL}
+};
+
 static PyModuleDef mcrfpyModule = {
     PyModuleDef_HEAD_INIT, /* m_base - Always initialize this member to PyModuleDef_HEAD_INIT. */
     "mcrfpy",              /* m_name */
@@ -586,9 +618,9 @@ static PyModuleDef mcrfpyModule = {
               "    \n"
               "    # Set keyboard handler\n"
               "    scene.on_key = lambda key, action: print(f'{key} {action}')\n"),
-    -1,                    /* m_size - Setting m_size to -1 means that the module does not support sub-interpreters, because it has global state. */
-    mcrfpyMethods,         /* m_methods */
-    NULL,                  /* m_slots - An array of slot definitions ...  When using single-phase initialization, m_slots must be NULL. */
+    0,                     /* m_size - no per-module state; engine state is process-global (see mcrfpySlots) */
+    mcrfpyMethods,         /* m_methods - added by CPython after Py_mod_create */
+    mcrfpySlots,           /* m_slots */
     NULL,                  /* traverseproc m_traverse - A traversal function to call during GC traversal of the module object */
     NULL,                  /* inquiry m_clear - A clear function to call during GC clearing of the module object */
     NULL                   /* freefunc m_free - A function to call during deallocation of the module object */
@@ -597,7 +629,36 @@ static PyModuleDef mcrfpyModule = {
 // Module initializer fn, passed to PyImport_AppendInittab
 PyObject* PyInit_mcrfpy()
 {
-    PyObject* m = PyModule_Create(&mcrfpyModule);
+    return PyModuleDef_Init(&mcrfpyModule);
+}
+
+// Py_mod_create: builds the module once per process. Multi-phase modules are
+// re-created if removed from sys.modules and imported again; returning the
+// existing module keeps the static types and enum caches from being rebuilt.
+static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
+{
+    // Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED is only enforced for
+    // interpreters with check_multi_interp_extensions set; 'legacy'
+    // subinterpreters on a GIL build skip it. Unlike single-phase init,
+    // Py_mod_create runs on every import in every interpreter, so check here.
+    if (PyInterpreterState_Get() != PyInterpreterState_Main()) {
+        PyErr_SetString(PyExc_ImportError,
+            "mcrfpy does not support loading in subinterpreters: "
+            "the game engine is process-global and lives in the main interpreter");
+        return NULL;
+    }
+
+    static PyObject* created = nullptr;
+    if (created) {
+        return Py_NewRef(created);
+    }
+
+    PyObject* name = PyObject_GetAttrString(spec, "name");
+    if (!name) {
+        return NULL;
+    }
+    PyObject* m = PyModule_NewObject(name);
+    Py_DECREF(name);
 
     if (m == NULL)
     {
@@ -1057,6 +1118,7 @@ del _builtins
 #endif
 
     //McRFPy_API::mcrf_module = m;
+    created = Py_NewRef(m);
     return m;
 }
 
@@ -1077,6 +1139,12 @@ PyStatus init_python(const char *program_name)
 
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
+#ifdef Py_GIL_DISABLED
+    // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
+    // so the GIL would be re-enabled anyway; pin it explicitly instead of
+    // emitting CPython's "GIL has been enabled" RuntimeWarning at startup.
+    config.enable_gil = 1;  // _PyConfig_GIL_ENABLE
+#endif
     config.dev_mode = 0;
 
     // Configure UTF-8 for stdio
@@ -1087,14 +1155,14 @@ PyStatus init_python(const char *program_name)
 #ifdef __EMSCRIPTEN__
     // WASM: Use absolute paths in virtual filesystem
     PyConfig_SetString(&config, &config.executable, L"/mcrogueface");
-    PyConfig_SetString(&config, &config.home, L"/lib/python3.14");
+    PyConfig_SetString(&config, &config.home, MCRF_PY_HOME_W);
     status = PyConfig_SetBytesString(&config, &config.program_name, "mcrogueface");
 
     // Set up module search paths for WASM
     config.module_search_paths_set = 1;
     const wchar_t* wasm_paths[] = {
         L"/scripts",
-        L"/lib/python3.14"
+        MCRF_PY_HOME_W
     };
     for (auto s : wasm_paths) {
         status = PyWideStringList_Append(&config.module_search_paths, s);
@@ -1121,7 +1189,7 @@ PyStatus init_python(const char *program_name)
 #ifdef _WIN32
         auto site_packages = sibling_venv / "Lib" / "site-packages";
 #else
-        auto site_packages = sibling_venv / "lib" / "python3.14" / "site-packages";
+        auto site_packages = sibling_venv / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
 #endif
         if (std::filesystem::exists(site_packages)) {
             // Prepend so venv packages take priority over bundled
@@ -1140,7 +1208,7 @@ PyStatus init_python(const char *program_name)
     // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-3.14",
+        L"/lib/Python/lib.linux-x86_64-" MCRF_PY_VER_W,
         L"/lib/Python",
         L"/lib/Python/Lib"
         // Note: venv site-packages handled above via sibling_venv detection
@@ -1187,6 +1255,12 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 
     PyConfig pyconfig;
     PyConfig_InitIsolatedConfig(&pyconfig);
+#ifdef Py_GIL_DISABLED
+    // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
+    // so the GIL would be re-enabled anyway; pin it explicitly instead of
+    // emitting CPython's "GIL has been enabled" RuntimeWarning at startup.
+    pyconfig.enable_gil = 1;  // _PyConfig_GIL_ENABLE
+#endif
 
     // Configure UTF-8 for stdio
     PyConfig_SetString(&pyconfig, &pyconfig.stdio_encoding, L"UTF-8");
@@ -1270,7 +1344,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     if (std::filesystem::exists(venv_root / "pyvenv.cfg")) {
         // We're running from within a venv!
         // Add venv's site-packages to module search paths
-        auto site_packages = venv_root / "lib" / "python3.14" / "site-packages";
+        auto site_packages = venv_root / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
         PyWideStringList_Append(&pyconfig.module_search_paths,
                                site_packages.wstring().c_str());
         pyconfig.module_search_paths_set = 1;
@@ -1283,7 +1357,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 #ifdef _WIN32
         auto site_packages = sibling_venv / "Lib" / "site-packages";
 #else
-        auto site_packages = sibling_venv / "lib" / "python3.14" / "site-packages";
+        auto site_packages = sibling_venv / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
 #endif
         if (std::filesystem::exists(site_packages)) {
             // Prepend so venv packages take priority over bundled
@@ -1295,13 +1369,13 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 #endif // !__EMSCRIPTEN__
 #ifdef __EMSCRIPTEN__
     // WASM: Use absolute paths in virtual filesystem
-    PyConfig_SetString(&pyconfig, &pyconfig.home, L"/lib/python3.14");
+    PyConfig_SetString(&pyconfig, &pyconfig.home, MCRF_PY_HOME_W);
 
     // Set up module search paths for WASM
     pyconfig.module_search_paths_set = 1;
     const wchar_t* wasm_paths[] = {
         L"/scripts",
-        L"/lib/python3.14"
+        MCRF_PY_HOME_W
     };
     for (auto s : wasm_paths) {
         status = PyWideStringList_Append(&pyconfig.module_search_paths, s);
@@ -1322,7 +1396,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-3.14",
+        L"/lib/Python/lib.linux-x86_64-" MCRF_PY_VER_W,
         L"/lib/Python",
         L"/lib/Python/Lib"
         // Note: venv site-packages handled above via sibling_venv detection
