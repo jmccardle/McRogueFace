@@ -22,6 +22,12 @@ DIST_DIR="$PROJECT_ROOT/dist"
 # Version from git or default
 VERSION=$(cd "$PROJECT_ROOT" && git describe --tags --always 2>/dev/null || echo "dev")
 
+# Embedded CPython version ("3.15"), taken from the libpython staged in __lib
+# by tools/build_python.sh. Override with MCRF_PYTHON_VERSION if needed.
+PY_VER="${MCRF_PYTHON_VERSION:-$(ls "$PROJECT_ROOT/__lib" 2>/dev/null | sed -n 's/^libpython\(3\.[0-9]*\)\.so\.1\.0$/\1/p' | head -1)}"
+PY_VER="${PY_VER:-3.15}"
+PY_NODOT="${PY_VER/./}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -194,9 +200,9 @@ package_windows() {
         find "$package_dir/lib/Python/Lib" -name "*_test.py" -delete 2>/dev/null || true
     fi
 
-    # Also copy python314.zip for backwards compatibility (some deployments use it)
-    if [ -f "$build_dir/python314.zip" ]; then
-        cp "$build_dir/python314.zip" "$package_dir/"
+    # Also copy python${PY_NODOT}.zip for backwards compatibility (some deployments use it)
+    if [ -f "$build_dir/python${PY_NODOT}.zip" ]; then
+        cp "$build_dir/python${PY_NODOT}.zip" "$package_dir/"
     fi
 
     # Bundle rendered API docs + manifest
@@ -240,14 +246,14 @@ package_linux() {
         # NOTE: libtcod.so.2 is the SONAME the executable records in DT_NEEDED;
         # ship the real object under that exact name (not the bare libtcod.so),
         # otherwise the runtime loader cannot find it on a clean machine.
-        for lib in libpython3.14.so.1.0 libsfml-graphics.so.2.6.1 libsfml-window.so.2.6.1 \
+        for lib in libpython${PY_VER}.so.1.0 libsfml-graphics.so.2.6.1 libsfml-window.so.2.6.1 \
                    libsfml-system.so.2.6.1 libsfml-audio.so.2.6.1 libtcod.so.2; do
             [ -f "$PROJECT_ROOT/__lib/$lib" ] && cp "$PROJECT_ROOT/__lib/$lib" "$package_dir/lib/"
         done
 
         # Create necessary symlinks
         (cd "$package_dir/lib" && \
-            ln -sf libpython3.14.so.1.0 libpython3.14.so && \
+            ln -sf libpython${PY_VER}.so.1.0 libpython${PY_VER}.so && \
             ln -sf libsfml-graphics.so.2.6.1 libsfml-graphics.so.2.6 && \
             ln -sf libsfml-graphics.so.2.6.1 libsfml-graphics.so && \
             ln -sf libsfml-window.so.2.6.1 libsfml-window.so.2.6 && \
@@ -259,10 +265,10 @@ package_linux() {
             ln -sf libtcod.so.2 libtcod.so)
 
         # Copy Python extension modules to correct location (excluding test modules)
-        # Must match structure: lib/Python/lib.linux-x86_64-3.14/
-        local pylib_dir="$PROJECT_ROOT/__lib/Python/lib.linux-x86_64-3.14"
+        # Must match structure: lib/Python/lib.linux-x86_64-${PY_VER}/
+        local pylib_dir="$PROJECT_ROOT/__lib/Python/lib.linux-x86_64-${PY_VER}"
         if [ -d "$pylib_dir" ]; then
-            mkdir -p "$package_dir/lib/Python/lib.linux-x86_64-3.14"
+            mkdir -p "$package_dir/lib/Python/lib.linux-x86_64-${PY_VER}"
             for so in "$pylib_dir"/*.so; do
                 local basename=$(basename "$so")
                 # Skip test modules
@@ -271,7 +277,7 @@ package_linux() {
                         continue
                         ;;
                     *)
-                        cp "$so" "$package_dir/lib/Python/lib.linux-x86_64-3.14/"
+                        cp "$so" "$package_dir/lib/Python/lib.linux-x86_64-${PY_VER}/"
                         ;;
                 esac
             done

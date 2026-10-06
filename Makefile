@@ -7,6 +7,11 @@
 #   make clean-windows - Clean Windows build
 #   make run          - Run the Linux build
 #
+# Embedded CPython (see tools/build_python.sh):
+#   make python       - Build modules/cpython and stage it into __lib/
+#   make python-ft    - Build the free-threaded (3.Xt) variant into __lib_ft/
+#   make free-threaded - Build McRogueFace against __lib_ft/ in build-ft/
+#
 # Profiling (see docs/profiling.md):
 #   make profile      - RelWithDebInfo + frame pointers build in build-profile/
 #   make callgrind SCRIPT=tests/benchmarks/foo.py - Callgrind a headless benchmark
@@ -32,6 +37,7 @@
 #     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
+.PHONY: python python-ft free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
@@ -49,6 +55,18 @@ linux:
 	@mkdir -p build
 	@cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(JOBS)
 	@echo "Build complete! Run with: ./build/mcrogueface"
+
+python:
+	@./tools/build_python.sh
+
+python-ft:
+	@./tools/build_python.sh --free-threaded
+
+free-threaded:
+	@echo "Building McRogueFace against free-threaded CPython..."
+	@mkdir -p build-ft
+	@cd build-ft && cmake .. -DCMAKE_BUILD_TYPE=Release -DMCRF_FREE_THREADED_PYTHON=ON && make -j$(JOBS)
+	@echo "Build complete! Run with: ./build-ft/mcrogueface"
 
 windows:
 	@echo "Cross-compiling McRogueFace for Windows..."
@@ -312,6 +330,7 @@ tsan:
 	@cd build-tsan && cmake .. \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DMCRF_FREE_THREADED_PYTHON=ON \
+		-DMCRF_DEBUG_PYTHON=ON \
 		-DMCRF_SANITIZE_THREAD=ON && make -j$(JOBS)
 	@echo "TSan build complete! Output: build-tsan/mcrogueface"
 

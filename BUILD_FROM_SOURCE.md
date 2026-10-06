@@ -35,6 +35,32 @@ sudo apt install \
 
 **Note:** SDL is NOT required - McRogueFace uses libtcod-headless which has no SDL dependency.
 
+For CPython's optional modules, also install `libzstd-dev uuid-dev` (for
+`compression.zstd` / `_uuid`). `_decimal` uses CPython's bundled libmpdec, so
+`libmpdec-dev` is not needed.
+
+#### Without root access
+
+The `-dev` packages are only headers plus `.so` symlinks; the runtime libraries
+are usually already installed. They can be unpacked into a local prefix instead:
+
+```bash
+mkdir -p build-sysroot/debs && cd build-sysroot/debs
+apt-get download libx11-dev libxrandr-dev libxcursor-dev libxrender-dev libxext-dev \
+    libxfixes-dev libxi-dev x11proto-dev libxcb1-dev libxau-dev libxdmcp-dev libudev-dev \
+    libgl-dev libglx-dev libopengl-dev libegl-dev libfreetype-dev libpng-dev libbrotli-dev \
+    libopenal-dev libflac-dev libogg-dev libvorbis-dev libzstd-dev uuid-dev
+for f in *.deb; do dpkg -x "$f" ..; done
+# Re-point the dev symlinks at the installed runtime libraries
+cd ../usr/lib/x86_64-linux-gnu
+for l in *.so; do t=$(readlink "$l"); [ -e "$t" ] || ln -sf "/usr/lib/x86_64-linux-gnu/$t" "$l"; done
+rm -f *.a
+```
+
+Then pass `MCRF_SYSROOT=$PWD/build-sysroot` to `tools/build_python.sh`, and
+`-DCMAKE_PREFIX_PATH=$S -DCMAKE_INCLUDE_PATH=$S/include -DCMAKE_LIBRARY_PATH=$S/lib/x86_64-linux-gnu -DCMAKE_CXX_FLAGS="-isystem $S/include" -DCMAKE_C_FLAGS="-isystem $S/include"`
+(with `S=$PWD/build-sysroot/usr`) to the SFML and McRogueFace CMake configures.
+
 ---
 
 ## Option 1: Quick Build (Using Pre-built Dependencies)
@@ -81,7 +107,9 @@ If submodules weren't cloned:
 git submodule update --init --recursive
 ```
 
-**Note:** imgui/imgui-sfml submodules may fail - this is fine, they're not used.
+**Note:** imgui and imgui-sfml *are* used by the default (SFML) build for the
+debug console. If a pinned submodule commit cannot be fetched, check out the
+nearest published equivalent (imgui-sfml `v2.6.1` pairs with imgui 1.89.x).
 
 ### 2. Create Dependency Symlinks
 
@@ -96,32 +124,50 @@ cd ..
 
 ### 3. Build libtcod-headless
 
-libtcod-headless is our SDL-free fork with vendored dependencies:
+libtcod-headless is our SDL-free fork. The submodule pins the `mcrf-pinned`
+branch (libtcod 2.2.2 plus McRogueFace's pathfinding/heightmap extensions and
+FOV memory-safety fixes):
 
 ```bash
 cd modules/libtcod-headless
-mkdir build && cd build
+git submodule update --init --depth 1 src/vendor/utf8proc
 
+mkdir build && cd build
 cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=ON
+    -DBUILD_SHARED_LIBS=ON \
+    -DLIBTCOD_SDL3=OFF \
+    -DLIBTCOD_UTF8PROC=vendored \
+    -DLIBTCOD_LODEPNG=vendored \
+    -DLIBTCOD_STB=vendored \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 
 make -j$(nproc)
 cd ../../..
 ```
 
-That's it! No special flags needed - libtcod-headless defaults to:
-- `LIBTCOD_SDL3=disable` (no SDL dependency)
-- Vendored lodepng, utf8proc, stb
+- `LIBTCOD_SDL3=OFF` keeps CMake from fetching SDL3.
+- The `vendored` settings compile utf8proc/lodepng/stb into `libtcod.so`. With
+  the defaults, utf8proc becomes a separate `libutf8proc.so.3` reachable only
+  through a RUNPATH into this build tree, so packaged builds break on other
+  machines. Check with `readelf -d build/libtcod.so.2.2.2 | grep -E 'NEEDED|RUNPATH'`
+  (expect only libz/libstdc++/libm/libgcc_s/libc, and no RUNPATH).
 
-### 4. Build Python 3.12
+### 4. Build Python 3.15
 
 ```bash
-cd modules/cpython
-./configure --enable-shared
-make -j$(nproc)
-cd ../..
+tools/build_python.sh                  # -> __lib/    (libpython3.15, stdlib, pyconfig.h)
+tools/build_python.sh --free-threaded  # -> __lib_ft/ (optional, libpython3.15t)
 ```
+
+This configures out-of-tree in `build-cpython315[t]/` with `--enable-shared
+--without-system-libmpdec`, then strips and stages the shared library, the
+extension modules (`__lib/Python/lib.linux-x86_64-3.15/`), the stdlib
+(`__lib/Python/Lib/`) and the build's `pyconfig.h` (`__lib/include/`).
+
+**3.15 note:** `configure` no longer falls back to the bundled libmpdec on its
+own. Without libmpdec-dev *or* `--without-system-libmpdec`, `_decimal` is
+silently skipped and `decimal` drops to the slow pure-Python implementation.
 
 ### 5. Build SFML 2.6
 
@@ -142,17 +188,13 @@ cd ../../..
 ```bash
 mkdir -p __lib
 
-# Python
-cp modules/cpython/libpython3.12.so* __lib/
+# Python: already staged by tools/build_python.sh
 
 # SFML
 cp modules/SFML/build/lib/libsfml-*.so* __lib/
 
 # libtcod-headless
-cp modules/libtcod-headless/build/bin/libtcod.so* __lib/
-
-# Python standard library
-cp -r modules/cpython/Lib __lib/Python
+cp -a modules/libtcod-headless/build/libtcod.so* __lib/
 ```
 
 ### 7. Build McRogueFace
@@ -176,8 +218,8 @@ make -j$(nproc)
 | Submodule | Version | Notes |
 |-----------|---------|-------|
 | SFML | 2.6.1 | Graphics, audio, windowing |
-| cpython | 3.12.2 | Embedded Python interpreter |
-| libtcod-headless | 2.2.1 | SDL-free fork for FOV, pathfinding |
+| cpython | 3.15.0 | Embedded Python interpreter (`MCRF_PYTHON_VERSION` in CMakeLists.txt) |
+| libtcod-headless | 2.2.2 (`mcrf-pinned`) | SDL-free fork for FOV, pathfinding |
 
 ---
 
@@ -217,7 +259,7 @@ The resulting archive can be distributed alongside releases for users who want t
 ```
 build_deps.tar.gz
 ├── __lib/
-│   ├── libpython3.12.so*
+│   ├── libpython3.15.so*
 │   ├── libsfml-*.so*
 │   ├── libtcod.so*
 │   └── Python/           # Python standard library
@@ -238,8 +280,12 @@ cd build
 # Check version
 ./mcrogueface --version
 
-# Test headless mode
-./mcrogueface --headless -c "import mcrfpy; print('Success')"
+# Test headless mode. The SFML build still opens an X display even with
+# --headless, so on a server without one use Xvfb:
+xvfb-run -a ./mcrogueface --headless -c "import mcrfpy; print('Success')"
+
+# Full test suite
+cd ../tests && xvfb-run -a python3 run_tests.py
 
 # Verify no SDL dependencies
 ldd mcrogueface | grep -i sdl  # Should output nothing
@@ -274,7 +320,7 @@ ls __lib/Python/os.py  # Should exist
 Ensure libtcod.so is in `__lib/` with correct version:
 ```bash
 ls -la __lib/libtcod.so*
-# Should show libtcod.so -> libtcod.so.2 -> libtcod.so.2.2.1
+# Should show libtcod.so -> libtcod.so.2 -> libtcod.so.2.2.2
 ```
 
 ---
@@ -286,7 +332,7 @@ On a typical 4-core system:
 | Component | Time |
 |-----------|------|
 | libtcod-headless | ~30 seconds |
-| Python 3.12 | ~3-5 minutes |
+| Python 3.15 | ~3-5 minutes |
 | SFML 2.6 | ~1 minute |
 | McRogueFace | ~30 seconds |
 | **Full build total** | **~5-7 minutes** |

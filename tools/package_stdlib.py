@@ -30,6 +30,17 @@ except ImportError:
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+
+
+def embedded_python_nodot() -> str:
+    """'315' for the embedded CPython (modules/cpython), not the host python3."""
+    patchlevel = PROJECT_ROOT / 'modules' / 'cpython' / 'Include' / 'patchlevel.h'
+    if patchlevel.exists():
+        for line in patchlevel.read_text().splitlines():
+            if line.startswith('#define PY_VERSION '):
+                major, minor = line.split('"')[1].split('.')[:2]
+                return f"{major}{minor}"
+    return os.environ.get('MCRF_PYTHON_NODOT', '315')
 CONFIG_FILE = SCRIPT_DIR / "stdlib_modules.yaml"
 
 # Default module lists if YAML not available or for fallback
@@ -200,7 +211,7 @@ def create_stdlib_zip(source: Path, output: Path, preset: str,
     include_modules, exclude_modules, exclude_patterns = get_module_list(preset, config)
 
     # Determine output filename
-    output_name = f"python314-{preset}.zip"
+    output_name = f"python{embedded_python_nodot()}-{preset}.zip"
     output_path = output / output_name
     output.mkdir(parents=True, exist_ok=True)
 
@@ -233,7 +244,7 @@ def find_stdlib_source(platform: str) -> Path:
     """Find the stdlib source for the given platform."""
     if platform == 'windows':
         # Check for existing Windows stdlib zip
-        win_stdlib = PROJECT_ROOT / '__lib_windows' / 'python314.zip'
+        win_stdlib = PROJECT_ROOT / '__lib_windows' / f'python{embedded_python_nodot()}.zip'
         if win_stdlib.exists():
             return win_stdlib
 

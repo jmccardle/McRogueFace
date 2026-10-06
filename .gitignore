@@ -32,6 +32,7 @@ Makefile
 *.zip
 __lib/
 __lib_debug/
+__lib_ft/
 __lib_windows/
 build-windows/
 build_windows/

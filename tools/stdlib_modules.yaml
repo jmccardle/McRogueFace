@@ -125,6 +125,7 @@ debug:
   - codeop
   - profile
   - cProfile
+  - profiling    # 3.15+: cProfile is a thin wrapper over profiling.tracing (PEP 799)
   - pstats
   - timeit
 
