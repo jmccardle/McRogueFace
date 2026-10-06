@@ -14,7 +14,8 @@ __pycache__
 # root-level build output dirs only (build/, build-ft/, build-cpython315/, ...);
 # a bare build* also swallowed tools/build_*.sh and build.sh
 /build*/
-docs
+# (no blanket `docs`: it swallowed new hand-written docs/*.md; generated docs
+#  are listed precisely in the generated-docs block at the end)
 .claude
 my_games
 
@@ -30,11 +31,11 @@ snippet-shots/
 .cache/
 7DRL2025 Release/
 CMakeFiles/
-Makefile
 *.zip
 __lib/
 __lib_debug/
 __lib_ft/
+__lib_tsan/
 __lib_windows/
 build-windows/
 build_windows/
@@ -42,13 +43,17 @@ _oldscripts/
 
 # Audit tooling virtualenv (tools/audit_pymethoddef.py)
 .venv-audit/
-assets/
+# Root-anchored: unanchored `assets/` and `scripts/` also swallowed the test
+# fixtures in tests/assets/ and new engine scripts in src/scripts/.
+/assets/
 cellular_automata_fire/
-deps/
+# deps/ holds links created by `make deps`; deps/platform/ is real source
+/deps/*
+!/deps/platform/
 fetch_issues_txt.py
 forest_fire_CA.py
 mcrogueface.github.io
-scripts/
+/scripts/
 tcod_reference
 .archive
 .mcp.json
@@ -59,7 +64,7 @@ dist/
 !README.md
 !tests/
 
-# Fuzzing build artifacts and runtime data (build-fuzz matched by build* above)
+# Fuzzing build artifacts and runtime data (build-fuzz matched by /build*/ above)
 tests/fuzz/corpora/
 tests/fuzz/crashes/
 
