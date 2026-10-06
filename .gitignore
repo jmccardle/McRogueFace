@@ -11,7 +11,9 @@ build
 __pycache__
 
 # unimportant files that won't pass clean dir check
-build*
+# root-level build output dirs only (build/, build-ft/, build-cpython315/, ...);
+# a bare build* also swallowed tools/build_*.sh and build.sh
+/build*/
 docs
 .claude
 my_games
