@@ -378,8 +378,12 @@ def main():
 
     manifest = strip_docs(full)
 
-    api_dir = os.path.join(repo, "api")
-    gen_dir = os.path.join(repo, "docs", "generated")
+    # MCRF_API_OUT_DIR redirects the output (not the lifecycle baseline, which
+    # is still read from the committed api/manifest.json) -- used by
+    # tests/unit/api_manifest_test.py so a test run doesn't rewrite the tree.
+    out_root = os.environ.get("MCRF_API_OUT_DIR") or repo
+    api_dir = os.path.join(out_root, "api")
+    gen_dir = os.path.join(out_root, "docs", "generated")
     os.makedirs(api_dir, exist_ok=True)
     os.makedirs(gen_dir, exist_ok=True)
 
