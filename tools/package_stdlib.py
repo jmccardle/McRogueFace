@@ -81,6 +81,31 @@ EXCLUDE_PATTERNS = [
 ]
 
 
+def ensure_embedded_interpreter():
+    """Re-exec under the embedded CPython if this interpreter can't write its .pyc.
+
+    .pyc files carry the compiling interpreter's magic number; a 3.15 runtime
+    rejects (and, inside a zip, cannot regenerate) bytecode written by the
+    host's python3. tools/build_python.sh leaves a runnable interpreter in
+    build-cpython3XX/, so use that.
+    """
+    nodot = embedded_python_nodot()
+    if f"{sys.version_info[0]}{sys.version_info[1]}" == nodot:
+        return
+    build_dir = PROJECT_ROOT / f"build-cpython{nodot}"
+    exe = build_dir / "python"
+    if not exe.exists():
+        sys.exit(f"ERROR: compiling stdlib bytecode needs Python {nodot[0]}.{nodot[1:]} "
+                 f"(this is {sys.version.split()[0]}), and {exe} does not exist. "
+                 "Run tools/build_python.sh first.")
+    if os.environ.get("MCRF_STDLIB_REEXEC"):
+        sys.exit(f"ERROR: {exe} is not Python {nodot[0]}.{nodot[1:]}")
+    env = dict(os.environ, MCRF_STDLIB_REEXEC="1")
+    env["LD_LIBRARY_PATH"] = str(build_dir) + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+    print(f"Re-running under the embedded interpreter: {exe}")
+    os.execve(str(exe), [str(exe), os.path.abspath(__file__), *sys.argv[1:]], env)
+
+
 def parse_yaml_config():
     """Parse the YAML configuration file."""
     if not HAS_YAML:
@@ -300,6 +325,9 @@ def main():
         source = args.source
     else:
         source = find_stdlib_source(args.platform)
+
+    if source.suffix != '.zip':
+        ensure_embedded_interpreter()   # compiling .py -> .pyc
 
     print(f"Source: {source}")
     print(f"Preset: {args.preset}")
