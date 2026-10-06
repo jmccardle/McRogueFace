@@ -13,7 +13,7 @@
 [submodule "modules/libtcod-headless"]
 	path = modules/libtcod-headless
 	url = git@github.com:jmccardle/libtcod-headless.git
-	branch = 2.2.1-headless
+	branch = mcrf-pinned
 [submodule "modules/RapidXML"]
 	path = modules/RapidXML
 	url = https://github.com/Fe-Bell/RapidXML
