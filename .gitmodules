@@ -1,6 +1,6 @@
 [submodule "modules/imgui"]
 	path = modules/imgui
-	url = git@github.com:SFML/imgui-sfml.git
+	url = git@github.com:ocornut/imgui.git
 [submodule "modules/imgui-sfml"]
 	path = modules/imgui-sfml
 	url = git@github.com:SFML/imgui-sfml.git
