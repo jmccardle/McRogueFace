@@ -184,6 +184,9 @@ McRogueFace uses a unified Makefile for both Linux native builds and Windows cro
 ### Quick Reference
 
 ```bash
+# Fresh clone: build SFML, libtcod, CPython into __lib/ first (see BUILD_FROM_SOURCE.md)
+make deps               # no root? tools/fetch_dev_headers.sh + export MCRF_SYSROOT=...
+
 # Linux builds
 make                    # Build for Linux (default target)
 make linux              # Same as above
@@ -222,7 +225,7 @@ make clean-dist         # Remove only distribution packages
 - CMake 3.14+
 - GCC/G++ with C++17 support
 - SFML 2.6 development libraries
-- Libraries in `__lib/` directory (libpython3.14, libtcod, etc.)
+- Libraries in `__lib/` directory (libpython3.15, libtcod, SFML) -- produced by `make deps`
 
 **Windows cross-compilation:**
 - MinGW-w64 (`x86_64-w64-mingw32-g++-posix`)
@@ -530,8 +533,9 @@ tests/
 ### Running Tests
 
 ```bash
-# Run the full test suite (from tests/ directory)
-cd tests && python3 run_tests.py
+# Run the full test suite (from tests/ directory). The SFML build needs a display
+# even with --headless; ALSOFT_DRIVERS=null stands in for a missing audio device.
+cd tests && ALSOFT_DRIVERS=null xvfb-run -a python3 run_tests.py
 
 # Run a specific test
 cd build && ./mcrogueface --headless --exec ../tests/unit/some_test.py
