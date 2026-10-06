@@ -520,6 +520,7 @@ mat4 Entity3D::getModelMatrix() const
 void Entity3D::initCubeGeometry()
 {
     if (cubeInitialized_) return;
+#ifdef MCRF_HAS_GL
 
     // Unit cube vertices (position + normal + color placeholder)
     // Each vertex: x, y, z, nx, ny, nz, r, g, b
@@ -581,11 +582,13 @@ void Entity3D::initCubeGeometry()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     cubeInitialized_ = true;
+#endif // MCRF_HAS_GL
 }
 
 void Entity3D::render(const mat4& view, const mat4& proj, unsigned int shader)
 {
     if (!visible_) return;
+#ifdef MCRF_HAS_GL
 
     // Set entity color uniform (used by Model3D and placeholder)
     int colorLoc = glGetUniformLocation(shader, "u_entityColor");
@@ -650,6 +653,9 @@ void Entity3D::render(const mat4& view, const mat4& proj, unsigned int shader)
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(2);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+#else
+    (void)view; (void)proj; (void)shader;
+#endif // MCRF_HAS_GL
 }
 
 // =============================================================================
