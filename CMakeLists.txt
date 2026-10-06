@@ -27,8 +27,8 @@ option(MCRF_GAME_SHELL "Use minimal game-only HTML shell (no REPL)" OFF)
 option(MCRF_SANITIZE_ADDRESS "Build with AddressSanitizer" OFF)
 option(MCRF_SANITIZE_UNDEFINED "Build with UBSan" OFF)
 option(MCRF_SANITIZE_THREAD "Build with ThreadSanitizer" OFF)
-option(MCRF_DEBUG_PYTHON "Link against debug CPython from __lib_debug/" OFF)
-option(MCRF_FREE_THREADED_PYTHON "Link against free-threaded CPython (python3.Xt, from __lib_ft/ or __lib_debug/)" OFF)
+option(MCRF_DEBUG_PYTHON "Link against pydebug CPython (python3.Xd from __lib_debug/, or 3.Xtd from __lib_tsan/)" OFF)
+option(MCRF_FREE_THREADED_PYTHON "Link against free-threaded CPython (python3.Xt from __lib_ft/, or 3.Xtd from __lib_tsan/)" OFF)
 option(MCRF_WASM_DEBUG "Build WASM with DWARF debug info and source maps" OFF)
 option(MCRF_FUZZER "Build with libFuzzer coverage instrumentation for atheris" OFF)
 option(MCRF_PROFILE "Keep frame pointers for perf/Callgrind profiling (use with RelWithDebInfo)" OFF)
@@ -43,22 +43,41 @@ endif()
 set(MCRF_PYTHON_VERSION "3.15" CACHE STRING "Embedded CPython major.minor (must match modules/cpython)")
 string(REPLACE "." "" MCRF_PYTHON_NODOT "${MCRF_PYTHON_VERSION}")
 
-# Where libpython + its generated pyconfig.h come from (Linux native builds).
-#   default            -> __lib/       (tools/build_python.sh)
-#   free-threaded      -> __lib_ft/    (tools/build_python.sh --free-threaded), overlaid on __lib/
-#   debug / FT+debug   -> __lib_debug/ (sanitizer workflows)
+# Which CPython variant to embed (Linux native builds). Each lives in its own
+# dir, built by tools/build_python.sh, and is overlaid on __lib/ at post-build:
+#   default             python3.X    __lib/        (no flag)
+#   free-threaded       python3.Xt   __lib_ft/     (--free-threaded)
+#   pydebug             python3.Xd   __lib_debug/  (--debug)  make debug/asan/fuzz
+#   free-threaded+debug python3.Xtd  __lib_tsan/   (--tsan)   make tsan
+set(MCRF_PYTHON_ABI "")
+if(MCRF_FREE_THREADED_PYTHON)
+    string(APPEND MCRF_PYTHON_ABI "t")
+endif()
 if(MCRF_DEBUG_PYTHON)
-    set(MCRF_PYTHON_LIB_DIR "${CMAKE_SOURCE_DIR}/__lib_debug")
-elseif(MCRF_FREE_THREADED_PYTHON)
-    set(MCRF_PYTHON_LIB_DIR "${CMAKE_SOURCE_DIR}/__lib_ft")
-    if(NOT EXISTS "${MCRF_PYTHON_LIB_DIR}/libpython${MCRF_PYTHON_VERSION}t.so.1.0")
-        message(FATAL_ERROR
-            "__lib_ft/libpython${MCRF_PYTHON_VERSION}t.so.1.0 not found.\n"
-            "Build it first: tools/build_python.sh --free-threaded")
-    endif()
-    message(STATUS "Using free-threaded CPython ${MCRF_PYTHON_VERSION}t from __lib_ft/")
+    string(APPEND MCRF_PYTHON_ABI "d")
+endif()
+if(MCRF_PYTHON_ABI STREQUAL "td")
+    set(_mcrf_py_dir "__lib_tsan")
+    set(_mcrf_py_flag "--tsan")
+elseif(MCRF_PYTHON_ABI STREQUAL "d")
+    set(_mcrf_py_dir "__lib_debug")
+    set(_mcrf_py_flag "--debug")
+elseif(MCRF_PYTHON_ABI STREQUAL "t")
+    set(_mcrf_py_dir "__lib_ft")
+    set(_mcrf_py_flag "--free-threaded")
 else()
-    set(MCRF_PYTHON_LIB_DIR "${CMAKE_SOURCE_DIR}/__lib")
+    set(_mcrf_py_dir "__lib")
+    set(_mcrf_py_flag "")
+endif()
+set(MCRF_PYTHON_LIB_DIR "${CMAKE_SOURCE_DIR}/${_mcrf_py_dir}")
+set(PYTHON_LIB "python${MCRF_PYTHON_VERSION}${MCRF_PYTHON_ABI}")
+if(NOT MCRF_PYTHON_ABI STREQUAL "" AND NOT EMSCRIPTEN AND NOT WIN32)
+    if(NOT EXISTS "${MCRF_PYTHON_LIB_DIR}/lib${PYTHON_LIB}.so.1.0")
+        message(FATAL_ERROR
+            "${_mcrf_py_dir}/lib${PYTHON_LIB}.so.1.0 not found.\n"
+            "Build it first: tools/build_python.sh ${_mcrf_py_flag}")
+    endif()
+    message(STATUS "Using CPython ${MCRF_PYTHON_VERSION}${MCRF_PYTHON_ABI} from ${_mcrf_py_dir}/")
 endif()
 
 # Optional local -dev sysroot (tools/fetch_dev_headers.sh) for machines without
@@ -70,15 +89,6 @@ if(MCRF_SYSROOT AND NOT EMSCRIPTEN AND NOT WIN32)
     message(STATUS "Using dev-header sysroot: ${MCRF_SYSROOT}")
 endif()
 
-# Validate debug Python library exists when requested
-if(MCRF_DEBUG_PYTHON)
-    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/__lib_debug/libpython${MCRF_PYTHON_VERSION}.so.1.0")
-        message(FATAL_ERROR
-            "__lib_debug/libpython${MCRF_PYTHON_VERSION}.so.1.0 not found.\n"
-            "Build it first: tools/build_debug_python.sh")
-    endif()
-    message(STATUS "Using debug CPython from __lib_debug/")
-endif()
 
 # Emscripten builds: use SDL2 if specified, otherwise fall back to headless
 if(EMSCRIPTEN)
@@ -249,13 +259,7 @@ elseif(MCRF_HEADLESS)
         endif()
     else()
         # Unix/Linux headless build
-        if(MCRF_FREE_THREADED_PYTHON)
-            set(PYTHON_LIB python${MCRF_PYTHON_VERSION}t)
-        elseif(MCRF_DEBUG_PYTHON)
-            set(PYTHON_LIB python${MCRF_PYTHON_VERSION}d)
-        else()
-            set(PYTHON_LIB python${MCRF_PYTHON_VERSION})
-        endif()
+        # PYTHON_LIB (python3.X + t/d abiflags) is set near the top
         set(LINK_LIBS
             tcod
             ${PYTHON_LIB}
@@ -310,13 +314,7 @@ elseif(WIN32)
     link_directories(${CMAKE_SOURCE_DIR}/__lib)
 else()
     # Unix/Linux build
-    if(MCRF_FREE_THREADED_PYTHON)
-        set(PYTHON_LIB python${MCRF_PYTHON_VERSION}t)
-    elseif(MCRF_DEBUG_PYTHON)
-        set(PYTHON_LIB python${MCRF_PYTHON_VERSION}d)
-    else()
-        set(PYTHON_LIB python${MCRF_PYTHON_VERSION})
-    endif()
+    # PYTHON_LIB (python3.X + t/d abiflags) is set near the top
     set(LINK_LIBS
         sfml-graphics
         sfml-window
@@ -423,17 +421,10 @@ if(MCRF_FUZZER)
             ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:mcrfpy_fuzz>/assets)
-    if(MCRF_DEBUG_PYTHON)
+    if(NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
         add_custom_command(TARGET mcrfpy_fuzz POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/__lib_debug/libpython${MCRF_PYTHON_VERSION}.so.1.0
-                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython${MCRF_PYTHON_VERSION}.so.1.0
-            COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/__lib_debug/libpython${MCRF_PYTHON_VERSION}.so.1.0
-                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython${MCRF_PYTHON_VERSION}d.so.1.0
-            COMMAND ${CMAKE_COMMAND} -E create_symlink
-                libpython${MCRF_PYTHON_VERSION}d.so.1.0
-                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython${MCRF_PYTHON_VERSION}d.so)
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${MCRF_PYTHON_LIB_DIR} $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib)
     endif()
 endif()
 
@@ -579,34 +570,18 @@ add_custom_command(TARGET mcrogueface POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/src/scripts $<TARGET_FILE_DIR:mcrogueface>/scripts)
 
-# Copy Python standard library to build directory
-if(MCRF_DEBUG_PYTHON)
-    # Copy all libs first (SFML, libtcod, Python stdlib), then overwrite with debug Python
-    # The debug lib has SONAME libpython${MCRF_PYTHON_VERSION}d.so.1.0, so we need both names
+# Copy runtime libs + Python stdlib next to the executable ($ORIGIN/lib).
+# A non-default CPython variant (__lib_ft / __lib_debug / __lib_tsan) is overlaid
+# on __lib: its libpython3.X{t,d,td} and cpython-3XX{t,d,td} extension modules
+# have ABI-tagged names that don't collide, and an instrumented libtcod from
+# tools/build_debug_libs.sh replaces the plain one.
+add_custom_command(TARGET mcrogueface POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
+if(NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
     add_custom_command(TARGET mcrogueface POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib
-        COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_SOURCE_DIR}/__lib_debug/libpython${MCRF_PYTHON_VERSION}.so.1.0
-            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython${MCRF_PYTHON_VERSION}.so.1.0
-        COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_SOURCE_DIR}/__lib_debug/libpython${MCRF_PYTHON_VERSION}.so.1.0
-            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython${MCRF_PYTHON_VERSION}d.so.1.0
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-            libpython${MCRF_PYTHON_VERSION}d.so.1.0
-            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython${MCRF_PYTHON_VERSION}d.so)
-elseif(MCRF_FREE_THREADED_PYTHON)
-    # SFML/libtcod from __lib, then the free-threaded libpython + its
-    # cpython-3XXt extension modules on top (ABI-tagged names don't collide)
-    add_custom_command(TARGET mcrogueface POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/__lib_ft $<TARGET_FILE_DIR:mcrogueface>/lib)
-else()
-    add_custom_command(TARGET mcrogueface POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
+            ${MCRF_PYTHON_LIB_DIR} $<TARGET_FILE_DIR:mcrogueface>/lib)
 endif()
 
 # On Windows, copy DLLs to executable directory

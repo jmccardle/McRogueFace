@@ -5,6 +5,9 @@
 # Usage:
 #   tools/build_python.sh                    # default (GIL) build  -> __lib/
 #   tools/build_python.sh --free-threaded    # PEP 703 build (3.Xt) -> __lib_ft/
+#   tools/build_python.sh --debug            # pydebug (3.Xd) -> __lib_debug/  (make debug/asan/fuzz)
+#   tools/build_python.sh --tsan             # free-threaded pydebug + ThreadSanitizer
+#                                            #   (3.Xtd) -> __lib_tsan/        (make tsan)
 #   tools/build_python.sh --clean ...        # wipe the out-of-tree build dir first
 #
 # Environment:
@@ -17,9 +20,10 @@
 #   <out>/Python/Lib/                         pure-Python stdlib
 #   <out>/Python/lib.linux-x86_64-3.X/        extension modules + _sysconfigdata
 #
-# The free-threaded build stages to __lib_ft/ and is overlaid on top of __lib/
-# by CMake when MCRF_FREE_THREADED_PYTHON=ON. Extension module filenames carry
-# the ABI tag (cpython-315 vs cpython-315t), so both sets can share one dir.
+# The variant builds stage to their own dir and are overlaid on top of __lib/
+# by CMake (MCRF_FREE_THREADED_PYTHON / MCRF_DEBUG_PYTHON). Extension module
+# filenames carry the ABI tag (cpython-315, -315t, -315d, -315td), so they can
+# share one lib.linux-x86_64-3.X dir with the default build's modules.
 #
 # Note (3.15+): configure no longer falls back to the bundled libmpdec, and
 # without it `decimal` silently degrades to _pydecimal. We pass
@@ -32,14 +36,16 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CPYTHON_DIR="$PROJECT_ROOT/modules/cpython"
 JOBS="$(nproc 2>/dev/null || echo 4)"
 
-FT=0
+VARIANT=default
 CLEAN=0
 for arg in "$@"; do
     case "$arg" in
-        --free-threaded) FT=1 ;;
+        --free-threaded) VARIANT=ft ;;
+        --debug) VARIANT=debug ;;
+        --tsan) VARIANT=tsan ;;
         --clean) CLEAN=1 ;;
         --help|-h)
-            sed -n '2,25p' "$0"
+            sed -n '2,29p' "$0"
             exit 0
             ;;
         *)
@@ -59,19 +65,17 @@ PY_VER="$(sed -n 's/^#define PY_VERSION[[:space:]]*"\([0-9]*\.[0-9]*\).*/\1/p' "
 PY_VER_FULL="$(sed -n 's/^#define PY_VERSION[[:space:]]*"\(.*\)"/\1/p' "$CPYTHON_DIR/Include/patchlevel.h")"
 PY_NODOT="${PY_VER/./}"
 
-if [ "$FT" -eq 1 ]; then
-    ABI_T="t"
-    BUILD_DIR="$PROJECT_ROOT/build-cpython${PY_NODOT}t"
-    OUT_DIR="$PROJECT_ROOT/__lib_ft"
-    EXTRA_CONFIGURE=(--disable-gil)
-else
-    ABI_T=""
-    BUILD_DIR="$PROJECT_ROOT/build-cpython${PY_NODOT}"
-    OUT_DIR="$PROJECT_ROOT/__lib"
-    EXTRA_CONFIGURE=()
-fi
+case "$VARIANT" in
+    default) ABI_T="";   OUT_DIR="$PROJECT_ROOT/__lib";       EXTRA_CONFIGURE=() ;;
+    ft)      ABI_T="t";  OUT_DIR="$PROJECT_ROOT/__lib_ft";    EXTRA_CONFIGURE=(--disable-gil) ;;
+    debug)   ABI_T="d";  OUT_DIR="$PROJECT_ROOT/__lib_debug"; EXTRA_CONFIGURE=(--with-pydebug) ;;
+    tsan)    ABI_T="td"; OUT_DIR="$PROJECT_ROOT/__lib_tsan"
+             EXTRA_CONFIGURE=(--with-pydebug --disable-gil --with-thread-sanitizer) ;;
+esac
+BUILD_DIR="$PROJECT_ROOT/build-cpython${PY_NODOT}${ABI_T}"
+if [ "$VARIANT" = tsan ]; then BUILD_DIR="${BUILD_DIR}-tsan"; fi
 
-echo "=== CPython $PY_VER_FULL ${ABI_T:+(free-threaded)} -> $OUT_DIR ==="
+echo "=== CPython $PY_VER_FULL ($VARIANT, abiflags '${ABI_T}') -> $OUT_DIR ==="
 
 if [ "$CLEAN" -eq 1 ]; then
     rm -rf "$BUILD_DIR"
@@ -105,7 +109,9 @@ DEST_EXT="$OUT_DIR/Python/lib.linux-x86_64-${PY_VER}"
 
 mkdir -p "$OUT_DIR" "$DEST_EXT"
 install -m 755 "$LIBNAME" "$OUT_DIR/$LIBNAME"
-strip --strip-unneeded "$OUT_DIR/$LIBNAME"
+STRIP=1
+case "$VARIANT" in debug|tsan) STRIP=0 ;; esac   # keep symbols for sanitizer/gdb traces
+if [ "$STRIP" -eq 1 ]; then strip --strip-unneeded "$OUT_DIR/$LIBNAME"; fi
 ln -sf "$LIBNAME" "$OUT_DIR/libpython${PY_VER}${ABI_T}.so"
 
 # pyconfig.h is generated per build (the free-threaded one defines
@@ -118,7 +124,7 @@ cp pyconfig.h "$OUT_DIR/include/pyconfig.h"
 find -L "$PYBUILDDIR" -maxdepth 1 -type f \( -name '*.so' -o -name '_sysconfig*' \) \
     ! -name '_test*' ! -name 'xxsubtype*' ! -name 'xxlimited*' ! -name '_ctypes_test*' \
     -exec cp -L {} "$DEST_EXT/" \;
-strip --strip-unneeded "$DEST_EXT"/*.so
+if [ "$STRIP" -eq 1 ]; then strip --strip-unneeded "$DEST_EXT"/*.so; fi
 
 # Pure-Python stdlib (shared by both builds; tests excluded to save ~40 MB)
 rsync -a --delete --exclude '__pycache__' --exclude 'test/' \

@@ -15,6 +15,8 @@
 # Embedded CPython (see tools/build_python.sh):
 #   make python       - Build modules/cpython and stage it into __lib/
 #   make python-ft    - Build the free-threaded (3.Xt) variant into __lib_ft/
+#   make python-debug - pydebug (3.Xd) into __lib_debug/  (for debug/asan/fuzz)
+#   make python-tsan  - free-threaded pydebug + TSan (3.Xtd) into __lib_tsan/ (for tsan)
 #   make free-threaded - Build McRogueFace against __lib_ft/ in build-ft/
 #
 # Profiling (see docs/profiling.md):
@@ -42,7 +44,7 @@
 #     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
-.PHONY: deps deps-ft python python-ft free-threaded
+.PHONY: deps deps-ft python python-ft python-debug python-tsan free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
@@ -72,6 +74,12 @@ python:
 
 python-ft:
 	@./tools/build_python.sh --free-threaded
+
+python-debug:
+	@./tools/build_python.sh --debug
+
+python-tsan:
+	@./tools/build_python.sh --tsan
 
 free-threaded:
 	@echo "Building McRogueFace against free-threaded CPython..."
@@ -217,6 +225,7 @@ debug-test: debug
 	@echo "Running test suite with debug Python..."
 	cd tests && MCRF_BUILD_DIR=../build-debug \
 		MCRF_LIB_DIR=../__lib_debug \
+		MCRF_TIMEOUT_MULTIPLIER=3 \
 		python3 run_tests.py -v --exclude=packaging
 
 # Profiling build (#345): RelWithDebInfo (-O2 -g) + frame pointers, self-contained
@@ -259,6 +268,7 @@ asan-test: asan
 	@echo "Running test suite under ASan + UBSan..."
 	cd tests && MCRF_BUILD_DIR=../build-asan \
 		MCRF_LIB_DIR=../__lib_debug \
+		MCRF_TIMEOUT_MULTIPLIER=5 \
 		PYTHONMALLOC=malloc \
 		ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:print_summary=1" \
 		LSAN_OPTIONS="suppressions=$(CURDIR)/sanitizers/asan.supp" \
@@ -335,8 +345,7 @@ clean-fuzz:
 
 tsan:
 	@echo "Building McRogueFace with TSan + free-threaded Python..."
-	@echo "NOTE: Requires free-threaded debug Python built with:"
-	@echo "  tools/build_debug_python.sh --tsan"
+	@echo "NOTE: Requires free-threaded debug Python: make python-tsan"
 	@mkdir -p build-tsan
 	@cd build-tsan && cmake .. \
 		-DCMAKE_BUILD_TYPE=Debug \
@@ -348,7 +357,8 @@ tsan:
 tsan-test: tsan
 	@echo "Running test suite under TSan..."
 	cd tests && MCRF_BUILD_DIR=../build-tsan \
-		MCRF_LIB_DIR=../__lib_debug \
+		MCRF_LIB_DIR=../__lib_tsan \
+		MCRF_TIMEOUT_MULTIPLIER=10 \
 		TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1" \
 		python3 run_tests.py -v --sanitizer --exclude=packaging
 
