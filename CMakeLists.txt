@@ -633,9 +633,21 @@ elseif(WIN32)
         COMMAND ${CMAKE_COMMAND} -E echo "Copied DLLs to executable directory")
 endif()
 
-# rpath for including shared libraries (Linux/Unix only)
+# rpath for including shared libraries (Linux/Unix only).
+# BUILD_WITH_INSTALL_RPATH: nothing is ever `make install`ed -- the build dir
+# (and tools/package.sh, which copies it) is the deliverable. Without it, CMake
+# bakes the build machine's absolute link dirs (__lib/, sysroots) into RUNPATH,
+# so a packaged binary only ran via run.sh's LD_LIBRARY_PATH and, on the build
+# machine, silently loaded __lib/ instead of its own lib/. The POST_BUILD steps
+# above populate <exe dir>/lib, so $ORIGIN/lib works in the build tree too.
 if(NOT WIN32)
     set_target_properties(mcrogueface PROPERTIES
-                          INSTALL_RPATH "$ORIGIN/./lib")
+                          INSTALL_RPATH "$ORIGIN/./lib"
+                          BUILD_WITH_INSTALL_RPATH ON)
+    if(TARGET mcrfpy_fuzz)
+        set_target_properties(mcrfpy_fuzz PROPERTIES
+                              INSTALL_RPATH "$ORIGIN/./lib"
+                              BUILD_WITH_INSTALL_RPATH ON)
+    endif()
 endif()
 
