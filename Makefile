@@ -7,6 +7,11 @@
 #   make clean-windows - Clean Windows build
 #   make run          - Run the Linux build
 #
+# Dependencies (fresh clone: `make deps && make`):
+#   make deps         - Build SFML, libtcod, CPython from submodules into __lib/
+#   make deps-ft      - Same, plus the free-threaded CPython into __lib_ft/
+#   (no root? tools/fetch_dev_headers.sh, then export MCRF_SYSROOT=...)
+#
 # Embedded CPython (see tools/build_python.sh):
 #   make python       - Build modules/cpython and stage it into __lib/
 #   make python-ft    - Build the free-threaded (3.Xt) variant into __lib_ft/
@@ -37,7 +42,7 @@
 #     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
-.PHONY: python python-ft free-threaded
+.PHONY: deps deps-ft python python-ft free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
@@ -55,6 +60,12 @@ linux:
 	@mkdir -p build
 	@cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(JOBS)
 	@echo "Build complete! Run with: ./build/mcrogueface"
+
+deps:
+	@./tools/build_deps.sh
+
+deps-ft:
+	@./tools/build_deps.sh --free-threaded
 
 python:
 	@./tools/build_python.sh

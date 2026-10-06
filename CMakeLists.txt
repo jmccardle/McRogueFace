@@ -61,6 +61,15 @@ else()
     set(MCRF_PYTHON_LIB_DIR "${CMAKE_SOURCE_DIR}/__lib")
 endif()
 
+# Optional local -dev sysroot (tools/fetch_dev_headers.sh) for machines without
+# root: headers and unversioned .so links for X11/GL/OpenAL/freetype.
+set(MCRF_SYSROOT "$ENV{MCRF_SYSROOT}" CACHE PATH "Prefix with extra -dev packages (see tools/fetch_dev_headers.sh)")
+if(MCRF_SYSROOT AND NOT EMSCRIPTEN AND NOT WIN32)
+    list(APPEND CMAKE_PREFIX_PATH "${MCRF_SYSROOT}/usr")
+    include_directories(SYSTEM "${MCRF_SYSROOT}/usr/include")
+    message(STATUS "Using dev-header sysroot: ${MCRF_SYSROOT}")
+endif()
+
 # Validate debug Python library exists when requested
 if(MCRF_DEBUG_PYTHON)
     if(NOT EXISTS "${CMAKE_SOURCE_DIR}/__lib_debug/libpython${MCRF_PYTHON_VERSION}.so.1.0")
