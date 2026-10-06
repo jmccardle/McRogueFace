@@ -120,7 +120,7 @@ public:
 namespace mcrfpydef {
     // Using inline to ensure single definition across translation units (C++17)
     inline PyTypeObject PyUniformCollectionType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.UniformCollection",
         .tp_basicsize = sizeof(PyUniformCollectionObject),
         .tp_itemsize = 0,

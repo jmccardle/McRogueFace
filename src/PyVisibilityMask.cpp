@@ -179,7 +179,7 @@ PySequenceMethods PyVisibilityMask::as_sequence = {
 
 namespace mcrfpydef {
     PyTypeObject PyVisibilityMaskType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.VisibilityMask",
         .tp_basicsize = sizeof(PyVisibilityMaskObject),
         .tp_itemsize = 0,

@@ -41,7 +41,7 @@ public:
 
 namespace mcrfpydef {
     inline PyTypeObject PyColorType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.Color",
         .tp_basicsize = sizeof(PyColorObject),
         .tp_itemsize = 0,

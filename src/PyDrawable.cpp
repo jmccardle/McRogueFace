@@ -184,7 +184,7 @@ static int PyDrawable_init(PyDrawableObject* self, PyObject* args, PyObject* kwd
 
 namespace mcrfpydef {
     PyTypeObject PyDrawableType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.Drawable",
         .tp_basicsize = sizeof(PyDrawableObject),
         .tp_itemsize = 0,

@@ -34,7 +34,7 @@ static PyMethodDef PyLockContext_methods[] = {
 
 // Type definition
 PyTypeObject PyLockContextType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy._LockContext",
     .tp_basicsize = sizeof(PyLockContextObject),
     .tp_itemsize = 0,

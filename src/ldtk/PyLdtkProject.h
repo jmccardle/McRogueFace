@@ -37,7 +37,7 @@ public:
 namespace mcrfpydef {
 
 inline PyTypeObject PyLdtkProjectType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.LdtkProject",
     .tp_basicsize = sizeof(PyLdtkProjectObject),
     .tp_itemsize = 0,

@@ -97,7 +97,7 @@ extern PyMethodDef PyGridData_all_methods[];
 
 namespace mcrfpydef {
     inline PyTypeObject PyGridDataType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         // #361: public, and NOT a Drawable subclass -- tp_base is left null
         // (i.e. `object`). Appending one to scene.children raises TypeError.
         .tp_name = "mcrfpy.GridData",

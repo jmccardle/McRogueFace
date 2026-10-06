@@ -976,7 +976,7 @@ PySequenceMethods PyAStarPath_as_sequence = {
 
 // AStarPath type
 PyTypeObject PyAStarPathType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.AStarPath",
     .tp_basicsize = sizeof(PyAStarPathObject),
     .tp_itemsize = 0,
@@ -1010,7 +1010,7 @@ PyTypeObject PyAStarPathType = {
 
 // AStarPath iterator type
 PyTypeObject PyAStarPathIterType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.AStarPathIterator",
     .tp_basicsize = sizeof(PyAStarPathIterObject),
     .tp_itemsize = 0,
@@ -1088,7 +1088,7 @@ PyGetSetDef PyDijkstraMap_getsetters[] = {
 
 // DijkstraMap type
 PyTypeObject PyDijkstraMapType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.DijkstraMap",
     .tp_basicsize = sizeof(PyDijkstraMapObject),
     .tp_itemsize = 0,
