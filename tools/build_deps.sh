@@ -107,7 +107,10 @@ fi
 # --- CPython ----------------------------------------------------------------
 PY_ARGS=()
 [ "$CLEAN" -eq 1 ] && PY_ARGS+=(--clean)
-if [ "$CLEAN" -eq 1 ] || ! ls "$LIB_DIR"/libpython3.*.so.1.0 >/dev/null 2>&1; then
+# The pinned version, not any libpython3.*: a __lib/ staged before a submodule
+# bump still holds the old interpreter, and would otherwise be "already staged".
+PY_VER="$(sed -n 's/^#define PY_VERSION[[:space:]]*"\([0-9]*\.[0-9]*\).*/\1/p' modules/cpython/Include/patchlevel.h)"
+if [ "$CLEAN" -eq 1 ] || [ ! -e "$LIB_DIR/libpython${PY_VER}.so.1.0" ]; then
     log "CPython"
     "$SCRIPT_DIR/build_python.sh" "${PY_ARGS[@]}"
 else

@@ -60,6 +60,17 @@ if [ ! -f "$CPYTHON_DIR/configure" ]; then
     exit 1
 fi
 
+# Include/Python.h does #include "pyconfig.h", which searches Include/ before
+# the build dir: a stray in-tree copy (older tooling put one there) silently
+# replaces this build's configure results -- or breaks cross builds outright.
+for stray in "$CPYTHON_DIR/Include/pyconfig.h" "$CPYTHON_DIR/pyconfig.h"; do
+    if [ -e "$stray" ]; then
+        echo "ERROR: $stray exists and would shadow the build's own pyconfig.h."
+        echo "       Remove it (the staged copy lives in <lib dir>/include/pyconfig.h)."
+        exit 1
+    fi
+done
+
 # Derive "3.15" from Include/patchlevel.h so nothing here is version-pinned
 PY_VER="$(sed -n 's/^#define PY_VERSION[[:space:]]*"\([0-9]*\.[0-9]*\).*/\1/p' "$CPYTHON_DIR/Include/patchlevel.h")"
 PY_VER_FULL="$(sed -n 's/^#define PY_VERSION[[:space:]]*"\(.*\)"/\1/p' "$CPYTHON_DIR/Include/patchlevel.h")"
@@ -108,6 +119,15 @@ PYBUILDDIR="$BUILD_DIR/$(cat pybuilddir.txt)"
 DEST_EXT="$OUT_DIR/Python/lib.linux-x86_64-${PY_VER}"
 
 mkdir -p "$OUT_DIR" "$DEST_EXT"
+# One interpreter per staging dir: the stdlib below is replaced wholesale, so
+# a libpython / extension dir left over from a previous pin would be loadable
+# against the wrong stdlib (and package.sh would pick it up by name).
+for stale in "$OUT_DIR"/libpython3.*"${ABI_T}".so* "$OUT_DIR"/Python/lib.linux-x86_64-3.*; do
+    case "$stale" in
+        "$OUT_DIR/libpython${PY_VER}${ABI_T}.so"*|"$DEST_EXT") ;;
+        *) [ -e "$stale" ] && { echo "Removing stale $(basename "$stale")"; rm -rf "$stale"; } ;;
+    esac
+done
 install -m 755 "$LIBNAME" "$OUT_DIR/$LIBNAME"
 STRIP=1
 case "$VARIANT" in debug|tsan) STRIP=0 ;; esac   # keep symbols for sanitizer/gdb traces
