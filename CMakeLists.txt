@@ -464,7 +464,10 @@ if(EMSCRIPTEN)
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=2097152
         -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,IDBFS
-        -sEXPORTED_FUNCTIONS=_main,_run_python_string,_run_python_string_with_output,_reset_python_environment,_notify_canvas_resize,_sync_storage
+        # __PyRuntime/__PyEM_EMSCRIPTEN_TRAMPOLINE_OFFSET: libpython's own pre-run JS
+        # (Python/emscripten_trampoline.c, 3.15+) reads them; the rest mirror
+        # CPython's configure.ac Emscripten LINKFORSHARED export list.
+        -sEXPORTED_FUNCTIONS=_main,_run_python_string,_run_python_string_with_output,_reset_python_environment,_notify_canvas_resize,_sync_storage,_Py_Version,__PyRuntime,_PyGILState_GetThisThreadState,__PyEM_EMSCRIPTEN_TRAMPOLINE_OFFSET
         -lidbfs.js
         -sASSERTIONS=2
         -sSTACK_OVERFLOW_CHECK=2
