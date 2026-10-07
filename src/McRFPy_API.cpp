@@ -1123,6 +1123,23 @@ del _builtins
 }
 
 // init_python - configure interpreter details here
+#ifdef Py_GIL_DISABLED
+// PyConfig.enable_gil for free-threaded builds: 1 (_PyConfig_GIL_ENABLE) unless
+// MCRF_UNSAFE_NOGIL=1, which runs with the GIL disabled (0). mcrfpy is NOT
+// audited for that -- the switch exists to measure what breaks (thread-safety
+// stress tests, TSan), not for games. The isolated config ignores PYTHON_GIL.
+static int mcrf_requested_gil_setting()
+{
+    const char* v = std::getenv("MCRF_UNSAFE_NOGIL");
+    if (v && std::string(v) == "1") {
+        std::cerr << "mcrogueface: MCRF_UNSAFE_NOGIL=1 -- running with the GIL DISABLED; "
+                     "mcrfpy is not thread-safe without it (testing only)" << std::endl;
+        return 0;  // _PyConfig_GIL_DISABLE
+    }
+    return 1;      // _PyConfig_GIL_ENABLE
+}
+#endif
+
 PyStatus init_python(const char *program_name)
 {
     PyStatus status;
@@ -1143,7 +1160,7 @@ PyStatus init_python(const char *program_name)
     // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
     // so the GIL would be re-enabled anyway; pin it explicitly instead of
     // emitting CPython's "GIL has been enabled" RuntimeWarning at startup.
-    config.enable_gil = 1;  // _PyConfig_GIL_ENABLE
+    config.enable_gil = mcrf_requested_gil_setting();
 #endif
     config.dev_mode = 0;
 
@@ -1259,7 +1276,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
     // so the GIL would be re-enabled anyway; pin it explicitly instead of
     // emitting CPython's "GIL has been enabled" RuntimeWarning at startup.
-    pyconfig.enable_gil = 1;  // _PyConfig_GIL_ENABLE
+    pyconfig.enable_gil = mcrf_requested_gil_setting();
 #endif
 
     // Configure UTF-8 for stdio
