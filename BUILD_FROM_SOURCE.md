@@ -1,306 +1,174 @@
 # Building McRogueFace from Source
 
-This document describes how to build McRogueFace from a fresh clone.
-
-## Build Options
-
-There are two ways to build McRogueFace:
-
-1. **Quick Build** (recommended): Use pre-built dependency libraries from a `build_deps` archive
-2. **Full Build**: Compile all dependencies from submodules
-
-## Prerequisites
-
-### System Dependencies
-
-Install these packages before building:
+From a fresh clone on Debian/Ubuntu:
 
 ```bash
-# Debian/Ubuntu
-sudo apt install \
-    build-essential \
-    cmake \
-    git \
-    zlib1g-dev \
-    libx11-dev \
-    libxrandr-dev \
-    libxcursor-dev \
-    libfreetype-dev \
-    libudev-dev \
-    libvorbis-dev \
-    libflac-dev \
-    libgl-dev \
-    libopenal-dev
+git clone <repository-url> McRogueFace && cd McRogueFace
+sudo apt install build-essential cmake git xvfb \
+    zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
+    libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev \
+    libgl-dev libopenal-dev libzstd-dev uuid-dev
+make deps        # SFML, libtcod-headless, CPython -> __lib/  (~3-5 min)
+make             # McRogueFace -> build/mcrogueface
 ```
 
-**Note:** SDL is NOT required - McRogueFace uses libtcod-headless which has no SDL dependency.
+No submodule commands are needed: `make deps` shallow-initialises the ones it
+uses. Submodule URLs are HTTPS, so no GitHub SSH key is required (to push over
+SSH: `git config --global url."git@github.com:".pushInsteadOf "https://github.com/"`).
+
+SDL is **not** required — libtcod-headless is built without it.
 
 ---
 
-## Option 1: Quick Build (Using Pre-built Dependencies)
+## Without root access
 
-If you have a `build_deps.tar.gz` or `build_deps.zip` archive:
+The `-dev` packages are only headers plus `.so` symlinks; the runtime libraries
+are usually already installed. Unpack them into a local prefix instead:
 
 ```bash
-# Clone McRogueFace (no submodules needed)
-git clone <repository-url> McRogueFace
-cd McRogueFace
-
-# Extract pre-built dependencies
-tar -xzf /path/to/build_deps.tar.gz
-# Or for zip: unzip /path/to/build_deps.zip
-
-# Build McRogueFace
-mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-
-# Run
-./mcrogueface
+tools/fetch_dev_headers.sh              # -> build-sysroot/ (apt-get download + dpkg -x)
+export MCRF_SYSROOT=$PWD/build-sysroot  # read by build_deps.sh, build_python.sh and CMake
+make deps && make
 ```
 
-The `build_deps` archive contains:
-- `__lib/` - Pre-built shared libraries (Python, SFML, libtcod-headless)
-- `deps/` - Header symlinks for compilation
-
-**Total build time: ~30 seconds**
+You still need `xvfb` for the tests (or use the `MCRF_HEADLESS` build below).
 
 ---
 
-## Option 2: Full Build (Compiling All Dependencies)
+## What `make deps` does
 
-### 1. Clone with Submodules
+`tools/build_deps.sh` (each step is skipped if already staged; `--clean` rebuilds):
 
-```bash
-git clone --recursive <repository-url> McRogueFace
-cd McRogueFace
-```
+| Step | Detail |
+|------|--------|
+| Submodules | `git submodule update --init --depth 1` for SFML, libtcod-headless, cpython, imgui, imgui-sfml, json, RapidXML, plus libtcod's nested `src/vendor/utf8proc` |
+| SFML 2.6 | CMake shared build → `__lib/libsfml-*.so*` |
+| libtcod-headless 2.2.2 (`mcrf-pinned`) | `-DLIBTCOD_SDL3=OFF`, `LIBTCOD_{UTF8PROC,LODEPNG,STB}=vendored`, PIC → `__lib/libtcod.so*`. With the defaults, libtcod depends on a `libutf8proc.so.3` reachable only through a RUNPATH into its build tree; the script fails if that happens. |
+| CPython 3.15 | `tools/build_python.sh` (below) |
+| `deps/` | include links: `deps/{cpython,Python,libtcod,SFML}` → `modules/...` |
 
-If submodules weren't cloned:
-```bash
-git submodule update --init --recursive
-```
+### CPython and its variants
 
-**Note:** imgui/imgui-sfml submodules may fail - this is fine, they're not used.
+`tools/build_python.sh` configures out-of-tree in `build-cpython315*/` with
+`--enable-shared --without-system-libmpdec`, then stages the library, the
+extension modules (`<dir>/Python/lib.linux-x86_64-3.15/`), the stdlib
+(`<dir>/Python/Lib/`) and that build's own `pyconfig.h` (`<dir>/include/`).
 
-### 2. Create Dependency Symlinks
+| Variant | Library | Dir | Build | Used by |
+|---------|---------|-----|-------|---------|
+| default | python3.15 | `__lib/` | `make python` | `make` |
+| free-threaded | python3.15t | `__lib_ft/` | `make python-ft` | `make free-threaded` |
+| pydebug | python3.15d | `__lib_debug/` | `make python-debug` | `make debug`, `asan`, fuzzing |
+| free-threaded pydebug + TSan | python3.15td | `__lib_tsan/` | `make python-tsan` | `make tsan` |
 
-```bash
-cd deps
-ln -sf ../modules/cpython cpython
-ln -sf ../modules/libtcod-headless/src/libtcod libtcod
-ln -sf ../modules/cpython/Include Python
-ln -sf ../modules/SFML/include/SFML SFML
-cd ..
-```
+CMake selects the variant from `MCRF_FREE_THREADED_PYTHON` / `MCRF_DEBUG_PYTHON`
+and overlays its directory on `__lib/` in the build's `lib/`. The interpreter
+version comes from `MCRF_PYTHON_VERSION` in `CMakeLists.txt`.
 
-### 3. Build libtcod-headless
-
-libtcod-headless is our SDL-free fork with vendored dependencies:
-
-```bash
-cd modules/libtcod-headless
-mkdir build && cd build
-
-cmake .. \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=ON
-
-make -j$(nproc)
-cd ../../..
-```
-
-That's it! No special flags needed - libtcod-headless defaults to:
-- `LIBTCOD_SDL3=disable` (no SDL dependency)
-- Vendored lodepng, utf8proc, stb
-
-### 4. Build Python 3.12
-
-```bash
-cd modules/cpython
-./configure --enable-shared
-make -j$(nproc)
-cd ../..
-```
-
-### 5. Build SFML 2.6
-
-```bash
-cd modules/SFML
-mkdir build && cd build
-
-cmake .. \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=ON
-
-make -j$(nproc)
-cd ../../..
-```
-
-### 6. Copy Libraries
-
-```bash
-mkdir -p __lib
-
-# Python
-cp modules/cpython/libpython3.12.so* __lib/
-
-# SFML
-cp modules/SFML/build/lib/libsfml-*.so* __lib/
-
-# libtcod-headless
-cp modules/libtcod-headless/build/bin/libtcod.so* __lib/
-
-# Python standard library
-cp -r modules/cpython/Lib __lib/Python
-```
-
-### 7. Build McRogueFace
-
-```bash
-mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-```
-
-### 8. Run
-
-```bash
-./mcrogueface
-```
+**3.15 note:** `configure` no longer falls back to the bundled libmpdec on its
+own. Without libmpdec-dev *or* `--without-system-libmpdec`, `_decimal` is
+silently skipped and `decimal` drops to the slow pure-Python implementation.
 
 ---
 
-## Submodule Versions
+## Running the tests
 
-| Submodule | Version | Notes |
-|-----------|---------|-------|
-| SFML | 2.6.1 | Graphics, audio, windowing |
-| cpython | 3.12.2 | Embedded Python interpreter |
-| libtcod-headless | 2.2.1 | SDL-free fork for FOV, pathfinding |
+```bash
+cd tests && ALSOFT_DRIVERS=null xvfb-run -a python3 run_tests.py
+```
+
+- The SFML build opens an X display even with `--headless`; `xvfb-run` provides one.
+- `ALSOFT_DRIVERS=null` gives OpenAL a null device on machines without audio;
+  without a device, sound getters return garbage and audio tests fail.
+- Some tests need inputs that are not in git (licensed asset packs under
+  `assets/`, docs generated by `tools/generate_all_docs.sh`). The runner lists
+  them in `EXTERNAL_INPUTS` and reports them as **SKIP** with the missing path
+  when absent — counted separately, never as a pass. `--no-skip` makes them fail.
+- A suite run must leave `git status` clean; CI checks this.
+
+### Fully headless build (no display, no Xvfb)
+
+```bash
+mkdir build-headless && cd build-headless
+cmake .. -DCMAKE_BUILD_TYPE=Release -DMCRF_HEADLESS=ON && make -j$(nproc)
+```
+
+This links no SFML, X11 or OpenGL and runs with `DISPLAY` unset. Rendering,
+screenshots and audio are stubbed, so it suits simulation/logic work rather
+than the full test suite.
 
 ---
 
-## Creating a build_deps Archive
+## Using pre-built dependencies
 
-To create a `build_deps` archive for distribution:
+If you have a `build_deps.tar.gz` (see below), skip `make deps`:
 
 ```bash
-cd McRogueFace
+tar -xzf /path/to/build_deps.tar.gz   # provides __lib/ and deps/
+make
+```
 
-# Create archive directory
-mkdir -p build_deps_staging
+### Creating a build_deps archive
 
-# Copy libraries
-cp -r __lib build_deps_staging/
-
-# Copy/create deps symlinks as actual directories with only needed headers
+```bash
 mkdir -p build_deps_staging/deps
-cp -rL deps/libtcod build_deps_staging/deps/  # Follow symlink
-cp -rL deps/Python build_deps_staging/deps/
-cp -rL deps/SFML build_deps_staging/deps/
+cp -r __lib build_deps_staging/                     # includes __lib/include/pyconfig.h
+cp -rL deps/libtcod deps/Python deps/SFML build_deps_staging/deps/
 cp -r deps/platform build_deps_staging/deps/
-
-# Create archives
-cd build_deps_staging
-tar -czf ../build_deps.tar.gz __lib deps
-zip -r ../build_deps.zip __lib deps
-cd ..
-
-# Cleanup
+(cd build_deps_staging && tar -czf ../build_deps.tar.gz __lib deps)
 rm -rf build_deps_staging
 ```
 
-The resulting archive can be distributed alongside releases for users who want to build McRogueFace without compiling dependencies.
-
-**Archive contents:**
-```
-build_deps.tar.gz
-├── __lib/
-│   ├── libpython3.12.so*
-│   ├── libsfml-*.so*
-│   ├── libtcod.so*
-│   └── Python/           # Python standard library
-└── deps/
-    ├── libtcod/          # libtcod headers
-    ├── Python/           # Python headers
-    ├── SFML/             # SFML headers
-    └── platform/         # Platform-specific configs
-```
-
 ---
 
-## Verify the Build
+## Verify the build
 
 ```bash
 cd build
-
-# Check version
-./mcrogueface --version
-
-# Test headless mode
-./mcrogueface --headless -c "import mcrfpy; print('Success')"
-
-# Verify no SDL dependencies
-ldd mcrogueface | grep -i sdl  # Should output nothing
+./mcrogueface --version                     # Python 3.15.x (McRogueFace embedded)
+xvfb-run -a ./mcrogueface --headless -c "import mcrfpy; print('Success')"
+readelf -d mcrogueface | grep RUNPATH       # [$ORIGIN/./lib] -- relocatable
+ldd mcrogueface | grep -i sdl               # should print nothing
 ```
+
+The binary finds its bundled libraries through `$ORIGIN/lib`, so `build/`
+(or an extracted package) can be moved anywhere and run directly.
 
 ---
 
 ## Troubleshooting
 
-### OpenAL not found
-```bash
-sudo apt install libopenal-dev
-```
+**`make deps` fails fetching a submodule** — every pinned commit must be
+reachable from its remote (`git submodule status` shows the pins). A pin that
+only exists in someone's local clone cannot be fetched by anyone else.
 
-### FreeType not found
-```bash
-sudo apt install libfreetype-dev
-```
+**OpenAL / FreeType / X11 not found** — install the `-dev` packages listed at
+the top, or use `tools/fetch_dev_headers.sh` + `MCRF_SYSROOT`.
 
-### X11/Xrandr not found
-```bash
-sudo apt install libx11-dev libxrandr-dev
-```
+**`<dir>/libpython3.15*.so.1.0 not found` at CMake time** — build that variant
+first; the message names the exact `tools/build_python.sh` command.
 
-### Python standard library missing
-Ensure `__lib/Python` contains the standard library:
-```bash
-ls __lib/Python/os.py  # Should exist
-```
+**Python standard library missing** — `ls __lib/Python/Lib/os.py` should exist;
+re-run `make deps` (or `tools/build_python.sh`).
 
-### libtcod symbols not found
-Ensure libtcod.so is in `__lib/` with correct version:
-```bash
-ls -la __lib/libtcod.so*
-# Should show libtcod.so -> libtcod.so.2 -> libtcod.so.2.2.1
-```
+**libtcod** — `ls -la __lib/libtcod.so*` should show
+`libtcod.so -> libtcod.so.2 -> libtcod.so.2.2.2`, and
+`readelf -d __lib/libtcod.so.2 | grep -E 'NEEDED|RUNPATH'` should list only
+libz/libstdc++/libm/libgcc_s/libc with no RUNPATH.
 
 ---
 
-## Build Times (approximate)
-
-On a typical 4-core system:
+## Build times (approximate, 12 cores)
 
 | Component | Time |
 |-----------|------|
-| libtcod-headless | ~30 seconds |
-| Python 3.12 | ~3-5 minutes |
-| SFML 2.6 | ~1 minute |
-| McRogueFace | ~30 seconds |
-| **Full build total** | **~5-7 minutes** |
-| **Quick build (pre-built deps)** | **~30 seconds** |
+| `make deps` (SFML + libtcod + CPython) | ~3 minutes |
+| McRogueFace | ~1 minute |
+| Pre-built deps archive + McRogueFace | ~1 minute |
 
----
+## Runtime dependencies
 
-## Runtime Dependencies
-
-The built executable requires these system libraries:
-- `libz.so.1` (zlib)
-- `libopenal.so.1` (OpenAL)
-- `libX11.so.6`, `libXrandr.so.2` (X11)
-- `libfreetype.so.6` (FreeType)
-- `libGL.so.1` (OpenGL)
-
-All other dependencies (Python, SFML, libtcod) are bundled in `lib/`.
+The executable needs these system libraries: `libz.so.1`, `libopenal.so.1`,
+`libX11.so.6`, `libXrandr.so.2`, `libfreetype.so.6`, `libGL.so.1` (plus
+`libzstd.so.1`/`libuuid.so.1` for CPython's `_zstd`/`_uuid`). Python, SFML and
+libtcod are bundled in `lib/`.

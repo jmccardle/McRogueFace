@@ -57,7 +57,27 @@ import os
 
 PKG_DIR = os.path.realpath({pkg_dir!r})
 
+def assert_libpython_inside_pkg(name):
+    mapped = set()
+    with open("/proc/self/maps") as maps:
+        for line in maps:
+            parts = line.split()
+            if len(parts) >= 6 and "libpython" in os.path.basename(parts[5]):
+                mapped.add(os.path.realpath(parts[5]))
+    if not mapped:
+        print("FAIL: %s is builtin but no libpython is mapped into the process" % name)
+        sys.exit(1)
+    for path in mapped:
+        if os.path.commonpath([path, PKG_DIR]) != PKG_DIR:
+            print("FAIL: %s is builtin, but libpython %r is NOT inside package dir %r" % (name, path, PKG_DIR))
+            sys.exit(1)
+
 def assert_inside_pkg(mod, name):
+    if name in sys.builtin_module_names:
+        # CPython 3.15 links some accelerators (e.g. _asyncio) statically into
+        # libpython, so there is no __file__; the shipped libpython must be it.
+        assert_libpython_inside_pkg(name)
+        return
     f = getattr(mod, "__file__", None)
     if f is None:
         print("FAIL: module %s has no __file__" % name)

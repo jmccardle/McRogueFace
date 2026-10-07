@@ -8,7 +8,8 @@
 #   tools/build_debug_libs.sh --tsan       # Build with ThreadSanitizer
 #   tools/build_debug_libs.sh --clean      # Remove build artifacts first
 #
-# Output: __lib_debug/libtcod.so (instrumented)
+# Output: __lib_debug/libtcod.so (debug/asan), __lib_tsan/libtcod.so (tsan) --
+#         next to the matching debug CPython from tools/build_python.sh
 #
 # Why: The pre-built libtcod in __lib/ is uninstrumented. ASan/TSan can
 # detect bugs in our code that corrupt libtcod's memory, but cannot detect
@@ -61,6 +62,7 @@ case "$MODE" in
         ;;
     tsan)
         SANITIZER_FLAGS="-fsanitize=thread"
+        OUTPUT_DIR="$PROJECT_ROOT/__lib_tsan"
         echo "=== Building libtcod-headless with TSan ==="
         ;;
 esac
@@ -136,5 +138,5 @@ echo "  Mode:    $MODE"
 echo "  Library: $OUTPUT_DIR/$BASENAME"
 echo "  Size:    $(du -h "$OUTPUT_DIR/$BASENAME" | cut -f1)"
 echo ""
-echo "The existing 'make asan' / 'make tsan' targets link __lib_debug/ first,"
-echo "so the instrumented libtcod will be picked up automatically."
+echo "'make asan'/'make debug' link __lib_debug/ and 'make tsan' links __lib_tsan/"
+echo "ahead of __lib/, so the instrumented libtcod is picked up automatically."

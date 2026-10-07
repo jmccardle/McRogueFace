@@ -253,7 +253,7 @@ extern PyMethodDef UIEntity_all_methods[];
 
 namespace mcrfpydef {
     inline PyTypeObject PyUIEntityType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.Entity",
         .tp_basicsize = sizeof(PyUIEntityObject),
         .tp_itemsize = 0,

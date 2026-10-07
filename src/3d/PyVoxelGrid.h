@@ -117,7 +117,7 @@ public:
 namespace mcrfpydef {
 
 inline PyTypeObject PyVoxelGridType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.VoxelGrid",
     .tp_basicsize = sizeof(PyVoxelGridObject),
     .tp_itemsize = 0,
@@ -161,7 +161,7 @@ inline PyTypeObject PyVoxelGridType = {
 };
 
 inline PyTypeObject PyVoxelRegionType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.VoxelRegion",
     .tp_basicsize = sizeof(PyVoxelRegionObject),
     .tp_itemsize = 0,

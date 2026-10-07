@@ -138,7 +138,7 @@ public:
 namespace mcrfpydef {
     // Using inline to ensure single definition across translation units (C++17)
     inline PyTypeObject PyPropertyBindingType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.PropertyBinding",
         .tp_basicsize = sizeof(PyPropertyBindingObject),
         .tp_itemsize = 0,
@@ -169,7 +169,7 @@ namespace mcrfpydef {
     };
 
     inline PyTypeObject PyCallableBindingType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.CallableBinding",
         .tp_basicsize = sizeof(PyCallableBindingObject),
         .tp_itemsize = 0,

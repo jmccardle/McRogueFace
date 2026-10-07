@@ -94,7 +94,7 @@ PyObject* PySoundBuffer_from_data(std::shared_ptr<SoundBufferData> data);
 
 namespace mcrfpydef {
     inline PyTypeObject PySoundBufferType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.SoundBuffer",
         .tp_basicsize = sizeof(PySoundBufferObject),
         .tp_itemsize = 0,

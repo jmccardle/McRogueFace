@@ -46,7 +46,7 @@ public:
 namespace mcrfpydef {
     // Using inline to ensure single definition across translation units (C++17)
     inline PyTypeObject PyShaderType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.Shader",
         .tp_basicsize = sizeof(PyShaderObject),
         .tp_itemsize = 0,

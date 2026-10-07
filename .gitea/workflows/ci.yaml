@@ -6,64 +6,89 @@ on:
   pull_request:
     branches: [master]
 
+# Every job starts from a plain checkout: `make deps` shallow-inits the
+# submodules it needs and builds SFML, libtcod and CPython into __lib/
+# (cached on the submodule pins + build scripts). Tests run under Xvfb -- the
+# SFML build opens an X display even with --headless -- with OpenAL's null
+# backend standing in for an audio device.
+
+env:
+  ALSOFT_DRIVERS: "null"
+  APT_PACKAGES: >-
+    build-essential cmake git xvfb
+    zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev
+    libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev
+    libgl-dev libopenal-dev libzstd-dev uuid-dev
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake git \
-            zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev \
-            libfreetype-dev libudev-dev libvorbis-dev libflac-dev \
-            libgl-dev libopenal-dev
+          sudo apt-get install -y $APT_PACKAGES
 
-      - name: Check for pre-built libraries
-        run: |
-          if [ ! -d "__lib" ]; then
-            echo "::error::__lib/ directory not found. Pre-built libraries must be available on the runner."
-            echo "See BUILD_FROM_SOURCE.md for instructions on building dependencies."
-            exit 1
-          fi
+      - name: Dependency cache key
+        id: deps-key
+        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache built dependencies
+        uses: actions/cache@v4
+        with:
+          path: __lib
+          key: deps-release-${{ steps.deps-key.outputs.key }}
+
+      - name: Build dependencies
+        run: make deps
 
       - name: Build (Release)
         run: make linux
 
       - name: Run tests (Release)
-        run: cd tests && python3 run_tests.py -v
+        run: cd tests && xvfb-run -a python3 run_tests.py -v
+
+      - name: Test run left the tree clean
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::the test suite modified tracked files:"
+            git status --porcelain
+            exit 1
+          fi
 
   debug-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake git \
-            zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev \
-            libfreetype-dev libudev-dev libvorbis-dev libflac-dev \
-            libgl-dev libopenal-dev
+          sudo apt-get install -y $APT_PACKAGES
 
-      - name: Check for debug libraries
+      - name: Dependency cache key
+        id: deps-key
+        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache built dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            __lib
+            __lib_debug
+          key: deps-debug-${{ steps.deps-key.outputs.key }}
+
+      - name: Build dependencies (+ pydebug CPython)
         run: |
-          if [ ! -d "__lib_debug" ]; then
-            echo "::error::__lib_debug/ directory not found. Build debug Python first: tools/build_debug_python.sh"
-            exit 1
-          fi
+          make deps
+          ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (debug Python)
-        run: make debug-test
+        run: xvfb-run -a make debug-test
 
   asan-test:
     runs-on: ubuntu-latest
@@ -71,27 +96,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake git \
-            zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev \
-            libfreetype-dev libudev-dev libvorbis-dev libflac-dev \
-            libgl-dev libopenal-dev
+          sudo apt-get install -y $APT_PACKAGES
 
-      - name: Check for debug libraries
+      - name: Dependency cache key
+        id: deps-key
+        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache built dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            __lib
+            __lib_debug
+          key: deps-debug-${{ steps.deps-key.outputs.key }}
+
+      - name: Build dependencies (+ pydebug CPython)
         run: |
-          if [ ! -d "__lib_debug" ]; then
-            echo "::error::__lib_debug/ directory not found. Build debug Python first: tools/build_debug_python.sh"
-            exit 1
-          fi
+          make deps
+          ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (ASan + UBSan)
-        run: make asan-test
+        run: xvfb-run -a make asan-test
 
   valgrind-test:
     runs-on: ubuntu-latest
@@ -99,25 +128,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake git valgrind \
-            zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev \
-            libfreetype-dev libudev-dev libvorbis-dev libflac-dev \
-            libgl-dev libopenal-dev
+          sudo apt-get install -y $APT_PACKAGES valgrind
 
-      - name: Check for debug libraries
+      - name: Dependency cache key
+        id: deps-key
+        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache built dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            __lib
+            __lib_debug
+          key: deps-debug-${{ steps.deps-key.outputs.key }}
+
+      - name: Build dependencies (+ pydebug CPython)
         run: |
-          if [ ! -d "__lib_debug" ]; then
-            echo "::error::__lib_debug/ directory not found. Build debug Python first: tools/build_debug_python.sh"
-            exit 1
-          fi
+          make deps
+          ls __lib_debug/libpython3.*d.so.1.0 >/dev/null 2>&1 || make python-debug
 
       - name: Build and test (Valgrind memcheck)
-        run: make valgrind-test
+        run: xvfb-run -a make valgrind-test
         timeout-minutes: 30

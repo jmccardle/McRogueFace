@@ -100,7 +100,7 @@ void Viewport3D::render(sf::Vector2f offset, sf::RenderTarget& target) {
 
         // Save SFML's GL state before raw GL rendering
         // This is REQUIRED when mixing SFML 2D and raw OpenGL
-#ifndef MCRF_SDL2
+#if !defined(MCRF_SDL2) && !defined(MCRF_HEADLESS)
         target.pushGLStates();
 #endif
     }
@@ -110,7 +110,7 @@ void Viewport3D::render(sf::Vector2f offset, sf::RenderTarget& target) {
 
     // Restore SFML's GL state after our GL calls
     if (gl::isGLReady()) {
-#ifndef MCRF_SDL2
+#if !defined(MCRF_SDL2) && !defined(MCRF_HEADLESS)
         target.popGLStates();
 #endif
     }

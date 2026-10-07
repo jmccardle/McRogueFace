@@ -1,4 +1,5 @@
 #include "CommandLineParser.h"
+#include "Python.h"  // PY_VERSION, Py_GIL_DISABLED
 #include <iostream>
 #include <filesystem>
 #include <algorithm>
@@ -199,5 +200,9 @@ void CommandLineParser::print_help() {
 }
 
 void CommandLineParser::print_version() {
-    std::cout << "Python 3.14.0 (McRogueFace embedded)\n";
+#ifdef Py_GIL_DISABLED
+    std::cout << "Python " PY_VERSION " free-threading build (McRogueFace embedded)\n";
+#else
+    std::cout << "Python " PY_VERSION " (McRogueFace embedded)\n";
+#endif
 }

@@ -64,7 +64,7 @@ namespace mcrfpydef {
     extern PySequenceMethods PyVector_as_sequence;
 
     inline PyTypeObject PyVectorType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.Vector",
         .tp_basicsize = sizeof(PyVectorObject),
         .tp_itemsize = 0,

@@ -283,7 +283,7 @@ public:
 namespace mcrfpydef {
     // ColorLayer type
     inline PyTypeObject PyColorLayerType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.ColorLayer",
         .tp_basicsize = sizeof(PyColorLayerObject),
         .tp_itemsize = 0,
@@ -337,7 +337,7 @@ namespace mcrfpydef {
 
     // TileLayer type
     inline PyTypeObject PyTileLayerType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.TileLayer",
         .tp_basicsize = sizeof(PyTileLayerObject),
         .tp_itemsize = 0,
@@ -396,7 +396,7 @@ namespace mcrfpydef {
 
     // #335 - layer.edit() context manager / buffer exporter
     inline PyTypeObject PyLayerEditType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy._LayerEdit",
         .tp_basicsize = sizeof(PyLayerEditObject),
         .tp_itemsize = 0,

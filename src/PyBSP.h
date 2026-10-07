@@ -217,7 +217,7 @@ public:
 namespace mcrfpydef {
     // BSP - user-facing, exported
     inline PyTypeObject PyBSPType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.BSP",
         .tp_basicsize = sizeof(PyBSPObject),
         .tp_itemsize = 0,
@@ -256,7 +256,7 @@ namespace mcrfpydef {
 
     // BSPNode - internal type (returned by BSP methods)
     inline PyTypeObject PyBSPNodeType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.BSPNode",
         .tp_basicsize = sizeof(PyBSPNodeObject),
         .tp_itemsize = 0,
@@ -292,7 +292,7 @@ namespace mcrfpydef {
 
     // BSP Iterator - internal type
     inline PyTypeObject PyBSPIterType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.BSPIter",
         .tp_basicsize = sizeof(PyBSPIterObject),
         .tp_itemsize = 0,
@@ -311,7 +311,7 @@ namespace mcrfpydef {
 
     // BSP Adjacency - internal type for BSP.adjacency property (#210)
     inline PyTypeObject PyBSPAdjacencyType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.BSPAdjacency",
         .tp_basicsize = sizeof(PyBSPAdjacencyObject),
         .tp_itemsize = 0,
@@ -334,7 +334,7 @@ namespace mcrfpydef {
 
     // BSP Adjacent Tiles - internal type for BSPNode.adjacent_tiles property (#210)
     inline PyTypeObject PyBSPAdjacentTilesType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.BSPAdjacentTiles",
         .tp_basicsize = sizeof(PyBSPAdjacentTilesObject),
         .tp_itemsize = 0,

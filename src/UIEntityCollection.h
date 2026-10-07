@@ -88,7 +88,7 @@ namespace mcrfpydef {
 
     // Iterator type
     inline PyTypeObject PyUIEntityCollectionIterType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.UIEntityCollectionIter",
         .tp_basicsize = sizeof(PyUIEntityCollectionIterObject),
         .tp_itemsize = 0,
@@ -114,7 +114,7 @@ namespace mcrfpydef {
 
     // Collection type
     inline PyTypeObject PyUIEntityCollectionType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.EntityCollection",
         .tp_basicsize = sizeof(PyUIEntityCollectionObject),
         .tp_itemsize = 0,

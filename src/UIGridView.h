@@ -224,7 +224,7 @@ namespace mcrfpydef {
     // Grid() auto-creates a GridData (UIGrid internally); GridView(grid=...) wraps existing data.
     // Attribute access delegates to underlying Grid for data properties/methods.
     inline PyTypeObject PyUIGridViewType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         // #361: the canonical name is GridView -- it IS the camera/widget. "Grid"
         // is bound to this same type object as an alias (see McRFPy_API.cpp).
         .tp_name = "mcrfpy.GridView",

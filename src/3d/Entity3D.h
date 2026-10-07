@@ -384,7 +384,7 @@ extern PyMethodDef Entity3D_methods[];
 namespace mcrfpydef {
 
 inline PyTypeObject PyEntity3DType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.Entity3D",
     .tp_basicsize = sizeof(PyEntity3DObject),
     .tp_itemsize = 0,
