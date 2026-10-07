@@ -609,6 +609,23 @@ if(MCRF_CROSS_WINDOWS)
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/__lib_windows/python${MCRF_PYTHON_NODOT}.zip $<TARGET_FILE_DIR:mcrogueface>
         COMMAND ${CMAKE_COMMAND} -E echo "Copied Python stdlib")
+
+    # Extension modules (_socket, _ssl, _asyncio, _decimal, ...) and the DLLs
+    # they import, into lib/Python/DLLs (MCRF_PY_EXT_DIR_W in McRFPy_API.cpp).
+    # CPython loads a .pyd's dependencies from the .pyd's own directory.
+    file(GLOB MCRF_WINDOWS_PYDS "${CMAKE_SOURCE_DIR}/__lib_windows/*.pyd")
+    if(NOT MCRF_WINDOWS_PYDS)
+        message(FATAL_ERROR "No *.pyd in __lib_windows/ -- run `make python-windows`")
+    endif()
+    set(MCRF_WINDOWS_PYD_DEPS)
+    foreach(_dll libssl-3.dll libcrypto-3.dll libffi-8.dll sqlite3.dll)
+        list(APPEND MCRF_WINDOWS_PYD_DEPS "${CMAKE_SOURCE_DIR}/__lib_windows/${_dll}")
+    endforeach()
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:mcrogueface>/lib/Python/DLLs
+        COMMAND ${CMAKE_COMMAND} -E copy ${MCRF_WINDOWS_PYDS} ${MCRF_WINDOWS_PYD_DEPS}
+            $<TARGET_FILE_DIR:mcrogueface>/lib/Python/DLLs
+        COMMAND ${CMAKE_COMMAND} -E echo "Copied Python extension modules")
 elseif(WIN32)
     # Native Windows build: copy DLLs from __lib
     add_custom_command(TARGET mcrogueface POST_BUILD

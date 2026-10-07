@@ -17,6 +17,8 @@
 #   make python-ft    - Build the free-threaded (3.Xt) variant into __lib_ft/
 #   make python-debug - pydebug (3.Xd) into __lib_debug/  (for debug/asan/fuzz)
 #   make python-tsan  - free-threaded pydebug + TSan (3.Xtd) into __lib_tsan/ (for tsan)
+#   make python-windows - Fetch python.org's embeddable 3.X into __lib_windows/ (for windows)
+#   make python-wasm  - Cross-build modules/cpython for Emscripten (for wasm; needs emsdk_env.sh)
 #   make free-threaded - Build McRogueFace against __lib_ft/ in build-ft/
 #
 # Profiling (see docs/profiling.md):
@@ -44,7 +46,7 @@
 #     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
-.PHONY: deps deps-ft python python-ft python-debug python-tsan free-threaded
+.PHONY: deps deps-ft python python-ft python-debug python-tsan python-windows python-wasm free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
@@ -80,6 +82,12 @@ python-debug:
 
 python-tsan:
 	@./tools/build_python.sh --tsan
+
+python-windows:
+	@./tools/fetch_windows_python.sh
+
+python-wasm:
+	@./tools/build_python_wasm.sh
 
 free-threaded:
 	@echo "Building McRogueFace against free-threaded CPython..."

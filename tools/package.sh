@@ -200,6 +200,14 @@ package_windows() {
         find "$package_dir/lib/Python/Lib" -name "*_test.py" -delete 2>/dev/null || true
     fi
 
+    # Extension modules (.pyd) + the DLLs they import
+    if [ -d "$build_dir/lib/Python/DLLs" ]; then
+        cp -r "$build_dir/lib/Python/DLLs" "$package_dir/lib/Python/"
+    else
+        log_error "$build_dir/lib/Python/DLLs missing: socket, ssl, asyncio, ctypes would not import"
+        return 1
+    fi
+
     # Also copy python${PY_NODOT}.zip for backwards compatibility (some deployments use it)
     if [ -f "$build_dir/python${PY_NODOT}.zip" ]; then
         cp "$build_dir/python${PY_NODOT}.zip" "$package_dir/"

@@ -16,6 +16,13 @@
 #else
 #define MCRF_PY_STDLIB_DIRNAME "python" MCRF_PY_VER
 #endif
+// Extension modules (relative to the exe): CPython's own layout per platform.
+// Windows .pyd files come from python.org's embeddable package (__lib_windows).
+#ifdef _WIN32
+#define MCRF_PY_EXT_DIR_W L"/lib/Python/DLLs"
+#else
+#define MCRF_PY_EXT_DIR_W L"/lib/Python/lib.linux-x86_64-" MCRF_PY_VER_W
+#endif
 
 #include "UIDrawable.h"
 #include "McRFPy_Automation.h"
@@ -1225,7 +1232,7 @@ PyStatus init_python(const char *program_name)
     // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-" MCRF_PY_VER_W,
+        MCRF_PY_EXT_DIR_W,
         L"/lib/Python",
         L"/lib/Python/Lib"
         // Note: venv site-packages handled above via sibling_venv detection
@@ -1413,7 +1420,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-" MCRF_PY_VER_W,
+        MCRF_PY_EXT_DIR_W,
         L"/lib/Python",
         L"/lib/Python/Lib"
         // Note: venv site-packages handled above via sibling_venv detection
