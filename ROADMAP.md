@@ -50,6 +50,10 @@ The libFuzzer+ASan harness (#283) has nine work tranches merged: build plumbing 
 
 Coverage extension (#312) added four more: `fuzz_audio_dsp` (SoundBuffer DSP), `fuzz_import_parsers` (Tiled/LDtk file parsers), `fuzz_texture_factory` (byte ingestion), `fuzz_shader_bindings` (uniform-binding lifetime), plus Tier C surface folded into the existing targets. That run found five new bugs: #321 (HIGH -- ColorLayer.draw_fov bad-free), #322 (WangSet.terrain_enum error-pending abort), #323/#324/#325 (float→int UB in pitch_shift/hsl_shift/Vector) -- all five now fixed and merged, see Recently Shipped.
 
+### In Flight on `sim/integration` (October 2026, not yet on master)
+- **CPython 3.15 embed (`feat/python-315`, merged as `fb63add`)** -- `modules/cpython` pinned to 3.15.0rc3 (`8a8eb0b`; bump to final when python.org publishes it). Interpreter version is derived from `Include/patchlevel.h`, not hardcoded. Per-platform staging: Linux `make deps` -> `__lib/`; Windows `make python-windows` (python.org embeddable zip, import lib built via `objdump` export table -> `dlltool`); WASM `make python-wasm` (CPython's `Platforms/emscripten`, bootstrapped through the native build python because it needs >=3.12; Node from emsdk via `--host-runner`). Follow-up fixes on the branch: **6f0dc3f** staging is pinned to the submodule version (a leftover 3.14 `__lib` made `make deps` skip the build, then fail linking `-lpython3.15`) and the build refuses a stray in-tree `Include/pyconfig.h` (it shadows the build's own and broke wasm32 with a `LONG_BIT` error); **3be5cb5** Windows packages never shipped the `.pyd` extension modules -- `socket`/`ssl`/`asyncio`/`ctypes`/`sqlite3` were unimportable, including in 0.2.8 (#419) -- now staged to `lib/Python/DLLs`; **b538691** WASM links export `__PyRuntime` + the Emscripten trampoline offset, and `wasm_stdlib/lib/python3.15` adds `_colorize`/`pathlib`/`email`/full `importlib` (fixes the #392 REPL traceback). Verified: Linux suite 638/638; Windows under Wine (asyncio TCP, OpenSSL 3.5.9, 30/30 sampled unit tests, packaged zip runs outside the tree); WASM boots and renders in headless Chromium with a real REPL traceback.
+- **Thread-safety probe (1a162fa)** -- unlocked background mutation crashes GIL builds via hover/click/step use-after-free (#416); `mcrfpy.lock()` is clean 150/150 but is a frame barrier, not a mutex, so two holders race once the GIL is off (#417, blocks #336). Architecture (harden vs. document-as-mandatory; lock semantics) is **undecided**.
+
 ### Recently Shipped (April 2026)
 - **#294** -- `entity.perspective_map` replaces flat `vector<UIGridPointState>` with a 3-state DiscreteMap (UNKNOWN/DISCOVERED/VISIBLE). Per-entity FOV memory is now serializable, swappable, and structurally enforces visible-as-subset-of-discovered.
 - **#315** -- Pathfinding API extended with built-in heuristics (Euclidean/Manhattan/Chebyshev/Diagonal/Zero), multi-root Dijkstra, FLEE primitives (invert + descent), and an interactive demo. EntityBehavior SEEK/FLEE refactored to a `PathProvider` strategy.
@@ -131,7 +135,11 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-26 open issues across the tracker. Key groupings:
+62 open issues across the tracker. Key groupings:
+
+- **Threading / frame lock** (#398, #410, #411, #412, #416, #417, #395, #336) -- the `mcrfpy.lock()` barrier: headless window, starvation, off-main-thread `step()`, lock-order deadlock, unlocked-mutation UAF, holder-vs-holder races, coverage, and free-threaded hardening
+- **Simulation determinism / sim-spec** (#394, #396, #397, #402-#409, #413, #414) -- seeded behavior RNG, a Python-visible simulation clock, timer re-phasing, VisibilityMask/GridData identity, per-call leaks in `cell_pos` and `get_metrics()`
+- **3.15 migration fallout** (#419, #420, #401, #392, #418) -- #401 and #419 are fixed on `sim/integration`; close them by hand at the master merge
 
 - **Docs-as-tests fallout** (#380, #374) -- shipped `templates/*/` example programs are gated by nothing; 19 orphan scripts under `tests/demo/screens/` need adoption or retirement. Both spun out of the July snippets-as-tests thread (the docs site's code samples are now in the gated suite). The earlier bug batch (#369 `.parent` identity, #372 rotted `tests/demo/`, #356 doc generators miss module attrs, #341 get_metrics counters, #350 headless `step()` bypass) is **closed**.
 - **Memory-model review, July 2026** (#336, #337, #338 remaining; #326-#335 resolved) -- per-instance memory diet, free-threading hardening, numpy availability strategy
