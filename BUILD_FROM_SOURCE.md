@@ -69,6 +69,22 @@ version comes from `MCRF_PYTHON_VERSION` in `CMakeLists.txt`.
 own. Without libmpdec-dev *or* `--without-system-libmpdec`, `_decimal` is
 silently skipped and `decimal` drops to the slow pure-Python implementation.
 
+### Windows and WebAssembly targets
+
+Cross-builds need their own CPython runtime; `make deps` does not stage them.
+
+```bash
+make python-windows   # tools/fetch_windows_python.sh: python.org embeddable 3.15 -> __lib_windows/
+make windows          # MinGW-w64 cross-build (needs curl, unzip, mingw objdump/dlltool)
+
+source ~/emsdk/emsdk_env.sh
+make python-wasm      # tools/build_python_wasm.sh: cross-builds modules/cpython for Emscripten
+make wasm-game        # or: make wasm / make playground
+```
+
+`make python-windows` needs the `modules/cpython` submodule (it reads the pinned
+version from `Include/patchlevel.h`), so the DLL and headers always match.
+
 ---
 
 ## Running the tests

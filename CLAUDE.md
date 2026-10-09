@@ -235,9 +235,9 @@ make clean-dist         # Remove only distribution packages
 ### Library Dependencies
 
 The build expects pre-built libraries in:
-- `__lib/` - Linux shared libraries (libpython3.14.so, libsfml-*.so, libtcod.so)
+- `__lib/` - Linux shared libraries (libpython3.15.so, libsfml-*.so, libtcod.so)
 - `__lib/Python/Lib/` - Python standard library source
-- `__lib/Python/lib.linux-x86_64-3.14/` - Python extension modules (.so)
+- `__lib/Python/lib.linux-x86_64-3.15/` - Python extension modules (.so)
 - `__lib_windows/` - Windows DLLs and libraries
 
 ### Manual CMake Build
@@ -497,7 +497,7 @@ The C++ engine exposes these primary functions to Python:
 After building, the executable expects:
 - `assets/` directory with sprites, fonts, and audio
 - `scripts/` directory with Python game files
-- Python 3.14 shared libraries in `./lib/`
+- Python 3.15 shared libraries in `./lib/`
 
 ### Modifying Game Logic
 - Game scripts are in `src/scripts/`

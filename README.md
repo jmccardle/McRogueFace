@@ -38,19 +38,19 @@ grid.zoom = 2.0
 scene.children.append(grid)
 
 # Add a player entity
-player = mcrfpy.Entity(pos=(10, 7), texture=texture, sprite_index=84)
+player = mcrfpy.Entity(grid_pos=(10, 7), texture=texture, sprite_index=84)
 grid.entities.append(player)
 
 # Handle keyboard input
-def on_key(key, state):
-    if state != "start":
+def on_key(key, action):
+    if action != mcrfpy.InputState.PRESSED:
         return
-    x, y = int(player.x), int(player.y)
-    if key == "W": y -= 1
-    elif key == "S": y += 1
-    elif key == "A": x -= 1
-    elif key == "D": x += 1
-    player.x, player.y = x, y
+    x, y = int(player.cell_pos.x), int(player.cell_pos.y)
+    if key == mcrfpy.Key.W: y -= 1
+    elif key == mcrfpy.Key.S: y += 1
+    elif key == mcrfpy.Key.A: x -= 1
+    elif key == mcrfpy.Key.D: x += 1
+    player.cell_pos = (x, y)
 
 scene.on_key = on_key
 ```
@@ -62,7 +62,7 @@ Run `mcrogueface` and you have a movable character!
 - **Sprite**: Single image or sprite from a shared sheet
 - **Caption**: Text rendering with fonts
 - **Frame**: Container rectangle for composing UIs
-- **Grid**: 2D tile array with zoom and camera control
+- **Grid**: 2D tile array with zoom and camera control (`mcrfpy.Grid` is the drawable `GridView`; the map data lives in `mcrfpy.GridData`)
 - **Entity**: Grid-based game object with sprite and pathfinding
 - **Animation**: Interpolate any property over time with easing
 
@@ -86,8 +86,10 @@ make -j$(nproc)
 ### Full Build (compiling all dependencies)
 
 ```bash
-git clone --recursive <repository-url> McRogueFace
+git clone <repository-url> McRogueFace
 cd McRogueFace
+make deps   # builds SFML, libtcod-headless, and CPython 3.15 into __lib/
+make
 # See BUILD_FROM_SOURCE.md for complete instructions
 ```
 
@@ -128,8 +130,9 @@ button = mcrfpy.Frame(pos=(362, 300), size=(300, 80),
 button_text = mcrfpy.Caption(pos=(90, 25), text="Start Game")
 button.children.append(button_text)
 
-def on_click(x, y, btn):
-    print("Game starting!")
+def on_click(pos, button, action):
+    if button == mcrfpy.MouseButton.LEFT and action == mcrfpy.InputState.PRESSED:
+        print("Game starting!")
 
 button.on_click = on_click
 scene.children.append(button)
@@ -148,11 +151,10 @@ For comprehensive documentation about systems, architecture, and development wor
 Key wiki pages:
 
 - **[Home](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Home)** - Documentation hub with multiple entry points
-- **[Grid System](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Grid-System)** - Three-layer grid architecture
+- **[Grid System](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Grid-System)** - GridData / GridView / layers architecture
 - **[Python Binding System](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Python-Binding-System)** - C++/Python integration
 - **[Performance and Profiling](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Performance-and-Profiling)** - Optimization tools
 - **[Adding Python Bindings](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Adding-Python-Bindings)** - Step-by-step binding guide
-- **[Issue Roadmap](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Issue-Roadmap)** - All open issues organized by system
 
 ### 📖 Development Guides
 
@@ -160,17 +162,16 @@ In the repository root:
 
 - **[CLAUDE.md](CLAUDE.md)** - Build instructions, testing guidelines, common tasks
 - **[ROADMAP.md](ROADMAP.md)** - Strategic vision and development phases
-- **[docs/api-stability.md](docs/api-stability.md)** - 1.0 compatibility policy (value semantics, bulk-edit convention, subinterpreter exclusion)
-- **[docs/threading-model.md](docs/threading-model.md)** - Threading contract for off-main-thread access via `mcrfpy.lock()`
-- **[roguelike_tutorial/](roguelike_tutorial/)** - Complete roguelike tutorial implementations
+- **[docs/frame-lock.md](docs/frame-lock.md)** - Threading contract for off-main-thread access via `mcrfpy.lock()`
+- **[docs/profiling.md](docs/profiling.md)** - Profiling the engine (`make profile`, callgrind, perf)
 
-> **Note:** Running mcrfpy in a Python subinterpreter is unsupported in 1.x; the module declares `m_size = -1` and will refuse or misbehave. See [#220](https://dev.ffwf.net/forgejo/john/McRogueFace/issues/220).
+> **Note:** Running mcrfpy in a Python subinterpreter is unsupported in 1.x; `mcrfpy` uses multi-phase initialization and refuses to import in a subinterpreter. See [#220](https://dev.ffwf.net/forgejo/john/McRogueFace/issues/220).
 
 ## Build Requirements
 
 - C++17 compiler (GCC 7+ or Clang 5+)
 - CMake 3.14+
-- Python 3.14 (embedded)
+- Python 3.15 (embedded; built by `make deps`)
 - SFML 2.6
 - Linux or Windows (macOS untested)
 
@@ -217,7 +218,7 @@ The project uses [Forgejo Issues](https://dev.ffwf.net/forgejo/john/McRogueFace/
 - **Priority labels** (tier1-active, tier2-foundation, tier3-future) - development timeline
 - **Type labels** (Major Feature, Minor Feature, Bugfix, etc.) - effort and scope
 
-See the [Issue Roadmap](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Issue-Roadmap) on the wiki for organized view of all open tasks.
+See [ROADMAP.md](ROADMAP.md) for the organized view of current work.
 
 ## License
 
