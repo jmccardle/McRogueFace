@@ -144,11 +144,19 @@ struct ProfilingMetrics {
  * @brief Thread synchronization primitive for safe UI updates from background threads (#219)
  *
  * Allows background Python threads to safely update UI objects by waiting for
- * a "safe window" between frames when the render loop is not iterating the scene graph.
+ * a "safe window" between frames when the main thread is not iterating the scene graph.
+ *
+ * The window is opened once per frame in BOTH frame paths: doFrame() (windowed, after
+ * display()) and runSimFrame() (headless, driven by mcrfpy.step()/advance()). It must
+ * stay that way -- a mode that never opens the window blocks lock() holders forever,
+ * since acquire() waits on a condition variable with no timeout.
  *
  * Usage from Python:
  *   with mcrfpy.lock():
  *       frame.x = new_value  # Safe to modify UI here
+ *
+ * Mutation only, inside the block: the main thread is parked until every holder
+ * returns, so I/O or a blocking wait under the lock stalls the whole engine.
  */
 class FrameLock {
 private:
@@ -176,14 +184,15 @@ public:
     /**
      * @brief Open the safe window, allowing waiting threads to proceed
      *
-     * Called by render loop between frames
+     * Called once per frame by doFrame() (windowed) and runSimFrame() (headless)
      */
     void openWindow();
 
     /**
      * @brief Close the safe window, waiting for all active threads to finish
      *
-     * Called by render loop before resuming rendering
+     * Called once per frame by doFrame() (windowed) and runSimFrame() (headless),
+     * before the main thread resumes
      */
     void closeWindow();
 
@@ -191,6 +200,28 @@ public:
      * @brief Check if any threads are waiting for the lock
      */
     bool hasWaiting() const { return waiting.load() > 0; }
+
+    /**
+     * @brief Does the CALLING thread currently hold the frame lock? (B7 / #395)
+     *
+     * Per-thread, not global: `active` counts holders across all threads and cannot
+     * answer "am I one of them". The depth is a counter rather than a flag because
+     * `with mcrfpy.lock():` nests legally -- an inner acquire() succeeds while the
+     * safe window is already open, so a flag would clear on the inner release and
+     * report a still-holding thread as free.
+     *
+     * The main thread never acquires (mcrfpy.lock() is a documented no-op there,
+     * src/PyLock.cpp), so its depth stays 0 and this correctly answers false. That
+     * is why `with mcrfpy.lock(): mcrfpy.step()` on the main thread keeps working:
+     * there is no lock held, so there is nothing to re-enter.
+     */
+    static bool heldByCurrentThread() { return depth() > 0; }
+
+private:
+    // Function-local static, not a namespace-scope thread_local: construction on
+    // first use with no static-initialisation-order dependency on any other
+    // translation unit (same reasoning as mcrf::EngineRandom, #394).
+    static int& depth() { static thread_local int d = 0; return d; }
 };
 
 class GameEngine
@@ -266,6 +297,13 @@ private:
 
     void testTimers();
 
+    // #396 - The single simulation-frame implementation shared by step() and advance().
+    // ms is the exact integer millisecond advance applied to simulation_time; actual_dt
+    // is what the frame reports to animations/Scene.update(). They are passed separately
+    // so step(float) can keep handing callers the exact float they supplied while
+    // advance() keeps the clock on exact integers.
+    float runSimFrame(int ms, float actual_dt);
+
 public:
     sf::Clock runtime;
     std::map<std::string, std::shared_ptr<Timer>> timers;
@@ -330,7 +368,11 @@ public:
     static bool isShaderIntermediateReady() { return shaderIntermediateInitialized; }
 
     // #153 - Headless simulation control
-    float step(float dt = -1.0f);  // Advance simulation; dt<0 means advance to next event
+    float step(float dt = -1.0f);  // Advance simulation ONE frame; dt<0 means advance to next event
+    // #396 - Advance the simulation clock by exactly `ms` milliseconds, running one
+    // simulation frame per timer-interval boundary crossed so no repeating timer skips
+    // an interval. Returns the milliseconds actually advanced (0 in windowed mode).
+    int advance(int ms);
     int getSimulationTime() const { return simulation_time; }
     void renderScene();  // Force render current scene (for synchronous screenshot)
 

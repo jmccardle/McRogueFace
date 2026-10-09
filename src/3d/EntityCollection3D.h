@@ -71,7 +71,7 @@ namespace mcrfpydef {
 
 // Iterator type
 inline PyTypeObject PyEntityCollection3DIterType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.EntityCollection3DIter",
     .tp_basicsize = sizeof(PyEntityCollection3DIterObject),
     .tp_itemsize = 0,
@@ -97,7 +97,7 @@ inline PyTypeObject PyEntityCollection3DIterType = {
 
 // Collection type
 inline PyTypeObject PyEntityCollection3DType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.EntityCollection3D",
     .tp_basicsize = sizeof(PyEntityCollection3DObject),
     .tp_itemsize = 0,

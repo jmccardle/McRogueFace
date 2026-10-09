@@ -49,7 +49,7 @@ public:
 
 namespace mcrfpydef {
     inline PyTypeObject PyNoiseSourceType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.NoiseSource",
         .tp_basicsize = sizeof(PyNoiseSourceObject),
         .tp_itemsize = 0,

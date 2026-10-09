@@ -7,6 +7,20 @@
 #   make clean-windows - Clean Windows build
 #   make run          - Run the Linux build
 #
+# Dependencies (fresh clone: `make deps && make`):
+#   make deps         - Build SFML, libtcod, CPython from submodules into __lib/
+#   make deps-ft      - Same, plus the free-threaded CPython into __lib_ft/
+#   (no root? tools/fetch_dev_headers.sh, then export MCRF_SYSROOT=...)
+#
+# Embedded CPython (see tools/build_python.sh):
+#   make python       - Build modules/cpython and stage it into __lib/
+#   make python-ft    - Build the free-threaded (3.Xt) variant into __lib_ft/
+#   make python-debug - pydebug (3.Xd) into __lib_debug/  (for debug/asan/fuzz)
+#   make python-tsan  - free-threaded pydebug + TSan (3.Xtd) into __lib_tsan/ (for tsan)
+#   make python-windows - Fetch python.org's embeddable 3.X into __lib_windows/ (for windows)
+#   make python-wasm  - Cross-build modules/cpython for Emscripten (for wasm; needs emsdk_env.sh)
+#   make free-threaded - Build McRogueFace against __lib_ft/ in build-ft/
+#
 # Profiling (see docs/profiling.md):
 #   make profile      - RelWithDebInfo + frame pointers build in build-profile/
 #   make callgrind SCRIPT=tests/benchmarks/foo.py - Callgrind a headless benchmark
@@ -32,6 +46,7 @@
 #     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
+.PHONY: deps deps-ft python python-ft python-debug python-tsan python-windows python-wasm free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
@@ -49,6 +64,36 @@ linux:
 	@mkdir -p build
 	@cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(JOBS)
 	@echo "Build complete! Run with: ./build/mcrogueface"
+
+deps:
+	@./tools/build_deps.sh
+
+deps-ft:
+	@./tools/build_deps.sh --free-threaded
+
+python:
+	@./tools/build_python.sh
+
+python-ft:
+	@./tools/build_python.sh --free-threaded
+
+python-debug:
+	@./tools/build_python.sh --debug
+
+python-tsan:
+	@./tools/build_python.sh --tsan
+
+python-windows:
+	@./tools/fetch_windows_python.sh
+
+python-wasm:
+	@./tools/build_python_wasm.sh
+
+free-threaded:
+	@echo "Building McRogueFace against free-threaded CPython..."
+	@mkdir -p build-ft
+	@cd build-ft && cmake .. -DCMAKE_BUILD_TYPE=Release -DMCRF_FREE_THREADED_PYTHON=ON && make -j$(JOBS)
+	@echo "Build complete! Run with: ./build-ft/mcrogueface"
 
 windows:
 	@echo "Cross-compiling McRogueFace for Windows..."
@@ -188,7 +233,8 @@ debug-test: debug
 	@echo "Running test suite with debug Python..."
 	cd tests && MCRF_BUILD_DIR=../build-debug \
 		MCRF_LIB_DIR=../__lib_debug \
-		python3 run_tests.py -v
+		MCRF_TIMEOUT_MULTIPLIER=3 \
+		python3 run_tests.py -v --exclude=packaging
 
 # Profiling build (#345): RelWithDebInfo (-O2 -g) + frame pointers, self-contained
 # in build-profile/ (lib/assets/scripts copied like the normal build). Suited to
@@ -230,11 +276,12 @@ asan-test: asan
 	@echo "Running test suite under ASan + UBSan..."
 	cd tests && MCRF_BUILD_DIR=../build-asan \
 		MCRF_LIB_DIR=../__lib_debug \
+		MCRF_TIMEOUT_MULTIPLIER=5 \
 		PYTHONMALLOC=malloc \
 		ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:print_summary=1" \
 		LSAN_OPTIONS="suppressions=$(CURDIR)/sanitizers/asan.supp" \
 		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
-		python3 run_tests.py -v --sanitizer
+		python3 run_tests.py -v --sanitizer --exclude=packaging
 
 # Fuzzing targets (clang-18 + libFuzzer + ASan + UBSan).
 # Design: ONE instrumented executable `mcrfpy_fuzz` that embeds CPython,
@@ -306,21 +353,22 @@ clean-fuzz:
 
 tsan:
 	@echo "Building McRogueFace with TSan + free-threaded Python..."
-	@echo "NOTE: Requires free-threaded debug Python built with:"
-	@echo "  tools/build_debug_python.sh --tsan"
+	@echo "NOTE: Requires free-threaded debug Python: make python-tsan"
 	@mkdir -p build-tsan
 	@cd build-tsan && cmake .. \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DMCRF_FREE_THREADED_PYTHON=ON \
+		-DMCRF_DEBUG_PYTHON=ON \
 		-DMCRF_SANITIZE_THREAD=ON && make -j$(JOBS)
 	@echo "TSan build complete! Output: build-tsan/mcrogueface"
 
 tsan-test: tsan
 	@echo "Running test suite under TSan..."
 	cd tests && MCRF_BUILD_DIR=../build-tsan \
-		MCRF_LIB_DIR=../__lib_debug \
+		MCRF_LIB_DIR=../__lib_tsan \
+		MCRF_TIMEOUT_MULTIPLIER=10 \
 		TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1" \
-		python3 run_tests.py -v --sanitizer
+		python3 run_tests.py -v --sanitizer --exclude=packaging
 
 valgrind-test: debug
 	@echo "Running test suite under Valgrind memcheck..."
@@ -328,7 +376,7 @@ valgrind-test: debug
 		MCRF_LIB_DIR=../__lib_debug \
 		MCRF_TIMEOUT_MULTIPLIER=50 \
 		PYTHONMALLOC=malloc \
-		python3 run_tests.py -v --valgrind
+		python3 run_tests.py -v --valgrind --exclude=packaging
 
 massif-test: debug
 	@echo "Running heap profiling under Valgrind Massif..."

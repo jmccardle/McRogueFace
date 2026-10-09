@@ -86,7 +86,7 @@ extern PyMethodDef UISprite_methods[];
 
 namespace mcrfpydef {
     inline PyTypeObject PyUISpriteType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.Sprite",
         .tp_basicsize = sizeof(PyUISpriteObject),
         .tp_itemsize = 0,

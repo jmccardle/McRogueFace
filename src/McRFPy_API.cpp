@@ -1,4 +1,29 @@
 #include "McRFPy_API.h"
+#include "EngineRandom.h"
+#include <climits>
+
+// Embedded-interpreter version strings, derived from the CPython headers we
+// compile against (patchlevel.h) so bumping the interpreter needs no edits here.
+#define MCRF_STR2(x) #x
+#define MCRF_STR(x) MCRF_STR2(x)
+#define MCRF_WSTR2(x) L ## #x
+#define MCRF_WSTR(x) MCRF_WSTR2(x)
+#define MCRF_PY_VER MCRF_STR(PY_MAJOR_VERSION) "." MCRF_STR(PY_MINOR_VERSION)
+#define MCRF_PY_VER_W MCRF_WSTR(PY_MAJOR_VERSION) L"." MCRF_WSTR(PY_MINOR_VERSION)
+#define MCRF_PY_HOME_W L"/lib/python" MCRF_PY_VER_W
+#ifdef Py_GIL_DISABLED
+#define MCRF_PY_STDLIB_DIRNAME "python" MCRF_PY_VER "t"   // venv layout: lib/python3.Xt/
+#else
+#define MCRF_PY_STDLIB_DIRNAME "python" MCRF_PY_VER
+#endif
+// Extension modules (relative to the exe): CPython's own layout per platform.
+// Windows .pyd files come from python.org's embeddable package (__lib_windows).
+#ifdef _WIN32
+#define MCRF_PY_EXT_DIR_W L"/lib/Python/DLLs"
+#else
+#define MCRF_PY_EXT_DIR_W L"/lib/Python/lib.linux-x86_64-" MCRF_PY_VER_W
+#endif
+
 #include "UIDrawable.h"
 #include "McRFPy_Automation.h"
 // Note: McRFPy_Libtcod.h removed in #215 - functionality moved to mcrfpy.bresenham()
@@ -47,6 +72,7 @@
 #include "tiled/PyWangSet.h"      // Wang auto-tile sets
 #include "ldtk/PyLdtkProject.h"   // LDtk project loading
 #include "ldtk/PyAutoRuleSet.h"   // LDtk auto-rule sets
+#include "PyVisibilityMask.h"     // GridData.observe() result mask (fog-of-war/AI perception)
 #include "McRogueFaceVersion.h"
 #include "GameEngine.h"
 #ifdef __EMSCRIPTEN__
@@ -297,7 +323,7 @@ static PyMethodDef mcrfpy_module_type_methods[] = {
 
 // Custom module type: carries the dynamic properties as descriptors (#151, #356)
 static PyTypeObject McRFPyModuleType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.module",
     .tp_basicsize = 0,  // Inherited from base
     .tp_itemsize = 0,
@@ -346,6 +372,39 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("A headless --exec script must end by calling sys.exit(), because step() is "
                    "the only headless clock: without it the engine cannot advance itself. Pass "
                    "--run-forever for a long-lived headless process that drives itself.")
+         MCRF_NOTE("One frame tests each timer at most ONCE, so a single wide step skips "
+                   "intervals: step(10.0) fires a 1000ms repeating timer once, not ten times, "
+                   "and re-phases it to the end of the step. Use advance() to let a span of "
+                   "simulated time pass with every interval honored.")
+         MCRF_RAISES("RuntimeError", "Called from a background thread that currently holds "
+                   "mcrfpy.lock(). Advancing a frame from inside the lock re-enters the frame "
+                   "the lock synchronises with, which cannot complete until the caller releases. "
+                   "Inside the lock, mutate only. (Main-thread lock() is a no-op, so this cannot "
+                   "fire from script init or a timer callback.)")
+         MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
+     )},
+    {"advance", McRFPy_API::_advance, METH_VARARGS,
+     MCRF_METHOD(mcrfpy, advance,
+         MCRF_SIG("(ms: int)", "int"),
+         MCRF_DESC("Advance the simulation clock by exactly ms milliseconds (headless mode only), "
+                   "running one simulation frame per timer deadline crossed so that every "
+                   "repeating timer fires once per elapsed interval.")
+         MCRF_ARGS_START
+         MCRF_ARG("ms", "Milliseconds of simulated time to advance. Must be an int >= 0.")
+         MCRF_RETURNS("int: Milliseconds actually advanced. Returns 0 in windowed mode, and 0 for advance(0).")
+         MCRF_RAISES("TypeError", "ms is not an int (step() is the one that takes float seconds)")
+         MCRF_RAISES("ValueError", "ms is negative -- the simulation clock does not run backwards")
+         MCRF_NOTE("advance(10000) fires a 1000ms repeating timer exactly 10 times, whereas "
+                   "step(10.0) fires it once. Partial intervals are carried, not discarded: "
+                   "advance(10500) fires it 10 times and leaves it 500ms from its next deadline.")
+         MCRF_NOTE("Each boundary is a full simulation frame, so current_frame advances once per "
+                   "timer deadline crossed plus once for any residual. advance(0) does nothing at "
+                   "all -- use step(0.0) to run a frame without moving the clock.")
+         MCRF_NOTE("Read the resulting clock with get_metrics()['simulation_time_ms'] (milliseconds). "
+                   "The 'runtime' key is wall clock and is unrelated to simulated time.")
+         MCRF_RAISES("RuntimeError", "Called from a background thread that currently holds "
+                   "mcrfpy.lock(); see step(). Inside the lock, mutate only.")
+         MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
      MCRF_METHOD(mcrfpy, exit,
@@ -389,10 +448,49 @@ static PyMethodDef mcrfpyMethods[] = {
      MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
-         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (total runtime in seconds), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids)")
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (WALL-CLOCK seconds since engine start), simulation_time_ms (SIMULATED milliseconds, the deterministic counter advanced only by step()/advance() and the clock headless timers run on), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids)")
          MCRF_NOTE("All per-frame counters and timing breakdowns describe the last COMPLETED frame. "
                    "Python callbacks run before the frame is rendered, so the in-progress frame's "
-                   "values are not available yet; frame_time, fps, runtime and current_frame are live.")
+                   "values are not available yet; frame_time, fps, runtime, simulation_time_ms and "
+                   "current_frame are live.")
+         MCRF_NOTE("'runtime' and 'simulation_time_ms' are DIFFERENT clocks: runtime is wall time in "
+                   "seconds and advances on its own; simulation_time_ms is simulated MILLISECONDS and "
+                   "moves only when step()/advance() is called, which is headless-only -- in "
+                   "windowed mode it stays 0 and timers run on runtime instead. Rendering costs "
+                   "zero simulation_time_ms, so a screenshot never moves it.")
+     )},
+
+    {"set_random_seed", McRFPy_API::_setRandomSeed, METH_VARARGS,
+     MCRF_METHOD(mcrfpy, set_random_seed,
+         MCRF_SIG("(seed: int)", "None"),
+         MCRF_DESC("Seed the engine's internal random streams and reset them to their start. "
+                   "Call this before anything consumes randomness to make a run reproducible."),
+         MCRF_ARGS_START
+         MCRF_ARG("seed", "Unsigned 32-bit integer, 0 to 4294967295 inclusive")
+         MCRF_RETURNS("None")
+         MCRF_RAISES("TypeError", "seed is not an integer")
+         MCRF_RAISES("ValueError", "seed is negative or larger than 4294967295")
+         MCRF_NOTE("Covers the randomness the engine generates on its own behalf: entity "
+                   "behaviour selection (Behavior.NOISE4 / NOISE8) and Sound.play_varied(). "
+                   "Objects that take their own seed -- NoiseSource, BSP.split_recursive, "
+                   "SoundBuffer.sfxr -- are unaffected; seed those individually.")
+         MCRF_NOTE("Each subsystem gets an independent stream derived from this one seed, so "
+                   "playing sounds does not shift entity behaviour. Reordering or removing a "
+                   "stream would change every sequence at a given seed.")
+     )},
+
+    {"get_random_seed", McRFPy_API::_getRandomSeed, METH_NOARGS,
+     MCRF_METHOD(mcrfpy, get_random_seed,
+         MCRF_SIG("()", "int"),
+         MCRF_DESC("The seed the engine's internal random streams are using."),
+         MCRF_RETURNS("int: the seed set by set_random_seed(), or -- if none was ever set -- "
+                      "a seed generated from the system entropy source, recorded, and used "
+                      "from then on. This never fails to answer, so a run that was not seeded "
+                      "explicitly can still be replayed afterwards by passing this value to "
+                      "set_random_seed().")
+         MCRF_NOTE("Calling this before any randomness is consumed fixes the seed for the rest "
+                   "of the process -- it materialises the value rather than reporting a "
+                   "placeholder. Record it in a run log if reproducibility matters.")
      )},
 
     {"set_dev_console", McRFPy_API::_setDevConsole, METH_VARARGS,
@@ -447,7 +545,13 @@ static PyMethodDef mcrfpyMethods[] = {
                    "`with mcrfpy.lock():`; behavior outside the lock is undefined. On a worker "
                    "thread the context manager blocks (GIL released) until the render loop opens a "
                    "safe window between frames; on the main thread it is a no-op.")
-         MCRF_LINK("docs/threading-model.md", "Threading Model")
+         MCRF_NOTE("INSIDE THE LOCK, MUTATE ONLY. The main thread parks until every holder "
+                   "releases, so hold time is added to frame time roughly 1:1 -- a 10 ms hold "
+                   "costs the frame 10 ms, and presents as engine stutter rather than as a "
+                   "misbehaving handler. Do I/O, waiting, and computation OUTSIDE the block and "
+                   "apply the result inside it. Calling mcrfpy.step() or mcrfpy.advance() while "
+                   "holding the lock raises RuntimeError rather than deadlocking.")
+         MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
 
     // #215: Bresenham line algorithm (replaces mcrfpy.libtcod.line)
@@ -478,6 +582,22 @@ static PyMethodDef mcrfpyMethods[] = {
     {NULL, NULL, 0, NULL}
 };
 
+static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def);
+
+// Multi-phase init, used only to declare the module's threading/interpreter
+// contract; the real setup still happens once, in mcrfpy_module_create().
+static PyModuleDef_Slot mcrfpySlots[] = {
+    {Py_mod_create, (void*)mcrfpy_module_create},
+    // The engine (GameEngine, static PyTypeObjects, PythonObjectCache) is
+    // process-global. Refuse every subinterpreter -- including 'legacy' ones,
+    // which would otherwise get a copy of the main interpreter's module dict.
+    {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
+    // Explicit: mcrfpy relies on the GIL (FrameLock/#219, borrowed refs). On a
+    // free-threaded build this keeps the GIL enabled until that is audited.
+    {Py_mod_gil, Py_MOD_GIL_USED},
+    {0, NULL}
+};
+
 static PyModuleDef mcrfpyModule = {
     PyModuleDef_HEAD_INIT, /* m_base - Always initialize this member to PyModuleDef_HEAD_INIT. */
     "mcrfpy",              /* m_name */
@@ -505,9 +625,9 @@ static PyModuleDef mcrfpyModule = {
               "    \n"
               "    # Set keyboard handler\n"
               "    scene.on_key = lambda key, action: print(f'{key} {action}')\n"),
-    -1,                    /* m_size - Setting m_size to -1 means that the module does not support sub-interpreters, because it has global state. */
-    mcrfpyMethods,         /* m_methods */
-    NULL,                  /* m_slots - An array of slot definitions ...  When using single-phase initialization, m_slots must be NULL. */
+    0,                     /* m_size - no per-module state; engine state is process-global (see mcrfpySlots) */
+    mcrfpyMethods,         /* m_methods - added by CPython after Py_mod_create */
+    mcrfpySlots,           /* m_slots */
     NULL,                  /* traverseproc m_traverse - A traversal function to call during GC traversal of the module object */
     NULL,                  /* inquiry m_clear - A clear function to call during GC clearing of the module object */
     NULL                   /* freefunc m_free - A function to call during deallocation of the module object */
@@ -516,7 +636,36 @@ static PyModuleDef mcrfpyModule = {
 // Module initializer fn, passed to PyImport_AppendInittab
 PyObject* PyInit_mcrfpy()
 {
-    PyObject* m = PyModule_Create(&mcrfpyModule);
+    return PyModuleDef_Init(&mcrfpyModule);
+}
+
+// Py_mod_create: builds the module once per process. Multi-phase modules are
+// re-created if removed from sys.modules and imported again; returning the
+// existing module keeps the static types and enum caches from being rebuilt.
+static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
+{
+    // Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED is only enforced for
+    // interpreters with check_multi_interp_extensions set; 'legacy'
+    // subinterpreters on a GIL build skip it. Unlike single-phase init,
+    // Py_mod_create runs on every import in every interpreter, so check here.
+    if (PyInterpreterState_Get() != PyInterpreterState_Main()) {
+        PyErr_SetString(PyExc_ImportError,
+            "mcrfpy does not support loading in subinterpreters: "
+            "the game engine is process-global and lives in the main interpreter");
+        return NULL;
+    }
+
+    static PyObject* created = nullptr;
+    if (created) {
+        return Py_NewRef(created);
+    }
+
+    PyObject* name = PyObject_GetAttrString(spec, "name");
+    if (!name) {
+        return NULL;
+    }
+    PyObject* m = PyModule_NewObject(name);
+    Py_DECREF(name);
 
     if (m == NULL)
     {
@@ -628,6 +777,9 @@ PyObject* PyInit_mcrfpy()
         /*LDtk project loading*/
         &mcrfpydef::PyLdtkProjectType,
         &mcrfpydef::PyAutoRuleSetType,
+
+        /*masked observation - result of GridData.observe() (fog-of-war/AI perception)*/
+        &mcrfpydef::PyVisibilityMaskType,
 
         nullptr};
 
@@ -973,10 +1125,28 @@ del _builtins
 #endif
 
     //McRFPy_API::mcrf_module = m;
+    created = Py_NewRef(m);
     return m;
 }
 
 // init_python - configure interpreter details here
+#ifdef Py_GIL_DISABLED
+// PyConfig.enable_gil for free-threaded builds: 1 (_PyConfig_GIL_ENABLE) unless
+// MCRF_UNSAFE_NOGIL=1, which runs with the GIL disabled (0). mcrfpy is NOT
+// audited for that -- the switch exists to measure what breaks (thread-safety
+// stress tests, TSan), not for games. The isolated config ignores PYTHON_GIL.
+static int mcrf_requested_gil_setting()
+{
+    const char* v = std::getenv("MCRF_UNSAFE_NOGIL");
+    if (v && std::string(v) == "1") {
+        std::cerr << "mcrogueface: MCRF_UNSAFE_NOGIL=1 -- running with the GIL DISABLED; "
+                     "mcrfpy is not thread-safe without it (testing only)" << std::endl;
+        return 0;  // _PyConfig_GIL_DISABLE
+    }
+    return 1;      // _PyConfig_GIL_ENABLE
+}
+#endif
+
 PyStatus init_python(const char *program_name)
 {
     PyStatus status;
@@ -993,6 +1163,12 @@ PyStatus init_python(const char *program_name)
 
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
+#ifdef Py_GIL_DISABLED
+    // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
+    // so the GIL would be re-enabled anyway; pin it explicitly instead of
+    // emitting CPython's "GIL has been enabled" RuntimeWarning at startup.
+    config.enable_gil = mcrf_requested_gil_setting();
+#endif
     config.dev_mode = 0;
 
     // Configure UTF-8 for stdio
@@ -1003,14 +1179,14 @@ PyStatus init_python(const char *program_name)
 #ifdef __EMSCRIPTEN__
     // WASM: Use absolute paths in virtual filesystem
     PyConfig_SetString(&config, &config.executable, L"/mcrogueface");
-    PyConfig_SetString(&config, &config.home, L"/lib/python3.14");
+    PyConfig_SetString(&config, &config.home, MCRF_PY_HOME_W);
     status = PyConfig_SetBytesString(&config, &config.program_name, "mcrogueface");
 
     // Set up module search paths for WASM
     config.module_search_paths_set = 1;
     const wchar_t* wasm_paths[] = {
         L"/scripts",
-        L"/lib/python3.14"
+        MCRF_PY_HOME_W
     };
     for (auto s : wasm_paths) {
         status = PyWideStringList_Append(&config.module_search_paths, s);
@@ -1037,7 +1213,7 @@ PyStatus init_python(const char *program_name)
 #ifdef _WIN32
         auto site_packages = sibling_venv / "Lib" / "site-packages";
 #else
-        auto site_packages = sibling_venv / "lib" / "python3.14" / "site-packages";
+        auto site_packages = sibling_venv / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
 #endif
         if (std::filesystem::exists(site_packages)) {
             // Prepend so venv packages take priority over bundled
@@ -1056,7 +1232,7 @@ PyStatus init_python(const char *program_name)
     // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-3.14",
+        MCRF_PY_EXT_DIR_W,
         L"/lib/Python",
         L"/lib/Python/Lib"
         // Note: venv site-packages handled above via sibling_venv detection
@@ -1103,6 +1279,12 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 
     PyConfig pyconfig;
     PyConfig_InitIsolatedConfig(&pyconfig);
+#ifdef Py_GIL_DISABLED
+    // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
+    // so the GIL would be re-enabled anyway; pin it explicitly instead of
+    // emitting CPython's "GIL has been enabled" RuntimeWarning at startup.
+    pyconfig.enable_gil = mcrf_requested_gil_setting();
+#endif
 
     // Configure UTF-8 for stdio
     PyConfig_SetString(&pyconfig, &pyconfig.stdio_encoding, L"UTF-8");
@@ -1186,7 +1368,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     if (std::filesystem::exists(venv_root / "pyvenv.cfg")) {
         // We're running from within a venv!
         // Add venv's site-packages to module search paths
-        auto site_packages = venv_root / "lib" / "python3.14" / "site-packages";
+        auto site_packages = venv_root / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
         PyWideStringList_Append(&pyconfig.module_search_paths,
                                site_packages.wstring().c_str());
         pyconfig.module_search_paths_set = 1;
@@ -1199,7 +1381,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 #ifdef _WIN32
         auto site_packages = sibling_venv / "Lib" / "site-packages";
 #else
-        auto site_packages = sibling_venv / "lib" / "python3.14" / "site-packages";
+        auto site_packages = sibling_venv / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
 #endif
         if (std::filesystem::exists(site_packages)) {
             // Prepend so venv packages take priority over bundled
@@ -1211,13 +1393,13 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 #endif // !__EMSCRIPTEN__
 #ifdef __EMSCRIPTEN__
     // WASM: Use absolute paths in virtual filesystem
-    PyConfig_SetString(&pyconfig, &pyconfig.home, L"/lib/python3.14");
+    PyConfig_SetString(&pyconfig, &pyconfig.home, MCRF_PY_HOME_W);
 
     // Set up module search paths for WASM
     pyconfig.module_search_paths_set = 1;
     const wchar_t* wasm_paths[] = {
         L"/scripts",
-        L"/lib/python3.14"
+        MCRF_PY_HOME_W
     };
     for (auto s : wasm_paths) {
         status = PyWideStringList_Append(&pyconfig.module_search_paths, s);
@@ -1238,7 +1420,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     // search paths for python libs/modules/scripts
     const wchar_t* str_arr[] = {
         L"/scripts",
-        L"/lib/Python/lib.linux-x86_64-3.14",
+        MCRF_PY_EXT_DIR_W,
         L"/lib/Python",
         L"/lib/Python/Lib"
         // Note: venv site-packages handled above via sibling_venv detection
@@ -1583,6 +1765,49 @@ PyObject* McRFPy_API::api_get_animations()
     return tuple;
 }
 
+// B7 (#395) - Driving a frame from inside mcrfpy.lock() is refused, loudly.
+//
+// A background thread holding the frame lock that calls step()/advance() re-enters
+// runSimFrame(). If any other thread is waiting, the re-entered frame's closeWindow()
+// waits for `active` to reach 0 -- and the caller's own hold is part of `active`, so
+// it never can. The main thread is already parked in the outer frame's closeWindow()
+// waiting on the same count. Nothing times out: FrameLock's condition variable has no
+// deadline (that was #398). The process hangs with no error, no log line, and no
+// stack to look at, and it presents as "the engine froze".
+//
+// Even in the one case that does NOT hang -- no other thread waiting, so hasWaiting()
+// short-circuits the safe window -- the call still runs a whole simulation frame from
+// a non-main thread while the main thread is parked mid-frame: timers, Scene.update(),
+// animations, transitions, and currentFrame++ all execute off the clock's owner. That
+// is the mutate-only rule (never drive a frame from inside the lock) violated in the
+// exact way rule 1 exists to forbid, and its "success" is worse than the hang because
+// it produces a plausible-looking trace with two frame bodies interleaved.
+//
+// So: raise. The two alternatives were both considered and both rejected.
+//   * A silent no-op returns 0.0 to a caller that asked for time to pass. The world
+//     does not advance, the trace merely looks sparse, and nothing says why -- the
+//     same failure shape SimClock.advance() is explicitly contracted against.
+//   * A re-entrancy guard that runs the frame but skips the safe window makes the
+//     deadlock go away while leaving the off-thread frame body in place, i.e. it
+//     hides the symptom of the thing that is actually wrong.
+// A RuntimeError names the rule at the call site, in the offending thread, at the
+// instant of the mistake. Fail Early.
+//
+// Note this cannot fire on the main thread: mcrfpy.lock() is a no-op there, so the
+// main thread never becomes a holder and `with mcrfpy.lock(): mcrfpy.step()` in a
+// script or a timer callback keeps working exactly as before.
+static bool frameAdvanceAllowed(const char* fname)
+{
+    if (!Resources::game->getFrameLock().heldByCurrentThread()) return true;
+    PyErr_Format(PyExc_RuntimeError,
+        "mcrfpy.%s() cannot be called while this thread holds mcrfpy.lock(): it would "
+        "re-enter the frame the lock is synchronising with, and the frame cannot complete "
+        "until this thread releases. Inside the lock, mutate only -- no frame advance, no "
+        "I/O, no blocking wait. Compute outside the lock and apply inside it.",
+        fname);
+    return false;
+}
+
 // #153 - Headless simulation control
 PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
     PyObject* dt_obj = Py_None;
@@ -1605,9 +1830,46 @@ PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
         PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
         return NULL;
     }
+    if (!frameAdvanceAllowed("step")) return NULL;
 
     float actual_dt = game->step(dt);
     return PyFloat_FromDouble(actual_dt);
+}
+
+// #396 - Bounded simulation advance with per-interval timer semantics
+PyObject* McRFPy_API::_advance(PyObject* self, PyObject* args) {
+    PyObject* ms_obj = nullptr;
+    if (!PyArg_ParseTuple(args, "O", &ms_obj)) return NULL;
+
+    // Milliseconds, integer only. Deliberately NOT accepting a float: step() takes float
+    // seconds, and silently reinterpreting advance(1.0) as one millisecond would be a
+    // trap. The simulation clock is integer milliseconds; keep the argument in its units.
+    if (!PyLong_Check(ms_obj) || PyBool_Check(ms_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "advance() argument must be an int number of MILLISECONDS "
+            "(step() is the one that takes float seconds)");
+        return NULL;
+    }
+
+    long ms = PyLong_AsLong(ms_obj);
+    if (ms == -1 && PyErr_Occurred()) return NULL;
+
+    if (ms < 0) {
+        PyErr_SetString(PyExc_ValueError, "advance() milliseconds must be >= 0; the simulation clock does not run backwards");
+        return NULL;
+    }
+    if (ms > INT_MAX) {
+        PyErr_SetString(PyExc_OverflowError, "advance() milliseconds too large for the simulation clock");
+        return NULL;
+    }
+
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
+        return NULL;
+    }
+    if (!frameAdvanceAllowed("advance")) return NULL;
+
+    return PyLong_FromLong(game->advance(static_cast<int>(ms)));
 }
 
 PyObject* McRFPy_API::_exit(PyObject* self, PyObject* args) {
@@ -1889,6 +2151,45 @@ PyObject* McRFPy_API::_findAll(PyObject* self, PyObject* args) {
     return results;
 }
 
+// #394 -- seed the engine's internal random streams from Python.
+//
+// Deliberately strict about range: std::mt19937 takes a 32-bit seed, so silently
+// truncating 2**32 to 0 would make two "different" seeds produce identical runs and
+// nothing would report it. An out-of-range seed raises instead.
+PyObject* McRFPy_API::_setRandomSeed(PyObject* self, PyObject* args) {
+    PyObject* seed_obj = nullptr;
+    if (!PyArg_ParseTuple(args, "O", &seed_obj)) {
+        return NULL;
+    }
+    // Reject bool explicitly: PyLong_Check(True) is true, and set_random_seed(True)
+    // is far more likely to be a mistake than a request to seed with 1.
+    if (PyBool_Check(seed_obj) || !PyLong_Check(seed_obj)) {
+        PyErr_Format(PyExc_TypeError, "seed must be an integer, got %s",
+                     Py_TYPE(seed_obj)->tp_name);
+        return NULL;
+    }
+
+    int overflow = 0;
+    long long value = PyLong_AsLongLongAndOverflow(seed_obj, &overflow);
+    if (value == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+    if (overflow != 0 || value < 0 || value > 0xFFFFFFFFLL) {
+        PyErr_SetString(PyExc_ValueError,
+            "seed must be in [0, 4294967295] (an unsigned 32-bit integer)");
+        return NULL;
+    }
+
+    mcrf::EngineRandom::setSeed(static_cast<uint32_t>(value));
+    Py_RETURN_NONE;
+}
+
+PyObject* McRFPy_API::_getRandomSeed(PyObject* self, PyObject* args) {
+    // seed() materialises and records a seed if none was set, so this always
+    // reports the number actually in use -- never a placeholder, never None.
+    return PyLong_FromUnsignedLong(mcrf::EngineRandom::seed());
+}
+
 PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // Create a dictionary with metrics
     PyObject* dict = PyDict_New();
@@ -1924,6 +2225,16 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // Add general metrics
     PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));
     PyDict_SetItemString(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds()));
+
+    // #396 - The SIMULATION clock, in integer milliseconds. The _ms suffix is deliberate:
+    // the sibling "runtime" key is float SECONDS, and mistaking one for the other is the
+    // exact confusion this key exists to end. The two are different clocks, not different
+    // units of one -- runtime is wall clock and keeps ticking while a headless script
+    // thinks about its next move; simulation_time_ms is the
+    // deterministic counter that only step()/advance() move, and the one timers run on in
+    // headless mode. Exposed here rather than as a parallel API so there is one place to
+    // ask the engine what time it is.
+    PyDict_SetItemString(dict, "simulation_time_ms", PyLong_FromLong(game->getSimulationTime()));
 
     return dict;
 }

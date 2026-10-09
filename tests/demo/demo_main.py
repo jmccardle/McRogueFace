@@ -43,7 +43,10 @@ class DemoRunner:
         self.menu = None
         self.current_index = 0
         self.headless = self._detect_headless()
-        self.screenshot_dir = os.path.join(os.path.dirname(__file__), "screenshots")
+        # tests/demo/screenshots/ is the committed gallery; the test runner
+        # redirects to the build dir so a suite run doesn't rewrite it.
+        self.screenshot_dir = (os.environ.get("MCRF_DEMO_SCREENSHOT_DIR")
+                               or os.path.join(os.path.dirname(__file__), "screenshots"))
 
     def _detect_headless(self):
         """Detect if running in headless mode."""

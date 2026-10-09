@@ -27,26 +27,69 @@ option(MCRF_GAME_SHELL "Use minimal game-only HTML shell (no REPL)" OFF)
 option(MCRF_SANITIZE_ADDRESS "Build with AddressSanitizer" OFF)
 option(MCRF_SANITIZE_UNDEFINED "Build with UBSan" OFF)
 option(MCRF_SANITIZE_THREAD "Build with ThreadSanitizer" OFF)
-option(MCRF_DEBUG_PYTHON "Link against debug CPython from __lib_debug/" OFF)
-option(MCRF_FREE_THREADED_PYTHON "Link against free-threaded CPython (python3.14t)" OFF)
+option(MCRF_DEBUG_PYTHON "Link against pydebug CPython (python3.Xd from __lib_debug/, or 3.Xtd from __lib_tsan/)" OFF)
+option(MCRF_FREE_THREADED_PYTHON "Link against free-threaded CPython (python3.Xt from __lib_ft/, or 3.Xtd from __lib_tsan/)" OFF)
 option(MCRF_WASM_DEBUG "Build WASM with DWARF debug info and source maps" OFF)
 option(MCRF_FUZZER "Build with libFuzzer coverage instrumentation for atheris" OFF)
-option(MCRF_PROFILE "Keep frame pointers for perf/Callgrind profiling (use with RelWithDebInfo)" OFF)
+option(MCRF_PROFILE "Profiling build for perf/Callgrind (use with RelWithDebInfo; forces MCRF_FRAME_POINTERS)" OFF)
+option(MCRF_FRAME_POINTERS "Keep the frame-pointer chain so perf/eBPF/gdb can unwind engine <-> Python stacks (PEP 831)" ON)
 
 # Validate mutually exclusive sanitizers
 if(MCRF_SANITIZE_ADDRESS AND MCRF_SANITIZE_THREAD)
     message(FATAL_ERROR "ASan and TSan are mutually exclusive. Use one or the other.")
 endif()
 
-# Validate debug Python library exists when requested
-if(MCRF_DEBUG_PYTHON)
-    if(NOT EXISTS "${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0")
-        message(FATAL_ERROR
-            "__lib_debug/libpython3.14.so.1.0 not found.\n"
-            "Build it first: tools/build_debug_python.sh")
-    endif()
-    message(STATUS "Using debug CPython from __lib_debug/")
+# Embedded CPython version. Library names, DLL names and stdlib paths below are
+# all derived from this; bump it together with the modules/cpython submodule.
+set(MCRF_PYTHON_VERSION "3.15" CACHE STRING "Embedded CPython major.minor (must match modules/cpython)")
+string(REPLACE "." "" MCRF_PYTHON_NODOT "${MCRF_PYTHON_VERSION}")
+
+# Which CPython variant to embed (Linux native builds). Each lives in its own
+# dir, built by tools/build_python.sh, and is overlaid on __lib/ at post-build:
+#   default             python3.X    __lib/        (no flag)
+#   free-threaded       python3.Xt   __lib_ft/     (--free-threaded)
+#   pydebug             python3.Xd   __lib_debug/  (--debug)  make debug/asan/fuzz
+#   free-threaded+debug python3.Xtd  __lib_tsan/   (--tsan)   make tsan
+set(MCRF_PYTHON_ABI "")
+if(MCRF_FREE_THREADED_PYTHON)
+    string(APPEND MCRF_PYTHON_ABI "t")
 endif()
+if(MCRF_DEBUG_PYTHON)
+    string(APPEND MCRF_PYTHON_ABI "d")
+endif()
+if(MCRF_PYTHON_ABI STREQUAL "td")
+    set(_mcrf_py_dir "__lib_tsan")
+    set(_mcrf_py_flag "--tsan")
+elseif(MCRF_PYTHON_ABI STREQUAL "d")
+    set(_mcrf_py_dir "__lib_debug")
+    set(_mcrf_py_flag "--debug")
+elseif(MCRF_PYTHON_ABI STREQUAL "t")
+    set(_mcrf_py_dir "__lib_ft")
+    set(_mcrf_py_flag "--free-threaded")
+else()
+    set(_mcrf_py_dir "__lib")
+    set(_mcrf_py_flag "")
+endif()
+set(MCRF_PYTHON_LIB_DIR "${CMAKE_SOURCE_DIR}/${_mcrf_py_dir}")
+set(PYTHON_LIB "python${MCRF_PYTHON_VERSION}${MCRF_PYTHON_ABI}")
+if(NOT MCRF_PYTHON_ABI STREQUAL "" AND NOT EMSCRIPTEN AND NOT WIN32)
+    if(NOT EXISTS "${MCRF_PYTHON_LIB_DIR}/lib${PYTHON_LIB}.so.1.0")
+        message(FATAL_ERROR
+            "${_mcrf_py_dir}/lib${PYTHON_LIB}.so.1.0 not found.\n"
+            "Build it first: tools/build_python.sh ${_mcrf_py_flag}")
+    endif()
+    message(STATUS "Using CPython ${MCRF_PYTHON_VERSION}${MCRF_PYTHON_ABI} from ${_mcrf_py_dir}/")
+endif()
+
+# Optional local -dev sysroot (tools/fetch_dev_headers.sh) for machines without
+# root: headers and unversioned .so links for X11/GL/OpenAL/freetype.
+set(MCRF_SYSROOT "$ENV{MCRF_SYSROOT}" CACHE PATH "Prefix with extra -dev packages (see tools/fetch_dev_headers.sh)")
+if(MCRF_SYSROOT AND NOT EMSCRIPTEN AND NOT WIN32)
+    list(APPEND CMAKE_PREFIX_PATH "${MCRF_SYSROOT}/usr")
+    include_directories(SYSTEM "${MCRF_SYSROOT}/usr/include")
+    message(STATUS "Using dev-header sysroot: ${MCRF_SYSROOT}")
+endif()
+
 
 # Emscripten builds: use SDL2 if specified, otherwise fall back to headless
 if(EMSCRIPTEN)
@@ -114,7 +157,12 @@ elseif(MCRF_CROSS_WINDOWS)
     include_directories(${CMAKE_SOURCE_DIR}/__lib_windows/sfml/include)
     include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/include)
 else()
-    # Native builds (Linux/Windows): use existing Python setup
+    # Native builds (Linux/Windows): use existing Python setup.
+    # The staged pyconfig.h (from tools/build_python.sh) must win over any
+    # in-tree one, since the free-threaded variant defines Py_GIL_DISABLED.
+    if(EXISTS "${MCRF_PYTHON_LIB_DIR}/include/pyconfig.h")
+        include_directories(BEFORE ${MCRF_PYTHON_LIB_DIR}/include)
+    endif()
     include_directories(${CMAKE_SOURCE_DIR}/deps/cpython)
     include_directories(${CMAKE_SOURCE_DIR}/deps/Python)
 endif()
@@ -163,10 +211,10 @@ if(EMSCRIPTEN)
     set(PYTHON_WASM_BUILD "${CMAKE_SOURCE_DIR}/deps/cpython/cross-build/wasm32-emscripten/build/python")
     set(PYTHON_WASM_PREFIX "${CMAKE_SOURCE_DIR}/deps/cpython/cross-build/wasm32-emscripten/prefix")
     set(LIBTCOD_WASM_BUILD "${CMAKE_SOURCE_DIR}/modules/libtcod-headless/build-emscripten")
-    # Collect HACL crypto object files (not included in libpython3.14.a)
+    # Collect HACL crypto object files (not included in libpython${MCRF_PYTHON_VERSION}.a)
     file(GLOB PYTHON_HACL_OBJECTS "${PYTHON_WASM_BUILD}/Modules/_hacl/*.o")
     set(LINK_LIBS
-        ${PYTHON_WASM_BUILD}/libpython3.14.a
+        ${PYTHON_WASM_BUILD}/libpython${MCRF_PYTHON_VERSION}.a
         ${PYTHON_HACL_OBJECTS}
         ${PYTHON_WASM_BUILD}/Modules/expat/libexpat.a
         ${PYTHON_WASM_PREFIX}/lib/libmpdec.a
@@ -179,7 +227,7 @@ if(EMSCRIPTEN)
     if(MCRF_SDL2)
         include_directories(${CMAKE_SOURCE_DIR}/deps/stb)
     endif()
-    message(STATUS "Linking Emscripten Python: ${PYTHON_WASM_BUILD}/libpython3.14.a")
+    message(STATUS "Linking Emscripten Python: ${PYTHON_WASM_BUILD}/libpython${MCRF_PYTHON_VERSION}.a")
     message(STATUS "Linking Emscripten libtcod: ${LIBTCOD_WASM_BUILD}/libtcod.a")
 elseif(MCRF_SDL2)
     # SDL2 build (non-Emscripten): link against SDL2 and system libraries
@@ -190,7 +238,7 @@ elseif(MCRF_SDL2)
         SDL2::SDL2
         OpenGL::GL
         tcod
-        python3.14
+        python${MCRF_PYTHON_VERSION}
         m dl util pthread)
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
     include_directories(${CMAKE_SOURCE_DIR}/deps/stb)  # stb_image.h, stb_truetype.h
@@ -201,7 +249,7 @@ elseif(MCRF_HEADLESS)
     if(WIN32 OR MCRF_CROSS_WINDOWS)
         set(LINK_LIBS
             libtcod
-            python314)
+            python${MCRF_PYTHON_NODOT})
         if(MCRF_CROSS_WINDOWS)
             include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
             link_directories(${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/lib)
@@ -212,20 +260,14 @@ elseif(MCRF_HEADLESS)
         endif()
     else()
         # Unix/Linux headless build
-        if(MCRF_FREE_THREADED_PYTHON)
-            set(PYTHON_LIB python3.14t)
-        elseif(MCRF_DEBUG_PYTHON)
-            set(PYTHON_LIB python3.14d)
-        else()
-            set(PYTHON_LIB python3.14)
-        endif()
+        # PYTHON_LIB (python3.X + t/d abiflags) is set near the top
         set(LINK_LIBS
             tcod
             ${PYTHON_LIB}
             m dl util pthread)
         include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
         if(MCRF_DEBUG_PYTHON OR MCRF_FREE_THREADED_PYTHON)
-            link_directories(${CMAKE_SOURCE_DIR}/__lib_debug)
+            link_directories(${MCRF_PYTHON_LIB_DIR})
         endif()
         link_directories(${CMAKE_SOURCE_DIR}/__lib)
     endif()
@@ -237,7 +279,7 @@ elseif(MCRF_CROSS_WINDOWS)
         sfml-system
         sfml-audio
         libtcod
-        python314
+        python${MCRF_PYTHON_NODOT}
         ${OPENGL_LIBRARIES})
 
     # Add Windows system libraries needed by SFML and MinGW
@@ -267,19 +309,13 @@ elseif(WIN32)
         sfml-system
         sfml-audio
         tcod
-        python314
+        python${MCRF_PYTHON_NODOT}
         ${OPENGL_LIBRARIES})
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
     link_directories(${CMAKE_SOURCE_DIR}/__lib)
 else()
     # Unix/Linux build
-    if(MCRF_FREE_THREADED_PYTHON)
-        set(PYTHON_LIB python3.14t)
-    elseif(MCRF_DEBUG_PYTHON)
-        set(PYTHON_LIB python3.14d)
-    else()
-        set(PYTHON_LIB python3.14)
-    endif()
+    # PYTHON_LIB (python3.X + t/d abiflags) is set near the top
     set(LINK_LIBS
         sfml-graphics
         sfml-window
@@ -291,7 +327,7 @@ else()
         ${OPENGL_LIBRARIES})
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
     if(MCRF_DEBUG_PYTHON OR MCRF_FREE_THREADED_PYTHON)
-        link_directories(${CMAKE_SOURCE_DIR}/__lib_debug)
+        link_directories(${MCRF_PYTHON_LIB_DIR})
     endif()
     link_directories(${CMAKE_SOURCE_DIR}/__lib)
 endif()
@@ -335,12 +371,21 @@ if(MCRF_SANITIZE_THREAD)
         -fsanitize=thread)
 endif()
 
-# Profiling instrumentation (#345) — retain frame pointers so perf --call-graph fp
-# and Callgrind can unwind through optimized code. Optimization/-g come from the
-# RelWithDebInfo build type; this only adds the frame pointer. Binary is NOT stripped.
+# Frame pointers (#421, PEP 831). The embedded CPython 3.15 already builds with
+# them; a frame-pointer unwinder (perf --call-graph fp, eBPF, -Xperf trampolines)
+# stops at the first function that omits one, so the engine must keep the chain
+# too or every Python callback stack is cut off at the C++ dispatcher. Measured
+# cost and opt-out: docs/profiling.md. Not applicable to wasm (no native stack)
+# or MSVC (x64 unwinds from .pdata).
+# Profiling instrumentation (#345): MCRF_PROFILE forces the chain on; -O2/-g come
+# from the RelWithDebInfo build type. Binary is NOT stripped.
 if(MCRF_PROFILE)
-    message(STATUS "Profiling build: frame pointers retained (perf/Callgrind)")
-    target_compile_options(mcrogueface PRIVATE -fno-omit-frame-pointer)
+    set(MCRF_FRAME_POINTERS ON)
+endif()
+if(MCRF_FRAME_POINTERS AND NOT EMSCRIPTEN AND NOT MSVC)
+    message(STATUS "Frame pointers retained (-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer)")
+    target_compile_options(mcrogueface PRIVATE
+        -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer)
 endif()
 
 if(MCRF_FUZZER)
@@ -355,7 +400,7 @@ if(MCRF_FUZZER)
 
     add_executable(mcrfpy_fuzz ${MCRF_FUZZ_SOURCES})
     target_compile_definitions(mcrfpy_fuzz PRIVATE NO_SDL MCRF_FUZZ_HARNESS)
-    if(MCRF_DEBUG_PYTHON OR MCRF_FREE_THREADED_PYTHON)
+    if(MCRF_DEBUG_PYTHON)
         target_compile_definitions(mcrfpy_fuzz PRIVATE Py_DEBUG)
     endif()
     if(MCRF_FREE_THREADED_PYTHON)
@@ -386,22 +431,15 @@ if(MCRF_FUZZER)
             ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:mcrfpy_fuzz>/assets)
-    if(MCRF_DEBUG_PYTHON)
+    if(NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
         add_custom_command(TARGET mcrfpy_fuzz POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
-                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython3.14.so.1.0
-            COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
-                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython3.14d.so.1.0
-            COMMAND ${CMAKE_COMMAND} -E create_symlink
-                libpython3.14d.so.1.0
-                $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib/libpython3.14d.so)
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${MCRF_PYTHON_LIB_DIR} $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib)
     endif()
 endif()
 
 # Enable Py_DEBUG when linking against debug CPython (matches pydebug ABI)
-if(MCRF_DEBUG_PYTHON OR MCRF_FREE_THREADED_PYTHON)
+if(MCRF_DEBUG_PYTHON)
     target_compile_definitions(mcrogueface PRIVATE Py_DEBUG)
 endif()
 
@@ -436,7 +474,10 @@ if(EMSCRIPTEN)
         -sALLOW_MEMORY_GROWTH=1
         -sSTACK_SIZE=2097152
         -sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS,IDBFS
-        -sEXPORTED_FUNCTIONS=_main,_run_python_string,_run_python_string_with_output,_reset_python_environment,_notify_canvas_resize,_sync_storage
+        # __PyRuntime/__PyEM_EMSCRIPTEN_TRAMPOLINE_OFFSET: libpython's own pre-run JS
+        # (Python/emscripten_trampoline.c, 3.15+) reads them; the rest mirror
+        # CPython's configure.ac Emscripten LINKFORSHARED export list.
+        -sEXPORTED_FUNCTIONS=_main,_run_python_string,_run_python_string_with_output,_reset_python_environment,_notify_canvas_resize,_sync_storage,_Py_Version,__PyRuntime,_PyGILState_GetThisThreadState,__PyEM_EMSCRIPTEN_TRAMPOLINE_OFFSET
         -lidbfs.js
         -sASSERTIONS=2
         -sSTACK_OVERFLOW_CHECK=2
@@ -445,7 +486,7 @@ if(EMSCRIPTEN)
         # Disable features that require dynamic linking support
         -sERROR_ON_UNDEFINED_SYMBOLS=0
         -sALLOW_UNIMPLEMENTED_SYSCALLS=1
-        # Preload Python stdlib into virtual filesystem at /lib/python3.14
+        # Preload Python stdlib into virtual filesystem at /lib/python${MCRF_PYTHON_VERSION}
         --preload-file=${CMAKE_SOURCE_DIR}/wasm_stdlib/lib@/lib
         # Preload game scripts into /scripts (playground, demo, or full game)
         --preload-file=$<IF:$<BOOL:${MCRF_PLAYGROUND}>,${MCRF_SCRIPTS_PLAYGROUND_DIR},$<IF:$<BOOL:${MCRF_DEMO}>,${MCRF_SCRIPTS_DEMO_DIR},${MCRF_SCRIPTS_DIR}>>@/scripts
@@ -494,7 +535,7 @@ if(EMSCRIPTEN)
 
     # Set Python home for the embedded interpreter
     target_compile_definitions(mcrogueface PRIVATE
-        MCRF_WASM_PYTHON_HOME="/lib/python3.14"
+        MCRF_WASM_PYTHON_HOME="/lib/python${MCRF_PYTHON_VERSION}"
     )
 endif()
 
@@ -542,26 +583,18 @@ add_custom_command(TARGET mcrogueface POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/src/scripts $<TARGET_FILE_DIR:mcrogueface>/scripts)
 
-# Copy Python standard library to build directory
-if(MCRF_DEBUG_PYTHON)
-    # Copy all libs first (SFML, libtcod, Python stdlib), then overwrite with debug Python
-    # The debug lib has SONAME libpython3.14d.so.1.0, so we need both names
+# Copy runtime libs + Python stdlib next to the executable ($ORIGIN/lib).
+# A non-default CPython variant (__lib_ft / __lib_debug / __lib_tsan) is overlaid
+# on __lib: its libpython3.X{t,d,td} and cpython-3XX{t,d,td} extension modules
+# have ABI-tagged names that don't collide, and an instrumented libtcod from
+# tools/build_debug_libs.sh replaces the plain one.
+add_custom_command(TARGET mcrogueface POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
+if(NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
     add_custom_command(TARGET mcrogueface POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib
-        COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
-            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython3.14.so.1.0
-        COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_SOURCE_DIR}/__lib_debug/libpython3.14.so.1.0
-            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython3.14d.so.1.0
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-            libpython3.14d.so.1.0
-            $<TARGET_FILE_DIR:mcrogueface>/lib/libpython3.14d.so)
-else()
-    add_custom_command(TARGET mcrogueface POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
+            ${MCRF_PYTHON_LIB_DIR} $<TARGET_FILE_DIR:mcrogueface>/lib)
 endif()
 
 # On Windows, copy DLLs to executable directory
@@ -573,7 +606,7 @@ if(MCRF_CROSS_WINDOWS)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/__lib_windows/libtcod/bin $<TARGET_FILE_DIR:mcrogueface>
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/__lib_windows/python314.dll $<TARGET_FILE_DIR:mcrogueface>
+        ${CMAKE_SOURCE_DIR}/__lib_windows/python${MCRF_PYTHON_NODOT}.dll $<TARGET_FILE_DIR:mcrogueface>
         COMMAND ${CMAKE_COMMAND} -E copy
         ${CMAKE_SOURCE_DIR}/__lib_windows/python3.dll $<TARGET_FILE_DIR:mcrogueface>
         COMMAND ${CMAKE_COMMAND} -E copy
@@ -587,8 +620,25 @@ if(MCRF_CROSS_WINDOWS)
     # Copy Python standard library zip
     add_custom_command(TARGET mcrogueface POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/__lib_windows/python314.zip $<TARGET_FILE_DIR:mcrogueface>
+        ${CMAKE_SOURCE_DIR}/__lib_windows/python${MCRF_PYTHON_NODOT}.zip $<TARGET_FILE_DIR:mcrogueface>
         COMMAND ${CMAKE_COMMAND} -E echo "Copied Python stdlib")
+
+    # Extension modules (_socket, _ssl, _asyncio, _decimal, ...) and the DLLs
+    # they import, into lib/Python/DLLs (MCRF_PY_EXT_DIR_W in McRFPy_API.cpp).
+    # CPython loads a .pyd's dependencies from the .pyd's own directory.
+    file(GLOB MCRF_WINDOWS_PYDS "${CMAKE_SOURCE_DIR}/__lib_windows/*.pyd")
+    if(NOT MCRF_WINDOWS_PYDS)
+        message(FATAL_ERROR "No *.pyd in __lib_windows/ -- run `make python-windows`")
+    endif()
+    set(MCRF_WINDOWS_PYD_DEPS)
+    foreach(_dll libssl-3.dll libcrypto-3.dll libffi-8.dll sqlite3.dll)
+        list(APPEND MCRF_WINDOWS_PYD_DEPS "${CMAKE_SOURCE_DIR}/__lib_windows/${_dll}")
+    endforeach()
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:mcrogueface>/lib/Python/DLLs
+        COMMAND ${CMAKE_COMMAND} -E copy ${MCRF_WINDOWS_PYDS} ${MCRF_WINDOWS_PYD_DEPS}
+            $<TARGET_FILE_DIR:mcrogueface>/lib/Python/DLLs
+        COMMAND ${CMAKE_COMMAND} -E echo "Copied Python extension modules")
 elseif(WIN32)
     # Native Windows build: copy DLLs from __lib
     add_custom_command(TARGET mcrogueface POST_BUILD
@@ -597,9 +647,21 @@ elseif(WIN32)
         COMMAND ${CMAKE_COMMAND} -E echo "Copied DLLs to executable directory")
 endif()
 
-# rpath for including shared libraries (Linux/Unix only)
+# rpath for including shared libraries (Linux/Unix only).
+# BUILD_WITH_INSTALL_RPATH: nothing is ever `make install`ed -- the build dir
+# (and tools/package.sh, which copies it) is the deliverable. Without it, CMake
+# bakes the build machine's absolute link dirs (__lib/, sysroots) into RUNPATH,
+# so a packaged binary only ran via run.sh's LD_LIBRARY_PATH and, on the build
+# machine, silently loaded __lib/ instead of its own lib/. The POST_BUILD steps
+# above populate <exe dir>/lib, so $ORIGIN/lib works in the build tree too.
 if(NOT WIN32)
     set_target_properties(mcrogueface PROPERTIES
-                          INSTALL_RPATH "$ORIGIN/./lib")
+                          INSTALL_RPATH "$ORIGIN/./lib"
+                          BUILD_WITH_INSTALL_RPATH ON)
+    if(TARGET mcrfpy_fuzz)
+        set_target_properties(mcrfpy_fuzz PROPERTIES
+                              INSTALL_RPATH "$ORIGIN/./lib"
+                              BUILD_WITH_INSTALL_RPATH ON)
+    endif()
 endif()
 

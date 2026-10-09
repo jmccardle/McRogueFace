@@ -165,6 +165,36 @@ bool GridData::isInFOV(int x, int y) const
     return tcod_map->isInFov(x, y);
 }
 
+// #402 - see the contract in GridData.h.
+bool GridData::computeFOVInto(int x, int y, int radius, bool light_walls,
+                              TCOD_fov_algorithm_t algo, std::vector<uint8_t>& out) const
+{
+    out.assign((size_t)grid_w * (size_t)grid_h, 0);
+    if (!tcod_map || x < 0 || x >= grid_w || y < 0 || y >= grid_h) return false;
+
+    // The scratch map is built from GridData's own transparency/walkability planes,
+    // NOT copied from tcod_map. Two reasons, both deliberate:
+    //   * the planes are the source of truth that syncTCODMap() itself writes from,
+    //     so this cannot inherit a stale shared map, and
+    //   * it reads nothing from tcod_map at all, so no lock over the shared map is
+    //     needed and no ordering with another caller's compute exists to get wrong.
+    TCODMap scratch(grid_w, grid_h);
+    for (int cy = 0; cy < grid_h; cy++) {
+        for (int cx = 0; cx < grid_w; cx++) {
+            scratch.setProperties(cx, cy, isTransparent(cx, cy), isWalkable(cx, cy));
+        }
+    }
+
+    scratch.computeFov(x, y, radius, light_walls, algo);
+
+    for (int cy = 0; cy < grid_h; cy++) {
+        for (int cx = 0; cx < grid_w; cx++) {
+            out[(size_t)cy * grid_w + cx] = scratch.isInFov(cx, cy) ? 1 : 0;
+        }
+    }
+    return true;
+}
+
 // Layer management
 std::shared_ptr<ColorLayer> GridData::addColorLayer(int z_index, const std::string& name)
 {

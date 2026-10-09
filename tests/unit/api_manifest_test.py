@@ -16,6 +16,7 @@ import sys
 import json
 import importlib.util
 import subprocess
+import tempfile
 
 
 def fail(msg):
@@ -48,8 +49,12 @@ def load_generator(repo):
 
 def main():
     repo = find_repo_root()
-    manifest_path = os.path.join(repo, "api", "manifest.json")
-    full_path = os.path.join(repo, "docs", "generated", "api_full.json")
+    # Write to a scratch dir: the committed api/manifest.json is the pre-commit
+    # hook's to refresh, and a test run must not leave the tree dirty.
+    out_root = tempfile.mkdtemp(prefix="mcrf_api_manifest_")
+    os.environ["MCRF_API_OUT_DIR"] = out_root
+    manifest_path = os.path.join(out_root, "api", "manifest.json")
+    full_path = os.path.join(out_root, "docs", "generated", "api_full.json")
 
     gen = load_generator(repo)
 

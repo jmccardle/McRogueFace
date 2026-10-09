@@ -184,6 +184,9 @@ McRogueFace uses a unified Makefile for both Linux native builds and Windows cro
 ### Quick Reference
 
 ```bash
+# Fresh clone: build SFML, libtcod, CPython into __lib/ first (see BUILD_FROM_SOURCE.md)
+make deps               # no root? tools/fetch_dev_headers.sh + export MCRF_SYSROOT=...
+
 # Linux builds
 make                    # Build for Linux (default target)
 make linux              # Same as above
@@ -222,7 +225,7 @@ make clean-dist         # Remove only distribution packages
 - CMake 3.14+
 - GCC/G++ with C++17 support
 - SFML 2.6 development libraries
-- Libraries in `__lib/` directory (libpython3.14, libtcod, etc.)
+- Libraries in `__lib/` directory (libpython3.15, libtcod, SFML) -- produced by `make deps`
 
 **Windows cross-compilation:**
 - MinGW-w64 (`x86_64-w64-mingw32-g++-posix`)
@@ -275,6 +278,53 @@ Packaging tools:
 - `tools/package.sh` - Main packaging orchestrator
 - `tools/package_stdlib.py` - Creates filtered stdlib archives
 - `tools/stdlib_modules.yaml` - Module categorization config
+
+**Caveat (#399): the light/full split is currently aspirational, not mechanical.**
+`create_stdlib_zip()` in `tools/package.sh` is defined but never called, so both
+presets copy the entire `__lib/Python/Lib` and differ only by the hardcoded `rm -rf`
+list. Do not assume editing `stdlib_modules.yaml` changes what ships.
+
+#### Networking / async guarantee
+
+The **`make package-linux-full`** configuration is the named, gated one for embedders
+who run a network client (message bus, telemetry feed) on a background thread inside
+the engine process. In that artifact, `socket`, `ssl`, `asyncio` and `selectors` all
+import and work from the package's own `lib/Python/Lib` — Python sources and the
+`_socket` / `_ssl` / `_asyncio` / `select` C extensions alike.
+
+This is gated, not assumed:
+
+| Test | Proves |
+|------|--------|
+| `tests/packaging/network_stdlib_packaged_test.py` | Builds the real tarball, extracts it outside the source tree, and imports+uses all four **from the packaged binary**. Each module is mutation-checked: removing it must break the probe, so the test cannot silently lose its teeth. |
+| `tests/integration/background_thread_network_test.py` | A background thread does real socket / selectors / TLS / asyncio work **off the main thread** while the main thread keeps completing frames, then hands its result back under `mcrfpy.lock()`. |
+
+Both run in the default suite. The alternate-build suites (`make debug-test`,
+`asan-test`, `tsan-test`, `valgrind-test`) pass `--exclude=packaging`, because
+`tools/package.sh` packages the Release `build/` regardless of which build the suite
+is driving — that exclusion is at the invocation site, not inside the test.
+
+`nats-py` and friends are **not** engine dependencies and must never be vendored. The
+engine's obligation stops at "the interpreter we ship can do sockets and asyncio from
+a background thread"; installing a client library is the embedder's job.
+
+#### Mutating the world from a background thread
+
+Use `mcrfpy.lock()`, and treat it as a **mutation-only** critical section:
+
+```python
+data = bus.poll()                 # I/O OUTSIDE the lock
+with mcrfpy.lock():
+    entity.cell_pos = data.pos    # assignment only
+```
+
+The main thread parks until every lock holder returns, so I/O, `await`, or any blocking
+wait inside the block is indistinguishable from engine stutter. The window opens once
+per frame in both frame paths — `doFrame()` (windowed) and `runSimFrame()` (headless
+`step()`/`advance()`). `acquire()` has no timeout, so a frame path that fails to open
+the window blocks holders forever; that was #398, gated by
+`tests/regression/issue_398_headless_frame_lock_test.py` (pre-fix: 12.2M `step()`
+calls and the lock never opens; post-fix: 1).
 
 ### Troubleshooting
 
@@ -483,8 +533,9 @@ tests/
 ### Running Tests
 
 ```bash
-# Run the full test suite (from tests/ directory)
-cd tests && python3 run_tests.py
+# Run the full test suite (from tests/ directory). The SFML build needs a display
+# even with --headless; ALSOFT_DRIVERS=null stands in for a missing audio device.
+cd tests && ALSOFT_DRIVERS=null xvfb-run -a python3 run_tests.py
 
 # Run a specific test
 cd build && ./mcrogueface --headless --exec ../tests/unit/some_test.py
@@ -543,9 +594,11 @@ make clean && make  # Full rebuild
 
 ### Profiling the Engine (native C++)
 
-For diagnosing/validating C++ hot-path work, use the dedicated profiling build — the
-default Release build omits frame pointers and DWARF, so it can't be annotated. See
-[docs/profiling.md](docs/profiling.md) for the full workflow. Quick version:
+For diagnosing/validating C++ hot-path work, use the dedicated profiling build. The
+default Release build keeps frame pointers (#421, PEP 831: `MCRF_FRAME_POINTERS=ON`, about
+1% cost), so `perf --call-graph fp` unwinds it end to end, but it has no DWARF, so it
+can't be line-annotated. Python frames get names via `sys.activate_stack_trampoline("perf")`.
+See [docs/profiling.md](docs/profiling.md) for the full workflow. Quick version:
 
 ```bash
 make profile                                    # build-profile/ : RelWithDebInfo + frame pointers

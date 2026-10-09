@@ -72,6 +72,7 @@ struct PyGridData
     static PyObject* py_compute_fov(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_is_in_fov(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_entities_in_radius(PyGridDataObject* self, PyObject* args, PyObject* kwds);
+    static PyObject* py_observe(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_apply_threshold(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_apply_ranges(PyGridDataObject* self, PyObject* args);
     static PyObject* py_step(PyGridDataObject* self, PyObject* args, PyObject* kwds);
@@ -96,7 +97,7 @@ extern PyMethodDef PyGridData_all_methods[];
 
 namespace mcrfpydef {
     inline PyTypeObject PyGridDataType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         // #361: public, and NOT a Drawable subclass -- tp_base is left null
         // (i.e. `object`). Appending one to scene.children raises TypeError.
         .tp_name = "mcrfpy.GridData",

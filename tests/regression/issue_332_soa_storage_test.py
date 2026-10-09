@@ -61,7 +61,11 @@ def main():
     gc.collect()
     base = rss_bytes()
     N, gs = 40, 100
-    grids = [mcrfpy.Grid(grid_size=(gs, gs)) for _ in range(N)]
+    # GridData, not Grid: a Grid is a GridView whose constructor also creates a
+    # render texture at game resolution (~3 MB). On a GPU that is VRAM, but under
+    # software GL (Xvfb/llvmpipe, i.e. CI) it is process heap, and it swamped the
+    # storage being measured: ~325 B/cell for Grid vs ~9 B/cell for GridData.
+    grids = [mcrfpy.GridData(grid_size=(gs, gs)) for _ in range(N)]
     after = rss_bytes()
     per_cell = (after - base) / (N * gs * gs)
     print(f"  ~{per_cell:.1f} bytes/cell total ({N} grids of {gs}x{gs}, incl. TCOD map)")

@@ -58,7 +58,7 @@ public:
 namespace mcrfpydef {
     // #189 - Use inline instead of static to ensure single instance across translation units
     inline PyTypeObject PyUIGridPointType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.GridPoint",
         .tp_basicsize = sizeof(PyUIGridPointObject),
         .tp_itemsize = 0,

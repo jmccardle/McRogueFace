@@ -71,7 +71,7 @@ namespace mcrfpydef {
 
 // Python type definition for VoxelPoint
 inline PyTypeObject PyVoxelPointType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.VoxelPoint",
     .tp_basicsize = sizeof(PyVoxelPointObject),
     .tp_itemsize = 0,

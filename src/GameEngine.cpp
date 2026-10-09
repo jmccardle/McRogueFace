@@ -28,19 +28,50 @@ bool GameEngine::shaderIntermediateInitialized = false;
 
 void FrameLock::acquire() {
     waiting++;
-    std::unique_lock<std::mutex> lock(mtx);
 
-    // Release GIL while waiting for safe window
+    // #412 - THE GIL IS RELEASED BEFORE `mtx` IS TAKEN, AND RE-ACQUIRED ONLY AFTER IT
+    // IS DROPPED. Do not reorder these; it is a lock-ordering constraint, not a
+    // performance choice.
+    //
+    // The previous shape took `mtx` while still holding the GIL and then held `mtx`
+    // across Py_END_ALLOW_THREADS (cv.wait re-locks the mutex before returning). With
+    // two background threads that is a textbook ABBA inversion:
+    //
+    //   thread A: woken from cv.wait, HOLDS mtx, blocks acquiring the GIL
+    //   thread B: HOLDS the GIL, blocks acquiring mtx
+    //
+    // Neither can proceed, and because one of them is holding the GIL the entire
+    // interpreter stops with it -- the main thread, every timer, every other thread.
+    // Verified by backtrace: A parked in take_gil() under FrameLock::acquire(),
+    // B parked in pthread_mutex_lock() under FrameLock::acquire().
+    //
+    // It needed exactly two threads and no unusual usage; one thread never hit it,
+    // which is why it survived until FrameLock got contention coverage (#395).
+    //
+    // With the GIL released for the whole critical section, no thread ever holds `mtx`
+    // while blocking on the GIL, so the cycle cannot form. release() and openWindow()
+    // take `mtx` while holding the GIL, but they never wait for the GIL, so they are
+    // only ever the second edge -- and the other holders (this function and
+    // closeWindow(), both GIL-free) release `mtx` inside cv.wait(), so they cannot
+    // hold it for long either.
     Py_BEGIN_ALLOW_THREADS
-    cv.wait(lock, [this]{ return safe_window; });
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [this]{ return safe_window; });
+        // Under `mtx`, so closeWindow()'s two predicates observe the handoff from
+        // `waiting` to `active` as a single step and cannot see a moment where this
+        // thread counts as neither.
+        waiting--;
+        active++;
+    }
     Py_END_ALLOW_THREADS
 
-    waiting--;
-    active++;
+    depth()++;  // B7: this thread is now a holder; see heldByCurrentThread()
 }
 
 void FrameLock::release() {
     std::unique_lock<std::mutex> lock(mtx);
+    depth()--;  // B7: symmetric with acquire(); PyLockContext only ever pairs them
     active--;
     if (active == 0) {
         cv.notify_all();  // Wake up closeWindow() if it's waiting
@@ -909,6 +940,7 @@ float GameEngine::step(float dt) {
     }
 
     float actual_dt;
+    int advance_ms;
 
     if (dt < 0) {
         // dt < 0 means "advance to next event"
@@ -933,12 +965,25 @@ float GameEngine::step(float dt) {
         }
 
         actual_dt = static_cast<float>(min_remaining) / 1000.0f;  // Convert to seconds
-        simulation_time += min_remaining;
+        advance_ms = min_remaining;
     } else {
         // Advance by specified amount
         actual_dt = dt;
-        simulation_time += static_cast<int>(dt * 1000.0f);  // Convert seconds to ms
+        advance_ms = static_cast<int>(dt * 1000.0f);  // Convert seconds to ms
     }
+
+    return runSimFrame(advance_ms, actual_dt);
+}
+
+// #396 - Advance the clock by exactly `ms` and run ONE simulation frame.
+//
+// step() and advance() share this body so there is exactly one place that moves
+// simulation_time and exactly one definition of "a simulation frame". `ms` is applied to
+// the clock as an integer (no float round-trip, so advance() lands on timer boundaries
+// exactly), while `dt_seconds` is the value the frame reports to animations and
+// Scene.update() -- step(float) still passes through the caller's own float unchanged.
+float GameEngine::runSimFrame(int ms, float actual_dt) {
+    simulation_time += ms;
 
     // #350: step() is a full SIMULATION frame -- everything doFrame() does except
     // render and input, which are deliberately not on the clock (render costs zero
@@ -996,9 +1041,83 @@ float GameEngine::step(float dt) {
 
     metrics.endSimFrame();
     metrics.updateFrameTime(actual_dt * 1000.0f);  // ms
+
+    // #219 safe window for background threads, in headless too.
+    //
+    // doFrame() opens this window after display() (see renderScene's caller); a
+    // simulation frame never gets there, so before this a background thread that
+    // entered `with mcrfpy.lock():` under a step()/advance()-driven main loop blocked
+    // in FrameLock::acquire() forever -- the condition variable it waits on was only
+    // ever signalled from the render path. Headless is the mode embedders drive a
+    // world from, so it is precisely the mode where a bus/worker thread needs to
+    // hand mutations back safely.
+    //
+    // Placed after the frame's work and before currentFrame++, matching doFrame():
+    // lock holders observe a fully-settled frame, and the main thread parks here (GIL
+    // released) until every holder is done. Guarded by hasWaiting(), so the no-threads
+    // case is one relaxed atomic load per frame.
+    if (frameLock.hasWaiting()) {
+        frameLock.openWindow();
+        Py_BEGIN_ALLOW_THREADS
+        frameLock.closeWindow();  // Wait for all lock holders to complete
+        Py_END_ALLOW_THREADS
+    }
+
     currentFrame++;
 
     return actual_dt;
+}
+
+// #396 - Advance the clock by exactly `ms`, honoring EVERY timer interval in the span.
+//
+// step(dt) is one frame, and one frame tests each timer at most once: a single step of
+// 10000ms fires a 1000ms repeating timer ONCE, not ten times, and (because Timer::test
+// stamps last_ran = now) silently re-phases it to the end of the step. That makes a wide
+// step lossy -- fine for "run a frame", wrong for "let ten seconds pass".
+//
+// advance() closes that gap by walking the span boundary by boundary: it repeatedly finds
+// the nearest pending timer deadline inside the remaining span and runs one simulation
+// frame that lands exactly on it, then a final frame for any residual. Because each frame
+// lands exactly on last_ran + interval, Timer::test's last_ran = now is exact and no phase
+// drift accumulates -- the residual is carried, not discarded.
+//
+// This is a loop over step()'s own frame body, NOT a second clock: simulation_time is
+// still the only counter and runSimFrame() is still the only thing that moves it.
+int GameEngine::advance(int ms) {
+    // In windowed mode, advance() is a no-op (same contract as step())
+    if (!headless) {
+        return 0;
+    }
+    if (ms <= 0) {
+        // Zero (or nothing) to advance: the clock does not move and no frame runs.
+        // Use step(0.0) to run a frame without advancing time.
+        return 0;
+    }
+
+    const int target = simulation_time + ms;
+
+    while (simulation_time < target) {
+        // Nearest timer deadline strictly ahead of now, clamped to the end of the span.
+        int next = target;
+        for (auto& [name, timer] : timers) {
+            if (timer && timer->isActive()) {
+                int remaining = timer->getRemaining(simulation_time);
+                // remaining <= 0 means the timer is ALREADY overdue at the current
+                // instant; it is not a future boundary. It fires at the end of the next
+                // frame regardless, which is no later than it would have fired anyway.
+                if (remaining > 0 && simulation_time + remaining < next) {
+                    next = simulation_time + remaining;
+                }
+            }
+        }
+
+        // next > simulation_time always (target > simulation_time in the loop condition,
+        // and every candidate boundary uses remaining > 0), so this terminates.
+        const int delta = next - simulation_time;
+        runSimFrame(delta, static_cast<float>(delta) / 1000.0f);
+    }
+
+    return ms;
 }
 
 // #153 - Force render the current scene (for synchronous screenshots)

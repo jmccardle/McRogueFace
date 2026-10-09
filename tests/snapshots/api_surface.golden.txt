@@ -2,16 +2,19 @@
 # Regenerate intentionally: MCRF_UPDATE_API_SNAPSHOT=1
 # Singleton/constant VALUES are intentionally NOT captured.
 
-=== MODULE FUNCTIONS (12) ===
+=== MODULE FUNCTIONS (15) ===
+func advance :: advance(ms: int) -> int
 func bresenham :: bresenham(start, end, include_start=True, include_end=True) -> list[tuple[int, int]]
 func end_benchmark :: end_benchmark() -> str
 func exit :: exit() -> None
 func find :: find(name: str, scene: str = None) -> UIDrawable | None
 func find_all :: find_all(pattern: str, scene: str = None) -> list
 func get_metrics :: get_metrics() -> dict
+func get_random_seed :: get_random_seed() -> int
 func lock :: lock() -> _LockContext
 func log_benchmark :: log_benchmark(message: str) -> None
 func set_dev_console :: set_dev_console(enabled: bool) -> None
+func set_random_seed :: set_random_seed(seed: int) -> None
 func set_scale :: set_scale(multiplier: float) -> None
 func start_benchmark :: start_benchmark() -> None
 func step :: step(dt: float = None) -> float
@@ -611,6 +614,7 @@ submodule automation
   meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
   meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
+  meth observe :: observe(origin=None, fov_radius: int = None, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> dict
   meth remove_layer :: remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None
   meth step :: step(n: int = 1, turn_order: int = None) -> None
 [GridView]
@@ -788,7 +792,7 @@ submodule automation
   prop volume: Any (rw)
   meth pause :: pause() -> None
   meth play :: play() -> None
-  meth play_varied :: play_varied(pitch_range: float = 0.1, volume_range: float = 3.0) -> None
+  meth play_varied :: play_varied(pitch_range: float = 0.1, volume_range: float = 3.0) -> tuple[float, float]
   meth stop :: stop() -> None
 [SoundBuffer]
   prop channels: Any (ro)
@@ -917,7 +921,7 @@ submodule automation
   meth get :: get() -> Window
   meth screenshot :: screenshot(filename: str = None) -> bytes | None
 
-=== EXPERIMENTAL TYPES (NOT FROZEN) (16) ===
+=== EXPERIMENTAL TYPES (NOT FROZEN) (17) ===
 [AutoRuleSet]
   prop grid_size: int (ro)
   prop group_count: int (ro)
@@ -1107,6 +1111,14 @@ submodule automation
   meth set_grid_size :: set_grid_size(width, depth)
   meth set_slope_cost :: set_slope_cost(max_slope=0.5, cost_multiplier=1.0)
   meth voxel_layer_count :: voxel_layer_count() -> int
+[VisibilityMask]
+  prop algorithm: int | None (ro)
+  prop cells: frozenset (ro)
+  prop fov_radius: int | None (ro)
+  prop grid_size: tuple (ro)
+  prop light_walls: bool | None (ro)
+  prop origin: tuple | None (ro)
+  prop tick: int (ro)
 [VoxelGrid]
   prop cell_size: Any (ro)
   prop depth: Any (ro)
@@ -1175,6 +1187,7 @@ submodule automation
   meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
   meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
+  meth observe :: observe(origin=None, fov_radius: int = None, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> dict
   meth remove_layer :: remove_layer(name_or_layer: str | ColorLayer | TileLayer) -> None
   meth step :: step(n: int = 1, turn_order: int = None) -> None
 [GridPoint]
@@ -1231,7 +1244,7 @@ func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> Non
 func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
 === DELEGATION INTEGRITY (Grid instance -> GridData) ===
-  delegated-resolved: 21/21
+  delegated-resolved: 22/22
 
 === WRITABILITY PROBES (#313-touched properties) ===
   Entity.grid: writable

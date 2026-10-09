@@ -49,6 +49,10 @@ EXPERIMENTAL_TYPES = frozenset({
     "Shader",
     # Binding helpers (internal-ish, still evolving)
     "CallableBinding", "PropertyBinding",
+    # Masked observation (new; returned by GridData.observe()). Deliberately NOT
+    # declared part of the 1.0 freeze yet: it has had no downstream soak, and the
+    # freeze decision belongs to a reviewer, not to the commit that introduces it.
+    "VisibilityMask",
 })
 
 # Internal types not exported on the module but reachable through live instances.

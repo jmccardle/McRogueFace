@@ -4,6 +4,8 @@
 // Contains: FOV, layer management, spatial queries, camera, heightmap ops,
 //           step/behavior system, py_at/subscript, and method table arrays.
 #include "PyGridData.h"
+#include <algorithm>
+#include <vector>
 #include "UIGridView.h"
 #include "UIGridPathfinding.h"
 #include "McRFPy_API.h"
@@ -16,6 +18,8 @@
 #include "PyTrigger.h"
 #include "UIBase.h"
 #include "PyFOV.h"
+#include "PyVisibilityMask.h"
+#include "GameEngine.h"
 #include "McRFPy_Doc.h"
 
 // =========================================================================
@@ -145,6 +149,276 @@ PyObject* PyGridData::py_is_in_fov(PyGridDataObject* self, PyObject* args, PyObj
 
     bool in_fov = self->data->isInFOV(x, y);
     return PyBool_FromLong(in_fov);
+}
+
+// =========================================================================
+// observe() - masked snapshot of cell state + entities (fog-of-war, AI
+// perception, replay). See PyVisibilityMask.h for the mask type itself.
+// =========================================================================
+
+PyObject* PyGridData::py_observe(PyGridDataObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* kwlist[] = {"origin", "fov_radius", "light_walls", "algorithm", NULL};
+    PyObject* origin_obj = Py_None;
+    PyObject* fov_radius_obj = Py_None;
+    int light_walls = 1;
+    PyObject* algorithm_obj = Py_None;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOpO", const_cast<char**>(kwlist),
+                                     &origin_obj, &fov_radius_obj, &light_walls, &algorithm_obj)) {
+        return NULL;
+    }
+
+    bool has_origin = (origin_obj != Py_None);
+    bool has_radius = (fov_radius_obj != Py_None);
+
+    // Fail Early: a radius with no origin isn't a mask at all.
+    if (has_radius && !has_origin) {
+        PyErr_SetString(PyExc_ValueError,
+            "fov_radius requires an origin; a radius with no origin is not a mask");
+        return NULL;
+    }
+
+    int ox = 0, oy = 0;
+    if (has_origin) {
+        if (!PyPosition_FromObjectInt(origin_obj, &ox, &oy)) {
+            return NULL;
+        }
+        if (ox < 0 || ox >= self->data->grid_w || oy < 0 || oy >= self->data->grid_h) {
+            PyErr_Format(PyExc_ValueError,
+                "origin (%d, %d) is out of bounds for grid of size (%d, %d)",
+                ox, oy, self->data->grid_w, self->data->grid_h);
+            return NULL;
+        }
+    }
+
+    // has_finite_radius distinguishes an explicit positive radius from
+    // "unlimited" (fov_radius=None with an origin: FOV/occlusion still
+    // applies, but nothing caps the distance). 0 is rejected -- libtcod's
+    // "0 = unlimited" overload is deliberately NOT exposed here; None is the
+    // unlimited spelling, so a caller-computed 0 is a real mistake.
+    bool has_finite_radius = false;
+    long radius_val = 0;
+    if (has_radius) {
+        if (!PyLong_Check(fov_radius_obj)) {
+            PyErr_SetString(PyExc_TypeError, "fov_radius must be an int or None");
+            return NULL;
+        }
+        radius_val = PyLong_AsLong(fov_radius_obj);
+        if (radius_val == -1 && PyErr_Occurred()) {
+            return NULL;
+        }
+        if (radius_val <= 0) {
+            PyErr_Format(PyExc_ValueError,
+                "fov_radius must be > 0 (got %ld); pass fov_radius=None for an unlimited radius",
+                radius_val);
+            return NULL;
+        }
+        has_finite_radius = true;
+    }
+
+    TCOD_fov_algorithm_t algorithm;
+    if (!PyFOV::from_arg(algorithm_obj, &algorithm)) {
+        return NULL;
+    }
+
+    if (!Resources::game) {
+        PyErr_SetString(PyExc_RuntimeError,
+            "observe() requires an initialized engine to read the current frame tick");
+        return NULL;
+    }
+    int tick = Resources::game->getFrame();
+
+    int w = self->data->grid_w;
+    int h = self->data->grid_h;
+
+    // ---- ONE code path builds the visibility plane, filled two different
+    // ways. Nothing below this point may branch on `has_origin` again: the
+    // cell projection, entity projection, and mask construction all just
+    // read `visible`. ----
+    std::vector<uint8_t> visible((size_t)w * h);
+    if (has_origin) {
+        int tcod_radius = has_finite_radius ? (int)radius_val : 0;  // 0 = unlimited, to TCOD
+        // #402: computeFOVInto(), NOT computeFOV()+isInFOV(). The latter pair writes
+        // and then reads the ONE shared per-grid TCOD FOV buffer, so an observe() run
+        // between another caller's compute_fov() and its is_in_fov() reads silently
+        // re-answered that caller's question from this origin. observe() promises a
+        // result that "holds no live references"; it must also leave no live state.
+        self->data->computeFOVInto(ox, oy, tcod_radius, light_walls != 0, algorithm, visible);
+    } else {
+        std::fill(visible.begin(), visible.end(), 1);
+    }
+
+    // Single pass over `visible`: builds the mask's ordered cell list plus
+    // the walkable/transparent subsets together, so every masked cell's
+    // (x, y) tuple is allocated exactly once and shared across whichever of
+    // the three containers it ends up in.
+    PyObject* cells_list = PyList_New(0);
+    PyObject* walkable_list = PyList_New(0);
+    PyObject* transparent_list = PyList_New(0);
+    if (!cells_list || !walkable_list || !transparent_list) {
+        Py_XDECREF(cells_list); Py_XDECREF(walkable_list); Py_XDECREF(transparent_list);
+        return NULL;
+    }
+
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            if (!visible[(size_t)y * w + x]) continue;
+
+            PyObject* pos = Py_BuildValue("(ii)", x, y);
+            if (!pos) goto observe_alloc_fail;
+            if (PyList_Append(cells_list, pos) < 0) { Py_DECREF(pos); goto observe_alloc_fail; }
+
+            if (self->data->isWalkable(x, y)) {
+                if (PyList_Append(walkable_list, pos) < 0) { Py_DECREF(pos); goto observe_alloc_fail; }
+            }
+            if (self->data->isTransparent(x, y)) {
+                if (PyList_Append(transparent_list, pos) < 0) { Py_DECREF(pos); goto observe_alloc_fail; }
+            }
+            Py_DECREF(pos);
+        }
+    }
+
+    {
+        PyObject* cells_ordered = PyList_AsTuple(cells_list);
+        Py_DECREF(cells_list);
+        cells_list = NULL;
+        if (!cells_ordered) { Py_DECREF(walkable_list); Py_DECREF(transparent_list); return NULL; }
+
+        PyObject* cells_set = PyFrozenSet_New(cells_ordered);
+        if (!cells_set) {
+            Py_DECREF(cells_ordered); Py_DECREF(walkable_list); Py_DECREF(transparent_list);
+            return NULL;
+        }
+
+        PyObject* walkable_set = PyFrozenSet_New(walkable_list);
+        Py_DECREF(walkable_list);
+        walkable_list = NULL;
+        if (!walkable_set) {
+            Py_DECREF(cells_ordered); Py_DECREF(cells_set); Py_DECREF(transparent_list);
+            return NULL;
+        }
+
+        PyObject* transparent_set = PyFrozenSet_New(transparent_list);
+        Py_DECREF(transparent_list);
+        transparent_list = NULL;
+        if (!transparent_set) {
+            Py_DECREF(cells_ordered); Py_DECREF(cells_set); Py_DECREF(walkable_set);
+            return NULL;
+        }
+
+        // Entity projection: only entities standing on a masked cell. A
+        // second, independent pass over a different data source -- it does
+        // not branch on has_origin either, only on `visible`.
+        PyObject* entities_list = PyList_New(0);
+        if (!entities_list) {
+            Py_DECREF(cells_ordered); Py_DECREF(cells_set);
+            Py_DECREF(walkable_set); Py_DECREF(transparent_set);
+            return NULL;
+        }
+
+        if (self->data->entities) {
+            for (const auto& entity : *self->data->entities) {
+                if (!entity) continue;
+                int ex = entity->cell_position.x;
+                int ey = entity->cell_position.y;
+                if (ex < 0 || ex >= w || ey < 0 || ey >= h) continue;
+                if (!visible[(size_t)ey * w + ex]) continue;
+
+                PyObject* labels = PyFrozenSet_New(NULL);
+                if (!labels) { Py_DECREF(entities_list); Py_DECREF(cells_ordered); Py_DECREF(cells_set); Py_DECREF(walkable_set); Py_DECREF(transparent_set); return NULL; }
+                for (const auto& label : entity->labels) {
+                    PyObject* label_str = PyUnicode_FromString(label.c_str());
+                    if (!label_str || PySet_Add(labels, label_str) < 0) {
+                        Py_XDECREF(label_str); Py_DECREF(labels);
+                        Py_DECREF(entities_list); Py_DECREF(cells_ordered); Py_DECREF(cells_set);
+                        Py_DECREF(walkable_set); Py_DECREF(transparent_set);
+                        return NULL;
+                    }
+                    Py_DECREF(label_str);
+                }
+
+                PyObject* entity_dict = Py_BuildValue(
+                    "{s:s, s:(ii), s:N, s:i}",
+                    "name", entity->sprite.name.c_str(),
+                    "cell_pos", ex, ey,
+                    "labels", labels,
+                    "turn_order", entity->turn_order);
+                if (!entity_dict) {
+                    Py_DECREF(entities_list); Py_DECREF(cells_ordered); Py_DECREF(cells_set);
+                    Py_DECREF(walkable_set); Py_DECREF(transparent_set);
+                    return NULL;
+                }
+                if (PyList_Append(entities_list, entity_dict) < 0) {
+                    Py_DECREF(entity_dict);
+                    Py_DECREF(entities_list); Py_DECREF(cells_ordered); Py_DECREF(cells_set);
+                    Py_DECREF(walkable_set); Py_DECREF(transparent_set);
+                    return NULL;
+                }
+                Py_DECREF(entity_dict);
+            }
+        }
+
+        PyObject* entities_tuple = PyList_AsTuple(entities_list);
+        Py_DECREF(entities_list);
+        if (!entities_tuple) {
+            Py_DECREF(cells_ordered); Py_DECREF(cells_set);
+            Py_DECREF(walkable_set); Py_DECREF(transparent_set);
+            return NULL;
+        }
+
+        // Mask metadata: origin/fov_radius as the Python-visible None-means-
+        // unbounded/unlimited spelling (independent of the internal tcod_radius
+        // 0-means-unlimited encoding used to compute `visible` above).
+        PyObject* mask_origin;
+        if (has_origin) {
+            mask_origin = Py_BuildValue("(ii)", ox, oy);
+        } else {
+            Py_INCREF(Py_None);
+            mask_origin = Py_None;
+        }
+        PyObject* mask_radius;
+        if (has_finite_radius) {
+            mask_radius = PyLong_FromLong(radius_val);
+        } else {
+            Py_INCREF(Py_None);
+            mask_radius = Py_None;
+        }
+        if (!mask_origin || !mask_radius) {
+            Py_XDECREF(mask_origin); Py_XDECREF(mask_radius);
+            Py_DECREF(cells_ordered); Py_DECREF(cells_set);
+            Py_DECREF(walkable_set); Py_DECREF(transparent_set); Py_DECREF(entities_tuple);
+            return NULL;
+        }
+
+        // create() steals cells_set, cells_ordered, mask_origin, mask_radius.
+        // #404: has_origin is exactly "an FOV computation ran". Without an origin the
+        // plane is std::fill(1) and light_walls/algorithm were never consulted, so the
+        // mask reports them as None rather than as inert-but-plausible values.
+        PyObject* mask = PyVisibilityMask::create(cells_set, cells_ordered, mask_origin, mask_radius,
+                                                  tick, w, h, has_origin,
+                                                  light_walls != 0, (int)algorithm);
+        if (!mask) {
+            Py_DECREF(walkable_set); Py_DECREF(transparent_set); Py_DECREF(entities_tuple);
+            return NULL;
+        }
+
+        // "N" steals the reference for mask/walkable_set/transparent_set/
+        // entities_tuple, which we already own; "i" copies the plain int tick.
+        PyObject* result = Py_BuildValue("{s:i, s:N, s:N, s:N, s:N}",
+            "tick", tick,
+            "mask", mask,
+            "walkable", walkable_set,
+            "transparent", transparent_set,
+            "entities", entities_tuple);
+        return result;
+    }
+
+observe_alloc_fail:
+    Py_XDECREF(cells_list);
+    Py_XDECREF(walkable_list);
+    Py_XDECREF(transparent_list);
+    return NULL;
 }
 
 // =========================================================================
@@ -808,6 +1082,58 @@ PyMethodDef PyGridData_all_methods[] = {
          MCRF_ARG("y", "Row index (0-based)")
          MCRF_RETURNS("True if the cell is visible, False otherwise")
          MCRF_NOTE("Also accepts a single positional tuple/list/Vector: is_in_fov((x, y)) or is_in_fov(vec), or keyword form: is_in_fov(pos=(x, y)).")
+     )},
+    {"observe", (PyCFunction)PyGridData::py_observe, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(GridData, observe,
+         MCRF_SIG("(origin=None, fov_radius: int = None, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC)", "dict"),
+         MCRF_DESC("Take an immutable snapshot of this map as seen through a field of view: which cells "
+             "are visible, which of those are walkable or transparent, and which entities stand on a "
+             "visible cell. Use this for fog-of-war persistence, AI perception queries, or replaying what "
+             "an observer could see at a point in time -- the returned dict holds no live references and "
+             "is unaffected by later grid or entity changes.")
+         MCRF_ARGS_START
+         MCRF_ARG("origin", "Observing position as (x, y) tuple, list, or Vector. None (the default) "
+             "means an unbounded mask: every in-bounds cell is visible and no FOV state is touched at all.")
+         MCRF_ARG("fov_radius", "Maximum view distance from origin. None (the default) means an "
+             "unlimited radius -- occlusion from walls still applies if origin is given. Must be > 0 "
+             "when given: 0 is a ValueError, not 'unlimited', because a caller-computed radius of 0 "
+             "means 'see nothing', not 'see everything'.")
+         MCRF_ARG("light_walls", "Whether walls are themselves visible when lit, passed through to the "
+             "FOV computation exactly as compute_fov() would use it. Ignored when origin is None.")
+         MCRF_ARG("algorithm", "FOV algorithm to use (FOV.BASIC, FOV.DIAMOND, FOV.SHADOW, "
+             "FOV.PERMISSIVE_0-8, FOV.RESTRICTIVE, FOV.SYMMETRIC_SHADOWCAST). Ignored when origin is None.")
+         MCRF_RETURNS("dict with keys: 'tick' (int, engine current_frame read once at the projection "
+             "instant), 'mask' (VisibilityMask, the cells this projection could see), 'walkable' "
+             "(frozenset of (x,y) tuples, the subset of mask.cells that are walkable), 'transparent' "
+             "(frozenset of (x,y) tuples, the subset of mask.cells that are transparent), and 'entities' "
+             "(tuple of dict, one per entity standing on a masked cell -- each with keys 'name' (str), "
+             "'cell_pos' ((x,y) tuple), 'labels' (frozenset of str), and 'turn_order' (int)).")
+         MCRF_RAISES("ValueError", "fov_radius is given without an origin, origin is out of bounds for "
+             "this grid, or fov_radius <= 0")
+         MCRF_RAISES("TypeError", "origin is not a valid position, or fov_radius/algorithm is the wrong type")
+         MCRF_RAISES("RuntimeError", "The engine is not initialized, so there is no current_frame tick to record")
+         MCRF_NOTE("An entity's 'cell_pos' is a plain (x, y) int tuple, NOT the live entity.cell_pos "
+             "Vector -- the snapshot is inert: hashable, serialisable, and unaffected by later entity movement.")
+         MCRF_NOTE("'labels' is a frozenset, so membership is a real predicate: "
+             "label in snap['entities'][i]['labels'].")
+         MCRF_NOTE("'entities' is a tuple, not a dict keyed by name: entity names are not unique and may "
+             "be empty, so keying by name here would silently discard entities. The caller chooses the "
+             "collision policy.")
+         MCRF_NOTE("Terrain is given as two cell sets rather than a per-cell record: (x, y) in "
+             "snap['walkable']. A cell absent from 'walkable' is either not walkable OR not observed -- "
+             "check snap['mask'] to tell those apart. That distinction is deliberate: it is the entire "
+             "point of a masked projection.")
+         MCRF_NOTE("Grid layers are NOT projected. They are appearance, not world state.")
+         MCRF_NOTE("The tick is read once, at the projection instant, and is the same value carried by "
+             "mask.tick. Calling observe() inside mcrfpy.lock() is what makes that instant a frame barrier.")
+         MCRF_NOTE("observe() is side-effect-free with or without an origin (#402): it computes its FOV "
+             "in a scratch buffer private to the call and never writes the shared per-grid FOV state that "
+             "compute_fov()/is_in_fov() use. A background observer projecting from an NPC's position "
+             "therefore cannot disturb a field of view the player or the renderer just computed, and two "
+             "observers on one grid do not interfere.")
+         MCRF_NOTE("observe() never advances a frame and never releases the GIL: the snapshot is atomic "
+             "with respect to other Python threads. It does NOT take the lock for you -- wrap the call "
+             "in mcrfpy.lock() yourself when you need it to be atomic with respect to the frame.")
      )},
     {"find_path", (PyCFunction)UIGridPathfinding::Grid_find_path, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(GridData, find_path,

@@ -44,7 +44,7 @@ public:
 namespace mcrfpydef {
     // #189 - Use inline instead of static to ensure single instance across translation units
     inline PyTypeObject PyUICollectionIterType = {
-        .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+        .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
         .tp_name = "mcrfpy.UICollectionIter",
         .tp_basicsize = sizeof(PyUICollectionIterObject),
         .tp_itemsize = 0,
@@ -73,7 +73,7 @@ namespace mcrfpydef {
 
 	// #189 - Use inline instead of static to ensure single instance across translation units
 	inline PyTypeObject PyUICollectionType = {
-		.ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+		.ob_base = PyVarObject_HEAD_INIT(NULL, 0)
 		.tp_name = "mcrfpy.UICollection",
 		.tp_basicsize = sizeof(PyUICollectionObject),
 		.tp_itemsize = 0,

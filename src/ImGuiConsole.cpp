@@ -35,8 +35,12 @@ void ImGuiConsole::reloadFont(float size) {
         io.Fonts->Clear();
         io.Fonts->AddFontDefault();
         (void)ImGui::SFML::UpdateFontTexture();  // Cast to void - can't fail on default font
+        ImGui::SFML::GetFontTexture().setSmooth(false);
         return;
     }
+
+    // UpdateFontTexture() recreates the texture smoothed; nearest-neighbor keeps glyphs crisp
+    ImGui::SFML::GetFontTexture().setSmooth(false);
 
     s_currentFontSize = size;
 

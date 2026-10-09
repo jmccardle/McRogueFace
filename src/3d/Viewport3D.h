@@ -404,7 +404,7 @@ extern PyMethodDef Viewport3D_methods[];
 namespace mcrfpydef {
 
 inline PyTypeObject PyViewport3DType = {
-    .ob_base = {.ob_base = {.ob_refcnt = 1, .ob_type = NULL}, .ob_size = 0},
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "mcrfpy.Viewport3D",
     .tp_basicsize = sizeof(PyViewport3DObject),
     .tp_itemsize = 0,

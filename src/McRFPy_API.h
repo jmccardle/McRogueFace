@@ -47,6 +47,7 @@ public:
 
     // #153 - Headless simulation control
     static PyObject* _step(PyObject*, PyObject*);
+    static PyObject* _advance(PyObject*, PyObject*);
 
     static PyObject* _exit(PyObject*, PyObject*);
     static PyObject* _setScale(PyObject*, PyObject*);
@@ -67,6 +68,10 @@ public:
     
     // Profiling/metrics
     static PyObject* _getMetrics(PyObject*, PyObject*);
+
+    // Engine-internal RNG seeding (#394)
+    static PyObject* _setRandomSeed(PyObject*, PyObject*);
+    static PyObject* _getRandomSeed(PyObject*, PyObject*);
 
     // Benchmark logging (#104)
     static PyObject* _startBenchmark(PyObject*, PyObject*);
