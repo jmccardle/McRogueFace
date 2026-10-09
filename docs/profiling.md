@@ -188,6 +188,15 @@ perf report -i perf.data --children          # inclusive: which loop phase costs
 perf script -i perf.data > loop.perf         # load in https://profiler.firefox.com or speedscope
 ```
 
+What to expect (#421, 20,000 ticks, 999 Hz). The FP build captured 1,934 samples in
+0.54 MB, and **every** sample under `runSimFrame` unwinds to `main` with
+`py::on_tick → py::update_world` named in between. `perf report --children` reads top
+down as `main → executeScript → mcrfpy.step → runSimFrame (95%) → Timer::test →
+py::update_world (94%) → UIEntity::set_cell_pos (28%) → SpatialHash::updateCell (10.5%
+self)`. The same capture on an FP-off build reaches `main` in **0** samples. A third
+of the samples lose their Python frames as well, because a sample inside an engine
+function that uses `%rbp` as a scratch register derails the whole walk.
+
 `MCRF_FP_WINDOWED=1` (with a display) runs the same workload under the real
 `GameEngine::run → doFrame` loop instead of headless `step()`. The trampolines
 need the frame pointers: the stubs carry no DWARF, so frame pointers are the only
