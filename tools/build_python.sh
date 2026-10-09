@@ -129,9 +129,11 @@ for stale in "$OUT_DIR"/libpython3.*"${ABI_T}".so* "$OUT_DIR"/Python/lib.linux-x
     esac
 done
 install -m 755 "$LIBNAME" "$OUT_DIR/$LIBNAME"
+# --strip-debug, not --strip-unneeded: drop DWARF but keep .symtab, so perf/gdb
+# name the interpreter's static functions instead of "??" (#421; ~+0.5 MB).
 STRIP=1
 case "$VARIANT" in debug|tsan) STRIP=0 ;; esac   # keep symbols for sanitizer/gdb traces
-if [ "$STRIP" -eq 1 ]; then strip --strip-unneeded "$OUT_DIR/$LIBNAME"; fi
+if [ "$STRIP" -eq 1 ]; then strip --strip-debug "$OUT_DIR/$LIBNAME"; fi
 ln -sf "$LIBNAME" "$OUT_DIR/libpython${PY_VER}${ABI_T}.so"
 
 # pyconfig.h is generated per build (the free-threaded one defines
@@ -144,7 +146,7 @@ cp pyconfig.h "$OUT_DIR/include/pyconfig.h"
 find -L "$PYBUILDDIR" -maxdepth 1 -type f \( -name '*.so' -o -name '_sysconfig*' \) \
     ! -name '_test*' ! -name 'xxsubtype*' ! -name 'xxlimited*' ! -name '_ctypes_test*' \
     -exec cp -L {} "$DEST_EXT/" \;
-if [ "$STRIP" -eq 1 ]; then strip --strip-unneeded "$DEST_EXT"/*.so; fi
+if [ "$STRIP" -eq 1 ]; then strip --strip-debug "$DEST_EXT"/*.so; fi
 
 # Pure-Python stdlib (shared by both builds; tests excluded to save ~40 MB)
 rsync -a --delete --exclude '__pycache__' --exclude 'test/' \

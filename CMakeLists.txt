@@ -31,7 +31,8 @@ option(MCRF_DEBUG_PYTHON "Link against pydebug CPython (python3.Xd from __lib_de
 option(MCRF_FREE_THREADED_PYTHON "Link against free-threaded CPython (python3.Xt from __lib_ft/, or 3.Xtd from __lib_tsan/)" OFF)
 option(MCRF_WASM_DEBUG "Build WASM with DWARF debug info and source maps" OFF)
 option(MCRF_FUZZER "Build with libFuzzer coverage instrumentation for atheris" OFF)
-option(MCRF_PROFILE "Keep frame pointers for perf/Callgrind profiling (use with RelWithDebInfo)" OFF)
+option(MCRF_PROFILE "Profiling build for perf/Callgrind (use with RelWithDebInfo; forces MCRF_FRAME_POINTERS)" OFF)
+option(MCRF_FRAME_POINTERS "Keep the frame-pointer chain so perf/eBPF/gdb can unwind engine <-> Python stacks (PEP 831)" ON)
 
 # Validate mutually exclusive sanitizers
 if(MCRF_SANITIZE_ADDRESS AND MCRF_SANITIZE_THREAD)
@@ -370,12 +371,21 @@ if(MCRF_SANITIZE_THREAD)
         -fsanitize=thread)
 endif()
 
-# Profiling instrumentation (#345) — retain frame pointers so perf --call-graph fp
-# and Callgrind can unwind through optimized code. Optimization/-g come from the
-# RelWithDebInfo build type; this only adds the frame pointer. Binary is NOT stripped.
+# Frame pointers (#421, PEP 831). The embedded CPython 3.15 already builds with
+# them; a frame-pointer unwinder (perf --call-graph fp, eBPF, -Xperf trampolines)
+# stops at the first function that omits one, so the engine must keep the chain
+# too or every Python callback stack is cut off at the C++ dispatcher. Measured
+# cost and opt-out: docs/profiling.md. Not applicable to wasm (no native stack)
+# or MSVC (x64 unwinds from .pdata).
+# Profiling instrumentation (#345): MCRF_PROFILE forces the chain on; -O2/-g come
+# from the RelWithDebInfo build type. Binary is NOT stripped.
 if(MCRF_PROFILE)
-    message(STATUS "Profiling build: frame pointers retained (perf/Callgrind)")
-    target_compile_options(mcrogueface PRIVATE -fno-omit-frame-pointer)
+    set(MCRF_FRAME_POINTERS ON)
+endif()
+if(MCRF_FRAME_POINTERS AND NOT EMSCRIPTEN AND NOT MSVC)
+    message(STATUS "Frame pointers retained (-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer)")
+    target_compile_options(mcrogueface PRIVATE
+        -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer)
 endif()
 
 if(MCRF_FUZZER)

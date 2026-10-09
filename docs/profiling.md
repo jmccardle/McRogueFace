@@ -7,18 +7,94 @@ diagnosing and A/B-validating C++ optimizations (e.g. #331, #342, #343, #344).
 
 ## The profiling build
 
-The default `make` (Release, `-O3 -DNDEBUG`) omits frame pointers and ships no DWARF,
-so it can't be line-annotated or unwound. `make build-debug` (`-O0`) profiles the wrong
-(unoptimized) code. Use the dedicated profiling build instead:
+The default `make` (Release, `-O3 -DNDEBUG`) keeps frame pointers (see
+[Frame pointers](#frame-pointers-pep-831) below), so `perf --call-graph fp` can unwind
+it, but it ships no DWARF and so can't be line-annotated. `make build-debug` (`-O0`)
+profiles the wrong (unoptimized) code. For line-level work use the profiling build:
 
 ```bash
 make profile
 ```
 
-Produces `build-profile/mcrogueface`, configured `RelWithDebInfo` (`-O2 -g`) plus
-`-fno-omit-frame-pointer` (CMake `-DMCRF_PROFILE=ON`). Not stripped. The build is
+Produces `build-profile/mcrogueface`, configured `RelWithDebInfo` (`-O2 -g`) with
+frame pointers forced on (CMake `-DMCRF_PROFILE=ON`). Not stripped. The build is
 self-contained — `lib/`, `assets/`, and `scripts/` are copied next to the binary just
 like the normal build, so `--headless --exec` works out of the box.
+
+## Frame pointers (PEP 831)
+
+[PEP 831](https://peps.python.org/pep-0831/) builds CPython 3.15 with
+`-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer` and asks embedders to do the
+same. A frame-pointer unwinder (perf `--call-graph fp`, eBPF profilers, gdb on a stripped
+core, the `perf` trampoline) follows saved-`%rbp` links up the stack and **stops at the
+first function that omits one**. McRogueFace's stacks are interleaved, for example:
+
+```
+main → executeScript → mcrfpy.step → GameEngine::runSimFrame → Timer::test   (C++)
+     → py::on_tick → py::update_world                                     (Python)
+     → UIDrawable::set_float_member                                       (C++ binding)
+```
+
+Without frame pointers in the engine, a sample inside the binding unwinds through
+libpython (which has them) and dies at `Timer::test`. The entire engine side of the
+stack is lost, and that's the part that tells you *which* loop phase called into Python.
+
+**CMake knob:** `MCRF_FRAME_POINTERS` (default `ON`; no-op for wasm and MSVC). Opt out
+with `-DMCRF_FRAME_POINTERS=OFF`. `MCRF_PROFILE=ON` forces it on.
+
+**Verify a build:**
+
+```bash
+# structural: every engine function that makes a call sets up %rbp
+./mcrogueface --headless --exec ../tests/regression/issue_421_frame_pointer_test.py
+
+# end to end, no perf permissions needed: stop in a binding, walk %rbp by hand
+cd build && MCRF_PERF_TRAMPOLINE=1 gdb -q -batch -x ../tools/fp_walk_gdb.py \
+    --args ./mcrogueface --headless --exec ../tests/benchmarks/fp_loop_workload.py
+```
+
+`fp_walk_gdb.py` prints the chain the way perf would see it and exits 0 if it reaches
+`main`. It normally ends one frame past `main`, in glibc's `__libc_start_call_main`
+(Debian's libc has no frame pointers), which is expected.
+
+**What the chain does and doesn't cover:**
+
+- **GCC leaves:** GCC 12 omits the frame in *leaf* functions that need no stack frame,
+  even with `-mno-omit-leaf-frame-pointer`. A sample in such a leaf hides that leaf's
+  immediate caller, but the chain is never broken. The regression test allows these and
+  rejects any frameless function that makes a call.
+- **libtcod and SFML** are prebuilt in `__lib/` without frame pointers. That only
+  matters for code they call *back* into (for example a Python A* heuristic called from
+  libtcod). Samples inside them still show their callers via the engine's frames.
+- **libpython** keeps its `.symtab` (`build_python.sh` uses `--strip-debug`, ~+1 MB
+  across the lib and extension modules), so static interpreter functions are named
+  instead of `??`.
+
+### Cost
+
+Measured on #421: Release `-O3`, GCC 12.2, x86-64, CPython 3.15.0. FP off vs on,
+builds run alternately, pinned to one core.
+
+| Measure | Workload | FP cost |
+|---|---|---|
+| Callgrind Ir, engine code only | Crucible CPU paths (grid_fill, step_swarm, entity_churn, grid_alloc) | +1.4% |
+| | `fp_loop_workload.py` (Python ↔ C++ sandwich) | +3.7% |
+| | `issue_331_property_read_bench.py` (tight getter loop: worst case) | +12.1% |
+| Callgrind Ir, whole process | same three | +0.24%, +0.23%, +0.44% |
+| Wall clock | Crucible, 7 of 8 benches (12 rounds) | −2.4% … +0.9%: noise |
+| | `fp_loop_workload.py`, median of 12 | −0.9%: noise |
+| | property-read microbench, median of 15 | 0 … +1.5% (~1 ns/read) |
+| Size | `.text` | +1.4 KB (+0.05%) |
+
+The engine-only Ir increase is real but cheap. Each small binding function gains a
+2–3 instruction prologue, so the percentage is largest for tiny getters
+(`PyVector::pyObject` +36%) and around zero for loop-heavy code (`fillRect`,
+`initStorage`: ±0.01%). The engine is a small share of a typical process's
+instructions (Python dominates), and on wall clock the cost stays inside run-to-run
+noise. Crucible's `layer_fill` showed a bimodal *off* distribution (1.7 ms or 2.5 ms)
+inside full-suite runs only. Run alone 40× per build, both builds sit at a 2.3–2.4 ms
+median, and Ir differs by 0.01%. That's heap and layout state left by earlier
+benchmarks, not frame pointers.
 
 ## Callgrind — primary, deterministic, no special permissions
 
@@ -41,7 +117,7 @@ valgrind --tool=callgrind --callgrind-out-file=build-profile/callgrind.out \
 
 # Function-level, engine code only:
 callgrind_annotate --threshold=95 build-profile/callgrind.out \
-  | grep -E "src/" | grep -Ev "python3\.14|/usr/|libpython"
+  | grep -E "src/" | grep -Ev "python3\.1[0-9]|/usr/|libpython"
 ```
 
 **A/B a change:** run Callgrind before and after, compare the total `Ir` for the target
@@ -87,7 +163,38 @@ perf record --call-graph fp -- build-profile/mcrogueface [args]
 perf report
 ```
 
-`--call-graph fp` relies on the frame pointers the profiling build retains.
+`--call-graph fp` relies on the frame pointers the build retains (any default build
+does; see above).
+
+### Naming Python frames: the perf trampoline
+
+perf sees every Python call as just `_PyEval_EvalFrameDefault`. With CPython's perf
+trampoline active, each Python function gets its own tiny stub, named
+`py::<function>:<file>` in `/tmp/perf-<pid>.map`, which perf reads automatically.
+Activate it from the script; this works under every engine launch mode:
+
+```python
+import sys
+sys.activate_stack_trampoline("perf")   # before the code you want named
+```
+
+`tests/benchmarks/fp_loop_workload.py` does this when `MCRF_PERF_TRAMPOLINE=1`:
+
+```bash
+cd build
+MCRF_PERF_TRAMPOLINE=1 perf record -F 999 --call-graph fp -o perf.data -- \
+    ./mcrogueface --headless --exec ../tests/benchmarks/fp_loop_workload.py
+perf report -i perf.data --children          # inclusive: which loop phase costs what
+perf script -i perf.data > loop.perf         # load in https://profiler.firefox.com or speedscope
+```
+
+`MCRF_FP_WINDOWED=1` (with a display) runs the same workload under the real
+`GameEngine::run → doFrame` loop instead of headless `step()`. The trampolines
+need the frame pointers: the stubs carry no DWARF, so frame pointers are the only
+way to unwind through them.
+
+**Known wart:** `--exec` scripts run via `PyRun_SimpleString`, so their frames (and
+tracebacks) report the file as `<string>`, not the script path (#422).
 
 **Prerequisite (one-time, needs root):** the dev box ships
 `kernel.perf_event_paranoid = 3`, which blocks `perf_event_open` for non-root entirely.

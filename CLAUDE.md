@@ -594,9 +594,11 @@ make clean && make  # Full rebuild
 
 ### Profiling the Engine (native C++)
 
-For diagnosing/validating C++ hot-path work, use the dedicated profiling build — the
-default Release build omits frame pointers and DWARF, so it can't be annotated. See
-[docs/profiling.md](docs/profiling.md) for the full workflow. Quick version:
+For diagnosing/validating C++ hot-path work, use the dedicated profiling build. The
+default Release build keeps frame pointers (#421, PEP 831: `MCRF_FRAME_POINTERS=ON`, about
+1% cost), so `perf --call-graph fp` unwinds it end to end, but it has no DWARF, so it
+can't be line-annotated. Python frames get names via `sys.activate_stack_trampoline("perf")`.
+See [docs/profiling.md](docs/profiling.md) for the full workflow. Quick version:
 
 ```bash
 make profile                                    # build-profile/ : RelWithDebInfo + frame pointers
