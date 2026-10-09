@@ -42,12 +42,16 @@ NODE="${MCRF_WASM_NODE:-$(command -v node || true)}"
 
 cd "$CPYTHON_DIR"
 EMS=Platforms/emscripten
+# GIT_WORK_TREE + fresh getbuildinfo.o: honest sys.version git stamp, see
+# build_python.sh (the make steps run git describe --dirty from cross-build/).
 python3 "$EMS" configure-build-python "${CLEAN[@]}"
-python3 "$EMS" make-build-python
+rm -f cross-build/build/Modules/getbuildinfo.o
+GIT_WORK_TREE="$CPYTHON_DIR" python3 "$EMS" make-build-python
 BUILD_PY=cross-build/build/python
 "$BUILD_PY" "$EMS" make-dependencies
 "$BUILD_PY" "$EMS" configure-host --host-runner "$NODE" "${CLEAN[@]}"
-"$BUILD_PY" "$EMS" make-host
+rm -f cross-build/wasm32-emscripten/build/python/Modules/getbuildinfo.o
+GIT_WORK_TREE="$CPYTHON_DIR" "$BUILD_PY" "$EMS" make-host
 
 PY_VER="$(sed -n 's/^#define PY_VERSION[[:space:]]*"\([0-9]*\.[0-9]*\).*/\1/p' Include/patchlevel.h)"
 LIB="cross-build/wasm32-emscripten/build/python/libpython${PY_VER}.a"

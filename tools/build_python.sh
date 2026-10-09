@@ -110,7 +110,13 @@ if [ ! -f Makefile ]; then
         || { tail -30 configure.log; exit 1; }
 fi
 
-make -j"$JOBS" > make.log 2>&1 || { tail -40 make.log; exit 1; }
+# sys.version's git stamp: CPython runs `git --git-dir $(srcdir)/.git describe
+# --dirty` from the build dir, which git then takes as the work tree -- every
+# source file looks deleted, so a pristine checkout reports "v3.X.Y-dirty".
+# Point git at the real work tree, and drop getbuildinfo.o so the stamp is
+# recompiled for whatever the submodule is checked out at now.
+rm -f Modules/getbuildinfo.o
+GIT_WORK_TREE="$CPYTHON_DIR" make -j"$JOBS" > make.log 2>&1 || { tail -40 make.log; exit 1; }
 grep -A4 "necessary bits" make.log || true
 
 # --- Stage ---
