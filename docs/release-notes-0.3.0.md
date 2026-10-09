@@ -1,0 +1,169 @@
+# McRogueFace 0.3.0 — release notes (DRAFT)
+
+> Draft assembled from the 109 commits between the `0.2.8` tag and master `678ef74`.
+> Not final: the scope below may still gain the fixes listed under "Under consideration".
+
+## Headline: Python 3.15
+
+McRogueFace now embeds **CPython 3.15.0** (was 3.14), on every platform:
+
+- **Linux**: built from the `modules/cpython` submodule, pinned at the `v3.15.0` tag.
+  `sys.version` reports the tag exactly, with no `-dirty` suffix.
+- **Windows**: the python.org 3.15 embeddable build. Packages now ship the `.pyd`
+  extension modules. Before this, `socket`, `ssl`, `asyncio`, `ctypes` and `sqlite3`
+  could not be imported in Windows builds, 0.2.8 included (#419).
+- **Web (WASM)**: CPython 3.15 is built for Emscripten. The browser stdlib bundle gains
+  `_colorize`, `pathlib`, `email` and the full `importlib`, which repairs REPL
+  tracebacks (#392).
+- The `mcrfpy` module now uses multi-phase initialization. It **refuses to load in a
+  subinterpreter**, consistent with the 1.x compatibility policy that excludes
+  subinterpreters.
+- Like CPython 3.15 (PEP 831), the engine is built with **frame pointers**, so `perf`,
+  eBPF profilers and gdb can unwind from Python through the engine to `main`. The
+  overhead is within wall-clock noise (#421). See `docs/profiling.md`.
+
+Your game scripts now run on 3.15; check CPython's *What's New in 3.15* for stdlib
+removals that affect your code.
+
+## Breaking changes and upgrade notes
+
+| Change | What to do |
+|---|---|
+| **`UIGrid` is gone; `GridData` is public and is not drawable.** `mcrfpy.Grid` is the same type as `mcrfpy.GridView`. Camera, position, size, input callbacks, overlay `children` and `animate()` belong to the **view**; cells, layers, entities, FOV and pathfinding belong to the **data** (#355, #359–#371). | Code that only uses `Grid(...)` keeps working. Code that reached drawable properties through a map object must go through a view. |
+| **`entity.grid` returns a `GridData`**, not the view. The setter still accepts a view. | Use `view.grid_data` / the view you hold for camera or position work. |
+| `GridData.apply_ranges()` / `apply_threshold()` return `GridData` (were `Grid`). | Chained calls are unaffected. |
+| **Headless `mcrfpy.step()` is a full simulation frame**: `Scene.update(dt)` fires, scene transitions progress and complete, and `current_frame` advances. Rendering and input are still excluded (#350). | Headless tests that relied on `step()` skipping these may change behaviour. |
+| **Headless timers count from simulation time**, not the wall clock, so their first firing is deterministic (#383). | — |
+| **`DijkstraMap.path_from()` used to return the path reversed**, and `step_from()` returned a cell that wasn't adjacent to the query (#375). | Remove any `reversed()` workaround. |
+| `Sound.play_varied()` returns the `(pitch, volume)` it used (was `None`). | — |
+| `mcrfpy.step()` / `advance()` raise `RuntimeError` when called from a thread that holds `mcrfpy.lock()`; previously this deadlocked. | — |
+| `--exec` / `-c` scripts run in UTF-8 mode. A bare `open()` reads UTF-8 on every platform; it used to be ASCII on Linux and the ANSI code page on Windows (#378). | — |
+| `get_metrics()` counters (`draw_calls`, `ui_elements`, the grid counters) are no longer always 0 (#341). | — |
+
+## New
+
+- **Headless simulation control**:
+  - `mcrfpy.advance(ms)` advances the simulation by a given amount of time.
+  - `get_metrics()['simulation_time_ms']` exposes the simulation clock (#396).
+  - Python `Scene.update()` now runs under `step()` too (#350).
+- **Reproducible randomness**: `mcrfpy.set_random_seed(n)` / `get_random_seed()` seed
+  the engine's internal random streams (entity behaviours, `Sound.play_varied`).
+  `get_random_seed()` always returns the seed that was used (#394).
+- **Observing a grid at one frame**: `GridData.observe(origin, fov_radius, ...)` returns
+  the walkable/transparent cells and entities as seen through a field of view, stamped
+  with the frame number. It also returns an immutable `mcrfpy.VisibilityMask`
+  (experimental). `observe()` doesn't disturb the grid's own FOV state (#402, #404).
+- **Zero-copy numpy views**:
+  - `with layer.edit() as view:` on `ColorLayer` (`(h,w,4)` uint8) and `TileLayer`
+    (`(h,w)` int32) (#335).
+  - `DiscreteMap` supports the buffer protocol (#334).
+- **GridView input works again**:
+  - Cell callbacks (`on_cell_click`, `on_cell_enter`, `on_cell_exit`) and
+    `hovered_cell` work.
+  - Overlay children are clickable.
+  - Several views over one map track hover independently (#355, #357, #358, #360,
+    #362, #363, #365, #366).
+  - `find()` / `find_all()` descend into grids.
+- New read-only module attributes, now visible to `dir()`: `animations`, `scenes`,
+  `timers`, `save_dir`, `current_scene`, and the `default_transition*` settings (#356).
+- `automation.loseFocus()` and `automation.mouseLeave()` for testing hover and focus.
+- `mcrfpy.lock()` is now covered by stress, soak and re-entrancy tests. Its cost is
+  documented in `docs/frame-lock.md`: each millisecond a lock holder spends inside the
+  lock adds about 1 ms of frame time (#395).
+
+## Fixes
+
+**Crashes and hangs**
+- `FrameLock::acquire()` deadlocked the whole interpreter when two background threads
+  used `mcrfpy.lock()` (#412).
+- In headless mode, `mcrfpy.lock()` from a background thread blocked forever (#398).
+- A headless `--exec` script that never exited could hang the process (#350).
+
+**Object identity and lifetime**
+- `.parent`, `find()` and indexing return the *same* Python object every time, including
+  Python subclasses with their own attributes. Previously a subclass instance could come
+  back as a plain `Frame` with its attributes gone (#369, #373).
+- `insert()`, `extend()`, `__setitem__` and slice operations on collections now keep
+  `.parent` correct; only `append()` used to (#377).
+
+**Silent no-ops**
+- `Grid.center_camera()` and `Grid.size = ...` used to do nothing (#370).
+- `Frame(cache_subtree=True)` froze the content of its children; content changes now
+  show up (#368).
+- The turn manager now redraws a grid view when entities move (#351).
+- Hover now ends when the cursor leaves the window or the window loses focus (#367).
+
+**Other**
+- Shader uniform binding confused a `GridView` with a `GridData` (#371).
+- `UICollection` repr names Grids correctly.
+- `Grid` layer setters now invalidate the render cache (#376).
+- Web build: `IDBFS` is exported, so the `/save` mount works under Emscripten 5 (#385).
+  The shipped web game is the clean build, not the REPL hybrid (#384).
+
+## Performance
+
+Measured with the new Crucible benchmark, master vs. the 0.2.8 package, headless: about
+**33% faster overall** (geometric mean 0.673) and peak memory 103 MB vs. 119 MB.
+
+| Benchmark | Change |
+|---|---|
+| grid allocation | −59% |
+| layer fill | −56% |
+| entity churn | −43% |
+| grid fill | −25% |
+
+Where it comes from:
+- `GridData` stores its walkable/transparent cells in dense arrays, and the chunk manager
+  is gone (#332).
+- `grid.entities` is backed by a vector, so indexing is O(1) (#329).
+- An idle grid view no longer re-renders every frame (#351).
+- Hot-path fixes found with the profiler:
+  - property getters no longer re-import `mcrfpy` on every read (#331);
+  - scalar animations skip variant machinery (−18%, #342);
+  - key and input-state enum values are cached (−31% wall clock, #344);
+  - scenes that aren't subclassed skip the `update` lookup (#343);
+  - `GridView` caches its internal grid object (−97% on that path, #348).
+
+## Build, packaging and tooling
+
+- **`make deps`** builds SFML, libtcod and CPython from a fresh clone.
+  `tools/fetch_dev_headers.sh` covers machines without root.
+- Platform targets:
+  - `make python-windows` and `make python-wasm` stage the interpreter for each platform;
+  - pydebug / free-threaded / TSan CPython variants are available for
+    `make debug` / `asan` / `tsan`.
+- Packaging:
+  - The binary's library search path is relative to the executable (`$ORIGIN`), so
+    packages no longer depend on the build machine's paths.
+  - Packaged stdlib `.pyc` files are compiled by the embedded 3.15, not the host Python.
+  - `make package-linux-full` is a tested configuration for running `socket` / `ssl` /
+    `asyncio` / `selectors` on a background thread.
+- **Profiling**: `make profile`, `make callgrind`, the `perf` + Python-trampoline recipe,
+  `tools/fp_walk_gdb.py`. The Crucible (headless, deterministic) and the Gauntlet
+  (on-screen stress test) are the benchmarks.
+- **Docs are tests**:
+  - The site's 282 code samples run in the test suite and render deterministic preview
+    images.
+  - `make release-docs` regenerates the API reference, stubs, man page and
+    `api/manifest.json`.
+  - `tools/api_delta.py` diffs the API between two git refs.
+- CI builds from a clean checkout and fails if a test run modifies tracked files (#401).
+- Test suite: 639/639 (up from ~300 at 0.2.8); 82 tests that had been silently not
+  running were fixed, and `tests/demo/` is gated in CI (#372).
+
+## Known issues
+
+- **#414**: setting `entity.cell_pos`, `draw_pos`, `sprite_offset` or `GridView.center`
+  leaks one `Vector` per call (also the main cost of `cell_pos`).
+- **#413**: `get_metrics()` leaks 8 small allocations per call.
+- **#416, #417**: changing engine objects from a background thread *without*
+  `mcrfpy.lock()` can crash. Two threads holding the lock at once are only kept safe by
+  the GIL, so the free-threaded (no-GIL) build is not supported.
+- **#410, #411**: a lock holder that re-acquires immediately can starve the main loop;
+  `step()` called from a background thread without the lock runs a frame on that thread.
+- **#407**: `Sound.play_varied()` restores the original pitch and volume right after
+  `play()`, cancelling the variation.
+- **#422**: tracebacks from `--exec` scripts show `File "<string>"`.
+- **#420**: `mcrf-init.sh` scaffolds projects for Python 3.14.
+- **#399**: the light/full stdlib presets ship the same stdlib.
+- **#400**: the Music snippet occasionally fails in the suite (OpenAL teardown assert).
