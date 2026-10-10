@@ -391,9 +391,8 @@ void PySceneClass::call_on_key(PySceneObject* self, const std::string& key, cons
             return;
         }
 
-        // Convert action string to InputState enum (#344: cached member)
-        int action_val = (action == "start" || action == "pressed") ? 0 : 1;  // PRESSED = 0, RELEASED = 1
-        PyObject* action_enum = PyInputState::get_enum_member(action_val);
+        // Convert action string to InputState enum (#344: cached member, #428: shared)
+        PyObject* action_enum = PyInputState::from_action_type(action);
         if (!action_enum) {
             std::cerr << "Failed to create InputState enum for action: " << action << std::endl;
             Py_DECREF(key_enum);

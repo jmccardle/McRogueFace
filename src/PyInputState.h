@@ -30,6 +30,11 @@ public:
     // with an exception set on failure. Caller owns the returned reference.
     static PyObject* get_enum_member(int value);
 
+    // #428 - The one conversion from an engine action type ("start" / "end", as
+    // set by GameEngine for key, button and wheel events) to an InputState member.
+    // NEW reference, or nullptr with ValueError set for any other string.
+    static PyObject* from_action_type(const std::string& type);
+
     // Number of input states
     static const int NUM_INPUT_STATES = 2;
 };

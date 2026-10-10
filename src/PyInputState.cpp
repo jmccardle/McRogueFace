@@ -25,6 +25,13 @@ PyObject* PyInputState::get_enum_member(int value) {
     return member;                              // caller owns the other ref
 }
 
+PyObject* PyInputState::from_action_type(const std::string& type) {
+    if (type == "start") return get_enum_member(0);
+    if (type == "end") return get_enum_member(1);
+    PyErr_Format(PyExc_ValueError, "unknown input action type '%s'", type.c_str());
+    return nullptr;
+}
+
 // InputState entries - maps enum name to value
 struct InputStateEntry {
     const char* name;       // Python enum name (UPPER_SNAKE_CASE)

@@ -67,36 +67,18 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
             return false;
         }
 
-        // Convert button string to MouseButton enum (#231, #232)
-        int button_val = 0;
-        if (strcmp(button, "left") == 0) button_val = 0;
-        else if (strcmp(button, "right") == 0) button_val = 1;
-        else if (strcmp(button, "middle") == 0) button_val = 2;
-        else if (strcmp(button, "x1") == 0) button_val = 3;
-        else if (strcmp(button, "x2") == 0) button_val = 4;
-        else if (strcmp(button, "wheel_up") == 0) button_val = 10;   // SCROLL_UP
-        else if (strcmp(button, "wheel_down") == 0) button_val = 11; // SCROLL_DOWN
-        // For hover events, button might be "enter", "exit", "move" - use LEFT as default
-
-        PyObject* button_enum = nullptr;
-        if (PyMouseButton::mouse_button_enum_class) {
-            button_enum = PyObject_CallFunction(PyMouseButton::mouse_button_enum_class, "i", button_val);
-        }
-        if (!button_enum) {
-            PyErr_Clear();
-            button_enum = PyLong_FromLong(button_val);  // Fallback to int
-        }
-
-        // Convert action string to InputState enum
-        int action_val = (strcmp(action, "start") == 0) ? 0 : 1;  // PRESSED=0, RELEASED=1
-
-        PyObject* action_enum = nullptr;
-        if (PyInputState::input_state_enum_class) {
-            action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
-        }
+        // (#231, #232, #428) The shared conversions. Hover events take the overload
+        // below, so only real button names arrive here; anything else is reported.
+        PyObject* button_enum = PyMouseButton::from_action_name(button);
+        PyObject* action_enum = button_enum ? PyInputState::from_action_type(action) : nullptr;
         if (!action_enum) {
-            PyErr_Clear();
-            action_enum = PyLong_FromLong(action_val);  // Fallback to int
+            Py_DECREF(pos);
+            Py_XDECREF(button_enum);
+            std::cerr << "on_click not called:" << std::endl;
+            PyErr_Print();
+            Py_XDECREF(method);
+            Py_DECREF(pyObj);
+            return false;
         }
 
         // Call with (Vector, MouseButton, InputState) signature
@@ -215,6 +197,8 @@ PyScene::PyScene(GameEngine* g) : Scene(g)
     registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Left, "left");
     registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Right, "right");
     registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::Middle, "middle");
+    registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::XButton1, "x1");  // #428: MouseButton.X1
+    registerAction(ActionCode::MOUSEBUTTON + sf::Mouse::XButton2, "x2");  // existed but never fired
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_DEL, "wheel_up");
     registerAction(ActionCode::MOUSEWHEEL + ActionCode::WHEEL_NEG + ActionCode::WHEEL_DEL, "wheel_down");
 
@@ -285,6 +269,7 @@ void PyScene::do_mouse_input(std::string button, std::string type)
 void PyScene::doAction(std::string name, std::string type)
 {
     if (name.compare("left") == 0 || name.compare("right") == 0 || name.compare("middle") == 0 ||
+        name.compare("x1") == 0 || name.compare("x2") == 0 ||
         name.compare("wheel_up") == 0 || name.compare("wheel_down") == 0) {
         do_mouse_input(name, type);
     }

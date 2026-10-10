@@ -8,6 +8,7 @@ PyObject* PyMouseButton::mouse_button_enum_class = nullptr;
 struct MouseButtonEntry {
     const char* name;       // Python enum name (UPPER_SNAKE_CASE)
     int value;              // Integer value (matches sf::Mouse::Button)
+    const char* action;     // Engine action name registered by PyScene (#428)
 };
 
 // Custom values for scroll wheel (beyond sf::Mouse::Button range)
@@ -15,16 +16,50 @@ static const int SCROLL_UP_VALUE = 10;
 static const int SCROLL_DOWN_VALUE = 11;
 
 static const MouseButtonEntry mouse_button_table[] = {
-    {"LEFT", sf::Mouse::Left},
-    {"RIGHT", sf::Mouse::Right},
-    {"MIDDLE", sf::Mouse::Middle},
-    {"X1", sf::Mouse::XButton1},
-    {"X2", sf::Mouse::XButton2},
-    {"SCROLL_UP", SCROLL_UP_VALUE},
-    {"SCROLL_DOWN", SCROLL_DOWN_VALUE},
+    {"LEFT", sf::Mouse::Left, "left"},
+    {"RIGHT", sf::Mouse::Right, "right"},
+    {"MIDDLE", sf::Mouse::Middle, "middle"},
+    {"X1", sf::Mouse::XButton1, "x1"},
+    {"X2", sf::Mouse::XButton2, "x2"},
+    {"SCROLL_UP", SCROLL_UP_VALUE, "wheel_up"},
+    {"SCROLL_DOWN", SCROLL_DOWN_VALUE, "wheel_down"},
 };
 
 static const int NUM_MOUSE_BUTTON_ENTRIES = sizeof(mouse_button_table) / sizeof(mouse_button_table[0]);
+
+// Memoized members, indexed like mouse_button_table (strong refs, interpreter lifetime).
+static PyObject* mouse_button_members[NUM_MOUSE_BUTTON_ENTRIES] = {};
+
+PyObject* PyMouseButton::from_action_name(const std::string& name) {
+    for (int i = 0; i < NUM_MOUSE_BUTTON_ENTRIES; i++) {
+        if (name != mouse_button_table[i].action) continue;
+        if (!mouse_button_enum_class) {
+            PyErr_SetString(PyExc_RuntimeError, "MouseButton enum class not initialized");
+            return nullptr;
+        }
+        if (!mouse_button_members[i]) {
+            mouse_button_members[i] = PyObject_CallFunction(
+                mouse_button_enum_class, "i", mouse_button_table[i].value);
+            if (!mouse_button_members[i]) return nullptr;
+        }
+        Py_INCREF(mouse_button_members[i]);
+        return mouse_button_members[i];
+    }
+    PyErr_Format(PyExc_ValueError, "unknown mouse action name '%s'", name.c_str());
+    return nullptr;
+}
+
+int PyMouseButton::button_from_action_name(const char* name, sf::Mouse::Button* out_button) {
+    for (int i = 0; i < NUM_MOUSE_BUTTON_ENTRIES; i++) {
+        if (strcmp(name, mouse_button_table[i].action) != 0) continue;
+        if (mouse_button_table[i].value >= sf::Mouse::ButtonCount) break;  // a wheel name
+        *out_button = static_cast<sf::Mouse::Button>(mouse_button_table[i].value);
+        return 1;
+    }
+    PyErr_Format(PyExc_ValueError,
+        "unknown button '%s': expected 'left', 'right', 'middle', 'x1' or 'x2'", name);
+    return 0;
+}
 
 PyObject* PyMouseButton::create_enum_class(PyObject* module) {
     // Build the enum definition dynamically from the table

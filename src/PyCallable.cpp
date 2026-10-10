@@ -63,37 +63,16 @@ void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::strin
         return;
     }
 
-    // Convert button string to MouseButton enum (#222, #232)
-    int button_val = 0;  // Default to LEFT
-    if (button == "left") button_val = 0;
-    else if (button == "right") button_val = 1;
-    else if (button == "middle") button_val = 2;
-    else if (button == "x1") button_val = 3;
-    else if (button == "x2") button_val = 4;
-    else if (button == "wheel_up") button_val = 10;   // SCROLL_UP
-    else if (button == "wheel_down") button_val = 11; // SCROLL_DOWN
-
-    PyObject* button_enum = nullptr;
-    if (PyMouseButton::mouse_button_enum_class) {
-        button_enum = PyObject_CallFunction(PyMouseButton::mouse_button_enum_class, "i", button_val);
-    }
-    if (!button_enum) {
-        // Fallback to string if enum creation fails
-        PyErr_Clear();
-        button_enum = PyUnicode_FromString(button.c_str());
-    }
-
-    // Convert action string to InputState enum (#222)
-    int action_val = (action == "start") ? 0 : 1;  // PRESSED=0, RELEASED=1
-
-    PyObject* action_enum = nullptr;
-    if (PyInputState::input_state_enum_class) {
-        action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
-    }
+    // (#222, #232, #428) The shared conversions. An unknown name is an engine bug: it
+    // is reported, not delivered as a LEFT click or a bare string.
+    PyObject* button_enum = PyMouseButton::from_action_name(button);
+    PyObject* action_enum = button_enum ? PyInputState::from_action_type(action) : nullptr;
     if (!action_enum) {
-        // Fallback to string if enum creation fails
-        PyErr_Clear();
-        action_enum = PyUnicode_FromString(action.c_str());
+        Py_DECREF(pos);
+        Py_XDECREF(button_enum);
+        std::cerr << "Click callback not called:" << std::endl;
+        PyErr_Print();
+        return;
     }
 
     PyObject* args = Py_BuildValue("(OOO)", pos, button_enum, action_enum);
@@ -152,9 +131,8 @@ void PyKeyCallable::call(std::string key, std::string action)
         return;
     }
 
-    // Convert action string to InputState enum (#344: cached member)
-    int action_val = (action == "start" || action == "pressed") ? 0 : 1;  // PRESSED = 0, RELEASED = 1
-    PyObject* action_enum = PyInputState::get_enum_member(action_val);
+    // Convert action string to InputState enum (#344: cached member, #428: shared)
+    PyObject* action_enum = PyInputState::from_action_type(action);
     if (!action_enum) {
         Py_DECREF(key_enum);
         std::cerr << "Failed to create InputState enum for action: " << action << std::endl;
