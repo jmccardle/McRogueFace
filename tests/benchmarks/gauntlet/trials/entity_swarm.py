@@ -74,7 +74,6 @@ class EntitySwarm(Trial):
     def _move_target(self):
         self.target = (self.rng.randint(1, GRID_W - 2),
                        self.rng.randint(1, GRID_H - 2))
-        self.grid.clear_dijkstra_maps()
         self.dmap = self.grid.get_dijkstra_map(self.target)
         for e in self.entities:
             e.set_behavior(SEEK, pathfinder=self.dmap)

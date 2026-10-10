@@ -160,18 +160,44 @@ public:
     // =========================================================================
     // Pathfinding caches
     // =========================================================================
-    // #425: a cached map is reused only while it still describes the grid -- the
-    // walkability generation it was built at, and the cells its collide label
-    // blocked, must both be unchanged. Otherwise it is rebuilt on request, so
-    // clear_dijkstra_maps() is only ever a memory release, never a correctness step.
-    struct DijkstraCacheEntry {
-        std::shared_ptr<DijkstraMap> map;
-        uint32_t generation;                 // transparency_generation when built
-        std::vector<sf::Vector2i> blocked;   // labelled-entity cells, sorted (collide only)
+    // #425: get_dijkstra_map()'s cache. It manages itself -- there is no call a game
+    // must make for correctness or for memory:
+    //   * an entry is returned only while it still describes the grid: built at the
+    //     current walkability generation, with its collide label blocking the same
+    //     cells. Otherwise it is rebuilt.
+    //   * entries from an older generation can never be valid again (the counter only
+    //     rises), so the first lookup after an edit drops them all.
+    //   * the distance fields are capped at `budget` bytes (GridData.
+    //     dijkstra_cache_budget), least recently used evicted first; the newest entry
+    //     is always kept, so even a grid whose single field is over budget still
+    //     shares one map among all its requesters.
+    struct DijkstraCache {
+        static constexpr size_t DEFAULT_BUDGET_BYTES = size_t(256) << 20;
+        size_t budget = DEFAULT_BUDGET_BYTES;
+        // (root_x, root_y, collide_label, diagonal_cost); "" = no collision filtering.
+        using Key = std::tuple<int,int,std::string,float>;
+        struct Entry {
+            std::shared_ptr<DijkstraMap> map;
+            uint32_t generation;                 // transparency_generation when built
+            std::vector<sf::Vector2i> blocked;   // labelled-entity cells, sorted
+            uint64_t last_used;
+        };
+        std::map<Key, Entry> entries;
+        size_t bytes = 0;
+        uint64_t clock = 0;
+        uint32_t swept_generation = 0;
+
+        // The cached map for key if still current, else nullptr (and the stale entry
+        // is dropped). Defined in UIGridPathfinding.cpp, which knows DijkstraMap.
+        std::shared_ptr<DijkstraMap> find(const Key& key, uint32_t generation,
+                                          const std::vector<sf::Vector2i>& blocked);
+        void insert(const Key& key, std::shared_ptr<DijkstraMap> map,
+                    uint32_t generation, std::vector<sf::Vector2i> blocked);
+        void erase(std::map<Key, Entry>::iterator it);
+        void trim();   // evict LRU entries until within budget (keeps the newest)
+        void clear();
     };
-    // Key: (root_x, root_y, collide_label, diagonal_cost); "" = no collision filtering.
-    // diagonal_cost is part of the key so two costs are cached side by side.
-    std::map<std::tuple<int,int,std::string,float>, DijkstraCacheEntry> dijkstra_maps;
+    DijkstraCache dijkstra_cache;
 
     // =========================================================================
     // Layer system (#147, #150)

@@ -595,6 +595,8 @@ submodule automation
   meth realign :: realign() -> None
   meth resize :: resize(width, height) or (size) -> None
 [GridData]
+  prop dijkstra_cache_budget: int (rw)
+  prop dijkstra_cache_bytes: int (ro)
   prop entities: EntityCollection (ro)
   prop fov: Any (rw)
   prop fov_radius: int (rw)
@@ -607,7 +609,6 @@ submodule automation
   meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> GridData
   meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> GridData
   meth at :: at(x: int, y: int) -> GridPoint
-  meth clear_dijkstra_maps :: clear_dijkstra_maps() -> None
   meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None
   meth entities_in_radius :: entities_in_radius(pos: tuple | Vector, radius: float) -> list
   meth find_path :: find_path(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0) -> AStarPath | None
@@ -1168,6 +1169,8 @@ submodule automation
 
 === INTERNAL TYPES (reached via live instances) ===
 [GridData]
+  prop dijkstra_cache_budget: int (rw)
+  prop dijkstra_cache_bytes: int (ro)
   prop entities: EntityCollection (ro)
   prop fov: Any (rw)
   prop fov_radius: int (rw)
@@ -1180,7 +1183,6 @@ submodule automation
   meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> GridData
   meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> GridData
   meth at :: at(x: int, y: int) -> GridPoint
-  meth clear_dijkstra_maps :: clear_dijkstra_maps() -> None
   meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None
   meth entities_in_radius :: entities_in_radius(pos: tuple | Vector, radius: float) -> list
   meth find_path :: find_path(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0) -> AStarPath | None
@@ -1244,7 +1246,7 @@ func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> Non
 func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
 === DELEGATION INTEGRITY (Grid instance -> GridData) ===
-  delegated-resolved: 22/22
+  delegated-resolved: 23/23
 
 === WRITABILITY PROBES (#313-touched properties) ===
   Entity.grid: writable

@@ -3,7 +3,8 @@ Regression test for #425 -- cached Dijkstra maps went stale silently.
 
   1. get_dijkstra_map() cached per (root, collide label) and nothing invalidated
      the cache, so after a walkability edit it returned the old distances until
-     clear_dijkstra_maps() was called.
+     clear_dijkstra_maps() was called. (That method is gone: the cache now drops
+     stale entries itself and holds to GridData.dijkstra_cache_budget.)
   2. Worse for collide=: labelled entities block cells only while the map is
      computed, so moving one also left the cached map wrong -- and no
      walkability counter can see that.
@@ -13,7 +14,8 @@ Regression test for #425 -- cached Dijkstra maps went stale silently.
      grid alive it recomputed without the collide= marks.
 
 Now each cache entry is validated against the grid's walkability generation and
-the cells its label blocks, and each map computes on its own snapshot.
+the cells its label blocks; a finished map keeps only its distance field (no pointer
+into the grid), and invert() copies that field instead of recomputing.
 """
 
 import gc
@@ -100,9 +102,45 @@ check(g.get_dijkstra_map((0, 0), diagonal_cost=1.41) is a
       and g.get_dijkstra_map((0, 0), diagonal_cost=2.0) is b,
       "and both stay cached side by side")
 
-# clear_dijkstra_maps() still releases.
-g.clear_dijkstra_maps()
-check(g.get_dijkstra_map((0, 0), diagonal_cost=1.41) is not a, "clear releases the cache")
+# 5. The cache manages its own memory; there is no clear_dijkstra_maps() to call.
+check(not hasattr(g, "clear_dijkstra_maps"), "clear_dijkstra_maps() is gone")
+FIELD = 10 * 10 * 4                         # 4 bytes per cell per map
+g = open_grid(10, 10)
+check(g.dijkstra_cache_budget == 256 << 20, "default budget is 256 MiB")
+m = [g.get_dijkstra_map((i, i)) for i in range(3)]
+check(g.dijkstra_cache_bytes == 3 * FIELD, "three maps cached: %d bytes" % g.dijkstra_cache_bytes)
+
+# An edit makes every entry stale for good; the next lookup drops them all.
+g.at(9, 0).walkable = False
+g.get_dijkstra_map((5, 5))
+check(g.dijkstra_cache_bytes == FIELD,
+      "after an edit, the next lookup drops the stale entries: %d bytes" % g.dijkstra_cache_bytes)
+
+# Byte budget, least recently used evicted first.
+g = open_grid(10, 10)
+g.dijkstra_cache_budget = 2 * FIELD
+m0 = g.get_dijkstra_map((0, 0))
+m1 = g.get_dijkstra_map((1, 1))
+check(g.get_dijkstra_map((0, 0)) is m0, "hit refreshes (0,0)")
+m2 = g.get_dijkstra_map((2, 2))             # over budget: evicts (1,1), the LRU
+check(g.dijkstra_cache_bytes == 2 * FIELD, "within budget: %d bytes" % g.dijkstra_cache_bytes)
+check(g.get_dijkstra_map((0, 0)) is m0 and g.get_dijkstra_map((2, 2)) is m2,
+      "the recently used maps stay cached")
+check(g.get_dijkstra_map((1, 1)) is not m1, "the least recently used one was evicted")
+
+# Lowering the budget evicts at once, but the newest map is always kept, so a grid
+# whose single field is over budget still shares one map among its requesters.
+g.dijkstra_cache_budget = 0
+check(g.dijkstra_cache_bytes == FIELD, "budget 0 keeps just the newest: %d" % g.dijkstra_cache_bytes)
+newest = g.get_dijkstra_map((1, 1))
+check(g.get_dijkstra_map((1, 1)) is newest, "and it is still shared")
+
+for bad, exc in ((-1, OverflowError), (1.5, TypeError), ("1", TypeError)):
+    try:
+        g.dijkstra_cache_budget = bad
+        check(False, "budget %r must raise %s" % (bad, exc.__name__))
+    except exc:
+        check(True, "budget %r raises %s" % (bad, exc.__name__))
 
 # 4a. invert() after the grid is freed (was a segfault).
 g = open_grid()

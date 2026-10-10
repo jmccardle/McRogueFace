@@ -56,7 +56,6 @@ for y in range(20):
         walls.add((x, y))
 
 print(f"Wall cells: {len(walls)}, passage at (10, 10)")
-data.clear_dijkstra_maps()
 
 # Test points
 start = (2, 10)

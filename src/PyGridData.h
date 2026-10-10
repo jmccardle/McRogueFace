@@ -69,6 +69,9 @@ struct PyGridData
     static int set_fov(PyGridDataObject* self, PyObject* value, void* closure);
     static PyObject* get_fov_radius(PyGridDataObject* self, void* closure);
     static int set_fov_radius(PyGridDataObject* self, PyObject* value, void* closure);
+    static PyObject* get_dijkstra_cache_budget(PyGridDataObject* self, void* closure);
+    static PyObject* get_dijkstra_cache_bytes(PyGridDataObject* self, void* closure);
+    static int set_dijkstra_cache_budget(PyGridDataObject* self, PyObject* value, void* closure);
     static PyObject* py_at(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_compute_fov(PyGridDataObject* self, PyObject* args, PyObject* kwds);
     static PyObject* py_is_in_fov(PyGridDataObject* self, PyObject* args, PyObject* kwds);

@@ -28,11 +28,19 @@ struct PyAStarPathObject {
 
 class DijkstraMap {
 public:
-    // Computes from a SNAPSHOT of `map` (#425): the map is copied, so this object
-    // never reads the grid again. A map you hold is a value -- it does not track
-    // later walkability edits -- and it stays valid after its grid is freed.
-    // roots must be non-empty (#315: more than one is a multi-root field).
+    // Computes from `map` as it is now, and keeps nothing of it (#425): a map you
+    // hold is a value -- it does not track later walkability edits -- and it stays
+    // valid after its grid is freed. roots must be non-empty (#315: more than one is
+    // a multi-root field).
     DijkstraMap(const TCODMap* map, const std::vector<sf::Vector2i>& roots, float diagonal_cost);
+
+    // A copy of src's distance field (for inverted()). tcod_dijkstra is null if the
+    // copy could not be allocated.
+    struct CopyField {};
+    DijkstraMap(const DijkstraMap& src, CopyField);
+
+    // Bytes held by the distance field: what the grid's cache budget counts.
+    size_t fieldBytes() const { return static_cast<size_t>(map_width) * map_height * sizeof(unsigned int); }
 
     ~DijkstraMap();
 
@@ -64,9 +72,6 @@ public:
     int getWidth() const { return map_width; }
     int getHeight() const { return map_height; }
 
-    // Raw C handle, for internal use in new constructor paths (e.g. from_invert).
-    TCOD_Dijkstra* getHandle() const { return tcod_dijkstra; }
-
     // #430: PythonObjectCache key (0 = no wrapper yet). Unregistered in ~DijkstraMap.
     uint64_t serial_number = 0;
 
@@ -76,8 +81,8 @@ public:
     static PyObject* pyobject_for(const std::shared_ptr<DijkstraMap>& map);
 
 private:
-    TCOD_Dijkstra* tcod_dijkstra;  // Owned
-    std::unique_ptr<TCODMap> snapshot;  // Owned copy the field was computed on (#425)
+    static void finish(TCOD_Dijkstra* d);
+    TCOD_Dijkstra* tcod_dijkstra;  // Owned; a finished field (no map, no work queue)
     sf::Vector2i root;
     std::vector<sf::Vector2i> roots;
     float diagonal_cost;
@@ -157,8 +162,6 @@ namespace UIGridPathfinding {
     // Grid.get_dijkstra_map() -> DijkstraMap
     PyObject* Grid_get_dijkstra_map(PyGridDataObject* self, PyObject* args, PyObject* kwds);
 
-    // Grid.clear_dijkstra_maps() -> None
-    PyObject* Grid_clear_dijkstra_maps(PyGridDataObject* self, PyObject* args);
 }
 
 //=============================================================================

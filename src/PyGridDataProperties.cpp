@@ -92,6 +92,30 @@ int PyGridData::set_fov_radius(PyGridDataObject* self, PyObject* value, void* cl
     return 0;
 }
 
+// #425: bytes of Dijkstra distance field the grid may keep cached (4 per cell per map).
+PyObject* PyGridData::get_dijkstra_cache_budget(PyGridDataObject* self, void* closure)
+{
+    return PyLong_FromSize_t(self->data->dijkstra_cache.budget);
+}
+
+PyObject* PyGridData::get_dijkstra_cache_bytes(PyGridDataObject* self, void* closure)
+{
+    return PyLong_FromSize_t(self->data->dijkstra_cache.bytes);
+}
+
+int PyGridData::set_dijkstra_cache_budget(PyGridDataObject* self, PyObject* value, void* closure)
+{
+    if (!value || !PyLong_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "dijkstra_cache_budget must be an int (bytes)");
+        return -1;
+    }
+    size_t budget = PyLong_AsSize_t(value);  // OverflowError for a negative value
+    if (budget == (size_t)-1 && PyErr_Occurred()) return -1;
+    self->data->dijkstra_cache.budget = budget;
+    self->data->dijkstra_cache.trim();
+    return 0;
+}
+
 // =========================================================================
 // Collection getters
 // =========================================================================
@@ -178,5 +202,15 @@ PyGetSetDef PyGridData::getsetters[] = {
      ), NULL},
     {"fov_radius", (getter)PyGridData::get_fov_radius, (setter)PyGridData::set_fov_radius,
      MCRF_PROPERTY(fov_radius, "Default FOV radius for this map (int). Used when radius is not specified."), NULL},
+    {"dijkstra_cache_budget", (getter)PyGridData::get_dijkstra_cache_budget,
+     (setter)PyGridData::set_dijkstra_cache_budget,
+     MCRF_PROPERTY(dijkstra_cache_budget,
+         "Bytes of Dijkstra distance field get_dijkstra_map() may keep cached (int, default "
+         "256 MiB; each map costs 4 bytes per cell). Least recently used maps are evicted "
+         "past it; the most recent one is always kept. Lowering it evicts at once."), NULL},
+    {"dijkstra_cache_bytes", (getter)PyGridData::get_dijkstra_cache_bytes, NULL,
+     MCRF_PROPERTY(dijkstra_cache_bytes,
+         "Bytes of Dijkstra distance field currently cached (int, read-only). Compare "
+         "with dijkstra_cache_budget."), NULL},
     {NULL}
 };

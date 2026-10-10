@@ -169,9 +169,6 @@ class PlayScene:
 
         self.hud.update(self.player, self.depth)
 
-        # Clear Dijkstra cache for the new level
-        self.grid.clear_dijkstra_maps()
-
     def descend(self):
         """Called by ExitEntity when the player enters an unlocked exit."""
         self.depth += 1
@@ -190,9 +187,6 @@ class PlayScene:
         if self.player:
             self.player.tick_equipment()
         self.hud.update(self.player, self.depth)
-
-        # Clear Dijkstra cache in case walkability changed (boulder moved)
-        self.grid.clear_dijkstra_maps()
 
     # -- Input handling ---------------------------------------------------
 

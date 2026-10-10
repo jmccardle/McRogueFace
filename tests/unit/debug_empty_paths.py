@@ -8,8 +8,7 @@ and that the TCOD map stays in sync with walkability changes.
 
 API notes (2026-07): compute_astar_path/compute_dijkstra/get_dijkstra_path are gone.
 Pathfinding lives on GridData: find_path() -> AStarPath | None,
-get_dijkstra_map(root=...) -> DijkstraMap (cached; clear_dijkstra_maps() after
-walkability changes). TCOD sync is automatic -- there is no sync_tcod_map().
+get_dijkstra_map(root=...) -> DijkstraMap (cached, always current, #425). TCOD sync is automatic -- there is no sync_tcod_map().
 """
 
 import mcrfpy
@@ -69,7 +68,6 @@ for y in range(3):
 print("\nTest 4: Path with wall")
 for wx in (2, 3, 4):
     data.at(wx, 2).walkable = False
-data.clear_dijkstra_maps()  # walkability changed: invalidate cached maps
 print("  Added wall at y=2, x=2,3,4")
 
 path2 = data.find_path((0, 0), (5, 5))
@@ -85,7 +83,6 @@ check(not any(tuple(p) in blocked for p in steps2),
 # Test invalid paths
 print("\nTest 5: Path to blocked cell")
 data.at(9, 9).walkable = False
-data.clear_dijkstra_maps()
 path3 = data.find_path((0, 0), (9, 9))
 print(f"  Path to blocked cell: {path3}")
 check(path3 is None or len(list(path3)) == 0,
@@ -96,7 +93,6 @@ print("\nTest 6: Verify TCOD map is synced")
 # Fully wall off (9,8) and (8,9) too -- (9,9) neighbors -- then re-open (9,9):
 # a stale TCOD map would still refuse the destination.
 data.at(9, 9).walkable = True
-data.clear_dijkstra_maps()
 path_reopened = data.find_path((0, 0), (9, 9))
 check(path_reopened is not None and len(list(path_reopened)) > 0,
       "re-opening a blocked cell makes it reachable again (automatic TCOD sync)")

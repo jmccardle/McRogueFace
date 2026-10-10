@@ -38,12 +38,13 @@ def random_points(w, h, n, rng):
     return list(pts)
 
 
-def bench_compute(g, roots, trials):
+def bench_compute(g, root_sets, trials):
+    # One root set per trial: a single-root request is cached, so repeating the same
+    # roots would time cache hits, not computes.
     total = 0.0
-    for _ in range(trials):
-        g.clear_dijkstra_maps()
+    for i in range(trials):
         t0 = time.perf_counter()
-        _ = g.get_dijkstra_map(roots=roots)
+        _ = g.get_dijkstra_map(roots=root_sets[i])
         total += time.perf_counter() - t0
     return total / trials
 
@@ -51,9 +52,8 @@ def bench_compute(g, roots, trials):
 def bench_mask(g, mask, trials):
     total = 0.0
     for _ in range(trials):
-        g.clear_dijkstra_maps()
         t0 = time.perf_counter()
-        _ = g.get_dijkstra_map(roots=mask)
+        _ = g.get_dijkstra_map(roots=mask)  # masks are never cached
         total += time.perf_counter() - t0
     return total / trials
 
@@ -87,8 +87,8 @@ def main():
     for (w, h) in GRID_SIZES:
         g = make_grid(w, h)
         for n in ROOT_COUNTS:
-            roots = random_points(w, h, n, rng)
-            ms = bench_compute(g, roots, TRIALS) * 1000.0
+            root_sets = [random_points(w, h, n, rng) for _ in range(TRIALS)]
+            ms = bench_compute(g, root_sets, TRIALS) * 1000.0
             out["runs"].append({"grid": f"{w}x{h}", "kind": "multi_root",
                                 "roots": n, "mean_ms": ms})
             print(f"  {w}x{h} multi_root({n:2d})  mean={ms:7.2f} ms")
