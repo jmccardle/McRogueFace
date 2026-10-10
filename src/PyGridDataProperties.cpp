@@ -118,29 +118,9 @@ PyObject* PyGridData::get_layers(PyGridDataObject* self, void* closure) {
     PyObject* tuple = PyTuple_New(self->data->layers.size());
     if (!tuple) return NULL;
 
-    auto* color_layer_type = &mcrfpydef::PyColorLayerType;
-    auto* tile_layer_type = &mcrfpydef::PyTileLayerType;
-
     for (size_t i = 0; i < self->data->layers.size(); ++i) {
-        auto& layer = self->data->layers[i];
-        PyObject* py_layer = nullptr;
-
-        if (layer->type == GridLayerType::Color) {
-            PyColorLayerObject* obj = (PyColorLayerObject*)color_layer_type->tp_alloc(color_layer_type, 0);
-            if (obj) {
-                obj->data = std::static_pointer_cast<ColorLayer>(layer);
-                obj->grid = self->data;
-                py_layer = (PyObject*)obj;
-            }
-        } else {
-            PyTileLayerObject* obj = (PyTileLayerObject*)tile_layer_type->tp_alloc(tile_layer_type, 0);
-            if (obj) {
-                obj->data = std::static_pointer_cast<TileLayer>(layer);
-                obj->grid = self->data;
-                py_layer = (PyObject*)obj;
-            }
-        }
-
+        // #430: each layer's one wrapper (the user's own object if they built it).
+        PyObject* py_layer = PyGridLayerAPI::pyobject_for(self->data->layers[i], self->data);
         if (!py_layer) {
             Py_DECREF(tuple);
             return NULL;

@@ -145,6 +145,11 @@ GridLayer::GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, Gr
     initChunks();
 }
 
+GridLayer::~GridLayer() {
+    // #430: drop this layer's wrapper-cache entry.
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
+}
+
 void GridLayer::initChunks() {
     // Calculate chunk dimensions
     chunks_x = (grid_x + CHUNK_SIZE - 1) / CHUNK_SIZE;
@@ -926,6 +931,37 @@ PyGetSetDef PyGridLayerAPI::ColorLayer_getsetters[] = {
     {NULL}
 };
 
+// #430: one wrapper per layer, keyed on GridLayer::serial_number.
+template <typename Obj, typename Layer>
+static PyObject* layer_wrapper(const std::shared_ptr<GridLayer>& layer,
+                               const std::shared_ptr<GridData>& grid, PyTypeObject* type)
+{
+    PyObject* result = mcrf::cached_wrapper<Obj>(layer->serial_number, type, [&](Obj* o) {
+        new (&o->data) std::shared_ptr<Layer>(std::static_pointer_cast<Layer>(layer));
+        new (&o->grid) std::shared_ptr<GridData>(grid);
+    });
+    if (!result) return nullptr;
+    // A live wrapper is asked for by the grid that holds its layer: its grid
+    // reference must name that grid.
+    auto* o = (Obj*)result;
+    if (o->grid != grid) o->grid = grid;
+    return result;
+}
+
+PyObject* PyGridLayerAPI::pyobject_for(const std::shared_ptr<GridLayer>& layer,
+                                       const std::shared_ptr<GridData>& grid)
+{
+    if (!layer) Py_RETURN_NONE;
+    switch (layer->type) {
+        case GridLayerType::Color:
+            return layer_wrapper<PyColorLayerObject, ColorLayer>(layer, grid, &mcrfpydef::PyColorLayerType);
+        case GridLayerType::Tile:
+            return layer_wrapper<PyTileLayerObject, TileLayer>(layer, grid, &mcrfpydef::PyTileLayerType);
+    }
+    PyErr_SetString(PyExc_SystemError, "GridLayer has an unknown layer type");
+    return nullptr;
+}
+
 int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
     // 1.0 API freeze: positional order is now (name, z_index, ...).
     static const char* kwlist[] = {"name", "z_index", "grid_size", "grid", NULL};
@@ -968,11 +1004,20 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
     }
 
     // Create the layer (will be attached to grid via add_layer or layer.grid setter)
+    // #430: a re-run __init__ replaces the layer; the old one (possibly still in a
+    // grid) must no longer resolve to this wrapper.
+    if (self->data && self->data->serial_number != 0) {
+        mcrf::unregister_wrapper(self->data->serial_number);
+    }
     self->data = std::make_shared<ColorLayer>(z_index, grid_x, grid_y, nullptr);
     if (name_str) {
         self->data->name = name_str;
     }
     self->grid.reset();
+
+    // #430: this wrapper is THE Python object for the new layer, so grid.layer(name)
+    // and grid.layers return it.
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // Auto-attach to grid via grid.add_layer(self) if grid= was supplied.
     if (grid_obj && grid_obj != Py_None) {
@@ -2029,11 +2074,20 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
     }
 
     // Create the layer
+    // #430: a re-run __init__ replaces the layer; the old one (possibly still in a
+    // grid) must no longer resolve to this wrapper.
+    if (self->data && self->data->serial_number != 0) {
+        mcrf::unregister_wrapper(self->data->serial_number);
+    }
     self->data = std::make_shared<TileLayer>(z_index, grid_x, grid_y, nullptr, texture);
     if (name_str) {
         self->data->name = name_str;
     }
     self->grid.reset();
+
+    // #430: this wrapper is THE Python object for the new layer, so grid.layer(name)
+    // and grid.layers return it.
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // Auto-attach to grid via grid.add_layer(self) if grid= was supplied.
     if (grid_obj && grid_obj != Py_None) {

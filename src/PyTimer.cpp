@@ -116,6 +116,17 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
     return 0;
 }
 
+PyObject* PyTimer::pyobject_for(const std::shared_ptr<Timer>& timer) {
+    if (!timer) Py_RETURN_NONE;
+    return mcrf::cached_wrapper<PyTimerObject>(timer->serial_number, &mcrfpydef::PyTimerType,
+        [&](PyTimerObject* obj) {
+            // tp_alloc zero-fills; dealloc destroys both members.
+            new(&obj->name) std::string(timer->name);
+            new(&obj->data) std::shared_ptr<Timer>(timer);
+            obj->weakreflist = nullptr;
+        });
+}
+
 void PyTimer::dealloc(PyTimerObject* self) {
     // Clear weakrefs first
     if (self->weakreflist != nullptr) {

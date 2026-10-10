@@ -957,11 +957,12 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
         PyModule_AddObject(m, "mouse", mouse_instance);
     }
 
-    // Add window singleton (#184)
-    // Use tp_alloc directly to bypass tp_new which blocks user instantiation
-    PyObject* window_instance = PyWindowType.tp_alloc(&PyWindowType, 0);
-    if (window_instance) {
-        PyModule_AddObject(m, "window", window_instance);
+    // Add window singleton (#184). The same object Window.get() returns (#430).
+    PyObject* window_instance = PyWindow::instance();
+    if (!window_instance || PyModule_AddObject(m, "window", window_instance) < 0) {
+        Py_XDECREF(window_instance);
+        Py_DECREF(m);
+        return NULL;
     }
 
     // Add version string (#164)
@@ -1670,32 +1671,6 @@ PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
     return Py_None;		
 }
 
-// #180: Create a Python wrapper for an existing C++ Timer (for orphaned timers)
-static PyObject* createTimerWrapper(std::shared_ptr<Timer> timer)
-{
-    // Allocate new PyTimerObject
-    PyTypeObject* type = &mcrfpydef::PyTimerType;
-    PyTimerObject* obj = (PyTimerObject*)type->tp_alloc(type, 0);
-    if (!obj) return nullptr;
-
-    // Initialize - use placement new for std::string
-    new(&obj->name) std::string(timer->name);
-    obj->data = timer;  // Share the existing C++ Timer
-    obj->weakreflist = nullptr;
-
-    // Register in cache for future lookups
-    if (timer->serial_number == 0) {
-        timer->serial_number = PythonObjectCache::getInstance().assignSerial();
-    }
-    PyObject* weakref = PyWeakref_NewRef((PyObject*)obj, NULL);
-    if (weakref) {
-        PythonObjectCache::getInstance().registerObject(timer->serial_number, weakref);
-        Py_DECREF(weakref);
-    }
-
-    return (PyObject*)obj;
-}
-
 // #173: Get all timers as a tuple of Python Timer objects
 PyObject* McRFPy_API::api_get_timers()
 {
@@ -1708,28 +1683,23 @@ PyObject* McRFPy_API::api_get_timers()
         auto& timer = pair.second;
         if (!timer) continue;
 
-        PyObject* timer_obj = nullptr;
-
-        // Try to find existing Python wrapper
-        if (timer->serial_number != 0) {
-            timer_obj = mcrf::live_wrapper(timer->serial_number);
+        // The live wrapper, or (#180, orphaned timer) a new registered one
+        PyObject* timer_obj = PyTimer::pyobject_for(timer);
+        if (!timer_obj) {
+            for (PyObject* o : timer_objs) Py_DECREF(o);
+            return NULL;
         }
-
-        // #180: If no wrapper exists (orphaned timer), create a new one
-        if (!timer_obj || timer_obj == Py_None) {
-            timer_obj = createTimerWrapper(timer);
-        }
-
-        if (timer_obj && timer_obj != Py_None) {
-            timer_objs.push_back(timer_obj);
-        }
+        timer_objs.push_back(timer_obj);
     }
 
     PyObject* tuple = PyTuple_New(timer_objs.size());
-    if (!tuple) return NULL;
+    if (!tuple) {
+        for (PyObject* o : timer_objs) Py_DECREF(o);
+        return NULL;
+    }
 
     for (Py_ssize_t i = 0; i < static_cast<Py_ssize_t>(timer_objs.size()); i++) {
-        // timer_objs already has a reference from lookup() or createTimerWrapper()
+        // timer_objs already holds a new reference from PyTimer::pyobject_for()
         // PyTuple_SET_ITEM steals that reference, so no additional INCREF needed
         PyTuple_SET_ITEM(tuple, i, timer_objs[i]);
     }

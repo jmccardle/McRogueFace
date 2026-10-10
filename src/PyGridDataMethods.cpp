@@ -592,23 +592,8 @@ PyObject* PyGridData::py_layer(PyGridDataObject* self, PyObject* args) {
         Py_RETURN_NONE;
     }
 
-    if (layer->type == GridLayerType::Color) {
-        auto* type = &mcrfpydef::PyColorLayerType;
-        PyColorLayerObject* obj = (PyColorLayerObject*)type->tp_alloc(type, 0);
-        if (!obj) return NULL;
-
-        obj->data = std::static_pointer_cast<ColorLayer>(layer);
-        obj->grid = self->data;
-        return (PyObject*)obj;
-    } else {
-        auto* type = &mcrfpydef::PyTileLayerType;
-        PyTileLayerObject* obj = (PyTileLayerObject*)type->tp_alloc(type, 0);
-        if (!obj) return NULL;
-
-        obj->data = std::static_pointer_cast<TileLayer>(layer);
-        obj->grid = self->data;
-        return (PyObject*)obj;
-    }
+    // #430: the layer's one wrapper (the user's own object if they built it).
+    return PyGridLayerAPI::pyobject_for(layer, self->data);
 }
 
 // =========================================================================

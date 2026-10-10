@@ -21,6 +21,11 @@ public:
     static int init(PyTimerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* pynew(PyTypeObject* type, PyObject* args=NULL, PyObject* kwds=NULL);
     static void dealloc(PyTimerObject* self);
+
+    // The Python wrapper for a C++ Timer (#430): the live one if it exists (so a timer
+    // the user built comes back as itself), else a new registered mcrfpy.Timer.
+    // The cache key is Timer::serial_number. New reference, or nullptr with an error set.
+    static PyObject* pyobject_for(const std::shared_ptr<Timer>& timer);
     
     // Timer control methods
     static PyObject* start(PyTimerObject* self, PyObject* Py_UNUSED(ignored));

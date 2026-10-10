@@ -1,33 +1,34 @@
 #include "PyWindow.h"
+#include "PyWrap.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "Common.h"
 #include <cstring>
 
-// Singleton instance - static variable, not a class member
-static PyWindowObject* window_instance = nullptr;
+// The singleton is a stateless view onto GameEngine, owned by the process. Its cache
+// key therefore lives here, as a file static, and `window_instance` holds a strong
+// reference for the life of the process so the cache always hits: that is what makes
+// `mcrfpy.window is Window.get()` hold. cached_wrapper's tp_alloc bypasses tp_new,
+// which blocks user instantiation.
+static uint64_t window_serial = 0;
+static PyObject* window_instance = nullptr;
+
+PyObject* PyWindow::instance()
+{
+    PyObject* w = mcrf::cached_wrapper<PyWindowObject>(window_serial, &mcrfpydef::PyWindowType,
+        [](PyWindowObject* obj) { obj->weakreflist = nullptr; });
+    if (!w) return NULL;
+    if (!window_instance) {
+        Py_INCREF(w);
+        window_instance = w;
+    }
+    return w;
+}
 
 PyObject* PyWindow::get(PyObject* cls, PyObject* args)
 {
-    // Create singleton instance if it doesn't exist
-    if (!window_instance) {
-        // Use the class object passed as first argument
-        PyTypeObject* type = (PyTypeObject*)cls;
-        
-        if (!type->tp_alloc) {
-            PyErr_SetString(PyExc_RuntimeError, "Window type not properly initialized");
-            return NULL;
-        }
-        
-        window_instance = (PyWindowObject*)type->tp_alloc(type, 0);
-        if (!window_instance) {
-            return NULL;
-        }
-    }
-    
-    Py_INCREF(window_instance);
-    return (PyObject*)window_instance;
+    return instance();
 }
 
 PyObject* PyWindow::repr(PyWindowObject* self)
