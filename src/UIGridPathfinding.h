@@ -28,11 +28,20 @@ struct PyAStarPathObject {
 
 class DijkstraMap {
 public:
-    // Computes from `map` as it is now, and keeps nothing of it (#425): a map you
-    // hold is a value -- it does not track later walkability edits -- and it stays
-    // valid after its grid is freed. roots must be non-empty (#315: more than one is
-    // a multi-root field).
-    DijkstraMap(const TCODMap* map, const std::vector<sf::Vector2i>& roots, float diagonal_cost);
+    // Default radius: a field is at most 1023 x 1023 cells (#445).
+    static constexpr int DEFAULT_MAX_RADIUS = 511;
+    // heuristic value meaning "no estimate": a query beyond the field raises.
+    static constexpr int NO_HEURISTIC = -1;
+
+    // #445: computes the field over a WINDOW of `grid` -- the bounding box of the
+    // roots, expanded by `radius` and clipped to the grid -- from a window-sized copy
+    // of the walkable plane with `blocked` cells (the collide= label's entities) made
+    // unwalkable. The grid itself is not touched, and nothing of it is kept but a weak
+    // reference for greedy steps beyond the field. roots must be non-empty (#315: more
+    // than one is a multi-root field).
+    DijkstraMap(const std::shared_ptr<GridData>& grid, const std::vector<sf::Vector2i>& roots,
+                float diagonal_cost, int radius, int heuristic,
+                const std::vector<sf::Vector2i>& blocked);
 
     // A copy of src's distance field (for inverted()). tcod_dijkstra is null if the
     // copy could not be allocated.
@@ -40,7 +49,7 @@ public:
     DijkstraMap(const DijkstraMap& src, CopyField);
 
     // Bytes held by the distance field: what the grid's cache budget counts.
-    size_t fieldBytes() const { return static_cast<size_t>(map_width) * map_height * sizeof(unsigned int); }
+    size_t fieldBytes() const { return static_cast<size_t>(win_w) * win_h * sizeof(unsigned int); }
 
     ~DijkstraMap();
 
@@ -48,29 +57,46 @@ public:
     DijkstraMap(const DijkstraMap&) = delete;
     DijkstraMap& operator=(const DijkstraMap&) = delete;
 
-    // Queries
-    float getDistance(int x, int y) const;
+    // #445: what the map knows about a grid position (any int, on or off the grid).
+    //   EXACT       -- in the exact field: `value` is the distance (inverted, if so)
+    //   UNREACHABLE -- certainly unreachable: the field is complete and missed it
+    //   ESTIMATE    -- beyond the exact field: `value` is the heuristic lower bound
+    //   UNKNOWN     -- beyond the exact field, and the map has no heuristic
+    enum class Kind { EXACT, UNREACHABLE, ESTIMATE, UNKNOWN };
+    struct Value { Kind kind; float value; };
+    Value valueAt(int x, int y) const;
+    bool isExact(int x, int y) const;  // EXACT or UNREACHABLE: the answer is certain
+
+    // All in grid coordinates.
+    // Exact path to the root ([next, ..., root]); empty at a root or beyond the field.
     std::vector<sf::Vector2i> getPathFrom(int x, int y) const;
+    // One step: along the exact field, or beyond it a greedy step to the walkable
+    // neighbour with the lowest estimate (needs the grid alive).
     sf::Vector2i stepFrom(int x, int y, bool* valid = nullptr) const;
+    // Lowest-valued neighbour lower than (x, y); same rules as stepFrom.
+    sf::Vector2i descentStep(int x, int y, bool* valid = nullptr) const;
 
     // Phase B: FLEE primitives (#315)
     // invertInPlace() mutates this map's distance field. Prefer inverted() in new code —
     // the Python surface exposes the non-mutating form to keep maps immutable after
     // creation.
     void invertInPlace();
-    // Returns a freshly computed DijkstraMap with the same roots and diagonal_cost,
-    // then inverts its distance field. The caller owns the returned shared_ptr.
+    // A copy of this map with its distance field inverted (max - d); beyond the field
+    // the estimate inverts the same way, so descent keeps moving away from the roots.
     std::shared_ptr<DijkstraMap> inverted() const;
-    // descent_step returns the next cell along steepest descent, or (-1,-1) + valid=false.
-    sf::Vector2i descentStep(int x, int y, bool* valid = nullptr) const;
 
     // Accessors
     sf::Vector2i getRoot() const { return root; }  // First root for multi-root
     const std::vector<sf::Vector2i>& getRoots() const { return roots; }
     bool isMultiRoot() const { return roots.size() > 1; }
     float getDiagonalCost() const { return diagonal_cost; }
-    int getWidth() const { return map_width; }
-    int getHeight() const { return map_height; }
+    int getRadius() const { return radius; }
+    int getHeuristic() const { return heuristic; }
+    bool isComplete() const { return complete; }
+    sf::Vector2i getOrigin() const { return {win_x, win_y}; }  // window's top-left
+    int getWidth() const { return win_w; }    // window size
+    int getHeight() const { return win_h; }
+    float fieldAtWindow(int wx, int wy) const;  // window coords; -1 if not in the field
 
     // #430: PythonObjectCache key (0 = no wrapper yet). Unregistered in ~DijkstraMap.
     uint64_t serial_number = 0;
@@ -82,12 +108,23 @@ public:
 
 private:
     static void finish(TCOD_Dijkstra* d);
+    // 4 or 8 neighbours, decided as libtcod decides it (diagonal cost rounds to 0).
+    int diag_dirs() const { return static_cast<int>(diagonal_cost * 100.0f + 0.1f) == 0 ? 4 : 8; }
+    bool inField(int x, int y, float* dist) const;
+    float estimateAt(int x, int y) const;  // un-inverted heuristic lower bound
+
     TCOD_Dijkstra* tcod_dijkstra;  // Owned; a finished field (no map, no work queue)
     sf::Vector2i root;
-    std::vector<sf::Vector2i> roots;
+    std::vector<sf::Vector2i> roots;  // grid coordinates
     float diagonal_cost;
-    int map_width;
-    int map_height;
+    int radius = 0;
+    int heuristic = NO_HEURISTIC;
+    int win_x = 0, win_y = 0, win_w = 0, win_h = 0;  // the window, in grid coordinates
+    float threshold = 0.0f;   // distances up to this are exact (#445)
+    bool complete = false;    // the field holds the roots' whole reachable region
+    bool is_inverted = false;
+    float inverted_max = 0.0f;  // max finite distance before inversion
+    std::weak_ptr<GridData> grid;  // for walkability on greedy steps beyond the field
 };
 
 struct PyDijkstraMapObject {
@@ -151,6 +188,11 @@ namespace UIGridPathfinding {
 
     // Properties
     PyObject* DijkstraMap_get_root(PyDijkstraMapObject* self, void* closure);
+    PyObject* DijkstraMap_get_radius(PyDijkstraMapObject* self, void* closure);
+    PyObject* DijkstraMap_get_window(PyDijkstraMapObject* self, void* closure);
+    PyObject* DijkstraMap_get_complete(PyDijkstraMapObject* self, void* closure);
+    PyObject* DijkstraMap_get_heuristic(PyDijkstraMapObject* self, void* closure);
+    PyObject* DijkstraMap_is_exact(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds);
 
     //=========================================================================
     // Grid Factory Methods (called from UIGrid Python bindings)

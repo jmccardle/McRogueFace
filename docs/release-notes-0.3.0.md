@@ -46,6 +46,7 @@ removals that affect your code.
 | **`get_dijkstra_map()` never returns a stale map.** A cached map is rebuilt on the next request after a walkability edit, or after an entity carrying the `collide=` label moves. A `DijkstraMap` you hold is a snapshot and doesn't change when the grid does (#425). | Call `get_dijkstra_map()` again each turn instead of holding a map; it's cheap while nothing changed. |
 | **`GridData.clear_dijkstra_maps()` is removed.** The cache now manages itself: the first lookup after an edit drops every stale map, and cached maps are capped at `GridData.dijkstra_cache_budget` bytes (default 256 MiB, 4 bytes per cell per map; least recently used evicted first). `dijkstra_cache_bytes` reports current use (#425). | Delete the calls. Raise the budget on very large grids if several maps should stay cached. |
 | **`VisibilityMask` compares by value and is hashable.** `==` compares `origin`, `fov_radius`, `grid_size`, `cells`, and `light_walls`/`algorithm` when FOV ran; it ignores `tick`, so the same view on two frames is equal (#405). | Use `is` to tell two records apart, and `a.cells == b.cells` to compare only what was visible. |
+| **Dijkstra maps are windowed** (#445). `get_dijkstra_map(..., radius=None, heuristic=Heuristic.OCTILE)` computes a field over the roots' bounding box grown by `radius` (default: the whole grid, up to 511, so at most 1023×1023 cells), clipped to the grid. Distances up to the radius are exact, as is the whole field when `dm.complete`. Beyond that, and for positions **off the grid** (which used to raise `IndexError`), `distance()` returns the heuristic's estimate; `dm.is_exact(pos)` tells which. `path_from()` beyond the field returns `None`. `step_from()` / SEEK / FLEE take greedy steps there. `to_heightmap()` is window-sized; place it with `copy_from(pos=dm.window[:2])`. | Grids up to 1023 on a side behave as before (the field is the whole grid and complete), except that off-grid positions now return `None` instead of raising. Pass `heuristic=None` to make queries beyond the field raise `IndexError`. |
 | `automation.click()` / `mouseDown()` / `mouseUp()` / `dragTo()` raise `ValueError` for an unknown `button=`, which used to click LEFT. `'x1'` and `'x2'` are accepted (#428). | — |
 
 ## New
@@ -72,6 +73,12 @@ removals that affect your code.
   - Several views over one map track hover independently (#355, #357, #358, #360,
     #362, #363, #365, #366).
   - `find()` / `find_all()` descend into grids.
+- **Windowed Dijkstra maps** (#445): a field's cost no longer grows with the grid. On an
+  8192×8192 grid a default map builds in about 45 ms and holds 4 MB (the full-grid
+  map took about 6 s and 268 MB). New `DijkstraMap.radius`, `.window`, `.complete`,
+  `.heuristic` and `.is_exact(pos)`. `mcrfpy.Heuristic.OCTILE` is octile distance
+  for the map's own `diagonal_cost`; `find_path(heuristic=Heuristic.OCTILE)` accepts
+  it too.
 - New read-only module attributes, now visible to `dir()`: `animations`, `scenes`,
   `timers`, `save_dir`, `current_scene`, and the `default_transition*` settings (#356).
 - `automation.loseFocus()` and `automation.mouseLeave()` for testing hover and focus.

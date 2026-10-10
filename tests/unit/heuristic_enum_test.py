@@ -7,13 +7,14 @@ def main():
     assert hasattr(mcrfpy, "Heuristic"), "mcrfpy.Heuristic missing"
     H = mcrfpy.Heuristic
 
-    expected = {"EUCLIDEAN": 0, "MANHATTAN": 1, "CHEBYSHEV": 2, "DIAGONAL": 3, "ZERO": 4}
+    expected = {"EUCLIDEAN": 0, "MANHATTAN": 1, "CHEBYSHEV": 2, "DIAGONAL": 3, "ZERO": 4,
+                "OCTILE": 5}  # #445
     for name, value in expected.items():
         assert hasattr(H, name), f"Heuristic.{name} missing"
         assert int(getattr(H, name)) == value, f"Heuristic.{name} != {value}"
 
     members = list(H)
-    assert len(members) == 5, f"expected 5 members, got {len(members)}"
+    assert len(members) == 6, f"expected 6 members, got {len(members)}"
 
     # find_path accepts enum, int, string
     g = mcrfpy.Grid(grid_size=(20, 20))
@@ -23,7 +24,7 @@ def main():
             c.walkable = True
             c.transparent = True
 
-    for arg in (H.MANHATTAN, 1, "MANHATTAN"):
+    for arg in (H.MANHATTAN, 1, "MANHATTAN", H.OCTILE, "OCTILE"):
         p = g.find_path((0, 0), (10, 10), heuristic=arg)
         assert p is not None, f"find_path returned None for heuristic={arg!r}"
         steps = list(p)

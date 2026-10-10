@@ -174,8 +174,9 @@ public:
     struct DijkstraCache {
         static constexpr size_t DEFAULT_BUDGET_BYTES = size_t(256) << 20;
         size_t budget = DEFAULT_BUDGET_BYTES;
-        // (root_x, root_y, collide_label, diagonal_cost); "" = no collision filtering.
-        using Key = std::tuple<int,int,std::string,float>;
+        // (root_x, root_y, collide_label, diagonal_cost, radius, heuristic); "" = no
+        // collision filtering. radius and heuristic per #445.
+        using Key = std::tuple<int,int,std::string,float,int,int>;
         struct Entry {
             std::shared_ptr<DijkstraMap> map;
             uint32_t generation;                 // transparency_generation when built
