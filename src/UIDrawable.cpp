@@ -966,9 +966,9 @@ void UIDrawable::setParentScene(const std::string& scene_name) {
 // #373: hold a strong ref to the Python wrapper while, and only while, this drawable
 // is a member of a children collection. See the comment on py_identity in UIDrawable.h.
 void UIDrawable::updatePyIdentityPin() {
-    // Only subclasses carry state worth preserving (base types have no __dict__).
+    // #443: every live wrapper, not only subclasses (see py_identity in UIDrawable.h).
     const bool in_collection = !parent.expired() || !parent_scene.empty();
-    py_identity.sync(is_python_subclass && in_collection, serial_number);
+    py_identity.sync(in_collection, serial_number);
 }
 
 void UIDrawable::releaseChildPins(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children) {
@@ -1384,14 +1384,16 @@ PyObject* UIDrawable::pyobject_for(std::shared_ptr<UIDrawable> drawable) {
     }
 
     // Each wrapper type stores a shared_ptr to its own concrete class.
+    PyObject* obj = nullptr;
     #define MCRF_WRAP(ENUM, OBJ, TYPE, CLS, EXTRA)                                   \
         case PyObjectsEnum::ENUM:                                                    \
-            return mcrf::cached_wrapper<OBJ>(drawable->serial_number,                \
+            obj = mcrf::cached_wrapper<OBJ>(drawable->serial_number,                 \
                 &mcrfpydef::TYPE, [&](OBJ* o) {                                      \
                     o->data = std::static_pointer_cast<CLS>(drawable);               \
                     o->weakreflist = NULL;                                           \
                     EXTRA                                                            \
-                });
+                });                                                                  \
+            break;
     switch (drawable->derived_type()) {
         MCRF_WRAP(UIFRAME, PyUIFrameObject, PyUIFrameType, UIFrame, )
         MCRF_WRAP(UICAPTION, PyUICaptionObject, PyUICaptionType, UICaption, o->font = nullptr;)
@@ -1406,6 +1408,9 @@ PyObject* UIDrawable::pyobject_for(std::shared_ptr<UIDrawable> drawable) {
             return nullptr;
     }
     #undef MCRF_WRAP
+    // #443: a wrapper made for an object that is already contained is pinned now.
+    if (obj) drawable->updatePyIdentityPin();
+    return obj;
 }
 
 // Python API - get parent drawable

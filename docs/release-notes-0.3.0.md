@@ -101,8 +101,13 @@ removals that affect your code.
   affected (#441).
 - Reference cycles that run through engine-owned objects are now collected: a subclassed
   child or entity with an attribute pointing back at its parent, grid or scene; an entity
-  whose `step` refers to itself; an unregistered scene whose `on_key` refers to itself.
-  Each one leaked its whole tree (#441).
+  whose `step` refers to itself; an unregistered scene whose `on_key` refers to itself;
+  a dialog whose button's hover handler refers to the button while its click handler
+  refers to the dialog. Each one leaked its whole tree (#441, #443).
+- An object in a collection keeps one Python object for as long as it stays there, so
+  `grid.entities[0] is grid.entities[0]` and a `weakref` to a contained `Caption` hold
+  even if you kept no reference of your own. This used to be true only for subclasses.
+  Iterating a collection no longer allocates a new Python object per item (#443).
 - `.parent`, `find()` and indexing return the *same* Python object every time, including
   Python subclasses with their own attributes. Previously a subclass instance could come
   back as a plain `Frame` with its attributes gone (#369, #373).
@@ -178,9 +183,6 @@ Where it comes from:
 
 - **#442**: appending a drawable into its own descendant (`b.children.append(a)` where
   `b` is inside `a`) crashes instead of raising.
-- A reference cycle that passes through a *plain* (not subclassed) child whose own
-  Python object is still alive, such as `c.on_click = lambda *a: (parent, c)`, is not
-  collected (#441).
 - **#440**: `Sound` and `Music` objects are never freed; fixing it needs a voice
   registry so fire-and-forget `Sound(...).play()` keeps playing (with #407).
 - **#416, #417**: changing engine objects from a background thread *without*

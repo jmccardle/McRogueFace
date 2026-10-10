@@ -66,10 +66,13 @@ class UIEntity : public std::enable_shared_from_this<UIEntity>
 {
 public:
     uint64_t serial_number = 0;  // For Python object cache
-    // #436: keeps a subclass wrapper (and its attributes) alive exactly while a grid
-    // owns this entity. Synced only by setGrid(); never read it as "the wrapper" --
-    // use mcrf::to_python(entity).
+    // #436: keeps the wrapper (and a subclass's attributes) alive exactly while a grid
+    // owns this entity; #443: plain wrappers too, so the GC sees one owner. Synced only
+    // by syncIdentityPin(); never read it as "the wrapper" -- use mcrf::to_python(entity).
     mcrf::PyIdentityPin identity_pin;
+    // Pin the live wrapper iff a grid owns this entity. Called by setGrid() and by the
+    // converter when it makes a wrapper for an entity already on a grid.
+    void syncIdentityPin();
     bool is_python_subclass = false;  // set in tp_init
 
     // #437: the owning grid, if any. The back-reference is non-owning (GridData owns

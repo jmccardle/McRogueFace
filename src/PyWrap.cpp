@@ -34,8 +34,10 @@ PyObject* to_python(const std::shared_ptr<UIDrawable>& drawable)
 PyObject* to_python(const std::shared_ptr<UIEntity>& entity)
 {
     if (!entity) Py_RETURN_NONE;
-    return cached_wrapper<PyUIEntityObject>(entity->serial_number, &mcrfpydef::PyUIEntityType,
+    PyObject* obj = cached_wrapper<PyUIEntityObject>(entity->serial_number, &mcrfpydef::PyUIEntityType,
         [&](PyUIEntityObject* o) { o->data = entity; o->weakreflist = nullptr; });
+    if (obj) entity->syncIdentityPin();  // #443: pin a new wrapper for an entity on a grid
+    return obj;
 }
 
 PyObject* to_python(const std::shared_ptr<GridData>& grid)
@@ -50,9 +52,8 @@ void PyIdentityPin::sync(bool pinned, uint64_t serial)
         return;
     }
     if (wrapper || serial == 0 || !Py_IsInitialized()) return;
-    // The wrapper exists whenever a subclass is attached: attaching happens from
-    // Python, through that wrapper. A miss means it was already collected, and there
-    // is nothing left to preserve.
+    // A miss means no wrapper exists (an object attached from C++, or one whose
+    // wrapper was already collected). The converter pins the one it makes later.
     wrapper = live_wrapper(serial);  // new reference
 }
 

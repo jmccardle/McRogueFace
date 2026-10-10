@@ -67,12 +67,14 @@ PyObject* to_python(const std::shared_ptr<GridData>& grid);
 
 // Holds a strong reference to an object's Python wrapper exactly while a C++
 // container owns the object, so a Python subclass (and its attributes) survives the
-// user dropping their last reference. Only subclasses need it: base types have no
-// __dict__, so re-creating their wrapper is unobservable.
+// user dropping their last reference. #443: plain wrappers are pinned too, so a
+// contained object never has two independent owners that the cycle collector would
+// have to choose between (see owns_exclusively below).
 //
-// The pin is a cycle Python's GC cannot see (wrapper -> shared_ptr -> object -> pin),
-// so the owning container must call sync(false, ...) on every exit. Objects route
-// that through ONE ownership choke point (UIDrawable::setParent, UIEntity::setGrid).
+// The pin is a cycle (wrapper -> shared_ptr -> object -> pin) that only the
+// container's traverse reports, so the owning container must call sync(false, ...)
+// on every exit. Objects route that through ONE choke point per kind
+// (UIDrawable::updatePyIdentityPin, UIEntity/Entity3D::syncIdentityPin).
 //
 // There is deliberately no getter: never treat the pin as "the wrapper". Use
 // to_python(), which hits the cache whenever the pin (or anyone) keeps it alive.

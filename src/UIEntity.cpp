@@ -48,7 +48,12 @@ void UIEntity::setGrid(const std::shared_ptr<GridData>& owner)
     grid_ = owner;
     // Last statement: releasing the pin can drop the last reference to the wrapper,
     // and with it this entity, when the caller holds no shared_ptr of its own.
-    identity_pin.sync(is_python_subclass && owner != nullptr, serial_number);
+    syncIdentityPin();
+}
+
+void UIEntity::syncIdentityPin()
+{
+    identity_pin.sync(!grid_.expired(), serial_number);
 }
 
 // Removed UIEntity(UIGrid&) constructor - using lazy initialization instead
