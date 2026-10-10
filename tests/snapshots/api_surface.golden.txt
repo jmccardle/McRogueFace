@@ -119,6 +119,7 @@ submodule automation
   DIAGONAL = 3
   EUCLIDEAN = 0
   MANHATTAN = 1
+  OCTILE = 5
   ZERO = 4
 [InputState]
   PRESSED = 0
@@ -412,10 +413,15 @@ submodule automation
   meth set :: set(pos, color: Color) -> None
   meth update_perspective :: update_perspective() -> None
 [DijkstraMap]
+  prop complete: bool (ro)
+  prop heuristic: Heuristic | None (ro)
+  prop radius: int (ro)
   prop root: Vector (ro)
+  prop window: tuple (ro)
   meth descent_step :: descent_step(pos: Vector | tuple) -> Vector | None
   meth distance :: distance(pos: Vector | tuple) -> float | None
   meth invert :: invert() -> DijkstraMap
+  meth is_exact :: is_exact(pos: Vector | tuple) -> bool
   meth path_from :: path_from(pos: Vector | tuple) -> AStarPath
   meth step_from :: step_from(pos: Vector | tuple) -> Vector | None
   meth to_heightmap :: to_heightmap(size=None, unreachable=-1.0) -> HeightMap
@@ -612,7 +618,7 @@ submodule automation
   meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None
   meth entities_in_radius :: entities_in_radius(pos: tuple | Vector, radius: float) -> list
   meth find_path :: find_path(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0) -> AStarPath | None
-  meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
+  meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None, radius: int = None, heuristic: Heuristic = Heuristic.OCTILE) -> DijkstraMap
   meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
   meth observe :: observe(origin=None, fov_radius: int = None, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> dict
@@ -1186,7 +1192,7 @@ submodule automation
   meth compute_fov :: compute_fov(pos, radius: int = 0, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> None
   meth entities_in_radius :: entities_in_radius(pos: tuple | Vector, radius: float) -> list
   meth find_path :: find_path(start, end, diagonal_cost: float = 1.41, collide: str = None, heuristic = None, weight: float = 1.0) -> AStarPath | None
-  meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None) -> DijkstraMap
+  meth get_dijkstra_map :: get_dijkstra_map(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None, radius: int = None, heuristic: Heuristic = Heuristic.OCTILE) -> DijkstraMap
   meth is_in_fov :: is_in_fov(x: int, y: int) -> bool
   meth layer :: layer(name: str) -> ColorLayer | TileLayer | None
   meth observe :: observe(origin=None, fov_radius: int = None, light_walls: bool = True, algorithm: FOV | int = FOV.BASIC) -> dict

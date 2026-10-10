@@ -69,13 +69,10 @@ def main():
     # either None or a valid step. Just ensure we don't crash.
     _ = at_root
 
-    # Out-of-bounds raises IndexError.
-    try:
-        safety_map.descent_step((999, 999))
-    except IndexError:
-        pass
-    else:
-        raise AssertionError("expected IndexError for out-of-bounds descent_step")
+    # #445: off-grid positions are answered, not rejected. This field covers the whole
+    # grid, so it is complete and an off-grid cell is certainly unreachable: None.
+    assert safety_map.complete, "a whole-grid field is complete"
+    assert safety_map.descent_step((999, 999)) is None, "off-grid descent on a complete map"
 
     print("PASS")
 

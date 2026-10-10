@@ -1120,13 +1120,15 @@ PyMethodDef PyGridData_all_methods[] = {
      )},
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(GridData, get_dijkstra_map,
-         MCRF_SIG("(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None)", "DijkstraMap"),
+         MCRF_SIG("(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None, radius: int = None, heuristic: Heuristic = Heuristic.OCTILE)", "DijkstraMap"),
          MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. A cached map is returned only while it is still current: changing walkability, or moving an entity that carries the collide label, makes the next request rebuild it. The cache bounds its own memory."),
          MCRF_ARGS_START
          MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple. Use 'root' for single-source maps (cached by position).")
          MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
          MCRF_ARG("collide", "Label string. Entities with this label block pathfinding.")
          MCRF_ARG("roots", "Sequence of root positions or a DiscreteMap mask for multi-source Dijkstra. Pass 'roots' instead of 'root' for multi-source maps (not cached).")
+         MCRF_ARG("radius", "The field covers the roots' bounding box grown by radius, clipped to the grid; distances up to radius are exact. Default (None): the whole grid, up to 511 -- a field of at most 1023 x 1023 cells, 4 bytes each.")
+         MCRF_ARG("heuristic", "Estimate for positions beyond the exact field, including off the grid (default Heuristic.OCTILE, which uses diagonal_cost). None: such queries raise IndexError.")
          MCRF_RETURNS("DijkstraMap object for querying distances and paths")
          MCRF_NOTE("The returned map is a snapshot: it does not change when the grid does. Call get_dijkstra_map() again (cheap while nothing changed) to follow edits.")
      )},

@@ -6,10 +6,12 @@
 #include "PyHeightMap.h"
 #include "PyPositionHelper.h"
 #include "PyHeuristic.h"
+#include "MapOps.h"
 #include "PyDiscreteMap.h"
 #include "McRFPy_Doc.h"
 #include "PyWrap.h"
 #include <algorithm>
+#include <climits>
 #include <cstdlib>
 #include <cstring>
 
@@ -17,27 +19,92 @@
 // DijkstraMap Implementation
 //=============================================================================
 
-DijkstraMap::DijkstraMap(const TCODMap* map, const std::vector<sf::Vector2i>& roots_in, float diag_cost)
+static constexpr unsigned int DIJKSTRA_INF = 0xFFFFFFFFu;  // libtcod's "no distance"
+
+// libtcod's neighbour order; descent keeps it so ties break exactly as before (#445).
+static const int DESCENT_DX[8] = {-1, 0, 1, 0, -1, 1, 1, -1};
+static const int DESCENT_DY[8] = {0, -1, 0, 1, -1, -1, 1, 1};
+
+DijkstraMap::DijkstraMap(const std::shared_ptr<GridData>& g, const std::vector<sf::Vector2i>& roots_in,
+                         float diag_cost, int radius_in, int heuristic_in,
+                         const std::vector<sf::Vector2i>& blocked)
     : tcod_dijkstra(nullptr)
     , root(roots_in.empty() ? sf::Vector2i(-1, -1) : roots_in.front())
     , roots(roots_in)
     , diagonal_cost(diag_cost)
-    , map_width(map ? map->getWidth() : 0)
-    , map_height(map ? map->getHeight() : 0)
+    , radius(radius_in)
+    , heuristic(heuristic_in)
+    , grid(g)
 {
-    if (!map || roots.empty()) return;
+    if (!g || roots.empty()) return;
 
-    tcod_dijkstra = TCOD_dijkstra_new(map->data, diagonal_cost);
+    // The window: the roots' bounding box grown by `radius`, clipped to the grid. A
+    // radius past the grid's own size changes nothing, so clamp it before the
+    // arithmetic can overflow.
+    const int r = std::min(radius, std::max(g->grid_w, g->grid_h));
+    int minx = roots[0].x, maxx = roots[0].x, miny = roots[0].y, maxy = roots[0].y;
+    for (const auto& p : roots) {
+        minx = std::min(minx, p.x); maxx = std::max(maxx, p.x);
+        miny = std::min(miny, p.y); maxy = std::max(maxy, p.y);
+    }
+    const MapRegion win = MapRegion::window(minx - r, miny - r, maxx + r + 1, maxy + r + 1,
+                                            g->grid_w, g->grid_h);
+    win_x = win.src_x; win_y = win.src_y; win_w = win.width; win_h = win.height;
+    if (win_w <= 0 || win_h <= 0) return;
 
+    // Exact threshold, in libtcod's integer hundredths: a path costing at most r steps'
+    // worth never leaves the window, since every step costs at least min(cardinal,
+    // diagonal) and moves the Chebyshev distance by at most 1.
+    const int diag_units = static_cast<int>(diagonal_cost * 100.0f + 0.1f);  // as libtcod
+    const unsigned int step_units = diag_units > 0 ? std::min(100, diag_units) : 100;
+    const unsigned long long limit = static_cast<unsigned long long>(r) * step_units;
+    threshold = static_cast<float>(limit) * 0.01f;
+
+    // A window-sized copy of the walkable plane, with the collide= cells blocked. The
+    // grid's own TCODMap is never touched (it used to be marked and restored).
+    TCODMap window(win_w, win_h);
+    for (int y = 0; y < win_h; y++) {
+        for (int x = 0; x < win_w; x++) {
+            window.setProperties(x, y, false, g->walkable_plane[win.src_idx(x, y)] != 0);
+        }
+    }
+    for (const auto& c : blocked) {
+        const int bx = c.x - win_x, by = c.y - win_y;
+        if (bx >= 0 && by >= 0 && bx < win_w && by < win_h) window.setProperties(bx, by, false, false);
+    }
+
+    tcod_dijkstra = TCOD_dijkstra_new(window.data, diagonal_cost);
     if (roots.size() == 1) {
-        TCOD_dijkstra_compute(tcod_dijkstra, roots[0].x, roots[0].y);
+        TCOD_dijkstra_compute(tcod_dijkstra, roots[0].x - win_x, roots[0].y - win_y);
     } else {
         std::vector<int> xs, ys;
         xs.reserve(roots.size());
         ys.reserve(roots.size());
-        for (auto& r : roots) { xs.push_back(r.x); ys.push_back(r.y); }
+        for (auto& p : roots) { xs.push_back(p.x - win_x); ys.push_back(p.y - win_y); }
         TCOD_dijkstra_compute_multi(tcod_dijkstra,
             static_cast<int>(roots.size()), xs.data(), ys.data());
+    }
+
+    // Complete = the flood never reached a window edge that is not also a grid edge, so
+    // the roots' whole reachable region is inside: every distance is exact (even past
+    // the threshold) and every cell it missed is certainly unreachable.
+    unsigned int* dist = tcod_dijkstra->distances;
+    auto reached = [&](int wx, int wy) { return dist[wy * win_w + wx] != DIJKSTRA_INF; };
+    complete = true;
+    for (int wy = 0; wy < win_h && complete; wy++) {
+        if ((win_x > 0 && reached(0, wy)) ||
+            (win_x + win_w < g->grid_w && reached(win_w - 1, wy))) complete = false;
+    }
+    for (int wx = 0; wx < win_w && complete; wx++) {
+        if ((win_y > 0 && reached(wx, 0)) ||
+            (win_y + win_h < g->grid_h && reached(wx, win_h - 1))) complete = false;
+    }
+    if (!complete) {
+        // Cut at the threshold (#445 decision): every value kept is exact.
+        const size_t n = static_cast<size_t>(win_w) * win_h;
+        for (size_t i = 0; i < n; i++) {
+            if (dist[i] != DIJKSTRA_INF && dist[i] > limit) dist[i] = DIJKSTRA_INF;
+        }
     }
     finish(tcod_dijkstra);
 }
@@ -58,8 +125,14 @@ DijkstraMap::DijkstraMap(const DijkstraMap& src, CopyField)
     , root(src.root)
     , roots(src.roots)
     , diagonal_cost(src.diagonal_cost)
-    , map_width(src.map_width)
-    , map_height(src.map_height)
+    , radius(src.radius)
+    , heuristic(src.heuristic)
+    , win_x(src.win_x), win_y(src.win_y), win_w(src.win_w), win_h(src.win_h)
+    , threshold(src.threshold)
+    , complete(src.complete)
+    , is_inverted(src.is_inverted)
+    , inverted_max(src.inverted_max)
+    , grid(src.grid)
 {
     const TCOD_Dijkstra* from = src.tcod_dijkstra;
     if (!from) return;
@@ -91,9 +164,44 @@ DijkstraMap::~DijkstraMap() {
     }
 }
 
-float DijkstraMap::getDistance(int x, int y) const {
-    if (!tcod_dijkstra) return -1.0f;
-    return TCOD_dijkstra_get_distance(tcod_dijkstra, x, y);
+bool DijkstraMap::inField(int x, int y, float* d) const {
+    const long long wx = (long long)x - win_x, wy = (long long)y - win_y;
+    if (!tcod_dijkstra || wx < 0 || wy < 0 || wx >= win_w || wy >= win_h) return false;
+    const unsigned int v = tcod_dijkstra->distances[wy * win_w + wx];
+    if (v == DIJKSTRA_INF) return false;
+    if (d) *d = static_cast<float>(v) * 0.01f;  // libtcod's own conversion
+    return true;
+}
+
+float DijkstraMap::fieldAtWindow(int wx, int wy) const {
+    float d;
+    return inField(wx + win_x, wy + win_y, &d) ? d : -1.0f;
+}
+
+float DijkstraMap::estimateAt(int x, int y) const {
+    // Nearest root, floored at the threshold: a cell beyond the exact field is, by
+    // construction, farther than the threshold from every root.
+    float best = -1.0f;
+    for (const auto& p : roots) {
+        const float e = PyHeuristic::estimate(heuristic, double(x) - p.x, double(y) - p.y,
+                                              diagonal_cost);
+        if (best < 0.0f || e < best) best = e;
+    }
+    return std::max(best, threshold);
+}
+
+DijkstraMap::Value DijkstraMap::valueAt(int x, int y) const {
+    float d;
+    if (inField(x, y, &d)) return {Kind::EXACT, d};
+    if (complete) return {Kind::UNREACHABLE, 0.0f};
+    if (heuristic == NO_HEURISTIC) return {Kind::UNKNOWN, 0.0f};
+    const float e = estimateAt(x, y);
+    return {Kind::ESTIMATE, is_inverted ? inverted_max - e : e};
+}
+
+bool DijkstraMap::isExact(int x, int y) const {
+    const Kind k = valueAt(x, y).kind;
+    return k == Kind::EXACT || k == Kind::UNREACHABLE;
 }
 
 // #375: emit the path in origin->destination order, matching find_path()'s convention
@@ -107,12 +215,12 @@ float DijkstraMap::getDistance(int x, int y) const {
 // i.e. an arbitrarily long teleport.
 std::vector<sf::Vector2i> DijkstraMap::getPathFrom(int x, int y) const {
     std::vector<sf::Vector2i> path;
-    if (!tcod_dijkstra) return path;
+    if (!inField(x, y, nullptr)) return path;  // #445: no exact path beyond the field
 
-    if (TCOD_dijkstra_path_set(tcod_dijkstra, x, y)) {
+    if (TCOD_dijkstra_path_set(tcod_dijkstra, x - win_x, y - win_y)) {
         int px, py;
         while (TCOD_dijkstra_path_walk(tcod_dijkstra, &px, &py)) {
-            path.push_back(sf::Vector2i(px, py));
+            path.push_back(sf::Vector2i(px + win_x, py + win_y));
         }
     }
     if (path.empty()) return path;  // already at a root, or unreachable
@@ -131,26 +239,30 @@ std::vector<sf::Vector2i> DijkstraMap::getPathFrom(int x, int y) const {
 }
 
 sf::Vector2i DijkstraMap::stepFrom(int x, int y, bool* valid) const {
-    if (!tcod_dijkstra) {
+    if (inField(x, y, nullptr)) {
+        // #375: the first cell of the corrected path -- guaranteed adjacent to (x, y).
+        std::vector<sf::Vector2i> path = getPathFrom(x, y);
+        if (!path.empty()) {
+            if (valid) *valid = true;
+            return path.front();
+        }
         if (valid) *valid = false;
         return sf::Vector2i(-1, -1);
     }
-
-    // #375: the first cell of the corrected path -- guaranteed adjacent to (x, y).
-    std::vector<sf::Vector2i> path = getPathFrom(x, y);
-    if (!path.empty()) {
-        if (valid) *valid = true;
-        return path.front();
-    }
-
-    if (valid) *valid = false;
-    return sf::Vector2i(-1, -1);
+    return descentStep(x, y, valid);  // #445: greedy beyond the field
 }
 
 void DijkstraMap::invertInPlace() {
-    if (tcod_dijkstra) {
-        TCOD_dijkstra_invert(tcod_dijkstra);
+    if (!tcod_dijkstra) return;
+    unsigned int max_d = 0;
+    const size_t n = static_cast<size_t>(win_w) * win_h;
+    for (size_t i = 0; i < n; i++) {
+        const unsigned int v = tcod_dijkstra->distances[i];
+        if (v != DIJKSTRA_INF && v > max_d) max_d = v;
     }
+    TCOD_dijkstra_invert(tcod_dijkstra);  // the same max, so the field and estimate agree
+    inverted_max = static_cast<float>(max_d) * 0.01f;
+    is_inverted = true;
 }
 
 std::shared_ptr<DijkstraMap> DijkstraMap::inverted() const {
@@ -163,16 +275,51 @@ std::shared_ptr<DijkstraMap> DijkstraMap::inverted() const {
     return copy;
 }
 
+// The lowest-valued neighbour strictly lower than (x, y). In the exact field this is
+// libtcod's get_descent (same order, same ties; ordered on the raw distances). #445:
+// a neighbour beyond the field is a candidate only while the grid is alive and the
+// cell is walkable now -- in the field, walkability was settled when it was computed.
 sf::Vector2i DijkstraMap::descentStep(int x, int y, bool* valid) const {
-    if (!tcod_dijkstra) {
-        if (valid) *valid = false;
-        return sf::Vector2i(-1, -1);
+    if (valid) *valid = false;
+    const Value here = valueAt(x, y);
+    if (here.kind != Kind::EXACT && here.kind != Kind::ESTIMATE) return {-1, -1};
+
+    // Order on doubles: an exact distance is raw * 0.01 without float32 rounding, so
+    // ties and order match libtcod's integer comparison.
+    auto key = [&](int px, int py, Kind* kind) -> double {
+        const long long wx = (long long)px - win_x, wy = (long long)py - win_y;
+        if (tcod_dijkstra && wx >= 0 && wy >= 0 && wx < win_w && wy < win_h) {
+            const unsigned int v = tcod_dijkstra->distances[wy * win_w + wx];
+            if (v != DIJKSTRA_INF) { *kind = Kind::EXACT; return v * 0.01; }
+        }
+        const Value val = valueAt(px, py);
+        *kind = val.kind;
+        return val.value;
+    };
+
+    Kind k;
+    double best = key(x, y, &k);
+    auto g = grid.lock();
+    const int n_dirs = diag_dirs();
+    int best_i = -1;
+    for (int i = 0; i < n_dirs; i++) {
+        // A neighbour past INT range can't be on the grid or in the field.
+        if ((DESCENT_DX[i] > 0 && x == INT_MAX) || (DESCENT_DX[i] < 0 && x == INT_MIN) ||
+            (DESCENT_DY[i] > 0 && y == INT_MAX) || (DESCENT_DY[i] < 0 && y == INT_MIN)) continue;
+        const int nx = x + DESCENT_DX[i], ny = y + DESCENT_DY[i];
+        Kind nk;
+        const double v = key(nx, ny, &nk);
+        if (nk == Kind::ESTIMATE) {
+            if (!g || nx < 0 || ny < 0 || nx >= g->grid_w || ny >= g->grid_h ||
+                !g->isWalkable(nx, ny)) continue;
+        } else if (nk != Kind::EXACT) {
+            continue;
+        }
+        if (v < best) { best = v; best_i = i; }
     }
-    int out_x = -1, out_y = -1;
-    bool ok = TCOD_dijkstra_get_descent(tcod_dijkstra, x, y, &out_x, &out_y);
-    if (valid) *valid = ok;
-    if (!ok) return sf::Vector2i(-1, -1);
-    return sf::Vector2i(out_x, out_y);
+    if (best_i < 0) return {-1, -1};  // at a root, or no lower neighbour
+    if (valid) *valid = true;
+    return {x + DESCENT_DX[best_i], y + DESCENT_DY[best_i]};
 }
 
 //=============================================================================
@@ -398,22 +545,23 @@ PyObject* UIGridPathfinding::DijkstraMap_repr(PyDijkstraMapObject* self) {
         return PyUnicode_FromString("<DijkstraMap (invalid)>");
     }
     sf::Vector2i root = self->data->getRoot();
-    return PyUnicode_FromFormat("<DijkstraMap root=(%d,%d)>", root.x, root.y);
+    sf::Vector2i o = self->data->getOrigin();
+    return PyUnicode_FromFormat("<DijkstraMap root=(%d,%d) window=(%d,%d,%d,%d)%s>",
+        root.x, root.y, o.x, o.y, self->data->getWidth(), self->data->getHeight(),
+        self->data->isComplete() ? " complete" : "");
 }
 
-// #311: Reject out-of-bounds coordinates at the Python boundary. TCOD's
-// dijkstra routines assert and abort() the process for invalid coords, so
-// catching them here turns a fatal crash into a recoverable IndexError.
-static bool dijkstra_bounds_check(DijkstraMap* dmap, int x, int y) {
-    int w = dmap->getWidth();
-    int h = dmap->getHeight();
-    if (x < 0 || y < 0 || x >= w || y >= h) {
-        PyErr_Format(PyExc_IndexError,
-            "coordinate (%d, %d) out of bounds for DijkstraMap of size %dx%d",
-            x, y, w, h);
-        return false;
-    }
-    return true;
+// #445 (was #311's IndexError for any coordinate off the map): every position is
+// answered -- exact inside the field, an estimate beyond it. Only a map built with
+// heuristic=None has no answer beyond its field, and says so.
+static bool dijkstra_require_answer(DijkstraMap* dmap, int x, int y) {
+    if (dmap->valueAt(x, y).kind != DijkstraMap::Kind::UNKNOWN) return true;
+    sf::Vector2i o = dmap->getOrigin();
+    PyErr_Format(PyExc_IndexError,
+        "(%d, %d) is beyond this DijkstraMap's exact field (window (%d, %d, %d, %d), "
+        "radius %d) and the map has no heuristic; pass heuristic= to get_dijkstra_map()",
+        x, y, o.x, o.y, dmap->getWidth(), dmap->getHeight(), dmap->getRadius());
+    return false;
 }
 
 PyObject* UIGridPathfinding::DijkstraMap_distance(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds) {
@@ -434,14 +582,13 @@ PyObject* UIGridPathfinding::DijkstraMap_distance(PyDijkstraMapObject* self, PyO
         return NULL;
     }
 
-    if (!dijkstra_bounds_check(self->data.get(), x, y)) return NULL;
+    if (!dijkstra_require_answer(self->data.get(), x, y)) return NULL;
 
-    float dist = self->data->getDistance(x, y);
-    if (dist < 0) {
-        Py_RETURN_NONE;  // Unreachable
+    const DijkstraMap::Value v = self->data->valueAt(x, y);
+    if (v.kind == DijkstraMap::Kind::UNREACHABLE) {
+        Py_RETURN_NONE;
     }
-
-    return PyFloat_FromDouble(dist);
+    return PyFloat_FromDouble(v.value);  // exact, or the estimate beyond the field
 }
 
 PyObject* UIGridPathfinding::DijkstraMap_path_from(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds) {
@@ -462,7 +609,11 @@ PyObject* UIGridPathfinding::DijkstraMap_path_from(PyDijkstraMapObject* self, Py
         return NULL;
     }
 
-    if (!dijkstra_bounds_check(self->data.get(), x, y)) return NULL;
+    if (!dijkstra_require_answer(self->data.get(), x, y)) return NULL;
+    // #445: beyond the exact field there is no exact path to give.
+    if (self->data->valueAt(x, y).kind == DijkstraMap::Kind::ESTIMATE) {
+        Py_RETURN_NONE;
+    }
 
     std::vector<sf::Vector2i> path = self->data->getPathFrom(x, y);
 
@@ -497,7 +648,7 @@ PyObject* UIGridPathfinding::DijkstraMap_step_from(PyDijkstraMapObject* self, Py
         return NULL;
     }
 
-    if (!dijkstra_bounds_check(self->data.get(), x, y)) return NULL;
+    if (!dijkstra_require_answer(self->data.get(), x, y)) return NULL;
 
     bool valid = false;
     sf::Vector2i step = self->data->stepFrom(x, y, &valid);
@@ -515,6 +666,43 @@ PyObject* UIGridPathfinding::DijkstraMap_get_root(PyDijkstraMapObject* self, voi
     }
     sf::Vector2i root = self->data->getRoot();
     return PyVector(sf::Vector2f(static_cast<float>(root.x), static_cast<float>(root.y))).pyObject();
+}
+
+// #445 properties
+PyObject* UIGridPathfinding::DijkstraMap_get_radius(PyDijkstraMapObject* self, void*) {
+    if (!self->data) Py_RETURN_NONE;
+    return PyLong_FromLong(self->data->getRadius());
+}
+
+PyObject* UIGridPathfinding::DijkstraMap_get_window(PyDijkstraMapObject* self, void*) {
+    if (!self->data) Py_RETURN_NONE;
+    sf::Vector2i o = self->data->getOrigin();
+    return Py_BuildValue("(iiii)", o.x, o.y, self->data->getWidth(), self->data->getHeight());
+}
+
+PyObject* UIGridPathfinding::DijkstraMap_get_complete(PyDijkstraMapObject* self, void*) {
+    if (!self->data) Py_RETURN_NONE;
+    return PyBool_FromLong(self->data->isComplete());
+}
+
+PyObject* UIGridPathfinding::DijkstraMap_get_heuristic(PyDijkstraMapObject* self, void*) {
+    if (!self->data || self->data->getHeuristic() == DijkstraMap::NO_HEURISTIC) Py_RETURN_NONE;
+    return PyHeuristic::enum_member(self->data->getHeuristic());
+}
+
+PyObject* UIGridPathfinding::DijkstraMap_is_exact(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds) {
+    static const char* kwlist[] = {"pos", nullptr};
+    PyObject* pos_obj = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", const_cast<char**>(kwlist), &pos_obj)) {
+        return nullptr;
+    }
+    if (!self->data) {
+        PyErr_SetString(PyExc_RuntimeError, "DijkstraMap is invalid");
+        return nullptr;
+    }
+    int x, y;
+    if (!ExtractPosition(pos_obj, &x, &y, nullptr, "pos")) return nullptr;
+    return PyBool_FromLong(self->data->isExact(x, y));
 }
 
 PyObject* UIGridPathfinding::DijkstraMap_invert(PyDijkstraMapObject* self, PyObject* args) {
@@ -542,7 +730,7 @@ PyObject* UIGridPathfinding::DijkstraMap_descent_step(PyDijkstraMapObject* self,
     if (!ExtractPosition(pos_obj, &x, &y, nullptr, "pos")) {
         return nullptr;
     }
-    if (!dijkstra_bounds_check(self->data.get(), x, y)) return nullptr;
+    if (!dijkstra_require_answer(self->data.get(), x, y)) return nullptr;
 
     bool valid = false;
     sf::Vector2i step = self->data->descentStep(x, y, &valid);
@@ -568,7 +756,7 @@ PyObject* UIGridPathfinding::DijkstraMap_to_heightmap(PyDijkstraMapObject* self,
         return nullptr;
     }
 
-    // Determine output size (default to dijkstra dimensions)
+    // Determine output size (default: the window's size)
     int width = self->data->getWidth();
     int height = self->data->getHeight();
 
@@ -600,23 +788,13 @@ PyObject* UIGridPathfinding::DijkstraMap_to_heightmap(PyDijkstraMapObject* self,
         return nullptr;
     }
 
-    // Get the dijkstra dimensions for bounds checking
-    int dijkstra_w = self->data->getWidth();
-    int dijkstra_h = self->data->getHeight();
-
-    // Fill heightmap with distance values
+    // #445: window-sized and window-anchored -- cell (0, 0) is the grid cell at
+    // dm.window[:2]. Cells not in the exact field (unreachable, or past the cut) and
+    // cells outside the window get `unreachable`.
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            float dist;
-            if (x < dijkstra_w && y < dijkstra_h) {
-                dist = self->data->getDistance(x, y);
-                if (dist < 0) {
-                    dist = unreachable;  // Unreachable cell
-                }
-            } else {
-                dist = unreachable;  // Outside dijkstra bounds
-            }
-            TCOD_heightmap_set_value(hmap->heightmap, x, y, dist);
+            float dist = self->data->fieldAtWindow(x, y);
+            TCOD_heightmap_set_value(hmap->heightmap, x, y, dist < 0 ? unreachable : dist);
         }
     }
 
@@ -797,6 +975,7 @@ PyObject* UIGridPathfinding::Grid_find_path(PyGridDataObject* self, PyObject* ar
             return NULL;
         }
         heuristic_func = PyHeuristic::get_function(hval);
+        PyHeuristic::set_path_diagonal_cost(diagonal_cost);  // for OCTILE
     }
 
     // Mark-and-restore: temporarily block cells occupied by entities with collide label
@@ -934,14 +1113,18 @@ static bool collectRoots(PyObject* root_obj, GridData* grid,
 }
 
 PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
-    static const char* kwlist[] = {"root", "diagonal_cost", "collide", "roots", NULL};
+    static const char* kwlist[] = {"root", "diagonal_cost", "collide", "roots", "radius",
+                                   "heuristic", NULL};
     PyObject* root_obj = NULL;
     PyObject* roots_obj = NULL;
     float diagonal_cost = 1.41f;
     const char* collide_label = NULL;
+    PyObject* radius_obj = NULL;
+    PyObject* heuristic_obj = NULL;  // NULL = not passed (OCTILE); Py_None = no estimate
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfzO", const_cast<char**>(kwlist),
-                                     &root_obj, &diagonal_cost, &collide_label, &roots_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfzOOO", const_cast<char**>(kwlist),
+                                     &root_obj, &diagonal_cost, &collide_label, &roots_obj,
+                                     &radius_obj, &heuristic_obj)) {
         return NULL;
     }
 
@@ -963,21 +1146,63 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
         return NULL;
     }
 
+    GridData* grid = self->data.get();
+
+    // #445: radius of the field's window. Default: the whole grid, up to 511 (a field
+    // of at most 1023 x 1023), so grids up to 1023 on a side are unchanged.
+    int radius = std::min(std::max(grid->grid_w, grid->grid_h), DijkstraMap::DEFAULT_MAX_RADIUS);
+    if (radius_obj && radius_obj != Py_None) {
+        if (!PyLong_Check(radius_obj)) {
+            PyErr_SetString(PyExc_TypeError, "radius must be an int or None");
+            return NULL;
+        }
+        long r = PyLong_AsLong(radius_obj);
+        if (r == -1 && PyErr_Occurred()) return NULL;
+        if (r < 0) {
+            PyErr_SetString(PyExc_ValueError, "radius must be >= 0");
+            return NULL;
+        }
+        radius = static_cast<int>(std::min<long>(r, INT32_MAX / 2));
+    }
+
+    // #445: the estimate beyond the exact field. None: such queries raise instead.
+    int heuristic = PyHeuristic::OCTILE;
+    if (heuristic_obj == Py_None) {
+        heuristic = DijkstraMap::NO_HEURISTIC;
+    } else if (heuristic_obj && !PyHeuristic::from_arg(heuristic_obj, &heuristic)) {
+        return NULL;
+    }
+
     std::vector<sf::Vector2i> roots;
     PyDiscreteMapObject* mask_obj = nullptr;
-    if (!collectRoots(input_obj, self->data.get(), &roots, &mask_obj)) {
+    if (!collectRoots(input_obj, grid, &roots, &mask_obj)) {
         return NULL;
+    }
+    if (mask_obj) {
+        // A mask is an explicit root list for compute_multi (same distances as
+        // compute_masked); its window is the set cells' bounding box grown by radius.
+        const uint8_t* buf = mask_obj->data->data();
+        const int w = mask_obj->data->width();
+        const int h = mask_obj->data->height();
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                if (buf[y * w + x] != 0) roots.push_back(sf::Vector2i(x, y));
+            }
+        }
+        if (roots.empty()) {
+            PyErr_SetString(PyExc_ValueError, "DiscreteMap mask has no non-zero cells");
+            return NULL;
+        }
     }
 
     std::string label_str = collide_label ? collide_label : "";
 
     // Single-root requests are cached (#425: see GridData::DijkstraCache -- a map is
     // returned only while it still describes the grid, and the cache bounds itself).
-    GridData* grid = self->data.get();
     const bool cacheable = !mask_obj && roots.size() == 1;
     const auto key = cacheable
-        ? std::make_tuple(roots[0].x, roots[0].y, label_str, diagonal_cost)
-        : std::make_tuple(0, 0, std::string(), 0.0f);
+        ? std::make_tuple(roots[0].x, roots[0].y, label_str, diagonal_cost, radius, heuristic)
+        : std::make_tuple(0, 0, std::string(), 0.0f, 0, 0);
     std::vector<sf::Vector2i> blocked = labelledCells(grid, label_str);
     if (cacheable) {
         if (auto hit = grid->dijkstra_cache.find(key, grid->transparency_generation, blocked)) {
@@ -985,38 +1210,10 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
         }
     }
 
-    auto restore_list = markCells(grid, blocked);
-
-    std::shared_ptr<DijkstraMap> dijkstra;
-    TCODMap* tcmap = self->data->getTCODMap();
-
-    if (mask_obj) {
-        // Translate mask -> explicit root list, then drive compute_multi. Distance-only
-        // results are identical to compute_masked; this keeps DijkstraMap's invariant
-        // that it always holds exactly one computed TCOD_Dijkstra handle.
-        std::vector<sf::Vector2i> mask_roots;
-        const uint8_t* buf = mask_obj->data->data();
-        int w = mask_obj->data->width();
-        int h = mask_obj->data->height();
-        mask_roots.reserve(static_cast<size_t>(w) * 4);  // heuristic
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                if (buf[y * w + x] != 0) {
-                    mask_roots.push_back(sf::Vector2i(x, y));
-                }
-            }
-        }
-        if (mask_roots.empty()) {
-            restoreCollisionLabel(self->data.get(), restore_list);
-            PyErr_SetString(PyExc_ValueError, "DiscreteMap mask has no non-zero cells");
-            return NULL;
-        }
-        dijkstra = std::make_shared<DijkstraMap>(tcmap, mask_roots, diagonal_cost);
-    } else {
-        dijkstra = std::make_shared<DijkstraMap>(tcmap, roots, diagonal_cost);
-    }
-
-    restoreCollisionLabel(self->data.get(), restore_list);
+    // #445: the map blocks the collide= cells in its own window copy; the grid's
+    // TCODMap is no longer marked and restored around the computation.
+    auto dijkstra = std::make_shared<DijkstraMap>(self->data, roots, diagonal_cost, radius,
+                                                  heuristic, blocked);
 
     if (cacheable) {
         grid->dijkstra_cache.insert(key, dijkstra, grid->transparency_generation,
@@ -1128,37 +1325,40 @@ PyMethodDef PyDijkstraMap_methods[] = {
     {"distance", (PyCFunction)UIGridPathfinding::DijkstraMap_distance, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(DijkstraMap, distance,
          MCRF_SIG("(pos: Vector | tuple)", "float | None"),
-         MCRF_DESC("Get distance from position to root.")
+         MCRF_DESC("Get distance from position to the nearest root. Any position is answered, on or off the grid: exact within the map's field, otherwise the map's heuristic estimate (a lower bound). is_exact(pos) tells which.")
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as Vector, Entity, or (x, y) tuple")
-         MCRF_RETURNS("Float distance, or None if position is unreachable")
+         MCRF_RETURNS("Float distance or estimate, or None if the position is certainly unreachable")
+         MCRF_RAISES("IndexError", "pos is beyond the exact field and the map was built with heuristic=None")
      )},
 
     {"path_from", (PyCFunction)UIGridPathfinding::DijkstraMap_path_from, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(DijkstraMap, path_from,
          MCRF_SIG("(pos: Vector | tuple)", "AStarPath"),
-         MCRF_DESC("Get full path from position to root.")
+         MCRF_DESC("Get full path from position to root, along the exact field.")
          MCRF_ARGS_START
          MCRF_ARG("pos", "Starting position as Vector, Entity, or (x, y) tuple")
-         MCRF_RETURNS("AStarPath from pos toward root")
+         MCRF_RETURNS("AStarPath from pos toward root (empty at a root or if unreachable), or None if pos is beyond the exact field")
+         MCRF_RAISES("IndexError", "pos is beyond the exact field and the map was built with heuristic=None")
      )},
 
     {"step_from", (PyCFunction)UIGridPathfinding::DijkstraMap_step_from, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(DijkstraMap, step_from,
          MCRF_SIG("(pos: Vector | tuple)", "Vector | None"),
-         MCRF_DESC("Get single step from position toward root.")
+         MCRF_DESC("Get single step from position toward root. Beyond the exact field this is a greedy step to the walkable neighbour with the lowest estimate (it needs the grid to still exist).")
          MCRF_ARGS_START
          MCRF_ARG("pos", "Current position as Vector, Entity, or (x, y) tuple")
-         MCRF_RETURNS("Next position as Vector, or None if at root or unreachable")
+         MCRF_RETURNS("Next position as Vector, or None if at root, unreachable, or no neighbour is closer")
+         MCRF_RAISES("IndexError", "pos is beyond the exact field and the map was built with heuristic=None")
      )},
 
     {"to_heightmap", (PyCFunction)UIGridPathfinding::DijkstraMap_to_heightmap, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(DijkstraMap, to_heightmap,
          MCRF_SIG("(size=None, unreachable=-1.0)", "HeightMap"),
-         MCRF_DESC("Convert distance field to a HeightMap. Each cell's height equals its pathfinding distance from the root, useful for visualization, procedural terrain, or influence mapping.")
+         MCRF_DESC("Convert the exact distance field to a HeightMap covering the map's window: cell (0, 0) is grid cell window[:2]. Each cell's height is its distance from the root; place it on a grid-sized HeightMap with copy_from(pos=window[:2]).")
          MCRF_ARGS_START
-         MCRF_ARG("size", "Optional (width, height) tuple. Defaults to dijkstra dimensions")
-         MCRF_ARG("unreachable", "Value for cells that cannot reach root (default -1.0)")
+         MCRF_ARG("size", "Optional (width, height) tuple. Defaults to the window's size")
+         MCRF_ARG("unreachable", "Value for cells not in the exact field: unreachable, or past the radius (default -1.0)")
          MCRF_RETURNS("HeightMap with distance values as heights")
      )},
 
@@ -1175,7 +1375,17 @@ PyMethodDef PyDijkstraMap_methods[] = {
          MCRF_DESC("Get the adjacent cell with the lowest distance (steepest descent). Unlike step_from, this always returns the best neighbor in a single hop without following a precomputed path.")
          MCRF_ARGS_START
          MCRF_ARG("pos", "Current position as Vector, Entity, or (x, y) tuple")
-         MCRF_RETURNS("Next position as Vector, or None if pos is a local minimum or off-grid")
+         MCRF_RETURNS("Next position as Vector, or None if pos is a local minimum")
+         MCRF_RAISES("IndexError", "pos is beyond the exact field and the map was built with heuristic=None")
+     )},
+
+    {"is_exact", (PyCFunction)UIGridPathfinding::DijkstraMap_is_exact, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(DijkstraMap, is_exact,
+         MCRF_SIG("(pos: Vector | tuple)", "bool"),
+         MCRF_DESC("Whether distance(pos) is certain: an exact distance, or certainly unreachable. False where it is the heuristic's estimate.")
+         MCRF_ARGS_START
+         MCRF_ARG("pos", "Position as Vector, Entity, or (x, y) tuple (any position, on or off the grid)")
+         MCRF_RETURNS("True if the answer for pos is exact")
      )},
 
     {NULL}
@@ -1185,6 +1395,14 @@ PyMethodDef PyDijkstraMap_methods[] = {
 PyGetSetDef PyDijkstraMap_getsetters[] = {
     {"root", (getter)UIGridPathfinding::DijkstraMap_get_root, NULL,
      MCRF_PROPERTY(root, "Root position that distances are measured from (Vector, read-only)."), NULL},
+    {"radius", (getter)UIGridPathfinding::DijkstraMap_get_radius, NULL,
+     MCRF_PROPERTY(radius, "Radius of the field's window around the roots (int, read-only). Distances up to radius are exact (radius * diagonal_cost, if that is below 1)."), NULL},
+    {"window", (getter)UIGridPathfinding::DijkstraMap_get_window, NULL,
+     MCRF_PROPERTY(window, "The grid rectangle the field covers, as (x, y, w, h) (tuple, read-only): the roots' bounding box grown by radius, clipped to the grid."), NULL},
+    {"complete", (getter)UIGridPathfinding::DijkstraMap_get_complete, NULL,
+     MCRF_PROPERTY(complete, "True if the field holds the roots' whole reachable region (bool, read-only): every distance is then exact and every other cell is unreachable. Always True when the window is the whole grid."), NULL},
+    {"heuristic", (getter)UIGridPathfinding::DijkstraMap_get_heuristic, NULL,
+     MCRF_PROPERTY(heuristic, "The estimate used beyond the exact field (Heuristic | None, read-only). None: such queries raise IndexError."), NULL},
 
     {NULL}
 };
@@ -1205,11 +1423,20 @@ PyTypeObject PyDijkstraMapType = {
         "walkability edits do not change it, and it stays usable after the grid\n"
         "is gone. Grid caches single-root maps, returning the same map while\n"
         "the grid is unchanged and a rebuilt one after it changes.\n\n"
+        "Windowed (#445): the field covers `window`, the roots' bounding box grown\n"
+        "by `radius` (default: the whole grid, up to 511) and clipped to the grid.\n"
+        "Distances up to the radius are exact. Beyond that, and off the grid,\n"
+        "distance() returns the map's heuristic estimate; is_exact(pos) tells\n"
+        "which. A `complete` field (always, when the window is the whole grid)\n"
+        "is exact everywhere.\n\n"
         "Properties:\n"
-        "    root (Vector): Root position (read-only)\n\n"
+        "    root (Vector): Root position (read-only)\n"
+        "    radius (int), window (x, y, w, h), complete (bool),\n"
+        "    heuristic (Heuristic | None): the field's extent and estimate\n\n"
         "Methods:\n"
         "    distance(pos) -> float | None: Get distance to root\n"
-        "    path_from(pos) -> AStarPath: Get full path to root\n"
+        "    is_exact(pos) -> bool: Is distance(pos) exact\n"
+        "    path_from(pos) -> AStarPath | None: Get full path to root\n"
         "    step_from(pos) -> Vector | None: Get single step toward root\n\n"
         "Example:\n"
         "    dijkstra = grid.get_dijkstra_map(player.pos)\n"

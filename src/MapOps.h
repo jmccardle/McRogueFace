@@ -41,6 +41,25 @@ struct MapRegion {
     inline int src_idx(int x, int y) const {
         return (src_y + y) * src_w + (src_x + x);
     }
+
+    // #445: the intersect-mode companion to parseMapRegion(), which REJECTS a region
+    // that leaves the map. This CLIPS instead: the half-open rectangle [x0, x1) x
+    // [y0, y1) is intersected with a src_w x src_h map and becomes a region that copies
+    // that window of the source to (0, 0) of a window-sized destination. width/height
+    // are 0 when the rectangle misses the map entirely.
+    static MapRegion window(int x0, int y0, int x1, int y1, int src_w, int src_h) {
+        MapRegion r{};
+        r.src_x = std::max(0, x0);
+        r.src_y = std::max(0, y0);
+        r.width = std::max(0, std::min(src_w, x1) - r.src_x);
+        r.height = std::max(0, std::min(src_h, y1) - r.src_y);
+        r.dest_x = r.dest_y = 0;
+        r.dest_w = r.width;
+        r.dest_h = r.height;
+        r.src_w = src_w;
+        r.src_h = src_h;
+        return r;
+    }
 };
 
 // ============================================================================
