@@ -128,6 +128,22 @@ def grid_with_entities_is_freed():
             check(we() is None, f"{cls.__name__} in a dropped {type(make()).__name__} freed")
 
 
+def gridpoint_does_not_pin_grid():
+    print("grid.at() does not keep the grid alive (GridPoint had no tp_dealloc)")
+    # A pinned subclass entity lives exactly as long as its grid owns it, so its
+    # wrapper dying proves the grid was freed (a plain Entity's wrapper isn't pinned).
+    for label, make, at in [
+        ("GridData.at()", lambda: mcrfpy.GridData(grid_size=(5, 5)), lambda g: g.at(1, 1)),
+        ("Grid.at()", lambda: mcrfpy.Grid(grid_size=(5, 5)), lambda g: g.at(1, 1)),
+        ("Grid[x, y]", lambda: mcrfpy.Grid(grid_size=(5, 5)), lambda g: g[1, 1]),
+    ]:
+        g = make()
+        e = Orc(grid_pos=(1, 1)); g.entities.append(e)
+        at(g).walkable
+        we = weakref.ref(e); del e, g; gc.collect()
+        check(we() is None, f"grid freed after {label}")
+
+
 def back_reference_is_weak():
     print("entity.grid does not keep the grid alive (#437)")
     e = mcrfpy.Entity(grid_pos=(1, 1))
@@ -143,6 +159,7 @@ def main():
     never_attached_is_freed()
     detached_is_freed()
     grid_with_entities_is_freed()
+    gridpoint_does_not_pin_grid()
     back_reference_is_weak()
     if failures:
         print(f"FAIL: {len(failures)} check(s) failed")

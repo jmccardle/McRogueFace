@@ -46,6 +46,19 @@ PyObject* PyFont::pyObject() {
     PyObject* obj = PyFont::pynew(type, Py_None, Py_None);
     return obj;
 }""", [("identity-alloc", "pynew PyFontType")]),
+    ("C++ members without tp_dealloc", """
+inline PyTypeObject PyFooType = {
+    .tp_name = "mcrfpy.Foo",
+    .tp_basicsize = sizeof(PyUIGridPointObject),
+    .tp_itemsize = 0,
+};""", [("missing-dealloc", "PyUIGridPointObject has C++ members")]),
+    ("C++ members with tp_dealloc: ok", """
+inline PyTypeObject PyFooType = {
+    .tp_name = "mcrfpy.Foo",
+    .tp_basicsize = sizeof(PyUIGridPointObject),
+    .tp_itemsize = 0,
+    .tp_dealloc = foo_dealloc,
+};""", []),
     ("unclassified type", """
 PyObject* f() { auto t = &mcrfpydef::PyBrandNewType; return t->tp_alloc(t, 0); }
 """, [("unclassified", "tp_alloc PyBrandNewType")]),

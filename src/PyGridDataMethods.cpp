@@ -863,6 +863,13 @@ static void fireStepCallback(std::shared_ptr<UIEntity>& entity, int trigger_int,
     if (PyErr_Occurred()) PyErr_Print();
 }
 
+// Whether a trigger on this entity reaches Python at all: an explicit `entity.step`
+// callback, or a subclass that may define on_step(). Checked before building a
+// payload, so the common no-handler case allocates nothing.
+static bool hasStepHandler(const std::shared_ptr<UIEntity>& e) {
+    return e->step_callback || e->is_python_subclass;
+}
+
 // Trigger payload: the entity's Python object (identity-preserving), or None.
 static mcrf::PyRef entityPayload(const std::shared_ptr<UIEntity>& e) {
     mcrf::PyRef obj(mcrf::to_python(e));
@@ -950,9 +957,11 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
                     for (auto& target : matching_targets) {
                         if (cache.isVisible(target->cell_position.x,
                                            target->cell_position.y)) {
-                            mcrf::PyRef target_obj = entityPayload(target);
-                            fireStepCallback(entity, 2 /* TARGET */,
-                                             target_obj ? target_obj.get() : Py_None);
+                            if (hasStepHandler(entity)) {
+                                mcrf::PyRef target_obj = entityPayload(target);
+                                fireStepCallback(entity, 2 /* TARGET */,
+                                                 target_obj ? target_obj.get() : Py_None);
+                            }
                             goto next_entity;
                         }
                     }
@@ -981,12 +990,14 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
                         break;
                     }
                     case BehaviorResult::BLOCKED: {
-                        auto blockers = grid->spatial_hash.queryCell(
-                            output.target_cell.x, output.target_cell.y);
-                        mcrf::PyRef blocker;
-                        if (!blockers.empty()) blocker = entityPayload(blockers[0]);
-                        fireStepCallback(entity, 1 /* BLOCKED */,
-                                         blocker ? blocker.get() : Py_None);
+                        if (hasStepHandler(entity)) {
+                            auto blockers = grid->spatial_hash.queryCell(
+                                output.target_cell.x, output.target_cell.y);
+                            mcrf::PyRef blocker;
+                            if (!blockers.empty()) blocker = entityPayload(blockers[0]);
+                            fireStepCallback(entity, 1 /* BLOCKED */,
+                                             blocker ? blocker.get() : Py_None);
+                        }
                         break;
                     }
                     case BehaviorResult::NO_ACTION:

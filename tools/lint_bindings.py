@@ -19,6 +19,10 @@ audit_pymethoddef.py) and flags the recipes that have already produced bugs:
                    _click(self, PyTuple_New(0), kw) leaks the tuple).
   from-arg-owner   PyVector::from_arg() (new reference) whose result is neither
                    released nor returned in the same function (#414).
+  missing-dealloc  A Python type whose object struct holds C++ members (shared_ptr,
+                   weak_ptr, string, containers) but sets no tp_dealloc: tp_free never
+                   runs their destructors, so whatever they own leaks (GridPoint leaked
+                   its whole grid this way).
   pin-direct       The entity identity pin (UIEntity::pyobject) taken, released or
                    read as "the wrapper" outside its owner (#424, #429, #436).
 
@@ -369,6 +373,54 @@ def lint_file(path: Path) -> list[Finding]:
                 check_from_arg(src, n, add)
 
     out.extend(check_pin(src, tree, rel))
+    out.extend(check_dealloc(src, tree, rel))
+    return out
+
+
+NONTRIVIAL = re.compile(r"\bstd::(shared_ptr|weak_ptr|unique_ptr|string|vector|map|"
+                        r"unordered_map|set|unordered_set|list|deque|function|optional)\b")
+
+
+def struct_fields_by_name() -> dict:
+    """typedef struct {...} Name; across src/, mapped to whether it holds C++ members."""
+    global _STRUCTS
+    if _STRUCTS is not None:
+        return _STRUCTS
+    _STRUCTS = {}
+    for p in (ROOT / "src").rglob("*.h"):
+        src = p.read_bytes()
+        for n in walk(_PARSER.parse(src).root_node):
+            if n.type == "type_definition":
+                body = n.child_by_field_name("type")
+                if body is None or body.type != "struct_specifier":
+                    continue
+                for d in n.children_by_field_name("declarator"):
+                    _STRUCTS[text(src, d).strip()] = bool(NONTRIVIAL.search(text(src, body)))
+    return _STRUCTS
+
+
+_STRUCTS = None
+
+
+def check_dealloc(src: bytes, tree, rel: str) -> list:
+    """Every PyTypeObject initializer whose tp_basicsize struct has C++ members must set
+    tp_dealloc."""
+    out = []
+    structs = None
+    for n in walk(tree.root_node):
+        if n.type != "init_declarator":
+            continue
+        decl = text(src, n)
+        if ".tp_basicsize" not in decl or "PyTypeObject" not in text(src, n.parent):
+            continue
+        m = re.search(r"\.tp_basicsize\s*=\s*sizeof\s*\(\s*(?:\w+::)*(\w+)\s*\)", decl)
+        if not m or ".tp_dealloc" in decl:
+            continue
+        structs = structs if structs is not None else struct_fields_by_name()
+        if structs.get(m.group(1)):
+            name = text(src, n.child_by_field_name("declarator")).strip()
+            out.append(Finding("missing-dealloc", rel, n.start_point[0] + 1, name,
+                               f"{m.group(1)} has C++ members but no tp_dealloc"))
     return out
 
 
