@@ -28,11 +28,11 @@ struct PyAStarPathObject {
 
 class DijkstraMap {
 public:
-    // Single-root construction (back-compat).
-    DijkstraMap(TCODMap* map, int root_x, int root_y, float diagonal_cost);
-
-    // Multi-root construction (#315). roots must be non-empty.
-    DijkstraMap(TCODMap* map, const std::vector<sf::Vector2i>& roots, float diagonal_cost);
+    // Computes from a SNAPSHOT of `map` (#425): the map is copied, so this object
+    // never reads the grid again. A map you hold is a value -- it does not track
+    // later walkability edits -- and it stays valid after its grid is freed.
+    // roots must be non-empty (#315: more than one is a multi-root field).
+    DijkstraMap(const TCODMap* map, const std::vector<sf::Vector2i>& roots, float diagonal_cost);
 
     ~DijkstraMap();
 
@@ -77,7 +77,7 @@ public:
 
 private:
     TCOD_Dijkstra* tcod_dijkstra;  // Owned
-    TCODMap* tcod_map;             // Borrowed from Grid
+    std::unique_ptr<TCODMap> snapshot;  // Owned copy the field was computed on (#425)
     sf::Vector2i root;
     std::vector<sf::Vector2i> roots;
     float diagonal_cost;

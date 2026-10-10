@@ -9,38 +9,28 @@
 #include "PyDiscreteMap.h"
 #include "McRFPy_Doc.h"
 #include "PyWrap.h"
+#include <algorithm>
 
 //=============================================================================
 // DijkstraMap Implementation
 //=============================================================================
 
-DijkstraMap::DijkstraMap(TCODMap* map, int root_x, int root_y, float diag_cost)
+DijkstraMap::DijkstraMap(const TCODMap* map, const std::vector<sf::Vector2i>& roots_in, float diag_cost)
     : tcod_dijkstra(nullptr)
-    , tcod_map(map)
-    , root(root_x, root_y)
-    , diagonal_cost(diag_cost)
-    , map_width(map ? map->getWidth() : 0)
-    , map_height(map ? map->getHeight() : 0)
-{
-    roots.push_back(sf::Vector2i(root_x, root_y));
-    if (tcod_map) {
-        tcod_dijkstra = TCOD_dijkstra_new(tcod_map->data, diagonal_cost);
-        TCOD_dijkstra_compute(tcod_dijkstra, root_x, root_y);
-    }
-}
-
-DijkstraMap::DijkstraMap(TCODMap* map, const std::vector<sf::Vector2i>& roots_in, float diag_cost)
-    : tcod_dijkstra(nullptr)
-    , tcod_map(map)
     , root(roots_in.empty() ? sf::Vector2i(-1, -1) : roots_in.front())
     , roots(roots_in)
     , diagonal_cost(diag_cost)
     , map_width(map ? map->getWidth() : 0)
     , map_height(map ? map->getHeight() : 0)
 {
-    if (!tcod_map || roots.empty()) return;
+    if (!map || roots.empty()) return;
 
-    tcod_dijkstra = TCOD_dijkstra_new(tcod_map->data, diagonal_cost);
+    // #425: compute on our own copy. The TCOD_Dijkstra keeps a pointer to the map it
+    // was built on, and inverted() recomputes; both used to point at the grid's live
+    // map -- freed with the grid (use-after-free), and without the collide= marks.
+    snapshot = std::make_unique<TCODMap>(map_width, map_height);
+    snapshot->copy(map);
+    tcod_dijkstra = TCOD_dijkstra_new(snapshot->data, diagonal_cost);
 
     if (roots.size() == 1) {
         TCOD_dijkstra_compute(tcod_dijkstra, roots[0].x, roots[0].y);
@@ -127,7 +117,7 @@ void DijkstraMap::invertInPlace() {
 std::shared_ptr<DijkstraMap> DijkstraMap::inverted() const {
     // Recompute from the stored roots, then invert. This preserves the invariant that
     // the original's distance field is unchanged.
-    auto copy = std::make_shared<DijkstraMap>(tcod_map, roots, diagonal_cost);
+    auto copy = std::make_shared<DijkstraMap>(snapshot.get(), roots, diagonal_cost);
     copy->invertInPlace();
     return copy;
 }
@@ -599,32 +589,53 @@ PyObject* UIGridPathfinding::DijkstraMap_to_heightmap(PyDijkstraMapObject* self,
 // Grid Factory Methods
 //=============================================================================
 
+// Helper: the in-bounds cells occupied by entities carrying `collide_label`, sorted and
+// de-duplicated. Empty for an empty label. #425: this is also what a cached
+// collide-label Dijkstra map is validated against, so it must be deterministic.
+static std::vector<sf::Vector2i> labelledCells(GridData* grid, const std::string& collide_label)
+{
+    std::vector<sf::Vector2i> cells;
+    if (!grid->entities || collide_label.empty()) return cells;
+    for (auto& entity : *grid->entities) {
+        if (!entity || !entity->labels.count(collide_label)) continue;
+        int ex = entity->cell_position.x;
+        int ey = entity->cell_position.y;
+        if (ex >= 0 && ex < grid->grid_w && ey >= 0 && ey < grid->grid_h) {
+            cells.emplace_back(ex, ey);
+        }
+    }
+    auto less = [](const sf::Vector2i& a, const sf::Vector2i& b) {
+        return a.y != b.y ? a.y < b.y : a.x < b.x;
+    };
+    std::sort(cells.begin(), cells.end(), less);
+    cells.erase(std::unique(cells.begin(), cells.end()), cells.end());
+    return cells;
+}
+
+// Helper: mark the given cells non-walkable on the grid's TCOD map.
+// Returns the list of (x, y, was_walkable) for restoration.
+static std::vector<std::tuple<int,int,bool>> markCells(
+    GridData* grid, const std::vector<sf::Vector2i>& cells)
+{
+    std::vector<std::tuple<int,int,bool>> restore_list;
+    TCODMap* tcod_map = grid->getTCODMap();
+    if (!tcod_map) return restore_list;
+
+    for (const auto& c : cells) {
+        if (tcod_map->isWalkable(c.x, c.y)) {
+            tcod_map->setProperties(c.x, c.y, tcod_map->isTransparent(c.x, c.y), false);
+            restore_list.emplace_back(c.x, c.y, true);
+        }
+    }
+    return restore_list;
+}
+
 // Helper: collect cells occupied by entities with a given label, mark non-walkable.
 // Returns the list of (x, y, was_walkable) for restoration.
 static std::vector<std::tuple<int,int,bool>> markCollisionLabel(
     GridData* grid, const std::string& collide_label)
 {
-    std::vector<std::tuple<int,int,bool>> restore_list;
-    if (!grid->entities || collide_label.empty()) return restore_list;
-
-    TCODMap* tcod_map = grid->getTCODMap();
-    if (!tcod_map) return restore_list;
-
-    for (auto& entity : *grid->entities) {
-        if (!entity) continue;
-        if (entity->labels.count(collide_label)) {
-            int ex = entity->cell_position.x;
-            int ey = entity->cell_position.y;
-            if (ex >= 0 && ex < grid->grid_w && ey >= 0 && ey < grid->grid_h) {
-                bool was_walkable = tcod_map->isWalkable(ex, ey);
-                if (was_walkable) {
-                    tcod_map->setProperties(ex, ey, tcod_map->isTransparent(ex, ey), false);
-                    restore_list.emplace_back(ex, ey, true);
-                }
-            }
-        }
-    }
-    return restore_list;
+    return markCells(grid, labelledCells(grid, collide_label));
 }
 
 // Helper: restore walkability after pathfinding.
@@ -862,19 +873,25 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
 
     std::string label_str = collide_label ? collide_label : "";
 
-    // Cache path for the common single-root case (preserves prior behavior).
-    if (!mask_obj && roots.size() == 1) {
-        auto key = std::make_tuple(roots[0].x, roots[0].y, label_str);
-        auto it = self->data->dijkstra_maps.find(key);
-        if (it != self->data->dijkstra_maps.end()) {
-            if (std::abs(it->second->getDiagonalCost() - diagonal_cost) < 0.001f) {
-                return DijkstraMap::pyobject_for(it->second);
-            }
-            self->data->dijkstra_maps.erase(it);
+    // Single-root requests are cached. #425: an entry is reused only if the grid's
+    // walkability and the cells its collide label blocks are both unchanged since it
+    // was built; otherwise it is rebuilt here, so a stale map is never returned.
+    GridData* grid = self->data.get();
+    const bool cacheable = !mask_obj && roots.size() == 1;
+    const auto key = cacheable
+        ? std::make_tuple(roots[0].x, roots[0].y, label_str, diagonal_cost)
+        : std::make_tuple(0, 0, std::string(), 0.0f);
+    std::vector<sf::Vector2i> blocked = labelledCells(grid, label_str);
+    if (cacheable) {
+        auto it = grid->dijkstra_maps.find(key);
+        if (it != grid->dijkstra_maps.end() &&
+            it->second.generation == grid->transparency_generation &&
+            it->second.blocked == blocked) {
+            return DijkstraMap::pyobject_for(it->second.map);
         }
     }
 
-    auto restore_list = markCollisionLabel(self->data.get(), label_str);
+    auto restore_list = markCells(grid, blocked);
 
     std::shared_ptr<DijkstraMap> dijkstra;
     TCODMap* tcmap = self->data->getTCODMap();
@@ -907,10 +924,9 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
 
     restoreCollisionLabel(self->data.get(), restore_list);
 
-    // Cache only single-root case
-    if (!mask_obj && roots.size() == 1) {
-        auto key = std::make_tuple(roots[0].x, roots[0].y, label_str);
-        self->data->dijkstra_maps[key] = dijkstra;
+    if (cacheable) {
+        grid->dijkstra_maps[key] = GridData::DijkstraCacheEntry{
+            dijkstra, grid->transparency_generation, std::move(blocked)};
     }
 
     return DijkstraMap::pyobject_for(dijkstra);
@@ -1101,9 +1117,10 @@ PyTypeObject PyDijkstraMapType = {
     .tp_doc = PyDoc_STR(
         "A Dijkstra distance map from a fixed root position.\n\n"
         "Created by Grid.get_dijkstra_map(). Cannot be instantiated directly.\n\n"
-        "Grid caches these maps - multiple requests for the same root return\n"
-        "the same map. Call Grid.clear_dijkstra_maps() after changing grid\n"
-        "walkability to invalidate the cache.\n\n"
+        "A DijkstraMap is a snapshot of the grid when it was computed: later\n"
+        "walkability edits do not change it, and it stays usable after the grid\n"
+        "is gone. Grid caches single-root maps, returning the same map while\n"
+        "the grid is unchanged and a rebuilt one after it changes.\n\n"
         "Properties:\n"
         "    root (Vector): Root position (read-only)\n\n"
         "Methods:\n"
