@@ -24,6 +24,7 @@ typedef struct {
     PyObject* enum_type;                // Optional Python IntEnum for value interpretation
     Py_ssize_t buf_shape[2];            // #334 - buffer-protocol (h, w) view shape
     Py_ssize_t buf_strides[2];          // #334 - row-major strides {w, 1}
+    PyObject* weakreflist;              // #430 - PythonObjectCache holds weakrefs
 } PyDiscreteMapObject;
 
 class PyDiscreteMap
@@ -34,6 +35,16 @@ public:
     static int init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwds);
     static void dealloc(PyDiscreteMapObject* self);
     static PyObject* repr(PyObject* obj);
+
+    // #430: the one way to hand a DiscreteMap to Python. Returns the live wrapper
+    // for `map` if there is one (preserving identity and a Python subclass);
+    // otherwise allocates a `type` instance sharing `map`, gives it `enum_type`
+    // (borrowed; may be nullptr), and registers it under map->serial_number.
+    // `enum_type` and `type` only apply when a new wrapper is allocated.
+    // New reference, or nullptr with a Python error set.
+    static PyObject* pyobject_for(const std::shared_ptr<DiscreteMap>& map,
+                                  PyObject* enum_type,
+                                  PyTypeObject* type = nullptr);
 
     // Properties
     static PyObject* get_size(PyDiscreteMapObject* self, void* closure);
@@ -127,6 +138,7 @@ namespace mcrfpydef {
             "    dmap.fill(Terrain.GRASS, pos=(10, 10), size=(20, 20))\n"
             "    print(dmap[15, 15])  # Terrain.GRASS\n"
         ),
+        .tp_weaklistoffset = offsetof(PyDiscreteMapObject, weakreflist),  // #430
         .tp_methods = nullptr,  // Set in McRFPy_API.cpp before PyType_Ready
         .tp_getset = nullptr,   // Set in McRFPy_API.cpp before PyType_Ready
         .tp_init = (initproc)PyDiscreteMap::init,

@@ -1,5 +1,7 @@
 // UIGridView.cpp - Rendering view for GridData (#252)
 #include "UIGridView.h"
+#include "PyWrap.h"
+#include "UICollection.h"  // #430: UICollection::pyobject_for (GridView.children)
 #include "PyGridData.h"
 #include "UIGridPoint.h"
 #include "UIEntity.h"
@@ -773,14 +775,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
 
     self->weakreflist = NULL;
 
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
     self->data->is_python_subclass =
         (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIGridViewType;
 
@@ -1073,18 +1068,9 @@ PyObject* UIGridView::get_perspective(PyUIGridViewObject* self, void* closure)
     auto locked = self->data->perspective_entity.lock();
     if (!locked) Py_RETURN_NONE;
 
-    // Honor the cache so Entity subclass identity survives (#266).
-    if (locked->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(locked->serial_number);
-        if (cached) return cached;  // new ref
-    }
-
-    auto type = &mcrfpydef::PyUIEntityType;
-    auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
-    if (!o) return PyErr_NoMemory();
-    o->data = locked;
-    o->weakreflist = NULL;
-    return (PyObject*)o;
+    // to_python() returns the cached wrapper when one is alive, preserving
+    // Entity subclass identity (#266).
+    return mcrf::to_python(locked);
 }
 
 int UIGridView::set_perspective(PyUIGridViewObject* self, PyObject* value, void* closure)
@@ -1126,14 +1112,8 @@ PyObject* UIGridView::get_texture(PyUIGridViewObject* self, void* closure)
 {
     // #318: return a Texture wrapper sharing the underlying shared_ptr<PyTexture>,
     // mirroring PyGridData::get_texture. None only when the view has no texture.
-    auto& texture = self->data->ptex;
-    if (!texture) Py_RETURN_NONE;
-
-    auto type = &mcrfpydef::PyTextureType;
-    auto obj = (PyTextureObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-    obj->data = texture;
-    return (PyObject*)obj;
+    // #430: cache-aware, so this is the very Texture the user passed in.
+    return PyTexture::pyobject_for(self->data->ptex);
 }
 
 // Float member getters/setters for GridView-specific float members (center_x, center_y, zoom, camera_rotation)
@@ -1314,7 +1294,7 @@ bool UIGridView::fireCellClick(sf::Vector2i cell, const std::string& button, con
 
     // Try Python subclass method
     if (is_python_subclass) {
-        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        PyObject* pyObj = mcrf::live_wrapper(this->serial_number);
         if (pyObj) {
             refreshCellCallbackCache(pyObj);
             if (cell_callback_cache.has_on_cell_click) {
@@ -1352,7 +1332,7 @@ bool UIGridView::fireCellEnter(sf::Vector2i cell) {
     }
 
     if (is_python_subclass) {
-        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        PyObject* pyObj = mcrf::live_wrapper(this->serial_number);
         if (pyObj) {
             refreshCellCallbackCache(pyObj);
             if (cell_callback_cache.has_on_cell_enter) {
@@ -1390,7 +1370,7 @@ bool UIGridView::fireCellExit(sf::Vector2i cell) {
     }
 
     if (is_python_subclass) {
-        PyObject* pyObj = PythonObjectCache::getInstance().lookup(this->serial_number);
+        PyObject* pyObj = mcrf::live_wrapper(this->serial_number);
         if (pyObj) {
             refreshCellCallbackCache(pyObj);
             if (cell_callback_cache.has_on_cell_exit) {
@@ -1504,13 +1484,9 @@ int UIGridView::set_on_cell_click(PyUIGridViewObject* self, PyObject* value, voi
 // then reaches this view and every caching ancestor above it.
 PyObject* UIGridView::get_children(PyUIGridViewObject* self, void* closure)
 {
-    PyTypeObject* type = &mcrfpydef::PyUICollectionType;
-    auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
-    if (o) {
-        o->data = self->data->children;
-        o->owner = self->data;
-    }
-    return (PyObject*)o;
+    // #430: the cache key is the view's own UIDrawable::children_serial.
+    return UICollection::pyobject_for(self->data->children_serial, self->data->children,
+                                      self->data, "");
 }
 
 PyObject* UIGridView::get_hovered_cell(PyUIGridViewObject* self, void* closure) {

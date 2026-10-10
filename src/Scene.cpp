@@ -1,5 +1,6 @@
 #include "Scene.h"
 #include "UI.h"
+#include "PyWrap.h"
 
 //Scene::Scene() { game = 0; std::cout << "WARN: default Scene constructor called. (game = " << game << ")" << std::endl;};
 Scene::Scene(GameEngine* g)
@@ -12,6 +13,7 @@ Scene::Scene(GameEngine* g)
 Scene::~Scene()
 {
     UIDrawable::releaseChildPins(ui_elements);  // #373
+    if (children_serial != 0) mcrf::unregister_wrapper(children_serial);  // #430
 }
 void Scene::registerAction(int code, std::string name)
 {

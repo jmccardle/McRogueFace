@@ -9,6 +9,7 @@ class GameEngine;
 typedef struct {
     PyObject_HEAD
     // No data - Window is a singleton that accesses GameEngine
+    PyObject* weakreflist;  // Required by the wrapper cache (#430)
 } PyWindowObject;
 
 // C++ interface for the Window singleton
@@ -17,6 +18,10 @@ class PyWindow
 public:
     // Static methods for Python type
     static PyObject* get(PyObject* cls, PyObject* args);
+    // The one Window object, created on first use and never freed (#184, #430).
+    // Both mcrfpy.window and Window.get() return it. New reference, or nullptr with
+    // an error set.
+    static PyObject* instance();
     static PyObject* repr(PyWindowObject* self);
     
     // Getters and setters for window properties
@@ -53,12 +58,14 @@ namespace mcrfpydef {
         .tp_basicsize = sizeof(PyWindowObject),
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self) {
-            // Don't delete the singleton instance
+            // Never reached in practice: PyWindow::instance() holds the singleton.
+            if (((PyWindowObject*)self)->weakreflist) PyObject_ClearWeakRefs(self);
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)PyWindow::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR("Window singleton for accessing and modifying the game window properties"),
+        .tp_weaklistoffset = offsetof(PyWindowObject, weakreflist),
         .tp_methods = nullptr,  // Set in McRFPy_API.cpp after definition
         .tp_getset = nullptr,   // Set in McRFPy_API.cpp after definition
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject* {

@@ -45,8 +45,12 @@ public:
     std::vector<bool> chunk_texture_initialized;                // Track which textures are created
     int cached_cell_width, cached_cell_height;                  // Cell size used for cached textures
 
+    // #430: PythonObjectCache key for this layer's ColorLayer/TileLayer wrapper
+    // (0 = no wrapper yet). Unregistered in ~GridLayer.
+    uint64_t serial_number = 0;
+
     GridLayer(GridLayerType type, int z_index, int grid_x, int grid_y, GridData* parent);
-    virtual ~GridLayer() = default;
+    virtual ~GridLayer();
 
     // Mark entire layer as needing re-render
     void markDirty();
@@ -185,12 +189,14 @@ typedef struct {
     PyObject_HEAD
     std::shared_ptr<ColorLayer> data;
     std::shared_ptr<GridData> grid;
+    PyObject* weakreflist;  // #430: needed for the wrapper cache
 } PyColorLayerObject;
 
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<TileLayer> data;
     std::shared_ptr<GridData> grid;
+    PyObject* weakreflist;  // #430: needed for the wrapper cache
 } PyTileLayerObject;
 
 // #335 - context manager returned by ColorLayer.edit()/TileLayer.edit().
@@ -209,6 +215,14 @@ typedef struct {
 // Python API classes
 class PyGridLayerAPI {
 public:
+    // #430: the ColorLayer/TileLayer wrapper for `layer` (dispatching on its type),
+    // keyed on GridLayer::serial_number: the live wrapper -- e.g. the object the user
+    // constructed -- if one exists, else a new registered one. `grid` is the GridData
+    // that holds the layer; the wrapper's grid reference is set to it. New reference,
+    // or nullptr with an error set.
+    static PyObject* pyobject_for(const std::shared_ptr<GridLayer>& layer,
+                                  const std::shared_ptr<GridData>& grid);
+
     // ColorLayer methods
     static int ColorLayer_init(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* ColorLayer_at(PyColorLayerObject* self, PyObject* args, PyObject* kwds);
@@ -289,8 +303,12 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self) {
             PyColorLayerObject* obj = (PyColorLayerObject*)self;
-            obj->data.reset();
-            obj->grid.reset();
+            if (obj->weakreflist) PyObject_ClearWeakRefs(self);
+            // Members were placement-new'd in tp_new / pyobject_for.
+            using LayerPtr = std::shared_ptr<ColorLayer>;
+            using GridPtr = std::shared_ptr<GridData>;
+            obj->data.~LayerPtr();
+            obj->grid.~GridPtr();
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)PyGridLayerAPI::ColorLayer_repr,
@@ -326,11 +344,15 @@ namespace mcrfpydef {
                            "    grid = mcrfpy.Grid(grid_size=(20, 15), layers=[fog])\n"
                            "    fog.fill(mcrfpy.Color(40, 40, 40))  # Dark gray background\n"
                            "    grid.layer('fog').set(5, 5, mcrfpy.Color(255, 0, 0, 128))"),
+        .tp_weaklistoffset = offsetof(PyColorLayerObject, weakreflist),
         .tp_methods = PyGridLayerAPI::ColorLayer_methods,
         .tp_getset = PyGridLayerAPI::ColorLayer_getsetters,
         .tp_init = (initproc)PyGridLayerAPI::ColorLayer_init,
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject* {
             PyColorLayerObject* self = (PyColorLayerObject*)type->tp_alloc(type, 0);
+            if (!self) return NULL;
+            new (&self->data) std::shared_ptr<ColorLayer>();
+            new (&self->grid) std::shared_ptr<GridData>();
             return (PyObject*)self;
         }
     };
@@ -343,8 +365,12 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)[](PyObject* self) {
             PyTileLayerObject* obj = (PyTileLayerObject*)self;
-            obj->data.reset();
-            obj->grid.reset();
+            if (obj->weakreflist) PyObject_ClearWeakRefs(self);
+            // Members were placement-new'd in tp_new / pyobject_for.
+            using LayerPtr = std::shared_ptr<TileLayer>;
+            using GridPtr = std::shared_ptr<GridData>;
+            obj->data.~LayerPtr();
+            obj->grid.~GridPtr();
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)PyGridLayerAPI::TileLayer_repr,
@@ -385,11 +411,15 @@ namespace mcrfpydef {
                            "    grid = mcrfpy.Grid(grid_size=(20, 15), layers=[terrain])\n"
                            "    terrain.fill(0)  # Fill with tile index 0\n"
                            "    grid.layer('terrain').set(5, 5, 42)  # Place tile 42 at (5, 5)"),
+        .tp_weaklistoffset = offsetof(PyTileLayerObject, weakreflist),
         .tp_methods = PyGridLayerAPI::TileLayer_methods,
         .tp_getset = PyGridLayerAPI::TileLayer_getsetters,
         .tp_init = (initproc)PyGridLayerAPI::TileLayer_init,
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject* {
             PyTileLayerObject* self = (PyTileLayerObject*)type->tp_alloc(type, 0);
+            if (!self) return NULL;
+            new (&self->data) std::shared_ptr<TileLayer>();
+            new (&self->grid) std::shared_ptr<GridData>();
             return (PyObject*)self;
         }
     };

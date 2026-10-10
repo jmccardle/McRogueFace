@@ -1,4 +1,5 @@
 #include "Common.h"
+#include "PyWrap.h"
 #include "GameEngine.h"
 #include "CommandLineParser.h"
 #include "McRogueFaceConfig.h"
@@ -71,8 +72,8 @@ int run_python_interpreter(const McRogueFaceConfig& config)
             McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
             McRFPy_API::default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
         }
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
+        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
+        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
     }
 
     // Handle different Python modes

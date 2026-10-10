@@ -74,19 +74,6 @@ void PyMusic::setPosition(float pos)
     music.setPlayingOffset(sf::seconds(pos));
 }
 
-PyObject* PyMusic::pyObject()
-{
-    auto type = &mcrfpydef::PyMusicType;
-    PyObject* obj = PyMusic::pynew(type, Py_None, Py_None);
-    try {
-        ((PyMusicObject*)obj)->data = shared_from_this();
-    }
-    catch (std::bad_weak_ptr& e) {
-        std::cerr << "PyMusic::pyObject() - shared_from_this() failed" << std::endl;
-    }
-    return obj;
-}
-
 PyObject* PyMusic::repr(PyObject* obj)
 {
     PyMusicObject* self = (PyMusicObject*)obj;

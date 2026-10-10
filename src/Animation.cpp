@@ -1,4 +1,5 @@
 #include "Animation.h"
+#include "PyWrap.h"
 #include "UIDrawable.h"
 #include "UIEntity.h"
 #include "3d/Entity3D.h"
@@ -70,7 +71,7 @@ Animation::~Animation() {
 
     // Clean up cache entry (also guard - PythonObjectCache may use Python)
     if (serial_number != 0 && Py_IsInitialized()) {
-        PythonObjectCache::getInstance().remove(serial_number);
+        mcrf::unregister_wrapper(serial_number);
     }
 }
 
@@ -524,160 +525,18 @@ void Animation::applyValue(mcrf::Entity3D* entity, const AnimationValue& value) 
 
 // #229 - Helper to convert UIDrawable target to Python object
 static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
-    if (!drawable) {
-        Py_RETURN_NONE;
-    }
-
-    // Check cache first
-    if (drawable->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(drawable->serial_number);
-        if (cached) {
-            return cached;  // Already INCREF'd by lookup
-        }
-    }
-
-    PyTypeObject* type = nullptr;
-    PyObject* obj = nullptr;
-
-    switch (drawable->derived_type()) {
-        case PyObjectsEnum::UIFRAME:
-        {
-            type = &mcrfpydef::PyUIFrameType;
-            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UICAPTION:
-        {
-            type = &mcrfpydef::PyUICaptionType;
-            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UICaption>(drawable);
-                pyObj->font = nullptr;
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UISPRITE:
-        {
-            type = &mcrfpydef::PyUISpriteType;
-            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UISprite>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIGRIDVIEW:
-        {
-            type = &mcrfpydef::PyUIGridViewType;
-            auto pyObj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIGridView>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UILINE:
-        {
-            type = &mcrfpydef::PyUILineType;
-            auto pyObj = (PyUILineObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UILine>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UICIRCLE:
-        {
-            type = &mcrfpydef::PyUICircleType;
-            auto pyObj = (PyUICircleObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UICircle>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIARC:
-        {
-            type = &mcrfpydef::PyUIArcType;
-            auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIArc>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        default:
-            Py_RETURN_NONE;
-    }
-
-    return obj ? obj : Py_None;
+    return mcrf::to_python(drawable);
 }
 
 // #229 - Helper to convert UIEntity target to Python object
 static PyObject* convertEntityToPython(std::shared_ptr<UIEntity> entity) {
-    if (!entity) {
-        Py_RETURN_NONE;
-    }
-
-    // Check cache first
-    if (entity->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(entity->serial_number);
-        if (cached) {
-            return cached;  // Already INCREF'd by lookup
-        }
-    }
-
-    PyTypeObject* type = &mcrfpydef::PyUIEntityType;
-
-    auto pyObj = (PyUIEntityObject*)type->tp_alloc(type, 0);
-
-    if (!pyObj) {
-        Py_RETURN_NONE;
-    }
-
-    pyObj->data = entity;
-    pyObj->weakreflist = NULL;
-
-    return (PyObject*)pyObj;
+    return mcrf::to_python(entity);
 }
 
-// Helper to convert Entity3D target to Python object
+// Helper to convert Entity3D target to Python object (#430: cache-aware, so a
+// subclass instance comes back as itself)
 static PyObject* convertEntity3DToPython(std::shared_ptr<mcrf::Entity3D> entity) {
-    if (!entity) {
-        Py_RETURN_NONE;
-    }
-
-    // Use the entity's cached Python pyobject pointer if available
-    if (entity->pyobject) {
-        Py_INCREF(entity->pyobject);
-        return entity->pyobject;
-    }
-
-    // Create a new wrapper
-    PyTypeObject* type = &mcrfpydef::PyEntity3DType;
-
-    auto pyObj = (PyEntity3DObject*)type->tp_alloc(type, 0);
-
-    if (!pyObj) {
-        Py_RETURN_NONE;
-    }
-
-    pyObj->data = entity;
-    pyObj->weakreflist = NULL;
-
-    return (PyObject*)pyObj;
+    return mcrf::Entity3D::pyobject_for(entity);
 }
 
 // #229 - Helper to convert AnimationValue to Python object
@@ -722,8 +581,9 @@ void Animation::triggerCallback() {
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    // #229 - Pass (target, property, final_value) instead of (None, None)
-    // Convert target to Python object
+    // #229 - Pass (target, property, final_value). A target that no longer exists is
+    // passed as None; a target that exists but can't be converted is an error, reported
+    // here rather than handed to the callback as a pending exception (#430).
     PyObject* targetObj = nullptr;
     if (auto drawable = targetWeak.lock()) {
         targetObj = convertDrawableToPython(drawable);
@@ -731,18 +591,20 @@ void Animation::triggerCallback() {
         targetObj = convertEntityToPython(entity);
     } else if (auto entity3d = entity3dTargetWeak.lock()) {
         targetObj = convertEntity3DToPython(entity3d);
+    } else {
+        targetObj = Py_NewRef(Py_None);
     }
-
-    // If target conversion failed, use None
     if (!targetObj) {
-        targetObj = Py_None;
-        Py_INCREF(targetObj);
+        PyErr_Print();
+        PyGILState_Release(gstate);
+        return;
     }
 
     // Property name
     PyObject* propertyObj = PyUnicode_FromString(targetProperty.c_str());
     if (!propertyObj) {
         Py_DECREF(targetObj);
+        PyErr_Print();
         PyGILState_Release(gstate);
         return;
     }
@@ -753,6 +615,7 @@ void Animation::triggerCallback() {
     if (!valueObj) {
         Py_DECREF(targetObj);
         Py_DECREF(propertyObj);
+        PyErr_Print();
         PyGILState_Release(gstate);
         return;
     }
@@ -763,6 +626,7 @@ void Animation::triggerCallback() {
     Py_DECREF(valueObj);
 
     if (!args) {
+        PyErr_Print();
         PyGILState_Release(gstate);
         return;
     }

@@ -200,6 +200,11 @@ public:
     /// Get the entity list (for EntityCollection3D)
     std::shared_ptr<std::list<std::shared_ptr<Entity3D>>> getEntities() { return entities_; }
 
+    /// #430: cache key for this viewport's EntityCollection3D wrapper (`vp.entities`).
+    /// The collection has no C++ object of its own, so its identity lives here;
+    /// unregistered in ~Viewport3D.
+    uint64_t entities_serial = 0;
+
     /// Update all entities (call once per frame)
     void updateEntities(float dt);
 

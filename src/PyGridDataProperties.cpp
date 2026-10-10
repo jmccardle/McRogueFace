@@ -36,15 +36,8 @@ PyObject* PyGridData::get_grid_h(PyGridDataObject* self, void* closure) {
 // =========================================================================
 
 PyObject* PyGridData::get_texture(PyGridDataObject* self, void* closure) {
-    auto texture = self->data->getTexture();
-    if (!texture) {
-        Py_RETURN_NONE;
-    }
-
-    auto type = &mcrfpydef::PyTextureType;
-    auto obj = (PyTextureObject*)type->tp_alloc(type, 0);
-    obj->data = texture;
-    return (PyObject*)obj;
+    // #430: cache-aware, so this is the very Texture the user passed in.
+    return PyTexture::pyobject_for(self->data->getTexture());
 }
 
 PyObject* PyGridData::get_fov(PyGridDataObject* self, void* closure)
@@ -105,13 +98,8 @@ int PyGridData::set_fov_radius(PyGridDataObject* self, PyObject* value, void* cl
 
 PyObject* PyGridData::get_entities(PyGridDataObject* self, void* closure)
 {
-    PyTypeObject* type = &mcrfpydef::PyUIEntityCollectionType;
-    auto o = (PyUIEntityCollectionObject*)type->tp_alloc(type, 0);
-    if (o) {
-        o->data = self->data->entities;
-        o->grid = self->data;
-    }
-    return (PyObject*)o;
+    // #430: one wrapper per grid, keyed on GridData::entities_serial.
+    return UIEntityCollection::pyobject_for(self->data);
 }
 
 // #364: get_children moved to UIGridView. GridData holds no drawables, so the
@@ -123,29 +111,9 @@ PyObject* PyGridData::get_layers(PyGridDataObject* self, void* closure) {
     PyObject* tuple = PyTuple_New(self->data->layers.size());
     if (!tuple) return NULL;
 
-    auto* color_layer_type = &mcrfpydef::PyColorLayerType;
-    auto* tile_layer_type = &mcrfpydef::PyTileLayerType;
-
     for (size_t i = 0; i < self->data->layers.size(); ++i) {
-        auto& layer = self->data->layers[i];
-        PyObject* py_layer = nullptr;
-
-        if (layer->type == GridLayerType::Color) {
-            PyColorLayerObject* obj = (PyColorLayerObject*)color_layer_type->tp_alloc(color_layer_type, 0);
-            if (obj) {
-                obj->data = std::static_pointer_cast<ColorLayer>(layer);
-                obj->grid = self->data;
-                py_layer = (PyObject*)obj;
-            }
-        } else {
-            PyTileLayerObject* obj = (PyTileLayerObject*)tile_layer_type->tp_alloc(tile_layer_type, 0);
-            if (obj) {
-                obj->data = std::static_pointer_cast<TileLayer>(layer);
-                obj->grid = self->data;
-                py_layer = (PyObject*)obj;
-            }
-        }
-
+        // #430: each layer's one wrapper (the user's own object if they built it).
+        PyObject* py_layer = PyGridLayerAPI::pyobject_for(self->data->layers[i], self->data);
         if (!py_layer) {
             Py_DECREF(tuple);
             return NULL;

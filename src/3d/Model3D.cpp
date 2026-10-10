@@ -1,6 +1,7 @@
 // Model3D.cpp - 3D model resource implementation
 
 #include "Model3D.h"
+#include "PyWrap.h"
 #include "Shader3D.h"
 #include "cgltf.h"
 #include "../platform/GLContext.h"
@@ -242,6 +243,7 @@ Model3D::Model3D()
 Model3D::~Model3D()
 {
     cleanupGPU();
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
 }
 
 Model3D::Model3D(Model3D&& other) noexcept
@@ -1242,7 +1244,22 @@ int Model3D::init(PyObject* self, PyObject* args, PyObject* kwds)
         obj->data = std::make_shared<Model3D>();
     }
 
+    // #430: the model the user built comes back as this very object
+    if (mcrf::register_wrapper(obj->data->serial_number, self) < 0) return -1;
+
     return 0;
+}
+
+PyObject* Model3D::pyobject_for(const std::shared_ptr<Model3D>& model, PyTypeObject* type)
+{
+    if (!model) Py_RETURN_NONE;
+    if (!type) type = &mcrfpydef::PyModel3DType;
+    return mcrf::cached_wrapper<PyModel3DObject>(model->serial_number, type,
+        [&](PyModel3DObject* o) {
+            // tp_alloc zero-fills; construct the shared_ptr in place.
+            new (&o->data) std::shared_ptr<Model3D>(model);
+            o->weakreflist = nullptr;
+        });
 }
 
 PyObject* Model3D::repr(PyObject* self)
@@ -1272,13 +1289,8 @@ PyObject* Model3D::py_cube(PyObject* cls, PyObject* args, PyObject* kwds)
 
     // Create new Python object
     PyTypeObject* type = (PyTypeObject*)cls;
-    PyModel3DObject* obj = (PyModel3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    obj->data = Model3D::cube(size);
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    // A brand-new model (serial 0): allocates `cls` and registers it.
+    return pyobject_for(Model3D::cube(size), type);
 }
 
 PyObject* Model3D::py_plane(PyObject* cls, PyObject* args, PyObject* kwds)
@@ -1294,13 +1306,8 @@ PyObject* Model3D::py_plane(PyObject* cls, PyObject* args, PyObject* kwds)
     }
 
     PyTypeObject* type = (PyTypeObject*)cls;
-    PyModel3DObject* obj = (PyModel3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    obj->data = Model3D::plane(width, depth, segments);
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    // A brand-new model (serial 0): allocates `cls` and registers it.
+    return pyobject_for(Model3D::plane(width, depth, segments), type);
 }
 
 PyObject* Model3D::py_sphere(PyObject* cls, PyObject* args, PyObject* kwds)
@@ -1316,13 +1323,8 @@ PyObject* Model3D::py_sphere(PyObject* cls, PyObject* args, PyObject* kwds)
     }
 
     PyTypeObject* type = (PyTypeObject*)cls;
-    PyModel3DObject* obj = (PyModel3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    obj->data = Model3D::sphere(radius, segments, rings);
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    // A brand-new model (serial 0): allocates `cls` and registers it.
+    return pyobject_for(Model3D::sphere(radius, segments, rings), type);
 }
 
 PyObject* Model3D::get_vertex_count(PyObject* self, void* closure)

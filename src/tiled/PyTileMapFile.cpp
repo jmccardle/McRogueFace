@@ -123,15 +123,12 @@ PyObject* PyTileMapFile::tileset(PyTileMapFileObject* self, PyObject* args) {
 
     const auto& ref = self->data->tilesets[index];
 
-    // Create a TileSetFile wrapping the existing parsed data
-    auto* ts_type = &mcrfpydef::PyTileSetFileType;
-    auto* ts = (PyTileSetFileObject*)ts_type->tp_alloc(ts_type, 0);
+    // #430: the same parsed tileset always comes back as the same TileSetFile
+    PyObject* ts = PyTileSetFile::pyobject_for(ref.tileset);
     if (!ts) return NULL;
-    new (&ts->data) std::shared_ptr<TileSetData>(ref.tileset);
 
     // Return (firstgid, TileSetFile)
-    PyObject* result = Py_BuildValue("(iN)", ref.firstgid, (PyObject*)ts);
-    return result;
+    return Py_BuildValue("(iN)", ref.firstgid, ts);
 }
 
 PyObject* PyTileMapFile::tile_layer_data(PyTileMapFileObject* self, PyObject* args) {

@@ -3,8 +3,14 @@
 #include "PyWangSet.h"
 #include "PyTexture.h"
 #include "McRFPy_Doc.h"
+#include "PyWrap.h"
 
 using namespace mcrf::tiled;
+
+// #430: the tileset owns its wrapper's cache key, so drop the entry with it.
+TileSetData::~TileSetData() {
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
+}
 
 // ============================================================
 // Type lifecycle
@@ -14,8 +20,18 @@ PyObject* PyTileSetFile::pynew(PyTypeObject* type, PyObject* args, PyObject* kwd
     auto* self = (PyTileSetFileObject*)type->tp_alloc(type, 0);
     if (self) {
         new (&self->data) std::shared_ptr<TileSetData>();
+        self->weakreflist = nullptr;
     }
     return (PyObject*)self;
+}
+
+PyObject* PyTileSetFile::pyobject_for(const std::shared_ptr<TileSetData>& data) {
+    if (!data) Py_RETURN_NONE;
+    return mcrf::cached_wrapper<PyTileSetFileObject>(data->serial_number,
+        &mcrfpydef::PyTileSetFileType, [&](PyTileSetFileObject* o) {
+            new (&o->data) std::shared_ptr<TileSetData>(data);
+            o->weakreflist = nullptr;
+        });
 }
 
 int PyTileSetFile::init(PyTileSetFileObject* self, PyObject* args, PyObject* kwds) {
@@ -24,17 +40,31 @@ int PyTileSetFile::init(PyTileSetFileObject* self, PyObject* args, PyObject* kwd
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", const_cast<char**>(keywords), &path))
         return -1;
 
+    std::shared_ptr<TileSetData> loaded;
     try {
-        self->data = loadTileSet(path);
+        loaded = loadTileSet(path);
     } catch (const std::exception& e) {
         PyErr_Format(PyExc_IOError, "Failed to load tileset: %s", e.what());
         return -1;
     }
 
-    return 0;
+    // #430: re-running __init__ swaps the tileset this object wraps; the old tileset
+    // must stop resolving to this object.
+    if (self->data) {
+        mcrf::PyRef old(mcrf::live_wrapper(self->data->serial_number));
+        if (old.get() == (PyObject*)self) {
+            mcrf::unregister_wrapper(self->data->serial_number);
+            self->data->serial_number = 0;
+        }
+    }
+    self->data = std::move(loaded);
+
+    // #430: the tileset the user loaded comes back as this very object.
+    return mcrf::register_wrapper(self->data->serial_number, (PyObject*)self);
 }
 
 void PyTileSetFile::dealloc(PyTileSetFileObject* self) {
+    if (self->weakreflist != nullptr) PyObject_ClearWeakRefs((PyObject*)self);
     self->data.~shared_ptr();
     Py_TYPE(self)->tp_free((PyObject*)self);
 }

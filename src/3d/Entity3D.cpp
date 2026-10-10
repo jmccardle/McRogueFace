@@ -7,7 +7,7 @@
 #include "Shader3D.h"
 #include "PyVector.h"
 #include "PyColor.h"
-#include "PythonObjectCache.h"
+#include "PyWrap.h"
 #include "Animation.h"
 #include "PyAnimation.h"
 #include "PyEasing.h"
@@ -59,12 +59,24 @@ Entity3D::Entity3D(int grid_x, int grid_z)
 
 Entity3D::~Entity3D()
 {
-    // Release Python identity reference (handles viewport destruction edge case)
-    releasePyIdentity();
-
     // Clean up Python animation callback
     Py_XDECREF(py_anim_callback_);
     py_anim_callback_ = nullptr;
+
+    // identity_pin releases itself; a pinned entity can't reach here anyway, since
+    // its own wrapper keeps it alive.
+    if (serial_number != 0) unregister_wrapper(serial_number);
+}
+
+PyObject* Entity3D::pyobject_for(const std::shared_ptr<Entity3D>& entity)
+{
+    if (!entity) Py_RETURN_NONE;
+    return cached_wrapper<PyEntity3DObject>(entity->serial_number, &mcrfpydef::PyEntity3DType,
+        [&](PyEntity3DObject* o) {
+            // tp_alloc zero-fills; construct the shared_ptr in place.
+            new (&o->data) std::shared_ptr<Entity3D>(entity);
+            o->weakreflist = nullptr;
+        });
 }
 
 // =============================================================================
@@ -135,6 +147,10 @@ void Entity3D::setViewport(std::shared_ptr<Viewport3D> vp)
         target_world_pos_ = world_pos_;
         updateCellRegistration();
     }
+    // #436: the single ownership choke point. Last statement: releasing the pin can
+    // drop the last reference to the wrapper, and with it this entity, when the caller
+    // holds no shared_ptr of its own.
+    identity_pin.sync(is_python_subclass && vp != nullptr, serial_number);
 }
 
 void Entity3D::updateCellRegistration()
@@ -465,10 +481,14 @@ void Entity3D::updateAnimation(float dt)
                 on_anim_complete_(this, anim_clip_);
             }
 
-            // Fire Python callback
+            // Fire Python callback with this entity's wrapper (#430: the cached
+            // wrapper, so a subclass instance comes back as itself)
             if (py_anim_callback_) {
-                PyObject* result = PyObject_CallFunction(py_anim_callback_, "(Os)",
-                    pyobject, anim_clip_.c_str());
+                PyObject* target = pyobject_for(shared_from_this());
+                PyObject* result = target
+                    ? PyObject_CallFunction(py_anim_callback_, "(Os)", target, anim_clip_.c_str())
+                    : nullptr;
+                Py_XDECREF(target);
                 if (result) {
                     Py_DECREF(result);
                 } else {
@@ -726,11 +746,10 @@ int Entity3D::init(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
         }
     }
 
-    // Register in object cache
-    self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-    // Set strong ref for Python subclass identity preservation
-    self->data->pyobject = (PyObject*)self;
-    Py_INCREF((PyObject*)self);
+    if (register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
+    // #436: a subclass wrapper is pinned while a viewport owns the entity (setViewport()).
+    self->data->is_python_subclass =
+        (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyEntity3DType;
 
     return 0;
 }
@@ -870,14 +889,7 @@ PyObject* Entity3D::get_viewport(PyEntity3DObject* self, void* closure)
         Py_RETURN_NONE;
     }
 
-    PyTypeObject* type = &mcrfpydef::PyViewport3DType;
-    PyViewport3DObject* obj = (PyViewport3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    obj->data = vp;
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    return UIDrawable::pyobject_for(vp);
 }
 
 PyObject* Entity3D::get_model(PyEntity3DObject* self, void* closure)
@@ -887,15 +899,7 @@ PyObject* Entity3D::get_model(PyEntity3DObject* self, void* closure)
         Py_RETURN_NONE;
     }
 
-    // Create Python Model3D object wrapping the shared_ptr
-    PyTypeObject* type = &mcrfpydef::PyModel3DType;
-    PyModel3DObject* obj = (PyModel3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    obj->data = model;
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    return Model3D::pyobject_for(model);
 }
 
 int Entity3D::set_model(PyEntity3DObject* self, PyObject* value, void* closure)
@@ -1088,9 +1092,7 @@ PyObject* Entity3D::py_path_to(PyEntity3DObject* self, PyObject* args, PyObject*
 
     PyObject* path_list = PyList_New(path.size());
     for (size_t i = 0; i < path.size(); ++i) {
-        PyObject* tuple = PyTuple_Pack(2,
-            PyLong_FromLong(path[i].first),
-            PyLong_FromLong(path[i].second));
+        PyObject* tuple = Py_BuildValue("(ii)", path[i].first, path[i].second);
         PyList_SET_ITEM(path_list, i, tuple);
     }
     return path_list;

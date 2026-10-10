@@ -25,6 +25,7 @@ typedef struct {
     PyObject_HEAD
     std::shared_ptr<std::vector<std::shared_ptr<UIEntity>>> data;
     std::shared_ptr<GridData> grid;
+    PyObject* weakreflist;  // #430: cacheable, so `grid.entities is grid.entities`
 } PyUIEntityCollectionObject;
 
 // Python object for EntityCollection iterator
@@ -42,6 +43,12 @@ typedef struct {
 // UIEntityCollection - Python collection wrapper
 class UIEntityCollection {
 public:
+    // #430: the one way to hand a grid's entity collection to Python. The collection
+    // has no C++ object of its own, so its cache key lives on the owning GridData
+    // (GridData::entities_serial). Same object every call, and for every view of
+    // the grid (GridView.entities is GridData.entities).
+    static PyObject* pyobject_for(const std::shared_ptr<GridData>& grid);
+
     // Python sequence protocol
     static PySequenceMethods sqmethods;
     static PyMappingMethods mpmethods;
@@ -121,8 +128,11 @@ namespace mcrfpydef {
         .tp_dealloc = (destructor)[](PyObject* self)
         {
             PyUIEntityCollectionObject* obj = (PyUIEntityCollectionObject*)self;
-            obj->data.reset();
-            obj->grid.reset();
+            if (obj->weakreflist) PyObject_ClearWeakRefs(self);
+            // C++ members live in tp_alloc'd memory, constructed in place by
+            // pyobject_for(): destroy them explicitly.
+            obj->data.~shared_ptr();
+            obj->grid.~shared_ptr();
             Py_TYPE(self)->tp_free(self);
         },
         .tp_repr = (reprfunc)UIEntityCollection::repr,
@@ -140,6 +150,7 @@ namespace mcrfpydef {
                             "    player = grid.entities.find(name='player')\n"
                             "    for entity in grid.entities:\n"
                             "        print(entity.pos)"),
+        .tp_weaklistoffset = offsetof(PyUIEntityCollectionObject, weakreflist),
         .tp_iter = (getiterfunc)UIEntityCollection::iter,
         .tp_methods = UIEntityCollection::methods,
         .tp_init = (initproc)UIEntityCollection::init,

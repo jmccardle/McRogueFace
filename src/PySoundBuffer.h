@@ -25,9 +25,16 @@ public:
     sf::SoundBuffer sfBuffer;
     bool sfBufferDirty = true;
 
+    // #430: PythonObjectCache key for this buffer's SoundBuffer wrapper (0 = none yet).
+    uint64_t serial_number = 0;
+
     SoundBufferData() = default;
     SoundBufferData(std::vector<int16_t>&& s, unsigned int rate, unsigned int ch)
         : samples(std::move(s)), sampleRate(rate), channels(ch), sfBufferDirty(true) {}
+    ~SoundBufferData();  // unregisters serial_number; defined in PySoundBuffer.cpp
+    // A copy would share serial_number, and destroying either would evict the other's wrapper.
+    SoundBufferData(const SoundBufferData&) = delete;
+    SoundBufferData& operator=(const SoundBufferData&) = delete;
 
     // Rebuild sf::SoundBuffer from samples if dirty
     sf::SoundBuffer& getSfBuffer() {
@@ -48,6 +55,7 @@ public:
 typedef struct {
     PyObject_HEAD
     std::shared_ptr<SoundBufferData> data;
+    PyObject* weakreflist;  // #430: required by the PythonObjectCache
 } PySoundBufferObject;
 
 // Python type methods/getset declarations
@@ -56,6 +64,12 @@ namespace PySoundBuffer {
     int init(PySoundBufferObject* self, PyObject* args, PyObject* kwds);
     PyObject* pynew(PyTypeObject* type, PyObject* args, PyObject* kwds);
     PyObject* repr(PyObject* obj);
+    void dealloc(PySoundBufferObject* self);
+
+    // #430: the SoundBuffer wrapper for `data` -- the live one if any (identity
+    // preserved), else a newly registered one. A freshly made buffer (every factory
+    // and effect) has serial 0, so it allocates. nullptr -> None.
+    PyObject* pyobject_for(const std::shared_ptr<SoundBufferData>& data);
 
     // Class methods (factories)
     PyObject* from_samples(PyObject* cls, PyObject* args, PyObject* kwds);
@@ -89,8 +103,6 @@ namespace PySoundBuffer {
     extern PyGetSetDef getsetters[];
 }
 
-// Helper: create a new PySoundBufferObject wrapping given data
-PyObject* PySoundBuffer_from_data(std::shared_ptr<SoundBufferData> data);
 
 namespace mcrfpydef {
     inline PyTypeObject PySoundBufferType = {
@@ -98,6 +110,7 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.SoundBuffer",
         .tp_basicsize = sizeof(PySoundBufferObject),
         .tp_itemsize = 0,
+        .tp_dealloc = (destructor)PySoundBuffer::dealloc,
         .tp_repr = PySoundBuffer::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR(
@@ -116,6 +129,7 @@ namespace mcrfpydef {
             "    channels (int, read-only): Number of audio channels.\n"
             "    sfxr_params (dict or None, read-only): sfxr parameters if sfxr-generated.\n"
         ),
+        .tp_weaklistoffset = offsetof(PySoundBufferObject, weakreflist),
         .tp_methods = PySoundBuffer::methods,
         .tp_getset = PySoundBuffer::getsetters,
         .tp_init = (initproc)PySoundBuffer::init,

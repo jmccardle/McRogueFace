@@ -51,7 +51,6 @@ public:
     static PyObject* get_color_member(PyUIFrameObject* self, void* closure);
     static int set_color_member(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyObject* get_pos(PyUIFrameObject* self, void* closure);
-    static int set_pos(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyObject* get_clip_children(PyUIFrameObject* self, void* closure);
     static int set_clip_children(PyUIFrameObject* self, PyObject* value, void* closure);
     static PyObject* get_cache_subtree(PyUIFrameObject* self, void* closure);

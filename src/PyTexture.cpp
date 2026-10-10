@@ -1,6 +1,7 @@
 #include "PyTexture.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
+#include "PyWrap.h"
 #include <cmath>
 #include <algorithm>
 
@@ -96,28 +97,40 @@ sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
     return sprite;
 }
 
+PyTexture::~PyTexture()
+{
+    // #430: drop this texture's wrapper-cache entry. The static
+    // McRFPy_API::default_texture is destroyed after Py_Finalize, when the cache's
+    // weak references (and the interpreter) are already gone.
+    if (serial_number != 0 && Py_IsInitialized()) mcrf::unregister_wrapper(serial_number);
+}
+
+PyObject* PyTexture::pyobject_for(const std::shared_ptr<PyTexture>& tex)
+{
+    if (!tex) Py_RETURN_NONE;
+    return mcrf::cached_wrapper<PyTextureObject>(tex->serial_number, &mcrfpydef::PyTextureType,
+        [&](PyTextureObject* o) {
+            new (&o->data) std::shared_ptr<PyTexture>(tex);
+            o->weakreflist = NULL;
+        });
+}
+
 PyObject* PyTexture::pyObject()
 {
-    PyTypeObject* type = &mcrfpydef::PyTextureType;
-    PyObject* obj = PyTexture::pynew(type, Py_None, Py_None);
-
-    if (!obj) {
-        return NULL;
-    }
-
-    try {
-        // Use placement new to properly construct the shared_ptr
-        // tp_alloc zeroes memory but doesn't call C++ constructors
-        new (&((PyTextureObject*)obj)->data) std::shared_ptr<PyTexture>(shared_from_this());
-    }
-    catch (std::bad_weak_ptr& e)
-    {
-        std::cout << "Bad weak ptr: shared_from_this() failed in PyTexture::pyObject(); did you create a PyTexture outside of std::make_shared? enjoy your segfault, soon!" << std::endl;
-        Py_DECREF(obj);
+    auto self = weak_from_this().lock();
+    if (!self) {
         PyErr_SetString(PyExc_RuntimeError, "PyTexture was not created with std::make_shared");
         return NULL;
     }
-    return obj;
+    return pyobject_for(self);
+}
+
+void PyTexture::dealloc(PyTextureObject* self)
+{
+    if (self->weakreflist != NULL) PyObject_ClearWeakRefs((PyObject*)self);
+    // Releasing the last owner runs ~PyTexture, which unregisters the serial.
+    self->data.~shared_ptr<PyTexture>();
+    Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 PyObject* PyTexture::repr(PyObject* obj)
@@ -154,7 +167,15 @@ int PyTexture::init(PyTextureObject* self, PyObject* args, PyObject* kwds)
             &filename, &sprite_width, &sprite_height, &display_size_obj, &display_origin_obj))
         return -1;
 
-    // Create the texture object
+    // #430: re-running __init__ swaps in a new PyTexture. The old one may still be
+    // held by a grid or layer, and must not keep handing back this (now different)
+    // wrapper; its next lookup allocates a fresh one.
+    if (self->data && self->data->serial_number != 0) {
+        mcrf::unregister_wrapper(self->data->serial_number);
+    }
+
+    // Create the texture object. (Assigning into the zero-filled shared_ptr is the
+    // existing idiom here; dealloc destroys it.)
     self->data = std::make_shared<PyTexture>(filename, sprite_width, sprite_height);
 
     // Check if the texture failed to load (sheet dimensions will be 0)
@@ -182,6 +203,10 @@ int PyTexture::init(PyTextureObject* self, PyObject* args, PyObject* kwds)
         self->data->display_offset_x = ox;
         self->data->display_offset_y = oy;
     }
+
+    // #430: a Texture the user built is THE wrapper for its PyTexture, so
+    // grid.texture / layer.texture hand back this very object.
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     return 0;
 }
@@ -294,7 +319,7 @@ PyObject* PyTexture::from_bytes(PyObject* cls, PyObject* args, PyObject* kwds)
     PyBuffer_Release(&buf);
 
     auto ptex = PyTexture::from_image(img, sprite_w, sprite_h, name);
-    return ptex->pyObject();
+    return PyTexture::pyobject_for(ptex);
 }
 
 // ============================================================================
@@ -394,7 +419,7 @@ PyObject* PyTexture::composite(PyObject* cls, PyObject* args, PyObject* kwds)
     }
 
     auto ptex = PyTexture::from_image(result, sprite_w, sprite_h, name);
-    return ptex->pyObject();
+    return PyTexture::pyobject_for(ptex);
 }
 
 // ============================================================================
@@ -512,7 +537,7 @@ PyObject* PyTexture::hsl_shift(PyTextureObject* self, PyObject* args, PyObject* 
     auto ptex = PyTexture::from_image(img,
         self->data->sprite_width, self->data->sprite_height,
         self->data->source + "+hsl");
-    return ptex->pyObject();
+    return PyTexture::pyobject_for(ptex);
 }
 
 // ============================================================================

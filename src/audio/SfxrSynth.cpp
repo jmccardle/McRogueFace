@@ -1,4 +1,5 @@
 #include "SfxrSynth.h"
+#include "PyWrap.h"
 #include <cmath>
 #include <algorithm>
 #include <cstring>
@@ -481,30 +482,35 @@ SfxrParams sfxr_mutate_params(const SfxrParams& base, float amount, std::mt19937
 PyObject* sfxr_params_to_dict(const SfxrParams& p) {
     PyObject* d = PyDict_New();
     if (!d) return NULL;
+    bool ok = true;  // #413: dict_steal() owns each value
 
-    PyDict_SetItemString(d, "wave_type", PyLong_FromLong(p.wave_type));
-    PyDict_SetItemString(d, "base_freq", PyFloat_FromDouble(p.base_freq));
-    PyDict_SetItemString(d, "freq_limit", PyFloat_FromDouble(p.freq_limit));
-    PyDict_SetItemString(d, "freq_ramp", PyFloat_FromDouble(p.freq_ramp));
-    PyDict_SetItemString(d, "freq_dramp", PyFloat_FromDouble(p.freq_dramp));
-    PyDict_SetItemString(d, "duty", PyFloat_FromDouble(p.duty));
-    PyDict_SetItemString(d, "duty_ramp", PyFloat_FromDouble(p.duty_ramp));
-    PyDict_SetItemString(d, "vib_strength", PyFloat_FromDouble(p.vib_strength));
-    PyDict_SetItemString(d, "vib_speed", PyFloat_FromDouble(p.vib_speed));
-    PyDict_SetItemString(d, "env_attack", PyFloat_FromDouble(p.env_attack));
-    PyDict_SetItemString(d, "env_sustain", PyFloat_FromDouble(p.env_sustain));
-    PyDict_SetItemString(d, "env_decay", PyFloat_FromDouble(p.env_decay));
-    PyDict_SetItemString(d, "env_punch", PyFloat_FromDouble(p.env_punch));
-    PyDict_SetItemString(d, "lpf_freq", PyFloat_FromDouble(p.lpf_freq));
-    PyDict_SetItemString(d, "lpf_ramp", PyFloat_FromDouble(p.lpf_ramp));
-    PyDict_SetItemString(d, "lpf_resonance", PyFloat_FromDouble(p.lpf_resonance));
-    PyDict_SetItemString(d, "hpf_freq", PyFloat_FromDouble(p.hpf_freq));
-    PyDict_SetItemString(d, "hpf_ramp", PyFloat_FromDouble(p.hpf_ramp));
-    PyDict_SetItemString(d, "pha_offset", PyFloat_FromDouble(p.pha_offset));
-    PyDict_SetItemString(d, "pha_ramp", PyFloat_FromDouble(p.pha_ramp));
-    PyDict_SetItemString(d, "repeat_speed", PyFloat_FromDouble(p.repeat_speed));
-    PyDict_SetItemString(d, "arp_speed", PyFloat_FromDouble(p.arp_speed));
-    PyDict_SetItemString(d, "arp_mod", PyFloat_FromDouble(p.arp_mod));
+    ok &= mcrf::dict_steal(d, "wave_type", PyLong_FromLong(p.wave_type)) == 0;
+    ok &= mcrf::dict_steal(d, "base_freq", PyFloat_FromDouble(p.base_freq)) == 0;
+    ok &= mcrf::dict_steal(d, "freq_limit", PyFloat_FromDouble(p.freq_limit)) == 0;
+    ok &= mcrf::dict_steal(d, "freq_ramp", PyFloat_FromDouble(p.freq_ramp)) == 0;
+    ok &= mcrf::dict_steal(d, "freq_dramp", PyFloat_FromDouble(p.freq_dramp)) == 0;
+    ok &= mcrf::dict_steal(d, "duty", PyFloat_FromDouble(p.duty)) == 0;
+    ok &= mcrf::dict_steal(d, "duty_ramp", PyFloat_FromDouble(p.duty_ramp)) == 0;
+    ok &= mcrf::dict_steal(d, "vib_strength", PyFloat_FromDouble(p.vib_strength)) == 0;
+    ok &= mcrf::dict_steal(d, "vib_speed", PyFloat_FromDouble(p.vib_speed)) == 0;
+    ok &= mcrf::dict_steal(d, "env_attack", PyFloat_FromDouble(p.env_attack)) == 0;
+    ok &= mcrf::dict_steal(d, "env_sustain", PyFloat_FromDouble(p.env_sustain)) == 0;
+    ok &= mcrf::dict_steal(d, "env_decay", PyFloat_FromDouble(p.env_decay)) == 0;
+    ok &= mcrf::dict_steal(d, "env_punch", PyFloat_FromDouble(p.env_punch)) == 0;
+    ok &= mcrf::dict_steal(d, "lpf_freq", PyFloat_FromDouble(p.lpf_freq)) == 0;
+    ok &= mcrf::dict_steal(d, "lpf_ramp", PyFloat_FromDouble(p.lpf_ramp)) == 0;
+    ok &= mcrf::dict_steal(d, "lpf_resonance", PyFloat_FromDouble(p.lpf_resonance)) == 0;
+    ok &= mcrf::dict_steal(d, "hpf_freq", PyFloat_FromDouble(p.hpf_freq)) == 0;
+    ok &= mcrf::dict_steal(d, "hpf_ramp", PyFloat_FromDouble(p.hpf_ramp)) == 0;
+    ok &= mcrf::dict_steal(d, "pha_offset", PyFloat_FromDouble(p.pha_offset)) == 0;
+    ok &= mcrf::dict_steal(d, "pha_ramp", PyFloat_FromDouble(p.pha_ramp)) == 0;
+    ok &= mcrf::dict_steal(d, "repeat_speed", PyFloat_FromDouble(p.repeat_speed)) == 0;
+    ok &= mcrf::dict_steal(d, "arp_speed", PyFloat_FromDouble(p.arp_speed)) == 0;
+    ok &= mcrf::dict_steal(d, "arp_mod", PyFloat_FromDouble(p.arp_mod)) == 0;
 
+    if (!ok) {
+        Py_DECREF(d);
+        return NULL;
+    }
     return d;
 }

@@ -7,6 +7,7 @@
 #include "Python.h"
 #include "structmember.h"
 #include "Math3D.h"
+#include "PyWrap.h"
 #include <memory>
 #include <queue>
 #include <vector>
@@ -41,18 +42,19 @@ struct VoxelPointState {
 
 class Entity3D : public std::enable_shared_from_this<Entity3D> {
 public:
-    // Python integration
-    PyObject* pyobject = nullptr;  // Strong ref: preserves Python subclass identity while in viewport
-    uint64_t serial_number = 0;  // For object cache
+    // Python integration (#430/#436: same design as UIEntity)
+    uint64_t serial_number = 0;  // wrapper-cache key; unregistered in ~Entity3D
 
-    /// Release Python identity reference (call at all viewport exit points)
-    void releasePyIdentity() {
-        if (pyobject) {
-            PyObject* tmp = pyobject;
-            pyobject = nullptr;
-            Py_DECREF(tmp);
-        }
-    }
+    // A Python subclass wrapper is pinned while a viewport owns the entity. Synced only
+    // in setViewport(), the one ownership choke point. Never read it as "the wrapper":
+    // use pyobject_for().
+    PyIdentityPin identity_pin;
+    bool is_python_subclass = false;  // set in tp_init
+
+    /// The one way to hand an Entity3D to Python: the live wrapper (preserving identity
+    /// and subclass) if there is one, else a newly registered base-type wrapper.
+    /// nullptr input returns None. New reference, or nullptr with an error set.
+    static PyObject* pyobject_for(const std::shared_ptr<Entity3D>& entity);
 
     Entity3D();
     Entity3D(int grid_x, int grid_z);
@@ -392,8 +394,6 @@ inline PyTypeObject PyEntity3DType = {
     {
         PyEntity3DObject* obj = (PyEntity3DObject*)self;
         PyObject_GC_UnTrack(self);
-        // Clear the identity ref without DECREF - we ARE this object
-        if (obj->data) obj->data->pyobject = nullptr;
         if (obj->weakreflist != NULL) {
             PyObject_ClearWeakRefs(self);
         }

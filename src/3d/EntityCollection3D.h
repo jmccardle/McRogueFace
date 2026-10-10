@@ -22,6 +22,7 @@ typedef struct {
     PyObject_HEAD
     std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>> data;
     std::shared_ptr<mcrf::Viewport3D> viewport;
+    PyObject* weakreflist;  // #430: cacheable, so `vp.entities is vp.entities`
 } PyEntityCollection3DObject;
 
 // Python object for EntityCollection3D iterator
@@ -36,6 +37,13 @@ typedef struct {
 // EntityCollection3D - Python collection wrapper
 class EntityCollection3D {
 public:
+    // #430: the one way to hand a viewport's entity collection to Python. The
+    // collection has no C++ object of its own, so its cache key (`serial`) lives on
+    // the owner: Viewport3D::entities_serial. Same object every call.
+    static PyObject* pyobject_for(uint64_t& serial,
+                                  const std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>& data,
+                                  const std::shared_ptr<mcrf::Viewport3D>& viewport);
+
     // Python sequence protocol
     static PySequenceMethods sqmethods;
 
@@ -104,8 +112,10 @@ inline PyTypeObject PyEntityCollection3DType = {
     .tp_dealloc = (destructor)[](PyObject* self)
     {
         PyEntityCollection3DObject* obj = (PyEntityCollection3DObject*)self;
-        obj->data.reset();
-        obj->viewport.reset();
+        if (obj->weakreflist) PyObject_ClearWeakRefs(self);
+        // C++ members live in tp_alloc'd memory: destroy them explicitly.
+        obj->data.~shared_ptr();
+        obj->viewport.~shared_ptr();
         Py_TYPE(self)->tp_free(self);
     },
     .tp_repr = (reprfunc)EntityCollection3D::repr,
@@ -117,6 +127,7 @@ inline PyTypeObject PyEntityCollection3DType = {
                         "    viewport.entities.append(entity)\n"
                         "    for entity in viewport.entities:\n"
                         "        print(entity.pos)"),
+    .tp_weaklistoffset = offsetof(PyEntityCollection3DObject, weakreflist),
     .tp_iter = (getiterfunc)EntityCollection3D::iter,
     .tp_methods = EntityCollection3D::methods,
     .tp_init = (initproc)EntityCollection3D::init,

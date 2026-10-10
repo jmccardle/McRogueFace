@@ -17,6 +17,13 @@ class UICollection
 {
     // really more of a namespace: all the members are public and static. But being consistent with other UI objects
 public:
+    // #430: the one way to hand a children collection to Python. The collection has
+    // no C++ object of its own, so its cache key (`serial`) lives on the owner:
+    // UIDrawable::children_serial, or the Scene's. Same object every call.
+    static PyObject* pyobject_for(uint64_t& serial,
+                                  const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& data,
+                                  const std::shared_ptr<UIDrawable>& owner,
+                                  const std::string& scene_name);
     static Py_ssize_t len(PyUICollectionObject* self);
 	static PyObject* getitem(PyUICollectionObject* self, Py_ssize_t index);
 	static int setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject* value);
@@ -81,7 +88,11 @@ namespace mcrfpydef {
 		.tp_dealloc = (destructor)[](PyObject* self)
 		{
 		    PyUICollectionObject* obj = (PyUICollectionObject*)self;
-		    obj->data.reset();
+		    if (obj->weakreflist) PyObject_ClearWeakRefs(self);
+		    // C++ members live in tp_alloc'd memory: destroy them explicitly.
+		    obj->data.~shared_ptr();
+		    obj->owner.~weak_ptr();
+		    obj->scene_name.~basic_string();
 		    Py_TYPE(self)->tp_free(self);
 		},
 		.tp_repr = (reprfunc)UICollection::repr,
@@ -89,6 +100,7 @@ namespace mcrfpydef {
 		.tp_as_mapping = &UICollection::mpmethods,
 		.tp_flags = Py_TPFLAGS_DEFAULT,
 		.tp_doc = PyDoc_STR("Iterable, indexable collection of UI objects"),
+		.tp_weaklistoffset = offsetof(PyUICollectionObject, weakreflist),
         .tp_iter = (getiterfunc)UICollection::iter,
 		.tp_methods = UICollection::methods, // append, remove
         //.tp_getset = PyUICollection_getset,

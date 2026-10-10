@@ -1,4 +1,5 @@
 #include "McRFPy_API.h"
+#include "PyWrap.h"
 #include "EngineRandom.h"
 #include <climits>
 
@@ -86,6 +87,7 @@
 #endif
 #include "BenchmarkLogger.h"
 #include "UI.h"
+#include "UICollection.h"  // #430: UICollection::pyobject_for (Scene.children)
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
@@ -955,11 +957,12 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
         PyModule_AddObject(m, "mouse", mouse_instance);
     }
 
-    // Add window singleton (#184)
-    // Use tp_alloc directly to bypass tp_new which blocks user instantiation
-    PyObject* window_instance = PyWindowType.tp_alloc(&PyWindowType, 0);
-    if (window_instance) {
-        PyModule_AddObject(m, "window", window_instance);
+    // Add window singleton (#184). The same object Window.get() returns (#430).
+    PyObject* window_instance = PyWindow::instance();
+    if (!window_instance || PyModule_AddObject(m, "window", window_instance) < 0) {
+        Py_XDECREF(window_instance);
+        Py_DECREF(m);
+        return NULL;
     }
 
     // Add version string (#164)
@@ -1474,12 +1477,14 @@ void McRFPy_API::api_init() {
 
     // Add default_font and default_texture to module
     McRFPy_API::mcrf_module = PyImport_ImportModule("mcrfpy");
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(McRFPy_API::mcrf_module)) << std::endl;
+    if (mcrf::PyRef repr{PyObject_Repr(McRFPy_API::mcrf_module)}) {
+        std::cout << PyUnicode_AsUTF8(repr.get()) << std::endl;
+    }
 
     //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
-    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
+    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
     //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
-    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
+    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
 
     //sprite.setTexture(texture);
     //sprite.setScale(sf::Vector2f(4.0f, 4.0f));
@@ -1507,9 +1512,9 @@ void McRFPy_API::api_init(const McRogueFaceConfig& config) {
     // Set up default resources only if in game mode
     if (!config.python_mode) {
         //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
+        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
         //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
+        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
     }
 }
 
@@ -1629,21 +1634,16 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
 	const char *scene_cstr;
 	if (!PyArg_ParseTuple(args, "s", &scene_cstr)) return NULL;
 
-    auto ui = Resources::game->scene_ui(scene_cstr);
-    if(!ui) 
+    Scene* scene = Resources::game->getScene(scene_cstr);
+    if (!scene || !scene->ui_elements)
     {
         PyErr_SetString(PyExc_RuntimeError, "No scene found by that name");
         return NULL;
     }
-    //std::cout << "vector returned has size=" << ui->size() << std::endl;
-    //Py_INCREF(Py_None);
-    //return Py_None;
-    PyUICollectionObject* o = (PyUICollectionObject*)PyUICollectionType.tp_alloc(&PyUICollectionType, 0);
-    if (o) {
-        o->data = ui;
-        o->scene_name = scene_cstr;  // #183: Track scene ownership
-    }
-    return (PyObject*)o;
+    // #430: one wrapper per scene, keyed on Scene::children_serial.
+    // #183: scene_name tracks scene ownership (no owning drawable).
+    return UICollection::pyobject_for(scene->children_serial, scene->ui_elements,
+                                      nullptr, scene_cstr);
 }
 
 // Internal use - called by PySceneObject::activate()
@@ -1671,32 +1671,6 @@ PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
     return Py_None;		
 }
 
-// #180: Create a Python wrapper for an existing C++ Timer (for orphaned timers)
-static PyObject* createTimerWrapper(std::shared_ptr<Timer> timer)
-{
-    // Allocate new PyTimerObject
-    PyTypeObject* type = &mcrfpydef::PyTimerType;
-    PyTimerObject* obj = (PyTimerObject*)type->tp_alloc(type, 0);
-    if (!obj) return nullptr;
-
-    // Initialize - use placement new for std::string
-    new(&obj->name) std::string(timer->name);
-    obj->data = timer;  // Share the existing C++ Timer
-    obj->weakreflist = nullptr;
-
-    // Register in cache for future lookups
-    if (timer->serial_number == 0) {
-        timer->serial_number = PythonObjectCache::getInstance().assignSerial();
-    }
-    PyObject* weakref = PyWeakref_NewRef((PyObject*)obj, NULL);
-    if (weakref) {
-        PythonObjectCache::getInstance().registerObject(timer->serial_number, weakref);
-        Py_DECREF(weakref);
-    }
-
-    return (PyObject*)obj;
-}
-
 // #173: Get all timers as a tuple of Python Timer objects
 PyObject* McRFPy_API::api_get_timers()
 {
@@ -1709,28 +1683,23 @@ PyObject* McRFPy_API::api_get_timers()
         auto& timer = pair.second;
         if (!timer) continue;
 
-        PyObject* timer_obj = nullptr;
-
-        // Try to find existing Python wrapper
-        if (timer->serial_number != 0) {
-            timer_obj = PythonObjectCache::getInstance().lookup(timer->serial_number);
+        // The live wrapper, or (#180, orphaned timer) a new registered one
+        PyObject* timer_obj = PyTimer::pyobject_for(timer);
+        if (!timer_obj) {
+            for (PyObject* o : timer_objs) Py_DECREF(o);
+            return NULL;
         }
-
-        // #180: If no wrapper exists (orphaned timer), create a new one
-        if (!timer_obj || timer_obj == Py_None) {
-            timer_obj = createTimerWrapper(timer);
-        }
-
-        if (timer_obj && timer_obj != Py_None) {
-            timer_objs.push_back(timer_obj);
-        }
+        timer_objs.push_back(timer_obj);
     }
 
     PyObject* tuple = PyTuple_New(timer_objs.size());
-    if (!tuple) return NULL;
+    if (!tuple) {
+        for (PyObject* o : timer_objs) Py_DECREF(o);
+        return NULL;
+    }
 
     for (Py_ssize_t i = 0; i < static_cast<Py_ssize_t>(timer_objs.size()); i++) {
-        // timer_objs already has a reference from lookup() or createTimerWrapper()
+        // timer_objs already holds a new reference from PyTimer::pyobject_for()
         // PyTuple_SET_ITEM steals that reference, so no additional INCREF needed
         PyTuple_SET_ITEM(tuple, i, timer_objs[i]);
     }
@@ -1962,6 +1931,7 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
     if (!collection) return;
 
     for (auto& drawable : *collection) {
+        if (PyErr_Occurred()) return;  // a nested search failed
         if (!drawable) continue;
         
         // Check this element's name
@@ -1973,7 +1943,7 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
                 Py_DECREF(py_obj);
                 py_obj = nullptr;
             } else if (!py_obj) {
-                PyErr_Clear();  // unknown derived type: skip, as the old switch did
+                return;  // conversion failed: leave the error set for the caller (#430)
             }
 
             if (py_obj) {
@@ -2035,31 +2005,11 @@ static void find_in_grid_entities(GridData* grid, const std::string& pattern,
 
         // Entities delegate name to their sprite
         if (name_matches_pattern(entity->sprite.name, pattern)) {
-            // #266/#357: the cache is the ONLY correct way to wrap an existing
-            // entity. A fresh tp_alloc would (a) return a base-class Entity for
-            // a Python subclass instance, losing identity and its __dict__, and
-            // (b) leak the entity's strong self-reference when that duplicate
-            // wrapper is deallocated -- PyUIEntityType's tp_dealloc clears
-            // data->pyobject unconditionally. Mirrors UIEntityCollection::getitem.
-            PyObject* py_obj = nullptr;
-            if (entity->serial_number != 0) {
-                py_obj = PythonObjectCache::getInstance().lookup(entity->serial_number);  // new ref
-            }
-            if (!py_obj) {
-                auto type = &mcrfpydef::PyUIEntityType;
-                auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
-                if (o) {
-                    o->data = entity;
-                    o->weakreflist = NULL;
-                    py_obj = (PyObject*)o;
-                }
-            }
-
-            if (py_obj) {
-                PyList_Append(results, py_obj);
-                Py_DECREF(py_obj);
-                if (!find_all) return;
-            }
+            // #266/#430: the cache-aware converter returns the caller's existing
+            // wrapper (and Python subclass), never a fresh identity-less one.
+            mcrf::PyRef py_obj(mcrf::to_python(entity));
+            if (!py_obj || PyList_Append(results, py_obj.get()) < 0) return;  // error set
+            if (!find_all) return;
         }
     }
 }
@@ -2099,6 +2049,10 @@ PyObject* McRFPy_API::_find(PyObject* self, PyObject* args) {
     // grid's entities and overlay children via asGridData() (#355/#357).
     std::unordered_set<GridData*> visited_grids;  // #359 - shared GridData visited once
     find_in_collection(ui_elements.get(), name, false, results, visited_grids);
+    if (PyErr_Occurred()) {
+        Py_DECREF(results);
+        return NULL;
+    }
 
     // Return the first result or None
     if (PyList_Size(results) > 0) {
@@ -2147,6 +2101,10 @@ PyObject* McRFPy_API::_findAll(PyObject* self, PyObject* args) {
     // grid's entities and overlay children via asGridData() (#355/#357).
     std::unordered_set<GridData*> visited_grids;  // #359 - shared GridData visited once
     find_in_collection(ui_elements.get(), pattern, true, results, visited_grids);
+    if (PyErr_Occurred()) {
+        Py_DECREF(results);
+        return NULL;
+    }
 
     return results;
 }
@@ -2194,11 +2152,12 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // Create a dictionary with metrics
     PyObject* dict = PyDict_New();
     if (!dict) return NULL;
+    bool ok = true;  // #413: dict_steal() owns each value
 
     // Add frame time metrics
-    PyDict_SetItemString(dict, "frame_time", PyFloat_FromDouble(game->metrics.frameTime));
-    PyDict_SetItemString(dict, "avg_frame_time", PyFloat_FromDouble(game->metrics.avgFrameTime));
-    PyDict_SetItemString(dict, "fps", PyLong_FromLong(game->metrics.fps));
+    ok &= mcrf::dict_steal(dict, "frame_time", PyFloat_FromDouble(game->metrics.frameTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "avg_frame_time", PyFloat_FromDouble(game->metrics.avgFrameTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "fps", PyLong_FromLong(game->metrics.fps)) == 0;
 
     // #341: report the last COMPLETED frame's per-frame values, not the live
     // accumulators. Python callbacks run before render(), and the accumulators are
@@ -2206,25 +2165,25 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     const auto& pub = game->metrics.published;
 
     // Add draw call metrics
-    PyDict_SetItemString(dict, "draw_calls", PyLong_FromLong(pub.drawCalls));
-    PyDict_SetItemString(dict, "ui_elements", PyLong_FromLong(pub.uiElements));
-    PyDict_SetItemString(dict, "visible_elements", PyLong_FromLong(pub.visibleElements));
+    ok &= mcrf::dict_steal(dict, "draw_calls", PyLong_FromLong(pub.drawCalls)) == 0;
+    ok &= mcrf::dict_steal(dict, "ui_elements", PyLong_FromLong(pub.uiElements)) == 0;
+    ok &= mcrf::dict_steal(dict, "visible_elements", PyLong_FromLong(pub.visibleElements)) == 0;
 
     // #144 - Add detailed timing breakdown (in milliseconds)
-    PyDict_SetItemString(dict, "grid_render_time", PyFloat_FromDouble(pub.gridRenderTime));
-    PyDict_SetItemString(dict, "entity_render_time", PyFloat_FromDouble(pub.entityRenderTime));
-    PyDict_SetItemString(dict, "fov_overlay_time", PyFloat_FromDouble(pub.fovOverlayTime));
-    PyDict_SetItemString(dict, "python_time", PyFloat_FromDouble(pub.pythonScriptTime));
-    PyDict_SetItemString(dict, "animation_time", PyFloat_FromDouble(pub.animationTime));
+    ok &= mcrf::dict_steal(dict, "grid_render_time", PyFloat_FromDouble(pub.gridRenderTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "entity_render_time", PyFloat_FromDouble(pub.entityRenderTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "fov_overlay_time", PyFloat_FromDouble(pub.fovOverlayTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "python_time", PyFloat_FromDouble(pub.pythonScriptTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "animation_time", PyFloat_FromDouble(pub.animationTime)) == 0;
 
     // #144 - Add grid-specific metrics
-    PyDict_SetItemString(dict, "grid_cells_rendered", PyLong_FromLong(pub.gridCellsRendered));
-    PyDict_SetItemString(dict, "entities_rendered", PyLong_FromLong(pub.entitiesRendered));
-    PyDict_SetItemString(dict, "total_entities", PyLong_FromLong(pub.totalEntities));
+    ok &= mcrf::dict_steal(dict, "grid_cells_rendered", PyLong_FromLong(pub.gridCellsRendered)) == 0;
+    ok &= mcrf::dict_steal(dict, "entities_rendered", PyLong_FromLong(pub.entitiesRendered)) == 0;
+    ok &= mcrf::dict_steal(dict, "total_entities", PyLong_FromLong(pub.totalEntities)) == 0;
 
     // Add general metrics
-    PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));
-    PyDict_SetItemString(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds()));
+    ok &= mcrf::dict_steal(dict, "current_frame", PyLong_FromLong(game->getFrame())) == 0;
+    ok &= mcrf::dict_steal(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds())) == 0;
 
     // #396 - The SIMULATION clock, in integer milliseconds. The _ms suffix is deliberate:
     // the sibling "runtime" key is float SECONDS, and mistaking one for the other is the
@@ -2234,8 +2193,12 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // deterministic counter that only step()/advance() move, and the one timers run on in
     // headless mode. Exposed here rather than as a parallel API so there is one place to
     // ask the engine what time it is.
-    PyDict_SetItemString(dict, "simulation_time_ms", PyLong_FromLong(game->getSimulationTime()));
+    ok &= mcrf::dict_steal(dict, "simulation_time_ms", PyLong_FromLong(game->getSimulationTime())) == 0;
 
+    if (!ok) {
+        Py_DECREF(dict);
+        return NULL;
+    }
     return dict;
 }
 

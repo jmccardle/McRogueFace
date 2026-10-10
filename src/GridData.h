@@ -59,6 +59,10 @@ public:
     // `entity.grid`, `view.grid_data` and the GridPoint/layer back-references
     // all resolve to ONE Python wrapper instead of a fresh one per access.
     uint64_t serial_number = 0;
+    // #430 - cache key for this grid's EntityCollection wrapper (grid.entities,
+    // also reached as view.entities). The collection has no C++ object of its
+    // own, so its identity lives here; unregistered in ~GridData.
+    uint64_t entities_serial = 0;
 
     // #313 - Cell pixel dimensions, mirrored from ptex at construction. Lets
     // the data layer do tile<->pixel math without reaching into a view.

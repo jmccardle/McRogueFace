@@ -4,6 +4,7 @@
 // This file contains all EntityCollection and UIEntityCollectionIter methods.
 
 #include "UIEntityCollection.h"
+#include "PyWrap.h"
 #include "UIEntity.h"
 #include "PyGridData.h"
 #include "McRFPy_API.h"
@@ -14,36 +15,26 @@
 
 // #369: single cache-aware conversion from a C++ entity to its Python wrapper.
 // Raw tp_alloc here is not merely an identity bug as it is for drawables: a duplicate
-// wrapper's tp_dealloc unconditionally clears UIEntity::pyobject, destroying the #266
-// subclass-identity ref held by the *original* wrapper. Every site must use this.
+// wrapper would carry neither the original's subclass nor its attributes. Every site
+// must use this (#430: it is mcrf::to_python).
 static PyObject* convertEntityToPython(std::shared_ptr<UIEntity> entity) {
-    if (!entity) {
-        Py_RETURN_NONE;
+    return mcrf::to_python(entity);
+}
+
+PyObject* UIEntityCollection::pyobject_for(const std::shared_ptr<GridData>& grid)
+{
+    if (!grid) {
+        PyErr_SetString(PyExc_RuntimeError, "EntityCollection requires a grid");
+        return nullptr;
     }
-
-    if (entity->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(entity->serial_number);
-        if (cached) {
-            return cached;  // lookup() already INCREF'd
-        }
-    }
-
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-    auto o = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-    if (!o) return NULL;
-
-    o->data = entity;
-    o->weakreflist = NULL;
-
-    if (entity->serial_number != 0) {
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)o, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(entity->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
-
-    return (PyObject*)o;
+    return mcrf::cached_wrapper<PyUIEntityCollectionObject>(grid->entities_serial,
+        &mcrfpydef::PyUIEntityCollectionType,
+        [&](PyUIEntityCollectionObject* o) {
+            // tp_alloc zero-fills; construct the C++ members in place (dealloc destroys them).
+            new (&o->data) std::shared_ptr<std::vector<std::shared_ptr<UIEntity>>>(grid->entities);
+            new (&o->grid) std::shared_ptr<GridData>(grid);
+            o->weakreflist = nullptr;
+        });
 }
 
 // ============================================================================
@@ -147,8 +138,7 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
         if (self->grid) {
             self->grid->spatial_hash.remove(*it);
         }
-        (*it)->releasePyIdentity();
-        (*it)->grid = nullptr;
+        (*it)->setGrid(nullptr);
         list->erase(it);
         return 0;
     }
@@ -173,12 +163,11 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
     }
 
     // Clear grid reference from the old entity
-    (*it)->releasePyIdentity();
-    (*it)->grid = nullptr;
+    (*it)->setGrid(nullptr);
 
     // Replace the element and set grid reference
     *it = entity->data;
-    entity->data->grid = self->grid;
+    entity->data->setGrid(self->grid);
     // #294: perspective_map is lazy; next update_visibility() sizes it.
 
     // Add to spatial hash
@@ -390,8 +379,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                     if (self->grid) {
                         self->grid->spatial_hash.remove(*it);
                     }
-                    (*it)->releasePyIdentity();
-                    (*it)->grid = nullptr;
+                    (*it)->setGrid(nullptr);
                 }
                 self->data->erase(start_it, stop_it);
             } else {
@@ -408,8 +396,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                     if (self->grid) {
                         self->grid->spatial_hash.remove(*it);
                     }
-                    (*it)->releasePyIdentity();
-                    (*it)->grid = nullptr;
+                    (*it)->setGrid(nullptr);
                     self->data->erase(it);
                 }
             }
@@ -462,8 +449,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                 if (self->grid) {
                     self->grid->spatial_hash.remove(*it);
                 }
-                (*it)->releasePyIdentity();
-                (*it)->grid = nullptr;
+                (*it)->setGrid(nullptr);
             }
 
             // Erase old range
@@ -472,7 +458,7 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
             // Insert new items
             for (const auto& entity : new_items) {
                 self->data->insert(insert_pos, entity);
-                entity->grid = self->grid;
+                entity->setGrid(self->grid);
                 // #294: perspective_map is lazy; sized on next update_visibility().
                 if (self->grid) {
                     self->grid->spatial_hash.insert(entity);
@@ -496,10 +482,10 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
                 if (self->grid) {
                     self->grid->spatial_hash.remove(*cur_it);
                 }
-                (*cur_it)->grid = nullptr;
+                (*cur_it)->setGrid(nullptr);
 
                 *cur_it = new_items[new_idx++];
-                (*cur_it)->grid = self->grid;
+                (*cur_it)->setGrid(self->grid);
                 // #294: perspective_map is lazy; sized on next update_visibility().
 
                 if (self->grid) {
@@ -539,8 +525,8 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
     PyUIEntityObject* entity = (PyUIEntityObject*)o;
 
     // Remove from old grid first (if different from target grid)
-    if (entity->data->grid && entity->data->grid != self->grid) {
-        auto old_grid = entity->data->grid;
+    if (entity->data->getGrid() && entity->data->getGrid() != self->grid) {
+        auto old_grid = entity->data->getGrid();
         auto& old_entities = old_grid->entities;
         auto it = std::find_if(old_entities->begin(), old_entities->end(),
             [entity](const std::shared_ptr<UIEntity>& e) {
@@ -553,9 +539,9 @@ PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject*
     }
 
     // Add to this grid (if not already in it)
-    if (entity->data->grid != self->grid) {
+    if (entity->data->getGrid() != self->grid) {
         self->data->push_back(entity->data);
-        entity->data->grid = self->grid;
+        entity->data->setGrid(self->grid);
         if (self->grid) {
             self->grid->spatial_hash.insert(entity->data);
         }
@@ -593,8 +579,7 @@ PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject*
             if (self->grid) {
                 self->grid->spatial_hash.remove(*it);
             }
-            (*it)->releasePyIdentity();
-            (*it)->grid = nullptr;
+            (*it)->setGrid(nullptr);
             list->erase(it);
             Py_RETURN_NONE;
         }
@@ -654,7 +639,7 @@ PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject*
     // All items validated - now we can safely add them
     for (auto* entity : validated_entities) {
         self->data->push_back(entity->data);
-        entity->data->grid = self->grid;
+        entity->data->setGrid(self->grid);
 
         if (self->grid) {
             self->grid->spatial_hash.insert(entity->data);
@@ -707,35 +692,13 @@ PyObject* UIEntityCollection::pop(PyUIEntityCollectionObject* self, PyObject* ar
     if (self->grid) {
         self->grid->spatial_hash.remove(entity);
     }
-    entity->grid = nullptr;
     list->erase(it);
 
-    // Return cached Python object if available (preserves subclass identity)
-    if (entity->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(entity->serial_number);
-        if (cached) {
-            // Release identity ref -- entity is leaving the grid
-            // The caller now holds a strong ref via 'cached'
-            entity->releasePyIdentity();
-            return cached;
-        }
-    }
-
-    // Release identity ref (no cached object to return)
-    entity->releasePyIdentity();
-
-    // Create Python object for the entity
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-    PyUIEntityObject* py_entity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-    if (!py_entity) {
-        return NULL;
-    }
-
-    py_entity->data = entity;
-    py_entity->weakreflist = NULL;
-
-    return (PyObject*)py_entity;
+    // Take the result BEFORE dropping ownership: the pin that setGrid(nullptr)
+    // releases may be the only thing keeping a subclass wrapper alive (#436).
+    PyObject* result = mcrf::to_python(entity);
+    entity->setGrid(nullptr);
+    return result;
 }
 
 PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject* args)
@@ -781,7 +744,7 @@ PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject*
     std::advance(it, index);
 
     list->insert(it, entity->data);
-    entity->data->grid = self->grid;
+    entity->data->setGrid(self->grid);
 
     if (self->grid) {
         self->grid->spatial_hash.insert(entity->data);
@@ -890,8 +853,6 @@ PyObject* UIEntityCollection::find(PyUIEntityCollectionObject* self, PyObject* a
     std::string pattern(name);
     bool has_wildcard = (pattern.find('*') != std::string::npos);
 
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
     if (has_wildcard) {
         PyObject* results = PyList_New(0);
         if (!results) {
@@ -900,20 +861,11 @@ PyObject* UIEntityCollection::find(PyUIEntityCollectionObject* self, PyObject* a
 
         for (auto& entity : *list) {
             if (matchEntityName(entity->sprite.name, pattern)) {
-                PyUIEntityObject* py_entity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-                if (!py_entity) {
+                mcrf::PyRef py_entity(mcrf::to_python(entity));
+                if (!py_entity || PyList_Append(results, py_entity.get()) < 0) {
                     Py_DECREF(results);
                     return NULL;
                 }
-                py_entity->data = entity;
-                py_entity->weakreflist = NULL;
-
-                if (PyList_Append(results, (PyObject*)py_entity) < 0) {
-                    Py_DECREF(py_entity);
-                    Py_DECREF(results);
-                    return NULL;
-                }
-                Py_DECREF(py_entity);
             }
         }
 
@@ -921,13 +873,7 @@ PyObject* UIEntityCollection::find(PyUIEntityCollectionObject* self, PyObject* a
     } else {
         for (auto& entity : *list) {
             if (entity->sprite.name == pattern) {
-                PyUIEntityObject* py_entity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-                if (!py_entity) {
-                    return NULL;
-                }
-                py_entity->data = entity;
-                py_entity->weakreflist = NULL;
-                return (PyObject*)py_entity;
+                return mcrf::to_python(entity);
             }
         }
 

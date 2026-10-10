@@ -1,4 +1,5 @@
 #include "PyScene.h"
+#include "PyWrap.h"
 #include "ActionCode.h"
 #include "Resources.h"
 #include "PyCallable.h"
@@ -25,7 +26,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
                                  sf::Vector2f mousepos, const char* button, const char* action) {
     if (!drawable->is_python_subclass) return false;
 
-    PyObject* pyObj = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+    PyObject* pyObj = mcrf::live_wrapper(drawable->serial_number);
     if (!pyObj) return false;
 
     // Check and refresh cache if needed
@@ -127,7 +128,7 @@ static bool tryCallPythonMethod(UIDrawable* drawable, const char* method_name,
                                  sf::Vector2f mousepos) {
     if (!drawable->is_python_subclass) return false;
 
-    PyObject* pyObj = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+    PyObject* pyObj = mcrf::live_wrapper(drawable->serial_number);
     if (!pyObj) return false;
 
     // Check and refresh cache if needed

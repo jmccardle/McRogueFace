@@ -1,4 +1,5 @@
 #include "UIFrame.h"
+#include "PyWrap.h"
 #include "UICollection.h"
 #include "GameEngine.h"
 #include "PyVector.h"
@@ -262,15 +263,8 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
 PyObject* UIFrame::get_children(PyUIFrameObject* self, void* closure)
 {
-    // create PyUICollection instance pointing to self->data->children
-    // Use the type directly from namespace (#189 - type not exported to module)
-    PyTypeObject* type = &mcrfpydef::PyUICollectionType;
-    auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
-    if (o) {
-        o->data = self->data->children;
-        o->owner = self->data;  // #122: Set owner for parent tracking
-    }
-    return (PyObject*)o;
+    return UICollection::pyobject_for(self->data->children_serial, self->data->children,
+                                      self->data, "");
 }
 
 
@@ -434,18 +428,6 @@ PyObject* UIFrame::get_pos(PyUIFrameObject* self, void* closure)
         obj->data = sf::Vector2f(pos.x, pos.y);
     }
     return (PyObject*)obj;
-}
-
-int UIFrame::set_pos(PyUIFrameObject* self, PyObject* value, void* closure)
-{
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a Vector or convertible to Vector");
-        return -1;
-    }
-    self->data->box.setPosition(vec->data);
-    self->data->markDirty();
-    return 0;
 }
 
 PyObject* UIFrame::get_clip_children(PyUIFrameObject* self, void* closure)
@@ -618,7 +600,12 @@ PyObject* UIFrame::repr(PyUIFrameObject* self)
 
 int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
 {
-    // Initialize children first
+    // Initialize children first. A re-run __init__ replaces the vector, so the cached
+    // `children` wrapper (which views the old vector) must stop answering for it (#430).
+    if (self->data->children_serial != 0) {
+        mcrf::unregister_wrapper(self->data->children_serial);
+        self->data->children_serial = 0;
+    }
     self->data->children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
     
     // Initialize weak reference list
@@ -828,15 +815,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
         self->data->click_register(click_handler);
     }
     
-    // Register in Python object cache
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);  // Cache owns the reference now
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIFrameType;

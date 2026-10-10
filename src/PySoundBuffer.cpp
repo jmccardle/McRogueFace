@@ -1,6 +1,7 @@
 #include "PySoundBuffer.h"
 #include "audio/SfxrSynth.h"
 #include "audio/AudioEffects.h"
+#include "PyWrap.h"
 #include <sstream>
 #include <cmath>
 #include <random>
@@ -10,14 +11,20 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// Helper: create a Python SoundBuffer wrapping given data
-PyObject* PySoundBuffer_from_data(std::shared_ptr<SoundBufferData> data) {
-    auto* obj = (PySoundBufferObject*)mcrfpydef::PySoundBufferType.tp_alloc(&mcrfpydef::PySoundBufferType, 0);
-    if (obj) {
-        new (&obj->data) std::shared_ptr<SoundBufferData>(std::move(data));
-    }
-    return (PyObject*)obj;
+// #430: the buffer owns its wrapper's cache key, so drop the entry with it.
+SoundBufferData::~SoundBufferData() {
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
 }
+
+PyObject* PySoundBuffer::pyobject_for(const std::shared_ptr<SoundBufferData>& data) {
+    if (!data) Py_RETURN_NONE;
+    return mcrf::cached_wrapper<PySoundBufferObject>(data->serial_number,
+        &mcrfpydef::PySoundBufferType, [&](PySoundBufferObject* o) {
+            new (&o->data) std::shared_ptr<SoundBufferData>(data);
+            o->weakreflist = nullptr;
+        });
+}
+
 
 // ============================================================================
 // Type infrastructure
@@ -27,8 +34,15 @@ PyObject* PySoundBuffer::pynew(PyTypeObject* type, PyObject* args, PyObject* kwd
     auto* self = (PySoundBufferObject*)type->tp_alloc(type, 0);
     if (self) {
         new (&self->data) std::shared_ptr<SoundBufferData>();
+        self->weakreflist = nullptr;
     }
     return (PyObject*)self;
+}
+
+void PySoundBuffer::dealloc(PySoundBufferObject* self) {
+    if (self->weakreflist != nullptr) PyObject_ClearWeakRefs((PyObject*)self);
+    self->data.~shared_ptr();  // #430: was never destroyed (no tp_dealloc), leaking every buffer
+    Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 int PySoundBuffer::init(PySoundBufferObject* self, PyObject* args, PyObject* kwds) {
@@ -69,8 +83,20 @@ int PySoundBuffer::init(PySoundBufferObject* self, PyObject* args, PyObject* kwd
     }
 
     data->sfBufferDirty = true;
+
+    // #430: re-running __init__ swaps the buffer this object wraps; the old buffer
+    // must stop resolving to this object.
+    if (self->data) {
+        mcrf::PyRef old(mcrf::live_wrapper(self->data->serial_number));
+        if (old.get() == (PyObject*)self) {
+            mcrf::unregister_wrapper(self->data->serial_number);
+            self->data->serial_number = 0;
+        }
+    }
     self->data = std::move(data);
-    return 0;
+
+    // #430: the buffer the user loaded comes back as this very object (e.g. Sound.buffer).
+    return mcrf::register_wrapper(self->data->serial_number, (PyObject*)self);
 }
 
 PyObject* PySoundBuffer::repr(PyObject* obj) {
@@ -150,7 +176,7 @@ PyObject* PySoundBuffer::from_samples(PyObject* cls, PyObject* args, PyObject* k
     data->sfBufferDirty = true;
 
     PyBuffer_Release(&buf);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 // ============================================================================
@@ -247,7 +273,7 @@ PyObject* PySoundBuffer::tone(PyObject* cls, PyObject* args, PyObject* kwds) {
     }
 
     auto data = std::make_shared<SoundBufferData>(std::move(samples), rate, 1);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 // ============================================================================
@@ -366,7 +392,7 @@ PyObject* PySoundBuffer::sfxr(PyObject* cls, PyObject* args, PyObject* kwds) {
 
     auto data = std::make_shared<SoundBufferData>(std::move(samples), 44100, 1);
     data->sfxrParams = std::make_shared<SfxrParams>(params);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 // ============================================================================
@@ -381,7 +407,7 @@ PyObject* PySoundBuffer::pitch_shift(PySoundBufferObject* self, PyObject* args) 
 
     auto result = AudioEffects::pitchShift(self->data->samples, self->data->channels, factor);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::low_pass(PySoundBufferObject* self, PyObject* args) {
@@ -391,7 +417,7 @@ PyObject* PySoundBuffer::low_pass(PySoundBufferObject* self, PyObject* args) {
 
     auto result = AudioEffects::lowPass(self->data->samples, self->data->sampleRate, self->data->channels, cutoff);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::high_pass(PySoundBufferObject* self, PyObject* args) {
@@ -401,7 +427,7 @@ PyObject* PySoundBuffer::high_pass(PySoundBufferObject* self, PyObject* args) {
 
     auto result = AudioEffects::highPass(self->data->samples, self->data->sampleRate, self->data->channels, cutoff);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::echo(PySoundBufferObject* self, PyObject* args) {
@@ -412,7 +438,7 @@ PyObject* PySoundBuffer::echo(PySoundBufferObject* self, PyObject* args) {
     auto result = AudioEffects::echo(self->data->samples, self->data->sampleRate, self->data->channels,
                                       delay_ms, feedback, wet);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::reverb(PySoundBufferObject* self, PyObject* args) {
@@ -423,7 +449,7 @@ PyObject* PySoundBuffer::reverb(PySoundBufferObject* self, PyObject* args) {
     auto result = AudioEffects::reverb(self->data->samples, self->data->sampleRate, self->data->channels,
                                         room_size, damping, wet);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::distortion(PySoundBufferObject* self, PyObject* args) {
@@ -433,7 +459,7 @@ PyObject* PySoundBuffer::distortion(PySoundBufferObject* self, PyObject* args) {
 
     auto result = AudioEffects::distortion(self->data->samples, drive);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::bit_crush(PySoundBufferObject* self, PyObject* args) {
@@ -443,7 +469,7 @@ PyObject* PySoundBuffer::bit_crush(PySoundBufferObject* self, PyObject* args) {
 
     auto result = AudioEffects::bitCrush(self->data->samples, bits, rateDiv);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::gain(PySoundBufferObject* self, PyObject* args) {
@@ -453,7 +479,7 @@ PyObject* PySoundBuffer::gain(PySoundBufferObject* self, PyObject* args) {
 
     auto result = AudioEffects::gain(self->data->samples, factor);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::normalize(PySoundBufferObject* self, PyObject* args) {
@@ -461,7 +487,7 @@ PyObject* PySoundBuffer::normalize(PySoundBufferObject* self, PyObject* args) {
 
     auto result = AudioEffects::normalize(self->data->samples);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::reverse(PySoundBufferObject* self, PyObject* args) {
@@ -469,7 +495,7 @@ PyObject* PySoundBuffer::reverse(PySoundBufferObject* self, PyObject* args) {
 
     auto result = AudioEffects::reverse(self->data->samples, self->data->channels);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::slice(PySoundBufferObject* self, PyObject* args) {
@@ -480,7 +506,7 @@ PyObject* PySoundBuffer::slice(PySoundBufferObject* self, PyObject* args) {
     auto result = AudioEffects::slice(self->data->samples, self->data->sampleRate, self->data->channels,
                                        startSec, endSec);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::sfxr_mutate(PySoundBufferObject* self, PyObject* args) {
@@ -506,7 +532,7 @@ PyObject* PySoundBuffer::sfxr_mutate(PySoundBufferObject* self, PyObject* args) 
 
     auto data = std::make_shared<SoundBufferData>(std::move(samples), 44100, 1);
     data->sfxrParams = std::make_shared<SfxrParams>(mutated);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 // ============================================================================
@@ -589,7 +615,7 @@ PyObject* PySoundBuffer::concat(PyObject* cls, PyObject* args, PyObject* kwds) {
     }
 
     auto data = std::make_shared<SoundBufferData>(std::move(result), rate, ch);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 PyObject* PySoundBuffer::mix(PyObject* cls, PyObject* args, PyObject* kwds) {
@@ -646,7 +672,7 @@ PyObject* PySoundBuffer::mix(PyObject* cls, PyObject* args, PyObject* kwds) {
     }
 
     auto data = std::make_shared<SoundBufferData>(std::move(result), rate, ch);
-    return PySoundBuffer_from_data(std::move(data));
+    return PySoundBuffer::pyobject_for(data);
 }
 
 // ============================================================================

@@ -1,4 +1,5 @@
 #include "PyDiscreteMap.h"
+#include "PyWrap.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "PyPositionHelper.h"
@@ -40,7 +41,7 @@ static PyObject* valueToResult(uint8_t value, PyObject* enum_type) {
     if (enum_type && enum_type != Py_None) {
         // Try to get enum member by value
         PyObject* val_obj = PyLong_FromLong(value);
-        PyObject* member = PyObject_Call(enum_type, PyTuple_Pack(1, val_obj), nullptr);
+        PyObject* member = PyObject_CallOneArg(enum_type, val_obj);
         Py_DECREF(val_obj);
 
         if (member) {
@@ -55,32 +56,29 @@ static PyObject* valueToResult(uint8_t value, PyObject* enum_type) {
 // ============================================================================
 // Helper: Create a new DiscreteMap object with given dimensions
 // ============================================================================
+// #430: builds the C++ map and hands it out through pyobject_for(), so the result is
+// registered in the wrapper cache like every other DiscreteMap. Dimensions are
+// validated with the same rules (and messages) as DiscreteMap.__init__.
 static PyDiscreteMapObject* CreateNewDiscreteMap(int width, int height) {
-    // Get the DiscreteMap type
-    PyObject* dmap_type = (PyObject*)&mcrfpydef::PyDiscreteMapType;
-
-    // Create size tuple
-    PyObject* size_tuple = Py_BuildValue("(ii)", width, height);
-    if (!size_tuple) {
+    if (width <= 0 || height <= 0) {
+        PyErr_SetString(PyExc_ValueError, "width and height must be positive integers");
+        return nullptr;
+    }
+    if (width > GRID_MAX || height > GRID_MAX) {
+        PyErr_Format(PyExc_ValueError,
+            "DiscreteMap dimensions cannot exceed %d (got %dx%d)",
+            GRID_MAX, width, height);
         return nullptr;
     }
 
-    // Create args tuple containing the size tuple
-    PyObject* args = PyTuple_Pack(1, size_tuple);
-    Py_DECREF(size_tuple);
-    if (!args) {
+    std::shared_ptr<DiscreteMap> map;
+    try {
+        map = std::make_shared<DiscreteMap>(width, height, 0);
+    } catch (const std::bad_alloc&) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to allocate DiscreteMap");
         return nullptr;
     }
-
-    // Create the new object
-    PyDiscreteMapObject* new_dmap = (PyDiscreteMapObject*)PyObject_Call(dmap_type, args, nullptr);
-    Py_DECREF(args);
-
-    if (!new_dmap) {
-        return nullptr;  // Python error already set
-    }
-
-    return new_dmap;
+    return (PyDiscreteMapObject*)PyDiscreteMap::pyobject_for(map, nullptr);
 }
 
 // ============================================================================
@@ -375,8 +373,27 @@ PyObject* PyDiscreteMap::pynew(PyTypeObject* type, PyObject* args, PyObject* kwd
         self->w = 0;
         self->h = 0;
         self->enum_type = nullptr;
+        self->weakreflist = nullptr;
     }
     return (PyObject*)self;
+}
+
+PyObject* PyDiscreteMap::pyobject_for(const std::shared_ptr<DiscreteMap>& map,
+                                      PyObject* enum_type, PyTypeObject* type)
+{
+    if (!map) Py_RETURN_NONE;
+    if (!type) type = &mcrfpydef::PyDiscreteMapType;
+    return mcrf::cached_wrapper<PyDiscreteMapObject>(map->serial_number, type,
+        [&](PyDiscreteMapObject* o) {
+            // tp_alloc zero-fills; construct the shared_ptr in place (dealloc destroys it).
+            new (&o->data) std::shared_ptr<DiscreteMap>(map);
+            o->values = map->data();
+            o->w = map->width();
+            o->h = map->height();
+            o->enum_type = enum_type;
+            Py_XINCREF(enum_type);
+            o->weakreflist = nullptr;
+        });
 }
 
 int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwds)
@@ -422,7 +439,14 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
         return -1;
     }
 
-    // Reset any existing storage (re-init supported)
+    // Reset any existing storage (re-init supported). #430: if the old map is shared
+    // (e.g. it is an entity's perspective_map), its cache entry must stop pointing
+    // at this wrapper, which is about to wrap a different map.
+    if (self->data && self->data->serial_number != 0) {
+        PyObject* live = mcrf::live_wrapper(self->data->serial_number);
+        if (live == (PyObject*)self) mcrf::unregister_wrapper(self->data->serial_number);
+        Py_XDECREF(live);
+    }
     self->data.reset();
     Py_XDECREF(self->enum_type);
     self->enum_type = nullptr;
@@ -447,11 +471,15 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
         self->enum_type = enum_obj;
     }
 
+    // #430: the map the user built comes back as this very object.
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
+
     return 0;
 }
 
 void PyDiscreteMap::dealloc(PyDiscreteMapObject* self)
 {
+    if (self->weakreflist) PyObject_ClearWeakRefs((PyObject*)self);  // #430
     // Release shared ownership; DiscreteMap destructor frees the buffer
     // if this is the last owner.
     self->data.~shared_ptr<DiscreteMap>();
@@ -1424,36 +1452,19 @@ PyObject* PyDiscreteMap::from_bytes(PyTypeObject* type, PyObject* args, PyObject
         return nullptr;
     }
 
-    auto obj = (PyDiscreteMapObject*)type->tp_alloc(type, 0);
-    if (!obj) {
-        PyBuffer_Release(&buffer);
-        return nullptr;
-    }
-
-    new (&obj->data) std::shared_ptr<DiscreteMap>();
+    std::shared_ptr<DiscreteMap> map;
     try {
-        obj->data = std::make_shared<DiscreteMap>(w, h, 0);
+        map = std::make_shared<DiscreteMap>(w, h, 0);
     } catch (const std::bad_alloc&) {
         PyBuffer_Release(&buffer);
-        obj->data.~shared_ptr<DiscreteMap>();
-        Py_DECREF(obj);
         return PyErr_NoMemory();
     }
-
-    obj->w = w;
-    obj->h = h;
-    obj->values = obj->data->data();
-    std::memcpy(obj->values, buffer.buf, expected);
+    std::memcpy(map->data(), buffer.buf, expected);
     PyBuffer_Release(&buffer);
 
-    if (enum_type && enum_type != Py_None) {
-        Py_INCREF(enum_type);
-        obj->enum_type = enum_type;
-    } else {
-        obj->enum_type = nullptr;
-    }
-
-    return (PyObject*)obj;
+    // #430: a brand-new map (serial 0) -> allocates `type` (cls, so subclasses work)
+    // and registers it.
+    return pyobject_for(map, (enum_type && enum_type != Py_None) ? enum_type : nullptr, type);
 }
 
 // ============================================================================

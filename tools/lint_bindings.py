@@ -5,8 +5,8 @@ lint_bindings.py - AST lint for hand-rolled CPython recipes in the binding layer
 Parses src/**/*.{cpp,h} with tree-sitter-cpp (the same .venv-audit stack as
 audit_pymethoddef.py) and flags the recipes that have already produced bugs:
 
-  identity-alloc   tp_alloc of an identity-bearing type outside a constructor or
-                   a sanctioned converter. Breaks `x is x` and drops subclasses
+  identity-alloc   tp_alloc (or Foo::pynew / PyObject_New) of an identity-bearing
+                   type outside a constructor or a sanctioned converter. Breaks `x is x` and drops subclasses
                    (#369, #373, #429, #430).
   unclassified     tp_alloc whose type isn't in TYPE_CLASS (or can't be resolved).
                    Every allocated type must be classified as identity or value,
@@ -14,10 +14,15 @@ audit_pymethoddef.py) and flags the recipes that have already produced bugs:
   cache-direct     PythonObjectCache:: used outside the cache itself and the
                    sanctioned converters. Each caller re-implements lookup or
                    assignSerial + weakref + registerObject.
-  borrowed-leak    A new reference passed inline to an API that does NOT steal it
-                   (PyDict_SetItemString(d, k, PyLong_FromLong(x)) leaks x; #413).
+  borrowed-leak    A new reference passed inline to a call that does NOT steal it
+                   (PyDict_SetItemString(d, k, PyLong_FromLong(x)) leaks x, #413;
+                   _click(self, PyTuple_New(0), kw) leaks the tuple).
   from-arg-owner   PyVector::from_arg() (new reference) whose result is neither
                    released nor returned in the same function (#414).
+  missing-dealloc  A Python type whose object struct holds C++ members (shared_ptr,
+                   weak_ptr, string, containers) but sets no tp_dealloc: tp_free never
+                   runs their destructors, so whatever they own leaks (GridPoint leaked
+                   its whole grid this way).
   pin-direct       The entity identity pin (UIEntity::pyobject) taken, released or
                    read as "the wrapper" outside its owner (#424, #429, #436).
 
@@ -86,7 +91,7 @@ TYPE_CLASS = {
     "PyTextureType": "identity", "PyFontType": "identity",
     "PySoundBufferType": "identity", "PyTileSetFileType": "identity",
     "PySceneType": "identity", "PyWindowType": "identity",
-    "PyTimerType": "identity",
+    "PyTimerType": "identity", "PySoundType": "identity", "PyMusicType": "identity",
     # entity.perspective_map is documented as a live reference
     "PyDiscreteMapType": "identity",
     # accessors onto a parent-owned record: fresh per call, no state of their own
@@ -100,35 +105,42 @@ TYPE_CLASS = {
     "PyBSPNodeType": "value", "PyBSPAdjacencyType": "value",
     "PyBSPAdjacentTilesType": "value", "PyBSPIterType": "value",
     "PyUICollectionIterType": "value", "PyUIEntityCollectionIterType": "value",
-    "PyEntityCollection3DIterType": "value",
+    "PyEntityCollection3DIterType": "value", "PyAStarPathIterType": "value",
 }
 
 # Functions allowed to allocate identity types and use PythonObjectCache:: --
 # the cache-aware converters. Matched against the qualified function name.
-SANCTIONED = {
-    "UIDrawable::pyobject_for",
-    "PyGridData::pyobject_for",
-    "convertEntityToPython@UIEntityCollection.cpp",
-}
+# Empty by design: every converter is built on mcrf::cached_wrapper (src/PyWrap.h),
+# which is exempt as the recipe's implementation. Add an entry only with a reason.
+SANCTIONED: set = set()
 
 # Files that implement the cache itself.
-CACHE_IMPL_FILES = {"PythonObjectCache.cpp", "PythonObjectCache.h"}
+CACHE_IMPL_FILES = {"PythonObjectCache.cpp", "PythonObjectCache.h", "PyWrap.cpp", "PyWrap.h"}
 
-# APIs that borrow (do not steal) their value argument: index of that argument.
-BORROWING_SINKS = {
-    "PyDict_SetItemString": 2, "PyDict_SetItem": 2, "PyList_Append": 1,
-    "PyObject_SetAttrString": 2, "PyObject_SetAttr": 2, "PySet_Add": 1,
-    "PyList_Insert": 2, "PyModule_AddObjectRef": 2,
+# A new reference passed inline as an argument leaks unless the callee steals it.
+# Callees that steal (or release) the argument at that index; "*" = any index.
+STEALING_SINKS = {
+    "PyTuple_SetItem": 2, "PyTuple_SET_ITEM": 2, "PyList_SetItem": 2,
+    "PyList_SET_ITEM": 2, "PyModule_AddObject": 2,
+    "Py_DECREF": "*", "Py_XDECREF": "*", "Py_CLEAR": "*",
+    "Py_SETREF": 1, "Py_XSETREF": 1,
+    # PyWrap.h helpers
+    "mcrf::dict_steal": 2, "dict_steal": 2, "mcrf::PyRef": "*", "PyRef": "*",
 }
+# Format-string APIs steal an argument only for an "N" code; we accept any call whose
+# format literal contains N rather than matching codes to argument positions.
+FORMAT_APIS = {"Py_BuildValue", "PyObject_CallFunction", "PyObject_CallMethod"}
 # Calls that return a new reference.
 NEW_REF_CALL = re.compile(
     r"^(Py(Long|Float|Bool|Unicode|Bytes|Tuple|List|Dict|Set|Complex)_From\w*"
     r"|PyUnicode_FromFormat|Py_BuildValue|PyObject_Call\w*|PyObject_Str|PyObject_Repr"
     r"|PyTuple_New|PyList_New|PyDict_New|PyTuple_Pack|\w+_to_PyObject|PyVector::from_arg"
-    r"|\w+::pyobject_for|convert\w+ToPython)$")
+    r"|(\w+::)?pyobject_for|convert\w+ToPython"
+    r"|.*(->|\.|::)(pyObject|pyobject_for)|mcrf::(to_python|live_wrapper))$")
 
-# The entity pin's owner: the only functions that may touch UIEntity::pyobject.
-PIN_OWNERS = {"UIEntity::releasePyIdentity", "UIEntity::init", "~UIEntity"}
+# The identity pin (#436) may only be touched by its owners' choke points.
+PIN_OWNERS = {"UIEntity::setGrid", "UIDrawable::updatePyIdentityPin",
+              "UIDrawable::releasePyIdentity"}
 
 # ---------------------------------------------------------------------------
 # AST helpers
@@ -223,10 +235,16 @@ TYPE_TOKEN = re.compile(r"&\s*(?:mcrfpydef::)?(Py\w+Type)\b")
 
 
 def resolve_alloc_type(src: bytes, field_expr) -> tuple[str, set[str]]:
-    """Return ("param", {}) when tp_alloc allocates a caller-supplied type (a
+    """Type allocated by `T->tp_alloc(...)`: see resolve_type_expr."""
+    return resolve_type_expr(src, text(src, field_expr.child_by_field_name("argument")).strip(),
+                             field_expr)
+
+
+def resolve_type_expr(src: bytes, obj: str, field_expr) -> tuple[str, set[str]]:
+    """Return ("param", {}) when the expression is a caller-supplied type (a
     constructor or classmethod), else ("types", {PyXType, ...}) from the
     assignments to the variable in scope, or ("unresolved", {expr})."""
-    obj = text(src, field_expr.child_by_field_name("argument")).strip()
+    obj = re.sub(r"^\(\s*PyTypeObject\s*\*\s*\)\s*", "", obj)
     m = TYPE_TOKEN.search("&" + obj.lstrip("&(").rstrip(")"))
     if m and obj.lstrip("(&").startswith(("mcrfpydef::", "Py")):
         return "types", {m.group(1)}
@@ -328,18 +346,97 @@ def lint_file(path: Path) -> list[Finding]:
         elif n.type == "call_expression":
             name = callee_name(src, n)
             args = n.child_by_field_name("arguments")
-            if name in BORROWING_SINKS and args is not None:
+            if args is not None:
+                check_inline_new_refs(src, n, name, args.named_children, add)
+                # Other wrapper-construction routes: Foo::pynew(type, ...),
+                # PyObject_New(Obj, type), PyObject_GC_New(Obj, type).
                 argv = args.named_children
-                idx = BORROWING_SINKS[name]
-                if idx < len(argv) and argv[idx].type == "call_expression":
-                    inner = callee_name(src, argv[idx])
-                    if NEW_REF_CALL.match(inner):
-                        add("borrowed-leak", n, f"{name}(..., {inner}(...))")
-            elif name == "PyVector::from_arg":
+                tnode = None
+                if re.fullmatch(r"\w+::pynew", name) and argv:
+                    tnode = argv[0]
+                elif name in ("PyObject_New", "PyObject_GC_New") and len(argv) >= 2:
+                    tnode = argv[1]
+                if tnode is not None:
+                    kind, types = resolve_type_expr(src, text(src, tnode).strip(), n)
+                    fn = scope_label(src, n)
+                    via = name.split("::")[-1]
+                    if kind == "unresolved":
+                        add("unclassified", n, f"{via} via {', '.join(sorted(types))}")
+                    elif kind == "types":
+                        for t in sorted(types):
+                            cls = TYPE_CLASS.get(t)
+                            if cls is None:
+                                add("unclassified", n, f"{via} {t}")
+                            elif cls == "identity" and not is_sanctioned(fn, rel):
+                                add("identity-alloc", n, f"{via} {t}")
+            if name == "PyVector::from_arg":
                 check_from_arg(src, n, add)
 
     out.extend(check_pin(src, tree, rel))
+    out.extend(check_dealloc(src, tree, rel))
     return out
+
+
+NONTRIVIAL = re.compile(r"\bstd::(shared_ptr|weak_ptr|unique_ptr|string|vector|map|"
+                        r"unordered_map|set|unordered_set|list|deque|function|optional)\b")
+
+
+def struct_fields_by_name() -> dict:
+    """typedef struct {...} Name; across src/, mapped to whether it holds C++ members."""
+    global _STRUCTS
+    if _STRUCTS is not None:
+        return _STRUCTS
+    _STRUCTS = {}
+    for p in (ROOT / "src").rglob("*.h"):
+        src = p.read_bytes()
+        for n in walk(_PARSER.parse(src).root_node):
+            if n.type == "type_definition":
+                body = n.child_by_field_name("type")
+                if body is None or body.type != "struct_specifier":
+                    continue
+                for d in n.children_by_field_name("declarator"):
+                    _STRUCTS[text(src, d).strip()] = bool(NONTRIVIAL.search(text(src, body)))
+    return _STRUCTS
+
+
+_STRUCTS = None
+
+
+def check_dealloc(src: bytes, tree, rel: str) -> list:
+    """Every PyTypeObject initializer whose tp_basicsize struct has C++ members must set
+    tp_dealloc."""
+    out = []
+    structs = None
+    for n in walk(tree.root_node):
+        if n.type != "init_declarator":
+            continue
+        decl = text(src, n)
+        if ".tp_basicsize" not in decl or "PyTypeObject" not in text(src, n.parent):
+            continue
+        m = re.search(r"\.tp_basicsize\s*=\s*sizeof\s*\(\s*(?:\w+::)*(\w+)\s*\)", decl)
+        if not m or ".tp_dealloc" in decl:
+            continue
+        structs = structs if structs is not None else struct_fields_by_name()
+        if structs.get(m.group(1)):
+            name = text(src, n.child_by_field_name("declarator")).strip()
+            out.append(Finding("missing-dealloc", rel, n.start_point[0] + 1, name,
+                               f"{m.group(1)} has C++ members but no tp_dealloc"))
+    return out
+
+
+def check_inline_new_refs(src: bytes, call, name: str, argv, add) -> None:
+    steals = STEALING_SINKS.get(name)
+    if steals == "*":
+        return
+    if name in FORMAT_APIS and any(
+            a.type == "string_literal" and "N" in text(src, a) for a in argv):
+        return
+    for i, a in enumerate(argv):
+        if a.type != "call_expression" or i == steals:
+            continue
+        inner = callee_name(src, a)
+        if NEW_REF_CALL.match(inner):
+            add("borrowed-leak", call, f"{name}(..., {inner}(...))")
 
 
 def check_from_arg(src: bytes, call, add) -> None:
@@ -360,13 +457,13 @@ def check_from_arg(src: bytes, call, add) -> None:
     body = text(src, scope) if scope is not None else ""
     owned = re.search(
         r"(Py_X?DECREF|Py_CLEAR)\s*\(\s*(\([^)]*\)\s*)?" + re.escape(var) + r"\s*\)"
-        r"|return\s+\(?[^;]*\b" + re.escape(var) + r"\b"
+        r"|return\s+(\(\s*\w+\s*\*?\s*\)\s*)?" + re.escape(var) + r"\s*;"
         r"|PyRef\w*\s*[({]?\s*\w*\s*[({]\s*" + re.escape(var) + r"\b", body)
     if not owned:
         add("from-arg-owner", call, f"{var} = PyVector::from_arg(...) never released")
 
 
-PIN_FIELD = re.compile(r"(->|\.)pyobject$")
+PIN_FIELD = re.compile(r"(->|\.)(pyobject|identity_pin|py_identity)$")
 
 
 def check_pin(src: bytes, tree, rel: str) -> list[Finding]:
@@ -431,6 +528,7 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", help="list every finding, baselined or not")
     ap.add_argument("--summary", action="store_true", help="counts per rule and per file")
     ap.add_argument("--rule", help="restrict output to one rule")
+    ap.add_argument("--json", action="store_true", help="every finding as JSON (with its baseline key)")
     ap.add_argument("--update-baseline", action="store_true")
     ap.add_argument("--allow-growth", action="store_true",
                     help="with --update-baseline: permit new entries (needs a reason)")
@@ -457,6 +555,11 @@ def main() -> int:
         print()
         for fl, n in Counter(f.file for f in findings).most_common(15):
             print(f"{n:5d}  {fl}")
+        return 0
+    if a.json:
+        import json
+        print(json.dumps([dict(rule=f.rule, file=f.file, line=f.line, function=f.function,
+                               detail=f.detail, key=f.key) for f in findings], indent=1))
         return 0
     if a.all:
         for f in sorted(findings, key=lambda f: (f.rule, f.file, f.line)):

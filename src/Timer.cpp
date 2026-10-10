@@ -1,5 +1,6 @@
 #include "Timer.h"
 #include "PythonObjectCache.h"
+#include "PyWrap.h"
 #include "PyCallable.h"
 #include "McRFPy_API.h"
 #include "GameEngine.h"
@@ -17,7 +18,7 @@ Timer::Timer()
 Timer::~Timer() {
     releasePyWrapper();
     if (serial_number != 0) {
-        PythonObjectCache::getInstance().remove(serial_number);
+        mcrf::unregister_wrapper(serial_number);
     }
 }
 
@@ -47,19 +48,20 @@ bool Timer::test(int now)
     {
         last_ran = now;
 
-        // Get the PyTimer wrapper from cache to pass to callback
-        PyObject* timer_obj = nullptr;
-        if (serial_number != 0) {
-            timer_obj = PythonObjectCache::getInstance().lookup(serial_number);
+        // The callback receives (timer, runtime). Every Timer is created by PyTimer::init,
+        // which registers its wrapper, and a running timer retains it (#251), so a missing
+        // wrapper is an engine bug: report it instead of calling with another signature.
+        mcrf::PyRef timer_obj(mcrf::live_wrapper(serial_number));
+        if (!timer_obj) {
+            PyErr_Format(PyExc_RuntimeError, "Timer '%s' fired without its Python object",
+                         name.c_str());
+            PyErr_Print();
+            return false;
         }
-
-        // Build args: (timer, runtime) or just (runtime) if no wrapper found
-        PyObject* args;
-        if (timer_obj) {
-            args = Py_BuildValue("(Oi)", timer_obj, now);
-        } else {
-            // Fallback to old behavior if no wrapper found
-            args = Py_BuildValue("(i)", now);
+        PyObject* args = Py_BuildValue("(Oi)", timer_obj.get(), now);
+        if (!args) {
+            PyErr_Print();
+            return false;
         }
 
         PyObject* retval = callback->call(args, NULL);

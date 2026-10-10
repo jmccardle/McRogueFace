@@ -90,19 +90,6 @@ void PySound::setPitch(float pitch)
     sound.setPitch(std::max(0.01f, pitch));
 }
 
-PyObject* PySound::pyObject()
-{
-    auto type = &mcrfpydef::PySoundType;
-    PyObject* obj = PySound::pynew(type, Py_None, Py_None);
-    try {
-        ((PySoundObject*)obj)->data = shared_from_this();
-    }
-    catch (std::bad_weak_ptr& e) {
-        std::cerr << "PySound::pyObject() - shared_from_this() failed" << std::endl;
-    }
-    return obj;
-}
-
 PyObject* PySound::repr(PyObject* obj)
 {
     PySoundObject* self = (PySoundObject*)obj;
@@ -355,7 +342,7 @@ PyObject* PySound::get_buffer(PySoundObject* self, void* closure)
     if (!bufData) {
         Py_RETURN_NONE;
     }
-    return PySoundBuffer_from_data(bufData);
+    return PySoundBuffer::pyobject_for(bufData);
 }
 
 PyMethodDef PySound::methods[] = {

@@ -1,4 +1,5 @@
 #include "UILine.h"
+#include "PyWrap.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
@@ -422,12 +423,9 @@ PyObject* UILine::get_start(PyUILineObject* self, void* closure) {
 }
 
 int UILine::set_start(PyUILineObject* self, PyObject* value, void* closure) {
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_SetString(PyExc_TypeError, "start must be a Vector or tuple (x, y)");
-        return -1;
-    }
-    self->data->setStart(vec->data);
+    sf::Vector2f start;
+    if (!mcrf::to_vector2f(value, start, "start")) return -1;
+    self->data->setStart(start);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -443,12 +441,9 @@ PyObject* UILine::get_end(PyUILineObject* self, void* closure) {
 }
 
 int UILine::set_end(PyUILineObject* self, PyObject* value, void* closure) {
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_SetString(PyExc_TypeError, "end must be a Vector or tuple (x, y)");
-        return -1;
-    }
-    self->data->setEnd(vec->data);
+    sf::Vector2f end;
+    if (!mcrf::to_vector2f(value, end, "end")) return -1;
+    self->data->setEnd(end);
     self->data->markDirty(); // #291: visual change
     return 0;
 }
@@ -594,29 +589,11 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
 
     // Parse start position
     sf::Vector2f start(0.0f, 0.0f);
-    if (start_obj) {
-        PyVectorObject* vec = PyVector::from_arg(start_obj);
-        if (vec) {
-            start = vec->data;
-        } else {
-            PyErr_Clear();
-            PyErr_SetString(PyExc_TypeError, "start must be a Vector or tuple (x, y)");
-            return -1;
-        }
-    }
+    if (start_obj && !mcrf::to_vector2f(start_obj, start, "start")) return -1;
 
     // Parse end position
     sf::Vector2f end(0.0f, 0.0f);
-    if (end_obj) {
-        PyVectorObject* vec = PyVector::from_arg(end_obj);
-        if (vec) {
-            end = vec->data;
-        } else {
-            PyErr_Clear();
-            PyErr_SetString(PyExc_TypeError, "end must be a Vector or tuple (x, y)");
-            return -1;
-        }
-    }
+    if (end_obj && !mcrf::to_vector2f(end_obj, end, "end")) return -1;
 
     // Parse color
     sf::Color color = sf::Color::White;
@@ -663,14 +640,7 @@ int UILine::init(PyUILineObject* self, PyObject* args, PyObject* kwds) {
     self->weakreflist = NULL;
 
     // Register in Python object cache
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUILineType;

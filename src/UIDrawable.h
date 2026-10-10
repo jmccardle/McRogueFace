@@ -10,6 +10,7 @@
 #include "PyCallable.h"
 #include "PyTexture.h"
 #include "PyColor.h"
+#include "PyWrap.h"
 #include "PyVector.h"
 #include "PyFont.h"
 #include "PyAlignment.h"
@@ -195,7 +196,7 @@ public:
     // Python's GC cannot see through the C++ side, so it MUST be released on the way
     // out. Every exit is covered: unlinking calls setParent(nullptr), and an owner
     // destroyed while still holding children releases its children's pins first.
-    PyObject* py_identity = nullptr;
+    mcrf::PyIdentityPin py_identity;
 
     // Acquire or drop py_identity to match the current parent link. Idempotent.
     void updatePyIdentityPin();
@@ -304,6 +305,10 @@ public:
 
     // Python object cache support
     uint64_t serial_number = 0;
+    // #430: cache key for this drawable's children-collection wrapper (Frame.children,
+    // GridView.children). The collection has no C++ object of its own, so its
+    // identity lives on the owner.
+    uint64_t children_serial = 0;
 
     // Python subclass callback support (#184)
     // Enables subclass method overrides like: class MyFrame(Frame): def on_click(self, ...): ...
@@ -392,6 +397,7 @@ typedef struct {
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
     std::weak_ptr<UIDrawable> owner;  // #122: Parent drawable (for Frame.children, Grid.children)
     std::string scene_name;           // #183: Scene name (for Scene.children) - empty if not scene-level
+    PyObject* weakreflist;            // #430: cacheable, so `f.children is f.children`
 } PyUICollectionObject;
 
 typedef struct {

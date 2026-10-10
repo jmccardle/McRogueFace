@@ -7,6 +7,7 @@
 typedef struct PyTileSetFileObject {
     PyObject_HEAD
     std::shared_ptr<mcrf::tiled::TileSetData> data;
+    PyObject* weakreflist;  // #430: required by the PythonObjectCache
 } PyTileSetFileObject;
 
 // Python binding class
@@ -16,6 +17,10 @@ public:
     static int init(PyTileSetFileObject* self, PyObject* args, PyObject* kwds);
     static void dealloc(PyTileSetFileObject* self);
     static PyObject* repr(PyObject* obj);
+
+    // #430: the TileSetFile wrapper for a parsed tileset -- the live one if any
+    // (identity preserved), else a newly registered one. nullptr -> None.
+    static PyObject* pyobject_for(const std::shared_ptr<mcrf::tiled::TileSetData>& data);
 
     // Read-only properties
     static PyObject* get_name(PyTileSetFileObject* self, void* closure);
@@ -70,6 +75,7 @@ inline PyTypeObject PyTileSetFileType = {
         "    texture = ts.to_texture()\n"
         "    print(f'{ts.name}: {ts.tile_count} tiles')\n"
     ),
+    .tp_weaklistoffset = offsetof(PyTileSetFileObject, weakreflist),
     .tp_methods = nullptr,  // Set before PyType_Ready
     .tp_getset = nullptr,   // Set before PyType_Ready
     .tp_init = (initproc)PyTileSetFile::init,

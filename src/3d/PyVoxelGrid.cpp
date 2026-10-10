@@ -2,6 +2,7 @@
 // Part of McRogueFace 3D Extension - Milestone 9
 
 #include "PyVoxelGrid.h"
+#include "PyWrap.h"
 #include "../McRFPy_API.h"
 #include "../PyColor.h"
 #include <sstream>
@@ -393,7 +394,7 @@ PyObject* PyVoxelGrid::get_material(PyVoxelGridObject* self, PyObject* args) {
     PyObject* color_type = (PyObject*)&mcrfpydef::PyColorType;
 
     PyObject* color_obj = PyObject_Call(color_type,
-        Py_BuildValue("(iiii)", mat.color.r, mat.color.g, mat.color.b, mat.color.a),
+        mcrf::PyRef(Py_BuildValue("(iiii)", mat.color.r, mat.color.g, mat.color.b, mat.color.a)).get(),
         nullptr);
 
     if (!color_obj) {

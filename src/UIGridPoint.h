@@ -62,6 +62,13 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.GridPoint",
         .tp_basicsize = sizeof(PyUIGridPointObject),
         .tp_itemsize = 0,
+        // tp_free alone never runs the C++ members' destructors: without this the
+        // shared_ptr kept its target alive forever (grid.at() leaked the whole grid).
+        .tp_dealloc = [](PyObject* self) {
+            auto* o = (PyUIGridPointObject*)self;
+            o->grid.~shared_ptr();
+            Py_TYPE(self)->tp_free(self);
+        },
         .tp_repr = (reprfunc)UIGridPoint::repr,
         // #150 - Dynamic attribute access for named layers
         .tp_getattro = (getattrofunc)UIGridPoint::getattro,

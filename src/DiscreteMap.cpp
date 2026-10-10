@@ -1,4 +1,5 @@
 #include "DiscreteMap.h"
+#include "PyWrap.h"
 #include <cstring>
 #include <stdexcept>
 
@@ -15,6 +16,7 @@ DiscreteMap::DiscreteMap(int w, int h, uint8_t fill)
 
 DiscreteMap::~DiscreteMap()
 {
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);  // #430
     delete[] values_;
 }
 

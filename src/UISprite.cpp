@@ -1,4 +1,5 @@
 #include "UISprite.h"
+#include "PyWrap.h"
 #include "GameEngine.h"
 #include "PyVector.h"
 #include "PythonObjectCache.h"
@@ -395,18 +396,6 @@ PyObject* UISprite::get_pos(PyUISpriteObject* self, void* closure)
     return (PyObject*)obj;
 }
 
-int UISprite::set_pos(PyUISpriteObject* self, PyObject* value, void* closure)
-{
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a Vector or convertible to Vector");
-        return -1;
-    }
-    self->data->setPosition(vec->data);
-    self->data->markCompositeDirty(); // #291: position change
-    return 0;
-}
-
 // Define the PyObjectType alias for the macros
 typedef PyUISpriteObject PyObjectType;
 
@@ -644,14 +633,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     self->weakreflist = NULL;
     
     // Register in Python object cache
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);  // Cache owns the reference now
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUISpriteType;

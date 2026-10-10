@@ -3,6 +3,7 @@
 #include "EntityCollection3D.h"
 #include "Entity3D.h"
 #include "Viewport3D.h"
+#include "PyWrap.h"
 
 // =============================================================================
 // Sequence Methods
@@ -17,6 +18,19 @@ PySequenceMethods EntityCollection3D::sqmethods = {
 // =============================================================================
 // EntityCollection3D Implementation
 // =============================================================================
+
+PyObject* EntityCollection3D::pyobject_for(uint64_t& serial,
+    const std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>& data,
+    const std::shared_ptr<mcrf::Viewport3D>& viewport)
+{
+    return mcrf::cached_wrapper<PyEntityCollection3DObject>(serial,
+        &mcrfpydef::PyEntityCollection3DType, [&](PyEntityCollection3DObject* o) {
+            // tp_alloc zero-fills; construct the C++ members in place (dealloc destroys them).
+            new (&o->data) std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>(data);
+            new (&o->viewport) std::shared_ptr<mcrf::Viewport3D>(viewport);
+            o->weakreflist = nullptr;
+        });
+}
 
 PyObject* EntityCollection3D::repr(PyEntityCollection3DObject* self)
 {
@@ -78,17 +92,7 @@ PyObject* EntityCollection3D::getitem(PyEntityCollection3DObject* self, Py_ssize
     auto it = self->data->begin();
     std::advance(it, index);
 
-    // Create Python wrapper for the Entity3D
-    auto entity = *it;
-    auto type = &mcrfpydef::PyEntity3DType;
-    auto obj = (PyEntity3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    // Use placement new for shared_ptr
-    new (&obj->data) std::shared_ptr<mcrf::Entity3D>(entity);
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    return mcrf::Entity3D::pyobject_for(*it);
 }
 
 int EntityCollection3D::contains(PyEntityCollection3DObject* self, PyObject* value)
@@ -223,19 +227,15 @@ PyObject* EntityCollection3D::pop(PyEntityCollection3DObject* self, PyObject* ar
 
     auto entity = *it;
 
-    // Clear viewport reference before removing
+    // #430: take the wrapper BEFORE detaching. Detaching releases a subclass's identity
+    // pin, which would otherwise let its wrapper die and come back as a base Entity3D.
+    PyObject* result = mcrf::Entity3D::pyobject_for(entity);
+    if (!result) return NULL;
+
     entity->setViewport(nullptr);
     self->data->erase(it);
 
-    // Create Python wrapper for the removed entity
-    auto type = &mcrfpydef::PyEntity3DType;
-    auto obj = (PyEntity3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    new (&obj->data) std::shared_ptr<mcrf::Entity3D>(entity);
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    return result;
 }
 
 PyObject* EntityCollection3D::extend(PyEntityCollection3DObject* self, PyObject* o)
@@ -301,14 +301,7 @@ PyObject* EntityCollection3D::find(PyEntityCollection3DObject* self, PyObject* a
 
     for (const auto& entity : *self->data) {
         if (entity->getName() == name) {
-            auto type = &mcrfpydef::PyEntity3DType;
-            auto obj = (PyEntity3DObject*)type->tp_alloc(type, 0);
-            if (!obj) return NULL;
-
-            new (&obj->data) std::shared_ptr<mcrf::Entity3D>(entity);
-            obj->weakreflist = nullptr;
-
-            return (PyObject*)obj;
+            return mcrf::Entity3D::pyobject_for(entity);
         }
     }
 
@@ -370,15 +363,7 @@ PyObject* EntityCollection3DIter::next(PyEntityCollection3DIterObject* self)
     auto entity = *(self->current);
     ++(self->current);
 
-    // Create Python wrapper
-    auto type = &mcrfpydef::PyEntity3DType;
-    auto obj = (PyEntity3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    new (&obj->data) std::shared_ptr<mcrf::Entity3D>(entity);
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    return mcrf::Entity3D::pyobject_for(entity);
 }
 
 PyObject* EntityCollection3DIter::repr(PyEntityCollection3DIterObject* self)

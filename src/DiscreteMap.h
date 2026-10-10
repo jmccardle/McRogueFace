@@ -36,6 +36,13 @@ public:
     // instead of walking the entire W*H buffer.
     void demoteVisibleRect(int x0, int y0, int x1, int y1);
 
+    // #430: PythonObjectCache key for this map's Python wrapper (0 = none yet).
+    // A DiscreteMap is shared between Python and UIEntity::perspective_map, so the
+    // key lives on the map itself: entity.perspective_map returns the same wrapper
+    // (including a user's subclass instance) for as long as it is alive.
+    // Unregistered in ~DiscreteMap.
+    uint64_t serial_number = 0;
+
 private:
     int w_;
     int h_;

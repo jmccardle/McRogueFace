@@ -1,4 +1,5 @@
 #include "PyTimer.h"
+#include "PyWrap.h"
 #include "Timer.h"
 #include "GameEngine.h"
 #include "Resources.h"
@@ -98,14 +99,7 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
     self->data = std::make_shared<Timer>(callback, interval, current_time, (bool)once, (bool)start, self->name);
 
     // Register in Python object cache
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);  // Cache owns the reference now
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // Register with game engine only if starting
     if (Resources::game && start) {
@@ -120,6 +114,17 @@ int PyTimer::init(PyTimerObject* self, PyObject* args, PyObject* kwds) {
     }
 
     return 0;
+}
+
+PyObject* PyTimer::pyobject_for(const std::shared_ptr<Timer>& timer) {
+    if (!timer) Py_RETURN_NONE;
+    return mcrf::cached_wrapper<PyTimerObject>(timer->serial_number, &mcrfpydef::PyTimerType,
+        [&](PyTimerObject* obj) {
+            // tp_alloc zero-fills; dealloc destroys both members.
+            new(&obj->name) std::string(timer->name);
+            new(&obj->data) std::shared_ptr<Timer>(timer);
+            obj->weakreflist = nullptr;
+        });
 }
 
 void PyTimer::dealloc(PyTimerObject* self) {

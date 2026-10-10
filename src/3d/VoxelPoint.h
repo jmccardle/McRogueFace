@@ -75,6 +75,13 @@ inline PyTypeObject PyVoxelPointType = {
     .tp_name = "mcrfpy.VoxelPoint",
     .tp_basicsize = sizeof(PyVoxelPointObject),
     .tp_itemsize = 0,
+    // tp_free alone never runs the C++ members' destructors: without this the
+    // shared_ptr kept its target alive forever (grid.at() leaked the whole grid).
+    .tp_dealloc = [](PyObject* self) {
+        auto* o = (PyVoxelPointObject*)self;
+        o->viewport.~shared_ptr();
+        Py_TYPE(self)->tp_free(self);
+    },
     .tp_repr = (reprfunc)VoxelPoint::repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_doc = PyDoc_STR("VoxelPoint - Navigation grid cell for 3D terrain.\n\n"
