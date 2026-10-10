@@ -189,8 +189,10 @@ public:
     // Membership is the boundary, exactly as grid membership is for UIEntity (#266).
     // It is represented by the parent link, so the pin is re-evaluated in setParent()
     // and setParentScene() -- the two choke points every collection mutator goes
-    // through. Only subclassed drawables are pinned: a base-type wrapper carries no
-    // state of its own (the types have no __dict__), so re-creating one is unobservable.
+    // through -- and by pyobject_for() when it makes a wrapper for a contained object.
+    // #443: plain wrappers are pinned too. Otherwise a contained object with a live
+    // wrapper has two owners (its collection and that wrapper), neither of which can
+    // report its callbacks to the cycle collector (#441), so a cycle through it leaks.
     //
     // The pin is a reference cycle (wrapper -> shared_ptr -> drawable -> wrapper) that
     // Python's GC cannot see through the C++ side, so it MUST be released on the way

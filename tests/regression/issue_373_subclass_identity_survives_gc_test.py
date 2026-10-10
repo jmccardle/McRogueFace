@@ -160,9 +160,9 @@ def test_reparenting_preserves_identity():
     check(got.hp == 55, "and kept the attribute that was set on it")
 
 
-def test_base_type_is_not_pinned():
-    """Only subclasses are pinned. A base wrapper carries no state, so re-creating it
-    is unobservable -- and pinning it would cost memory for nothing."""
+def test_base_type_is_pinned():
+    """#443: base-type wrappers are pinned too. Otherwise a contained object with a live
+    wrapper has two owners, and the cycle collector can report neither (#441 gap)."""
     scene = mcrfpy.Scene("gc_base")
     plain = mcrfpy.Frame(pos=(0, 0), size=(10, 10))
     scene.children.append(plain)
@@ -171,10 +171,14 @@ def test_base_type_is_not_pinned():
     del plain
     gc.collect()
 
-    check(ref() is None, "a base-type wrapper is not pinned")
+    check(ref() is not None, "a base-type wrapper is pinned while contained")
     got = scene.children[0]
-    check(type(got) is mcrfpy.Frame, "it still round-trips as a Frame")
-    check(got.w == 10, "and its C++ state is intact")
+    check(got is ref(), "it is the same wrapper")
+    check(type(got) is mcrfpy.Frame and got.w == 10, "and its C++ state is intact")
+    del got
+    scene.children.pop()
+    gc.collect()
+    check(ref() is None, "the wrapper is freed once the drawable leaves the collection")
 
 
 def main():
@@ -183,7 +187,7 @@ def main():
     test_pin_released_on_removal()
     test_pin_released_when_owner_dies()
     test_reparenting_preserves_identity()
-    test_base_type_is_not_pinned()
+    test_base_type_is_pinned()
 
     if failures:
         print(f"\nFAILED ({len(failures)} checks)")

@@ -146,8 +146,8 @@ NEW_REF_CALL = re.compile(
     r"|.*(->|\.|::)(pyObject|pyobject_for)|mcrf::(to_python|live_wrapper))$")
 
 # The identity pin (#436) may only be touched by its owners' choke points.
-PIN_OWNERS = {"UIEntity::setGrid", "UIDrawable::updatePyIdentityPin",
-              "UIDrawable::releasePyIdentity"}
+PIN_OWNERS = {"UIEntity::syncIdentityPin", "Entity3D::syncIdentityPin",
+              "UIDrawable::updatePyIdentityPin", "UIDrawable::releasePyIdentity"}
 
 # ---------------------------------------------------------------------------
 # AST helpers

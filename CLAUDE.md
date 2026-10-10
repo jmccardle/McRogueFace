@@ -691,9 +691,13 @@ for a view such as a collection, on its owner: `UIDrawable::children_serial`,
 `pyobject_for()` on `cached_wrapper`. `tp_alloc`'d structs are zero-filled, not
 constructed: placement-new C++ members in the fill lambda and destroy them in `tp_dealloc`.
 
-**Identity pin (#436).** A Python *subclass* wrapper is kept alive exactly while a C++
-container owns the object, via an `mcrf::PyIdentityPin` synced in ONE ownership choke point:
-`UIDrawable::setParent()/setParentScene()`, `UIEntity::setGrid()`, `Entity3D::setViewport()`.
+**Identity pin (#436, #443).** An object's live Python wrapper (plain or subclass) is kept
+alive exactly while a C++ container owns the object, via an `mcrf::PyIdentityPin` synced in ONE
+choke point per kind: `UIDrawable::updatePyIdentityPin()` (from `setParent()/setParentScene()`),
+`UIEntity::syncIdentityPin()` (from `setGrid()`), `Entity3D::syncIdentityPin()` (from
+`setViewport()`). The converters call the same function, so a wrapper made later for a contained
+object is pinned too. An object attached from C++ has no wrapper, and is not pinned, until
+Python first touches it.
 Never read the pin as "the wrapper" (it has no getter); use `to_python()`. An entity's grid
 back-reference is a `weak_ptr` (`getGrid()`), so dropping a grid frees it and its entities.
 
@@ -705,8 +709,8 @@ the same test. Reporting a co-owned object's callback let the GC wipe a closure 
 calls (segfault); clearing it dropped live handlers; reporting nothing leaked every cycle
 through a pin. Drawables use `UIDrawable::traverseWrapper/clearWrapper` and extend
 `traverseOwned()/clearOwned()`; owners of children/entities descend via `traverseChildren`.
-Known gap: a *plain* (unpinned) child whose own wrapper is alive is reported by no one, so a
-cycle through it leaks rather than crashes.
+Pinning plain wrappers too (#443) is what makes this complete: otherwise a contained object
+with a live wrapper has two owners, and neither may report its callbacks.
 
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or

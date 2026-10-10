@@ -45,10 +45,11 @@ public:
     // Python integration (#430/#436: same design as UIEntity)
     uint64_t serial_number = 0;  // wrapper-cache key; unregistered in ~Entity3D
 
-    // A Python subclass wrapper is pinned while a viewport owns the entity. Synced only
-    // in setViewport(), the one ownership choke point. Never read it as "the wrapper":
-    // use pyobject_for().
+    // The wrapper is pinned while a viewport owns the entity (#443: plain ones too).
+    // Synced only by syncIdentityPin(), from setViewport() and pyobject_for(). Never
+    // read it as "the wrapper": use pyobject_for().
     PyIdentityPin identity_pin;
+    void syncIdentityPin();
     bool is_python_subclass = false;  // set in tp_init
 
     // #441: the Python objects this entity owns (its animation callback), for an owner

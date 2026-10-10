@@ -71,12 +71,14 @@ Entity3D::~Entity3D()
 PyObject* Entity3D::pyobject_for(const std::shared_ptr<Entity3D>& entity)
 {
     if (!entity) Py_RETURN_NONE;
-    return cached_wrapper<PyEntity3DObject>(entity->serial_number, &mcrfpydef::PyEntity3DType,
+    PyObject* obj = cached_wrapper<PyEntity3DObject>(entity->serial_number, &mcrfpydef::PyEntity3DType,
         [&](PyEntity3DObject* o) {
             // tp_alloc zero-fills; construct the shared_ptr in place.
             new (&o->data) std::shared_ptr<Entity3D>(entity);
             o->weakreflist = nullptr;
         });
+    if (obj) entity->syncIdentityPin();  // #443: pin a new wrapper for a contained entity
+    return obj;
 }
 
 // =============================================================================
@@ -150,7 +152,12 @@ void Entity3D::setViewport(std::shared_ptr<Viewport3D> vp)
     // #436: the single ownership choke point. Last statement: releasing the pin can
     // drop the last reference to the wrapper, and with it this entity, when the caller
     // holds no shared_ptr of its own.
-    identity_pin.sync(is_python_subclass && vp != nullptr, serial_number);
+    syncIdentityPin();
+}
+
+void Entity3D::syncIdentityPin()
+{
+    identity_pin.sync(!viewport_.expired(), serial_number);
 }
 
 void Entity3D::updateCellRegistration()
