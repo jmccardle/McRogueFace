@@ -1,0 +1,56 @@
+{ "columns":4,
+ "image":"test_tileset.png",
+ "imageheight":64,
+ "imagewidth":64,
+ "margin":0,
+ "name":"test_tileset",
+ "spacing":0,
+ "tilecount":16,
+ "tiledversion":"1.10.2",
+ "tileheight":16,
+ "tilewidth":16,
+ "type":"tileset",
+ "version":"1.10",
+ "properties":[
+  {"name":"author", "type":"string", "value":"test"},
+  {"name":"version", "type":"int", "value":1}
+ ],
+ "tiles":[
+  {
+   "id":0,
+   "properties":[
+    {"name":"terrain", "type":"string", "value":"grass"},
+    {"name":"walkable", "type":"bool", "value":true}
+   ],
+   "animation":[
+    {"duration":500, "tileid":0},
+    {"duration":500, "tileid":4}
+   ]
+  },
+  {
+   "id":1,
+   "properties":[
+    {"name":"terrain", "type":"string", "value":"dirt"}
+   ]
+  }
+ ],
+ "wangsets":[
+  {
+   "colors":[
+    {"color":"#00ff00", "name":"Grass", "probability":1, "tile":0},
+    {"color":"#8b4513", "name":"Dirt", "probability":1, "tile":1}
+   ],
+   "name":"terrain",
+   "tile":-1,
+   "type":"corner",
+   "wangtiles":[
+    {"tileid":0, "wangid":[0,1,0,1,0,1,0,1]},
+    {"tileid":1, "wangid":[0,2,0,2,0,2,0,2]},
+    {"tileid":8, "wangid":[0,2,0,1,0,1,0,1]},
+    {"tileid":9, "wangid":[0,1,0,1,0,1,0,2]},
+    {"tileid":10, "wangid":[0,1,0,1,0,2,0,1]},
+    {"tileid":11, "wangid":[0,1,0,2,0,1,0,1]}
+   ]
+  }
+ ]
+}
