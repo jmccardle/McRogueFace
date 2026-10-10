@@ -39,6 +39,9 @@ removals that affect your code.
 | `mcrfpy.step()` / `advance()` raise `RuntimeError` when called from a thread that holds `mcrfpy.lock()`; previously this deadlocked. | — |
 | `--exec` / `-c` scripts run in UTF-8 mode. A bare `open()` reads UTF-8 on every platform; it used to be ASCII on Linux and the ANSI code page on Windows (#378). | — |
 | `get_metrics()` counters (`draw_calls`, `ui_elements`, the grid counters) are no longer always 0 (#341). | — |
+| **An entity no longer keeps its grid alive** (the back-reference is weak; the strong one leaked every grid with entities, #437). `e = Entity(grid=Grid(...))` with no other reference to the grid leaves `e.grid` as `None`. | Keep a reference to the grid (or view) you're using. |
+| **Every accessor returns the same Python object** for the same engine object: `grid.layer(name)`, `grid.layers`, `.texture`, `.font`, `.children`, `.entities`, `entity.perspective_map`, `get_dijkstra_map(root)`, `mcrfpy.timers`, find(), and more (#430). An object you constructed comes back as itself. | Code that relied on getting a *fresh* wrapper (e.g. mutating it as a private copy) must copy explicitly. |
+| `entity.perspective_map = m` then reading it back returns `m` itself, with `m`'s own `enum_type` (previously a fresh map always typed with `mcrfpy.Perspective`). | — |
 
 ## New
 
@@ -79,7 +82,17 @@ removals that affect your code.
 - In headless mode, `mcrfpy.lock()` from a background thread blocked forever (#398).
 - A headless `--exec` script that never exited could hang the process (#350).
 
-**Object identity and lifetime**
+**Object identity and lifetime** (#430, #436)
+- A subclassed Entity keeps its type and attributes through remove + re-append,
+  `die()` + append, and `grid = None` / `grid = g`; `.step` callbacks and `on_step`
+  keep firing after a re-append (#429).
+- Memory leaks fixed: an Entity never added to a grid (#424); a grid containing
+  entities (#437); every grid touched by `grid.at()` / `grid[x, y]` (GridPoint never
+  released it); every Texture, Font and SoundBuffer wrapper; `get_metrics()`,
+  `SoundBuffer.sfxr_params` and the `automation` click/drag helpers (#413); Vector
+  setters such as `Line.start`, `Circle.center`, `entity.cell_pos`,
+  `GridView.center` (#414); one timer reference per timer fire.
+- `mcrfpy.window is mcrfpy.Window.get()` (they were two objects).
 - `.parent`, `find()` and indexing return the *same* Python object every time, including
   Python subclasses with their own attributes. Previously a subclass instance could come
   back as a plain `Frame` with its attributes gone (#369, #373).
@@ -153,9 +166,8 @@ Where it comes from:
 
 ## Known issues
 
-- **#414**: setting `entity.cell_pos`, `draw_pos`, `sprite_offset` or `GridView.center`
-  leaks one `Vector` per call (also the main cost of `cell_pos`).
-- **#413**: `get_metrics()` leaks 8 small allocations per call.
+- **#440**: `Sound` and `Music` objects are never freed; fixing it needs a voice
+  registry so fire-and-forget `Sound(...).play()` keeps playing (with #407).
 - **#416, #417**: changing engine objects from a background thread *without*
   `mcrfpy.lock()` can crash. Two threads holding the lock at once are only kept safe by
   the GIL, so the free-threaded (no-GIL) build is not supported.
