@@ -1,6 +1,7 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
+#include "Audio.h"
 
 class PyMusic;
 
@@ -9,15 +10,25 @@ typedef struct {
     std::shared_ptr<PyMusic> data;
 } PyMusicObject;
 
-class PyMusic : public std::enable_shared_from_this<PyMusic>
+// #440/#406: see PySound. `music` exists only while audio is enabled; the settings
+// below are the object's own.
+class PyMusic : public mcrf::audio::Source, public std::enable_shared_from_this<PyMusic>
 {
 private:
-    sf::Music music;
+    std::unique_ptr<sf::Music> music;
     std::string source;
-    bool loaded;
+    bool loaded = false;
+    float duration = 0.0f;
+    float volume = 100.0f;
+    bool loop = false;
+    float position = 0.0f;  // the playing offset while there is no device
 
 public:
     PyMusic(const std::string& filename);
+
+    // mcrf::audio::Source
+    bool active() const override;
+    void releaseDevice() override;
 
     // Playback control
     void play();
@@ -39,6 +50,7 @@ public:
     static Py_hash_t hash(PyObject* obj);
     static int init(PyMusicObject* self, PyObject* args, PyObject* kwds);
     static PyObject* pynew(PyTypeObject* type, PyObject* args, PyObject* kwds);
+    static void dealloc(PyMusicObject* self);
 
     // Python methods
     static PyObject* py_play(PyMusicObject* self, PyObject* args);
@@ -66,6 +78,7 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.Music",
         .tp_basicsize = sizeof(PyMusicObject),
         .tp_itemsize = 0,
+        .tp_dealloc = (destructor)PyMusic::dealloc,
         .tp_repr = PyMusic::repr,
         .tp_hash = PyMusic::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -73,6 +86,6 @@ namespace mcrfpydef {
         .tp_methods = PyMusic::methods,
         .tp_getset = PyMusic::getsetters,
         .tp_init = (initproc)PyMusic::init,
-        .tp_new = PyType_GenericNew,
+        .tp_new = PyMusic::pynew,
     };
 }

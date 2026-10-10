@@ -53,36 +53,34 @@ int PySoundBuffer::init(PySoundBufferObject* self, PyObject* args, PyObject* kwd
         return -1;
     }
 
-    // Load from file via sf::SoundBuffer
+    auto data = std::make_shared<SoundBufferData>();
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
+    // #406: decode with sf::InputSoundFile, which (unlike sf::SoundBuffer) is not an
+    // AlResource, so loading a buffer never opens the audio device.
+    sf::InputSoundFile file;
+    if (!file.openFromFile(filename)) {
+        PyErr_Format(PyExc_RuntimeError, "Failed to load sound file: %s", filename);
+        return -1;
+    }
+    data->sampleRate = file.getSampleRate();
+    data->channels = file.getChannelCount();
+    data->samples.resize(static_cast<size_t>(file.getSampleCount()));
+    data->samples.resize(static_cast<size_t>(file.read(data->samples.data(), data->samples.size())));
+#else
     sf::SoundBuffer tmpBuf;
     if (!tmpBuf.loadFromFile(filename)) {
         PyErr_Format(PyExc_RuntimeError, "Failed to load sound file: %s", filename);
         return -1;
     }
-
-    // Extract samples from the loaded buffer
-    auto data = std::make_shared<SoundBufferData>();
     data->sampleRate = tmpBuf.getSampleRate();
     data->channels = tmpBuf.getChannelCount();
-
-    // Copy sample data from sf::SoundBuffer
-    auto count = tmpBuf.getSampleCount();
-    if (count > 0) {
-        // SFML provides getSamples() on desktop; for headless/SDL2 we have no samples to copy
-        // On SFML desktop builds, sf::SoundBuffer has getSamples()
-#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
-        const sf::Int16* src = tmpBuf.getSamples();
-        data->samples.assign(src, src + count);
-#else
-        // Headless/SDL2: samples not directly accessible from sf::SoundBuffer
-        // Create silence of the appropriate duration
-        float dur = tmpBuf.getDuration().asSeconds();
-        size_t numSamples = static_cast<size_t>(dur * data->sampleRate * data->channels);
-        data->samples.resize(numSamples, 0);
+    // Headless/SDL2: samples not directly accessible from sf::SoundBuffer
+    // Create silence of the appropriate duration
+    float dur = tmpBuf.getDuration().asSeconds();
+    size_t numSamples = static_cast<size_t>(dur * data->sampleRate * data->channels);
+    data->samples.resize(numSamples, 0);
 #endif
-    }
 
-    data->sfBufferDirty = true;
 
     // #430: re-running __init__ swaps the buffer this object wraps; the old buffer
     // must stop resolving to this object.
@@ -173,7 +171,6 @@ PyObject* PySoundBuffer::from_samples(PyObject* cls, PyObject* args, PyObject* k
     memcpy(data->samples.data(), buf.buf, numSamples * sizeof(int16_t));
     data->channels = ch;
     data->sampleRate = rate;
-    data->sfBufferDirty = true;
 
     PyBuffer_Release(&buf);
     return PySoundBuffer::pyobject_for(data);

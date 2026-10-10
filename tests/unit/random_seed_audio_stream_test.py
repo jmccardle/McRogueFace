@@ -12,12 +12,10 @@ Two separate claims, and the second is the one that makes a seeded engine usable
     moved, so an audio-on and an audio-off run at the same seed would be different
     worlds and nothing in either would say so.
 
-play_varied() restores the sound's pitch/volume before returning, so its return
-value is the only observable record of the draw; without it there is nothing here
-to assert on.
-
-Note: this test constructs a real Sound, so it opens an audio device. An OpenAL
-teardown abort here is engine issue #400, which is pre-existing and unrelated.
+play_varied() plays the draw on its own voice and leaves the sound's pitch/volume
+alone (#407), so its return value is the only observable record of the draw; without
+it there is nothing here to assert on. The draw happens with audio off too (the
+suite's --headless default, #406), which is what keeps the streams aligned.
 """
 
 import sys

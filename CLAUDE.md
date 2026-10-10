@@ -712,6 +712,15 @@ through a pin. Drawables use `UIDrawable::traverseWrapper/clearWrapper` and exte
 Pinning plain wrappers too (#443) is what makes this complete: otherwise a contained object
 with a live wrapper has two owners, and neither may report its callbacks.
 
+**Audio ownership (#440, #406, #400).** `src/Audio.h` owns playback. A playing `Sound` or
+`Music` is retained by `mcrf::audio` until it stops (swept once per frame), which is what
+makes `Sound(...).play()` work without a held reference. Device resources (`sf::Sound`,
+`sf::Music`, `sf::SoundBuffer`, each of which opens the OpenAL device when constructed)
+exist only while `mcrf::audio::enabled()`. They live behind a `unique_ptr` in an
+`mcrf::audio::Source`, so that `shutdown()` (run via `Py_AtExit`) can close the device
+before `exit()`. Never add an `sf::` audio member anywhere else: an unused one on
+`GameEngine` kept a device open in every run, and it is what caused #400.
+
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or
 `PyObject_New`), direct `PythonObjectCache::` use, a new reference passed inline to a

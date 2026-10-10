@@ -382,11 +382,7 @@ public:
 
     // global textures for scripts to access
     std::vector<IndexTexture> textures;
-    
-    // global audio storage
-    std::vector<sf::SoundBuffer> sfxbuffers;
-    sf::Music music;
-    sf::Sound sfx;
+
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> scene_ui(std::string scene);
 
 };

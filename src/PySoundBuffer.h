@@ -21,29 +21,16 @@ public:
     // Optional sfxr params (set when created via sfxr synthesis)
     std::shared_ptr<SfxrParams> sfxrParams;
 
-    // Lazy sf::SoundBuffer rebuild
-    sf::SoundBuffer sfBuffer;
-    bool sfBufferDirty = true;
-
     // #430: PythonObjectCache key for this buffer's SoundBuffer wrapper (0 = none yet).
     uint64_t serial_number = 0;
 
     SoundBufferData() = default;
     SoundBufferData(std::vector<int16_t>&& s, unsigned int rate, unsigned int ch)
-        : samples(std::move(s)), sampleRate(rate), channels(ch), sfBufferDirty(true) {}
+        : samples(std::move(s)), sampleRate(rate), channels(ch) {}
     ~SoundBufferData();  // unregisters serial_number; defined in PySoundBuffer.cpp
     // A copy would share serial_number, and destroying either would evict the other's wrapper.
     SoundBufferData(const SoundBufferData&) = delete;
     SoundBufferData& operator=(const SoundBufferData&) = delete;
-
-    // Rebuild sf::SoundBuffer from samples if dirty
-    sf::SoundBuffer& getSfBuffer() {
-        if (sfBufferDirty && !samples.empty()) {
-            sfBuffer.loadFromSamples(samples.data(), samples.size(), channels, sampleRate);
-            sfBufferDirty = false;
-        }
-        return sfBuffer;
-    }
 
     float duration() const {
         if (sampleRate == 0 || channels == 0 || samples.empty()) return 0.0f;
