@@ -8,10 +8,9 @@ every Vector argument immortal and leaked a fresh Vector per tuple argument.
 value on every call.
 """
 import sys
-import tracemalloc
+import gc
 
 import mcrfpy
-from mcrfpy import automation
 
 failures = []
 N = 200
@@ -56,35 +55,35 @@ def vector_setters():
               f"{ctor_label}: refcount +{sys.getrefcount(v) - before} over {N} constructions")
 
 
-def retained(fn, n):
-    tracemalloc.start()
-    s0 = tracemalloc.take_snapshot()
+def blocks_after(fn, n):
+    gc.collect()
+    before = sys.getallocatedblocks()
     for _ in range(n):
         fn()
-    s1 = tracemalloc.take_snapshot()
-    tracemalloc.stop()
-    return sum(st.size_diff for st in s1.compare_to(s0, "filename"))
+    gc.collect()
+    return sys.getallocatedblocks() - before
 
 
 def leak_per_call(fn, n):
-    """Bytes retained per extra call, from the slope between n and 4n calls. Allocator
-    and free-list noise is roughly constant; a leak grows with the call count."""
+    """Allocated blocks retained per extra call, from the slope between n and 4n calls.
+    Free-list and cache noise is roughly constant; a leak (at least one block per
+    leaked object) grows with the call count."""
     fn()  # warm caches / lazy allocations
-    return (retained(fn, 4 * n) - retained(fn, n)) / (3 * n)
+    return (blocks_after(fn, 4 * n) - blocks_after(fn, n)) / (3 * n)
 
 
 def borrowed_sinks():
     print("dict builders release their values (#413)")
     buf = mcrfpy.SoundBuffer.sfxr("coin")
     for label, fn, n in [
-        ("get_metrics()", lambda: mcrfpy.get_metrics(), 500),
-        ("SoundBuffer.sfxr_params", lambda: buf.sfxr_params, 500),
-        ("automation.rightClick()", lambda: automation.rightClick((5, 5)), 200),
-        ("automation.dragRel()", lambda: automation.dragRel((1, 1), 0.0), 200),
+        ("get_metrics()", lambda: mcrfpy.get_metrics(), 2000),
+        ("SoundBuffer.sfxr_params", lambda: buf.sfxr_params, 2000),
     ]:
+        # The automation click/drag helpers had the same leak (fixed in the same change), but
+        # each click sleeps 10 ms, too slow to sample here; tools/lint_bindings.py's
+        # borrowed-leak rule guards those sites instead.
         per_call = leak_per_call(fn, n)
-        # The smallest object a leak can strand (an int) is ~28 bytes.
-        check(per_call < 16, f"{label}: {per_call:.1f} bytes retained per call")
+        check(per_call < 0.25, f"{label}: {per_call:.3f} blocks retained per call")
 
 
 def main():

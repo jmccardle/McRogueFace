@@ -4,6 +4,7 @@
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
 
 #include "ImGuiSceneExplorer.h"
+#include "PyWrap.h"
 #include "imgui.h"
 #include "GameEngine.h"
 #include "Scene.h"
@@ -231,7 +232,7 @@ std::string ImGuiSceneExplorer::getDisplayName(UIDrawable* drawable) {
 
     // Try to get Python object repr from cache
     if (drawable->serial_number != 0) {
-        PyObject* pyObj = PythonObjectCache::getInstance().lookup(drawable->serial_number);
+        PyObject* pyObj = mcrf::live_wrapper(drawable->serial_number);
         if (pyObj) {
             PyObject* repr = PyObject_Repr(pyObj);
             if (repr) {
@@ -264,7 +265,7 @@ std::string ImGuiSceneExplorer::getEntityDisplayName(UIEntity* entity) {
 
     // Try to get Python object repr from cache
     if (entity->serial_number != 0) {
-        PyObject* pyObj = PythonObjectCache::getInstance().lookup(entity->serial_number);
+        PyObject* pyObj = mcrf::live_wrapper(entity->serial_number);
         if (pyObj) {
             PyObject* repr = PyObject_Repr(pyObj);
             if (repr) {

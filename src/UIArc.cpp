@@ -1,4 +1,5 @@
 #include "UIArc.h"
+#include "PyWrap.h"
 #include "McRFPy_Doc.h"
 #include "McRFPy_API.h"
 #include "PythonObjectCache.h"
@@ -402,13 +403,9 @@ PyObject* UIArc::get_center(PyUIArcObject* self, void* closure) {
 }
 
 int UIArc::set_center(PyUIArcObject* self, PyObject* value, void* closure) {
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_Clear();
-        PyErr_SetString(PyExc_TypeError, "center must be a Vector or tuple (x, y)");
-        return -1;
-    }
-    self->data->setCenter(vec->data);
+    sf::Vector2f center;
+    if (!mcrf::to_vector2f(value, center, "center")) return -1;
+    self->data->setCenter(center);
     self->data->markCompositeDirty(); // #291: position change
     return 0;
 }
@@ -585,14 +582,7 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
     // Parse center position
     sf::Vector2f center(0.0f, 0.0f);
     if (center_obj) {
-        PyVectorObject* vec = PyVector::from_arg(center_obj);
-        if (vec) {
-            center = vec->data;
-        } else {
-            PyErr_Clear();
-            PyErr_SetString(PyExc_TypeError, "center must be a Vector or tuple (x, y)");
-            return -1;
-        }
+        if (!mcrf::to_vector2f(center_obj, center, "center")) return -1;
     }
 
     // Parse color
@@ -637,14 +627,7 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
     UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
 
     // Register in Python object cache
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIArcType;

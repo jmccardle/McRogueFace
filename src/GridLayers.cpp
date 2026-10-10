@@ -1,4 +1,5 @@
 #include "GridLayers.h"
+#include "PyWrap.h"
 #include "McRFPy_Doc.h"
 #include "PyGridData.h"
 #include "UIGridView.h"
@@ -1774,32 +1775,8 @@ PyObject* PyGridLayerAPI::ColorLayer_get_grid(PyColorLayerObject* self, void* cl
         Py_RETURN_NONE;
     }
 
-    // Check cache first — preserves identity (layer.grid is layer.grid)
-    if (self->grid->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(self->grid->serial_number);
-        if (cached) {
-            return cached;
-        }
-    }
-
-    // No cached wrapper — allocate a new one
-    auto* grid_type = &mcrfpydef::PyGridDataType;
-    PyGridDataObject* py_grid = (PyGridDataObject*)grid_type->tp_alloc(grid_type, 0);
-    if (!py_grid) return NULL;
-
-    py_grid->data = self->grid;
-    py_grid->weakreflist = NULL;
-
-    // Register in cache
-    if (self->grid->serial_number == 0) {
-        self->grid->serial_number = PythonObjectCache::getInstance().assignSerial();
-    }
-    PyObject* weakref = PyWeakref_NewRef((PyObject*)py_grid, NULL);
-    if (weakref) {
-        PythonObjectCache::getInstance().registerObject(self->grid->serial_number, weakref);
-        Py_DECREF(weakref);
-    }
-    return (PyObject*)py_grid;
+    // Returns the live cached wrapper if one exists (preserves identity: layer.grid is layer.grid)
+    return mcrf::to_python(self->grid);
 }
 
 int PyGridLayerAPI::ColorLayer_set_grid(PyColorLayerObject* self, PyObject* value, void* closure) {
@@ -2503,32 +2480,8 @@ PyObject* PyGridLayerAPI::TileLayer_get_grid(PyTileLayerObject* self, void* clos
         Py_RETURN_NONE;
     }
 
-    // Check cache first — preserves identity (layer.grid is layer.grid)
-    if (self->grid->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(self->grid->serial_number);
-        if (cached) {
-            return cached;
-        }
-    }
-
-    // No cached wrapper — allocate a new one
-    auto* grid_type = &mcrfpydef::PyGridDataType;
-    PyGridDataObject* py_grid = (PyGridDataObject*)grid_type->tp_alloc(grid_type, 0);
-    if (!py_grid) return NULL;
-
-    py_grid->data = self->grid;
-    py_grid->weakreflist = NULL;
-
-    // Register in cache
-    if (self->grid->serial_number == 0) {
-        self->grid->serial_number = PythonObjectCache::getInstance().assignSerial();
-    }
-    PyObject* weakref = PyWeakref_NewRef((PyObject*)py_grid, NULL);
-    if (weakref) {
-        PythonObjectCache::getInstance().registerObject(self->grid->serial_number, weakref);
-        Py_DECREF(weakref);
-    }
-    return (PyObject*)py_grid;
+    // Returns the cached wrapper when alive (preserves identity: layer.grid is layer.grid)
+    return mcrf::to_python(self->grid);
 }
 
 int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value, void* closure) {

@@ -1,6 +1,7 @@
 // Viewport3D.cpp - 3D rendering viewport implementation
 
 #include "Viewport3D.h"
+#include "PyWrap.h"
 #include "Shader3D.h"
 #include "MeshLayer.h"
 #include "Entity3D.h"
@@ -1359,12 +1360,9 @@ static PyObject* Viewport3D_get_pos(PyViewport3DObject* self, void* closure) {
 }
 
 static int Viewport3D_set_pos(PyViewport3DObject* self, PyObject* value, void* closure) {
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a Vector or (x, y) tuple");
-        return -1;
-    }
-    self->data->position = vec->data;
+    sf::Vector2f pos;
+    if (!mcrf::to_vector2f(value, pos, "pos")) return -1;
+    self->data->position = pos;
     return 0;
 }
 
@@ -1748,12 +1746,9 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
 
     // Position
     if (pos_obj && pos_obj != Py_None) {
-        PyVectorObject* vec = PyVector::from_arg(pos_obj);
-        if (!vec) {
-            PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y)");
-            return -1;
-        }
-        self->data->position = vec->data;
+        sf::Vector2f pos;
+        if (!mcrf::to_vector2f(pos_obj, pos, "pos")) return -1;
+        self->data->position = pos;
     }
 
     // Size
@@ -1832,12 +1827,7 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
 
     // Register in Python object cache for scene explorer repr
     if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);  // Cache owns the reference now
-        }
+        if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
     }
 
     // Check if this is a Python subclass (for callback method support)

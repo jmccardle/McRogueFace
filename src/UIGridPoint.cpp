@@ -1,4 +1,5 @@
 #include "UIGridPoint.h"
+#include "PyWrap.h"    // #430 - mcrf::to_python / PyRef
 #include "PyGridData.h"
 #include "UIEntity.h"    // #114 - for GridPoint.entities
 #include "GridLayers.h"  // #150 - for GridLayerType, ColorLayer, TileLayer
@@ -101,20 +102,12 @@ PyObject* UIGridPoint::get_entities(PyUIGridPointObject* self, void* closure) {
     // Use spatial hash for O(bucket_size) lookup instead of O(n) iteration
     auto entities = self->grid->spatial_hash.queryCell(target_x, target_y);
     for (auto& entity : entities) {
-        // Create Python Entity object for this entity
-        auto type = &mcrfpydef::PyUIEntityType;
-        auto obj = (PyUIEntityObject*)type->tp_alloc(type, 0);
-        if (!obj) {
+        // Cached Python wrapper for this entity (identity-preserving)
+        mcrf::PyRef item(mcrf::to_python(entity));
+        if (!item || PyList_Append(list, item.get()) < 0) {
             Py_DECREF(list);
             return NULL;
         }
-        obj->data = entity;
-        if (PyList_Append(list, (PyObject*)obj) < 0) {
-            Py_DECREF(obj);
-            Py_DECREF(list);
-            return NULL;
-        }
-        Py_DECREF(obj);  // List now owns the reference
     }
 
     return list;

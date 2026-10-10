@@ -430,18 +430,6 @@ PyObject* UIFrame::get_pos(PyUIFrameObject* self, void* closure)
     return (PyObject*)obj;
 }
 
-int UIFrame::set_pos(PyUIFrameObject* self, PyObject* value, void* closure)
-{
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a Vector or convertible to Vector");
-        return -1;
-    }
-    self->data->box.setPosition(vec->data);
-    self->data->markDirty();
-    return 0;
-}
-
 PyObject* UIFrame::get_clip_children(PyUIFrameObject* self, void* closure)
 {
     return PyBool_FromLong(self->data->clip_children);

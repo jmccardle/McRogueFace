@@ -1,4 +1,5 @@
 #include "UIDrawable.h"
+#include "PyWrap.h"
 #include <iostream>
 #include "UIFrame.h"
 #include "UICaption.h"
@@ -184,7 +185,7 @@ UIDrawable& UIDrawable::operator=(UIDrawable&& other) noexcept {
     if (this != &other) {
         // Clear our own cache entry if we have one
         if (serial_number != 0) {
-            PythonObjectCache::getInstance().remove(serial_number);
+            mcrf::unregister_wrapper(serial_number);
         }
 
         // Move basic members

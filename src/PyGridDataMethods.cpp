@@ -641,24 +641,11 @@ PyObject* PyGridData::py_entities_in_radius(PyGridDataObject* self, PyObject* ar
     PyObject* result = PyList_New(entities.size());
     if (!result) return PyErr_NoMemory();
 
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
     for (size_t i = 0; i < entities.size(); i++) {
-        auto& entity = entities[i];
-
-        PyObject* py_entity = nullptr;
-        if (entity->serial_number != 0) {
-            py_entity = PythonObjectCache::getInstance().lookup(entity->serial_number);
-        }
+        PyObject* py_entity = mcrf::to_python(entities[i]);
         if (!py_entity) {
-            auto pyEntity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-            if (!pyEntity) {
-                Py_DECREF(result);
-                return PyErr_NoMemory();
-            }
-            pyEntity->data = entity;
-            pyEntity->weakreflist = NULL;
-            py_entity = (PyObject*)pyEntity;
+            Py_DECREF(result);
+            return NULL;
         }
         PyList_SET_ITEM(result, i, py_entity);
     }

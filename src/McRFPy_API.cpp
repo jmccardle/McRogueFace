@@ -1716,7 +1716,7 @@ PyObject* McRFPy_API::api_get_timers()
 
         // Try to find existing Python wrapper
         if (timer->serial_number != 0) {
-            timer_obj = PythonObjectCache::getInstance().lookup(timer->serial_number);
+            timer_obj = mcrf::live_wrapper(timer->serial_number);
         }
 
         // #180: If no wrapper exists (orphaned timer), create a new one
@@ -1965,6 +1965,7 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
     if (!collection) return;
 
     for (auto& drawable : *collection) {
+        if (PyErr_Occurred()) return;  // a nested search failed
         if (!drawable) continue;
         
         // Check this element's name
@@ -1976,7 +1977,7 @@ static void find_in_collection(std::vector<std::shared_ptr<UIDrawable>>* collect
                 Py_DECREF(py_obj);
                 py_obj = nullptr;
             } else if (!py_obj) {
-                PyErr_Clear();  // unknown derived type: skip, as the old switch did
+                return;  // conversion failed: leave the error set for the caller (#430)
             }
 
             if (py_obj) {
@@ -2038,31 +2039,11 @@ static void find_in_grid_entities(GridData* grid, const std::string& pattern,
 
         // Entities delegate name to their sprite
         if (name_matches_pattern(entity->sprite.name, pattern)) {
-            // #266/#357: the cache is the ONLY correct way to wrap an existing
-            // entity. A fresh tp_alloc would (a) return a base-class Entity for
-            // a Python subclass instance, losing identity and its __dict__, and
-            // (b) leak the entity's strong self-reference when that duplicate
-            // wrapper is deallocated -- PyUIEntityType's tp_dealloc clears
-            // data->pyobject unconditionally. Mirrors UIEntityCollection::getitem.
-            PyObject* py_obj = nullptr;
-            if (entity->serial_number != 0) {
-                py_obj = PythonObjectCache::getInstance().lookup(entity->serial_number);  // new ref
-            }
-            if (!py_obj) {
-                auto type = &mcrfpydef::PyUIEntityType;
-                auto o = (PyUIEntityObject*)type->tp_alloc(type, 0);
-                if (o) {
-                    o->data = entity;
-                    o->weakreflist = NULL;
-                    py_obj = (PyObject*)o;
-                }
-            }
-
-            if (py_obj) {
-                PyList_Append(results, py_obj);
-                Py_DECREF(py_obj);
-                if (!find_all) return;
-            }
+            // #266/#430: the cache-aware converter returns the caller's existing
+            // wrapper (and Python subclass), never a fresh identity-less one.
+            mcrf::PyRef py_obj(mcrf::to_python(entity));
+            if (!py_obj || PyList_Append(results, py_obj.get()) < 0) return;  // error set
+            if (!find_all) return;
         }
     }
 }
@@ -2102,6 +2083,10 @@ PyObject* McRFPy_API::_find(PyObject* self, PyObject* args) {
     // grid's entities and overlay children via asGridData() (#355/#357).
     std::unordered_set<GridData*> visited_grids;  // #359 - shared GridData visited once
     find_in_collection(ui_elements.get(), name, false, results, visited_grids);
+    if (PyErr_Occurred()) {
+        Py_DECREF(results);
+        return NULL;
+    }
 
     // Return the first result or None
     if (PyList_Size(results) > 0) {
@@ -2150,6 +2135,10 @@ PyObject* McRFPy_API::_findAll(PyObject* self, PyObject* args) {
     // grid's entities and overlay children via asGridData() (#355/#357).
     std::unordered_set<GridData*> visited_grids;  // #359 - shared GridData visited once
     find_in_collection(ui_elements.get(), pattern, true, results, visited_grids);
+    if (PyErr_Occurred()) {
+        Py_DECREF(results);
+        return NULL;
+    }
 
     return results;
 }

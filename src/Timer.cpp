@@ -1,5 +1,6 @@
 #include "Timer.h"
 #include "PythonObjectCache.h"
+#include "PyWrap.h"
 #include "PyCallable.h"
 #include "McRFPy_API.h"
 #include "GameEngine.h"
@@ -17,7 +18,7 @@ Timer::Timer()
 Timer::~Timer() {
     releasePyWrapper();
     if (serial_number != 0) {
-        PythonObjectCache::getInstance().remove(serial_number);
+        mcrf::unregister_wrapper(serial_number);
     }
 }
 
@@ -50,7 +51,7 @@ bool Timer::test(int now)
         // Get the PyTimer wrapper from cache to pass to callback
         PyObject* timer_obj = nullptr;
         if (serial_number != 0) {
-            timer_obj = PythonObjectCache::getInstance().lookup(serial_number);
+            timer_obj = mcrf::live_wrapper(serial_number);
         }
 
         // Build args: (timer, runtime) or just (runtime) if no wrapper found

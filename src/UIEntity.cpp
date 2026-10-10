@@ -1,4 +1,5 @@
 #include "UIEntity.h"
+#include "PyWrap.h"
 #include "PyGridData.h"
 #include "UIGridView.h"  // #252: Entity.grid accepts GridView
 #include "UIGridPathfinding.h"
@@ -1301,9 +1302,6 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
     PyObject* result = PyList_New(0);
     if (!result) return PyErr_NoMemory();
 
-    // Get Entity type for creating Python objects
-    auto entity_type = &mcrfpydef::PyUIEntityType;
-
     // Iterate through all entities in the grid
     if (grid->entities) {
         for (auto& entity : *grid->entities) {
@@ -1317,22 +1315,12 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
             int ey = entity->cell_position.y;
 
             if (grid->isInFOV(ex, ey)) {
-                // Create Python Entity object for this entity
-                auto pyEntity = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-                if (!pyEntity) {
-                    Py_DECREF(result);
-                    return PyErr_NoMemory();
-                }
-
-                pyEntity->data = entity;
-                pyEntity->weakreflist = NULL;
-
-                if (PyList_Append(result, (PyObject*)pyEntity) < 0) {
-                    Py_DECREF(pyEntity);
+                // Return the cached Python wrapper (new reference)
+                mcrf::PyRef item(mcrf::to_python(entity));
+                if (!item || PyList_Append(result, item.get()) < 0) {
                     Py_DECREF(result);
                     return NULL;
                 }
-                Py_DECREF(pyEntity);  // List now owns the reference
             }
         }
     }

@@ -3,6 +3,7 @@
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "PyVector.h"
+#include "PyWrap.h"
 #include "PyColor.h"
 #include "PythonObjectCache.h"
 #include "PyAlignment.h"
@@ -354,13 +355,9 @@ PyObject* UICircle::get_center(PyUICircleObject* self, void* closure) {
 }
 
 int UICircle::set_center(PyUICircleObject* self, PyObject* value, void* closure) {
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_Clear();
-        PyErr_SetString(PyExc_TypeError, "center must be a Vector or tuple (x, y)");
-        return -1;
-    }
-    self->data->setCenter(vec->data);
+    sf::Vector2f center;
+    if (!mcrf::to_vector2f(value, center, "center")) return -1;
+    self->data->setCenter(center);
     self->data->markCompositeDirty(); // #291: position change
     return 0;
 }
@@ -526,13 +523,9 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
 
     // Set center if provided
     if (center_obj && center_obj != Py_None) {
-        PyVectorObject* vec = PyVector::from_arg(center_obj);
-        if (!vec) {
-            PyErr_Clear();
-            PyErr_SetString(PyExc_TypeError, "center must be a Vector or tuple (x, y)");
-            return -1;
-        }
-        self->data->setCenter(vec->data);
+        sf::Vector2f center;
+        if (!mcrf::to_vector2f(center_obj, center, "center")) return -1;
+        self->data->setCenter(center);
     }
 
     // Set fill color if provided
@@ -597,14 +590,7 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     UIDRAWABLE_PROCESS_ALIGNMENT(self->data, align_obj, margin, horiz_margin, vert_margin);
 
     // Register in Python object cache
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUICircleType;

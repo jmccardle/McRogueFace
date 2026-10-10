@@ -74,7 +74,6 @@ public:
     static PyObject* get_texture(PyUISpriteObject* self, void* closure);
     static int set_texture(PyUISpriteObject* self, PyObject* value, void* closure);
     static PyObject* get_pos(PyUISpriteObject* self, void* closure);
-    static int set_pos(PyUISpriteObject* self, PyObject* value, void* closure);
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUISpriteObject* self);
     static int init(PyUISpriteObject* self, PyObject* args, PyObject* kwds);

@@ -232,14 +232,7 @@ int PyGridData::init(PyGridDataObject* self, PyObject* args, PyObject* kwds)
 
     self->weakreflist = NULL;
 
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     return 0;
 }

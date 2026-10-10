@@ -2,58 +2,8 @@
 # This list only shrinks: fix a site, then run --update-baseline to drop it.
 # New code must not add entries (CI fails on any finding not covered here).
 1 cache-direct|src/3d/Entity3D.cpp|Entity3D::init|PythonObjectCache.assignSerial
-1 cache-direct|src/3d/Viewport3D.cpp|Viewport3D::init|PythonObjectCache.assignSerial
-1 cache-direct|src/3d/Viewport3D.cpp|Viewport3D::init|PythonObjectCache.registerObject
-1 cache-direct|src/Animation.cpp|Animation::~Animation|PythonObjectCache.remove
-1 cache-direct|src/Animation.cpp|convertDrawableToPython|PythonObjectCache.lookup
-1 cache-direct|src/Animation.cpp|convertEntityToPython|PythonObjectCache.lookup
-1 cache-direct|src/GridLayers.cpp|PyGridLayerAPI::ColorLayer_get_grid|PythonObjectCache.assignSerial
-1 cache-direct|src/GridLayers.cpp|PyGridLayerAPI::ColorLayer_get_grid|PythonObjectCache.lookup
-1 cache-direct|src/GridLayers.cpp|PyGridLayerAPI::ColorLayer_get_grid|PythonObjectCache.registerObject
-1 cache-direct|src/GridLayers.cpp|PyGridLayerAPI::TileLayer_get_grid|PythonObjectCache.assignSerial
-1 cache-direct|src/GridLayers.cpp|PyGridLayerAPI::TileLayer_get_grid|PythonObjectCache.lookup
-1 cache-direct|src/GridLayers.cpp|PyGridLayerAPI::TileLayer_get_grid|PythonObjectCache.registerObject
-1 cache-direct|src/ImGuiSceneExplorer.cpp|ImGuiSceneExplorer::getDisplayName|PythonObjectCache.lookup
-1 cache-direct|src/ImGuiSceneExplorer.cpp|ImGuiSceneExplorer::getEntityDisplayName|PythonObjectCache.lookup
-1 cache-direct|src/McRFPy_API.cpp|McRFPy_API::api_get_timers|PythonObjectCache.lookup
 1 cache-direct|src/McRFPy_API.cpp|createTimerWrapper|PythonObjectCache.assignSerial
 1 cache-direct|src/McRFPy_API.cpp|createTimerWrapper|PythonObjectCache.registerObject
-1 cache-direct|src/McRFPy_API.cpp|find_in_grid_entities|PythonObjectCache.lookup
-1 cache-direct|src/PyGridData.cpp|PyGridData::init|PythonObjectCache.assignSerial
-1 cache-direct|src/PyGridData.cpp|PyGridData::init|PythonObjectCache.registerObject
-1 cache-direct|src/PyGridDataMethods.cpp|PyGridData::py_entities_in_radius|PythonObjectCache.lookup
-2 cache-direct|src/PyScene.cpp|tryCallPythonMethod|PythonObjectCache.lookup
-1 cache-direct|src/PyTimer.cpp|PyTimer::init|PythonObjectCache.assignSerial
-1 cache-direct|src/PyTimer.cpp|PyTimer::init|PythonObjectCache.registerObject
-1 cache-direct|src/Timer.cpp|Timer::test|PythonObjectCache.lookup
-1 cache-direct|src/Timer.cpp|Timer::~Timer|PythonObjectCache.remove
-1 cache-direct|src/UIArc.cpp|UIArc::init|PythonObjectCache.assignSerial
-1 cache-direct|src/UIArc.cpp|UIArc::init|PythonObjectCache.registerObject
-1 cache-direct|src/UICaption.cpp|UICaption::init|PythonObjectCache.assignSerial
-1 cache-direct|src/UICaption.cpp|UICaption::init|PythonObjectCache.registerObject
-1 cache-direct|src/UICircle.cpp|UICircle::init|PythonObjectCache.assignSerial
-1 cache-direct|src/UICircle.cpp|UICircle::init|PythonObjectCache.registerObject
-1 cache-direct|src/UIDrawable.cpp|UIDrawable::operator=|PythonObjectCache.remove
-1 cache-direct|src/UIGridView.cpp|UIGridView::fireCellClick|PythonObjectCache.lookup
-1 cache-direct|src/UIGridView.cpp|UIGridView::fireCellEnter|PythonObjectCache.lookup
-1 cache-direct|src/UIGridView.cpp|UIGridView::fireCellExit|PythonObjectCache.lookup
-1 cache-direct|src/UIGridView.cpp|UIGridView::get_perspective|PythonObjectCache.lookup
-1 cache-direct|src/UIGridView.cpp|UIGridView::init|PythonObjectCache.assignSerial
-1 cache-direct|src/UIGridView.cpp|UIGridView::init|PythonObjectCache.registerObject
-1 cache-direct|src/UILine.cpp|UILine::init|PythonObjectCache.assignSerial
-1 cache-direct|src/UILine.cpp|UILine::init|PythonObjectCache.registerObject
-1 cache-direct|src/UISprite.cpp|UISprite::init|PythonObjectCache.assignSerial
-1 cache-direct|src/UISprite.cpp|UISprite::init|PythonObjectCache.registerObject
-1 from-arg-owner|src/3d/Viewport3D.cpp|Viewport3D::init|vec = PyVector::from_arg(...) never released
-1 from-arg-owner|src/3d/Viewport3D.cpp|Viewport3D_set_pos|vec = PyVector::from_arg(...) never released
-1 from-arg-owner|src/UIArc.cpp|UIArc::init|vec = PyVector::from_arg(...) never released
-1 from-arg-owner|src/UIArc.cpp|UIArc::set_center|vec = PyVector::from_arg(...) never released
-1 from-arg-owner|src/UICircle.cpp|UICircle::init|vec = PyVector::from_arg(...) never released
-1 from-arg-owner|src/UICircle.cpp|UICircle::set_center|vec = PyVector::from_arg(...) never released
-1 from-arg-owner|src/UIFrame.cpp|UIFrame::set_pos|vec = PyVector::from_arg(...) never released
-2 from-arg-owner|src/UILine.cpp|UILine::init|vec = PyVector::from_arg(...) never released
-1 from-arg-owner|src/UILine.cpp|UILine::set_end|vec = PyVector::from_arg(...) never released
-1 from-arg-owner|src/UISprite.cpp|UISprite::set_pos|vec = PyVector::from_arg(...) never released
 1 identity-alloc|src/3d/Entity3D.cpp|Entity3D::get_model|tp_alloc PyModel3DType
 1 identity-alloc|src/3d/Entity3D.cpp|Entity3D::get_viewport|tp_alloc PyViewport3DType
 1 identity-alloc|src/3d/EntityCollection3D.cpp|EntityCollection3D::find|tp_alloc PyEntity3DType
@@ -62,23 +12,11 @@
 1 identity-alloc|src/3d/EntityCollection3D.cpp|EntityCollection3DIter::next|tp_alloc PyEntity3DType
 1 identity-alloc|src/3d/Viewport3D.cpp|Viewport3D_get_billboard|tp_alloc PyBillboardType
 1 identity-alloc|src/3d/Viewport3D.cpp|Viewport3D_get_entities|tp_alloc PyEntityCollection3DType
-1 identity-alloc|src/Animation.cpp|convertDrawableToPython|tp_alloc PyUIArcType
-1 identity-alloc|src/Animation.cpp|convertDrawableToPython|tp_alloc PyUICaptionType
-1 identity-alloc|src/Animation.cpp|convertDrawableToPython|tp_alloc PyUICircleType
-1 identity-alloc|src/Animation.cpp|convertDrawableToPython|tp_alloc PyUIFrameType
-1 identity-alloc|src/Animation.cpp|convertDrawableToPython|tp_alloc PyUIGridViewType
-1 identity-alloc|src/Animation.cpp|convertDrawableToPython|tp_alloc PyUILineType
-1 identity-alloc|src/Animation.cpp|convertDrawableToPython|tp_alloc PyUISpriteType
 1 identity-alloc|src/Animation.cpp|convertEntity3DToPython|tp_alloc PyEntity3DType
-1 identity-alloc|src/Animation.cpp|convertEntityToPython|tp_alloc PyUIEntityType
-1 identity-alloc|src/GridLayers.cpp|PyGridLayerAPI::ColorLayer_get_grid|tp_alloc PyGridDataType
-1 identity-alloc|src/GridLayers.cpp|PyGridLayerAPI::TileLayer_get_grid|tp_alloc PyGridDataType
 1 identity-alloc|src/GridLayers.cpp|PyGridLayerAPI::TileLayer_get_texture|tp_alloc PyTextureType
 1 identity-alloc|src/McRFPy_API.cpp|McRFPy_API::_sceneUI|tp_alloc PyUICollectionType
 1 identity-alloc|src/McRFPy_API.cpp|createTimerWrapper|tp_alloc PyTimerType
-1 identity-alloc|src/McRFPy_API.cpp|find_in_grid_entities|tp_alloc PyUIEntityType
 1 identity-alloc|src/McRFPy_API.cpp|mcrfpy_module_create|tp_alloc PyWindowType
-1 identity-alloc|src/PyGridDataMethods.cpp|PyGridData::py_entities_in_radius|tp_alloc PyUIEntityType
 1 identity-alloc|src/PyGridDataMethods.cpp|PyGridData::py_layer|tp_alloc PyColorLayerType
 1 identity-alloc|src/PyGridDataMethods.cpp|PyGridData::py_layer|tp_alloc PyTileLayerType
 1 identity-alloc|src/PyGridDataProperties.cpp|PyGridData::get_entities|tp_alloc PyUIEntityCollectionType
@@ -88,12 +26,9 @@
 1 identity-alloc|src/PySoundBuffer.cpp|PySoundBuffer_from_data|tp_alloc PySoundBufferType
 2 identity-alloc|src/UICollection.cpp|UICollection::find|tp_alloc PyUICollectionType
 1 identity-alloc|src/UIEntity.cpp|UIEntity::get_perspective_map|tp_alloc PyDiscreteMapType
-1 identity-alloc|src/UIEntity.cpp|UIEntity::visible_entities|tp_alloc PyUIEntityType
 1 identity-alloc|src/UIGridPathfinding.cpp|UIGridPathfinding::DijkstraMap_invert|tp_alloc PyDijkstraMapType
 2 identity-alloc|src/UIGridPathfinding.cpp|UIGridPathfinding::Grid_get_dijkstra_map|tp_alloc PyDijkstraMapType
-1 identity-alloc|src/UIGridPoint.cpp|UIGridPoint::get_entities|tp_alloc PyUIEntityType
 1 identity-alloc|src/UIGridView.cpp|UIGridView::get_children|tp_alloc PyUICollectionType
-1 identity-alloc|src/UIGridView.cpp|UIGridView::get_perspective|tp_alloc PyUIEntityType
 1 identity-alloc|src/UIGridView.cpp|UIGridView::get_texture|tp_alloc PyTextureType
 1 identity-alloc|src/ldtk/PyLdtkProject.cpp|PyLdtkProject::tileset|tp_alloc PyTileSetFileType
 1 identity-alloc|src/tiled/PyTileMapFile.cpp|PyTileMapFile::tileset|tp_alloc PyTileSetFileType
