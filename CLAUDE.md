@@ -662,37 +662,49 @@ echo 'import mcrfpy; print("Test"); scene = mcrfpy.Scene("test"); scene.activate
 
 ### Understanding Key Macros and Patterns
 
-#### Returning a C++ object to Python (#369)
+#### Binding recipes live in `src/PyWrap.h` (#369, #430, #436)
 
-**Never `tp_alloc` a wrapper for a C++ object that might already have one.** A fresh
-wrapper breaks object identity (`x.parent is x.parent` -> False) and silently downgrades
-a Python subclass to its base type. `RET_PY_INSTANCE`, which older docs described here,
-no longer exists; use the cache-aware converters instead:
+**Never hand-roll a CPython recipe that `PyWrap.h` already provides.** A fresh wrapper for
+an object that already has one breaks identity (`x.parent is x.parent` -> False) and
+downgrades a Python subclass to its base type; the other recipes below each produced leaks.
 
 ```cpp
-// Drawables (Frame, Caption, Sprite, GridView, Line, Circle, Arc, Viewport3D)
-PyObject* obj = UIDrawable::pyobject_for(drawable_shared_ptr);   // UIDrawable.h
-
-// Entities  -- convertEntityToPython(), file-local to UIEntityCollection.cpp
-// GridData  -- PyGridData::pyobject_for()
+// Returning a C++ object to Python: the live wrapper if one exists, else a new
+// registered one. New reference; None for nullptr.
+mcrf::to_python(drawable_or_entity_or_griddata_shared_ptr);
+Foo::pyobject_for(shared_ptr)          // every other identity type has one, built on
+                                       // mcrf::cached_wrapper<Obj>(serial, type, fill)
+// tp_init of an identity type: make the user's object THE wrapper.
+if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
+mcrf::live_wrapper(serial) / mcrf::unregister_wrapper(serial)   // never PythonObjectCache::
+// Vector arguments: never PyVector::from_arg() (new reference) in a setter.
+sf::Vector2f v; if (!mcrf::to_vector2f(value, v, "pos")) return -1;
+// New references handed to non-stealing calls:
+mcrf::dict_steal(d, "fps", PyLong_FromLong(fps));      // steals; fails cleanly on nullptr
+_click(self, mcrf::PyRef(PyTuple_New(0)).get(), kw);  // PyRef owns it for the expression
 ```
 
-Each looks the object up in `PythonObjectCache` by `serial_number` and returns the live
-wrapper if one exists, only allocating (and re-registering) on a miss. `tp_alloc` is
-correct **only** in a type's own `tp_new`/`tp_init`, where the object is genuinely new.
+To make a new type cacheable: give it weakref support (`weakreflist` +
+`tp_weaklistoffset`, cleared in `tp_dealloc`), a `uint64_t` serial on the C++ object (or,
+for a view such as a collection, on its owner: `UIDrawable::children_serial`,
+`GridData::entities_serial`), `unregister_wrapper()` where that owner dies, and one
+`pyobject_for()` on `cached_wrapper`. `tp_alloc`'d structs are zero-filled, not
+constructed: placement-new C++ members in the fill lambda and destroy them in `tp_dealloc`.
 
-`tools/lint_bindings.py` (#430, tree-sitter, `make lint-bindings`) enforces this and
-four sibling recipes:
-- an identity-type `tp_alloc` outside a converter;
-- direct `PythonObjectCache::` use;
-- a new reference passed inline to a borrowing API
-  (`PyDict_SetItemString(d, k, PyLong_FromLong(x))`);
-- an unreleased `PyVector::from_arg()`;
-- the entity pin touched outside its owner.
+**Identity pin (#436).** A Python *subclass* wrapper is kept alive exactly while a C++
+container owns the object, via an `mcrf::PyIdentityPin` synced in ONE ownership choke point:
+`UIDrawable::setParent()/setParentScene()`, `UIEntity::setGrid()`, `Entity3D::setViewport()`.
+Never read the pin as "the wrapper" (it has no getter); use `to_python()`. An entity's grid
+back-reference is a `weak_ptr` (`getGrid()`), so dropping a grid frees it and its entities.
 
-Existing sites are listed in `tools/lint_bindings_baseline.txt`, which may only shrink.
-The pre-commit hook and CI fail on any new finding. Every type that gets `tp_alloc`'d must
-be classified as identity or value in the linter's `TYPE_CLASS` table.
+`tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
+identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or
+`PyObject_New`), direct `PythonObjectCache::` use, a new reference passed inline to a
+non-stealing call, an unreleased `from_arg()`, and the pin touched outside its owner. Every
+constructed type must be classified identity/value in its `TYPE_CLASS` table. The baseline
+(`tools/lint_bindings_baseline.txt`) is empty and may only shrink; the pre-commit hook and
+CI fail on any finding. `tools/refactor_check.py FILE --site KEY` is the fast per-file
+check (syntax-only compile + lint) used for migrations.
 
 #### Collection Patterns
 - `UICollection` wraps `std::vector<std::shared_ptr<UIDrawable>>`
