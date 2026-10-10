@@ -105,13 +105,8 @@ int PyGridData::set_fov_radius(PyGridDataObject* self, PyObject* value, void* cl
 
 PyObject* PyGridData::get_entities(PyGridDataObject* self, void* closure)
 {
-    PyTypeObject* type = &mcrfpydef::PyUIEntityCollectionType;
-    auto o = (PyUIEntityCollectionObject*)type->tp_alloc(type, 0);
-    if (o) {
-        o->data = self->data->entities;
-        o->grid = self->data;
-    }
-    return (PyObject*)o;
+    // #430: one wrapper per grid, keyed on GridData::entities_serial.
+    return UIEntityCollection::pyobject_for(self->data);
 }
 
 // #364: get_children moved to UIGridView. GridData holds no drawables, so the

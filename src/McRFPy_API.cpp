@@ -87,6 +87,7 @@
 #endif
 #include "BenchmarkLogger.h"
 #include "UI.h"
+#include "UICollection.h"  // #430: UICollection::pyobject_for (Scene.children)
 #include "UILine.h"
 #include "UICircle.h"
 #include "UIArc.h"
@@ -1632,21 +1633,16 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
 	const char *scene_cstr;
 	if (!PyArg_ParseTuple(args, "s", &scene_cstr)) return NULL;
 
-    auto ui = Resources::game->scene_ui(scene_cstr);
-    if(!ui) 
+    Scene* scene = Resources::game->getScene(scene_cstr);
+    if (!scene || !scene->ui_elements)
     {
         PyErr_SetString(PyExc_RuntimeError, "No scene found by that name");
         return NULL;
     }
-    //std::cout << "vector returned has size=" << ui->size() << std::endl;
-    //Py_INCREF(Py_None);
-    //return Py_None;
-    PyUICollectionObject* o = (PyUICollectionObject*)PyUICollectionType.tp_alloc(&PyUICollectionType, 0);
-    if (o) {
-        o->data = ui;
-        o->scene_name = scene_cstr;  // #183: Track scene ownership
-    }
-    return (PyObject*)o;
+    // #430: one wrapper per scene, keyed on Scene::children_serial.
+    // #183: scene_name tracks scene ownership (no owning drawable).
+    return UICollection::pyobject_for(scene->children_serial, scene->ui_elements,
+                                      nullptr, scene_cstr);
 }
 
 // Internal use - called by PySceneObject::activate()

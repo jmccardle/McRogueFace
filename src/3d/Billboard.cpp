@@ -1,6 +1,7 @@
 // Billboard.cpp - Camera-facing 3D sprite implementation
 
 #include "Billboard.h"
+#include "PyWrap.h"
 #include "Shader3D.h"
 #include "MeshLayer.h"  // For MeshVertex
 #include "../platform/GLContext.h"
@@ -64,6 +65,17 @@ Billboard::Billboard(std::shared_ptr<PyTexture> texture, int spriteIndex, const 
 
 Billboard::~Billboard() {
     // Texture is not owned, don't delete it
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
+}
+
+PyObject* Billboard::pyobject_for(const std::shared_ptr<Billboard>& billboard) {
+    if (!billboard) Py_RETURN_NONE;
+    return mcrf::cached_wrapper<PyBillboardObject>(billboard->serial_number,
+        &mcrfpydef::PyBillboardType, [&](PyBillboardObject* o) {
+            // tp_alloc zero-fills; construct the shared_ptr in place.
+            new (&o->data) std::shared_ptr<Billboard>(billboard);
+            o->weakreflist = nullptr;
+        });
 }
 
 // =============================================================================
@@ -400,6 +412,9 @@ int Billboard::init(PyObject* self, PyObject* args, PyObject* kwds) {
     // Apply opacity and visibility
     selfObj->data->setOpacity(opacity);
     selfObj->data->setVisible(visible != 0);
+
+    // #430: the billboard the user built comes back as this very object
+    if (mcrf::register_wrapper(selfObj->data->serial_number, self) < 0) return -1;
 
     return 0;
 }

@@ -953,24 +953,27 @@ PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObjec
             // Recursive search into Frame children
             if (recursive && drawable->derived_type() == PyObjectsEnum::UIFRAME) {
                 auto frame = std::static_pointer_cast<UIFrame>(drawable);
-                // Create temporary collection object for recursive call
-                // Use the type directly from namespace (#189 - type not exported to module)
-                PyTypeObject* collType = &PyUICollectionType;
-                PyUICollectionObject* child_coll = (PyUICollectionObject*)collType->tp_alloc(collType, 0);
-                if (child_coll) {
-                    child_coll->data = frame->children;
-                    PyObject* child_results = find(child_coll, args, kwds);
-                    if (child_results && PyList_Check(child_results)) {
-                        // Extend results with child results
-                        for (Py_ssize_t i = 0; i < PyList_Size(child_results); i++) {
-                            PyObject* item = PyList_GetItem(child_results, i);
-                            Py_INCREF(item);
-                            PyList_Append(results, item);
-                            Py_DECREF(item);
-                        }
-                        Py_DECREF(child_results);
-                    }
-                    Py_DECREF(child_coll);
+                // #430: recurse through the child Frame's own children collection
+                // (cached on its children_serial, so this is `frame.children`).
+                PyUICollectionObject* child_coll = (PyUICollectionObject*)UICollection::pyobject_for(
+                    frame->children_serial, frame->children, frame, "");
+                if (!child_coll) {
+                    Py_DECREF(results);
+                    return NULL;
+                }
+                PyObject* child_results = find(child_coll, args, kwds);
+                Py_DECREF(child_coll);
+                if (!child_results) {
+                    Py_DECREF(results);
+                    return NULL;
+                }
+                // Extend results with child results (wildcard find returns a list)
+                Py_ssize_t start = PyList_GET_SIZE(results);
+                int rc = PyList_SetSlice(results, start, start, child_results);
+                Py_DECREF(child_results);
+                if (rc < 0) {
+                    Py_DECREF(results);
+                    return NULL;
                 }
             }
         }
@@ -986,18 +989,17 @@ PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObjec
             // Recursive search into Frame children
             if (recursive && drawable->derived_type() == PyObjectsEnum::UIFRAME) {
                 auto frame = std::static_pointer_cast<UIFrame>(drawable);
-                // Use the type directly from namespace (#189 - type not exported to module)
-                PyTypeObject* collType = &PyUICollectionType;
-                PyUICollectionObject* child_coll = (PyUICollectionObject*)collType->tp_alloc(collType, 0);
-                if (child_coll) {
-                    child_coll->data = frame->children;
-                    PyObject* result = find(child_coll, args, kwds);
-                    Py_DECREF(child_coll);
-                    if (result && result != Py_None) {
-                        return result;
-                    }
-                    Py_XDECREF(result);
+                // #430: the child Frame's own (cached) children collection.
+                PyUICollectionObject* child_coll = (PyUICollectionObject*)UICollection::pyobject_for(
+                    frame->children_serial, frame->children, frame, "");
+                if (!child_coll) return NULL;
+                PyObject* result = find(child_coll, args, kwds);
+                Py_DECREF(child_coll);
+                if (!result) return NULL;
+                if (result != Py_None) {
+                    return result;
                 }
+                Py_DECREF(result);
             }
         }
 

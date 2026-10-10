@@ -300,6 +300,12 @@ public:
     // =========================================================================
 
     static int init(PyObject* self, PyObject* args, PyObject* kwds);
+
+    /// #430: the one way to hand a Model3D to Python -- the live wrapper if there is
+    /// one, else a new `type` instance (default: Model3D) registered under the model's
+    /// serial. nullptr input returns None. New reference, or nullptr with an error set.
+    static PyObject* pyobject_for(const std::shared_ptr<Model3D>& model,
+                                  PyTypeObject* type = nullptr);
     static PyObject* repr(PyObject* self);
 
     // Class methods (static constructors)

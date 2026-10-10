@@ -533,31 +533,10 @@ static PyObject* convertEntityToPython(std::shared_ptr<UIEntity> entity) {
     return mcrf::to_python(entity);
 }
 
-// Helper to convert Entity3D target to Python object
+// Helper to convert Entity3D target to Python object (#430: cache-aware, so a
+// subclass instance comes back as itself)
 static PyObject* convertEntity3DToPython(std::shared_ptr<mcrf::Entity3D> entity) {
-    if (!entity) {
-        Py_RETURN_NONE;
-    }
-
-    // Use the entity's cached Python pyobject pointer if available
-    if (entity->pyobject) {
-        Py_INCREF(entity->pyobject);
-        return entity->pyobject;
-    }
-
-    // Create a new wrapper
-    PyTypeObject* type = &mcrfpydef::PyEntity3DType;
-
-    auto pyObj = (PyEntity3DObject*)type->tp_alloc(type, 0);
-
-    if (!pyObj) {
-        Py_RETURN_NONE;
-    }
-
-    pyObj->data = entity;
-    pyObj->weakreflist = NULL;
-
-    return (PyObject*)pyObj;
+    return mcrf::Entity3D::pyobject_for(entity);
 }
 
 // #229 - Helper to convert AnimationValue to Python object

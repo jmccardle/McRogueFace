@@ -145,6 +145,17 @@ struct TileSetData {
     std::unordered_map<std::string, PropertyValue> properties;
     std::unordered_map<int, TileInfo> tile_info;
     std::vector<WangSet> wang_sets;
+
+    // #430: PythonObjectCache key for this tileset's TileSetFile wrapper (0 = none yet).
+    // Every TileSetFile view of one parsed tileset (TileMapFile.tileset(),
+    // LdtkProject.tileset(), or the TileSetFile the user constructed) is the same object.
+    uint64_t serial_number = 0;
+
+    TileSetData() = default;
+    ~TileSetData();  // unregisters serial_number; defined in PyTileSetFile.cpp
+    // A copy would share serial_number, and destroying either would evict the other's wrapper.
+    TileSetData(const TileSetData&) = delete;
+    TileSetData& operator=(const TileSetData&) = delete;
 };
 
 struct TileLayerData {

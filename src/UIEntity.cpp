@@ -470,17 +470,11 @@ PyObject* UIEntity::get_perspective_map(PyUIEntityObject* self, void* closure) {
             entity->getGrid()->grid_w, entity->getGrid()->grid_h, 0);
     }
 
-    // Wrap in PyDiscreteMapObject sharing the same shared_ptr.
-    auto type = &mcrfpydef::PyDiscreteMapType;
-    auto obj = (PyDiscreteMapObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-    new (&obj->data) std::shared_ptr<DiscreteMap>(entity->perspective_map);
-    obj->values = obj->data->data();
-    obj->w = obj->data->width();
-    obj->h = obj->data->height();
-    obj->enum_type = PyPerspective::perspective_enum_class;
-    if (obj->enum_type) Py_INCREF(obj->enum_type);
-    return (PyObject*)obj;
+    // #430: the map's own live wrapper if there is one (a map the user assigned
+    // comes back as itself, enum and subclass included); otherwise a new wrapper
+    // sharing the map, interpreted with the Perspective enum.
+    return PyDiscreteMap::pyobject_for(entity->perspective_map,
+                                       PyPerspective::perspective_enum_class);
 }
 
 // #294: Assign a DiscreteMap as the entity's perspective. The incoming map

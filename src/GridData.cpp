@@ -73,6 +73,7 @@ GridData::~GridData()
     // #361: GridData carries its own PythonObjectCache serial now that it is
     // not a UIDrawable (which used to do this in ~UIDrawable).
     if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
+    if (entities_serial != 0) mcrf::unregister_wrapper(entities_serial);
 
     // #437: entities that outlive their grid are detached, which also releases their
     // identity pins (#436). The vector still owns each entity during the loop, so a

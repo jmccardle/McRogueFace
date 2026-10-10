@@ -8,6 +8,7 @@
 #include "PyHeuristic.h"
 #include "PyDiscreteMap.h"
 #include "McRFPy_Doc.h"
+#include "PyWrap.h"
 
 //=============================================================================
 // DijkstraMap Implementation
@@ -54,6 +55,7 @@ DijkstraMap::DijkstraMap(TCODMap* map, const std::vector<sf::Vector2i>& roots_in
 }
 
 DijkstraMap::~DijkstraMap() {
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
     if (tcod_dijkstra) {
         TCOD_dijkstra_delete(tcod_dijkstra);
         tcod_dijkstra = nullptr;
@@ -332,8 +334,18 @@ PyObject* UIGridPathfinding::DijkstraMap_new(PyTypeObject* type, PyObject* args,
     PyDijkstraMapObject* self = (PyDijkstraMapObject*)type->tp_alloc(type, 0);
     if (self) {
         new (&self->data) std::shared_ptr<DijkstraMap>();
+        self->weakreflist = nullptr;
     }
     return (PyObject*)self;
+}
+
+PyObject* DijkstraMap::pyobject_for(const std::shared_ptr<DijkstraMap>& map) {
+    if (!map) Py_RETURN_NONE;
+    return mcrf::cached_wrapper<PyDijkstraMapObject>(map->serial_number, &mcrfpydef::PyDijkstraMapType,
+        [&](PyDijkstraMapObject* o) {
+            new (&o->data) std::shared_ptr<DijkstraMap>(map);
+            o->weakreflist = nullptr;
+        });
 }
 
 int UIGridPathfinding::DijkstraMap_init(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds) {
@@ -343,6 +355,9 @@ int UIGridPathfinding::DijkstraMap_init(PyDijkstraMapObject* self, PyObject* arg
 }
 
 void UIGridPathfinding::DijkstraMap_dealloc(PyDijkstraMapObject* self) {
+    if (self->weakreflist != nullptr) {
+        PyObject_ClearWeakRefs((PyObject*)self);
+    }
     self->data.~shared_ptr();
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
@@ -481,11 +496,8 @@ PyObject* UIGridPathfinding::DijkstraMap_invert(PyDijkstraMapObject* self, PyObj
         PyErr_SetString(PyExc_RuntimeError, "invert() failed");
         return nullptr;
     }
-    PyDijkstraMapObject* result = (PyDijkstraMapObject*)mcrfpydef::PyDijkstraMapType.tp_alloc(
-        &mcrfpydef::PyDijkstraMapType, 0);
-    if (!result) return nullptr;
-    new (&result->data) std::shared_ptr<DijkstraMap>(new_map);
-    return (PyObject*)result;
+    // A brand-new C++ map: serial 0, so this allocates and registers.
+    return DijkstraMap::pyobject_for(new_map);
 }
 
 PyObject* UIGridPathfinding::DijkstraMap_descent_step(PyDijkstraMapObject* self, PyObject* args, PyObject* kwds) {
@@ -856,11 +868,7 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
         auto it = self->data->dijkstra_maps.find(key);
         if (it != self->data->dijkstra_maps.end()) {
             if (std::abs(it->second->getDiagonalCost() - diagonal_cost) < 0.001f) {
-                PyDijkstraMapObject* result = (PyDijkstraMapObject*)mcrfpydef::PyDijkstraMapType.tp_alloc(
-                    &mcrfpydef::PyDijkstraMapType, 0);
-                if (!result) return NULL;
-                new (&result->data) std::shared_ptr<DijkstraMap>(it->second);
-                return (PyObject*)result;
+                return DijkstraMap::pyobject_for(it->second);
             }
             self->data->dijkstra_maps.erase(it);
         }
@@ -905,12 +913,7 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
         self->data->dijkstra_maps[key] = dijkstra;
     }
 
-    PyDijkstraMapObject* result = (PyDijkstraMapObject*)mcrfpydef::PyDijkstraMapType.tp_alloc(
-        &mcrfpydef::PyDijkstraMapType, 0);
-    if (!result) return NULL;
-
-    new (&result->data) std::shared_ptr<DijkstraMap>(dijkstra);
-    return (PyObject*)result;
+    return DijkstraMap::pyobject_for(dijkstra);
 }
 
 PyObject* UIGridPathfinding::Grid_clear_dijkstra_maps(PyGridDataObject* self, PyObject* args) {
@@ -1115,6 +1118,7 @@ PyTypeObject PyDijkstraMapType = {
         "            step = dijkstra.step_from(enemy.pos)\n"
         "            if step:\n"
         "                enemy.pos = step"),
+    .tp_weaklistoffset = offsetof(PyDijkstraMapObject, weakreflist),  // #430
     .tp_methods = PyDijkstraMap_methods,
     .tp_getset = PyDijkstraMap_getsetters,
     .tp_init = (initproc)UIGridPathfinding::DijkstraMap_init,

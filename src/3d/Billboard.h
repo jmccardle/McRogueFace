@@ -107,6 +107,11 @@ public:
     // =========================================================================
 
     static int init(PyObject* self, PyObject* args, PyObject* kwds);
+
+    /// #430: the one way to hand a Billboard to Python -- the live wrapper if there is
+    /// one, else a new Billboard wrapper registered under the billboard's serial.
+    /// nullptr input returns None. New reference, or nullptr with an error set.
+    static PyObject* pyobject_for(const std::shared_ptr<Billboard>& billboard);
     static PyObject* repr(PyObject* self);
 
     static PyObject* get_texture(PyObject* self, void* closure);

@@ -63,6 +63,17 @@ Viewport3D::Viewport3D(float x, float y, float width, float height)
 }
 
 Viewport3D::~Viewport3D() {
+    if (entities_serial != 0) mcrf::unregister_wrapper(entities_serial);
+
+    // #436: entities that outlive their viewport are detached, which also releases
+    // their identity pins. The list still owns each entity during the loop, so a
+    // released pin can't free an entity out from under us.
+    if (entities_) {
+        for (auto& e : *entities_) {
+            if (e) e->setViewport(nullptr);
+        }
+    }
+
     cleanupTestGeometry();
     cleanupFBO();
 
@@ -1622,16 +1633,8 @@ static int Viewport3D_set_cell_size_prop(PyViewport3DObject* self, PyObject* val
 
 // Entities collection property
 static PyObject* Viewport3D_get_entities(PyViewport3DObject* self, void* closure) {
-    // Create an EntityCollection3D wrapper for this viewport's entity list
-    auto type = &mcrfpydef::PyEntityCollection3DType;
-    auto obj = (PyEntityCollection3DObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    // Use placement new for shared_ptr members
-    new (&obj->data) std::shared_ptr<std::list<std::shared_ptr<mcrf::Entity3D>>>(self->data->getEntities());
-    new (&obj->viewport) std::shared_ptr<mcrf::Viewport3D>(self->data);
-
-    return (PyObject*)obj;
+    return EntityCollection3D::pyobject_for(self->data->entities_serial,
+                                            self->data->getEntities(), self->data);
 }
 
 PyGetSetDef Viewport3D::getsetters[] = {
@@ -2385,17 +2388,7 @@ static PyObject* Viewport3D_get_billboard(PyViewport3DObject* self, PyObject* ar
         return NULL;
     }
 
-    auto bb = (*billboards)[index];
-
-    // Create Python wrapper for billboard
-    auto type = &mcrfpydef::PyBillboardType;
-    auto obj = (PyBillboardObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-
-    obj->data = bb;
-    obj->weakreflist = nullptr;
-
-    return (PyObject*)obj;
+    return mcrf::Billboard::pyobject_for((*billboards)[index]);
 }
 
 static PyObject* Viewport3D_billboard_count(PyViewport3DObject* self, PyObject* args) {

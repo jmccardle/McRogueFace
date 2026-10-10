@@ -67,6 +67,14 @@ public:
     // Raw C handle, for internal use in new constructor paths (e.g. from_invert).
     TCOD_Dijkstra* getHandle() const { return tcod_dijkstra; }
 
+    // #430: PythonObjectCache key (0 = no wrapper yet). Unregistered in ~DijkstraMap.
+    uint64_t serial_number = 0;
+
+    // #430: the one way to return a DijkstraMap to Python. Returns the live wrapper
+    // if one exists (so grid.get_dijkstra_map(r) is grid.get_dijkstra_map(r) while the
+    // grid caches the map), else allocates and registers one. nullptr -> None.
+    static PyObject* pyobject_for(const std::shared_ptr<DijkstraMap>& map);
+
 private:
     TCOD_Dijkstra* tcod_dijkstra;  // Owned
     TCODMap* tcod_map;             // Borrowed from Grid
@@ -80,6 +88,7 @@ private:
 struct PyDijkstraMapObject {
     PyObject_HEAD
     std::shared_ptr<DijkstraMap> data;  // Shared with Grid's collection
+    PyObject* weakreflist;              // #430: required by the wrapper cache
 };
 
 //=============================================================================

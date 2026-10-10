@@ -1,7 +1,7 @@
 #include "PyLdtkProject.h"
 #include "LdtkParse.h"
 #include "PyAutoRuleSet.h"
-#include "PyTileSetFile.h"  // For PyTileSetFileObject
+#include "PyTileSetFile.h"  // For PyTileSetFile::pyobject_for
 #include "McRFPy_Doc.h"
 #include "TiledParse.h"    // For jsonToPython()
 #include "PyTexture.h"
@@ -104,19 +104,8 @@ PyObject* PyLdtkProject::tileset(PyLdtkProjectObject* self, PyObject* args) {
 
     for (size_t i = 0; i < self->data->tilesets.size(); i++) {
         if (self->data->tilesets[i]->name == name) {
-            // Return a TileSetFile-compatible object
-            // We create a PyTileSetFileObject wrapping our existing TileSetData
-            auto* tsf_type = &mcrfpydef::PyTileSetFileType;
-
-            // Allocate without calling init (we set data directly)
-            PyObject* tsf_obj = tsf_type->tp_alloc(tsf_type, 0);
-            if (!tsf_obj) return NULL;
-
-            // Construct the shared_ptr in place using the proper type
-            auto* tsf = (PyTileSetFileObject*)tsf_obj;
-            new (&tsf->data) std::shared_ptr<mcrf::tiled::TileSetData>(self->data->tilesets[i]);
-
-            return tsf_obj;
+            // #430: the same parsed tileset always comes back as the same TileSetFile
+            return PyTileSetFile::pyobject_for(self->data->tilesets[i]);
         }
     }
 

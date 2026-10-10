@@ -1,6 +1,7 @@
 // UIGridView.cpp - Rendering view for GridData (#252)
 #include "UIGridView.h"
 #include "PyWrap.h"
+#include "UICollection.h"  // #430: UICollection::pyobject_for (GridView.children)
 #include "PyGridData.h"
 #include "UIGridPoint.h"
 #include "UIEntity.h"
@@ -1489,13 +1490,9 @@ int UIGridView::set_on_cell_click(PyUIGridViewObject* self, PyObject* value, voi
 // then reaches this view and every caching ancestor above it.
 PyObject* UIGridView::get_children(PyUIGridViewObject* self, void* closure)
 {
-    PyTypeObject* type = &mcrfpydef::PyUICollectionType;
-    auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
-    if (o) {
-        o->data = self->data->children;
-        o->owner = self->data;
-    }
-    return (PyObject*)o;
+    // #430: the cache key is the view's own UIDrawable::children_serial.
+    return UICollection::pyobject_for(self->data->children_serial, self->data->children,
+                                      self->data, "");
 }
 
 PyObject* UIGridView::get_hovered_cell(PyUIGridViewObject* self, void* closure) {

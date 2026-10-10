@@ -1,36 +1,14 @@
 # lint_bindings.py allowlist (#430). Each line: <count> rule|file|function|detail.
 # This list only shrinks: fix a site, then run --update-baseline to drop it.
 # New code must not add entries (CI fails on any finding not covered here).
-1 cache-direct|src/3d/Entity3D.cpp|Entity3D::init|PythonObjectCache.assignSerial
 1 cache-direct|src/McRFPy_API.cpp|createTimerWrapper|PythonObjectCache.assignSerial
 1 cache-direct|src/McRFPy_API.cpp|createTimerWrapper|PythonObjectCache.registerObject
-1 identity-alloc|src/3d/Entity3D.cpp|Entity3D::get_model|tp_alloc PyModel3DType
-1 identity-alloc|src/3d/Entity3D.cpp|Entity3D::get_viewport|tp_alloc PyViewport3DType
-1 identity-alloc|src/3d/EntityCollection3D.cpp|EntityCollection3D::find|tp_alloc PyEntity3DType
-1 identity-alloc|src/3d/EntityCollection3D.cpp|EntityCollection3D::getitem|tp_alloc PyEntity3DType
-1 identity-alloc|src/3d/EntityCollection3D.cpp|EntityCollection3D::pop|tp_alloc PyEntity3DType
-1 identity-alloc|src/3d/EntityCollection3D.cpp|EntityCollection3DIter::next|tp_alloc PyEntity3DType
-1 identity-alloc|src/3d/Viewport3D.cpp|Viewport3D_get_billboard|tp_alloc PyBillboardType
-1 identity-alloc|src/3d/Viewport3D.cpp|Viewport3D_get_entities|tp_alloc PyEntityCollection3DType
-1 identity-alloc|src/Animation.cpp|convertEntity3DToPython|tp_alloc PyEntity3DType
 1 identity-alloc|src/GridLayers.cpp|PyGridLayerAPI::TileLayer_get_texture|tp_alloc PyTextureType
-1 identity-alloc|src/McRFPy_API.cpp|McRFPy_API::_sceneUI|tp_alloc PyUICollectionType
 1 identity-alloc|src/McRFPy_API.cpp|createTimerWrapper|tp_alloc PyTimerType
 1 identity-alloc|src/McRFPy_API.cpp|mcrfpy_module_create|tp_alloc PyWindowType
 1 identity-alloc|src/PyGridDataMethods.cpp|PyGridData::py_layer|tp_alloc PyColorLayerType
 1 identity-alloc|src/PyGridDataMethods.cpp|PyGridData::py_layer|tp_alloc PyTileLayerType
-1 identity-alloc|src/PyGridDataProperties.cpp|PyGridData::get_entities|tp_alloc PyUIEntityCollectionType
 1 identity-alloc|src/PyGridDataProperties.cpp|PyGridData::get_layers|tp_alloc PyColorLayerType
 1 identity-alloc|src/PyGridDataProperties.cpp|PyGridData::get_layers|tp_alloc PyTileLayerType
 1 identity-alloc|src/PyGridDataProperties.cpp|PyGridData::get_texture|tp_alloc PyTextureType
-1 identity-alloc|src/PySoundBuffer.cpp|PySoundBuffer_from_data|tp_alloc PySoundBufferType
-2 identity-alloc|src/UICollection.cpp|UICollection::find|tp_alloc PyUICollectionType
-1 identity-alloc|src/UIEntity.cpp|UIEntity::get_perspective_map|tp_alloc PyDiscreteMapType
-1 identity-alloc|src/UIGridPathfinding.cpp|UIGridPathfinding::DijkstraMap_invert|tp_alloc PyDijkstraMapType
-2 identity-alloc|src/UIGridPathfinding.cpp|UIGridPathfinding::Grid_get_dijkstra_map|tp_alloc PyDijkstraMapType
-1 identity-alloc|src/UIGridView.cpp|UIGridView::get_children|tp_alloc PyUICollectionType
 1 identity-alloc|src/UIGridView.cpp|UIGridView::get_texture|tp_alloc PyTextureType
-1 identity-alloc|src/ldtk/PyLdtkProject.cpp|PyLdtkProject::tileset|tp_alloc PyTileSetFileType
-1 identity-alloc|src/tiled/PyTileMapFile.cpp|PyTileMapFile::tileset|tp_alloc PyTileSetFileType
-1 pin-direct|src/3d/Entity3D.cpp|Entity3D::init|take pyobject
-3 pin-direct|src/Animation.cpp|convertEntity3DToPython|read pyobject

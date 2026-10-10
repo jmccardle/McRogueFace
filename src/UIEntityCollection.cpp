@@ -15,36 +15,26 @@
 
 // #369: single cache-aware conversion from a C++ entity to its Python wrapper.
 // Raw tp_alloc here is not merely an identity bug as it is for drawables: a duplicate
-// wrapper's tp_dealloc unconditionally clears UIEntity::pyobject, destroying the #266
-// subclass-identity ref held by the *original* wrapper. Every site must use this.
+// wrapper would carry neither the original's subclass nor its attributes. Every site
+// must use this (#430: it is mcrf::to_python).
 static PyObject* convertEntityToPython(std::shared_ptr<UIEntity> entity) {
-    if (!entity) {
-        Py_RETURN_NONE;
+    return mcrf::to_python(entity);
+}
+
+PyObject* UIEntityCollection::pyobject_for(const std::shared_ptr<GridData>& grid)
+{
+    if (!grid) {
+        PyErr_SetString(PyExc_RuntimeError, "EntityCollection requires a grid");
+        return nullptr;
     }
-
-    if (entity->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(entity->serial_number);
-        if (cached) {
-            return cached;  // lookup() already INCREF'd
-        }
-    }
-
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-    auto o = (PyUIEntityObject*)entity_type->tp_alloc(entity_type, 0);
-    if (!o) return NULL;
-
-    o->data = entity;
-    o->weakreflist = NULL;
-
-    if (entity->serial_number != 0) {
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)o, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(entity->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
-
-    return (PyObject*)o;
+    return mcrf::cached_wrapper<PyUIEntityCollectionObject>(grid->entities_serial,
+        &mcrfpydef::PyUIEntityCollectionType,
+        [&](PyUIEntityCollectionObject* o) {
+            // tp_alloc zero-fills; construct the C++ members in place (dealloc destroys them).
+            new (&o->data) std::shared_ptr<std::vector<std::shared_ptr<UIEntity>>>(grid->entities);
+            new (&o->grid) std::shared_ptr<GridData>(grid);
+            o->weakreflist = nullptr;
+        });
 }
 
 // ============================================================================

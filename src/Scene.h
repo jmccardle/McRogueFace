@@ -41,6 +41,10 @@ public:
 
 
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> ui_elements;
+    // #430: cache key for the Scene.children collection wrapper. The collection has
+    // no C++ object of its own, so its identity lives on the scene; unregistered in
+    // ~Scene.
+    uint64_t children_serial = 0;
 
     //PyObject* key_callable;
     std::unique_ptr<PyKeyCallable> key_callable;
