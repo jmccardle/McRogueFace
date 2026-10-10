@@ -14,7 +14,9 @@
 #      the commit (log tail printed).
 #   2. Frozen-docstring gate, run exactly the way tools/generate_all_docs.sh
 #      runs it (audit_pymethoddef.py + check_frozen_docstrings.sh). A regressed
-#      frozen docstring aborts the commit.
+#      frozen docstring aborts the commit. The binding lint (#430,
+#      tools/lint_bindings.py) runs in the same step; a finding not in
+#      tools/lint_bindings_baseline.txt aborts the commit.
 #   3. Regenerate the rendered docs via tools/generate_all_docs.sh.
 #   4. Regenerate api/manifest.json from the freshly-built binary.
 #   5. `git add api/manifest.json` (the ONLY index mutation this hook performs).
@@ -64,6 +66,14 @@ if [ -x "./.venv-audit/bin/python3" ] && [ -f "./tools/audit_pymethoddef.py" ]; 
     echo "[pre-commit] frozen docstring gate (strict) ..."
     if ! ./tools/check_frozen_docstrings.sh; then
         echo "[pre-commit] FROZEN DOCSTRING GATE FAILED -- commit aborted." >&2
+        exit 1
+    fi
+
+    # #430: hand-rolled CPython recipes (fresh identity wrappers, direct cache use,
+    # borrowed-sink leaks, unowned from_arg, raw entity pin) against the baseline.
+    echo "[pre-commit] binding lint (tools/lint_bindings.py) ..."
+    if ! ./.venv-audit/bin/python3 ./tools/lint_bindings.py; then
+        echo "[pre-commit] BINDING LINT FAILED -- commit aborted." >&2
         exit 1
     fi
 else

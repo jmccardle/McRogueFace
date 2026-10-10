@@ -1,0 +1,499 @@
+#!/usr/bin/env python3
+"""
+lint_bindings.py - AST lint for hand-rolled CPython recipes in the binding layer (#430).
+
+Parses src/**/*.{cpp,h} with tree-sitter-cpp (the same .venv-audit stack as
+audit_pymethoddef.py) and flags the recipes that have already produced bugs:
+
+  identity-alloc   tp_alloc of an identity-bearing type outside a constructor or
+                   a sanctioned converter. Breaks `x is x` and drops subclasses
+                   (#369, #373, #429, #430).
+  unclassified     tp_alloc whose type isn't in TYPE_CLASS (or can't be resolved).
+                   Every allocated type must be classified as identity or value,
+                   so a new type can't slip past identity-alloc by being unknown.
+  cache-direct     PythonObjectCache:: used outside the cache itself and the
+                   sanctioned converters. Each caller re-implements lookup or
+                   assignSerial + weakref + registerObject.
+  borrowed-leak    A new reference passed inline to an API that does NOT steal it
+                   (PyDict_SetItemString(d, k, PyLong_FromLong(x)) leaks x; #413).
+  from-arg-owner   PyVector::from_arg() (new reference) whose result is neither
+                   released nor returned in the same function (#414).
+  pin-direct       The entity identity pin (UIEntity::pyobject) taken, released or
+                   read as "the wrapper" outside its owner (#424, #429, #436).
+
+Findings are matched against tools/lint_bindings_baseline.txt, keyed by
+(rule, file, function, call text) with counts and no line numbers, so unrelated
+edits don't churn it. The run fails on any finding the baseline doesn't cover,
+and on baseline entries that no longer occur (delete them: the list only
+shrinks). `--update-baseline` rewrites it but refuses to add entries unless
+`--allow-growth` is given.
+
+Usage:
+    .venv-audit/bin/python3 tools/lint_bindings.py            # gate (CI / pre-commit)
+    .venv-audit/bin/python3 tools/lint_bindings.py --all      # list every finding
+    .venv-audit/bin/python3 tools/lint_bindings.py --summary  # counts per rule/file
+    .venv-audit/bin/python3 tools/lint_bindings.py --update-baseline
+"""
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+
+try:
+    import tree_sitter_cpp
+    from tree_sitter import Language, Parser
+except ImportError as e:
+    sys.stderr.write(
+        "ERROR: tree-sitter / tree-sitter-cpp not installed.\n"
+        "    python3 -m venv .venv-audit && .venv-audit/bin/pip install -r tools/requirements-audit.txt\n"
+        f"(import error: {e})\n")
+    sys.exit(2)
+
+ROOT = Path(__file__).resolve().parent.parent
+BASELINE = ROOT / "tools" / "lint_bindings_baseline.txt"
+_PARSER = Parser(Language(tree_sitter_cpp.language()))
+
+# ---------------------------------------------------------------------------
+# Policy tables
+# ---------------------------------------------------------------------------
+
+# Every type that is ever tp_alloc'd must be listed.
+#   identity: wraps a C++ object that outlives the wrapper or is reachable from
+#             several places, so Python must see one object (`is`), and a Python
+#             subclass must come back as itself. Only constructors and the
+#             sanctioned converters may allocate one.
+#   value:    a fresh object per call is correct (copies, iterators, results).
+TYPE_CLASS = {
+    # drawables
+    "PyUIFrameType": "identity", "PyUICaptionType": "identity",
+    "PyUISpriteType": "identity", "PyUIGridViewType": "identity",
+    "PyUILineType": "identity", "PyUICircleType": "identity",
+    "PyUIArcType": "identity", "PyViewport3DType": "identity",
+    # grid world
+    "PyUIEntityType": "identity", "PyGridDataType": "identity",
+    "PyColorLayerType": "identity", "PyTileLayerType": "identity",
+    "PyUIEntityCollectionType": "identity", "PyUICollectionType": "identity",
+    "PyDijkstraMapType": "identity",
+    # 3D
+    "PyEntity3DType": "identity", "PyEntityCollection3DType": "identity",
+    "PyModel3DType": "identity", "PyBillboardType": "identity",
+    "PyVoxelGridType": "identity",
+    # shared resources
+    "PyTextureType": "identity", "PyFontType": "identity",
+    "PySoundBufferType": "identity", "PyTileSetFileType": "identity",
+    "PySceneType": "identity", "PyWindowType": "identity",
+    "PyTimerType": "identity",
+    # entity.perspective_map is documented as a live reference
+    "PyDiscreteMapType": "identity",
+    # accessors onto a parent-owned record: fresh per call, no state of their own
+    "PyUIGridPointType": "value", "PyVoxelPointType": "value",
+    "PyWangSetType": "value", "PyAutoRuleSetType": "value",
+    # values: fresh per call is correct
+    "PyVectorType": "value", "PyColorType": "value",
+    "PyAnimationType": "value", "PyAStarPathType": "value",
+    "PyVisibilityMaskType": "value", "PyLayerEditType": "value",
+    "PyUniformCollectionType": "value", "PyVoxelRegionType": "value",
+    "PyBSPNodeType": "value", "PyBSPAdjacencyType": "value",
+    "PyBSPAdjacentTilesType": "value", "PyBSPIterType": "value",
+    "PyUICollectionIterType": "value", "PyUIEntityCollectionIterType": "value",
+    "PyEntityCollection3DIterType": "value",
+}
+
+# Functions allowed to allocate identity types and use PythonObjectCache:: --
+# the cache-aware converters. Matched against the qualified function name.
+SANCTIONED = {
+    "UIDrawable::pyobject_for",
+    "PyGridData::pyobject_for",
+    "convertEntityToPython@UIEntityCollection.cpp",
+}
+
+# Files that implement the cache itself.
+CACHE_IMPL_FILES = {"PythonObjectCache.cpp", "PythonObjectCache.h"}
+
+# APIs that borrow (do not steal) their value argument: index of that argument.
+BORROWING_SINKS = {
+    "PyDict_SetItemString": 2, "PyDict_SetItem": 2, "PyList_Append": 1,
+    "PyObject_SetAttrString": 2, "PyObject_SetAttr": 2, "PySet_Add": 1,
+    "PyList_Insert": 2, "PyModule_AddObjectRef": 2,
+}
+# Calls that return a new reference.
+NEW_REF_CALL = re.compile(
+    r"^(Py(Long|Float|Bool|Unicode|Bytes|Tuple|List|Dict|Set|Complex)_From\w*"
+    r"|PyUnicode_FromFormat|Py_BuildValue|PyObject_Call\w*|PyObject_Str|PyObject_Repr"
+    r"|PyTuple_New|PyList_New|PyDict_New|PyTuple_Pack|\w+_to_PyObject|PyVector::from_arg"
+    r"|\w+::pyobject_for|convert\w+ToPython)$")
+
+# The entity pin's owner: the only functions that may touch UIEntity::pyobject.
+PIN_OWNERS = {"UIEntity::releasePyIdentity", "UIEntity::init", "~UIEntity"}
+
+# ---------------------------------------------------------------------------
+# AST helpers
+# ---------------------------------------------------------------------------
+
+
+def text(src: bytes, n) -> str:
+    return src[n.start_byte:n.end_byte].decode("utf-8", "replace")
+
+
+def walk(n):
+    stack = [n]
+    while stack:
+        n = stack.pop()
+        yield n
+        stack.extend(reversed(n.children))
+
+
+def enclosing_scope(n):
+    """Nearest function_definition or lambda_expression."""
+    while n is not None:
+        if n.type in ("function_definition", "lambda_expression"):
+            return n
+        n = n.parent
+    return None
+
+
+def outer_function(n):
+    while n is not None:
+        if n.type == "function_definition":
+            return n
+        n = n.parent
+    return None
+
+
+def function_name(src: bytes, fn) -> str:
+    if fn is None:
+        return "<file-scope>"
+    d = _function_declarator(fn.child_by_field_name("declarator"))
+    if d is None:
+        return "<unknown>"
+    return text(src, d.child_by_field_name("declarator"))
+
+
+def _function_declarator(d):
+    """Descend pointer/reference declarators (`Foo& Foo::operator=(...)`), whose
+    inner declarator isn't always a named field."""
+    while d is not None and d.type != "function_declarator":
+        nxt = d.child_by_field_name("declarator")
+        if nxt is None:
+            nxt = next((c for c in d.named_children if "declarator" in c.type), None)
+        d = nxt
+    return d
+
+
+def scope_label(src: bytes, n) -> str:
+    """Qualified function name; lambdas are named after their enclosing function or
+    the designated initializer they're assigned to (e.g. `.tp_new` in a type)."""
+    scope = enclosing_scope(n)
+    if scope is not None and scope.type == "lambda_expression":
+        p = scope.parent
+        while p is not None and p.type not in ("initializer_pair", "function_definition"):
+            p = p.parent
+        if p is not None and p.type == "initializer_pair":
+            return "<lambda " + text(src, p.children[0]).strip() + ">"
+        return function_name(src, outer_function(n)) + "/<lambda>"
+    return function_name(src, outer_function(n))
+
+
+def parameter_names(src: bytes, scope) -> set[str]:
+    names = set()
+    if scope is None:
+        return names
+    decl = scope.child_by_field_name("declarator")
+    if scope.type != "lambda_expression":
+        decl = _function_declarator(decl)
+    if decl is None:
+        return names
+    params = decl.child_by_field_name("parameters")
+    if params is None:
+        return names
+    for p in params.named_children:
+        d = p.child_by_field_name("declarator")
+        while d is not None and d.type not in ("identifier",):
+            d = d.child_by_field_name("declarator")
+        if d is not None:
+            names.add(text(src, d))
+    return names
+
+
+TYPE_TOKEN = re.compile(r"&\s*(?:mcrfpydef::)?(Py\w+Type)\b")
+
+
+def resolve_alloc_type(src: bytes, field_expr) -> tuple[str, set[str]]:
+    """Return ("param", {}) when tp_alloc allocates a caller-supplied type (a
+    constructor or classmethod), else ("types", {PyXType, ...}) from the
+    assignments to the variable in scope, or ("unresolved", {expr})."""
+    obj = text(src, field_expr.child_by_field_name("argument")).strip()
+    m = TYPE_TOKEN.search("&" + obj.lstrip("&(").rstrip(")"))
+    if m and obj.lstrip("(&").startswith(("mcrfpydef::", "Py")):
+        return "types", {m.group(1)}
+    if not re.fullmatch(r"\w+", obj):
+        return "unresolved", {obj}
+    scope = enclosing_scope(field_expr)
+    if obj in parameter_names(src, scope):
+        return "param", set()
+    if scope is None:
+        return "unresolved", {obj}
+    # The nearest assignment before the call wins (a switch may reassign `type`
+    # once per case).
+    body = src[scope.start_byte:field_expr.start_byte].decode("utf-8", "replace")
+    assigns = list(re.finditer(r"\b" + re.escape(obj) + r"\s*=\s*([^;]+);", body))
+    if not assigns:
+        return "unresolved", {obj}
+    rhs = assigns[-1].group(1)
+    found = set(TYPE_TOKEN.findall(rhs))
+    if found:
+        return "types", found
+    cast = re.fullmatch(r"\s*\(\s*PyTypeObject\s*\*\s*\)\s*(\w+)\s*", rhs)
+    if cast and cast.group(1) in parameter_names(src, scope):
+        return "param", set()
+    return "unresolved", {obj}
+
+
+# ---------------------------------------------------------------------------
+# Rules
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Finding:
+    rule: str
+    file: str
+    line: int
+    function: str
+    detail: str
+
+    @property
+    def key(self) -> str:
+        return f"{self.rule}|{self.file}|{self.function}|{self.detail}"
+
+
+def is_sanctioned(fn: str, rel: str) -> bool:
+    return fn in SANCTIONED or f"{fn}@{Path(rel).name}" in SANCTIONED
+
+
+def callee_name(src: bytes, call) -> str:
+    f = call.child_by_field_name("function")
+    return text(src, f).strip() if f is not None else ""
+
+
+def lint_file(path: Path) -> list[Finding]:
+    src = path.read_bytes()
+    rel = path.relative_to(ROOT).as_posix()
+    tree = _PARSER.parse(src)
+    out: list[Finding] = []
+
+    def add(rule, node, detail):
+        out.append(Finding(rule, rel, node.start_point[0] + 1,
+                           scope_label(src, node), " ".join(detail.split())))
+
+    for n in walk(tree.root_node):
+        # tp_alloc ---------------------------------------------------------
+        if n.type == "field_expression":
+            field = n.child_by_field_name("field")
+            if field is None or text(src, field) != "tp_alloc":
+                continue
+            kind, types = resolve_alloc_type(src, n)
+            fn = scope_label(src, n)
+            if kind == "param":
+                continue
+            if kind == "unresolved":
+                add("unclassified", n, f"tp_alloc via {', '.join(sorted(types))}")
+                continue
+            for t in sorted(types):
+                cls = TYPE_CLASS.get(t)
+                if cls is None:
+                    add("unclassified", n, f"tp_alloc {t}")
+                elif cls == "identity" and not is_sanctioned(fn, rel):
+                    add("identity-alloc", n, f"tp_alloc {t}")
+
+        # PythonObjectCache:: -------------------------------------------------
+        elif n.type == "qualified_identifier" and n.parent is not None \
+                and n.parent.type != "qualified_identifier":
+            if not text(src, n).startswith("PythonObjectCache::"):
+                continue
+            if path.name in CACHE_IMPL_FILES or is_sanctioned(scope_label(src, n), rel):
+                continue
+            stmt = n
+            while stmt.parent is not None and stmt.parent.type in (
+                    "call_expression", "field_expression", "argument_list"):
+                stmt = stmt.parent
+            m = re.search(r"getInstance\(\)\s*\.\s*(\w+)", text(src, stmt))
+            add("cache-direct", n, f"PythonObjectCache.{m.group(1) if m else '?'}")
+
+        # calls ---------------------------------------------------------------
+        elif n.type == "call_expression":
+            name = callee_name(src, n)
+            args = n.child_by_field_name("arguments")
+            if name in BORROWING_SINKS and args is not None:
+                argv = args.named_children
+                idx = BORROWING_SINKS[name]
+                if idx < len(argv) and argv[idx].type == "call_expression":
+                    inner = callee_name(src, argv[idx])
+                    if NEW_REF_CALL.match(inner):
+                        add("borrowed-leak", n, f"{name}(..., {inner}(...))")
+            elif name == "PyVector::from_arg":
+                check_from_arg(src, n, add)
+
+    out.extend(check_pin(src, tree, rel))
+    return out
+
+
+def check_from_arg(src: bytes, call, add) -> None:
+    """The result must be bound to a name that is DECREF'd, returned, or handed to
+    an owning holder in the same scope."""
+    parent = call.parent
+    var = None
+    if parent.type == "init_declarator":
+        var = text(src, parent.child_by_field_name("declarator")).lstrip("*& ")
+    elif parent.type == "assignment_expression":
+        var = text(src, parent.child_by_field_name("left")).strip()
+    elif parent.type == "return_statement":
+        return
+    if var is None:
+        add("from-arg-owner", call, "PyVector::from_arg(...) result not bound")
+        return
+    scope = enclosing_scope(call)
+    body = text(src, scope) if scope is not None else ""
+    owned = re.search(
+        r"(Py_X?DECREF|Py_CLEAR)\s*\(\s*(\([^)]*\)\s*)?" + re.escape(var) + r"\s*\)"
+        r"|return\s+\(?[^;]*\b" + re.escape(var) + r"\b"
+        r"|PyRef\w*\s*[({]?\s*\w*\s*[({]\s*" + re.escape(var) + r"\b", body)
+    if not owned:
+        add("from-arg-owner", call, f"{var} = PyVector::from_arg(...) never released")
+
+
+PIN_FIELD = re.compile(r"(->|\.)pyobject$")
+
+
+def check_pin(src: bytes, tree, rel: str) -> list[Finding]:
+    """UIEntity::pyobject (and Entity3D's twin) may only be touched by its owner.
+    Everyone else must go through the converter or a collection-membership hook."""
+    out = []
+    for n in walk(tree.root_node):
+        if n.type == "call_expression":
+            name = callee_name(src, n)
+            if name.endswith("releasePyIdentity") and ("->" in name or "." in name):
+                fn = scope_label(src, n)
+                # Drawables release through updatePyIdentityPin/releaseChildPins.
+                if fn.startswith("UIDrawable::"):
+                    continue
+                out.append(Finding("pin-direct", rel, n.start_point[0] + 1, fn,
+                                   "releasePyIdentity() call"))
+        elif n.type == "field_expression" and n.parent.type != "field_expression":
+            if not PIN_FIELD.search(text(src, n)):
+                continue
+            fn = scope_label(src, n)
+            if fn in PIN_OWNERS or "dealloc" in fn:
+                continue
+            # `x->pyobject = <ptr>` is a take, `= nullptr` a release; anything else
+            # reads the pin as if it were "the wrapper" (it is null once released).
+            p = n.parent
+            role = "read"
+            if p.type == "assignment_expression" and p.child_by_field_name("left") == n:
+                rhs = text(src, p.child_by_field_name("right")).strip()
+                role = "release" if rhs in ("nullptr", "NULL") else "take"
+            out.append(Finding("pin-direct", rel, n.start_point[0] + 1, fn,
+                               f"{role} {text(src, n.child_by_field_name('field'))}"))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Baseline
+# ---------------------------------------------------------------------------
+
+
+def load_baseline() -> Counter:
+    c = Counter()
+    if BASELINE.exists():
+        for line in BASELINE.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            count, _, key = line.partition(" ")
+            c[key] += int(count)
+    return c
+
+
+def write_baseline(c: Counter) -> None:
+    header = ("# lint_bindings.py allowlist (#430). Each line: <count> rule|file|function|detail.\n"
+              "# This list only shrinks: fix a site, then run --update-baseline to drop it.\n"
+              "# New code must not add entries (CI fails on any finding not covered here).\n")
+    body = "".join(f"{n} {k}\n" for k, n in sorted(c.items()))
+    BASELINE.write_text(header + body)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--all", action="store_true", help="list every finding, baselined or not")
+    ap.add_argument("--summary", action="store_true", help="counts per rule and per file")
+    ap.add_argument("--rule", help="restrict output to one rule")
+    ap.add_argument("--update-baseline", action="store_true")
+    ap.add_argument("--allow-growth", action="store_true",
+                    help="with --update-baseline: permit new entries (needs a reason)")
+    ap.add_argument("paths", nargs="*", help="files/dirs (default: src/)")
+    a = ap.parse_args()
+
+    targets = [Path(p).resolve() for p in a.paths] or [ROOT / "src"]
+    files = []
+    for t in targets:
+        files += [t] if t.is_file() else sorted(
+            p for p in t.rglob("*") if p.suffix in (".cpp", ".h", ".hpp"))
+    findings = [f for p in files for f in lint_file(p)]
+    if a.rule:
+        findings = [f for f in findings if f.rule == a.rule]
+
+    current = Counter(f.key for f in findings)
+    baseline = load_baseline()
+
+    if a.summary:
+        by_rule = Counter(f.rule for f in findings)
+        for r, n in by_rule.most_common():
+            files_n = len({f.file for f in findings if f.rule == r})
+            print(f"{n:5d}  {r}  ({files_n} files)")
+        print()
+        for fl, n in Counter(f.file for f in findings).most_common(15):
+            print(f"{n:5d}  {fl}")
+        return 0
+    if a.all:
+        for f in sorted(findings, key=lambda f: (f.rule, f.file, f.line)):
+            print(f"{f.file}:{f.line}: [{f.rule}] {f.function}: {f.detail}")
+        return 0
+    if a.update_baseline:
+        grown = current - baseline
+        if grown and not a.allow_growth:
+            for k, n in grown.items():
+                print(f"would ADD {n} {k}", file=sys.stderr)
+            print("refusing to grow the baseline (pass --allow-growth if this is deliberate)",
+                  file=sys.stderr)
+            return 1
+        write_baseline(current)
+        print(f"baseline: {sum(baseline.values())} -> {sum(current.values())} entries")
+        return 0
+
+    new = current - baseline
+    stale = baseline - current
+    rc = 0
+    if new:
+        rc = 1
+        print("BINDING LINT: new findings (use the cache-aware helpers; see tools/lint_bindings.py):")
+        for f in findings:
+            if new[f.key] > 0:
+                new[f.key] -= 1
+                print(f"  {f.file}:{f.line}: [{f.rule}] {f.function}: {f.detail}")
+    if stale:
+        rc = 1
+        print("BINDING LINT: fixed sites still in the baseline -- run "
+              "`tools/lint_bindings.py --update-baseline` to drop them:")
+        for k, n in sorted(stale.items()):
+            print(f"  {n} {k}")
+    if rc == 0:
+        print(f"BINDING LINT: PASS ({sum(current.values())} baselined sites remain)")
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

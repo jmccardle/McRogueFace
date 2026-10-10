@@ -52,7 +52,7 @@
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
 .PHONY: profile callgrind clean-profile
-.PHONY: install-hooks
+.PHONY: install-hooks audit-venv lint-bindings
 
 # Number of parallel jobs for compilation
 JOBS := $(shell nproc 2>/dev/null || echo 4)
@@ -141,6 +141,18 @@ install-hooks:
 		ln -sf "$$(pwd)/$$hook" "$$hooks_dir/$$name"; \
 		echo "Linked $$hooks_dir/$$name -> $$hook"; \
 	done
+
+# Static-analysis venv (tree-sitter-cpp) for the docstring audit and binding lint.
+audit-venv: .venv-audit/.requirements-stamp
+.venv-audit/.requirements-stamp: tools/requirements-audit.txt
+	python3 -m venv .venv-audit
+	.venv-audit/bin/pip install -q -r tools/requirements-audit.txt
+	@touch $@
+
+# #430: AST lint of hand-rolled CPython recipes, gated against a shrink-only baseline.
+lint-bindings: audit-venv
+	.venv-audit/bin/python3 tools/lint_bindings_selftest.py
+	.venv-audit/bin/python3 tools/lint_bindings.py
 
 # ---------------------------------------------------------------------------
 # Documentation / release

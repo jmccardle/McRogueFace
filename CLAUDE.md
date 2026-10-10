@@ -679,7 +679,20 @@ PyObject* obj = UIDrawable::pyobject_for(drawable_shared_ptr);   // UIDrawable.h
 
 Each looks the object up in `PythonObjectCache` by `serial_number` and returns the live
 wrapper if one exists, only allocating (and re-registering) on a miss. `tp_alloc` is
-correct **only** in a type's own `tp_init`, where the object is genuinely new.
+correct **only** in a type's own `tp_new`/`tp_init`, where the object is genuinely new.
+
+`tools/lint_bindings.py` (#430, tree-sitter, `make lint-bindings`) enforces this and
+four sibling recipes:
+- an identity-type `tp_alloc` outside a converter;
+- direct `PythonObjectCache::` use;
+- a new reference passed inline to a borrowing API
+  (`PyDict_SetItemString(d, k, PyLong_FromLong(x))`);
+- an unreleased `PyVector::from_arg()`;
+- the entity pin touched outside its owner.
+
+Existing sites are listed in `tools/lint_bindings_baseline.txt`, which may only shrink.
+The pre-commit hook and CI fail on any new finding. Every type that gets `tp_alloc`'d must
+be classified as identity or value in the linter's `TYPE_CLASS` table.
 
 #### Collection Patterns
 - `UICollection` wraps `std::vector<std::shared_ptr<UIDrawable>>`

@@ -21,6 +21,19 @@ env:
     libgl-dev libopenal-dev libzstd-dev uuid-dev
 
 jobs:
+  # Source-only gates: no dependency build, runs in seconds.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Binding lint (#430) and its self-test
+        run: make lint-bindings
+
+      - name: Frozen docstring gate
+        run: ./tools/check_frozen_docstrings.sh
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
