@@ -7,6 +7,7 @@
 // construction, properties, and the shared helpers the Grid() factory path in
 // UIGridView needs.
 #include "PyGridData.h"
+#include "PyWrap.h"
 #include "UIGridView.h"
 #include "UIGridPathfinding.h"
 #include "GameEngine.h"
@@ -193,27 +194,8 @@ int PyGridData::apply_layers_arg(const std::shared_ptr<GridData>& grid,
 PyObject* PyGridData::pyobject_for(const std::shared_ptr<GridData>& grid)
 {
     if (!grid) Py_RETURN_NONE;
-
-    if (grid->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(grid->serial_number);
-        if (cached) return cached;  // new strong ref
-    }
-
-    auto* type = &mcrfpydef::PyGridDataType;
-    auto* obj = (PyGridDataObject*)type->tp_alloc(type, 0);
-    if (!obj) return nullptr;
-    obj->data = grid;
-    obj->weakreflist = NULL;
-
-    if (grid->serial_number == 0) {
-        grid->serial_number = PythonObjectCache::getInstance().assignSerial();
-    }
-    PyObject* weakref = PyWeakref_NewRef((PyObject*)obj, NULL);
-    if (weakref) {
-        PythonObjectCache::getInstance().registerObject(grid->serial_number, weakref);
-        Py_DECREF(weakref);
-    }
-    return (PyObject*)obj;
+    return mcrf::cached_wrapper<PyGridDataObject>(grid->serial_number, &mcrfpydef::PyGridDataType,
+        [&](PyGridDataObject* o) { o->data = grid; o->weakreflist = NULL; });
 }
 
 // =========================================================================

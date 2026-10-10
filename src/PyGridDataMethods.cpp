@@ -4,6 +4,7 @@
 // Contains: FOV, layer management, spatial queries, camera, heightmap ops,
 //           step/behavior system, py_at/subscript, and method table arrays.
 #include "PyGridData.h"
+#include "PyWrap.h"
 #include <algorithm>
 #include <vector>
 #include "UIGridView.h"
@@ -862,50 +863,39 @@ PyObject* PyGridData::py_apply_ranges(PyGridDataObject* self, PyObject* args) {
 // =========================================================================
 
 static void fireStepCallback(std::shared_ptr<UIEntity>& entity, int trigger_int, PyObject* data) {
+    // An explicit `entity.step = cb` wins; otherwise a subclass may define on_step().
+    // A base-type Entity can't (no __dict__), so skip the lookup -- and the wrapper.
+    mcrf::PyRef bound;
     PyObject* callback = entity->step_callback;
-
-    if (!callback && entity->pyobject) {
-        PyObject* step_attr = PyObject_GetAttrString(entity->pyobject, "on_step");
-        if (step_attr && PyCallable_Check(step_attr)) {
-            callback = step_attr;
-        } else {
-            PyErr_Clear();
-            Py_XDECREF(step_attr);
-            return;
-        }
-        PyObject* trigger_obj = nullptr;
-        if (PyTrigger::trigger_enum_class) {
-            trigger_obj = PyObject_CallFunction(PyTrigger::trigger_enum_class, "i", trigger_int);
-        }
-        if (!trigger_obj) {
-            PyErr_Clear();
-            trigger_obj = PyLong_FromLong(trigger_int);
-        }
-        if (!data) data = Py_None;
-        PyObject* result = PyObject_CallFunction(callback, "OO", trigger_obj, data);
-        Py_XDECREF(result);
-        if (PyErr_Occurred()) PyErr_Print();
-        Py_DECREF(trigger_obj);
-        Py_DECREF(step_attr);
-        return;
+    if (!callback) {
+        if (!entity->is_python_subclass) return;
+        mcrf::PyRef self(mcrf::to_python(entity));  // #436: never the pin itself
+        if (!self) { PyErr_Print(); return; }
+        bound = mcrf::PyRef(PyObject_GetAttrString(self.get(), "on_step"));
+        if (!bound || !PyCallable_Check(bound.get())) { PyErr_Clear(); return; }
+        callback = bound.get();
     }
 
-    if (!callback) return;
-
-    PyObject* trigger_obj = nullptr;
+    mcrf::PyRef trigger_obj;
     if (PyTrigger::trigger_enum_class) {
-        trigger_obj = PyObject_CallFunction(PyTrigger::trigger_enum_class, "i", trigger_int);
+        trigger_obj = mcrf::PyRef(
+            PyObject_CallFunction(PyTrigger::trigger_enum_class, "i", trigger_int));
     }
     if (!trigger_obj) {
         PyErr_Clear();
-        trigger_obj = PyLong_FromLong(trigger_int);
+        trigger_obj = mcrf::PyRef(PyLong_FromLong(trigger_int));
     }
 
     if (!data) data = Py_None;
-    PyObject* result = PyObject_CallFunction(callback, "OO", trigger_obj, data);
-    Py_XDECREF(result);
+    mcrf::PyRef result(PyObject_CallFunction(callback, "OO", trigger_obj.get(), data));
     if (PyErr_Occurred()) PyErr_Print();
-    Py_DECREF(trigger_obj);
+}
+
+// Trigger payload: the entity's Python object (identity-preserving), or None.
+static mcrf::PyRef entityPayload(const std::shared_ptr<UIEntity>& e) {
+    mcrf::PyRef obj(mcrf::to_python(e));
+    if (!obj) PyErr_Print();
+    return obj;
 }
 
 PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
@@ -944,7 +934,7 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
             [](const auto& a, const auto& b) { return a->turn_order < b->turn_order; });
 
         for (auto& entity : snapshot) {
-            if (!entity->grid) continue;
+            if (!entity->getGrid()) continue;
             if (entity->behavior.type == BehaviorType::IDLE) continue;
 
             if (!entity->target_label.empty()) {
@@ -988,11 +978,9 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
                     for (auto& target : matching_targets) {
                         if (cache.isVisible(target->cell_position.x,
                                            target->cell_position.y)) {
-                            PyObject* target_pyobj = Py_None;
-                            if (target->pyobject) {
-                                target_pyobj = target->pyobject;
-                            }
-                            fireStepCallback(entity, 2 /* TARGET */, target_pyobj);
+                            mcrf::PyRef target_obj = entityPayload(target);
+                            fireStepCallback(entity, 2 /* TARGET */,
+                                             target_obj ? target_obj.get() : Py_None);
                             goto next_entity;
                         }
                     }
@@ -1021,13 +1009,12 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
                         break;
                     }
                     case BehaviorResult::BLOCKED: {
-                        PyObject* blocker = Py_None;
                         auto blockers = grid->spatial_hash.queryCell(
                             output.target_cell.x, output.target_cell.y);
-                        if (!blockers.empty() && blockers[0]->pyobject) {
-                            blocker = blockers[0]->pyobject;
-                        }
-                        fireStepCallback(entity, 1 /* BLOCKED */, blocker);
+                        mcrf::PyRef blocker;
+                        if (!blockers.empty()) blocker = entityPayload(blockers[0]);
+                        fireStepCallback(entity, 1 /* BLOCKED */,
+                                         blocker ? blocker.get() : Py_None);
                         break;
                     }
                     case BehaviorResult::NO_ACTION:

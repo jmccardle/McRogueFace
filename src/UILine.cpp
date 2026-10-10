@@ -1,4 +1,5 @@
 #include "UILine.h"
+#include "PyWrap.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
@@ -422,12 +423,9 @@ PyObject* UILine::get_start(PyUILineObject* self, void* closure) {
 }
 
 int UILine::set_start(PyUILineObject* self, PyObject* value, void* closure) {
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (!vec) {
-        PyErr_SetString(PyExc_TypeError, "start must be a Vector or tuple (x, y)");
-        return -1;
-    }
-    self->data->setStart(vec->data);
+    sf::Vector2f start;
+    if (!mcrf::to_vector2f(value, start, "start")) return -1;
+    self->data->setStart(start);
     self->data->markDirty(); // #291: visual change
     return 0;
 }

@@ -3,7 +3,7 @@
 #include "UIEntity.h"
 #include "PyTexture.h"
 #include "UIGridView.h"        // #313/#359 - markDirty notifies registered views
-#include "PythonObjectCache.h" // #361 - GridData owns its own cache serial
+#include "PyWrap.h"
 #include <algorithm>
 
 // #313/#361 - Render invalidation from the data layer (see GridData.h).
@@ -72,8 +72,15 @@ GridData::~GridData()
 {
     // #361: GridData carries its own PythonObjectCache serial now that it is
     // not a UIDrawable (which used to do this in ~UIDrawable).
-    if (serial_number != 0) {
-        PythonObjectCache::getInstance().remove(serial_number);
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
+
+    // #437: entities that outlive their grid are detached, which also releases their
+    // identity pins (#436). The vector still owns each entity during the loop, so a
+    // released pin can't free an entity out from under us.
+    if (entities) {
+        for (auto& e : *entities) {
+            if (e) e->setGrid(nullptr);
+        }
     }
 
     // #270: Null out parent_grid in all layers so surviving shared_ptrs

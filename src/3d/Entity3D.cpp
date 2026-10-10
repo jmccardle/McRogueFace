@@ -1088,9 +1088,7 @@ PyObject* Entity3D::py_path_to(PyEntity3DObject* self, PyObject* args, PyObject*
 
     PyObject* path_list = PyList_New(path.size());
     for (size_t i = 0; i < path.size(); ++i) {
-        PyObject* tuple = PyTuple_Pack(2,
-            PyLong_FromLong(path[i].first),
-            PyLong_FromLong(path[i].second));
+        PyObject* tuple = Py_BuildValue("(ii)", path[i].first, path[i].second);
         PyList_SET_ITEM(path_list, i, tuple);
     }
     return path_list;

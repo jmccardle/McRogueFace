@@ -217,9 +217,8 @@ UIDrawable& UIDrawable::operator=(UIDrawable&& other) noexcept {
 }
 
 UIDrawable::~UIDrawable() {
-    if (serial_number != 0) {
-        PythonObjectCache::getInstance().remove(serial_number);
-    }
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
+    if (children_serial != 0) mcrf::unregister_wrapper(children_serial);
 }
 
 void UIDrawable::click_unregister()
@@ -966,22 +965,9 @@ void UIDrawable::setParentScene(const std::string& scene_name) {
 // #373: hold a strong ref to the Python wrapper while, and only while, this drawable
 // is a member of a children collection. See the comment on py_identity in UIDrawable.h.
 void UIDrawable::updatePyIdentityPin() {
-    // Only subclasses carry state worth preserving, and only they can lose anything
-    // when a wrapper is re-created from the cache miss.
-    if (!is_python_subclass) return;
-
+    // Only subclasses carry state worth preserving (base types have no __dict__).
     const bool in_collection = !parent.expired() || !parent_scene.empty();
-
-    if (in_collection) {
-        if (py_identity) return;  // already pinned
-        if (serial_number == 0 || !Py_IsInitialized()) return;
-        // The wrapper necessarily exists: is_python_subclass is only ever set from a
-        // subclass's tp_init, so Python allocated one. A cache miss here would mean the
-        // wrapper was already collected, and there is nothing left to pin.
-        py_identity = PythonObjectCache::getInstance().lookup(serial_number);  // new ref
-    } else {
-        releasePyIdentity();
-    }
+    py_identity.sync(is_python_subclass && in_collection, serial_number);
 }
 
 void UIDrawable::releaseChildPins(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children) {
@@ -992,14 +978,7 @@ void UIDrawable::releaseChildPins(const std::shared_ptr<std::vector<std::shared_
 }
 
 void UIDrawable::releasePyIdentity() {
-    if (!py_identity) return;
-    // Null the member BEFORE the DECREF: the wrapper's dealloc drops its shared_ptr to
-    // this drawable, which can re-enter here if that was the last strong ref.
-    PyObject* tmp = py_identity;
-    py_identity = nullptr;
-    if (Py_IsInitialized()) {
-        Py_DECREF(tmp);
-    }
+    py_identity.release();
 }
 
 std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
@@ -1337,130 +1316,37 @@ PyObject* UIDrawable::get_uniforms(PyObject* self, void* closure) {
 }
 
 // #369: single cache-aware conversion from a C++ drawable to its Python wrapper.
-// Every path that hands a drawable back to Python must go through here, or object
-// identity breaks (`x.parent is x.parent` -> False) and Python subclasses are lost.
+// Every path that hands a drawable back to Python must go through here (via
+// mcrf::to_python), or object identity breaks (`x.parent is x.parent` -> False) and
+// Python subclasses are lost. A miss registers the fresh wrapper (#430).
 PyObject* UIDrawable::pyobject_for(std::shared_ptr<UIDrawable> drawable) {
     if (!drawable) {
         Py_RETURN_NONE;
     }
 
-    // A live wrapper wins: it carries the caller's subclass and identity.
-    if (drawable->serial_number != 0) {
-        PyObject* cached = PythonObjectCache::getInstance().lookup(drawable->serial_number);
-        if (cached) {
-            return cached;  // lookup() already INCREF'd
-        }
-    }
-
-    PyTypeObject* type = nullptr;
-    PyObject* obj = nullptr;
-
+    // Each wrapper type stores a shared_ptr to its own concrete class.
+    #define MCRF_WRAP(ENUM, OBJ, TYPE, CLS, EXTRA)                                   \
+        case PyObjectsEnum::ENUM:                                                    \
+            return mcrf::cached_wrapper<OBJ>(drawable->serial_number,                \
+                &mcrfpydef::TYPE, [&](OBJ* o) {                                      \
+                    o->data = std::static_pointer_cast<CLS>(drawable);               \
+                    o->weakreflist = NULL;                                           \
+                    EXTRA                                                            \
+                });
     switch (drawable->derived_type()) {
-        case PyObjectsEnum::UIFRAME:
-        {
-            type = &mcrfpydef::PyUIFrameType;
-            auto pyObj = (PyUIFrameObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIFrame>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UICAPTION:
-        {
-            type = &mcrfpydef::PyUICaptionType;
-            auto pyObj = (PyUICaptionObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UICaption>(drawable);
-                pyObj->font = nullptr;
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UISPRITE:
-        {
-            type = &mcrfpydef::PyUISpriteType;
-            auto pyObj = (PyUISpriteObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UISprite>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIGRIDVIEW:
-        {
-            type = &mcrfpydef::PyUIGridViewType;
-            auto pyObj = (PyUIGridViewObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIGridView>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UILINE:
-        {
-            type = &mcrfpydef::PyUILineType;
-            auto pyObj = (PyUILineObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UILine>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UICIRCLE:
-        {
-            type = &mcrfpydef::PyUICircleType;
-            auto pyObj = (PyUICircleObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UICircle>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIARC:
-        {
-            type = &mcrfpydef::PyUIArcType;
-            auto pyObj = (PyUIArcObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<UIArc>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
-        case PyObjectsEnum::UIVIEWPORT3D:
-        {
-            type = &mcrfpydef::PyViewport3DType;
-            auto pyObj = (PyViewport3DObject*)type->tp_alloc(type, 0);
-            if (pyObj) {
-                pyObj->data = std::static_pointer_cast<mcrf::Viewport3D>(drawable);
-                pyObj->weakreflist = NULL;
-            }
-            obj = (PyObject*)pyObj;
-            break;
-        }
+        MCRF_WRAP(UIFRAME, PyUIFrameObject, PyUIFrameType, UIFrame, )
+        MCRF_WRAP(UICAPTION, PyUICaptionObject, PyUICaptionType, UICaption, o->font = nullptr;)
+        MCRF_WRAP(UISPRITE, PyUISpriteObject, PyUISpriteType, UISprite, )
+        MCRF_WRAP(UIGRIDVIEW, PyUIGridViewObject, PyUIGridViewType, UIGridView, )
+        MCRF_WRAP(UILINE, PyUILineObject, PyUILineType, UILine, )
+        MCRF_WRAP(UICIRCLE, PyUICircleObject, PyUICircleType, UICircle, )
+        MCRF_WRAP(UIARC, PyUIArcObject, PyUIArcType, UIArc, )
+        MCRF_WRAP(UIVIEWPORT3D, PyViewport3DObject, PyViewport3DType, mcrf::Viewport3D, )
         default:
             PyErr_SetString(PyExc_TypeError, "Unknown UIDrawable derived type");
             return nullptr;
     }
-
-    // Register the fresh wrapper so the next lookup returns this same object.
-    // Covers C++-created drawables whose original wrapper was GC'd.
-    if (obj && drawable->serial_number != 0) {
-        PyObject* weakref = PyWeakref_NewRef(obj, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(drawable->serial_number, weakref);
-            Py_DECREF(weakref);
-        }
-    }
-
-    return obj;
+    #undef MCRF_WRAP
 }
 
 // Python API - get parent drawable

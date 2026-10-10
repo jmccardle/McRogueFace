@@ -1,4 +1,5 @@
 #include "McRFPy_API.h"
+#include "PyWrap.h"
 #include "EngineRandom.h"
 #include <climits>
 
@@ -1474,7 +1475,9 @@ void McRFPy_API::api_init() {
 
     // Add default_font and default_texture to module
     McRFPy_API::mcrf_module = PyImport_ImportModule("mcrfpy");
-    std::cout << PyUnicode_AsUTF8(PyObject_Repr(McRFPy_API::mcrf_module)) << std::endl;
+    if (mcrf::PyRef repr{PyObject_Repr(McRFPy_API::mcrf_module)}) {
+        std::cout << PyUnicode_AsUTF8(repr.get()) << std::endl;
+    }
 
     //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
     PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
@@ -2194,11 +2197,12 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // Create a dictionary with metrics
     PyObject* dict = PyDict_New();
     if (!dict) return NULL;
+    bool ok = true;  // #413: dict_steal() owns each value
 
     // Add frame time metrics
-    PyDict_SetItemString(dict, "frame_time", PyFloat_FromDouble(game->metrics.frameTime));
-    PyDict_SetItemString(dict, "avg_frame_time", PyFloat_FromDouble(game->metrics.avgFrameTime));
-    PyDict_SetItemString(dict, "fps", PyLong_FromLong(game->metrics.fps));
+    ok &= mcrf::dict_steal(dict, "frame_time", PyFloat_FromDouble(game->metrics.frameTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "avg_frame_time", PyFloat_FromDouble(game->metrics.avgFrameTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "fps", PyLong_FromLong(game->metrics.fps)) == 0;
 
     // #341: report the last COMPLETED frame's per-frame values, not the live
     // accumulators. Python callbacks run before render(), and the accumulators are
@@ -2206,25 +2210,25 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     const auto& pub = game->metrics.published;
 
     // Add draw call metrics
-    PyDict_SetItemString(dict, "draw_calls", PyLong_FromLong(pub.drawCalls));
-    PyDict_SetItemString(dict, "ui_elements", PyLong_FromLong(pub.uiElements));
-    PyDict_SetItemString(dict, "visible_elements", PyLong_FromLong(pub.visibleElements));
+    ok &= mcrf::dict_steal(dict, "draw_calls", PyLong_FromLong(pub.drawCalls)) == 0;
+    ok &= mcrf::dict_steal(dict, "ui_elements", PyLong_FromLong(pub.uiElements)) == 0;
+    ok &= mcrf::dict_steal(dict, "visible_elements", PyLong_FromLong(pub.visibleElements)) == 0;
 
     // #144 - Add detailed timing breakdown (in milliseconds)
-    PyDict_SetItemString(dict, "grid_render_time", PyFloat_FromDouble(pub.gridRenderTime));
-    PyDict_SetItemString(dict, "entity_render_time", PyFloat_FromDouble(pub.entityRenderTime));
-    PyDict_SetItemString(dict, "fov_overlay_time", PyFloat_FromDouble(pub.fovOverlayTime));
-    PyDict_SetItemString(dict, "python_time", PyFloat_FromDouble(pub.pythonScriptTime));
-    PyDict_SetItemString(dict, "animation_time", PyFloat_FromDouble(pub.animationTime));
+    ok &= mcrf::dict_steal(dict, "grid_render_time", PyFloat_FromDouble(pub.gridRenderTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "entity_render_time", PyFloat_FromDouble(pub.entityRenderTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "fov_overlay_time", PyFloat_FromDouble(pub.fovOverlayTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "python_time", PyFloat_FromDouble(pub.pythonScriptTime)) == 0;
+    ok &= mcrf::dict_steal(dict, "animation_time", PyFloat_FromDouble(pub.animationTime)) == 0;
 
     // #144 - Add grid-specific metrics
-    PyDict_SetItemString(dict, "grid_cells_rendered", PyLong_FromLong(pub.gridCellsRendered));
-    PyDict_SetItemString(dict, "entities_rendered", PyLong_FromLong(pub.entitiesRendered));
-    PyDict_SetItemString(dict, "total_entities", PyLong_FromLong(pub.totalEntities));
+    ok &= mcrf::dict_steal(dict, "grid_cells_rendered", PyLong_FromLong(pub.gridCellsRendered)) == 0;
+    ok &= mcrf::dict_steal(dict, "entities_rendered", PyLong_FromLong(pub.entitiesRendered)) == 0;
+    ok &= mcrf::dict_steal(dict, "total_entities", PyLong_FromLong(pub.totalEntities)) == 0;
 
     // Add general metrics
-    PyDict_SetItemString(dict, "current_frame", PyLong_FromLong(game->getFrame()));
-    PyDict_SetItemString(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds()));
+    ok &= mcrf::dict_steal(dict, "current_frame", PyLong_FromLong(game->getFrame())) == 0;
+    ok &= mcrf::dict_steal(dict, "runtime", PyFloat_FromDouble(game->runtime.getElapsedTime().asSeconds())) == 0;
 
     // #396 - The SIMULATION clock, in integer milliseconds. The _ms suffix is deliberate:
     // the sibling "runtime" key is float SECONDS, and mistaking one for the other is the
@@ -2234,8 +2238,12 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // deterministic counter that only step()/advance() move, and the one timers run on in
     // headless mode. Exposed here rather than as a parallel API so there is one place to
     // ask the engine what time it is.
-    PyDict_SetItemString(dict, "simulation_time_ms", PyLong_FromLong(game->getSimulationTime()));
+    ok &= mcrf::dict_steal(dict, "simulation_time_ms", PyLong_FromLong(game->getSimulationTime())) == 0;
 
+    if (!ok) {
+        Py_DECREF(dict);
+        return NULL;
+    }
     return dict;
 }
 

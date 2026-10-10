@@ -43,11 +43,16 @@ static PyObject* conv(int k) {
     ("unclassified type", """
 PyObject* f() { auto t = &mcrfpydef::PyBrandNewType; return t->tp_alloc(t, 0); }
 """, [("unclassified", "tp_alloc PyBrandNewType")]),
-    ("sanctioned converter: ok", """
+    ("cached_wrapper converter: ok", """
+PyObject* PyFoo::pyobject_for(const std::shared_ptr<Foo>& f) {
+    return mcrf::cached_wrapper<PyUIFrameObject>(f->serial_number, &mcrfpydef::PyUIFrameType,
+        [&](PyUIFrameObject* o) { o->data = f; });
+}""", []),
+    ("hand-rolled converter, even a pyobject_for", """
 PyObject* UIDrawable::pyobject_for(std::shared_ptr<UIDrawable> d) {
     PyObject* c = PythonObjectCache::getInstance().lookup(d->serial_number);
     auto t = &mcrfpydef::PyUIFrameType; return t->tp_alloc(t, 0);
-}""", []),
+}""", [("cache-direct", "PythonObjectCache.lookup"), ("identity-alloc", "tp_alloc PyUIFrameType")]),
     ("direct cache use", """
 int Foo::init(PyObject* self) {
     self->serial = PythonObjectCache::getInstance().assignSerial();
@@ -61,12 +66,32 @@ PyObject* m() { PyObject* d = PyDict_New();
 PyObject* m() { PyObject* d = PyDict_New(); PyObject* v = PyLong_FromLong(60);
     PyDict_SetItemString(d, "fps", v); Py_DECREF(v); return d; }
 """, []),
+    ("new ref inline to an arbitrary call", """
+PyObject* f(PyObject* self, PyObject* kw) { return _click(self, PyTuple_New(0), kw); }
+""", [("borrowed-leak", "_click(..., PyTuple_New")]),
+    ("stealing sinks and N format: ok", """
+void f(PyObject* t, double x) {
+    PyTuple_SetItem(t, 0, PyFloat_FromDouble(x));
+    Py_DECREF(PyObject_CallObject(t, NULL));
+    PyObject* r = Py_BuildValue("(N)", PyLong_FromLong(1));
+}""", []),
     ("from_arg never released", """
 int Foo::set_pos(PyObject* self, PyObject* value, void*) {
     PyVectorObject* vec = PyVector::from_arg(value);
     if (!vec) return -1;
     use(vec->data); return 0;
 }""", [("from-arg-owner", "vec = PyVector::from_arg")]),
+    ("from_arg field returned is not ownership transfer", """
+sf::Vector2f conv(PyObject* obj) {
+    PyVectorObject* vec = PyVector::from_arg(obj);
+    if (!vec) return sf::Vector2f(0, 0);
+    return vec->data;
+}""", [("from-arg-owner", "vec = PyVector::from_arg")]),
+    ("from_arg returned to caller: ok", """
+PyVectorObject* conv(PyObject* obj) {
+    PyVectorObject* vec = PyVector::from_arg(obj);
+    return vec;
+}""", []),
     ("from_arg released: ok", """
 int Foo::set_pos(PyObject* self, PyObject* value, void*) {
     PyVectorObject* vec = PyVector::from_arg(value);

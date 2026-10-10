@@ -1,4 +1,5 @@
 #include "UIFrame.h"
+#include "PyWrap.h"
 #include "UICollection.h"
 #include "GameEngine.h"
 #include "PyVector.h"
@@ -262,15 +263,8 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 
 PyObject* UIFrame::get_children(PyUIFrameObject* self, void* closure)
 {
-    // create PyUICollection instance pointing to self->data->children
-    // Use the type directly from namespace (#189 - type not exported to module)
-    PyTypeObject* type = &mcrfpydef::PyUICollectionType;
-    auto o = (PyUICollectionObject*)type->tp_alloc(type, 0);
-    if (o) {
-        o->data = self->data->children;
-        o->owner = self->data;  // #122: Set owner for parent tracking
-    }
-    return (PyObject*)o;
+    return UICollection::pyobject_for(self->data->children_serial, self->data->children,
+                                      self->data, "");
 }
 
 
@@ -828,15 +822,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
         self->data->click_register(click_handler);
     }
     
-    // Register in Python object cache
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);  // Cache owns the reference now
-        }
-    }
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 
     // #184: Check if this is a Python subclass (for callback method support)
     self->data->is_python_subclass = (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIFrameType;

@@ -14,8 +14,9 @@ audit_pymethoddef.py) and flags the recipes that have already produced bugs:
   cache-direct     PythonObjectCache:: used outside the cache itself and the
                    sanctioned converters. Each caller re-implements lookup or
                    assignSerial + weakref + registerObject.
-  borrowed-leak    A new reference passed inline to an API that does NOT steal it
-                   (PyDict_SetItemString(d, k, PyLong_FromLong(x)) leaks x; #413).
+  borrowed-leak    A new reference passed inline to a call that does NOT steal it
+                   (PyDict_SetItemString(d, k, PyLong_FromLong(x)) leaks x, #413;
+                   _click(self, PyTuple_New(0), kw) leaks the tuple).
   from-arg-owner   PyVector::from_arg() (new reference) whose result is neither
                    released nor returned in the same function (#414).
   pin-direct       The entity identity pin (UIEntity::pyobject) taken, released or
@@ -106,20 +107,25 @@ TYPE_CLASS = {
 # Functions allowed to allocate identity types and use PythonObjectCache:: --
 # the cache-aware converters. Matched against the qualified function name.
 SANCTIONED = {
-    "UIDrawable::pyobject_for",
-    "PyGridData::pyobject_for",
+    # Being retired (#430 Phase 1): callers move to mcrf::to_python(entity).
     "convertEntityToPython@UIEntityCollection.cpp",
 }
 
 # Files that implement the cache itself.
-CACHE_IMPL_FILES = {"PythonObjectCache.cpp", "PythonObjectCache.h"}
+CACHE_IMPL_FILES = {"PythonObjectCache.cpp", "PythonObjectCache.h", "PyWrap.cpp", "PyWrap.h"}
 
-# APIs that borrow (do not steal) their value argument: index of that argument.
-BORROWING_SINKS = {
-    "PyDict_SetItemString": 2, "PyDict_SetItem": 2, "PyList_Append": 1,
-    "PyObject_SetAttrString": 2, "PyObject_SetAttr": 2, "PySet_Add": 1,
-    "PyList_Insert": 2, "PyModule_AddObjectRef": 2,
+# A new reference passed inline as an argument leaks unless the callee steals it.
+# Callees that steal (or release) the argument at that index; "*" = any index.
+STEALING_SINKS = {
+    "PyTuple_SetItem": 2, "PyTuple_SET_ITEM": 2, "PyList_SetItem": 2,
+    "PyList_SET_ITEM": 2, "PyModule_AddObject": 2,
+    "Py_DECREF": "*", "Py_XDECREF": "*", "Py_CLEAR": "*",
+    # PyWrap.h helpers
+    "mcrf::dict_steal": 2, "dict_steal": 2, "mcrf::PyRef": "*", "PyRef": "*",
 }
+# Format-string APIs steal an argument only for an "N" code; we accept any call whose
+# format literal contains N rather than matching codes to argument positions.
+FORMAT_APIS = {"Py_BuildValue", "PyObject_CallFunction", "PyObject_CallMethod"}
 # Calls that return a new reference.
 NEW_REF_CALL = re.compile(
     r"^(Py(Long|Float|Bool|Unicode|Bytes|Tuple|List|Dict|Set|Complex)_From\w*"
@@ -127,8 +133,9 @@ NEW_REF_CALL = re.compile(
     r"|PyTuple_New|PyList_New|PyDict_New|PyTuple_Pack|\w+_to_PyObject|PyVector::from_arg"
     r"|\w+::pyobject_for|convert\w+ToPython)$")
 
-# The entity pin's owner: the only functions that may touch UIEntity::pyobject.
-PIN_OWNERS = {"UIEntity::releasePyIdentity", "UIEntity::init", "~UIEntity"}
+# The identity pin (#436) may only be touched by its owners' choke points.
+PIN_OWNERS = {"UIEntity::setGrid", "UIDrawable::updatePyIdentityPin",
+              "UIDrawable::releasePyIdentity"}
 
 # ---------------------------------------------------------------------------
 # AST helpers
@@ -328,18 +335,28 @@ def lint_file(path: Path) -> list[Finding]:
         elif n.type == "call_expression":
             name = callee_name(src, n)
             args = n.child_by_field_name("arguments")
-            if name in BORROWING_SINKS and args is not None:
-                argv = args.named_children
-                idx = BORROWING_SINKS[name]
-                if idx < len(argv) and argv[idx].type == "call_expression":
-                    inner = callee_name(src, argv[idx])
-                    if NEW_REF_CALL.match(inner):
-                        add("borrowed-leak", n, f"{name}(..., {inner}(...))")
-            elif name == "PyVector::from_arg":
+            if args is not None:
+                check_inline_new_refs(src, n, name, args.named_children, add)
+            if name == "PyVector::from_arg":
                 check_from_arg(src, n, add)
 
     out.extend(check_pin(src, tree, rel))
     return out
+
+
+def check_inline_new_refs(src: bytes, call, name: str, argv, add) -> None:
+    steals = STEALING_SINKS.get(name)
+    if steals == "*":
+        return
+    if name in FORMAT_APIS and any(
+            a.type == "string_literal" and "N" in text(src, a) for a in argv):
+        return
+    for i, a in enumerate(argv):
+        if a.type != "call_expression" or i == steals:
+            continue
+        inner = callee_name(src, a)
+        if NEW_REF_CALL.match(inner):
+            add("borrowed-leak", call, f"{name}(..., {inner}(...))")
 
 
 def check_from_arg(src: bytes, call, add) -> None:
@@ -360,13 +377,13 @@ def check_from_arg(src: bytes, call, add) -> None:
     body = text(src, scope) if scope is not None else ""
     owned = re.search(
         r"(Py_X?DECREF|Py_CLEAR)\s*\(\s*(\([^)]*\)\s*)?" + re.escape(var) + r"\s*\)"
-        r"|return\s+\(?[^;]*\b" + re.escape(var) + r"\b"
+        r"|return\s+(\(\s*\w+\s*\*?\s*\)\s*)?" + re.escape(var) + r"\s*;"
         r"|PyRef\w*\s*[({]?\s*\w*\s*[({]\s*" + re.escape(var) + r"\b", body)
     if not owned:
         add("from-arg-owner", call, f"{var} = PyVector::from_arg(...) never released")
 
 
-PIN_FIELD = re.compile(r"(->|\.)pyobject$")
+PIN_FIELD = re.compile(r"(->|\.)(pyobject|identity_pin|py_identity)$")
 
 
 def check_pin(src: bytes, tree, rel: str) -> list[Finding]:

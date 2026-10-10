@@ -1,4 +1,5 @@
 #include "McRFPy_Automation.h"
+#include "PyWrap.h"
 #include "McRFPy_API.h"
 #include "GameEngine.h"
 #include "PyPositionHelper.h"
@@ -460,12 +461,12 @@ PyObject* McRFPy_Automation::_rightClick(PyObject* self, PyObject* args, PyObjec
 
     // Build new args with button="right"
     PyObject* newKwargs = PyDict_New();
-    PyDict_SetItemString(newKwargs, "button", PyUnicode_FromString("right"));
+    if (mcrf::dict_steal(newKwargs, "button", PyUnicode_FromString("right")) < 0) { Py_DECREF(newKwargs); return NULL; }
     if (pos_obj != Py_None) {
         PyDict_SetItemString(newKwargs, "pos", pos_obj);
     }
 
-    PyObject* result = _click(self, PyTuple_New(0), newKwargs);
+    PyObject* result = _click(self, mcrf::PyRef(PyTuple_New(0)).get(), newKwargs);
     Py_DECREF(newKwargs);
     return result;
 }
@@ -480,13 +481,13 @@ PyObject* McRFPy_Automation::_doubleClick(PyObject* self, PyObject* args, PyObje
     }
 
     PyObject* newKwargs = PyDict_New();
-    PyDict_SetItemString(newKwargs, "clicks", PyLong_FromLong(2));
-    PyDict_SetItemString(newKwargs, "interval", PyFloat_FromDouble(0.1));
+    if (mcrf::dict_steal(newKwargs, "clicks", PyLong_FromLong(2)) < 0) { Py_DECREF(newKwargs); return NULL; }
+    if (mcrf::dict_steal(newKwargs, "interval", PyFloat_FromDouble(0.1)) < 0) { Py_DECREF(newKwargs); return NULL; }
     if (pos_obj != Py_None) {
         PyDict_SetItemString(newKwargs, "pos", pos_obj);
     }
 
-    PyObject* result = _click(self, PyTuple_New(0), newKwargs);
+    PyObject* result = _click(self, mcrf::PyRef(PyTuple_New(0)).get(), newKwargs);
     Py_DECREF(newKwargs);
     return result;
 }
@@ -646,12 +647,12 @@ PyObject* McRFPy_Automation::_middleClick(PyObject* self, PyObject* args, PyObje
     }
 
     PyObject* newKwargs = PyDict_New();
-    PyDict_SetItemString(newKwargs, "button", PyUnicode_FromString("middle"));
+    if (mcrf::dict_steal(newKwargs, "button", PyUnicode_FromString("middle")) < 0) { Py_DECREF(newKwargs); return NULL; }
     if (pos_obj != Py_None) {
         PyDict_SetItemString(newKwargs, "pos", pos_obj);
     }
 
-    PyObject* result = _click(self, PyTuple_New(0), newKwargs);
+    PyObject* result = _click(self, mcrf::PyRef(PyTuple_New(0)).get(), newKwargs);
     Py_DECREF(newKwargs);
     return result;
 }
@@ -666,13 +667,13 @@ PyObject* McRFPy_Automation::_tripleClick(PyObject* self, PyObject* args, PyObje
     }
 
     PyObject* newKwargs = PyDict_New();
-    PyDict_SetItemString(newKwargs, "clicks", PyLong_FromLong(3));
-    PyDict_SetItemString(newKwargs, "interval", PyFloat_FromDouble(0.1));
+    if (mcrf::dict_steal(newKwargs, "clicks", PyLong_FromLong(3)) < 0) { Py_DECREF(newKwargs); return NULL; }
+    if (mcrf::dict_steal(newKwargs, "interval", PyFloat_FromDouble(0.1)) < 0) { Py_DECREF(newKwargs); return NULL; }
     if (pos_obj != Py_None) {
         PyDict_SetItemString(newKwargs, "pos", pos_obj);
     }
 
-    PyObject* result = _click(self, PyTuple_New(0), newKwargs);
+    PyObject* result = _click(self, mcrf::PyRef(PyTuple_New(0)).get(), newKwargs);
     Py_DECREF(newKwargs);
     return result;
 }
@@ -788,11 +789,10 @@ PyObject* McRFPy_Automation::_dragTo(PyObject* self, PyObject* args, PyObject* k
     // Mouse down at current position - create position tuple for the call
     PyObject* startPosObj = Py_BuildValue("(ii)", startX, startY);
     PyObject* downKwargs = PyDict_New();
-    PyDict_SetItemString(downKwargs, "pos", startPosObj);
-    PyDict_SetItemString(downKwargs, "button", PyUnicode_FromString(button));
+    if (mcrf::dict_steal(downKwargs, "pos", startPosObj) < 0) { Py_XDECREF(downKwargs); return NULL; }
+    if (mcrf::dict_steal(downKwargs, "button", PyUnicode_FromString(button)) < 0) { Py_DECREF(downKwargs); return NULL; }
 
-    PyObject* downResult = _mouseDown(self, PyTuple_New(0), downKwargs);
-    Py_DECREF(startPosObj);
+    PyObject* downResult = _mouseDown(self, mcrf::PyRef(PyTuple_New(0)).get(), downKwargs);
     Py_DECREF(downKwargs);
     if (!downResult) return NULL;
     Py_DECREF(downResult);
@@ -814,11 +814,10 @@ PyObject* McRFPy_Automation::_dragTo(PyObject* self, PyObject* args, PyObject* k
     // Mouse up at target position
     PyObject* endPosObj = Py_BuildValue("(ii)", x, y);
     PyObject* upKwargs = PyDict_New();
-    PyDict_SetItemString(upKwargs, "pos", endPosObj);
-    PyDict_SetItemString(upKwargs, "button", PyUnicode_FromString(button));
+    if (mcrf::dict_steal(upKwargs, "pos", endPosObj) < 0) { Py_XDECREF(upKwargs); return NULL; }
+    if (mcrf::dict_steal(upKwargs, "button", PyUnicode_FromString(button)) < 0) { Py_DECREF(upKwargs); return NULL; }
 
-    PyObject* upResult = _mouseUp(self, PyTuple_New(0), upKwargs);
-    Py_DECREF(endPosObj);
+    PyObject* upResult = _mouseUp(self, mcrf::PyRef(PyTuple_New(0)).get(), upKwargs);
     Py_DECREF(upKwargs);
     if (!upResult) return NULL;
     Py_DECREF(upResult);
@@ -857,12 +856,11 @@ PyObject* McRFPy_Automation::_dragRel(PyObject* self, PyObject* args, PyObject* 
     // Call dragTo with absolute position
     PyObject* targetPos = Py_BuildValue("(ii)", currentX + xOffset, currentY + yOffset);
     PyObject* dragKwargs = PyDict_New();
-    PyDict_SetItemString(dragKwargs, "pos", targetPos);
-    PyDict_SetItemString(dragKwargs, "duration", PyFloat_FromDouble(duration));
-    PyDict_SetItemString(dragKwargs, "button", PyUnicode_FromString(button));
+    if (mcrf::dict_steal(dragKwargs, "pos", targetPos) < 0) { Py_XDECREF(dragKwargs); return NULL; }
+    if (mcrf::dict_steal(dragKwargs, "duration", PyFloat_FromDouble(duration)) < 0) { Py_DECREF(dragKwargs); return NULL; }
+    if (mcrf::dict_steal(dragKwargs, "button", PyUnicode_FromString(button)) < 0) { Py_DECREF(dragKwargs); return NULL; }
 
-    PyObject* result = _dragTo(self, PyTuple_New(0), dragKwargs);
-    Py_DECREF(targetPos);
+    PyObject* result = _dragTo(self, mcrf::PyRef(PyTuple_New(0)).get(), dragKwargs);
     Py_DECREF(dragKwargs);
 
     return result;

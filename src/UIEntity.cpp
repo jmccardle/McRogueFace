@@ -29,23 +29,32 @@
 // any more -- GridData is the whole object, and every wrapper takes it directly.
 
 UIEntity::UIEntity()
-: grid(nullptr), position(0.0f, 0.0f), sprite_offset(0.0f, 0.0f)
+: position(0.0f, 0.0f), sprite_offset(0.0f, 0.0f)
 {
     // perspective_map starts null; lazily allocated on first access or
     // updateVisibility() call once a grid is set (#294).
 }
 
 UIEntity::~UIEntity() {
-    releasePyIdentity();
-    if (serial_number != 0) {
-        PythonObjectCache::getInstance().remove(serial_number);
-    }
+    // #299/#436: the step callback belongs to the entity, not to its grid membership.
+    if (step_callback && Py_IsInitialized()) Py_DECREF(step_callback);
+    step_callback = nullptr;
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
+}
+
+void UIEntity::setGrid(const std::shared_ptr<GridData>& owner)
+{
+    grid_ = owner;
+    // Last statement: releasing the pin can drop the last reference to the wrapper,
+    // and with it this entity, when the caller holds no shared_ptr of its own.
+    identity_pin.sync(is_python_subclass && owner != nullptr, serial_number);
 }
 
 // Removed UIEntity(UIGrid&) constructor - using lazy initialization instead
 
 void UIEntity::updateVisibility()
 {
+    auto grid = getGrid();
     if (!grid) return;
 
     // Lazy-allocate or resize perspective_map if grid dimensions changed.
@@ -165,28 +174,28 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     }
 
     auto& entity = self->data;
-    if (!entity->grid) {
+    if (!entity->getGrid()) {
         PyErr_SetString(PyExc_ValueError,
             "Entity cannot access surroundings because it is not associated with a grid");
         return NULL;
     }
 
     // Bounds check
-    if (x < 0 || x >= entity->grid->grid_w || y < 0 || y >= entity->grid->grid_h) {
+    if (x < 0 || x >= entity->getGrid()->grid_w || y < 0 || y >= entity->getGrid()->grid_h) {
         PyErr_Format(PyExc_IndexError, "Grid coordinates (%d, %d) out of bounds", x, y);
         return NULL;
     }
 
     // No perspective yet or cell not visible -> None
     if (!entity->perspective_map) Py_RETURN_NONE;
-    uint8_t state = entity->perspective_map->data()[y * entity->grid->grid_w + x];
+    uint8_t state = entity->perspective_map->data()[y * entity->getGrid()->grid_w + x];
     if (state != PyPerspective::VISIBLE) Py_RETURN_NONE;
 
     // Construct a GridPoint wrapper (same pattern as grid.at(x, y)).
     auto type = &mcrfpydef::PyUIGridPointType;
     auto obj = (PyUIGridPointObject*)type->tp_alloc(type, 0);
     if (!obj) return NULL;
-    obj->grid = entity->grid;
+    obj->grid = entity->getGrid();
     obj->x = x;
     obj->y = y;
     return (PyObject*)obj;
@@ -194,13 +203,13 @@ PyObject* UIEntity::at(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
 PyObject* UIEntity::index(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored)) {
     // Check if entity has an associated grid
-    if (!self->data || !self->data->grid) {
+    if (!self->data || !self->data->getGrid()) {
         PyErr_SetString(PyExc_RuntimeError, "Entity is not associated with a grid");
         return NULL;
     }
     
     // Get the grid's entity collection
-    auto entities = self->data->grid->entities;
+    auto entities = self->data->getGrid()->entities;
     if (!entities) {
         PyErr_SetString(PyExc_RuntimeError, "Grid has no entity collection");
         return NULL;
@@ -293,22 +302,10 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     // Initialize weak reference list
     self->weakreflist = NULL;
 
-    // Register in Python object cache
-    if (self->data->serial_number == 0) {
-        self->data->serial_number = PythonObjectCache::getInstance().assignSerial();
-        PyObject* weakref = PyWeakref_NewRef((PyObject*)self, NULL);
-        if (weakref) {
-            PythonObjectCache::getInstance().registerObject(self->data->serial_number, weakref);
-            Py_DECREF(weakref);  // Cache owns the reference now
-        }
-    }
-
-    // Hold a strong reference to preserve Python subclass identity.
-    // Without this, the Python wrapper can be GC'd while the C++ entity
-    // lives on in a grid, and later access returns a base Entity wrapper
-    // that lacks subclass methods. Cleared in die() and set_grid(None).
-    self->data->pyobject = (PyObject*)self;
-    Py_INCREF(self);
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
+    // #436: a subclass wrapper is pinned while a grid owns the entity (setGrid()).
+    self->data->is_python_subclass =
+        (PyObject*)Py_TYPE(self) != (PyObject*)&mcrfpydef::PyUIEntityType;
     
     // Set texture and sprite index
     if (texture_ptr) {
@@ -374,7 +371,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
             grid_ptr = pygrid->data;
         }
         if (grid_ptr) {
-            self->data->grid = grid_ptr;
+            self->data->setGrid(grid_ptr);
             grid_ptr->entities->push_back(self->data);
             grid_ptr->spatial_hash.insert(self->data);
             grid_ptr->markDirty();  // #351 - entity added; re-raster view
@@ -407,22 +404,18 @@ PyObject* sfVector2i_to_PyObject(sf::Vector2i vec) {
     return (PyObject*)obj;
 }
 
+// #414: callers detect failure with PyErr_Occurred(); the conversion itself must not
+// leak (PyVector::from_arg returns a new reference), so it goes through to_vector2f.
 sf::Vector2f PyObject_to_sfVector2f(PyObject* obj) {
-    PyVectorObject* vec = PyVector::from_arg(obj);
-    if (!vec) {
-        // PyVector::from_arg already set the error
-        return sf::Vector2f(0, 0);
-    }
-    return vec->data;
+    sf::Vector2f out(0, 0);
+    mcrf::to_vector2f(obj, out, "value");
+    return out;
 }
 
 sf::Vector2i PyObject_to_sfVector2i(PyObject* obj) {
-    PyVectorObject* vec = PyVector::from_arg(obj);
-    if (!vec) {
-        // PyVector::from_arg already set the error
-        return sf::Vector2i(0, 0);
-    }
-    return sf::Vector2i(static_cast<int>(vec->data.x), static_cast<int>(vec->data.y));
+    sf::Vector2f out(0, 0);
+    mcrf::to_vector2f(obj, out, "value");
+    return sf::Vector2i(static_cast<int>(out.x), static_cast<int>(out.y));
 }
 
 PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
@@ -458,9 +451,9 @@ int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closur
     }
 
     // Update spatial hash if grid exists (#115)
-    if (self->data->grid) {
-        self->data->grid->spatial_hash.update(self->data, old_x, old_y);
-        self->data->grid->markCompositeDirty();  // #351 - entity moved; re-raster view
+    if (self->data->getGrid()) {
+        self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
+        self->data->getGrid()->markCompositeDirty();  // #351 - entity moved; re-raster view
     }
 
     return 0;
@@ -470,10 +463,10 @@ int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closur
 // (not a snapshot); lazy-allocates on first access when a grid is set.
 PyObject* UIEntity::get_perspective_map(PyUIEntityObject* self, void* closure) {
     auto& entity = self->data;
-    if (!entity->grid) Py_RETURN_NONE;
+    if (!entity->getGrid()) Py_RETURN_NONE;
     if (!entity->perspective_map) {
         entity->perspective_map = std::make_shared<DiscreteMap>(
-            entity->grid->grid_w, entity->grid->grid_h, 0);
+            entity->getGrid()->grid_w, entity->getGrid()->grid_h, 0);
     }
 
     // Wrap in PyDiscreteMapObject sharing the same shared_ptr.
@@ -510,7 +503,7 @@ int UIEntity::set_perspective_map(PyUIEntityObject* self, PyObject* value, void*
         return -1;
     }
 
-    if (!entity->grid) {
+    if (!entity->getGrid()) {
         PyErr_SetString(PyExc_ValueError,
             "Cannot assign perspective_map: entity has no grid");
         return -1;
@@ -523,12 +516,12 @@ int UIEntity::set_perspective_map(PyUIEntityObject* self, PyObject* value, void*
         return -1;
     }
 
-    if (incoming->data->width() != entity->grid->grid_w ||
-        incoming->data->height() != entity->grid->grid_h) {
+    if (incoming->data->width() != entity->getGrid()->grid_w ||
+        incoming->data->height() != entity->getGrid()->grid_h) {
         PyErr_Format(PyExc_ValueError,
             "DiscreteMap size (%d, %d) does not match grid size (%d, %d)",
             incoming->data->width(), incoming->data->height(),
-            entity->grid->grid_w, entity->grid->grid_h);
+            entity->getGrid()->grid_w, entity->getGrid()->grid_h);
         return -1;
     }
 
@@ -551,7 +544,7 @@ int UIEntity::set_spritenumber(PyUIEntityObject* self, PyObject* value, void* cl
     }
     //self->data->sprite.sprite_index = val;
     self->data->sprite.setSpriteIndex(val); // todone - I don't like ".sprite.sprite" in this stack of UIEntity.UISprite.sf::Sprite
-    if (self->data->grid) self->data->grid->markDirty();  // #351 - sprite changed; re-raster view
+    if (self->data->getGrid()) self->data->getGrid()->markDirty();  // #351 - sprite changed; re-raster view
     return 0;
 }
 
@@ -595,7 +588,7 @@ int UIEntity::set_texture(PyUIEntityObject* self, PyObject* value, void* closure
     }
     // Preserves sprite_index (not re-validated against the new atlas)
     self->data->sprite.setTexture(pytexture->data);
-    if (self->data->grid) self->data->grid->markDirty();
+    if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
 }
 
@@ -645,8 +638,8 @@ int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* cl
     }
 
     // Update spatial hash if grid exists (#115)
-    if (self->data->grid) {
-        self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+    if (self->data->getGrid()) {
+        self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
     }
 
     return 0;
@@ -658,11 +651,11 @@ static void get_cell_dimensions(UIEntity* entity, float& cell_width, float& cell
     constexpr float DEFAULT_CELL_WIDTH = 16.0f;
     constexpr float DEFAULT_CELL_HEIGHT = 16.0f;
 
-    if (entity->grid) {
+    if (entity->getGrid()) {
         // #313: cell size lives on the data layer (mirrored from the grid's
         // texture at construction) -- entities no longer reach into rendering.
-        cell_width = static_cast<float>(entity->grid->cell_width());
-        cell_height = static_cast<float>(entity->grid->cell_height());
+        cell_width = static_cast<float>(entity->getGrid()->cell_width());
+        cell_height = static_cast<float>(entity->getGrid()->cell_height());
     } else {
         cell_width = DEFAULT_CELL_WIDTH;
         cell_height = DEFAULT_CELL_HEIGHT;
@@ -671,7 +664,7 @@ static void get_cell_dimensions(UIEntity* entity, float& cell_width, float& cell
 
 // #176 - Pixel position: pos = draw_pos * tile_size
 PyObject* UIEntity::get_pixel_pos(PyUIEntityObject* self, void* closure) {
-    if (!self->data->grid) {
+    if (!self->data->getGrid()) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return NULL;
     }
@@ -687,7 +680,7 @@ PyObject* UIEntity::get_pixel_pos(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closure) {
-    if (!self->data->grid) {
+    if (!self->data->getGrid()) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return -1;
     }
@@ -709,14 +702,14 @@ int UIEntity::set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closu
     self->data->position.y = pixel_vec.y / cell_height;
 
     // Update spatial hash
-    self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+    self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
 
     return 0;
 }
 
 // #176 - Individual pixel coordinates (x, y)
 PyObject* UIEntity::get_pixel_member(PyUIEntityObject* self, void* closure) {
-    if (!self->data->grid) {
+    if (!self->data->getGrid()) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return NULL;
     }
@@ -732,7 +725,7 @@ PyObject* UIEntity::get_pixel_member(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* closure) {
-    if (!self->data->grid) {
+    if (!self->data->getGrid()) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return -1;
     }
@@ -761,7 +754,7 @@ int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* cl
         self->data->position.y = val / cell_height;
 
     // Update spatial hash
-    self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+    self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
 
     return 0;
 }
@@ -797,8 +790,8 @@ int UIEntity::set_grid_int_member(PyUIEntityObject* self, PyObject* value, void*
         self->data->position.y = static_cast<float>(val);
 
     // Update spatial hash if grid exists
-    if (self->data->grid) {
-        self->data->grid->spatial_hash.update(self->data, old_x, old_y);
+    if (self->data->getGrid()) {
+        self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
     }
 
     return 0;
@@ -806,7 +799,7 @@ int UIEntity::set_grid_int_member(PyUIEntityObject* self, PyObject* value, void*
 
 PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
 {
-    if (!self->data || !self->data->grid) {
+    if (!self->data || !self->data->getGrid()) {
         Py_RETURN_NONE;
     }
 
@@ -823,7 +816,7 @@ PyObject* UIEntity::get_grid(PyUIEntityObject* self, void* closure)
     // `view.center_camera(player.pos)` on the view you are actually rendering.
     // Everything that is genuinely about the map -- at(), entities, layers,
     // compute_fov(), find_path(), step() -- is unchanged.
-    return PyGridData::pyobject_for(self->data->grid);
+    return PyGridData::pyobject_for(self->data->getGrid());
 }
 
 int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
@@ -835,11 +828,11 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
 
     // Handle None - remove from current grid
     if (value == Py_None) {
-        if (self->data->grid) {
+        if (self->data->getGrid()) {
             // Remove from spatial hash before removing from entity list
-            self->data->grid->spatial_hash.remove(self->data);
+            self->data->getGrid()->spatial_hash.remove(self->data);
             // Remove from current grid's entity list
-            auto& entities = self->data->grid->entities;
+            auto& entities = self->data->getGrid()->entities;
             auto it = std::find_if(entities->begin(), entities->end(),
                 [self](const std::shared_ptr<UIEntity>& e) {
                     return e.get() == self->data.get();
@@ -847,11 +840,8 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
             if (it != entities->end()) {
                 entities->erase(it);
             }
-            self->data->grid->markDirty();  // #351 - entity removed; re-raster view
-            self->data->grid.reset();
-
-            // Release identity strong ref -- entity left grid
-            self->data->releasePyIdentity();
+            self->data->getGrid()->markDirty();  // #351 - entity removed; re-raster view
+            self->data->setGrid(nullptr);
         }
         return 0;
     }
@@ -874,9 +864,9 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
     }
 
     // Remove from old grid first (if any)
-    if (self->data->grid && self->data->grid != new_grid) {
-        self->data->grid->spatial_hash.remove(self->data);
-        auto& old_entities = self->data->grid->entities;
+    if (self->data->getGrid() && self->data->getGrid() != new_grid) {
+        self->data->getGrid()->spatial_hash.remove(self->data);
+        auto& old_entities = self->data->getGrid()->entities;
         auto it = std::find_if(old_entities->begin(), old_entities->end(),
             [self](const std::shared_ptr<UIEntity>& e) {
                 return e.get() == self->data.get();
@@ -884,13 +874,13 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         if (it != old_entities->end()) {
             old_entities->erase(it);
         }
-        self->data->grid->markDirty();  // #351 - entity left old grid; re-raster
+        self->data->getGrid()->markDirty();  // #351 - entity left old grid; re-raster
     }
 
     // Add to new grid
-    if (self->data->grid != new_grid) {
+    if (self->data->getGrid() != new_grid) {
         new_grid->entities->push_back(self->data);
-        self->data->grid = new_grid;
+        self->data->setGrid(new_grid);
         new_grid->spatial_hash.insert(self->data);  // #274
         new_grid->markDirty();  // #351 - entity added to new grid; re-raster
         // #294: perspective_map is lazy -- the next updateVisibility() call
@@ -912,7 +902,7 @@ int UIEntity::set_sprite_offset(PyUIEntityObject* self, PyObject* value, void* c
     sf::Vector2f vec = PyObject_to_sfVector2f(value);
     if (PyErr_Occurred()) return -1;
     self->data->sprite_offset = vec;
-    if (self->data->grid) self->data->grid->markDirty();
+    if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
 }
 
@@ -940,7 +930,7 @@ int UIEntity::set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, 
         self->data->sprite_offset.x = val;
     else
         self->data->sprite_offset.y = val;
-    if (self->data->grid) self->data->grid->markDirty();
+    if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
 }
 
@@ -962,7 +952,7 @@ int UIEntity::set_tile_size(PyUIEntityObject* self, PyObject* value, void* closu
     }
     self->data->tile_width = tw;
     self->data->tile_height = th;
-    if (self->data->grid) self->data->grid->markDirty();
+    if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
 }
 
@@ -978,7 +968,7 @@ int UIEntity::set_tile_width(PyUIEntityObject* self, PyObject* value, void* clos
         return -1;
     }
     self->data->tile_width = val;
-    if (self->data->grid) self->data->grid->markDirty();
+    if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
 }
 
@@ -994,7 +984,7 @@ int UIEntity::set_tile_height(PyUIEntityObject* self, PyObject* value, void* clo
         return -1;
     }
     self->data->tile_height = val;
-    if (self->data->grid) self->data->grid->markDirty();
+    if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
 }
 
@@ -1023,7 +1013,7 @@ PyObject* UIEntity::get_sprite_grid(PyUIEntityObject* self, void* closure) {
 int UIEntity::set_sprite_grid(PyUIEntityObject* self, PyObject* value, void* closure) {
     if (value == Py_None) {
         self->data->sprite_grid.clear();
-        if (self->data->grid) self->data->grid->markDirty();
+        if (self->data->getGrid()) self->data->getGrid()->markDirty();
         return 0;
     }
 
@@ -1093,19 +1083,19 @@ int UIEntity::set_sprite_grid(PyUIEntityObject* self, PyObject* value, void* clo
     }
 
     self->data->sprite_grid = std::move(new_grid);
-    if (self->data->grid) self->data->grid->markDirty();
+    if (self->data->getGrid()) self->data->getGrid()->markDirty();
     return 0;
 }
 
 PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
 {
     // Check if entity has a grid
-    if (!self->data || !self->data->grid) {
+    if (!self->data || !self->data->getGrid()) {
         Py_RETURN_NONE;  // Entity not on a grid, nothing to do
     }
 
     // Remove entity from grid's entity list
-    auto grid = self->data->grid;
+    auto grid = self->data->getGrid();
     auto& entities = grid->entities;
 
     // Find and remove this entity from the list
@@ -1121,10 +1111,7 @@ PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
         entities->erase(it);
         grid->markDirty();  // #351 - entity died; re-raster view
         // Clear the grid reference
-        self->data->grid.reset();
-
-        // Release identity strong ref -- entity is no longer in a grid
-        self->data->releasePyIdentity();
+        self->data->setGrid(nullptr);
     }
 
     Py_RETURN_NONE;
@@ -1140,7 +1127,7 @@ PyObject* UIEntity::path_to(PyUIEntityObject* self, PyObject* args, PyObject* kw
     }
 
     // Check if entity has a grid
-    if (!self->data || !self->data->grid) {
+    if (!self->data || !self->data->getGrid()) {
         PyErr_SetString(PyExc_ValueError, "Entity must be associated with a grid to compute paths");
         return NULL;
     }
@@ -1150,7 +1137,7 @@ PyObject* UIEntity::path_to(PyUIEntityObject* self, PyObject* args, PyObject* kw
     int current_y = static_cast<int>(self->data->position.y);
 
     // Validate target position
-    auto grid = self->data->grid;
+    auto grid = self->data->getGrid();
     if (target_x < 0 || target_x >= grid->grid_w || target_y < 0 || target_y >= grid->grid_h) {
         PyErr_Format(PyExc_ValueError, "Target position (%d, %d) is out of grid bounds (0-%d, 0-%d)",
                      target_x, target_y, grid->grid_w - 1, grid->grid_h - 1);
@@ -1197,13 +1184,13 @@ PyObject* UIEntity::find_path(PyUIEntityObject* self, PyObject* args, PyObject* 
         return NULL;
     }
 
-    if (!self->data || !self->data->grid) {
+    if (!self->data || !self->data->getGrid()) {
         PyErr_SetString(PyExc_ValueError,
             "Entity must be associated with a grid to compute paths");
         return NULL;
     }
 
-    auto grid = self->data->grid;
+    auto grid = self->data->getGrid();
 
     int target_x, target_y;
     if (!UIGridPathfinding::ExtractPosition(target_obj, &target_x, &target_y,
@@ -1282,12 +1269,12 @@ PyObject* UIEntity::visible_entities(PyUIEntityObject* self, PyObject* args, PyO
     }
 
     // Check if entity has a grid
-    if (!self->data || !self->data->grid) {
+    if (!self->data || !self->data->getGrid()) {
         PyErr_SetString(PyExc_ValueError, "Entity must be associated with a grid to find visible entities");
         return NULL;
     }
 
-    auto grid = self->data->grid;
+    auto grid = self->data->getGrid();
 
     // Parse FOV algorithm - use grid default if not specified
     TCOD_fov_algorithm_t algorithm = grid->fov_algorithm;
@@ -1710,8 +1697,8 @@ int UIEntity::set_cell_pos(PyUIEntityObject* self, PyObject* value, void* closur
     self->data->cell_position.y = static_cast<int>(vec.y);
 
     // Update spatial hash
-    if (self->data->grid) {
-        self->data->grid->spatial_hash.updateCell(self->data, old_x, old_y);
+    if (self->data->getGrid()) {
+        self->data->getGrid()->spatial_hash.updateCell(self->data, old_x, old_y);
     }
     return 0;
 }
@@ -1737,8 +1724,8 @@ int UIEntity::set_cell_member(PyUIEntityObject* self, PyObject* value, void* clo
         self->data->cell_position.y = static_cast<int>(val);
     }
 
-    if (self->data->grid) {
-        self->data->grid->spatial_hash.updateCell(self->data, old_x, old_y);
+    if (self->data->getGrid()) {
+        self->data->getGrid()->spatial_hash.updateCell(self->data, old_x, old_y);
     }
     return 0;
 }
@@ -1974,6 +1961,7 @@ PyObject* UIEntity::repr(PyUIEntityObject* self) {
 // #176 - Animation properties use tile coordinates (draw_x, draw_y)
 // "x" and "y" are kept as aliases for backwards compatibility
 bool UIEntity::setProperty(const std::string& name, float value) {
+    auto grid = getGrid();
     if (name == "draw_x" || name == "x") {  // #176 - draw_x is preferred, x is alias
         float old_x = position.x;
         float old_y = position.y;
@@ -2017,6 +2005,7 @@ bool UIEntity::setProperty(const std::string& name, float value) {
 }
 
 bool UIEntity::setProperty(const std::string& name, int value) {
+    auto grid = getGrid();
     if (name == "sprite_index") {
         sprite.setSpriteIndex(value);
         if (grid) grid->markDirty();  // #144 - Content change

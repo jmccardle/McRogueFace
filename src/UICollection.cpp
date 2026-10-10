@@ -1,4 +1,5 @@
 #include "UICollection.h"
+#include "PyWrap.h"
 #include "McRFPy_Doc.h"
 
 #include "UIFrame.h"
@@ -119,6 +120,21 @@ PyObject* UICollectionIter::repr(PyUICollectionIterObject* self)
 	}
 	std::string repr_str = ss.str();
 	return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
+}
+
+PyObject* UICollection::pyobject_for(uint64_t& serial,
+                                     const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& data,
+                                     const std::shared_ptr<UIDrawable>& owner,
+                                     const std::string& scene_name)
+{
+    return mcrf::cached_wrapper<PyUICollectionObject>(serial, &mcrfpydef::PyUICollectionType,
+        [&](PyUICollectionObject* o) {
+            // tp_alloc zero-fills; construct the C++ members in place (dealloc destroys them).
+            new (&o->data) std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>(data);
+            new (&o->owner) std::weak_ptr<UIDrawable>(owner);
+            new (&o->scene_name) std::string(scene_name);
+            o->weakreflist = nullptr;
+        });
 }
 
 Py_ssize_t UICollection::len(PyUICollectionObject* self) {

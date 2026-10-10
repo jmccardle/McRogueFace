@@ -40,7 +40,7 @@ static PyObject* valueToResult(uint8_t value, PyObject* enum_type) {
     if (enum_type && enum_type != Py_None) {
         // Try to get enum member by value
         PyObject* val_obj = PyLong_FromLong(value);
-        PyObject* member = PyObject_Call(enum_type, PyTuple_Pack(1, val_obj), nullptr);
+        PyObject* member = PyObject_CallOneArg(enum_type, val_obj);
         Py_DECREF(val_obj);
 
         if (member) {

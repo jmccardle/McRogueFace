@@ -1,4 +1,5 @@
 #include "PyCallable.h"
+#include "PyWrap.h"
 #include "McRFPy_API.h"
 #include "GameEngine.h"
 #include "PyVector.h"
@@ -115,7 +116,9 @@ void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::strin
     } else if (retval != Py_None)
     {
         std::cout << "ClickCallable returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
-        std::cout << PyUnicode_AsUTF8(PyObject_Repr(retval)) << std::endl;
+        if (mcrf::PyRef repr{PyObject_Repr(retval)}) {
+            std::cout << PyUnicode_AsUTF8(repr.get()) << std::endl;
+        }
         Py_DECREF(retval);
     } else {
         Py_DECREF(retval);

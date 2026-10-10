@@ -157,12 +157,12 @@ bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
                 "%s: Entity has no data", arg_name);
             return false;
         }
-        if (!entity->data->grid) {
+        if (!entity->data->getGrid()) {
             PyErr_Format(PyExc_RuntimeError,
                 "%s: Entity is not attached to any grid", arg_name);
             return false;
         }
-        if (expected_grid && entity->data->grid.get() != expected_grid) {
+        if (expected_grid && entity->data->getGrid().get() != expected_grid) {
             PyErr_Format(PyExc_RuntimeError,
                 "%s: Entity belongs to a different grid", arg_name);
             return false;

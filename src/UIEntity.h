@@ -12,6 +12,7 @@
 #include "PyTexture.h"
 #include "PyDrawable.h"
 #include "PyColor.h"
+#include "PyWrap.h"
 #include "PyVector.h"
 #include "PyFont.h"
 
@@ -65,13 +66,18 @@ class UIEntity : public std::enable_shared_from_this<UIEntity>
 {
 public:
     uint64_t serial_number = 0;  // For Python object cache
-    PyObject* pyobject = nullptr;  // Strong ref: preserves Python subclass identity while in grid
-    // #313: Entities depend on the grid DATA layer only (cells, entities,
-    // FOV, pathfinding, cell size). This is always an aliasing shared_ptr
-    // sharing a UIGrid's control block (GridData is never independently
-    // heap-allocated); Python wrappers that still need the full UIGrid use
-    // grid_as_uigrid() in UIEntity.cpp.
-    std::shared_ptr<GridData> grid;
+    // #436: keeps a subclass wrapper (and its attributes) alive exactly while a grid
+    // owns this entity. Synced only by setGrid(); never read it as "the wrapper" --
+    // use mcrf::to_python(entity).
+    mcrf::PyIdentityPin identity_pin;
+    bool is_python_subclass = false;  // set in tp_init
+
+    // #437: the owning grid, if any. The back-reference is non-owning (GridData owns
+    // its entities), so dropping a grid frees it and the entities in it.
+    std::shared_ptr<GridData> getGrid() const { return grid_.lock(); }
+    // #436: the single choke point for an entity's owner. Updates the back-reference
+    // and the identity pin; callers maintain the grid's entity list and spatial hash.
+    void setGrid(const std::shared_ptr<GridData>& owner);
     // Per-entity perspective memory (#294): 3-state DiscreteMap --
     // 0 = unknown, 1 = discovered, 2 = visible. Lazily allocated on first
     // access to entity.perspective_map (when a grid is set) and whenever
@@ -134,18 +140,6 @@ public:
     UIEntity();
     ~UIEntity();
 
-    // Release the strong reference that preserves Python subclass identity.
-    // Called when entity leaves a grid (die, set_grid, collection removal).
-    void releasePyIdentity() {
-        if (pyobject) {
-            PyObject* tmp = pyobject;
-            pyobject = nullptr;
-            Py_DECREF(tmp);
-        }
-        // #299: Clean up step callback
-        Py_XDECREF(step_callback);
-        step_callback = nullptr;
-    }
 
     // Visibility methods
     void updateVisibility();  // Update perspective_map from current FOV (#294)
@@ -246,6 +240,9 @@ public:
     static PyMethodDef methods[];
     static PyGetSetDef getsetters[];
     static PyObject* repr(PyUIEntityObject* self);
+
+private:
+    std::weak_ptr<GridData> grid_;
 };
 
 // Forward declaration of methods array
@@ -259,8 +256,6 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = [](PyObject* obj) {
             auto* self = (PyUIEntityObject*)obj;
-            // Clear the identity ref without DECREF - we ARE this object
-            if (self->data) self->data->pyobject = nullptr;
             if (self->weakreflist) PyObject_ClearWeakRefs(obj);
             self->data.reset();
             Py_TYPE(obj)->tp_free(obj);
