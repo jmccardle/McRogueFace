@@ -86,9 +86,24 @@ def borrowed_sinks():
         check(per_call < 0.25, f"{label}: {per_call:.3f} blocks retained per call")
 
 
+def timer_fires():
+    print("a firing timer does not leak references to itself")
+    fired = []
+    t = mcrfpy.Timer("leakcheck", lambda timer, rt: fired.append(rt), 10)
+    mcrfpy.step(0.02)
+    before = sys.getrefcount(t)
+    for _ in range(50):
+        mcrfpy.step(0.02)
+    grown = sys.getrefcount(t) - before  # measured while running: stop() drops a ref (#251)
+    t.stop()
+    check(len(fired) > 40, f"timer fired ({len(fired)} times)")
+    check(grown == 0, f"timer refcount +{grown} over {len(fired)} fires")
+
+
 def main():
     vector_setters()
     borrowed_sinks()
+    timer_fires()
     if failures:
         print(f"FAIL: {len(failures)} check(s) failed")
         sys.exit(1)

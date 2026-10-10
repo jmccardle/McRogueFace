@@ -4,9 +4,12 @@
 
 class PyTexture;
 
+// #430: the struct is tp_alloc'd (zero-filled, not constructed). `data` is
+// placement-new'd by whoever fills it and destroyed in PyTexture::dealloc.
 typedef struct {
     PyObject_HEAD
-        std::shared_ptr<PyTexture> data;
+    std::shared_ptr<PyTexture> data;
+    PyObject* weakreflist;  // the wrapper cache holds weak references (#430)
 } PyTextureObject;
 
 class PyTexture : public std::enable_shared_from_this<PyTexture>
@@ -21,11 +24,18 @@ private:
                   display_width(-1), display_height(-1), display_offset_x(0), display_offset_y(0) {}
 
 public:
+    // #430: PythonObjectCache key for this texture's one Python wrapper (0 = none yet).
+    // Unregistered in ~PyTexture.
+    uint64_t serial_number = 0;
+
     int sprite_width, sprite_height; // just use them read only, OK?
     // #235: Display bounds for non-uniform sprite content within cells
     int display_width, display_height;     // -1 = same as sprite_width/height
     int display_offset_x, display_offset_y; // offset within cell to content area
     PyTexture(std::string filename, int sprite_w, int sprite_h);
+    ~PyTexture();
+    PyTexture(const PyTexture&) = delete;
+    PyTexture& operator=(const PyTexture&) = delete;
 
     // #144: Factory method to create texture from rendered content (snapshot)
     static std::shared_ptr<PyTexture> from_rendered(sf::RenderTexture& render_tex);
@@ -40,8 +50,14 @@ public:
     // Get the underlying sf::Texture for 3D rendering
     const sf::Texture* getSFMLTexture() const { return &texture; }
 
+    // #430: the one cache-aware conversion. Returns the live wrapper for `tex` if one
+    // exists (so `x.texture is x.texture`, and a Texture the user built comes back as
+    // itself), else allocates and registers a new one. nullptr -> None.
+    static PyObject* pyobject_for(const std::shared_ptr<PyTexture>& tex);
+    // Same as pyobject_for(shared_from_this()); RuntimeError if not make_shared-owned.
     PyObject* pyObject();
     static PyObject* repr(PyObject*);
+    static void dealloc(PyTextureObject* self);
     static Py_hash_t hash(PyObject*);
     static int init(PyTextureObject*, PyObject*, PyObject*);
     static PyObject* pynew(PyTypeObject* type, PyObject* args=NULL, PyObject* kwds=NULL);
@@ -77,6 +93,7 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.Texture",
         .tp_basicsize = sizeof(PyTextureObject),
         .tp_itemsize = 0,
+        .tp_dealloc = (destructor)PyTexture::dealloc,
         .tp_repr = PyTexture::repr,
         .tp_hash = PyTexture::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -98,6 +115,7 @@ namespace mcrfpydef {
             "    display_width, display_height (int, read-only): Content size within cells.\n"
             "    display_offset_x, display_offset_y (int, read-only): Content offset within cells.\n"
         ),
+        .tp_weaklistoffset = offsetof(PyTextureObject, weakreflist),
         .tp_getset = PyTexture::getsetters,
         //.tp_base = &PyBaseObject_Type,
         .tp_init = (initproc)PyTexture::init,

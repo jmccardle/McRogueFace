@@ -581,8 +581,9 @@ void Animation::triggerCallback() {
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    // #229 - Pass (target, property, final_value) instead of (None, None)
-    // Convert target to Python object
+    // #229 - Pass (target, property, final_value). A target that no longer exists is
+    // passed as None; a target that exists but can't be converted is an error, reported
+    // here rather than handed to the callback as a pending exception (#430).
     PyObject* targetObj = nullptr;
     if (auto drawable = targetWeak.lock()) {
         targetObj = convertDrawableToPython(drawable);
@@ -590,18 +591,20 @@ void Animation::triggerCallback() {
         targetObj = convertEntityToPython(entity);
     } else if (auto entity3d = entity3dTargetWeak.lock()) {
         targetObj = convertEntity3DToPython(entity3d);
+    } else {
+        targetObj = Py_NewRef(Py_None);
     }
-
-    // If target conversion failed, use None
     if (!targetObj) {
-        targetObj = Py_None;
-        Py_INCREF(targetObj);
+        PyErr_Print();
+        PyGILState_Release(gstate);
+        return;
     }
 
     // Property name
     PyObject* propertyObj = PyUnicode_FromString(targetProperty.c_str());
     if (!propertyObj) {
         Py_DECREF(targetObj);
+        PyErr_Print();
         PyGILState_Release(gstate);
         return;
     }
@@ -612,6 +615,7 @@ void Animation::triggerCallback() {
     if (!valueObj) {
         Py_DECREF(targetObj);
         Py_DECREF(propertyObj);
+        PyErr_Print();
         PyGILState_Release(gstate);
         return;
     }
@@ -622,6 +626,7 @@ void Animation::triggerCallback() {
     Py_DECREF(valueObj);
 
     if (!args) {
+        PyErr_Print();
         PyGILState_Release(gstate);
         return;
     }

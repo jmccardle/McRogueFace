@@ -1482,9 +1482,9 @@ void McRFPy_API::api_init() {
     }
 
     //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
-    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
+    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
     //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
-    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
+    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
 
     //sprite.setTexture(texture);
     //sprite.setScale(sf::Vector2f(4.0f, 4.0f));
@@ -1512,9 +1512,9 @@ void McRFPy_API::api_init(const McRogueFaceConfig& config) {
     // Set up default resources only if in game mode
     if (!config.python_mode) {
         //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
+        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
         //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
+        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
     }
 }
 

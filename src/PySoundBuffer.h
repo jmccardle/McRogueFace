@@ -103,8 +103,6 @@ namespace PySoundBuffer {
     extern PyGetSetDef getsetters[];
 }
 
-// Kept for PySound.cpp (Sound.buffer); forwards to PySoundBuffer::pyobject_for.
-PyObject* PySoundBuffer_from_data(std::shared_ptr<SoundBufferData> data);
 
 namespace mcrfpydef {
     inline PyTypeObject PySoundBufferType = {

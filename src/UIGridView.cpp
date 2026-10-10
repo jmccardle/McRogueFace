@@ -1112,14 +1112,8 @@ PyObject* UIGridView::get_texture(PyUIGridViewObject* self, void* closure)
 {
     // #318: return a Texture wrapper sharing the underlying shared_ptr<PyTexture>,
     // mirroring PyGridData::get_texture. None only when the view has no texture.
-    auto& texture = self->data->ptex;
-    if (!texture) Py_RETURN_NONE;
-
-    auto type = &mcrfpydef::PyTextureType;
-    auto obj = (PyTextureObject*)type->tp_alloc(type, 0);
-    if (!obj) return NULL;
-    obj->data = texture;
-    return (PyObject*)obj;
+    // #430: cache-aware, so this is the very Texture the user passed in.
+    return PyTexture::pyobject_for(self->data->ptex);
 }
 
 // Float member getters/setters for GridView-specific float members (center_x, center_y, zoom, camera_rotation)

@@ -36,15 +36,8 @@ PyObject* PyGridData::get_grid_h(PyGridDataObject* self, void* closure) {
 // =========================================================================
 
 PyObject* PyGridData::get_texture(PyGridDataObject* self, void* closure) {
-    auto texture = self->data->getTexture();
-    if (!texture) {
-        Py_RETURN_NONE;
-    }
-
-    auto type = &mcrfpydef::PyTextureType;
-    auto obj = (PyTextureObject*)type->tp_alloc(type, 0);
-    obj->data = texture;
-    return (PyObject*)obj;
+    // #430: cache-aware, so this is the very Texture the user passed in.
+    return PyTexture::pyobject_for(self->data->getTexture());
 }
 
 PyObject* PyGridData::get_fov(PyGridDataObject* self, void* closure)

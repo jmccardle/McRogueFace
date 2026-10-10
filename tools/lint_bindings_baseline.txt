@@ -1,6 +1,3 @@
 # lint_bindings.py allowlist (#430). Each line: <count> rule|file|function|detail.
 # This list only shrinks: fix a site, then run --update-baseline to drop it.
 # New code must not add entries (CI fails on any finding not covered here).
-1 identity-alloc|src/GridLayers.cpp|PyGridLayerAPI::TileLayer_get_texture|tp_alloc PyTextureType
-1 identity-alloc|src/PyGridDataProperties.cpp|PyGridData::get_texture|tp_alloc PyTextureType
-1 identity-alloc|src/UIGridView.cpp|UIGridView::get_texture|tp_alloc PyTextureType

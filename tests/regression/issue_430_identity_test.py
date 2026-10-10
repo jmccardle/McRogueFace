@@ -87,6 +87,15 @@ def textures():
     check(t.texture is tex, "TileLayer.texture is the texture passed in")
 
 
+def fonts():
+    print("fonts")
+    check(mcrfpy.Caption(text="x").font is mcrfpy.default_font,
+          "a Caption's default font is mcrfpy.default_font")
+    f = mcrfpy.Font("assets/JetbrainsMono.ttf")
+    c = mcrfpy.Caption(text="x", font=f)
+    check(c.font is f, "Caption.font is the font passed in")
+
+
 def dijkstra():
     print("dijkstra maps")
     g = mcrfpy.Grid(grid_size=(8, 8))
@@ -94,7 +103,7 @@ def dijkstra():
 
 
 def main():
-    for t in (entities, collections, layers_and_grid, textures, dijkstra):
+    for t in (entities, collections, layers_and_grid, textures, fonts, dijkstra):
         t()
         gc.collect()
     if failures:

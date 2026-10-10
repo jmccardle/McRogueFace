@@ -600,7 +600,12 @@ PyObject* UIFrame::repr(PyUIFrameObject* self)
 
 int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
 {
-    // Initialize children first
+    // Initialize children first. A re-run __init__ replaces the vector, so the cached
+    // `children` wrapper (which views the old vector) must stop answering for it (#430).
+    if (self->data->children_serial != 0) {
+        mcrf::unregister_wrapper(self->data->children_serial);
+        self->data->children_serial = 0;
+    }
     self->data->children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
     
     // Initialize weak reference list

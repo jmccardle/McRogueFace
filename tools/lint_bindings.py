@@ -5,8 +5,8 @@ lint_bindings.py - AST lint for hand-rolled CPython recipes in the binding layer
 Parses src/**/*.{cpp,h} with tree-sitter-cpp (the same .venv-audit stack as
 audit_pymethoddef.py) and flags the recipes that have already produced bugs:
 
-  identity-alloc   tp_alloc of an identity-bearing type outside a constructor or
-                   a sanctioned converter. Breaks `x is x` and drops subclasses
+  identity-alloc   tp_alloc (or Foo::pynew / PyObject_New) of an identity-bearing
+                   type outside a constructor or a sanctioned converter. Breaks `x is x` and drops subclasses
                    (#369, #373, #429, #430).
   unclassified     tp_alloc whose type isn't in TYPE_CLASS (or can't be resolved).
                    Every allocated type must be classified as identity or value,
@@ -87,7 +87,7 @@ TYPE_CLASS = {
     "PyTextureType": "identity", "PyFontType": "identity",
     "PySoundBufferType": "identity", "PyTileSetFileType": "identity",
     "PySceneType": "identity", "PyWindowType": "identity",
-    "PyTimerType": "identity",
+    "PyTimerType": "identity", "PySoundType": "identity", "PyMusicType": "identity",
     # entity.perspective_map is documented as a live reference
     "PyDiscreteMapType": "identity",
     # accessors onto a parent-owned record: fresh per call, no state of their own
@@ -101,15 +101,14 @@ TYPE_CLASS = {
     "PyBSPNodeType": "value", "PyBSPAdjacencyType": "value",
     "PyBSPAdjacentTilesType": "value", "PyBSPIterType": "value",
     "PyUICollectionIterType": "value", "PyUIEntityCollectionIterType": "value",
-    "PyEntityCollection3DIterType": "value",
+    "PyEntityCollection3DIterType": "value", "PyAStarPathIterType": "value",
 }
 
 # Functions allowed to allocate identity types and use PythonObjectCache:: --
 # the cache-aware converters. Matched against the qualified function name.
-SANCTIONED = {
-    # Being retired (#430 Phase 1): callers move to mcrf::to_python(entity).
-    "convertEntityToPython@UIEntityCollection.cpp",
-}
+# Empty by design: every converter is built on mcrf::cached_wrapper (src/PyWrap.h),
+# which is exempt as the recipe's implementation. Add an entry only with a reason.
+SANCTIONED: set = set()
 
 # Files that implement the cache itself.
 CACHE_IMPL_FILES = {"PythonObjectCache.cpp", "PythonObjectCache.h", "PyWrap.cpp", "PyWrap.h"}
@@ -120,6 +119,7 @@ STEALING_SINKS = {
     "PyTuple_SetItem": 2, "PyTuple_SET_ITEM": 2, "PyList_SetItem": 2,
     "PyList_SET_ITEM": 2, "PyModule_AddObject": 2,
     "Py_DECREF": "*", "Py_XDECREF": "*", "Py_CLEAR": "*",
+    "Py_SETREF": 1, "Py_XSETREF": 1,
     # PyWrap.h helpers
     "mcrf::dict_steal": 2, "dict_steal": 2, "mcrf::PyRef": "*", "PyRef": "*",
 }
@@ -131,7 +131,8 @@ NEW_REF_CALL = re.compile(
     r"^(Py(Long|Float|Bool|Unicode|Bytes|Tuple|List|Dict|Set|Complex)_From\w*"
     r"|PyUnicode_FromFormat|Py_BuildValue|PyObject_Call\w*|PyObject_Str|PyObject_Repr"
     r"|PyTuple_New|PyList_New|PyDict_New|PyTuple_Pack|\w+_to_PyObject|PyVector::from_arg"
-    r"|\w+::pyobject_for|convert\w+ToPython)$")
+    r"|(\w+::)?pyobject_for|convert\w+ToPython"
+    r"|.*(->|\.|::)(pyObject|pyobject_for)|mcrf::(to_python|live_wrapper))$")
 
 # The identity pin (#436) may only be touched by its owners' choke points.
 PIN_OWNERS = {"UIEntity::setGrid", "UIDrawable::updatePyIdentityPin",
@@ -230,10 +231,16 @@ TYPE_TOKEN = re.compile(r"&\s*(?:mcrfpydef::)?(Py\w+Type)\b")
 
 
 def resolve_alloc_type(src: bytes, field_expr) -> tuple[str, set[str]]:
-    """Return ("param", {}) when tp_alloc allocates a caller-supplied type (a
+    """Type allocated by `T->tp_alloc(...)`: see resolve_type_expr."""
+    return resolve_type_expr(src, text(src, field_expr.child_by_field_name("argument")).strip(),
+                             field_expr)
+
+
+def resolve_type_expr(src: bytes, obj: str, field_expr) -> tuple[str, set[str]]:
+    """Return ("param", {}) when the expression is a caller-supplied type (a
     constructor or classmethod), else ("types", {PyXType, ...}) from the
     assignments to the variable in scope, or ("unresolved", {expr})."""
-    obj = text(src, field_expr.child_by_field_name("argument")).strip()
+    obj = re.sub(r"^\(\s*PyTypeObject\s*\*\s*\)\s*", "", obj)
     m = TYPE_TOKEN.search("&" + obj.lstrip("&(").rstrip(")"))
     if m and obj.lstrip("(&").startswith(("mcrfpydef::", "Py")):
         return "types", {m.group(1)}
@@ -337,6 +344,27 @@ def lint_file(path: Path) -> list[Finding]:
             args = n.child_by_field_name("arguments")
             if args is not None:
                 check_inline_new_refs(src, n, name, args.named_children, add)
+                # Other wrapper-construction routes: Foo::pynew(type, ...),
+                # PyObject_New(Obj, type), PyObject_GC_New(Obj, type).
+                argv = args.named_children
+                tnode = None
+                if re.fullmatch(r"\w+::pynew", name) and argv:
+                    tnode = argv[0]
+                elif name in ("PyObject_New", "PyObject_GC_New") and len(argv) >= 2:
+                    tnode = argv[1]
+                if tnode is not None:
+                    kind, types = resolve_type_expr(src, text(src, tnode).strip(), n)
+                    fn = scope_label(src, n)
+                    via = name.split("::")[-1]
+                    if kind == "unresolved":
+                        add("unclassified", n, f"{via} via {', '.join(sorted(types))}")
+                    elif kind == "types":
+                        for t in sorted(types):
+                            cls = TYPE_CLASS.get(t)
+                            if cls is None:
+                                add("unclassified", n, f"{via} {t}")
+                            elif cls == "identity" and not is_sanctioned(fn, rel):
+                                add("identity-alloc", n, f"{via} {t}")
             if name == "PyVector::from_arg":
                 check_from_arg(src, n, add)
 

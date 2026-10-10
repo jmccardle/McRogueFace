@@ -46,7 +46,6 @@ public:
     std::shared_ptr<SoundBufferData> getBufferData() const { return bufferData; }
 
     // Python interface
-    PyObject* pyObject();
     static PyObject* repr(PyObject* obj);
     static Py_hash_t hash(PyObject* obj);
     static int init(PySoundObject* self, PyObject* args, PyObject* kwds);

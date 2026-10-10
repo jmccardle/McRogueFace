@@ -35,7 +35,6 @@ public:
     void setPosition(float pos);
 
     // Python interface
-    PyObject* pyObject();
     static PyObject* repr(PyObject* obj);
     static Py_hash_t hash(PyObject* obj);
     static int init(PyMusicObject* self, PyObject* args, PyObject* kwds);

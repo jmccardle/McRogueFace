@@ -40,6 +40,12 @@ static PyObject* conv(int k) {
     }
     return nullptr;
 }""", [("identity-alloc", "tp_alloc PyUIFrameType")]),
+    ("identity wrapper built through pynew()", """
+PyObject* PyFont::pyObject() {
+    PyTypeObject* type = &mcrfpydef::PyFontType;
+    PyObject* obj = PyFont::pynew(type, Py_None, Py_None);
+    return obj;
+}""", [("identity-alloc", "pynew PyFontType")]),
     ("unclassified type", """
 PyObject* f() { auto t = &mcrfpydef::PyBrandNewType; return t->tp_alloc(t, 0); }
 """, [("unclassified", "tp_alloc PyBrandNewType")]),

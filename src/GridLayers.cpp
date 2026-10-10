@@ -2467,16 +2467,8 @@ PyObject* PyGridLayerAPI::TileLayer_get_texture(PyTileLayerObject* self, void* c
         return NULL;
     }
 
-    if (!self->data->texture) {
-        Py_RETURN_NONE;
-    }
-
-    auto* texture_type = &mcrfpydef::PyTextureType;
-    PyTextureObject* tex_obj = (PyTextureObject*)texture_type->tp_alloc(texture_type, 0);
-    if (!tex_obj) return NULL;
-
-    tex_obj->data = self->data->texture;
-    return (PyObject*)tex_obj;
+    // #430: cache-aware, so this is the very Texture the user passed in.
+    return PyTexture::pyobject_for(self->data->texture);
 }
 
 int PyGridLayerAPI::TileLayer_set_texture(PyTileLayerObject* self, PyObject* value, void* closure) {

@@ -1,6 +1,7 @@
 #include "PyFont.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
+#include "PyWrap.h"
 
 
 PyFont::PyFont(std::string filename)
@@ -10,19 +11,39 @@ PyFont::PyFont(std::string filename)
     font.loadFromFile(source);
 }
 
+PyFont::~PyFont()
+{
+    // #430: drop the wrapper-cache entry. The static McRFPy_API::default_font is
+    // destroyed after Py_Finalize, when the cache (and the interpreter) are gone.
+    if (serial_number != 0 && Py_IsInitialized()) mcrf::unregister_wrapper(serial_number);
+}
+
+PyObject* PyFont::pyobject_for(const std::shared_ptr<PyFont>& font)
+{
+    if (!font) Py_RETURN_NONE;
+    return mcrf::cached_wrapper<PyFontObject>(font->serial_number, &mcrfpydef::PyFontType,
+        [&](PyFontObject* o) {
+            new (&o->data) std::shared_ptr<PyFont>(font);
+            o->weakreflist = NULL;
+        });
+}
+
 PyObject* PyFont::pyObject()
 {
-    auto type = &mcrfpydef::PyFontType;
-    PyObject* obj = PyFont::pynew(type, Py_None, Py_None);
-    try {
-        ((PyFontObject*)obj)->data = shared_from_this();
+    auto self = weak_from_this().lock();
+    if (!self) {
+        PyErr_SetString(PyExc_RuntimeError, "PyFont was not created with std::make_shared");
+        return NULL;
     }
-    catch (std::bad_weak_ptr& e)
-    {
-        std::cout << "Bad weak ptr: shared_from_this() failed in PyFont::pyObject(); did you create a PyFont outside of std::make_shared? enjoy your segfault, soon!" << std::endl;
-    }
-    // TODO - shared_from_this will raise an exception if the object does not have a shared pointer. Constructor should be made private; write a factory function
-    return obj;
+    return pyobject_for(self);
+}
+
+void PyFont::dealloc(PyFontObject* self)
+{
+    if (self->weakreflist != NULL) PyObject_ClearWeakRefs((PyObject*)self);
+    // Releasing the last owner runs ~PyFont, which unregisters the serial.
+    self->data.~shared_ptr<PyFont>();
+    Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 PyObject* PyFont::repr(PyObject* obj)
@@ -53,7 +74,14 @@ int PyFont::init(PyFontObject* self, PyObject* args, PyObject* kwds)
     char* filename;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", const_cast<char**>(keywords), &filename))
         return -1;
+    // #430: a re-run __init__ swaps in a new PyFont; the old one must stop answering
+    // with this (now different) wrapper.
+    if (self->data && self->data->serial_number != 0) {
+        mcrf::unregister_wrapper(self->data->serial_number);
+    }
     self->data = std::make_shared<PyFont>(filename);
+    // #430: a Font the user built is THE wrapper for its PyFont.
+    if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
     return 0;
 }
 

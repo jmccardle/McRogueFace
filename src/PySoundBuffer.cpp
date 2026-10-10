@@ -25,9 +25,6 @@ PyObject* PySoundBuffer::pyobject_for(const std::shared_ptr<SoundBufferData>& da
         });
 }
 
-PyObject* PySoundBuffer_from_data(std::shared_ptr<SoundBufferData> data) {
-    return PySoundBuffer::pyobject_for(data);
-}
 
 // ============================================================================
 // Type infrastructure
