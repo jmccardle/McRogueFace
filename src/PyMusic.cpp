@@ -5,73 +5,88 @@
 #include <iomanip>
 
 PyMusic::PyMusic(const std::string& filename)
-    : source(filename), loaded(false)
+    : source(filename)
 {
-    if (music.openFromFile(filename)) {
+    if (!mcrf::audio::enabled()) {
+        loaded = mcrf::audio::probe_file(filename, duration);
+        return;
+    }
+    music = std::make_unique<sf::Music>();
+    if (music->openFromFile(filename)) {
+        duration = music->getDuration().asSeconds();
         loaded = true;
     }
 }
 
+bool PyMusic::active() const
+{
+    return music && music->getStatus() == sf::Music::Playing;
+}
+
+void PyMusic::releaseDevice()
+{
+    music.reset();
+}
+
 void PyMusic::play()
 {
-    if (loaded) {
-        music.play();
-    }
+    if (!loaded || !music) return;
+    music->play();
+    mcrf::audio::retain(shared_from_this());
 }
 
 void PyMusic::pause()
 {
-    if (loaded) {
-        music.pause();
-    }
+    if (music) music->pause();
 }
 
 void PyMusic::stop()
 {
-    if (loaded) {
-        music.stop();
-    }
+    if (music) music->stop();
+    position = 0.0f;
 }
 
 float PyMusic::getVolume() const
 {
-    return music.getVolume();
+    return volume;
 }
 
 void PyMusic::setVolume(float vol)
 {
-    music.setVolume(std::max(0.0f, std::min(100.0f, vol)));
+    volume = std::max(0.0f, std::min(100.0f, vol));
+    if (music) music->setVolume(volume);
 }
 
 bool PyMusic::getLoop() const
 {
-    return music.getLoop();
+    return loop;
 }
 
-void PyMusic::setLoop(bool loop)
+void PyMusic::setLoop(bool l)
 {
-    music.setLoop(loop);
+    loop = l;
+    if (music) music->setLoop(loop);
 }
 
 bool PyMusic::isPlaying() const
 {
-    return music.getStatus() == sf::Music::Playing;
+    return active();
 }
 
 float PyMusic::getDuration() const
 {
-    if (!loaded) return 0.0f;
-    return music.getDuration().asSeconds();
+    return loaded ? duration : 0.0f;
 }
 
 float PyMusic::getPosition() const
 {
-    return music.getPlayingOffset().asSeconds();
+    return music ? music->getPlayingOffset().asSeconds() : position;
 }
 
 void PyMusic::setPosition(float pos)
 {
-    music.setPlayingOffset(sf::seconds(pos));
+    if (music) music->setPlayingOffset(sf::seconds(pos));
+    else position = pos;
 }
 
 PyObject* PyMusic::repr(PyObject* obj)
@@ -117,7 +132,16 @@ int PyMusic::init(PyMusicObject* self, PyObject* args, PyObject* kwds)
 
 PyObject* PyMusic::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
-    return (PyObject*)type->tp_alloc(type, 0);
+    auto* self = (PyMusicObject*)type->tp_alloc(type, 0);
+    if (self) new (&self->data) std::shared_ptr<PyMusic>();
+    return (PyObject*)self;
+}
+
+void PyMusic::dealloc(PyMusicObject* self)
+{
+    // #440: playing music is still retained by mcrf::audio and keeps playing.
+    self->data.~shared_ptr();
+    Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 // Python methods
@@ -248,7 +272,10 @@ PyMethodDef PyMusic::methods[] = {
     {"play", (PyCFunction)PyMusic::py_play, METH_NOARGS,
      MCRF_METHOD(Music, play,
          MCRF_SIG("()", "None"),
-         MCRF_DESC("Start or resume playing the music.")
+         MCRF_DESC("Start or resume playing the music."),
+         MCRF_NOTE("The engine keeps playing music alive, so it plays on without a held "
+                   "reference. Does nothing when audio is off (--audio-off, or --headless "
+                   "without --audio-on).")
      )},
     {"pause", (PyCFunction)PyMusic::py_pause, METH_NOARGS,
      MCRF_METHOD(Music, pause,

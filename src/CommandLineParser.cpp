@@ -82,7 +82,7 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
         // McRogueFace specific flags
         if (arg == "--headless") {
             config.headless = true;
-            config.audio_enabled = false;
+            if (!config.audio_explicit) config.audio_enabled = false;
             current_arg++;
             continue;
         }
@@ -95,12 +95,14 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
 
         if (arg == "--audio-off") {
             config.audio_enabled = false;
+            config.audio_explicit = true;
             current_arg++;
             continue;
         }
         
         if (arg == "--audio-on") {
             config.audio_enabled = true;
+            config.audio_explicit = true;
             current_arg++;
             continue;
         }

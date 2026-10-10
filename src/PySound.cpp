@@ -3,91 +3,133 @@
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "EngineRandom.h"
+#include <algorithm>
 #include <sstream>
 #include <random>
 
 PySound::PySound(const std::string& filename)
-    : source(filename), loaded(false)
+    : source(filename)
 {
-    if (buffer.loadFromFile(filename)) {
-        sound.setBuffer(buffer);
+    if (!mcrf::audio::enabled()) {
+        loaded = mcrf::audio::probe_file(filename, duration);
+        return;
+    }
+    device = std::make_unique<Device>();
+    if (device->buffer.loadFromFile(filename)) {
+        device->sound.setBuffer(device->buffer);
+        duration = device->buffer.getDuration().asSeconds();
         loaded = true;
     }
 }
 
 PySound::PySound(std::shared_ptr<SoundBufferData> bufData)
-    : source("<SoundBuffer>"), loaded(false), bufferData(bufData)
+    : source("<SoundBuffer>"), bufferData(bufData)
 {
-    if (bufData && !bufData->samples.empty()) {
-        // Rebuild the sf::SoundBuffer from sample data directly
-        // (avoids copy-assign which is deleted on SDL2 backend)
-        buffer.loadFromSamples(bufData->samples.data(), bufData->samples.size(),
-                               bufData->channels, bufData->sampleRate);
-        sound.setBuffer(buffer);
-        loaded = true;
-    }
+    if (!bufData || bufData->samples.empty()) return;
+    loaded = true;
+    duration = bufData->duration();
+    if (!mcrf::audio::enabled()) return;
+    device = std::make_unique<Device>();
+    // Rebuild the sf::SoundBuffer from sample data directly
+    // (avoids copy-assign which is deleted on SDL2 backend)
+    device->buffer.loadFromSamples(bufData->samples.data(), bufData->samples.size(),
+                                   bufData->channels, bufData->sampleRate);
+    device->sound.setBuffer(device->buffer);
+}
+
+bool PySound::active() const
+{
+    if (!device) return false;
+    if (device->sound.getStatus() == sf::Sound::Playing) return true;
+    for (const auto& v : device->varied)
+        if (v->getStatus() == sf::Sound::Playing) return true;
+    return false;
+}
+
+void PySound::releaseDevice()
+{
+    device.reset();
 }
 
 void PySound::play()
 {
-    if (loaded) {
-        sound.play();
-    }
+    if (!loaded || !device) return;
+    device->sound.play();
+    mcrf::audio::retain(shared_from_this());
 }
 
 void PySound::pause()
 {
-    if (loaded) {
-        sound.pause();
-    }
+    if (device) device->sound.pause();
 }
 
 void PySound::stop()
 {
-    if (loaded) {
-        sound.stop();
-    }
+    if (!device) return;
+    device->sound.stop();
+    device->varied.clear();
+}
+
+bool PySound::playVoice(float voicePitch, float voiceVolume)
+{
+    if (!loaded || !device) return false;
+    auto& voices = device->varied;
+    voices.erase(std::remove_if(voices.begin(), voices.end(),
+                                [](const std::unique_ptr<sf::Sound>& v) {
+                                    return v->getStatus() == sf::Sound::Stopped;
+                                }),
+                 voices.end());
+    auto voice = std::make_unique<sf::Sound>(device->buffer);
+    voice->setPitch(voicePitch);
+    voice->setVolume(voiceVolume);
+    voice->setLoop(loop);
+    voice->play();
+    voices.push_back(std::move(voice));
+    mcrf::audio::retain(shared_from_this());
+    return true;
 }
 
 float PySound::getVolume() const
 {
-    return sound.getVolume();
+    return volume;
 }
 
 void PySound::setVolume(float vol)
 {
-    sound.setVolume(std::max(0.0f, std::min(100.0f, vol)));
+    volume = std::max(0.0f, std::min(100.0f, vol));
+    if (device) device->sound.setVolume(volume);
 }
 
 bool PySound::getLoop() const
 {
-    return sound.getLoop();
+    return loop;
 }
 
-void PySound::setLoop(bool loop)
+void PySound::setLoop(bool l)
 {
-    sound.setLoop(loop);
+    loop = l;
+    if (device) device->sound.setLoop(loop);
 }
 
 bool PySound::isPlaying() const
 {
-    return sound.getStatus() == sf::Sound::Playing;
+    return device && device->sound.getStatus() == sf::Sound::Playing;
 }
 
 float PySound::getDuration() const
 {
-    if (!loaded) return 0.0f;
-    return buffer.getDuration().asSeconds();
+    return loaded ? duration : 0.0f;
 }
 
 float PySound::getPitch() const
 {
-    return sound.getPitch();
+    return pitch;
 }
 
-void PySound::setPitch(float pitch)
+void PySound::setPitch(float p)
 {
-    sound.setPitch(std::max(0.01f, pitch));
+    pitch = std::max(0.01f, p);
+    if (device) device->sound.setPitch(pitch);
 }
 
 PyObject* PySound::repr(PyObject* obj)
@@ -156,7 +198,16 @@ int PySound::init(PySoundObject* self, PyObject* args, PyObject* kwds)
 
 PyObject* PySound::pynew(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
-    return (PyObject*)type->tp_alloc(type, 0);
+    auto* self = (PySoundObject*)type->tp_alloc(type, 0);
+    if (self) new (&self->data) std::shared_ptr<PySound>();
+    return (PyObject*)self;
+}
+
+void PySound::dealloc(PySoundObject* self)
+{
+    // #440: a playing sound is still retained by mcrf::audio and keeps playing.
+    self->data.~shared_ptr();
+    Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
 // Python methods
@@ -205,7 +256,6 @@ PyObject* PySound::py_play_varied(PySoundObject* self, PyObject* args, PyObject*
         return NULL;
     }
 
-    // Save original values
     float origPitch = self->data->getPitch();
     float origVolume = self->data->getVolume();
 
@@ -221,20 +271,15 @@ PyObject* PySound::py_play_varied(PySoundObject* self, PyObject* args, PyObject*
     float variedPitch = std::max(0.01f, origPitch + static_cast<float>(pitchDist(rng)));
     float variedVolume = std::max(0.0f, std::min(100.0f, origVolume + static_cast<float>(volDist(rng))));
 
-    self->data->setPitch(variedPitch);
-    self->data->setVolume(variedVolume);
+    // #407: the variation plays on its own voice. It used to be applied to the
+    // object's voice and restored right after play(), but OpenAL applies pitch and
+    // gain live, so the restore cancelled it. The draw happens even with audio off,
+    // so an audio-on and an audio-off run consume the AUDIO stream identically.
+    self->data->playVoice(variedPitch, variedVolume);
 
-    self->data->play();
-
-    // Restore originals (SFML will use the values set at play time)
-    // Note: we restore after play() so the variation applies only to this instance
-    self->data->setPitch(origPitch);
-    self->data->setVolume(origVolume);
-
-    // Return what was actually drawn. The restore above makes the variation
-    // invisible on the object, so without this the values a run played at are
-    // unobservable from Python -- and an unobservable random draw cannot be
-    // checked against the seed that produced it.
+    // The object's own pitch/volume never change, so this is the only record of
+    // the draw -- and an unobservable random draw cannot be checked against the
+    // seed that produced it.
     return Py_BuildValue("(dd)", static_cast<double>(variedPitch),
                                  static_cast<double>(variedVolume));
 }
@@ -349,7 +394,10 @@ PyMethodDef PySound::methods[] = {
     {"play", (PyCFunction)PySound::py_play, METH_NOARGS,
      MCRF_METHOD(Sound, play,
          MCRF_SIG("()", "None"),
-         MCRF_DESC("Start or resume playing the sound.")
+         MCRF_DESC("Start or resume playing the sound."),
+         MCRF_NOTE("The engine keeps a playing sound alive, so Sound(...).play() plays to "
+                   "the end without holding a reference. Does nothing when audio is off "
+                   "(--audio-off, or --headless without --audio-on).")
      )},
     {"pause", (PyCFunction)PySound::py_pause, METH_NOARGS,
      MCRF_METHOD(Sound, pause,
@@ -359,18 +407,19 @@ PyMethodDef PySound::methods[] = {
     {"stop", (PyCFunction)PySound::py_stop, METH_NOARGS,
      MCRF_METHOD(Sound, stop,
          MCRF_SIG("()", "None"),
-         MCRF_DESC("Stop playing and reset to the beginning.")
+         MCRF_DESC("Stop playing and reset to the beginning. Also stops play_varied() voices.")
      )},
     {"play_varied", (PyCFunction)PySound::py_play_varied, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Sound, play_varied,
          MCRF_SIG("(pitch_range: float = 0.1, volume_range: float = 3.0)", "tuple[float, float]"),
-         MCRF_DESC("Play with randomized pitch and volume for natural variation."),
+         MCRF_DESC("Play an extra voice with randomized pitch and volume for natural variation. "
+                   "Voices overlap, so rapid calls (footsteps, hits) layer instead of restarting."),
          MCRF_ARGS_START
          MCRF_ARG("pitch_range", "Random pitch offset range (default 0.1)")
          MCRF_ARG("volume_range", "Random volume offset range (default 3.0)")
-         MCRF_RETURNS("tuple[float, float]: the (pitch, volume) actually drawn for this "
-                      "playback. The sound's own pitch/volume properties are restored "
-                      "before returning, so this return value is the only record of the draw.")
+         MCRF_RETURNS("tuple[float, float]: the (pitch, volume) drawn for this voice. The "
+                      "sound's own pitch/volume properties are not changed, and .playing "
+                      "reports only play(), so this return value is the only record of the draw.")
          MCRF_NOTE("The randomness comes from the engine's AUDIO random stream. Set "
                    "mcrfpy.set_random_seed() to make the variation reproducible; read "
                    "mcrfpy.get_random_seed() to learn the seed a run used. The AUDIO stream "

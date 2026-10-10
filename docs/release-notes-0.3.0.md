@@ -35,7 +35,8 @@ removals that affect your code.
 | **Headless `mcrfpy.step()` is a full simulation frame**: `Scene.update(dt)` fires, scene transitions progress and complete, and `current_frame` advances. Rendering and input are still excluded (#350). | Headless tests that relied on `step()` skipping these may change behaviour. |
 | **Headless timers count from simulation time**, not the wall clock, so their first firing is deterministic (#383). | — |
 | **`DijkstraMap.path_from()` used to return the path reversed**, and `step_from()` returned a cell that wasn't adjacent to the query (#375). | Remove any `reversed()` workaround. |
-| `Sound.play_varied()` returns the `(pitch, volume)` it used (was `None`). | — |
+| `Sound.play_varied()` returns the `(pitch, volume)` it used (was `None`), and plays it on its own overlapping voice. The sound's `pitch`/`volume` and `.playing` aren't affected; `stop()` stops the extra voices too (#407). | — |
+| **`--headless` and `--audio-off` now turn audio off.** Both flags used to be ignored. Now no audio device is opened: `play()` does nothing and `.playing` stays `False`. Loading, `duration` and `SoundBuffer` work as before, and `play_varied()` still draws its random values (#406). | Pass `--audio-on` (in either order with `--headless`) for real playback in headless runs. |
 | `mcrfpy.step()` / `advance()` raise `RuntimeError` when called from a thread that holds `mcrfpy.lock()`; previously this deadlocked. | — |
 | `--exec` / `-c` scripts run in UTF-8 mode. A bare `open()` reads UTF-8 on every platform; it used to be ASCII on Linux and the ANSI code page on Windows (#378). | — |
 | `get_metrics()` counters (`draw_calls`, `ui_elements`, the grid counters) are no longer always 0 (#341). | — |
@@ -91,7 +92,13 @@ removals that affect your code.
   released it); every Texture, Font and SoundBuffer wrapper; `get_metrics()`,
   `SoundBuffer.sfxr_params` and the `automation` click/drag helpers (#413); Vector
   setters such as `Line.start`, `Circle.center`, `entity.cell_pos`,
-  `GridView.center` (#414); one timer reference per timer fire.
+  `GridView.center` (#414); one timer reference per timer fire; every `Sound` and
+  `Music` (#440).
+- `mcrfpy.Sound(...).play()` with no reference held plays to the end, and the sound is
+  freed once it finishes. It used to work only because every Sound leaked (#440).
+- The audio device is now closed on every exit, including `sys.exit()` in an `--exec`
+  script. This removes the `AL lib: (EE) alc_cleanup: 1 device not closed` line that
+  every run printed, and the occasional OpenAL abort at shutdown (#400).
 - `mcrfpy.window is mcrfpy.Window.get()` (they were two objects).
 - A handler that refers to its own object (`btn.on_click = lambda *a: btn...`, set up
   inside a function) no longer crashes the engine after a garbage collection. The
@@ -183,16 +190,11 @@ Where it comes from:
 
 - **#442**: appending a drawable into its own descendant (`b.children.append(a)` where
   `b` is inside `a`) crashes instead of raising.
-- **#440**: `Sound` and `Music` objects are never freed; fixing it needs a voice
-  registry so fire-and-forget `Sound(...).play()` keeps playing (with #407).
 - **#416, #417**: changing engine objects from a background thread *without*
   `mcrfpy.lock()` can crash. Two threads holding the lock at once are only kept safe by
   the GIL, so the free-threaded (no-GIL) build is not supported.
 - **#410, #411**: a lock holder that re-acquires immediately can starve the main loop;
   `step()` called from a background thread without the lock runs a frame on that thread.
-- **#407**: `Sound.play_varied()` restores the original pitch and volume right after
-  `play()`, cancelling the variation.
 - **#422**: tracebacks from `--exec` scripts show `File "<string>"`.
 - **#420**: `mcrf-init.sh` scaffolds projects for Python 3.14.
 - **#399**: the light/full stdlib presets ship the same stdlib.
-- **#400**: the Music snippet occasionally fails in the suite (OpenAL teardown assert).

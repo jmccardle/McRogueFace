@@ -9,6 +9,7 @@ struct McRogueFaceConfig {
     // McRogueFace specific
     bool headless = false;
     bool audio_enabled = true;
+    bool audio_explicit = false;  // --audio-on/--audio-off given: --headless must not override it
     
     // Python interpreter emulation
     bool python_mode = false;

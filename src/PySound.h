@@ -1,6 +1,8 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
+#include "Audio.h"
+#include <vector>
 
 class PySound;
 class SoundBufferData;
@@ -10,13 +12,26 @@ typedef struct {
     std::shared_ptr<PySound> data;
 } PySoundObject;
 
-class PySound : public std::enable_shared_from_this<PySound>
+// #440: playback is owned by mcrf::audio, not by the wrapper, so a sound keeps
+// playing after its last wrapper is dropped. #406: the device resources live in
+// `device`, which exists only while audio is enabled; the settings below are the
+// object's own and are applied to every voice it starts.
+class PySound : public mcrf::audio::Source, public std::enable_shared_from_this<PySound>
 {
 private:
-    sf::SoundBuffer buffer;
-    sf::Sound sound;
+    struct Device {
+        sf::SoundBuffer buffer;  // declared first: every voice below refers to it
+        sf::Sound sound;         // the voice play()/pause()/stop() control
+        std::vector<std::unique_ptr<sf::Sound>> varied;  // play_varied() voices (#407)
+    };
+    std::unique_ptr<Device> device;
+
     std::string source;
-    bool loaded;
+    bool loaded = false;
+    float duration = 0.0f;
+    float volume = 100.0f;
+    float pitch = 1.0f;
+    bool loop = false;
 
     // SoundBuffer support: if created from a SoundBuffer, store reference
     std::shared_ptr<SoundBufferData> bufferData;
@@ -25,10 +40,17 @@ public:
     PySound(const std::string& filename);
     PySound(std::shared_ptr<SoundBufferData> bufData);
 
-    // Playback control
+    // mcrf::audio::Source
+    bool active() const override;
+    void releaseDevice() override;
+
+    // Playback control. All are no-ops while audio is off.
     void play();
     void pause();
     void stop();
+    // Start an extra, overlapping voice at the given pitch/volume. The object's own
+    // settings are untouched. Returns false if nothing was started (audio off).
+    bool playVoice(float voicePitch, float voiceVolume);
 
     // Properties
     float getVolume() const;
@@ -50,6 +72,7 @@ public:
     static Py_hash_t hash(PyObject* obj);
     static int init(PySoundObject* self, PyObject* args, PyObject* kwds);
     static PyObject* pynew(PyTypeObject* type, PyObject* args, PyObject* kwds);
+    static void dealloc(PySoundObject* self);
 
     // Python methods
     static PyObject* py_play(PySoundObject* self, PyObject* args);
@@ -79,6 +102,7 @@ namespace mcrfpydef {
         .tp_name = "mcrfpy.Sound",
         .tp_basicsize = sizeof(PySoundObject),
         .tp_itemsize = 0,
+        .tp_dealloc = (destructor)PySound::dealloc,
         .tp_repr = PySound::repr,
         .tp_hash = PySound::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -99,6 +123,6 @@ namespace mcrfpydef {
         .tp_methods = PySound::methods,
         .tp_getset = PySound::getsetters,
         .tp_init = (initproc)PySound::init,
-        .tp_new = PyType_GenericNew,
+        .tp_new = PySound::pynew,
     };
 }

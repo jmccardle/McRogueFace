@@ -16,6 +16,7 @@
 #endif
 #include <cmath>
 #include <Python.h>
+#include "Audio.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -173,6 +174,7 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     scenes["uitest"] = std::make_shared<UITestScene>(this);
 
     McRFPy_API::game = this;
+    mcrf::audio::configure(config.audio_enabled);  // #406: before any Python runs
 
     // Initialize profiler overlay
     profilerOverlay = new ProfilerOverlay(Resources::font);
@@ -449,6 +451,7 @@ void GameEngine::doFrame()
         ScopedTimer pyTimer(metrics.pythonScriptTime);
         McRFPy_API::updatePythonScenes(frameTime);
     }
+    mcrf::audio::sweep();  // #440: release sounds that finished playing
 
     // Update animations (only if frameTime is valid)
     if (frameTime > 0.0f && frameTime < 1.0f) {
@@ -1021,6 +1024,7 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
         ScopedTimer pyTimer(metrics.pythonScriptTime);
         McRFPy_API::updatePythonScenes(actual_dt);
     }
+    mcrf::audio::sweep();  // #440: release sounds that finished playing
 
     // Update animations with the dt in seconds
     if (actual_dt > 0.0f && actual_dt < 10.0f) {  // Sanity check

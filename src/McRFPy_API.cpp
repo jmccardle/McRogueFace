@@ -50,6 +50,7 @@
 #include "PySound.h"
 #include "PySoundBuffer.h"
 #include "PyMusic.h"
+#include "Audio.h"
 #include "PyKeyboard.h"
 #include "PyMouse.h"
 #include "UIGridPathfinding.h"  // AStarPath and DijkstraMap types
@@ -450,7 +451,7 @@ static PyMethodDef mcrfpyMethods[] = {
      MCRF_METHOD(mcrfpy, get_metrics,
          MCRF_SIG("()", "dict"),
          MCRF_DESC("Get current performance metrics."),
-         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (WALL-CLOCK seconds since engine start), simulation_time_ms (SIMULATED milliseconds, the deterministic counter advanced only by step()/advance() and the clock headless timers run on), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids)")
+         MCRF_RETURNS("dict: Performance data with keys: frame_time (last frame duration in MILLISECONDS), avg_frame_time (rolling mean frame time over the last 60 frames, in milliseconds), fps (frames per second, derived from avg_frame_time -- a rolling average, not an instantaneous rate), draw_calls (number of draw calls), ui_elements (total UI element count), visible_elements (visible element count), current_frame (frame counter), runtime (WALL-CLOCK seconds since engine start), simulation_time_ms (SIMULATED milliseconds, the deterministic counter advanced only by step()/advance() and the clock headless timers run on), grid_render_time (grid rendering time in ms), entity_render_time (entity rendering time in ms), fov_overlay_time (FOV overlay rendering time in ms), python_time (Python script execution time in ms), animation_time (animation processing time in ms), grid_cells_rendered (grid cell draws this frame, counted per layer), entities_rendered (number of entities drawn this frame), total_entities (total entity count across all rendered grids), audio_sources (Sound and Music objects alive), audio_playing (those the engine is keeping alive because they are playing)")
          MCRF_NOTE("All per-frame counters and timing breakdowns describe the last COMPLETED frame. "
                    "Python callbacks run before the frame is rendered, so the in-progress frame's "
                    "values are not available yet; frame_time, fps, runtime, simulation_time_ms and "
@@ -1572,7 +1573,7 @@ void McRFPy_API::executeScript(std::string filename)
 
 void McRFPy_API::api_shutdown()
 {
-    // Audio cleanup now handled by Python garbage collection (Sound/Music classes)
+    // Audio devices are closed by mcrf::audio::shutdown(), registered with Py_AtExit (#400).
     Py_Finalize();
 }
 
@@ -2194,6 +2195,9 @@ PyObject* McRFPy_API::_getMetrics(PyObject* self, PyObject* args) {
     // headless mode. Exposed here rather than as a parallel API so there is one place to
     // ask the engine what time it is.
     ok &= mcrf::dict_steal(dict, "simulation_time_ms", PyLong_FromLong(game->getSimulationTime())) == 0;
+    // #440: Sound/Music objects alive, and how many of them playback is keeping alive.
+    ok &= mcrf::dict_steal(dict, "audio_sources", PyLong_FromSize_t(mcrf::audio::live_count())) == 0;
+    ok &= mcrf::dict_steal(dict, "audio_playing", PyLong_FromSize_t(mcrf::audio::retained_count())) == 0;
 
     if (!ok) {
         Py_DECREF(dict);
