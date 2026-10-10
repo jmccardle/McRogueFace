@@ -43,7 +43,8 @@ removals that affect your code.
 | **An entity no longer keeps its grid alive** (the back-reference is weak; the strong one leaked every grid with entities, #437). `e = Entity(grid=Grid(...))` with no other reference to the grid leaves `e.grid` as `None`. | Keep a reference to the grid (or view) you're using. |
 | **Every accessor returns the same Python object** for the same engine object: `grid.layer(name)`, `grid.layers`, `.texture`, `.font`, `.children`, `.entities`, `entity.perspective_map`, `get_dijkstra_map(root)`, `mcrfpy.timers`, find(), and more (#430). An object you constructed comes back as itself. | Code that relied on getting a *fresh* wrapper (e.g. mutating it as a private copy) must copy explicitly. |
 | `entity.perspective_map = m` then reading it back returns `m` itself, with `m`'s own `enum_type` (previously a fresh map always typed with `mcrfpy.Perspective`). | — |
-| **`get_dijkstra_map()` never returns a stale map.** A cached map is rebuilt on the next request after a walkability edit, or after an entity carrying the `collide=` label moves. A `DijkstraMap` you hold is a snapshot and doesn't change when the grid does (#425). | Call `get_dijkstra_map()` again each turn instead of holding a map; it's cheap while nothing changed. `clear_dijkstra_maps()` is no longer needed for correctness. |
+| **`get_dijkstra_map()` never returns a stale map.** A cached map is rebuilt on the next request after a walkability edit, or after an entity carrying the `collide=` label moves. A `DijkstraMap` you hold is a snapshot and doesn't change when the grid does (#425). | Call `get_dijkstra_map()` again each turn instead of holding a map; it's cheap while nothing changed. |
+| **`GridData.clear_dijkstra_maps()` is removed.** The cache now manages itself: the first lookup after an edit drops every stale map, and cached maps are capped at `GridData.dijkstra_cache_budget` bytes (default 256 MiB, 4 bytes per cell per map; least recently used evicted first). `dijkstra_cache_bytes` reports current use (#425). | Delete the calls. Raise the budget on very large grids if several maps should stay cached. |
 | **`VisibilityMask` compares by value and is hashable.** `==` compares `origin`, `fov_radius`, `grid_size`, `cells`, and `light_walls`/`algorithm` when FOV ran; it ignores `tick`, so the same view on two frames is equal (#405). | Use `is` to tell two records apart, and `a.cells == b.cells` to compare only what was visible. |
 | `automation.click()` / `mouseDown()` / `mouseUp()` / `dragTo()` raise `ValueError` for an unknown `button=`, which used to click LEFT. `'x1'` and `'x2'` are accepted (#428). | — |
 
@@ -132,7 +133,9 @@ removals that affect your code.
 - A cached Dijkstra map kept its old distances after the map changed, so a SEEKing
   or FLEEing entity could walk into a new wall (#425).
 - `DijkstraMap.invert()` read freed memory if the map outlived its grid, and ignored
-  the `collide=` label it was built with (#425).
+  the `collide=` label it was built with. It now copies the distance field instead
+  of recomputing it (about 25x faster). A finished map keeps only that field, about
+  a third of the memory it used to take (#425).
 
 **Silent no-ops**
 - `Grid.center_camera()` and `Grid.size = ...` used to do nothing (#370).

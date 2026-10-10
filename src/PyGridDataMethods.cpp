@@ -1121,7 +1121,7 @@ PyMethodDef PyGridData_all_methods[] = {
     {"get_dijkstra_map", (PyCFunction)UIGridPathfinding::Grid_get_dijkstra_map, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(GridData, get_dijkstra_map,
          MCRF_SIG("(root=None, diagonal_cost: float = 1.41, collide: str = None, roots=None)", "DijkstraMap"),
-         MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. A cached map is returned only while it is still current: changing walkability, or moving an entity that carries the collide label, makes the next request rebuild it."),
+         MCRF_DESC("Get or create a cached Dijkstra distance map for a root position. A cached map is returned only while it is still current: changing walkability, or moving an entity that carries the collide label, makes the next request rebuild it. The cache bounds its own memory."),
          MCRF_ARGS_START
          MCRF_ARG("root", "Root position as Vector, Entity, or (x, y) tuple. Use 'root' for single-source maps (cached by position).")
          MCRF_ARG("diagonal_cost", "Cost of diagonal movement (default: 1.41)")
@@ -1129,11 +1129,6 @@ PyMethodDef PyGridData_all_methods[] = {
          MCRF_ARG("roots", "Sequence of root positions or a DiscreteMap mask for multi-source Dijkstra. Pass 'roots' instead of 'root' for multi-source maps (not cached).")
          MCRF_RETURNS("DijkstraMap object for querying distances and paths")
          MCRF_NOTE("The returned map is a snapshot: it does not change when the grid does. Call get_dijkstra_map() again (cheap while nothing changed) to follow edits.")
-     )},
-    {"clear_dijkstra_maps", (PyCFunction)UIGridPathfinding::Grid_clear_dijkstra_maps, METH_NOARGS,
-     MCRF_METHOD(GridData, clear_dijkstra_maps,
-         MCRF_SIG("()", "None"),
-         MCRF_DESC("Release all cached Dijkstra maps to free their memory. Not needed for correctness: get_dijkstra_map() rebuilds a cached map whose grid has changed.")
      )},
     {"add_layer", (PyCFunction)PyGridData::py_add_layer, METH_VARARGS,
      MCRF_METHOD(GridData, add_layer,

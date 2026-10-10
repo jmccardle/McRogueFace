@@ -138,9 +138,7 @@ def highlight_path():
     start = entity_cell(entity1)
     end = entity_cell(entity2)
 
-    # Compute Dijkstra from first entity; walkability is static, but clear the
-    # cache so each selection recomputes against the current grid.
-    grid_data.clear_dijkstra_maps()
+    # Compute Dijkstra from first entity (the cache is always current, #425).
     dijkstra = grid_data.get_dijkstra_map(root=start)
 
     distance = dijkstra.distance(end)
@@ -311,7 +309,6 @@ path_1_3 = last_path
 check(not path_1_3, f"entity 1 is walled in; expected no path to entity 3, got {path_1_3}")
 check("No path" in info_text.text, f"info text should report no path, got {info_text.text!r}")
 
-grid_data.clear_dijkstra_maps()
 d_sealed = grid_data.get_dijkstra_map(root=entity_cell(entities[0])).distance(entity_cell(entities[1]))
 check(d_sealed is None, f"distance from sealed entity 1 to entity 2 should be None, got {d_sealed}")
 

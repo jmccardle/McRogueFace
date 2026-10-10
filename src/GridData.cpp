@@ -98,7 +98,7 @@ GridData::~GridData()
 
 void GridData::cleanupTCOD()
 {
-    dijkstra_maps.clear();
+    dijkstra_cache.clear();
     if (tcod_map) {
         delete tcod_map;
         tcod_map = nullptr;

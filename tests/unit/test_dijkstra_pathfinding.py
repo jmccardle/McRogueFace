@@ -13,7 +13,7 @@ API notes (updated for current mcrfpy):
 - The `mcrfpy.libtcod` module is gone. Its successor is the GridData Dijkstra API:
     grid.grid_data.get_dijkstra_map(root=(x, y)) -> DijkstraMap
     dmap.root / dmap.distance((x, y)) / dmap.path_from((x, y))
-    grid.grid_data.clear_dijkstra_maps()   (invalidate after walkability changes)
+    (cached, and always current: a walkability edit rebuilds it on request, #425)
 - GridPoint has no .tilesprite/.color; tiles go on a TileLayer, colors on a ColorLayer.
 """
 
@@ -67,9 +67,6 @@ def create_test_grid():
             cell.walkable = False
             cell.transparent = False
             color_layer.set((x, 10), mcrfpy.Color(100, 100, 100))
-
-    # Walkability changed after construction; drop any cached maps
-    data.clear_dijkstra_maps()
 
     return grid, color_layer
 

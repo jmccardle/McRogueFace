@@ -61,11 +61,11 @@ def get_dijkstra_map():
     gc.collect()
     same("get_dijkstra_map((2, 2)) after the wrapper died", lambda: g.get_dijkstra_map((2, 2)))
 
-    # clear_dijkstra_maps() drops the C++ map; the next request is a new map.
+    # A walkability edit invalidates the cached map (#425); the next request is a new map.
     before = g.get_dijkstra_map((3, 3))
-    g.clear_dijkstra_maps()
+    g.at(9, 9).walkable = False
     after = g.get_dijkstra_map((3, 3))
-    check(after is not before, "clear_dijkstra_maps() yields a new map object")
+    check(after is not before, "a walkability edit yields a new map object")
     check(after.distance((3, 3)) == 0.0, "the new map still works")
     check(before.distance((3, 3)) == 0.0, "the old wrapper keeps its map alive")
 

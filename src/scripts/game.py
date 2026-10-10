@@ -447,10 +447,6 @@ class Crypt:
 
     def enemy_turn(self):
         self.update_fov()
-        try:
-            self.grid.clear_dijkstra_maps()
-        except:
-            pass
         self.entities.sort(key = lambda e: e.draw_order, reverse=False)
         for e in self.entities:
             e.act()

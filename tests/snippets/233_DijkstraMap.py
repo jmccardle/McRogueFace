@@ -53,9 +53,9 @@ color_layer.apply_gradient(
     mcrfpy.Color(255, 0, 0),
 )
 
-# Cache Management
+# Cache: always current. Editing walkability rebuilds the map on the next request
 grid.at(5, 5).walkable = False
-grid.clear_dijkstra_maps()
+goal_map = grid.get_dijkstra_map(player.grid_pos)
 
 status = mcrfpy.Caption(text="Dijkstra distance map demo", pos=(320, 720))
 scene.children.append(status)

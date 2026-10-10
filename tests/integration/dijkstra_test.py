@@ -75,8 +75,6 @@ def create_test_map():
         # Mark entity positions
         color_layer.set((x, y), colors[i])
 
-    # Walkability was mutated after grid construction; drop any cached maps
-    grid.clear_dijkstra_maps()
 
     return grid, color_layer, entities, walls
 

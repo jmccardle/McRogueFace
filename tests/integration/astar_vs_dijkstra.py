@@ -85,9 +85,6 @@ def create_map():
     # Mark start and end
     color_layer.set(start_pos, START_COLOR)
     color_layer.set(end_pos, END_COLOR)
-
-    # Dijkstra maps are cached; walkability just changed, so invalidate.
-    grid.grid_data.clear_dijkstra_maps()
     return walls
 
 def validate_path(cells, label, origin, destination):

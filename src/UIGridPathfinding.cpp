@@ -10,6 +10,8 @@
 #include "McRFPy_Doc.h"
 #include "PyWrap.h"
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 
 //=============================================================================
 // DijkstraMap Implementation
@@ -25,12 +27,7 @@ DijkstraMap::DijkstraMap(const TCODMap* map, const std::vector<sf::Vector2i>& ro
 {
     if (!map || roots.empty()) return;
 
-    // #425: compute on our own copy. The TCOD_Dijkstra keeps a pointer to the map it
-    // was built on, and inverted() recomputes; both used to point at the grid's live
-    // map -- freed with the grid (use-after-free), and without the collide= marks.
-    snapshot = std::make_unique<TCODMap>(map_width, map_height);
-    snapshot->copy(map);
-    tcod_dijkstra = TCOD_dijkstra_new(snapshot->data, diagonal_cost);
+    tcod_dijkstra = TCOD_dijkstra_new(map->data, diagonal_cost);
 
     if (roots.size() == 1) {
         TCOD_dijkstra_compute(tcod_dijkstra, roots[0].x, roots[0].y);
@@ -42,6 +39,48 @@ DijkstraMap::DijkstraMap(const TCODMap* map, const std::vector<sf::Vector2i>& ro
         TCOD_dijkstra_compute_multi(tcod_dijkstra,
             static_cast<int>(roots.size()), xs.data(), ys.data());
     }
+    finish(tcod_dijkstra);
+}
+
+// #425: libtcod reads the map and the work queue (`nodes`) only while computing;
+// path_set/walk, get_descent, get_distance and invert use `distances` alone. Dropping
+// both leaves a finished field: 4 bytes per cell instead of 11, and no pointer into the
+// grid -- that pointer was the use-after-free when a map outlived its grid.
+void DijkstraMap::finish(TCOD_Dijkstra* d)
+{
+    free(d->nodes);  // libtcod's own malloc (same toolchain/CRT on every target)
+    d->nodes = nullptr;
+    d->map = nullptr;
+}
+
+DijkstraMap::DijkstraMap(const DijkstraMap& src, CopyField)
+    : tcod_dijkstra(nullptr)
+    , root(src.root)
+    , roots(src.roots)
+    , diagonal_cost(src.diagonal_cost)
+    , map_width(src.map_width)
+    , map_height(src.map_height)
+{
+    const TCOD_Dijkstra* from = src.tcod_dijkstra;
+    if (!from) return;
+    // Laid out exactly as TCOD_dijkstra_new() builds one, minus map and nodes, so
+    // TCOD_dijkstra_delete() frees it the same way.
+    auto* d = static_cast<TCOD_Dijkstra*>(malloc(sizeof(TCOD_Dijkstra)));
+    if (!d) return;
+    *d = *from;
+    d->map = nullptr;
+    d->nodes = nullptr;
+    const size_t bytes = static_cast<size_t>(from->nodes_max) * sizeof(unsigned int);
+    d->distances = static_cast<unsigned int*>(malloc(bytes));
+    d->path = TCOD_list_new();
+    if (!d->distances || !d->path) {
+        free(d->distances);
+        if (d->path) TCOD_list_delete(d->path);
+        free(d);
+        return;
+    }
+    memcpy(d->distances, from->distances, bytes);
+    tcod_dijkstra = d;
 }
 
 DijkstraMap::~DijkstraMap() {
@@ -115,9 +154,11 @@ void DijkstraMap::invertInPlace() {
 }
 
 std::shared_ptr<DijkstraMap> DijkstraMap::inverted() const {
-    // Recompute from the stored roots, then invert. This preserves the invariant that
-    // the original's distance field is unchanged.
-    auto copy = std::make_shared<DijkstraMap>(snapshot.get(), roots, diagonal_cost);
+    // Copy the distance field and invert the copy; the original is unchanged. (#425:
+    // this used to recompute from the grid's live map -- a full Dijkstra, against
+    // walkability that may have changed since, without the collide= marks.)
+    auto copy = std::make_shared<DijkstraMap>(*this, CopyField{});
+    if (!copy->tcod_dijkstra) return nullptr;  // out of memory
     copy->invertInPlace();
     return copy;
 }
@@ -482,10 +523,7 @@ PyObject* UIGridPathfinding::DijkstraMap_invert(PyDijkstraMapObject* self, PyObj
         return nullptr;
     }
     auto new_map = self->data->inverted();
-    if (!new_map) {
-        PyErr_SetString(PyExc_RuntimeError, "invert() failed");
-        return nullptr;
-    }
+    if (!new_map) return PyErr_NoMemory();  // the only failure: copying the field
     // A brand-new C++ map: serial 0, so this allocates and registers.
     return DijkstraMap::pyobject_for(new_map);
 }
@@ -588,6 +626,66 @@ PyObject* UIGridPathfinding::DijkstraMap_to_heightmap(PyDijkstraMapObject* self,
 //=============================================================================
 // Grid Factory Methods
 //=============================================================================
+
+//=============================================================================
+// GridData::DijkstraCache (#425)
+//=============================================================================
+
+void GridData::DijkstraCache::erase(std::map<Key, Entry>::iterator it)
+{
+    bytes -= it->second.map->fieldBytes();
+    entries.erase(it);
+}
+
+void GridData::DijkstraCache::clear()
+{
+    entries.clear();
+    bytes = 0;
+}
+
+std::shared_ptr<DijkstraMap> GridData::DijkstraCache::find(
+    const Key& key, uint32_t generation, const std::vector<sf::Vector2i>& blocked)
+{
+    if (generation != swept_generation) {
+        // The generation only rises, so an entry from an older one is dead for good.
+        for (auto it = entries.begin(); it != entries.end();) {
+            auto next = std::next(it);
+            if (it->second.generation != generation) erase(it);
+            it = next;
+        }
+        swept_generation = generation;
+    }
+    auto it = entries.find(key);
+    if (it == entries.end()) return nullptr;
+    if (it->second.blocked != blocked) {  // a labelled entity moved
+        erase(it);
+        return nullptr;
+    }
+    it->second.last_used = ++clock;
+    return it->second.map;
+}
+
+void GridData::DijkstraCache::insert(const Key& key, std::shared_ptr<DijkstraMap> map,
+                                     uint32_t generation, std::vector<sf::Vector2i> blocked)
+{
+    auto old = entries.find(key);
+    if (old != entries.end()) erase(old);
+    bytes += map->fieldBytes();
+    entries[key] = Entry{std::move(map), generation, std::move(blocked), ++clock};
+    trim();
+}
+
+void GridData::DijkstraCache::trim()
+{
+    // Least recently used first; the newest entry (highest clock) always stays.
+    while (bytes > budget && entries.size() > 1) {
+        auto lru = entries.begin();
+        for (auto it = entries.begin(); it != entries.end(); ++it) {
+            if (it->second.last_used < lru->second.last_used) lru = it;
+        }
+        erase(lru);
+    }
+}
 
 // Helper: the in-bounds cells occupied by entities carrying `collide_label`, sorted and
 // de-duplicated. Empty for an empty label. #425: this is also what a cached
@@ -873,9 +971,8 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
 
     std::string label_str = collide_label ? collide_label : "";
 
-    // Single-root requests are cached. #425: an entry is reused only if the grid's
-    // walkability and the cells its collide label blocks are both unchanged since it
-    // was built; otherwise it is rebuilt here, so a stale map is never returned.
+    // Single-root requests are cached (#425: see GridData::DijkstraCache -- a map is
+    // returned only while it still describes the grid, and the cache bounds itself).
     GridData* grid = self->data.get();
     const bool cacheable = !mask_obj && roots.size() == 1;
     const auto key = cacheable
@@ -883,11 +980,8 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
         : std::make_tuple(0, 0, std::string(), 0.0f);
     std::vector<sf::Vector2i> blocked = labelledCells(grid, label_str);
     if (cacheable) {
-        auto it = grid->dijkstra_maps.find(key);
-        if (it != grid->dijkstra_maps.end() &&
-            it->second.generation == grid->transparency_generation &&
-            it->second.blocked == blocked) {
-            return DijkstraMap::pyobject_for(it->second.map);
+        if (auto hit = grid->dijkstra_cache.find(key, grid->transparency_generation, blocked)) {
+            return DijkstraMap::pyobject_for(hit);
         }
     }
 
@@ -925,21 +1019,11 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
     restoreCollisionLabel(self->data.get(), restore_list);
 
     if (cacheable) {
-        grid->dijkstra_maps[key] = GridData::DijkstraCacheEntry{
-            dijkstra, grid->transparency_generation, std::move(blocked)};
+        grid->dijkstra_cache.insert(key, dijkstra, grid->transparency_generation,
+                                    std::move(blocked));
     }
 
     return DijkstraMap::pyobject_for(dijkstra);
-}
-
-PyObject* UIGridPathfinding::Grid_clear_dijkstra_maps(PyGridDataObject* self, PyObject* args) {
-    if (!self->data) {
-        PyErr_SetString(PyExc_RuntimeError, "Grid is invalid");
-        return NULL;
-    }
-
-    self->data->dijkstra_maps.clear();
-    Py_RETURN_NONE;
 }
 
 //=============================================================================
