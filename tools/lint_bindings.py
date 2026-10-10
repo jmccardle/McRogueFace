@@ -448,6 +448,7 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", help="list every finding, baselined or not")
     ap.add_argument("--summary", action="store_true", help="counts per rule and per file")
     ap.add_argument("--rule", help="restrict output to one rule")
+    ap.add_argument("--json", action="store_true", help="every finding as JSON (with its baseline key)")
     ap.add_argument("--update-baseline", action="store_true")
     ap.add_argument("--allow-growth", action="store_true",
                     help="with --update-baseline: permit new entries (needs a reason)")
@@ -474,6 +475,11 @@ def main() -> int:
         print()
         for fl, n in Counter(f.file for f in findings).most_common(15):
             print(f"{n:5d}  {fl}")
+        return 0
+    if a.json:
+        import json
+        print(json.dumps([dict(rule=f.rule, file=f.file, line=f.line, function=f.function,
+                               detail=f.detail, key=f.key) for f in findings], indent=1))
         return 0
     if a.all:
         for f in sorted(findings, key=lambda f: (f.rule, f.file, f.line)):
