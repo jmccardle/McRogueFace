@@ -125,41 +125,12 @@ namespace mcrfpydef {
                             "    margin (float): General margin for alignment\n"
                             "    horiz_margin (float): Horizontal margin override\n"
                             "    vert_margin (float): Vertical margin override"),
-        // tp_traverse visits Python object references for GC cycle detection
+        // #441: only what this wrapper exclusively owns (UIDrawable::traverseWrapper).
         .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
-            PyUICaptionObject* obj = (PyUICaptionObject*)self;
-            Py_VISIT(obj->font);
-            if (obj->data) {
-                if (obj->data->click_callable) {
-                    PyObject* callback = obj->data->click_callable->borrow();
-                    if (callback && callback != Py_None) Py_VISIT(callback);
-                }
-                if (obj->data->on_enter_callable) {
-                    PyObject* callback = obj->data->on_enter_callable->borrow();
-                    if (callback && callback != Py_None) Py_VISIT(callback);
-                }
-                if (obj->data->on_exit_callable) {
-                    PyObject* callback = obj->data->on_exit_callable->borrow();
-                    if (callback && callback != Py_None) Py_VISIT(callback);
-                }
-                if (obj->data->on_move_callable) {
-                    PyObject* callback = obj->data->on_move_callable->borrow();
-                    if (callback && callback != Py_None) Py_VISIT(callback);
-                }
-            }
-            return 0;
+            return UIDrawable::traverseWrapper(self, ((PyUICaptionObject*)self)->data, visit, arg);
         },
-        // tp_clear breaks reference cycles by clearing Python references
         .tp_clear = [](PyObject* self) -> int {
-            PyUICaptionObject* obj = (PyUICaptionObject*)self;
-            Py_CLEAR(obj->font);
-            if (obj->data) {
-                obj->data->click_unregister();
-                obj->data->on_enter_unregister();
-                obj->data->on_exit_unregister();
-                obj->data->on_move_unregister();
-            }
-            return 0;
+            return UIDrawable::clearWrapper(self, ((PyUICaptionObject*)self)->data);
         },
         .tp_methods = UICaption_methods,
         //.tp_members = PyUIFrame_members,

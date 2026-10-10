@@ -23,6 +23,8 @@ public:
     static PyObject* __new__(PyTypeObject* type, PyObject* args, PyObject* kwds);
     static int __init__(PySceneObject* self, PyObject* args, PyObject* kwds);
     static void __dealloc(PyObject* self);
+    static int traverse(PyObject* self, visitproc visit, void* arg);  // #441
+    static int clear(PyObject* self);
     static PyObject* __repr__(PySceneObject* self);
     
     // Scene methods
@@ -54,7 +56,7 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)PySceneClass::__dealloc,
         .tp_repr = (reprfunc)PySceneClass::__repr__,
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,  // Allow subclassing
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,  // Allow subclassing
         .tp_doc = PyDoc_STR(
             "Scene(name: str)\n\n"
             "Object-oriented scene management with lifecycle callbacks.\n\n"
@@ -90,6 +92,8 @@ namespace mcrfpydef {
             "        def update(self, dt):\n"
             "            self.player.move(dt)\n"
         ),
+        .tp_traverse = PySceneClass::traverse,
+        .tp_clear = PySceneClass::clear,
         .tp_methods = nullptr,  // Set in McRFPy_API.cpp
         .tp_getset = nullptr,   // Set in McRFPy_API.cpp
         .tp_init = (initproc)PySceneClass::__init__,

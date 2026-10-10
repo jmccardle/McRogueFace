@@ -157,37 +157,12 @@ namespace mcrfpydef {
             "    horiz_margin (float): Horizontal margin override\n"
             "    vert_margin (float): Vertical margin override\n"
         ),
+        // #441: only what this wrapper exclusively owns (UIDrawable::traverseWrapper).
         .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
-            PyUICircleObject* obj = (PyUICircleObject*)self;
-            if (obj->data) {
-                if (obj->data->click_callable) {
-                    PyObject* cb = obj->data->click_callable->borrow();
-                    if (cb && cb != Py_None) Py_VISIT(cb);
-                }
-                if (obj->data->on_enter_callable) {
-                    PyObject* cb = obj->data->on_enter_callable->borrow();
-                    if (cb && cb != Py_None) Py_VISIT(cb);
-                }
-                if (obj->data->on_exit_callable) {
-                    PyObject* cb = obj->data->on_exit_callable->borrow();
-                    if (cb && cb != Py_None) Py_VISIT(cb);
-                }
-                if (obj->data->on_move_callable) {
-                    PyObject* cb = obj->data->on_move_callable->borrow();
-                    if (cb && cb != Py_None) Py_VISIT(cb);
-                }
-            }
-            return 0;
+            return UIDrawable::traverseWrapper(self, ((PyUICircleObject*)self)->data, visit, arg);
         },
         .tp_clear = [](PyObject* self) -> int {
-            PyUICircleObject* obj = (PyUICircleObject*)self;
-            if (obj->data) {
-                obj->data->click_unregister();
-                obj->data->on_enter_unregister();
-                obj->data->on_exit_unregister();
-                obj->data->on_move_unregister();
-            }
-            return 0;
+            return UIDrawable::clearWrapper(self, ((PyUICircleObject*)self)->data);
         },
         .tp_methods = UICircle_methods,
         .tp_getset = UICircle::getsetters,

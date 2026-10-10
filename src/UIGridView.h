@@ -42,6 +42,8 @@ public:
     void move(float dx, float dy) override;
     void resize(float w, float h) override;
     void onPositionChanged() override;   // #355: keep box in sync with position
+    int traverseOwned(visitproc visit, void* arg) override;  // #441
+    void clearOwned() override;
 
     // The grid data this view renders
     std::shared_ptr<GridData> grid_data;
@@ -279,45 +281,12 @@ namespace mcrfpydef {
             "    z_index (int): Rendering order. Default: 0\n"
             "    name (str): Element name.\n"
             "    layers (list): List of ColorLayer/TileLayer objects.\n"),
+        // #441: only what this wrapper exclusively owns (UIDrawable::traverseWrapper).
         .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
-            PyUIGridViewObject* obj = (PyUIGridViewObject*)self;
-            if (obj->data && obj->data->click_callable) {
-                PyObject* callback = obj->data->click_callable->borrow();
-                if (callback && callback != Py_None) Py_VISIT(callback);
-            }
-            // #348: the view owns a strong ref to the internal Grid wrapper.
-            if (obj->data && obj->data->cached_grid_wrapper) {
-                Py_VISIT(obj->data->cached_grid_wrapper);
-            }
-            // #355: cell callbacks now live on the view.
-            if (obj->data) {
-                if (obj->data->on_cell_enter_callable) {
-                    PyObject* cb = obj->data->on_cell_enter_callable->borrow();
-                    if (cb && cb != Py_None) Py_VISIT(cb);
-                }
-                if (obj->data->on_cell_exit_callable) {
-                    PyObject* cb = obj->data->on_cell_exit_callable->borrow();
-                    if (cb && cb != Py_None) Py_VISIT(cb);
-                }
-                if (obj->data->on_cell_click_callable) {
-                    PyObject* cb = obj->data->on_cell_click_callable->borrow();
-                    if (cb && cb != Py_None) Py_VISIT(cb);
-                }
-            }
-            return 0;
+            return UIDrawable::traverseWrapper(self, ((PyUIGridViewObject*)self)->data, visit, arg);
         },
         .tp_clear = [](PyObject* self) -> int {
-            PyUIGridViewObject* obj = (PyUIGridViewObject*)self;
-            if (obj->data) {
-                obj->data->click_unregister();
-                // #348: drop the persistent wrapper; get_grid rebuilds on demand.
-                Py_CLEAR(obj->data->cached_grid_wrapper);
-                // #355: release cell callbacks (breaks closure->grid cycles).
-                obj->data->on_cell_enter_callable.reset();
-                obj->data->on_cell_exit_callable.reset();
-                obj->data->on_cell_click_callable.reset();
-            }
-            return 0;
+            return UIDrawable::clearWrapper(self, ((PyUIGridViewObject*)self)->data);
         },
         .tp_methods = UIGridView_all_methods,
         .tp_getset = UIGridView::getsetters,

@@ -697,10 +697,22 @@ container owns the object, via an `mcrf::PyIdentityPin` synced in ONE ownership 
 Never read the pin as "the wrapper" (it has no getter); use `to_python()`. An entity's grid
 back-reference is a `weak_ptr` (`getGrid()`), so dropping a grid frees it and its entities.
 
+**GC ownership (#441).** A wrapper's `tp_traverse` may report the Python objects held inside
+its C++ object (callbacks, children's pins, a cached wrapper) only when it owns that object
+exclusively: `mcrf::owns_exclusively(use_count, keepers)`, where keepers are other owners that
+hold the wrapper (its pin's container, a view caching its GridData wrapper). `tp_clear` applies
+the same test. Reporting a co-owned object's callback let the GC wipe a closure a scene still
+calls (segfault); clearing it dropped live handlers; reporting nothing leaked every cycle
+through a pin. Drawables use `UIDrawable::traverseWrapper/clearWrapper` and extend
+`traverseOwned()/clearOwned()`; owners of children/entities descend via `traverseChildren`.
+Known gap: a *plain* (unpinned) child whose own wrapper is alive is reported by no one, so a
+cycle through it leaks rather than crashes.
+
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or
 `PyObject_New`), direct `PythonObjectCache::` use, a new reference passed inline to a
-non-stealing call, an unreleased `from_arg()`, and the pin touched outside its owner. Every
+non-stealing call, an unreleased `from_arg()`, the pin touched outside its owner, and a
+`tp_traverse`/`tp_clear` reaching into the C++ object without `owns_exclusively`. Every
 constructed type must be classified identity/value in its `TYPE_CLASS` table. The baseline
 (`tools/lint_bindings_baseline.txt`) is empty and may only shrink; the pre-commit hook and
 CI fail on any finding. `tools/refactor_check.py FILE --site KEY` is the fast per-file

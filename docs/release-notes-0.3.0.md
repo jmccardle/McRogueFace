@@ -93,6 +93,16 @@ removals that affect your code.
   setters such as `Line.start`, `Circle.center`, `entity.cell_pos`,
   `GridView.center` (#414); one timer reference per timer fire.
 - `mcrfpy.window is mcrfpy.Window.get()` (they were two objects).
+- A handler that refers to its own object (`btn.on_click = lambda *a: btn...`, set up
+  inside a function) no longer crashes the engine after a garbage collection. The
+  collector could wipe the handler's closure, or remove the handler, while a scene or
+  parent still used it; this happened in 0.2.8 too. Callbacks on Frame, Caption, Sprite,
+  Line, Circle, Arc, Grid (including cell callbacks), Viewport3D and Scene were all
+  affected (#441).
+- Reference cycles that run through engine-owned objects are now collected: a subclassed
+  child or entity with an attribute pointing back at its parent, grid or scene; an entity
+  whose `step` refers to itself; an unregistered scene whose `on_key` refers to itself.
+  Each one leaked its whole tree (#441).
 - `.parent`, `find()` and indexing return the *same* Python object every time, including
   Python subclasses with their own attributes. Previously a subclass instance could come
   back as a plain `Frame` with its attributes gone (#369, #373).
@@ -166,6 +176,11 @@ Where it comes from:
 
 ## Known issues
 
+- **#442**: appending a drawable into its own descendant (`b.children.append(a)` where
+  `b` is inside `a`) crashes instead of raising.
+- A reference cycle that passes through a *plain* (not subclassed) child whose own
+  Python object is still alive, such as `c.on_click = lambda *a: (parent, c)`, is not
+  collected (#441).
 - **#440**: `Sound` and `Music` objects are never freed; fixing it needs a voice
   registry so fire-and-forget `Sound(...).play()` keeps playing (with #407).
 - **#416, #417**: changing engine objects from a background thread *without*

@@ -7,6 +7,8 @@
 #include "PyKey.h"
 #include "PyInputState.h"
 #include "PyVector.h"
+#include "PyWrap.h"
+#include "UIDrawable.h"
 #include <iostream>
 
 // Static map to store Python scene objects by name
@@ -66,6 +68,7 @@ int PySceneClass::__init__(PySceneObject* self, PyObject* args, PyObject* kwds)
 void PySceneClass::__dealloc(PyObject* self_obj)
 {
     PySceneObject* self = (PySceneObject*)self_obj;
+    PyObject_GC_UnTrack(self_obj);
 
     // Remove from python_scenes registry if we're the registered scene
     if (python_scenes.count(self->name) > 0 && python_scenes[self->name] == self) {
@@ -79,6 +82,26 @@ void PySceneClass::__dealloc(PyObject* self_obj)
 
     // Call Python object destructor
     Py_TYPE(self)->tp_free(self);
+}
+
+// #441: a registered scene is reachable anyway (python_scenes holds this wrapper while
+// the engine holds the scene), so only an unregistered one -- owned by this wrapper
+// alone -- reports its key handler and what its children own.
+int PySceneClass::traverse(PyObject* self_obj, visitproc visit, void* arg)
+{
+    PySceneObject* self = (PySceneObject*)self_obj;
+    if (!self->scene || !mcrf::owns_exclusively(self->scene.use_count(), 0)) return 0;
+    MCRF_VISIT(mcrf::visit_callable(self->scene->key_callable, visit, arg));
+    return UIDrawable::traverseChildren(self->scene->ui_elements, nullptr, &self->name, visit, arg);
+}
+
+int PySceneClass::clear(PyObject* self_obj)
+{
+    PySceneObject* self = (PySceneObject*)self_obj;
+    if (!self->scene || !mcrf::owns_exclusively(self->scene.use_count(), 0)) return 0;
+    self->scene->key_callable.reset();
+    UIDrawable::clearChildren(self->scene->ui_elements, nullptr, &self->name);
+    return 0;
 }
 
 PyObject* PySceneClass::__repr__(PySceneObject* self)

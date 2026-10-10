@@ -43,6 +43,8 @@ public:
     void move(float dx, float dy) override;
     void resize(float w, float h) override;
     void onPositionChanged() override;
+    int traverseOwned(visitproc visit, void* arg) override;  // #441
+    void clearOwned() override;
 
     static PyObject* get_children(PyUIFrameObject* self, void* closure);
 
@@ -149,48 +151,12 @@ namespace mcrfpydef {
                             "    margin (float): General margin for alignment\n"
                             "    horiz_margin (float): Horizontal margin override\n"
                             "    vert_margin (float): Vertical margin override"),
-        // tp_traverse visits Python object references for GC cycle detection
+        // #441: only what this wrapper exclusively owns (UIDrawable::traverseWrapper).
         .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
-            PyUIFrameObject* obj = (PyUIFrameObject*)self;
-            if (obj->data) {
-                // Visit callback references
-                if (obj->data->click_callable) {
-                    PyObject* callback = obj->data->click_callable->borrow();
-                    if (callback && callback != Py_None) {
-                        Py_VISIT(callback);
-                    }
-                }
-                if (obj->data->on_enter_callable) {
-                    PyObject* callback = obj->data->on_enter_callable->borrow();
-                    if (callback && callback != Py_None) {
-                        Py_VISIT(callback);
-                    }
-                }
-                if (obj->data->on_exit_callable) {
-                    PyObject* callback = obj->data->on_exit_callable->borrow();
-                    if (callback && callback != Py_None) {
-                        Py_VISIT(callback);
-                    }
-                }
-                if (obj->data->on_move_callable) {
-                    PyObject* callback = obj->data->on_move_callable->borrow();
-                    if (callback && callback != Py_None) {
-                        Py_VISIT(callback);
-                    }
-                }
-            }
-            return 0;
+            return UIDrawable::traverseWrapper(self, ((PyUIFrameObject*)self)->data, visit, arg);
         },
-        // tp_clear breaks reference cycles by clearing Python references
         .tp_clear = [](PyObject* self) -> int {
-            PyUIFrameObject* obj = (PyUIFrameObject*)self;
-            if (obj->data) {
-                obj->data->click_unregister();
-                obj->data->on_enter_unregister();
-                obj->data->on_exit_unregister();
-                obj->data->on_move_unregister();
-            }
-            return 0;
+            return UIDrawable::clearWrapper(self, ((PyUIFrameObject*)self)->data);
         },
         .tp_methods = UIFrame_methods,
         //.tp_members = PyUIFrame_members,

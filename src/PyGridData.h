@@ -26,6 +26,7 @@
 #include "SpatialHash.h"
 #include "UIEntityCollection.h"  // EntityCollection types (extracted from UIGrid)
 #include "GridData.h"  // #252 - Data layer base class
+#include "PyWrap.h"    // #441 - mcrf::owns_exclusively
 #include "UIGridView.h"  // #252 - GridView shim
 
 // Forward declaration for pathfinding
@@ -145,13 +146,16 @@ namespace mcrfpydef {
                             "    layers (tuple, read-only): Layers sorted by z_index\n"
                             "    fov (FOV): Default field-of-view algorithm\n"
                             "    fov_radius (int): Default field-of-view radius"),
+        // #441: what this map's entities own, when this wrapper owns the map exclusively
+        // (views that cache this very wrapper count as keeping it alive).
         .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
-            // #361: a GridData holds no Python callbacks -- nothing to visit.
-            (void)self; (void)visit; (void)arg;
-            return 0;
+            auto& d = ((PyGridDataObject*)self)->data;
+            if (!d || !mcrf::owns_exclusively(d.use_count(), d->wrapperKeepers(self))) return 0;
+            return d->traverseOwned(visit, arg);
         },
         .tp_clear = [](PyObject* self) -> int {
-            (void)self;
+            auto& d = ((PyGridDataObject*)self)->data;
+            if (d && mcrf::owns_exclusively(d.use_count(), d->wrapperKeepers(self))) d->clearOwned();
             return 0;
         },
         .tp_methods = PyGridData_all_methods,

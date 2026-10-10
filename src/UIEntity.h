@@ -108,6 +108,10 @@ public:
     std::vector<int> sprite_grid; // #237: per-tile sprite indices (row-major, -1 = empty)
     std::unordered_set<std::string> labels; // #296: entity label system for collision/targeting
     PyObject* step_callback = nullptr; // #299: callback for grid.step() turn management
+    // #441: the Python objects this entity owns (its step callback), for an owner that
+    // holds it exclusively (mcrf::owns_exclusively).
+    int traverseOwned(visitproc visit, void* arg) { Py_VISIT(step_callback); return 0; }
+    void clearOwned() { Py_CLEAR(step_callback); }
     int default_behavior = 0; // #299: BehaviorType::IDLE - behavior to revert to after DONE
     EntityBehavior behavior; // #300: behavior state for grid.step()
     int turn_order = 1; // #300: 0 = skip, higher = later in turn order
@@ -256,12 +260,13 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = [](PyObject* obj) {
             auto* self = (PyUIEntityObject*)obj;
+            PyObject_GC_UnTrack(obj);
             if (self->weakreflist) PyObject_ClearWeakRefs(obj);
             self->data.reset();
             Py_TYPE(obj)->tp_free(obj);
         },
         .tp_repr = (reprfunc)UIEntity::repr,
-        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR("Entity(grid_pos=None, texture=None, sprite_index=0, **kwargs)\n\n"
                             "A game entity that exists on a grid with sprite rendering.\n\n"
                             "Args:\n"
@@ -292,6 +297,17 @@ namespace mcrfpydef {
                             "    sprite_offset (Vector): Pixel offset for oversized sprites\n"
                             "    sprite_offset_x (float): X component of sprite offset\n"
                             "    sprite_offset_y (float): Y component of sprite offset"),
+        // #441: only what this wrapper exclusively owns (see mcrf::owns_exclusively).
+        .tp_traverse = [](PyObject* obj, visitproc visit, void* arg) -> int {
+            auto& d = ((PyUIEntityObject*)obj)->data;
+            if (!d || !mcrf::owns_exclusively(d.use_count(), d->identity_pin.holds(obj) ? 1 : 0)) return 0;
+            return d->traverseOwned(visit, arg);
+        },
+        .tp_clear = [](PyObject* obj) -> int {
+            auto& d = ((PyUIEntityObject*)obj)->data;
+            if (d && mcrf::owns_exclusively(d.use_count(), d->identity_pin.holds(obj) ? 1 : 0)) d->clearOwned();
+            return 0;
+        },
         .tp_methods = UIEntity_all_methods,
         .tp_getset = UIEntity::getsetters,
         .tp_base = NULL,
