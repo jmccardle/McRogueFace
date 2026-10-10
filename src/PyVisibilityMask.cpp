@@ -6,6 +6,8 @@
 #include "PyVisibilityMask.h"
 #include "McRFPy_Doc.h"
 #include "PyPositionHelper.h"
+#include "PyWrap.h"
+#include <cstddef>
 
 PyObject* PyVisibilityMask::create(PyObject* cells_set, PyObject* cells_ordered,
                                    PyObject* origin, PyObject* fov_radius,
@@ -33,12 +35,15 @@ PyObject* PyVisibilityMask::create(PyObject* cells_set, PyObject* cells_ordered,
     self->fov_ran = fov_ran ? 1 : 0;
     self->light_walls = light_walls ? 1 : 0;
     self->algorithm = algorithm;
+    self->hash = -1;
+    self->weakreflist = NULL;
 
     return (PyObject*)self;
 }
 
 void PyVisibilityMask::dealloc(PyVisibilityMaskObject* self)
 {
+    if (self->weakreflist) PyObject_ClearWeakRefs((PyObject*)self);
     Py_XDECREF(self->cells_set);
     Py_XDECREF(self->cells_ordered);
     Py_XDECREF(self->origin);
@@ -60,6 +65,50 @@ PyObject* PyVisibilityMask::repr(PyVisibilityMaskObject* self)
     Py_DECREF(origin_repr);
     Py_DECREF(radius_repr);
     return result;
+}
+
+// #405 - The value of a mask, as one tuple: everything == compares, nothing else.
+// light_walls/algorithm enter as None when no FOV computation ran (#404), so two
+// unbounded masks are equal whatever defaults observe() was handed.
+static PyObject* value_key(PyVisibilityMaskObject* m)
+{
+    PyObject* lw = m->fov_ran ? PyBool_FromLong(m->light_walls) : Py_NewRef(Py_None);
+    PyObject* algo = m->fov_ran ? PyLong_FromLong(m->algorithm) : Py_NewRef(Py_None);
+    if (!lw || !algo) { Py_XDECREF(lw); Py_XDECREF(algo); return NULL; }
+    // "N" steals lw/algo; "O" borrows the stored fields.
+    return Py_BuildValue("(OO(ii)NNO)", m->origin, m->fov_radius,
+                         m->grid_w, m->grid_h, lw, algo, m->cells_set);
+}
+
+PyObject* PyVisibilityMask::richcompare(PyObject* self, PyObject* other, int op)
+{
+    if ((op != Py_EQ && op != Py_NE) ||
+        !PyObject_TypeCheck(other, &mcrfpydef::PyVisibilityMaskType)) {
+        Py_RETURN_NOTIMPLEMENTED;  // no ordering; a bare frozenset is not a mask
+    }
+    if (self == other) return PyBool_FromLong(op == Py_EQ);
+    auto* a = (PyVisibilityMaskObject*)self;
+    auto* b = (PyVisibilityMaskObject*)other;
+    // Cheap rejections before building the keys (and before comparing cell sets).
+    if (a->grid_w != b->grid_w || a->grid_h != b->grid_h || a->fov_ran != b->fov_ran ||
+        PyTuple_GET_SIZE(a->cells_ordered) != PyTuple_GET_SIZE(b->cells_ordered) ||
+        (a->hash != -1 && b->hash != -1 && a->hash != b->hash)) {
+        return PyBool_FromLong(op == Py_NE);
+    }
+    mcrf::PyRef ka(value_key(a));
+    if (!ka) return NULL;
+    mcrf::PyRef kb(value_key(b));
+    if (!kb) return NULL;
+    return PyObject_RichCompare(ka.get(), kb.get(), op);
+}
+
+Py_hash_t PyVisibilityMask::hash(PyVisibilityMaskObject* self)
+{
+    if (self->hash != -1) return self->hash;
+    mcrf::PyRef key(value_key(self));
+    if (!key) return -1;
+    self->hash = PyObject_Hash(key.get());  // immutable, so cache it (-1 = error)
+    return self->hash;
 }
 
 PyObject* PyVisibilityMask::get_origin(PyVisibilityMaskObject* self, void* closure)
@@ -186,6 +235,7 @@ namespace mcrfpydef {
         .tp_dealloc = (destructor)PyVisibilityMask::dealloc,
         .tp_repr = (reprfunc)PyVisibilityMask::repr,
         .tp_as_sequence = &PyVisibilityMask::as_sequence,
+        .tp_hash = (hashfunc)PyVisibilityMask::hash,
         // No Py_TPFLAGS_HAVE_GC: see the comment on PyVisibilityMaskObject in
         // PyVisibilityMask.h for why this type can never be part of a cycle.
         .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -211,6 +261,11 @@ namespace mcrfpydef {
             "algorithm all as None: every in-bounds cell is visible by construction, so\n"
             "none of those parameters participated. A mask never reports a setting that\n"
             "had no effect on it.\n\n"
+            "Equality: a value. mask == other compares origin, fov_radius, grid_size,\n"
+            "cells, and light_walls/algorithm when an FOV computation ran -- but NOT\n"
+            "tick, so the same view seen on two frames is equal; `is` tells the two\n"
+            "records apart. Hashable on the same fields, so masks dedupe in a set.\n"
+            "To compare only what was visible, compare a.cells == b.cells.\n\n"
             "Protocol:\n"
             "    (x, y) in mask   -- O(1) membership test; raises TypeError if the\n"
             "                        key is not a position (an entity, a 3-tuple, ...),\n"
@@ -221,6 +276,8 @@ namespace mcrfpydef {
             "    snap = grid_data.observe(origin=(5, 5), fov_radius=8)\n"
             "    if (5, 6) in snap['mask']:\n"
             "        ...\n"),
+        .tp_richcompare = PyVisibilityMask::richcompare,
+        .tp_weaklistoffset = offsetof(PyVisibilityMaskObject, weakreflist),
         .tp_iter = (getiterfunc)PyVisibilityMask::iter,
         .tp_getset = PyVisibilityMask::getsetters,
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*

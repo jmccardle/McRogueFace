@@ -1154,23 +1154,6 @@ int UIGridView::set_float_member_gv(PyUIGridViewObject* self, PyObject* value, v
 // #355 - Cell input machinery (moved verbatim from UIGrid, retargeted to the view)
 // =========================================================================
 
-// Helper function to convert button string to MouseButton enum value
-static int buttonStringToEnum(const std::string& button) {
-    if (button == "left") return 0;       // MouseButton.LEFT
-    if (button == "right") return 1;      // MouseButton.RIGHT
-    if (button == "middle") return 2;     // MouseButton.MIDDLE
-    if (button == "wheel_up") return 3;   // MouseButton.WHEEL_UP
-    if (button == "wheel_down") return 4; // MouseButton.WHEEL_DOWN
-    return 0; // Default to LEFT
-}
-
-// Helper function to convert action string to InputState enum value
-static int actionStringToEnum(const std::string& action) {
-    if (action == "start" || action == "pressed") return 0;   // InputState.PRESSED
-    if (action == "end" || action == "released") return 1;    // InputState.RELEASED
-    return 0; // Default to PRESSED
-}
-
 // Helper to create typed cell callback arguments: (Vector, MouseButton, InputState)
 static PyObject* createCellCallbackArgs(sf::Vector2i cell, const std::string& button, const std::string& action) {
     PyObject* cell_pos = PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)cell.x, (float)cell.y);
@@ -1179,16 +1162,16 @@ static PyObject* createCellCallbackArgs(sf::Vector2i cell, const std::string& bu
         return nullptr;
     }
 
-    int button_val = buttonStringToEnum(button);
-    PyObject* button_enum = PyObject_CallFunction(PyMouseButton::mouse_button_enum_class, "i", button_val);
+    // #428: the shared conversions. This file used to carry its own table, which
+    // mapped the scroll wheel to 3/4 -- MouseButton.X1/X2.
+    PyObject* button_enum = PyMouseButton::from_action_name(button);
     if (!button_enum) {
         Py_DECREF(cell_pos);
         PyErr_Print();
         return nullptr;
     }
 
-    int action_val = actionStringToEnum(action);
-    PyObject* action_enum = PyObject_CallFunction(PyInputState::input_state_enum_class, "i", action_val);
+    PyObject* action_enum = PyInputState::from_action_type(action);
     if (!action_enum) {
         Py_DECREF(cell_pos);
         Py_DECREF(button_enum);

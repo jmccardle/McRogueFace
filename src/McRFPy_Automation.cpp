@@ -1,4 +1,5 @@
 #include "McRFPy_Automation.h"
+#include "PyMouseButton.h"
 #include "PyWrap.h"
 #include "McRFPy_API.h"
 #include "GameEngine.h"
@@ -425,13 +426,9 @@ PyObject* McRFPy_Automation::_click(PyObject* self, PyObject* args, PyObject* kw
         }
     }
 
-    // Determine button
-    sf::Mouse::Button sfButton = sf::Mouse::Left;
-    if (strcmp(button, "right") == 0) {
-        sfButton = sf::Mouse::Right;
-    } else if (strcmp(button, "middle") == 0) {
-        sfButton = sf::Mouse::Middle;
-    }
+    // #428: shared table; an unknown name raises instead of clicking LEFT
+    sf::Mouse::Button sfButton;
+    if (!PyMouseButton::button_from_action_name(button, &sfButton)) return NULL;
 
     // Move to position first
     injectMouseEvent(sf::Event::MouseMoved, x, y);
@@ -707,12 +704,9 @@ PyObject* McRFPy_Automation::_mouseDown(PyObject* self, PyObject* args, PyObject
         }
     }
 
-    sf::Mouse::Button sfButton = sf::Mouse::Left;
-    if (strcmp(button, "right") == 0) {
-        sfButton = sf::Mouse::Right;
-    } else if (strcmp(button, "middle") == 0) {
-        sfButton = sf::Mouse::Middle;
-    }
+    // #428: shared table; an unknown name raises instead of clicking LEFT
+    sf::Mouse::Button sfButton;
+    if (!PyMouseButton::button_from_action_name(button, &sfButton)) return NULL;
 
     injectMouseEvent(sf::Event::MouseButtonPressed, x, y, sfButton);
     Py_RETURN_NONE;
@@ -747,12 +741,9 @@ PyObject* McRFPy_Automation::_mouseUp(PyObject* self, PyObject* args, PyObject* 
         }
     }
 
-    sf::Mouse::Button sfButton = sf::Mouse::Left;
-    if (strcmp(button, "right") == 0) {
-        sfButton = sf::Mouse::Right;
-    } else if (strcmp(button, "middle") == 0) {
-        sfButton = sf::Mouse::Middle;
-    }
+    // #428: shared table; an unknown name raises instead of clicking LEFT
+    sf::Mouse::Button sfButton;
+    if (!PyMouseButton::button_from_action_name(button, &sfButton)) return NULL;
 
     injectMouseEvent(sf::Event::MouseButtonReleased, x, y, sfButton);
     Py_RETURN_NONE;
@@ -924,7 +915,7 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARGS_START
          MCRF_ARG("pos", "Target position as (x, y) tuple, [x, y] list, or Vector")
          MCRF_ARG("duration", "Time in seconds for the drag (default 0.0)")
-         MCRF_ARG("button", "Mouse button to use: 'left', 'right', or 'middle' (default 'left')")
+         MCRF_ARG("button", "Mouse button to use: 'left', 'right', 'middle', 'x1' or 'x2' (default 'left')")
      )},
     {"dragRel", (PyCFunction)McRFPy_Automation::_dragRel, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, dragRel,
@@ -933,7 +924,7 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARGS_START
          MCRF_ARG("offset", "Offset as (x, y) tuple, [x, y] list, or Vector")
          MCRF_ARG("duration", "Time in seconds for the drag (default 0.0)")
-         MCRF_ARG("button", "Mouse button to use: 'left', 'right', or 'middle' (default 'left')")
+         MCRF_ARG("button", "Mouse button to use: 'left', 'right', 'middle', 'x1' or 'x2' (default 'left')")
      )},
 
     {"click", (PyCFunction)McRFPy_Automation::_click, METH_VARARGS | METH_KEYWORDS,
@@ -944,7 +935,7 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
          MCRF_ARG("clicks", "Number of clicks to perform (default 1)")
          MCRF_ARG("interval", "Seconds between clicks when clicks > 1 (default 0.0)")
-         MCRF_ARG("button", "Mouse button: 'left', 'right', or 'middle' (default 'left')")
+         MCRF_ARG("button", "Mouse button: 'left', 'right', 'middle', 'x1' or 'x2' (default 'left')")
      )},
     {"rightClick", (PyCFunction)McRFPy_Automation::_rightClick, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, rightClick,
@@ -989,7 +980,7 @@ static PyMethodDef automationMethods[] = {
          MCRF_DESC("Press and hold a mouse button at the specified position."),
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
-         MCRF_ARG("button", "Mouse button: 'left', 'right', or 'middle' (default 'left')")
+         MCRF_ARG("button", "Mouse button: 'left', 'right', 'middle', 'x1' or 'x2' (default 'left')")
      )},
     {"mouseUp", (PyCFunction)McRFPy_Automation::_mouseUp, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, mouseUp,
@@ -997,7 +988,7 @@ static PyMethodDef automationMethods[] = {
          MCRF_DESC("Release a mouse button at the specified position."),
          MCRF_ARGS_START
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
-         MCRF_ARG("button", "Mouse button: 'left', 'right', or 'middle' (default 'left')")
+         MCRF_ARG("button", "Mouse button: 'left', 'right', 'middle', 'x1' or 'x2' (default 'left')")
      )},
     {"mouseLeave", (PyCFunction)McRFPy_Automation::_mouseLeave, METH_NOARGS,
      MCRF_METHOD(automation, mouseLeave,

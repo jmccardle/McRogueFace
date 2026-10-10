@@ -154,13 +154,24 @@ public:
 
     // #303 - Transparency generation counter for per-entity FOV caching
     // Bumped whenever any cell's transparent/walkable property changes
+    // (syncTCODMap/syncTCODMapCell); #425 validates cached Dijkstra maps on it too.
     uint32_t transparency_generation = 0;
 
     // =========================================================================
     // Pathfinding caches
     // =========================================================================
-    // Cache key: (root_x, root_y, collide_label) where collide_label="" means no collision filtering
-    std::map<std::tuple<int,int,std::string>, std::shared_ptr<DijkstraMap>> dijkstra_maps;
+    // #425: a cached map is reused only while it still describes the grid -- the
+    // walkability generation it was built at, and the cells its collide label
+    // blocked, must both be unchanged. Otherwise it is rebuilt on request, so
+    // clear_dijkstra_maps() is only ever a memory release, never a correctness step.
+    struct DijkstraCacheEntry {
+        std::shared_ptr<DijkstraMap> map;
+        uint32_t generation;                 // transparency_generation when built
+        std::vector<sf::Vector2i> blocked;   // labelled-entity cells, sorted (collide only)
+    };
+    // Key: (root_x, root_y, collide_label, diagonal_cost); "" = no collision filtering.
+    // diagonal_cost is part of the key so two costs are cached side by side.
+    std::map<std::tuple<int,int,std::string,float>, DijkstraCacheEntry> dijkstra_maps;
 
     // =========================================================================
     // Layer system (#147, #150)
