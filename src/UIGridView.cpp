@@ -1665,3 +1665,36 @@ PyGetSetDef UIGridView::getsetters[] = {
          "Set automatically when assigning perspective; set False to show the whole map without clearing the entity."), NULL},
     {NULL}
 };
+
+// #441: cell callbacks, children, and the map. The cached GridData wrapper (#348) is
+// a strong ref the view owns; that wrapper then speaks for the GridData (see
+// PyGridData's tp_traverse, which counts this view as one of its keepers). With no
+// cached wrapper, the view speaks for a GridData only it holds.
+int UIGridView::traverseOwned(visitproc visit, void* arg)
+{
+    MCRF_VISIT(UIDrawable::traverseOwned(visit, arg));
+    MCRF_VISIT(mcrf::visit_callable(on_cell_enter_callable, visit, arg));
+    MCRF_VISIT(mcrf::visit_callable(on_cell_exit_callable, visit, arg));
+    MCRF_VISIT(mcrf::visit_callable(on_cell_click_callable, visit, arg));
+    MCRF_VISIT(traverseChildren(children, this, nullptr, visit, arg));
+    if (cached_grid_wrapper) {
+        Py_VISIT(cached_grid_wrapper);
+    } else if (grid_data && grid_data.use_count() == 1) {
+        MCRF_VISIT(grid_data->traverseOwned(visit, arg));
+    }
+    return 0;
+}
+
+void UIGridView::clearOwned()
+{
+    UIDrawable::clearOwned();
+    on_cell_enter_callable.reset();
+    on_cell_exit_callable.reset();
+    on_cell_click_callable.reset();
+    clearChildren(children, this, nullptr);
+    if (cached_grid_wrapper) {
+        Py_CLEAR(cached_grid_wrapper);
+    } else if (grid_data && grid_data.use_count() == 1) {
+        grid_data->clearOwned();
+    }
+}

@@ -2843,3 +2843,41 @@ PyMethodDef Viewport3D_methods[] = {
      "    voxel_grid: VoxelGrid whose nav region to clear"},
     {NULL}  // Sentinel
 };
+
+namespace mcrf {
+
+// #441: the viewport also speaks for its entities: a pinned one through its pin, an
+// unwrapped one (only the list holds it) directly.
+int Viewport3D::traverseOwned(visitproc visit, void* arg)
+{
+    MCRF_VISIT(UIDrawable::traverseOwned(visit, arg));
+    if (!entities_ || entities_.use_count() != 1) return 0;
+    for (const auto& e : *entities_) {
+        if (!e) continue;
+        if (e->identity_pin.pinned()) {
+            if (e->getViewport().get() == this) MCRF_VISIT(e->identity_pin.visit(visit, arg));
+        } else if (e.use_count() == 1) {
+            MCRF_VISIT(e->traverseOwned(visit, arg));
+        }
+    }
+    return 0;
+}
+
+void Viewport3D::clearOwned()
+{
+    UIDrawable::clearOwned();
+    if (!entities_ || entities_.use_count() != 1) return;
+    std::vector<std::shared_ptr<Entity3D>> detach, descend;
+    for (const auto& e : *entities_) {
+        if (!e) continue;
+        if (e->identity_pin.pinned()) {
+            if (e->getViewport().get() == this) detach.push_back(e);
+        } else if (e.use_count() == 1) {
+            descend.push_back(e);
+        }
+    }
+    for (auto& e : descend) e->clearOwned();
+    for (auto& e : detach) e->setViewport(nullptr);
+}
+
+} // namespace mcrf

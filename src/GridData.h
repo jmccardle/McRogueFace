@@ -64,6 +64,15 @@ public:
     // own, so its identity lives here; unregistered in ~GridData.
     uint64_t entities_serial = 0;
 
+    // #441: report to / drop for the cycle collector what this map's entities own --
+    // a pinned entity through its pin, an unwrapped one's step callback directly.
+    // Only for a caller that owns this GridData exclusively (mcrf::owns_exclusively).
+    int traverseOwned(visitproc visit, void* arg);
+    void clearOwned();
+    // How many of this map's views cache `wrapper` as their GridData wrapper (#348):
+    // the owners of this GridData that also keep that wrapper alive.
+    long wrapperKeepers(const PyObject* wrapper) const;
+
     // #313 - Cell pixel dimensions, mirrored from ptex at construction. Lets
     // the data layer do tile<->pixel math without reaching into a view.
     int cell_width_px = 16;

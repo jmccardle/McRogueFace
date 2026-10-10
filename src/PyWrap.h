@@ -88,10 +88,53 @@ public:
     void sync(bool pinned, uint64_t serial);
     void release();
     bool pinned() const { return wrapper != nullptr; }
+    bool holds(const PyObject* obj) const { return obj && wrapper == obj; }
+
+    // #441: report the pinned wrapper to the cycle collector. Only the owning
+    // container calls this, and only when it is itself exclusively owned (see below).
+    int visit(visitproc visit, void* arg) const { Py_VISIT(wrapper); return 0; }
 
 private:
     PyObject* wrapper = nullptr;
 };
+
+// ---------------------------------------------------------------------------
+// GC ownership (#441)
+// ---------------------------------------------------------------------------
+
+// A wrapper's tp_traverse may report the Python objects held INSIDE its C++ object
+// (callbacks, its children's pins, ...) only when every other strong owner of that
+// object keeps the wrapper alive. Then the object cannot outlive the wrapper, so
+// "the wrapper is garbage" really means "those references die with it".
+//
+//   * Reporting more than that lets the GC clear a callback that a scene or parent
+//     still calls: the closure is wiped and the next call segfaults.
+//   * Reporting less hides cycles that run through C++, which then leak.
+//
+// `keepers` counts the other owners that hold the wrapper: an identity pin (the
+// container that pins it), a view's cached GridData wrapper (#348). Anything else
+// holding a shared_ptr -- an animation, a collection view, a transient copy -- makes
+// the wrapper report nothing, which is always safe: at worst a cycle survives.
+//
+// tp_clear applies the SAME test. The GC calls tp_clear on every wrapper it finds
+// unreachable, including one whose C++ object a scene still owns.
+inline bool owns_exclusively(long use_count, long keepers)
+{
+    return use_count == 1 + keepers;
+}
+
+// Propagate a nonzero result from a nested traverse, as Py_VISIT does for one object.
+#define MCRF_VISIT(expr) do { int mcrf_visit_rc_ = (expr); if (mcrf_visit_rc_) return mcrf_visit_rc_; } while (0)
+
+// Report the function held by a Py*Callable member (click, hover, key, cell ...).
+template <typename Callable>
+int visit_callable(const std::unique_ptr<Callable>& c, visitproc visit, void* arg)
+{
+    if (!c) return 0;
+    PyObject* fn = c->borrow();
+    if (fn && fn != Py_None) Py_VISIT(fn);
+    return 0;
+}
 
 // ---------------------------------------------------------------------------
 // Argument conversion and reference ownership

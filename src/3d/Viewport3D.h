@@ -60,6 +60,8 @@ public:
     PyObjectsEnum derived_type() override final;
     UIDrawable* click_at(sf::Vector2f point) override final;
     sf::FloatRect get_bounds() const override;
+    int traverseOwned(visitproc visit, void* arg) override;  // #441
+    void clearOwned() override;
     void move(float dx, float dy) override;
     void resize(float w, float h) override;
 
@@ -450,45 +452,12 @@ inline PyTypeObject PyViewport3DType = {
                         "    fog_color (Color): Fog color. Default: (128, 128, 153)\n"
                         "    fog_near (float): Fog start distance. Default: 10\n"
                         "    fog_far (float): Fog end distance. Default: 100\n"),
+    // #441: only what this wrapper exclusively owns (UIDrawable::traverseWrapper).
     .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
-        PyViewport3DObject* obj = (PyViewport3DObject*)self;
-        if (obj->data) {
-            if (obj->data->click_callable) {
-                PyObject* callback = obj->data->click_callable->borrow();
-                if (callback && callback != Py_None) {
-                    Py_VISIT(callback);
-                }
-            }
-            if (obj->data->on_enter_callable) {
-                PyObject* callback = obj->data->on_enter_callable->borrow();
-                if (callback && callback != Py_None) {
-                    Py_VISIT(callback);
-                }
-            }
-            if (obj->data->on_exit_callable) {
-                PyObject* callback = obj->data->on_exit_callable->borrow();
-                if (callback && callback != Py_None) {
-                    Py_VISIT(callback);
-                }
-            }
-            if (obj->data->on_move_callable) {
-                PyObject* callback = obj->data->on_move_callable->borrow();
-                if (callback && callback != Py_None) {
-                    Py_VISIT(callback);
-                }
-            }
-        }
-        return 0;
+        return UIDrawable::traverseWrapper(self, ((PyViewport3DObject*)self)->data, visit, arg);
     },
     .tp_clear = [](PyObject* self) -> int {
-        PyViewport3DObject* obj = (PyViewport3DObject*)self;
-        if (obj->data) {
-            obj->data->click_unregister();
-            obj->data->on_enter_unregister();
-            obj->data->on_exit_unregister();
-            obj->data->on_move_unregister();
-        }
-        return 0;
+        return UIDrawable::clearWrapper(self, ((PyViewport3DObject*)self)->data);
     },
     .tp_methods = Viewport3D_methods,
     .tp_getset = mcrf::Viewport3D::getsetters,

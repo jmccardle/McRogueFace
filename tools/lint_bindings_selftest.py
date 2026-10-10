@@ -59,6 +59,39 @@ inline PyTypeObject PyFooType = {
     .tp_itemsize = 0,
     .tp_dealloc = foo_dealloc,
 };""", []),
+    ("traverse reports a co-owned object's callbacks (#441)", """
+inline PyTypeObject PyFooType = {
+    .tp_name = "mcrfpy.Foo",
+    .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+        PyUIFrameObject* obj = (PyUIFrameObject*)self;
+        if (obj->data && obj->data->click_callable) Py_VISIT(obj->data->click_callable->borrow());
+        return 0;
+    },
+    .tp_clear = [](PyObject* self) -> int {
+        ((PyUIFrameObject*)self)->data->click_unregister();
+        return 0;
+    },
+};""", [("traverse-unguarded", ".tp_clear reaches"), ("traverse-unguarded", ".tp_traverse reaches")]),
+    ("traverse behind the ownership guard: ok", """
+inline PyTypeObject PyFooType = {
+    .tp_name = "mcrfpy.Foo",
+    .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+        return UIDrawable::traverseWrapper(self, ((PyUIFrameObject*)self)->data, visit, arg);
+    },
+    .tp_clear = [](PyObject* self) -> int {
+        auto& d = ((PyFooObject*)self)->data;
+        if (d && mcrf::owns_exclusively(d.use_count(), 0)) d->clearOwned();
+        return 0;
+    },
+};""", []),
+    ("traverse of the wrapper's own fields: ok", """
+inline PyTypeObject PyFooType = {
+    .tp_name = "mcrfpy.Foo",
+    .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
+        Py_VISIT(((PyFooObject*)self)->owner);
+        return 0;
+    },
+};""", []),
     ("unclassified type", """
 PyObject* f() { auto t = &mcrfpydef::PyBrandNewType; return t->tp_alloc(t, 0); }
 """, [("unclassified", "tp_alloc PyBrandNewType")]),

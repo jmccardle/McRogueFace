@@ -25,6 +25,13 @@ audit_pymethoddef.py) and flags the recipes that have already produced bugs:
                    its whole grid this way).
   pin-direct       The entity identity pin (UIEntity::pyobject) taken, released or
                    read as "the wrapper" outside its owner (#424, #429, #436).
+  traverse-unguarded
+                   A tp_traverse / tp_clear that reaches into the wrapped C++ object
+                   (obj->data->...) without mcrf::owns_exclusively (or the drawable
+                   traverseWrapper / clearWrapper built on it). The wrapper may share
+                   that object with a scene or parent, so reporting what it holds let
+                   the GC clear a live callback (segfault), and clearing it silently
+                   dropped live handlers (#441).
 
 Findings are matched against tools/lint_bindings_baseline.txt, keyed by
 (rule, file, function, call text) with counts and no line numbers, so unrelated
@@ -374,6 +381,55 @@ def lint_file(path: Path) -> list[Finding]:
 
     out.extend(check_pin(src, tree, rel))
     out.extend(check_dealloc(src, tree, rel))
+    out.extend(check_traverse(src, tree, rel))
+    return out
+
+
+# A body that reaches THROUGH a wrapper member into the C++ object it points at.
+REACHES_IN = re.compile(r"->\s*\w+\s*(->|\.\s*(get|borrow)\b)")
+GC_GUARD = re.compile(r"\b(owns_exclusively|traverseWrapper|clearWrapper)\b")
+
+
+def function_bodies() -> dict:
+    """Qualified function name -> body text, across src/ (for tp_traverse = Foo::bar)."""
+    global _BODIES
+    if _BODIES is not None:
+        return _BODIES
+    _BODIES = {}
+    for p in list((ROOT / "src").rglob("*.cpp")) + list((ROOT / "src").rglob("*.h")):
+        src = p.read_bytes()
+        for n in walk(_PARSER.parse(src).root_node):
+            if n.type == "function_definition":
+                _BODIES[function_name(src, n)] = text(src, n)
+    return _BODIES
+
+
+_BODIES = None
+
+
+def check_traverse(src: bytes, tree, rel: str) -> list:
+    """#441: tp_traverse / tp_clear may only touch the wrapped C++ object behind the
+    exclusive-ownership guard."""
+    out = []
+    for n in walk(tree.root_node):
+        if n.type != "initializer_pair":
+            continue
+        slot = text(src, n.children[0]).strip()
+        if slot not in (".tp_traverse", ".tp_clear"):
+            continue
+        value = n.child_by_field_name("value") or n.children[-1]
+        if value.type == "lambda_expression":
+            body = text(src, value)
+        else:
+            name = re.sub(r"^\(\s*\w+\s*\)\s*", "", text(src, value).strip())
+            body = function_bodies().get(name, "")
+        if REACHES_IN.search(body) and not GC_GUARD.search(body):
+            decl = n.parent
+            while decl is not None and decl.type != "init_declarator":
+                decl = decl.parent
+            owner = text(src, decl.child_by_field_name("declarator")).strip() if decl else "<type>"
+            out.append(Finding("traverse-unguarded", rel, n.start_point[0] + 1, owner,
+                               f"{slot} reaches into the C++ object without owns_exclusively"))
     return out
 
 

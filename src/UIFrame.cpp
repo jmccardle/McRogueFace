@@ -1082,3 +1082,16 @@ bool UIFrame::hasProperty(const std::string& name) const {
     }
     return false;
 }
+
+// #441: a Frame also speaks for what its children own.
+int UIFrame::traverseOwned(visitproc visit, void* arg)
+{
+    MCRF_VISIT(UIDrawable::traverseOwned(visit, arg));
+    return traverseChildren(children, this, nullptr, visit, arg);
+}
+
+void UIFrame::clearOwned()
+{
+    UIDrawable::clearOwned();
+    clearChildren(children, this, nullptr);
+}

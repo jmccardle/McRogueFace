@@ -982,6 +982,64 @@ void UIDrawable::releasePyIdentity() {
     py_identity.release();
 }
 
+// #441: see mcrf::owns_exclusively in PyWrap.h for when these may run.
+int UIDrawable::traverseOwned(visitproc visit, void* arg) {
+    MCRF_VISIT(mcrf::visit_callable(click_callable, visit, arg));
+    MCRF_VISIT(mcrf::visit_callable(on_enter_callable, visit, arg));
+    MCRF_VISIT(mcrf::visit_callable(on_exit_callable, visit, arg));
+    MCRF_VISIT(mcrf::visit_callable(on_move_callable, visit, arg));
+    return 0;
+}
+
+void UIDrawable::clearOwned() {
+    click_unregister();
+    on_enter_unregister();
+    on_exit_unregister();
+    on_move_unregister();
+}
+
+// A child's pin belongs to the collection named by its parent link; a stale or foreign
+// pin is never reported, so no pin is counted twice.
+static bool memberOf(const UIDrawable& child, const UIDrawable* owner, const std::string* scene) {
+    if (owner) return child.getParent().get() == owner;
+    return scene && child.parent_scene == *scene;
+}
+
+int UIDrawable::traverseChildren(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children,
+                                 const UIDrawable* owner, const std::string* scene,
+                                 visitproc visit, void* arg) {
+    // A collection wrapper (frame.children) shares the vector and can keep the children
+    // alive after the owner dies, so the owner speaks for them only while it is alone.
+    if (!children || children.use_count() != 1) return 0;
+    for (const auto& child : *children) {
+        if (!child) continue;
+        if (child->py_identity.pinned()) {
+            if (memberOf(*child, owner, scene)) MCRF_VISIT(child->py_identity.visit(visit, arg));
+        } else if (child.use_count() == 1) {
+            MCRF_VISIT(child->traverseOwned(visit, arg));
+        }
+    }
+    return 0;
+}
+
+void UIDrawable::clearChildren(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children,
+                               const UIDrawable* owner, const std::string* scene) {
+    if (!children || children.use_count() != 1) return;
+    // Decide first, act second: releasing a pin frees a wrapper, and a weakref callback
+    // on it could run Python that edits this vector.
+    std::vector<std::shared_ptr<UIDrawable>> unpin, descend;
+    for (const auto& child : *children) {
+        if (!child) continue;
+        if (child->py_identity.pinned()) {
+            if (memberOf(*child, owner, scene)) unpin.push_back(child);
+        } else if (child.use_count() == 1) {
+            descend.push_back(child);
+        }
+    }
+    for (auto& child : descend) child->clearOwned();
+    for (auto& child : unpin) child->releasePyIdentity();
+}
+
 std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
     return parent.lock();
 }

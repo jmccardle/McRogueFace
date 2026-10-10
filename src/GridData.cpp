@@ -264,3 +264,50 @@ bool GridData::isProtectedLayerName(const std::string& name)
     }
     return false;
 }
+
+// =========================================================================
+// #441: GC ownership -- see mcrf::owns_exclusively (PyWrap.h)
+// =========================================================================
+
+long GridData::wrapperKeepers(const PyObject* wrapper) const
+{
+    long n = 0;
+    for (const auto& weak_view : views) {
+        auto view = weak_view.lock();
+        if (view && view->grid_data.get() == this && view->cached_grid_wrapper == wrapper) ++n;
+    }
+    return n;
+}
+
+int GridData::traverseOwned(visitproc visit, void* arg)
+{
+    // The entity collection wrapper shares the vector and can outlive this map.
+    if (!entities || entities.use_count() != 1) return 0;
+    for (const auto& e : *entities) {
+        if (!e) continue;
+        if (e->identity_pin.pinned()) {
+            if (e->getGrid().get() == this) MCRF_VISIT(e->identity_pin.visit(visit, arg));
+        } else if (e.use_count() == 1) {
+            MCRF_VISIT(e->traverseOwned(visit, arg));
+        }
+    }
+    return 0;
+}
+
+void GridData::clearOwned()
+{
+    if (!entities || entities.use_count() != 1) return;
+    // Decide first, act second: detaching releases a pin, which can free a wrapper.
+    std::vector<std::shared_ptr<UIEntity>> detach, descend;
+    for (const auto& e : *entities) {
+        if (!e) continue;
+        if (e->identity_pin.pinned()) {
+            if (e->getGrid().get() == this) detach.push_back(e);
+        } else if (e.use_count() == 1) {
+            descend.push_back(e);
+        }
+    }
+    for (auto& e : descend) e->clearOwned();
+    // What ~GridData does to entities that outlive it (#437).
+    for (auto& e : detach) e->setGrid(nullptr);
+}

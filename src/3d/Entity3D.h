@@ -51,6 +51,11 @@ public:
     PyIdentityPin identity_pin;
     bool is_python_subclass = false;  // set in tp_init
 
+    // #441: the Python objects this entity owns (its animation callback), for an owner
+    // that holds it exclusively (mcrf::owns_exclusively).
+    int traverseOwned(visitproc visit, void* arg) { Py_VISIT(py_anim_callback_); return 0; }
+    void clearOwned() { Py_CLEAR(py_anim_callback_); }
+
     /// The one way to hand an Entity3D to Python: the live wrapper (preserving identity
     /// and subclass) if there is one, else a newly registered base-type wrapper.
     /// nullptr input returns None. New reference, or nullptr with an error set.
@@ -421,11 +426,15 @@ inline PyTypeObject PyEntity3DType = {
                         "    visible (bool): Visibility state\n"
                         "    color (Color): Entity render color\n"
                         "    viewport (Viewport3D): Owning viewport (read-only)"),
+    // #441: only what this wrapper exclusively owns (see mcrf::owns_exclusively).
     .tp_traverse = [](PyObject* self, visitproc visit, void* arg) -> int {
-        // No Python objects to visit currently
-        return 0;
+        auto& d = ((PyEntity3DObject*)self)->data;
+        if (!d || !mcrf::owns_exclusively(d.use_count(), d->identity_pin.holds(self) ? 1 : 0)) return 0;
+        return d->traverseOwned(visit, arg);
     },
     .tp_clear = [](PyObject* self) -> int {
+        auto& d = ((PyEntity3DObject*)self)->data;
+        if (d && mcrf::owns_exclusively(d.use_count(), d->identity_pin.holds(self) ? 1 : 0)) d->clearOwned();
         return 0;
     },
     .tp_methods = mcrf::Entity3D::methods,

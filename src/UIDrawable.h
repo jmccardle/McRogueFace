@@ -212,6 +212,39 @@ public:
     // releases the next level down.
     static void releaseChildPins(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children);
 
+    // #441: report to / drop for the cycle collector the Python objects this drawable
+    // owns: its callbacks, plus whatever its children own. Only called once the caller
+    // has established exclusive ownership (mcrf::owns_exclusively, PyWrap.h). Types
+    // with more Python state (children, cell callbacks, a cached wrapper) extend these.
+    virtual int traverseOwned(visitproc visit, void* arg);
+    virtual void clearOwned();
+
+    // tp_traverse / tp_clear for every drawable wrapper type. Templates so use_count()
+    // is read on the wrapper's own shared_ptr: converting it to shared_ptr<UIDrawable>
+    // would make a temporary copy and count one owner too many.
+    template <typename T>
+    static int traverseWrapper(PyObject* self, const std::shared_ptr<T>& data,
+                               visitproc visit, void* arg) {
+        if (!data || !mcrf::owns_exclusively(data.use_count(), data->py_identity.holds(self) ? 1 : 0))
+            return 0;
+        return data->traverseOwned(visit, arg);
+    }
+    template <typename T>
+    static int clearWrapper(PyObject* self, const std::shared_ptr<T>& data) {
+        if (data && mcrf::owns_exclusively(data.use_count(), data->py_identity.holds(self) ? 1 : 0))
+            data->clearOwned();
+        return 0;
+    }
+
+    // A children vector's share, for the Frame / GridView (owner) or Scene (scene) that
+    // holds it. A pinned child is reported through its pin (its own wrapper reports what
+    // it holds); an unwrapped child that only the vector owns is descended into.
+    static int traverseChildren(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children,
+                                const UIDrawable* owner, const std::string* scene,
+                                visitproc visit, void* arg);
+    static void clearChildren(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children,
+                              const UIDrawable* owner, const std::string* scene);
+
     // Get the global (screen) position by walking up the parent chain (#102)
     sf::Vector2f get_global_position() const;
 
