@@ -39,6 +39,8 @@ struct PyVisibilityMaskObject {
     int fov_ran;              // 1 if an FOV computation produced this mask, else 0
     int light_walls;          // 0/1, as passed to the FOV computation (fov_ran only)
     int algorithm;            // TCOD_fov_algorithm_t value used (matches mcrfpy.FOV.*)
+    Py_hash_t hash;           // #405: cached value hash, -1 until first computed
+    PyObject* weakreflist;    // #405: weak references (a mask is a natural cache key)
 };
 
 class PyVisibilityMask {
@@ -61,6 +63,13 @@ public:
 
     static void dealloc(PyVisibilityMaskObject* self);
     static PyObject* repr(PyVisibilityMaskObject* self);
+
+    // #405 - value equality. == compares what the record says was visible and how:
+    // origin, fov_radius, grid_size, cells, and light_walls/algorithm when an FOV
+    // computation ran. NOT tick: a mask taken on a later frame that saw the same
+    // thing is equal; `is` (identity) is what tells two records apart.
+    static PyObject* richcompare(PyObject* self, PyObject* other, int op);
+    static Py_hash_t hash(PyVisibilityMaskObject* self);
 
     // Read-only properties
     static PyObject* get_origin(PyVisibilityMaskObject* self, void* closure);
