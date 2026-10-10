@@ -43,6 +43,9 @@ removals that affect your code.
 | **An entity no longer keeps its grid alive** (the back-reference is weak; the strong one leaked every grid with entities, #437). `e = Entity(grid=Grid(...))` with no other reference to the grid leaves `e.grid` as `None`. | Keep a reference to the grid (or view) you're using. |
 | **Every accessor returns the same Python object** for the same engine object: `grid.layer(name)`, `grid.layers`, `.texture`, `.font`, `.children`, `.entities`, `entity.perspective_map`, `get_dijkstra_map(root)`, `mcrfpy.timers`, find(), and more (#430). An object you constructed comes back as itself. | Code that relied on getting a *fresh* wrapper (e.g. mutating it as a private copy) must copy explicitly. |
 | `entity.perspective_map = m` then reading it back returns `m` itself, with `m`'s own `enum_type` (previously a fresh map always typed with `mcrfpy.Perspective`). | — |
+| **`get_dijkstra_map()` never returns a stale map.** A cached map is rebuilt on the next request after a walkability edit, or after an entity carrying the `collide=` label moves. A `DijkstraMap` you hold is a snapshot and doesn't change when the grid does (#425). | Call `get_dijkstra_map()` again each turn instead of holding a map; it's cheap while nothing changed. `clear_dijkstra_maps()` is no longer needed for correctness. |
+| **`VisibilityMask` compares by value and is hashable.** `==` compares `origin`, `fov_radius`, `grid_size`, `cells`, and `light_walls`/`algorithm` when FOV ran; it ignores `tick`, so the same view on two frames is equal (#405). | Use `is` to tell two records apart, and `a.cells == b.cells` to compare only what was visible. |
+| `automation.click()` / `mouseDown()` / `mouseUp()` / `dragTo()` raise `ValueError` for an unknown `button=`, which used to click LEFT. `'x1'` and `'x2'` are accepted (#428). | — |
 
 ## New
 
@@ -120,6 +123,16 @@ removals that affect your code.
   back as a plain `Frame` with its attributes gone (#369, #373).
 - `insert()`, `extend()`, `__setitem__` and slice operations on collections now keep
   `.parent` correct; only `append()` used to (#377).
+
+**Wrong values**
+- Scrolling over a grid cell reported `MouseButton.X1` / `X2` to `on_cell_click`; it
+  now reports `SCROLL_UP` / `SCROLL_DOWN`. One converter now serves every input
+  dispatcher. The X1/X2 mouse buttons reach `on_click` and `on_cell_click` (they
+  were never delivered) (#428).
+- A cached Dijkstra map kept its old distances after the map changed, so a SEEKing
+  or FLEEing entity could walk into a new wall (#425).
+- `DijkstraMap.invert()` read freed memory if the map outlived its grid, and ignored
+  the `collide=` label it was built with (#425).
 
 **Silent no-ops**
 - `Grid.center_camera()` and `Grid.size = ...` used to do nothing (#370).
