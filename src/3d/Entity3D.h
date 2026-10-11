@@ -131,6 +131,13 @@ public:
     /// Set owning viewport (called when added to viewport)
     void setViewport(std::shared_ptr<Viewport3D> vp);
 
+    /// #438/#447: an Entity3D is in at most one viewport's list, at most once.
+    /// removeFromViewport() takes it out of its viewport's list and leaves the
+    /// back-reference for the caller's setViewport(); moveToViewport() is the whole
+    /// move (remove, append, setViewport). Callers hold their own strong ref.
+    void removeFromViewport();
+    void moveToViewport(const std::shared_ptr<Viewport3D>& vp);
+
     /// Update cell registration (call when grid position changes)
     void updateCellRegistration();
 

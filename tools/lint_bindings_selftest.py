@@ -156,6 +156,16 @@ void fire(std::shared_ptr<UIEntity>& e) {
     e->releasePyIdentity();
 }""", [("pin-direct", "read pyobject"), ("pin-direct", "read pyobject"),
        ("pin-direct", "releasePyIdentity() call")]),
+    ("entity pushed without leaving its old grid", """
+void attach(std::shared_ptr<GridData> g, std::shared_ptr<UIEntity> e) {
+    g->entities->push_back(e);
+    e->setGrid(g);
+}""", [("entity-unlinked", "g->entities->push_back")]),
+    ("entity pushed after removeFromGrid: ok", """
+void UIEntity::moveTo(std::shared_ptr<GridData> g) {
+    removeFromGrid();
+    g->entities->insert(g->entities->begin(), shared_from_this());
+}""", []),
     ("link without the cycle check", """
 int Foo::init(PyObject* self, PyObject* args) {
     child->setParent(self_data);

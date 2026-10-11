@@ -59,6 +59,33 @@ void UIEntity::setGrid(const std::shared_ptr<GridData>& owner)
     syncIdentityPin();
 }
 
+void UIEntity::removeFromGrid()
+{
+    auto grid = getGrid();
+    if (!grid || !grid->entities) return;
+    auto& list = *grid->entities;
+    auto it = std::find_if(list.begin(), list.end(),
+        [this](const std::shared_ptr<UIEntity>& e) { return e.get() == this; });
+    if (it == list.end()) return;
+    grid->spatial_hash.remove(*it);
+    list.erase(it);
+}
+
+void UIEntity::moveToGrid(const std::shared_ptr<GridData>& grid, Py_ssize_t index)
+{
+    const bool reorder = getGrid() == grid;
+    removeFromGrid();
+    auto& list = *grid->entities;
+    Py_ssize_t size = static_cast<Py_ssize_t>(list.size());
+    if (index < 0) index = std::max<Py_ssize_t>(0, index + size);
+    if (index > size) index = size;
+    list.insert(list.begin() + index, shared_from_this());
+    grid->spatial_hash.insert(shared_from_this());
+    if (reorder) grid->markDirty();  // same grid: setGrid() sees no change, but draw order did
+    // Last: a move between grids repaints both (#446) and keeps the pin (#436).
+    setGrid(grid);
+}
+
 void UIEntity::syncIdentityPin()
 {
     identity_pin.sync(!grid_.expired(), serial_number);
@@ -310,11 +337,19 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         return -1;
     }
 
+    // #447: re-running __init__ replaces the C++ entity. The old one leaves its grid
+    // and its identity first, or the grid would keep drawing an entity whose wrapper
+    // now speaks for another. (weakreflist is zeroed by tp_alloc; resetting it here
+    // on a re-init would orphan live weakrefs.)
+    if (self->data) {
+        std::shared_ptr<UIEntity> old = self->data;
+        old->removeFromGrid();
+        mcrf::unregister_wrapper(old->serial_number);
+        old->setGrid(nullptr);  // releases its pin on this wrapper; the caller holds a ref
+    }
+
     // Create the entity
     self->data = std::make_shared<UIEntity>();
-    
-    // Initialize weak reference list
-    self->weakreflist = NULL;
 
     if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
     // #436: a subclass wrapper is pinned while a grid owns the entity (setGrid()).
@@ -384,11 +419,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
             PyGridDataObject* pygrid = (PyGridDataObject*)grid_obj;
             grid_ptr = pygrid->data;
         }
-        if (grid_ptr) {
-            self->data->setGrid(grid_ptr);
-            grid_ptr->entities->push_back(self->data);
-            grid_ptr->spatial_hash.insert(self->data);
-        }
+        if (grid_ptr) self->data->moveToGrid(grid_ptr);  // #447
     }
     return 0;
 }
@@ -835,20 +866,8 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
 
     // Handle None - remove from current grid
     if (value == Py_None) {
-        if (self->data->getGrid()) {
-            // Remove from spatial hash before removing from entity list
-            self->data->getGrid()->spatial_hash.remove(self->data);
-            // Remove from current grid's entity list
-            auto& entities = self->data->getGrid()->entities;
-            auto it = std::find_if(entities->begin(), entities->end(),
-                [self](const std::shared_ptr<UIEntity>& e) {
-                    return e.get() == self->data.get();
-                });
-            if (it != entities->end()) {
-                entities->erase(it);
-            }
-            self->data->setGrid(nullptr);
-        }
+        self->data->removeFromGrid();  // #447
+        self->data->setGrid(nullptr);
         return 0;
     }
 
@@ -869,24 +888,9 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         return -1;
     }
 
-    // Remove from old grid first (if any)
-    if (self->data->getGrid() && self->data->getGrid() != new_grid) {
-        self->data->getGrid()->spatial_hash.remove(self->data);
-        auto& old_entities = self->data->getGrid()->entities;
-        auto it = std::find_if(old_entities->begin(), old_entities->end(),
-            [self](const std::shared_ptr<UIEntity>& e) {
-                return e.get() == self->data.get();
-            });
-        if (it != old_entities->end()) {
-            old_entities->erase(it);
-        }
-    }
-
-    // Add to new grid
+    // #447: a move, unless it is already there (assigning its own grid keeps its place).
     if (self->data->getGrid() != new_grid) {
-        new_grid->entities->push_back(self->data);
-        self->data->setGrid(new_grid);
-        new_grid->spatial_hash.insert(self->data);  // #274
+        self->data->moveToGrid(new_grid);
         // #294: perspective_map is lazy -- the next updateVisibility() call
         // (or first `entity.perspective_map` access) allocates sized to the
         // new grid. We deliberately do NOT preserve or clear the old map:
@@ -1098,24 +1102,9 @@ PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
         Py_RETURN_NONE;  // Entity not on a grid, nothing to do
     }
 
-    // Remove entity from grid's entity list
-    auto grid = self->data->getGrid();
-    auto& entities = grid->entities;
-
-    // Find and remove this entity from the list
-    auto it = std::find_if(entities->begin(), entities->end(),
-        [self](const std::shared_ptr<UIEntity>& e) {
-            return e.get() == self->data.get();
-        });
-
-    if (it != entities->end()) {
-        // Remove from spatial hash before erasing (#115)
-        grid->spatial_hash.remove(self->data);
-
-        entities->erase(it);
-        // Clear the grid reference
-        self->data->setGrid(nullptr);
-    }
+    std::shared_ptr<UIEntity> keep = self->data;  // setGrid(nullptr) may release the wrapper
+    keep->removeFromGrid();  // #447
+    keep->setGrid(nullptr);
 
     Py_RETURN_NONE;
 }

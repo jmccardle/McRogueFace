@@ -1,6 +1,7 @@
 // Entity3D.cpp - 3D game entity implementation
 
 #include "Entity3D.h"
+#include <algorithm>
 #include "Viewport3D.h"
 #include "VoxelPoint.h"
 #include "Model3D.h"
@@ -153,6 +154,24 @@ void Entity3D::setViewport(std::shared_ptr<Viewport3D> vp)
     // drop the last reference to the wrapper, and with it this entity, when the caller
     // holds no shared_ptr of its own.
     syncIdentityPin();
+}
+
+void Entity3D::removeFromViewport()
+{
+    auto vp = getViewport();
+    if (!vp) return;
+    auto list = vp->getEntities();
+    if (!list) return;
+    auto it = std::find_if(list->begin(), list->end(),
+        [this](const std::shared_ptr<Entity3D>& e) { return e.get() == this; });
+    if (it != list->end()) list->erase(it);
+}
+
+void Entity3D::moveToViewport(const std::shared_ptr<Viewport3D>& vp)
+{
+    removeFromViewport();
+    vp->getEntities()->push_back(shared_from_this());
+    setViewport(vp);  // last: syncs the pin (#436)
 }
 
 void Entity3D::syncIdentityPin()

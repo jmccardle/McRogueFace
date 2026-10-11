@@ -1,6 +1,7 @@
 // EntityCollection3D.cpp - Python collection for Entity3D objects
 
 #include "EntityCollection3D.h"
+#include <algorithm>
 #include "Entity3D.h"
 #include "Viewport3D.h"
 #include "PyWrap.h"
@@ -135,18 +136,12 @@ PyObject* EntityCollection3D::append(PyEntityCollection3DObject* self, PyObject*
         return NULL;
     }
 
-    // Remove from old viewport if any
-    auto old_vp = entity_obj->data->getViewport();
-    if (old_vp && old_vp != self->viewport) {
-        // TODO: Implement removal from old viewport
-        // For now, just warn
+    if (!self->viewport) {
+        PyErr_SetString(PyExc_RuntimeError, "EntityCollection3D has no viewport");
+        return NULL;
     }
-
-    // Add to this viewport's collection
-    self->data->push_back(entity_obj->data);
-
-    // Set the entity's viewport
-    entity_obj->data->setViewport(self->viewport);
+    // #438/#447: from another viewport, or to the end of this one -- never in two.
+    entity_obj->data->moveToViewport(self->viewport);
 
     Py_RETURN_NONE;
 }
@@ -267,6 +262,12 @@ PyObject* EntityCollection3D::extend(PyEntityCollection3DObject* self, PyObject*
             PyErr_SetString(PyExc_ValueError, "Entity3D has no data");
             return NULL;
         }
+        if (std::find(to_add.begin(), to_add.end(), entity_obj->data) != to_add.end()) {  // #447
+            Py_DECREF(item);
+            Py_DECREF(iterator);
+            PyErr_SetString(PyExc_ValueError, "extend(): the same Entity3D appears twice");
+            return NULL;
+        }
         to_add.push_back(entity_obj->data);
         Py_DECREF(item);
     }
@@ -276,10 +277,13 @@ PyObject* EntityCollection3D::extend(PyEntityCollection3DObject* self, PyObject*
         return NULL;
     }
 
-    // Second pass: append all validated entities
+    if (!self->viewport) {
+        PyErr_SetString(PyExc_RuntimeError, "EntityCollection3D has no viewport");
+        return NULL;
+    }
+    // Second pass: move all validated entities (#438/#447)
     for (auto& entity : to_add) {
-        self->data->push_back(entity);
-        entity->setViewport(self->viewport);
+        entity->moveToViewport(self->viewport);
     }
 
     Py_RETURN_NONE;

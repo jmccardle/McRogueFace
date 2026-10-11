@@ -210,21 +210,19 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
     }
     if (!can_link(self, new_drawable)) return -1;
 
-    // #183: Remove from old parent, which may be a scene rather than a drawable.
-    // Do this BEFORE indexing: if the incoming drawable is already a member of THIS
-    // collection, detaching it erases it from `vec` and shifts every later element,
-    // so an index validated against the old size could write past the end.
-    new_drawable->removeFromParent();
-
-    if (index >= static_cast<Py_ssize_t>(vec->size())) {
-        PyErr_SetString(PyExc_IndexError, "UICollection assignment index out of range");
-        return -1;
-    }
-
-    // Hold a strong ref: unlinking may release the last ref to the old element's
-    // Python wrapper, whose dealloc drops the wrapper's shared_ptr to it.
+    // #447: replace the element that is at `index` NOW. Hold a strong ref: unlinking
+    // may release the last ref to its Python wrapper, whose dealloc drops the
+    // wrapper's shared_ptr to it.
     std::shared_ptr<UIDrawable> old_drawable = (*vec)[index];
+    if (old_drawable == new_drawable) return 0;
     int old_z_index = old_drawable->z_index;  // Preserve the z_index
+
+    // #183: Remove from old parent, which may be a scene rather than a drawable. If
+    // that is THIS collection, the erase shifts later elements, so find the target
+    // again afterwards rather than trusting `index`.
+    new_drawable->removeFromParent();
+    auto pos = std::find(vec->begin(), vec->end(), old_drawable);
+    index = pos - vec->begin();
 
     // #122: Clear parent of old element
     unlink_child(old_drawable);
@@ -486,6 +484,11 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
                 
                 Py_DECREF(item);
                 if (!can_link(self, drawable)) return -1;
+                if (std::find(new_items.begin(), new_items.end(), drawable) != new_items.end()) {
+                    PyErr_SetString(PyExc_ValueError,
+                        "UICollection slice assignment: the same drawable appears twice");
+                    return -1;
+                }
                 new_items.push_back(drawable);
             }
             
@@ -505,24 +508,36 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
             // `previous` also holds a strong ref to every displaced element, so
             // unlinking one (which may release the last ref to its Python wrapper,
             // whose dealloc drops the wrapper's shared_ptr) cannot free it under us.
+            //
+            // #447: an incoming item that is already a member outside the slice MOVES
+            // into it -- its old slot is dropped, never duplicated.
             std::vector<std::shared_ptr<UIDrawable>> previous = *self->data;
-            std::vector<std::shared_ptr<UIDrawable>> result = previous;
+            auto incoming = [&](const std::shared_ptr<UIDrawable>& d) {
+                return std::find(new_items.begin(), new_items.end(), d) != new_items.end();
+            };
+            std::vector<std::shared_ptr<UIDrawable>> result;
 
             if (step == 1) {
-                if (slicelength != value_len) {
-                    result.erase(result.begin() + start, result.begin() + stop);
-                    result.insert(result.begin() + start, new_items.begin(), new_items.end());
-                } else {
+                if (slicelength == value_len) {
                     for (Py_ssize_t i = 0; i < slicelength; i++) {
                         new_items[i]->z_index = previous[start + i]->z_index;  // Preserve z_index
-                        result[start + i] = new_items[i];
                     }
                 }
+                for (Py_ssize_t k = 0; k < start; k++)
+                    if (!incoming(previous[k])) result.push_back(previous[k]);
+                result.insert(result.end(), new_items.begin(), new_items.end());
+                for (Py_ssize_t k = stop; k < static_cast<Py_ssize_t>(previous.size()); k++)
+                    if (!incoming(previous[k])) result.push_back(previous[k]);
             } else {
+                std::vector<std::shared_ptr<UIDrawable>> slots = previous;
+                std::vector<bool> assigned(slots.size(), false);
                 for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
                     new_items[i]->z_index = previous[cur]->z_index;  // Preserve z_index
-                    result[cur] = new_items[i];
+                    slots[cur] = new_items[i];
+                    assigned[cur] = true;
                 }
+                for (size_t k = 0; k < slots.size(); k++)
+                    if (assigned[k] || !incoming(slots[k])) result.push_back(slots[k]);
             }
 
             auto contains_ptr = [](const std::vector<std::shared_ptr<UIDrawable>>& v,
@@ -669,6 +684,11 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
         }
         if (!can_link(self, drawable)) {
             Py_DECREF(iterator);
+            return NULL;
+        }
+        if (std::find(items.begin(), items.end(), drawable) != items.end()) {  // #447
+            Py_DECREF(iterator);
+            PyErr_SetString(PyExc_ValueError, "UICollection.extend: the same drawable appears twice");
             return NULL;
         }
         items.push_back(drawable);

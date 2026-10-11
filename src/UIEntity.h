@@ -81,6 +81,16 @@ public:
     // #436: the single choke point for an entity's owner. Updates the back-reference
     // and the identity pin; callers maintain the grid's entity list and spatial hash.
     void setGrid(const std::shared_ptr<GridData>& owner);
+    // #447: an entity is a member of at most ONE grid, at most once -- the entity
+    // counterpart of UIDrawable::removeFromParent(). removeFromGrid() takes it out of
+    // its grid's entity list and spatial hash and leaves the back-reference for the
+    // caller's setGrid(): every path that adds an entity to a list calls it first
+    // (lint: entity-unlinked). moveToGrid() is the whole move: removeFromGrid, insert
+    // at `index` (Python list.insert semantics, resolved AFTER the removal, so an
+    // entity already in `grid` moves), spatial hash, setGrid. Callers hold their own
+    // strong ref to the entity.
+    void removeFromGrid();
+    void moveToGrid(const std::shared_ptr<GridData>& grid, Py_ssize_t index = PY_SSIZE_T_MAX);
     // Per-entity perspective memory (#294): 3-state DiscreteMap --
     // 0 = unknown, 1 = discovered, 2 = visible. Lazily allocated on first
     // access to entity.perspective_map (when a grid is set) and whenever
