@@ -408,6 +408,18 @@ PyObject* PySoundBuffer::sfxr(PyObject* cls, PyObject* args, PyObject* kwds) {
 // DSP effect methods (each returns new SoundBuffer)
 // ============================================================================
 
+// Effect arguments must be finite: NaN/inf reached float->integer casts (UB) and
+// poisoned every sample. Raises ValueError naming the argument.
+static bool finite_args(std::initializer_list<std::pair<const char*, double>> args) {
+    for (const auto& [name, v] : args) {
+        if (!std::isfinite(v)) {
+            PyErr_Format(PyExc_ValueError, "%s must be a finite number", name);
+            return false;
+        }
+    }
+    return true;
+}
+
 PyObject* PySoundBuffer::pitch_shift(PySoundBufferObject* self, PyObject* args) {
     double factor;
     if (!PyArg_ParseTuple(args, "d", &factor)) return NULL;
@@ -422,6 +434,7 @@ PyObject* PySoundBuffer::pitch_shift(PySoundBufferObject* self, PyObject* args) 
 PyObject* PySoundBuffer::low_pass(PySoundBufferObject* self, PyObject* args) {
     double cutoff;
     if (!PyArg_ParseTuple(args, "d", &cutoff)) return NULL;
+    if (!finite_args({{"cutoff", cutoff}})) return NULL;
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
 
     auto result = AudioEffects::lowPass(self->data->samples, self->data->sampleRate, self->data->channels, cutoff);
@@ -432,6 +445,7 @@ PyObject* PySoundBuffer::low_pass(PySoundBufferObject* self, PyObject* args) {
 PyObject* PySoundBuffer::high_pass(PySoundBufferObject* self, PyObject* args) {
     double cutoff;
     if (!PyArg_ParseTuple(args, "d", &cutoff)) return NULL;
+    if (!finite_args({{"cutoff", cutoff}})) return NULL;
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
 
     auto result = AudioEffects::highPass(self->data->samples, self->data->sampleRate, self->data->channels, cutoff);
@@ -442,6 +456,8 @@ PyObject* PySoundBuffer::high_pass(PySoundBufferObject* self, PyObject* args) {
 PyObject* PySoundBuffer::echo(PySoundBufferObject* self, PyObject* args) {
     double delay_ms, feedback, wet;
     if (!PyArg_ParseTuple(args, "ddd", &delay_ms, &feedback, &wet)) return NULL;
+    if (!finite_args({{"delay_ms", delay_ms}, {"feedback", feedback}, {"wet", wet}})) return NULL;
+    if (delay_ms < 0.0) { PyErr_SetString(PyExc_ValueError, "delay_ms must be >= 0"); return NULL; }
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
 
     auto result = AudioEffects::echo(self->data->samples, self->data->sampleRate, self->data->channels,
@@ -453,6 +469,7 @@ PyObject* PySoundBuffer::echo(PySoundBufferObject* self, PyObject* args) {
 PyObject* PySoundBuffer::reverb(PySoundBufferObject* self, PyObject* args) {
     double room_size, damping, wet;
     if (!PyArg_ParseTuple(args, "ddd", &room_size, &damping, &wet)) return NULL;
+    if (!finite_args({{"room_size", room_size}, {"damping", damping}, {"wet", wet}})) return NULL;
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
 
     auto result = AudioEffects::reverb(self->data->samples, self->data->sampleRate, self->data->channels,
@@ -464,6 +481,7 @@ PyObject* PySoundBuffer::reverb(PySoundBufferObject* self, PyObject* args) {
 PyObject* PySoundBuffer::distortion(PySoundBufferObject* self, PyObject* args) {
     double drive;
     if (!PyArg_ParseTuple(args, "d", &drive)) return NULL;
+    if (!finite_args({{"drive", drive}})) return NULL;
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
 
     auto result = AudioEffects::distortion(self->data->samples, drive);
@@ -484,6 +502,7 @@ PyObject* PySoundBuffer::bit_crush(PySoundBufferObject* self, PyObject* args) {
 PyObject* PySoundBuffer::gain(PySoundBufferObject* self, PyObject* args) {
     double factor;
     if (!PyArg_ParseTuple(args, "d", &factor)) return NULL;
+    if (!finite_args({{"factor", factor}})) return NULL;
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
 
     auto result = AudioEffects::gain(self->data->samples, factor);
@@ -510,6 +529,7 @@ PyObject* PySoundBuffer::reverse(PySoundBufferObject* self, PyObject* args) {
 PyObject* PySoundBuffer::slice(PySoundBufferObject* self, PyObject* args) {
     double startSec, endSec;
     if (!PyArg_ParseTuple(args, "dd", &startSec, &endSec)) return NULL;
+    if (!finite_args({{"start", startSec}, {"end", endSec}})) return NULL;
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
 
     auto result = AudioEffects::slice(self->data->samples, self->data->sampleRate, self->data->channels,

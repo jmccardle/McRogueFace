@@ -752,14 +752,7 @@ PyObject* UIEntity::get_grid_int_member(PyUIEntityObject* self, void* closure) {
 
 int UIEntity::set_grid_int_member(PyUIEntityObject* self, PyObject* value, void* closure) {
     int val;
-    if (PyLong_Check(value)) {
-        val = PyLong_AsLong(value);
-    } else if (PyFloat_Check(value)) {
-        val = static_cast<int>(PyFloat_AsDouble(value));
-    } else {
-        PyErr_SetString(PyExc_TypeError, "Grid position must be an integer");
-        return -1;
-    }
+    if (!mcrf::to_int(value, val, "grid position")) return -1;
 
     // Save old position for spatial hash update
     float old_x = self->data->position.x;
@@ -895,8 +888,8 @@ PyObject* UIEntity::get_tile_size(PyUIEntityObject* self, void* closure) {
 int UIEntity::set_tile_size(PyUIEntityObject* self, PyObject* value, void* closure) {
     sf::Vector2f vec = PyObject_to_sfVector2f(value);
     if (PyErr_Occurred()) return -1;
-    int tw = static_cast<int>(vec.x);
-    int th = static_cast<int>(vec.y);
+    int tw, th;
+    if (!mcrf::to_int(vec.x, tw, "tile_size") || !mcrf::to_int(vec.y, th, "tile_size")) return -1;
     if (tw < 1 || th < 1) {
         PyErr_SetString(PyExc_ValueError, "tile_size components must be >= 1");
         return -1;
@@ -1438,7 +1431,9 @@ PyObject* UIEntity::get_default_behavior(PyUIEntityObject* self, void* closure) 
 int UIEntity::set_default_behavior(PyUIEntityObject* self, PyObject* value, void* closure) {
     long val = PyLong_AsLong(value);
     if (val == -1 && PyErr_Occurred()) return -1;
-    self->data->default_behavior = static_cast<int>(val);
+    int ival;
+    if (!mcrf::to_int(static_cast<double>(val), ival, "default_behavior")) return -1;
+    self->data->default_behavior = ival;
     return 0;
 }
 
@@ -1454,7 +1449,9 @@ PyObject* UIEntity::get_turn_order(PyUIEntityObject* self, void* closure) {
 int UIEntity::set_turn_order(PyUIEntityObject* self, PyObject* value, void* closure) {
     long val = PyLong_AsLong(value);
     if (val == -1 && PyErr_Occurred()) return -1;
-    self->data->turn_order = static_cast<int>(val);
+    int ival;
+    if (!mcrf::to_int(static_cast<double>(val), ival, "turn_order")) return -1;
+    self->data->turn_order = ival;
     return 0;
 }
 
@@ -1494,7 +1491,9 @@ PyObject* UIEntity::get_sight_radius(PyUIEntityObject* self, void* closure) {
 int UIEntity::set_sight_radius(PyUIEntityObject* self, PyObject* value, void* closure) {
     long val = PyLong_AsLong(value);
     if (val == -1 && PyErr_Occurred()) return -1;
-    self->data->sight_radius = static_cast<int>(val);
+    int ival;
+    if (!mcrf::to_int(static_cast<double>(val), ival, "sight_radius")) return -1;
+    self->data->sight_radius = ival;
     return 0;
 }
 
@@ -1615,8 +1614,10 @@ int UIEntity::set_cell_pos(PyUIEntityObject* self, PyObject* value, void* closur
     sf::Vector2f vec = PyObject_to_sfVector2f(value);
     if (PyErr_Occurred()) return -1;
 
-    self->data->cell_position.x = static_cast<int>(vec.x);
-    self->data->cell_position.y = static_cast<int>(vec.y);
+    int cx, cy;
+    if (!mcrf::to_int(vec.x, cx, "cell_pos") || !mcrf::to_int(vec.y, cy, "cell_pos")) return -1;
+    self->data->cell_position.x = cx;
+    self->data->cell_position.y = cy;
 
     // Update spatial hash
     if (self->data->getGrid()) {
@@ -1634,8 +1635,10 @@ PyObject* UIEntity::get_cell_member(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_cell_member(PyUIEntityObject* self, PyObject* value, void* closure) {
-    long val = PyLong_AsLong(value);
-    if (val == -1 && PyErr_Occurred()) return -1;
+    long lval = PyLong_AsLong(value);
+    if (lval == -1 && PyErr_Occurred()) return -1;
+    int val;
+    if (!mcrf::to_int(static_cast<double>(lval), val, "cell position")) return -1;
 
     int old_x = self->data->cell_position.x;
     int old_y = self->data->cell_position.y;

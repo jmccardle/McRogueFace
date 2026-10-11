@@ -101,8 +101,11 @@ std::vector<int16_t> echo(const std::vector<int16_t>& samples, unsigned int samp
                           double delayMs, double feedback, double wet) {
     if (samples.empty()) return samples;
 
-    size_t delaySamples = static_cast<size_t>(delayMs * sampleRate * channels / 1000.0);
-    if (delaySamples == 0) return samples;
+    // In double first: a delay past the end never lands, and casting a value
+    // beyond size_t's range is UB (audio_dsp fuzz target).
+    const double delayExact = delayMs * sampleRate * channels / 1000.0;
+    if (!(delayExact >= 1.0) || delayExact >= static_cast<double>(samples.size())) return samples;
+    size_t delaySamples = static_cast<size_t>(delayExact);
 
     std::vector<double> delay(delaySamples, 0.0);
     std::vector<int16_t> result(samples.size());
@@ -333,11 +336,12 @@ std::vector<int16_t> slice(const std::vector<int16_t>& samples, unsigned int sam
     if (samples.empty()) return {};
 
     size_t frames = samples.size() / channels;
-    size_t startFrame = static_cast<size_t>(std::max(0.0, startSec) * sampleRate);
-    size_t endFrame = static_cast<size_t>(std::max(0.0, endSec) * sampleRate);
-
-    startFrame = std::min(startFrame, frames);
-    endFrame = std::min(endFrame, frames);
+    // Clamp in double, then cast: an out-of-range double -> size_t cast is UB.
+    auto frame_at = [&](double sec) {
+        return static_cast<size_t>(std::clamp(sec * sampleRate, 0.0, static_cast<double>(frames)));
+    };
+    size_t startFrame = frame_at(startSec);
+    size_t endFrame = frame_at(endSec);
 
     if (startFrame >= endFrame) return {};
 
