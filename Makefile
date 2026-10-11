@@ -381,7 +381,7 @@ tsan-test: tsan
 	cd tests && MCRF_BUILD_DIR=../build-tsan \
 		MCRF_LIB_DIR=../__lib_tsan \
 		MCRF_TIMEOUT_MULTIPLIER=10 \
-		TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1" \
+		TSAN_OPTIONS="halt_on_error=1:second_deadlock_stack=1:suppressions=$(CURDIR)/sanitizers/tsan.supp" \
 		python3 run_tests.py -v --sanitizer --exclude=packaging
 
 valgrind-test: debug

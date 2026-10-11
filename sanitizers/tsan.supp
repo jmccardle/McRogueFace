@@ -1,0 +1,17 @@
+# McRogueFace ThreadSanitizer Suppression File
+#
+# Only third-party code that TSan cannot see synchronise. An engine frame never
+# belongs here: a race whose accesses are in src/ is a bug.
+#
+# Mesa's threaded-context worker (thread "gdrv0", started on first render) and the
+# main thread share driver-owned buffers. The driver isn't instrumented, so its
+# futex/atomic sync is invisible and every GL-drawing test reports a memcpy race
+# inside iris_dri.so. Mesa >= 24 ships the drivers as libgallium-*.so; that line is
+# untested here (this machine has iris_dri.so).
+race:*_dri.so
+race:libgallium*.so
+#
+# SFML 2.6: Shader::isAvailable() takes its own mutex, then the transient-context
+# mutex; another path takes them in the other order. Both are taken on the main
+# thread (only the main thread touches GL), so the inversion cannot deadlock.
+deadlock:sf::priv::GlContext::acquireTransientContext
