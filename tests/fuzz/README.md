@@ -20,7 +20,7 @@ make fuzz-build
 ```
 
 Produces `build-fuzz/mcrfpy_fuzz`, a single libFuzzer-linked executable. All
-six fuzz targets share this binary — target selection is by env var.
+fuzz targets share this binary — target selection is by env var.
 
 ## Run
 
@@ -50,6 +50,7 @@ dir). Seed inputs committed to `tests/fuzz/seeds/<target>/` are read-only.
 | `fuzz_import_parsers.py` | Tiled/LDtk external file parsers (`TileSetFile`/`TileMapFile`/`LdtkProject`) via temp-file mutation of real fixtures | #312 |
 | `fuzz_texture_factory.py` | `Texture.from_bytes`/`composite`/`hsl_shift` byte-ingestion + pixel transforms | #312 |
 | `fuzz_shader_bindings.py` | Shader uniform binding lifetime: `uniforms[]`, `PropertyBinding`/`CallableBinding`, target destroyed mid-flight (#270/#271/#277 pattern) | #312 |
+| `fuzz_drawable_tree.py` | Drawable membership across Frames/GridViews/Scenes (append/insert/extend/`[i]=`/slices/del/remove/pop/`parent=`), cycle refusal, identity pins for Python subclasses, `on_click` closures through GC, shared GridData, entity/layer moves, `cache_subtree`. Asserts invariants; an `AssertionError` calls `os.abort()` so libFuzzer records it | #436 #441-#443 #446 #447 |
 
 Tier C surfaces from #312 are folded into existing targets rather than new
 files: Line/Circle/Arc, `Scene.children` collection ops, and `find`/`find_all`/
