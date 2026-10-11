@@ -2,6 +2,7 @@
 #include "Common.h"
 #include "Python.h"
 #include "UIDrawable.h"
+#include "Display.h"
 #include "PyDrawable.h"
 
 class UICaption: public UIDrawable
@@ -140,6 +141,8 @@ namespace mcrfpydef {
         // TODO - move tp_new to .cpp file as a static function (UICaption::new)
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
+            // #451: text is laid out from the font's glyph atlas, a GL texture
+            if (!mcrf::require_display_py("Caption()")) return NULL;
             PyUICaptionObject* self = (PyUICaptionObject*)type->tp_alloc(type, 0);
             if (self) {
                 self->data = std::make_shared<UICaption>();

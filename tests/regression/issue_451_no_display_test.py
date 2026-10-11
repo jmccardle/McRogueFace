@@ -55,13 +55,20 @@ check(out is not None and out.returncode == 0 and out.stdout.strip(),
 # --- 2. pure-Python engine work runs; creating a GL resource raises RuntimeError ---
 probe = r'''
 import mcrfpy
-mcrfpy.Frame(pos=(0, 0), size=(10, 10))
-mcrfpy.Caption(text="no display")
+f = mcrfpy.Frame(pos=(0, 0), size=(10, 10))
+f.clip_children = True          # its render texture is made when it's drawn
+f.cache_subtree = True
+f.w = 40
+f.children.append(mcrfpy.Frame(pos=(1, 1), size=(5, 5)))
+layer = mcrfpy.ColorLayer(name="fog", z_index=1)   # chunk textures too
 scene = mcrfpy.Scene("s451")
+scene.children.append(f)
 scene.activate()
 mcrfpy.step(0.1)
 print("PURE OK", mcrfpy.automation.size())
 cases = {
+    "Caption": lambda: mcrfpy.Caption(text="no display"),
+    "Shader": lambda: mcrfpy.Shader("void main() { gl_FragColor = vec4(1.0); }"),
     "Texture": lambda: mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16),
     "default_texture": lambda: mcrfpy.default_texture,
     "Sprite": lambda: mcrfpy.Sprite(),
@@ -80,8 +87,10 @@ out = run("-c", probe)
 text = (out.stdout + out.stderr) if out else ""
 check(out is not None and out.returncode == 0, "the probe exits cleanly (rc=%s)" % (out and out.returncode))
 check("PURE OK <Vector (1024, 768)>" in text,
-      "Frame, Caption, a scene, step() and automation.size() need no display")
-for name in ("Texture", "default_texture", "Sprite", "Grid", "screenshot", "transition"):
+      "Frames (clipping, cached, resized), a ColorLayer, a scene, step() and "
+      "automation.size() need no display")
+for name in ("Caption", "Shader", "Texture", "default_texture", "Sprite", "Grid", "screenshot",
+             "transition"):
     check("RAISED %s True" % name in text, "%s raises RuntimeError saying it needs a display" % name)
 check("Aborted" not in text and "core dumped" not in text, "nothing aborts")
 

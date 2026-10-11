@@ -253,6 +253,21 @@ static PyObject* mcrfpy_get_save_dir(PyObject* self, void* closure)
 
 // #451: the default texture is a GL resource, so it is created by its first use, not at
 // import: a process that never draws a sprite never needs a display for it.
+static PyObject* mcrfpy_get_default_font(PyObject* self, void* closure)
+{
+    return McRFPy_API::defaultFont()->pyObject();
+}
+
+static int mcrfpy_set_default_font(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value || !PyObject_TypeCheck(value, &mcrfpydef::PyFontType)) {
+        PyErr_SetString(PyExc_TypeError, "default_font must be a Font");
+        return -1;
+    }
+    McRFPy_API::default_font = ((PyFontObject*)value)->data;
+    return 0;
+}
+
 static PyObject* mcrfpy_get_default_texture(PyObject* self, void* closure)
 {
     auto texture = McRFPy_API::defaultTexture();
@@ -297,6 +312,11 @@ static PyGetSetDef mcrfpy_module_getset[] = {
      mcrfpy_set_default_transition_duration,
      MCRF_PROPERTY(default_transition_duration,
          "Default scene-transition duration in seconds (float). Must be non-negative."
+     ), NULL},
+    {"default_font", mcrfpy_get_default_font, mcrfpy_set_default_font,
+     MCRF_PROPERTY(default_font,
+         "Font used by Caption when none is given (Font). Loaded from "
+         "assets/JetbrainsMono.ttf on first use; assign a Font to replace it."
      ), NULL},
     {"default_texture", mcrfpy_get_default_texture, mcrfpy_set_default_texture,
      MCRF_PROPERTY(default_texture,
@@ -975,9 +995,7 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
     PyModule_AddObject(m, "Grid", (PyObject*)&mcrfpydef::PyUIGridViewType);
 
     // Add default_font and default_texture to module
-    McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
-    // Set later, once the engine exists. (default_texture is a module property, #451.)
-    PyModule_AddObject(m, "default_font", Py_None);
+    // default_font and default_texture are module properties, loaded on first use (#451).
 
     // Add keyboard singleton (#160)
     PyObject* keyboard_instance = PyObject_CallObject((PyObject*)&PyKeyboardType, NULL);
@@ -1515,8 +1533,6 @@ void McRFPy_API::api_init() {
         std::cout << PyUnicode_AsUTF8(repr.get()) << std::endl;
     }
 
-    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
-
     //sprite.setTexture(texture);
     //sprite.setScale(sf::Vector2f(4.0f, 4.0f));
     //setSpriteTexture(0);
@@ -1540,10 +1556,6 @@ void McRFPy_API::api_init(const McRogueFaceConfig& config) {
     // Execute based on mode - this is handled in main.cpp now
     // The actual execution logic is in run_python_interpreter()
     
-    // Set up default resources only if in game mode
-    if (!config.python_mode) {
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
-    }
 }
 
 void McRFPy_API::executeScript(std::string filename, bool main_script)
@@ -1657,6 +1669,12 @@ int McRFPy_API::runScriptSource(const std::string& source, const std::string& pa
         return -1;
     }
     return 0;
+}
+
+std::shared_ptr<PyFont> McRFPy_API::defaultFont()
+{
+    if (!default_font) default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
+    return default_font;
 }
 
 std::shared_ptr<PyTexture> McRFPy_API::defaultTexture()

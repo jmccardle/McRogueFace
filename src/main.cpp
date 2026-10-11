@@ -75,11 +75,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
         PyErr_Print();
         std::cerr << "Failed to import mcrfpy module" << std::endl;
     } else {
-        // Set up default_font if not already done. default_texture loads on first use (#451).
-        if (!McRFPy_API::default_font) {
-            McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
-        }
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
+        // default_font and default_texture are loaded on first use (#451).
     }
 
     // Handle different Python modes

@@ -111,15 +111,17 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     // start; headless leaves it unclaimed until the first step()/advance().
     if (!headless) claimClock();
 
-    Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
+    // The engine font is loaded by getFont(), on first use (#451).
     Resources::game = this;
     window_title = "McRogueFace Engine";
 
     // Ensure save/ directory exists for persistent game data
 #ifndef __EMSCRIPTEN__
-    // Desktop: create save/ in working directory (WASM uses IDBFS mount from JS)
+    // Desktop: create save/ in working directory (WASM uses IDBFS mount from JS).
+    // Not for -c / -m, which run no game and may be run from any directory (#451).
+    const bool runs_game = cfg.python_command.empty() && cfg.python_module.empty();
     struct stat st;
-    if (stat("save", &st) != 0) {
+    if (runs_game && stat("save", &st) != 0) {
 #ifdef _WIN32
         mkdir("save");
 #else
@@ -181,7 +183,8 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     mcrf::audio::configure(config.audio_enabled);  // #406: before any Python runs
 
     // Initialize profiler overlay
-    profilerOverlay = new ProfilerOverlay(Resources::font);
+    // (Never shown headless, and it would load the font, #451.)
+    if (!headless) profilerOverlay = new ProfilerOverlay(getFont());
     
     // Only load game.py if no custom script/command/module/exec is specified
     bool should_load_game = config.script_path.empty() && 
@@ -347,7 +350,15 @@ void GameEngine::changeScene(std::string sceneName, TransitionType transitionTyp
 }
 void GameEngine::quit() { running = false; }
 void GameEngine::setPause(bool p) { paused = p; }
-sf::Font & GameEngine::getFont() { /*return font; */ return Resources::font; }
+sf::Font & GameEngine::getFont() {
+    // Loaded on first use, not at startup (#451): -c / -m runs from any directory.
+    static bool loaded = false;
+    if (!loaded) {
+        loaded = true;
+        Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
+    }
+    return Resources::font;
+}
 sf::RenderWindow & GameEngine::getWindow() { 
     if (!window) {
         throw std::runtime_error("Window not available in headless mode");

@@ -426,13 +426,19 @@ public:
 
 protected:
     // RenderTexture support (opt-in)
+    // #451: enableRenderTexture() records the size; the texture (a GL resource) is created
+    // by realizeRenderTexture() when the drawable is first drawn.
     std::unique_ptr<sf::RenderTexture> render_texture;
+    sf::Vector2u render_texture_size{0, 0};
     sf::Sprite render_sprite;
     bool use_render_texture = false;
     bool render_dirty = true;
     
     // Enable RenderTexture for this drawable
     void enableRenderTexture(unsigned int width, unsigned int height);
+    // Creates the texture enableRenderTexture() asked for, if it doesn't exist yet. False
+    // (and render textures off) when it can't be created.
+    bool realizeRenderTexture();
     void updateRenderTexture();
 
     // Disable RenderTexture for this drawable (public for property setters)

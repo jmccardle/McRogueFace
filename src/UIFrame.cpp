@@ -162,7 +162,7 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
         }
 
         // Fall back to standard rendering if texture not available (e.g., zero size)
-        if (!use_render_texture) {
+        if (!realizeRenderTexture()) {
             use_texture = false;  // Force standard path for this render call
         }
     }

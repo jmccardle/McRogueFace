@@ -577,9 +577,9 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         Py_XSETREF(self->font, font);
     } else {
         // Use default font when None or not provided
-        if (McRFPy_API::default_font) {
-            self->data->text.setFont(McRFPy_API::default_font->font);
-            Py_XSETREF(self->font, McRFPy_API::default_font->pyObject());
+        if (auto default_font = McRFPy_API::defaultFont()) {
+            self->data->text.setFont(default_font->font);
+            Py_XSETREF(self->font, default_font->pyObject());
         }
     }
 

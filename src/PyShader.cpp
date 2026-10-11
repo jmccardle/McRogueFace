@@ -1,4 +1,5 @@
 #include "PyShader.h"
+#include "Display.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "GameEngine.h"
@@ -78,6 +79,7 @@ int PyShader::init(PyShaderObject* self, PyObject* args, PyObject* kwds)
                                      &source, &dynamic)) {
         return -1;
     }
+    if (!mcrf::require_display_py("Shader()")) return -1;  // #451: compiled on the GPU
 
     // Check if shaders are available
     if (!sf::Shader::isAvailable()) {

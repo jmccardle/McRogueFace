@@ -1,4 +1,5 @@
 #include "UISprite.h"
+#include "Display.h"
 #include "PyWrap.h"
 #include "GameEngine.h"
 #include "PyVector.h"
@@ -559,6 +560,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
                 return -1;
             }
 
+            if (!mcrf::require_display_py("Sprite(snapshot=...)")) return -1;  // #451
             sf::RenderTexture render_tex;
             if (!render_tex.create(static_cast<unsigned int>(bounds.width),
                                    static_cast<unsigned int>(bounds.height))) {

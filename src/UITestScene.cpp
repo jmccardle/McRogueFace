@@ -6,7 +6,6 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
 {
     registerAction(ActionCode::KEY + sf::Keyboard::Grave, "debug_menu");
 
-    text.setFont(game->getFont());
     text.setString("UITest: surprised to be here? game.py raised an exception.");
     text.setCharacterSize(24);
 
@@ -35,6 +34,7 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
 void UITestScene::buildElements()
 {
     built = true;
+    text.setFont(game->getFont());
     // Create a UI element or three?
     auto e1 = std::make_shared<UIFrame>(100,150,400,400);
     e1->box.setPosition(100, 150);
