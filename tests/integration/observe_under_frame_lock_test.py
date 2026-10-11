@@ -211,7 +211,9 @@ thread.start()
 deadline = time.monotonic() + DEADLINE_SECONDS
 steps = 0
 while not reader_done.is_set() and time.monotonic() < deadline:
-    mcrfpy.step(1.0)
+    # One mover firing per frame: the timer is 1 ms, and since #397 a wider step catches
+    # up (step(1.0) would fire it 1000 times per frame, each sleeping 2 ms).
+    mcrfpy.step(0.001)
     steps += 1
 
 mover.stop()

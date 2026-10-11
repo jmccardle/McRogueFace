@@ -106,6 +106,9 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
 {
     // #219 - Store main thread ID for lock() thread detection
     main_thread_id = std::this_thread::get_id();
+    // #411 - A windowed engine's clock belongs to its display loop on this thread from the
+    // start; headless leaves it unclaimed until the first step()/advance().
+    if (!headless) claimClock();
 
     Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
     Resources::game = this;
@@ -405,6 +408,20 @@ static void emscriptenMainLoopCallback(void* arg) {
 void GameEngine::run()
 {
     //std::cout << "GameEngine::run() starting main loop..." << std::endl;
+
+    // #411 - The engine's own loop drives the clock from here on. If a background thread
+    // already claimed it with step()/advance() (headless --run-forever), the two would run
+    // frame bodies concurrently over one scene graph. Refuse, loudly, rather than race.
+    if (!claimClock()) {
+        std::cerr << "mcrogueface: the main loop cannot start: a background thread is already "
+                     "driving the simulation clock with mcrfpy.step()/advance().\n"
+                     "  Only one thread may run frames. Either let the main loop run them, or "
+                     "drive the clock from one thread and do not pass --run-forever.\n";
+        running = false;
+        McRFPy_API::signalPythonException();
+        return;
+    }
+
     frameTime = 0.016f; // Initialize to ~60 FPS
     clock.restart();
 
@@ -444,7 +461,7 @@ void GameEngine::doFrame()
     metrics.beginSimFrame();
 
     currentScene()->update();
-    testTimers();
+    testTimers(headless ? simulation_time : runtime.getElapsedTime().asMilliseconds());
 
     // Update Python scenes
     {
@@ -453,8 +470,10 @@ void GameEngine::doFrame()
     }
     mcrf::audio::sweep();  // #440: release sounds that finished playing
 
-    // Update animations (only if frameTime is valid)
-    if (frameTime > 0.0f && frameTime < 1.0f) {
+    // Update animations with the whole frame time. A long frame (a stall, a load in a
+    // callback) is time that passed: dropping it used to leave every running animation
+    // permanently behind the clock (#397). An animation clamps at its end value.
+    if (frameTime > 0.0f) {
         ScopedTimer animTimer(metrics.animationTime);
         AnimationManager::getInstance().update(frameTime);
     }
@@ -594,9 +613,42 @@ std::shared_ptr<Timer> GameEngine::getTimer(const std::string& name)
 
 // Note: manageTimer() removed in #173 - use Timer objects directly
 
-void GameEngine::testTimers()
+// #411 - The clock owner. File-static rather than an engine member because the release
+// runs from a thread_local destructor at thread exit, which can outlive the engine.
+namespace {
+std::atomic<std::thread::id> clock_owner{};
+
+struct ClockOwnerRelease {
+    bool owns = false;
+    ~ClockOwnerRelease() {
+        if (!owns) return;
+        std::thread::id me = std::this_thread::get_id();
+        clock_owner.compare_exchange_strong(me, std::thread::id{});
+    }
+};
+thread_local ClockOwnerRelease clock_owner_release;
+}
+
+bool GameEngine::claimClock()
 {
-    int now = headless ? simulation_time : runtime.getElapsedTime().asMilliseconds();
+    const std::thread::id me = std::this_thread::get_id();
+    std::thread::id expected{};
+    if (clock_owner.compare_exchange_strong(expected, me)) {
+        clock_owner_release.owns = true;
+        return true;
+    }
+    return expected == me;
+}
+
+bool GameEngine::ownsClock() const
+{
+    const std::thread::id owner = clock_owner.load();
+    if (owner == std::thread::id{}) return isMainThread();
+    return owner == std::this_thread::get_id();
+}
+
+void GameEngine::testTimers(int now)
+{
     auto it = timers.begin();
     while (it != timers.end())
     {
@@ -610,10 +662,11 @@ void GameEngine::testTimers()
             timer->test(now);
         }
 
-        // Remove timers that have been stopped (including one-shot timers that fired).
-        // The stopped flag is the authoritative marker for "remove from map".
+        // Remove timers that have been stopped (including one-shot timers that fired), and
+        // any whose callback was cleared. Before #397 the headless pass checked only the
+        // callback and this one only `stopped`, so a fired one-shot stayed in the headless map.
         // Note: Check it->second (current map value) in case callback replaced it.
-        if (it->second->isStopped())
+        if (it->second->isStopped() || it->second->getCallback() == Py_None)
         {
             it = timers.erase(it);
         }
@@ -999,25 +1052,9 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
     // C++ scene update
     currentScene()->update();
 
-    // Test timers with the new simulation time.
-    // Kept on simulation_time (not runtime): step() is the deterministic headless
+    // Timers run on simulation_time (not runtime): step() is the deterministic headless
     // clock, which is the whole point of driving time explicitly from a test.
-    auto it = timers.begin();
-    while (it != timers.end()) {
-        auto timer = it->second;
-
-        // Custom timer test using simulation time instead of runtime
-        if (timer && timer->isActive() && timer->hasElapsed(simulation_time)) {
-            timer->test(simulation_time);
-        }
-
-        // Remove cancelled timers
-        if (!it->second->getCallback() || it->second->getCallback() == Py_None) {
-            it = timers.erase(it);
-        } else {
-            it++;
-        }
-    }
+    testTimers(simulation_time);
 
     // Python Scene.update(dt) hook -- the originally-filed omission
     {
@@ -1026,8 +1063,9 @@ float GameEngine::runSimFrame(int ms, float actual_dt) {
     }
     mcrf::audio::sweep();  // #440: release sounds that finished playing
 
-    // Update animations with the dt in seconds
-    if (actual_dt > 0.0f && actual_dt < 10.0f) {  // Sanity check
+    // Update animations with the whole dt. The old `< 10.0f` "sanity check" made a wide
+    // step() silently drop a running animation's progress (#397).
+    if (actual_dt > 0.0f) {
         ScopedTimer animTimer(metrics.animationTime);
         AnimationManager::getInstance().update(actual_dt);
     }

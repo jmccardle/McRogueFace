@@ -42,11 +42,19 @@ bool Timer::hasElapsed(int now) const
 
 bool Timer::test(int now)
 {
-    if (!callback || callback->isNone() || stopped) return false;
-
-    if (hasElapsed(now))
+    // #397 - Catch up: fire once per interval that has elapsed by `now`, each firing
+    // stamped with its own deadline. last_ran advances by exactly one interval per firing,
+    // so a timer keeps its phase across a wide step or a stalled frame instead of being
+    // re-phased to the frame that noticed it (the old `last_ran = now`). The loop re-checks
+    // hasElapsed() after every call, so a callback that stops, pauses, restarts or
+    // re-intervals the timer takes effect immediately. A raising callback ends this frame's
+    // catch-up (one traceback per timer per frame); the remaining deadlines are still owed
+    // and fire on the next frame.
+    bool fired = false;
+    while (callback && !callback->isNone() && hasElapsed(now))
     {
-        last_ran = now;
+        const int deadline = last_ran + interval;
+        last_ran = deadline;
 
         // The callback receives (timer, runtime). Every Timer is created by PyTimer::init,
         // which registers its wrapper, and a running timer retains it (#251), so a missing
@@ -56,16 +64,18 @@ bool Timer::test(int now)
             PyErr_Format(PyExc_RuntimeError, "Timer '%s' fired without its Python object",
                          name.c_str());
             PyErr_Print();
-            return false;
+            return fired;
         }
-        PyObject* args = Py_BuildValue("(Oi)", timer_obj.get(), now);
+        mcrf::PyRef args(Py_BuildValue("(Oi)", timer_obj.get(), deadline));
         if (!args) {
             PyErr_Print();
-            return false;
+            return fired;
         }
 
-        PyObject* retval = callback->call(args, NULL);
-        Py_DECREF(args);
+        // Hold the callable for the call: the callback may replace timer.callback.
+        auto cb = callback;
+        mcrf::PyRef retval(cb->call(args.get(), NULL));
+        fired = true;
 
         if (!retval)
         {
@@ -77,21 +87,20 @@ bool Timer::test(int now)
             if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
                 McRFPy_API::signalPythonException();
             }
-        } else if (retval != Py_None)
+        } else if (retval.get() != Py_None)
         {
             std::cout << "Timer returned a non-None value. It's not an error, it's just not being saved or used." << std::endl;
-            Py_DECREF(retval);
         }
 
         // Handle one-shot timers: stop but preserve callback for potential restart
         if (once) {
             stopped = true;  // Will be removed from map by testTimers(), but callback preserved
             releasePyWrapper();  // Allow Python GC now (#251)
+            break;
         }
-
-        return true;
+        if (!retval) break;
     }
-    return false;
+    return fired;
 }
 
 void Timer::pause(int current_time)

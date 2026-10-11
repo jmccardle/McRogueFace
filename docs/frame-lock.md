@@ -32,9 +32,18 @@ drive). The headless half was added for #398; before it, a background thread und
 headless main loop blocked in `acquire()` forever, because the condition variable it waits
 on has **no timeout**.
 
-On the **main thread**, `mcrfpy.lock()` is a documented no-op (`src/PyLock.cpp`). The same
-handler body therefore works unchanged from a timer callback, from script init, and from a
-background thread.
+On the thread that **drives the clock**, `mcrfpy.lock()` is a documented no-op
+(`src/PyLock.cpp`). The same handler body therefore works unchanged from a timer callback,
+from script init, and from a background thread.
+
+**Exactly one thread drives the clock (#411).** The first thread to run a frame owns it:
+the main thread once the engine's own loop starts (always, when windowed), otherwise the
+first caller of `step()`/`advance()`. It owns the clock until it exits. Any other thread
+that calls `step()`/`advance()` gets `RuntimeError`, and a headless `--run-forever` loop
+refuses to start if a background thread already owns it. If a background thread drives
+the clock, the **main thread is just another thread**: its `lock()` is a real barrier
+that waits for the owner's safe window. Before #411, any thread could run a frame, so two
+frame bodies could run concurrently over one scene graph.
 
 ---
 
@@ -132,8 +141,8 @@ returns "no time passed" to a caller that asked for time to pass and leaves a tr
 merely looks sparse; the second removes the hang while leaving the off-thread frame body
 in place, hiding the symptom of the thing that is actually wrong.
 
-**This cannot fire on the main thread.** `mcrfpy.lock()` is a no-op there, so the main
-thread never becomes a holder — `with mcrfpy.lock(): mcrfpy.step()` in a script or a timer
+**This cannot fire on the clock's owner.** `mcrfpy.lock()` is a no-op there, so the owner
+never becomes a holder — `with mcrfpy.lock(): mcrfpy.step()` in a script or a timer
 callback keeps working exactly as before. The holder count is per-thread and is a
 *counter*, not a flag, so nested `with mcrfpy.lock():` blocks are handled correctly.
 
@@ -155,6 +164,7 @@ trying to measure.
 | held the lock for `H` ms | frame time up by `H` ms; stutter | `frame_lock_hold_budget_test.py`; `get_metrics()['current_frame']` rate |
 | re-acquired in a tight loop | engine drops to single-digit FPS, still "working" | #410; acquires-per-frame ratio |
 | called `step()`/`advance()` while holding | `RuntimeError` (previously: silent hard hang) | the exception names the call and the rule |
+| called `step()`/`advance()` from a thread that does not drive the clock | `RuntimeError` (previously: two frame bodies ran concurrently) | #411; `tests/regression/issue_411_clock_owner_test.py` |
 | mutated from a background thread *without* the lock | torn reads; corruption that reproduces rarely | `tests/integration/observe_under_frame_lock_test.py` phase A/B |
 | main loop stopped opening windows | every background thread parks forever in `acquire()` | #398; `tests/regression/issue_398_headless_frame_lock_test.py` |
 
@@ -169,6 +179,7 @@ trying to measure.
 | `tests/integration/frame_lock_soak_test.py` | sustained load: no drift in wait time, frame time, or allocation |
 | `tests/regression/frame_lock_reentrancy_test.py` | B7 — re-entrancy, nesting, the deadlock arrangement itself |
 | `tests/regression/issue_398_headless_frame_lock_test.py` | #398 — the headless safe window exists at all |
+| `tests/regression/issue_411_clock_owner_test.py` | #411 — one clock owner; a non-owner main thread's `lock()` is a real barrier |
 | `tests/integration/observe_under_frame_lock_test.py` | frame-atomic reads under the lock |
 | `tests/integration/background_thread_network_test.py` | the real topology: a bus thread handing results back |
 
