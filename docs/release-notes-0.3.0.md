@@ -67,6 +67,7 @@ removals that affect your code.
 | **`Caption.font_size` and `outline` are limited to 0–2048 px** and raise `ValueError` outside that range, on assignment, in the constructor and as `animate()` targets (#463). They used to be clamped silently (font size to 65535), and SFML allocates a glyph bitmap of about (size + 2 × outline)²: `font_size=30000` asked for 3.8 GB. | 2048 px is taller than a 4K screen; scale a Frame or render to a texture for anything bigger. |
 | **`SoundBuffer.from_samples()` raises `ValueError`** for empty data or data that isn't a whole number of frames (`channels × 2` bytes) (#461). A trailing partial sample used to be dropped silently. | Pass whole 16-bit frames. |
 | **Giving a Scene's name to a new Scene leaves the old scene's children with the old scene** (#464). `Scene("x")` (or `register()`) when another scene is named `"x"` unregisters that scene; it keeps its children and handlers and can be registered again. If it was being shown, the new one is shown, with `on_exit`/`on_enter`. Its children used to be re-pointed at the new scene by name, and the screen fell back to an arbitrary scene. | — |
+| **Numbers that can't be converted raise instead of wrapping** (fuzz campaign). Every `SoundBuffer` effect (`echo`, `reverb`, `low_pass`, `high_pass`, `gain`, `distortion`, `slice`) raises `ValueError` for NaN or infinite arguments, and `echo` for a negative delay. Entity `cell_pos`, `cell_x`/`cell_y`, `tile_size`, `turn_order`, `sight_radius` and `default_behavior` raise `ValueError` for NaN/inf and `OverflowError` outside the C int range; they used to wrap silently, or were undefined behaviour. An `echo` delay longer than the sound leaves it unchanged. | — |
 
 ## New
 
@@ -209,6 +210,10 @@ removals that affect your code.
 - Hover now ends when the cursor leaves the window or the window loses focus (#367).
 
 **Other**
+- `sys.exit()` inside a callback (a key handler on Escape, a timer) quits quietly; it used
+  to print "<kind> callback raised an exception:" first. Every windowed start also printed
+  `<module 'mcrfpy' (built-in)>`, and `--help` described `--exec` as running "before main
+  program" (it runs instead of `scripts/game.py`).
 - A game's own `scripts/` directory is `sys.path[0]` (as is a script's directory for
   `mcrogueface dir/script.py`). It was always the engine's `build/scripts`, so a game
   outside the engine tree couldn't import its own modules, and a module named like an
@@ -299,7 +304,7 @@ Where it comes from:
     `api/manifest.json`.
   - `tools/api_delta.py` diffs the API between two git refs.
 - CI builds from a clean checkout and fails if a test run modifies tracked files (#401).
-- Test suite: 684/684 (up from ~300 at 0.2.8); 82 tests that had been silently not
+- Test suite: 686/686 (up from ~300 at 0.2.8); 82 tests that had been silently not
   running were fixed, and `tests/demo/` is gated in CI (#372).
 
 ## Known issues
