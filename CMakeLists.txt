@@ -589,7 +589,10 @@ add_custom_command(TARGET mcrogueface POST_BUILD
 # on __lib: its libpython3.X{t,d,td} and cpython-3XX{t,d,td} extension modules
 # have ABI-tagged names that don't collide, and an instrumented libtcod from
 # tools/build_debug_libs.sh replaces the plain one.
+# lib/ is replaced, not merged: copy_directory never deletes, so modules and libraries
+# from an older Python stayed importable in the build and went into packages (#420).
 add_custom_command(TARGET mcrogueface POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E remove_directory $<TARGET_FILE_DIR:mcrogueface>/lib
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/__lib $<TARGET_FILE_DIR:mcrogueface>/lib)
 if(NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
@@ -597,6 +600,15 @@ if(NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${MCRF_PYTHON_LIB_DIR} $<TARGET_FILE_DIR:mcrogueface>/lib)
 endif()
+
+# Python modules that ship with the engine (mcrf_project, #420), on every platform's
+# sys.path via lib/Python/Lib, and so in every package. A target of its own so that it
+# runs on every build, not only when the binary relinks, and after lib/ is refreshed.
+add_custom_target(mcrf_pylib ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/src/pylib $<TARGET_FILE_DIR:mcrogueface>/lib/Python/Lib
+    COMMENT "Copying engine Python modules (src/pylib)")
+add_dependencies(mcrf_pylib mcrogueface)
 
 # On Windows, copy DLLs to executable directory
 if(MCRF_CROSS_WINDOWS)

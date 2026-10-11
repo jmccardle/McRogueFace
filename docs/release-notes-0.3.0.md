@@ -222,6 +222,21 @@ Where it comes from:
 
 ## Build, packaging and tooling
 
+- **`mcrogueface -m mcrf_project`** replaces `mcrf-init.sh` (#420). It runs on the
+  engine's own interpreter, with no display, and works from a source build or a release
+  package:
+  - `init [DIR]` creates a game project (`scripts/`, `assets/` with the default font and
+    texture, `VERSION`, a small `Makefile`, `typings/mcrfpy.pyi` for the editor). Run it in
+    an `mcrf-init.sh` project to update it: it replaces that Makefile, which named Python
+    3.14. The engine's path goes in `.mcrf.mk`, which git ignores, so a project names no
+    path on the machine that made it.
+  - `run`, `dist [--platform linux|windows|web]`, `info`.
+  - Games are packaged by the same code as the engine's own release packages:
+    `tools/package.sh` now calls `mcrf_project package-engine`. Every version-dependent
+    name (libpython, SFML, the extension-module directory) is read from the engine, so the
+    rules can't go stale in a game's Makefile again.
+- The build's `lib/` mirrors `__lib/` instead of accumulating: modules and libraries from
+  an older Python stayed importable in the build.
 - **`make deps`** builds SFML, libtcod and CPython from a fresh clone.
   `tools/fetch_dev_headers.sh` covers machines without root.
 - Platform targets:
@@ -255,5 +270,4 @@ Where it comes from:
 - **#410**: a lock holder that re-acquires immediately can starve the main loop.
 - **#448**: the clock and the window are still coupled. Windowed `step()`/`advance()` are
   silent no-ops, and headless `--run-forever` runs frames on a frozen simulation clock.
-- **#420**: `mcrf-init.sh` scaffolds projects for Python 3.14.
 - **#399**: the light/full stdlib presets ship the same stdlib.
