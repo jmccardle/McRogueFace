@@ -91,8 +91,7 @@ static int attach_layer(const std::shared_ptr<GridData>& grid,
             layer->grid_x, layer->grid_y, grid->grid_w, grid->grid_h);
         return -1;
     }
-    layer->parent_grid = grid.get();
-    grid->layers.push_back(layer);
+    grid->attachLayer(layer);
     return 0;
 }
 

@@ -1205,6 +1205,7 @@ submodule automation
   prop walkable: bool (rw)
 [EntityCollection]
   meth append :: append(entity: Entity) -> None
+  meth clear :: clear() -> None
   meth count :: count(entity: Entity) -> int
   meth extend :: extend(iterable) -> None
   meth find :: find(name: str) -> Entity | list[Entity] | None
@@ -1214,6 +1215,7 @@ submodule automation
   meth remove :: remove(entity: Entity) -> None
 [UICollection]
   meth append :: append(element: Drawable) -> None
+  meth clear :: clear() -> None
   meth count :: count(element: Drawable) -> int
   meth extend :: extend(iterable: Iterable[Drawable]) -> None
   meth find :: find(name: str, recursive: bool = False) -> Drawable | list | None

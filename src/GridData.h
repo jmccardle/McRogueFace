@@ -209,6 +209,8 @@ public:
     std::shared_ptr<ColorLayer> addColorLayer(int z_index, const std::string& name = "");
     std::shared_ptr<TileLayer> addTileLayer(int z_index, std::shared_ptr<PyTexture> texture = nullptr,
                                              const std::string& name = "");
+    // #427: the one way a layer joins `layers`; it notifies the views (markDirty).
+    void attachLayer(std::shared_ptr<GridLayer> layer);
     void removeLayer(std::shared_ptr<GridLayer> layer);
     void sortLayers();
     std::shared_ptr<GridLayer> getLayerByName(const std::string& name);
@@ -280,6 +282,9 @@ public:
     // content_generation directly in UIGridView::render(). This is only for
     // bottom-up propagation through a view's parent chain, which a top-down
     // render traversal cannot poll for.
+    //
+    // #427: so these two are the ONLY writers of content_generation. Layer edits
+    // used to bump it directly, which the view saw but a caching ancestor didn't.
     void markDirty();
     void markCompositeDirty();
 

@@ -169,6 +169,13 @@ public:
     // Set the parent of this drawable (called by collections when adding)
     void setParent(std::shared_ptr<UIDrawable> new_parent);
 
+    // #442: may `child` become a child of `new_parent`? False, with ValueError set,
+    // when `new_parent` is `child` or one of its descendants: the parent chain would
+    // loop and every upward walk (markContentDirty, global position, alignment)
+    // would recurse forever. Every path that links a child calls this BEFORE it
+    // mutates anything; a null parent (scene collection) always may.
+    static bool canAdopt(const std::shared_ptr<UIDrawable>& new_parent, const UIDrawable* child);
+
     // Set the parent scene name (called by UICollection when adding to scene)
     void setParentScene(const std::string& scene_name);
 

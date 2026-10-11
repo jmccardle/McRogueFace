@@ -55,8 +55,19 @@ public:
     // Mark entire layer as needing re-render
     void markDirty();
 
+    // Change the draw order; re-sorts the parent's layers and repaints
+    void setZIndex(int z);
+
     // Mark specific cell's chunk as dirty
     void markDirty(int cell_x, int cell_y);
+
+    // Mark the chunks covering cells [x1, x2) x [y1, y2) as dirty
+    void markDirty(int x1, int y1, int x2, int y2);
+
+    // #427: every content change above ends here. GridData::markDirty() reaches the
+    // registered views and their parent chain, so a cache_subtree ancestor repaints.
+    // Render-time chunk bookkeeping (ensureChunkTexture) must not call it.
+    void notifyGrid();
 
     // Get chunk index for a cell
     int getChunkIndex(int cell_x, int cell_y) const;

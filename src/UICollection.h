@@ -38,6 +38,7 @@ public:
 	static PyObject* extend(PyUICollectionObject* self, PyObject* iterable);
 	static PyObject* remove(PyUICollectionObject* self, PyObject* o);
 	static PyObject* pop(PyUICollectionObject* self, PyObject* args);
+	static PyObject* clear(PyUICollectionObject* self, PyObject* Py_UNUSED(ignored));
 	static PyObject* insert(PyUICollectionObject* self, PyObject* args);
 	static PyObject* index_method(PyUICollectionObject* self, PyObject* value);
 	static PyObject* count(PyUICollectionObject* self, PyObject* value);

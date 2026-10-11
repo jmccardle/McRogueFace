@@ -42,6 +42,11 @@ static void link_child(PyUICollectionObject* self, std::shared_ptr<UIDrawable> d
     }
 }
 
+// #442: call before mutating anything; see UIDrawable::canAdopt.
+static bool can_link(PyUICollectionObject* self, const std::shared_ptr<UIDrawable>& drawable) {
+    return UIDrawable::canAdopt(self->owner.lock(), drawable.get());
+}
+
 // Call BEFORE erasing from the vector: setParent(nullptr) may drop the last strong
 // ref to the wrapper, whose dealloc releases its shared_ptr to the drawable. While
 // the vector still holds the element, `drawable` cannot be freed under us.
@@ -203,6 +208,8 @@ int UICollection::setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject
         PyErr_SetString(PyExc_TypeError, "UICollection can only contain Drawable objects");
         return -1;
     }
+    if (!can_link(self, new_drawable)) return -1;
+
     // #183: Remove from old parent, which may be a scene rather than a drawable.
     // Do this BEFORE indexing: if the incoming drawable is already a member of THIS
     // collection, detaching it erases it from `vec` and shifts every later element,
@@ -478,6 +485,7 @@ int UICollection::ass_subscript(PyUICollectionObject* self, PyObject* key, PyObj
                 }
                 
                 Py_DECREF(item);
+                if (!can_link(self, drawable)) return -1;
                 new_items.push_back(drawable);
             }
             
@@ -604,6 +612,8 @@ PyObject* UICollection::append(PyUICollectionObject* self, PyObject* o)
         }
     }
 
+    if (!can_link(self, drawable)) return NULL;
+
     // #183: Remove from old parent (drawable or scene)
     drawable->removeFromParent();
 
@@ -644,16 +654,34 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
 
     std::shared_ptr<UIDrawable> owner_ptr = self->owner.lock();
 
+    // #442: validate every item before adding any, so a bad item (wrong type, or an
+    // ancestor of this collection's owner) leaves the collection untouched. Moving
+    // an accepted item cannot change the owner's ancestry: it is not on that chain.
+    std::vector<std::shared_ptr<UIDrawable>> items;
     PyObject* item;
     while ((item = PyIter_Next(iterator)) != NULL) {
         std::shared_ptr<UIDrawable> drawable = extractDrawable(item);
+        Py_DECREF(item);
         if (!drawable) {
-            Py_DECREF(item);
             Py_DECREF(iterator);
             PyErr_SetString(PyExc_TypeError, "All items must be Drawable objects");
             return NULL;
         }
+        if (!can_link(self, drawable)) {
+            Py_DECREF(iterator);
+            return NULL;
+        }
+        items.push_back(drawable);
+    }
 
+    Py_DECREF(iterator);
+
+    // Check if iteration ended due to an error
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+
+    for (auto& drawable : items) {
         if (current_z_index <= INT_MAX - 10) {
             current_z_index += 10;
         } else {
@@ -666,15 +694,6 @@ PyObject* UICollection::extend(PyUICollectionObject* self, PyObject* iterable)
         // scene collection (no owner drawable => owner.lock() is null)
         link_child(self, drawable);
         self->data->push_back(drawable);
-
-        Py_DECREF(item);
-    }
-
-    Py_DECREF(iterator);
-
-    // Check if iteration ended due to an error
-    if (PyErr_Occurred()) {
-        return NULL;
     }
     
     // Mark scene as needing resort after adding elements
@@ -776,6 +795,28 @@ PyObject* UICollection::pop(PyUICollectionObject* self, PyObject* args)
     return convertDrawableToPython(drawable);
 }
 
+// #418: the same per-item teardown as remove()/pop(), for every member at once.
+PyObject* UICollection::clear(PyUICollectionObject* self, PyObject* Py_UNUSED(ignored))
+{
+    auto vec = self->data.get();
+    if (!vec) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
+        return NULL;
+    }
+    if (vec->empty()) Py_RETURN_NONE;
+
+    // Take the members out first: unlinking releases pins, and a freed wrapper can run
+    // Python (a weakref callback, __del__) that edits this collection mid-loop. `removed`
+    // keeps every drawable alive until the loop is done (see unlink_child).
+    std::vector<std::shared_ptr<UIDrawable>> removed;
+    removed.swap(*vec);
+    for (auto& drawable : removed) unlink_child(drawable);
+
+    McRFPy_API::markSceneNeedsSort();
+    if (auto owner_ptr = self->owner.lock()) owner_ptr->markContentDirty();  // #288
+    Py_RETURN_NONE;
+}
+
 PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
 {
     Py_ssize_t index;
@@ -798,6 +839,8 @@ PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
             "UICollection.insert requires a Drawable object");
         return NULL;
     }
+
+    if (!can_link(self, drawable)) return NULL;
 
     // #183: Remove from old parent, which may be a scene rather than a drawable.
     // Do this BEFORE resolving the index: if the drawable is already a member of
@@ -1048,6 +1091,12 @@ PyMethodDef UICollection::methods[] = {
 	     MCRF_RETURNS("Drawable: the removed element")
 	     MCRF_RAISES("IndexError", "If the collection is empty or index is out of range")
 	     MCRF_NOTE("If using z_index for sorting, indices may shift after render. Use name-based .find() for stable element access.")
+	 )},
+	{"clear", (PyCFunction)UICollection::clear, METH_NOARGS,
+	 MCRF_METHOD(UICollection, clear,
+	     MCRF_SIG("()", "None"),
+	     MCRF_DESC("Remove every element. Each one is unparented, as with remove().")
+	     MCRF_RETURNS("None")
 	 )},
 	{"index", (PyCFunction)UICollection::index_method, METH_O,
 	 MCRF_METHOD(UICollection, index,

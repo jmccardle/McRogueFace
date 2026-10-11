@@ -701,6 +701,26 @@ PyObject* UIEntityCollection::pop(PyUIEntityCollectionObject* self, PyObject* ar
     return result;
 }
 
+// #418: the same per-entity teardown as remove()/pop(), for every member at once.
+PyObject* UIEntityCollection::clear(PyUIEntityCollectionObject* self, PyObject* Py_UNUSED(ignored))
+{
+    auto list = self->data.get();
+    if (!list) {
+        PyErr_SetString(PyExc_RuntimeError, "EntityCollection data is null");
+        return NULL;
+    }
+    if (list->empty()) Py_RETURN_NONE;
+
+    // Take the members out first: detaching releases identity pins, and a freed
+    // wrapper can run Python that edits this collection mid-loop. `removed` keeps
+    // every entity alive until the loop is done.
+    std::vector<std::shared_ptr<UIEntity>> removed;
+    removed.swap(*list);
+    if (self->grid) self->grid->spatial_hash.clear();
+    for (auto& entity : removed) entity->setGrid(nullptr);  // #446: repaints the grid
+    Py_RETURN_NONE;
+}
+
 PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject* args)
 {
     Py_ssize_t index;
@@ -926,6 +946,12 @@ PyMethodDef UIEntityCollection::methods[] = {
          MCRF_ARG("index", "Index of entity to remove; defaults to -1 (last entity)")
          MCRF_RETURNS("Entity: the removed entity")
          MCRF_RAISES("IndexError", "If the collection is empty or index is out of range")
+     )},
+    {"clear", (PyCFunction)UIEntityCollection::clear, METH_NOARGS,
+     MCRF_METHOD(EntityCollection, clear,
+         MCRF_SIG("()", "None"),
+         MCRF_DESC("Remove every entity. Each one is detached from the grid, as with remove()."),
+         MCRF_RETURNS("None")
      )},
     {"index", (PyCFunction)UIEntityCollection::index_method, METH_O,
      MCRF_METHOD(EntityCollection, index,
