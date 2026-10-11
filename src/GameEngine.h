@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common.h"
+#include <climits>
 #include "Scene.h"
 #include "McRFPy_API.h"
 #include "IndexTexture.h"
@@ -94,7 +95,9 @@ struct ProfilingMetrics {
             sum += frameTimeHistory[i];
         }
         avgFrameTime = historyCount > 0 ? sum / historyCount : 0.0f;
-        fps = avgFrameTime > 0 ? static_cast<int>(1000.0f / avgFrameTime) : 0;
+        // Saturate: a tiny step(dt) gives a rate past INT_MAX, and that cast is UB (#460).
+        const double rate = avgFrameTime > 0 ? 1000.0 / avgFrameTime : 0.0;
+        fps = rate >= static_cast<double>(INT_MAX) ? INT_MAX : static_cast<int>(rate);
     }
 
     // #341/#350: simulation and rendering are separate passes with separate metrics.
