@@ -193,6 +193,10 @@ removals that affect your code.
 - Shader uniform binding confused a `GridView` with a `GridData` (#371).
 - `UICollection` repr names Grids correctly.
 - `Grid` layer setters now invalidate the render cache (#376).
+- Web playground console: an error is always reported. If its traceback can't be
+  formatted, the error is shown with a note saying why (it was replaced by "Internal REPL
+  Error: Unknown error in capture code"); `sys.exit()` is reported instead of shutting the
+  page's interpreter down; tracebacks start at the user's code (#392).
 - Web build: `IDBFS` is exported, so the `/save` mount works under Emscripten 5 (#385).
   The shipped web game is the clean build, not the REPL hybrid (#384).
 
