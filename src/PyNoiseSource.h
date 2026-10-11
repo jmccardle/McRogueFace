@@ -11,6 +11,7 @@ class PyNoiseSource;
 typedef struct {
     PyObject_HEAD
     TCOD_Noise* noise;          // libtcod noise object (owned)
+    TCOD_Random* rng;           // its generator (owned; TCOD_noise_delete doesn't free it, #467)
     int dimensions;             // 1-4
     TCOD_noise_type_t algorithm; // PERLIN, SIMPLEX, or WAVELET
     float hurst;                // Hurst exponent for fbm/turbulence
@@ -25,6 +26,7 @@ public:
     static PyObject* pynew(PyTypeObject* type, PyObject* args, PyObject* kwds);
     static int init(PyNoiseSourceObject* self, PyObject* args, PyObject* kwds);
     static void dealloc(PyNoiseSourceObject* self);
+    static void release(PyNoiseSourceObject* self);
     static PyObject* repr(PyObject* obj);
 
     // Properties (all read-only)

@@ -131,6 +131,7 @@ PyObject* PyNoiseSource::pynew(PyTypeObject* type, PyObject* args, PyObject* kwd
     PyNoiseSourceObject* self = (PyNoiseSourceObject*)type->tp_alloc(type, 0);
     if (self) {
         self->noise = nullptr;
+        self->rng = nullptr;
         self->dimensions = 2;
         self->algorithm = TCOD_NOISE_SIMPLEX;
         self->hurst = TCOD_NOISE_DEFAULT_HURST;
@@ -187,10 +188,8 @@ int PyNoiseSource::init(PyNoiseSourceObject* self, PyObject* args, PyObject* kwd
         return -1;
     }
 
-    // Clean up any existing noise object
-    if (self->noise) {
-        TCOD_noise_delete(self->noise);
-    }
+    // Clean up any existing noise object (re-running __init__)
+    release(self);
 
     // Create TCOD random generator with the seed
     TCOD_Random* rng = TCOD_random_new_from_seed(TCOD_RNG_MT, seed);
@@ -207,6 +206,8 @@ int PyNoiseSource::init(PyNoiseSourceObject* self, PyObject* args, PyObject* kwd
         return -1;
     }
 
+    self->rng = rng;
+
     // Set the algorithm
     TCOD_noise_set_type(self->noise, algorithm);
 
@@ -220,13 +221,23 @@ int PyNoiseSource::init(PyNoiseSourceObject* self, PyObject* args, PyObject* kwd
     return 0;
 }
 
-void PyNoiseSource::dealloc(PyNoiseSourceObject* self)
+// The noise reads its generator until deleted, and TCOD_noise_delete doesn't free
+// it (#467): delete the noise first, then the generator.
+void PyNoiseSource::release(PyNoiseSourceObject* self)
 {
     if (self->noise) {
-        // The TCOD_Noise owns its random generator, so deleting noise also deletes rng
         TCOD_noise_delete(self->noise);
         self->noise = nullptr;
     }
+    if (self->rng) {
+        TCOD_random_delete(self->rng);
+        self->rng = nullptr;
+    }
+}
+
+void PyNoiseSource::dealloc(PyNoiseSourceObject* self)
+{
+    release(self);
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
