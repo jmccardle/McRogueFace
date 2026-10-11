@@ -45,6 +45,14 @@ UIEntity::~UIEntity() {
 
 void UIEntity::setGrid(const std::shared_ptr<GridData>& owner)
 {
+    // #446: membership is drawn content, and every path that changes it ends here
+    // (collection mutators, the grid setter, the constructor, die()), so this is
+    // where both grids learn their picture changed.
+    auto old = grid_.lock();
+    if (old != owner) {
+        if (old) old->markDirty();
+        if (owner) owner->markDirty();
+    }
     grid_ = owner;
     // Last statement: releasing the pin can drop the last reference to the wrapper,
     // and with it this entity, when the caller holds no shared_ptr of its own.
@@ -380,7 +388,6 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
             self->data->setGrid(grid_ptr);
             grid_ptr->entities->push_back(self->data);
             grid_ptr->spatial_hash.insert(self->data);
-            grid_ptr->markDirty();  // #351 - entity added; re-raster view
         }
     }
     return 0;
@@ -840,7 +847,6 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
             if (it != entities->end()) {
                 entities->erase(it);
             }
-            self->data->getGrid()->markDirty();  // #351 - entity removed; re-raster view
             self->data->setGrid(nullptr);
         }
         return 0;
@@ -874,7 +880,6 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         if (it != old_entities->end()) {
             old_entities->erase(it);
         }
-        self->data->getGrid()->markDirty();  // #351 - entity left old grid; re-raster
     }
 
     // Add to new grid
@@ -882,7 +887,6 @@ int UIEntity::set_grid(PyUIEntityObject* self, PyObject* value, void* closure)
         new_grid->entities->push_back(self->data);
         self->data->setGrid(new_grid);
         new_grid->spatial_hash.insert(self->data);  // #274
-        new_grid->markDirty();  // #351 - entity added to new grid; re-raster
         // #294: perspective_map is lazy -- the next updateVisibility() call
         // (or first `entity.perspective_map` access) allocates sized to the
         // new grid. We deliberately do NOT preserve or clear the old map:
@@ -1109,7 +1113,6 @@ PyObject* UIEntity::die(PyUIEntityObject* self, PyObject* Py_UNUSED(ignored))
         grid->spatial_hash.remove(self->data);
 
         entities->erase(it);
-        grid->markDirty();  // #351 - entity died; re-raster view
         // Clear the grid reference
         self->data->setGrid(nullptr);
     }
