@@ -3,6 +3,7 @@
 #include "UIBase.h"
 #include "PyShader.h"  // #106: Shader support
 #include "PyUniformCollection.h"  // #106: Uniform collection support
+#include "PyWrap.h"  // #465: mcrf::py_shared
 
 // UIEntity-specific property implementations
 // These delegate to the wrapped sprite member
@@ -100,12 +101,7 @@ static int UIEntity_set_shader(PyUIEntityObject* self, PyObject* value, void* cl
 
     PyShaderObject* shader_obj = (PyShaderObject*)value;
 
-    // Store a shared_ptr to the PyShaderObject
-    // We need to increment the refcount since we're storing a reference
-    Py_INCREF(value);
-    self->data->sprite.shader = std::shared_ptr<PyShaderObject>(shader_obj, [](PyShaderObject* p) {
-        Py_DECREF((PyObject*)p);
-    });
+    self->data->sprite.shader = mcrf::py_shared(shader_obj);
 
     // Initialize uniforms collection if needed
     if (!self->data->sprite.uniforms) {
@@ -128,16 +124,6 @@ static PyObject* UIEntity_get_uniforms(PyUIEntityObject* self, void* closure)
         self->data->sprite.uniforms = std::make_unique<UniformCollection>();
     }
 
-    // Create a Python wrapper for the uniforms collection
-    PyUniformCollectionObject* uniforms_obj = (PyUniformCollectionObject*)mcrfpydef::PyUniformCollectionType.tp_alloc(&mcrfpydef::PyUniformCollectionType, 0);
-    if (!uniforms_obj) {
-        return NULL;
-    }
-
-    // The collection is owned by the sprite, we just provide a view
-    uniforms_obj->collection = self->data->sprite.uniforms.get();
-    uniforms_obj->owner = self->data;  // Entity shared_ptr keeps collection alive
-    uniforms_obj->weakreflist = NULL;
-
-    return (PyObject*)uniforms_obj;
+    // A view of the sprite's collection, valid while the entity lives
+    return PyUniformCollectionType::wrap(self->data->sprite.uniforms.get(), self->data);
 }

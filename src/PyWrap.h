@@ -168,6 +168,22 @@ private:
     PyObject* p;
 };
 
+// A shared_ptr that holds one strong reference to a Python object, released when the
+// last copy dies (#465: a no-op deleter here leaked every Shader ever assigned). The
+// release takes the GIL, since a C++ owner can die outside it, and is skipped once the
+// interpreter is finalized (the object is gone with it).
+template <typename T>
+std::shared_ptr<T> py_shared(T* obj)
+{
+    Py_INCREF((PyObject*)obj);
+    return std::shared_ptr<T>(obj, [](T* p) {
+        if (!Py_IsInitialized()) return;
+        PyGILState_STATE gil = PyGILState_Ensure();
+        Py_DECREF((PyObject*)p);
+        PyGILState_Release(gil);
+    });
+}
+
 // PyDict_SetItemString that STEALS `value` (and fails cleanly if it is nullptr):
 //     dict_steal(d, "fps", PyLong_FromLong(fps));
 // Returns 0, or -1 with a Python error set.

@@ -159,7 +159,18 @@ void PyUniformCollectionType::dealloc(PyUniformCollectionObject* self) {
         PyObject_ClearWeakRefs((PyObject*)self);
     }
     // Don't delete collection - it's owned by UIDrawable
+    self->owner.~weak_ptr();
     Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+PyObject* PyUniformCollectionType::wrap(UniformCollection* collection, std::weak_ptr<void> owner) {
+    auto* self = (PyUniformCollectionObject*)
+        mcrfpydef::PyUniformCollectionType.tp_alloc(&mcrfpydef::PyUniformCollectionType, 0);
+    if (!self) return NULL;
+    self->collection = collection;
+    new (&self->owner) std::weak_ptr<void>(std::move(owner));
+    self->weakreflist = NULL;
+    return (PyObject*)self;
 }
 
 PyObject* PyUniformCollectionType::repr(PyObject* obj) {

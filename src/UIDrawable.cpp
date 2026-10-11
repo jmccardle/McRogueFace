@@ -1377,12 +1377,7 @@ int UIDrawable::set_shader(PyObject* self, PyObject* value, void* closure) {
         return -1;
     }
 
-    // Store the shader
-    drawable->shader = std::shared_ptr<PyShaderObject>(shader_obj, [](PyShaderObject* p) {
-        // Custom deleter that doesn't delete the Python object
-        // The Python reference counting handles that
-    });
-    Py_INCREF(shader_obj);  // Keep the Python object alive
+    drawable->shader = mcrf::py_shared(shader_obj);
 
     // Create uniforms collection if needed
     if (!drawable->uniforms) {
@@ -1417,17 +1412,8 @@ PyObject* UIDrawable::get_uniforms(PyObject* self, void* closure) {
         drawable->uniforms = std::make_unique<UniformCollection>();
     }
 
-    // Create and return a Python wrapper for the collection
-    PyUniformCollectionObject* collection = (PyUniformCollectionObject*)
-        mcrfpydef::PyUniformCollectionType.tp_alloc(&mcrfpydef::PyUniformCollectionType, 0);
-
-    if (!collection) return NULL;
-
-    collection->collection = drawable->uniforms.get();
-    collection->weakreflist = NULL;
-    collection->owner = extractDrawableShared(self, objtype);
-
-    return (PyObject*)collection;
+    return PyUniformCollectionType::wrap(drawable->uniforms.get(),
+                                         extractDrawableShared(self, objtype));
 }
 
 // #369: single cache-aware conversion from a C++ drawable to its Python wrapper.

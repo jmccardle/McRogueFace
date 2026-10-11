@@ -97,6 +97,10 @@ class PyUniformCollectionType {
 public:
     static PyObject* repr(PyObject* self);
     static void dealloc(PyUniformCollectionObject* self);
+    // A view of `collection`, valid while `owner` lives. The only way to make one:
+    // `owner` is a C++ member of a tp_alloc'd (zero-filled) struct, so it must be
+    // constructed here and destroyed in dealloc (#466).
+    static PyObject* wrap(UniformCollection* collection, std::weak_ptr<void> owner);
 
     // Mapping protocol (dict-like access)
     static Py_ssize_t mp_length(PyObject* self);
