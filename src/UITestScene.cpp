@@ -6,7 +6,6 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
 {
     registerAction(ActionCode::KEY + sf::Keyboard::Grave, "debug_menu");
 
-    text.setFont(game->getFont());
     text.setString("UITest: surprised to be here? game.py raised an exception.");
     text.setCharacterSize(24);
 
@@ -27,6 +26,15 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
     }
     */
 
+}
+
+// #451: the demo elements hold GL textures (a PyTexture, a grid's render texture), so they
+// are built by the first render, not with the engine: a process that never shows this scene
+// never needs a display for it.
+void UITestScene::buildElements()
+{
+    built = true;
+    text.setFont(game->getFont());
     // Create a UI element or three?
     auto e1 = std::make_shared<UIFrame>(100,150,400,400);
     e1->box.setPosition(100, 150);
@@ -164,6 +172,7 @@ void UITestScene::doAction(std::string name, std::string type)
 
 void UITestScene::render()
 {
+    if (!built) buildElements();
     game->getRenderTarget().clear();
     game->getRenderTarget().draw(text);
     

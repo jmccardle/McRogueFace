@@ -1,4 +1,5 @@
 #include "PyWindow.h"
+#include "Display.h"
 #include "PyWrap.h"
 #include "GameEngine.h"
 #include "McRFPy_API.h"
@@ -365,12 +366,9 @@ PyObject* PyWindow::screenshot(PyWindowObject* self, PyObject* args, PyObject* k
         return NULL;
     }
     
-    // Get the render target pointer
-    sf::RenderTarget* target = game->getRenderTargetPtr();
-    if (!target) {
-        PyErr_SetString(PyExc_RuntimeError, "No render target available");
-        return NULL;
-    }
+    // Get the render target (#451: a headless one is created here, which needs a display)
+    if (!mcrf::require_display_py("Window.screenshot()")) return NULL;
+    sf::RenderTarget* target = &game->getRenderTarget();
     
     sf::Image screenshot;
     

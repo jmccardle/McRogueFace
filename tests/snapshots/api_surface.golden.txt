@@ -19,17 +19,17 @@ func set_scale :: set_scale(multiplier: float) -> None
 func start_benchmark :: start_benchmark() -> None
 func step :: step(dt: float = None) -> float
 
-=== MODULE SINGLETONS / CONSTANTS (6) ===
-const default_font: Font
+=== MODULE SINGLETONS / CONSTANTS (4) ===
 const default_fov: FOV
-const default_texture: Texture
 const keyboard: Keyboard
 const mouse: Mouse
 const window: Window
 
-=== MODULE DYNAMIC ATTRIBUTES (7) ===
+=== MODULE DYNAMIC ATTRIBUTES (9) ===
 attr animations (ro) :: Tuple of all currently running Animation objects (tuple, read-only).
 attr current_scene (rw) :: The active scene (Scene). Assign a Scene object, or a scene name as a string, to switch scenes.
+attr default_font (rw) :: Font used by Caption when none is given (Font). Loaded from assets/JetbrainsMono.ttf on first use; assign a Font to replace it.
+attr default_texture (rw) :: Texture used by Sprite, Entity and Grid when none is given (Texture). Loaded from assets/kenney_tinydungeon.png on first use; assign a Texture to replace it.
 attr default_transition (rw) :: Default transition (Transition) applied when switching scenes without an explicit transition.
 attr default_transition_duration (rw) :: Default scene-transition duration in seconds (float). Must be non-negative.
 attr save_dir (ro) :: Directory used for persistent save data (str, read-only). '/save' under Emscripten.

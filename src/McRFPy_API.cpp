@@ -1,3 +1,4 @@
+#include "Display.h"
 #include "McRFPy_API.h"
 #include "PyWrap.h"
 #include "EngineRandom.h"
@@ -250,6 +251,40 @@ static PyObject* mcrfpy_get_save_dir(PyObject* self, void* closure)
 #endif
 }
 
+// #451: the default texture is a GL resource, so it is created by its first use, not at
+// import: a process that never draws a sprite never needs a display for it.
+static PyObject* mcrfpy_get_default_font(PyObject* self, void* closure)
+{
+    return McRFPy_API::defaultFont()->pyObject();
+}
+
+static int mcrfpy_set_default_font(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value || !PyObject_TypeCheck(value, &mcrfpydef::PyFontType)) {
+        PyErr_SetString(PyExc_TypeError, "default_font must be a Font");
+        return -1;
+    }
+    McRFPy_API::default_font = ((PyFontObject*)value)->data;
+    return 0;
+}
+
+static PyObject* mcrfpy_get_default_texture(PyObject* self, void* closure)
+{
+    auto texture = McRFPy_API::defaultTexture();
+    if (!texture) return NULL;
+    return texture->pyObject();
+}
+
+static int mcrfpy_set_default_texture(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value || !PyObject_TypeCheck(value, &mcrfpydef::PyTextureType)) {
+        PyErr_SetString(PyExc_TypeError, "default_texture must be a Texture");
+        return -1;
+    }
+    McRFPy_API::default_texture = ((PyTextureObject*)value)->data;
+    return 0;
+}
+
 static PyGetSetDef mcrfpy_module_getset[] = {
     {"current_scene", mcrfpy_get_current_scene, mcrfpy_set_current_scene,
      MCRF_PROPERTY(current_scene,
@@ -277,6 +312,16 @@ static PyGetSetDef mcrfpy_module_getset[] = {
      mcrfpy_set_default_transition_duration,
      MCRF_PROPERTY(default_transition_duration,
          "Default scene-transition duration in seconds (float). Must be non-negative."
+     ), NULL},
+    {"default_font", mcrfpy_get_default_font, mcrfpy_set_default_font,
+     MCRF_PROPERTY(default_font,
+         "Font used by Caption when none is given (Font). Loaded from "
+         "assets/JetbrainsMono.ttf on first use; assign a Font to replace it."
+     ), NULL},
+    {"default_texture", mcrfpy_get_default_texture, mcrfpy_set_default_texture,
+     MCRF_PROPERTY(default_texture,
+         "Texture used by Sprite, Entity and Grid when none is given (Texture). Loaded "
+         "from assets/kenney_tinydungeon.png on first use; assign a Texture to replace it."
      ), NULL},
     {"save_dir", mcrfpy_get_save_dir, NULL,
      MCRF_PROPERTY(save_dir,
@@ -950,11 +995,7 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
     PyModule_AddObject(m, "Grid", (PyObject*)&mcrfpydef::PyUIGridViewType);
 
     // Add default_font and default_texture to module
-    McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
-    McRFPy_API::default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
-    // These will be set later when the window is created
-    PyModule_AddObject(m, "default_font", Py_None);
-    PyModule_AddObject(m, "default_texture", Py_None);
+    // default_font and default_texture are module properties, loaded on first use (#451).
 
     // Add keyboard singleton (#160)
     PyObject* keyboard_instance = PyObject_CallObject((PyObject*)&PyKeyboardType, NULL);
@@ -1492,11 +1533,6 @@ void McRFPy_API::api_init() {
         std::cout << PyUnicode_AsUTF8(repr.get()) << std::endl;
     }
 
-    //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
-    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
-    //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
-    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
-
     //sprite.setTexture(texture);
     //sprite.setScale(sf::Vector2f(4.0f, 4.0f));
     //setSpriteTexture(0);
@@ -1520,16 +1556,9 @@ void McRFPy_API::api_init(const McRogueFaceConfig& config) {
     // Execute based on mode - this is handled in main.cpp now
     // The actual execution logic is in run_python_interpreter()
     
-    // Set up default resources only if in game mode
-    if (!config.python_mode) {
-        //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
-        //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
-    }
 }
 
-void McRFPy_API::executeScript(std::string filename)
+void McRFPy_API::executeScript(std::string filename, bool main_script)
 {
     std::string script_path_str;
 
@@ -1559,8 +1588,8 @@ void McRFPy_API::executeScript(std::string filename)
     script_path_str = script_path.string();
 #endif
 
-    // Use std::ifstream + PyRun_SimpleString instead of PyRun_SimpleFile
-    // PyRun_SimpleFile has compatibility issues with MinGW-compiled code
+    // Read with std::ifstream instead of PyRun_SimpleFile: a FILE* can't cross the
+    // MinGW/MSVC CRT boundary.
     std::ifstream file(script_path_str);
     if (!file.is_open()) {
         std::cout << "Failed to open script: " << script_path_str << std::endl;
@@ -1571,14 +1600,90 @@ void McRFPy_API::executeScript(std::string filename)
                                 std::istreambuf_iterator<char>());
     file.close();
 
-    // Set __file__ before execution
-    PyObject* main_module = PyImport_AddModule("__main__");
-    PyObject* main_dict = PyModule_GetDict(main_module);
-    PyObject* py_filename = PyUnicode_FromString(script_path_str.c_str());
-    PyDict_SetItemString(main_dict, "__file__", py_filename);
-    Py_DECREF(py_filename);
+    if (main_script && setMainScriptDir(script_path_str) < 0) {
+        PyErr_Print();
+        return;
+    }
+    runScriptSource(script_content, script_path_str);
+}
 
-    PyRun_SimpleString(script_content.c_str());
+int McRFPy_API::setMainScriptDir(const std::string& script_path)
+{
+#ifdef __EMSCRIPTEN__
+    // The virtual filesystem has one scripts directory, /scripts, already on sys.path.
+    (void)script_path;
+    return 0;
+#else
+    // executable_path() is the canonical binary location (through any symlink), so this
+    // entry is the engine's own scripts/, which is only right when the script is there.
+    const std::filesystem::path dir =
+        std::filesystem::absolute(std::filesystem::path(script_path)).lexically_normal().parent_path();
+    const std::filesystem::path exe_scripts = std::filesystem::path(executable_path()) / "scripts";
+
+    PyObject* sys_path = PySys_GetObject("path");  // borrowed
+    if (!sys_path || !PyList_Check(sys_path)) {
+        PyErr_SetString(PyExc_RuntimeError, "sys.path is not a list");
+        return -1;
+    }
+    mcrf::PyRef dir_str(PyUnicode_DecodeFSDefault(dir.string().c_str()));
+    mcrf::PyRef exe_scripts_str(PyUnicode_DecodeFSDefault(exe_scripts.string().c_str()));
+    if (!dir_str || !exe_scripts_str) return -1;
+
+    const Py_ssize_t at = PySequence_Index(sys_path, exe_scripts_str.get());
+    if (at < 0) {
+        PyErr_Clear();
+        return PyList_Insert(sys_path, 0, dir_str.get());
+    }
+    if (PyList_SetItem(sys_path, at, dir_str.get()) < 0) return -1;  // steals
+    dir_str.release();
+    if (at == 0) return 0;
+    // Keep it first, as Python does.
+    mcrf::PyRef entry(PySequence_GetItem(sys_path, at));
+    if (!entry || PySequence_DelItem(sys_path, at) < 0) return -1;
+    return PyList_Insert(sys_path, 0, entry.get());
+#endif
+}
+
+int McRFPy_API::runScriptSource(const std::string& source, const std::string& path)
+{
+    PyObject* main_module = PyImport_AddModule("__main__");
+    if (!main_module) {
+        PyErr_Print();
+        return -1;
+    }
+    PyObject* main_dict = PyModule_GetDict(main_module);
+    if (mcrf::dict_steal(main_dict, "__file__", PyUnicode_DecodeFSDefault(path.c_str())) < 0) {
+        PyErr_Print();
+        return -1;
+    }
+    // Compiling under the real path is what puts it in tracebacks (PyRun_SimpleString
+    // compiles as "<string>").
+    mcrf::PyRef code(Py_CompileString(source.c_str(), path.c_str(), Py_file_input));
+    if (!code) {
+        PyErr_Print();
+        return -1;
+    }
+    mcrf::PyRef result(PyEval_EvalCode(code.get(), main_dict, main_dict));
+    if (!result) {
+        PyErr_Print();   // exits the process on SystemExit, as PyRun_SimpleString does
+        return -1;
+    }
+    return 0;
+}
+
+std::shared_ptr<PyFont> McRFPy_API::defaultFont()
+{
+    if (!default_font) default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
+    return default_font;
+}
+
+std::shared_ptr<PyTexture> McRFPy_API::defaultTexture()
+{
+    if (!default_texture) {
+        if (!mcrf::require_display_py("the default texture (mcrfpy.default_texture)")) return nullptr;
+        default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
+    }
+    return default_texture;
 }
 
 void McRFPy_API::api_shutdown()
@@ -1677,7 +1782,12 @@ PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
 		else if (trans == "slide_down") transition_type = TransitionType::SlideDown;
 	}
 	
-	game->changeScene(newscene, transition_type, duration);
+	try {
+		game->changeScene(newscene, transition_type, duration);
+	} catch (const mcrf::NoDisplayError& e) {  // #451
+		PyErr_SetString(PyExc_RuntimeError, e.what());
+		return NULL;
+	}
     Py_INCREF(Py_None);
     return Py_None;		
 }

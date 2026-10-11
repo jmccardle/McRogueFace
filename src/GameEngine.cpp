@@ -1,4 +1,5 @@
 #include "GameEngine.h"
+#include "Display.h"
 #include "ActionCode.h"
 #include <sys/stat.h>
 #include "McRFPy_API.h"
@@ -110,15 +111,17 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     // start; headless leaves it unclaimed until the first step()/advance().
     if (!headless) claimClock();
 
-    Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
+    // The engine font is loaded by getFont(), on first use (#451).
     Resources::game = this;
     window_title = "McRogueFace Engine";
 
     // Ensure save/ directory exists for persistent game data
 #ifndef __EMSCRIPTEN__
-    // Desktop: create save/ in working directory (WASM uses IDBFS mount from JS)
+    // Desktop: create save/ in working directory (WASM uses IDBFS mount from JS).
+    // Not for -c / -m, which run no game and may be run from any directory (#451).
+    const bool runs_game = cfg.python_command.empty() && cfg.python_module.empty();
     struct stat st;
-    if (stat("save", &st) != 0) {
+    if (runs_game && stat("save", &st) != 0) {
 #ifdef _WIN32
         mkdir("save");
 #else
@@ -129,11 +132,10 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     
     // Initialize rendering based on headless mode
     if (headless) {
-        headless_renderer = std::make_unique<HeadlessRenderer>();
-        if (!headless_renderer->init(1024, 768)) {
-            throw std::runtime_error("Failed to initialize headless renderer");
-        }
-        render_target = &headless_renderer->getRenderTarget();
+        // #451: the render texture is created by the first frame that draws; until then
+        // there is no target, and a process that never renders never needs a display.
+        headless_renderer = std::make_unique<HeadlessRenderer>(1024, 768);
+        render_target = nullptr;
     } else {
         window = std::make_unique<sf::RenderWindow>();
 #ifdef __EMSCRIPTEN__
@@ -166,7 +168,8 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
 #endif
     }
 
-    visible = render_target->getDefaultView();
+    const sf::Vector2u size = renderSize();
+    visible = sf::View(sf::FloatRect(0.f, 0.f, static_cast<float>(size.x), static_cast<float>(size.y)));
     
     // Initialize the game view
     gameView.setSize(static_cast<float>(gameResolution.x), static_cast<float>(gameResolution.y));
@@ -180,7 +183,8 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     mcrf::audio::configure(config.audio_enabled);  // #406: before any Python runs
 
     // Initialize profiler overlay
-    profilerOverlay = new ProfilerOverlay(Resources::font);
+    // (Never shown headless, and it would load the font, #451.)
+    if (!headless) profilerOverlay = new ProfilerOverlay(getFont());
     
     // Only load game.py if no custom script/command/module/exec is specified
     bool should_load_game = config.script_path.empty() && 
@@ -195,7 +199,7 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
             McRFPy_API::api_init();
         }
         McRFPy_API::executePyString("import mcrfpy");
-        McRFPy_API::executeScript("scripts/game.py");
+        McRFPy_API::executeScript("scripts/game.py", /*main_script=*/true);
     }
 
     // Note: --exec scripts are NOT executed here.
@@ -316,6 +320,7 @@ void GameEngine::changeScene(std::string sceneName, TransitionType transitionTyp
     }
     else
     {
+        mcrf::require_display("a scene transition");  // #451: renders to two textures
         // Start transition with current game resolution
         transition.width = gameResolution.x;
         transition.height = gameResolution.y;
@@ -345,7 +350,15 @@ void GameEngine::changeScene(std::string sceneName, TransitionType transitionTyp
 }
 void GameEngine::quit() { running = false; }
 void GameEngine::setPause(bool p) { paused = p; }
-sf::Font & GameEngine::getFont() { /*return font; */ return Resources::font; }
+sf::Font & GameEngine::getFont() {
+    // Loaded on first use, not at startup (#451): -c / -m runs from any directory.
+    static bool loaded = false;
+    if (!loaded) {
+        loaded = true;
+        Resources::font.loadFromFile("./assets/JetbrainsMono.ttf");
+    }
+    return Resources::font;
+}
 sf::RenderWindow & GameEngine::getWindow() { 
     if (!window) {
         throw std::runtime_error("Window not available in headless mode");
@@ -353,8 +366,18 @@ sf::RenderWindow & GameEngine::getWindow() {
     return *window; 
 }
 
-sf::RenderTarget & GameEngine::getRenderTarget() { 
-    return *render_target; 
+sf::RenderTarget & GameEngine::getRenderTarget() {
+    if (!render_target) {
+        // #451: headless creates its texture here, on first use. Throws NoDisplayError.
+        render_target = &headless_renderer->getRenderTarget();
+        render_target->setView(gameView);
+    }
+    return *render_target;
+}
+
+sf::Vector2u GameEngine::renderSize() const {
+    if (headless) return headless_renderer->getSize();
+    return window->getSize();
 }
 
 void GameEngine::createScene(std::string s) { scenes[s] = std::make_shared<PyScene>(this); }
@@ -511,8 +534,8 @@ void GameEngine::doFrame()
         else
         {
             // Render transition
-            render_target->clear();
-            transition.render(*render_target);
+            getRenderTarget().clear();
+            transition.render(getRenderTarget());
         }
     }
     else
@@ -878,9 +901,7 @@ std::string GameEngine::getViewportModeString() const {
 }
 
 void GameEngine::updateViewport() {
-    if (!render_target) return;
-    
-    auto windowSize = render_target->getSize();
+    auto windowSize = renderSize();
     
     switch (viewportMode) {
         case ViewportMode::Center: {
@@ -940,15 +961,26 @@ void GameEngine::updateViewport() {
         }
     }
     
-    // Apply the view
-    render_target->setView(gameView);
+    // Apply the view (a headless target not yet created gets it when it is, #451)
+    if (render_target) render_target->setView(gameView);
 }
 
 sf::Vector2f GameEngine::windowToGameCoords(const sf::Vector2f& windowPos) const {
-    if (!render_target) return windowPos;
-
     // Convert window coordinates to game coordinates using the view
-    return render_target->mapPixelToCoords(sf::Vector2i(windowPos), gameView);
+    if (render_target) return render_target->mapPixelToCoords(sf::Vector2i(windowPos), gameView);
+
+    // #451: a headless target that doesn't exist yet. The same mapping
+    // sf::RenderTarget::mapPixelToCoords does, from the size it will have.
+    const sf::Vector2u size = renderSize();
+    const sf::FloatRect vp = gameView.getViewport();
+    const float left = static_cast<int>(0.5f + size.x * vp.left);
+    const float top = static_cast<int>(0.5f + size.y * vp.top);
+    const float width = static_cast<int>(0.5f + size.x * vp.width);
+    const float height = static_cast<int>(0.5f + size.y * vp.height);
+    const sf::Vector2i pixel(windowPos);
+    const sf::Vector2f normalized(-1.f + 2.f * (pixel.x - left) / width,
+                                  1.f - 2.f * (pixel.y - top) / height);
+    return gameView.getInverseTransform().transformPoint(normalized);
 }
 
 // #106 - Shader intermediate texture: shared texture for shader rendering
@@ -1168,15 +1200,15 @@ int GameEngine::advance(int ms) {
 // the path a screenshot takes, and -- since step() deliberately never renders -- it is
 // how a headless script gets real render metrics without the clock moving.
 void GameEngine::renderScene() {
-    if (!render_target) return;
+    sf::RenderTarget& target = getRenderTarget();  // #451: created here when headless
 
     metrics.beginRender();
 
     // Handle scene transitions
     if (transition.type != TransitionType::None) {
         transition.update(0);  // Don't advance transition time, just render current state
-        render_target->clear();
-        transition.render(*render_target);
+        target.clear();
+        transition.render(target);
     } else {
         // Normal scene rendering
         currentScene()->render();

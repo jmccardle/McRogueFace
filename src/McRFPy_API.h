@@ -24,6 +24,11 @@ public:
     static PyObject* mcrf_module;
     static std::shared_ptr<PyFont> default_font;
     static std::shared_ptr<PyTexture> default_texture;
+    // The default font, loaded on first use (#451).
+    static std::shared_ptr<PyFont> defaultFont();
+    // The default texture, loaded on first use (#451). nullptr with RuntimeError set when
+    // there is no display to create it on.
+    static std::shared_ptr<PyTexture> defaultTexture();
     //inline static sf::Sprite sprite;
     //inline static sf::Texture texture;
     //static void setSpriteTexture(int);
@@ -56,7 +61,15 @@ public:
     static sf::Vector2i cursor_position;
     
 
-    static void executeScript(std::string);
+    // main_script: this is the program (game.py), so its directory becomes sys.path[0] (#452).
+    static void executeScript(std::string, bool main_script = false);
+    // Puts the main script's directory at sys.path[0], in place of <exe dir>/scripts, the
+    // way `python dir/script.py` does (#452). Returns -1 with an exception set on failure.
+    static int setMainScriptDir(const std::string& script_path);
+    // Runs a script's source in __main__ with its real path as the code's filename (#422),
+    // so tracebacks, linecache and profilers name the file. Same result and error handling
+    // as PyRun_SimpleString: 0 on success, -1 after printing the error.
+    static int runScriptSource(const std::string& source, const std::string& path);
     static void executePyString(std::string);
     
     // Helper to mark scenes as needing z_index resort

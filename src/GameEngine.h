@@ -329,8 +329,14 @@ public:
     void setPause(bool);
     sf::Font & getFont();
     sf::RenderWindow & getWindow();
+    // The target frames draw to. Headless creates it here on first use (#451), which needs a
+    // display: throws mcrf::NoDisplayError without one.
     sf::RenderTarget & getRenderTarget();
+    // The target if it exists yet; nullptr before a headless engine's first frame. Never
+    // creates it, so size queries and window checks don't need a display.
     sf::RenderTarget* getRenderTargetPtr() { return render_target; }
+    // The size of the render target, whether or not it has been created.
+    sf::Vector2u renderSize() const;
     void run();
     void doFrame();  // Single frame update - extracted for Emscripten callback support
     bool isRunning() const { return running; }  // Check if engine should continue running

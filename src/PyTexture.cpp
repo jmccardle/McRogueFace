@@ -1,4 +1,5 @@
 #include "PyTexture.h"
+#include "Display.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "PyWrap.h"
@@ -157,6 +158,7 @@ Py_hash_t PyTexture::hash(PyObject* obj)
 
 int PyTexture::init(PyTextureObject* self, PyObject* args, PyObject* kwds)
 {
+    if (!mcrf::require_display_py("Texture()")) return -1;  // #451: a GL texture
     static const char* keywords[] = { "filename", "sprite_width", "sprite_height",
                                        "display_size", "display_origin", nullptr };
     char* filename;
@@ -295,6 +297,7 @@ PyGetSetDef PyTexture::getsetters[] = {
 // ============================================================================
 PyObject* PyTexture::from_bytes(PyObject* cls, PyObject* args, PyObject* kwds)
 {
+    if (!mcrf::require_display_py("Texture.from_bytes()")) return NULL;  // #451: a GL texture
     static const char* keywords[] = {"data", "width", "height", "sprite_width", "sprite_height", "name", nullptr};
     Py_buffer buf;
     int width, height, sprite_w, sprite_h;
@@ -327,6 +330,7 @@ PyObject* PyTexture::from_bytes(PyObject* cls, PyObject* args, PyObject* kwds)
 // ============================================================================
 PyObject* PyTexture::composite(PyObject* cls, PyObject* args, PyObject* kwds)
 {
+    if (!mcrf::require_display_py("Texture.composite()")) return NULL;  // #451: a GL texture
     static const char* keywords[] = {"layers", "sprite_width", "sprite_height", "name", nullptr};
     PyObject* layers_list;
     int sprite_w, sprite_h;

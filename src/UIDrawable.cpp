@@ -100,9 +100,8 @@ UIDrawable::UIDrawable(const UIDrawable& other)
     }
 
     // Deep copy render texture if needed
-    if (other.render_texture && other.use_render_texture) {
-        auto size = other.render_texture->getSize();
-        enableRenderTexture(size.x, size.y);
+    if (other.use_render_texture) {
+        enableRenderTexture(other.render_texture_size.x, other.render_texture_size.y);
     }
 }
 
@@ -146,9 +145,8 @@ UIDrawable& UIDrawable::operator=(const UIDrawable& other) {
         }
 
         // Deep copy render texture if needed
-        if (other.render_texture && other.use_render_texture) {
-            auto size = other.render_texture->getSize();
-            enableRenderTexture(size.x, size.y);
+        if (other.use_render_texture) {
+            enableRenderTexture(other.render_texture_size.x, other.render_texture_size.y);
         } else {
             render_texture.reset();
             use_render_texture = false;
@@ -443,21 +441,27 @@ int UIDrawable::set_name(PyObject* self, PyObject* value, void* closure) {
 }
 
 void UIDrawable::enableRenderTexture(unsigned int width, unsigned int height) {
-    // Create or recreate RenderTexture if size changed
-    if (!render_texture || render_texture->getSize().x != width || render_texture->getSize().y != height) {
-        render_texture = std::make_unique<sf::RenderTexture>();
-        if (!render_texture->create(width, height)) {
-            std::cerr << "[McRogueFace] Warning: Failed to create RenderTexture ("
-                      << width << "x" << height << ")" << std::endl;
-            render_texture.reset();
-            use_render_texture = false;
-            return;
-        }
-        render_sprite.setTexture(render_texture->getTexture(), true);  // new size: reset the rect
-    }
-
+    // A different size discards the texture; the next draw creates it (#451).
+    if (render_texture_size != sf::Vector2u(width, height)) render_texture.reset();
+    render_texture_size = sf::Vector2u(width, height);
     use_render_texture = true;
     render_dirty = true;
+}
+
+bool UIDrawable::realizeRenderTexture() {
+    if (!use_render_texture) return false;
+    if (render_texture) return true;
+    auto texture = std::make_unique<sf::RenderTexture>();
+    if (!texture->create(render_texture_size.x, render_texture_size.y)) {
+        std::cerr << "[McRogueFace] Warning: Failed to create RenderTexture ("
+                  << render_texture_size.x << "x" << render_texture_size.y << ")" << std::endl;
+        use_render_texture = false;
+        return false;
+    }
+    render_texture = std::move(texture);
+    render_sprite.setTexture(render_texture->getTexture(), true);  // new size: reset the rect
+    render_dirty = true;
+    return true;
 }
 
 void UIDrawable::disableRenderTexture() {
@@ -470,7 +474,7 @@ void UIDrawable::disableRenderTexture() {
 }
 
 void UIDrawable::updateRenderTexture() {
-    if (!use_render_texture || !render_texture) {
+    if (!realizeRenderTexture()) {
         return;
     }
     

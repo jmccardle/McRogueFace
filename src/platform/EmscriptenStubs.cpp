@@ -94,25 +94,42 @@ sys.stderr = _mcrf_stderr_capture
 _mcrf_exec_error = None
 _mcrf_last_repr = None
 
-try:
-    # Try to compile as eval (expression) first
-    _mcrf_code_obj = compile(_mcrf_user_code, '<repl>', 'eval')
-    _mcrf_result = eval(_mcrf_code_obj, globals())
-    if _mcrf_result is not None:
-        _mcrf_last_repr = repr(_mcrf_result)
-except SyntaxError:
-    # Not a simple expression, try exec
-    try:
-        exec(_mcrf_user_code, globals())
-    except Exception as e:
-        import traceback
-        _mcrf_exec_error = traceback.format_exc()
-except Exception as e:
-    import traceback
-    _mcrf_exec_error = traceback.format_exc()
 
-sys.stdout = _mcrf_old_stdout
-sys.stderr = _mcrf_old_stderr
+def _mcrf_format_error(error):
+    # #392: the traceback is the user's error report. If it can't be formatted (the web
+    # stdlib once lacked a module traceback imports), say so and still show the error.
+    try:
+        import traceback
+        # Start at the user's code: the frames before it are this wrapper's.
+        tb = error.__traceback__
+        while tb is not None and tb.tb_frame.f_code.co_filename != '<repl>':
+            tb = tb.tb_next
+        return "".join(traceback.format_exception(type(error), error, tb))
+    except BaseException as fmt_error:
+        return "%s: %s\n(no traceback: formatting it raised %s: %s)\n" % (
+            type(error).__name__, error, type(fmt_error).__name__, fmt_error)
+
+
+try:
+    try:
+        # Try to compile as eval (expression) first
+        _mcrf_code_obj = compile(_mcrf_user_code, '<repl>', 'eval')
+    except SyntaxError:
+        _mcrf_code_obj = None
+    if _mcrf_code_obj is not None:
+        _mcrf_result = eval(_mcrf_code_obj, globals())
+        if _mcrf_result is not None:
+            _mcrf_last_repr = repr(_mcrf_result)
+    else:
+        # Not a simple expression: run it as statements
+        exec(compile(_mcrf_user_code, '<repl>', 'exec'), globals())
+except BaseException as _mcrf_error:
+    # BaseException: sys.exit() in the REPL is reported, not allowed to end the page's
+    # interpreter.
+    _mcrf_exec_error = _mcrf_format_error(_mcrf_error)
+finally:
+    sys.stdout = _mcrf_old_stdout
+    sys.stderr = _mcrf_old_stderr
 
 _mcrf_captured_output = _mcrf_stdout_capture.getvalue()
 if _mcrf_stderr_capture.getvalue():
@@ -130,28 +147,26 @@ elif _mcrf_last_repr:
     PyDict_SetItemString(main_dict, "_mcrf_user_code", py_code);
     Py_DECREF(py_code);
 
-    // Run the capture code
-    int result = PyRun_SimpleString(capture_code);
+    // Run the capture code. PyRun_String, not PyRun_SimpleString: that one prints and
+    // clears the exception, which left only "Unknown error in capture code" to report (#392).
+    PyObject* run = PyRun_String(capture_code, Py_file_input, main_dict, main_dict);
+    Py_XDECREF(run);
 
     // Check if capture code itself failed (e.g., internal error in REPL wrapper)
-    if (result != 0 || PyErr_Occurred()) {
-        // Capture the Python error before clearing
+    if (!run) {
         PyObject *ptype, *pvalue, *ptraceback;
         PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+        PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
 
         python_output_buffer = "Internal REPL Error: ";
-        if (pvalue) {
-            PyObject* str = PyObject_Str(pvalue);
-            if (str) {
-                const char* err_str = PyUnicode_AsUTF8(str);
-                if (err_str) {
-                    python_output_buffer += err_str;
-                }
-                Py_DECREF(str);
-            }
-        } else {
-            python_output_buffer += "Unknown error in capture code";
+        if (ptype) {
+            python_output_buffer += ((PyTypeObject*)ptype)->tp_name;
+            python_output_buffer += ": ";
         }
+        PyObject* str = pvalue ? PyObject_Str(pvalue) : nullptr;
+        const char* err_str = str ? PyUnicode_AsUTF8(str) : nullptr;
+        python_output_buffer += err_str ? err_str : "(the error has no message)";
+        Py_XDECREF(str);
 
         Py_XDECREF(ptype);
         Py_XDECREF(pvalue);
@@ -183,6 +198,8 @@ elif _mcrf_last_repr:
     safe_dict_del(main_dict, "_mcrf_last_repr");    // Previously leaked
     safe_dict_del(main_dict, "_mcrf_result");       // Previously leaked
     safe_dict_del(main_dict, "_mcrf_code_obj");     // Previously leaked
+    safe_dict_del(main_dict, "_mcrf_format_error");
+    safe_dict_del(main_dict, "_mcrf_error");
 
     // Final safety check - clear any residual error state
     if (PyErr_Occurred()) {

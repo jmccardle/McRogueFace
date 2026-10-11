@@ -1,3 +1,4 @@
+#include "Display.h"
 #include "Common.h"
 #include "PyWrap.h"
 #include "GameEngine.h"
@@ -31,10 +32,17 @@ int main(int argc, char* argv[])
     }
 
     // Initialize based on configuration
-    if (config.python_mode) {
-        return run_python_interpreter(config);
-    } else {
-        return run_game_engine(config);
+    try {
+        if (config.python_mode) {
+            return run_python_interpreter(config);
+        } else {
+            return run_game_engine(config);
+        }
+    } catch (const mcrf::NoDisplayError& e) {
+        // #451: the engine needed a display outside any Python call (a headless frame
+        // loop rendering, say). Python entry points raise RuntimeError instead.
+        std::cerr << "mcrogueface: " << e.what() << std::endl;
+        return 1;
     }
 }
 
@@ -67,13 +75,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
         PyErr_Print();
         std::cerr << "Failed to import mcrfpy module" << std::endl;
     } else {
-        // Set up default_font and default_texture if not already done
-        if (!McRFPy_API::default_font) {
-            McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
-            McRFPy_API::default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
-        }
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
+        // default_font and default_texture are loaded on first use (#451).
     }
 
     // Handle different Python modes
@@ -129,8 +131,8 @@ int run_python_interpreter(const McRogueFaceConfig& config)
     }
     else if (!config.script_path.empty()) {
         // Execute script file (sys.argv already set at init time)
-        // Note: Using PyRun_SimpleString instead of PyRun_SimpleFile for better
-        // cross-platform compatibility (PyRun_SimpleFile has issues with MinGW/Wine)
+        // Read into memory rather than PyRun_SimpleFile: a FILE* can't cross the
+        // MinGW/MSVC CRT boundary. runScriptSource keeps the path in tracebacks (#422).
 
         // Read file contents
         std::ifstream file(config.script_path);
@@ -144,14 +146,9 @@ int run_python_interpreter(const McRogueFaceConfig& config)
                                     std::istreambuf_iterator<char>());
         file.close();
 
-        // Set __file__ before execution
-        PyObject* main_module = PyImport_AddModule("__main__");
-        PyObject* main_dict = PyModule_GetDict(main_module);
-        PyObject* py_filename = PyUnicode_FromString(config.script_path.string().c_str());
-        PyDict_SetItemString(main_dict, "__file__", py_filename);
-        Py_DECREF(py_filename);
-
-        int result = PyRun_SimpleString(script_content.c_str());
+        int result = McRFPy_API::setMainScriptDir(config.script_path.string());  // #452
+        if (result < 0) PyErr_Print();
+        else result = McRFPy_API::runScriptSource(script_content, config.script_path.string());
 
         // Flush Python stdout/stderr to ensure output appears before engine->run() blocks
         PyObject* sys_module = PyImport_ImportModule("sys");

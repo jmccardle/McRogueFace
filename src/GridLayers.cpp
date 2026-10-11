@@ -159,11 +159,10 @@ void GridLayer::initChunks() {
     // Initialize per-chunk tracking
     chunk_dirty.assign(total_chunks, true);  // All chunks start dirty
     chunk_texture_initialized.assign(total_chunks, false);
+    // #451: each chunk's texture is created when the chunk is first drawn
+    // (ensureChunkTexture), so a layer that is never drawn needs no display.
     chunk_textures.clear();
-    chunk_textures.reserve(total_chunks);
-    for (int i = 0; i < total_chunks; ++i) {
-        chunk_textures.push_back(std::make_unique<sf::RenderTexture>());
-    }
+    chunk_textures.resize(total_chunks);
 }
 
 void GridLayer::markDirty() {
@@ -223,7 +222,7 @@ void GridLayer::getChunkBounds(int chunk_x, int chunk_y, int& start_x, int& star
 
 void GridLayer::ensureChunkTexture(int chunk_idx, int cell_width, int cell_height) {
     if (chunk_idx < 0 || chunk_idx >= static_cast<int>(chunk_textures.size())) return;
-    if (!chunk_textures[chunk_idx]) return;
+    if (!chunk_textures[chunk_idx]) chunk_textures[chunk_idx] = std::make_unique<sf::RenderTexture>();
 
     // Calculate chunk dimensions in cells
     int cx = chunk_idx % chunks_x;
@@ -406,7 +405,6 @@ void ColorLayer::resize(int new_grid_x, int new_grid_y) {
 void ColorLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, int cell_height) {
     int chunk_idx = chunk_y * chunks_x + chunk_x;
     if (chunk_idx < 0 || chunk_idx >= static_cast<int>(chunk_textures.size())) return;
-    if (!chunk_textures[chunk_idx]) return;
 
     ensureChunkTexture(chunk_idx, cell_width, cell_height);
     if (!chunk_texture_initialized[chunk_idx]) return;
@@ -583,7 +581,6 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
 
     int chunk_idx = chunk_y * chunks_x + chunk_x;
     if (chunk_idx < 0 || chunk_idx >= static_cast<int>(chunk_textures.size())) return;
-    if (!chunk_textures[chunk_idx]) return;
 
     ensureChunkTexture(chunk_idx, cell_width, cell_height);
     if (!chunk_texture_initialized[chunk_idx]) return;

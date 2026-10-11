@@ -124,7 +124,7 @@ finally:
 raiser.stop()
 check([x - r0 for x in first] == [100], "a raising callback stops catch-up for this frame %r" % [x - r0 for x in first])
 check([x - r0 for x in rlog] == [100, 200], "the next frame resumes the owed deadlines %r" % [x - r0 for x in rlog])
-check(captured.count("expected by issue_397 test") == 2, "each raise was reported, once per frame")
+check(captured.count("ValueError: expected by issue_397 test") == 2, "each raise was reported, once per frame")
 
 # --- animations survive a wide step ---
 for dt in (10.0, 60.0):

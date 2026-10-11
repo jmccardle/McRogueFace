@@ -1,3 +1,4 @@
+#include "Display.h"
 #include "PySceneObject.h"
 #include "PyScene.h"
 #include "GameEngine.h"
@@ -163,7 +164,12 @@ PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args, PyObject* 
     }
 
     // Call game->changeScene directly with proper transition
-    game->changeScene(self->name, transition_type, duration);
+    try {
+        game->changeScene(self->name, transition_type, duration);
+    } catch (const mcrf::NoDisplayError& e) {  // #451
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -759,7 +765,12 @@ int McRFPy_API::api_set_current_scene(PyObject* value)
     }
 
     // Use changeScene with default transition settings
-    game->changeScene(scene_name, PyTransition::default_transition, PyTransition::default_duration);
+    try {
+        game->changeScene(scene_name, PyTransition::default_transition, PyTransition::default_duration);
+    } catch (const mcrf::NoDisplayError& e) {  // #451
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return -1;
+    }
 
     return 0;
 }

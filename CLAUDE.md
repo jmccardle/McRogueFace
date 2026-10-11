@@ -275,14 +275,18 @@ The packaging system creates self-contained archives with:
 **Full variant** (~26 MB): Includes networking, async, debugging modules
 
 Packaging tools:
-- `tools/package.sh` - Main packaging orchestrator
-- `tools/package_stdlib.py` - Creates filtered stdlib archives
-- `tools/stdlib_modules.yaml` - Module categorization config
+- `src/pylib/mcrf_project/runtime.py` - **the** definition of what a package contains
+  (the runtime: binary, libraries, filtered stdlib). Read from a built engine directory;
+  every version-dependent name is discovered, never written down. Ships with the engine
+  (copied to `lib/Python/Lib/` by the `mcrf_pylib` CMake target).
+- `tools/package.sh` - thin wrapper: `build/mcrogueface -m mcrf_project package-engine`
+  with the git version. Games use the same code: `mcrogueface -m mcrf_project dist` (#420).
+  Never re-list runtime files anywhere else; that duplication is how #420 happened.
+- `tools/package_stdlib.py`, `tools/stdlib_modules.yaml` - unused (see #399)
 
 **Caveat (#399): the light/full split is currently aspirational, not mechanical.**
-`create_stdlib_zip()` in `tools/package.sh` is defined but never called, so both
-presets copy the entire `__lib/Python/Lib` and differ only by the hardcoded `rm -rf`
-list. Do not assume editing `stdlib_modules.yaml` changes what ships.
+Both presets ship the same stdlib; the preset only names the package. Do not assume
+editing `stdlib_modules.yaml` changes what ships.
 
 #### Networking / async guarantee
 
@@ -533,8 +537,9 @@ tests/
 ### Running Tests
 
 ```bash
-# Run the full test suite (from tests/ directory). The SFML build needs a display
-# even with --headless; ALSOFT_DRIVERS=null stands in for a missing audio device.
+# Run the full test suite (from tests/ directory). Rendering in the SFML build needs a
+# display even with --headless (GL resources are created on first use, and raise
+# RuntimeError with no display, #451); ALSOFT_DRIVERS=null stands in for a missing audio device.
 cd tests && ALSOFT_DRIVERS=null xvfb-run -a python3 run_tests.py
 
 # Run a specific test

@@ -1,4 +1,5 @@
 #include "UISprite.h"
+#include "Display.h"
 #include "PyWrap.h"
 #include "GameEngine.h"
 #include "PyVector.h"
@@ -559,6 +560,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
                 return -1;
             }
 
+            if (!mcrf::require_display_py("Sprite(snapshot=...)")) return -1;  // #451
             sf::RenderTexture render_tex;
             if (!render_tex.create(static_cast<unsigned int>(bounds.width),
                                    static_cast<unsigned int>(bounds.height))) {
@@ -589,12 +591,8 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
         texture_ptr = pytexture->data;
     } else {
         // Use default texture when None or not provided
-        texture_ptr = McRFPy_API::default_texture;
-    }
-
-    if (!texture_ptr) {
-        PyErr_SetString(PyExc_RuntimeError, "No texture provided and no default texture available");
-        return -1;
+        texture_ptr = McRFPy_API::defaultTexture();
+        if (!texture_ptr) return -1;
     }
     
     // Create the sprite
