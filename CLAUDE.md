@@ -701,6 +701,25 @@ Python first touches it.
 Never read the pin as "the wrapper" (it has no getter); use `to_python()`. An entity's grid
 back-reference is a `weak_ptr` (`getGrid()`), so dropping a grid frees it and its entities.
 
+**Membership (#442, #447, #438).** A drawable has one parent, an entity one grid, an
+`Entity3D` one viewport, each at most once. Every add *moves*: out of the old collection, or
+out of the old slot in the same one. One choke point per kind: drawables detach with
+`UIDrawable::removeFromParent()` and are cycle-checked first with `UIDrawable::canAdopt()`
+(`can_link()` inside `UICollection`), before anything is mutated; entities go through
+`UIEntity::moveToGrid(grid, index)` (built on `removeFromGrid()`), and Entity3D through
+`moveToViewport()` (built on `removeFromViewport()`). Never push onto a children/`entities`
+vector by hand. `[i] = x` replaces the element at `i` before `x` leaves its old slot; slice
+assignment builds the result list and commits it once; a value list naming one object twice
+raises `ValueError`. Membership changes repaint: `UIEntity::setGrid()` marks the old and new
+grid dirty (#446).
+
+**Render invalidation (#427, #446).** `GridData::markDirty()` / `markCompositeDirty()` are the
+only writers of `content_generation`: they also mark every registered view, which walks up to
+any `cache_subtree` ancestor. Layer edits reach them through `GridLayer::notifyGrid()`, layer
+add/remove through `GridData::attachLayer()` / `removeLayer()`, and `GridLayer::setZIndex()`
+also sets `layers_need_sort`. Bumping the counter directly repaints the view but not a caching
+parent.
+
 **GC ownership (#441).** A wrapper's `tp_traverse` may report the Python objects held inside
 its C++ object (callbacks, children's pins, a cached wrapper) only when it owns that object
 exclusively: `mcrf::owns_exclusively(use_count, keepers)`, where keepers are other owners that
@@ -724,8 +743,10 @@ before `exit()`. Never add an `sf::` audio member anywhere else: an unused one o
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or
 `PyObject_New`), direct `PythonObjectCache::` use, a new reference passed inline to a
-non-stealing call, an unreleased `from_arg()`, the pin touched outside its owner, and a
-`tp_traverse`/`tp_clear` reaching into the C++ object without `owns_exclusively`. Every
+non-stealing call, an unreleased `from_arg()`, the pin touched outside its owner, a
+`tp_traverse`/`tp_clear` reaching into the C++ object without `owns_exclusively`, a parent
+link without `canAdopt` (`adopt-unchecked`), and an entity-list insert without
+`removeFromGrid`/`removeFromViewport` (`entity-unlinked`). Every
 constructed type must be classified identity/value in its `TYPE_CLASS` table. The baseline
 (`tools/lint_bindings_baseline.txt`) is empty and may only shrink; the pre-commit hook and
 CI fail on any finding. `tools/refactor_check.py FILE --site KEY` is the fast per-file
