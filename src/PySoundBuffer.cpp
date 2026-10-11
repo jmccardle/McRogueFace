@@ -165,6 +165,18 @@ PyObject* PySoundBuffer::from_samples(PyObject* cls, PyObject* args, PyObject* k
         return NULL;
     }
 
+    // #461: whole frames only. A trailing partial sample used to be dropped silently,
+    // and empty data memcpy'd from a null pointer.
+    const Py_ssize_t frameBytes = static_cast<Py_ssize_t>(ch) * sizeof(int16_t);
+    if (buf.len == 0 || buf.len % frameBytes != 0) {
+        PyErr_Format(PyExc_ValueError,
+                     "data must be a non-empty whole number of %u-channel 16-bit frames "
+                     "(a multiple of %zd bytes), got %zd bytes",
+                     ch, frameBytes, buf.len);
+        PyBuffer_Release(&buf);
+        return NULL;
+    }
+
     size_t numSamples = buf.len / sizeof(int16_t);
     auto data = std::make_shared<SoundBufferData>();
     data->samples.resize(numSamples);
@@ -686,6 +698,7 @@ PyMethodDef PySoundBuffer::methods[] = {
          MCRF_ARG("data", "Raw PCM data as bytes (int16 little-endian)")
          MCRF_ARG("channels", "Number of audio channels (1=mono, 2=stereo)")
          MCRF_ARG("sample_rate", "Sample rate in Hz (e.g. 44100)")
+         MCRF_RAISES("ValueError", "data is empty or not a whole number of frames (channels * 2 bytes), or channels/sample_rate is 0")
      )},
     {"tone", (PyCFunction)PySoundBuffer::tone, METH_VARARGS | METH_KEYWORDS | METH_CLASS,
      MCRF_METHOD(SoundBuffer, tone,
