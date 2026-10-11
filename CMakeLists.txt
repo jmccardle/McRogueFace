@@ -81,6 +81,30 @@ if(NOT MCRF_PYTHON_ABI STREQUAL "" AND NOT EMSCRIPTEN AND NOT WIN32)
     message(STATUS "Using CPython ${MCRF_PYTHON_VERSION}${MCRF_PYTHON_ABI} from ${_mcrf_py_dir}/")
 endif()
 
+# ASan builds link and ship an ASan+UBSan libtcod from tools/build_debug_libs.sh:
+# __lib_asan/ (--asan, default compiler) for make asan, __lib_fuzz/ (--fuzz, clang-18)
+# for make fuzz-build. Each links only into a build with the same compiler and
+# sanitizer runtime, so neither may live in __lib_debug/, which the plain debug build
+# links from. TSan's libtcod goes in __lib_tsan/, next to its CPython.
+set(MCRF_ASAN_LIB_DIR "")
+if((MCRF_SANITIZE_ADDRESS OR MCRF_FUZZER) AND NOT EMSCRIPTEN AND NOT WIN32)
+    if(MCRF_FUZZER)
+        set(_mcrf_asan_dir "__lib_fuzz")
+        set(_mcrf_asan_flag "--fuzz")
+    else()
+        set(_mcrf_asan_dir "__lib_asan")
+        set(_mcrf_asan_flag "--asan")
+    endif()
+    if(EXISTS "${CMAKE_SOURCE_DIR}/${_mcrf_asan_dir}/libtcod.so")
+        set(MCRF_ASAN_LIB_DIR "${CMAKE_SOURCE_DIR}/${_mcrf_asan_dir}")
+        link_directories(${MCRF_ASAN_LIB_DIR})  # first, so it wins over __lib/
+        message(STATUS "Using the ASan-instrumented libtcod from ${_mcrf_asan_dir}/")
+    else()
+        message(WARNING "libtcod is not instrumented: ASan can't see bugs inside it (FOV, "
+                        "pathfinding). Build it with: tools/build_debug_libs.sh ${_mcrf_asan_flag}")
+    endif()
+endif()
+
 # Optional local -dev sysroot (tools/fetch_dev_headers.sh) for machines without
 # root: headers and unversioned .so links for X11/GL/OpenAL/freetype.
 set(MCRF_SYSROOT "$ENV{MCRF_SYSROOT}" CACHE PATH "Prefix with extra -dev packages (see tools/fetch_dev_headers.sh)")
@@ -437,6 +461,11 @@ if(MCRF_FUZZER)
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 ${MCRF_PYTHON_LIB_DIR} $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib)
     endif()
+    if(MCRF_ASAN_LIB_DIR)
+        add_custom_command(TARGET mcrfpy_fuzz POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${MCRF_ASAN_LIB_DIR} $<TARGET_FILE_DIR:mcrfpy_fuzz>/lib)
+    endif()
 endif()
 
 # Enable Py_DEBUG when linking against debug CPython (matches pydebug ABI)
@@ -587,8 +616,8 @@ add_custom_command(TARGET mcrogueface POST_BUILD
 # Copy runtime libs + Python stdlib next to the executable ($ORIGIN/lib).
 # A non-default CPython variant (__lib_ft / __lib_debug / __lib_tsan) is overlaid
 # on __lib: its libpython3.X{t,d,td} and cpython-3XX{t,d,td} extension modules
-# have ABI-tagged names that don't collide, and an instrumented libtcod from
-# tools/build_debug_libs.sh replaces the plain one.
+# have ABI-tagged names that don't collide. An instrumented libtcod from
+# tools/build_debug_libs.sh (__lib_asan/, __lib_fuzz/ or __lib_tsan/) replaces the plain one.
 # lib/ is replaced, not merged: copy_directory never deletes, so modules and libraries
 # from an older Python stayed importable in the build and went into packages (#420).
 add_custom_command(TARGET mcrogueface POST_BUILD
@@ -599,6 +628,11 @@ if(NOT MCRF_PYTHON_LIB_DIR STREQUAL "${CMAKE_SOURCE_DIR}/__lib")
     add_custom_command(TARGET mcrogueface POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${MCRF_PYTHON_LIB_DIR} $<TARGET_FILE_DIR:mcrogueface>/lib)
+endif()
+if(MCRF_ASAN_LIB_DIR)
+    add_custom_command(TARGET mcrogueface POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${MCRF_ASAN_LIB_DIR} $<TARGET_FILE_DIR:mcrogueface>/lib)
 endif()
 
 # Python modules that ship with the engine (mcrf_project, #420), on every platform's

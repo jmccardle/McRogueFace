@@ -4,12 +4,17 @@
 #
 # Usage:
 #   tools/build_debug_libs.sh              # Build with debug symbols only
-#   tools/build_debug_libs.sh --asan       # Build with AddressSanitizer
+#   tools/build_debug_libs.sh --asan       # Build with AddressSanitizer (default compiler, for make asan)
+#   tools/build_debug_libs.sh --fuzz       # Build with ASan + UBSan using clang-18 (for make fuzz-build)
 #   tools/build_debug_libs.sh --tsan       # Build with ThreadSanitizer
 #   tools/build_debug_libs.sh --clean      # Remove build artifacts first
 #
-# Output: __lib_debug/libtcod.so (debug/asan), __lib_tsan/libtcod.so (tsan) --
-#         next to the matching debug CPython from tools/build_python.sh
+# Output: __lib_debug/libtcod.so (debug), __lib_asan/libtcod.so (asan),
+#         __lib_fuzz/libtcod.so (fuzz), __lib_tsan/libtcod.so (tsan, next to its
+#         CPython). Each instrumented build has its own directory because each links
+#         only into the build made with the same compiler and sanitizer runtime: an
+#         ASan libtcod in __lib_debug/ leaves the plain debug build with undefined
+#         __asan_* symbols, and clang's ASan library doesn't link into a GCC ASan build.
 #
 # Why: The pre-built libtcod in __lib/ is uninstrumented. ASan/TSan can
 # detect bugs in our code that corrupt libtcod's memory, but cannot detect
@@ -29,14 +34,16 @@ CLEAN=0
 for arg in "$@"; do
     case "$arg" in
         --asan)  MODE="asan" ;;
+        --fuzz)  MODE="fuzz" ;;
         --tsan)  MODE="tsan" ;;
         --clean) CLEAN=1 ;;
         --help|-h)
-            echo "Usage: $0 [--asan|--tsan] [--clean]"
+            echo "Usage: $0 [--asan|--fuzz|--tsan] [--clean]"
             echo ""
             echo "Flags:"
             echo "  (default)  Debug symbols only (-g -O1)"
-            echo "  --asan     AddressSanitizer + UBSan instrumentation"
+            echo "  --asan     AddressSanitizer + UBSan instrumentation (default compiler)"
+            echo "  --fuzz     AddressSanitizer + UBSan with clang-18 (the fuzz build's compiler)"
             echo "  --tsan     ThreadSanitizer instrumentation"
             echo "  --clean    Remove build artifacts before building"
             exit 0
@@ -58,7 +65,14 @@ case "$MODE" in
         ;;
     asan)
         SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+        OUTPUT_DIR="$PROJECT_ROOT/__lib_asan"
         echo "=== Building libtcod-headless with ASan + UBSan ==="
+        ;;
+    fuzz)
+        SANITIZER_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+        OUTPUT_DIR="$PROJECT_ROOT/__lib_fuzz"
+        export CC=clang-18 CXX=clang++-18
+        echo "=== Building libtcod-headless with ASan + UBSan (clang-18, for the fuzz build) ==="
         ;;
     tsan)
         SANITIZER_FLAGS="-fsanitize=thread"
@@ -92,9 +106,19 @@ fi
 
 if [ ! -f Makefile ]; then
     echo "Configuring libtcod-headless ($MODE)..."
+    # The shipped libtcod's configuration (no SDL3, vendored lodepng/stb/utf8proc), so
+    # the instrumented library has the same code and dependencies as the one in __lib/.
+    # PIC: the vendored static deps are linked into the shared library.
     cmake "$LIBTCOD_DIR" \
         -DCMAKE_BUILD_TYPE=Debug \
         -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DLIBTCOD_SDL3=OFF \
+        -DLIBTCOD_LODEPNG=vendored \
+        -DLIBTCOD_STB=vendored \
+        -DLIBTCOD_UTF8PROC=vendored \
+        -DLIBTCOD_SAMPLES=OFF \
+        -DLIBTCOD_TESTS=OFF \
         "${CMAKE_EXTRA_FLAGS[@]}"
     echo "Configuration complete."
 else
@@ -138,5 +162,5 @@ echo "  Mode:    $MODE"
 echo "  Library: $OUTPUT_DIR/$BASENAME"
 echo "  Size:    $(du -h "$OUTPUT_DIR/$BASENAME" | cut -f1)"
 echo ""
-echo "'make asan'/'make debug' link __lib_debug/ and 'make tsan' links __lib_tsan/"
-echo "ahead of __lib/, so the instrumented libtcod is picked up automatically."
+echo "'make asan' uses __lib_asan/, 'make fuzz-build' __lib_fuzz/ and 'make tsan'"
+echo "__lib_tsan/ ahead of __lib/; re-run cmake in that build (or its make target)."

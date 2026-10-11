@@ -37,6 +37,8 @@ CMakeFiles/
 *.zip
 __lib/
 __lib_debug/
+__lib_asan/
+__lib_fuzz/
 __lib_ft/
 __lib_tsan/
 __lib_windows/
