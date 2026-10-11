@@ -2,7 +2,8 @@
 Casting NaN, inf or a value outside the target type's range is undefined behaviour:
 
 - SoundBuffer.echo(delay_ms=-1.6e10) cast the delay to size_t (audio_dsp); slice()
-  did the same with an infinite end, and every effect accepted NaN/inf.
+  did the same with an infinite end, concat() with an infinite overlap, and tone()
+  with a NaN duration (which passed its `<= 0` check); every effect accepted NaN/inf.
 - entity.cell_pos = (-inf, 0) cast to int (property_types); so did tile_size, and
   turn_order / sight_radius / default_behavior / cell_x past int's range.
 
@@ -47,6 +48,16 @@ for label, fn in (("echo delay -1.6e10", lambda: buf.echo(-1.6e10, 0.5, 0.5)),
                   ("gain nan", lambda: buf.gain(NAN)),
                   ("distortion drive inf", lambda: buf.distortion(INF))):
     check(raises(ValueError, fn), f"{label} raises ValueError")
+
+for label, fn in (("tone duration nan", lambda: mcrfpy.SoundBuffer.tone(440, NAN)),
+                  ("tone frequency inf", lambda: mcrfpy.SoundBuffer.tone(INF, 0.1)),
+                  ("tone duration 1e9 s", lambda: mcrfpy.SoundBuffer.tone(440, 1e9)),
+                  ("tone sample_rate 0", lambda: mcrfpy.SoundBuffer.tone(440, 0.1, sample_rate=0)),
+                  ("concat overlap inf", lambda: mcrfpy.SoundBuffer.concat([buf, buf], overlap=INF)),
+                  ("concat overlap -1", lambda: mcrfpy.SoundBuffer.concat([buf, buf], overlap=-1))):
+    check(raises(ValueError, fn), f"{label} raises ValueError")
+joined = mcrfpy.SoundBuffer.concat([buf, buf], overlap=1e6)
+check(joined.duration <= 2 * buf.duration + 1e-9, "a huge finite overlap is bounded by the output")
 
 long_echo = buf.echo(1e9, 0.5, 0.5)
 check(abs(long_echo.duration - buf.duration) < 1e-9, "an echo delay past the end leaves the sound unchanged")

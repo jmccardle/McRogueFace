@@ -7,6 +7,18 @@
 #include <random>
 #include <algorithm>
 
+// Effect arguments must be finite: NaN/inf reached float->integer casts (UB) and
+// poisoned every sample. Raises ValueError naming the argument.
+static bool finite_args(std::initializer_list<std::pair<const char*, double>> args) {
+    for (const auto& [name, v] : args) {
+        if (!std::isfinite(v)) {
+            PyErr_Format(PyExc_ValueError, "%s must be a finite number", name);
+            return false;
+        }
+    }
+    return true;
+}
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -210,8 +222,22 @@ PyObject* PySoundBuffer::tone(PyObject* cls, PyObject* args, PyObject* kwds) {
         return NULL;
     }
 
+    if (!finite_args({{"frequency", freq}, {"duration", dur}, {"attack", attack},
+                      {"decay", decay_time}, {"sustain", sustain}, {"release", release}})) {
+        return NULL;
+    }
     if (dur <= 0.0 || freq <= 0.0) {
         PyErr_SetString(PyExc_ValueError, "frequency and duration must be positive");
+        return NULL;
+    }
+    // One hour of samples is ~300 MB; past that, refuse rather than throw bad_alloc
+    // through the C API (fuzz campaign).
+    if (rate == 0) {
+        PyErr_SetString(PyExc_ValueError, "sample_rate must be > 0");
+        return NULL;
+    }
+    if (dur > 3600.0) {
+        PyErr_SetString(PyExc_ValueError, "duration must be at most 3600 seconds");
         return NULL;
     }
 
@@ -408,17 +434,6 @@ PyObject* PySoundBuffer::sfxr(PyObject* cls, PyObject* args, PyObject* kwds) {
 // DSP effect methods (each returns new SoundBuffer)
 // ============================================================================
 
-// Effect arguments must be finite: NaN/inf reached float->integer casts (UB) and
-// poisoned every sample. Raises ValueError naming the argument.
-static bool finite_args(std::initializer_list<std::pair<const char*, double>> args) {
-    for (const auto& [name, v] : args) {
-        if (!std::isfinite(v)) {
-            PyErr_Format(PyExc_ValueError, "%s must be a finite number", name);
-            return false;
-        }
-    }
-    return true;
-}
 
 PyObject* PySoundBuffer::pitch_shift(PySoundBufferObject* self, PyObject* args) {
     double factor;
@@ -619,7 +634,15 @@ PyObject* PySoundBuffer::concat(PyObject* cls, PyObject* args, PyObject* kwds) {
     }
 
     // Build concatenated samples with optional crossfade overlap
-    size_t overlapSamples = static_cast<size_t>(overlap * rate * ch);
+    if (!finite_args({{"overlap", overlap}})) return NULL;
+    if (overlap < 0.0) {
+        PyErr_SetString(PyExc_ValueError, "overlap must be >= 0");
+        return NULL;
+    }
+    // Clamp in double before converting: no overlap can exceed the output's length.
+    double totalLen = 0.0;
+    for (auto& b : buffers) totalLen += static_cast<double>(b->samples.size());
+    size_t overlapSamples = static_cast<size_t>(std::min(overlap * rate * ch, totalLen));
 
     std::vector<int16_t> result;
     for (size_t i = 0; i < buffers.size(); i++) {
