@@ -3,7 +3,8 @@
 External C++ profiling for engine hot-path work (issue #345). This is separate from
 the in-engine `ProfilerOverlay` / `ProfilingMetrics` live HUD (`src/Profiler.*`,
 `GameEngine.h`) — those show frame time / draw calls at runtime; this is for
-diagnosing and A/B-validating C++ optimizations (e.g. #331, #342, #343, #344).
+diagnosing and A/B-validating C++ optimizations (e.g. #331, #342, #343, #344). For
+profiling the browser/WASM build, see [docs/wasm-profiling.md](wasm-profiling.md).
 
 ## The profiling build
 

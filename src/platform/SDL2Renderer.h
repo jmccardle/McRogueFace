@@ -80,11 +80,20 @@ public:
     void setProjection(float left, float right, float bottom, float top);
     void clear(float r, float g, float b, float a);
 
-    // Drawing primitives
+    // Drawing primitives.
+    // programOverride: when non-zero, use this custom GL program instead of the
+    // built-in one selected by shaderType (how a user mcrfpy.Shader reaches the
+    // draw call). The program must honor the built-in attribute/uniform contract
+    // (a_position=0, a_color=1, a_texcoord=2; u_projection; u_texture on unit 0).
     void drawTriangles(const float* vertices, size_t vertexCount,
                        const float* colors, const float* texCoords,
                        unsigned int textureId = 0,
-                       ShaderType shaderType = ShaderType::Shape);
+                       ShaderType shaderType = ShaderType::Shape,
+                       unsigned int programOverride = 0);
+
+    // Most recent shader compile/link InfoLog (empty on success). Lets the
+    // Python binding surface the real GL error instead of failing silently.
+    const std::string& getLastShaderError() const { return lastShaderError_; }
 
     // Projection matrix access (for shaders)
     const float* getProjectionMatrix() const { return projectionMatrix_; }
@@ -121,10 +130,13 @@ private:
     };
     std::vector<RenderState> renderStateStack_;
 
+    // Most recent shader compile/link error (InfoLog), for Fail-Early reporting.
+    std::string lastShaderError_;
+
     // Helper functions
     bool compileAndLinkProgram(const char* vertexSrc, const char* fragmentSrc, unsigned int& programOut);
     unsigned int compileShaderStage(unsigned int type, const char* source);
-    void initBuiltinShaders();
+    bool initBuiltinShaders();
 };
 
 // =============================================================================

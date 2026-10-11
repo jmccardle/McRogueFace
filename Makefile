@@ -32,6 +32,7 @@
 #   make serve        - Serve the clean game (build-wasm-game) locally on port 8080
 #   make serve-game   - Serve the clean game (build-wasm-game) locally on port 8080
 #   make serve-dev    - Serve the wasm dev build with REPL console (build-emscripten)
+#   make deploy-playground - Copy build-playground/ into SITE_DIR/playground/ for the site
 #   make clean-wasm   - Clean Emscripten builds
 #
 # Packaging:
@@ -47,11 +48,12 @@
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
 .PHONY: deps deps-ft python python-ft python-debug python-tsan python-windows python-wasm free-threaded
-.PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground clean-wasm
+.PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground deploy-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
 .PHONY: profile callgrind clean-profile
+.PHONY: test-wasm-setup test-wasm test-wasm-diff
 .PHONY: install-hooks audit-venv lint-bindings
 
 # Number of parallel jobs for compilation
@@ -497,6 +499,50 @@ serve-playground:
 	@echo "Serving Playground build at http://localhost:8080"
 	@echo "Press Ctrl+C to stop"
 	@cd build-playground && python3 -m http.server 8080
+
+# Copy the built playground into the site checkout's /playground/ so a Jekyll
+# rebuild + push ships it. index.html is the directory-served copy of
+# mcrogueface.html (GitHub Pages serves index.html at /playground/).
+# Requires 'make playground' first; SITE_DIR points at the mcrogueface.github.io checkout.
+deploy-playground:
+	@test -f build-playground/mcrogueface.wasm || { \
+		echo "Error: build-playground/mcrogueface.wasm not found. Run 'make playground' first."; exit 1; }
+	@test -d "$(SITE_DIR)/playground" || { \
+		echo "Error: $(SITE_DIR)/playground not found (SITE_DIR=$(SITE_DIR))."; exit 1; }
+	@echo "Deploying build-playground/ -> $(SITE_DIR)/playground/"
+	@cp build-playground/mcrogueface.data build-playground/mcrogueface.js \
+		build-playground/mcrogueface.wasm build-playground/mcrogueface.html \
+		"$(SITE_DIR)/playground/"
+	@cp build-playground/mcrogueface.html "$(SITE_DIR)/playground/index.html"
+	@echo "Deployed. Next: rebuild Jekyll in $(SITE_DIR) and commit/push the updated /playground/ binaries."
+
+# Host-side headless-browser tests for the WASM playground (#239). Separate
+# from the mcrfpy test suite; needs a Playwright venv (make test-wasm-setup).
+WASM_TEST_VENV ?= .venv-wasmtest
+test-wasm-setup:
+	@python3 -m venv $(WASM_TEST_VENV)
+	@$(WASM_TEST_VENV)/bin/pip install --quiet --upgrade pip playwright pillow numpy
+	@$(WASM_TEST_VENV)/bin/python -m playwright install chromium-headless-shell
+	@echo "WASM test env ready in $(WASM_TEST_VENV)/. Run 'make test-wasm' / 'make test-wasm-diff'."
+
+test-wasm:
+	@test -x $(WASM_TEST_VENV)/bin/python || { \
+		echo "Playwright venv missing. Run 'make test-wasm-setup' first."; exit 1; }
+	@test -f build-playground/mcrogueface.html || { \
+		echo "Playground not built. Run 'make playground' first."; exit 1; }
+	@$(WASM_TEST_VENV)/bin/python tests/wasm/run_wasm_tests.py
+
+# #388: cross-backend screenshot diff. Renders the snippet corpus on web (SDL2/
+# WebGL) in headless Chromium and diffs each frame against the desktop-headless
+# oracle from `make snippet-shots`. Needs both oracles and a built playground.
+test-wasm-diff:
+	@test -x $(WASM_TEST_VENV)/bin/python || { \
+		echo "Playwright venv missing. Run 'make test-wasm-setup' first."; exit 1; }
+	@test -f build-playground/mcrogueface.html || { \
+		echo "Playground not built. Run 'make playground' first."; exit 1; }
+	@test -d snippet-shots || { \
+		echo "No oracle shots. Run 'make snippet-shots' first."; exit 1; }
+	@$(WASM_TEST_VENV)/bin/python tests/wasm/snippet_diff.py $(SNIPPETS)
 
 wasm-game:
 	@if ! command -v emcmake >/dev/null 2>&1; then \
