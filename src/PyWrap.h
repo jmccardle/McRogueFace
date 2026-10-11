@@ -184,6 +184,18 @@ std::shared_ptr<T> py_shared(T* obj)
     });
 }
 
+// A number as a C int, without UB: ValueError for NaN/inf, OverflowError outside int's
+// range (a float or long cast there is undefined; property_types fuzz target), and
+// floats truncate toward zero. `what` names the value in the error. The PyObject
+// form also accepts a Python int or float only (TypeError otherwise).
+bool to_int(double value, int& out, const char* what);
+bool to_int(PyObject* value, int& out, const char* what);
+
+// Print the pending error from a Python callback, headed "<what> callback raised an
+// exception:". sys.exit() in a callback is a request to quit, not an error: it gets
+// no header, and PyErr_Print() exits as usual.
+void print_callback_error(const char* what);
+
 // PyDict_SetItemString that STEALS `value` (and fails cleanly if it is nullptr):
 //     dict_steal(d, "fps", PyLong_FromLong(fps));
 // Returns 0, or -1 with a Python error set.

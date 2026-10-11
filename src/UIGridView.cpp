@@ -1328,8 +1328,7 @@ bool UIGridView::fireCellClick(sf::Vector2i cell, const std::string& button, con
             PyObject* result = PyObject_CallObject(on_cell_click_callable->borrow(), args);
             Py_DECREF(args);
             if (!result) {
-                std::cerr << "Cell click callback raised an exception:" << std::endl;
-                PyErr_Print();
+                mcrf::print_callback_error("Cell click");
                 PyErr_Clear();
             } else {
                 Py_DECREF(result);

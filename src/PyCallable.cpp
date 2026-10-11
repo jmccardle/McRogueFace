@@ -84,8 +84,7 @@ void PyClickCallable::call(sf::Vector2f mousepos, std::string button, std::strin
     Py_DECREF(args);
     if (!retval)
     {
-        std::cerr << "Click callback raised an exception:" << std::endl;
-        PyErr_Print();
+        mcrf::print_callback_error("Click");
         PyErr_Clear();
 
         // Check if we should exit on exception
@@ -148,8 +147,7 @@ void PyKeyCallable::call(std::string key, std::string action)
     PyObject* retval = PyCallable::call(args, NULL);
     if (!retval)
     {
-        std::cerr << "Key callback raised an exception:" << std::endl;
-        PyErr_Print();
+        mcrf::print_callback_error("Key");
         PyErr_Clear();
 
         // Check if we should exit on exception
@@ -192,8 +190,7 @@ void PyHoverCallable::call(sf::Vector2f mousepos)
     Py_DECREF(args);
     if (!retval)
     {
-        std::cerr << "Hover callback raised an exception:" << std::endl;
-        PyErr_Print();
+        mcrf::print_callback_error("Hover");
         PyErr_Clear();
 
         // Check if we should exit on exception
@@ -244,8 +241,7 @@ void PyCellHoverCallable::call(sf::Vector2i cellpos)
     Py_DECREF(args);
     if (!retval)
     {
-        std::cerr << "Cell hover callback raised an exception:" << std::endl;
-        PyErr_Print();
+        mcrf::print_callback_error("Cell hover");
         PyErr_Clear();
 
         // Check if we should exit on exception

@@ -1,4 +1,7 @@
 #include "PyWrap.h"
+#include <iostream>
+#include <climits>
+#include <cmath>
 #include "PyVector.h"
 #include "UIDrawable.h"
 #include "UIEntity.h"
@@ -104,6 +107,46 @@ bool to_vector2f(PyObject* arg, sf::Vector2f& out, const char* what)
     out = vec->data;
     Py_DECREF(vec);
     return true;
+}
+
+bool to_int(double value, int& out, const char* what)
+{
+    if (!std::isfinite(value)) {
+        PyErr_Format(PyExc_ValueError, "%s must be a finite number", what);
+        return false;
+    }
+    if (value <= static_cast<double>(INT_MIN) - 1.0 || value >= static_cast<double>(INT_MAX) + 1.0) {
+        PyErr_Format(PyExc_OverflowError, "%s is out of range for a C int", what);
+        return false;
+    }
+    out = static_cast<int>(value);
+    return true;
+}
+
+bool to_int(PyObject* value, int& out, const char* what)
+{
+    if (PyLong_Check(value)) {
+        int overflow = 0;
+        long v = PyLong_AsLongAndOverflow(value, &overflow);
+        if (v == -1 && PyErr_Occurred()) return false;
+        if (overflow || v < INT_MIN || v > INT_MAX) {
+            PyErr_Format(PyExc_OverflowError, "%s is out of range for a C int", what);
+            return false;
+        }
+        out = static_cast<int>(v);
+        return true;
+    }
+    if (PyFloat_Check(value)) return to_int(PyFloat_AsDouble(value), out, what);
+    PyErr_Format(PyExc_TypeError, "%s must be a number", what);
+    return false;
+}
+
+void print_callback_error(const char* what)
+{
+    if (!PyErr_ExceptionMatches(PyExc_SystemExit)) {
+        std::cerr << what << " callback raised an exception:" << std::endl;
+    }
+    PyErr_Print();
 }
 
 int dict_steal(PyObject* dict, const char* key, PyObject* value)

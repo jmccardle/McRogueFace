@@ -79,8 +79,7 @@ bool Timer::test(int now)
 
         if (!retval)
         {
-            std::cerr << "Timer callback raised an exception:" << std::endl;
-            PyErr_Print();
+            mcrf::print_callback_error("Timer");
             PyErr_Clear();
 
             // Check if we should exit on exception

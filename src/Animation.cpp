@@ -560,8 +560,7 @@ void Animation::triggerCallback() {
     Py_DECREF(args);
 
     if (!result) {
-        std::cerr << "Animation callback raised an exception:" << std::endl;
-        PyErr_Print();
+        mcrf::print_callback_error("Animation");
         PyErr_Clear();
 
         // Check if we should exit on exception
