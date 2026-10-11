@@ -114,6 +114,47 @@ PyObject* UIEntityCollection::getitem(PyUIEntityCollectionObject* self, Py_ssize
     return convertEntityToPython(std::static_pointer_cast<UIEntity>(target));
 }
 
+// #447: the entity behind an EntityCollection argument, or nullptr with TypeError set.
+static std::shared_ptr<UIEntity> entity_arg(PyObject* o, const char* what) {
+    if (!PyObject_IsInstance(o, (PyObject*)&mcrfpydef::PyUIEntityType)) {
+        PyErr_Format(PyExc_TypeError, "%s requires Entity objects, not %.200s", what, Py_TYPE(o)->tp_name);
+        return nullptr;
+    }
+    auto entity = ((PyUIEntityObject*)o)->data;
+    if (!entity) PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
+    return entity;
+}
+
+// #447: every item of `o`, validated before anything moves: Entities only, each at
+// most once (one entity can't fill two slots).
+static bool entity_items(PyObject* o, const char* what, std::vector<std::shared_ptr<UIEntity>>& out) {
+    PyObject* iterator = PyObject_GetIter(o);
+    if (!iterator) {
+        PyErr_Format(PyExc_TypeError, "%s requires an iterable", what);
+        return false;
+    }
+    PyObject* item;
+    while ((item = PyIter_Next(iterator)) != NULL) {
+        auto entity = entity_arg(item, what);
+        Py_DECREF(item);
+        if (!entity) { Py_DECREF(iterator); return false; }
+        if (std::find(out.begin(), out.end(), entity) != out.end()) {
+            Py_DECREF(iterator);
+            PyErr_Format(PyExc_ValueError, "%s: the same Entity appears twice", what);
+            return false;
+        }
+        out.push_back(entity);
+    }
+    Py_DECREF(iterator);
+    return !PyErr_Occurred();
+}
+
+static bool has_grid(PyUIEntityCollectionObject* self) {
+    if (self->data && self->grid) return true;
+    PyErr_SetString(PyExc_RuntimeError, "EntityCollection requires a grid");
+    return false;
+}
+
 int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t index, PyObject* value) {
     auto list = self->data.get();
     if (!list) {
@@ -143,38 +184,20 @@ int UIEntityCollection::setitem(PyUIEntityCollectionObject* self, Py_ssize_t ind
         return 0;
     }
 
-    // Type checking
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
+    auto entity = entity_arg(value, "EntityCollection assignment");
+    if (!entity || !has_grid(self)) return -1;
 
-    if (!PyObject_IsInstance(value, (PyObject*)entity_type)) {
-        PyErr_SetString(PyExc_TypeError, "EntityCollection can only contain Entity objects");
-        return -1;
-    }
-
-    PyUIEntityObject* entity = (PyUIEntityObject*)value;
-    if (!entity->data) {
-        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
-        return -1;
-    }
-
-    // Update spatial hash
-    if (self->grid) {
-        self->grid->spatial_hash.remove(*it);
-    }
-
-    // Clear grid reference from the old entity
-    (*it)->setGrid(nullptr);
-
-    // Replace the element and set grid reference
-    *it = entity->data;
-    entity->data->setGrid(self->grid);
-    // #294: perspective_map is lazy; next update_visibility() sizes it.
-
-    // Add to spatial hash
-    if (self->grid) {
-        self->grid->spatial_hash.insert(entity->data);
-    }
-
+    // #447: replace the entity that is at `index` NOW, wherever it ends up after the
+    // incoming one leaves its old slot (which may be in this list, before it).
+    std::shared_ptr<UIEntity> old = *it;
+    if (old == entity) return 0;
+    entity->removeFromGrid();
+    auto pos = std::find(list->begin(), list->end(), old);
+    self->grid->spatial_hash.remove(old);
+    *pos = entity;
+    self->grid->spatial_hash.insert(entity);
+    entity->setGrid(self->grid);
+    old->setGrid(nullptr);  // last: may release the old entity's wrapper (#436)
     return 0;
 }
 
@@ -248,51 +271,9 @@ PyObject* UIEntityCollection::concat(PyUIEntityCollectionObject* self, PyObject*
 }
 
 PyObject* UIEntityCollection::inplace_concat(PyUIEntityCollectionObject* self, PyObject* other) {
-    if (!PySequence_Check(other)) {
-        PyErr_SetString(PyExc_TypeError, "can only concatenate sequence to EntityCollection");
-        return NULL;
-    }
-
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-    // First, validate ALL items before modifying anything
-    Py_ssize_t other_len = PySequence_Length(other);
-    if (other_len == -1) {
-        return NULL;
-    }
-
-    for (Py_ssize_t i = 0; i < other_len; i++) {
-        PyObject* item = PySequence_GetItem(other, i);
-        if (!item) {
-            return NULL;
-        }
-
-        if (!PyObject_IsInstance(item, (PyObject*)entity_type)) {
-            Py_DECREF(item);
-            PyErr_Format(PyExc_TypeError,
-                "EntityCollection can only contain Entity objects; "
-                "got %s at index %zd", Py_TYPE(item)->tp_name, i);
-            return NULL;
-        }
-        Py_DECREF(item);
-    }
-
-    // All items validated, now safely add them
-    for (Py_ssize_t i = 0; i < other_len; i++) {
-        PyObject* item = PySequence_GetItem(other, i);
-        if (!item) {
-            return NULL;
-        }
-
-        PyObject* result = append(self, item);
-        Py_DECREF(item);
-
-        if (!result) {
-            return NULL;
-        }
-        Py_DECREF(result);
-    }
-
+    PyObject* result = extend(self, other);
+    if (!result) return NULL;
+    Py_DECREF(result);
     Py_INCREF(self);
     return (PyObject*)self;
 }
@@ -408,91 +389,60 @@ int UIEntityCollection::ass_subscript(PyUIEntityCollectionObject* self, PyObject
             PyErr_SetString(PyExc_TypeError, "can only assign sequence to slice");
             return -1;
         }
-
-        Py_ssize_t value_len = PySequence_Length(value);
-        if (value_len == -1) {
+        if (!has_grid(self)) return -1;
+        std::vector<std::shared_ptr<UIEntity>> new_items;
+        if (!entity_items(value, "EntityCollection slice assignment", new_items)) return -1;
+        Py_ssize_t value_len = static_cast<Py_ssize_t>(new_items.size());
+        if (step != 1 && slicelength != value_len) {
+            PyErr_Format(PyExc_ValueError,
+                "attempt to assign sequence of size %zd to extended slice of size %zd",
+                value_len, slicelength);
             return -1;
         }
 
-        PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-        // Validate all items first
-        std::vector<std::shared_ptr<UIEntity>> new_items;
-        for (Py_ssize_t i = 0; i < value_len; i++) {
-            PyObject* item = PySequence_GetItem(value, i);
-            if (!item) {
-                return -1;
-            }
-
-            if (!PyObject_IsInstance(item, (PyObject*)entity_type)) {
-                Py_DECREF(item);
-                PyErr_Format(PyExc_TypeError,
-                    "EntityCollection can only contain Entity objects; got %s",
-                    Py_TYPE(item)->tp_name);
-                return -1;
-            }
-
-            PyUIEntityObject* entity_obj = (PyUIEntityObject*)item;
-            new_items.push_back(entity_obj->data);
-            Py_DECREF(item);
-        }
-
+        // #447: build the final list, then commit it. An incoming entity that is
+        // already a member elsewhere in this list MOVES into the slice: its old slot
+        // is dropped, never duplicated. `previous` keeps every entity alive until the
+        // pins below are settled.
+        const std::vector<std::shared_ptr<UIEntity>> previous = *self->data;
+        auto incoming = [&](const std::shared_ptr<UIEntity>& e) {
+            return std::find(new_items.begin(), new_items.end(), e) != new_items.end();
+        };
+        std::vector<std::shared_ptr<UIEntity>> result;
         if (step == 1) {
-            // Contiguous slice - can change size
-            auto start_it = self->data->begin();
-            std::advance(start_it, start);
-            auto stop_it = self->data->begin();
-            std::advance(stop_it, stop);
-
-            // Clear old grid refs and remove from spatial hash
-            for (auto it = start_it; it != stop_it; ++it) {
-                if (self->grid) {
-                    self->grid->spatial_hash.remove(*it);
-                }
-                (*it)->setGrid(nullptr);
-            }
-
-            // Erase old range
-            auto insert_pos = self->data->erase(start_it, stop_it);
-
-            // Insert new items
-            for (const auto& entity : new_items) {
-                self->data->insert(insert_pos, entity);
-                entity->setGrid(self->grid);
-                // #294: perspective_map is lazy; sized on next update_visibility().
-                if (self->grid) {
-                    self->grid->spatial_hash.insert(entity);
-                }
-            }
+            for (Py_ssize_t k = 0; k < start; k++)
+                if (!incoming(previous[k])) result.push_back(previous[k]);
+            result.insert(result.end(), new_items.begin(), new_items.end());
+            for (Py_ssize_t k = stop; k < static_cast<Py_ssize_t>(previous.size()); k++)
+                if (!incoming(previous[k])) result.push_back(previous[k]);
         } else {
-            // Extended slice - must match size
-            if (slicelength != value_len) {
-                PyErr_Format(PyExc_ValueError,
-                    "attempt to assign sequence of size %zd to extended slice of size %zd",
-                    value_len, slicelength);
-                return -1;
-            }
-
-            auto it = self->data->begin();
-            size_t new_idx = 0;
+            std::vector<std::shared_ptr<UIEntity>> slots = previous;
+            std::vector<bool> assigned(slots.size(), false);
             for (Py_ssize_t i = 0, cur = start; i < slicelength; i++, cur += step) {
-                auto cur_it = it;
-                std::advance(cur_it, cur);
-
-                if (self->grid) {
-                    self->grid->spatial_hash.remove(*cur_it);
-                }
-                (*cur_it)->setGrid(nullptr);
-
-                *cur_it = new_items[new_idx++];
-                (*cur_it)->setGrid(self->grid);
-                // #294: perspective_map is lazy; sized on next update_visibility().
-
-                if (self->grid) {
-                    self->grid->spatial_hash.insert(*cur_it);
-                }
+                slots[cur] = new_items[i];
+                assigned[cur] = true;
             }
+            for (size_t k = 0; k < slots.size(); k++)
+                if (assigned[k] || !incoming(slots[k])) result.push_back(slots[k]);
         }
+
+        auto member = [](const std::vector<std::shared_ptr<UIEntity>>& v,
+                         const std::shared_ptr<UIEntity>& e) {
+            return std::find(v.begin(), v.end(), e) != v.end();
+        };
+        // Entities from other grids leave them first (their lists, their hashes).
+        for (auto& e : new_items)
+            if (!member(previous, e)) e->removeFromGrid();
+        *self->data = result;
+        for (auto& e : previous)
+            if (!member(result, e)) self->grid->spatial_hash.remove(e);
+        for (auto& e : new_items)
+            if (!member(previous, e)) self->grid->spatial_hash.insert(e);
+        self->grid->markDirty();  // order changed even if membership didn't
+        for (auto& e : new_items) e->setGrid(self->grid);
+        // Last: releasing a displaced entity's pin may free its wrapper (#436).
+        for (auto& e : previous)
+            if (!member(result, e)) e->setGrid(nullptr);
 
         return 0;
     } else {
@@ -515,40 +465,10 @@ PyMappingMethods UIEntityCollection::mpmethods = {
 
 PyObject* UIEntityCollection::append(PyUIEntityCollectionObject* self, PyObject* o)
 {
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-    if (!PyObject_IsInstance(o, (PyObject*)entity_type)) {
-        PyErr_SetString(PyExc_TypeError, "Only Entity objects can be added to EntityCollection");
-        return NULL;
-    }
-
-    PyUIEntityObject* entity = (PyUIEntityObject*)o;
-
-    // Remove from old grid first (if different from target grid)
-    if (entity->data->getGrid() && entity->data->getGrid() != self->grid) {
-        auto old_grid = entity->data->getGrid();
-        auto& old_entities = old_grid->entities;
-        auto it = std::find_if(old_entities->begin(), old_entities->end(),
-            [entity](const std::shared_ptr<UIEntity>& e) {
-                return e.get() == entity->data.get();
-            });
-        if (it != old_entities->end()) {
-            old_entities->erase(it);
-            old_grid->spatial_hash.remove(entity->data);
-        }
-    }
-
-    // Add to this grid (if not already in it)
-    if (entity->data->getGrid() != self->grid) {
-        self->data->push_back(entity->data);
-        entity->data->setGrid(self->grid);
-        if (self->grid) {
-            self->grid->spatial_hash.insert(entity->data);
-        }
-    }
-
+    auto entity = entity_arg(o, "EntityCollection.append");
+    if (!entity || !has_grid(self)) return NULL;
+    entity->moveToGrid(self->grid);  // #447: from another grid, or to the end of this one
     // #294: perspective_map is lazy; sized on next update_visibility().
-
     Py_RETURN_NONE;
 }
 
@@ -591,65 +511,11 @@ PyObject* UIEntityCollection::remove(PyUIEntityCollectionObject* self, PyObject*
 
 PyObject* UIEntityCollection::extend(PyUIEntityCollectionObject* self, PyObject* o)
 {
-    // Get iterator for the input
-    PyObject* iterator = PyObject_GetIter(o);
-    if (!iterator) {
-        PyErr_SetString(PyExc_TypeError, "EntityCollection.extend requires an iterable");
-        return NULL;
-    }
-
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-    // FIXED: Validate ALL items first before modifying anything
-    // (Following the pattern from inplace_concat)
-    std::vector<PyUIEntityObject*> validated_entities;
-    PyObject* item;
-    while ((item = PyIter_Next(iterator)) != NULL) {
-        if (!PyObject_IsInstance(item, (PyObject*)entity_type)) {
-            // Cleanup on error
-            Py_DECREF(item);
-            Py_DECREF(iterator);
-            PyErr_SetString(PyExc_TypeError, "All items in iterable must be Entity objects");
-            return NULL;
-        }
-
-        PyUIEntityObject* entity = (PyUIEntityObject*)item;
-        if (!entity->data) {
-            Py_DECREF(item);
-            Py_DECREF(iterator);
-            PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object in iterable");
-            return NULL;
-        }
-
-        validated_entities.push_back(entity);
-        // Note: We keep the reference to item until after we're done
-    }
-
-    Py_DECREF(iterator);
-
-    // Check if iteration ended due to an error
-    if (PyErr_Occurred()) {
-        // Release all held references
-        for (auto* ent : validated_entities) {
-            Py_DECREF(ent);
-        }
-        return NULL;
-    }
-
-    // All items validated - now we can safely add them
-    for (auto* entity : validated_entities) {
-        self->data->push_back(entity->data);
-        entity->data->setGrid(self->grid);
-
-        if (self->grid) {
-            self->grid->spatial_hash.insert(entity->data);
-        }
-
-        // #294: perspective_map is lazy; sized on next update_visibility().
-
-        Py_DECREF(entity);  // Release the reference we held during validation
-    }
-
+    if (!has_grid(self)) return NULL;
+    // Validate ALL items before moving any.
+    std::vector<std::shared_ptr<UIEntity>> items;
+    if (!entity_items(o, "EntityCollection.extend", items)) return NULL;
+    for (auto& entity : items) entity->moveToGrid(self->grid);  // #447
     Py_RETURN_NONE;
 }
 
@@ -725,53 +591,14 @@ PyObject* UIEntityCollection::insert(PyUIEntityCollectionObject* self, PyObject*
 {
     Py_ssize_t index;
     PyObject* o;
-
     if (!PyArg_ParseTuple(args, "nO", &index, &o)) {
         return NULL;
     }
-
-    auto list = self->data.get();
-    if (!list) {
-        PyErr_SetString(PyExc_RuntimeError, "EntityCollection data is null");
-        return NULL;
-    }
-
-    PyTypeObject* entity_type = &mcrfpydef::PyUIEntityType;
-
-    if (!PyObject_IsInstance(o, (PyObject*)entity_type)) {
-        PyErr_SetString(PyExc_TypeError, "EntityCollection.insert requires an Entity object");
-        return NULL;
-    }
-
-    PyUIEntityObject* entity = (PyUIEntityObject*)o;
-    if (!entity->data) {
-        PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
-        return NULL;
-    }
-
-    // Handle negative indexing and clamping (Python list.insert behavior)
-    Py_ssize_t size = static_cast<Py_ssize_t>(list->size());
-    if (index < 0) {
-        index += size;
-        if (index < 0) {
-            index = 0;
-        }
-    } else if (index > size) {
-        index = size;
-    }
-
-    auto it = list->begin();
-    std::advance(it, index);
-
-    list->insert(it, entity->data);
-    entity->data->setGrid(self->grid);
-
-    if (self->grid) {
-        self->grid->spatial_hash.insert(entity->data);
-    }
-
-    // #294: perspective_map is lazy; sized on next update_visibility().
-
+    auto entity = entity_arg(o, "EntityCollection.insert");
+    if (!entity || !has_grid(self)) return NULL;
+    // #447: list.insert() index semantics, resolved after the entity leaves its old
+    // slot, so inserting a member moves it.
+    entity->moveToGrid(self->grid, index);
     Py_RETURN_NONE;
 }
 

@@ -47,6 +47,7 @@ removals that affect your code.
 | **`GridData.clear_dijkstra_maps()` is removed.** The cache now manages itself: the first lookup after an edit drops every stale map, and cached maps are capped at `GridData.dijkstra_cache_budget` bytes (default 256 MiB, 4 bytes per cell per map; least recently used evicted first). `dijkstra_cache_bytes` reports current use (#425). | Delete the calls. Raise the budget on very large grids if several maps should stay cached. |
 | **`VisibilityMask` compares by value and is hashable.** `==` compares `origin`, `fov_radius`, `grid_size`, `cells`, and `light_walls`/`algorithm` when FOV ran; it ignores `tick`, so the same view on two frames is equal (#405). | Use `is` to tell two records apart, and `a.cells == b.cells` to compare only what was visible. |
 | **Dijkstra maps are windowed** (#445). `get_dijkstra_map(..., radius=None, heuristic=Heuristic.OCTILE)` computes a field over the roots' bounding box grown by `radius` (default: the whole grid, up to 511, so at most 1023×1023 cells), clipped to the grid. Distances up to the radius are exact, as is the whole field when `dm.complete`. Beyond that, and for positions **off the grid** (which used to raise `IndexError`), `distance()` returns the heuristic's estimate; `dm.is_exact(pos)` tells which. `path_from()` beyond the field returns `None`. `step_from()` / SEEK / FLEE take greedy steps there. `to_heightmap()` is window-sized; place it with `copy_from(pos=dm.window[:2])`. | Grids up to 1023 on a side behave as before (the field is the whole grid and complete), except that off-grid positions now return `None` instead of raising. Pass `heuristic=None` to make queries beyond the field raise `IndexError`. |
+| **An object is in one collection, once.** Every way of adding an entity or drawable *moves* it: out of its old grid / parent / viewport, or out of its old slot in the same collection. `entities.append(e)` with `e` already in the grid moves it to the end (was a no-op); `insert`, `extend`, `[i] =`, slices and `Entity.__init__(grid=)` used to leave it in both grids (#447, #438). A value list that names one object twice (`extend([e, e])`, `[0:1] = [e, e]`, `+= [e, e]`) raises `ValueError`. | Code that relied on an entity being in two grids, or listed twice, must hold two entities. |
 | `automation.click()` / `mouseDown()` / `mouseUp()` / `dragTo()` raise `ValueError` for an unknown `button=`, which used to click LEFT. `'x1'` and `'x2'` are accepted (#428). | — |
 
 ## New
@@ -137,6 +138,13 @@ removals that affect your code.
   back as a plain `Frame` with its attributes gone (#369, #373).
 - `insert()`, `extend()`, `__setitem__` and slice operations on collections now keep
   `.parent` correct; only `append()` used to (#377).
+- An entity added to a grid with `insert()`, `extend()`, `[i] =` or a slice, or by
+  re-running `Entity.__init__(grid=)`, stayed in its old grid's list and spatial hash
+  too, and that grid kept stepping it; within one grid those paths duplicated it.
+  `Entity3D` had the same bug across viewports, which could cost a subclass its
+  identity (#447, #438).
+- `children[i] = x` and `entities[i] = e`, with the new item already earlier in the
+  same collection, replaced the wrong element (#447).
 - `Frame(children=[...])` moves each child out of its old parent (it used to end up
   in both), and accepts every drawable type (Line, Circle and Arc were rejected).
   `children.extend()` adds nothing if any item is invalid (#442).

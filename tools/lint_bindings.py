@@ -36,6 +36,11 @@ audit_pymethoddef.py) and flags the recipes that have already produced bugs:
                    or the link_child() helper) without first calling
                    UIDrawable::canAdopt (or UICollection's can_link). Appending an
                    ancestor looped the parent chain and segfaulted (#442).
+  entity-unlinked  An insert into an entity list (entities->push_back/insert, or an
+                   entity collection's own self->data) in a function that does not
+                   call removeFromGrid() / removeFromViewport() first. The entity
+                   stayed in its old grid too, or twice in this one (#447, #438); use
+                   UIEntity::moveToGrid() / Entity3D::moveToViewport().
 
 Findings are matched against tools/lint_bindings_baseline.txt, keyed by
 (rule, file, function, call text) with counts and no line numbers, so unrelated
@@ -387,6 +392,31 @@ def lint_file(path: Path) -> list[Finding]:
     out.extend(check_dealloc(src, tree, rel))
     out.extend(check_traverse(src, tree, rel))
     out.extend(check_adopt(src, tree, rel))
+    out.extend(check_entity_link(src, tree, rel))
+    return out
+
+
+ENTITY_LIST_INSERT = re.compile(r"\bentities\s*(->|\.)\s*(push_back|emplace_back|insert|emplace)$")
+SELF_DATA_INSERT = re.compile(r"\bself->data\s*->\s*(push_back|emplace_back|insert|emplace)$")
+
+
+def check_entity_link(src: bytes, tree, rel: str) -> list:
+    """#447: an entity joins a grid's list only after leaving the one it was in."""
+    out = []
+    collection = Path(rel).name in ("UIEntityCollection.cpp", "EntityCollection3D.cpp")
+    for n in walk(tree.root_node):
+        if n.type != "call_expression":
+            continue
+        name = callee_name(src, n)
+        if not (ENTITY_LIST_INSERT.search(name) or (collection and SELF_DATA_INSERT.search(name))):
+            continue
+        fn = outer_function(n)
+        if fn is None:
+            continue
+        before = src[fn.start_byte:n.start_byte].decode("utf8", "replace")
+        if "removeFromGrid(" not in before and "removeFromViewport(" not in before:
+            out.append(Finding("entity-unlinked", rel, n.start_point[0] + 1,
+                               scope_label(src, n), f"{name}() without removeFromGrid/removeFromViewport"))
     return out
 
 
