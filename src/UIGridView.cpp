@@ -537,7 +537,8 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
     return nullptr;
 }
 
-// Property system
+// Property system. The shared names (x, y, pos, w, h, size, rotation, origin,
+// opacity, z_index) are handled by UIDrawable (#426, lost in the #355 type split).
 bool UIGridView::setProperty(const std::string& name, float value)
 {
     if (name == "center_x") { center_x = value; return true; }
@@ -555,6 +556,12 @@ bool UIGridView::setProperty(const std::string& name, const sf::Vector2f& value)
         center_y = value.y;
         return true;
     }
+    return UIDrawable::setProperty(name, value);
+}
+
+bool UIGridView::setProperty(const std::string& name, const sf::Color& value)
+{
+    if (name == "fill_color") { fill_color = value; return true; }
     return UIDrawable::setProperty(name, value);
 }
 
@@ -577,9 +584,16 @@ bool UIGridView::getProperty(const std::string& name, sf::Vector2f& value) const
     return UIDrawable::getProperty(name, value);
 }
 
+bool UIGridView::getProperty(const std::string& name, sf::Color& value) const
+{
+    if (name == "fill_color") { value = fill_color; return true; }
+    return UIDrawable::getProperty(name, value);
+}
+
 bool UIGridView::hasProperty(const std::string& name) const
 {
-    if (name == "center_x" || name == "center_y" || name == "zoom" || name == "camera_rotation" || name == "center")
+    if (name == "center_x" || name == "center_y" || name == "zoom" || name == "camera_rotation" ||
+        name == "center" || name == "fill_color")
         return true;
     // #106: Shader uniform properties
     if (hasShaderProperty(name))
@@ -985,20 +999,9 @@ PyObject* UIGridView::get_size(PyUIGridViewObject* self, void* closure)
 
 int UIGridView::set_size(PyUIGridViewObject* self, PyObject* value, void* closure)
 {
-    float w, h;
-    PyVectorObject* vec = PyVector::from_arg(value);
-    if (vec) {
-        w = vec->data.x;
-        h = vec->data.y;
-        Py_DECREF(vec);
-    } else {
-        PyErr_Clear();
-        if (!PyArg_ParseTuple(value, "ff", &w, &h)) {
-            PyErr_SetString(PyExc_TypeError, "size must be a Vector or tuple (w, h)");
-            return -1;
-        }
-    }
-    self->data->resize(w, h);
+    sf::Vector2f size;
+    if (!mcrf::to_vector2f(value, size, "size")) return -1;
+    self->data->assignSize(size);  // #426: shared with animation
     return 0;
 }
 

@@ -203,7 +203,8 @@ void UICircle::resize(float w, float h) {
     shape.setOrigin(radius, radius);
 }
 
-// Property system for animations
+// Property system for animations. The shared names (x, y, pos, rotation, origin,
+// opacity, z_index) are handled by UIDrawable (#426); a circle's pos is its center.
 bool UICircle::setProperty(const std::string& name, float value) {
     if (name == "radius") {
         setRadius(value);
@@ -213,35 +214,8 @@ bool UICircle::setProperty(const std::string& name, float value) {
         setOutline(value);
         markDirty();  // #144 - Content change
         return true;
-    } else if (name == "x") {
-        position.x = value;
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    } else if (name == "y") {
-        position.y = value;
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    } else if (name == "rotation") {
-        rotation = value;
-        shape.setRotation(rotation);
-        markDirty();
-        return true;
-    } else if (name == "origin_x") {
-        origin.x = value;
-        shape.setOrigin(radius + origin.x, radius + origin.y);
-        markDirty();
-        return true;
-    } else if (name == "origin_y") {
-        origin.y = value;
-        shape.setOrigin(radius + origin.x, radius + origin.y);
-        markDirty();
-        return true;
-    } else if (name == "opacity") {
-        opacity = std::clamp(value, 0.0f, 1.0f);
-        markDirty();
-        return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UICircle::setProperty(const std::string& name, const sf::Color& value) {
@@ -254,16 +228,15 @@ bool UICircle::setProperty(const std::string& name, const sf::Color& value) {
         markDirty();  // #144 - Content change
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UICircle::setProperty(const std::string& name, const sf::Vector2f& value) {
-    if (name == "center" || name == "position") {
-        position = value;
-        markDirty();  // #144 - Propagate to parent for texture caching
+    if (name == "center") {
+        assignPosition(value);
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UICircle::getProperty(const std::string& name, float& value) const {
@@ -273,26 +246,8 @@ bool UICircle::getProperty(const std::string& name, float& value) const {
     } else if (name == "outline") {
         value = outline_thickness;
         return true;
-    } else if (name == "x") {
-        value = position.x;
-        return true;
-    } else if (name == "y") {
-        value = position.y;
-        return true;
-    } else if (name == "rotation") {
-        value = rotation;
-        return true;
-    } else if (name == "origin_x") {
-        value = origin.x;
-        return true;
-    } else if (name == "origin_y") {
-        value = origin.y;
-        return true;
-    } else if (name == "opacity") {
-        value = opacity;
-        return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UICircle::getProperty(const std::string& name, sf::Color& value) const {
@@ -303,33 +258,23 @@ bool UICircle::getProperty(const std::string& name, sf::Color& value) const {
         value = outline_color;
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UICircle::getProperty(const std::string& name, sf::Vector2f& value) const {
-    if (name == "center" || name == "position") {
+    if (name == "center") {
         value = position;
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UICircle::hasProperty(const std::string& name) const {
-    // Float properties
-    if (name == "radius" || name == "outline" || name == "opacity" ||
-        name == "x" || name == "y" ||
-        name == "rotation" || name == "origin_x" || name == "origin_y") {
+    if (name == "radius" || name == "outline" || name == "fill_color" ||
+        name == "outline_color" || name == "center") {
         return true;
     }
-    // Color properties
-    if (name == "fill_color" || name == "outline_color") {
-        return true;
-    }
-    // Vector2f properties
-    if (name == "center" || name == "position" || name == "origin") {
-        return true;
-    }
-    return false;
+    return UIDrawable::hasProperty(name);
 }
 
 // Python API implementations
@@ -454,6 +399,12 @@ PyGetSetDef UICircle::getsetters[] = {
      MCRF_PROPERTY(name, "Name for finding this element (str)."), (void*)PyObjectsEnum::UICIRCLE},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
      MCRF_PROPERTY(pos, "Position as a Vector (same as center) (Vector)."), (void*)PyObjectsEnum::UICIRCLE},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(x, "X coordinate of the center (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UICIRCLE << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(y, "Y coordinate of the center (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UICIRCLE << 8 | 1)},
     {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
      MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector). Only meaningful when parent is a Grid."), (void*)PyObjectsEnum::UICIRCLE},
     {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size,

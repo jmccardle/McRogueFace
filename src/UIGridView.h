@@ -142,9 +142,14 @@ public:
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;
     bool setProperty(const std::string& name, const sf::Vector2f& value) override;
+    bool setProperty(const std::string& name, const sf::Color& value) override;
     bool getProperty(const std::string& name, float& value) const override;
     bool getProperty(const std::string& name, sf::Vector2f& value) const override;
+    bool getProperty(const std::string& name, sf::Color& value) const override;
     bool hasProperty(const std::string& name) const override;
+    unsigned sharedProperties() const override { return UIDrawable::sharedProperties() | SHARED_SIZE; }
+    using UIDrawable::setProperty;
+    using UIDrawable::getProperty;
 
     // Camera positioning
     void center_camera();

@@ -63,11 +63,14 @@ print("Test 6: Line with align constructor arg...")
 parent6 = mcrfpy.Frame(pos=(0, 0), size=(400, 300))
 line = mcrfpy.Line(start=(0, 0), end=(50, 0), align=mcrfpy.Alignment.TOP_LEFT, margin=25)
 parent6.children.append(line)
-# Line's position (pos) should be at margin
-if abs(line.pos.x - 25) < 0.1 and abs(line.pos.y - 25) < 0.1:
+# The line's bounding box lands at the margin; its pos is the midpoint (#426: aligning
+# used to move only pos and leave the drawn line at the origin)
+if (abs(line.start.x - 25) < 0.1 and abs(line.start.y - 25) < 0.1 and
+        abs(line.end.x - 75) < 0.1 and abs(line.pos.x - 50) < 0.1):
     print("  PASS: Line align constructor arg works")
 else:
-    print(f"  FAIL: Expected pos at (25, 25), got ({line.pos.x}, {line.pos.y})")
+    print(f"  FAIL: Expected start (25, 25), end (75, 25), pos (50, 25); got "
+          f"{line.start}, {line.end}, {line.pos}")
     sys.exit(1)
 
 print("Test 7: Circle with align constructor arg...")

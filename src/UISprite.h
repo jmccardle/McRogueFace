@@ -44,7 +44,7 @@ public:
     void setScale(sf::Vector2f);
     sf::Vector2f getScale() const;
     void setSpriteIndex(int);
-    int getSpriteIndex();
+    int getSpriteIndex() const;
 
     void setTexture(std::shared_ptr<PyTexture> _ptex, int _sprite_index=-1);
     std::shared_ptr<PyTexture> getTexture();

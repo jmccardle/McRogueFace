@@ -1,4 +1,5 @@
 #include "UIDrawable.h"
+#include "PyAnimate.h"
 #include "PyWrap.h"
 #include <iostream>
 #include "UIFrame.h"
@@ -395,14 +396,7 @@ int UIDrawable::set_int(PyObject* self, PyObject* value, void* closure) {
     if (z < INT_MIN) z = INT_MIN;
     if (z > INT_MAX) z = INT_MAX;
     
-    int old_z_index = drawable->z_index;
-    drawable->z_index = static_cast<int>(z);
-    
-    // Notify of z_index change
-    if (old_z_index != drawable->z_index) {
-        drawable->notifyZIndexChanged();
-    }
-    
+    drawable->assignZIndex(static_cast<int>(z));  // #426: shared with animation
     return 0;
 }
 
@@ -459,7 +453,7 @@ void UIDrawable::enableRenderTexture(unsigned int width, unsigned int height) {
             use_render_texture = false;
             return;
         }
-        render_sprite.setTexture(render_texture->getTexture());
+        render_sprite.setTexture(render_texture->getTexture(), true);  // new size: reset the rect
     }
 
     use_render_texture = true;
@@ -490,6 +484,110 @@ void UIDrawable::updateRenderTexture() {
     
     // Update the sprite
     render_sprite.setTexture(render_texture->getTexture());
+}
+
+// #426: shared property setters. The Python setters and the animation system both
+// call these, so assigning and animating a shared property have the same effect.
+void UIDrawable::assignPosition(sf::Vector2f p) {
+    position = p;
+    onPositionChanged();
+    markCompositeDirty();  // #290: position change invalidates parent cache
+}
+
+void UIDrawable::assignSize(sf::Vector2f s) {
+    resize(s.x, s.y);
+    markDirty();  // #290: size change invalidates own + parent cache
+}
+
+void UIDrawable::assignRotation(float degrees) {
+    rotation = degrees;
+    markDirty();
+}
+
+void UIDrawable::assignOrigin(sf::Vector2f o) {
+    origin = o;
+    markDirty();
+}
+
+void UIDrawable::assignOpacity(float o) {
+    opacity = std::clamp(o, 0.0f, 1.0f);
+    markDirty();
+}
+
+void UIDrawable::assignZIndex(int z) {
+    if (z == z_index) return;
+    z_index = z;
+    notifyZIndexChanged();
+    markDirty();
+}
+
+bool UIDrawable::setProperty(const std::string& name, float value) {
+    const unsigned shared = sharedProperties();
+    if (shared & SHARED_POSITION) {
+        if (name == "x") { assignPosition({value, position.y}); return true; }
+        if (name == "y") { assignPosition({position.x, value}); return true; }
+    }
+    if (shared & SHARED_SIZE) {
+        if (name == "w") { assignSize({value, get_bounds().height}); return true; }
+        if (name == "h") { assignSize({get_bounds().width, value}); return true; }
+    }
+    if ((shared & SHARED_ROTATION) && name == "rotation") { assignRotation(value); return true; }
+    if ((shared & SHARED_OPACITY) && name == "opacity") { assignOpacity(value); return true; }
+    return false;
+}
+
+bool UIDrawable::setProperty(const std::string& name, int value) {
+    if ((sharedProperties() & SHARED_Z_INDEX) && name == "z_index") { assignZIndex(value); return true; }
+    return false;
+}
+
+bool UIDrawable::setProperty(const std::string& name, const sf::Vector2f& value) {
+    const unsigned shared = sharedProperties();
+    if ((shared & SHARED_POSITION) && name == "pos") { assignPosition(value); return true; }
+    if ((shared & SHARED_SIZE) && name == "size") { assignSize(value); return true; }
+    if ((shared & SHARED_ROTATION) && name == "origin") { assignOrigin(value); return true; }
+    return false;
+}
+
+bool UIDrawable::getProperty(const std::string& name, float& value) const {
+    const unsigned shared = sharedProperties();
+    if (shared & SHARED_POSITION) {
+        if (name == "x") { value = position.x; return true; }
+        if (name == "y") { value = position.y; return true; }
+    }
+    if (shared & SHARED_SIZE) {
+        if (name == "w") { value = get_bounds().width; return true; }
+        if (name == "h") { value = get_bounds().height; return true; }
+    }
+    if ((shared & SHARED_ROTATION) && name == "rotation") { value = rotation; return true; }
+    if ((shared & SHARED_OPACITY) && name == "opacity") { value = opacity; return true; }
+    return false;
+}
+
+bool UIDrawable::getProperty(const std::string& name, int& value) const {
+    if ((sharedProperties() & SHARED_Z_INDEX) && name == "z_index") { value = z_index; return true; }
+    return false;
+}
+
+bool UIDrawable::getProperty(const std::string& name, sf::Vector2f& value) const {
+    const unsigned shared = sharedProperties();
+    if ((shared & SHARED_POSITION) && name == "pos") { value = position; return true; }
+    if ((shared & SHARED_SIZE) && name == "size") {
+        auto b = get_bounds();
+        value = {b.width, b.height};
+        return true;
+    }
+    if ((shared & SHARED_ROTATION) && name == "origin") { value = origin; return true; }
+    return false;
+}
+
+bool UIDrawable::hasProperty(const std::string& name) const {
+    const unsigned shared = sharedProperties();
+    return ((shared & SHARED_POSITION) && (name == "x" || name == "y" || name == "pos"))
+        || ((shared & SHARED_SIZE) && (name == "w" || name == "h" || name == "size"))
+        || ((shared & SHARED_ROTATION) && (name == "rotation" || name == "origin"))
+        || ((shared & SHARED_OPACITY) && name == "opacity")
+        || ((shared & SHARED_Z_INDEX) && name == "z_index");
 }
 
 PyObject* UIDrawable::get_float_member(PyObject* self, void* closure) {
@@ -529,34 +627,18 @@ int UIDrawable::set_float_member(PyObject* self, PyObject* value, void* closure)
         return -1;
     }
     
+    // #426: the same setters the animation system uses
+    const sf::Vector2f p = drawable->position;
+    const sf::FloatRect b = drawable->get_bounds();
     switch (member) {
-        case 0: // x
-            drawable->position.x = val;
-            drawable->onPositionChanged();
-            drawable->markCompositeDirty(); // #290: position change invalidates parent cache
-            break;
-        case 1: // y
-            drawable->position.y = val;
-            drawable->onPositionChanged();
-            drawable->markCompositeDirty(); // #290: position change invalidates parent cache
-            break;
-        case 2: // w
-        case 3: // h
-            {
-                sf::FloatRect bounds = drawable->get_bounds();
-                if (member == 2) {
-                    drawable->resize(val, bounds.height);
-                } else {
-                    drawable->resize(bounds.width, val);
-                }
-                drawable->markDirty(); // #290: size change invalidates own + parent cache
-            }
-            break;
+        case 0: drawable->assignPosition({val, p.y}); break;        // x
+        case 1: drawable->assignPosition({p.x, val}); break;        // y
+        case 2: drawable->assignSize({val, b.height}); break;       // w
+        case 3: drawable->assignSize({b.width, val}); break;        // h
         default:
             PyErr_SetString(PyExc_AttributeError, "Invalid float member");
             return -1;
     }
-    
     return 0;
 }
 
@@ -574,40 +656,28 @@ int UIDrawable::set_pos(PyObject* self, PyObject* value, void* closure) {
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return -1;
 
-    // Accept tuple or Vector
-    float x, y;
-    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
-        PyObject* x_obj = PyTuple_GetItem(value, 0);
-        PyObject* y_obj = PyTuple_GetItem(value, 1);
-        
-        if (PyFloat_Check(x_obj) || PyLong_Check(x_obj)) {
-            x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : static_cast<float>(PyLong_AsLong(x_obj));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "Position x must be a number");
-            return -1;
-        }
-        
-        if (PyFloat_Check(y_obj) || PyLong_Check(y_obj)) {
-            y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : static_cast<float>(PyLong_AsLong(y_obj));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "Position y must be a number");
-            return -1;
-        }
-    } else {
-        // Try to get as Vector
-        if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyVectorType)) {
-            PyVectorObject* vec = (PyVectorObject*)value;
-            x = vec->data.x;
-            y = vec->data.y;
-        } else {
-            PyErr_SetString(PyExc_TypeError, "Position must be a tuple (x, y) or Vector");
-            return -1;
-        }
-    }
-    
-    drawable->position = sf::Vector2f(x, y);
-    drawable->onPositionChanged();
-    drawable->markCompositeDirty(); // #290: position change invalidates parent cache
+    sf::Vector2f v;
+    if (!mcrf::to_vector2f(value, v, "pos")) return -1;
+    drawable->assignPosition(v);
+    return 0;
+}
+
+// #426: size as a Vector, for types whose w/h are writable (Frame, Viewport3D)
+PyObject* UIDrawable::get_size_vec(PyObject* self, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return NULL;
+    auto b = drawable->get_bounds();
+    return PyVector(sf::Vector2f(b.width, b.height)).pyObject();
+}
+
+int UIDrawable::set_size_vec(PyObject* self, PyObject* value, void* closure) {
+    PyObjectsEnum objtype = static_cast<PyObjectsEnum>(reinterpret_cast<intptr_t>(closure));
+    UIDrawable* drawable = extractDrawable(self, objtype);
+    if (!drawable) return -1;
+    sf::Vector2f size;
+    if (!mcrf::to_vector2f(value, size, "size")) return -1;
+    drawable->assignSize(size);
     return 0;
 }
 
@@ -635,8 +705,7 @@ int UIDrawable::set_rotation(PyObject* self, PyObject* value, void* closure) {
         return -1;
     }
 
-    drawable->rotation = val;
-    drawable->markDirty();
+    drawable->assignRotation(val);
     return 0;
 }
 
@@ -655,39 +724,9 @@ int UIDrawable::set_origin(PyObject* self, PyObject* value, void* closure) {
     UIDrawable* drawable = extractDrawable(self, objtype);
     if (!drawable) return -1;
 
-    // Accept tuple or Vector
-    float x, y;
-    if (PyTuple_Check(value) && PyTuple_Size(value) == 2) {
-        PyObject* x_obj = PyTuple_GetItem(value, 0);
-        PyObject* y_obj = PyTuple_GetItem(value, 1);
-
-        if (PyFloat_Check(x_obj) || PyLong_Check(x_obj)) {
-            x = PyFloat_Check(x_obj) ? PyFloat_AsDouble(x_obj) : static_cast<float>(PyLong_AsLong(x_obj));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "origin x must be a number");
-            return -1;
-        }
-
-        if (PyFloat_Check(y_obj) || PyLong_Check(y_obj)) {
-            y = PyFloat_Check(y_obj) ? PyFloat_AsDouble(y_obj) : static_cast<float>(PyLong_AsLong(y_obj));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "origin y must be a number");
-            return -1;
-        }
-    } else {
-        // Try to get as Vector
-        if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyVectorType)) {
-            PyVectorObject* vec = (PyVectorObject*)value;
-            x = vec->data.x;
-            y = vec->data.y;
-        } else {
-            PyErr_SetString(PyExc_TypeError, "origin must be a tuple (x, y) or Vector");
-            return -1;
-        }
-    }
-
-    drawable->origin = sf::Vector2f(x, y);
-    drawable->markDirty();
+    sf::Vector2f v;
+    if (!mcrf::to_vector2f(value, v, "origin")) return -1;
+    drawable->assignOrigin(v);
     return 0;
 }
 
@@ -1900,148 +1939,10 @@ int UIDrawable::set_on_move(PyObject* self, PyObject* value, void* closure) {
 
 // Animation shorthand helper - creates and starts an animation on a UIDrawable
 // This is a free function (not a member) to avoid incomplete type issues in UIBase.h template
-PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> self, PyObject* args, PyObject* kwds) {
-    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "loop", "callback", "conflict_mode", nullptr};
-
-    const char* property_name;
-    PyObject* target_value;
-    float duration;
-    PyObject* easing_arg = Py_None;
-    int delta = 0;
-    int loop_val = 0;
-    PyObject* callback = nullptr;
-    const char* conflict_mode_str = nullptr;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OppOs", const_cast<char**>(keywords),
-                                      &property_name, &target_value, &duration,
-                                      &easing_arg, &delta, &loop_val, &callback, &conflict_mode_str)) {
-        return NULL;
-    }
-
-    // Validate property exists on this drawable
-    if (!self->hasProperty(property_name)) {
-        PyErr_Format(PyExc_ValueError,
-            "Property '%s' is not valid for animation on this object. "
-            "Check spelling or use a supported property name.",
-            property_name);
-        return NULL;
-    }
-
-    // Validate callback is callable if provided
-    if (callback && callback != Py_None && !PyCallable_Check(callback)) {
-        PyErr_SetString(PyExc_TypeError, "callback must be callable");
-        return NULL;
-    }
-
-    // Convert None to nullptr for C++
-    if (callback == Py_None) {
-        callback = nullptr;
-    }
-
-    // Convert Python target value to AnimationValue
-    AnimationValue animValue;
-
-    if (PyFloat_Check(target_value)) {
-        animValue = static_cast<float>(PyFloat_AsDouble(target_value));
-    }
-    else if (PyLong_Check(target_value)) {
-        animValue = static_cast<int>(PyLong_AsLong(target_value));
-    }
-    else if (PyList_Check(target_value)) {
-        // List of integers for sprite animation
-        std::vector<int> indices;
-        Py_ssize_t size = PyList_Size(target_value);
-        for (Py_ssize_t i = 0; i < size; i++) {
-            PyObject* item = PyList_GetItem(target_value, i);
-            if (PyLong_Check(item)) {
-                indices.push_back(PyLong_AsLong(item));
-            } else {
-                PyErr_SetString(PyExc_TypeError, "Sprite animation list must contain only integers");
-                return NULL;
-            }
-        }
-        animValue = indices;
-    }
-    else if (PyTuple_Check(target_value)) {
-        Py_ssize_t size = PyTuple_Size(target_value);
-        if (size == 2) {
-            // Vector2f
-            float x = PyFloat_AsDouble(PyTuple_GetItem(target_value, 0));
-            float y = PyFloat_AsDouble(PyTuple_GetItem(target_value, 1));
-            if (PyErr_Occurred()) return NULL;
-            animValue = sf::Vector2f(x, y);
-        }
-        else if (size == 3 || size == 4) {
-            // Color (RGB or RGBA)
-            int r = PyLong_AsLong(PyTuple_GetItem(target_value, 0));
-            int g = PyLong_AsLong(PyTuple_GetItem(target_value, 1));
-            int b = PyLong_AsLong(PyTuple_GetItem(target_value, 2));
-            int a = size == 4 ? PyLong_AsLong(PyTuple_GetItem(target_value, 3)) : 255;
-            if (PyErr_Occurred()) return NULL;
-            animValue = sf::Color(r, g, b, a);
-        }
-        else {
-            PyErr_SetString(PyExc_ValueError, "Tuple must have 2 elements (vector) or 3-4 elements (color)");
-            return NULL;
-        }
-    }
-    else if (PyUnicode_Check(target_value)) {
-        // String for text animation
-        const char* str = PyUnicode_AsUTF8(target_value);
-        animValue = std::string(str);
-    }
-    else {
-        PyErr_SetString(PyExc_TypeError, "Target value must be float, int, list, tuple, or string");
-        return NULL;
-    }
-
-    // Get easing function from argument
-    EasingFunction easingFunc;
-    if (!PyEasing::from_arg(easing_arg, &easingFunc, nullptr)) {
-        return NULL;  // Error already set by from_arg
-    }
-
-    // Parse conflict mode
-    AnimationConflictMode conflict_mode = AnimationConflictMode::REPLACE;
-    if (conflict_mode_str) {
-        if (strcmp(conflict_mode_str, "replace") == 0) {
-            conflict_mode = AnimationConflictMode::REPLACE;
-        } else if (strcmp(conflict_mode_str, "queue") == 0) {
-            conflict_mode = AnimationConflictMode::QUEUE;
-        } else if (strcmp(conflict_mode_str, "error") == 0) {
-            conflict_mode = AnimationConflictMode::RAISE_ERROR;
-        } else {
-            PyErr_Format(PyExc_ValueError,
-                "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", conflict_mode_str);
-            return NULL;
-        }
-    }
-
-    // Create the Animation
-    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, loop_val != 0, callback);
-
-    // Start on this drawable
-    animation->start(self);
-
-    // Add to AnimationManager
-    AnimationManager::getInstance().addAnimation(animation, conflict_mode);
-
-    // Check if ERROR mode raised an exception
-    if (PyErr_Occurred()) {
-        return NULL;
-    }
-
-    // Create and return a PyAnimation wrapper
-    PyTypeObject* animType = &mcrfpydef::PyAnimationType;
-
-    PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
-
-    if (!pyAnim) {
-        return NULL;
-    }
-
-    pyAnim->data = animation;
-    return (PyObject*)pyAnim;
+PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> self, const char* type_name,
+                                  PyObject* args, PyObject* kwds) {
+    return mcrf::animate(self, type_name, args, kwds,
+        [](Animation& a, const std::shared_ptr<UIDrawable>& t) { a.start(t); });
 }
 
 // ============================================================================
@@ -2197,22 +2098,20 @@ void UIDrawable::applyAlignment() {
     }
 
     // For most drawables, position IS the bounding box top-left corner
-    // But for Circle and Arc, position is the center, so we need to adjust
+    // But for Circle and Arc, position is the center, and for Line the midpoint
+    // (#426), so we need to adjust
     float offset_x = 0.0f;
     float offset_y = 0.0f;
 
-    // Check if this is a Circle or Arc (where position = center)
     auto dtype = derived_type();
-    if (dtype == PyObjectsEnum::UICIRCLE || dtype == PyObjectsEnum::UIARC) {
-        // For these, position is the center, bounds.topLeft is position - radius
-        // So offset = position - bounds.topLeft = (radius, radius)
+    if (dtype == PyObjectsEnum::UICIRCLE || dtype == PyObjectsEnum::UIARC ||
+        dtype == PyObjectsEnum::UILINE) {
+        // offset = position - bounds.topLeft
         offset_x = position.x - self_bounds.left;
         offset_y = position.y - self_bounds.top;
     }
 
-    position = sf::Vector2f(x + offset_x, y + offset_y);
-    onPositionChanged();
-    markCompositeDirty();
+    assignPosition(sf::Vector2f(x + offset_x, y + offset_y));
 }
 
 void UIDrawable::setAlignment(AlignmentType align) {

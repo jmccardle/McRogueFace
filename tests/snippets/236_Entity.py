@@ -26,9 +26,9 @@ grid.entities.append(player)
 # Move to a new grid (tile) position -- instant, integer coordinates
 player.grid_pos = (11, 10)
 
-# Animated movement: 'x' is an alias for 'draw_x', the fractional tile
-# coordinate used for smooth motion between cells.
-player.animate("x", 12.0, 0.2, mcrfpy.Easing.EASE_OUT_QUAD)
+# Animated movement: draw_pos is the fractional tile position used for smooth
+# motion between cells. (player.x/.y/.pos are pixels, like every drawable.)
+player.animate("draw_pos", (12, 10), 0.2, mcrfpy.Easing.EASE_OUT_QUAD)
 
 # Pathfinding: find_path() returns an AStarPath (or None if unreachable);
 # it does not move the entity itself.

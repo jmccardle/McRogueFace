@@ -161,10 +161,26 @@ public:
     // Visibility methods
     void updateVisibility();  // Update perspective_map from current FOV (#294)
     
-    // Property system for animations
+    // #423: position, opacity and sprite offset setters. Attribute assignment and
+    // animation both write through these. draw_pos is in tiles; x/y/pos are pixels,
+    // draw_pos * the grid's cell size, so they exist only while the entity is on a grid.
+    void assignDrawPos(sf::Vector2f tiles);
+    bool cellPixelSize(sf::Vector2f& out) const;  // false when not on a grid
+    void assignOpacity(float o);
+    void assignSpriteOffset(sf::Vector2f px);
+
+    // Property system for animations. Every name is a readable attribute, in that
+    // attribute's units (#423, #426).
     bool setProperty(const std::string& name, float value);
     bool setProperty(const std::string& name, int value);
+    bool setProperty(const std::string& name, const sf::Vector2f& value);
+    bool setProperty(const std::string& name, const sf::Color& value) { return false; }
+    bool setProperty(const std::string& name, const std::string& value) { return false; }
     bool getProperty(const std::string& name, float& value) const;
+    bool getProperty(const std::string& name, int& value) const;
+    bool getProperty(const std::string& name, sf::Vector2f& value) const;
+    bool getProperty(const std::string& name, sf::Color& value) const { return false; }
+    bool getProperty(const std::string& name, std::string& value) const { return false; }
     bool hasProperty(const std::string& name) const;
 
     // Animation shorthand helper - creates and starts an animation on this entity

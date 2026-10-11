@@ -227,101 +227,49 @@ void UILine::move(float dx, float dy) {
 
 void UILine::resize(float w, float h) {
     // For a line, resize adjusts the end point relative to start
-    end_pos = start_pos + sf::Vector2f(w, h);
+    setEnd(start_pos + sf::Vector2f(w, h));
+}
+
+void UILine::onPositionChanged() {
+    // position was assigned: translate both endpoints so the midpoint lands on it
+    const sf::Vector2f delta = position - (start_pos + end_pos) / 2.0f;
+    start_pos += delta;
+    end_pos += delta;
     vertices_dirty = true;
 }
 
-// Animation property system
+// Animation property system. The shared names (x, y, pos, rotation, origin, opacity,
+// z_index) are handled by UIDrawable (#426); a line's pos is its midpoint.
 bool UILine::setProperty(const std::string& name, float value) {
     if (name == "thickness") {
-        thickness = value;
-        vertices_dirty = true;
+        setThickness(value);
         markDirty();  // #144 - Content change
         return true;
     }
-    else if (name == "x") {
-        float dx = value - position.x;
-        move(dx, 0);
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "y") {
-        float dy = value - position.y;
-        move(0, dy);
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "start_x") {
-        start_pos.x = value;
-        vertices_dirty = true;
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "start_y") {
-        start_pos.y = value;
-        vertices_dirty = true;
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "end_x") {
-        end_pos.x = value;
-        vertices_dirty = true;
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "end_y") {
-        end_pos.y = value;
-        vertices_dirty = true;
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "rotation") {
-        rotation = value;
-        markDirty();
-        return true;
-    }
-    else if (name == "origin_x") {
-        origin.x = value;
-        markDirty();
-        return true;
-    }
-    else if (name == "origin_y") {
-        origin.y = value;
-        markDirty();
-        return true;
-    }
-    else if (name == "opacity") {
-        opacity = std::clamp(value, 0.0f, 1.0f);
-        markDirty();
-        return true;
-    }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UILine::setProperty(const std::string& name, const sf::Color& value) {
     if (name == "color") {
-        color = value;
-        vertices_dirty = true;
+        setColor(value);
         markDirty();  // #144 - Content change
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UILine::setProperty(const std::string& name, const sf::Vector2f& value) {
     if (name == "start") {
-        start_pos = value;
-        vertices_dirty = true;
+        setStart(value);
         markDirty();  // #144 - Content change
         return true;
     }
     else if (name == "end") {
-        end_pos = value;
-        vertices_dirty = true;
+        setEnd(value);
         markDirty();  // #144 - Content change
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UILine::getProperty(const std::string& name, float& value) const {
@@ -329,47 +277,7 @@ bool UILine::getProperty(const std::string& name, float& value) const {
         value = thickness;
         return true;
     }
-    else if (name == "x") {
-        value = position.x;
-        return true;
-    }
-    else if (name == "y") {
-        value = position.y;
-        return true;
-    }
-    else if (name == "start_x") {
-        value = start_pos.x;
-        return true;
-    }
-    else if (name == "start_y") {
-        value = start_pos.y;
-        return true;
-    }
-    else if (name == "end_x") {
-        value = end_pos.x;
-        return true;
-    }
-    else if (name == "end_y") {
-        value = end_pos.y;
-        return true;
-    }
-    else if (name == "rotation") {
-        value = rotation;
-        return true;
-    }
-    else if (name == "origin_x") {
-        value = origin.x;
-        return true;
-    }
-    else if (name == "origin_y") {
-        value = origin.y;
-        return true;
-    }
-    else if (name == "opacity") {
-        value = opacity;
-        return true;
-    }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UILine::getProperty(const std::string& name, sf::Color& value) const {
@@ -377,7 +285,7 @@ bool UILine::getProperty(const std::string& name, sf::Color& value) const {
         value = color;
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UILine::getProperty(const std::string& name, sf::Vector2f& value) const {
@@ -389,26 +297,14 @@ bool UILine::getProperty(const std::string& name, sf::Vector2f& value) const {
         value = end_pos;
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UILine::hasProperty(const std::string& name) const {
-    // Float properties
-    if (name == "thickness" || name == "x" || name == "y" || name == "opacity" ||
-        name == "start_x" || name == "start_y" ||
-        name == "end_x" || name == "end_y" ||
-        name == "rotation" || name == "origin_x" || name == "origin_y") {
+    if (name == "thickness" || name == "color" || name == "start" || name == "end") {
         return true;
     }
-    // Color properties
-    if (name == "color") {
-        return true;
-    }
-    // Vector2f properties
-    if (name == "start" || name == "end" || name == "origin") {
-        return true;
-    }
-    return false;
+    return UIDrawable::hasProperty(name);
 }
 
 // Python API implementation
@@ -521,8 +417,14 @@ PyGetSetDef UILine::getsetters[] = {
      MCRF_PROPERTY(name, "Name for finding this element."),
      (void*)PyObjectsEnum::UILINE},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
-     MCRF_PROPERTY(pos, "Position as a Vector (midpoint of line)."),
+     MCRF_PROPERTY(pos, "Midpoint of the line (Vector). Assigning it moves both endpoints."),
      (void*)PyObjectsEnum::UILINE},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(x, "X coordinate of the midpoint (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UILINE << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(y, "Y coordinate of the midpoint (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UILINE << 8 | 1)},
     {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
      MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector, only when parent is Grid)."),
      (void*)PyObjectsEnum::UILINE},

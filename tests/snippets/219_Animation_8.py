@@ -13,4 +13,4 @@ grid.entities.append(player)
 
 # Slide the drawn position across the grid in tile coordinates.
 # cell_pos (the logical cell) is NOT changed by this animation.
-player.animate("draw_x", 5.0, 0.5, mcrfpy.Easing.EASE_OUT_QUAD)
+player.animate("draw_pos", (5, 1), 0.5, mcrfpy.Easing.EASE_OUT_QUAD)

@@ -353,8 +353,8 @@ class _World:
                               sprite_index=npc["sprite"])
             self.grid.entities.append(e)
             self.npc_entities[npc["id"]] = (e, npc)
-            # idle bob (staggered), oscillates draw_y by ~0.06
-            e.animate("draw_y", float(y) - 0.06, 0.75 + 0.05 * (idx % 6),
+            # idle bob (staggered), oscillates draw_pos.y by ~0.06 tiles
+            e.animate("draw_pos", (x, y - 0.06), 0.75 + 0.05 * (idx % 6),
                       mcrfpy.Easing.EASE_IN_OUT, loop=True)
             idx += 1
 
@@ -415,8 +415,7 @@ class _World:
             if self._occupied(nx, ny, ignore=e):
                 continue
             e.grid_pos = (nx, ny)
-            e.animate("draw_x", float(nx), 0.25, mcrfpy.Easing.EASE_OUT)
-            e.animate("draw_y", float(ny), 0.25, mcrfpy.Easing.EASE_OUT)
+            e.animate("draw_pos", (nx, ny), 0.25, mcrfpy.Easing.EASE_OUT)
 
     def _occupied(self, x, y, ignore=None):
         if self.player is not None and int(self.player.grid_x) == x \
@@ -499,22 +498,16 @@ class _World:
             return
 
         self.player.grid_pos = (tx, ty)
-        self.player.animate("draw_x", float(tx), _STEP_DUR, mcrfpy.Easing.EASE_OUT)
-        self.player.animate("draw_y", float(ty), _STEP_DUR, mcrfpy.Easing.EASE_OUT)
+        self.player.animate("draw_pos", (tx, ty), _STEP_DUR, mcrfpy.Easing.EASE_OUT)
         self.after_move(tx, ty)
 
     def _nudge(self, dx, dy):
         px, py = int(self.player.grid_x), int(self.player.grid_y)
-        if dx:
-            self.player.animate("draw_x", px + 0.22 * dx, 0.06,
+        if dx or dy:
+            self.player.animate("draw_pos", (px + 0.22 * dx, py + 0.22 * dy), 0.06,
                                 mcrfpy.Easing.EASE_OUT,
                                 callback=lambda *_a: self.player.animate(
-                                    "draw_x", float(px), 0.08))
-        elif dy:
-            self.player.animate("draw_y", py + 0.22 * dy, 0.06,
-                                mcrfpy.Easing.EASE_OUT,
-                                callback=lambda *_a: self.player.animate(
-                                    "draw_y", float(py), 0.08))
+                                    "draw_pos", (px, py), 0.08))
 
     def _refresh_fov(self):
         """Update the FOV overlay and hide entities the player cannot see."""

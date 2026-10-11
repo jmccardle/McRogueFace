@@ -33,10 +33,10 @@ mcrfpy.current_scene = scene
 check("Frame hasProperty 'pos'", True)  # would fail at animate() if not
 frame.animate("pos", (200, 300), 0.5, mcrfpy.Easing.LINEAR)
 
-# Test 2: Frame "position" animation property still works
+# Test 2: Frame "pos" from a Vector target (#426: "position" was a non-attribute alias)
 frame2 = mcrfpy.Frame(pos=(0, 0), size=(50, 50))
 ui.append(frame2)
-frame2.animate("position", (100, 100), 0.5, mcrfpy.Easing.LINEAR)
+frame2.animate("pos", mcrfpy.Vector(100, 100), 0.5, mcrfpy.Easing.LINEAR)
 
 # Test 3: Frame "fill_color" compound animation
 frame.animate("fill_color", (0, 255, 0, 255), 0.5, mcrfpy.Easing.LINEAR)
@@ -47,8 +47,8 @@ frame.animate("outline_color", (128, 128, 128), 0.5, mcrfpy.Easing.LINEAR)
 # Test 5: Caption "pos" animation
 cap.animate("pos", (200, 200), 0.5, mcrfpy.Easing.LINEAR)
 
-# Test 6: Caption "position" animation
-cap.animate("position", (300, 300), 0.5, mcrfpy.Easing.LINEAR)
+# Test 6: Caption "pos" animation, Vector target
+cap.animate("pos", mcrfpy.Vector(300, 300), 0.5, mcrfpy.Easing.LINEAR)
 
 # Test 7: Caption "fill_color" compound animation
 cap.animate("fill_color", (0, 0, 255), 0.5, mcrfpy.Easing.LINEAR)
@@ -56,8 +56,8 @@ cap.animate("fill_color", (0, 0, 255), 0.5, mcrfpy.Easing.LINEAR)
 # Test 8: Sprite "pos" animation
 sprite.animate("pos", (200, 200), 0.5, mcrfpy.Easing.LINEAR)
 
-# Test 9: Sprite "position" animation
-sprite.animate("position", (300, 300), 0.5, mcrfpy.Easing.LINEAR)
+# Test 9: Sprite "pos" animation, Vector target
+sprite.animate("pos", mcrfpy.Vector(300, 300), 0.5, mcrfpy.Easing.LINEAR)
 
 # Test 10: Frame "size" compound animation
 frame.animate("size", (200, 200), 0.5, mcrfpy.Easing.LINEAR)

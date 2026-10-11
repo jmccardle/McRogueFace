@@ -239,7 +239,8 @@ void UIArc::onPositionChanged() {
     vertices_dirty = true;
 }
 
-// Property setters
+// Property setters. The shared names (x, y, pos, rotation, origin, opacity, z_index)
+// are handled by UIDrawable (#426); an arc's pos is its center.
 bool UIArc::setProperty(const std::string& name, float value) {
     if (name == "radius") {
         setRadius(value);
@@ -261,41 +262,7 @@ bool UIArc::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Content change
         return true;
     }
-    else if (name == "x") {
-        center.x = value;
-        position = center;
-        vertices_dirty = true;
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "y") {
-        center.y = value;
-        position = center;
-        vertices_dirty = true;
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "rotation") {
-        rotation = value;
-        markDirty();
-        return true;
-    }
-    else if (name == "origin_x") {
-        origin.x = value;
-        markDirty();
-        return true;
-    }
-    else if (name == "origin_y") {
-        origin.y = value;
-        markDirty();
-        return true;
-    }
-    else if (name == "opacity") {
-        opacity = std::clamp(value, 0.0f, 1.0f);
-        markDirty();
-        return true;
-    }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UIArc::setProperty(const std::string& name, const sf::Color& value) {
@@ -304,7 +271,7 @@ bool UIArc::setProperty(const std::string& name, const sf::Color& value) {
         markDirty();  // #144 - Content change
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UIArc::setProperty(const std::string& name, const sf::Vector2f& value) {
@@ -313,7 +280,7 @@ bool UIArc::setProperty(const std::string& name, const sf::Vector2f& value) {
         markCompositeDirty();  // #144 - Position change, texture still valid
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UIArc::getProperty(const std::string& name, float& value) const {
@@ -333,31 +300,7 @@ bool UIArc::getProperty(const std::string& name, float& value) const {
         value = thickness;
         return true;
     }
-    else if (name == "x") {
-        value = center.x;
-        return true;
-    }
-    else if (name == "y") {
-        value = center.y;
-        return true;
-    }
-    else if (name == "rotation") {
-        value = rotation;
-        return true;
-    }
-    else if (name == "origin_x") {
-        value = origin.x;
-        return true;
-    }
-    else if (name == "origin_y") {
-        value = origin.y;
-        return true;
-    }
-    else if (name == "opacity") {
-        value = opacity;
-        return true;
-    }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UIArc::getProperty(const std::string& name, sf::Color& value) const {
@@ -365,7 +308,7 @@ bool UIArc::getProperty(const std::string& name, sf::Color& value) const {
         value = color;
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UIArc::getProperty(const std::string& name, sf::Vector2f& value) const {
@@ -373,25 +316,15 @@ bool UIArc::getProperty(const std::string& name, sf::Vector2f& value) const {
         value = center;
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UIArc::hasProperty(const std::string& name) const {
-    // Float properties
     if (name == "radius" || name == "start_angle" || name == "end_angle" ||
-        name == "thickness" || name == "x" || name == "y" || name == "opacity" ||
-        name == "rotation" || name == "origin_x" || name == "origin_y") {
+        name == "thickness" || name == "color" || name == "center") {
         return true;
     }
-    // Color properties
-    if (name == "color") {
-        return true;
-    }
-    // Vector2f properties
-    if (name == "center") {
-        return true;
-    }
-    return false;
+    return UIDrawable::hasProperty(name);
 }
 
 // Python API implementation
@@ -510,6 +443,12 @@ PyGetSetDef UIArc::getsetters[] = {
      MCRF_PROPERTY(name, "Name for finding this element (str)."), (void*)PyObjectsEnum::UIARC},
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
      MCRF_PROPERTY(pos, "Position as a Vector (same as center)."), (void*)PyObjectsEnum::UIARC},
+    {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(x, "X coordinate of the center (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UIARC << 8 | 0)},
+    {"y", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
+     MCRF_PROPERTY(y, "Y coordinate of the center (float)."),
+     (void*)((intptr_t)PyObjectsEnum::UIARC << 8 | 1)},
     {"grid_pos", (getter)UIDrawable::get_grid_pos, (setter)UIDrawable::set_grid_pos,
      MCRF_PROPERTY(grid_pos, "Position in grid tile coordinates (Vector, only when parent is Grid)."), (void*)PyObjectsEnum::UIARC},
     {"grid_size", (getter)UIDrawable::get_grid_size, (setter)UIDrawable::set_grid_size,

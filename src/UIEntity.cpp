@@ -1,4 +1,5 @@
 #include "UIEntity.h"
+#include "PyAnimate.h"
 #include "PyWrap.h"
 #include "PyGridData.h"
 #include "UIGridView.h"  // #252: Entity.grid accepts GridView
@@ -474,32 +475,21 @@ PyObject* UIEntity::get_position(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_position(PyUIEntityObject* self, PyObject* value, void* closure) {
-    // Save old position for spatial hash update (#115)
-    float old_x = self->data->position.x;
-    float old_y = self->data->position.y;
-
+    sf::Vector2f tiles;
     if (reinterpret_cast<intptr_t>(closure) == 0) {
-        sf::Vector2f vec = PyObject_to_sfVector2f(value);
+        tiles = PyObject_to_sfVector2f(value);
         if (PyErr_Occurred()) {
             return -1;  // Error already set by PyObject_to_sfVector2f
         }
-        self->data->position = vec;
     } else {
         // For integer position, convert to float and set position
         sf::Vector2i vec = PyObject_to_sfVector2i(value);
         if (PyErr_Occurred()) {
             return -1;  // Error already set by PyObject_to_sfVector2i
         }
-        self->data->position = sf::Vector2f(static_cast<float>(vec.x),
-                                            static_cast<float>(vec.y));
+        tiles = sf::Vector2f(static_cast<float>(vec.x), static_cast<float>(vec.y));
     }
-
-    // Update spatial hash if grid exists (#115)
-    if (self->data->getGrid()) {
-        self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
-        self->data->getGrid()->markCompositeDirty();  // #351 - entity moved; re-raster view
-    }
-
+    self->data->assignDrawPos(tiles);  // #423: shared with animation
     return 0;
 }
 
@@ -718,7 +708,8 @@ PyObject* UIEntity::get_pixel_pos(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closure) {
-    if (!self->data->getGrid()) {
+    sf::Vector2f cell;
+    if (!self->data->cellPixelSize(cell)) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return -1;
     }
@@ -727,21 +718,7 @@ int UIEntity::set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closu
     if (PyErr_Occurred()) {
         return -1;
     }
-
-    float cell_width, cell_height;
-    get_cell_dimensions(self->data.get(), cell_width, cell_height);
-
-    // Save old position for spatial hash update
-    float old_x = self->data->position.x;
-    float old_y = self->data->position.y;
-
-    // Convert pixels to tile coordinates
-    self->data->position.x = pixel_vec.x / cell_width;
-    self->data->position.y = pixel_vec.y / cell_height;
-
-    // Update spatial hash
-    self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
-
+    self->data->assignDrawPos({pixel_vec.x / cell.x, pixel_vec.y / cell.y});  // #423
     return 0;
 }
 
@@ -763,7 +740,8 @@ PyObject* UIEntity::get_pixel_member(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* closure) {
-    if (!self->data->getGrid()) {
+    sf::Vector2f cell;
+    if (!self->data->cellPixelSize(cell)) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return -1;
     }
@@ -778,22 +756,12 @@ int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* cl
         return -1;
     }
 
-    float cell_width, cell_height;
-    get_cell_dimensions(self->data.get(), cell_width, cell_height);
-
-    // Save old position for spatial hash update
-    float old_x = self->data->position.x;
-    float old_y = self->data->position.y;
-
-    auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (member_ptr == 0) // x
-        self->data->position.x = val / cell_width;
+    sf::Vector2f tiles = self->data->position;
+    if (reinterpret_cast<intptr_t>(closure) == 0) // x
+        tiles.x = val / cell.x;
     else // y
-        self->data->position.y = val / cell_height;
-
-    // Update spatial hash
-    self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
-
+        tiles.y = val / cell.y;
+    self->data->assignDrawPos(tiles);  // #423: shared with animation
     return 0;
 }
 
@@ -909,8 +877,7 @@ PyObject* UIEntity::get_sprite_offset(PyUIEntityObject* self, void* closure) {
 int UIEntity::set_sprite_offset(PyUIEntityObject* self, PyObject* value, void* closure) {
     sf::Vector2f vec = PyObject_to_sfVector2f(value);
     if (PyErr_Occurred()) return -1;
-    self->data->sprite_offset = vec;
-    if (self->data->getGrid()) self->data->getGrid()->markDirty();
+    self->data->assignSpriteOffset(vec);
     return 0;
 }
 
@@ -933,12 +900,12 @@ int UIEntity::set_sprite_offset_member(PyUIEntityObject* self, PyObject* value, 
         PyErr_SetString(PyExc_TypeError, "sprite_offset component must be a number");
         return -1;
     }
-    auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (member_ptr == 0)
-        self->data->sprite_offset.x = val;
+    sf::Vector2f offset = self->data->sprite_offset;
+    if (reinterpret_cast<intptr_t>(closure) == 0)
+        offset.x = val;
     else
-        self->data->sprite_offset.y = val;
-    if (self->data->getGrid()) self->data->getGrid()->markDirty();
+        offset.y = val;
+    self->data->assignSpriteOffset(offset);
     return 0;
 }
 
@@ -1716,8 +1683,8 @@ PyMethodDef UIEntity_all_methods[] = {
          MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace')", "Animation"),
          MCRF_DESC("Create and start an animation on this entity's property."),
          MCRF_ARGS_START
-         MCRF_ARG("property", "Name of the property to animate: 'draw_x', 'draw_y' (tile coords), 'sprite_scale', 'sprite_index', 'sprite_offset_x', 'sprite_offset_y'")
-         MCRF_ARG("target", "Target value - float, int, or list of int (for sprite frame sequences)")
+         MCRF_ARG("property", "Name of the attribute to animate: 'draw_pos' (tiles), 'x', 'y', 'pos' (pixels), 'opacity', 'sprite_index', 'sprite_offset', 'sprite_offset_x', 'sprite_offset_y', or 'shader.<uniform>'")
+         MCRF_ARG("target", "Target value, of the attribute's type: a number, a Vector or (x, y), or an int (or list of ints to step through sprite frames)")
          MCRF_ARG("duration", "Animation duration in seconds")
          MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear")
          MCRF_ARG("delta", "If True, target is relative to current value; if False, target is absolute")
@@ -1725,10 +1692,12 @@ PyMethodDef UIEntity_all_methods[] = {
          MCRF_ARG("callback", "Optional callable invoked when animation completes (not called for looping animations)")
          MCRF_ARG("conflict_mode", "'replace' (default), 'queue', or 'error' if property already animating")
          MCRF_RETURNS("Animation object for monitoring progress")
-         MCRF_RAISES("ValueError", "If property name is not valid for Entity (draw_x, draw_y, sprite_scale, sprite_index, sprite_offset_x, sprite_offset_y)")
-         MCRF_NOTE("Use 'draw_x'/'draw_y' to animate tile coordinates for smooth movement between grid cells. "
-                   "Use list target with loop=True for repeating sprite frame animations. "
-                   "'x' and 'y' are accepted as aliases for 'draw_x' and 'draw_y'.")
+         MCRF_RAISES("ValueError", "If the name is not an animatable attribute of Entity")
+         MCRF_RAISES("TypeError", "If the target is not of the attribute's type")
+         MCRF_RAISES("RuntimeError", "Animating 'x', 'y' or 'pos' on an entity that is not on a grid")
+         MCRF_NOTE("Animate 'draw_pos' for smooth tile-to-tile movement: e.animate('draw_pos', (5, 3), 0.2). "
+                   "'x', 'y' and 'pos' are pixels, the same as assigning them. "
+                   "Use a list target with loop=True for repeating sprite frame animations.")
      )},
     {"at", (PyCFunction)UIEntity::at, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(Entity, at,
@@ -1936,222 +1905,133 @@ PyObject* UIEntity::repr(PyUIEntityObject* self) {
     return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
 }
 
-// Property system implementation for animations
-// #176 - Animation properties use tile coordinates (draw_x, draw_y)
-// "x" and "y" are kept as aliases for backwards compatibility
-bool UIEntity::setProperty(const std::string& name, float value) {
+void UIEntity::assignDrawPos(sf::Vector2f tiles)
+{
+    const sf::Vector2f old = position;
+    position = tiles;
+    if (auto grid = getGrid()) {
+        grid->spatial_hash.update(shared_from_this(), old.x, old.y);  // #115, #256
+        grid->markCompositeDirty();  // #351 - entity moved; re-raster view
+    }
+}
+
+bool UIEntity::cellPixelSize(sf::Vector2f& out) const
+{
     auto grid = getGrid();
-    if (name == "draw_x" || name == "x") {  // #176 - draw_x is preferred, x is alias
-        float old_x = position.x;
-        float old_y = position.y;
-        position.x = value;
-        if (grid) {
-            grid->markCompositeDirty();
-            grid->spatial_hash.update(shared_from_this(), old_x, old_y);  // #256
-        }
+    if (!grid) return false;
+    // #313: cell size lives on the data layer (mirrored from the grid's texture)
+    out = sf::Vector2f(static_cast<float>(grid->cell_width()), static_cast<float>(grid->cell_height()));
+    return true;
+}
+
+void UIEntity::assignOpacity(float o)
+{
+    sprite.opacity = std::clamp(o, 0.0f, 1.0f);
+    if (auto grid = getGrid()) grid->markCompositeDirty();
+}
+
+void UIEntity::assignSpriteOffset(sf::Vector2f px)
+{
+    sprite_offset = px;
+    if (auto grid = getGrid()) grid->markDirty();
+}
+
+// Property system implementation for animations (#423, #426). Names and units match the
+// attributes: x, y and pos are pixels (and need a grid, like the attributes), draw_pos is
+// tiles. The old tile-unit aliases draw_x/draw_y are gone; see raise_not_animatable().
+bool UIEntity::setProperty(const std::string& name, float value) {
+    if (name == "x" || name == "y") {
+        sf::Vector2f cell;
+        if (!cellPixelSize(cell)) return false;
+        sf::Vector2f tiles = position;
+        if (name == "x") tiles.x = value / cell.x; else tiles.y = value / cell.y;
+        assignDrawPos(tiles);
         return true;
     }
-    else if (name == "draw_y" || name == "y") {  // #176 - draw_y is preferred, y is alias
-        float old_x = position.x;
-        float old_y = position.y;
-        position.y = value;
-        if (grid) {
-            grid->markCompositeDirty();
-            grid->spatial_hash.update(shared_from_this(), old_x, old_y);  // #256
-        }
-        return true;
-    }
-    else if (name == "sprite_scale") {
-        sprite.setScale(sf::Vector2f(value, value));
-        if (grid) grid->markCompositeDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "sprite_offset_x") {
-        sprite_offset.x = value;
-        if (grid) grid->markCompositeDirty();
-        return true;
-    }
-    else if (name == "sprite_offset_y") {
-        sprite_offset.y = value;
-        if (grid) grid->markCompositeDirty();
-        return true;
-    }
+    if (name == "opacity") { assignOpacity(value); return true; }
+    if (name == "sprite_offset_x") { assignSpriteOffset({value, sprite_offset.y}); return true; }
+    if (name == "sprite_offset_y") { assignSpriteOffset({sprite_offset.x, value}); return true; }
     // #106: Shader uniform properties - delegate to sprite
-    if (sprite.setShaderProperty(name, value)) {
+    return sprite.setShaderProperty(name, value);
+}
+
+bool UIEntity::setProperty(const std::string& name, int value) {
+    if (name == "sprite_index") {
+        sprite.setSpriteIndex(value);
+        if (auto grid = getGrid()) grid->markDirty();  // #144 - Content change
         return true;
     }
     return false;
 }
 
-bool UIEntity::setProperty(const std::string& name, int value) {
-    auto grid = getGrid();
-    if (name == "sprite_index") {
-        sprite.setSpriteIndex(value);
-        if (grid) grid->markDirty();  // #144 - Content change
+bool UIEntity::setProperty(const std::string& name, const sf::Vector2f& value) {
+    if (name == "draw_pos") { assignDrawPos(value); return true; }
+    if (name == "pos") {
+        sf::Vector2f cell;
+        if (!cellPixelSize(cell)) return false;
+        assignDrawPos({value.x / cell.x, value.y / cell.y});
         return true;
     }
+    if (name == "sprite_offset") { assignSpriteOffset(value); return true; }
     return false;
 }
 
 bool UIEntity::getProperty(const std::string& name, float& value) const {
-    if (name == "draw_x" || name == "x") {  // #176
-        value = position.x;
+    if (name == "x" || name == "y") {
+        sf::Vector2f cell;
+        if (!cellPixelSize(cell)) return false;
+        value = (name == "x") ? position.x * cell.x : position.y * cell.y;
         return true;
     }
-    else if (name == "draw_y" || name == "y") {  // #176
-        value = position.y;
-        return true;
-    }
-    else if (name == "sprite_scale") {
-        value = sprite.getScale().x;  // Assuming uniform scale
-        return true;
-    }
-    else if (name == "sprite_offset_x") {
-        value = sprite_offset.x;
-        return true;
-    }
-    else if (name == "sprite_offset_y") {
-        value = sprite_offset.y;
-        return true;
-    }
+    if (name == "opacity") { value = sprite.opacity; return true; }
+    if (name == "sprite_offset_x") { value = sprite_offset.x; return true; }
+    if (name == "sprite_offset_y") { value = sprite_offset.y; return true; }
     // #106: Shader uniform properties - delegate to sprite
-    if (sprite.getShaderProperty(name, value)) {
+    return sprite.getShaderProperty(name, value);
+}
+
+bool UIEntity::getProperty(const std::string& name, int& value) const {
+    if (name == "sprite_index") { value = sprite.getSpriteIndex(); return true; }
+    return false;
+}
+
+bool UIEntity::getProperty(const std::string& name, sf::Vector2f& value) const {
+    if (name == "draw_pos") { value = position; return true; }
+    if (name == "pos") {
+        sf::Vector2f cell;
+        if (!cellPixelSize(cell)) return false;
+        value = {position.x * cell.x, position.y * cell.y};
         return true;
     }
+    if (name == "sprite_offset") { value = sprite_offset; return true; }
     return false;
 }
 
 bool UIEntity::hasProperty(const std::string& name) const {
-    // #176 - Float properties (draw_x/draw_y preferred, x/y are aliases)
-    if (name == "draw_x" || name == "draw_y" || name == "x" || name == "y" || name == "sprite_scale"
-        || name == "sprite_offset_x" || name == "sprite_offset_y") {
-        return true;
-    }
-    // Int properties
-    if (name == "sprite_index") {
+    if (name == "x" || name == "y" || name == "pos" || name == "draw_pos" ||
+        name == "opacity" || name == "sprite_index" ||
+        name == "sprite_offset" || name == "sprite_offset_x" || name == "sprite_offset_y") {
         return true;
     }
     // #106: Shader uniform properties - delegate to sprite
-    if (sprite.hasShaderProperty(name)) {
-        return true;
-    }
-    return false;
+    return sprite.hasShaderProperty(name);
 }
 
 // Animation shorthand for Entity - creates and starts an animation
 PyObject* UIEntity::animate(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
-    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "loop", "callback", "conflict_mode", nullptr};
-
-    const char* property_name;
-    PyObject* target_value;
-    float duration;
-    PyObject* easing_arg = Py_None;
-    int delta = 0;
-    int loop_val = 0;
-    PyObject* callback = nullptr;
-    const char* conflict_mode_str = nullptr;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OppOs", const_cast<char**>(keywords),
-                                      &property_name, &target_value, &duration,
-                                      &easing_arg, &delta, &loop_val, &callback, &conflict_mode_str)) {
-        return NULL;
-    }
-
-    // Validate property exists on this entity
-    if (!self->data->hasProperty(property_name)) {
-        PyErr_Format(PyExc_ValueError,
-            "Property '%s' is not valid for animation on Entity. "
-            "Valid properties: draw_x, draw_y (tile coords), sprite_scale, sprite_index",
-            property_name);
-        return NULL;
-    }
-
-    // Validate callback is callable if provided
-    if (callback && callback != Py_None && !PyCallable_Check(callback)) {
-        PyErr_SetString(PyExc_TypeError, "callback must be callable");
-        return NULL;
-    }
-
-    // Convert None to nullptr for C++
-    if (callback == Py_None) {
-        callback = nullptr;
-    }
-
-    // Convert Python target value to AnimationValue
-    // Entity supports float, int, and list of int (for sprite frame animation)
-    AnimationValue animValue;
-
-    if (PyFloat_Check(target_value)) {
-        animValue = static_cast<float>(PyFloat_AsDouble(target_value));
-    }
-    else if (PyLong_Check(target_value)) {
-        animValue = static_cast<int>(PyLong_AsLong(target_value));
-    }
-    else if (PyList_Check(target_value)) {
-        // List of integers for sprite animation
-        std::vector<int> indices;
-        Py_ssize_t size = PyList_Size(target_value);
-        for (Py_ssize_t i = 0; i < size; i++) {
-            PyObject* item = PyList_GetItem(target_value, i);
-            if (PyLong_Check(item)) {
-                indices.push_back(PyLong_AsLong(item));
-            } else {
-                PyErr_SetString(PyExc_TypeError, "Sprite animation list must contain only integers");
-                return NULL;
-            }
-        }
-        animValue = indices;
-    }
-    else {
-        PyErr_SetString(PyExc_TypeError, "Entity animations support float, int, or list of int target values");
-        return NULL;
-    }
-
-    // Get easing function from argument
-    EasingFunction easingFunc;
-    if (!PyEasing::from_arg(easing_arg, &easingFunc, nullptr)) {
-        return NULL;  // Error already set by from_arg
-    }
-
-    // Parse conflict mode
-    AnimationConflictMode conflict_mode = AnimationConflictMode::REPLACE;
-    if (conflict_mode_str) {
-        if (strcmp(conflict_mode_str, "replace") == 0) {
-            conflict_mode = AnimationConflictMode::REPLACE;
-        } else if (strcmp(conflict_mode_str, "queue") == 0) {
-            conflict_mode = AnimationConflictMode::QUEUE;
-        } else if (strcmp(conflict_mode_str, "error") == 0) {
-            conflict_mode = AnimationConflictMode::RAISE_ERROR;
-        } else {
-            PyErr_Format(PyExc_ValueError,
-                "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", conflict_mode_str);
+    // #423: x, y and pos are pixels through the grid's cell size, so -- like reading
+    // them -- animating them needs a grid. Say so instead of "not animatable".
+    PyObject* name = (args && PyTuple_Check(args) && PyTuple_Size(args) > 0)
+        ? PyTuple_GetItem(args, 0) : (kwds ? PyDict_GetItemString(kwds, "property") : nullptr);
+    if (name && PyUnicode_Check(name) && !self->data->getGrid()) {
+        const char* n = PyUnicode_AsUTF8(name);
+        if (n && (!strcmp(n, "x") || !strcmp(n, "y") || !strcmp(n, "pos"))) {
+            PyErr_Format(PyExc_RuntimeError,
+                "cannot animate '%s': entity is not attached to a Grid "
+                "(pixel positions are draw_pos * the grid's cell size)", n);
             return NULL;
         }
     }
-
-    // Create the Animation
-    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, loop_val != 0, callback);
-
-    // Start on this entity (uses startEntity, not start)
-    animation->startEntity(self->data);
-
-    // Add to AnimationManager
-    AnimationManager::getInstance().addAnimation(animation, conflict_mode);
-
-    // Check if ERROR mode raised an exception
-    if (PyErr_Occurred()) {
-        return NULL;
-    }
-
-    // Create and return a PyAnimation wrapper
-    auto animType = &mcrfpydef::PyAnimationType;
-
-    PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
-
-    if (!pyAnim) {
-        return NULL;
-    }
-
-    pyAnim->data = animation;
-    return (PyObject*)pyAnim;
+    return mcrf::animate(self->data, "Entity", args, kwds,
+        [](Animation& a, const std::shared_ptr<UIEntity>& t) { a.startEntity(t); });
 }

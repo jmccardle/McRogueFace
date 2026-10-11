@@ -96,11 +96,9 @@ def animate_to_waypoint(index):
     status.text = f"Moving to waypoint {index + 1}/{len(waypoints)}: ({target_x}, {target_y})"
     anim_info.text = f"Animation: Active (target: {target_x}, {target_y})"
 
-    # 'draw_x'/'draw_y' are the tile-space draw coordinates ('x'/'y' are aliases).
+    # 'draw_pos' is the tile-space draw position ('x'/'y'/'pos' are pixels, #423).
     # mcrfpy.Animation is no longer exported; animations are created via .animate().
-    entity.animate("draw_x", float(target_x), duration, mcrfpy.Easing.LINEAR,
-                   callback=on_anim_done)
-    entity.animate("draw_y", float(target_y), duration, mcrfpy.Easing.LINEAR,
+    entity.animate("draw_pos", (target_x, target_y), duration, mcrfpy.Easing.LINEAR,
                    callback=on_anim_done)
     return duration
 
@@ -125,7 +123,7 @@ def test_immediate_position():
           f"direct draw_pos set: expected (7.0, 7.0), got {entity.draw_pos}")
 
     # Animation to a new x, driven by explicit steps
-    entity.animate("draw_x", 9.0, 1.0, mcrfpy.Easing.LINEAR)
+    entity.animate("draw_pos", (9.0, entity.draw_pos.y), 1.0, mcrfpy.Easing.LINEAR)
     step_seconds(0.5)
     mid_x = entity.draw_pos.x
     check(7.0 < mid_x < 9.0,
@@ -175,9 +173,9 @@ for i, (wx, wy) in enumerate(waypoints):
 
 anim_info.text = "Animation: Complete"
 
-# Each waypoint fires two completion callbacks (draw_x and draw_y)
-check(len(completed) == 2 * len(waypoints),
-      f"expected {2 * len(waypoints)} animation callbacks, got {len(completed)}")
+# Each waypoint fires one completion callback (draw_pos)
+check(len(completed) == len(waypoints),
+      f"expected {len(waypoints)} animation callbacks, got {len(completed)}")
 
 # The entity ends where it started -- a closed square
 check(abs(entity.draw_pos.x - 5.0) < 0.01 and abs(entity.draw_pos.y - 5.0) < 0.01,

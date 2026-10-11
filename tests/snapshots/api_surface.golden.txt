@@ -293,6 +293,8 @@ submodule automation
   prop thickness: float (rw)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
+  prop x: float (rw)
+  prop y: float (rw)
   prop z_index: int (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
@@ -381,6 +383,8 @@ submodule automation
   prop rotation: Any (rw)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
+  prop x: float (rw)
+  prop y: float (rw)
   prop z_index: int (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
@@ -540,6 +544,7 @@ submodule automation
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop shader: Any (rw)
+  prop size: Any (rw)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
@@ -735,13 +740,15 @@ submodule automation
   prop opacity: Any (rw)
   prop origin: Any (rw)
   prop parent: Any (rw)
-  prop pos: Any (rw)
+  prop pos: Vector (rw)
   prop rotate_with_camera: bool (rw)
   prop rotation: Any (rw)
   prop start: Any (rw)
   prop thickness: Any (rw)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
+  prop x: float (rw)
+  prop y: float (rw)
   prop z_index: Any (rw)
   meth animate :: animate(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace') -> Animation
   meth move :: move(dx, dy) or (delta) -> None
@@ -1078,6 +1085,7 @@ submodule automation
   prop parent: Any (rw)
   prop pos: Any (rw)
   prop render_resolution: Any (rw)
+  prop size: Vector (rw)
   prop visible: bool (rw)
   prop w: Any (rw)
   prop x: Any (rw)

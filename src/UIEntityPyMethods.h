@@ -41,11 +41,7 @@ static int UIEntity_set_opacity(PyUIEntityObject* self, PyObject* value, void* c
         return -1;
     }
     
-    // Clamp to valid range
-    if (opacity < 0.0f) opacity = 0.0f;
-    if (opacity > 1.0f) opacity = 1.0f;
-    
-    self->data->sprite.opacity = opacity;
+    self->data->assignOpacity(opacity);  // #423: clamps; shared with animation
     return 0;
 }
 

@@ -83,8 +83,7 @@ def test_rotation_animation():
 
     # Test origin animation
     try:
-        frame.animate("origin_x", 25.0, 0.5, mcrfpy.Easing.LINEAR)
-        frame.animate("origin_y", 25.0, 0.5, mcrfpy.Easing.LINEAR)
+        frame.animate("origin", (25.0, 25.0), 0.5, mcrfpy.Easing.LINEAR)
         print("  Origin animation started successfully")
     except Exception as e:
         print(f"  Origin animation failed: {e}")

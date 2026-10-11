@@ -43,16 +43,14 @@ class PathAnimator:
             self.index += 1
             self._animate_next()
 
-        # Animate X (draw_x/draw_y are the tile-coordinate properties used
-        # for smooth movement between grid cells; compare against draw_pos,
-        # not entity.x/entity.y, which are pixel coordinates)
+        # Animate along X, then Y. draw_pos is the tile-coordinate position used
+        # for smooth movement between grid cells (entity.x/.y/.pos are pixels).
         pos = self.entity.draw_pos
         if pos.x != target_x:
-            self.entity.animate("draw_x", float(target_x), self.step_duration,
+            self.entity.animate("draw_pos", (target_x, pos.y), self.step_duration,
                                  self.easing, callback=on_step_complete)
-        # Animate Y
         elif pos.y != target_y:
-            self.entity.animate("draw_y", float(target_y), self.step_duration,
+            self.entity.animate("draw_pos", (pos.x, target_y), self.step_duration,
                                  self.easing, callback=on_step_complete)
         else:
             # Already at position, skip to next

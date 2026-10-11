@@ -52,10 +52,12 @@ public:
 
     // Getters and setters
     sf::Vector2f getStart() const { return start_pos; }
-    void setStart(sf::Vector2f pos) { start_pos = pos; vertices_dirty = true; }
+    // A line's pos is its midpoint (#426): moving an endpoint moves pos, and assigning
+    // pos translates both endpoints.
+    void setStart(sf::Vector2f pos) { start_pos = pos; position = (start_pos + end_pos) / 2.0f; vertices_dirty = true; }
 
     sf::Vector2f getEnd() const { return end_pos; }
-    void setEnd(sf::Vector2f pos) { end_pos = pos; vertices_dirty = true; }
+    void setEnd(sf::Vector2f pos) { end_pos = pos; position = (start_pos + end_pos) / 2.0f; vertices_dirty = true; }
 
     sf::Color getColor() const { return color; }
     void setColor(sf::Color c) { color = c; vertices_dirty = true; }
@@ -67,6 +69,7 @@ public:
     sf::FloatRect get_bounds() const override;
     void move(float dx, float dy) override;
     void resize(float w, float h) override;
+    void onPositionChanged() override;
 
     // Property system for animations
     bool setProperty(const std::string& name, float value) override;

@@ -75,6 +75,37 @@ Animation::~Animation() {
     }
 }
 
+// #426: read/write a property in the variant alternative the animation runs in. The
+// alternative was chosen from the property's own type when the animation was created
+// (PyAnimate.h), so exactly one getProperty/setProperty overload answers for the name.
+// A frame list (vector<int>) animates an int property.
+template <class Target>
+static void readProperty(const Target& t, const std::string& name, const AnimationValue& like,
+                         AnimationValue& out)
+{
+    std::visit([&](const auto& v) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_same_v<T, std::vector<int>>) {
+            int value;
+            if (t.getProperty(name, value)) out = value;
+        } else {
+            T value;
+            if (t.getProperty(name, value)) out = value;
+        }
+    }, like);
+}
+
+template <class Target>
+static void writeProperty(Target& t, const std::string& name, const AnimationValue& value)
+{
+    std::visit([&](const auto& v) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (!std::is_same_v<T, std::vector<int>>) {  // interpolate() yields an int
+            t.setProperty(name, v);
+        }
+    }, value);
+}
+
 void Animation::start(std::shared_ptr<UIDrawable> target) {
     if (!target) return;
 
@@ -82,54 +113,7 @@ void Animation::start(std::shared_ptr<UIDrawable> target) {
     elapsed = 0.0f;
     callbackTriggered = false; // Reset callback state
 
-    // Capture start value from target
-    std::visit([this, &target](const auto& targetVal) {
-        using T = std::decay_t<decltype(targetVal)>;
-
-        if constexpr (std::is_same_v<T, float>) {
-            float value;
-            if (target->getProperty(targetProperty, value)) {
-                startValue = value;
-            }
-        }
-        else if constexpr (std::is_same_v<T, int>) {
-            // Most UI properties use float, so try float first, then int
-            float fvalue;
-            if (target->getProperty(targetProperty, fvalue)) {
-                startValue = static_cast<int>(fvalue);
-            } else {
-                int ivalue;
-                if (target->getProperty(targetProperty, ivalue)) {
-                    startValue = ivalue;
-                }
-            }
-        }
-        else if constexpr (std::is_same_v<T, std::vector<int>>) {
-            // For sprite animation, get current sprite index
-            int value;
-            if (target->getProperty(targetProperty, value)) {
-                startValue = value;
-            }
-        }
-        else if constexpr (std::is_same_v<T, sf::Color>) {
-            sf::Color value;
-            if (target->getProperty(targetProperty, value)) {
-                startValue = value;
-            }
-        }
-        else if constexpr (std::is_same_v<T, sf::Vector2f>) {
-            sf::Vector2f value;
-            if (target->getProperty(targetProperty, value)) {
-                startValue = value;
-            }
-        }
-        else if constexpr (std::is_same_v<T, std::string>) {
-            std::string value;
-            if (target->getProperty(targetProperty, value)) {
-                startValue = value;
-            }
-        }
-    }, targetValue);
+    readProperty(*target, targetProperty, targetValue, startValue);
 
     // For zero-duration animations, apply final value immediately
     if (duration <= 0.0f) {
@@ -149,30 +133,7 @@ void Animation::startEntity(std::shared_ptr<UIEntity> target) {
     elapsed = 0.0f;
     callbackTriggered = false; // Reset callback state
 
-    // Capture the starting value from the entity
-    std::visit([this, target](const auto& val) {
-        using T = std::decay_t<decltype(val)>;
-
-        if constexpr (std::is_same_v<T, float>) {
-            float value = 0.0f;
-            if (target->getProperty(targetProperty, value)) {
-                startValue = value;
-            }
-        }
-        else if constexpr (std::is_same_v<T, int>) {
-            // For entities, we might need to handle sprite_index differently
-            if (targetProperty == "sprite_index") {
-                startValue = target->sprite.getSpriteIndex();
-            }
-        }
-        else if constexpr (std::is_same_v<T, std::vector<int>>) {
-            // For sprite animation frame lists, get current sprite index
-            if (targetProperty == "sprite_index") {
-                startValue = target->sprite.getSpriteIndex();
-            }
-        }
-        // Entities don't support other types yet
-    }, targetValue);
+    readProperty(*target, targetProperty, targetValue, startValue);
 
     // For zero-duration animations, apply final value immediately
     if (duration <= 0.0f) {
@@ -464,47 +425,11 @@ AnimationValue Animation::interpolate(float t) const {
 }
 
 void Animation::applyValue(UIDrawable* target, const AnimationValue& value) {
-    if (!target) return;
-
-    std::visit([this, target](const auto& val) {
-        using T = std::decay_t<decltype(val)>;
-
-        if constexpr (std::is_same_v<T, float>) {
-            target->setProperty(targetProperty, val);
-        }
-        else if constexpr (std::is_same_v<T, int>) {
-            // Most UI properties use float setProperty, so try float first
-            if (!target->setProperty(targetProperty, static_cast<float>(val))) {
-                // Fall back to int if float didn't work
-                target->setProperty(targetProperty, val);
-            }
-        }
-        else if constexpr (std::is_same_v<T, sf::Color>) {
-            target->setProperty(targetProperty, val);
-        }
-        else if constexpr (std::is_same_v<T, sf::Vector2f>) {
-            target->setProperty(targetProperty, val);
-        }
-        else if constexpr (std::is_same_v<T, std::string>) {
-            target->setProperty(targetProperty, val);
-        }
-    }, value);
+    if (target) writeProperty(*target, targetProperty, value);
 }
 
 void Animation::applyValue(UIEntity* entity, const AnimationValue& value) {
-    if (!entity) return;
-
-    std::visit([this, entity](const auto& val) {
-        using T = std::decay_t<decltype(val)>;
-
-        if constexpr (std::is_same_v<T, float>) {
-            entity->setProperty(targetProperty, val);
-        }
-        else if constexpr (std::is_same_v<T, int>) {
-            entity->setProperty(targetProperty, val);
-        }
-        // Entities don't support other types yet
-    }, value);
+    if (entity) writeProperty(*entity, targetProperty, value);
 }
 
 void Animation::applyValue(mcrf::Entity3D* entity, const AnimationValue& value) {
