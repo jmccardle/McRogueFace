@@ -100,8 +100,15 @@ class Runtime:
         if self.is_running:
             return "%d.%d" % sys.version_info[:2]
         if self.platform == "linux":
-            lib = _one((self.dir / "lib").glob("libpython3.*.so.1.0"), "libpython", self.dir / "lib")
-            return lib.name[len("libpython"):-len(".so.1.0")]
+            # A variant build's lib/ holds the plain libpython3.X too (it is overlaid on
+            # __lib/), so a tagged libpython3.X{d,t,td} is the one the binary links.
+            tags = self._libpython_tags()
+            versions = sorted({version for version, flags in tags if flags}) or \
+                [version for version, flags in tags]
+            if len(versions) != 1:
+                _one([self.dir / "lib" / ("libpython%s.so.1.0" % v) for v in versions],
+                     "libpython", self.dir / "lib")
+            return versions[0]
         dll = _one((p for p in self.dir.glob("python3*.dll") if p.name != "python3.dll"),
                    "python3X.dll", self.dir)
         digits = dll.stem[len("python"):]
@@ -111,10 +118,39 @@ class Runtime:
     def python_nodot(self):
         return self.python_version.replace(".", "")
 
+    def _python_abiflags(self):
+        """'' for a Release engine; 'd', 't' or 'td' for a debug, free-threaded or TSan one."""
+        if self.is_running:
+            return sys.abiflags
+        if self.platform == "linux":
+            flags = sorted({flags for version, flags in self._libpython_tags() if flags})
+            if len(flags) > 1:
+                raise ProjectError("%s has libpython for more than one ABI (%s)"
+                                   % (self.dir / "lib", ", ".join(flags)))
+            return flags[0] if flags else ""
+        return ""
+
+    def _libpython_tags(self):
+        """(version, abiflags) of each libpython3.X{flags}.so.1.0 in lib/."""
+        tags = []
+        for p in (self.dir / "lib").glob("libpython3.*.so.1.0"):
+            name = p.name[len("libpython"):-len(".so.1.0")]
+            version = name.rstrip("dt")
+            tags.append((version, name[len(version):]))
+        return tags
+
     # --- staging ---------------------------------------------------------------------
 
     def stage(self, dest):
         """Copy the runtime (no game content) into the directory `dest`."""
+        # #457: a debug/free-threaded/sanitizer engine links libpython3.Xd/t/td and its
+        # ABI-tagged extension modules; nobody ships one, so refuse rather than build a
+        # package that can't start.
+        flags = self._python_abiflags()
+        if flags:
+            raise ProjectError("%s is a Python %s%s build (debug, free-threaded or sanitizer); "
+                               "packages are made from a Release build such as build/"
+                               % (self.dir, self.python_version, flags))
         dest = Path(dest)
         dest.mkdir(parents=True, exist_ok=True)
         if self.platform == "linux":

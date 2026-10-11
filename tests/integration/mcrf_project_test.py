@@ -87,60 +87,78 @@ with tempfile.TemporaryDirectory() as tmp:
     rc, out = tool("info", cwd=game)
     check(rc == 0 and "my-game 1.2.3" in out and PY in out, "info names the project and the engine's Python")
 
-    # --- dist: Linux ---
-    rc, out = tool("dist", "--platform", "linux", cwd=game)
-    tar_path = game / "dist" / "my-game-1.2.3-Linux.tar.gz"
-    check(rc == 0 and tar_path.is_file(), "dist builds %s%s" % (tar_path.name, "" if rc == 0 else "\n" + out[-400:]))
-    if tar_path.is_file():
-        with tarfile.open(tar_path) as tar:
-            names = set(n.split("/", 1)[1] for n in tar.getnames() if "/" in n)
-            extract = tmp / "linux-pkg"
-            tar.extractall(extract)
-        for rel in ("mcrogueface", "run.sh", "lib/libpython%s.so.1.0" % PY, "lib/libtcod.so.2",
-                    "lib/Python/Lib/os.py", "lib/Python/Lib/mcrf_project/__main__.py",
-                    "scripts/game.py", "scripts/helper.py", "assets/kenney_tinydungeon.png"):
-            check(rel in names, "the Linux package has %s" % rel)
-        check(any(n.startswith("lib/Python/lib.linux-") and n.endswith("-%s" % PY) for n in names),
-              "the Linux package has the %s extension modules" % PY)
-        stale = sorted(n for n in names if "python3." in n and ("python%s" % PY) not in n
-                       and ("-%s" % PY) not in n)
-        check(not stale, "no other Python's files ship %s" % stale[:3])
-        check(not any("__pycache__" in n or "/idlelib/" in n or n.startswith("lib/Python/Lib/test/")
-                      for n in names), "no caches, tests or idlelib ship")
-        check(not any(n.startswith(("Makefile", "VERSION", "typings", ".mcrf")) for n in names),
-              "only the game's assets/ and scripts/ ship from the project")
+    # --- dist refuses a debug/free-threaded/sanitizer engine (#457) ---
+    # Such an engine links libpython3.Xd/t/td; a package of it couldn't start.
+    variants = [d for d in ("build-debug", "build-asan", "build-tsan")
+                if (ENGINE.parent.parent / d / "mcrogueface").is_file()]
+    for name in variants:
+        engine_dir = ENGINE.parent.parent / name
+        if engine_dir == ENGINE.parent:
+            rc, out = tool("dist", "--platform", "linux", cwd=game)
+        else:
+            rc, out = tool("dist", "--platform", "linux", "--engine", str(engine_dir), cwd=game)
+        check(rc == 1 and "packages are made from a Release build" in out and "Traceback" not in out,
+              "dist refuses the %s engine%s" % (name, "" if rc == 1 else "\n" + out[-400:]))
+    if not variants:
+        print("  note: no debug/asan/tsan build here; the refusal isn't checked")
 
-        # The package runs on its own: its libraries, its stdlib, the game's scripts.
-        pkg = extract / "my-game-1.2.3-Linux"
-        probe = pkg / "probe.py"
-        probe.write_text("import sys, os, helper, socket, mcrf_project\n"
-                         "print('PKG', helper.VALUE, socket.__file__.startswith(%r))\n"
-                         "sys.exit(0)\n" % str(pkg))
-        env = {k: v for k, v in ENV.items() if k not in ("LD_LIBRARY_PATH", "PYTHONPATH", "PYTHONHOME")}
-        out = subprocess.run([str(pkg / "mcrogueface"), "--headless", "--exec", str(probe)], cwd=str(pkg),
-                             capture_output=True, text=True, timeout=60, env=env)
-        ran = out.returncode == 0 and "PKG from the project True" in out.stdout
-        check(ran, "the extracted package runs from its own stdlib (rc=%d)%s"
-              % (out.returncode, "" if ran else "\n" + (out.stdout + out.stderr)[-600:]))
-
-    # --- dist: Windows, when this tree has a Windows build ---
-    windows = ENGINE.parent.parent / "build-windows"
-    if (windows / "mcrogueface.exe").is_file():
-        rc, out = tool("dist", "--platform", "windows", cwd=game)
-        zip_path = game / "dist" / "my-game-1.2.3-Windows.zip"
-        check(rc == 0 and zip_path.is_file(), "dist --platform windows builds %s" % zip_path.name)
-        if zip_path.is_file():
-            names = set(n.split("/", 1)[1] for n in zipfile.ZipFile(zip_path).namelist() if "/" in n)
-            nodot = PY.replace(".", "")
-            for rel in ("mcrogueface.exe", "python%s.dll" % nodot, "lib/Python/Lib/os.py",
-                        "lib/Python/Lib/mcrf_project/runtime.py", "scripts/game.py",
-                        "assets/JetbrainsMono.ttf"):
-                check(rel in names, "the Windows package has %s" % rel)
-            check(any(n.startswith("lib/Python/DLLs/_socket") for n in names),
-                  "the Windows package has the extension modules (lib/Python/DLLs)")
-            check(not any(n.endswith((".so", ".so.1.0")) for n in names), "no Linux libraries in it")
+    if sys.abiflags:
+        print("  note: this engine is Python %s%s; the Release package checks are skipped" % (PY, sys.abiflags))
     else:
-        print("  note: no build-windows/ here; the Windows package isn't checked")
+        # --- dist: Linux ---
+        rc, out = tool("dist", "--platform", "linux", cwd=game)
+        tar_path = game / "dist" / "my-game-1.2.3-Linux.tar.gz"
+        check(rc == 0 and tar_path.is_file(), "dist builds %s%s" % (tar_path.name, "" if rc == 0 else "\n" + out[-400:]))
+        if tar_path.is_file():
+            with tarfile.open(tar_path) as tar:
+                names = set(n.split("/", 1)[1] for n in tar.getnames() if "/" in n)
+                extract = tmp / "linux-pkg"
+                tar.extractall(extract)
+            for rel in ("mcrogueface", "run.sh", "lib/libpython%s.so.1.0" % PY, "lib/libtcod.so.2",
+                        "lib/Python/Lib/os.py", "lib/Python/Lib/mcrf_project/__main__.py",
+                        "scripts/game.py", "scripts/helper.py", "assets/kenney_tinydungeon.png"):
+                check(rel in names, "the Linux package has %s" % rel)
+            check(any(n.startswith("lib/Python/lib.linux-") and n.endswith("-%s" % PY) for n in names),
+                  "the Linux package has the %s extension modules" % PY)
+            stale = sorted(n for n in names if "python3." in n and ("python%s" % PY) not in n
+                           and ("-%s" % PY) not in n)
+            check(not stale, "no other Python's files ship %s" % stale[:3])
+            check(not any("__pycache__" in n or "/idlelib/" in n or n.startswith("lib/Python/Lib/test/")
+                          for n in names), "no caches, tests or idlelib ship")
+            check(not any(n.startswith(("Makefile", "VERSION", "typings", ".mcrf")) for n in names),
+                  "only the game's assets/ and scripts/ ship from the project")
+
+            # The package runs on its own: its libraries, its stdlib, the game's scripts.
+            pkg = extract / "my-game-1.2.3-Linux"
+            probe = pkg / "probe.py"
+            probe.write_text("import sys, os, helper, socket, mcrf_project\n"
+                             "print('PKG', helper.VALUE, socket.__file__.startswith(%r))\n"
+                             "sys.exit(0)\n" % str(pkg))
+            env = {k: v for k, v in ENV.items() if k not in ("LD_LIBRARY_PATH", "PYTHONPATH", "PYTHONHOME")}
+            out = subprocess.run([str(pkg / "mcrogueface"), "--headless", "--exec", str(probe)], cwd=str(pkg),
+                                 capture_output=True, text=True, timeout=60, env=env)
+            ran = out.returncode == 0 and "PKG from the project True" in out.stdout
+            check(ran, "the extracted package runs from its own stdlib (rc=%d)%s"
+                  % (out.returncode, "" if ran else "\n" + (out.stdout + out.stderr)[-600:]))
+
+        # --- dist: Windows, when this tree has a Windows build ---
+        windows = ENGINE.parent.parent / "build-windows"
+        if (windows / "mcrogueface.exe").is_file():
+            rc, out = tool("dist", "--platform", "windows", cwd=game)
+            zip_path = game / "dist" / "my-game-1.2.3-Windows.zip"
+            check(rc == 0 and zip_path.is_file(), "dist --platform windows builds %s" % zip_path.name)
+            if zip_path.is_file():
+                names = set(n.split("/", 1)[1] for n in zipfile.ZipFile(zip_path).namelist() if "/" in n)
+                nodot = PY.replace(".", "")
+                for rel in ("mcrogueface.exe", "python%s.dll" % nodot, "lib/Python/Lib/os.py",
+                            "lib/Python/Lib/mcrf_project/runtime.py", "scripts/game.py",
+                            "assets/JetbrainsMono.ttf"):
+                    check(rel in names, "the Windows package has %s" % rel)
+                check(any(n.startswith("lib/Python/DLLs/_socket") for n in names),
+                      "the Windows package has the extension modules (lib/Python/DLLs)")
+                check(not any(n.endswith((".so", ".so.1.0")) for n in names), "no Linux libraries in it")
+        else:
+            print("  note: no build-windows/ here; the Windows package isn't checked")
 
     # --- errors say what's wrong ---
     rc, out = tool("dist", cwd=tmp)
