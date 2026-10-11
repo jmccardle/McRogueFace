@@ -193,7 +193,7 @@ void CommandLineParser::print_help() {
               << "  -V     : print the Python version number and exit (also --version)\n"
               << "\n"
               << "McRogueFace specific options:\n"
-              << "  --exec file  : execute script before main program (can be used multiple times)\n"
+              << "  --exec file  : run this script instead of scripts/game.py (can be used multiple times)\n"
               << "  --headless   : run without creating a window (implies --audio-off)\n"
               << "  --run-forever : keep running after --exec scripts finish, instead of\n"
               << "                       exiting (for a long-lived headless process)\n"

@@ -6,7 +6,7 @@ UITestScene::UITestScene(GameEngine* g) : Scene(g)
 {
     registerAction(ActionCode::KEY + sf::Keyboard::Grave, "debug_menu");
 
-    text.setString("UITest: surprised to be here? game.py raised an exception.");
+    text.setString("No scene was activated. Did scripts/game.py fail? (see the console)");
     text.setCharacterSize(24);
 
 

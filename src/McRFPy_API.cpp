@@ -1540,9 +1540,6 @@ void McRFPy_API::api_init() {
 
     // Add default_font and default_texture to module
     McRFPy_API::mcrf_module = PyImport_ImportModule("mcrfpy");
-    if (mcrf::PyRef repr{PyObject_Repr(McRFPy_API::mcrf_module)}) {
-        std::cout << PyUnicode_AsUTF8(repr.get()) << std::endl;
-    }
 
     //sprite.setTexture(texture);
     //sprite.setScale(sf::Vector2f(4.0f, 4.0f));
