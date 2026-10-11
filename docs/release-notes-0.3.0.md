@@ -1,7 +1,6 @@
 # McRogueFace 0.3.0 — release notes (DRAFT)
 
-> Draft assembled from the 109 commits between the `0.2.8` tag and master `678ef74`.
-> Not final: the scope below may still gain the fixes listed under "Under consideration".
+> Draft assembled from the commits between the `0.2.8` tag and master (183 at `5108e48`).
 
 ## Headline: Python 3.15
 
@@ -40,7 +39,7 @@ removals that affect your code.
 | `mcrfpy.step()` / `advance()` raise `RuntimeError` when called from a thread that holds `mcrfpy.lock()`; previously this deadlocked. | — |
 | **One thread drives the clock** (#411). The first thread to run a frame owns it until it exits: the main thread once the engine loop starts (always, when windowed), otherwise the first caller of `step()`/`advance()`. Other threads' calls raise `RuntimeError` (they used to run a second frame body concurrently). `mcrfpy.lock()` is a no-op on the owner and a real barrier everywhere else, including the main thread when a background thread drives. Headless `--run-forever` refuses to start its loop if a background thread owns the clock. | Run frames from one thread and hand work to it; other threads apply changes inside `with mcrfpy.lock():`. |
 | **Timers catch up** (#397). When a frame comes late (a wide `step()`, or a stalled windowed frame), a repeating timer fires once per elapsed interval, and each call's `runtime` is that firing's own deadline, not the frame time. The timer keeps its phase: `step(10.5)` fires a 1000 ms timer at 1000…10000 and leaves 500 ms to the next. Animations get the whole frame time too (a step of 10 s or more, or a windowed frame of 1 s or more, used to skip them). | A callback that used `runtime` as "now" gets the scheduled time. A timer much faster than the frame rate now fires several times per frame instead of once. |
-| **`animate()` names are attributes, in the attribute's units** (#423, #426). Every name `animate()` accepts is a readable attribute, and animating it ends where assigning it would. **Entity `"x"`/`"y"` are now pixels** (they animated tile coordinates, so `animate("x", 64)` sent the entity to 1024 px); `"pos"` (pixels) and `"draw_pos"` (tiles, a Vector) are new, as is `"opacity"`. GridView animates `x`, `y`, `w`, `h`, `pos`, `size`, `opacity`, `rotation`, `origin`, `z_index` and `fill_color` again (lost in the type split). Every type takes `Color` and `Vector` targets (only tuples worked), and `z_index` animates on every drawable. Arc, Circle and Line gain `x`/`y` attributes; Frame and Viewport3D gain `size`. A Line's `pos` is its midpoint and moving it moves the line (it used to move nothing, so aligning a Line didn't place it). Assigning a Frame's `w`/`h`/`size` resizes its clipping/cache texture, as animating it did. Wrong-typed targets raise `TypeError`. | Animate an entity's tile position with `"draw_pos"`: `e.animate("draw_pos", (5, 3), 0.2)`. Removed names raise `ValueError` naming the replacement: Entity `draw_x`/`draw_y` (use `draw_pos`) and `sprite_scale` (it never had an effect); `position` (use `pos`); `origin_x`/`origin_y` (use `origin`); Line `start_x`/`start_y`/`end_x`/`end_y` (use `start`/`end`); Caption `size` (use `font_size`). |
+| **`animate()` names are attributes, in the attribute's units** (#423, #426). On every 2D type, every name `animate()` accepts is a readable attribute (`Entity3D` doesn't follow this yet: #449), and animating it ends where assigning it would. **Entity `"x"`/`"y"` are now pixels** (they animated tile coordinates, so `animate("x", 64)` sent the entity to 1024 px); `"pos"` (pixels) and `"draw_pos"` (tiles, a Vector) are new, as is `"opacity"`. GridView animates `x`, `y`, `w`, `h`, `pos`, `size`, `opacity`, `rotation`, `origin`, `z_index` and `fill_color` again (lost in the type split). Every type takes `Color` and `Vector` targets (only tuples worked), and `z_index` animates on every drawable. Arc, Circle and Line gain `x`/`y` attributes; Frame and Viewport3D gain `size`. A Line's `pos` is its midpoint and moving it moves the line (it used to move nothing, so aligning a Line didn't place it). Assigning a Frame's `w`/`h`/`size` resizes its clipping/cache texture, as animating it did. Wrong-typed targets raise `TypeError`. | Animate an entity's tile position with `"draw_pos"`: `e.animate("draw_pos", (5, 3), 0.2)`. Removed names raise `ValueError` naming the replacement: Entity `draw_x`/`draw_y` (use `draw_pos`) and `sprite_scale` (it never had an effect); `position` (use `pos`); `origin_x`/`origin_y` (use `origin`); Line `start_x`/`start_y`/`end_x`/`end_y` (use `start`/`end`); Caption `size` (use `font_size`). |
 | `step()` rejects a negative, NaN or infinite `dt` with `ValueError`, and one that would overflow the clock with `OverflowError`; `advance()` likewise for overflow. A negative `dt` used to mean "next event", and NaN/inf wrapped the clock negative. | Use `step()` / `step(None)` for "next event". |
 | `--exec` / `-c` scripts run in UTF-8 mode. A bare `open()` reads UTF-8 on every platform; it used to be ASCII on Linux and the ANSI code page on Windows (#378). | — |
 | `get_metrics()` counters (`draw_calls`, `ui_elements`, the grid counters) are no longer always 0 (#341). | — |
@@ -59,7 +58,12 @@ removals that affect your code.
 | `automation.click()` / `mouseDown()` / `mouseUp()` / `dragTo()` raise `ValueError` for an unknown `button=`, which used to click LEFT. `'x1'` and `'x2'` are accepted (#428). | — |
 | `automation.scroll(clicks, pos)` moves the simulated mouse to `pos` first, as `click(pos)` does, so the widget under `pos` receives the scroll; it used to land under the current cursor wherever `pos` was (#432). | — |
 | **`automation.typewrite()` presses keys**, so `on_key` sees it (#433). Each character is a press and release of the key that types it on a US layout (`typewrite("ab")` is `A` pressed/released, then `B`); uppercase letters and shifted symbols hold `LEFT_SHIFT` around the key, `'\n'` is `ENTER`, `'\t'` is `TAB`. It used to send text events that nothing received, so only `'\n'` and `'\t'` did anything. A character with no key (`'é'`, `'\r'`) raises `ValueError` naming it, before any key is sent. | Tests that typed into a scene and expected nothing to happen will now see key events. Send other keys with `keyDown()`/`keyUp()`/`hotkey()`. |
-| **Every Color value converts exactly like `Color(value)`** (#450): attributes (`fill_color`, `outline_color`, `color`, `bg_color`, `fog_color` on every type), constructor keywords, `layer[x, y] = v`, `grid.at(x, y).<color layer> = v`, `ColorLayer` methods, `VoxelGrid.add_material(color=)` and `animate()` targets. A Color or an `(r, g, b[, a])` tuple of ints in 0–255 is accepted; anything else raises what `Color(value)` raises. Removed: Circle (and GridPoint layer attributes, `draw_fov()`/`apply_perspective()` colors) **wrapping** out-of-range components (`300` became `44`); Grid/GridView `fill_color`, Viewport3D `bg_color`/`fog_color`, Entity3D `color`, `ColorLayer[x, y]` and `add_material()` **clamping** (`300` → `255`), reading a float component as `255`, `None` as White, a bare int as grey and accepting a list; `ColorLayer.apply_*()` accepting a list. Out-of-range or float components and a bare int raise `ValueError`; `None` and lists raise `TypeError` (Frame/Caption constructors used to turn every error into `TypeError`). `Viewport3D.fog_color` ignores alpha (fog is opaque), now documented. `Color()` itself no longer wraps a component past the C `int` range (`Color((2**32 + 5, 0, 0))` was `Color(5, 0, 0)`), and its range error shows the value it was given. | Pass a `Color` or an int tuple: `int()` / `round()` computed components, wrap a list in `tuple()`, and use `Color(v, v, v)` for grey. `None` still means "default" for an optional constructor/method argument. |
+| **Every Color value converts exactly like `Color(value)`** (#450): attributes (`fill_color`, `outline_color`, `color`, `bg_color`, `fog_color` on every type), constructor keywords, `layer[x, y] = v`, `grid.at(x, y).<color layer> = v`, `ColorLayer` methods, `VoxelGrid.add_material(color=)` and `animate()` targets. A Color or an `(r, g, b[, a])` tuple of ints in 0–255 is accepted; anything else raises what `Color(value)` raises (a color name such as `"red"` raises `NotImplementedError`, #458). Removed: Circle (and GridPoint layer attributes, `draw_fov()`/`apply_perspective()` colors) **wrapping** out-of-range components (`300` became `44`); Grid/GridView `fill_color`, Viewport3D `bg_color`/`fog_color`, Entity3D `color`, `ColorLayer[x, y]` and `add_material()` **clamping** (`300` → `255`), reading a float component as `255`, `None` as White, a bare int as grey and accepting a list; `ColorLayer.apply_*()` accepting a list. Out-of-range or float components and a bare int raise `ValueError`; `None` and lists raise `TypeError` (Frame/Caption constructors used to turn every error into `TypeError`). `Viewport3D.fog_color` ignores alpha (fog is opaque), now documented. `Color()` itself no longer wraps a component past the C `int` range (`Color((2**32 + 5, 0, 0))` was `Color(5, 0, 0)`), and its range error shows the value it was given. | Pass a `Color` or an int tuple: `int()` / `round()` computed components, wrap a list in `tuple()`, and use `Color(v, v, v)` for grey. `None` still means "default" for an optional constructor/method argument. |
+| **A game's `scripts/` is `sys.path[0]`** (#452). It used to be the engine's `build/scripts`, whatever game was running. | A game that imported an engine script by accident (a demo module with the same name) must ship its own copy. |
+| **`mcrf-init.sh` is replaced by `mcrogueface -m mcrf_project`** (#420): `init`, `run`, `dist`, `info`. | Run `mcrogueface -m mcrf_project init` in an existing `mcrf-init.sh` project to update its Makefile. |
+| **`mcrf_project` refuses to package a debug, free-threaded or TSan engine** and raises `ProjectError` (#457). Such a package named the plain libpython and couldn't start. | Package from a Release build. |
+| Web build targets (#384): `make wasm` is the debug build with the code panel and `make serve-dev` serves it; `make wasm-game` is the clean game, which `make serve` and the release WASM zip use. | Use `make wasm-game` for what you ship. |
+| **Web: custom `Shader`s now run, and a broken one raises** (#390). Fragment shaders used to be dropped silently in the web build. `Shader()` raises with the GL compile log, and a shader with no `precision` line compiles. | Test custom shaders in the browser. |
 
 ## New
 
@@ -192,6 +196,8 @@ removals that affect your code.
   layers) never appeared inside a `Frame(cache_subtree=True)` (#427).
   `fill_rect()` never repainted at all, and a new `z_index` never changed the draw
   order.
+- Inside a `Frame(cache_subtree=True)`, a GridView's `fill_color` and an animated camera
+  (`zoom`, `center`, `center_x`/`center_y`, `camera_rotation`) never repainted (#456).
 - Hover now ends when the cursor leaves the window or the window loses focus (#367).
 
 **Other**
@@ -208,8 +214,12 @@ removals that affect your code.
   formatted, the error is shown with a note saying why (it was replaced by "Internal REPL
   Error: Unknown error in capture code"); `sys.exit()` is reported instead of shutting the
   page's interpreter down; tracebacks start at the user's code (#392).
+- A grid's `click_at` could dispatch a stale cell.
+- The ImGui scene explorer can expand grids and their entities again.
 - Web build: `IDBFS` is exported, so the `/save` mount works under Emscripten 5 (#385).
-  The shipped web game is the clean build, not the REPL hybrid (#384).
+  The shipped web game is the clean build, not the REPL hybrid (#384). An unknown mouse
+  button is no longer read as a left click, and text input decodes all of UTF-8 (#390).
+  The playground loads long snippets from a `#url=` link (#382).
 
 ## Performance
 
@@ -257,7 +267,14 @@ Where it comes from:
 - Platform targets:
   - `make python-windows` and `make python-wasm` stage the interpreter for each platform;
   - pydebug / free-threaded / TSan CPython variants are available for
-    `make debug` / `asan` / `tsan`.
+    `make debug` / `asan` / `tsan`. `tools/build_debug_libs.sh --asan|--fuzz|--tsan` builds
+    an instrumented libtcod into `__lib_asan/`, `__lib_fuzz/` or `__lib_tsan/`, which the
+    matching build links. The first full ThreadSanitizer run found no races in engine
+    code; driver and SFML reports are suppressed in `sanitizers/tsan.supp`.
+- **Web parity**: `docs/web-parity-matrix.md` lists every desktop↔web feature with the test
+  that covers it (#391). Browser smoke tests (#239), a desktop-vs-browser screenshot diff
+  (#388), an input-parity test (#389), web profiling notes (#346) and
+  `make deploy-playground` (#386) are new.
 - Packaging:
   - The binary's library search path is relative to the executable (`$ORIGIN`), so
     packages no longer depend on the build machine's paths.
@@ -274,7 +291,7 @@ Where it comes from:
     `api/manifest.json`.
   - `tools/api_delta.py` diffs the API between two git refs.
 - CI builds from a clean checkout and fails if a test run modifies tracked files (#401).
-- Test suite: 639/639 (up from ~300 at 0.2.8); 82 tests that had been silently not
+- Test suite: 677/677 (up from ~300 at 0.2.8); 82 tests that had been silently not
   running were fixed, and `tests/demo/` is gated in CI (#372).
 
 ## Known issues
@@ -285,4 +302,12 @@ Where it comes from:
 - **#410**: a lock holder that re-acquires immediately can starve the main loop.
 - **#448**: the clock and the window are still coupled. Windowed `step()`/`advance()` are
   silent no-ops, and headless `--run-forever` runs frames on a frozen simulation clock.
-- **#399**: the light/full stdlib presets ship the same stdlib.
+- **#399, #435**: the light/full stdlib presets ship the same stdlib.
+- **#454** is half done: textures resolve from the layer or entity to the grid. Next, a
+  GridView gets its own texture, and `GridView.texture` will mean "this view's texture,
+  or `None`" instead of passing the grid's through.
+- **#431**: the entity position setters disagree (cell setters don't move `draw_pos`).
+- **#449**: `Entity3D.animate()` accepts names that aren't attributes.
+- **#458**: `Color("red")` raises `NotImplementedError`; color names aren't supported.
+- **#390**: on the web, text kerning differs from desktop and a lost GL context isn't
+  recovered.
