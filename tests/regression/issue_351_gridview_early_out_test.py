@@ -94,7 +94,7 @@ def run_tests():
     h = shot(); check("zoom", g, h, True)
 
     # 8. Entity move via animation + step (setProperty -> markCompositeDirty)
-    e1.animate("draw_x", 9.0, 1.0, mcrfpy.Easing.LINEAR)
+    e1.animate("draw_pos", (9.0, e1.draw_pos.y), 1.0, mcrfpy.Easing.LINEAR)
     mcrfpy.step(0.5)
     i = shot(); check("entity animate+step", h, i, True)
 

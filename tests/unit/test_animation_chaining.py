@@ -36,8 +36,7 @@ class PathAnimator:
         self.animating = False
         self.completed_steps = []   # (index, draw_pos) recorded as each step lands
         self.overlaps = 0           # times a new step started while one was in flight
-        self.anim_x = None
-        self.anim_y = None
+        self.anim = None
 
     def start(self):
         """Start animating along the path"""
@@ -58,21 +57,17 @@ class PathAnimator:
             return
 
         # Detect a chaining violation: the previous step must be finished
-        if self.anim_x is not None and not self.anim_x.is_complete:
-            self.overlaps += 1
-        if self.anim_y is not None and not self.anim_y.is_complete:
+        if self.anim is not None and not self.anim.is_complete:
             self.overlaps += 1
 
         # Get target position
         target_x, target_y = self.path[self.current_index]
 
-        # Create + start animations ('x'/'y' animate the entity's draw position,
-        # in tile coordinates).  The x animation's callback chains the next step.
-        self.anim_y = self.entity.animate("y", float(target_y), self.step_duration,
-                                          mcrfpy.Easing.EASE_IN_OUT)
-        self.anim_x = self.entity.animate("x", float(target_x), self.step_duration,
-                                          mcrfpy.Easing.EASE_IN_OUT,
-                                          callback=self._on_step_complete)
+        # Create + start the animation ('draw_pos' is the entity's draw position in
+        # tile coordinates; 'x'/'y' are pixels, #423). Its callback chains the next step.
+        self.anim = self.entity.animate("draw_pos", (target_x, target_y), self.step_duration,
+                                        mcrfpy.Easing.EASE_IN_OUT,
+                                        callback=self._on_step_complete)
 
         # Update visibility if entity has this method
         if hasattr(self.entity, 'update_visibility'):

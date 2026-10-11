@@ -4,6 +4,7 @@
 #include "structmember.h"
 #include "IndexTexture.h"
 #include "Resources.h"
+#include <cstring>
 #include <list>
 #include <memory>
 
@@ -125,6 +126,8 @@ public:
     static int set_pos(PyObject* self, PyObject* value, void* closure);
 
     // Rotation getters/setters for Python API
+    static PyObject* get_size_vec(PyObject* self, void* closure);
+    static int set_size_vec(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_rotation(PyObject* self, void* closure);
     static int set_rotation(PyObject* self, PyObject* value, void* closure);
     static PyObject* get_origin(PyObject* self, void* closure);
@@ -320,21 +323,63 @@ public:
     // Called when position changes to allow derived classes to sync
     virtual void onPositionChanged() {}
     
-    // Animation support
-    virtual bool setProperty(const std::string& name, float value) { return false; }
-    virtual bool setProperty(const std::string& name, int value) { return false; }
+    // #426: the properties drawable types share. Attribute assignment and animation
+    // both write them through these setters, so `d.x = v` and `d.animate("x", v, ...)`
+    // cannot drift apart.
+    void assignPosition(sf::Vector2f p);
+    void assignSize(sf::Vector2f s);
+    void assignRotation(float degrees);
+    void assignOrigin(sf::Vector2f o);
+    void assignOpacity(float o);
+    void assignZIndex(int z);
+
+    // Which shared groups a type exposes as Python attributes, and so as animation
+    // targets. UIDrawable's setProperty/getProperty/hasProperty handle exactly these.
+    enum SharedProperty : unsigned {
+        SHARED_POSITION = 1u << 0,  // x, y, pos
+        SHARED_SIZE     = 1u << 1,  // w, h, size (only where they are writable)
+        SHARED_ROTATION = 1u << 2,  // rotation, origin
+        SHARED_OPACITY  = 1u << 3,  // opacity
+        SHARED_Z_INDEX  = 1u << 4,  // z_index
+    };
+    virtual unsigned sharedProperties() const {
+        return SHARED_POSITION | SHARED_ROTATION | SHARED_OPACITY | SHARED_Z_INDEX;
+    }
+
+    // "<color>.r" / ".g" / ".b" / ".a": one channel of a Color attribute, animated as a
+    // float. Returns the channel index (0-3) through `channel`.
+    static bool colorChannelName(const std::string& name, const char* color, int& channel) {
+        const size_t n = std::strlen(color);
+        if (name.size() != n + 2 || name.compare(0, n, color) != 0 || name[n] != '.') return false;
+        switch (name[n + 1]) {
+            case 'r': channel = 0; return true;
+            case 'g': channel = 1; return true;
+            case 'b': channel = 2; return true;
+            case 'a': channel = 3; return true;
+        }
+        return false;
+    }
+    static sf::Uint8& colorChannel(sf::Color& c, int channel) {
+        return channel == 0 ? c.r : channel == 1 ? c.g : channel == 2 ? c.b : c.a;
+    }
+
+    // Animation support. Every animatable name is a readable attribute, animated in that
+    // attribute's units and type (#423, #426). A subclass handles its own names and
+    // passes the rest to these base versions, which handle the shared ones.
+    virtual bool setProperty(const std::string& name, float value);
+    virtual bool setProperty(const std::string& name, int value);
     virtual bool setProperty(const std::string& name, const sf::Color& value) { return false; }
-    virtual bool setProperty(const std::string& name, const sf::Vector2f& value) { return false; }
+    virtual bool setProperty(const std::string& name, const sf::Vector2f& value);
     virtual bool setProperty(const std::string& name, const std::string& value) { return false; }
-    
-    virtual bool getProperty(const std::string& name, float& value) const { return false; }
-    virtual bool getProperty(const std::string& name, int& value) const { return false; }
+
+    virtual bool getProperty(const std::string& name, float& value) const;
+    virtual bool getProperty(const std::string& name, int& value) const;
     virtual bool getProperty(const std::string& name, sf::Color& value) const { return false; }
-    virtual bool getProperty(const std::string& name, sf::Vector2f& value) const { return false; }
+    virtual bool getProperty(const std::string& name, sf::Vector2f& value) const;
     virtual bool getProperty(const std::string& name, std::string& value) const { return false; }
 
     // Check if a property name is valid for animation on this drawable type
-    virtual bool hasProperty(const std::string& name) const { return false; }
+    virtual bool hasProperty(const std::string& name) const;
 
     // #106: Shader uniform property helpers for animation support
     // These methods handle "shader.uniform_name" property paths

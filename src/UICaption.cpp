@@ -656,119 +656,40 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 }
 
 
-// Property system implementation for animations
+// Property system implementation for animations. The shared names (x, y, pos,
+// rotation, origin, opacity, z_index) are handled by UIDrawable (#426); Caption's
+// w/h/size are read-only text bounds, so they are not animatable.
 bool UICaption::setProperty(const std::string& name, float value) {
-    if (name == "x") {
-        position.x = value;
-        text.setPosition(position);  // Keep text in sync
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "y") {
-        position.y = value;
-        text.setPosition(position);  // Keep text in sync
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "font_size" || name == "size") { // Support both for backward compatibility
+    if (name == "font_size") {
         text.setCharacterSize(static_cast<unsigned int>(value));
         markDirty();  // #144 - Content change
         return true;
     }
-    else if (name == "outline") {
+    if (name == "outline") {
         text.setOutlineThickness(value);
         markDirty();  // #144 - Content change
         return true;
     }
-    else if (name == "opacity") {
-        opacity = std::clamp(value, 0.0f, 1.0f);
-        markDirty();  // #144 - Visual change
-        return true;
-    }
-    else if (name == "fill_color.r") {
+    int channel;
+    if (colorChannelName(name, "fill_color", channel)) {
         auto color = text.getFillColor();
-        color.r = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        colorChannel(color, channel) = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setFillColor(color);
         markDirty();  // #144 - Content change
         return true;
     }
-    else if (name == "fill_color.g") {
-        auto color = text.getFillColor();
-        color.g = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
-        text.setFillColor(color);
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "fill_color.b") {
-        auto color = text.getFillColor();
-        color.b = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
-        text.setFillColor(color);
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "fill_color.a") {
-        auto color = text.getFillColor();
-        color.a = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
-        text.setFillColor(color);
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "outline_color.r") {
+    if (colorChannelName(name, "outline_color", channel)) {
         auto color = text.getOutlineColor();
-        color.r = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
+        colorChannel(color, channel) = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         text.setOutlineColor(color);
         markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "outline_color.g") {
-        auto color = text.getOutlineColor();
-        color.g = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
-        text.setOutlineColor(color);
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "outline_color.b") {
-        auto color = text.getOutlineColor();
-        color.b = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
-        text.setOutlineColor(color);
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "outline_color.a") {
-        auto color = text.getOutlineColor();
-        color.a = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
-        text.setOutlineColor(color);
-        markDirty();  // #144 - Content change
-        return true;
-    }
-    else if (name == "z_index") {
-        z_index = static_cast<int>(value);
-        markDirty();  // #144 - Z-order change affects parent
-        return true;
-    }
-    else if (name == "rotation") {
-        rotation = value;
-        text.setRotation(rotation);
-        markDirty();
-        return true;
-    }
-    else if (name == "origin_x") {
-        origin.x = value;
-        text.setOrigin(origin);
-        markDirty();
-        return true;
-    }
-    else if (name == "origin_y") {
-        origin.y = value;
-        text.setOrigin(origin);
-        markDirty();
         return true;
     }
     // #106: Check for shader uniform properties
     if (setShaderProperty(name, value)) {
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UICaption::setProperty(const std::string& name, const sf::Color& value) {
@@ -782,7 +703,7 @@ bool UICaption::setProperty(const std::string& name, const sf::Color& value) {
         markDirty();  // #144 - Content change
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UICaption::setProperty(const std::string& name, const std::string& value) {
@@ -791,109 +712,42 @@ bool UICaption::setProperty(const std::string& name, const std::string& value) {
         markDirty();  // #144 - Content change
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UICaption::getProperty(const std::string& name, float& value) const {
-    if (name == "x") {
-        value = position.x;
-        return true;
-    }
-    else if (name == "y") {
-        value = position.y;
-        return true;
-    }
-    else if (name == "font_size" || name == "size") { // Support both for backward compatibility
+    if (name == "font_size") {
         value = static_cast<float>(text.getCharacterSize());
         return true;
     }
-    else if (name == "outline") {
+    if (name == "outline") {
         value = text.getOutlineThickness();
         return true;
     }
-    else if (name == "opacity") {
-        value = opacity;
+    int channel;
+    if (colorChannelName(name, "fill_color", channel)) {
+        auto color = text.getFillColor();
+        value = colorChannel(color, channel);
         return true;
     }
-    else if (name == "fill_color.r") {
-        value = text.getFillColor().r;
-        return true;
-    }
-    else if (name == "fill_color.g") {
-        value = text.getFillColor().g;
-        return true;
-    }
-    else if (name == "fill_color.b") {
-        value = text.getFillColor().b;
-        return true;
-    }
-    else if (name == "fill_color.a") {
-        value = text.getFillColor().a;
-        return true;
-    }
-    else if (name == "outline_color.r") {
-        value = text.getOutlineColor().r;
-        return true;
-    }
-    else if (name == "outline_color.g") {
-        value = text.getOutlineColor().g;
-        return true;
-    }
-    else if (name == "outline_color.b") {
-        value = text.getOutlineColor().b;
-        return true;
-    }
-    else if (name == "outline_color.a") {
-        value = text.getOutlineColor().a;
-        return true;
-    }
-    else if (name == "z_index") {
-        value = static_cast<float>(z_index);
-        return true;
-    }
-    else if (name == "rotation") {
-        value = rotation;
-        return true;
-    }
-    else if (name == "origin_x") {
-        value = origin.x;
-        return true;
-    }
-    else if (name == "origin_y") {
-        value = origin.y;
+    if (colorChannelName(name, "outline_color", channel)) {
+        auto color = text.getOutlineColor();
+        value = colorChannel(color, channel);
         return true;
     }
     // #106: Check for shader uniform properties
     if (getShaderProperty(name, value)) {
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UICaption::setProperty(const std::string& name, const sf::Vector2f& value) {
-    if (name == "position" || name == "pos") {
-        position = value;
-        text.setPosition(position);
-        markDirty();
-        return true;
-    } else if (name == "origin") {
-        origin = value;
-        text.setOrigin(origin);
-        markDirty();
-        return true;
-    }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UICaption::getProperty(const std::string& name, sf::Vector2f& value) const {
-    if (name == "position" || name == "pos") {
-        value = position;
-        return true;
-    } else if (name == "origin") {
-        value = origin;
-        return true;
-    }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UICaption::getProperty(const std::string& name, sf::Color& value) const {
@@ -905,7 +759,7 @@ bool UICaption::getProperty(const std::string& name, sf::Color& value) const {
         value = text.getOutlineColor();
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UICaption::getProperty(const std::string& name, std::string& value) const {
@@ -913,36 +767,21 @@ bool UICaption::getProperty(const std::string& name, std::string& value) const {
         value = text.getString();
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UICaption::hasProperty(const std::string& name) const {
-    // Float properties
-    if (name == "x" || name == "y" ||
-        name == "font_size" || name == "size" || name == "outline" || name == "opacity" ||
-        name == "fill_color.r" || name == "fill_color.g" ||
-        name == "fill_color.b" || name == "fill_color.a" ||
-        name == "outline_color.r" || name == "outline_color.g" ||
-        name == "outline_color.b" || name == "outline_color.a" ||
-        name == "rotation" || name == "origin_x" || name == "origin_y") {
-        return true;
-    }
-    // Color properties
-    if (name == "fill_color" || name == "outline_color") {
-        return true;
-    }
-    // String properties
-    if (name == "text") {
-        return true;
-    }
-    // Vector2f properties
-    if (name == "origin" || name == "position" || name == "pos") {
+    int channel;
+    if (name == "font_size" || name == "outline" || name == "text" ||
+        name == "fill_color" || name == "outline_color" ||
+        colorChannelName(name, "fill_color", channel) ||
+        colorChannelName(name, "outline_color", channel)) {
         return true;
     }
     // #106: Check for shader uniform properties
     if (hasShaderProperty(name)) {
         return true;
     }
-    return false;
+    return UIDrawable::hasProperty(name);
 }
 

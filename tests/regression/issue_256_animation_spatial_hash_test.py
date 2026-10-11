@@ -23,9 +23,8 @@ def test_animate_updates_spatial_hash():
     found = grid.entities_in_radius((5.0, 5.0), 1.0)
     assert len(found) == 1, f"Expected 1 entity at (5,5), found {len(found)}"
 
-    # Animate to a far-away position using draw_x/draw_y
-    entity.animate("draw_x", 40.0, 0.01, mcrfpy.Easing.LINEAR)
-    entity.animate("draw_y", 40.0, 0.01, mcrfpy.Easing.LINEAR)
+    # Animate to a far-away position using draw_pos (tiles)
+    entity.animate("draw_pos", (40.0, 40.0), 0.01, mcrfpy.Easing.LINEAR)
 
     # Step the game loop enough to complete the animation
     for _ in range(20):

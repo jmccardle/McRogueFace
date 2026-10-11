@@ -74,12 +74,13 @@ static PyObject* UIDrawable_resize(T* self, PyObject* args, PyObject* kwds)
 // This free function is implemented in UIDrawable.cpp
 // We use a free function instead of UIDrawable::animate_helper to avoid incomplete type issues
 class UIDrawable;
-PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> target, PyObject* args, PyObject* kwds);
+PyObject* UIDrawable_animate_impl(std::shared_ptr<UIDrawable> target, const char* type_name,
+                                  PyObject* args, PyObject* kwds);
 
 template<typename T>
 static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
 {
-    return UIDrawable_animate_impl(self->data, args, kwds);
+    return UIDrawable_animate_impl(self->data, Py_TYPE(self)->tp_name, args, kwds);
 }
 
 // Macro to add common UIDrawable methods to a method array (without animate - for base types)
@@ -114,8 +115,8 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
          MCRF_SIG("(property: str, target: Any, duration: float, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace')", "Animation"), \
          MCRF_DESC("Create and start an animation on this drawable's property."), \
          MCRF_ARGS_START \
-         MCRF_ARG("property", "Name of the property to animate (e.g., 'x', 'fill_color', 'opacity')") \
-         MCRF_ARG("target", "Target value - type depends on property (float, tuple for color/vector, etc.)") \
+         MCRF_ARG("property", "Name of the attribute to animate (e.g., 'x', 'pos', 'fill_color', 'opacity'), or one channel of a Color attribute ('fill_color.r')") \
+         MCRF_ARG("target", "Target value, of the attribute's type: a number, a Vector or (x, y), a Color or (r, g, b[, a]), an int (or list of ints to step through), or a str") \
          MCRF_ARG("duration", "Animation duration in seconds") \
          MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear") \
          MCRF_ARG("delta", "If True, target is relative to current value; if False, target is absolute") \
@@ -123,7 +124,8 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
          MCRF_ARG("callback", "Optional callable invoked when animation completes (not called for looping animations)") \
          MCRF_ARG("conflict_mode", "'replace' (default), 'queue', or 'error' if property already animating") \
          MCRF_RETURNS("Animation object for monitoring progress") \
-         MCRF_RAISES("ValueError", "If property name is not valid for this drawable type") \
+         MCRF_RAISES("ValueError", "If the name is not an animatable attribute of this drawable") \
+         MCRF_RAISES("TypeError", "If the target is not of the attribute's type") \
          MCRF_NOTE("This is a convenience method that creates an Animation, starts it, and adds it to the AnimationManager.") \
      )}, \
     {"realign", (PyCFunction)UIDrawable::py_realign, METH_NOARGS, \
@@ -221,11 +223,7 @@ static int UIDrawable_set_opacity(T* self, PyObject* value, void* closure)
         return -1;
     }
     
-    // Clamp to valid range
-    if (opacity < 0.0f) opacity = 0.0f;
-    if (opacity > 1.0f) opacity = 1.0f;
-    
-    self->data->opacity = opacity;
+    self->data->assignOpacity(opacity);  // #426: clamps; shared with animation
     return 0;
 }
 

@@ -164,28 +164,33 @@ check("AS: animation chaining", test_animate_chaining)
 
 def test_animate_frame_props():
     f = mcrfpy.Frame(x=0, y=0, w=100, h=100)
-    for prop in ['x', 'y', 'w', 'h', 'outline', 'opacity', 'fill_color', 'outline_color']:
+    for prop in ['x', 'y', 'w', 'h', 'outline', 'opacity']:
         f.animate(prop, 1.0, 0.01, mcrfpy.Easing.LINEAR)
+    for prop in ['fill_color', 'outline_color']:
+        f.animate(prop, mcrfpy.Color(1, 2, 3), 0.01, mcrfpy.Easing.LINEAR)
 
 check("AS: all Frame animatable properties", test_animate_frame_props)
 
 def test_animate_caption_props():
     c = mcrfpy.Caption(text="test", x=0, y=0)
-    for prop in ['x', 'y', 'opacity', 'outline', 'fill_color', 'outline_color']:
+    for prop in ['x', 'y', 'opacity', 'outline']:
         c.animate(prop, 1.0, 0.01, mcrfpy.Easing.LINEAR)
+    for prop in ['fill_color', 'outline_color']:
+        c.animate(prop, mcrfpy.Color(1, 2, 3), 0.01, mcrfpy.Easing.LINEAR)
 
 check("AS: all Caption animatable properties", test_animate_caption_props)
 
 def test_animate_sprite_props():
     s = mcrfpy.Sprite(x=0, y=0, sprite_index=0)
-    for prop in ['x', 'y', 'scale', 'sprite_index', 'opacity']:
+    for prop in ['x', 'y', 'scale', 'opacity']:
         s.animate(prop, 1.0, 0.01, mcrfpy.Easing.LINEAR)
+    s.animate('sprite_index', 1, 0.01, mcrfpy.Easing.LINEAR)
 
 check("AS: all Sprite animatable properties", test_animate_sprite_props)
 
 def test_animate_grid_props():
     g = mcrfpy.Grid(grid_size=(10, 10), pos=(0, 0), size=(160, 160))
-    for prop in ['x', 'y', 'w', 'h', 'center_x', 'center_y', 'zoom']:
+    for prop in ['x', 'y', 'w', 'h', 'center_x', 'center_y', 'zoom', 'opacity']:
         g.animate(prop, 1.0, 0.01, mcrfpy.Easing.LINEAR)
 
 check("AS: all Grid animatable properties", test_animate_grid_props)
@@ -194,8 +199,9 @@ def test_animate_entity_props():
     g = mcrfpy.Grid(grid_size=(20, 20), pos=(0, 0), size=(320, 320))
     e = mcrfpy.Entity(grid_pos=(5, 5), sprite_index=0)
     g.entities.append(e)
-    for prop in ['x', 'y', 'draw_x', 'draw_y', 'sprite_index', 'sprite_scale']:
-        e.animate(prop, 5.0, 0.01, mcrfpy.Easing.LINEAR)
+    for prop, target in (('x', 5.0), ('y', 5.0), ('pos', (5, 5)), ('draw_pos', (5, 5)),
+                         ('opacity', 0.5), ('sprite_index', 5), ('sprite_offset', (1, 1))):
+        e.animate(prop, target, 0.01, mcrfpy.Easing.LINEAR)
 
 check("AS: all Entity animatable properties", test_animate_entity_props)
 
@@ -432,8 +438,7 @@ def test_entity_movement():
     grid.entities.append(player)
     player.grid_x = 15
     player.grid_y = 20
-    player.animate("x", 15.0, 0.3, mcrfpy.Easing.EASE_OUT_QUAD)
-    player.animate("y", 20.0, 0.3, mcrfpy.Easing.EASE_OUT_QUAD)
+    player.animate("draw_pos", (15, 20), 0.3, mcrfpy.Easing.EASE_OUT_QUAD)
 
 check("EM: entity movement (direct + animated)", test_entity_movement)
 
@@ -443,7 +448,7 @@ def test_entity_animate_with_callback():
     grid.entities.append(player)
     def on_move_complete(target, prop, value):
         pass
-    player.animate("x", 15.0, 0.3, mcrfpy.Easing.EASE_OUT_QUAD, callback=on_move_complete)
+    player.animate("draw_pos", (15, 5), 0.3, mcrfpy.Easing.EASE_OUT_QUAD, callback=on_move_complete)
 
 check("EM: entity animate with callback", test_entity_animate_with_callback)
 
@@ -507,8 +512,7 @@ def test_player_class_pattern():
             new_y = int(self.entity.grid_y + dy)
             point = self.entity.grid.at(new_x, new_y)
             if point and point.walkable:
-                self.entity.animate("x", float(new_x), 0.15, mcrfpy.Easing.EASE_OUT_QUAD)
-                self.entity.animate("y", float(new_y), 0.15, mcrfpy.Easing.EASE_OUT_QUAD)
+                self.entity.animate("draw_pos", (new_x, new_y), 0.15, mcrfpy.Easing.EASE_OUT_QUAD)
                 self.entity.grid_x = new_x
                 self.entity.grid_y = new_y
                 return True

@@ -85,7 +85,7 @@ check("entity sprite_index set to target", entity3.sprite_index == 5)
 entity4 = mcrfpy.Entity(grid_pos=(4, 4), texture=tex, sprite_index=0)
 grid.entities.append(entity4)
 
-anim4 = entity4.animate("draw_x", 5.0, 0.3)
+anim4 = entity4.animate("x", 5.0, 0.3)
 check("entity animate with float still works", anim4 is not None)
 
 for _ in range(10):

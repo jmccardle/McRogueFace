@@ -1269,61 +1269,45 @@ void Viewport3D::blitToScreen(sf::Vector2f offset, sf::RenderTarget& target) {
 // Animation Property System
 // =============================================================================
 
+// The shared names (x, y, pos, w, h, size, opacity, z_index) are handled by
+// UIDrawable (#426); Viewport3D has no rotation/origin attributes.
 bool Viewport3D::setProperty(const std::string& name, float value) {
-    if (name == "x") { position.x = value; return true; }
-    if (name == "y") { position.y = value; return true; }
-    if (name == "w") { size_.x = value; camera_.setAspect(size_.x / size_.y); return true; }
-    if (name == "h") { size_.y = value; camera_.setAspect(size_.x / size_.y); return true; }
     if (name == "fov") { camera_.setFOV(value); return true; }
     if (name == "fog_near") { fogNear_ = value; return true; }
     if (name == "fog_far") { fogFar_ = value; return true; }
-    if (name == "opacity") { opacity = value; return true; }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool Viewport3D::setProperty(const std::string& name, const sf::Color& value) {
     if (name == "bg_color") { bgColor_ = value; return true; }
     if (name == "fog_color") { setFogColor(value); return true; }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool Viewport3D::setProperty(const std::string& name, const sf::Vector2f& value) {
-    if (name == "pos") { position = value; return true; }
-    if (name == "size") { size_ = value; camera_.setAspect(size_.x / size_.y); return true; }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool Viewport3D::getProperty(const std::string& name, float& value) const {
-    if (name == "x") { value = position.x; return true; }
-    if (name == "y") { value = position.y; return true; }
-    if (name == "w") { value = size_.x; return true; }
-    if (name == "h") { value = size_.y; return true; }
     if (name == "fov") { value = camera_.getFOV(); return true; }
     if (name == "fog_near") { value = fogNear_; return true; }
     if (name == "fog_far") { value = fogFar_; return true; }
-    if (name == "opacity") { value = opacity; return true; }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool Viewport3D::getProperty(const std::string& name, sf::Color& value) const {
     if (name == "bg_color") { value = bgColor_; return true; }
     if (name == "fog_color") { value = getFogColor(); return true; }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool Viewport3D::getProperty(const std::string& name, sf::Vector2f& value) const {
-    if (name == "pos") { value = position; return true; }
-    if (name == "size") { value = size_; return true; }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool Viewport3D::hasProperty(const std::string& name) const {
-    static const std::set<std::string> props = {
-        "x", "y", "w", "h", "pos", "size",
-        "fov", "fog_near", "fog_far", "opacity",
-        "bg_color", "fog_color"
-    };
-    return props.count(name) > 0;
+    return name == "fov" || name == "fog_near" || name == "fog_far" ||
+           name == "bg_color" || name == "fog_color" || UIDrawable::hasProperty(name);
 }
 
 // =============================================================================
@@ -1373,7 +1357,7 @@ static PyObject* Viewport3D_get_pos(PyViewport3DObject* self, void* closure) {
 static int Viewport3D_set_pos(PyViewport3DObject* self, PyObject* value, void* closure) {
     sf::Vector2f pos;
     if (!mcrf::to_vector2f(value, pos, "pos")) return -1;
-    self->data->position = pos;
+    self->data->assignPosition(pos);  // #426: shared with animation
     return 0;
 }
 
@@ -1386,7 +1370,7 @@ static int Viewport3D_set_x(PyViewport3DObject* self, PyObject* value, void* clo
         PyErr_SetString(PyExc_TypeError, "x must be a number");
         return -1;
     }
-    self->data->position.x = static_cast<float>(PyFloat_AsDouble(value));
+    self->data->assignPosition({static_cast<float>(PyFloat_AsDouble(value)), self->data->position.y});
     return 0;
 }
 
@@ -1399,7 +1383,7 @@ static int Viewport3D_set_y(PyViewport3DObject* self, PyObject* value, void* clo
         PyErr_SetString(PyExc_TypeError, "y must be a number");
         return -1;
     }
-    self->data->position.y = static_cast<float>(PyFloat_AsDouble(value));
+    self->data->assignPosition({self->data->position.x, static_cast<float>(PyFloat_AsDouble(value))});
     return 0;
 }
 
@@ -1413,7 +1397,7 @@ static int Viewport3D_set_w(PyViewport3DObject* self, PyObject* value, void* clo
         PyErr_SetString(PyExc_TypeError, "w must be a number");
         return -1;
     }
-    self->data->setSize(static_cast<float>(PyFloat_AsDouble(value)), self->data->getHeight());
+    self->data->assignSize({static_cast<float>(PyFloat_AsDouble(value)), self->data->getHeight()});
     return 0;
 }
 
@@ -1426,7 +1410,18 @@ static int Viewport3D_set_h(PyViewport3DObject* self, PyObject* value, void* clo
         PyErr_SetString(PyExc_TypeError, "h must be a number");
         return -1;
     }
-    self->data->setSize(self->data->getWidth(), static_cast<float>(PyFloat_AsDouble(value)));
+    self->data->assignSize({self->data->getWidth(), static_cast<float>(PyFloat_AsDouble(value))});
+    return 0;
+}
+
+static PyObject* Viewport3D_get_size(PyViewport3DObject* self, void* closure) {
+    return PyVector(sf::Vector2f(self->data->getWidth(), self->data->getHeight())).pyObject();
+}
+
+static int Viewport3D_set_size(PyViewport3DObject* self, PyObject* value, void* closure) {
+    sf::Vector2f size;
+    if (!mcrf::to_vector2f(value, size, "size")) return -1;
+    self->data->assignSize(size);
     return 0;
 }
 
@@ -1649,6 +1644,8 @@ PyGetSetDef Viewport3D::getsetters[] = {
      MCRF_PROPERTY(w, "Display width in pixels."), NULL},
     {"h", (getter)Viewport3D_get_h, (setter)Viewport3D_set_h,
      MCRF_PROPERTY(h, "Display height in pixels."), NULL},
+    {"size", (getter)Viewport3D_get_size, (setter)Viewport3D_set_size,
+     MCRF_PROPERTY(size, "Display size (Vector)."), NULL},
 
     // Render resolution
     {"render_resolution", (getter)Viewport3D_get_render_resolution, (setter)Viewport3D_set_render_resolution,

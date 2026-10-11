@@ -307,6 +307,9 @@ public:
     bool getProperty(const std::string& name, sf::Vector2f& value) const override;
 
     bool hasProperty(const std::string& name) const override;
+    unsigned sharedProperties() const override {
+        return SHARED_POSITION | SHARED_SIZE | SHARED_OPACITY | SHARED_Z_INDEX;
+    }
 
     // Python API
     static PyGetSetDef getsetters[];

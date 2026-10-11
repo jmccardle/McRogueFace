@@ -207,7 +207,7 @@ std::shared_ptr<PyTexture> UISprite::getTexture()
     return ptex;
 }
 
-int UISprite::getSpriteIndex()
+int UISprite::getSpriteIndex() const
 {
     return sprite_index;
 }
@@ -644,21 +644,10 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     return 0;
 }
 
-// Property system implementation for animations
+// Property system implementation for animations. The shared names (x, y, pos,
+// rotation, origin, opacity, z_index) are handled by UIDrawable (#426).
 bool UISprite::setProperty(const std::string& name, float value) {
-    if (name == "x") {
-        position.x = value;
-        sprite.setPosition(position);  // Keep sprite in sync
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "y") {
-        position.y = value;
-        sprite.setPosition(position);  // Keep sprite in sync
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    }
-    else if (name == "scale") {
+    if (name == "scale") {
         sprite.setScale(sf::Vector2f(value, value));
         markDirty();  // #144 - Content change
         return true;
@@ -673,39 +662,11 @@ bool UISprite::setProperty(const std::string& name, float value) {
         markDirty();  // #144 - Content change
         return true;
     }
-    else if (name == "opacity") {
-        opacity = std::clamp(value, 0.0f, 1.0f);
-        markDirty();  // #144 - Visual change
-        return true;
-    }
-    else if (name == "z_index") {
-        z_index = static_cast<int>(value);
-        markDirty();  // #144 - Z-order change affects parent
-        return true;
-    }
-    else if (name == "rotation") {
-        rotation = value;
-        sprite.setRotation(rotation);
-        markDirty();
-        return true;
-    }
-    else if (name == "origin_x") {
-        origin.x = value;
-        sprite.setOrigin(origin);
-        markDirty();
-        return true;
-    }
-    else if (name == "origin_y") {
-        origin.y = value;
-        sprite.setOrigin(origin);
-        markDirty();
-        return true;
-    }
     // #106: Check for shader uniform properties
     if (setShaderProperty(name, value)) {
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UISprite::setProperty(const std::string& name, int value) {
@@ -714,24 +675,11 @@ bool UISprite::setProperty(const std::string& name, int value) {
         markDirty();  // #144 - Content change
         return true;
     }
-    else if (name == "z_index") {
-        z_index = value;
-        markDirty();  // #144 - Z-order change affects parent
-        return true;
-    }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UISprite::getProperty(const std::string& name, float& value) const {
-    if (name == "x") {
-        value = position.x;
-        return true;
-    }
-    else if (name == "y") {
-        value = position.y;
-        return true;
-    }
-    else if (name == "scale") {
+    if (name == "scale") {
         value = sprite.getScale().x;  // Assuming uniform scale
         return true;
     }
@@ -743,57 +691,19 @@ bool UISprite::getProperty(const std::string& name, float& value) const {
         value = sprite.getScale().y;
         return true;
     }
-    else if (name == "opacity") {
-        value = opacity;
-        return true;
-    }
-    else if (name == "z_index") {
-        value = static_cast<float>(z_index);
-        return true;
-    }
-    else if (name == "rotation") {
-        value = rotation;
-        return true;
-    }
-    else if (name == "origin_x") {
-        value = origin.x;
-        return true;
-    }
-    else if (name == "origin_y") {
-        value = origin.y;
-        return true;
-    }
     // #106: Check for shader uniform properties
     if (getShaderProperty(name, value)) {
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UISprite::setProperty(const std::string& name, const sf::Vector2f& value) {
-    if (name == "position" || name == "pos") {
-        position = value;
-        sprite.setPosition(position);
-        markDirty();
-        return true;
-    } else if (name == "origin") {
-        origin = value;
-        sprite.setOrigin(origin);
-        markDirty();
-        return true;
-    }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UISprite::getProperty(const std::string& name, sf::Vector2f& value) const {
-    if (name == "position" || name == "pos") {
-        value = position;
-        return true;
-    } else if (name == "origin") {
-        value = origin;
-        return true;
-    }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UISprite::getProperty(const std::string& name, int& value) const {
@@ -801,32 +711,16 @@ bool UISprite::getProperty(const std::string& name, int& value) const {
         value = sprite_index;
         return true;
     }
-    else if (name == "z_index") {
-        value = z_index;
-        return true;
-    }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UISprite::hasProperty(const std::string& name) const {
-    // Float properties
-    if (name == "x" || name == "y" ||
-        name == "scale" || name == "scale_x" || name == "scale_y" ||
-        name == "opacity" || name == "z_index" ||
-        name == "rotation" || name == "origin_x" || name == "origin_y") {
-        return true;
-    }
-    // Int properties
-    if (name == "sprite_index") {
-        return true;
-    }
-    // Vector2f properties
-    if (name == "origin" || name == "position" || name == "pos") {
+    if (name == "scale" || name == "scale_x" || name == "scale_y" || name == "sprite_index") {
         return true;
     }
     // #106: Check for shader uniform properties
     if (hasShaderProperty(name)) {
         return true;
     }
-    return false;
+    return UIDrawable::hasProperty(name);
 }

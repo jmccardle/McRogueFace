@@ -71,6 +71,7 @@ public:
     bool getProperty(const std::string& name, sf::Vector2f& value) const override;
 
     bool hasProperty(const std::string& name) const override;
+    unsigned sharedProperties() const override { return UIDrawable::sharedProperties() | SHARED_SIZE; }
 };
 
 // Forward declaration of methods array

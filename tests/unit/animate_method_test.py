@@ -19,7 +19,7 @@ def test_frame_animate():
     assert anim2 is not None
 
     # Vector property animation
-    anim3 = frame.animate("position", (400.0, 400.0), 0.5)
+    anim3 = frame.animate("pos", (400.0, 400.0), 0.5)
     assert anim3 is not None
 
     print("  Frame animate() - PASS")

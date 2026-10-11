@@ -374,8 +374,10 @@ static PyMethodDef mcrfpyMethods[] = {
                    "simulation time -- explicit, deterministic time is the point of driving a "
                    "headless test with step().")
          MCRF_NOTE("A headless --exec script must end by calling sys.exit(), because step() is "
-                   "the only headless clock: without it the engine cannot advance itself. Pass "
-                   "--run-forever for a long-lived headless process that drives itself.")
+                   "the only headless clock: without it the engine cannot advance itself. "
+                   "--run-forever keeps a headless process alive, but its loop does not move "
+                   "the simulation clock, so timers and animations advance only through "
+                   "step()/advance() (#448).")
          MCRF_NOTE("A wide step catches timers up: step(10.0) fires a 1000ms repeating timer "
                    "ten times within the one frame, each call receiving its own deadline as "
                    "runtime, and the timer keeps its phase. Animations receive the whole dt. "

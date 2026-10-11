@@ -108,6 +108,11 @@ void UIFrame::move(float dx, float dy)
 void UIFrame::resize(float w, float h)
 {
     box.setSize(sf::Vector2f(w, h));
+    // The cached/clipping texture must match the new size (this ran only for animated
+    // w/h before #426, so assigning frame.w left a clipping frame at its old size).
+    if (use_render_texture && w > 0 && h > 0) {
+        enableRenderTexture(static_cast<unsigned int>(w), static_cast<unsigned int>(h));
+    }
 
     // Notify aligned children to recalculate their positions
     if (children) {
@@ -515,6 +520,9 @@ PyGetSetDef UIFrame::getsetters[] = {
     {"h", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
      MCRF_PROPERTY(h, "Height of the rectangle (float)."),
      (void*)((intptr_t)PyObjectsEnum::UIFRAME << 8 | 3)},
+    {"size", (getter)UIDrawable::get_size_vec, (setter)UIDrawable::set_size_vec,
+     MCRF_PROPERTY(size, "Size of the rectangle as a Vector (w, h)."),
+     (void*)PyObjectsEnum::UIFRAME},
     {"outline", (getter)UIFrame::get_float_member, (setter)UIFrame::set_float_member,
      MCRF_PROPERTY(outline, "Thickness of the border in pixels (float)."),
      (void*)4},
@@ -793,105 +801,26 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     return 0;
 }
 
-// Animation property system implementation
+// Animation property system implementation. The shared names (x, y, pos, w, h, size,
+// rotation, origin, opacity, z_index) are handled by UIDrawable (#426).
 bool UIFrame::setProperty(const std::string& name, float value) {
-    if (name == "x") {
-        position.x = value;
-        box.setPosition(position);  // Keep box in sync
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    } else if (name == "y") {
-        position.y = value;
-        box.setPosition(position);  // Keep box in sync
-        markCompositeDirty();  // #144 - Position change, texture still valid
-        return true;
-    } else if (name == "w") {
-        box.setSize(sf::Vector2f(value, box.getSize().y));
-        if (use_render_texture) {
-            // Need to recreate RenderTexture with new size
-            enableRenderTexture(static_cast<unsigned int>(box.getSize().x), 
-                              static_cast<unsigned int>(box.getSize().y));
-        }
-        markDirty();
-        return true;
-    } else if (name == "h") {
-        box.setSize(sf::Vector2f(box.getSize().x, value));
-        if (use_render_texture) {
-            // Need to recreate RenderTexture with new size
-            enableRenderTexture(static_cast<unsigned int>(box.getSize().x), 
-                              static_cast<unsigned int>(box.getSize().y));
-        }
-        markDirty();
-        return true;
-    } else if (name == "outline") {
+    if (name == "outline") {
         box.setOutlineThickness(value);
         markDirty();
         return true;
-    } else if (name == "opacity") {
-        opacity = std::clamp(value, 0.0f, 1.0f);
-        markDirty();
-        return true;
-    } else if (name == "fill_color.r") {
+    }
+    int channel;
+    if (colorChannelName(name, "fill_color", channel)) {
         auto color = box.getFillColor();
-        color.r = std::clamp(static_cast<int>(value), 0, 255);
+        colorChannel(color, channel) = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         box.setFillColor(color);
         markDirty();
         return true;
-    } else if (name == "fill_color.g") {
-        auto color = box.getFillColor();
-        color.g = std::clamp(static_cast<int>(value), 0, 255);
-        box.setFillColor(color);
-        markDirty();
-        return true;
-    } else if (name == "fill_color.b") {
-        auto color = box.getFillColor();
-        color.b = std::clamp(static_cast<int>(value), 0, 255);
-        box.setFillColor(color);
-        markDirty();
-        return true;
-    } else if (name == "fill_color.a") {
-        auto color = box.getFillColor();
-        color.a = std::clamp(static_cast<int>(value), 0, 255);
-        box.setFillColor(color);
-        markDirty();
-        return true;
-    } else if (name == "outline_color.r") {
+    }
+    if (colorChannelName(name, "outline_color", channel)) {
         auto color = box.getOutlineColor();
-        color.r = std::clamp(static_cast<int>(value), 0, 255);
+        colorChannel(color, channel) = static_cast<sf::Uint8>(std::clamp(value, 0.0f, 255.0f));
         box.setOutlineColor(color);
-        markDirty();
-        return true;
-    } else if (name == "outline_color.g") {
-        auto color = box.getOutlineColor();
-        color.g = std::clamp(static_cast<int>(value), 0, 255);
-        box.setOutlineColor(color);
-        markDirty();
-        return true;
-    } else if (name == "outline_color.b") {
-        auto color = box.getOutlineColor();
-        color.b = std::clamp(static_cast<int>(value), 0, 255);
-        box.setOutlineColor(color);
-        markDirty();
-        return true;
-    } else if (name == "outline_color.a") {
-        auto color = box.getOutlineColor();
-        color.a = std::clamp(static_cast<int>(value), 0, 255);
-        box.setOutlineColor(color);
-        markDirty();
-        return true;
-    } else if (name == "rotation") {
-        rotation = value;
-        box.setRotation(rotation);
-        markDirty();
-        return true;
-    } else if (name == "origin_x") {
-        origin.x = value;
-        box.setOrigin(origin);
-        markDirty();
-        return true;
-    } else if (name == "origin_y") {
-        origin.y = value;
-        box.setOrigin(origin);
         markDirty();
         return true;
     }
@@ -899,7 +828,7 @@ bool UIFrame::setProperty(const std::string& name, float value) {
     if (setShaderProperty(name, value)) {
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UIFrame::setProperty(const std::string& name, const sf::Color& value) {
@@ -912,91 +841,34 @@ bool UIFrame::setProperty(const std::string& name, const sf::Color& value) {
         markDirty();
         return true;
     }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UIFrame::setProperty(const std::string& name, const sf::Vector2f& value) {
-    if (name == "position" || name == "pos") {
-        position = value;
-        box.setPosition(position);  // Keep box in sync
-        markDirty();
-        return true;
-    } else if (name == "size") {
-        box.setSize(value);
-        if (use_render_texture) {
-            // Need to recreate RenderTexture with new size
-            enableRenderTexture(static_cast<unsigned int>(value.x),
-                              static_cast<unsigned int>(value.y));
-        }
-        markDirty();
-        return true;
-    } else if (name == "origin") {
-        origin = value;
-        box.setOrigin(origin);
-        markDirty();
-        return true;
-    }
-    return false;
+    return UIDrawable::setProperty(name, value);
 }
 
 bool UIFrame::getProperty(const std::string& name, float& value) const {
-    if (name == "x") {
-        value = position.x;
-        return true;
-    } else if (name == "y") {
-        value = position.y;
-        return true;
-    } else if (name == "w") {
-        value = box.getSize().x;
-        return true;
-    } else if (name == "h") {
-        value = box.getSize().y;
-        return true;
-    } else if (name == "outline") {
+    if (name == "outline") {
         value = box.getOutlineThickness();
         return true;
-    } else if (name == "opacity") {
-        value = opacity;
+    }
+    int channel;
+    if (colorChannelName(name, "fill_color", channel)) {
+        auto color = box.getFillColor();
+        value = colorChannel(color, channel);
         return true;
-    } else if (name == "fill_color.r") {
-        value = box.getFillColor().r;
-        return true;
-    } else if (name == "fill_color.g") {
-        value = box.getFillColor().g;
-        return true;
-    } else if (name == "fill_color.b") {
-        value = box.getFillColor().b;
-        return true;
-    } else if (name == "fill_color.a") {
-        value = box.getFillColor().a;
-        return true;
-    } else if (name == "outline_color.r") {
-        value = box.getOutlineColor().r;
-        return true;
-    } else if (name == "outline_color.g") {
-        value = box.getOutlineColor().g;
-        return true;
-    } else if (name == "outline_color.b") {
-        value = box.getOutlineColor().b;
-        return true;
-    } else if (name == "outline_color.a") {
-        value = box.getOutlineColor().a;
-        return true;
-    } else if (name == "rotation") {
-        value = rotation;
-        return true;
-    } else if (name == "origin_x") {
-        value = origin.x;
-        return true;
-    } else if (name == "origin_y") {
-        value = origin.y;
+    }
+    if (colorChannelName(name, "outline_color", channel)) {
+        auto color = box.getOutlineColor();
+        value = colorChannel(color, channel);
         return true;
     }
     // #106: Check for shader uniform properties
     if (getShaderProperty(name, value)) {
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UIFrame::getProperty(const std::string& name, sf::Color& value) const {
@@ -1007,47 +879,24 @@ bool UIFrame::getProperty(const std::string& name, sf::Color& value) const {
         value = box.getOutlineColor();
         return true;
     }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UIFrame::getProperty(const std::string& name, sf::Vector2f& value) const {
-    if (name == "position" || name == "pos") {
-        value = position;
-        return true;
-    } else if (name == "size") {
-        value = box.getSize();
-        return true;
-    } else if (name == "origin") {
-        value = origin;
-        return true;
-    }
-    return false;
+    return UIDrawable::getProperty(name, value);
 }
 
 bool UIFrame::hasProperty(const std::string& name) const {
-    // Float properties
-    if (name == "x" || name == "y" || name == "w" || name == "h" ||
-        name == "outline" || name == "opacity" ||
-        name == "fill_color.r" || name == "fill_color.g" ||
-        name == "fill_color.b" || name == "fill_color.a" ||
-        name == "outline_color.r" || name == "outline_color.g" ||
-        name == "outline_color.b" || name == "outline_color.a" ||
-        name == "rotation" || name == "origin_x" || name == "origin_y") {
-        return true;
-    }
-    // Color properties
-    if (name == "fill_color" || name == "outline_color") {
-        return true;
-    }
-    // Vector2f properties
-    if (name == "position" || name == "pos" || name == "size" || name == "origin") {
+    int channel;
+    if (name == "outline" || name == "fill_color" || name == "outline_color" ||
+        colorChannelName(name, "fill_color", channel) || colorChannelName(name, "outline_color", channel)) {
         return true;
     }
     // #106: Check for shader uniform properties
     if (hasShaderProperty(name)) {
         return true;
     }
-    return false;
+    return UIDrawable::hasProperty(name);
 }
 
 // #441: a Frame also speaks for what its children own.
