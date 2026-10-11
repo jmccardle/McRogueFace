@@ -275,6 +275,11 @@ Scene* GameEngine::getScene(const std::string& name) {
     return (it != scenes.end()) ? it->second.get() : nullptr;
 }
 
+std::shared_ptr<Scene> GameEngine::getSceneShared(const std::string& name) {
+    auto it = scenes.find(name);
+    return (it != scenes.end()) ? it->second : nullptr;
+}
+
 std::vector<std::string> GameEngine::getSceneNames() const {
     std::vector<std::string> names;
     names.reserve(scenes.size());

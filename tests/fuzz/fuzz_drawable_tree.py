@@ -705,14 +705,12 @@ def _op_step(stream, pool):
 
 
 def _op_scene_replace(stream, pool):
-    """Construct a Scene with a name already in use. Scenes are name-keyed:
-    the old Scene object then resolves to the new one, so scene-membership
-    checks are disabled for the rest of this iteration. That is #464: re-enable
-    them when it's fixed."""
+    """Construct a Scene with a name already in use. The name moves to the new
+    scene; the old one keeps its children (#464), so every scene invariant still
+    holds. The old Scene object is dropped from the pool, freeing its tree."""
     if not pool.scenes or stream.u8() % 4 != 0:
         return
     i = stream.int_in_range(0, len(pool.scenes) - 1)
-    pool.scene_checks = False
     pool.scenes[i] = mcrfpy.Scene(SCENE_NAMES[i])
 
 

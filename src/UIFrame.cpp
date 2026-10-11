@@ -269,7 +269,7 @@ void UIFrame::render(sf::Vector2f offset, sf::RenderTarget& target)
 PyObject* UIFrame::get_children(PyUIFrameObject* self, void* closure)
 {
     return UICollection::pyobject_for(self->data->children_serial, self->data->children,
-                                      self->data, "");
+                                      self->data, {});
 }
 
 

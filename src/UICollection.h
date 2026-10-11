@@ -23,7 +23,7 @@ public:
     static PyObject* pyobject_for(uint64_t& serial,
                                   const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& data,
                                   const std::shared_ptr<UIDrawable>& owner,
-                                  const std::string& scene_name);
+                                  const std::weak_ptr<Scene>& scene);
     static Py_ssize_t len(PyUICollectionObject* self);
 	static PyObject* getitem(PyUICollectionObject* self, Py_ssize_t index);
 	static int setitem(PyUICollectionObject* self, Py_ssize_t index, PyObject* value);
@@ -93,7 +93,7 @@ namespace mcrfpydef {
 		    // C++ members live in tp_alloc'd memory: destroy them explicitly.
 		    obj->data.~shared_ptr();
 		    obj->owner.~weak_ptr();
-		    obj->scene_name.~basic_string();
+		    obj->scene.~weak_ptr();
 		    Py_TYPE(self)->tp_free(self);
 		},
 		.tp_repr = (reprfunc)UICollection::repr,

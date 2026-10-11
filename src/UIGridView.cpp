@@ -1532,7 +1532,7 @@ PyObject* UIGridView::get_children(PyUIGridViewObject* self, void* closure)
 {
     // #430: the cache key is the view's own UIDrawable::children_serial.
     return UICollection::pyobject_for(self->data->children_serial, self->data->children,
-                                      self->data, "");
+                                      self->data, {});
 }
 
 PyObject* UIGridView::get_hovered_cell(PyUIGridViewObject* self, void* closure) {

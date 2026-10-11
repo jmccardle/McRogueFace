@@ -10,15 +10,59 @@
 #include "PyVector.h"
 #include "PyWrap.h"
 #include "UIDrawable.h"
+#include "UICollection.h"  // #464: Scene.children
 #include <iostream>
+#include <unordered_map>
 
 // Static map to store Python scene objects by name
 static std::map<std::string, PySceneObject*> python_scenes;
+
+// #464: every live Scene wrapper by its C++ scene (borrowed; erased in dealloc), so a
+// drawable's parent scene finds its Python object whether or not it holds a name.
+static std::unordered_map<const Scene*, PySceneObject*> live_scene_wrappers;
+
+PyObject* PySceneClass::wrapper_for(const Scene* scene)
+{
+    auto it = live_scene_wrappers.find(scene);
+    if (it == live_scene_wrappers.end()) return nullptr;
+    Py_INCREF(it->second);
+    return (PyObject*)it->second;
+}
+
+// #464: `self` takes `name` from whatever scene holds it. The old scene is unregistered
+// and keeps its children and handlers (register() it again to bring it back). If it was
+// the scene being shown, the new one is shown instead: the old one gets on_exit, the new
+// one on_enter, as if activated without a transition. Call after self->scene exists.
+static void take_scene_name(PySceneObject* self, const std::string& name, GameEngine* game)
+{
+    const bool was_current = (game->scene == name);
+    PySceneObject* old_scene = nullptr;
+    auto it = python_scenes.find(name);
+    if (it != python_scenes.end() && it->second != self) {
+        old_scene = it->second;  // the registry's reference, released below
+        python_scenes.erase(it);
+    }
+    if (was_current && old_scene) PySceneClass::call_on_exit(old_scene);
+    game->unregisterScene(name);
+    game->registerScene(name, self->scene);
+    if (python_scenes.count(name) == 0) {
+        python_scenes[name] = self;
+        Py_INCREF(self);  // python_scenes holds a reference
+    }
+    if (was_current) {
+        game->scene = name;
+        if (old_scene) PySceneClass::call_on_enter(self);
+    }
+    Py_XDECREF(old_scene);
+}
 
 PyObject* PySceneClass::__new__(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
     PySceneObject* self = (PySceneObject*)type->tp_alloc(type, 0);
     if (self) {
+        // tp_alloc zero-fills; construct the C++ members (__dealloc destroys them).
+        new (&self->name) std::string();
+        new (&self->scene) std::shared_ptr<PyScene>();
         self->initialized = false;
         // Don't create C++ scene yet - wait for __init__
     }
@@ -40,26 +84,16 @@ int PySceneClass::__init__(PySceneObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
 
-    // If scene with this name already exists in python_scenes, unregister the old one
-    if (python_scenes.count(name) > 0) {
-        PySceneObject* old_scene = python_scenes[name];
-        // Remove old scene from registries (but its shared_ptr keeps the C++ object alive)
-        Py_DECREF(old_scene);
-        python_scenes.erase(name);
-        game->unregisterScene(name);
-    }
-
     self->name = name;
 
     // Create the C++ PyScene with shared ownership
+    if (self->scene) live_scene_wrappers.erase(self->scene.get());  // __init__ re-run
     self->scene = std::make_shared<PyScene>(game);
+    live_scene_wrappers[self->scene.get()] = self;
 
-    // Register with the game engine (game engine also holds a reference)
-    game->registerScene(name, self->scene);
-
-    // Store this Python object in our registry for lifecycle callbacks
-    python_scenes[name] = self;
-    Py_INCREF(self);  // python_scenes holds a reference
+    // Register with the game engine and our registry, taking the name from any
+    // scene that has it (#464)
+    take_scene_name(self, self->name, game);
 
     self->initialized = true;
 
@@ -76,10 +110,16 @@ void PySceneClass::__dealloc(PyObject* self_obj)
         python_scenes.erase(self->name);
     }
 
+    if (self->scene) {
+        auto it = live_scene_wrappers.find(self->scene.get());
+        if (it != live_scene_wrappers.end() && it->second == self) live_scene_wrappers.erase(it);
+    }
+
     // Release our shared_ptr reference to the C++ scene
     // If GameEngine still holds a reference, the scene survives
     // If not, this may be the last reference and the scene is deleted
-    self->scene.reset();
+    self->scene.~shared_ptr();
+    self->name.~basic_string();  // #464: leaked one name buffer per Scene object
 
     // Call Python object destructor
     Py_TYPE(self)->tp_free(self);
@@ -93,7 +133,7 @@ int PySceneClass::traverse(PyObject* self_obj, visitproc visit, void* arg)
     PySceneObject* self = (PySceneObject*)self_obj;
     if (!self->scene || !mcrf::owns_exclusively(self->scene.use_count(), 0)) return 0;
     MCRF_VISIT(mcrf::visit_callable(self->scene->key_callable, visit, arg));
-    return UIDrawable::traverseChildren(self->scene->ui_elements, nullptr, &self->name, visit, arg);
+    return UIDrawable::traverseChildren(self->scene->ui_elements, nullptr, self->scene.get(), visit, arg);
 }
 
 int PySceneClass::clear(PyObject* self_obj)
@@ -101,7 +141,7 @@ int PySceneClass::clear(PyObject* self_obj)
     PySceneObject* self = (PySceneObject*)self_obj;
     if (!self->scene || !mcrf::owns_exclusively(self->scene.use_count(), 0)) return 0;
     self->scene->key_callable.reset();
-    UIDrawable::clearChildren(self->scene->ui_elements, nullptr, &self->name);
+    UIDrawable::clearChildren(self->scene->ui_elements, nullptr, self->scene.get());
     return 0;
 }
 
@@ -177,11 +217,13 @@ PyObject* PySceneClass::activate(PySceneObject* self, PyObject* args, PyObject* 
 // children property getter (replaces get_ui method)
 static PyObject* PySceneClass_get_children(PySceneObject* self, void* closure)
 {
-    // Call the static method from McRFPy_API
-    PyObject* py_args = Py_BuildValue("(s)", self->name.c_str());
-    PyObject* result = McRFPy_API::_sceneUI(NULL, py_args);
-    Py_DECREF(py_args);
-    return result;
+    // #464: this scene's children, not whichever scene holds its name now
+    if (!self->scene || !self->scene->ui_elements) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not initialized");
+        return NULL;
+    }
+    return UICollection::pyobject_for(self->scene->children_serial, self->scene->ui_elements,
+                                      nullptr, self->scene);
 }
 
 // on_key property getter
@@ -556,24 +598,8 @@ static PyObject* PySceneClass_register(PySceneObject* self, PyObject* args)
         return NULL;
     }
 
-    // If another scene with this name is registered, unregister it first
-    if (python_scenes.count(self->name) > 0 && python_scenes[self->name] != self) {
-        PySceneObject* old = python_scenes[self->name];
-        Py_DECREF(old);
-        python_scenes.erase(self->name);
-    }
-
-    // Unregister from GameEngine (removes old reference if any)
-    game->unregisterScene(self->name);
-
-    // Register this scene with GameEngine
-    game->registerScene(self->name, self->scene);
-
-    // Register in python_scenes if not already
-    if (python_scenes.count(self->name) == 0 || python_scenes[self->name] != self) {
-        python_scenes[self->name] = self;
-        Py_INCREF(self);
-    }
+    // Take the name from any other scene that has it (#464)
+    take_scene_name(self, self->name, game);
 
     Py_RETURN_NONE;
 }
@@ -626,7 +652,8 @@ PyMethodDef PySceneClass::methods[] = {
          MCRF_SIG("()", "None"),
          MCRF_DESC("Register this scene with the game engine."),
          MCRF_NOTE("Makes the scene available for activation and receives lifecycle callbacks. "
-                   "If another scene with the same name exists, it will be unregistered first. "
+                   "If another scene has the same name, that scene is unregistered and keeps its children; "
+                   "if it was being shown, this scene is shown instead. "
                    "Called automatically by activate() if needed.")
      )},
     {"unregister", (PyCFunction)PySceneClass_unregister, METH_NOARGS,

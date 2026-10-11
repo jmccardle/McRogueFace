@@ -35,8 +35,8 @@ static PyObject* convertDrawableToPython(std::shared_ptr<UIDrawable> drawable) {
 // strong ref that keeps a Python subclass wrapper alive while its C++ object is in
 // a collection, so linking and unlinking here is what makes the pin correct.
 static void link_child(PyUICollectionObject* self, std::shared_ptr<UIDrawable> drawable) {
-    if (!self->scene_name.empty()) {
-        drawable->setParentScene(self->scene_name);
+    if (!self->scene.expired()) {
+        drawable->setParentScene(self->scene);
     } else {
         drawable->setParent(self->owner.lock());
     }
@@ -130,14 +130,14 @@ PyObject* UICollectionIter::repr(PyUICollectionIterObject* self)
 PyObject* UICollection::pyobject_for(uint64_t& serial,
                                      const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& data,
                                      const std::shared_ptr<UIDrawable>& owner,
-                                     const std::string& scene_name)
+                                     const std::weak_ptr<Scene>& scene)
 {
     return mcrf::cached_wrapper<PyUICollectionObject>(serial, &mcrfpydef::PyUICollectionType,
         [&](PyUICollectionObject* o) {
             // tp_alloc zero-fills; construct the C++ members in place (dealloc destroys them).
             new (&o->data) std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>(data);
             new (&o->owner) std::weak_ptr<UIDrawable>(owner);
-            new (&o->scene_name) std::string(scene_name);
+            new (&o->scene) std::weak_ptr<Scene>(scene);
             o->weakreflist = nullptr;
         });
 }
@@ -1019,7 +1019,7 @@ PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObjec
                 // #430: recurse through the child Frame's own children collection
                 // (cached on its children_serial, so this is `frame.children`).
                 PyUICollectionObject* child_coll = (PyUICollectionObject*)UICollection::pyobject_for(
-                    frame->children_serial, frame->children, frame, "");
+                    frame->children_serial, frame->children, frame, {});
                 if (!child_coll) {
                     Py_DECREF(results);
                     return NULL;
@@ -1054,7 +1054,7 @@ PyObject* UICollection::find(PyUICollectionObject* self, PyObject* args, PyObjec
                 auto frame = std::static_pointer_cast<UIFrame>(drawable);
                 // #430: the child Frame's own (cached) children collection.
                 PyUICollectionObject* child_coll = (PyUICollectionObject*)UICollection::pyobject_for(
-                    frame->children_serial, frame->children, frame, "");
+                    frame->children_serial, frame->children, frame, {});
                 if (!child_coll) return NULL;
                 PyObject* result = find(child_coll, args, kwds);
                 Py_DECREF(child_coll);

@@ -18,6 +18,7 @@
 #include "PyAnimation.h"
 #include "PyEasing.h"
 #include "PySceneObject.h"  // #183: For scene parent lookup
+#include "PyScene.h"        // #464: PySceneObject::scene is a Scene
 #include "PyShader.h"  // #106: Shader support
 #include "PyUniformCollection.h"  // #106: Uniform collection support
 
@@ -984,7 +985,7 @@ int UIDrawable::set_grid_size(PyObject* self, PyObject* value, void* closure) {
 // #122 - Parent-child hierarchy implementation
 void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
     parent = new_parent;
-    parent_scene.clear();  // #183: Clear scene parent when setting drawable parent
+    parent_scene.reset();  // #183: Clear scene parent when setting drawable parent
 
     updatePyIdentityPin();  // #373
 
@@ -1007,14 +1008,14 @@ bool UIDrawable::canAdopt(const std::shared_ptr<UIDrawable>& new_parent, const U
     return true;
 }
 
-void UIDrawable::setParentScene(const std::string& scene_name) {
+void UIDrawable::setParentScene(const std::weak_ptr<Scene>& scene) {
     parent.reset();        // #183: Clear drawable parent when setting scene parent
-    parent_scene = scene_name;
+    parent_scene = scene;
 
     updatePyIdentityPin();  // #373
 
     // Apply alignment when scene parent is set (if alignment is configured)
-    if (!scene_name.empty() && align_type != AlignmentType::NONE) {
+    if (!scene.expired() && align_type != AlignmentType::NONE) {
         applyAlignment();
     }
 }
@@ -1023,7 +1024,7 @@ void UIDrawable::setParentScene(const std::string& scene_name) {
 // is a member of a children collection. See the comment on py_identity in UIDrawable.h.
 void UIDrawable::updatePyIdentityPin() {
     // #443: every live wrapper, not only subclasses (see py_identity in UIDrawable.h).
-    const bool in_collection = !parent.expired() || !parent_scene.empty();
+    const bool in_collection = !parent.expired() || !parent_scene.expired();
     py_identity.sync(in_collection, serial_number);
 }
 
@@ -1056,13 +1057,13 @@ void UIDrawable::clearOwned() {
 
 // A child's pin belongs to the collection named by its parent link; a stale or foreign
 // pin is never reported, so no pin is counted twice.
-static bool memberOf(const UIDrawable& child, const UIDrawable* owner, const std::string* scene) {
+static bool memberOf(const UIDrawable& child, const UIDrawable* owner, const Scene* scene) {
     if (owner) return child.getParent().get() == owner;
-    return scene && child.parent_scene == *scene;
+    return scene && child.parent_scene.lock().get() == scene;
 }
 
 int UIDrawable::traverseChildren(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children,
-                                 const UIDrawable* owner, const std::string* scene,
+                                 const UIDrawable* owner, const Scene* scene,
                                  visitproc visit, void* arg) {
     // A collection wrapper (frame.children) shares the vector and can keep the children
     // alive after the owner dies, so the owner speaks for them only while it is alone.
@@ -1079,7 +1080,7 @@ int UIDrawable::traverseChildren(const std::shared_ptr<std::vector<std::shared_p
 }
 
 void UIDrawable::clearChildren(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children,
-                               const UIDrawable* owner, const std::string* scene) {
+                               const UIDrawable* owner, const Scene* scene) {
     if (!children || children.use_count() != 1) return;
     // Decide first, act second: releasing a pin frees a wrapper, and a weakref callback
     // on it could run Python that edits this vector.
@@ -1108,9 +1109,9 @@ std::shared_ptr<UIDrawable> UIDrawable::getParent() const {
 // no member of a freed `this` is touched afterwards.
 void UIDrawable::removeFromParent() {
     // #183: Handle scene parent removal
-    if (!parent_scene.empty()) {
-        auto ui = Resources::game->scene_ui(parent_scene);
-        if (ui) {
+    // #464: the scene itself, so a scene that lost its name to another still finds us.
+    if (auto scene = parent_scene.lock()) {
+        if (auto& ui = scene->ui_elements) {
             for (auto it = ui->begin(); it != ui->end(); ++it) {
                 if (it->get() == this) {
                     ui->erase(it);
@@ -1118,10 +1119,11 @@ void UIDrawable::removeFromParent() {
                 }
             }
         }
-        parent_scene.clear();
+        parent_scene.reset();
         updatePyIdentityPin();
         return;
     }
+    parent_scene.reset();
 
     // Handle drawable parent removal
     auto p = parent.lock();
@@ -1462,12 +1464,10 @@ PyObject* UIDrawable::get_parent(PyObject* self, void* closure) {
     if (!drawable) return NULL;
 
     // #183: Check for scene parent first
-    if (!drawable->parent_scene.empty()) {
-        PyObject* scene = PySceneClass::get_scene_by_name(drawable->parent_scene);
-        if (scene) {
-            return scene;  // Already has new reference from get_scene_by_name
-        }
-        // Scene not found in python_scenes (shouldn't happen, but fall through to None)
+    // #464: the scene's own Python object, registered under its name or not.
+    if (auto scene = drawable->parent_scene.lock()) {
+        if (PyObject* wrapper = PySceneClass::wrapper_for(scene.get())) return wrapper;
+        Py_RETURN_NONE;  // a scene made in C++ with no Python object
     }
 
     return UIDrawable::pyobject_for(drawable->getParent());
@@ -1527,13 +1527,13 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
     // Handle Scene parent specially - add to scene's children
     if (is_scene) {
         PySceneObject* scene_obj = (PySceneObject*)value;
-        std::string scene_name = scene_obj->name;
+        std::shared_ptr<Scene> scene = scene_obj->scene;  // #464: this scene, not its name
 
         // Remove from old parent first
         drawable->removeFromParent();
 
         // Get the scene's UI elements and add
-        auto ui = Resources::game->scene_ui(scene_name);
+        auto ui = scene ? scene->ui_elements : nullptr;
         if (ui) {
             // Check if already in this scene (prevent duplicates)
             bool already_present = false;
@@ -1546,7 +1546,7 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
 
             if (!already_present) {
                 ui->push_back(drawable);
-                drawable->setParentScene(scene_name);
+                drawable->setParentScene(scene);
             }
         }
         return 0;
@@ -2026,7 +2026,7 @@ void UIDrawable::applyAlignment() {
         sf::FloatRect parent_bounds = p->get_bounds();
         pw = parent_bounds.width;
         ph = parent_bounds.height;
-    } else if (!parent_scene.empty()) {
+    } else if (!parent_scene.expired()) {
         // Parent is a Scene - use window's game resolution
         GameEngine* game = McRFPy_API::game;
         if (!game) return;

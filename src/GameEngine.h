@@ -322,6 +322,7 @@ public:
     ~GameEngine();
     Scene* currentScene();
     Scene* getScene(const std::string& name);  // #118: Get scene by name
+    std::shared_ptr<Scene> getSceneShared(const std::string& name);  // #464: for weak links
     std::vector<std::string> getSceneNames() const;  // #136: Get all scene names for explorer
     void changeScene(std::string);
     void changeScene(std::string sceneName, TransitionType transitionType, float duration);

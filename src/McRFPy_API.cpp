@@ -1761,7 +1761,7 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
 	const char *scene_cstr;
 	if (!PyArg_ParseTuple(args, "s", &scene_cstr)) return NULL;
 
-    Scene* scene = Resources::game->getScene(scene_cstr);
+    std::shared_ptr<Scene> scene = Resources::game->getSceneShared(scene_cstr);
     if (!scene || !scene->ui_elements)
     {
         PyErr_SetString(PyExc_RuntimeError, "No scene found by that name");
@@ -1770,7 +1770,7 @@ PyObject* McRFPy_API::_sceneUI(PyObject* self, PyObject* args) {
     // #430: one wrapper per scene, keyed on Scene::children_serial.
     // #183: scene_name tracks scene ownership (no owning drawable).
     return UICollection::pyobject_for(scene->children_serial, scene->ui_elements,
-                                      nullptr, scene_cstr);
+                                      nullptr, scene);
 }
 
 // Internal use - called by PySceneObject::activate()

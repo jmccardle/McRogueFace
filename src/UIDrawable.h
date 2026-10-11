@@ -24,7 +24,7 @@ class UniformCollection;
 // PyShaderObject is a typedef, forward declare as a struct with explicit typedef
 typedef struct PyShaderObjectStruct PyShaderObject;
 
-class UIFrame; class UICaption; class UISprite; class UIEntity; class GridData;
+class UIFrame; class UICaption; class UISprite; class UIEntity; class GridData; class Scene;
 
 enum PyObjectsEnum : int
 {
@@ -166,8 +166,10 @@ public:
     // Parent-child hierarchy (#122)
     std::weak_ptr<UIDrawable> parent;
 
-    // Scene parent tracking (#183) - name of scene if this is a top-level element
-    std::string parent_scene;
+    // Scene parent tracking (#183): the scene whose children this is, if top-level.
+    // The scene itself, not its name (#464): a name can be given to another scene,
+    // and the old scene's children must stay with the old scene.
+    std::weak_ptr<Scene> parent_scene;
 
     // Set the parent of this drawable (called by collections when adding)
     void setParent(std::shared_ptr<UIDrawable> new_parent);
@@ -179,8 +181,8 @@ public:
     // mutates anything; a null parent (scene collection) always may.
     static bool canAdopt(const std::shared_ptr<UIDrawable>& new_parent, const UIDrawable* child);
 
-    // Set the parent scene name (called by UICollection when adding to scene)
-    void setParentScene(const std::string& scene_name);
+    // Set the parent scene (called by UICollection when adding to scene)
+    void setParentScene(const std::weak_ptr<Scene>& scene);
 
     // Get the parent drawable (returns nullptr if no parent or expired)
     std::shared_ptr<UIDrawable> getParent() const;
@@ -252,10 +254,10 @@ public:
     // holds it. A pinned child is reported through its pin (its own wrapper reports what
     // it holds); an unwrapped child that only the vector owns is descended into.
     static int traverseChildren(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children,
-                                const UIDrawable* owner, const std::string* scene,
+                                const UIDrawable* owner, const Scene* scene,
                                 visitproc visit, void* arg);
     static void clearChildren(const std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>& children,
-                              const UIDrawable* owner, const std::string* scene);
+                              const UIDrawable* owner, const Scene* scene);
 
     // Get the global (screen) position by walking up the parent chain (#102)
     sf::Vector2f get_global_position() const;
@@ -493,7 +495,7 @@ typedef struct {
     PyObject_HEAD
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> data;
     std::weak_ptr<UIDrawable> owner;  // #122: Parent drawable (for Frame.children, Grid.children)
-    std::string scene_name;           // #183: Scene name (for Scene.children) - empty if not scene-level
+    std::weak_ptr<Scene> scene;       // #183/#464: the scene (for Scene.children); empty if not scene-level
     PyObject* weakreflist;            // #430: cacheable, so `f.children is f.children`
 } PyUICollectionObject;
 

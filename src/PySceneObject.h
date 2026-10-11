@@ -6,6 +6,7 @@
 
 // Forward declarations
 class PyScene;
+class Scene;
 
 // Python object structure for Scene
 typedef struct {
@@ -43,6 +44,10 @@ public:
 
     // #183: Lookup scene by name (returns new reference or nullptr)
     static PyObject* get_scene_by_name(const std::string& name);
+
+    // #464: the live Python object for a C++ scene, registered or not (new reference),
+    // or nullptr when it has none (a scene made in C++).
+    static PyObject* wrapper_for(const Scene* scene);
 
     static PyGetSetDef getsetters[];
     static PyMethodDef methods[];
