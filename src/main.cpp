@@ -1,3 +1,4 @@
+#include "Display.h"
 #include "Common.h"
 #include "PyWrap.h"
 #include "GameEngine.h"
@@ -31,10 +32,17 @@ int main(int argc, char* argv[])
     }
 
     // Initialize based on configuration
-    if (config.python_mode) {
-        return run_python_interpreter(config);
-    } else {
-        return run_game_engine(config);
+    try {
+        if (config.python_mode) {
+            return run_python_interpreter(config);
+        } else {
+            return run_game_engine(config);
+        }
+    } catch (const mcrf::NoDisplayError& e) {
+        // #451: the engine needed a display outside any Python call (a headless frame
+        // loop rendering, say). Python entry points raise RuntimeError instead.
+        std::cerr << "mcrogueface: " << e.what() << std::endl;
+        return 1;
     }
 }
 
@@ -67,13 +75,11 @@ int run_python_interpreter(const McRogueFaceConfig& config)
         PyErr_Print();
         std::cerr << "Failed to import mcrfpy module" << std::endl;
     } else {
-        // Set up default_font and default_texture if not already done
+        // Set up default_font if not already done. default_texture loads on first use (#451).
         if (!McRFPy_API::default_font) {
             McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
-            McRFPy_API::default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
         }
         PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
     }
 
     // Handle different Python modes

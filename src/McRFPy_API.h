@@ -24,6 +24,9 @@ public:
     static PyObject* mcrf_module;
     static std::shared_ptr<PyFont> default_font;
     static std::shared_ptr<PyTexture> default_texture;
+    // The default texture, loaded on first use (#451). nullptr with RuntimeError set when
+    // there is no display to create it on.
+    static std::shared_ptr<PyTexture> defaultTexture();
     //inline static sf::Sprite sprite;
     //inline static sf::Texture texture;
     //static void setSpriteTexture(int);

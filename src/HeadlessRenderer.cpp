@@ -1,20 +1,23 @@
 #include "HeadlessRenderer.h"
+#include "Display.h"
 #include <iostream>
-
-bool HeadlessRenderer::init(int width, int height) {
-    if (!render_texture.create(width, height)) {
-        std::cerr << "Failed to create headless render texture" << std::endl;
-        return false;
-    }
-    return true;
-}
+#include <stdexcept>
 
 sf::RenderTarget& HeadlessRenderer::getRenderTarget() {
-    return render_texture;
+    if (!render_texture) {
+        mcrf::require_display("rendering");
+        auto texture = std::make_unique<sf::RenderTexture>();
+        if (!texture->create(size.x, size.y)) {
+            throw std::runtime_error("Failed to create headless render texture");
+        }
+        render_texture = std::move(texture);
+    }
+    return *render_texture;
 }
 
 void HeadlessRenderer::saveScreenshot(const std::string& path) {
-    sf::Image screenshot = render_texture.getTexture().copyToImage();
+    auto& texture = static_cast<sf::RenderTexture&>(getRenderTarget());
+    sf::Image screenshot = texture.getTexture().copyToImage();
     if (!screenshot.saveToFile(path)) {
         std::cerr << "Failed to save screenshot to: " << path << std::endl;
     } else {
@@ -23,5 +26,5 @@ void HeadlessRenderer::saveScreenshot(const std::string& path) {
 }
 
 void HeadlessRenderer::display() {
-    render_texture.display();
+    if (render_texture) render_texture->display();
 }

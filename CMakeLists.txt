@@ -324,6 +324,7 @@ else()
         tcod
         ${PYTHON_LIB}
         m dl util pthread
+        X11   # mcrf::display_available() probes the display SFML would open (#451)
         ${OPENGL_LIBRARIES})
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
     if(MCRF_DEBUG_PYTHON OR MCRF_FREE_THREADED_PYTHON)

@@ -1,4 +1,5 @@
 #include "McRFPy_Automation.h"
+#include "Display.h"
 #include "PyMouseButton.h"
 #include "PyWrap.h"
 #include "McRFPy_API.h"
@@ -214,12 +215,9 @@ PyObject* McRFPy_Automation::_screenshot(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    // Get the render target
-    sf::RenderTarget* target = engine->getRenderTargetPtr();
-    if (!target) {
-        PyErr_SetString(PyExc_RuntimeError, "No render target available");
-        return NULL;
-    }
+    // Get the render target (#451: a headless one is created here, which needs a display)
+    if (!mcrf::require_display_py("automation.screenshot()")) return NULL;
+    sf::RenderTarget* target = &engine->getRenderTarget();
 
     // For RenderWindow (windowed mode), capture the current buffer
     if (auto* window = dynamic_cast<sf::RenderWindow*>(target)) {
@@ -285,11 +283,11 @@ PyObject* McRFPy_Automation::_position(PyObject* self, PyObject* args) {
 // Get screen size - returns Vector object
 PyObject* McRFPy_Automation::_size(PyObject* self, PyObject* args) {
     auto engine = getGameEngine();
-    if (!engine || !engine->getRenderTargetPtr()) {
+    if (!engine) {
         return PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", 1024.0f, 768.0f);  // Default size
     }
 
-    sf::Vector2u size = engine->getRenderTarget().getSize();
+    sf::Vector2u size = engine->renderSize();
     return PyObject_CallFunction((PyObject*)&mcrfpydef::PyVectorType, "ff", (float)size.x, (float)size.y);
 }
 
@@ -301,11 +299,11 @@ PyObject* McRFPy_Automation::_onScreen(PyObject* self, PyObject* args, PyObject*
     }
 
     auto engine = getGameEngine();
-    if (!engine || !engine->getRenderTargetPtr()) {
+    if (!engine) {
         Py_RETURN_FALSE;
     }
 
-    sf::Vector2u size = engine->getRenderTarget().getSize();
+    sf::Vector2u size = engine->renderSize();
     if (x >= 0 && x < (int)size.x && y >= 0 && y < (int)size.y) {
         Py_RETURN_TRUE;
     } else {

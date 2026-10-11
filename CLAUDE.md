@@ -533,8 +533,9 @@ tests/
 ### Running Tests
 
 ```bash
-# Run the full test suite (from tests/ directory). The SFML build needs a display
-# even with --headless; ALSOFT_DRIVERS=null stands in for a missing audio device.
+# Run the full test suite (from tests/ directory). Rendering in the SFML build needs a
+# display even with --headless (GL resources are created on first use, and raise
+# RuntimeError with no display, #451); ALSOFT_DRIVERS=null stands in for a missing audio device.
 cd tests && ALSOFT_DRIVERS=null xvfb-run -a python3 run_tests.py
 
 # Run a specific test

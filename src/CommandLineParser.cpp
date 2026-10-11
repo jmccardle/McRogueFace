@@ -171,17 +171,25 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
         result.exit_code = 1;
         return result;
     }
-    
+
+    // #451: -c and -m run Python and exit without running a frame, so they don't open a
+    // window or an audio device (as when the binary is invoked as "python"). -i keeps
+    // the engine, since an interactive session can go on to drive it.
+    if ((!config.python_command.empty() || !config.python_module.empty()) && !config.interactive_mode) {
+        config.headless = true;
+        if (!config.audio_explicit) config.audio_enabled = false;
+    }
+
     return result;
 }
 
 void CommandLineParser::print_help() {
     std::cout << "usage: mcrogueface [option] ... [-c cmd | -m mod | file | -] [arg] ...\n"
               << "Options:\n"
-              << "  -c cmd : program passed in as string (terminates option list)\n"
+              << "  -c cmd : program passed in as string (terminates option list; implies --headless)\n"
               << "  -h     : print this help message and exit (also --help)\n"
               << "  -i     : inspect interactively after running script\n"
-              << "  -m mod : run library module as a script (terminates option list)\n"
+              << "  -m mod : run library module as a script (terminates option list; implies --headless)\n"
               << "  -V     : print the Python version number and exit (also --version)\n"
               << "\n"
               << "McRogueFace specific options:\n"

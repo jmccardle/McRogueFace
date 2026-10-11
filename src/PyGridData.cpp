@@ -61,7 +61,8 @@ int PyGridData::parse_grid_shape(PyObject* grid_size_obj, PyObject* texture_obj,
         }
         texture_out = reinterpret_cast<PyTextureObject*>(texture_obj)->data;
     } else {
-        texture_out = McRFPy_API::default_texture;
+        texture_out = McRFPy_API::defaultTexture();
+        if (!texture_out) return -1;
     }
     return 0;
 }

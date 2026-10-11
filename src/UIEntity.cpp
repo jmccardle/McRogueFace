@@ -328,7 +328,8 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         texture_ptr = pytexture->data;
     } else {
         // Use default texture when None or not provided
-        texture_ptr = McRFPy_API::default_texture;
+        texture_ptr = McRFPy_API::defaultTexture();
+        if (!texture_ptr) return -1;
     }
     
     // Handle grid argument - accept both internal _GridData and GridView (unified Grid)

@@ -1,4 +1,5 @@
 #include "GameEngine.h"
+#include "Display.h"
 #include "ActionCode.h"
 #include <sys/stat.h>
 #include "McRFPy_API.h"
@@ -129,11 +130,10 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     
     // Initialize rendering based on headless mode
     if (headless) {
-        headless_renderer = std::make_unique<HeadlessRenderer>();
-        if (!headless_renderer->init(1024, 768)) {
-            throw std::runtime_error("Failed to initialize headless renderer");
-        }
-        render_target = &headless_renderer->getRenderTarget();
+        // #451: the render texture is created by the first frame that draws; until then
+        // there is no target, and a process that never renders never needs a display.
+        headless_renderer = std::make_unique<HeadlessRenderer>(1024, 768);
+        render_target = nullptr;
     } else {
         window = std::make_unique<sf::RenderWindow>();
 #ifdef __EMSCRIPTEN__
@@ -166,7 +166,8 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
 #endif
     }
 
-    visible = render_target->getDefaultView();
+    const sf::Vector2u size = renderSize();
+    visible = sf::View(sf::FloatRect(0.f, 0.f, static_cast<float>(size.x), static_cast<float>(size.y)));
     
     // Initialize the game view
     gameView.setSize(static_cast<float>(gameResolution.x), static_cast<float>(gameResolution.y));
@@ -316,6 +317,7 @@ void GameEngine::changeScene(std::string sceneName, TransitionType transitionTyp
     }
     else
     {
+        mcrf::require_display("a scene transition");  // #451: renders to two textures
         // Start transition with current game resolution
         transition.width = gameResolution.x;
         transition.height = gameResolution.y;
@@ -353,8 +355,18 @@ sf::RenderWindow & GameEngine::getWindow() {
     return *window; 
 }
 
-sf::RenderTarget & GameEngine::getRenderTarget() { 
-    return *render_target; 
+sf::RenderTarget & GameEngine::getRenderTarget() {
+    if (!render_target) {
+        // #451: headless creates its texture here, on first use. Throws NoDisplayError.
+        render_target = &headless_renderer->getRenderTarget();
+        render_target->setView(gameView);
+    }
+    return *render_target;
+}
+
+sf::Vector2u GameEngine::renderSize() const {
+    if (headless) return headless_renderer->getSize();
+    return window->getSize();
 }
 
 void GameEngine::createScene(std::string s) { scenes[s] = std::make_shared<PyScene>(this); }
@@ -511,8 +523,8 @@ void GameEngine::doFrame()
         else
         {
             // Render transition
-            render_target->clear();
-            transition.render(*render_target);
+            getRenderTarget().clear();
+            transition.render(getRenderTarget());
         }
     }
     else
@@ -878,9 +890,7 @@ std::string GameEngine::getViewportModeString() const {
 }
 
 void GameEngine::updateViewport() {
-    if (!render_target) return;
-    
-    auto windowSize = render_target->getSize();
+    auto windowSize = renderSize();
     
     switch (viewportMode) {
         case ViewportMode::Center: {
@@ -940,15 +950,26 @@ void GameEngine::updateViewport() {
         }
     }
     
-    // Apply the view
-    render_target->setView(gameView);
+    // Apply the view (a headless target not yet created gets it when it is, #451)
+    if (render_target) render_target->setView(gameView);
 }
 
 sf::Vector2f GameEngine::windowToGameCoords(const sf::Vector2f& windowPos) const {
-    if (!render_target) return windowPos;
-
     // Convert window coordinates to game coordinates using the view
-    return render_target->mapPixelToCoords(sf::Vector2i(windowPos), gameView);
+    if (render_target) return render_target->mapPixelToCoords(sf::Vector2i(windowPos), gameView);
+
+    // #451: a headless target that doesn't exist yet. The same mapping
+    // sf::RenderTarget::mapPixelToCoords does, from the size it will have.
+    const sf::Vector2u size = renderSize();
+    const sf::FloatRect vp = gameView.getViewport();
+    const float left = static_cast<int>(0.5f + size.x * vp.left);
+    const float top = static_cast<int>(0.5f + size.y * vp.top);
+    const float width = static_cast<int>(0.5f + size.x * vp.width);
+    const float height = static_cast<int>(0.5f + size.y * vp.height);
+    const sf::Vector2i pixel(windowPos);
+    const sf::Vector2f normalized(-1.f + 2.f * (pixel.x - left) / width,
+                                  1.f - 2.f * (pixel.y - top) / height);
+    return gameView.getInverseTransform().transformPoint(normalized);
 }
 
 // #106 - Shader intermediate texture: shared texture for shader rendering
@@ -1168,15 +1189,15 @@ int GameEngine::advance(int ms) {
 // the path a screenshot takes, and -- since step() deliberately never renders -- it is
 // how a headless script gets real render metrics without the clock moving.
 void GameEngine::renderScene() {
-    if (!render_target) return;
+    sf::RenderTarget& target = getRenderTarget();  // #451: created here when headless
 
     metrics.beginRender();
 
     // Handle scene transitions
     if (transition.type != TransitionType::None) {
         transition.update(0);  // Don't advance transition time, just render current state
-        render_target->clear();
-        transition.render(*render_target);
+        target.clear();
+        transition.render(target);
     } else {
         // Normal scene rendering
         currentScene()->render();

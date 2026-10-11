@@ -1,3 +1,4 @@
+#include "Display.h"
 #include "McRFPy_API.h"
 #include "PyWrap.h"
 #include "EngineRandom.h"
@@ -250,6 +251,25 @@ static PyObject* mcrfpy_get_save_dir(PyObject* self, void* closure)
 #endif
 }
 
+// #451: the default texture is a GL resource, so it is created by its first use, not at
+// import: a process that never draws a sprite never needs a display for it.
+static PyObject* mcrfpy_get_default_texture(PyObject* self, void* closure)
+{
+    auto texture = McRFPy_API::defaultTexture();
+    if (!texture) return NULL;
+    return texture->pyObject();
+}
+
+static int mcrfpy_set_default_texture(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value || !PyObject_TypeCheck(value, &mcrfpydef::PyTextureType)) {
+        PyErr_SetString(PyExc_TypeError, "default_texture must be a Texture");
+        return -1;
+    }
+    McRFPy_API::default_texture = ((PyTextureObject*)value)->data;
+    return 0;
+}
+
 static PyGetSetDef mcrfpy_module_getset[] = {
     {"current_scene", mcrfpy_get_current_scene, mcrfpy_set_current_scene,
      MCRF_PROPERTY(current_scene,
@@ -277,6 +297,11 @@ static PyGetSetDef mcrfpy_module_getset[] = {
      mcrfpy_set_default_transition_duration,
      MCRF_PROPERTY(default_transition_duration,
          "Default scene-transition duration in seconds (float). Must be non-negative."
+     ), NULL},
+    {"default_texture", mcrfpy_get_default_texture, mcrfpy_set_default_texture,
+     MCRF_PROPERTY(default_texture,
+         "Texture used by Sprite, Entity and Grid when none is given (Texture). Loaded "
+         "from assets/kenney_tinydungeon.png on first use; assign a Texture to replace it."
      ), NULL},
     {"save_dir", mcrfpy_get_save_dir, NULL,
      MCRF_PROPERTY(save_dir,
@@ -951,10 +976,8 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
 
     // Add default_font and default_texture to module
     McRFPy_API::default_font = std::make_shared<PyFont>("assets/JetbrainsMono.ttf");
-    McRFPy_API::default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
-    // These will be set later when the window is created
+    // Set later, once the engine exists. (default_texture is a module property, #451.)
     PyModule_AddObject(m, "default_font", Py_None);
-    PyModule_AddObject(m, "default_texture", Py_None);
 
     // Add keyboard singleton (#160)
     PyObject* keyboard_instance = PyObject_CallObject((PyObject*)&PyKeyboardType, NULL);
@@ -1492,10 +1515,7 @@ void McRFPy_API::api_init() {
         std::cout << PyUnicode_AsUTF8(repr.get()) << std::endl;
     }
 
-    //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
     PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
-    //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
-    PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
 
     //sprite.setTexture(texture);
     //sprite.setScale(sf::Vector2f(4.0f, 4.0f));
@@ -1522,10 +1542,7 @@ void McRFPy_API::api_init(const McRogueFaceConfig& config) {
     
     // Set up default resources only if in game mode
     if (!config.python_mode) {
-        //PyModule_AddObject(McRFPy_API::mcrf_module, "default_font", McRFPy_API::default_font->pyObject());
         PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_font", mcrf::PyRef(McRFPy_API::default_font->pyObject()).get());
-        //PyModule_AddObject(McRFPy_API::mcrf_module, "default_texture", McRFPy_API::default_texture->pyObject());
-        PyObject_SetAttrString(McRFPy_API::mcrf_module, "default_texture", mcrf::PyRef(McRFPy_API::default_texture->pyObject()).get());
     }
 }
 
@@ -1599,6 +1616,15 @@ int McRFPy_API::runScriptSource(const std::string& source, const std::string& pa
         return -1;
     }
     return 0;
+}
+
+std::shared_ptr<PyTexture> McRFPy_API::defaultTexture()
+{
+    if (!default_texture) {
+        if (!mcrf::require_display_py("the default texture (mcrfpy.default_texture)")) return nullptr;
+        default_texture = std::make_shared<PyTexture>("assets/kenney_tinydungeon.png", 16, 16);
+    }
+    return default_texture;
 }
 
 void McRFPy_API::api_shutdown()
@@ -1697,7 +1723,12 @@ PyObject* McRFPy_API::_setScene(PyObject* self, PyObject* args) {
 		else if (trans == "slide_down") transition_type = TransitionType::SlideDown;
 	}
 	
-	game->changeScene(newscene, transition_type, duration);
+	try {
+		game->changeScene(newscene, transition_type, duration);
+	} catch (const mcrf::NoDisplayError& e) {  // #451
+		PyErr_SetString(PyExc_RuntimeError, e.what());
+		return NULL;
+	}
     Py_INCREF(Py_None);
     return Py_None;		
 }

@@ -9,6 +9,7 @@
 #include "Python.h"
 #include "structmember.h"
 #include "UIDrawable.h"
+#include "Display.h"
 #include "UIBase.h"
 #include "GridData.h"
 #include "PyTexture.h"
@@ -299,6 +300,8 @@ namespace mcrfpydef {
         .tp_init = (initproc)UIGridView::init,
         .tp_new = [](PyTypeObject* type, PyObject* args, PyObject* kwds) -> PyObject*
         {
+            // #451: a view owns a render texture, created with it
+            if (!mcrf::require_display_py("Grid()")) return NULL;
             PyUIGridViewObject* self = (PyUIGridViewObject*)type->tp_alloc(type, 0);
             if (self) {
                 self->data = std::make_shared<UIGridView>();

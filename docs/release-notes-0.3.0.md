@@ -52,6 +52,8 @@ removals that affect your code.
 | **`VisibilityMask` compares by value and is hashable.** `==` compares `origin`, `fov_radius`, `grid_size`, `cells`, and `light_walls`/`algorithm` when FOV ran; it ignores `tick`, so the same view on two frames is equal (#405). | Use `is` to tell two records apart, and `a.cells == b.cells` to compare only what was visible. |
 | **Dijkstra maps are windowed** (#445). `get_dijkstra_map(..., radius=None, heuristic=Heuristic.OCTILE)` computes a field over the roots' bounding box grown by `radius` (default: the whole grid, up to 511, so at most 1023×1023 cells), clipped to the grid. Distances up to the radius are exact, as is the whole field when `dm.complete`. Beyond that, and for positions **off the grid** (which used to raise `IndexError`), `distance()` returns the heuristic's estimate; `dm.is_exact(pos)` tells which. `path_from()` beyond the field returns `None`. `step_from()` / SEEK / FLEE take greedy steps there. `to_heightmap()` is window-sized; place it with `copy_from(pos=dm.window[:2])`. | Grids up to 1023 on a side behave as before (the field is the whole grid and complete), except that off-grid positions now return `None` instead of raising. Pass `heuristic=None` to make queries beyond the field raise `IndexError`. |
 | **An object is in one collection, once.** Every way of adding an entity or drawable *moves* it: out of its old grid / parent / viewport, or out of its old slot in the same collection. `entities.append(e)` with `e` already in the grid moves it to the end (was a no-op); `insert`, `extend`, `[i] =`, slices and `Entity.__init__(grid=)` used to leave it in both grids (#447, #438). A value list that names one object twice (`extend([e, e])`, `[0:1] = [e, e]`, `+= [e, e]`) raises `ValueError`. | Code that relied on an entity being in two grids, or listed twice, must hold two entities. |
+| **`-c` and `-m` imply `--headless`** (and so `--audio-off`), as running the binary as `python` already did: they exit without running a frame, so they no longer open a window or an audio device (#451). | Pass `-i` to keep the windowed engine after the command. |
+| **The engine no longer needs a display to start** (#451). GL resources are created on first use, so pure-Python work (`-c`, `-m`, scripts that build Frames and Captions, `step()`) runs with no X server. Creating one with no display raises `RuntimeError` instead of aborting the process: `Texture()`, `Grid()`, a Sprite/Entity/GridData with no texture (they load `mcrfpy.default_texture`), screenshots and scene transitions. A headless frame loop that has to render exits 1 saying so. `mcrfpy.default_texture` is loaded on first use and is now assignable, which changes what Sprite/Entity/Grid use by default (assigning it used to have no effect). | Render headlessly under a virtual display: `xvfb-run -a mcrogueface ...`. |
 | `automation.click()` / `mouseDown()` / `mouseUp()` / `dragTo()` raise `ValueError` for an unknown `button=`, which used to click LEFT. `'x1'` and `'x2'` are accepted (#428). | — |
 
 ## New
@@ -96,6 +98,8 @@ removals that affect your code.
 ## Fixes
 
 **Crashes and hangs**
+- Every interpreter mode (`-c`, `-m`, a script) aborted with no X display, even with
+  `--headless` (#451).
 - `FrameLock::acquire()` deadlocked the whole interpreter when two background threads
   used `mcrfpy.lock()` (#412).
 - In headless mode, `mcrfpy.lock()` from a background thread blocked forever (#398).
@@ -245,6 +249,5 @@ Where it comes from:
 - **#410**: a lock holder that re-acquires immediately can starve the main loop.
 - **#448**: the clock and the window are still coupled. Windowed `step()`/`advance()` are
   silent no-ops, and headless `--run-forever` runs frames on a frozen simulation clock.
-- **#422**: tracebacks from `--exec` scripts show `File "<string>"`.
 - **#420**: `mcrf-init.sh` scaffolds projects for Python 3.14.
 - **#399**: the light/full stdlib presets ship the same stdlib.
