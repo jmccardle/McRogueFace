@@ -625,6 +625,10 @@ PyObject* McRFPy_Automation::_scroll(PyObject* self, PyObject* args, PyObject* k
         }
     }
 
+    // #432: dispatch hit-tests at the simulated mouse position, so move there first,
+    // exactly as click(pos) does. Without this the scroll landed under the cursor.
+    injectMouseEvent(sf::Event::MouseMoved, x, y);
+
     // Inject scroll event (#317: forward the resolved x/y position; clicks is
     // the scroll delta, passed via its own argument).
     injectMouseEvent(sf::Event::MouseWheelScrolled, x, y, sf::Mouse::Left, static_cast<float>(clicks));
@@ -970,7 +974,8 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARGS_START
          MCRF_ARG("clicks", "Number of scroll steps (positive = up, negative = down)")
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
-         MCRF_NOTE("Both the x and y of pos are applied to the scroll event position.")
+         MCRF_NOTE("Like click(pos), a pos moves the simulated mouse there first (firing hover "
+                   "enter/exit), then scrolls; the widget under pos receives the scroll.")
      )},
     {"mouseDown", (PyCFunction)McRFPy_Automation::_mouseDown, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, mouseDown,
