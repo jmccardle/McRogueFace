@@ -395,12 +395,9 @@ PyObject* UIArc::get_color(PyUIArcObject* self, void* closure) {
 }
 
 int UIArc::set_color(PyUIArcObject* self, PyObject* value, void* closure) {
-    auto color = PyColor::from_arg(value);
-    if (!color) {
-        PyErr_SetString(PyExc_TypeError, "color must be a Color or tuple (r, g, b) or (r, g, b, a)");
-        return -1;
-    }
-    self->data->setColor(color->data);
+    sf::Color color;
+    if (!PyColor::to_color(value, color)) return -1;  // #450
+    self->data->setColor(color);
     self->data->markDirty(); // #291: color change
     return 0;
 }
@@ -526,15 +523,8 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
 
     // Parse color
     sf::Color color = sf::Color::White;
-    if (color_obj) {
-        auto pycolor = PyColor::from_arg(color_obj);
-        if (pycolor) {
-            color = pycolor->data;
-        } else {
-            PyErr_Clear();
-            PyErr_SetString(PyExc_TypeError, "color must be a Color or tuple (r, g, b) or (r, g, b, a)");
-            return -1;
-        }
+    if (color_obj && color_obj != Py_None) {
+        if (!PyColor::to_color(color_obj, color)) return -1;  // #450
     }
 
     // Set values

@@ -1490,10 +1490,8 @@ static PyObject* Viewport3D_get_bg_color(PyViewport3DObject* self, void* closure
 }
 
 static int Viewport3D_set_bg_color(PyViewport3DObject* self, PyObject* value, void* closure) {
-    sf::Color color = PyColor::fromPy(value);
-    if (PyErr_Occurred()) {
-        return -1;
-    }
+    sf::Color color;
+    if (!PyColor::to_color(value, color)) return -1;  // #450
     self->data->setBackgroundColor(color);
     return 0;
 }
@@ -1541,10 +1539,8 @@ static PyObject* Viewport3D_get_fog_color(PyViewport3DObject* self, void* closur
 }
 
 static int Viewport3D_set_fog_color(PyViewport3DObject* self, PyObject* value, void* closure) {
-    sf::Color color = PyColor::fromPy(value);
-    if (PyErr_Occurred()) {
-        return -1;
-    }
+    sf::Color color;
+    if (!PyColor::to_color(value, color)) return -1;  // #450
     self->data->setFogColor(color);
     return 0;
 }
@@ -1675,7 +1671,7 @@ PyGetSetDef Viewport3D::getsetters[] = {
 
     // Fog settings
     {"fog_color", (getter)Viewport3D_get_fog_color, (setter)Viewport3D_set_fog_color,
-     MCRF_PROPERTY(fog_color, "Fog color."), NULL},
+     MCRF_PROPERTY(fog_color, "Fog color. Fog is opaque: alpha is ignored and reads back as 255."), NULL},
     {"fog_near", (getter)Viewport3D_get_fog_near, (setter)Viewport3D_set_fog_near,
      MCRF_PROPERTY(fog_near, "Fog start distance."), NULL},
     {"fog_far", (getter)Viewport3D_get_fog_far, (setter)Viewport3D_set_fog_far,
@@ -1795,10 +1791,9 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
 
     // Background color
     if (bg_color_obj && bg_color_obj != Py_None) {
-        sf::Color bg = PyColor::fromPy(bg_color_obj);
-        if (!PyErr_Occurred()) {
-            self->data->setBackgroundColor(bg);
-        }
+        sf::Color bg;
+        if (!PyColor::to_color(bg_color_obj, bg)) return -1;  // #450
+        self->data->setBackgroundColor(bg);
     }
 
     // PS1 effects
@@ -1809,10 +1804,9 @@ int Viewport3D::init(PyViewport3DObject* self, PyObject* args, PyObject* kwds) {
 
     // Fog color
     if (fog_color_obj && fog_color_obj != Py_None) {
-        sf::Color fc = PyColor::fromPy(fog_color_obj);
-        if (!PyErr_Occurred()) {
-            self->data->setFogColor(fc);
-        }
+        sf::Color fc;
+        if (!PyColor::to_color(fog_color_obj, fc)) return -1;  // #450
+        self->data->setFogColor(fc);
     }
 
     // Fog range

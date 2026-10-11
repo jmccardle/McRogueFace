@@ -6,13 +6,13 @@
 
 PyGetSetDef PyColor::getsetters[] = {
     {"r", (getter)PyColor::get_member, (setter)PyColor::set_member,
-     MCRF_PROPERTY(r, "Red component (0-255). Automatically clamped to valid range."), (void*)0},
+     MCRF_PROPERTY(r, "Red component, an int in 0-255; out of range raises ValueError."), (void*)0},
     {"g", (getter)PyColor::get_member, (setter)PyColor::set_member,
-     MCRF_PROPERTY(g, "Green component (0-255). Automatically clamped to valid range."), (void*)1},
+     MCRF_PROPERTY(g, "Green component, an int in 0-255; out of range raises ValueError."), (void*)1},
     {"b", (getter)PyColor::get_member, (setter)PyColor::set_member,
-     MCRF_PROPERTY(b, "Blue component (0-255). Automatically clamped to valid range."), (void*)2},
+     MCRF_PROPERTY(b, "Blue component, an int in 0-255; out of range raises ValueError."), (void*)2},
     {"a", (getter)PyColor::get_member, (setter)PyColor::set_member,
-     MCRF_PROPERTY(a, "Alpha component (0-255, where 0=transparent, 255=opaque). Automatically clamped to valid range."), (void*)3},
+     MCRF_PROPERTY(a, "Alpha component, an int in 0-255 (0=transparent, 255=opaque); out of range raises ValueError."), (void*)3},
     {NULL}
 };
 
@@ -60,70 +60,22 @@ PyObject* PyColor::pyObject()
     return (PyObject*)obj;
 }
 
-sf::Color PyColor::fromPy(PyObject* obj)
+bool PyColor::to_color(PyObject* value, sf::Color& out)
 {
-    // Handle None or NULL
-    if (!obj || obj == Py_None) {
-        return sf::Color::White;
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete a Color attribute");
+        return false;
     }
-
-    // Check if it's already a Color object
-    if (PyObject_TypeCheck(obj, &mcrfpydef::PyColorType)) {
-        PyColorObject* self = (PyColorObject*)obj;
-        return self->data;
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyColorType)) {
+        out = ((PyColorObject*)value)->data;
+        return true;
     }
-
-    // Handle tuple or list input
-    if (PyTuple_Check(obj) || PyList_Check(obj)) {
-        Py_ssize_t size = PySequence_Size(obj);
-        if (size < 3 || size > 4) {
-            PyErr_SetString(PyExc_TypeError, "Color tuple/list must have 3 or 4 elements (r, g, b[, a])");
-            return sf::Color::White;
-        }
-
-        int r = 255, g = 255, b = 255, a = 255;
-
-        PyObject* item0 = PySequence_GetItem(obj, 0);
-        PyObject* item1 = PySequence_GetItem(obj, 1);
-        PyObject* item2 = PySequence_GetItem(obj, 2);
-
-        if (PyLong_Check(item0)) r = (int)PyLong_AsLong(item0);
-        if (PyLong_Check(item1)) g = (int)PyLong_AsLong(item1);
-        if (PyLong_Check(item2)) b = (int)PyLong_AsLong(item2);
-
-        Py_DECREF(item0);
-        Py_DECREF(item1);
-        Py_DECREF(item2);
-
-        if (size == 4) {
-            PyObject* item3 = PySequence_GetItem(obj, 3);
-            if (PyLong_Check(item3)) a = (int)PyLong_AsLong(item3);
-            Py_DECREF(item3);
-        }
-
-        // Clamp values
-        r = std::max(0, std::min(255, r));
-        g = std::max(0, std::min(255, g));
-        b = std::max(0, std::min(255, b));
-        a = std::max(0, std::min(255, a));
-
-        return sf::Color(r, g, b, a);
-    }
-
-    // Handle integer (grayscale)
-    if (PyLong_Check(obj)) {
-        int v = std::max(0, std::min(255, (int)PyLong_AsLong(obj)));
-        return sf::Color(v, v, v, 255);
-    }
-
-    // Unknown type - set error and return white
-    PyErr_SetString(PyExc_TypeError, "Color must be a Color object, tuple, list, or integer");
-    return sf::Color::White;
-}
-
-sf::Color PyColor::fromPy(PyColorObject* self)
-{
-    return self->data;
+    // Everything else is exactly Color(value): same accepted values, same exceptions.
+    PyObject* color = PyObject_CallOneArg((PyObject*)&mcrfpydef::PyColorType, value);
+    if (!color) return false;
+    out = ((PyColorObject*)color)->data;
+    Py_DECREF(color);
+    return true;
 }
 
 void PyColor::set(sf::Color color)
@@ -180,12 +132,20 @@ int PyColor::init(PyColorObject* self, PyObject* args, PyObject* kwds) {
             PyErr_SetString(PyExc_TypeError, "Invalid tuple length: mcrfpy.Color requires a 3-tuple, 4-tuple, color name, or integer values within 0-255 (r, g, b, optionally a)");
             return -1;
         }
-        r = PyLong_AsLong(PyTuple_GetItem(leader, 0));
-        g = PyLong_AsLong(PyTuple_GetItem(leader, 1));
-        b = PyLong_AsLong(PyTuple_GetItem(leader, 2));
-        if (tupleSize == 4) {
-            a = PyLong_AsLong(PyTuple_GetItem(leader, 3));
+        // #450: read into long and range-check before narrowing (an int cast wrapped
+        // 2**32 + 5 to 5); a non-int or overflowing component reports the whole tuple.
+        long c[4] = {0, 0, 0, 255};
+        bool ok = true;
+        for (Py_ssize_t i = 0; i < tupleSize; i++) {
+            c[i] = PyLong_AsLong(PyTuple_GetItem(leader, i));
+            if ((c[i] == -1 && PyErr_Occurred()) || c[i] < 0 || c[i] > 255) ok = false;
         }
+        if (!ok) {
+            PyErr_Clear();
+            PyErr_Format(PyExc_ValueError, "Color components must be ints in 0-255, got %R", leader);
+            return -1;
+        }
+        r = (int)c[0]; g = (int)c[1]; b = (int)c[2]; a = (int)c[3];
     }
     // Color name (not implemented yet)
     else if (PyUnicode_Check(leader)) {
@@ -194,8 +154,9 @@ int PyColor::init(PyColorObject* self, PyObject* args, PyObject* kwds) {
     }
     // Check if the leader is actually an integer for the r value
     else if (PyLong_Check(leader)) {
-        r = PyLong_AsLong(leader);
-        // Additional validation not shown; g, b are required to be parsed
+        long lr = PyLong_AsLong(leader);
+        if (lr == -1 && PyErr_Occurred()) PyErr_Clear();
+        r = (lr < 0 || lr > 255) ? -1 : (int)lr;  // #450: no narrowing wrap; -1 fails below
     } else {
         PyErr_SetString(PyExc_TypeError, "mcrfpy.Color requires a 3-tuple, 4-tuple, color name, or integer values within 0-255 (r, g, b, optionally a)");
         return -1;
@@ -203,7 +164,7 @@ int PyColor::init(PyColorObject* self, PyObject* args, PyObject* kwds) {
 
     // Validate color values
     if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
-        PyErr_SetString(PyExc_ValueError, "Color values must be between 0 and 255.");
+        PyErr_Format(PyExc_ValueError, "Color components must be ints in 0-255, got %R", args);
         return -1;
     }
 
@@ -273,32 +234,6 @@ int PyColor::set_member(PyObject* obj, PyObject* value, void* closure)
     }
     
     return 0;
-}
-
-PyColorObject* PyColor::from_arg(PyObject* args)
-{
-    PyTypeObject* type = &mcrfpydef::PyColorType;
-
-    // Check if args is already a Color instance
-    if (PyObject_IsInstance(args, (PyObject*)type)) {
-        Py_INCREF(args);  // Return new reference so caller can safely DECREF
-        return (PyColorObject*)args;
-    }
-
-    // Create new Color object
-    PyObject* obj = type->tp_alloc(type, 0);
-    if (!obj) {
-        return NULL;
-    }
-
-    // Initialize the object
-    int err = init((PyColorObject*)obj, args, NULL);
-    if (err) {
-        Py_DECREF(obj);
-        return NULL;
-    }
-
-    return (PyColorObject*)obj;
 }
 
 // Color helper method implementations

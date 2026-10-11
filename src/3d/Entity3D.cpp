@@ -758,8 +758,7 @@ int Entity3D::init(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
 
     // Parse color
     if (color_obj && color_obj != Py_None) {
-        self->data->color_ = PyColor::fromPy(color_obj);
-        if (PyErr_Occurred()) return -1;
+        if (!PyColor::to_color(color_obj, self->data->color_)) return -1;  // #450
     }
 
     // Attach to viewport if provided
@@ -903,8 +902,9 @@ PyObject* Entity3D::get_color(PyEntity3DObject* self, void* closure)
 
 int Entity3D::set_color(PyEntity3DObject* self, PyObject* value, void* closure)
 {
-    self->data->color_ = PyColor::fromPy(value);
-    if (PyErr_Occurred()) return -1;
+    sf::Color color;
+    if (!PyColor::to_color(value, color)) return -1;  // #450
+    self->data->color_ = color;
     return 0;
 }
 

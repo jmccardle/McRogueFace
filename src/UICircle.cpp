@@ -316,20 +316,7 @@ PyObject* UICircle::get_fill_color(PyUICircleObject* self, void* closure) {
 
 int UICircle::set_fill_color(PyUICircleObject* self, PyObject* value, void* closure) {
     sf::Color color;
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType)) {
-        auto pyColor = (PyColorObject*)value;
-        color = pyColor->data;
-    } else if (PyTuple_Check(value)) {
-        int r, g, b, a = 255;
-        if (!PyArg_ParseTuple(value, "iii|i", &r, &g, &b, &a)) {
-            PyErr_SetString(PyExc_TypeError, "color tuple must be (r, g, b) or (r, g, b, a)");
-            return -1;
-        }
-        color = sf::Color(r, g, b, a);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "fill_color must be a Color or tuple");
-        return -1;
-    }
+    if (!PyColor::to_color(value, color)) return -1;  // #450: was a silent uint8 wrap
     self->data->setFillColor(color);
     self->data->markDirty(); // #291: color change
     return 0;
@@ -344,20 +331,7 @@ PyObject* UICircle::get_outline_color(PyUICircleObject* self, void* closure) {
 
 int UICircle::set_outline_color(PyUICircleObject* self, PyObject* value, void* closure) {
     sf::Color color;
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType)) {
-        auto pyColor = (PyColorObject*)value;
-        color = pyColor->data;
-    } else if (PyTuple_Check(value)) {
-        int r, g, b, a = 255;
-        if (!PyArg_ParseTuple(value, "iii|i", &r, &g, &b, &a)) {
-            PyErr_SetString(PyExc_TypeError, "color tuple must be (r, g, b) or (r, g, b, a)");
-            return -1;
-        }
-        color = sf::Color(r, g, b, a);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "outline_color must be a Color or tuple");
-        return -1;
-    }
+    if (!PyColor::to_color(value, color)) return -1;  // #450: was a silent uint8 wrap
     self->data->setOutlineColor(color);
     self->data->markDirty(); // #291: color change
     return 0;
@@ -482,38 +456,14 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     // Set fill color if provided
     if (fill_color_obj && fill_color_obj != Py_None) {
         sf::Color color;
-        if (PyObject_IsInstance(fill_color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
-            color = ((PyColorObject*)fill_color_obj)->data;
-        } else if (PyTuple_Check(fill_color_obj)) {
-            int r, g, b, a = 255;
-            if (!PyArg_ParseTuple(fill_color_obj, "iii|i", &r, &g, &b, &a)) {
-                PyErr_SetString(PyExc_TypeError, "fill_color tuple must be (r, g, b) or (r, g, b, a)");
-                return -1;
-            }
-            color = sf::Color(r, g, b, a);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "fill_color must be a Color or tuple");
-            return -1;
-        }
+        if (!PyColor::to_color(fill_color_obj, color)) return -1;  // #450
         self->data->setFillColor(color);
     }
 
     // Set outline color if provided
     if (outline_color_obj && outline_color_obj != Py_None) {
         sf::Color color;
-        if (PyObject_IsInstance(outline_color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
-            color = ((PyColorObject*)outline_color_obj)->data;
-        } else if (PyTuple_Check(outline_color_obj)) {
-            int r, g, b, a = 255;
-            if (!PyArg_ParseTuple(outline_color_obj, "iii|i", &r, &g, &b, &a)) {
-                PyErr_SetString(PyExc_TypeError, "outline_color tuple must be (r, g, b) or (r, g, b, a)");
-                return -1;
-            }
-            color = sf::Color(r, g, b, a);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "outline_color must be a Color or tuple");
-            return -1;
-        }
+        if (!PyColor::to_color(outline_color_obj, color)) return -1;  // #450
         self->data->setOutlineColor(color);
     }
 

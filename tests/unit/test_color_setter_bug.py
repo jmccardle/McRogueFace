@@ -116,11 +116,19 @@ print()
 print("Test 4: Invalid color raises immediately")
 try:
     grid, layer = make_color_layer(5, 5)
+    # #450: a color argument raises exactly what Color(value) raises.
+    try:
+        mcrfpy.Color("not a color")
+        expected_exc = None
+    except Exception as exc:
+        expected_exc = type(exc)
     try:
         layer.set((0, 0), "not a color")
         check("invalid color raises", False, "no exception raised")
-    except TypeError:
-        check("invalid color raises TypeError at the call site", True)
+    except Exception as exc:
+        check("invalid color raises what Color() raises, at the call site",
+              expected_exc is not None and type(exc) is expected_exc,
+              f"got {type(exc).__name__}, Color() raises {expected_exc}")
 
     # And the failed call must not have left an error indicator behind.
     _ = list(range(1))

@@ -13,7 +13,6 @@
 #include "PyFont.h"
 
 static PyObject* sfColor_to_PyObject(sf::Color color);
-static sf::Color PyObject_to_sfColor(PyObject* obj);
 
 class UIGrid;
 class GridData;

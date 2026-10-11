@@ -357,10 +357,7 @@ PyObject* PyVoxelGrid::add_material(PyVoxelGridObject* self, PyObject* args, PyO
 
     // Parse color if provided
     if (color_obj && color_obj != Py_None) {
-        color = PyColor::fromPy(color_obj);
-        if (PyErr_Occurred()) {
-            return nullptr;
-        }
+        if (!PyColor::to_color(color_obj, color)) return nullptr;  // #450
     }
 
     try {

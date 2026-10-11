@@ -19,8 +19,13 @@ public:
     void set(sf::Color);
     sf::Color get();
     PyObject* pyObject();
-    static sf::Color fromPy(PyObject*);
-    static sf::Color fromPy(PyColorObject*);
+    // #450: THE conversion for every Python value written to a Color: attribute setters,
+    // constructor kwargs, item assignment, method arguments and animate() targets.
+    // Accepts a Color (or subclass) or anything Color(value) accepts -- an (r, g, b[, a])
+    // tuple of ints in 0-255 -- and raises exactly what Color(value) raises otherwise.
+    // Never clamps, wraps, or substitutes a default. Optional arguments decide what None
+    // means before calling this; to_color itself rejects None as Color(None) does.
+    static bool to_color(PyObject* value, sf::Color& out);
     static PyObject* repr(PyObject*);
     static Py_hash_t hash(PyObject*);
     static PyObject* richcompare(PyObject*, PyObject*, int);
@@ -36,7 +41,6 @@ public:
     
     static PyGetSetDef getsetters[];
     static PyMethodDef methods[];
-    static PyColorObject* from_arg(PyObject*);
 };
 
 namespace mcrfpydef {

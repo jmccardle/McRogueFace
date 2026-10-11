@@ -16,29 +16,6 @@ PyObject* sfColor_to_PyObject(sf::Color color) {
     return Py_BuildValue("(iiii)", color.r, color.g, color.b, color.a);
 }
 
-// Utility function to convert PyObject* to sf::Color
-sf::Color PyObject_to_sfColor(PyObject* obj) {
-    // Check if it's a mcrfpy.Color object
-    int is_color = PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyColorType);
-
-    if (is_color == 1) {
-        PyColorObject* color_obj = (PyColorObject*)obj;
-        return color_obj->data;
-    } else if (is_color == -1) {
-        // Error occurred in PyObject_IsInstance
-        return sf::Color();
-    }
-
-    // Otherwise try to parse as tuple
-    int r, g, b, a = 255; // Default alpha to fully opaque if not specified
-    if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
-        PyErr_Clear(); // Clear the error from failed tuple parsing
-        PyErr_SetString(PyExc_TypeError, "color must be a Color object or a tuple of (r, g, b[, a])");
-        return sf::Color(); // Return default color on parse error
-    }
-    return sf::Color(r, g, b, a);
-}
-
 // #150 - Removed get_color/set_color - now handled by layers
 
 // #332 - validate the wrapper's (grid, x, y) still name a live in-bounds cell.
@@ -219,8 +196,8 @@ int UIGridPoint::setattro(PyUIGridPointObject* self, PyObject* name, PyObject* v
     // Set value based on layer type
     if (layer->type == GridLayerType::Color) {
         auto color_layer = std::static_pointer_cast<ColorLayer>(layer);
-        sf::Color color = PyObject_to_sfColor(value);
-        if (PyErr_Occurred()) return -1;
+        sf::Color color;
+        if (!PyColor::to_color(value, color)) return -1;  // #450: was a silent uint8 wrap
         color_layer->at(x, y) = color;
         color_layer->markDirty(x, y);  // Mark only the affected chunk
         return 0;

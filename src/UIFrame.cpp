@@ -372,47 +372,18 @@ PyObject* UIFrame::get_color_member(PyUIFrameObject* self, void* closure)
 
 int UIFrame::set_color_member(PyUIFrameObject* self, PyObject* value, void* closure)
 {
-    //TODO: this logic of (PyColor instance OR tuple -> sf::color) should be encapsulated for reuse
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    int r, g, b, a;
-    if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyColorType))
-    {
-        sf::Color c = ((PyColorObject*)value)->data;
-        r = c.r; g = c.g; b = c.b; a = c.a;
-    }
-    else if (!PyTuple_Check(value) || PyTuple_Size(value) < 3 || PyTuple_Size(value) > 4)
-    {
-        // reject non-Color, non-tuple value
-        PyErr_SetString(PyExc_TypeError, "Value must be a tuple of 3 or 4 integers or an mcrfpy.Color object.");
-        return -1;
-    }
-    else // get value from tuples
-    {
-        r = PyLong_AsLong(PyTuple_GetItem(value, 0));
-        g = PyLong_AsLong(PyTuple_GetItem(value, 1));
-        b = PyLong_AsLong(PyTuple_GetItem(value, 2));
-        a = 255;
-
-        if (PyTuple_Size(value) == 4)
-        {
-            a = PyLong_AsLong(PyTuple_GetItem(value, 3));
-        }
-    }
-
-    if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255)
-    {
-        PyErr_SetString(PyExc_ValueError, "Color values must be between 0 and 255.");
-        return -1;
-    }
+    sf::Color color;
+    if (!PyColor::to_color(value, color)) return -1;  // #450
 
     if (member_ptr == 0)
     {
-        self->data->box.setFillColor(sf::Color(r, g, b, a));
+        self->data->box.setFillColor(color);
         self->data->markDirty();
     }
     else if (member_ptr == 1)
     {
-        self->data->box.setOutlineColor(sf::Color(r, g, b, a));
+        self->data->box.setOutlineColor(color);
         self->data->markDirty();
     }
     else
@@ -717,26 +688,18 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     
     // Handle fill_color
     if (fill_color && fill_color != Py_None) {
-        PyColorObject* color_obj = PyColor::from_arg(fill_color);
-        if (!color_obj) {
-            PyErr_SetString(PyExc_TypeError, "fill_color must be a Color or color tuple");
-            return -1;
-        }
-        self->data->box.setFillColor(color_obj->data);
-        Py_DECREF(color_obj);
+        sf::Color color;
+        if (!PyColor::to_color(fill_color, color)) return -1;  // #450
+        self->data->box.setFillColor(color);
     } else {
         self->data->box.setFillColor(sf::Color(0, 0, 0, 128));  // Default: semi-transparent black
     }
     
     // Handle outline_color
     if (outline_color && outline_color != Py_None) {
-        PyColorObject* color_obj = PyColor::from_arg(outline_color);
-        if (!color_obj) {
-            PyErr_SetString(PyExc_TypeError, "outline_color must be a Color or color tuple");
-            return -1;
-        }
-        self->data->box.setOutlineColor(color_obj->data);
-        Py_DECREF(color_obj);
+        sf::Color color;
+        if (!PyColor::to_color(outline_color, color)) return -1;  // #450
+        self->data->box.setOutlineColor(color);
     } else {
         self->data->box.setOutlineColor(sf::Color(255, 255, 255, 255));  // Default: white
     }
