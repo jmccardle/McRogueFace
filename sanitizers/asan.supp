@@ -31,3 +31,78 @@ leak:_PyImport_FindExtensionObject
 # dlopen — loaded shared libraries are intentionally kept resident
 leak:dlopen
 leak:_dl_open
+
+# ---------------------------------------------------------------------------
+# Definition-time leftovers (CPython 3.15).
+#
+# Why anything survives Py_Finalize at all: the engine keeps Python objects
+# alive past it (the enum classes cached in Py*::*_enum_class statics, and
+# any object still owned by C++ when finalization starts -- see the note at
+# the bottom). Each surviving object strands what it references: its class,
+# that class's module, the module's code objects. A bare embedder running
+# the same code with no such references leaks nothing (verified 2026-10).
+#
+# These frames only run when code is *defined* (parsed, unmarshalled, a class
+# or module body executed), never per engine operation, so they cannot hide
+# a leak that grows with use. Anchored (^...$) because LSan matches a bare
+# template as a substring of every frame's function AND file name.
+#
+# Never add generic allocation frames here (new_keys_object, list_resize,
+# PyType_GenericAlloc, _PyObject_New...): engine-caused leaks allocate
+# through them too, and LSan suppresses a report if ANY frame matches.
+#
+# Caveat: freelist-recycled objects (tuples, lists, dicts, floats) carry the
+# stack of the chunk's first malloc. A per-op engine leak of one can hide
+# behind an init-time stack for at most a freelist's worth of iterations;
+# measure growth at N=10 vs N=40, not presence at N=1.
+# ---------------------------------------------------------------------------
+
+# .pyc unmarshalling (code objects and their constants)
+leak:^r_object$
+# compiling source: parser and compiler
+leak:^_PyPegen_
+leak:^_PyAST_Compile$
+# class creation: the type object, its dict, its __doc__, __set_name__ work
+leak:^type_new_impl$
+leak:^builtin___build_class__$
+# class attributes assigned after creation (enum's EnumType, Key.__hash__ = ...)
+leak:^type_setattro$
+# BLIND SPOT: these also hide engine leaks caused while an imported module's body
+# runs (a game module that builds scenes at import). Test scripts run via --exec
+# (PyRun, not exec()), so their bodies stay checked.
+# module bodies: importlib runs a source module's body via exec(), frozen
+# modules via exec_code_in_module, C extensions via PyModule_ExecDef;
+# extension module objects are built by PyModule_FromDefAndSpec2
+leak:^builtin_exec$
+leak:^exec_code_in_module$
+leak:^PyModule_ExecDef$
+leak:^PyModule_FromDefAndSpec2$
+leak:^_add_methods_to_object$
+
+# ---------------------------------------------------------------------------
+# Engine leftovers that exist once per process.
+# ---------------------------------------------------------------------------
+
+# Interpreter startup (Py_InitializeFromConfig and the frozen importlib).
+leak:McRFPy_API::init_python_with_config
+# mcrfpy is created once per process (Py_mod_create refuses a second time).
+# Everything built here lives as long as the interpreter: the static types,
+# the mcrfpy.automation submodule, and the IntEnum classes from
+# Py*::create_enum_class, which the *_enum_class statics hold a strong
+# reference to and never release, so they outlive Py_Finalize.
+leak:mcrfpy_module_create
+
+# ---------------------------------------------------------------------------
+# NOT suppressible here: objects still owned by C++ at Py_Finalize.
+#
+# CPython clears runtime->initialized before it collects garbage and clears
+# module dicts, so during finalization Py_IsInitialized() is already 0 and
+# every engine DECREF guarded by it is skipped (PyIdentityPin::release,
+# ~Animation, ~UIEntity, ~UIGridView). A Frame with children, a Grid with
+# entities, a running Timer or a registered Scene that is still alive when
+# the script calls sys.exit() strands its C++ half. These allocate through
+# ordinary constructors (UICaption::init, UIGridView::init, PyTimer::init...),
+# so suppressing them would also hide per-op leaks of the same objects. The
+# same objects released before exit leak nothing. Fix it in the engine
+# (tear the engine's Python references down before Py_Finalize), not here.
+# ---------------------------------------------------------------------------
