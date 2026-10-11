@@ -44,7 +44,7 @@ def test_a_plain_cell_click():
     ui = scene.children
     mcrfpy.current_scene = scene
 
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     ui.append(grid)
 
     clicks = []
@@ -73,7 +73,7 @@ def test_b_panned_zoomed_cell_click():
     ui = scene.children
     mcrfpy.current_scene = scene
 
-    grid = mcrfpy.Grid(grid_size=(10, 10), pos=(50, 50), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(10, 10), texture=mcrfpy.default_texture, pos=(50, 50), size=(200, 200))
     ui.append(grid)
 
     grid.zoom = 2.0
@@ -106,7 +106,7 @@ def test_c_hover_boundary():
     ui = scene.children
     mcrfpy.current_scene = scene
 
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     ui.append(grid)
 
     enters = []
@@ -135,7 +135,7 @@ def test_d_child_drawable_click():
     ui = scene.children
     mcrfpy.current_scene = scene
 
-    grid = mcrfpy.Grid(grid_size=(10, 10), pos=(50, 50), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(10, 10), texture=mcrfpy.default_texture, pos=(50, 50), size=(200, 200))
     ui.append(grid)
 
     # Grid-world pixel box [90,110]x[90,110]. Default camera (center=(100,100),
@@ -183,7 +183,7 @@ def test_e_subclass_method_override():
     ui = scene.children
     mcrfpy.current_scene = scene
 
-    mg = ClickCountingGrid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    mg = ClickCountingGrid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     ui.append(mg)
 
     # local=(36,52) -> cell (2,3), same math as (a).

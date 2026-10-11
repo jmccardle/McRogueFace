@@ -257,7 +257,7 @@ submodule automation
   DONE = 0
   TARGET = 2
 
-=== FROZEN TYPES (31) ===
+=== FROZEN TYPES (32) ===
 [AStarPath]
   prop destination: Vector (ro)
   prop origin: Vector (ro)
@@ -489,7 +489,7 @@ submodule automation
   prop sprite_offset_y: float (rw)
   prop step: Any (rw)
   prop target_label: Any (rw)
-  prop texture: Texture (rw)
+  prop texture: Texture | None (rw)
   prop tile_height: int (rw)
   prop tile_size: Vector (rw)
   prop tile_width: int (rw)
@@ -591,7 +591,7 @@ submodule automation
   prop rotation: Any (rw)
   prop shader: Any (rw)
   prop size: Vector (rw)
-  prop texture: Texture | None (ro)
+  prop texture: Texture | None (rw)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
@@ -606,6 +606,9 @@ submodule automation
   meth realign :: realign() -> None
   meth resize :: resize(width, height) or (size) -> None
 [GridData]
+  prop cell_height: int (rw)
+  prop cell_size: Vector (rw)
+  prop cell_width: int (rw)
   prop dijkstra_cache_budget: int (rw)
   prop dijkstra_cache_bytes: int (ro)
   prop entities: EntityCollection (ro)
@@ -615,7 +618,7 @@ submodule automation
   prop grid_size: Vector (ro)
   prop grid_w: int (ro)
   prop layers: tuple (ro)
-  prop texture: Texture | None (ro)
+  prop texture: Texture | None (rw)
   meth add_layer :: add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer
   meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> GridData
   meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> GridData
@@ -664,7 +667,7 @@ submodule automation
   prop rotation: Any (rw)
   prop shader: Any (rw)
   prop size: Vector (rw)
-  prop texture: Texture | None (ro)
+  prop texture: Texture | None (rw)
   prop uniforms: Any (ro)
   prop vert_margin: float (rw)
   prop visible: bool (rw)
@@ -882,6 +885,10 @@ submodule automation
   meth composite :: composite(layers: list[Texture], sprite_width: int, sprite_height: int, name: str = '<composite>') -> Texture
   meth from_bytes :: from_bytes(data: bytes, width: int, height: int, sprite_width: int, sprite_height: int, name: str = '<generated>') -> Texture
   meth hsl_shift :: hsl_shift(hue_shift: float, sat_shift: float = 0.0, lit_shift: float = 0.0) -> Texture
+[TextureWarning]
+  prop args: Any (rw)
+  meth add_note :: Add a note to the exception
+  meth with_traceback :: Set self.__traceback__ to tb and return self.
 [TileLayer]
   prop grid: Grid | None (rw)
   prop grid_size: tuple (ro)
@@ -1183,6 +1190,9 @@ submodule automation
 
 === INTERNAL TYPES (reached via live instances) ===
 [GridData]
+  prop cell_height: int (rw)
+  prop cell_size: Vector (rw)
+  prop cell_width: int (rw)
   prop dijkstra_cache_budget: int (rw)
   prop dijkstra_cache_bytes: int (ro)
   prop entities: EntityCollection (ro)
@@ -1192,7 +1202,7 @@ submodule automation
   prop grid_size: Vector (ro)
   prop grid_w: int (ro)
   prop layers: tuple (ro)
-  prop texture: Texture | None (ro)
+  prop texture: Texture | None (rw)
   meth add_layer :: add_layer(layer: ColorLayer | TileLayer) -> ColorLayer | TileLayer
   meth apply_ranges :: apply_ranges(source: HeightMap, ranges: list) -> GridData
   meth apply_threshold :: apply_threshold(source: HeightMap, range: tuple, walkable: bool = None, transparent: bool = None) -> GridData
@@ -1262,7 +1272,7 @@ func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> Non
 func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
 === DELEGATION INTEGRITY (Grid instance -> GridData) ===
-  delegated-resolved: 23/23
+  delegated-resolved: 26/26
 
 === WRITABILITY PROBES (#313-touched properties) ===
   Entity.grid: writable

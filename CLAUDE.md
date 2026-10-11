@@ -866,6 +866,12 @@ grid.center = (120, 80)  # pixels: (cells * cell_size / 2)
 # set grid.center to focus on that position. To position the camera in tile coordinates, use grid.center_camera():
 grid.center_camera((14.5, 8.5)) # offset of 0.5 tiles to point at the middle of the tile
 
+# Grid texture / cell size (#453, #454): a grid made without texture= has none and 1x1 cells
+# until a view first DRAWS it (screenshot or windowed frame; step() never draws), which then
+# assigns mcrfpy.default_texture with a mcrfpy.TextureWarning. Tests doing 16px pixel math or
+# clicks before drawing must pass texture=mcrfpy.default_texture (or set grid.cell_size).
+# Layers/entities without their own texture have .texture None and draw with grid.texture.
+
 # Grid.step (turn manager): advances all entities by n turns in turn_order order.
 grid.step(n=1, turn_order=None)  # turn_order=None = use each entity's .turn_order (ascending)
 

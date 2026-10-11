@@ -51,7 +51,7 @@ def screen_of_cell(grid, cx, cy, zoom=1.0):
 def case_a_property_click():
     scene = mcrfpy.Scene("a_click")
     scene.activate()
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
     grid.center_camera((2.5, 2.5))
 
@@ -74,7 +74,7 @@ def case_a_property_click():
 def case_b_panned_zoomed():
     scene = mcrfpy.Scene("b_zoom")
     scene.activate()
-    grid = mcrfpy.Grid(grid_size=(10, 10), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(10, 10), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
     grid.zoom = 2.0
     grid.center = (7 * CELL, 5 * CELL)  # pan the camera off the default
@@ -94,7 +94,7 @@ def case_b_panned_zoomed():
 def case_c_hover():
     scene = mcrfpy.Scene("c_hover")
     scene.activate()
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
 
     entered, exited = [], []
@@ -136,7 +136,7 @@ def case_d_subclass():
 
     scene = mcrfpy.Scene("d_subclass")
     scene.activate()
-    grid = MyGrid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = MyGrid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
 
     automation.moveTo(screen_of_cell(grid, 1, 1))
@@ -152,7 +152,7 @@ def case_d_subclass():
 def case_e_child_consumes_click():
     scene = mcrfpy.Scene("e_child")
     scene.activate()
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
 
     cell_clicks, frame_clicks = [], []
@@ -179,7 +179,7 @@ def case_e_child_consumes_click():
 def case_f_two_views_one_griddata():
     scene = mcrfpy.Scene("f_views")
     scene.activate()
-    g = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    g = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(g)
 
     v2 = mcrfpy.GridView(grid=g.grid_data, pos=(400, 100), size=(200, 200))
@@ -226,7 +226,7 @@ def case_g_child_hover():
     """
     scene = mcrfpy.Scene("g_child_hover")
     scene.activate()
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
 
     entered, exited, moved = [], [], []

@@ -93,6 +93,12 @@ void UIGridView::move(float dx, float dy)
 
 void UIGridView::resize(float w, float h)
 {
+    size_follows_map = false;   // #453: the size was chosen
+    applySize(w, h);
+}
+
+void UIGridView::applySize(float w, float h)
+{
     box.setSize(sf::Vector2f(w, h));
 
     // #364: aligned children re-anchor against the widget's new bounds. This ran in
@@ -116,9 +122,32 @@ void UIGridView::onPositionChanged()
 
 sf::Vector2f UIGridView::getEffectiveCellSize() const
 {
-    int cw = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
-    int ch = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
-    return sf::Vector2f(cw * zoom, ch * zoom);
+    const sf::Vector2i cell_px = cellSize();
+    return sf::Vector2f(cell_px.x * zoom, cell_px.y * zoom);
+}
+
+sf::Vector2i UIGridView::cellSize() const
+{
+    return grid_data ? grid_data->cellSize() : sf::Vector2i(1, 1);
+}
+
+void UIGridView::onCellSizeChanged(sf::Vector2i old, sf::Vector2i now)
+{
+    // A view sized to show the whole map (the default) keeps showing it.
+    if (size_follows_map && grid_data) {
+        applySize(grid_data->grid_w * (float)now.x, grid_data->grid_h * (float)now.y);
+        ensureRenderTextureSize();
+    }
+    if (camera_is_default) {
+        // Cell (0, 0) at the top left, as at construction.
+        center_x = box.getSize().x / (2.0f * zoom);
+        center_y = box.getSize().y / (2.0f * zoom);
+    } else {
+        // The camera is in data pixels: keep the same cells centered.
+        center_x = center_x / old.x * now.x;
+        center_y = center_y / old.y * now.y;
+    }
+    markDirty();
 }
 
 sf::Vector2f UIGridView::localToGridWorld(sf::Vector2f local) const
@@ -163,8 +192,9 @@ std::optional<sf::Vector2i> UIGridView::cellAtLocal(sf::Vector2f local) const
         local.x >= box.getSize().x || local.y >= box.getSize().y) {
         return std::nullopt;
     }
-    int cw = ptex ? ptex->sprite_width  : DEFAULT_CELL_WIDTH;
-    int ch = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    const sf::Vector2i cell_px = cellSize();
+    int cw = cell_px.x;
+    int ch = cell_px.y;
     sf::Vector2f gw = localToGridWorld(local);
     int cx = static_cast<int>(std::floor(gw.x / cw));
     int cy = static_cast<int>(std::floor(gw.y / ch));
@@ -176,18 +206,22 @@ std::optional<sf::Vector2i> UIGridView::cellAtLocal(sf::Vector2f local) const
 void UIGridView::center_camera()
 {
     if (!grid_data) return;
-    int cw = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
-    int ch = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    const sf::Vector2i cell_px = cellSize();
+    int cw = cell_px.x;
+    int ch = cell_px.y;
     center_x = (grid_data->grid_w / 2.0f) * cw;
     center_y = (grid_data->grid_h / 2.0f) * ch;
+    camera_is_default = false;
 }
 
 void UIGridView::center_camera(float tile_x, float tile_y)
 {
-    int cw = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
-    int ch = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    const sf::Vector2i cell_px = cellSize();
+    int cw = cell_px.x;
+    int ch = cell_px.y;
     center_x = tile_x * cw;
     center_y = tile_y * ch;
+    camera_is_default = false;
 }
 
 // =========================================================================
@@ -196,6 +230,17 @@ void UIGridView::center_camera(float tile_x, float tile_y)
 void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
 {
     if (!visible || !grid_data) return;
+
+    // #453: drawn with no texture -- assign mcrfpy.default_texture (with a
+    // TextureWarning). This can change the cell size, so it comes before anything
+    // that reads it.
+    if (!grid_data->ensureTextureForDrawing()) {
+        PyErr_Print();
+        if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+            McRFPy_API::signalPythonException();
+        }
+        return;
+    }
 
     ensureRenderTextureSize();
 
@@ -246,8 +291,9 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
         return;
     }
 
-    int cell_width = ptex ? ptex->sprite_width : DEFAULT_CELL_WIDTH;
-    int cell_height = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    const sf::Vector2i cell_px = cellSize();
+    int cell_width = cell_px.x;
+    int cell_height = cell_px.y;
 
     bool has_camera_rotation = (camera_rotation != 0.0f);
     float grid_w_px = box.getSize().x;
@@ -331,7 +377,8 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
             auto pixel_pos = sf::Vector2f(
                 (e->position.x*cell_width - left_spritepixels + e->sprite_offset.x) * zoom,
                 (e->position.y*cell_height - top_spritepixels + e->sprite_offset.y) * zoom);
-            drawent.render(pixel_pos, *activeTexture);
+            // #454: an entity with no texture of its own draws with the grid's.
+            drawent.render(pixel_pos, *activeTexture, grid_data->getTexture());
             ++metrics.entitiesRendered;
         }
     }
@@ -485,8 +532,9 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
     sf::Vector2f local = point - box.getPosition();
     sf::Vector2f gw    = localToGridWorld(local);
 
-    int cw = ptex ? ptex->sprite_width  : DEFAULT_CELL_WIDTH;
-    int ch = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    const sf::Vector2i cell_px = cellSize();
+    int cw = cell_px.x;
+    int ch = cell_px.y;
     float grid_x = gw.x / cw;
     float grid_y = gw.y / ch;
 
@@ -541,8 +589,8 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
 // opacity, z_index) are handled by UIDrawable (#426, lost in the #355 type split).
 bool UIGridView::setProperty(const std::string& name, float value)
 {
-    if (name == "center_x") { center_x = value; return true; }
-    if (name == "center_y") { center_y = value; return true; }
+    if (name == "center_x") { center_x = value; camera_is_default = false; return true; }
+    if (name == "center_y") { center_y = value; camera_is_default = false; return true; }
     if (name == "zoom") { zoom = value; return true; }
     if (name == "camera_rotation") { camera_rotation = value; return true; }
     if (setShaderProperty(name, value)) return true;
@@ -554,6 +602,7 @@ bool UIGridView::setProperty(const std::string& name, const sf::Vector2f& value)
     if (name == "center") {
         center_x = value.x;
         center_y = value.y;
+        camera_is_default = false;
         return true;
     }
     return UIDrawable::setProperty(name, value);
@@ -699,7 +748,6 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
             PyErr_SetString(PyExc_ValueError, "grid has no data to view");
             return -1;
         }
-        self->data->ptex = self->data->grid_data->getTexture();
     } else {
         std::shared_ptr<PyTexture> texture;
         if (PyGridData::parse_grid_shape(grid_size_obj, texture_obj,
@@ -707,10 +755,9 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
             return -1;
         }
         self->data->grid_data = std::make_shared<GridData>(grid_w, grid_h, texture);
-        if (PyGridData::apply_layers_arg(self->data->grid_data, layers_obj, texture) < 0) {
+        if (PyGridData::apply_layers_arg(self->data->grid_data, layers_obj) < 0) {
             return -1;
         }
-        self->data->ptex = texture;
     }
 
     auto& grid_data = self->data->grid_data;
@@ -745,9 +792,10 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         w = s.x;
         h = s.y;
     } else if (w == 0.0f && h == 0.0f) {
-        // Default: show the whole map at 1:1.
+        // Default: show the whole map at 1:1, following the cell size (#453).
         w = grid_data->grid_w * static_cast<float>(grid_data->cell_width());
         h = grid_data->grid_h * static_cast<float>(grid_data->cell_height());
+        self->data->size_follows_map = true;
     }
 
     self->data->zoom = zoom;
@@ -760,6 +808,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     if (name) self->data->UIDrawable::name = std::string(name);
 
     // #169 - default camera puts tile (0,0) at the widget's top-left.
+    self->data->camera_is_default = std::isnan(center_x) && std::isnan(center_y);
     if (std::isnan(center_x)) center_x = w / (2.0f * zoom);
     if (std::isnan(center_y)) center_y = h / (2.0f * zoom);
     self->data->center_x = center_x;
@@ -936,7 +985,6 @@ int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closur
     if (PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyGridDataType)) {
         PyGridDataObject* pygrid = (PyGridDataObject*)value;
         self->data->grid_data = pygrid->data;
-        self->data->ptex = pygrid->data->getTexture();
         self->data->grid_data->registerView(self->data);
         return 0;
     }
@@ -945,7 +993,6 @@ int UIGridView::set_grid(PyUIGridViewObject* self, PyObject* value, void* closur
         PyUIGridViewObject* pyview = (PyUIGridViewObject*)value;
         if (pyview->data->grid_data) {
             self->data->grid_data = pyview->data->grid_data;
-            self->data->ptex = pyview->data->ptex;
             // #359: register self alongside the original owner (and any other
             // secondary views) -- does not disturb primaryView() identity,
             // which stays views.front() (the original creator).
@@ -970,6 +1017,7 @@ int UIGridView::set_center(PyUIGridViewObject* self, PyObject* value, void* clos
     if (PyErr_Occurred()) return -1;
     self->data->center_x = vec.x;
     self->data->center_y = vec.y;
+    self->data->camera_is_default = false;
     return 0;
 }
 
@@ -1111,12 +1159,21 @@ int UIGridView::set_perspective_enabled(PyUIGridViewObject* self, PyObject* valu
     return 0;
 }
 
+// #453: a view has no texture of its own (yet; see #454). `texture` is its GridData's,
+// read and written through, so `grid.texture = t` restyles the map.
 PyObject* UIGridView::get_texture(PyUIGridViewObject* self, void* closure)
 {
-    // #318: return a Texture wrapper sharing the underlying shared_ptr<PyTexture>,
-    // mirroring PyGridData::get_texture. None only when the view has no texture.
-    // #430: cache-aware, so this is the very Texture the user passed in.
-    return PyTexture::pyobject_for(self->data->ptex);
+    if (!self->data->grid_data) Py_RETURN_NONE;
+    return PyTexture::pyobject_for(self->data->grid_data->getTexture());
+}
+
+int UIGridView::set_texture(PyUIGridViewObject* self, PyObject* value, void* closure)
+{
+    if (!self->data->grid_data) {
+        PyErr_SetString(PyExc_ValueError, "this view has no GridData to give a texture");
+        return -1;
+    }
+    return PyGridData::assign_texture(self->data->grid_data, value);
 }
 
 // Float member getters/setters for GridView-specific float members (center_x, center_y, zoom, camera_rotation)
@@ -1143,8 +1200,8 @@ int UIGridView::set_float_member_gv(PyUIGridViewObject* self, PyObject* value, v
 
     auto member_offset = (int)(intptr_t)closure;
     switch (member_offset) {
-        case 4: self->data->center_x = val; break;
-        case 5: self->data->center_y = val; break;
+        case 4: self->data->center_x = val; self->data->camera_is_default = false; break;
+        case 5: self->data->center_y = val; self->data->camera_is_default = false; break;
         case 6: self->data->zoom = val; break;
         case 7: self->data->camera_rotation = val; break;
         default: PyErr_SetString(PyExc_RuntimeError, "Invalid member offset"); return -1;
@@ -1598,8 +1655,9 @@ PyGetSetDef UIGridView::getsetters[] = {
      MCRF_PROPERTY(fill_color, "Background fill color (Color). Drawn behind all tiles and entities."), NULL},
     // #318/#252: this type is exposed as BOTH mcrfpy.Grid and mcrfpy.GridView, so the
     // docstring is kept type-neutral (accurate for either name).
-    {"texture", (getter)UIGridView::get_texture, NULL,
-     MCRF_PROPERTY(texture, "Texture used for tile rendering (Texture | None, read-only)."), NULL},
+    {"texture", (getter)UIGridView::get_texture, (setter)UIGridView::set_texture,
+     MCRF_PROPERTY(texture, "The GridData's tile atlas (Texture | None); setting it sets the data's. "
+                            "Layers and entities with no texture of their own draw with it."), NULL},
     // UIDrawable base properties - applied to GridView (the rendered object)
     {"pos", (getter)UIDrawable::get_pos, (setter)UIDrawable::set_pos,
      MCRF_PROPERTY(pos, "Position of the grid as Vector (Vector)."), (void*)PyObjectsEnum::UIGRIDVIEW},

@@ -28,7 +28,7 @@ def test_properties():
 
     test_props = mcrfpy.Scene("test_props")
     ui = test_props.children
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     ui.append(grid)
 
     # #230 - cell enter/exit receive (cell_pos: Vector)
@@ -71,7 +71,7 @@ def test_cell_hover():
     ui = test_hover.children
     test_hover.activate()
 
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     ui.append(grid)
 
     enter_events = []
@@ -118,7 +118,7 @@ def test_cell_click():
     ui = test_click.children
     test_click.activate()
 
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     ui.append(grid)
 
     click_events = []

@@ -167,7 +167,7 @@ mcrfpy.current_scene = test
 scene_ui = test.children
 
 GRID_X, GRID_Y = 10, 10
-grid = mcrfpy.Grid(grid_size=(GRID_CELLS, GRID_CELLS), pos=(GRID_X, GRID_Y), size=(200, 150))
+grid = mcrfpy.Grid(grid_size=(GRID_CELLS, GRID_CELLS), texture=mcrfpy.default_texture, pos=(GRID_X, GRID_Y), size=(200, 150))
 colors = mcrfpy.ColorLayer(name="cells")
 grid.add_layer(colors)
 create_checkerboard_pattern(colors, GRID_CELLS, GRID_CELLS)

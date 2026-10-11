@@ -40,24 +40,16 @@ if isinstance(t, mcrfpy.Texture):
           and t.sprite_width == grid.texture.sprite_width
           and t.sprite_height == grid.texture.sprite_height)
 
-# --- A grid created without an explicit texture still gets the engine default
-# texture, so its view's texture is also non-None (the getter's None branch is
-# defensive-only -- no public API produces a textureless grid). -------------
+# --- #453: a grid created without a texture has none until it's first drawn, and
+# a view reports its GridData's texture (it has none of its own yet, #454). ----
 bare_grid = mcrfpy.Grid(grid_size=(8, 8))
 bare_view = mcrfpy.GridView(grid=bare_grid, pos=(0, 0), size=(80, 80))
-check("default-textured grid's view exposes a Texture (not None)",
-      isinstance(bare_view.texture, mcrfpy.Texture))
-check("view texture matches its grid's texture source",
-      bare_view.texture.source == bare_grid.texture.source)
+check("a grid made without a texture has none (not yet drawn)", bare_view.texture is None)
 
-# --- property is read-only (NULL setter) -----------------------------------
-try:
-    view.texture = texture
-    check("GridView.texture is read-only (assignment raises)", False)
-except AttributeError:
-    check("GridView.texture is read-only (assignment raises)", True)
-except Exception as e:
-    check("GridView.texture is read-only (raised %s)" % type(e).__name__, False)
+# --- #453: assigning passes through to the GridData --------------------------
+bare_view.texture = texture
+check("view.texture = t sets the GridData's texture",
+      bare_grid.grid_data.texture is texture and bare_view.texture is texture)
 
 
 print("")
@@ -66,5 +58,5 @@ if failures:
     for f in failures:
         print("  - " + f)
     sys.exit(1)
-print("PASS -- GridView.texture returns the tile Texture (or None when absent).")
+print("PASS -- GridView.texture is its GridData's tile Texture (or None).")
 sys.exit(0)

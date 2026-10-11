@@ -42,6 +42,8 @@ public:
     sf::FloatRect get_bounds() const override;
     void move(float dx, float dy) override;
     void resize(float w, float h) override;
+    // resize() without clearing size_follows_map
+    void applySize(float w, float h);
     void onPositionChanged() override;   // #355: keep box in sync with position
     int traverseOwned(visitproc visit, void* arg) override;  // #441
     void clearOwned() override;
@@ -71,8 +73,8 @@ public:
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>> children;
     bool children_need_sort = true;
 
-    // Rendering state (independent per view)
-    std::shared_ptr<PyTexture> ptex;
+    // Rendering state (independent per view). #453: the view has no texture or cell
+    // size of its own; both come from its GridData.
     sf::RectangleShape box;
     float center_x = 0, center_y = 0, zoom = 1.0f;
     float camera_rotation = 0.0f;
@@ -160,9 +162,16 @@ public:
     // go through cellAtLocal(). A global-coords helper would be a second, wrong
     // coordinate path for grids nested inside frames/grids.
     sf::Vector2f getEffectiveCellSize() const;
-
-    static constexpr int DEFAULT_CELL_WIDTH = 16;
-    static constexpr int DEFAULT_CELL_HEIGHT = 16;
+    // The data's cell size, in data pixels (1x1 with no data).
+    sf::Vector2i cellSize() const;
+    // #453: the data's cell size moved from `old` to `now`. The camera keeps looking
+    // at the same cells, and a view still the size of the whole map stays that size.
+    void onCellSizeChanged(sf::Vector2i old, sf::Vector2i now);
+    // #453: set at construction when no size / center was given, cleared by any
+    // assignment to them. While set, a cell-size change recomputes them (the whole
+    // map at 1:1; cell (0, 0) at the top left) instead of keeping the old pixels.
+    bool size_follows_map = false;
+    bool camera_is_default = false;
 
     // =========================================================================
     // Python API
@@ -180,6 +189,8 @@ public:
     static PyObject* get_grid_pyobj(PyUIGridViewObject* self);
 
     static PyObject* get_grid(PyUIGridViewObject* self, void* closure);
+    static PyObject* get_texture(PyUIGridViewObject* self, void* closure);
+    static int set_texture(PyUIGridViewObject* self, PyObject* value, void* closure);
     static int set_grid(PyUIGridViewObject* self, PyObject* value, void* closure);
     static PyObject* get_center(PyUIGridViewObject* self, void* closure);
     static int set_center(PyUIGridViewObject* self, PyObject* value, void* closure);
@@ -192,7 +203,6 @@ public:
     static PyObject* py_center_camera(PyUIGridViewObject* self, PyObject* args);
     static PyObject* get_fill_color(PyUIGridViewObject* self, void* closure);
     static int set_fill_color(PyUIGridViewObject* self, PyObject* value, void* closure);
-    static PyObject* get_texture(PyUIGridViewObject* self, void* closure);
     static PyObject* get_float_member_gv(PyUIGridViewObject* self, void* closure);
     static int set_float_member_gv(PyUIGridViewObject* self, PyObject* value, void* closure);
 
@@ -274,8 +284,11 @@ namespace mcrfpydef {
             "Args:\n"
             "    grid_size (tuple): Grid dimensions as (grid_w, grid_h). Default: (2, 2)\n"
             "    pos (tuple): Position as (x, y). Default: (0, 0)\n"
-            "    size (tuple): Size as (w, h). Default: auto-calculated\n"
-            "    texture (Texture): Tile texture atlas. Default: default texture\n\n"
+            "    size (tuple): Size as (w, h). Default: the whole map at 1:1 (grid_size x\n"
+            "        cell_size), following the cell size if it changes.\n"
+            "    texture (Texture): Tile texture atlas; its sprite size is the cell size.\n"
+            "        Default: None -- assigned mcrfpy.default_texture (with a\n"
+            "        TextureWarning) when the grid is first drawn.\n\n"
             "Keyword Args:\n"
             "    grid (Grid): Existing Grid to view (creates view of shared data).\n"
             "    fill_color (Color): Background fill color.\n"

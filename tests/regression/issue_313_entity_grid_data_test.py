@@ -64,11 +64,10 @@ def main():
         check(False, "(b) non-Texture assignment raises TypeError")
     except TypeError:
         check(True, "(b) non-Texture assignment raises TypeError")
-    try:
-        entity.texture = None
-        check(False, "(b) None assignment raises TypeError")
-    except TypeError:
-        check(True, "(b) None assignment raises TypeError")
+    # #454: None means "none of its own" -- it draws with its grid's texture.
+    entity.texture = None
+    check(entity.texture is None, "(b) None assignment clears the entity's own texture")
+    entity.texture = tex8
     try:
         del entity.texture
         check(False, "(b) attribute deletion raises TypeError")

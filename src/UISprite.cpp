@@ -168,6 +168,20 @@ void UISprite::render(sf::Vector2f offset, sf::RenderTarget& target)
     sprite.setColor(color);
 }
 
+void UISprite::render(sf::Vector2f offset, sf::RenderTarget& target,
+                      const std::shared_ptr<PyTexture>& inherited)
+{
+    if (ptex || !inherited) {
+        if (ptex) render(offset, target);
+        return;   // no texture anywhere: nothing to draw
+    }
+    sf::Sprite own = sprite;
+    sprite = inherited->sprite(sprite_index, own.getPosition(), own.getScale());
+    sprite.setColor(own.getColor());
+    render(offset, target);
+    sprite = own;   // don't keep a pointer into a texture we don't own
+}
+
 void UISprite::setPosition(sf::Vector2f pos)
 {
     position = pos;  // Update base class position
@@ -184,13 +198,22 @@ void UISprite::setTexture(std::shared_ptr<PyTexture> _ptex, int _sprite_index)
     ptex = _ptex;
     if (_sprite_index != -1) // if you are changing textures, there's a good chance you need a new index too
         sprite_index = _sprite_index;
-    sprite = ptex->sprite(sprite_index, position, sprite.getScale());  // Use base class position
+    if (ptex) {
+        sprite = ptex->sprite(sprite_index, position, sprite.getScale());  // Use base class position
+    } else {
+        // #454: no texture of its own (an entity inheriting its grid's)
+        sf::Sprite empty;
+        empty.setPosition(sprite.getPosition());
+        empty.setScale(sprite.getScale());
+        empty.setColor(sprite.getColor());
+        sprite = empty;
+    }
 }
 
 void UISprite::setSpriteIndex(int _sprite_index)
 {
     sprite_index = _sprite_index;
-    sprite = ptex->sprite(sprite_index, position, sprite.getScale());  // Use base class position
+    if (ptex) sprite = ptex->sprite(sprite_index, position, sprite.getScale());  // Use base class position
 }
 
 sf::Vector2f UISprite::getScale() const

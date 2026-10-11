@@ -117,7 +117,6 @@ void UITestScene::buildElements()
     auto e5 = std::make_shared<GridData>(4, 4, ptex);
     auto e5_view = std::make_shared<UIGridView>();
     e5_view->grid_data = e5;
-    e5_view->ptex = ptex;
     e5_view->position = sf::Vector2f(550, 150);
     e5_view->box.setPosition(e5_view->position);
     e5_view->box.setSize(sf::Vector2f(200, 200));

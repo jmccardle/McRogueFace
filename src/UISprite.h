@@ -35,6 +35,9 @@ public:
     UISprite& operator=(UISprite&& other) noexcept;
     void update();
     void render(sf::Vector2f, sf::RenderTarget&) override final;
+    // #454: draw with `inherited` when this sprite has no texture of its own (an
+    // entity inheriting its grid's). The sprite keeps no reference to it.
+    void render(sf::Vector2f, sf::RenderTarget&, const std::shared_ptr<PyTexture>& inherited);
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
     
     //void render(sf::Vector2f, sf::RenderTexture&);

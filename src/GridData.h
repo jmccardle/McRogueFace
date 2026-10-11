@@ -43,16 +43,17 @@ public:
     // =========================================================================
     int grid_w = 0, grid_h = 0;
 
-    // #361 - The tile atlas. This is DATA, not rendering state: it is what
-    // defines the cell size in pixels, which every tile<->pixel conversion in
-    // the engine (entity positions, layer geometry, a view's camera math)
-    // depends on. Views copy it to draw with; they do not own it. Write-once
-    // at construction, so cell_width_px/cell_height_px never go stale.
+    // #453 - The tile atlas, or none. A GridData needs no texture (or display) to
+    // calculate with; layers and entities that have no texture of their own draw
+    // with this one, looked up when they're drawn (#454), so assigning it restyles
+    // them. Change it with setTexture(), which also fills an unset cell size.
     std::shared_ptr<PyTexture> ptex;
     std::shared_ptr<PyTexture> getTexture() const { return ptex; }
-
-    static constexpr int DEFAULT_CELL_WIDTH = 16;
-    static constexpr int DEFAULT_CELL_HEIGHT = 16;
+    void setTexture(std::shared_ptr<PyTexture> texture);
+    // A view is about to draw this data: with no texture, assign
+    // mcrfpy.default_texture and warn (TextureWarning). Returns false, with a Python
+    // exception set, if the default can't be loaded or the warning was made an error.
+    bool ensureTextureForDrawing();
 
     // #361 - PythonObjectCache identity. GridData used to inherit this from
     // UIDrawable; now that it is not a drawable it carries its own, so that
@@ -73,12 +74,17 @@ public:
     // the owners of this GridData that also keep that wrapper alive.
     long wrapperKeepers(const PyObject* wrapper) const;
 
-    // #313 - Cell pixel dimensions, mirrored from ptex at construction. Lets
-    // the data layer do tile<->pixel math without reaching into a view.
-    int cell_width_px = 16;
-    int cell_height_px = 16;
-    int cell_width() const { return cell_width_px; }
-    int cell_height() const { return cell_height_px; }
+    // #453 - The calculation cell size: every tile<->pixel conversion (entity
+    // x/y/pos, a view's camera and hit testing) uses it. Unset (nullopt) reads the
+    // texture's sprite size, or 1x1 with no texture. Setting a texture fills an
+    // unset size; a set one (custom, or filled) is kept, including when the
+    // texture is removed. Change it only with setCellSize(), which moves the views'
+    // cameras so they keep looking at the same cells.
+    std::optional<sf::Vector2i> cell_size;
+    sf::Vector2i cellSize() const;
+    int cell_width() const { return cellSize().x; }
+    int cell_height() const { return cellSize().y; }
+    void setCellSize(std::optional<sf::Vector2i> size);
 
     // #332 - Logic cell storage as two dense row-major uint8 planes (SoA).
     // Replaces the 24-byte-per-cell array-of-UIGridPoint (walkable/transparent
@@ -289,6 +295,10 @@ public:
     void markCompositeDirty();
 
 protected:
+    // #453: after the effective cell size moved from `old`: rescale every view's
+    // camera, redraw every layer at the new size, and repaint.
+    void cellSizeChanged(sf::Vector2i old);
+
     // Initialize grid storage (flat or chunked) and TCOD map
     void initStorage(int gx, int gy, GridData* parent_ref);
     void cleanupTCOD();

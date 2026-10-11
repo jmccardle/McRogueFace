@@ -60,10 +60,9 @@ int PyGridData::parse_grid_shape(PyObject* grid_size_obj, PyObject* texture_obj,
             return -1;
         }
         texture_out = reinterpret_cast<PyTextureObject*>(texture_obj)->data;
-    } else {
-        texture_out = McRFPy_API::defaultTexture();
-        if (!texture_out) return -1;
     }
+    // #453: no texture stays none -- a GridData needs no texture (or display) to
+    // calculate with. The default is assigned when a view first draws it.
     return 0;
 }
 
@@ -97,12 +96,12 @@ static int attach_layer(const std::shared_ptr<GridData>& grid,
 }
 
 int PyGridData::apply_layers_arg(const std::shared_ptr<GridData>& grid,
-                                 PyObject* layers_obj,
-                                 std::shared_ptr<PyTexture> default_texture)
+                                 PyObject* layers_obj)
 {
     // Omitted -> one default TileLayer named "tilesprite" (z_index -1, below entities).
+    // It has no texture of its own, so it draws with the grid's (#454).
     if (layers_obj == nullptr) {
-        grid->addTileLayer(-1, default_texture, "tilesprite");
+        grid->addTileLayer(-1, nullptr, "tilesprite");
         return 0;
     }
     // Explicit None -> no rendering layers (entity storage + pathfinding only).
@@ -169,12 +168,9 @@ int PyGridData::apply_layers_arg(const std::shared_ptr<GridData>& grid,
             ((PyColorLayerObject*)item)->grid = grid;
         } else {
             auto* py_layer = (PyTileLayerObject*)item;
+            // #254/#454 - a TileLayer with no texture of its own draws with the grid's,
+            // looked up when drawn (TileLayer::render).
             py_layer->grid = grid;
-            // #254 - a TileLayer with no texture of its own inherits the grid's.
-            auto tile_layer_ptr = std::static_pointer_cast<TileLayer>(layer);
-            if (!tile_layer_ptr->texture) {
-                tile_layer_ptr->texture = grid->getTexture();
-            }
         }
 
         Py_DECREF(item);
@@ -226,7 +222,7 @@ int PyGridData::init(PyGridDataObject* self, PyObject* args, PyObject* kwds)
 
     self->data = std::make_shared<GridData>(grid_w, grid_h, texture);
 
-    if (apply_layers_arg(self->data, layers_obj, texture) < 0) {
+    if (apply_layers_arg(self->data, layers_obj) < 0) {
         return -1;
     }
 

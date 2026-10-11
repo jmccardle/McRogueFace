@@ -4,6 +4,7 @@
 #include "PyTexture.h"
 #include "UIGridView.h"        // #313/#359 - markDirty notifies registered views
 #include "PyWrap.h"
+#include "McRFPy_API.h"
 #include <algorithm>
 
 // #313/#361 - Render invalidation from the data layer (see GridData.h).
@@ -56,16 +57,67 @@ GridData::GridData()
     // #364: children live on UIGridView, not here -- see GridData.h.
 }
 
-// #361 - The real constructor. Cell size comes from the texture and is mirrored
-// into the plane dimensions; a GridData with no texture falls back to 16x16 so
-// tile<->pixel math stays defined for a map that is never drawn.
+// #361 - The real constructor. A texture fills the cell size (#453); without one
+// it stays unset and reads 1x1 until a texture or a size is given.
 GridData::GridData(int gx, int gy, std::shared_ptr<PyTexture> texture)
 : ptex(texture)
 {
     entities = std::make_shared<std::vector<std::shared_ptr<UIEntity>>>();  // #329
-    cell_width_px  = ptex ? ptex->sprite_width  : DEFAULT_CELL_WIDTH;
-    cell_height_px = ptex ? ptex->sprite_height : DEFAULT_CELL_HEIGHT;
+    if (ptex) cell_size = sf::Vector2i(ptex->sprite_width, ptex->sprite_height);
     initStorage(gx, gy, this);
+}
+
+// #453 - cell size (see GridData.h)
+sf::Vector2i GridData::cellSize() const
+{
+    if (cell_size) return *cell_size;
+    if (ptex) return sf::Vector2i(ptex->sprite_width, ptex->sprite_height);
+    return sf::Vector2i(1, 1);
+}
+
+void GridData::setCellSize(std::optional<sf::Vector2i> size)
+{
+    sf::Vector2i old = cellSize();
+    cell_size = size;
+    if (cellSize() != old) cellSizeChanged(old);
+}
+
+void GridData::setTexture(std::shared_ptr<PyTexture> texture)
+{
+    sf::Vector2i old = cellSize();
+    ptex = std::move(texture);
+    if (ptex && !cell_size) cell_size = sf::Vector2i(ptex->sprite_width, ptex->sprite_height);
+    // Layers that inherit notice the new texture when they draw (TileLayer::render);
+    // this repaints the views so they do draw.
+    if (cellSize() != old) cellSizeChanged(old);
+    else markDirty();
+}
+
+void GridData::cellSizeChanged(sf::Vector2i old)
+{
+    sf::Vector2i now = cellSize();
+    for (auto& weak_view : views) {
+        if (auto view = weak_view.lock()) view->onCellSizeChanged(old, now);
+    }
+    for (auto& layer : layers) {
+        if (layer) layer->markDirty();   // chunks are rasterized at the cell size
+    }
+    markDirty();
+}
+
+bool GridData::ensureTextureForDrawing()
+{
+    if (ptex) return true;
+    auto texture = McRFPy_API::defaultTexture();
+    if (!texture) return false;
+    if (PyErr_WarnEx(McRFPy_API::texture_warning,
+            "a grid with no texture is being drawn; using mcrfpy.default_texture. Give the "
+            "GridData (or Grid) a texture=, or set its cell_size to keep the size it "
+            "calculates with.", 1) < 0) {
+        return false;
+    }
+    setTexture(texture);
+    return true;
 }
 
 GridData::~GridData()

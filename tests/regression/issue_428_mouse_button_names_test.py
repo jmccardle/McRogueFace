@@ -49,12 +49,12 @@ class SubGrid(mcrfpy.Grid):
 scene = mcrfpy.Scene("issue428")
 mcrfpy.current_scene = scene
 
-grid = mcrfpy.Grid(grid_size=(10, 10), pos=(0, 0), size=(160, 160))
+grid = mcrfpy.Grid(grid_size=(10, 10), texture=mcrfpy.default_texture, pos=(0, 0), size=(160, 160))
 grid.on_cell_click = lambda c, b, a: log.append(("cell", b, a))
 frame = mcrfpy.Frame(pos=(200, 0), size=(100, 100))
 frame.on_click = lambda p, b, a: log.append(("frame", b, a))
 subframe = SubFrame(pos=(400, 0), size=(100, 100))
-subgrid = SubGrid(grid_size=(10, 10), pos=(0, 200), size=(160, 160))
+subgrid = SubGrid(grid_size=(10, 10), texture=mcrfpy.default_texture, pos=(0, 200), size=(160, 160))
 for d in (grid, frame, subframe, subgrid):
     scene.children.append(d)
 

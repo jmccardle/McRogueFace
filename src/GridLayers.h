@@ -160,7 +160,13 @@ public:
 class TileLayer : public GridLayer {
 public:
     std::vector<int> tiles;  // Sprite indices (-1 = no tile)
+    // Its own texture, or nullptr: it draws with its grid's, looked up when drawn
+    // (#454), so changing the grid's texture restyles it.
     std::shared_ptr<PyTexture> texture;
+    // The texture to draw with: its own, else its grid's (nullptr: nothing to draw).
+    std::shared_ptr<PyTexture> drawTexture() const;
+    // The texture the cached chunks were drawn with; a different one redraws them.
+    std::weak_ptr<PyTexture> drawn_with;
 
     TileLayer(int z_index, int grid_x, int grid_y, GridData* parent,
               std::shared_ptr<PyTexture> texture = nullptr);
@@ -397,16 +403,16 @@ namespace mcrfpydef {
                            "        below entities (as backgrounds), positive values render above entities\n"
                            "        (as overlays). Default: -1 (background)\n"
                            "    name (str): Layer name for Grid.layer(name) lookup. Default: None\n"
-                           "    texture (Texture): Sprite atlas containing tile images. The texture's\n"
-                           "        sprite_size determines individual tile dimensions. Required for\n"
-                           "        rendering; can be set after creation. Default: None\n"
+                           "    texture (Texture): Sprite atlas containing tile images. Default: None,\n"
+                           "        drawing with the grid's texture (looked up when drawn, so changing\n"
+                           "        the grid's texture restyles this layer).\n"
                            "    grid_size (tuple): Dimensions as (width, height). If None or (0, 0), the\n"
                            "        layer will auto-resize when attached to a Grid. Default: None\n\n"
                            "Attributes:\n"
                            "    z_index (int): Layer z-order relative to entities (read/write)\n"
                            "    name (str): Layer name for lookup (read-only)\n"
                            "    visible (bool): Whether layer is rendered (read/write)\n"
-                           "    texture (Texture): Sprite atlas for tile images (read/write)\n"
+                           "    texture (Texture | None): Its own atlas; None draws with the grid's\n"
                            "    grid_size (tuple): Layer dimensions as (width, height) (read-only)\n"
                            "    grid (Grid): Parent Grid or None. Setting manages layer association.\n\n"
                            "Methods:\n"

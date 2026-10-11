@@ -29,6 +29,9 @@ public:
     // The default texture, loaded on first use (#451). nullptr with RuntimeError set when
     // there is no display to create it on.
     static std::shared_ptr<PyTexture> defaultTexture();
+    // mcrfpy.TextureWarning (a UserWarning): developer education about which texture
+    // a grid draws with (#453, #454). Switched off with the warnings module.
+    static PyObject* texture_warning;
     //inline static sf::Sprite sprite;
     //inline static sf::Texture texture;
     //static void setSpriteTexture(int);

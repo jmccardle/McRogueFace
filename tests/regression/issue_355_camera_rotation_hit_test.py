@@ -118,7 +118,7 @@ def build_scene(rotation):
     scene.activate()
     # 5x5 cells of 16px = 80x80 of content; widget is 80x80 and the camera is
     # centered, so content exactly fills the widget at zoom 1.
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(80, 80))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(80, 80))
     scene.children.append(grid)
     grid.center = (40, 40)
     grid.zoom = 1.0
