@@ -440,6 +440,14 @@ PyObject* PySoundBuffer::pitch_shift(PySoundBufferObject* self, PyObject* args) 
     if (!PyArg_ParseTuple(args, "d", &factor)) return NULL;
     if (!self->data) { PyErr_SetString(PyExc_RuntimeError, "Invalid SoundBuffer"); return NULL; }
     if (!std::isfinite(factor) || factor <= 0.0) { PyErr_SetString(PyExc_ValueError, "pitch factor must be a positive finite number"); return NULL; }
+    // The result has frames / factor frames; a tiny factor asked for 189 GB (fuzz
+    // campaign). Same ceiling as tone(): an hour of audio.
+    if (self->data && self->data->channels && self->data->sampleRate &&
+        static_cast<double>(self->data->samples.size() / self->data->channels) / factor
+            > 3600.0 * self->data->sampleRate) {
+        PyErr_SetString(PyExc_ValueError, "pitch factor too small: the result would be longer than an hour");
+        return NULL;
+    }
 
     auto result = AudioEffects::pitchShift(self->data->samples, self->data->channels, factor);
     auto data = std::make_shared<SoundBufferData>(std::move(result), self->data->sampleRate, self->data->channels);

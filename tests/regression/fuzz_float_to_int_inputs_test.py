@@ -53,6 +53,7 @@ for label, fn in (("tone duration nan", lambda: mcrfpy.SoundBuffer.tone(440, NAN
                   ("tone frequency inf", lambda: mcrfpy.SoundBuffer.tone(INF, 0.1)),
                   ("tone duration 1e9 s", lambda: mcrfpy.SoundBuffer.tone(440, 1e9)),
                   ("tone sample_rate 0", lambda: mcrfpy.SoundBuffer.tone(440, 0.1, sample_rate=0)),
+                  ("pitch_shift factor 1e-12", lambda: buf.pitch_shift(1e-12)),
                   ("concat overlap inf", lambda: mcrfpy.SoundBuffer.concat([buf, buf], overlap=INF)),
                   ("concat overlap -1", lambda: mcrfpy.SoundBuffer.concat([buf, buf], overlap=-1))):
     check(raises(ValueError, fn), f"{label} raises ValueError")
