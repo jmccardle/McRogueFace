@@ -184,6 +184,12 @@ removals that affect your code.
 - Hover now ends when the cursor leaves the window or the window loses focus (#367).
 
 **Other**
+- A game's own `scripts/` directory is `sys.path[0]` (as is a script's directory for
+  `mcrogueface dir/script.py`). It was always the engine's `build/scripts`, so a game
+  outside the engine tree couldn't import its own modules, and a module named like an
+  engine demo script imported the engine's copy (#452).
+- Tracebacks, `linecache` and profilers name a script's file; they said `File "<string>"`
+  (#422).
 - Shader uniform binding confused a `GridView` with a `GridData` (#371).
 - `UICollection` repr names Grids correctly.
 - `Grid` layer setters now invalidate the render cache (#376).

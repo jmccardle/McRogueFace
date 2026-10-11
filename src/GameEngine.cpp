@@ -196,7 +196,7 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
             McRFPy_API::api_init();
         }
         McRFPy_API::executePyString("import mcrfpy");
-        McRFPy_API::executeScript("scripts/game.py");
+        McRFPy_API::executeScript("scripts/game.py", /*main_script=*/true);
     }
 
     // Note: --exec scripts are NOT executed here.

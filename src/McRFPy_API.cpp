@@ -1546,7 +1546,7 @@ void McRFPy_API::api_init(const McRogueFaceConfig& config) {
     }
 }
 
-void McRFPy_API::executeScript(std::string filename)
+void McRFPy_API::executeScript(std::string filename, bool main_script)
 {
     std::string script_path_str;
 
@@ -1588,7 +1588,48 @@ void McRFPy_API::executeScript(std::string filename)
                                 std::istreambuf_iterator<char>());
     file.close();
 
+    if (main_script && setMainScriptDir(script_path_str) < 0) {
+        PyErr_Print();
+        return;
+    }
     runScriptSource(script_content, script_path_str);
+}
+
+int McRFPy_API::setMainScriptDir(const std::string& script_path)
+{
+#ifdef __EMSCRIPTEN__
+    // The virtual filesystem has one scripts directory, /scripts, already on sys.path.
+    (void)script_path;
+    return 0;
+#else
+    // executable_path() is the canonical binary location (through any symlink), so this
+    // entry is the engine's own scripts/, which is only right when the script is there.
+    const std::filesystem::path dir =
+        std::filesystem::absolute(std::filesystem::path(script_path)).lexically_normal().parent_path();
+    const std::filesystem::path exe_scripts = std::filesystem::path(executable_path()) / "scripts";
+
+    PyObject* sys_path = PySys_GetObject("path");  // borrowed
+    if (!sys_path || !PyList_Check(sys_path)) {
+        PyErr_SetString(PyExc_RuntimeError, "sys.path is not a list");
+        return -1;
+    }
+    mcrf::PyRef dir_str(PyUnicode_DecodeFSDefault(dir.string().c_str()));
+    mcrf::PyRef exe_scripts_str(PyUnicode_DecodeFSDefault(exe_scripts.string().c_str()));
+    if (!dir_str || !exe_scripts_str) return -1;
+
+    const Py_ssize_t at = PySequence_Index(sys_path, exe_scripts_str.get());
+    if (at < 0) {
+        PyErr_Clear();
+        return PyList_Insert(sys_path, 0, dir_str.get());
+    }
+    if (PyList_SetItem(sys_path, at, dir_str.get()) < 0) return -1;  // steals
+    dir_str.release();
+    if (at == 0) return 0;
+    // Keep it first, as Python does.
+    mcrf::PyRef entry(PySequence_GetItem(sys_path, at));
+    if (!entry || PySequence_DelItem(sys_path, at) < 0) return -1;
+    return PyList_Insert(sys_path, 0, entry.get());
+#endif
 }
 
 int McRFPy_API::runScriptSource(const std::string& source, const std::string& path)

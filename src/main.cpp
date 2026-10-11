@@ -150,7 +150,9 @@ int run_python_interpreter(const McRogueFaceConfig& config)
                                     std::istreambuf_iterator<char>());
         file.close();
 
-        int result = McRFPy_API::runScriptSource(script_content, config.script_path.string());
+        int result = McRFPy_API::setMainScriptDir(config.script_path.string());  // #452
+        if (result < 0) PyErr_Print();
+        else result = McRFPy_API::runScriptSource(script_content, config.script_path.string());
 
         // Flush Python stdout/stderr to ensure output appears before engine->run() blocks
         PyObject* sys_module = PyImport_ImportModule("sys");
