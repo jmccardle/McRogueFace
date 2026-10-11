@@ -166,8 +166,12 @@ bool SDL2Renderer::init() {
 bool SDL2Renderer::initGL() {
     if (glInitialized_) return true;
 
-    // Initialize built-in shaders (requires active GL context)
-    initBuiltinShaders();
+    // Initialize built-in shaders (requires active GL context). Fail-Early: if
+    // they don't compile, the renderer is dead — do not mark GL initialized.
+    if (!initBuiltinShaders()) {
+        std::cerr << "SDL2Renderer: initGL aborted — built-in shaders unavailable" << std::endl;
+        return false;
+    }
 
     glInitialized_ = true;
     return true;
@@ -193,21 +197,26 @@ void SDL2Renderer::shutdown() {
     initialized_ = false;
 }
 
-void SDL2Renderer::initBuiltinShaders() {
-    // Compile shape shader
+bool SDL2Renderer::initBuiltinShaders() {
+    // Fail-Early: a renderer whose built-in programs did not compile is unusable
+    // (every draw call would glUseProgram(0) and render nothing). Surface the
+    // first failure with its InfoLog instead of limping on with a blank canvas.
     if (!compileAndLinkProgram(SHAPE_VERTEX_SHADER, SHAPE_FRAGMENT_SHADER, shapeProgram_)) {
-        std::cerr << "SDL2Renderer: Failed to compile shape shader" << std::endl;
+        std::cerr << "SDL2Renderer: FATAL: built-in shape shader failed to compile:\n"
+                  << lastShaderError_ << std::endl;
+        return false;
     }
-
-    // Compile sprite shader
     if (!compileAndLinkProgram(SPRITE_VERTEX_SHADER, SPRITE_FRAGMENT_SHADER, spriteProgram_)) {
-        std::cerr << "SDL2Renderer: Failed to compile sprite shader" << std::endl;
+        std::cerr << "SDL2Renderer: FATAL: built-in sprite shader failed to compile:\n"
+                  << lastShaderError_ << std::endl;
+        return false;
     }
-
-    // Compile text shader
     if (!compileAndLinkProgram(TEXT_VERTEX_SHADER, TEXT_FRAGMENT_SHADER, textProgram_)) {
-        std::cerr << "SDL2Renderer: Failed to compile text shader" << std::endl;
+        std::cerr << "SDL2Renderer: FATAL: built-in text shader failed to compile:\n"
+                  << lastShaderError_ << std::endl;
+        return false;
     }
+    return true;
 }
 
 unsigned int SDL2Renderer::compileShaderStage(unsigned int type, const char* source) {
@@ -220,6 +229,7 @@ unsigned int SDL2Renderer::compileShaderStage(unsigned int type, const char* sou
     if (!success) {
         char infoLog[512];
         glGetShaderInfoLog(shader, 512, nullptr, infoLog);
+        lastShaderError_ = infoLog;
         std::cerr << "SDL2Renderer: Shader compilation failed: " << infoLog << std::endl;
         glDeleteShader(shader);
         return 0;
@@ -229,6 +239,7 @@ unsigned int SDL2Renderer::compileShaderStage(unsigned int type, const char* sou
 }
 
 bool SDL2Renderer::compileAndLinkProgram(const char* vertexSrc, const char* fragmentSrc, unsigned int& programOut) {
+    lastShaderError_.clear();
     unsigned int vertexShader = compileShaderStage(GL_VERTEX_SHADER, vertexSrc);
     if (!vertexShader) return false;
 
@@ -258,6 +269,7 @@ bool SDL2Renderer::compileAndLinkProgram(const char* vertexSrc, const char* frag
     if (!success) {
         char infoLog[512];
         glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        lastShaderError_ = infoLog;
         std::cerr << "SDL2Renderer: Program linking failed: " << infoLog << std::endl;
         glDeleteProgram(program);
         return false;
@@ -433,23 +445,29 @@ void SDL2Renderer::popRenderState() {
 
 void SDL2Renderer::drawTriangles(const float* vertices, size_t vertexCount,
                                   const float* colors, const float* texCoords,
-                                  unsigned int textureId, ShaderType shaderType) {
+                                  unsigned int textureId, ShaderType shaderType,
+                                  unsigned int programOverride) {
     if (vertexCount == 0) return;
 
-    // Select shader based on type parameter
+    // A user-supplied program (mcrfpy.Shader) wins over the built-in selection.
     unsigned int program;
-    switch (shaderType) {
-        case ShaderType::Text:
-            program = textProgram_;
-            break;
-        case ShaderType::Sprite:
-            program = spriteProgram_;
-            break;
-        case ShaderType::Shape:
-        default:
-            // Auto-select based on texture
-            program = textureId ? spriteProgram_ : shapeProgram_;
-            break;
+    if (programOverride) {
+        program = programOverride;
+    } else {
+        // Select built-in shader based on type parameter
+        switch (shaderType) {
+            case ShaderType::Text:
+                program = textProgram_;
+                break;
+            case ShaderType::Sprite:
+                program = spriteProgram_;
+                break;
+            case ShaderType::Shape:
+            default:
+                // Auto-select based on texture
+                program = textureId ? spriteProgram_ : shapeProgram_;
+                break;
+        }
     }
     glUseProgram(program);
 
@@ -738,11 +756,8 @@ const std::vector<VideoMode>& VideoMode::getFullscreenModes() {
 // Event Translation
 // =============================================================================
 
-// SDL scancode to sf::Keyboard::Key mapping table
-static const Keyboard::Key SDL_SCANCODE_TO_SF_KEY[] = {
-    // This is a simplified mapping - full implementation would have all keys
-    Keyboard::Unknown  // Placeholder
-};
+// SDL scancode translation is done by sdlScancodeToSfKey() (a full switch); the
+// old single-element placeholder table here was dead and misleading — removed.
 
 bool translateSDLEvent(const void* sdlEventPtr, void* sfEventPtr) {
     const SDL_Event& sdlEvent = *static_cast<const SDL_Event*>(sdlEventPtr);
@@ -786,11 +801,27 @@ bool translateSDLEvent(const void* sdlEventPtr, void* sfEventPtr) {
             sfEvent.key.system = (sdlEvent.key.keysym.mod & KMOD_GUI) != 0;
             return true;
 
-        case SDL_TEXTINPUT:
+        case SDL_TEXTINPUT: {
+            // Decode the first UTF-8 sequence in the SDL text buffer into a full
+            // Unicode codepoint. The old code copied text[0] as a single byte,
+            // mangling every non-ASCII character. Drop invalid sequences rather
+            // than emit a garbage codepoint (Fail-Early).
+            const unsigned char* t = reinterpret_cast<const unsigned char*>(sdlEvent.text.text);
+            uint32_t cp = 0;
+            int extra = 0;
+            if (t[0] < 0x80)               { cp = t[0]; extra = 0; }
+            else if ((t[0] & 0xE0) == 0xC0){ cp = t[0] & 0x1F; extra = 1; }
+            else if ((t[0] & 0xF0) == 0xE0){ cp = t[0] & 0x0F; extra = 2; }
+            else if ((t[0] & 0xF8) == 0xF0){ cp = t[0] & 0x07; extra = 3; }
+            else return false;  // invalid leading byte
+            for (int i = 1; i <= extra; ++i) {
+                if ((t[i] & 0xC0) != 0x80) return false;  // truncated/invalid continuation
+                cp = (cp << 6) | (t[i] & 0x3F);
+            }
             sfEvent.type = Event::TextEntered;
-            // Convert UTF-8 to single codepoint (simplified - only handles ASCII and simple UTF-8)
-            sfEvent.text.unicode = static_cast<unsigned char>(sdlEvent.text.text[0]);
+            sfEvent.text.unicode = cp;
             return true;
+        }
 
         case SDL_MOUSEMOTION:
             sfEvent.type = Event::MouseMoved;
@@ -799,12 +830,17 @@ bool translateSDLEvent(const void* sdlEventPtr, void* sfEventPtr) {
             return true;
 
         case SDL_MOUSEBUTTONDOWN:
-        case SDL_MOUSEBUTTONUP:
+        case SDL_MOUSEBUTTONUP: {
+            int sfButton = sdlButtonToSfButton(sdlEvent.button.button);
+            // Fail-Early: drop unrecognized buttons rather than dispatch a fake
+            // click (sdlButtonToSfButton returns ButtonCount for unknown ids).
+            if (sfButton == Mouse::ButtonCount) return false;
             sfEvent.type = sdlEvent.type == SDL_MOUSEBUTTONDOWN ? Event::MouseButtonPressed : Event::MouseButtonReleased;
-            sfEvent.mouseButton.button = static_cast<Mouse::Button>(sdlButtonToSfButton(sdlEvent.button.button));
+            sfEvent.mouseButton.button = static_cast<Mouse::Button>(sfButton);
             sfEvent.mouseButton.x = sdlEvent.button.x;
             sfEvent.mouseButton.y = sdlEvent.button.y;
             return true;
+        }
 
         case SDL_MOUSEWHEEL:
             sfEvent.type = Event::MouseWheelScrolled;
@@ -1048,7 +1084,9 @@ int sdlButtonToSfButton(int sdlButton) {
         case SDL_BUTTON_MIDDLE: return Mouse::Middle;
         case SDL_BUTTON_X1: return Mouse::XButton1;
         case SDL_BUTTON_X2: return Mouse::XButton2;
-        default: return Mouse::Left;
+        // Fail-Early: an unknown button id must not silently masquerade as a LEFT
+        // click. ButtonCount is the out-of-range sentinel callers can reject.
+        default: return Mouse::ButtonCount;
     }
 }
 
@@ -1560,6 +1598,10 @@ void Shape::draw(RenderTarget& target, RenderStates states) const {
     size_t pointCount = getPointCount();
     if (pointCount < 3) return;
 
+    // A custom mcrfpy.Shader set on this drawable overrides the built-in program.
+    unsigned int userProgram = (states.shader && states.shader->isLoaded())
+        ? states.shader->getNativeHandle() : 0;
+
     // Get the combined transform
     Transform combinedTransform = states.transform * getTransform();
 
@@ -1613,7 +1655,7 @@ void Shape::draw(RenderTarget& target, RenderStates states) const {
     if (fill.a > 0 && !vertices.empty()) {
         SDL2Renderer::getInstance().drawTriangles(
             vertices.data(), vertices.size() / 2,
-            colors.data(), nullptr, 0
+            colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram
         );
     }
 
@@ -1671,7 +1713,7 @@ void Shape::draw(RenderTarget& target, RenderStates states) const {
             if (!vertices.empty()) {
                 SDL2Renderer::getInstance().drawTriangles(
                     vertices.data(), vertices.size() / 2,
-                    colors.data(), nullptr, 0
+                    colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram
                 );
             }
         }
@@ -1680,6 +1722,10 @@ void Shape::draw(RenderTarget& target, RenderStates states) const {
 
 void VertexArray::draw(RenderTarget& target, RenderStates states) const {
     if (vertices_.empty()) return;
+
+    // A custom mcrfpy.Shader set on this drawable overrides the built-in program.
+    unsigned int userProgram = (states.shader && states.shader->isLoaded())
+        ? states.shader->getNativeHandle() : 0;
 
     // Convert vertex array to flat arrays based on primitive type
     std::vector<float> positions;
@@ -1847,11 +1893,10 @@ void VertexArray::draw(RenderTarget& target, RenderStates states) const {
     }
 
     if (!positions.empty()) {
-        // Use shape shader (no texture)
-        glUseProgram(SDL2Renderer::getInstance().getShaderProgram(SDL2Renderer::ShaderType::Shape));
+        // Use shape shader (no texture), or the drawable's custom shader
         SDL2Renderer::getInstance().drawTriangles(
             positions.data(), positions.size() / 2,
-            colors.data(), nullptr, 0
+            colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram
         );
     }
 }
@@ -1913,9 +1958,11 @@ void Sprite::draw(RenderTarget& target, RenderStates states) const {
         colors[i * 4 + 3] = a;
     }
 
-    // Use sprite shader and draw
+    // Use sprite shader (or the user's custom shader from states.shader) and draw
+    unsigned int userProgram = (states.shader && states.shader->isLoaded())
+        ? states.shader->getNativeHandle() : 0;
     SDL2Renderer::getInstance().drawTriangles(vertices, 6, colors, texcoords,
-        texture_->getNativeHandle(), SDL2Renderer::ShaderType::Sprite);
+        texture_->getNativeHandle(), SDL2Renderer::ShaderType::Sprite, userProgram);
 }
 
 // Static cache for font atlases - keyed by (font pointer, character size)
@@ -2121,36 +2168,63 @@ Shader::~Shader() {
 }
 
 bool Shader::loadFromFile(const std::string& filename, Type type) {
-    // TODO: Load shader from file
+    // Fail-Early: the SDL2/WebGL backend has no filesystem shader loader. Say so
+    // loudly (err() is captured by the Python binding) instead of a silent false.
+    err() << "Shader::loadFromFile is not supported on the SDL2/WebGL backend; "
+             "pass fragment source to loadFromMemory(src, Shader::Fragment) instead.";
     return false;
 }
 
 bool Shader::loadFromFile(const std::string& vertexFile, const std::string& fragmentFile) {
-    // TODO: Load shaders from files
+    err() << "Shader::loadFromFile (vertex+fragment) is not supported on the "
+             "SDL2/WebGL backend; only fragment shaders via loadFromMemory are supported.";
     return false;
 }
 
 bool Shader::loadFromMemory(const std::string& shader, Type type) {
-    // For fragment-only shaders, use default vertex shader
-    if (type == Fragment) {
-        std::string defaultVertex = R"(
-            attribute vec2 a_position;
-            attribute vec4 a_color;
-            attribute vec2 a_texcoord;
-            uniform mat4 u_projection;
-            varying vec4 v_color;
-            varying vec2 v_texcoord;
-            void main() {
-                gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
-                v_color = a_color;
-                v_texcoord = a_texcoord;
-            }
-        )";
-        programId_ = SDL2Renderer::getInstance().compileShader(defaultVertex, shader);
-        loaded_ = programId_ != 0;
-        return loaded_;
+    if (type != Fragment) {
+        // Only fragment shaders are supported under GL ES 2 here. Vertex and the
+        // (impossible-in-ES2) Geometry stage are rejected with a clear reason.
+        err() << "SDL2/WebGL backend: only fragment shaders are supported "
+                 "(loadFromMemory got a "
+              << (type == Vertex ? "Vertex" : "Geometry")
+              << " shader). Provide fragment source with Shader::Fragment.";
+        loaded_ = false;
+        return false;
     }
-    return false;
+
+    // WebGL GLSL ES 1.00 requires an explicit float precision qualifier in the
+    // fragment stage. Inject a guarded default when the author didn't declare
+    // one, so ES-valid shaders that omit precision still compile. (This does not
+    // translate desktop-only constructs like gl_TexCoord / a `texture` sampler —
+    // shaders must target the built-in contract: sample u_texture, read
+    // v_texcoord / v_color. See docs/renderer-parity-investigation.md.)
+    std::string fragSrc = shader;
+    if (fragSrc.find("precision ") == std::string::npos) {
+        fragSrc = "#ifdef GL_ES\nprecision mediump float;\n#endif\n" + fragSrc;
+    }
+
+    const std::string defaultVertex = R"(
+        attribute vec2 a_position;
+        attribute vec4 a_color;
+        attribute vec2 a_texcoord;
+        uniform mat4 u_projection;
+        varying vec4 v_color;
+        varying vec2 v_texcoord;
+        void main() {
+            gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
+            v_color = a_color;
+            v_texcoord = a_texcoord;
+        }
+    )";
+    programId_ = SDL2Renderer::getInstance().compileShader(defaultVertex, fragSrc);
+    loaded_ = programId_ != 0;
+    if (!loaded_) {
+        // Surface the actual GL InfoLog so the Python binding can raise it
+        // (PyShader::init already prefixes "Shader compilation failed:").
+        err() << SDL2Renderer::getInstance().getLastShaderError();
+    }
+    return loaded_;
 }
 
 void Shader::setUniform(const std::string& name, float x) {
