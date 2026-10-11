@@ -169,7 +169,32 @@ void GridLayer::initChunks() {
 void GridLayer::markDirty() {
     // Mark ALL chunks as dirty
     std::fill(chunk_dirty.begin(), chunk_dirty.end(), true);
-    if (parent_grid) parent_grid->content_generation++;  // #351 - view early-out
+    notifyGrid();
+}
+
+void GridLayer::markDirty(int x1, int y1, int x2, int y2) {
+    if (x2 <= x1 || y2 <= y1) return;
+    for (int cy = y1 / CHUNK_SIZE; cy <= (y2 - 1) / CHUNK_SIZE; ++cy) {
+        for (int cx = x1 / CHUNK_SIZE; cx <= (x2 - 1) / CHUNK_SIZE; ++cx) {
+            int idx = cy * chunks_x + cx;
+            if (idx >= 0 && idx < static_cast<int>(chunk_dirty.size())) {
+                chunk_dirty[idx] = true;
+            }
+        }
+    }
+    notifyGrid();
+}
+
+// #376/#427: a new z_index changes the draw order, which only sortLayers() applies,
+// and only when layers_need_sort is set; markDirty() then repaints the views.
+void GridLayer::setZIndex(int z) {
+    z_index = z;
+    if (parent_grid) parent_grid->layers_need_sort = true;
+    markDirty();
+}
+
+void GridLayer::notifyGrid() {
+    if (parent_grid) parent_grid->markDirty();
 }
 
 void GridLayer::markDirty(int cell_x, int cell_y) {
@@ -180,7 +205,7 @@ void GridLayer::markDirty(int cell_x, int cell_y) {
     if (chunk_idx >= 0 && chunk_idx < static_cast<int>(chunk_dirty.size())) {
         chunk_dirty[chunk_idx] = true;
     }
-    if (parent_grid) parent_grid->content_generation++;  // #351 - view early-out
+    notifyGrid();
 }
 
 int GridLayer::getChunkIndex(int cell_x, int cell_y) const {
@@ -273,20 +298,7 @@ void ColorLayer::fillRect(int x, int y, int width, int height, const sf::Color& 
         }
     }
 
-    // Mark affected chunks dirty
-    int chunk_x1 = x1 / CHUNK_SIZE;
-    int chunk_y1 = y1 / CHUNK_SIZE;
-    int chunk_x2 = (x2 - 1) / CHUNK_SIZE;
-    int chunk_y2 = (y2 - 1) / CHUNK_SIZE;
-
-    for (int cy = chunk_y1; cy <= chunk_y2; ++cy) {
-        for (int cx = chunk_x1; cx <= chunk_x2; ++cx) {
-            int idx = cy * chunks_x + cx;
-            if (idx >= 0 && idx < static_cast<int>(chunk_dirty.size())) {
-                chunk_dirty[idx] = true;
-            }
-        }
-    }
+    markDirty(x1, y1, x2, y2);
 }
 
 void ColorLayer::drawFOV(int source_x, int source_y, int radius,
@@ -542,20 +554,7 @@ void TileLayer::fillRect(int x, int y, int width, int height, int tile_index) {
         }
     }
 
-    // Mark affected chunks dirty
-    int chunk_x1 = x1 / CHUNK_SIZE;
-    int chunk_y1 = y1 / CHUNK_SIZE;
-    int chunk_x2 = (x2 - 1) / CHUNK_SIZE;
-    int chunk_y2 = (y2 - 1) / CHUNK_SIZE;
-
-    for (int cy = chunk_y1; cy <= chunk_y2; ++cy) {
-        for (int cx = chunk_x1; cx <= chunk_x2; ++cx) {
-            int idx = cy * chunks_x + cx;
-            if (idx >= 0 && idx < static_cast<int>(chunk_dirty.size())) {
-                chunk_dirty[idx] = true;
-            }
-        }
-    }
+    markDirty(x1, y1, x2, y2);
 }
 
 void TileLayer::resize(int new_grid_x, int new_grid_y) {
@@ -1754,11 +1753,7 @@ int PyGridLayerAPI::ColorLayer_set_z_index(PyColorLayerObject* self, PyObject* v
     long z = PyLong_AsLong(value);
     if (PyErr_Occurred()) return -1;
     if (z != self->data->z_index) {
-        self->data->z_index = z;
-        // #376: the render early-out (#351) keys on content_generation, which only
-        // markDirty() bumps. Without this the view re-blits its stale cached texture
-        // and the new layer order never appears. (sortLayers() runs every render.)
-        self->data->markDirty();
+        self->data->setZIndex(z);
     }
     return 0;
 }
@@ -1904,9 +1899,7 @@ int PyGridLayerAPI::ColorLayer_set_grid(PyColorLayerObject* self, PyObject* valu
     }
 
     // Link to new grid
-    self->data->parent_grid = target_grid.get();
-    target_grid->layers.push_back(self->data);
-    target_grid->layers_need_sort = true;
+    target_grid->attachLayer(self->data);
     self->grid = target_grid;
 
     return 0;
@@ -2433,8 +2426,7 @@ int PyGridLayerAPI::TileLayer_set_z_index(PyTileLayerObject* self, PyObject* val
     long z = PyLong_AsLong(value);
     if (PyErr_Occurred()) return -1;
     if (z != self->data->z_index) {
-        self->data->z_index = z;
-        self->data->markDirty();  // #376: see ColorLayer_set_z_index
+        self->data->setZIndex(z);
     }
     return 0;
 }
@@ -2609,9 +2601,7 @@ int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value,
     }
 
     // Link to new grid
-    self->data->parent_grid = target_grid.get();
-    target_grid->layers.push_back(std::static_pointer_cast<GridLayer>(self->data));
-    target_grid->layers_need_sort = true;
+    target_grid->attachLayer(self->data);
     self->grid = target_grid;
 
     // Inherit grid texture if TileLayer has none (#254)

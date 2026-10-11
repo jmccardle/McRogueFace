@@ -210,7 +210,7 @@ std::shared_ptr<ColorLayer> GridData::addColorLayer(int z_index, const std::stri
     layer->name = name;
     layers.push_back(layer);
     layers_need_sort = true;
-    content_generation++;  // #351 - layer set changed
+    markDirty();  // #427 - layer set changed; reaches views and their parents
     return layer;
 }
 
@@ -220,8 +220,16 @@ std::shared_ptr<TileLayer> GridData::addTileLayer(int z_index, std::shared_ptr<P
     layer->name = name;
     layers.push_back(layer);
     layers_need_sort = true;
-    content_generation++;  // #351 - layer set changed
+    markDirty();  // #427 - layer set changed; reaches views and their parents
     return layer;
+}
+
+void GridData::attachLayer(std::shared_ptr<GridLayer> layer)
+{
+    layer->parent_grid = this;
+    layers.push_back(std::move(layer));
+    layers_need_sort = true;
+    markDirty();  // #427 - layer set changed; reaches views and their parents
 }
 
 void GridData::removeLayer(std::shared_ptr<GridLayer> layer)
@@ -233,7 +241,7 @@ void GridData::removeLayer(std::shared_ptr<GridLayer> layer)
     if (layer) {
         layer->parent_grid = nullptr;
     }
-    content_generation++;  // #351 - layer set changed
+    markDirty();  // #427 - layer set changed; reaches views and their parents
 }
 
 void GridData::sortLayers()

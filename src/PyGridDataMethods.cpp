@@ -475,9 +475,7 @@ PyObject* PyGridData::py_add_layer(PyGridDataObject* self, PyObject* args) {
             return NULL;
         }
 
-        layer->parent_grid = self->data.get();
-        self->data->layers.push_back(layer);
-        self->data->layers_need_sort = true;
+        self->data->attachLayer(layer);
         py_layer->grid = self->data;
 
     } else if (PyObject_IsInstance(layer_obj, tile_layer_type)) {
@@ -517,9 +515,7 @@ PyObject* PyGridData::py_add_layer(PyGridDataObject* self, PyObject* args) {
             return NULL;
         }
 
-        layer->parent_grid = self->data.get();
-        self->data->layers.push_back(layer);
-        self->data->layers_need_sort = true;
+        self->data->attachLayer(layer);
         py_layer->grid = self->data;
 
         auto tile_layer = std::static_pointer_cast<TileLayer>(layer);
