@@ -776,6 +776,28 @@ PyObject* UICollection::pop(PyUICollectionObject* self, PyObject* args)
     return convertDrawableToPython(drawable);
 }
 
+// #418: the same per-item teardown as remove()/pop(), for every member at once.
+PyObject* UICollection::clear(PyUICollectionObject* self, PyObject* Py_UNUSED(ignored))
+{
+    auto vec = self->data.get();
+    if (!vec) {
+        PyErr_SetString(PyExc_RuntimeError, "Collection data is null");
+        return NULL;
+    }
+    if (vec->empty()) Py_RETURN_NONE;
+
+    // Take the members out first: unlinking releases pins, and a freed wrapper can run
+    // Python (a weakref callback, __del__) that edits this collection mid-loop. `removed`
+    // keeps every drawable alive until the loop is done (see unlink_child).
+    std::vector<std::shared_ptr<UIDrawable>> removed;
+    removed.swap(*vec);
+    for (auto& drawable : removed) unlink_child(drawable);
+
+    McRFPy_API::markSceneNeedsSort();
+    if (auto owner_ptr = self->owner.lock()) owner_ptr->markContentDirty();  // #288
+    Py_RETURN_NONE;
+}
+
 PyObject* UICollection::insert(PyUICollectionObject* self, PyObject* args)
 {
     Py_ssize_t index;
@@ -1048,6 +1070,12 @@ PyMethodDef UICollection::methods[] = {
 	     MCRF_RETURNS("Drawable: the removed element")
 	     MCRF_RAISES("IndexError", "If the collection is empty or index is out of range")
 	     MCRF_NOTE("If using z_index for sorting, indices may shift after render. Use name-based .find() for stable element access.")
+	 )},
+	{"clear", (PyCFunction)UICollection::clear, METH_NOARGS,
+	 MCRF_METHOD(UICollection, clear,
+	     MCRF_SIG("()", "None"),
+	     MCRF_DESC("Remove every element. Each one is unparented, as with remove().")
+	     MCRF_RETURNS("None")
 	 )},
 	{"index", (PyCFunction)UICollection::index_method, METH_O,
 	 MCRF_METHOD(UICollection, index,

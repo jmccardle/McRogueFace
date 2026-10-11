@@ -58,6 +58,7 @@ public:
     static PyObject* extend(PyUIEntityCollectionObject* self, PyObject* o);
     static PyObject* remove(PyUIEntityCollectionObject* self, PyObject* o);
     static PyObject* pop(PyUIEntityCollectionObject* self, PyObject* args);
+    static PyObject* clear(PyUIEntityCollectionObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* insert(PyUIEntityCollectionObject* self, PyObject* args);
     static PyObject* index_method(PyUIEntityCollectionObject* self, PyObject* value);
     static PyObject* count(PyUIEntityCollectionObject* self, PyObject* value);

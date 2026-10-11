@@ -79,10 +79,8 @@ REMOVES = [
     ("[i] = other", rm_setitem),
     ("entity.grid = None", lambda g, e: setattr(e, "grid", None)),
     ("die", lambda g, e: e.die()),
+    ("clear (#418)", lambda g, e: g.entities.clear()),
 ]
-
-if hasattr(mcrfpy.EntityCollection if hasattr(mcrfpy, "EntityCollection") else object, "clear"):
-    REMOVES.append(("clear", lambda g, e: g.entities.clear()))
 
 
 def build(scene, cache):
