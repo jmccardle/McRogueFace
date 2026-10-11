@@ -32,6 +32,13 @@ public:
     bool getProperty(const std::string& name, std::string& value) const override;
 
     bool hasProperty(const std::string& name) const override;
+    bool checkFloatTarget(const std::string& name, float final_value) const override;
+
+    // #463: font_size and outline set the glyph bitmap's size, which SFML allocates
+    // as (size + 2 * outline)^2; 30000 asked for 3.8 GB. 2048 px is taller than a 4K
+    // screen. False with ValueError set when `value` is outside [0, MAX_GLYPH_PX].
+    static constexpr float MAX_GLYPH_PX = 2048.0f;
+    static bool checkGlyphSize(const char* what, float value);
 
     static PyObject* get_float_member(PyUICaptionObject* self, void* closure);
     static int set_float_member(PyUICaptionObject* self, PyObject* value, void* closure);

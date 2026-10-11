@@ -182,6 +182,7 @@ public:
     bool getProperty(const std::string& name, sf::Color& value) const { return false; }
     bool getProperty(const std::string& name, std::string& value) const { return false; }
     bool hasProperty(const std::string& name) const;
+    bool checkFloatTarget(const std::string& name, float final_value) const { return true; }
 
     // Animation shorthand helper - creates and starts an animation on this entity
     // Returns a PyAnimation object. Used by the .animate() method.

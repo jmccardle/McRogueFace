@@ -1,4 +1,6 @@
 #include "UICaption.h"
+#include <algorithm>
+#include <cmath>
 #include "PyWrap.h"
 #include "GameEngine.h"
 #include "PyColor.h"
@@ -214,17 +216,12 @@ int UICaption::set_float_member(PyUICaptionObject* self, PyObject* value, void* 
         self->data->markCompositeDirty(); // #289: position change invalidates parent cache
     }
     else if (member_ptr == 4) { //outline
-        // #309: negative outline thickness is nonsensical; clamp to 0
-        if (val < 0.0f) val = 0.0f;
+        if (!checkGlyphSize("outline", val)) return -1;  // #463
         self->data->text.setOutlineThickness(val);
         self->data->markDirty(); // #289: content change invalidates own + parent cache
     }
     else if (member_ptr == 5) { // character size
-        // #309: SFML setCharacterSize takes unsigned int; casting a negative or
-        // out-of-range float is UB. Clamp to a safe range before the cast.
-        // Upper bound is a practical cap well below UINT_MAX to keep SFML sane.
-        if (val < 0.0f) val = 0.0f;
-        else if (val > 65535.0f) val = 65535.0f;
+        if (!checkGlyphSize("font_size", val)) return -1;  // #463 (was a silent clamp, #309)
         self->data->text.setCharacterSize(static_cast<unsigned int>(val));
         self->data->markDirty(); // #289: content change invalidates own + parent cache
     }
@@ -381,7 +378,7 @@ PyGetSetDef UICaption::getsetters[] = {
      MCRF_PROPERTY(h, "Text height in pixels (float, read-only)."),
      NULL},
     {"outline", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member,
-     MCRF_PROPERTY(outline, "Thickness of the text outline border (float). Clamped to non-negative values."),
+     MCRF_PROPERTY(outline, "Thickness of the text outline border in pixels (float), 0 to 2048. Raises ValueError outside that range."),
      (void*)4},
     {"fill_color", (getter)UICaption::get_color_member, (setter)UICaption::set_color_member,
      MCRF_PROPERTY(fill_color,
@@ -403,7 +400,7 @@ PyGetSetDef UICaption::getsetters[] = {
          "default font when none was provided at construction."
      ), NULL},
     {"font_size", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member,
-     MCRF_PROPERTY(font_size, "Font size in points (int). Clamped to the range [0, 65535]."),
+     MCRF_PROPERTY(font_size, "Font size in pixels (int), 0 to 2048. Raises ValueError outside that range."),
      (void*)5},
     {"on_click", (getter)UIDrawable::get_click, (setter)UIDrawable::set_click,
      MCRF_PROPERTY(on_click,
@@ -534,8 +531,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     self->data = std::make_shared<UICaption>();
     self->data->position = sf::Vector2f(x, y);
     self->data->text.setPosition(self->data->position);
-    // #309: clamp outline to non-negative
-    if (outline < 0.0f) outline = 0.0f;
+    if (!checkGlyphSize("outline", outline)) return -1;  // #463
     self->data->text.setOutlineThickness(outline);
 
     // Set the font, and remember the Python Font object for the read-only
@@ -553,10 +549,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         }
     }
 
-    // Set character size
-    // #309: clamp before casting to unsigned int to avoid UB on out-of-range floats
-    if (font_size < 0.0f) font_size = 0.0f;
-    else if (font_size > 65535.0f) font_size = 65535.0f;
+    if (!checkGlyphSize("font_size", font_size)) return -1;  // #463
     self->data->text.setCharacterSize(static_cast<unsigned int>(font_size));
     
     // Set text
@@ -621,14 +614,29 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
 // Property system implementation for animations. The shared names (x, y, pos,
 // rotation, origin, opacity, z_index) are handled by UIDrawable (#426); Caption's
 // w/h/size are read-only text bounds, so they are not animatable.
+bool UICaption::checkGlyphSize(const char* what, float value) {
+    if (std::isfinite(value) && value >= 0.0f && value <= MAX_GLYPH_PX) return true;
+    PyErr_Format(PyExc_ValueError, "%s must be between 0 and %d pixels, got %R",
+                 what, static_cast<int>(MAX_GLYPH_PX),
+                 mcrf::PyRef(PyFloat_FromDouble(value)).get());
+    return false;
+}
+
+bool UICaption::checkFloatTarget(const std::string& name, float final_value) const {
+    if (name == "font_size" || name == "outline") return checkGlyphSize(name.c_str(), final_value);
+    return true;
+}
+
 bool UICaption::setProperty(const std::string& name, float value) {
+    // The ends are checked by checkFloatTarget; an easing that overshoots (back,
+    // elastic) passes through values outside the range, so clamp those (#463).
     if (name == "font_size") {
-        text.setCharacterSize(static_cast<unsigned int>(value));
+        text.setCharacterSize(static_cast<unsigned int>(std::clamp(value, 0.0f, MAX_GLYPH_PX)));
         markDirty();  // #144 - Content change
         return true;
     }
     if (name == "outline") {
-        text.setOutlineThickness(value);
+        text.setOutlineThickness(std::clamp(value, 0.0f, MAX_GLYPH_PX));
         markDirty();  // #144 - Content change
         return true;
     }

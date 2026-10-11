@@ -381,6 +381,10 @@ public:
     // Check if a property name is valid for animation on this drawable type
     virtual bool hasProperty(const std::string& name) const;
 
+    // The value a float animation would end at, checked as assigning it is checked
+    // (#463): false with a Python error set. Only properties with a range override it.
+    virtual bool checkFloatTarget(const std::string& name, float final_value) const { return true; }
+
     // #106: Shader uniform property helpers for animation support
     // These methods handle "shader.uniform_name" property paths
     bool setShaderProperty(const std::string& name, float value);

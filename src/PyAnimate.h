@@ -75,6 +75,13 @@ PyObject* animate(const std::shared_ptr<Target>& target, const char* type_name,
     }
     AnimationValue value;
     if (!animation_target(a.target, kind, a.property, value)) return nullptr;
+    // Where the animation ends must be a value assigning would accept (#463).
+    if (kind == AnimKind::Float) {
+        float end = std::get<float>(value);
+        float current = 0.0f;
+        if (a.delta && target->getProperty(a.property, current)) end += current;
+        if (!target->checkFloatTarget(a.property, end)) return nullptr;
+    }
     auto animation = std::make_shared<Animation>(a.property, value, a.duration, a.easing,
                                                  a.delta, a.loop, a.callback);
     start(*animation, target);
