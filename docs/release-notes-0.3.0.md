@@ -38,6 +38,9 @@ removals that affect your code.
 | `Sound.play_varied()` returns the `(pitch, volume)` it used (was `None`), and plays it on its own overlapping voice. The sound's `pitch`/`volume` and `.playing` aren't affected; `stop()` stops the extra voices too (#407). | — |
 | **`--headless` and `--audio-off` now turn audio off.** Both flags used to be ignored. Now no audio device is opened: `play()` does nothing and `.playing` stays `False`. Loading, `duration` and `SoundBuffer` work as before, and `play_varied()` still draws its random values (#406). | Pass `--audio-on` (in either order with `--headless`) for real playback in headless runs. |
 | `mcrfpy.step()` / `advance()` raise `RuntimeError` when called from a thread that holds `mcrfpy.lock()`; previously this deadlocked. | — |
+| **One thread drives the clock** (#411). The first thread to run a frame owns it until it exits: the main thread once the engine loop starts (always, when windowed), otherwise the first caller of `step()`/`advance()`. Other threads' calls raise `RuntimeError` (they used to run a second frame body concurrently). `mcrfpy.lock()` is a no-op on the owner and a real barrier everywhere else, including the main thread when a background thread drives. Headless `--run-forever` refuses to start its loop if a background thread owns the clock. | Run frames from one thread and hand work to it; other threads apply changes inside `with mcrfpy.lock():`. |
+| **Timers catch up** (#397). When a frame comes late (a wide `step()`, or a stalled windowed frame), a repeating timer fires once per elapsed interval, and each call's `runtime` is that firing's own deadline, not the frame time. The timer keeps its phase: `step(10.5)` fires a 1000 ms timer at 1000…10000 and leaves 500 ms to the next. Animations get the whole frame time too (a step of 10 s or more, or a windowed frame of 1 s or more, used to skip them). | A callback that used `runtime` as "now" gets the scheduled time. A timer much faster than the frame rate now fires several times per frame instead of once. |
+| `step()` rejects a negative, NaN or infinite `dt` with `ValueError`, and one that would overflow the clock with `OverflowError`; `advance()` likewise for overflow. A negative `dt` used to mean "next event", and NaN/inf wrapped the clock negative. | Use `step()` / `step(None)` for "next event". |
 | `--exec` / `-c` scripts run in UTF-8 mode. A bare `open()` reads UTF-8 on every platform; it used to be ASCII on Linux and the ANSI code page on Windows (#378). | — |
 | `get_metrics()` counters (`draw_calls`, `ui_elements`, the grid counters) are no longer always 0 (#341). | — |
 | **An entity no longer keeps its grid alive** (the back-reference is weak; the strong one leaked every grid with entities, #437). `e = Entity(grid=Grid(...))` with no other reference to the grid leaves `e.grid` as `None`. | Keep a reference to the grid (or view) you're using. |
@@ -238,8 +241,9 @@ Where it comes from:
 - **#416, #417**: changing engine objects from a background thread *without*
   `mcrfpy.lock()` can crash. Two threads holding the lock at once are only kept safe by
   the GIL, so the free-threaded (no-GIL) build is not supported.
-- **#410, #411**: a lock holder that re-acquires immediately can starve the main loop;
-  `step()` called from a background thread without the lock runs a frame on that thread.
+- **#410**: a lock holder that re-acquires immediately can starve the main loop.
+- **#448**: the clock and the window are still coupled. Windowed `step()`/`advance()` are
+  silent no-ops, and headless `--run-forever` runs frames on a frozen simulation clock.
 - **#422**: tracebacks from `--exec` scripts show `File "<string>"`.
 - **#420**: `mcrf-init.sh` scaffolds projects for Python 3.14.
 - **#399**: the light/full stdlib presets ship the same stdlib.

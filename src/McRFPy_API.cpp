@@ -2,6 +2,7 @@
 #include "PyWrap.h"
 #include "EngineRandom.h"
 #include <climits>
+#include <cmath>
 
 // Embedded-interpreter version strings, derived from the CPython headers we
 // compile against (patchlevel.h) so bumping the interpreter needs no edits here.
@@ -365,7 +366,7 @@ static PyMethodDef mcrfpyMethods[] = {
                    "increments the frame counter -- everything a windowed frame does except "
                    "render and input.")
          MCRF_ARGS_START
-         MCRF_ARG("dt", "Time to advance in seconds. If None, advances to the next scheduled event (timer/animation).")
+         MCRF_ARG("dt", "Time to advance in seconds, finite and >= 0. If None, advances to the next scheduled event (timer/animation).")
          MCRF_RETURNS("float: Actual time advanced in seconds. Returns 0.0 in windowed mode.")
          MCRF_NOTE("Rendering is deliberately excluded: it is orthogonal to the clock and costs "
                    "zero simulation time, so a screenshot draws arbitrary state without time "
@@ -375,15 +376,19 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("A headless --exec script must end by calling sys.exit(), because step() is "
                    "the only headless clock: without it the engine cannot advance itself. Pass "
                    "--run-forever for a long-lived headless process that drives itself.")
-         MCRF_NOTE("One frame tests each timer at most ONCE, so a single wide step skips "
-                   "intervals: step(10.0) fires a 1000ms repeating timer once, not ten times, "
-                   "and re-phases it to the end of the step. Use advance() to let a span of "
-                   "simulated time pass with every interval honored.")
+         MCRF_NOTE("A wide step catches timers up: step(10.0) fires a 1000ms repeating timer "
+                   "ten times within the one frame, each call receiving its own deadline as "
+                   "runtime, and the timer keeps its phase. Animations receive the whole dt. "
+                   "advance() differs only in running a separate frame per deadline.")
+         MCRF_RAISES("ValueError", "dt is negative, NaN or infinite")
+         MCRF_RAISES("OverflowError", "dt would carry the clock past its int-millisecond range")
          MCRF_RAISES("RuntimeError", "Called from a background thread that currently holds "
                    "mcrfpy.lock(). Advancing a frame from inside the lock re-enters the frame "
                    "the lock synchronises with, which cannot complete until the caller releases. "
-                   "Inside the lock, mutate only. (Main-thread lock() is a no-op, so this cannot "
-                   "fire from script init or a timer callback.)")
+                   "Inside the lock, mutate only. (lock() is a no-op on the thread that drives "
+                   "the clock, so this cannot fire from script init or a timer callback.)")
+         MCRF_RAISES("RuntimeError", "Called from a thread that does not drive the simulation "
+                   "clock. The first thread to run a frame owns the clock until it exits (#411).")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"advance", McRFPy_API::_advance, METH_VARARGS,
@@ -397,16 +402,18 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_RETURNS("int: Milliseconds actually advanced. Returns 0 in windowed mode, and 0 for advance(0).")
          MCRF_RAISES("TypeError", "ms is not an int (step() is the one that takes float seconds)")
          MCRF_RAISES("ValueError", "ms is negative -- the simulation clock does not run backwards")
-         MCRF_NOTE("advance(10000) fires a 1000ms repeating timer exactly 10 times, whereas "
-                   "step(10.0) fires it once. Partial intervals are carried, not discarded: "
+         MCRF_NOTE("advance(10000) fires a 1000ms repeating timer exactly 10 times, as step(10.0) "
+                   "does, but runs a separate frame at each deadline, so animations and "
+                   "Scene.update() see the time between firings. Partial intervals are carried: "
                    "advance(10500) fires it 10 times and leaves it 500ms from its next deadline.")
          MCRF_NOTE("Each boundary is a full simulation frame, so current_frame advances once per "
                    "timer deadline crossed plus once for any residual. advance(0) does nothing at "
                    "all -- use step(0.0) to run a frame without moving the clock.")
          MCRF_NOTE("Read the resulting clock with get_metrics()['simulation_time_ms'] (milliseconds). "
                    "The 'runtime' key is wall clock and is unrelated to simulated time.")
+         MCRF_RAISES("OverflowError", "ms would carry the clock past its int-millisecond range")
          MCRF_RAISES("RuntimeError", "Called from a background thread that currently holds "
-                   "mcrfpy.lock(); see step(). Inside the lock, mutate only.")
+                   "mcrfpy.lock(), or from a thread that does not drive the clock; see step().")
          MCRF_LINK("docs/frame-lock.md", "The frame barrier: rules, budget, and failure modes")
      )},
     {"exit", McRFPy_API::_exit, METH_NOARGS,
@@ -547,7 +554,8 @@ static PyMethodDef mcrfpyMethods[] = {
          MCRF_NOTE("Any access to mcrfpy objects from a non-main thread must happen inside "
                    "`with mcrfpy.lock():`; behavior outside the lock is undefined. On a worker "
                    "thread the context manager blocks (GIL released) until the render loop opens a "
-                   "safe window between frames; on the main thread it is a no-op.")
+                   "safe window between frames. On the thread that drives the clock (the main thread, "
+                   "unless a background thread runs frames with step()/advance()) it is a no-op.")
          MCRF_NOTE("INSIDE THE LOCK, MUTATE ONLY. The main thread parks until every holder "
                    "releases, so hold time is added to frame time roughly 1:1 -- a 10 ms hold "
                    "costs the frame 10 ms, and presents as engine stutter rather than as a "
@@ -1763,19 +1771,38 @@ PyObject* McRFPy_API::api_get_animations()
 // A RuntimeError names the rule at the call site, in the offending thread, at the
 // instant of the mistake. Fail Early.
 //
-// Note this cannot fire on the main thread: mcrfpy.lock() is a no-op there, so the
-// main thread never becomes a holder and `with mcrfpy.lock(): mcrfpy.step()` in a
-// script or a timer callback keeps working exactly as before.
+// Note this cannot fire on the clock's owner (#411): mcrfpy.lock() is a no-op there, so
+// the owner never becomes a holder and `with mcrfpy.lock(): mcrfpy.step()` in a script or
+// a timer callback keeps working exactly as before.
+//
+// #411 - The second check: only the clock's owner may run a frame. Without it a thread
+// that holds nothing could call step() while another thread (or the engine's own loop)
+// was also running frames, and two frame bodies would run concurrently over one scene
+// graph, timer map and animation manager -- a plausible return value and intermittent
+// corruption. The lock check comes first so a holder is told about the lock, the rule it
+// is actually breaking.
 static bool frameAdvanceAllowed(const char* fname)
 {
-    if (!Resources::game->getFrameLock().heldByCurrentThread()) return true;
-    PyErr_Format(PyExc_RuntimeError,
-        "mcrfpy.%s() cannot be called while this thread holds mcrfpy.lock(): it would "
-        "re-enter the frame the lock is synchronising with, and the frame cannot complete "
-        "until this thread releases. Inside the lock, mutate only -- no frame advance, no "
-        "I/O, no blocking wait. Compute outside the lock and apply inside it.",
-        fname);
-    return false;
+    if (Resources::game->getFrameLock().heldByCurrentThread()) {
+        PyErr_Format(PyExc_RuntimeError,
+            "mcrfpy.%s() cannot be called while this thread holds mcrfpy.lock(): it would "
+            "re-enter the frame the lock is synchronising with, and the frame cannot complete "
+            "until this thread releases. Inside the lock, mutate only -- no frame advance, no "
+            "I/O, no blocking wait. Compute outside the lock and apply inside it.",
+            fname);
+        return false;
+    }
+    if (!Resources::game->claimClock()) {
+        PyErr_Format(PyExc_RuntimeError,
+            "mcrfpy.%s() was called from a thread that does not drive the simulation clock. "
+            "Exactly one thread runs frames: the first to call step()/advance() (or the main "
+            "thread, once the engine's own loop is running), until that thread exits. Run "
+            "frames from that thread, and hand work to it -- from other threads, apply changes "
+            "inside `with mcrfpy.lock():` instead.",
+            fname);
+        return false;
+    }
+    return true;
 }
 
 // #153 - Headless simulation control
@@ -1784,20 +1811,32 @@ PyObject* McRFPy_API::_step(PyObject* self, PyObject* args) {
     if (!PyArg_ParseTuple(args, "|O", &dt_obj)) return NULL;
 
     float dt;
+    if (!game) {
+        PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
+        return NULL;
+    }
     if (dt_obj == Py_None) {
         // None means "advance to next event"
         dt = -1.0f;
-    } else if (PyFloat_Check(dt_obj)) {
-        dt = static_cast<float>(PyFloat_AsDouble(dt_obj));
-    } else if (PyLong_Check(dt_obj)) {
-        dt = static_cast<float>(PyLong_AsLong(dt_obj));
+    } else if (PyFloat_Check(dt_obj) || (PyLong_Check(dt_obj) && !PyBool_Check(dt_obj))) {
+        double d = PyFloat_AsDouble(dt_obj);
+        if (d == -1.0 && PyErr_Occurred()) return NULL;
+        // Before this check a negative dt silently meant "next event" (the internal
+        // sentinel), and NaN / inf / huge values hit an unchecked float->int cast that
+        // wrapped the clock negative.
+        if (!std::isfinite(d) || d < 0.0) {
+            PyErr_SetString(PyExc_ValueError,
+                "step() dt must be a finite number of seconds >= 0 (or None for the next event)");
+            return NULL;
+        }
+        if (d * 1000.0 > static_cast<double>(INT_MAX - game->getSimulationTime())) {
+            PyErr_SetString(PyExc_OverflowError,
+                "step() dt would overflow the simulation clock (int milliseconds)");
+            return NULL;
+        }
+        dt = static_cast<float>(d);
     } else {
         PyErr_SetString(PyExc_TypeError, "step() argument must be a float, int, or None");
-        return NULL;
-    }
-
-    if (!game) {
-        PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
         return NULL;
     }
     if (!frameAdvanceAllowed("step")) return NULL;
@@ -1828,13 +1867,12 @@ PyObject* McRFPy_API::_advance(PyObject* self, PyObject* args) {
         PyErr_SetString(PyExc_ValueError, "advance() milliseconds must be >= 0; the simulation clock does not run backwards");
         return NULL;
     }
-    if (ms > INT_MAX) {
-        PyErr_SetString(PyExc_OverflowError, "advance() milliseconds too large for the simulation clock");
-        return NULL;
-    }
-
     if (!game) {
         PyErr_SetString(PyExc_RuntimeError, "Game engine not initialized");
+        return NULL;
+    }
+    if (ms > INT_MAX - game->getSimulationTime()) {
+        PyErr_SetString(PyExc_OverflowError, "advance() milliseconds would overflow the simulation clock (int milliseconds)");
         return NULL;
     }
     if (!frameAdvanceAllowed("advance")) return NULL;

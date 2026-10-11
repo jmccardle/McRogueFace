@@ -295,7 +295,9 @@ private:
 
     void updateViewport();
 
-    void testTimers();
+    // #397 - The one timer pass, shared by doFrame() and runSimFrame(): fires every due
+    // timer (catching up once per elapsed interval, see Timer::test) and drops stopped ones.
+    void testTimers(int now);
 
     // #396 - The single simulation-frame implementation shared by step() and advance().
     // ms is the exact integer millisecond advance applied to simulation_time; actual_dt
@@ -379,6 +381,16 @@ public:
     // #219 - Thread synchronization for background threads
     FrameLock& getFrameLock() { return frameLock; }
     bool isMainThread() const { return std::this_thread::get_id() == main_thread_id; }
+
+    // #411 - Exactly one thread drives the simulation clock. The first thread to run a
+    // frame claims it: the main thread when run() starts the engine's own loop, otherwise
+    // the first caller of step()/advance(). Ownership passes on only when the owning
+    // thread exits. claimClock() returns false (and claims nothing) when another live
+    // thread owns it. ownsClock() is what mcrfpy.lock() asks: the owner never waits on
+    // the barrier its own frames open, and before anyone owns the clock the main thread
+    // is treated as the owner, as it always was.
+    bool claimClock();
+    bool ownsClock() const;
 
     // global textures for scripts to access
     std::vector<IndexTexture> textures;

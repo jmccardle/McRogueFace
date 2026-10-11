@@ -108,6 +108,16 @@ scene.children.append(probe)
 mcrfpy.current_scene = scene
 
 
+def refusal_kind(exc):
+    """Which rule a step()/advance() RuntimeError names: the lock, or (#411) the clock."""
+    msg = str(exc)
+    if "holds mcrfpy.lock()" in msg:
+        return "refused:lock"
+    if "does not drive the simulation clock" in msg:
+        return "refused:clock"
+    return "RuntimeError:" + msg
+
+
 def drive_until(event, deadline_s=DEADLINE):
     """Run the headless main loop until `event` is set or the deadline passes.
 
@@ -199,8 +209,8 @@ def section2_depth_accounting():
         try:
             call()
             return "returned"
-        except RuntimeError:
-            return "RuntimeError"
+        except RuntimeError as exc:
+            return refusal_kind(exc)
         except BaseException as exc:  # noqa: BLE001
             return type(exc).__name__
 
@@ -217,9 +227,10 @@ def section2_depth_accounting():
                 # this step() would sail through and re-enter the frame.
                 result["outcomes"].append(("depth1-again",
                                            outcome_of(lambda: mcrfpy.step(STEP_SECONDS))))
-            # Depth 0: outside every block, on a background thread. step() is now
-            # legal again -- if it is not, the depth counter leaked and the fix has
-            # permanently broken this thread.
+            # Depth 0: outside every block, on a background thread. The lock rule no
+            # longer applies -- if it still did, the depth counter leaked. Since #411 the
+            # call is still refused, because the main thread drives the clock, but for
+            # the OTHER reason: the message is what proves the depth reached 0.
             result["outcomes"].append(("depth0",
                                        outcome_of(lambda: mcrfpy.step(STEP_SECONDS))))
             # And the lock is re-acquirable afterwards, which is the same property
@@ -240,8 +251,8 @@ def section2_depth_accounting():
     check_true(f"nesting worker finished within the deadline ({steps} frames)", fired)
     check_true(f"no exception escaped ({result.get('outer')})", "outer" not in result)
     check("outcomes at each depth", result["outcomes"],
-          [("depth1", "RuntimeError"), ("depth2", "RuntimeError"),
-           ("depth1-again", "RuntimeError"), ("depth0", "returned")])
+          [("depth1", "refused:lock"), ("depth2", "refused:lock"),
+           ("depth1-again", "refused:lock"), ("depth0", "refused:clock")])
     check_true("the lock is re-acquirable after the refusals",
                result.get("reacquired") is True)
     check("the post-refusal locked mutation landed", probe.x, 99.0)
@@ -385,12 +396,9 @@ def section5_per_thread_not_global():
     is refused, and a handler on any other thread breaks whenever a peer is inside a
     lock block.
 
-    CAVEAT, stated because it decides how this assertion ages: engine issue #411 says
-    step() from a background thread OUTSIDE any lock block silently runs a frame off
-    the main thread, and may be refused outright once that is decided. If it is, B's
-    call will raise for a DIFFERENT reason and this section must be rebuilt around
-    whatever observable replaces it -- not merely re-baselined to expect the raise,
-    which would silently stop gating the per-thread property.
+    Since #411, B's call is refused anyway -- the main thread drives the clock, and only
+    the clock's owner may run frames. The observable is now WHICH refusal B gets: a
+    per-thread count yields the clock-ownership message, a global count the lock one.
     """
     print("Section 5: the holder count is per-thread, not process-wide")
 
@@ -418,7 +426,7 @@ def section5_per_thread_not_global():
                 mcrfpy.step(STEP_SECONDS)
                 result["probe"] = "returned"
             except RuntimeError as exc:
-                result["probe"] = "RuntimeError"
+                result["probe"] = refusal_kind(exc)
                 result["probe_msg"] = str(exc)
             except BaseException as exc:  # noqa: BLE001
                 result["probe"] = type(exc).__name__
@@ -437,9 +445,9 @@ def section5_per_thread_not_global():
     check_true(f"probe finished within the deadline ({steps} frames)", fired)
     check_true(f"the holder raised nothing ({result.get('holder')})",
                "holder" not in result)
-    check("a NON-holding thread is allowed to step() while a PEER holds the lock "
-          "(a global holder count would refuse it here)",
-          result.get("probe"), "returned")
+    check("a NON-holding thread is not refused for the lock while a PEER holds it "
+          "(a global holder count would say 'lock' here; #411 refuses it for the clock)",
+          result.get("probe"), "refused:clock")
 
 
 section1_refusal()

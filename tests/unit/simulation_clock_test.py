@@ -10,9 +10,9 @@ Covers three things the engine previously could not do from Python:
    (GameEngine::getSimulationTime). It is now get_metrics()['simulation_time_ms'].
 
 2. Let a span of simulated time pass with correct per-interval timer semantics.
-   step(dt) runs ONE frame, and one frame tests each timer at most once -- so a single
-   step(10.0) fires a 1000ms repeating timer ONCE, not ten times. advance(ms) walks the
-   span deadline by deadline instead.
+   step(dt) runs ONE frame. Since #397 that frame catches timers up (step(10.0) fires a
+   1000ms repeating timer ten times, each at its own deadline); advance(ms) additionally
+   runs a separate frame at each deadline.
 
    ACCEPTANCE: a 1-second repeating timer fires EXACTLY 10 times across 10 seconds.
 
@@ -96,7 +96,7 @@ def test_acceptance_ten_fires_in_ten_seconds():
 
 
 def test_step_still_fires_once_per_frame():
-    print("Test 3: step() keeps its one-frame contract (the gap advance() exists to close)")
+    print("Test 3: step() keeps its one-frame contract, and catches timers up within it (#397)")
     log = FireLog("step_timer", 1000)
     start_frame = frame()
 
@@ -104,8 +104,8 @@ def test_step_still_fires_once_per_frame():
 
     check("step(10.0) returned 10.0", dt, 10.0)
     check("step(10.0) ran exactly one frame", frame() - start_frame, 1)
-    check("step(10.0) fires the 1s timer only ONCE (documented, not a regression)",
-          len(log.times), 1)
+    check("step(10.0) fires the 1s timer once per elapsed interval (#397)",
+          len(log.times), 10)
     log.timer.stop()
 
 

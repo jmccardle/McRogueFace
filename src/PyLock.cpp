@@ -15,7 +15,7 @@ static PyMethodDef PyLockContext_methods[] = {
     {"__enter__", (PyCFunction)PyLockContext_enter, METH_NOARGS,
      MCRF_METHOD(LockContext, __enter__,
          MCRF_SIG("()", "_LockContext"),
-         MCRF_DESC("Acquire the frame lock, blocking until a safe window opens. No-op on the main thread."),
+         MCRF_DESC("Acquire the frame lock, blocking until a safe window opens. No-op on the thread that drives the simulation clock."),
          MCRF_RETURNS("self, for use in a `with` statement")
          MCRF_RAISES("RuntimeError", "If the game engine is not initialized")
      )},
@@ -67,9 +67,11 @@ static PyObject* PyLockContext_enter(PyLockContextObject* self, PyObject* args) 
         return NULL;
     }
 
-    // #219 - If we're on the main thread, no-op (already synchronized)
-    // This allows the same code to work from callbacks, script init, AND background threads
-    if (Resources::game->isMainThread()) {
+    // #219 - On the thread that runs frames, no-op (already synchronized): this allows the
+    // same code to work from callbacks, script init, AND background threads. #411: that is
+    // the clock owner, not "the main thread" -- when a background thread drives the clock,
+    // the main thread is just another thread and must wait for the frame's safe window.
+    if (Resources::game->ownsClock()) {
         self->acquired = false;  // Don't try to release what we didn't acquire
         Py_INCREF(self);
         return (PyObject*)self;
