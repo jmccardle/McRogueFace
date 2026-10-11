@@ -74,51 +74,20 @@ static bool IsHeightMapObject(PyObject* obj, PyHeightMapObject** out_hmap) {
     return result;
 }
 
-// Helper to parse a color from Python object
+// Helper to parse a required color argument. #450: one converter (PyColor::to_color,
+// exactly Color(value)); this only adds the argument's name to a None rejection.
 static bool ParseColorArg(PyObject* obj, sf::Color& out_color, const char* arg_name) {
     if (!obj || obj == Py_None) {
         PyErr_Format(PyExc_TypeError, "%s cannot be None", arg_name);
         return false;
     }
+    return PyColor::to_color(obj, out_color);
+}
 
-    if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyColorType)) {
-        out_color = ((PyColorObject*)obj)->data;
-        return true;
-    }
-
-    if (PyTuple_Check(obj) || PyList_Check(obj)) {
-        PyObject* seq = PySequence_Fast(obj, "color must be sequence");
-        if (!seq) return false;
-
-        Py_ssize_t len = PySequence_Fast_GET_SIZE(seq);
-        if (len < 3 || len > 4) {
-            Py_DECREF(seq);
-            PyErr_Format(PyExc_ValueError, "%s must be (r, g, b) or (r, g, b, a)", arg_name);
-            return false;
-        }
-
-        int r = (int)PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, 0));
-        int g = (int)PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, 1));
-        int b = (int)PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, 2));
-        int a = (len == 4) ? (int)PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, 3)) : 255;
-        Py_DECREF(seq);
-
-        if (PyErr_Occurred()) return false;
-
-        // #213 - Validate color component range (0-255)
-        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
-            PyErr_Format(PyExc_ValueError,
-                "%s color components must be in range 0-255, got (%d, %d, %d, %d)",
-                arg_name, r, g, b, a);
-            return false;
-        }
-
-        out_color = sf::Color(r, g, b, a);
-        return true;
-    }
-
-    PyErr_Format(PyExc_TypeError, "%s must be a Color or (r, g, b[, a]) tuple", arg_name);
-    return false;
+// An optional color argument: omitted or None keeps `out` (the caller's default).
+static bool ParseOptionalColorArg(PyObject* obj, sf::Color& out) {
+    if (!obj || obj == Py_None) return true;
+    return PyColor::to_color(obj, out);  // #450 (was a silent uint8 wrap)
 }
 
 // Interpolate between two colors
@@ -1082,27 +1051,8 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
         return NULL;
     }
 
-    // Parse color
     sf::Color color;
-    if (PyObject_IsInstance(color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
-        color = ((PyColorObject*)color_obj)->data;
-    } else if (PyTuple_Check(color_obj)) {
-        int r, g, b, a = 255;
-        if (!PyArg_ParseTuple(color_obj, "iii|i", &r, &g, &b, &a)) {
-            return NULL;
-        }
-        // #213 - Validate color component range
-        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
-            PyErr_Format(PyExc_ValueError,
-                "color components must be in range 0-255, got (%d, %d, %d, %d)",
-                r, g, b, a);
-            return NULL;
-        }
-        color = sf::Color(r, g, b, a);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "color must be a Color object or (r, g, b[, a]) tuple");
-        return NULL;
-    }
+    if (!PyColor::to_color(color_obj, color)) return NULL;  // #450
 
     self->data->at(x, y) = color;
     self->data->markDirty(x, y);  // Mark only the affected chunk
@@ -1169,9 +1119,8 @@ int PyGridLayerAPI::ColorLayer_subscript_assign(PyColorLayerObject* self, PyObje
         return -1;
     }
 
-    // PyColor::fromPy accepts Color objects, tuples, lists, ints; sets PyErr on failure.
-    sf::Color color = PyColor::fromPy(value);
-    if (PyErr_Occurred()) return -1;
+    sf::Color color;
+    if (!PyColor::to_color(value, color)) return -1;  // #450: was clamp / 1.5->255 / None->White
 
     self->data->at(x, y) = color;
     self->data->markDirty(x, y);
@@ -1195,27 +1144,8 @@ PyObject* PyGridLayerAPI::ColorLayer_fill(PyColorLayerObject* self, PyObject* ar
         return NULL;
     }
 
-    // Parse color
     sf::Color color;
-    if (PyObject_IsInstance(color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
-        color = ((PyColorObject*)color_obj)->data;
-    } else if (PyTuple_Check(color_obj)) {
-        int r, g, b, a = 255;
-        if (!PyArg_ParseTuple(color_obj, "iii|i", &r, &g, &b, &a)) {
-            return NULL;
-        }
-        // #213 - Validate color component range
-        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
-            PyErr_Format(PyExc_ValueError,
-                "color components must be in range 0-255, got (%d, %d, %d, %d)",
-                r, g, b, a);
-            return NULL;
-        }
-        color = sf::Color(r, g, b, a);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "color must be a Color object or (r, g, b[, a]) tuple");
-        return NULL;
-    }
+    if (!PyColor::to_color(color_obj, color)) return NULL;  // #450
 
     self->data->fill(color);
     Py_RETURN_NONE;
@@ -1259,27 +1189,8 @@ PyObject* PyGridLayerAPI::ColorLayer_fill_rect(PyColorLayerObject* self, PyObjec
         return NULL;
     }
 
-    // Parse color
     sf::Color color;
-    if (PyObject_IsInstance(color_obj, (PyObject*)&mcrfpydef::PyColorType)) {
-        color = ((PyColorObject*)color_obj)->data;
-    } else if (PyTuple_Check(color_obj)) {
-        int r, g, b, a = 255;
-        if (!PyArg_ParseTuple(color_obj, "iii|i", &r, &g, &b, &a)) {
-            return NULL;
-        }
-        // #213 - Validate color component range
-        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 || a < 0 || a > 255) {
-            PyErr_Format(PyExc_ValueError,
-                "color components must be in range 0-255, got (%d, %d, %d, %d)",
-                r, g, b, a);
-            return NULL;
-        }
-        color = sf::Color(r, g, b, a);
-    } else {
-        PyErr_SetString(PyExc_TypeError, "color must be a Color object or (r, g, b[, a]) tuple");
-        return NULL;
-    }
+    if (!PyColor::to_color(color_obj, color)) return NULL;  // #450
 
     self->data->fillRect(x, y, width, height, color);
     Py_RETURN_NONE;
@@ -1335,37 +1246,14 @@ PyObject* PyGridLayerAPI::ColorLayer_draw_fov(PyColorLayerObject* self, PyObject
         algorithm = self->grid->fov_algorithm;
     }
 
-    // Helper lambda to parse color
-    auto parse_color = [](PyObject* obj, sf::Color& out, const sf::Color& default_val, const char* name) -> bool {
-        if (!obj || obj == Py_None) {
-            out = default_val;
-            return true;
-        }
-
-        if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyColorType)) {
-            out = ((PyColorObject*)obj)->data;
-            return true;
-        } else if (PyTuple_Check(obj)) {
-            int r, g, b, a = 255;
-            if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
-                return false;
-            }
-            out = sf::Color(r, g, b, a);
-            return true;
-        }
-
-        PyErr_Format(PyExc_TypeError, "%s must be a Color object or (r, g, b[, a]) tuple", name);
-        return false;
-    };
-
     // Default colors for FOV visualization
     sf::Color visible_color(255, 255, 200, 64);   // Light yellow tint
     sf::Color discovered_color(128, 128, 128, 128); // Gray
     sf::Color unknown_color(0, 0, 0, 255);          // Black
 
-    if (!parse_color(visible_obj, visible_color, visible_color, "visible")) return NULL;
-    if (!parse_color(discovered_obj, discovered_color, discovered_color, "discovered")) return NULL;
-    if (!parse_color(unknown_obj, unknown_color, unknown_color, "unknown")) return NULL;
+    if (!ParseOptionalColorArg(visible_obj, visible_color)) return NULL;
+    if (!ParseOptionalColorArg(discovered_obj, discovered_color)) return NULL;
+    if (!ParseOptionalColorArg(unknown_obj, unknown_color)) return NULL;
 
     self->data->drawFOV(source_x, source_y, radius, algorithm, visible_color, discovered_color, unknown_color);
     Py_RETURN_NONE;
@@ -1405,37 +1293,14 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_perspective(PyColorLayerObject* self,
         return NULL;
     }
 
-    // Helper lambda to parse color
-    auto parse_color = [](PyObject* obj, sf::Color& out, const sf::Color& default_val, const char* name) -> bool {
-        if (!obj || obj == Py_None) {
-            out = default_val;
-            return true;
-        }
-
-        if (PyObject_IsInstance(obj, (PyObject*)&mcrfpydef::PyColorType)) {
-            out = ((PyColorObject*)obj)->data;
-            return true;
-        } else if (PyTuple_Check(obj)) {
-            int r, g, b, a = 255;
-            if (!PyArg_ParseTuple(obj, "iii|i", &r, &g, &b, &a)) {
-                return false;
-            }
-            out = sf::Color(r, g, b, a);
-            return true;
-        }
-
-        PyErr_Format(PyExc_TypeError, "%s must be a Color object or (r, g, b[, a]) tuple", name);
-        return false;
-    };
-
     // Parse colors with defaults
     sf::Color visible_color(255, 255, 200, 64);
     sf::Color discovered_color(100, 100, 100, 128);
     sf::Color unknown_color(0, 0, 0, 255);
 
-    if (!parse_color(visible_obj, visible_color, visible_color, "visible")) return NULL;
-    if (!parse_color(discovered_obj, discovered_color, discovered_color, "discovered")) return NULL;
-    if (!parse_color(unknown_obj, unknown_color, unknown_color, "unknown")) return NULL;
+    if (!ParseOptionalColorArg(visible_obj, visible_color)) return NULL;
+    if (!ParseOptionalColorArg(discovered_obj, discovered_color)) return NULL;
+    if (!ParseOptionalColorArg(unknown_obj, unknown_color)) return NULL;
 
     self->data->applyPerspective(py_entity->data, visible_color, discovered_color, unknown_color);
     Py_RETURN_NONE;

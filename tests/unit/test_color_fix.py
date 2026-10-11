@@ -60,12 +60,22 @@ except Exception as e:
     failures += 1
 
 # Test 5: bad input must raise, not silently succeed
+# (#450: it raises exactly what Color(value) raises)
+try:
+    mcrfpy.Color("not a color")
+    expected_exc = None
+except Exception as exc:
+    expected_exc = type(exc)
 try:
     color_layer.set((2, 2), "not a color")
     print("x Bad color value was accepted")
     failures += 1
-except (TypeError, ValueError):
-    print("+ Invalid color rejected")
+except Exception as exc:
+    if expected_exc is not None and type(exc) is expected_exc:
+        print("+ Invalid color rejected")
+    else:
+        print(f"x Invalid color raised {type(exc).__name__}, Color() raises {expected_exc}")
+        failures += 1
 
 if failures:
     print(f"FAIL ({failures} check(s) failed)")

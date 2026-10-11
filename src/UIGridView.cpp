@@ -815,8 +815,7 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     self->data->center_y = center_y;
 
     if (fill_color_obj && fill_color_obj != Py_None) {
-        self->data->fill_color = PyColor::fromPy(fill_color_obj);
-        if (PyErr_Occurred()) return -1;
+        if (!PyColor::to_color(fill_color_obj, self->data->fill_color)) return -1;  // #450
     }
 
     if (click_handler && click_handler != Py_None) {
@@ -1101,8 +1100,9 @@ PyObject* UIGridView::get_fill_color(PyUIGridViewObject* self, void* closure)
 
 int UIGridView::set_fill_color(PyUIGridViewObject* self, PyObject* value, void* closure)
 {
-    self->data->fill_color = PyColor::fromPy(value);
-    if (PyErr_Occurred()) return -1;
+    sf::Color color;
+    if (!PyColor::to_color(value, color)) return -1;  // #450: was clamp / 1.5->255 / None->White
+    self->data->fill_color = color;
     return 0;
 }
 

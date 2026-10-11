@@ -95,12 +95,12 @@ bool animation_target(PyObject* value, AnimKind kind, const char* property, Anim
         }
 
         case AnimKind::Color: {
-            // Color(value): a Color or an (r, g, b[, a]) tuple of ints in 0-255, strictly.
-            // (PyColor::fromPy() clamps and reads a non-int component as 255.)
+            // A Color or an (r, g, b[, a]) tuple, converted exactly as assignment does (#450).
+            // Other types break out to the TypeError that names the property.
             if (!PyObject_TypeCheck(value, &mcrfpydef::PyColorType) && !PyTuple_Check(value)) break;
-            PyRef color((PyObject*)PyColor::from_arg(value));
-            if (!color) return false;
-            out = ((PyColorObject*)color.get())->data;
+            sf::Color color;
+            if (!PyColor::to_color(value, color)) return false;
+            out = color;
             return true;
         }
 

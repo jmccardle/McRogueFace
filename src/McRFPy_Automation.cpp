@@ -189,16 +189,40 @@ void McRFPy_Automation::injectKeyEvent(sf::Event::EventType type, sf::Keyboard::
     engine->processEvent(event);
 }
 
-// Inject text event for typing
-void McRFPy_Automation::injectTextEvent(sf::Uint32 unicode) {
-    auto engine = getGameEngine();
-    if (!engine) return;
+// #433 - typewrite() simulates key presses, so each character maps to the key that
+// types it on a US layout, with Shift for uppercase and shifted symbols. There is no
+// text-entry event: the engine delivers key presses (on_key) only.
+bool McRFPy_Automation::charToKeyStroke(Py_UCS4 ch, sf::Keyboard::Key* key, bool* shift) {
+    *shift = false;
+    if (ch >= 'a' && ch <= 'z') { *key = static_cast<sf::Keyboard::Key>(sf::Keyboard::A + (ch - 'a')); return true; }
+    if (ch >= 'A' && ch <= 'Z') { *key = static_cast<sf::Keyboard::Key>(sf::Keyboard::A + (ch - 'A')); *shift = true; return true; }
+    if (ch >= '0' && ch <= '9') { *key = static_cast<sf::Keyboard::Key>(sf::Keyboard::Num0 + (ch - '0')); return true; }
 
-    sf::Event event;
-    event.type = sf::Event::TextEntered;
-    event.text.unicode = unicode;
-
-    engine->processEvent(event);
+    struct Stroke { Py_UCS4 ch; sf::Keyboard::Key key; bool shift; };
+    static const Stroke strokes[] = {
+        {' ', sf::Keyboard::Space, false}, {'\n', sf::Keyboard::Enter, false},
+        {'\t', sf::Keyboard::Tab, false},
+        {',', sf::Keyboard::Comma, false}, {'<', sf::Keyboard::Comma, true},
+        {'.', sf::Keyboard::Period, false}, {'>', sf::Keyboard::Period, true},
+        {'/', sf::Keyboard::Slash, false}, {'?', sf::Keyboard::Slash, true},
+        {';', sf::Keyboard::Semicolon, false}, {':', sf::Keyboard::Semicolon, true},
+        {'\'', sf::Keyboard::Apostrophe, false}, {'"', sf::Keyboard::Apostrophe, true},
+        {'[', sf::Keyboard::LBracket, false}, {'{', sf::Keyboard::LBracket, true},
+        {']', sf::Keyboard::RBracket, false}, {'}', sf::Keyboard::RBracket, true},
+        {'\\', sf::Keyboard::Backslash, false}, {'|', sf::Keyboard::Backslash, true},
+        {'-', sf::Keyboard::Hyphen, false}, {'_', sf::Keyboard::Hyphen, true},
+        {'=', sf::Keyboard::Equal, false}, {'+', sf::Keyboard::Equal, true},
+        {'`', sf::Keyboard::Grave, false}, {'~', sf::Keyboard::Grave, true},
+        {')', sf::Keyboard::Num0, true}, {'!', sf::Keyboard::Num1, true},
+        {'@', sf::Keyboard::Num2, true}, {'#', sf::Keyboard::Num3, true},
+        {'$', sf::Keyboard::Num4, true}, {'%', sf::Keyboard::Num5, true},
+        {'^', sf::Keyboard::Num6, true}, {'&', sf::Keyboard::Num7, true},
+        {'*', sf::Keyboard::Num8, true}, {'(', sf::Keyboard::Num9, true},
+    };
+    for (const auto& s : strokes) {
+        if (s.ch == ch) { *key = s.key; *shift = s.shift; return true; }
+    }
+    return false;
 }
 
 // Screenshot implementation
@@ -490,33 +514,45 @@ PyObject* McRFPy_Automation::_doubleClick(PyObject* self, PyObject* args, PyObje
 // Type text
 PyObject* McRFPy_Automation::_typewrite(PyObject* self, PyObject* args, PyObject* kwargs) {
     static const char* kwlist[] = {"message", "interval", NULL};
-    const char* message;
+    PyObject* message;
     float interval = 0.0f;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|f", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "U|f", const_cast<char**>(kwlist),
                                      &message, &interval)) {
         return NULL;
     }
 
-    // Type each character
-    for (size_t i = 0; message[i] != '\0'; i++) {
+    // #433: resolve every character before sending anything, so a string with an
+    // untypeable character fails whole instead of half-typed.
+    struct KeyStroke { sf::Keyboard::Key key; bool shift; };
+    std::vector<KeyStroke> strokes;
+    Py_ssize_t len = PyUnicode_GET_LENGTH(message);
+    strokes.reserve(len);
+    for (Py_ssize_t i = 0; i < len; i++) {
+        Py_UCS4 ch = PyUnicode_READ_CHAR(message, i);
+        KeyStroke s;
+        if (!charToKeyStroke(ch, &s.key, &s.shift)) {
+            PyObject* one = PyUnicode_FromOrdinal(ch);
+            if (one) {
+                PyErr_Format(PyExc_ValueError,
+                             "typewrite(): no key types %R (index %zd); use keyDown()/hotkey() "
+                             "for keys that are not characters", one, i);
+                Py_DECREF(one);
+            }
+            return NULL;
+        }
+        strokes.push_back(s);
+    }
+
+    for (size_t i = 0; i < strokes.size(); i++) {
         if (i > 0 && interval > 0) {
             sleep_ms(static_cast<int>(interval * 1000));
         }
-
-        char c = message[i];
-
-        // Handle special characters
-        if (c == '\n') {
-            injectKeyEvent(sf::Event::KeyPressed, sf::Keyboard::Enter);
-            injectKeyEvent(sf::Event::KeyReleased, sf::Keyboard::Enter);
-        } else if (c == '\t') {
-            injectKeyEvent(sf::Event::KeyPressed, sf::Keyboard::Tab);
-            injectKeyEvent(sf::Event::KeyReleased, sf::Keyboard::Tab);
-        } else {
-            // For regular characters, send text event
-            injectTextEvent(static_cast<sf::Uint32>(c));
-        }
+        const KeyStroke& s = strokes[i];
+        if (s.shift) injectKeyEvent(sf::Event::KeyPressed, sf::Keyboard::LShift);
+        injectKeyEvent(sf::Event::KeyPressed, s.key);
+        injectKeyEvent(sf::Event::KeyReleased, s.key);
+        if (s.shift) injectKeyEvent(sf::Event::KeyReleased, sf::Keyboard::LShift);
     }
 
     Py_RETURN_NONE;
@@ -624,6 +660,10 @@ PyObject* McRFPy_Automation::_scroll(PyObject* self, PyObject* args, PyObject* k
             return NULL;
         }
     }
+
+    // #432: dispatch hit-tests at the simulated mouse position, so move there first,
+    // exactly as click(pos) does. Without this the scroll landed under the cursor.
+    injectMouseEvent(sf::Event::MouseMoved, x, y);
 
     // Inject scroll event (#317: forward the resolved x/y position; clicks is
     // the scroll delta, passed via its own argument).
@@ -970,7 +1010,8 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARGS_START
          MCRF_ARG("clicks", "Number of scroll steps (positive = up, negative = down)")
          MCRF_ARG("pos", "Position as (x, y) tuple, [x, y] list, Vector, or None for current position")
-         MCRF_NOTE("Both the x and y of pos are applied to the scroll event position.")
+         MCRF_NOTE("Like click(pos), a pos moves the simulated mouse there first (firing hover "
+                   "enter/exit), then scrolls; the widget under pos receives the scroll.")
      )},
     {"mouseDown", (PyCFunction)McRFPy_Automation::_mouseDown, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, mouseDown,
@@ -1011,10 +1052,15 @@ static PyMethodDef automationMethods[] = {
     {"typewrite", (PyCFunction)McRFPy_Automation::_typewrite, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(automation, typewrite,
          MCRF_SIG("(message: str, interval: float = 0.0)", "None"),
-         MCRF_DESC("Type text by injecting keyboard events for each character."),
+         MCRF_DESC("Type text as key presses: each character is a press and release of the key "
+                   "that types it on a US layout, delivered to on_key. Uppercase letters and "
+                   "shifted symbols hold LEFT_SHIFT around the key; '\\n' is ENTER, '\\t' is TAB."),
          MCRF_ARGS_START
-         MCRF_ARG("message", "Text string to type")
-         MCRF_ARG("interval", "Seconds to wait between keystrokes (default 0.0)")
+         MCRF_ARG("message", "Text to type: letters, digits, space, US-keyboard punctuation, '\\n', '\\t'")
+         MCRF_ARG("interval", "Seconds to wait between characters (default 0.0)")
+         MCRF_RAISES("ValueError", "If a character has no key (e.g. 'é', '\\r'); checked before any key is sent")
+         MCRF_NOTE("There is no separate text-entry event: typewrite('a') is on_key(Key.A, PRESSED) "
+                   "then on_key(Key.A, RELEASED).")
      )},
     {"hotkey", McRFPy_Automation::_hotkey, METH_VARARGS,
      MCRF_METHOD(automation, hotkey,

@@ -50,7 +50,8 @@ public:
     // they do not belong in injectMouseEvent's coordinate-bearing signature.
     static void injectWindowEvent(sf::Event::EventType type);
     static void injectKeyEvent(sf::Event::EventType type, sf::Keyboard::Key key);
-    static void injectTextEvent(sf::Uint32 unicode);
+    // #433 - The key typing a character (US layout); false if no key types it.
+    static bool charToKeyStroke(Py_UCS4 ch, sf::Keyboard::Key* key, bool* shift);
     static sf::Keyboard::Key stringToKey(const std::string& keyName);
     static void sleep_ms(int milliseconds);
     

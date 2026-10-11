@@ -691,6 +691,11 @@ if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) retu
 mcrf::live_wrapper(serial) / mcrf::unregister_wrapper(serial)   // never PythonObjectCache::
 // Vector arguments: never PyVector::from_arg() (new reference) in a setter.
 sf::Vector2f v; if (!mcrf::to_vector2f(value, v, "pos")) return -1;
+// Color values (#450): every write to a Color -- setter, ctor kwarg, item, method arg,
+// animate target -- goes through PyColor::to_color, which is exactly Color(value): a Color
+// or an (r, g, b[, a]) int tuple in 0-255, else the same exception. Never clamp, wrap or
+// default inside it; an optional arg checks for None itself. (fromPy/from_arg are gone.)
+sf::Color c; if (!PyColor::to_color(value, c)) return -1;
 // New references handed to non-stealing calls:
 mcrf::dict_steal(d, "fps", PyLong_FromLong(fps));      // steals; fails cleanly on nullptr
 _click(self, mcrf::PyRef(PyTuple_New(0)).get(), kw);  // PyRef owns it for the expression

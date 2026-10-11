@@ -54,10 +54,10 @@ def run_git(args, repo):
 
 
 def find_repo_root():
-    rc, out = run_git(["rev-parse", "--show-toplevel"], os.getcwd())
-    if rc == 0 and out.strip():
-        return out.strip()
-    # Fall back to the tools/ directory's parent.
+    # The repo is this script's tools/ directory's parent. Asking git from the
+    # working directory is wrong inside a hook: git exports GIT_DIR to hooks (always,
+    # in a linked worktree), and with GIT_DIR set and no GIT_WORK_TREE, git takes the
+    # current directory (build/) as the top level.
     here = os.path.dirname(os.path.abspath(__file__))
     return os.path.dirname(here)
 
