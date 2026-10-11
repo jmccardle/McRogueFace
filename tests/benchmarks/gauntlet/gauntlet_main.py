@@ -179,7 +179,16 @@ class Gauntlet:
         if self.state != "trial" or self.mode != "ramp" or not self.ramp:
             return
         if not self.ramp.done:
-            self.ramp.sample(rt, mcrfpy.get_metrics())
+            # One sample per rendered frame. Timers catch up after a late frame (#397),
+            # so a single 300 ms frame fired this 16 ms sampler ~18 times with the same
+            # frame_time: one hiccup became the 3 hard-cap strikes (DESIGN.md
+            # deviation 8) that are meant to need three slow frames.
+            metrics = mcrfpy.get_metrics()
+            frame = metrics.get("current_frame")
+            if frame is not None and frame == getattr(self, "_last_sampled_frame", None):
+                return
+            self._last_sampled_frame = frame
+            self.ramp.sample(rt, metrics)
             if self.ramp.done:
                 self._ramp_finished()
 
