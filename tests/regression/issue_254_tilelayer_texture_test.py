@@ -1,67 +1,54 @@
-"""Regression test for #254: TileLayer inherits Grid texture when none set."""
+"""Regression test for #254: a TileLayer with no texture draws with its grid's.
+
+#454 changed how: the grid's texture used to be COPIED into the layer when it was
+attached, so changing the grid's texture later didn't restyle it. Now the layer keeps
+none of its own (`layer.texture is None`) and looks the grid's up each time it's drawn.
+The drawing itself is checked against screenshots in
+issue_453_454_grid_texture_cell_size_test.py; this checks every way of attaching.
+"""
 import mcrfpy
 import sys
 
-def test_tilelayer_texture_inheritance():
-    """TileLayer without texture should inherit grid's texture on attachment."""
-    scene = mcrfpy.Scene("test254")
-    mcrfpy.current_scene = scene
+failures = []
 
-    # Create grid with texture
-    tex = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
-    grid = mcrfpy.Grid(grid_size=(10, 10), texture=tex, pos=(0, 0), size=(160, 160))
-    scene.children.append(grid)
 
-    # Create TileLayer WITHOUT texture
-    layer_no_tex = mcrfpy.TileLayer(name="terrain", z_index=0)
-    grid.add_layer(layer_no_tex)
+def check(cond, msg):
+    print(("  ok: " if cond else "FAIL: ") + msg)
+    if not cond:
+        failures.append(msg)
 
-    # Verify it inherited the grid's texture
-    assert layer_no_tex.texture is not None, "TileLayer should inherit grid texture"
-    print("PASS: TileLayer without texture inherits grid texture")
 
-    # Create TileLayer WITH explicit texture
-    tex2 = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
-    layer_with_tex = mcrfpy.TileLayer(name="overlay", z_index=1, texture=tex2)
-    grid.add_layer(layer_with_tex)
+scene = mcrfpy.Scene("test254")
+mcrfpy.current_scene = scene
+tex = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
+tex2 = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
 
-    # Verify it kept its own texture
-    assert layer_with_tex.texture is not None, "TileLayer with texture should keep it"
-    print("PASS: TileLayer with explicit texture keeps its own")
+# add_layer()
+grid = mcrfpy.Grid(grid_size=(10, 10), texture=tex, pos=(0, 0), size=(160, 160))
+scene.children.append(grid)
+layer = mcrfpy.TileLayer(name="terrain", z_index=0)
+grid.add_layer(layer)
+check(layer.texture is None, "add_layer: no texture of its own (inherits)")
+own = mcrfpy.TileLayer(name="overlay", z_index=1, texture=tex2)
+grid.add_layer(own)
+check(own.texture is tex2, "add_layer: a layer with a texture keeps its own")
 
-def test_tilelayer_texture_via_constructor():
-    """TileLayer passed in Grid constructor should also inherit texture."""
-    scene = mcrfpy.Scene("test254b")
-    mcrfpy.current_scene = scene
+# Grid(layers=[...])
+layer = mcrfpy.TileLayer(name="base", z_index=0)
+grid2 = mcrfpy.Grid(grid_size=(10, 10), texture=tex, pos=(0, 0), size=(160, 160), layers=[layer])
+check(layer.texture is None, "Grid(layers=[...]): no texture of its own (inherits)")
 
-    tex = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
-    layer = mcrfpy.TileLayer(name="base", z_index=0)
+# layer.grid = grid
+layer = mcrfpy.TileLayer(name="via_prop", z_index=0)
+layer.grid = grid
+check(layer.texture is None, "layer.grid = grid: no texture of its own (inherits)")
 
-    grid = mcrfpy.Grid(grid_size=(10, 10), texture=tex, pos=(0, 0), size=(160, 160),
-                        layers=[layer])
-    scene.children.append(grid)
+# Assigning None goes back to inheriting.
+own.texture = None
+check(own.texture is None, "layer.texture = None: inherits again")
 
-    assert layer.texture is not None, "TileLayer in constructor should inherit grid texture"
-    print("PASS: TileLayer in constructor inherits grid texture")
-
-def test_tilelayer_texture_via_grid_property():
-    """TileLayer attached via layer.grid = grid should inherit texture."""
-    scene = mcrfpy.Scene("test254c")
-    mcrfpy.current_scene = scene
-
-    tex = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
-    grid = mcrfpy.Grid(grid_size=(10, 10), texture=tex, pos=(0, 0), size=(160, 160))
-    scene.children.append(grid)
-
-    layer = mcrfpy.TileLayer(name="via_prop", z_index=0)
-    layer.grid = grid
-
-    assert layer.texture is not None, "TileLayer attached via .grid should inherit texture"
-    print("PASS: TileLayer via .grid property inherits grid texture")
-
-if __name__ == "__main__":
-    test_tilelayer_texture_inheritance()
-    test_tilelayer_texture_via_constructor()
-    test_tilelayer_texture_via_grid_property()
-    print("All #254 tests passed")
-    sys.exit(0)
+if failures:
+    print("FAIL: %d check(s)" % len(failures))
+    sys.exit(1)
+print("PASS")
+sys.exit(0)

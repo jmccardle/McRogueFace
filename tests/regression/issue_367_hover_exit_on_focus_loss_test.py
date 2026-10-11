@@ -44,7 +44,7 @@ def screen_of_cell(grid, cx, cy):
 def case_grid_cell_exit_fires_on_focus_loss():
     scene = mcrfpy.Scene("blur_grid")
     scene.activate()
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
 
     enters, exits = [], []
@@ -100,7 +100,7 @@ def case_reenter_after_focus_loss():
     """
     scene = mcrfpy.Scene("blur_reenter")
     scene.activate()
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
 
     enters = []

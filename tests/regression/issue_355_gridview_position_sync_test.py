@@ -22,7 +22,7 @@ def fail(msg):
 def main():
     scene = mcrfpy.Scene("pos_sync")
     scene.activate()
-    grid = mcrfpy.Grid(grid_size=(5, 5), pos=(100, 100), size=(200, 200))
+    grid = mcrfpy.Grid(grid_size=(5, 5), texture=mcrfpy.default_texture, pos=(100, 100), size=(200, 200))
     scene.children.append(grid)
 
     # 1. box follows position

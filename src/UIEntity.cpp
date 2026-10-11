@@ -326,11 +326,9 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         }
         auto pytexture = (PyTextureObject*)texture;
         texture_ptr = pytexture->data;
-    } else {
-        // Use default texture when None or not provided
-        texture_ptr = McRFPy_API::defaultTexture();
-        if (!texture_ptr) return -1;
     }
+    // #454: no texture means none of its own -- it draws with its grid's, looked up
+    // when drawn -- so creating an entity needs no display.
     
     // Handle grid argument - accept both internal _GridData and GridView (unified Grid)
     if (grid_obj && !PyObject_IsInstance(grid_obj, (PyObject*)&mcrfpydef::PyGridDataType) &&
@@ -362,8 +360,8 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
     if (texture_ptr) {
         self->data->sprite = UISprite(texture_ptr, sprite_index, sf::Vector2f(0,0), 1.0);
     } else {
-        // Create an empty sprite for testing
         self->data->sprite = UISprite();
+        self->data->sprite.setSpriteIndex(sprite_index);
     }
     
     // Set position using grid coordinates
@@ -577,21 +575,16 @@ int UIEntity::set_spritenumber(PyUIEntityObject* self, PyObject* value, void* cl
     return 0;
 }
 
-// #313 - texture property: thin wrapper over the entity's own UISprite.
-// Entities render from their own texture (falling back to default_texture at
-// construction); the grid's texture is only used for cell-size math.
+// #313/#454 - texture property: the entity's OWN texture, or None when it has none
+// and draws with its grid's (looked up when drawn).
 PyObject* UIEntity::get_texture(PyUIEntityObject* self, void* closure) {
     if (!self->data) {
         // Entity.__new__ without __init__ leaves data null
         PyErr_SetString(PyExc_RuntimeError, "Invalid Entity object");
         return NULL;
     }
-    auto tex = self->data->sprite.getTexture();
-    if (!tex) {
-        // Only reachable if default_texture was null at construction
-        Py_RETURN_NONE;
-    }
-    return tex->pyObject();
+    // #430: cache-aware, so this is the very Texture the user passed in.
+    return PyTexture::pyobject_for(self->data->sprite.getTexture());
 }
 
 int UIEntity::set_texture(PyUIEntityObject* self, PyObject* value, void* closure) {
@@ -603,10 +596,16 @@ int UIEntity::set_texture(PyUIEntityObject* self, PyObject* value, void* closure
         PyErr_SetString(PyExc_TypeError, "Cannot delete texture attribute");
         return -1;
     }
+    if (value == Py_None) {
+        // #454: inherit the grid's texture again
+        self->data->sprite.setTexture(nullptr);
+        if (self->data->getGrid()) self->data->getGrid()->markDirty();
+        return 0;
+    }
     int is_texture = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType);
     if (is_texture == -1) return -1;  // isinstance itself raised
     if (!is_texture) {
-        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance");
+        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture instance or None");
         return -1;
     }
     auto pytexture = (PyTextureObject*)value;
@@ -674,37 +673,15 @@ int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* cl
     return 0;
 }
 
-// #176 - Helper to get cell dimensions from grid
-static void get_cell_dimensions(UIEntity* entity, float& cell_width, float& cell_height) {
-    // Default cell dimensions when no grid is attached
-    constexpr float DEFAULT_CELL_WIDTH = 16.0f;
-    constexpr float DEFAULT_CELL_HEIGHT = 16.0f;
-
-    if (entity->getGrid()) {
-        // #313: cell size lives on the data layer (mirrored from the grid's
-        // texture at construction) -- entities no longer reach into rendering.
-        cell_width = static_cast<float>(entity->getGrid()->cell_width());
-        cell_height = static_cast<float>(entity->getGrid()->cell_height());
-    } else {
-        cell_width = DEFAULT_CELL_WIDTH;
-        cell_height = DEFAULT_CELL_HEIGHT;
-    }
-}
-
 // #176 - Pixel position: pos = draw_pos * tile_size
 PyObject* UIEntity::get_pixel_pos(PyUIEntityObject* self, void* closure) {
-    if (!self->data->getGrid()) {
+    sf::Vector2f cell;
+    if (!self->data->cellPixelSize(cell)) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return NULL;
     }
 
-    float cell_width, cell_height;
-    get_cell_dimensions(self->data.get(), cell_width, cell_height);
-
-    sf::Vector2f pixel_pos(
-        self->data->position.x * cell_width,
-        self->data->position.y * cell_height
-    );
+    sf::Vector2f pixel_pos(self->data->position.x * cell.x, self->data->position.y * cell.y);
     return sfVector2f_to_PyObject(pixel_pos);
 }
 
@@ -725,19 +702,17 @@ int UIEntity::set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closu
 
 // #176 - Individual pixel coordinates (x, y)
 PyObject* UIEntity::get_pixel_member(PyUIEntityObject* self, void* closure) {
-    if (!self->data->getGrid()) {
+    sf::Vector2f cell;
+    if (!self->data->cellPixelSize(cell)) {
         PyErr_SetString(PyExc_RuntimeError, "entity is not attached to a Grid");
         return NULL;
     }
 
-    float cell_width, cell_height;
-    get_cell_dimensions(self->data.get(), cell_width, cell_height);
-
     auto member_ptr = reinterpret_cast<intptr_t>(closure);
     if (member_ptr == 0) // x
-        return PyFloat_FromDouble(self->data->position.x * cell_width);
+        return PyFloat_FromDouble(self->data->position.x * cell.x);
     else // y
-        return PyFloat_FromDouble(self->data->position.y * cell_height);
+        return PyFloat_FromDouble(self->data->position.y * cell.y);
 }
 
 int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* closure) {
@@ -1843,7 +1818,7 @@ PyGetSetDef UIEntity::getsetters[] = {
      MCRF_PROPERTY(sprite_index, "Sprite index into the entity's texture atlas (int)."), NULL},
     // #313 - entities render from their OWN texture, not the grid's
     {"texture", (getter)UIEntity::get_texture, (setter)UIEntity::set_texture,
-     MCRF_PROPERTY(texture, "Sprite texture atlas (Texture). Defaults to mcrfpy.default_texture at construction. Setting preserves sprite_index (not re-validated against the new atlas)."), NULL},
+     MCRF_PROPERTY(texture, "The entity's own sprite atlas (Texture | None). None: it has none of its own and draws with its grid's texture, looked up each time it's drawn. Assign None to inherit again. Setting preserves sprite_index (not re-validated against the new atlas)."), NULL},
     {"visible", (getter)UIEntity_get_visible, (setter)UIEntity_set_visible,
      MCRF_PROPERTY(visible, "Visibility flag (bool). When False, the entity is not rendered."), NULL},
     {"opacity", (getter)UIEntity_get_opacity, (setter)UIEntity_set_opacity,
@@ -1920,7 +1895,7 @@ bool UIEntity::cellPixelSize(sf::Vector2f& out) const
 {
     auto grid = getGrid();
     if (!grid) return false;
-    // #313: cell size lives on the data layer (mirrored from the grid's texture)
+    // #453: the calculation cell size lives on the data layer
     out = sf::Vector2f(static_cast<float>(grid->cell_width()), static_cast<float>(grid->cell_height()));
     return true;
 }

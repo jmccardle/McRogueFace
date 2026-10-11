@@ -106,6 +106,7 @@
 std::shared_ptr<PyFont> McRFPy_API::default_font;
 std::shared_ptr<PyTexture> McRFPy_API::default_texture;
 PyObject* McRFPy_API::mcrf_module;
+PyObject* McRFPy_API::texture_warning = nullptr;
 
 // Exception handling state
 std::atomic<bool> McRFPy_API::exception_occurred{false};
@@ -993,6 +994,16 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
     // a constructor overload, not legacy behavior.
     Py_INCREF(&mcrfpydef::PyUIGridViewType);
     PyModule_AddObject(m, "Grid", (PyObject*)&mcrfpydef::PyUIGridViewType);
+
+    // #453: mcrfpy.TextureWarning
+    McRFPy_API::texture_warning = PyErr_NewExceptionWithDoc("mcrfpy.TextureWarning",
+        "Warns about the texture a grid draws with: drawn with no texture, so "
+        "mcrfpy.default_texture was assigned. Silence with "
+        "warnings.simplefilter('ignore', mcrfpy.TextureWarning).",
+        PyExc_UserWarning, NULL);
+    if (!McRFPy_API::texture_warning) return NULL;
+    Py_INCREF(McRFPy_API::texture_warning);
+    PyModule_AddObject(m, "TextureWarning", McRFPy_API::texture_warning);
 
     // Add default_font and default_texture to module
     // default_font and default_texture are module properties, loaded on first use (#451).

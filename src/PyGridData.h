@@ -48,8 +48,11 @@ struct PyGridData
     // set on failure. layers_obj == nullptr means "default tilesprite layer";
     // Py_None means "no layers at all" (entity storage + pathfinding only).
     static int apply_layers_arg(const std::shared_ptr<GridData>& grid,
-                                PyObject* layers_obj,
-                                std::shared_ptr<PyTexture> default_texture);
+                                PyObject* layers_obj);
+
+    // #453: `grid.texture = value` (a Texture or None), shared by GridData and the
+    // views that pass it through. Returns -1 with an exception set on failure.
+    static int assign_texture(const std::shared_ptr<GridData>& grid, PyObject* value);
 
     // Parses grid_size/grid_w/grid_h/texture into a validated (w, h, texture)
     // triple. Returns -1 with an exception set on failure.
@@ -65,6 +68,11 @@ struct PyGridData
     static PyObject* get_grid_w(PyGridDataObject* self, void* closure);
     static PyObject* get_grid_h(PyGridDataObject* self, void* closure);
     static PyObject* get_texture(PyGridDataObject* self, void* closure);
+    static int set_texture(PyGridDataObject* self, PyObject* value, void* closure);
+    static PyObject* get_cell_size(PyGridDataObject* self, void* closure);
+    static int set_cell_size(PyGridDataObject* self, PyObject* value, void* closure);
+    static PyObject* get_cell_member(PyGridDataObject* self, void* closure);
+    static int set_cell_member(PyGridDataObject* self, PyObject* value, void* closure);
     static PyObject* get_fov(PyGridDataObject* self, void* closure);
     static int set_fov(PyGridDataObject* self, PyObject* value, void* closure);
     static PyObject* get_fov_radius(PyGridDataObject* self, void* closure);
@@ -138,13 +146,19 @@ namespace mcrfpydef {
                             "GridData; reach it with `grid.grid_data`.\n\n"
                             "Args:\n"
                             "    grid_size (tuple): Grid dimensions as (grid_w, grid_h). Default: (2, 2)\n"
-                            "    texture (Texture): Tile atlas; defines the cell size in pixels.\n"
+                            "    texture (Texture): Tile atlas; its sprite size fills cell_size. Default:\n"
+                            "        None (needs no display; the first view to draw it assigns\n"
+                            "        mcrfpy.default_texture, with a TextureWarning).\n"
                             "    layers (list): ColorLayer/TileLayer objects. Omit for a default\n"
                             "        'tilesprite' TileLayer; pass None for no layers at all.\n\n"
                             "Attributes:\n"
                             "    grid_size (Vector, read-only): Dimensions in tiles\n"
                             "    grid_w, grid_h (int, read-only): Dimensions in tiles\n"
-                            "    texture (Texture, read-only): Tile atlas\n"
+                            "    texture (Texture | None): Tile atlas. Layers and entities with no\n"
+                            "        texture of their own draw with it.\n"
+                            "    cell_size (Vector): Pixels per cell for every tile<->pixel conversion.\n"
+                            "        Unset: the texture's sprite size, or 1x1 with no texture.\n"
+                            "    cell_width, cell_height (int): Components of cell_size\n"
                             "    entities (EntityCollection): Entities on this map\n"
                             "    layers (tuple, read-only): Layers sorted by z_index\n"
                             "    fov (FOV): Default field-of-view algorithm\n"

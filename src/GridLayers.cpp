@@ -575,8 +575,14 @@ void TileLayer::resize(int new_grid_x, int new_grid_y) {
     initChunks();
 }
 
+std::shared_ptr<PyTexture> TileLayer::drawTexture() const {
+    if (texture) return texture;
+    return parent_grid ? parent_grid->getTexture() : nullptr;
+}
+
 // Render a single chunk to its cached texture
 void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, int cell_height) {
+    auto texture = drawTexture();
     if (!texture) return;
 
     int chunk_idx = chunk_y * chunks_x + chunk_x;
@@ -621,7 +627,14 @@ void TileLayer::render(sf::RenderTarget& target,
                       float left_spritepixels, float top_spritepixels,
                       int left_edge, int top_edge, int x_limit, int y_limit,
                       float zoom, int cell_width, int cell_height) {
+    auto texture = drawTexture();
     if (!visible || !texture) return;
+    // #454: the cached chunks show the texture they were drawn with. (Not markDirty():
+    // nothing else needs repainting, and this is the middle of a paint.)
+    if (drawn_with.lock() != texture) {
+        std::fill(chunk_dirty.begin(), chunk_dirty.end(), true);
+        drawn_with = texture;
+    }
 
     // Calculate visible chunk range
     int chunk_left = std::max(0, left_edge / CHUNK_SIZE);
@@ -1999,7 +2012,7 @@ PyGetSetDef PyGridLayerAPI::TileLayer_getsetters[] = {
      MCRF_PROPERTY(visible, "Whether the layer is rendered (bool)."), NULL},
     {"texture", (getter)PyGridLayerAPI::TileLayer_get_texture,
                 (setter)PyGridLayerAPI::TileLayer_set_texture,
-     MCRF_PROPERTY(texture, "Texture atlas for tile sprites (Texture | None)."), NULL},
+     MCRF_PROPERTY(texture, "This layer's own tile atlas (Texture | None). None: it draws with its grid's texture, looked up each time it's drawn. Assign None to inherit again."), NULL},
     {"grid_size", (getter)PyGridLayerAPI::TileLayer_get_grid_size, NULL,
      MCRF_PROPERTY(grid_size, "Layer dimensions as (width, height) tuple (tuple, read-only)."), NULL},
     {"name", (getter)PyGridLayerAPI::TileLayer_get_name, NULL,
@@ -2601,10 +2614,7 @@ int PyGridLayerAPI::TileLayer_set_grid(PyTileLayerObject* self, PyObject* value,
     target_grid->attachLayer(self->data);
     self->grid = target_grid;
 
-    // Inherit grid texture if TileLayer has none (#254)
-    if (!self->data->texture) {
-        self->data->texture = target_grid->getTexture();
-    }
+    // #454: a TileLayer with no texture keeps none; it draws with the grid's.
 
     return 0;
 }

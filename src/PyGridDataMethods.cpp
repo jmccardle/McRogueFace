@@ -518,10 +518,7 @@ PyObject* PyGridData::py_add_layer(PyGridDataObject* self, PyObject* args) {
         self->data->attachLayer(layer);
         py_layer->grid = self->data;
 
-        auto tile_layer = std::static_pointer_cast<TileLayer>(layer);
-        if (!tile_layer->texture) {
-            tile_layer->texture = self->data->getTexture();
-        }
+        // #454: a TileLayer with no texture keeps none; it draws with the grid's.
 
     } else {
         PyErr_SetString(PyExc_TypeError, "layer must be a ColorLayer or TileLayer");

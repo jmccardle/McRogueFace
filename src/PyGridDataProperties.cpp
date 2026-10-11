@@ -13,6 +13,9 @@
 #include "UIBase.h"
 #include "UICollection.h"
 #include "McRFPy_Doc.h"
+#include "PyWrap.h"
+#include "PyTexture.h"
+#include <cmath>
 
 // =========================================================================
 // Grid dimension properties
@@ -38,6 +41,90 @@ PyObject* PyGridData::get_grid_h(PyGridDataObject* self, void* closure) {
 PyObject* PyGridData::get_texture(PyGridDataObject* self, void* closure) {
     // #430: cache-aware, so this is the very Texture the user passed in.
     return PyTexture::pyobject_for(self->data->getTexture());
+}
+
+int PyGridData::assign_texture(const std::shared_ptr<GridData>& grid, PyObject* value)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete texture; assign None to remove it");
+        return -1;
+    }
+    if (value == Py_None) {
+        grid->setTexture(nullptr);   // the cell size keeps its value (#453)
+        return 0;
+    }
+    int is_texture = PyObject_IsInstance(value, (PyObject*)&mcrfpydef::PyTextureType);
+    if (is_texture < 0) return -1;
+    if (!is_texture || !((PyTextureObject*)value)->data) {
+        PyErr_SetString(PyExc_TypeError, "texture must be a mcrfpy.Texture or None");
+        return -1;
+    }
+    grid->setTexture(((PyTextureObject*)value)->data);
+    return 0;
+}
+
+int PyGridData::set_texture(PyGridDataObject* self, PyObject* value, void* closure) {
+    return assign_texture(self->data, value);
+}
+
+// =========================================================================
+// #453 - cell size
+// =========================================================================
+
+// A positive whole number of pixels, for `what`.
+static bool cell_extent(double v, const char* what, int& out)
+{
+    if (!(v >= 1.0) || v != std::floor(v) || v > 65536.0) {
+        char got[32];
+        snprintf(got, sizeof got, "%g", v);
+        PyErr_Format(PyExc_ValueError, "%s must be a whole number of pixels from 1 to 65536 (got %s)",
+                     what, got);
+        return false;
+    }
+    out = (int)v;
+    return true;
+}
+
+PyObject* PyGridData::get_cell_size(PyGridDataObject* self, void* closure) {
+    sf::Vector2i c = self->data->cellSize();
+    return PyVector(sf::Vector2f((float)c.x, (float)c.y)).pyObject();
+}
+
+int PyGridData::set_cell_size(PyGridDataObject* self, PyObject* value, void* closure) {
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete cell_size; assign None to unset it");
+        return -1;
+    }
+    if (value == Py_None) {
+        self->data->setCellSize(std::nullopt);
+        return 0;
+    }
+    sf::Vector2f v;
+    if (!mcrf::to_vector2f(value, v, "cell_size")) return -1;
+    int w = 0, h = 0;
+    if (!cell_extent(v.x, "cell_size.x", w) || !cell_extent(v.y, "cell_size.y", h)) return -1;
+    self->data->setCellSize(sf::Vector2i(w, h));
+    return 0;
+}
+
+PyObject* PyGridData::get_cell_member(PyGridDataObject* self, void* closure) {
+    sf::Vector2i c = self->data->cellSize();
+    return PyLong_FromLong(closure ? c.y : c.x);
+}
+
+int PyGridData::set_cell_member(PyGridDataObject* self, PyObject* value, void* closure) {
+    if (!value) {
+        PyErr_SetString(PyExc_TypeError, "cannot delete a cell dimension; set cell_size = None");
+        return -1;
+    }
+    double d = PyFloat_AsDouble(value);   // ints and floats; TypeError otherwise
+    if (d == -1.0 && PyErr_Occurred()) return -1;
+    int v = 0;
+    if (!cell_extent(d, closure ? "cell_height" : "cell_width", v)) return -1;
+    sf::Vector2i c = self->data->cellSize();   // the other dimension keeps what it reads
+    if (closure) c.y = v; else c.x = v;
+    self->data->setCellSize(c);
+    return 0;
 }
 
 PyObject* PyGridData::get_fov(PyGridDataObject* self, void* closure)
@@ -193,8 +280,21 @@ PyGetSetDef PyGridData::getsetters[] = {
     {"layers", (getter)PyGridData::get_layers, NULL,
      MCRF_PROPERTY(layers, "Tuple of grid layers sorted by z_index (tuple, read-only). Contains ColorLayer and TileLayer objects."), NULL},
 
-    {"texture", (getter)PyGridData::get_texture, NULL,
-     MCRF_PROPERTY(texture, "Tile atlas for this map (Texture | None, read-only). Defines the cell size in pixels."), NULL},
+    {"texture", (getter)PyGridData::get_texture, (setter)PyGridData::set_texture,
+     MCRF_PROPERTY(texture,
+         "Tile atlas for this map (Texture | None). Layers and entities with no texture of "
+         "their own draw with it, so assigning it restyles them. Setting one fills an unset "
+         "cell_size; removing it (None) leaves cell_size as it is."), NULL},
+    {"cell_size", (getter)PyGridData::get_cell_size, (setter)PyGridData::set_cell_size,
+     MCRF_PROPERTY(cell_size,
+         "Pixels per cell, used by every tile<->pixel conversion: entity x/y/pos and a "
+         "view's camera (Vector). Unset, it reads the texture's sprite size, or 1x1 with no "
+         "texture. Assign whole pixels to set it, or None to unset it. Changing it keeps "
+         "each view's camera on the same cells."), NULL},
+    {"cell_width", (getter)PyGridData::get_cell_member, (setter)PyGridData::set_cell_member,
+     MCRF_PROPERTY(cell_width, "cell_size.x (int)."), (void*)0},
+    {"cell_height", (getter)PyGridData::get_cell_member, (setter)PyGridData::set_cell_member,
+     MCRF_PROPERTY(cell_height, "cell_size.y (int)."), (void*)1},
     {"fov", (getter)PyGridData::get_fov, (setter)PyGridData::set_fov,
      MCRF_PROPERTY(fov,
          "FOV algorithm for this map (FOV enum). "

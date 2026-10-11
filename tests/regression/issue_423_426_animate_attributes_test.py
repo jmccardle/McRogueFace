@@ -29,7 +29,7 @@ def check(cond, msg):
 
 scene = mcrfpy.Scene("t423")
 scene.activate()
-grid = mcrfpy.Grid(grid_size=(20, 20), pos=(0, 0), size=(320, 320))   # 16 px cells
+grid = mcrfpy.Grid(grid_size=(20, 20), texture=mcrfpy.default_texture, pos=(0, 0), size=(320, 320))   # 16 px cells
 scene.children.append(grid)
 
 
@@ -46,7 +46,7 @@ MAKERS = {
     "Arc": lambda: mcrfpy.Arc(center=(10, 10), radius=5),
     "Circle": lambda: mcrfpy.Circle(center=(10, 10), radius=5),
     "Line": lambda: mcrfpy.Line(start=(0, 0), end=(6, 8)),
-    "Grid": lambda: mcrfpy.Grid(grid_size=(10, 10), pos=(0, 0), size=(160, 160)),
+    "Grid": lambda: mcrfpy.Grid(grid_size=(10, 10), texture=mcrfpy.default_texture, pos=(0, 0), size=(160, 160)),
     "Viewport3D": lambda: mcrfpy.Viewport3D(),
     "Entity": entity,
 }

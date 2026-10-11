@@ -11,15 +11,10 @@ def check(cond, label):
         failures.append(label)
 
 def main():
-    # Entity constructed WITHOUT a texture falls back to mcrfpy.default_texture
+    # #454: an Entity constructed WITHOUT a texture has none of its own; it draws
+    # with its grid's texture (looked up when drawn).
     e_default = mcrfpy.Entity(grid_pos=(0, 0))
-    dt = mcrfpy.default_texture
-    check(e_default.texture is not None, "no-texture entity exposes a texture")
-    check(isinstance(e_default.texture, mcrfpy.Texture),
-          "no-texture entity texture is a Texture")
-    check(e_default.texture.source == dt.source and
-          e_default.texture.sprite_width == dt.sprite_width,
-          "no-texture entity uses mcrfpy.default_texture")
+    check(e_default.texture is None, "no-texture entity has no texture of its own")
 
     # Entity constructed WITH a texture exposes that texture
     tex = mcrfpy.Texture("assets/kenney_tinydungeon.png", 16, 16)
@@ -35,8 +30,10 @@ def main():
     check(e.texture.source == tex2.source, "assigned texture is exposed")
     check(e.sprite_index == 3, "sprite_index preserved across texture assignment")
 
-    # Works without a grid attachment (no crash, no grid needed)
-    check(e_default.texture is not None, "texture access works without grid attachment")
+    # Assigning None goes back to inheriting
+    e.texture = None
+    check(e.texture is None, "texture = None: none of its own again")
+    check(e.sprite_index == 3, "sprite_index preserved across texture = None")
 
     if failures:
         print("FAIL: %d check(s) failed" % len(failures))
