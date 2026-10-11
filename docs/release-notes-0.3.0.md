@@ -64,6 +64,9 @@ removals that affect your code.
 | **`mcrf_project` refuses to package a debug, free-threaded or TSan engine** and raises `ProjectError` (#457). Such a package named the plain libpython and couldn't start. | Package from a Release build. |
 | Web build targets (#384): `make wasm` is the debug build with the code panel and `make serve-dev` serves it; `make wasm-game` is the clean game, which `make serve` and the release WASM zip use. | Use `make wasm-game` for what you ship. |
 | **Web: custom `Shader`s now run, and a broken one raises** (#390). Fragment shaders used to be dropped silently in the web build. `Shader()` raises with the GL compile log, and a shader with no `precision` line compiles. | Test custom shaders in the browser. |
+| **`Caption.font_size` and `outline` are limited to 0–2048 px** and raise `ValueError` outside that range, on assignment, in the constructor and as `animate()` targets (#463). They used to be clamped silently (font size to 65535), and SFML allocates a glyph bitmap of about (size + 2 × outline)²: `font_size=30000` asked for 3.8 GB. | 2048 px is taller than a 4K screen; scale a Frame or render to a texture for anything bigger. |
+| **`SoundBuffer.from_samples()` raises `ValueError`** for empty data or data that isn't a whole number of frames (`channels × 2` bytes) (#461). A trailing partial sample used to be dropped silently. | Pass whole 16-bit frames. |
+| **Giving a Scene's name to a new Scene leaves the old scene's children with the old scene** (#464). `Scene("x")` (or `register()`) when another scene is named `"x"` unregisters that scene; it keeps its children and handlers and can be registered again. If it was being shown, the new one is shown, with `on_exit`/`on_enter`. Its children used to be re-pointed at the new scene by name, and the screen fell back to an arbitrary scene. | — |
 
 ## New
 
@@ -134,7 +137,10 @@ removals that affect your code.
   `SoundBuffer.sfxr_params` and the `automation` click/drag helpers (#413); Vector
   setters such as `Line.start`, `Circle.center`, `entity.cell_pos`,
   `GridView.center` (#414); one timer reference per timer fire; every `Sound` and
-  `Music` (#440).
+  `Music` (#440); every `Shader` ever assigned to a drawable, with its GL program, about
+  51 KB each (#465); about 950 B per drawable whose `.uniforms` was read (#466); the
+  random generator of every `NoiseSource`, 18.9 KB each (#467); the name of every Scene
+  object.
 - `mcrfpy.Sound(...).play()` with no reference held plays to the end, and the sound is
   freed once it finishes. It used to work only because every Sound leaked (#440).
 - The audio device is now closed on every exit, including `sys.exit()` in an `--exec`
@@ -173,6 +179,8 @@ removals that affect your code.
   `children.extend()` adds nothing if any item is invalid (#442).
 
 **Wrong values**
+- `get_metrics()['fps']` overflowed (undefined behaviour) after a very small `step(dt)`; it
+  saturates at `INT_MAX` (#460).
 - Scrolling over a grid cell reported `MouseButton.X1` / `X2` to `on_cell_click`; it
   now reports `SCROLL_UP` / `SCROLL_DOWN`. One converter now serves every input
   dispatcher. The X1/X2 mouse buttons reach `on_click` and `on_cell_click` (they
@@ -291,7 +299,7 @@ Where it comes from:
     `api/manifest.json`.
   - `tools/api_delta.py` diffs the API between two git refs.
 - CI builds from a clean checkout and fails if a test run modifies tracked files (#401).
-- Test suite: 677/677 (up from ~300 at 0.2.8); 82 tests that had been silently not
+- Test suite: 684/684 (up from ~300 at 0.2.8); 82 tests that had been silently not
   running were fixed, and `tests/demo/` is gated in CI (#372).
 
 ## Known issues
@@ -303,6 +311,11 @@ Where it comes from:
 - **#448**: the clock and the window are still coupled. Windowed `step()`/`advance()` are
   silent no-ops, and headless `--run-forever` runs frames on a frozen simulation clock.
 - **#399, #435**: the light/full stdlib presets ship the same stdlib.
+- **#468**: the engine still holds Python objects when the interpreter shuts down, so
+  ASan reports leaks at exit (`make asan-test` doesn't pass yet). These are one-time
+  costs, not leaks that grow while a game runs.
+- **#462**: libtcod's BSP traversal does pointer arithmetic on `NULL` (undefined behaviour,
+  harmless in practice).
 - **#454** is half done: textures resolve from the layer or entity to the grid. Next, a
   GridView gets its own texture, and `GridView.texture` will mean "this view's texture,
   or `None`" instead of passing the grid's through.
