@@ -951,6 +951,19 @@ void UIDrawable::setParent(std::shared_ptr<UIDrawable> new_parent) {
     }
 }
 
+bool UIDrawable::canAdopt(const std::shared_ptr<UIDrawable>& new_parent, const UIDrawable* child) {
+    for (auto p = new_parent; p; p = p->getParent()) {
+        if (p.get() == child) {
+            PyErr_SetString(PyExc_ValueError,
+                p == new_parent
+                    ? "cannot add a drawable to its own children"
+                    : "cannot add a drawable to one of its descendants (it would become its own ancestor)");
+            return false;
+        }
+    }
+    return true;
+}
+
 void UIDrawable::setParentScene(const std::string& scene_name) {
     parent.reset();        // #183: Clear drawable parent when setting scene parent
     parent_scene = scene_name;
@@ -1510,9 +1523,6 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         return 0;
     }
 
-    // Remove from old parent first
-    drawable->removeFromParent();
-
     // Get the new parent's children collection and append
     std::shared_ptr<std::vector<std::shared_ptr<UIDrawable>>>* children_ptr = nullptr;
     std::shared_ptr<UIDrawable> new_parent = nullptr;
@@ -1527,6 +1537,11 @@ int UIDrawable::set_parent(PyObject* self, PyObject* value, void* closure) {
         children_ptr = &view->children;
         new_parent = view;
     }
+
+    if (!UIDrawable::canAdopt(new_parent, drawable.get())) return -1;  // #442
+
+    // Remove from old parent first
+    drawable->removeFromParent();
 
     if (children_ptr && *children_ptr) {
         // Check if already in this parent's collection (prevent duplicates)

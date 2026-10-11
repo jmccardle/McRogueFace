@@ -761,49 +761,16 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
         self->data->click_register(click_handler);
     }
     
-    // Process children argument if provided
+    // Process children argument if provided. #442: through children.extend(), the
+    // same path as frame.children.extend(): every child is type- and cycle-checked
+    // before any is added, and each is detached from its old parent first.
     if (children_arg && children_arg != Py_None) {
-        if (!PySequence_Check(children_arg)) {
-            PyErr_SetString(PyExc_TypeError, "children must be a sequence");
-            return -1;
-        }
-        
-        Py_ssize_t len = PySequence_Length(children_arg);
-        for (Py_ssize_t i = 0; i < len; i++) {
-            PyObject* child = PySequence_GetItem(children_arg, i);
-            if (!child) return -1;
-            
-            // Check if it's a UIDrawable (Frame, Caption, Sprite, or Grid)
-            if (!PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIFrameType) &&
-                !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUICaptionType) &&
-                !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUISpriteType) &&
-                !PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
-                Py_DECREF(child);
-                PyErr_SetString(PyExc_TypeError, "children must contain only Frame, Caption, Sprite, or Grid objects");
-                return -1;
-            }
-
-            // Get the shared_ptr and add to children
-            std::shared_ptr<UIDrawable> drawable = nullptr;
-            if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIFrameType)) {
-                drawable = ((PyUIFrameObject*)child)->data;
-            } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUICaptionType)) {
-                drawable = ((PyUICaptionObject*)child)->data;
-            } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUISpriteType)) {
-                drawable = ((PyUISpriteObject*)child)->data;
-            } else if (PyObject_IsInstance(child, (PyObject*)&mcrfpydef::PyUIGridViewType)) {
-                drawable = ((PyUIGridViewObject*)child)->data;
-            }
-            // #361: a GridData is not a drawable -- it is rejected above.
-            
-            if (drawable) {
-                drawable->setParent(self->data);  // Set parent before adding (enables alignment)
-                self->data->children->push_back(drawable);
-                self->data->children_need_sort = true;
-            }
-            
-            Py_DECREF(child);
-        }
+        PyObject* children = PyObject_GetAttrString((PyObject*)self, "children");
+        if (!children) return -1;
+        PyObject* result = PyObject_CallMethod(children, "extend", "O", children_arg);
+        Py_DECREF(children);
+        if (!result) return -1;
+        Py_DECREF(result);
     }
     
     // Process click handler if provided

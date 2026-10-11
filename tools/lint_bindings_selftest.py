@@ -156,6 +156,26 @@ void fire(std::shared_ptr<UIEntity>& e) {
     e->releasePyIdentity();
 }""", [("pin-direct", "read pyobject"), ("pin-direct", "read pyobject"),
        ("pin-direct", "releasePyIdentity() call")]),
+    ("link without the cycle check", """
+int Foo::init(PyObject* self, PyObject* args) {
+    child->setParent(self_data);
+    vec->push_back(child);
+    link_child(coll, child);
+    return 0;
+}""", [("adopt-unchecked", "child->setParent()"), ("adopt-unchecked", "link_child()")]),
+    ("link after the cycle check, unlink, and the helper itself: ok", """
+static void link_child(Coll* self, std::shared_ptr<UIDrawable> d) { d->setParent(self->owner.lock()); }
+PyObject* append(Coll* self, PyObject* o) {
+    if (!can_link(self, d)) return NULL;
+    link_child(self, d);
+    old->setParent(nullptr);
+    Py_RETURN_NONE;
+}
+int set_parent(PyObject* self, PyObject* value) {
+    if (!UIDrawable::canAdopt(p, d.get())) return -1;
+    d->setParent(p);
+    return 0;
+}""", []),
 ]
 
 

@@ -32,6 +32,10 @@ audit_pymethoddef.py) and flags the recipes that have already produced bugs:
                    that object with a scene or parent, so reporting what it holds let
                    the GC clear a live callback (segfault), and clearing it silently
                    dropped live handlers (#441).
+  adopt-unchecked  A function that links a drawable to a parent (setParent(non-null),
+                   or the link_child() helper) without first calling
+                   UIDrawable::canAdopt (or UICollection's can_link). Appending an
+                   ancestor looped the parent chain and segfaulted (#442).
 
 Findings are matched against tools/lint_bindings_baseline.txt, keyed by
 (rule, file, function, call text) with counts and no line numbers, so unrelated
@@ -382,6 +386,39 @@ def lint_file(path: Path) -> list[Finding]:
     out.extend(check_pin(src, tree, rel))
     out.extend(check_dealloc(src, tree, rel))
     out.extend(check_traverse(src, tree, rel))
+    out.extend(check_adopt(src, tree, rel))
+    return out
+
+
+ADOPT_CHECK = re.compile(r"\b(canAdopt|can_link)\s*\(")
+# link_child() is the helper the checked mutators call; it does not re-check.
+ADOPT_HELPERS = {"link_child"}
+
+
+def check_adopt(src: bytes, tree, rel: str) -> list:
+    """#442: every link of a drawable to a parent is preceded, in the same function,
+    by the cycle check -- so a new mutator can't forget it."""
+    out = []
+    for n in walk(tree.root_node):
+        if n.type != "call_expression":
+            continue
+        name = callee_name(src, n)
+        args = n.child_by_field_name("arguments")
+        argv = [text(src, a).strip() for a in args.named_children] if args is not None else []
+        if name == "link_child":
+            pass
+        elif name.endswith("setParent") and ("->" in name or "." in name):
+            if not argv or argv[0] in ("nullptr", "NULL"):
+                continue
+        else:
+            continue
+        fn = outer_function(n)
+        if fn is None or function_name(src, fn).split("::")[-1] in ADOPT_HELPERS:
+            continue
+        before = src[fn.start_byte:n.start_byte].decode("utf8", "replace")
+        if not ADOPT_CHECK.search(before):
+            out.append(Finding("adopt-unchecked", rel, n.start_point[0] + 1,
+                               scope_label(src, n), f"{name}() without canAdopt"))
     return out
 
 

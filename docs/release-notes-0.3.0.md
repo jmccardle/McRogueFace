@@ -73,6 +73,8 @@ removals that affect your code.
   - Several views over one map track hover independently (#355, #357, #358, #360,
     #362, #363, #365, #366).
   - `find()` / `find_all()` descend into grids.
+- `children.clear()` and `entities.clear()` empty a collection in one call, with the
+  same teardown as `remove()` (#418).
 - **Windowed Dijkstra maps** (#445): a field's cost no longer grows with the grid. On an
   8192×8192 grid a default map builds in about 45 ms and holds 4 MB (the full-grid
   map took about 6 s and 268 MB). New `DijkstraMap.radius`, `.window`, `.complete`,
@@ -93,6 +95,10 @@ removals that affect your code.
   used `mcrfpy.lock()` (#412).
 - In headless mode, `mcrfpy.lock()` from a background thread blocked forever (#398).
 - A headless `--exec` script that never exited could hang the process (#350).
+- Adding a drawable to itself or to one of its descendants (`b.children.append(a)`
+  where `b` is inside `a`) segfaulted. Every path that sets a parent (`append`,
+  `insert`, `extend`, `__setitem__`, slices, `parent=`, `Frame(children=)`) now raises
+  `ValueError` before changing anything (#442).
 
 **Object identity and lifetime** (#430, #436)
 - A subclassed Entity keeps its type and attributes through remove + re-append,
@@ -131,6 +137,9 @@ removals that affect your code.
   back as a plain `Frame` with its attributes gone (#369, #373).
 - `insert()`, `extend()`, `__setitem__` and slice operations on collections now keep
   `.parent` correct; only `append()` used to (#377).
+- `Frame(children=[...])` moves each child out of its old parent (it used to end up
+  in both), and accepts every drawable type (Line, Circle and Arc were rejected).
+  `children.extend()` adds nothing if any item is invalid (#442).
 
 **Wrong values**
 - Scrolling over a grid cell reported `MouseButton.X1` / `X2` to `on_cell_click`; it
@@ -149,6 +158,13 @@ removals that affect your code.
 - `Frame(cache_subtree=True)` froze the content of its children; content changes now
   show up (#368).
 - The turn manager now redraws a grid view when entities move (#351).
+- Entities added with `entities.append()` / `insert()` / `extend()` never appeared,
+  and entities removed with `remove()` / `pop()` / `del` stayed on screen, until
+  something else redrew the grid (#446).
+- Grid layer edits (`set`, `fill`, `edit()`, `visible`, `z_index`, adding and removing
+  layers) never appeared inside a `Frame(cache_subtree=True)` (#427).
+  `fill_rect()` never repainted at all, and a new `z_index` never changed the draw
+  order.
 - Hover now ends when the cursor leaves the window or the window loses focus (#367).
 
 **Other**
@@ -211,8 +227,6 @@ Where it comes from:
 
 ## Known issues
 
-- **#442**: appending a drawable into its own descendant (`b.children.append(a)` where
-  `b` is inside `a`) crashes instead of raising.
 - **#416, #417**: changing engine objects from a background thread *without*
   `mcrfpy.lock()` can crash. Two threads holding the lock at once are only kept safe by
   the GIL, so the free-threaded (no-GIL) build is not supported.
