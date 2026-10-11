@@ -60,6 +60,9 @@ for label, fn in (("tone duration nan", lambda: mcrfpy.SoundBuffer.tone(440, NAN
 joined = mcrfpy.SoundBuffer.concat([buf, buf], overlap=1e6)
 check(joined.duration <= 2 * buf.duration + 1e-9, "a huge finite overlap is bounded by the output")
 
+low = mcrfpy.SoundBuffer.from_samples(b"\x10\x00" * 64, 1, 8)  # 8 Hz: reverb delays round to 0
+check(abs(low.reverb(0.5, 0.5, 0.5).duration - low.duration) < 1e-9, "reverb at a very low sample rate works")
+
 long_echo = buf.echo(1e9, 0.5, 0.5)
 check(abs(long_echo.duration - buf.duration) < 1e-9, "an echo delay past the end leaves the sound unchanged")
 check(abs(buf.slice(0, 1e300).duration - buf.duration) < 1e-9, "slice to a huge end clamps to the sound's end")

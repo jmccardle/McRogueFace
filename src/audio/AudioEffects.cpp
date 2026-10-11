@@ -165,17 +165,12 @@ std::vector<int16_t> reverb(const std::vector<int16_t>& samples, unsigned int sa
     if (samples.empty()) return samples;
 
     // Comb filter delays (in samples, scaled for sample rate)
+    // At least one sample each: below ~40 Hz a delay rounds to 0, and indexing an
+    // empty delay line read through a null pointer (audio_dsp fuzz target).
     double scale = sampleRate / 44100.0;
-    size_t combSizes[4] = {
-        static_cast<size_t>(1116 * scale),
-        static_cast<size_t>(1188 * scale),
-        static_cast<size_t>(1277 * scale),
-        static_cast<size_t>(1356 * scale)
-    };
-    size_t allpassSizes[2] = {
-        static_cast<size_t>(556 * scale),
-        static_cast<size_t>(441 * scale)
-    };
+    auto len = [scale](double base) { return std::max<size_t>(1, static_cast<size_t>(base * scale)); };
+    size_t combSizes[4] = {len(1116), len(1188), len(1277), len(1356)};
+    size_t allpassSizes[2] = {len(556), len(441)};
 
     CombFilter combs[4] = {
         CombFilter(combSizes[0]), CombFilter(combSizes[1]),
