@@ -589,10 +589,11 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
 // opacity, z_index) are handled by UIDrawable (#426, lost in the #355 type split).
 bool UIGridView::setProperty(const std::string& name, float value)
 {
-    if (name == "center_x") { center_x = value; camera_is_default = false; return true; }
-    if (name == "center_y") { center_y = value; camera_is_default = false; return true; }
-    if (name == "zoom") { zoom = value; return true; }
-    if (name == "camera_rotation") { camera_rotation = value; return true; }
+    // Each camera change marks the view dirty: a cache_subtree ancestor only redraws when told.
+    if (name == "center_x") { center_x = value; camera_is_default = false; markDirty(); return true; }
+    if (name == "center_y") { center_y = value; camera_is_default = false; markDirty(); return true; }
+    if (name == "zoom") { zoom = value; markDirty(); return true; }
+    if (name == "camera_rotation") { camera_rotation = value; markDirty(); return true; }
     if (setShaderProperty(name, value)) return true;
     return UIDrawable::setProperty(name, value);
 }
@@ -603,6 +604,7 @@ bool UIGridView::setProperty(const std::string& name, const sf::Vector2f& value)
         center_x = value.x;
         center_y = value.y;
         camera_is_default = false;
+        markDirty();
         return true;
     }
     return UIDrawable::setProperty(name, value);
@@ -610,7 +612,7 @@ bool UIGridView::setProperty(const std::string& name, const sf::Vector2f& value)
 
 bool UIGridView::setProperty(const std::string& name, const sf::Color& value)
 {
-    if (name == "fill_color") { fill_color = value; return true; }
+    if (name == "fill_color") { fill_color = value; markDirty(); return true; }
     return UIDrawable::setProperty(name, value);
 }
 
@@ -1103,6 +1105,7 @@ int UIGridView::set_fill_color(PyUIGridViewObject* self, PyObject* value, void* 
     sf::Color color;
     if (!PyColor::to_color(value, color)) return -1;  // #450: was clamp / 1.5->255 / None->White
     self->data->fill_color = color;
+    self->data->markDirty();
     return 0;
 }
 
