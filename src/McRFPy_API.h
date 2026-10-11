@@ -57,6 +57,10 @@ public:
     
 
     static void executeScript(std::string);
+    // Runs a script's source in __main__ with its real path as the code's filename (#422),
+    // so tracebacks, linecache and profilers name the file. Same result and error handling
+    // as PyRun_SimpleString: 0 on success, -1 after printing the error.
+    static int runScriptSource(const std::string& source, const std::string& path);
     static void executePyString(std::string);
     
     // Helper to mark scenes as needing z_index resort

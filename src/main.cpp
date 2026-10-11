@@ -129,8 +129,8 @@ int run_python_interpreter(const McRogueFaceConfig& config)
     }
     else if (!config.script_path.empty()) {
         // Execute script file (sys.argv already set at init time)
-        // Note: Using PyRun_SimpleString instead of PyRun_SimpleFile for better
-        // cross-platform compatibility (PyRun_SimpleFile has issues with MinGW/Wine)
+        // Read into memory rather than PyRun_SimpleFile: a FILE* can't cross the
+        // MinGW/MSVC CRT boundary. runScriptSource keeps the path in tracebacks (#422).
 
         // Read file contents
         std::ifstream file(config.script_path);
@@ -144,14 +144,7 @@ int run_python_interpreter(const McRogueFaceConfig& config)
                                     std::istreambuf_iterator<char>());
         file.close();
 
-        // Set __file__ before execution
-        PyObject* main_module = PyImport_AddModule("__main__");
-        PyObject* main_dict = PyModule_GetDict(main_module);
-        PyObject* py_filename = PyUnicode_FromString(config.script_path.string().c_str());
-        PyDict_SetItemString(main_dict, "__file__", py_filename);
-        Py_DECREF(py_filename);
-
-        int result = PyRun_SimpleString(script_content.c_str());
+        int result = McRFPy_API::runScriptSource(script_content, config.script_path.string());
 
         // Flush Python stdout/stderr to ensure output appears before engine->run() blocks
         PyObject* sys_module = PyImport_ImportModule("sys");

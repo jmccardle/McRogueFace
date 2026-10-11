@@ -1559,8 +1559,8 @@ void McRFPy_API::executeScript(std::string filename)
     script_path_str = script_path.string();
 #endif
 
-    // Use std::ifstream + PyRun_SimpleString instead of PyRun_SimpleFile
-    // PyRun_SimpleFile has compatibility issues with MinGW-compiled code
+    // Read with std::ifstream instead of PyRun_SimpleFile: a FILE* can't cross the
+    // MinGW/MSVC CRT boundary.
     std::ifstream file(script_path_str);
     if (!file.is_open()) {
         std::cout << "Failed to open script: " << script_path_str << std::endl;
@@ -1571,14 +1571,34 @@ void McRFPy_API::executeScript(std::string filename)
                                 std::istreambuf_iterator<char>());
     file.close();
 
-    // Set __file__ before execution
-    PyObject* main_module = PyImport_AddModule("__main__");
-    PyObject* main_dict = PyModule_GetDict(main_module);
-    PyObject* py_filename = PyUnicode_FromString(script_path_str.c_str());
-    PyDict_SetItemString(main_dict, "__file__", py_filename);
-    Py_DECREF(py_filename);
+    runScriptSource(script_content, script_path_str);
+}
 
-    PyRun_SimpleString(script_content.c_str());
+int McRFPy_API::runScriptSource(const std::string& source, const std::string& path)
+{
+    PyObject* main_module = PyImport_AddModule("__main__");
+    if (!main_module) {
+        PyErr_Print();
+        return -1;
+    }
+    PyObject* main_dict = PyModule_GetDict(main_module);
+    if (mcrf::dict_steal(main_dict, "__file__", PyUnicode_DecodeFSDefault(path.c_str())) < 0) {
+        PyErr_Print();
+        return -1;
+    }
+    // Compiling under the real path is what puts it in tracebacks (PyRun_SimpleString
+    // compiles as "<string>").
+    mcrf::PyRef code(Py_CompileString(source.c_str(), path.c_str(), Py_file_input));
+    if (!code) {
+        PyErr_Print();
+        return -1;
+    }
+    mcrf::PyRef result(PyEval_EvalCode(code.get(), main_dict, main_dict));
+    if (!result) {
+        PyErr_Print();   // exits the process on SystemExit, as PyRun_SimpleString does
+        return -1;
+    }
+    return 0;
 }
 
 void McRFPy_API::api_shutdown()
