@@ -2139,6 +2139,58 @@ FloatRect Text::getLocalBounds() const {
     return FloatRect(0, 0, maxX, maxY);
 }
 
+float Text::getAdvance() const {  // #479
+    if (!font_ || string_.empty() || !font_->isLoaded()) {
+        return 0.0f;
+    }
+
+    // Get or create font atlas for this font + size combination
+    auto key = std::make_pair(font_, characterSize_);
+    auto it = s_fontAtlasCache.find(key);
+    if (it == s_fontAtlasCache.end()) {
+        FontAtlas atlas;
+        // Use the new Font-based loader if FreeType is available
+        if (font_->getFTFace()) {
+            if (!atlas.load(font_, static_cast<float>(characterSize_))) {
+                return 0.0f;
+            }
+        } else {
+            if (!atlas.load(font_->getData(), font_->getDataSize(), static_cast<float>(characterSize_))) {
+                return 0.0f;
+            }
+        }
+        it = s_fontAtlasCache.emplace(key, std::move(atlas)).first;
+    }
+    FontAtlas& atlas = it->second;  // non-const: measuring loads glyphs on demand
+
+    float x = 0;
+    float maxX = 0;
+    float minY = 0;
+    float maxY = atlas.getLineHeight();
+    int lineCount = 1;
+
+    for (size_t i = 0; i < string_.size();) {
+        const uint32_t c = mcrf::utf8::next_codepoint(string_, i);  // #477
+
+        if (c == '\n') {
+            maxX = std::max(maxX, x);
+            x = 0;
+            lineCount++;
+            continue;
+        }
+
+        FontAtlas::GlyphInfo glyph;
+        if (atlas.getGlyph(c, 0.0f, glyph)) {
+            x += glyph.xadvance;
+        }
+    }
+
+    maxX = std::max(maxX, x);
+    maxY = atlas.getLineHeight() * lineCount;
+
+    return maxX;
+}
+
 FloatRect Text::getGlobalBounds() const {
     FloatRect local = getLocalBounds();
     Transform t = getTransform();

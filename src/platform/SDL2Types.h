@@ -801,6 +801,7 @@ public:
 
     FloatRect getLocalBounds() const;  // Implemented in SDL2Renderer.cpp
     FloatRect getGlobalBounds() const;  // Implemented in SDL2Renderer.cpp
+    float getAdvance() const;  // #479: widest line's pen advance (SDL2Renderer.cpp)
 
 protected:
     void draw(RenderTarget& target, RenderStates states) const override;  // Implemented in SDL2Renderer.cpp
