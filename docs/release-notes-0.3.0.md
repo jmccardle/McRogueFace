@@ -182,6 +182,9 @@ removals that affect your code.
 **Wrong values**
 - `get_metrics()['fps']` overflowed (undefined behaviour) after a very small `step(dt)`; it
   saturates at `INT_MAX` (#460).
+- `BSP.leaves()` and every other level-order BSP traversal did pointer arithmetic on
+  `NULL` inside libtcod (undefined behaviour). Results are unchanged. The fix is in the
+  bundled libtcod and is being sent upstream (#462).
 - Scrolling over a grid cell reported `MouseButton.X1` / `X2` to `on_cell_click`; it
   now reports `SCROLL_UP` / `SCROLL_DOWN`. One converter now serves every input
   dispatcher. The X1/X2 mouse buttons reach `on_click` and `on_cell_click` (they
@@ -319,8 +322,6 @@ Where it comes from:
 - **#468**: the engine still holds Python objects when the interpreter shuts down, so
   ASan reports leaks at exit (`make asan-test` doesn't pass yet). These are one-time
   costs, not leaks that grow while a game runs.
-- **#462**: libtcod's BSP traversal does pointer arithmetic on `NULL` (undefined behaviour,
-  harmless in practice).
 - **#454** is half done: textures resolve from the layer or entity to the grid. Next, a
   GridView gets its own texture, and `GridView.texture` will mean "this view's texture,
   or `None`" instead of passing the grid's through.
