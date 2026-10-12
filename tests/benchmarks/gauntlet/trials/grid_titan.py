@@ -25,16 +25,23 @@ class GridTitan(Trial):
     growth = 1.4
 
     # Cost scales as S*S (cells) but the render is viewport-bounded, so frame
-    # time can stay under budget while allocation runs away. Cap the grid side
-    # and predict the footprint so the ramp bails BEFORE a fatal allocation.
-    # ~28 bytes/cell: 2 uint8 planes + int32 TileLayer + RGBA ColorLayer + TCOD
-    # map cell + slack. max_load derived from a 512 MB grid-data budget.
+    # time can stay under budget while allocation runs away. Predict the
+    # footprint so the ramp bails BEFORE a fatal allocation.
+    # Grid data, ~28 bytes/cell: 2 uint8 planes + int32 TileLayer + RGBA
+    # ColorLayer + TCOD map cell + slack.
+    # Layer chunk textures dominate: every layer caches its chunks as render
+    # textures at full resolution whatever the zoom (#471), edge chunks sized
+    # to their cells, so 16x16 px * 4 B = 1024 bytes/cell per layer. On an
+    # iGPU these come out of system RAM but not out of RSS, so the RSS
+    # watchdog never sees them (#469).
     CELL_BYTES_EST = 28
-    max_load = 4300  # ~4300^2 * 28 B ~= 494 MB
+    TEXTURE_BYTES_PER_CELL = 16 * 16 * 4 * 2  # two layers
+    mem_budget_mb = 2048  # stops the ramp at side 802 (~1.3 GB of textures)
+    max_load = 4300
 
     def predict_bytes(self, load):
         side = max(4, int(load))
-        return side * side * self.CELL_BYTES_EST
+        return side * side * (self.CELL_BYTES_EST + self.TEXTURE_BYTES_PER_CELL)
 
     def setup(self, scene, ui):
         super().setup(scene, ui)

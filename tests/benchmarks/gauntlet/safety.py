@@ -14,14 +14,21 @@ Defense in depth, weakest failure mode last:
    the ramp records the last passing load and stops.
 2. RSS watchdog     -- after any set_load, if resident memory exceeds the
    ceiling the ramp stops gracefully. Catches trials that cannot predict.
-3. RLIMIT_AS        -- a hard address-space cap. If 1 and 2 are both outrun by a
-   single oversized allocation, the process dies cleanly (std::bad_alloc ->
-   abort) instead of taking the machine down. This is the machine-saver, not a
+3. Memory cgroup    -- `make gauntlet` runs the process in a systemd scope with
+   MemoryMax (GAUNTLET_MEM). If 1 and 2 are both outrun, the kernel OOM-kills
+   the gauntlet instead of the desktop. This is the machine-saver, not a
    graceful path -- it exists so a bug in 1/2 can never again lock the desktop.
 
-Budgets are deliberately conservative. On a 24 GB box the default 1500 MB RSS
-ceiling / 2500 MB address-space cap keep the whole run to a small fraction of
-RAM; tune via env vars MCRF_GAUNTLET_RSS_MB / MCRF_GAUNTLET_AS_MB if needed.
+The gauntlet must NOT use install_address_space_cap() (RLIMIT_AS) as that
+backstop (#469): GPU drivers map buffer objects into the process, so on an
+iGPU the cap made render-texture creation fail and Mesa segfault. GPU memory
+is also invisible to the RSS watchdog, which is why a rendering trial has to
+count it in predict_bytes(). The cgroup charges it; RLIMIT_AS only saw it as
+address space. install_address_space_cap() stays for the headless Crucible,
+which creates no GPU resources.
+
+Budgets are deliberately conservative. Tune the RSS ceiling via
+MCRF_GAUNTLET_RSS_MB and the Crucible's cap via MCRF_GAUNTLET_AS_MB.
 """
 import os
 import resource

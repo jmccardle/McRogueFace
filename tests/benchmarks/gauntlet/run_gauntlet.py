@@ -5,8 +5,8 @@ writes tests/benchmarks/baseline/gauntlet/latest.json (promoting to baseline.jso
 if none exists). Intended to run windowed (or under xvfb); in headless mode
 frame_time is 0.0 so no meaningful score is produced (see DESIGN.md deviation 6).
 
-Run:  ./mcrogueface tests/benchmarks/gauntlet/run_gauntlet.py
-      xvfb-run -a ./mcrogueface tests/benchmarks/gauntlet/run_gauntlet.py
+Run:  make gauntlet          (from the repo root: memory cgroup backstop, #469)
+      ./mcrogueface tests/benchmarks/gauntlet/run_gauntlet.py   (no backstop)
 """
 import os
 import sys
@@ -38,16 +38,13 @@ def _print_summary(record):
 
 
 def main():
-    # Machine-saver: hard-cap this process's address space so a runaway trial
-    # allocation aborts THIS process cleanly instead of exhausting system RAM
-    # and hard-locking the desktop (observed 2026-07-11). The per-trial
-    # predict_bytes / RSS guards should stop the ramp long before this fires;
-    # this is the backstop for when they don't.
-    cap = safety.install_address_space_cap()
-    if cap is not None:
-        print("[safety] address-space cap: %.0f MB  (RSS ceiling %.0f MB)"
-              % (cap, safety.DEFAULT_RSS_CEILING_MB))
-        sys.stdout.flush()
+    # No in-process address-space cap (#469): GPU drivers map buffers into the
+    # process, so RLIMIT_AS made render textures fail and Mesa segfault. The
+    # machine-saver backstop is a memory cgroup around the process instead:
+    # run via `make gauntlet` (systemd-run MemoryMax). See safety.py.
+    print("[safety] RSS ceiling %.0f MB; run under `make gauntlet` for the "
+          "memory-cgroup backstop" % safety.DEFAULT_RSS_CEILING_MB)
+    sys.stdout.flush()
 
     disable_vsync()
     app = Gauntlet(autorun=True)

@@ -24,6 +24,7 @@
 # Profiling (see docs/profiling.md):
 #   make profile      - RelWithDebInfo + frame pointers build in build-profile/
 #   make callgrind SCRIPT=tests/benchmarks/foo.py - Callgrind a headless benchmark
+#   make gauntlet     - Windowed Gauntlet run under a memory cgroup (GAUNTLET_MEM=4G)
 #
 # WebAssembly / Emscripten:
 #   make wasm         - Build full game for web WITH the REPL console (dev/debug build)
@@ -52,7 +53,7 @@
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
-.PHONY: profile callgrind clean-profile
+.PHONY: profile callgrind clean-profile gauntlet
 .PHONY: test-wasm-setup test-wasm test-wasm-diff
 .PHONY: install-hooks audit-venv lint-bindings
 
@@ -271,6 +272,15 @@ callgrind: profile
 		--callgrind-out-file=callgrind.out \
 		./mcrogueface --headless --exec ../$(SCRIPT)
 	@echo "Done. Annotate with: callgrind_annotate build-profile/callgrind.out | head -60"
+
+# The Gauntlet: windowed full run, writes tests/benchmarks/baseline/gauntlet/latest.json.
+# Runs inside a memory cgroup so a runaway trial is OOM-killed instead of the desktop
+# (#469; an in-process RLIMIT_AS breaks GPU drivers). Needs systemd --user and a display.
+GAUNTLET_MEM ?= 4G
+gauntlet: linux
+	@cd build && systemd-run --user --scope --quiet \
+		-p MemoryMax=$(GAUNTLET_MEM) -p MemorySwapMax=0 \
+		./mcrogueface ../tests/benchmarks/gauntlet/run_gauntlet.py
 
 clean-profile:
 	@echo "Cleaning profile build..."

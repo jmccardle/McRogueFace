@@ -89,7 +89,9 @@ class RampController:
         self.hold_ms = hold_ms
         self.max_steps = max_steps
         self.on_finish = on_finish
-        self.mem_budget_mb = mem_budget_mb
+        # A trial whose footprint is dominated by something other than grid
+        # data (GRID TITAN: layer chunk textures) declares its own budget.
+        self.mem_budget_mb = getattr(trial, "mem_budget_mb", None) or mem_budget_mb
         self.rss_ceiling_mb = rss_ceiling_mb
 
         self.k = 0
