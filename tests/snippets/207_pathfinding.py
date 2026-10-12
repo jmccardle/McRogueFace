@@ -1,4 +1,4 @@
-# mcrf: objects=[Entity,Grid,InputState,Key,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Entity,Grid,InputState,Key,Scene] verified=0.3.1 status=ok
 import mcrfpy
 import random
 

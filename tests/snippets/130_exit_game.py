@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Timer] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Timer] verified=0.3.1 status=ok
 # Exit Game - Clean shutdown
 import mcrfpy
 

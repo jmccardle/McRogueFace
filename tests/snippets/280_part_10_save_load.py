@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Frame,Grid,InputState,Key,Scene,Texture] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Frame,Grid,InputState,Key,Scene,Texture] verified=0.3.1 status=ok
 """McRogueFace Tutorial - Part 10: Saving and Loading
 
 Implement save/load functionality with JSON serialization.

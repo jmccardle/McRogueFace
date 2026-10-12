@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.1 status=ok
 import mcrfpy
 
 def create_info_icon(x, y, tooltip_text, ui):

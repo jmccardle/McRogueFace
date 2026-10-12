@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[BSP,Caption,Color,ColorLayer,Grid,Scene] verified=0.3.1 status=ok
 # BSP Quick Reference - create a tree, split, and iterate leaves
 import mcrfpy
 

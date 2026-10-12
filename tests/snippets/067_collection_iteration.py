@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.1 status=ok
 # Collection Iteration - Loop through UI children
 import mcrfpy
 

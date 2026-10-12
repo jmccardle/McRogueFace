@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Frame,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Color,Frame,Scene] verified=0.3.1 status=ok
 import mcrfpy
 
 class HealthBar:

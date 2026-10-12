@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,MouseButton,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,MouseButton,Scene] verified=0.3.1 status=ok
 # Button pattern - a clickable frame with label and hover feedback.
 import mcrfpy
 

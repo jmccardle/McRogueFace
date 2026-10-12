@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Entity,FOV,Grid,InputState,Key,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Color,ColorLayer,Entity,FOV,Grid,InputState,Key,Scene] verified=0.3.1 status=ok
 import mcrfpy
 
 # Setup

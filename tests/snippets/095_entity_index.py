@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Scene] verified=0.3.1 status=ok
 # Entity Index - Get entity position in collection
 import mcrfpy
 

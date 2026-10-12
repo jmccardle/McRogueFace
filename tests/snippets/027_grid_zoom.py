@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Frame,Grid,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Entity,Frame,Grid,Scene] verified=0.3.1 status=ok
 # Grid Zoom - Scale the grid view
 import mcrfpy
 

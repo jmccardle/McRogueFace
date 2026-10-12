@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene,Texture] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene,Texture] verified=0.3.1 status=ok
 """McRogueFace Tutorial - Part 1: The '@' and the Dungeon Grid
 
 Learn to create a grid, place a player entity, and handle movement.

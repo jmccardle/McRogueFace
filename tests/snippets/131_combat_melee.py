@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Entity,Frame,Grid,Scene,Timer] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Easing,Entity,Frame,Grid,Scene,Timer] verified=0.3.1 status=ok
 # Melee combat cookbook recipe - Fighter stats, attack resolution, CombatEntity,
 # health bars, and floating damage numbers, all combined into one runnable demo.
 import random

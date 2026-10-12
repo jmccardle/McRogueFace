@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.1 status=ok
 # Easing Cubic - Cubic easing functions
 import mcrfpy
 

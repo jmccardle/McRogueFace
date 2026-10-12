@@ -1,4 +1,4 @@
-# mcrf: objects=[Alignment,Frame,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Alignment,Frame,Scene] verified=0.3.1 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("ui_alignment_margins")

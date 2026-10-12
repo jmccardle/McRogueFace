@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.3.1 status=ok
 # Parent Reference - Access parent from child
 import mcrfpy
 

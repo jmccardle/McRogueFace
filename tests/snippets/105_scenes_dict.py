@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.1 status=ok
 # Scenes Tuple - Access all scenes
 import mcrfpy
 

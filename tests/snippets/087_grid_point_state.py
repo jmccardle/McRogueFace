@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,InputState,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,InputState,Scene] verified=0.3.1 status=ok
 # Grid Point State - Cell properties
 import mcrfpy
 

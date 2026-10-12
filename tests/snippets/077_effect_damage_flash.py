@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,InputState,Key,Scene,Sprite,Timer] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,InputState,Key,Scene,Sprite,Timer] verified=0.3.1 status=ok
 # Effect Damage Flash - Hit feedback on frame
 import mcrfpy
 

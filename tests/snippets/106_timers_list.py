@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.1 status=ok
 # Timers List - View all active timers
 import mcrfpy
 

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,InputState,Key,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,InputState,Key,Scene] verified=0.3.1 status=ok
 # Animation Stop/Complete - Control running animations
 import mcrfpy
 

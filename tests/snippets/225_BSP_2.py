@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Caption,Scene,Traversal] verified=0.3.0 status=ok
+# mcrf: objects=[BSP,Caption,Scene,Traversal] verified=0.3.1 status=ok
 # BSP traversal - iterate leaves and all nodes in various orders
 import mcrfpy
 
