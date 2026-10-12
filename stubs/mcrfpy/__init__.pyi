@@ -186,8 +186,20 @@ class Color:
     def __init__(self) -> None: ...
     @overload
     def __init__(self, r: int, g: int, b: int, a: int = 255) -> None: ...
+    @overload
+    def __init__(self, rgba: tuple[int, int, int] | tuple[int, int, int, int]) -> None: ...
+    @overload
+    def __init__(self, color: str, *, a: int = 255) -> None:
+        """A name ('red', 'Dark Green'), 'source:name' ('xkcd:dust'), or '#rgb[a]' / '#rrggbb[aa]'."""
+        ...
 
-    def from_hex(self, hex_string: str) -> 'Color':
+    @classmethod
+    def names(cls, source: str | None = None) -> list[str]:
+        """Color names Color(name) accepts; source is 'css', 'xkcd', 'crayola' or 'jenny'."""
+        ...
+
+    @classmethod
+    def from_hex(cls, hex_string: str) -> 'Color':
         """Create color from hex string (e.g., '#FF0000' or 'FF0000')."""
         ...
 

@@ -22,7 +22,8 @@ public:
     // #450: THE conversion for every Python value written to a Color: attribute setters,
     // constructor kwargs, item assignment, method arguments and animate() targets.
     // Accepts a Color (or subclass) or anything Color(value) accepts -- an (r, g, b[, a])
-    // tuple of ints in 0-255 -- and raises exactly what Color(value) raises otherwise.
+    // tuple of ints in 0-255, or a colour string (name, "source:name", "#hex"; #458) --
+    // and raises exactly what Color(value) raises otherwise.
     // Never clamps, wraps, or substitutes a default. Optional arguments decide what None
     // means before calling this; to_color itself rejects None as Color(None) does.
     static bool to_color(PyObject* value, sf::Color& out);
@@ -36,6 +37,7 @@ public:
     
     // Color helper methods
     static PyObject* from_hex(PyObject* cls, PyObject* args);
+    static PyObject* names(PyObject* cls, PyObject* args, PyObject* kwds);
     static PyObject* to_hex(PyColorObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* lerp(PyColorObject* self, PyObject* args);
     
@@ -53,7 +55,9 @@ namespace mcrfpydef {
         .tp_hash = PyColor::hash,
         .tp_flags = Py_TPFLAGS_DEFAULT,
         .tp_doc = PyDoc_STR(
-            "Color(r: int = 0, g: int = 0, b: int = 0, a: int = 255)\n"
+            "Color(r: int, g: int, b: int, a: int = 255)\n"
+            "Color(rgba: tuple[int, int, int] | tuple[int, int, int, int])\n"
+            "Color(color: str, a: int = 255)\n"
             "\n"
             "RGBA color representation.\n"
             "\n"
@@ -62,6 +66,14 @@ namespace mcrfpydef {
             "    g: Green component (0-255)\n"
             "    b: Blue component (0-255)\n"
             "    a: Alpha component (0-255, default 255 = opaque)\n"
+            "    color: A color name ('red', 'Dark Green'), a source-qualified name\n"
+            "        ('xkcd:dust', 'crayola:Red'), or hex ('#f00', '#f008', '#ff0000',\n"
+            "        '#ff000080'). Names ignore case and everything but letters and digits.\n"
+            "        An unprefixed name takes the first source that has it: css, then\n"
+            "        xkcd, then crayola, then jenny. Color.names() lists them. Unknown\n"
+            "        names raise ValueError naming close matches.\n"
+            "\n"
+            "    Every Color property accepts the same values: frame.fill_color = 'red'.\n"
             "\n"
             "Note:\n"
             "    Color is a VALUE TYPE (frozen 1.0 contract): properties that return a\n"
