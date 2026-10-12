@@ -282,6 +282,13 @@ Packaging tools:
 - `tools/package.sh` - thin wrapper: `build/mcrogueface -m mcrf_project package-engine`
   with the git version. Games use the same code: `mcrogueface -m mcrf_project dist` (#420).
   Never re-list runtime files anywhere else; that duplication is how #420 happened.
+- `runtime.web_archive()` - **the** definition of a web package (#474): a flat zip,
+  `index.html` (the build's `mcrogueface.html`) + `mcrogueface.{js,wasm,data}`, from a
+  game-shell web build only. `make package-web` (engine release, `McRogueFace-<v>-WASM.zip`)
+  and `mcrf_project dist --platform web` (games) both use it. Flat with `index.html` at
+  the root is what itch.io, static hosts and folder URLs serve.
+- `tools/version.sh` - prints `MCRFPY_VERSION` from `src/McRogueFaceVersion.h`, the only
+  source of truth for the version, `-dev` included (#475). Nothing reads git tags for it.
 - `tools/package_stdlib.py`, `tools/stdlib_modules.yaml` - unused (see #399)
 
 **Caveat (#399): the light/full split is currently aspirational, not mechanical.**

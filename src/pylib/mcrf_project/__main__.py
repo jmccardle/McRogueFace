@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .errors import ProjectError
 from .project import Project
-from .runtime import Runtime, archive, copy_content, copy_release_docs, fresh_dir
+from .runtime import Runtime, archive, copy_content, copy_release_docs, fresh_dir, web_archive
 
 
 def log(message):
@@ -94,6 +94,13 @@ def cmd_package_engine(args):
     log("created %s" % archive(staged, engine.platform))
 
 
+def cmd_package_web(args):
+    """The engine's own release web package, from a game-shell web build (make wasm-game)."""
+    out = Path(args.out) / ("McRogueFace-%s-WASM.zip" % args.version)
+    log("packaging %s from %s" % (out.name, Path(args.build).resolve()))
+    log("created %s" % web_archive(args.build, out))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="mcrogueface -m mcrf_project",
@@ -131,6 +138,12 @@ def main(argv=None):
     p.add_argument("--docs-from", help="engine source tree holding the rendered docs "
                                        "(default: the engine's own)")
     p.set_defaults(func=cmd_package_engine)
+
+    p = sub.add_parser("package-web", help="build the engine's release web zip from a web build")
+    p.add_argument("--build", required=True, help="game-shell web build directory (build-wasm-game)")
+    p.add_argument("--version", required=True)
+    p.add_argument("--out", required=True, help="output directory")
+    p.set_defaults(func=cmd_package_web)
 
     args = parser.parse_args(argv)
     if getattr(args, "engine_args", None) and args.engine_args[0] == "--":

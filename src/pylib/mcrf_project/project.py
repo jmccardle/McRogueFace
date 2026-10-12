@@ -230,12 +230,7 @@ class Project:
                      "-DMCRF_ASSETS_DIR=%s" % self.assets, "-DMCRF_SCRIPTS_DIR=%s" % self.scripts])
         _check_call(["emmake", "make", "-C", str(build), "-j%d" % (jobs or os.cpu_count() or 1)])
 
-        name = "%s-%s-Web" % (self.name, self.version)
-        staged = rt.fresh_dir(Path(out_dir) / name)
-        shutil.copy2(build / "mcrogueface.html", staged / "index.html")
-        for ext in ("js", "wasm", "data"):
-            shutil.copy2(build / ("mcrogueface." + ext), staged)
-        return rt.archive(staged, "windows")  # zip
+        return rt.web_archive(build, Path(out_dir) / ("%s-%s-Web.zip" % (self.name, self.version)))
 
 
 def _check_call(cmd):

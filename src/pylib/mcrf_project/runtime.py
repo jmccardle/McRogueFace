@@ -269,6 +269,55 @@ def archive(staged, platform):
     return out
 
 
+# --- web -----------------------------------------------------------------------------
+
+# A web build's runtime, beside the page that loads it. Emscripten names them after the
+# target; the page refers to the others by these names, so they ship unrenamed.
+WEB_RUNTIME = ("mcrogueface.js", "mcrogueface.wasm", "mcrogueface.data")
+WEB_PAGE = "mcrogueface.html"
+
+
+def _cmake_cache(build):
+    cache = Path(build) / "CMakeCache.txt"
+    if not cache.is_file():
+        raise ProjectError("%s is not a CMake build directory (no CMakeCache.txt)" % build)
+    values = {}
+    for line in cache.read_text(errors="replace").splitlines():
+        if ":" in line and "=" in line and not line.startswith(("#", "//")):
+            key, _, value = line.partition("=")
+            values[key.split(":", 1)[0]] = value
+    return values
+
+
+def web_archive(build, out):
+    """THE definition of a web package (#474), for the engine's release zip and for games
+    (``mcrf_project dist --platform web``) alike: a flat zip holding index.html (the
+    build's page) and its runtime files. Flat, with index.html at the root, is what
+    itch.io, static hosting and a folder URL all serve. Returns the zip's path.
+
+    Only a game-shell web build qualifies: the dev/playground shell carries the REPL
+    code panel, which the 0.2.8 WASM zip shipped by mistake."""
+    build, out = Path(build), Path(out)
+    cache = _cmake_cache(build)
+    if cache.get("MCRF_SDL2", "").upper() not in ("ON", "TRUE", "1", "YES"):
+        raise ProjectError("%s is not a web build (MCRF_SDL2 is off)" % build)
+    if cache.get("MCRF_GAME_SHELL", "").upper() not in ("ON", "TRUE", "1", "YES"):
+        raise ProjectError("%s uses the dev shell, with the REPL panel (MCRF_GAME_SHELL is off); "
+                           "package a game-shell build such as build-wasm-game (make wasm-game)"
+                           % build)
+    missing = [n for n in (WEB_PAGE,) + WEB_RUNTIME if not (build / n).is_file()]
+    if missing:
+        raise ProjectError("%s is missing %s: build it first" % (build, ", ".join(missing)))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp = out.with_name(out.name + ".partial")
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(build / WEB_PAGE, "index.html")
+        for name in WEB_RUNTIME:
+            zf.write(build / name, name)
+    tmp.replace(out)
+    return out
+
+
 def fresh_dir(path):
     path = Path(path)
     if path.exists():

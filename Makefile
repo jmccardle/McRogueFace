@@ -50,7 +50,7 @@
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
 .PHONY: deps deps-ft python python-ft python-debug python-tsan python-windows python-wasm free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground deploy-playground clean-wasm
-.PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all
+.PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all package-web
 .PHONY: version-bump
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
 .PHONY: profile callgrind clean-profile gauntlet
@@ -449,6 +449,12 @@ package-linux-full: linux
 package-all: windows linux
 	@./tools/package.sh all
 
+# The release web zip (#474): flat, index.html at the root, from the game-shell build.
+# What it contains is defined once, in mcrf_project.runtime.web_archive.
+package-web: linux wasm-game
+	@./build/mcrogueface -m mcrf_project package-web --build build-wasm-game \
+		--version "$$(tools/version.sh)" --out dist
+
 # Legacy target for backwards compatibility
 package-windows: package-windows-full
 
@@ -695,11 +701,7 @@ endif
 	fi
 	$(MAKE) package-linux-full
 	$(MAKE) package-windows-full
-	$(MAKE) wasm-game
-	@echo "Packaging WASM build (clean game, no REPL console)..."
-	@mkdir -p dist
-	cd build-wasm-game && zip -r ../dist/McRogueFace-$(CURRENT_VERSION)-WASM.zip \
-		mcrogueface.html mcrogueface.js mcrogueface.wasm mcrogueface.data
+	$(MAKE) package-web
 	@echo ""
 	@echo "Bumping version: $(CURRENT_VERSION) -> $(NEXT_VERSION)"
 	@sed -i 's|MCRFPY_VERSION "$(CURRENT_VERSION)"|MCRFPY_VERSION "$(NEXT_VERSION)"|' src/McRogueFaceVersion.h
