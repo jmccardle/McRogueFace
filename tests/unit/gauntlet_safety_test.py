@@ -116,11 +116,13 @@ def test_grid_titan_declares_guards():
     gt = GridTitan()
     check(gt.max_load is not None and gt.max_load > 0,
           "GRID TITAN declares max_load (%r)" % gt.max_load)
-    # Predicted footprint at the cap must be a sane, tractable number (< 1 GB).
+    # Predicted footprint at the cap must fit the trial's own memory budget
+    # (which counts its chunk textures, #469), so the cap is reachable.
     pb = gt.predict_bytes(gt.max_load)
-    check(pb is not None and pb < 1024 * 1024 * 1024,
-          "GRID TITAN cap footprint tractable (%.0f MB at S=%d)"
-          % (pb / 1024.0 / 1024.0, gt.max_load))
+    budget = gt.mem_budget_mb * 1024 * 1024
+    check(pb is not None and pb <= budget,
+          "GRID TITAN cap footprint within budget (%.0f MB at S=%d, budget %d MB)"
+          % (pb / 1024.0 / 1024.0, gt.max_load, gt.mem_budget_mb))
 
 
 def main():

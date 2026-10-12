@@ -37,7 +37,7 @@ class GridTitan(Trial):
     CELL_BYTES_EST = 28
     TEXTURE_BYTES_PER_CELL = 16 * 16 * 4 * 2  # two layers
     mem_budget_mb = 2048  # stops the ramp at side 802 (~1.3 GB of textures)
-    max_load = 4300
+    max_load = 1000  # largest side whose prediction fits mem_budget_mb
 
     def predict_bytes(self, load):
         side = max(4, int(load))
