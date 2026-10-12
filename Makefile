@@ -655,7 +655,7 @@ serve-playground-debug:
 	@cd build-playground-debug && python3 -m http.server 8080
 
 # Current version extracted from source
-CURRENT_VERSION := $(shell grep 'MCRFPY_VERSION' src/McRogueFaceVersion.h | sed 's/.*"\(.*\)"/\1/')
+CURRENT_VERSION := $(shell tools/version.sh)
 
 # Release workflow: tag current version, build all packages, bump to next version
 # Usage: make version-bump NEXT_VERSION=0.2.6-prerelease-7drl2026

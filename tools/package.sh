@@ -26,8 +26,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$PROJECT_ROOT/dist"
 ENGINE="$PROJECT_ROOT/build/mcrogueface"
 
-# Version from git or default
-VERSION=$(cd "$PROJECT_ROOT" && git describe --tags --always 2>/dev/null || echo "dev")
+# The version header is the source of truth (#475), never a git tag.
+VERSION=$("$SCRIPT_DIR/version.sh")
 
 package() {
     local platform=$1 preset=$2 engine_dir

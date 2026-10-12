@@ -6,7 +6,7 @@ pandoc docs/API_REFERENCE_DYNAMIC.md \
     --metadata title="MCRFPY" \
     --metadata section=3 \
     --metadata date="$(date +%Y-%m-%d)" \
-    --metadata footer="McRogueFace $(git describe --tags 2>/dev/null || echo 'dev')" \
+    --metadata footer="McRogueFace $("$(dirname "$0")/version.sh")" \
     -o docs/mcrfpy.3
 
 echo "Generated docs/mcrfpy.3"

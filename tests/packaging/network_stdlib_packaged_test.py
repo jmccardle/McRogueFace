@@ -138,10 +138,11 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
 
 
-def git_describe():
-    result = run(["git", "describe", "--tags", "--always"], cwd=str(PROJECT_ROOT))
+def engine_version():
+    # package.sh names archives from the version header (#475), via tools/version.sh.
+    result = run([str(PROJECT_ROOT / "tools" / "version.sh")])
     if result.returncode != 0 or not result.stdout.strip():
-        return "dev"
+        fail("tools/version.sh failed: %s" % result.stderr.strip())
     return result.stdout.strip()
 
 
@@ -248,7 +249,7 @@ def main():
 
     check_release_build_present()
 
-    version = git_describe()
+    version = engine_version()
     expected_tarball = find_expected_tarball(version)
     pre_existed = expected_tarball.exists()
     pre_mtime = expected_tarball.stat().st_mtime if pre_existed else None

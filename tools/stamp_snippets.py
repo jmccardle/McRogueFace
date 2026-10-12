@@ -20,7 +20,7 @@ script makes the header a MEASUREMENT:
 
   * `status`   comes from actually running the snippet through tests/snippets/_harness.py
   * `verified` comes from the engine that ran it (the release version, out of
-               api/manifest.json) -- a stable "0.2.8-dev" during a cycle, "0.2.9" at a tag
+               api/manifest.json) -- a stable "0.3.1-dev" during a cycle, "0.3.1" in the release commit
   * `objects`  is derived from the source, intersected with the objects the engine
                actually exports -- so a snippet that starts using a new type gets tagged
                for it without anyone remembering to.
@@ -124,7 +124,7 @@ def build_header(objects, version, status):
     # `verified` is the release version, NOT version@commit. A commit hash would churn
     # every one of these headers on every commit for zero signal git history doesn't
     # already carry -- and `--check` ignores `verified` anyway. During a dev cycle the
-    # version is a stable "0.2.8-dev"; at a tagged release it becomes "0.2.9", which is
+    # version is a stable "0.3.1-dev"; in the release commit it becomes "0.3.1", which is
     # the marker that freezes a version into the docs site's history.
     return (f"# mcrf: objects=[{','.join(objects)}] "
             f"verified={version} status={status}")

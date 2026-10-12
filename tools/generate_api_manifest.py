@@ -79,13 +79,18 @@ def parse_base_version(repo):
 
 
 def compute_version_info(repo):
-    base = parse_base_version(repo)
-    rc, _ = run_git(["describe", "--tags", "--exact-match"], repo)
-    exact_tag = (rc == 0)
-    version = base if exact_tag else (base + "-dev")
+    # The header is the only source of truth, "-dev" included (#475); git tags are
+    # never consulted, so a release commit says its version before it is tagged.
+    version = parse_base_version(repo)
+    base = version
 
-    rc, out = run_git(["rev-parse", "--short", "HEAD"], repo)
-    commit = out.strip() if rc == 0 else ""
+    # A release manifest is generated before its commit exists, so the hash would
+    # only name the parent; the tag identifies a release, so record none. A
+    # pre-release ("0.3.1-dev") keeps the hash it was built from.
+    commit = None
+    if "-" in version:
+        rc, out = run_git(["rev-parse", "--short", "HEAD"], repo)
+        commit = out.strip() if rc == 0 else ""
 
     rc, out = run_git(["status", "--porcelain", "--", "src/"], repo)
     dirty = bool(out.strip()) if rc == 0 else False
