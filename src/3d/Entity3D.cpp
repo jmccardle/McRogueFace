@@ -11,6 +11,7 @@
 #include "PyWrap.h"
 #include "Animation.h"
 #include "PyAnimation.h"
+#include "PyAnimate.h"
 #include "PyEasing.h"
 #include "McRFPy_API.h"
 #include <cstdio>
@@ -357,86 +358,53 @@ void Entity3D::update(float dt)
     updateAnimation(dt);
 }
 
+// #449: every name animate() accepts is a readable attribute, animated in its units.
+// World position is world_x/world_y/world_z (floats); `pos`/`grid_pos` is the integer
+// cell and is not animatable. `color`, anim_time and anim_speed are excluded.
 bool Entity3D::setProperty(const std::string& name, float value)
 {
-    if (name == "x" || name == "world_x") {
-        world_pos_.x = value;
-        return true;
-    }
-    if (name == "y" || name == "world_y") {
-        world_pos_.y = value;
-        return true;
-    }
-    if (name == "z" || name == "world_z") {
-        world_pos_.z = value;
-        return true;
-    }
-    if (name == "rotation" || name == "rot_y") {
-        rotation_ = value;
-        return true;
-    }
-    if (name == "scale") {
-        scale_ = vec3(value, value, value);
-        return true;
-    }
-    if (name == "scale_x") {
-        scale_.x = value;
-        return true;
-    }
-    if (name == "scale_y") {
-        scale_.y = value;
-        return true;
-    }
-    if (name == "scale_z") {
-        scale_.z = value;
-        return true;
-    }
+    if (name == "world_x") { world_pos_.x = value; return true; }
+    if (name == "world_y") { world_pos_.y = value; return true; }
+    if (name == "world_z") { world_pos_.z = value; return true; }
+    if (name == "rotation") { rotation_ = value; return true; }
+    if (name == "scale") { scale_ = vec3(value, value, value); return true; }
+    if (name == "scale_x") { scale_.x = value; return true; }
+    if (name == "scale_y") { scale_.y = value; return true; }
+    if (name == "scale_z") { scale_.z = value; return true; }
     return false;
 }
 
 bool Entity3D::setProperty(const std::string& name, int value)
 {
-    if (name == "sprite_index") {
-        sprite_index_ = value;
-        return true;
-    }
-    if (name == "visible") {
-        visible_ = value != 0;
-        return true;
-    }
+    if (name == "sprite_index") { sprite_index_ = value; return true; }
+    if (name == "visible") { visible_ = value != 0; return true; }
     return false;
 }
 
 bool Entity3D::getProperty(const std::string& name, float& value) const
 {
-    if (name == "x" || name == "world_x") {
-        value = world_pos_.x;
-        return true;
-    }
-    if (name == "y" || name == "world_y") {
-        value = world_pos_.y;
-        return true;
-    }
-    if (name == "z" || name == "world_z") {
-        value = world_pos_.z;
-        return true;
-    }
-    if (name == "rotation" || name == "rot_y") {
-        value = rotation_;
-        return true;
-    }
-    if (name == "scale") {
-        value = scale_.x;  // Return uniform scale
-        return true;
-    }
+    if (name == "world_x") { value = world_pos_.x; return true; }
+    if (name == "world_y") { value = world_pos_.y; return true; }
+    if (name == "world_z") { value = world_pos_.z; return true; }
+    if (name == "rotation") { value = rotation_; return true; }
+    if (name == "scale") { value = scale_.x; return true; }  // uniform scale
+    if (name == "scale_x") { value = scale_.x; return true; }
+    if (name == "scale_y") { value = scale_.y; return true; }
+    if (name == "scale_z") { value = scale_.z; return true; }
+    return false;
+}
+
+bool Entity3D::getProperty(const std::string& name, int& value) const
+{
+    if (name == "sprite_index") { value = sprite_index_; return true; }
+    if (name == "visible") { value = visible_ ? 1 : 0; return true; }
     return false;
 }
 
 bool Entity3D::hasProperty(const std::string& name) const
 {
-    return name == "x" || name == "y" || name == "z" ||
-           name == "world_x" || name == "world_y" || name == "world_z" ||
-           name == "rotation" || name == "rot_y" ||
+    return name == "world_x" || name == "world_y" || name == "world_z" ||
+           name == "rotation" ||
            name == "scale" || name == "scale_x" || name == "scale_y" || name == "scale_z" ||
            name == "sprite_index" || name == "visible";
 }
@@ -895,6 +863,39 @@ int Entity3D::set_visible(PyEntity3DObject* self, PyObject* value, void* closure
     return 0;
 }
 
+#define E3D_FLOAT_ACCESSOR(NAME, EXPR) \
+PyObject* Entity3D::get_##NAME(PyEntity3DObject* self, void*) \
+{ return PyFloat_FromDouble(self->data->EXPR); } \
+int Entity3D::set_##NAME(PyEntity3DObject* self, PyObject* value, void*) \
+{ \
+    if (!PyNumber_Check(value)) { PyErr_SetString(PyExc_TypeError, #NAME " must be a number"); return -1; } \
+    double d = PyFloat_AsDouble(value); \
+    if (d == -1.0 && PyErr_Occurred()) return -1; \
+    self->data->EXPR = (float)d; \
+    return 0; \
+}
+E3D_FLOAT_ACCESSOR(world_x, world_pos_.x)
+E3D_FLOAT_ACCESSOR(world_y, world_pos_.y)
+E3D_FLOAT_ACCESSOR(world_z, world_pos_.z)
+E3D_FLOAT_ACCESSOR(scale_x, scale_.x)
+E3D_FLOAT_ACCESSOR(scale_y, scale_.y)
+E3D_FLOAT_ACCESSOR(scale_z, scale_.z)
+#undef E3D_FLOAT_ACCESSOR
+
+PyObject* Entity3D::get_sprite_index(PyEntity3DObject* self, void*)
+{
+    return PyLong_FromLong(self->data->sprite_index_);
+}
+
+int Entity3D::set_sprite_index(PyEntity3DObject* self, PyObject* value, void*)
+{
+    if (!PyLong_Check(value)) { PyErr_SetString(PyExc_TypeError, "sprite_index must be an int"); return -1; }
+    long v = PyLong_AsLong(value);
+    if (v == -1 && PyErr_Occurred()) return -1;
+    self->data->sprite_index_ = (int)v;
+    return 0;
+}
+
 PyObject* Entity3D::get_color(PyEntity3DObject* self, void* closure)
 {
     return PyColor(self->data->color_).pyObject();
@@ -1177,106 +1178,8 @@ PyObject* Entity3D::py_update_visibility(PyEntity3DObject* self, PyObject* args)
 
 PyObject* Entity3D::py_animate(PyEntity3DObject* self, PyObject* args, PyObject* kwds)
 {
-    static const char* keywords[] = {"property", "target", "duration", "easing", "delta", "loop", "callback", "conflict_mode", nullptr};
-
-    const char* property_name;
-    PyObject* target_value;
-    float duration;
-    PyObject* easing_arg = Py_None;
-    int delta = 0;
-    int loop_val = 0;
-    PyObject* callback = nullptr;
-    const char* conflict_mode_str = nullptr;
-
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sOf|OppOs", const_cast<char**>(keywords),
-                                      &property_name, &target_value, &duration,
-                                      &easing_arg, &delta, &loop_val, &callback, &conflict_mode_str)) {
-        return NULL;
-    }
-
-    // Validate property exists on this entity
-    if (!self->data->hasProperty(property_name)) {
-        PyErr_Format(PyExc_ValueError,
-            "Property '%s' is not valid for animation on Entity3D. "
-            "Valid properties: x, y, z, world_x, world_y, world_z, rotation, rot_y, "
-            "scale, scale_x, scale_y, scale_z, sprite_index, visible",
-            property_name);
-        return NULL;
-    }
-
-    // Validate callback is callable if provided
-    if (callback && callback != Py_None && !PyCallable_Check(callback)) {
-        PyErr_SetString(PyExc_TypeError, "callback must be callable");
-        return NULL;
-    }
-
-    // Convert None to nullptr for C++
-    if (callback == Py_None) {
-        callback = nullptr;
-    }
-
-    // Convert Python target value to AnimationValue
-    // Entity3D only supports float and int properties
-    AnimationValue animValue;
-
-    if (PyFloat_Check(target_value)) {
-        animValue = static_cast<float>(PyFloat_AsDouble(target_value));
-    }
-    else if (PyLong_Check(target_value)) {
-        animValue = static_cast<int>(PyLong_AsLong(target_value));
-    }
-    else {
-        PyErr_SetString(PyExc_TypeError, "Entity3D animations only support float or int target values");
-        return NULL;
-    }
-
-    // Get easing function from argument
-    EasingFunction easingFunc;
-    if (!PyEasing::from_arg(easing_arg, &easingFunc, nullptr)) {
-        return NULL;  // Error already set by from_arg
-    }
-
-    // Parse conflict mode
-    AnimationConflictMode conflict_mode = AnimationConflictMode::REPLACE;
-    if (conflict_mode_str) {
-        if (strcmp(conflict_mode_str, "replace") == 0) {
-            conflict_mode = AnimationConflictMode::REPLACE;
-        } else if (strcmp(conflict_mode_str, "queue") == 0) {
-            conflict_mode = AnimationConflictMode::QUEUE;
-        } else if (strcmp(conflict_mode_str, "error") == 0) {
-            conflict_mode = AnimationConflictMode::RAISE_ERROR;
-        } else {
-            PyErr_Format(PyExc_ValueError,
-                "Invalid conflict_mode '%s'. Must be 'replace', 'queue', or 'error'.", conflict_mode_str);
-            return NULL;
-        }
-    }
-
-    // Create the Animation
-    auto animation = std::make_shared<Animation>(property_name, animValue, duration, easingFunc, delta != 0, loop_val != 0, callback);
-
-    // Start on this entity (uses startEntity3D)
-    animation->startEntity3D(self->data);
-
-    // Add to AnimationManager
-    AnimationManager::getInstance().addAnimation(animation, conflict_mode);
-
-    // Check if ERROR mode raised an exception
-    if (PyErr_Occurred()) {
-        return NULL;
-    }
-
-    // Create and return a PyAnimation wrapper
-    PyTypeObject* animType = &mcrfpydef::PyAnimationType;
-
-    PyAnimationObject* pyAnim = (PyAnimationObject*)animType->tp_alloc(animType, 0);
-
-    if (!pyAnim) {
-        return NULL;
-    }
-
-    pyAnim->data = animation;
-    return (PyObject*)pyAnim;
+    return mcrf::animate(self->data, "Entity3D", args, kwds,
+        [](Animation& a, const std::shared_ptr<Entity3D>& t) { a.startEntity3D(t); });
 }
 
 PyObject* Entity3D::py_follow_path(PyEntity3DObject* self, PyObject* args)
@@ -1338,11 +1241,13 @@ PyMethodDef Entity3D::methods[] = {
      "update_visibility()\n\n"
      "Recompute field of view from current position."},
     {"animate", (PyCFunction)Entity3D::py_animate, METH_VARARGS | METH_KEYWORDS,
-     "animate(property, target, duration, easing=None, delta=False, callback=None, conflict_mode=None)\n\n"
+     "animate(property, target, duration, easing=None, delta=False, loop=False, callback=None, conflict_mode='replace')\n\n"
      "Animate a property over time.\n\n"
      "Args:\n"
-     "    property: Property name (x, y, z, rotation, scale, etc.)\n"
-     "    target: Target value (float or int)\n"
+     "    property: A float or int attribute: world_x, world_y, world_z, rotation, scale,\n"
+     "        scale_x, scale_y, scale_z, sprite_index, visible. Animated in the\n"
+     "        attribute's units; other names raise ValueError.\n"
+     "    target: Target value (float, or int for sprite_index/visible)\n"
      "    duration: Animation duration in seconds\n"
      "    easing: Easing function (Easing enum or None for linear)\n"
      "    delta: If True, target is relative to current value\n"
@@ -1374,6 +1279,20 @@ PyGetSetDef Entity3D::getsetters[] = {
      "Uniform scale factor. Can also set as (x, y, z) tuple.", NULL},
     {"visible", (getter)Entity3D::get_visible, (setter)Entity3D::set_visible,
      "Visibility state.", NULL},
+    {"world_x", (getter)Entity3D::get_world_x, (setter)Entity3D::set_world_x,
+     "World-space X (float). Animatable.", NULL},
+    {"world_y", (getter)Entity3D::get_world_y, (setter)Entity3D::set_world_y,
+     "World-space Y, the height (float). Animatable.", NULL},
+    {"world_z", (getter)Entity3D::get_world_z, (setter)Entity3D::set_world_z,
+     "World-space Z (float). Animatable.", NULL},
+    {"scale_x", (getter)Entity3D::get_scale_x, (setter)Entity3D::set_scale_x,
+     "X scale factor (float). Animatable.", NULL},
+    {"scale_y", (getter)Entity3D::get_scale_y, (setter)Entity3D::set_scale_y,
+     "Y scale factor (float). Animatable.", NULL},
+    {"scale_z", (getter)Entity3D::get_scale_z, (setter)Entity3D::set_scale_z,
+     "Z scale factor (float). Animatable.", NULL},
+    {"sprite_index", (getter)Entity3D::get_sprite_index, (setter)Entity3D::set_sprite_index,
+     "Sprite index for billboard rendering (int). Animatable.", NULL},
     {"color", (getter)Entity3D::get_color, (setter)Entity3D::set_color,
      "Entity render color.", NULL},
     {"viewport", (getter)Entity3D::get_viewport, NULL,

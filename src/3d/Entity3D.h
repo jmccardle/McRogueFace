@@ -185,6 +185,11 @@ public:
     bool setProperty(const std::string& name, float value);
     bool setProperty(const std::string& name, int value);
     bool getProperty(const std::string& name, float& value) const;
+    bool getProperty(const std::string& name, int& value) const;
+    bool getProperty(const std::string&, sf::Vector2f&) const { return false; }
+    bool getProperty(const std::string&, sf::Color&) const { return false; }
+    bool getProperty(const std::string&, std::string&) const { return false; }
+    bool checkFloatTarget(const std::string&, float) const { return true; }
     bool hasProperty(const std::string& name) const;
 
     // =========================================================================
@@ -289,6 +294,20 @@ public:
     static PyObject* get_anim_frame(PyEntity3DObject* self, void* closure);
     static PyObject* get_on_anim_complete(PyEntity3DObject* self, void* closure);
     static int set_on_anim_complete(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_world_x(PyEntity3DObject* self, void* closure);
+    static int set_world_x(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_world_y(PyEntity3DObject* self, void* closure);
+    static int set_world_y(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_world_z(PyEntity3DObject* self, void* closure);
+    static int set_world_z(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_scale_x(PyEntity3DObject* self, void* closure);
+    static int set_scale_x(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_scale_y(PyEntity3DObject* self, void* closure);
+    static int set_scale_y(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_scale_z(PyEntity3DObject* self, void* closure);
+    static int set_scale_z(PyEntity3DObject* self, PyObject* value, void* closure);
+    static PyObject* get_sprite_index(PyEntity3DObject* self, void* closure);
+    static int set_sprite_index(PyEntity3DObject* self, PyObject* value, void* closure);
     static PyObject* get_auto_animate(PyEntity3DObject* self, void* closure);
     static int set_auto_animate(PyEntity3DObject* self, PyObject* value, void* closure);
     static PyObject* get_walk_clip(PyEntity3DObject* self, void* closure);
