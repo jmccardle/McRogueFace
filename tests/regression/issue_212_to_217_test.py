@@ -73,7 +73,7 @@ print("\nTesting #216: entities_in_radius uses pos tuple/Vector")
 try:
     g = mcrfpy.Grid(grid_size=(50, 50), pos=(0, 0), size=(500, 500))
     e = mcrfpy.Entity()
-    e.draw_pos = (10, 10)
+    e.grid_pos = (10, 10)  # #431: spatial queries measure from the cell
     g.entities.append(e)
 
     # New API: pos as tuple + radius

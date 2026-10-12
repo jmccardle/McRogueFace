@@ -55,10 +55,9 @@ def test_entity_positions():
     entity.grid_y = 2
     if entity.grid_x != 7 or entity.grid_y != 2:
         errors.append(f"After setting grid_x/y: expected (7, 2), got ({entity.grid_x}, {entity.grid_y})")
-    # #295: cell_pos (grid_x/y) is decoupled from pixel pos - pixel pos NOT updated
-    # Pixel pos should remain at the draw_pos * tile_size (3*16=48, 5*16=80 from earlier)
-    if abs(entity.x - 48.0) > 0.001 or abs(entity.y - 80.0) > 0.001:
-        errors.append(f"After grid_x/y set, pixel pos should be unchanged: expected (48, 80), got ({entity.x}, {entity.y})")
+    # #431: setting the cell teleports -- draw_pos (and so pixel pos) snaps to it
+    if abs(entity.x - 112.0) > 0.001 or abs(entity.y - 32.0) > 0.001:
+        errors.append(f"After grid_x/y set, pixel pos should follow the cell: expected (112, 32), got ({entity.x}, {entity.y})")
 
     # Test 7: Setting pos (pixels) should update draw_pos but NOT grid_pos (#295)
     entity.pos = mcrfpy.Vector(64, 96)  # (64, 96) / 16 = (4, 6) tiles

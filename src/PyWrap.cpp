@@ -141,6 +141,44 @@ bool to_int(PyObject* value, int& out, const char* what)
     return false;
 }
 
+static bool integral_to_cell(double value, int& out, const char* what)
+{
+    if (!std::isfinite(value) || std::floor(value) != value) {
+        PyErr_Format(PyExc_ValueError, "%s must be a whole number of cells, got %R",
+                     what, mcrf::PyRef(PyFloat_FromDouble(value)).get());
+        return false;
+    }
+    return to_int(value, out, what);
+}
+
+bool to_cell(PyObject* value, int& out, const char* what)
+{
+    if (PyFloat_Check(value)) {
+        double d = PyFloat_AsDouble(value);
+        if (d == -1.0 && PyErr_Occurred()) return false;
+        return integral_to_cell(d, out, what);
+    }
+    if (PyLong_Check(value)) return to_int(value, out, what);
+    PyErr_Format(PyExc_TypeError, "%s must be an int (or a whole-number float), not %.200s",
+                 what, Py_TYPE(value)->tp_name);
+    return false;
+}
+
+bool to_cell_pos(PyObject* value, sf::Vector2i& out, const char* what)
+{
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyVectorType)) {
+        const sf::Vector2f& v = ((PyVectorObject*)value)->data;
+        return integral_to_cell(v.x, out.x, what) && integral_to_cell(v.y, out.y, what);
+    }
+    if ((PyTuple_Check(value) || PyList_Check(value)) && PySequence_Fast_GET_SIZE(value) == 2) {
+        PyObject** items = PySequence_Fast_ITEMS(value);
+        return to_cell(items[0], out.x, what) && to_cell(items[1], out.y, what);
+    }
+    PyErr_Format(PyExc_TypeError, "%s must be a Vector or an (x, y) pair of ints, not %.200s",
+                 what, Py_TYPE(value)->tp_name);
+    return false;
+}
+
 void print_callback_error(const char* what)
 {
     if (!PyErr_ExceptionMatches(PyExc_SystemExit)) {

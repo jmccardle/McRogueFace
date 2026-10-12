@@ -191,6 +191,13 @@ std::shared_ptr<T> py_shared(T* obj)
 bool to_int(double value, int& out, const char* what);
 bool to_int(PyObject* value, int& out, const char* what);
 
+// A grid cell coordinate (#431): a Python int, or a float with an integral value
+// (5.0, e.g. a Vector component). A non-integral, NaN or infinite float raises
+// ValueError (never truncated), anything else TypeError, outside int's range
+// OverflowError. to_cell_pos reads a Vector or an (x, y) pair the same way.
+bool to_cell(PyObject* value, int& out, const char* what);
+bool to_cell_pos(PyObject* value, sf::Vector2i& out, const char* what);
+
 // Print the pending error from a Python callback, headed "<what> callback raised an
 // exception:". sys.exit() in a callback is a request to quit, not an error: it gets
 // no header, and PyErr_Print() exits as usual.

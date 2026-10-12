@@ -12,6 +12,11 @@ class UIEntity;
  * Divides the grid into buckets and tracks which entities are in each bucket.
  * Queries only check entities in nearby buckets instead of all entities.
  *
+ * Keyed on the entity's logical cell (UIEntity::cell_position) everywhere: insert,
+ * remove, updateCell and both queries (#431). draw_pos (UIEntity::position) is where
+ * the sprite is drawn and never affects the hash. Whoever changes cell_position calls
+ * updateCell() with the old cell (UIEntity::assignCell does).
+ *
  * Performance characteristics:
  * - Insert: O(1)
  * - Remove: O(n) where n = entities in bucket (typically small)
@@ -23,15 +28,11 @@ public:
     // Default bucket size of 32 cells balances memory and query performance
     explicit SpatialHash(int bucket_size = 32);
 
-    // Insert entity into spatial hash based on current position
+    // Insert entity into spatial hash based on its current cell
     void insert(std::shared_ptr<UIEntity> entity);
 
     // Remove entity from spatial hash
     void remove(std::shared_ptr<UIEntity> entity);
-
-    // Update entity position - call when entity moves
-    // This removes from old bucket and inserts into new bucket if needed
-    void update(std::shared_ptr<UIEntity> entity, float old_x, float old_y);
 
     // Update entity position using integer cell coordinates (#295)
     // Removes from old bucket and inserts into new based on cell_position
@@ -42,7 +43,7 @@ public:
     std::vector<std::shared_ptr<UIEntity>> queryCell(int x, int y) const;
 
     // Query all entities within radius of a point
-    // Returns entities whose positions are within the circular radius
+    // Returns entities whose cells are within the circular radius (in cells)
     std::vector<std::shared_ptr<UIEntity>> queryRadius(float x, float y, float radius) const;
 
     // Clear all entities from the hash
