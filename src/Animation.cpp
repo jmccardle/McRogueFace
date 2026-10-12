@@ -164,10 +164,9 @@ void Animation::startEntity3D(std::shared_ptr<mcrf::Entity3D> target) {
             }
         }
         else if constexpr (std::is_same_v<T, int>) {
-            // For sprite_index/visible: capture via float and convert
-            float fvalue = 0.0f;
-            if (target->getProperty(targetProperty, fvalue)) {
-                startValue = static_cast<int>(fvalue);
+            int ivalue = 0;
+            if (target->getProperty(targetProperty, ivalue)) {
+                startValue = ivalue;
             }
         }
         // Entity3D doesn't support other types

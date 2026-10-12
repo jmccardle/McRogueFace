@@ -145,7 +145,7 @@ def animation_callback_target():
     def on_complete(target, prop, value):
         seen.append(target)
 
-    g.animate('x', 5.0, 0.25, 'linear', callback=on_complete)
+    g.animate('world_x', 5.0, 0.25, 'linear', callback=on_complete)
     for _ in range(3):
         mcrfpy.step(0.15)
     check(len(seen) == 1 and seen[0] is g, "animation callback receives the entity itself")
