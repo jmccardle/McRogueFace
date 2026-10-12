@@ -87,19 +87,28 @@ the barrier the sleep happens on:
 drops a frame outright. A 100 ms HTTP request inside the lock costs six frames, and
 nothing in any log will say so.
 
-### The greedy re-acquire trap — worse than 1:1
+### Re-acquiring in a loop (#410, fixed)
 
-The 1:1 figure assumes what the intended embedding topology actually does: **one lock
-block per inbound event.** A thread that releases and immediately re-acquires in a loop is a different and
-much worse regime, because `closeWindow()` waits for `waiting == 0` while `safe_window` is
-still open — so a thread that re-enters `acquire()` at once is served *again within the
-same window*, and the window never closes.
+A safe window serves a given thread **at most once**. `closeWindow()` first marks the
+window as closing (under the barrier's mutex); a non-nested `lock()` arriving after that
+waits for the *next* window, while threads that were already waiting when the window
+opened, and nested `lock()` calls by a thread that is already inside, still pass. So a
+thread that releases and immediately re-acquires gets one acquire per frame, not an
+unbounded number inside one frame.
 
-Measured on the same machine, one background thread looping `with mcrfpy.lock(): sleep(H)`
-with no yield between iterations, against a `step()`-driven main loop for 2 seconds:
+Before the fix, `closeWindow()` waited for `waiting == 0` while the window was still open,
+so a re-entering thread was served again in the same window and the window never closed.
+One thread with a 1 ms hold reduced the main loop to 31 frames in 2 s, and eight polite
+threads (1 ms gap) could trigger the same thing once hold time approached the gap. Now
+the same greedy thread is served exactly 1.0 acquires per frame at every hold length
+(`tests/integration/frame_lock_hold_budget_test.py`, and the re-admission gate in
+`tests/regression/issue_410_framelock_readmission_test.py`).
 
-| hold H (ms) | main-thread frames in 2 s | median frame (ms) | worst frame (ms) | acquires served per frame |
-|---:|---:|---:|---:|---:|
+The rule still stands as a cost model: time held is added to the frame that serves it,
+and a greedy loop is now paced to one acquire per frame, so a backlog drains at the frame
+rate. Do bounded work per acquire.
+
+---:|---:|---:|---:|---:|
 | 0 | 376 883 | 0.005 | 0.5 | 4.0 |
 | 1 | **31** | **32.1** | **683** | 56.6 |
 | 2 | 18 | 40.8 | 438 | 54.6 |
@@ -162,7 +171,7 @@ trying to measure.
 | what you did | how it presents | how to find it |
 |---|---|---|
 | held the lock for `H` ms | frame time up by `H` ms; stutter | `frame_lock_hold_budget_test.py`; `get_metrics()['current_frame']` rate |
-| re-acquired in a tight loop | engine drops to single-digit FPS, still "working" | #410; acquires-per-frame ratio |
+| re-acquired in a tight loop | paced to one acquire per frame (was: engine at single-digit FPS, #410) | acquires-per-frame ratio |
 | called `step()`/`advance()` while holding | `RuntimeError` (previously: silent hard hang) | the exception names the call and the rule |
 | called `step()`/`advance()` from a thread that does not drive the clock | `RuntimeError` (previously: two frame bodies ran concurrently) | #411; `tests/regression/issue_411_clock_owner_test.py` |
 | mutated from a background thread *without* the lock | torn reads; corruption that reproduces rarely | `tests/integration/observe_under_frame_lock_test.py` phase A/B |

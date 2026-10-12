@@ -642,6 +642,12 @@ else:
               "lock (gate %d); it never crossed a real frame boundary, so its "
               "torn-state result proves nothing"
               % (r, distinct, MIN_DISTINCT_FRAMES))
+        # #410: a window serves a thread at most once, so every iteration is served
+        # in its own frame. Deliberately NOT scaled for slow/instrumented builds.
+        check(distinct == ITERATIONS,
+              "worker %d saw %d distinct current_frame values for %d acquires: it was "
+              "re-admitted within a safe window that had already served it (#410)"
+              % (r, distinct, ITERATIONS))
 
 # 1b -- the mutation check that makes section 1 non-vacuous.
 if control_verdict != "ok" or control is None:
