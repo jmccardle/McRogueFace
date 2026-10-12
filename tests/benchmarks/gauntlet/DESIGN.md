@@ -41,12 +41,13 @@ preserved verbatim after this section.)*
    start via the shared default). Queries burst on one 100 ms tick, so even a handful
    spike a single frame; starting at 1 lets the ramp find the true sustainable level.
 10. **Committed baseline provenance + variance caveat.** The committed
-    `tests/benchmarks/baseline/gauntlet/baseline.json` is real data from a windowed run
-    on the implementer's machine (2026-07-02, live desktop with Xorg/Firefox running).
-    Even with the strike-based bail, run-to-run scores for callback-heavy trials
-    (notably ANIMATION STORM) varied several-fold between runs on the busy desktop.
-    Treat per-trial deltas below ~2x as noise until a baseline is captured on a quiet
-    system; delete baseline.json and re-run `run_gauntlet.py` to recapture.
+    `tests/benchmarks/baseline/gauntlet/baseline.json` is the 0.3.0 baseline (2026-10-11,
+    01c58f7): the per-trial median of 3 back-to-back `make gauntlet` runs on a quieted
+    desktop (Intel iGPU). Each trial's record is the median run's real measurement and
+    `runs` lists all three max_loads. Even so, trials moved 1-3 ramp steps (~1.6x each)
+    between runs, so treat per-trial deltas below ~2x as noise. GRID TITAN is the
+    exception: it stops on `mem_predict`, so it is deterministic. To recapture, run
+    `make gauntlet` three times and take the medians the same way.
 
 ---
 
