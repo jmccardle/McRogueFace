@@ -29,7 +29,9 @@ PyCallable& PyCallable::operator=(const PyCallable& other)
 
 PyCallable::~PyCallable()
 {
-    if (target)
+    // #468: an owner destroyed after Py_Finalize (none should hold a callback by then)
+    // must not touch the freed interpreter.
+    if (target && mcrf::python_alive())
         Py_DECREF(target);
 }
 

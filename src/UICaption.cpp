@@ -594,8 +594,8 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         self->data->click_register(click_handler);
     }
 
-    // Initialize weak reference list
-    self->weakreflist = NULL;
+    // Never reset weakreflist here: tp_new zero-fills it, and a re-run __init__ would
+    // orphan the wrapper cache's weak reference (a use-after-free, #468).
     
     // Register in Python object cache
     if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;

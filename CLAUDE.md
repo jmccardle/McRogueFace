@@ -782,9 +782,24 @@ with a live wrapper has two owners, and neither may report its callbacks.
 makes `Sound(...).play()` work without a held reference. Device resources (`sf::Sound`,
 `sf::Music`, `sf::SoundBuffer`, each of which opens the OpenAL device when constructed)
 exist only while `mcrf::audio::enabled()`. They live behind a `unique_ptr` in an
-`mcrf::audio::Source`, so that `shutdown()` (run via `Py_AtExit`) can close the device
-before `exit()`. Never add an `sf::` audio member anywhere else: an unused one on
-`GameEngine` kept a device open in every run, and it is what caused #400.
+`mcrf::audio::Source`, so that `shutdown()` (part of the exit teardown below) can close
+the device before `exit()`. Never add an `sf::` audio member anywhere else: an unused one
+on `GameEngine` kept a device open in every run, and it is what caused #400.
+
+**Exit teardown (#468).** Every Python reference the engine holds is released by ONE
+function, `McRFPy_API::release_python_references()`, registered with `atexit` when mcrfpy
+is created, so every exit path reaches it (`api_shutdown()`'s `Py_Finalize`, and
+`sys.exit()`, which finalizes inside `PyErr_Print()`), after non-daemon threads are joined
+and before CPython clears anything. A new engine-held reference (a static, a registry, an
+owner in `GameEngine`) must be released there. It also takes back the vectors children
+views share with their owners (`UICollection::release_view`), so cycles through module
+globals become visible to the GC; `Timer` and `Animation` wrappers report their callback
+when they alone own the object. Never reset `weakreflist` in `tp_init`: a re-run
+`__init__` orphans the wrapper cache's weak reference. Guard a destructor's DECREF with
+`mcrf::python_alive()`, never `Py_IsInitialized()`: CPython clears that before its final
+GC and module clearing, so the old guards skipped every release made during finalization.
+Gate: `tests/regression/issue_468_exit_teardown_test.py` (markers on every exit path, and
+no LSan report under `make asan-test`).
 
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or

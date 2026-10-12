@@ -585,10 +585,17 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
         mcrf::unregister_wrapper(self->data->children_serial);
         self->data->children_serial = 0;
     }
+    // #468: detach the old children, as removeFromParent() would. Dropping the vector
+    // alone left each pinned child and its wrapper keeping each other alive forever.
+    if (auto old = std::move(self->data->children)) {
+        for (auto& child : *old) {
+            if (child) child->setParent(nullptr);
+        }
+    }
     self->data->children = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
     
-    // Initialize weak reference list
-    self->weakreflist = NULL;
+    // Never reset weakreflist here: tp_new zero-fills it, and a re-run __init__ would
+    // orphan the wrapper cache's weak reference (a use-after-free, #468).
     
     // Define all parameters with defaults
     PyObject* pos_obj = nullptr;

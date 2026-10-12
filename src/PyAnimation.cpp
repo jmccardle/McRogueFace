@@ -113,7 +113,22 @@ int PyAnimation::init(PyAnimationObject* self, PyObject* args, PyObject* kwds) {
     return 0;
 }
 
+// #468: an animation held only by its wrapper (finished, or no longer in the
+// AnimationManager) reports its callback, so a cycle through it (a callback that
+// reaches the wrapper, e.g. through its module's globals) is collectable.
+int PyAnimation::traverse(PyAnimationObject* self, visitproc visit, void* arg) {
+    if (!self->data || !mcrf::owns_exclusively(self->data.use_count(), 0)) return 0;
+    return self->data->visitCallback(visit, arg);
+}
+
+int PyAnimation::clear(PyAnimationObject* self) {
+    if (!self->data || !mcrf::owns_exclusively(self->data.use_count(), 0)) return 0;
+    self->data->clearCallback();
+    return 0;
+}
+
 void PyAnimation::dealloc(PyAnimationObject* self) {
+    PyObject_GC_UnTrack((PyObject*)self);
     self->data.reset();
     Py_TYPE(self)->tp_free((PyObject*)self);
 }

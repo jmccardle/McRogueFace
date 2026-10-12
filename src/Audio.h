@@ -10,8 +10,9 @@
 //   * Audio off (--audio-off, --headless). No device resource is ever created: Sound,
 //     Music and SoundBuffer load and report metadata, and play() is a no-op.
 //   * Closing the device. Every object holding device resources is tracked, and
-//     shutdown() (registered with Py_AtExit, so it runs on sys.exit() too) destroys
-//     them all, so OpenAL's own atexit cleanup finds no open device to race on.
+//     shutdown() (part of McRFPy_API::release_python_references(), so it runs on
+//     sys.exit() too) destroys them all, so OpenAL's own atexit cleanup finds no open
+//     device to race on.
 
 #include <memory>
 #include <string>
@@ -51,7 +52,9 @@ void sweep();
 std::size_t live_count();
 std::size_t retained_count();
 
-// Destroy every Source's device resources and refuse new ones.
+// Destroy every Source's device resources, refuse new ones, and release the retained
+// sources. Runs while the interpreter is alive, before Py_Finalize (#468): releasing a
+// retained Sound frees its SoundBuffer, which touches the wrapper cache.
 void shutdown();
 
 // Check that `path` is a readable audio file and read its duration, without

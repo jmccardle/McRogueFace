@@ -329,6 +329,9 @@ public:
     void createScene(std::string);
     void registerScene(const std::string& name, std::shared_ptr<Scene> scene);
     void unregisterScene(const std::string& name);
+    // #468: drop every scene, timer and animation (and the Python objects they hold).
+    // Part of McRFPy_API::release_python_references(); the engine runs no frame after.
+    void releasePythonReferences();
     void quit();
     void setPause(bool);
     sf::Font & getFont();

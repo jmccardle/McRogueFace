@@ -62,6 +62,18 @@ void PythonObjectCache::remove(uint64_t serial) {
     }
 }
 
+std::vector<PyObject*> PythonObjectCache::liveObjects() {
+    std::lock_guard<std::mutex> lock(serial_mutex);
+    std::vector<PyObject*> out;
+    out.reserve(cache.size());
+    for (auto& pair : cache) {
+        PyObject* obj = nullptr;
+        if (PyWeakref_GetRef(pair.second, &obj) == 1 && obj) out.push_back(obj);
+        else PyErr_Clear();
+    }
+    return out;
+}
+
 void PythonObjectCache::cleanup() {
     std::lock_guard<std::mutex> lock(serial_mutex);
 

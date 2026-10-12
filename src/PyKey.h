@@ -33,6 +33,8 @@ public:
 
     // Cached reference to the Key enum class for fast type checking
     static PyObject* key_enum_class;
+    // #468: drop key_enum_class and the memoized members.
+    static void release_statics();
 
     // #344 - Return the cached Key enum member for an sf::Keyboard::Key value as
     // a NEW reference. Members are built once and memoized for the interpreter

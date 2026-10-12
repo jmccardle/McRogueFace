@@ -2,6 +2,7 @@
 
 #include <Python.h>
 #include <unordered_map>
+#include <vector>
 #include <mutex>
 #include <atomic>
 #include <cstdint>
@@ -31,6 +32,9 @@ public:
     
     // Remove an entry from the cache
     void remove(uint64_t serial);
+
+    // Every live cached object, as new references (#468: exit teardown).
+    std::vector<PyObject*> liveObjects();
     
     // Clean up dead weak references
     void cleanup();

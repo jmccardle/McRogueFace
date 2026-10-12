@@ -23,6 +23,8 @@ public:
 
     // Cached reference to the InputState enum class for fast type checking
     static PyObject* input_state_enum_class;
+    // #468: drop input_state_enum_class and the memoized members.
+    static void release_statics();
 
     // #344 - Return the cached InputState enum member for a value (0=PRESSED,
     // 1=RELEASED) as a NEW reference. Members are memoized for the interpreter

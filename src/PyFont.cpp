@@ -13,9 +13,8 @@ PyFont::PyFont(std::string filename)
 
 PyFont::~PyFont()
 {
-    // #430: drop the wrapper-cache entry. The static McRFPy_API::default_font is
-    // destroyed after Py_Finalize, when the cache (and the interpreter) are gone.
-    if (serial_number != 0 && Py_IsInitialized()) mcrf::unregister_wrapper(serial_number);
+    // #430: drop the wrapper-cache entry (a no-op once Python is gone).
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
 }
 
 PyObject* PyFont::pyobject_for(const std::shared_ptr<PyFont>& font)

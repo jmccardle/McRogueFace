@@ -40,6 +40,15 @@ public:
     static void api_init(const McRogueFaceConfig& config);
     static PyStatus init_python_with_config(const McRogueFaceConfig& config);
     static void api_shutdown();
+    // #468: release every Python reference the engine holds -- scenes and their trees,
+    // the scene registry, timers, animations, audio, the default font/texture, the
+    // enum classes and other module statics -- while the interpreter is still whole.
+    // Runs once, as the first-registered (so last-run) atexit callback, which every
+    // exit path reaches: api_shutdown()'s Py_Finalize, and sys.exit(), which finalizes
+    // inside PyErr_Print() without returning to main(). Finalization runs it after
+    // joining non-daemon threads and before it clears anything. The engine runs no
+    // frame afterwards.
+    static void release_python_references();
     // Python API functionality - use mcrfpy.* in scripts
     //static PyObject* _drawSprite(PyObject*, PyObject*);
     static void REPL_device(FILE * fp, const char *filename);

@@ -16,6 +16,8 @@ public:
     static PyObject* create(PyTypeObject* type, PyObject* args, PyObject* kwds);
     static int init(PyAnimationObject* self, PyObject* args, PyObject* kwds);
     static void dealloc(PyAnimationObject* self);
+    static int traverse(PyAnimationObject* self, visitproc visit, void* arg);  // #468
+    static int clear(PyAnimationObject* self);
     static PyObject* repr(PyAnimationObject* self);
     
     // Properties
@@ -46,7 +48,7 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)PyAnimation::dealloc,
         .tp_repr = (reprfunc)PyAnimation::repr,
-        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR(
             "Animation(property: str, target: Any, duration: float, easing: str = 'linear', delta: bool = False, loop: bool = False, callback: Callable = None)\n"
             "\n"
@@ -94,6 +96,8 @@ namespace mcrfpydef {
             "    walk = mcrfpy.Animation('sprite_index', [0,1,2,3,2,1], 0.6, loop=True)\n"
             "    walk.start(my_sprite)\n"
         ),
+        .tp_traverse = (traverseproc)PyAnimation::traverse,
+        .tp_clear = (inquiry)PyAnimation::clear,
         .tp_methods = PyAnimation::methods,
         .tp_getset = PyAnimation::getsetters,
         .tp_init = (initproc)PyAnimation::init,

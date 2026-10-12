@@ -10,6 +10,12 @@ PyObject* PyKey::key_enum_class = nullptr;
 // Populated lazily; entries live for the interpreter lifetime.
 static std::unordered_map<int, PyObject*> key_member_cache;
 
+void PyKey::release_statics() {
+    for (auto& [value, member] : key_member_cache) Py_DECREF(member);
+    key_member_cache.clear();
+    Py_CLEAR(key_enum_class);
+}
+
 PyObject* PyKey::get_enum_member(int value) {
     if (!key_enum_class) {
         PyErr_SetString(PyExc_RuntimeError, "Key enum class not initialized");

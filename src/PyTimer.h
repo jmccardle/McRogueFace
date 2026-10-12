@@ -21,6 +21,8 @@ public:
     static int init(PyTimerObject* self, PyObject* args, PyObject* kwds);
     static PyObject* pynew(PyTypeObject* type, PyObject* args=NULL, PyObject* kwds=NULL);
     static void dealloc(PyTimerObject* self);
+    static int traverse(PyTimerObject* self, visitproc visit, void* arg);  // #468
+    static int clear(PyTimerObject* self);
 
     // The Python wrapper for a C++ Timer (#430): the live one if it exists (so a timer
     // the user built comes back as itself), else a new registered mcrfpy.Timer.
@@ -60,7 +62,7 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_dealloc = (destructor)PyTimer::dealloc,
         .tp_repr = PyTimer::repr,
-        .tp_flags = Py_TPFLAGS_DEFAULT,
+        .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR("Timer(name, callback, interval, once=False, start=True)\n\n"
                             "Create a timer that calls a function at regular intervals.\n\n"
                             "Args:\n"
@@ -94,6 +96,8 @@ namespace mcrfpydef {
                             "    timer.resume() # Resume timer\n"
                             "    timer.stop()   # Stop completely\n"
                             "    timer.start()  # Restart from beginning"),
+        .tp_traverse = (traverseproc)PyTimer::traverse,
+        .tp_clear = (inquiry)PyTimer::clear,
         .tp_methods = PyTimer::methods,
         .tp_getset = PyTimer::getsetters,
         .tp_init = (initproc)PyTimer::init,

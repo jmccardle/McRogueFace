@@ -127,7 +127,23 @@ PyObject* PyTimer::pyobject_for(const std::shared_ptr<Timer>& timer) {
         });
 }
 
+// #468: a stopped timer held only by its wrapper reports its callback, so a cycle
+// through it (a callback that reaches the wrapper, e.g. through its module's globals)
+// is collectable. While the engine holds the timer (running or paused) it is reachable
+// from the engine's map and retains the wrapper itself (#251), so nothing is reported.
+int PyTimer::traverse(PyTimerObject* self, visitproc visit, void* arg) {
+    if (!self->data || !mcrf::owns_exclusively(self->data.use_count(), 0)) return 0;
+    return self->data->visitCallback(visit, arg);
+}
+
+int PyTimer::clear(PyTimerObject* self) {
+    if (!self->data || !mcrf::owns_exclusively(self->data.use_count(), 0)) return 0;
+    self->data->clearCallback();
+    return 0;
+}
+
 void PyTimer::dealloc(PyTimerObject* self) {
+    PyObject_GC_UnTrack((PyObject*)self);
     // Clear weakrefs first
     if (self->weakreflist != nullptr) {
         PyObject_ClearWeakRefs((PyObject*)self);

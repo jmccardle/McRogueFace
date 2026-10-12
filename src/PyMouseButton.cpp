@@ -30,6 +30,11 @@ static const int NUM_MOUSE_BUTTON_ENTRIES = sizeof(mouse_button_table) / sizeof(
 // Memoized members, indexed like mouse_button_table (strong refs, interpreter lifetime).
 static PyObject* mouse_button_members[NUM_MOUSE_BUTTON_ENTRIES] = {};
 
+void PyMouseButton::release_statics() {
+    for (auto& member : mouse_button_members) Py_CLEAR(member);
+    Py_CLEAR(mouse_button_enum_class);
+}
+
 PyObject* PyMouseButton::from_action_name(const std::string& name) {
     for (int i = 0; i < NUM_MOUSE_BUTTON_ENTRIES; i++) {
         if (name != mouse_button_table[i].action) continue;

@@ -63,4 +63,7 @@ public:
     // Callback management
     PyObject* getCallback();
     void setCallback(PyObject* new_callback);
+    // #468: for the wrapper's tp_traverse/tp_clear (PyTimer.cpp says when they may).
+    int visitCallback(visitproc visit, void* arg) const;
+    void clearCallback() { callback.reset(); }
 };
