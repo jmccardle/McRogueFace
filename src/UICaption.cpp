@@ -358,13 +358,16 @@ static float text_advance(const sf::Text& t)
 #if defined(MCRF_SDL2) || defined(MCRF_HEADLESS)
     return t.getAdvance();
 #else
-    const sf::String str = t.getString();
+    // findCharacterPos() takes a code-point index; walk the UTF-8 text to find each
+    // line end's index.
+    const std::string s = mcrf::to_utf8(t.getString());
     float widest = 0.0f;
-    for (std::size_t i = 0; i <= str.getSize(); i++) {
-        if (i == str.getSize() || str[i] == U'\n')
-            widest = std::max(widest, t.findCharacterPos(i).x);
+    std::size_t cp = 0;
+    for (std::size_t i = 0; i < s.size(); cp++) {
+        if (mcrf::utf8::next_codepoint(s, i) == U'\n')
+            widest = std::max(widest, t.findCharacterPos(cp).x);
     }
-    return widest;
+    return std::max(widest, t.findCharacterPos(cp).x);
 #endif
 }
 

@@ -315,6 +315,7 @@ submodule automation
   meth to_heightmap :: to_heightmap(size: tuple[int, int] | None = None, select: str = 'leaves', shrink: int = 0, value: float = 1.0) -> HeightMap
   meth traverse :: traverse(order: Traversal = Traversal.LEVEL_ORDER) -> Iterator[BSPNode]
 [Caption]
+  prop advance: float (ro)
   prop align: Any (rw)
   prop bounds: tuple (ro)
   prop fill_color: Color (rw)
