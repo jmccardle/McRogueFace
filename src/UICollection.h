@@ -17,6 +17,11 @@ class UICollection
 {
     // really more of a namespace: all the members are public and static. But being consistent with other UI objects
 public:
+    // #468: exit teardown takes back the children vector this view shares with its
+    // owner, leaving it an empty view. Only the owner then holds the vector, so the GC
+    // can see (and collect) cycles through its children (traverseChildren).
+    static void release_view(PyUICollectionObject* self);
+
     // #430: the one way to hand a children collection to Python. The collection has
     // no C++ object of its own, so its cache key (`serial`) lives on the owner:
     // UIDrawable::children_serial, or the Scene's. Same object every call.

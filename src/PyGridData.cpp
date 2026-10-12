@@ -226,7 +226,8 @@ int PyGridData::init(PyGridDataObject* self, PyObject* args, PyObject* kwds)
         return -1;
     }
 
-    self->weakreflist = NULL;
+    // Never reset weakreflist here: tp_new zero-fills it, and a re-run __init__ would
+    // orphan the wrapper cache's weak reference (a use-after-free, #468).
 
     if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
 

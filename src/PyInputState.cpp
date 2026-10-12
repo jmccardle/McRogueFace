@@ -8,6 +8,12 @@ PyObject* PyInputState::input_state_enum_class = nullptr;
 // #344 - memoized enum members (value -> strong ref to InputState member).
 static std::unordered_map<int, PyObject*> input_state_member_cache;
 
+void PyInputState::release_statics() {
+    for (auto& [value, member] : input_state_member_cache) Py_DECREF(member);
+    input_state_member_cache.clear();
+    Py_CLEAR(input_state_enum_class);
+}
+
 PyObject* PyInputState::get_enum_member(int value) {
     if (!input_state_enum_class) {
         PyErr_SetString(PyExc_RuntimeError, "InputState enum class not initialized");

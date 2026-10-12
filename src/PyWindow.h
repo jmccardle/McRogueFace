@@ -22,6 +22,8 @@ public:
     // Both mcrfpy.window and Window.get() return it. New reference, or nullptr with
     // an error set.
     static PyObject* instance();
+    // #468: drop the singleton's strong reference.
+    static void release_instance();
     static PyObject* repr(PyWindowObject* self);
     
     // Getters and setters for window properties

@@ -24,6 +24,8 @@ public:
     static PyObject* __new__(PyTypeObject* type, PyObject* args, PyObject* kwds);
     static int __init__(PySceneObject* self, PyObject* args, PyObject* kwds);
     static void __dealloc(PyObject* self);
+    // #468: release the registry's reference to every registered Scene.
+    static void release_registry();
     static int traverse(PyObject* self, visitproc visit, void* arg);  // #441
     static int clear(PyObject* self);
     static PyObject* __repr__(PySceneObject* self);

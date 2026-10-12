@@ -415,6 +415,18 @@ def run_child(label, source, hard_deadline, stall_seconds=STALL_SECONDS):
     pump_thread = threading.Thread(target=pump, name="pump-" + label, daemon=True)
     pump_thread.start()
 
+    # stderr is drained as it comes, too: a child whose stderr outgrows the pipe
+    # buffer (a sanitizer's exit report under make asan-test) blocks writing it and
+    # looks exactly like a wedge (#468).
+    err_chunks = []
+
+    def pump_err():
+        for chunk in proc.stderr:
+            err_chunks.append(chunk)
+
+    err_thread = threading.Thread(target=pump_err, name="pump-err-" + label, daemon=True)
+    err_thread.start()
+
     t0 = time.monotonic()
     verdict = "ok"
     while True:
@@ -436,11 +448,9 @@ def run_child(label, source, hard_deadline, stall_seconds=STALL_SECONDS):
     except subprocess.TimeoutExpired:
         pass
     pump_thread.join(timeout=1.0)
+    err_thread.join(timeout=1.0)
     elapsed = time.monotonic() - t0
-    try:
-        stderr = proc.stderr.read() or ""
-    except (ValueError, OSError):
-        stderr = ""
+    stderr = "".join(err_chunks)
     # De-fang: run_tests.py scores any output containing this marker as a failure,
     # and a child traceback quoted verbatim would hijack the parent's verdict.
     stderr = stderr.replace("Traceback (most recent call last)", "Traceback[child]")

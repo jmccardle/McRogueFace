@@ -39,7 +39,7 @@ UIEntity::UIEntity()
 
 UIEntity::~UIEntity() {
     // #299/#436: the step callback belongs to the entity, not to its grid membership.
-    if (step_callback && Py_IsInitialized()) Py_DECREF(step_callback);
+    if (step_callback && mcrf::python_alive()) Py_DECREF(step_callback);
     step_callback = nullptr;
     if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
 }

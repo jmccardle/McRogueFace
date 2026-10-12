@@ -48,10 +48,9 @@ UIGridView::~UIGridView() {
         grid_data->unregisterView(this);
     }
 
-    // #348: release the persistent internal-Grid wrapper. Guard with
-    // Py_IsInitialized() because this destructor may run during interpreter
-    // shutdown (mirrors Animation::~Animation).
-    if (cached_grid_wrapper && Py_IsInitialized()) {
+    // #348: release the persistent internal-Grid wrapper, unless the interpreter
+    // is already gone (#468: mcrf::python_alive()).
+    if (cached_grid_wrapper && mcrf::python_alive()) {
         PyGILState_STATE gstate = PyGILState_Ensure();
         Py_DECREF(cached_grid_wrapper);
         PyGILState_Release(gstate);
@@ -846,7 +845,8 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     // creating view is views.front().
     grid_data->registerView(self->data);
 
-    self->weakreflist = NULL;
+    // Never reset weakreflist here: tp_new zero-fills it, and a re-run __init__ would
+    // orphan the wrapper cache's weak reference (a use-after-free, #468).
 
     if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
     self->data->is_python_subclass =

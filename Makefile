@@ -295,13 +295,15 @@ asan:
 		-DMCRF_SANITIZE_UNDEFINED=ON && make -j$(JOBS)
 	@echo "ASan build complete! Output: build-asan/mcrogueface"
 
+# malloc_context_size: the definition-time suppressions in asan.supp match a frame
+# (_PyAST_Compile, ...) that a nested import puts deeper than the default 30 (#468).
 asan-test: asan
 	@echo "Running test suite under ASan + UBSan..."
 	cd tests && MCRF_BUILD_DIR=../build-asan \
 		MCRF_LIB_DIR=../__lib_debug \
 		MCRF_TIMEOUT_MULTIPLIER=5 \
 		PYTHONMALLOC=malloc \
-		ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:print_summary=1" \
+		ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:print_summary=1:malloc_context_size=64" \
 		LSAN_OPTIONS="suppressions=$(CURDIR)/sanitizers/asan.supp" \
 		UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1" \
 		python3 run_tests.py -v --sanitizer --exclude=packaging

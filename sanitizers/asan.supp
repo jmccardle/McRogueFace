@@ -32,15 +32,22 @@ leak:_PyImport_FindExtensionObject
 leak:dlopen
 leak:_dl_open
 
+# Interpreter startup (Py_InitializeFromConfig: sys.stdout and its buffers, the
+# frozen importlib). Once per process, and it runs no engine code (mcrfpy is
+# imported after it). These only leak when a daemon thread is still running at
+# exit: CPython parks it forever in PyThread_hang_thread, so whatever its frames
+# hold (sys.stdout mid-print, its module's globals) is never freed.
+leak:McRFPy_API::init_python_with_config
+
 # ---------------------------------------------------------------------------
 # Definition-time leftovers (CPython 3.15).
 #
-# Why anything survives Py_Finalize at all: the engine keeps Python objects
-# alive past it (the enum classes cached in Py*::*_enum_class statics, and
-# any object still owned by C++ when finalization starts -- see the note at
-# the bottom). Each surviving object strands what it references: its class,
-# that class's module, the module's code objects. A bare embedder running
-# the same code with no such references leaks nothing (verified 2026-10).
+# Why anything survives Py_Finalize at all: CPython's own static types and
+# whatever a surviving object references (its class, that class's module, the
+# module's code objects). Until #468 the engine kept its enum classes and
+# everything C++ owned alive past finalization; it no longer holds anything
+# (see the note at the bottom), and the suppression that covered it
+# (mcrfpy_module_create) is gone.
 #
 # These frames only run when code is *defined* (parsed, unmarshalled, a class
 # or module body executed), never per engine operation, so they cannot hide
@@ -80,29 +87,14 @@ leak:^PyModule_FromDefAndSpec2$
 leak:^_add_methods_to_object$
 
 # ---------------------------------------------------------------------------
-# Engine leftovers that exist once per process.
-# ---------------------------------------------------------------------------
-
-# Interpreter startup (Py_InitializeFromConfig and the frozen importlib).
-leak:McRFPy_API::init_python_with_config
-# mcrfpy is created once per process (Py_mod_create refuses a second time).
-# Everything built here lives as long as the interpreter: the static types,
-# the mcrfpy.automation submodule, and the IntEnum classes from
-# Py*::create_enum_class, which the *_enum_class statics hold a strong
-# reference to and never release, so they outlive Py_Finalize.
-leak:mcrfpy_module_create
-
-# ---------------------------------------------------------------------------
-# NOT suppressible here: objects still owned by C++ at Py_Finalize.
+# NEVER suppress here: objects still owned by C++ at Py_Finalize.
 #
-# CPython clears runtime->initialized before it collects garbage and clears
-# module dicts, so during finalization Py_IsInitialized() is already 0 and
-# every engine DECREF guarded by it is skipped (PyIdentityPin::release,
-# ~Animation, ~UIEntity, ~UIGridView). A Frame with children, a Grid with
-# entities, a running Timer or a registered Scene that is still alive when
-# the script calls sys.exit() strands its C++ half. These allocate through
-# ordinary constructors (UICaption::init, UIGridView::init, PyTimer::init...),
-# so suppressing them would also hide per-op leaks of the same objects. The
-# same objects released before exit leak nothing. Fix it in the engine
-# (tear the engine's Python references down before Py_Finalize), not here.
+# They allocate through ordinary constructors (UICaption::init,
+# UIGridView::init, PyTimer::init...), so suppressing them would also hide
+# per-op leaks of the same objects. The engine releases them instead (#468):
+# McRFPy_API::release_python_references() runs as an atexit callback on
+# every exit path, before CPython clears anything, and destructor DECREFs are
+# guarded by mcrf::python_alive(), which (unlike Py_IsInitialized()) stays
+# true through finalization. A leak report of one of these is an engine bug:
+# a reference that teardown does not release.
 # ---------------------------------------------------------------------------

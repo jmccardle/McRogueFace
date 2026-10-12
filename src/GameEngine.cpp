@@ -245,6 +245,22 @@ void GameEngine::executeStartupScripts()
     }
 }
 
+void GameEngine::releasePythonReferences()
+{
+    // Animations first: they hold callbacks and (weakly) their targets in the scenes.
+    AnimationManager::getInstance().clear();
+    // A running timer and its wrapper keep each other alive (#251); stop() breaks that.
+    auto stopped = std::move(timers);
+    timers.clear();
+    for (auto& [name, timer] : stopped) timer->stop();
+    stopped.clear();
+    // Moved out first: a scene's destructor runs Python (__del__ of what it held),
+    // which must not find the map mid-clear.
+    auto doomed = std::move(scenes);
+    scenes.clear();
+    doomed.clear();
+}
+
 GameEngine::~GameEngine()
 {
     cleanup();

@@ -59,9 +59,9 @@ Animation::Animation(const std::string& targetProperty,
 
 Animation::~Animation() {
     // Decrease reference count for Python callback if we still own it
-    // Guard with Py_IsInitialized() because destructor may run during interpreter shutdown
+    // Skipped once the interpreter is gone (#468: mcrf::python_alive()).
     PyObject* callback = pythonCallback;
-    if (callback && Py_IsInitialized()) {
+    if (callback && mcrf::python_alive()) {
         pythonCallback = nullptr;
 
         PyGILState_STATE gstate = PyGILState_Ensure();
@@ -69,8 +69,8 @@ Animation::~Animation() {
         PyGILState_Release(gstate);
     }
 
-    // Clean up cache entry (also guard - PythonObjectCache may use Python)
-    if (serial_number != 0 && Py_IsInitialized()) {
+    // Clean up cache entry (a no-op once Python is gone)
+    if (serial_number != 0) {
         mcrf::unregister_wrapper(serial_number);
     }
 }

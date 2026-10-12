@@ -100,10 +100,8 @@ sf::Sprite PyTexture::sprite(int index, sf::Vector2f pos,  sf::Vector2f s)
 
 PyTexture::~PyTexture()
 {
-    // #430: drop this texture's wrapper-cache entry. The static
-    // McRFPy_API::default_texture is destroyed after Py_Finalize, when the cache's
-    // weak references (and the interpreter) are already gone.
-    if (serial_number != 0 && Py_IsInitialized()) mcrf::unregister_wrapper(serial_number);
+    // #430: drop this texture's wrapper-cache entry (a no-op once Python is gone).
+    if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
 }
 
 PyObject* PyTexture::pyobject_for(const std::shared_ptr<PyTexture>& tex)

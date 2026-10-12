@@ -37,6 +37,8 @@ public:
 
     // Cached reference to the MouseButton enum class for fast type checking
     static PyObject* mouse_button_enum_class;
+    // #468: drop mouse_button_enum_class and the memoized members.
+    static void release_statics();
 
     // Number of mouse buttons
     static const int NUM_MOUSE_BUTTONS = 5;

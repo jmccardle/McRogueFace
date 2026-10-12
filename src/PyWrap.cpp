@@ -1,5 +1,6 @@
 #include "PyWrap.h"
 #include <iostream>
+#include <atomic>
 #include <climits>
 #include <cmath>
 #include "PyVector.h"
@@ -8,6 +9,22 @@
 #include "PyGridData.h"
 
 namespace mcrf {
+
+// #468: see python_alive(). Written only on the main thread (module creation, and the
+// Py_AtExit handler at the end of Py_Finalize); read from destructors.
+static std::atomic<bool> g_python_alive{false};
+
+static void python_gone() { g_python_alive.store(false); }
+
+bool python_alive() { return g_python_alive.load(std::memory_order_relaxed); }
+
+void mark_python_alive()
+{
+    if (g_python_alive.exchange(true)) return;
+    // Runs after Py_Finalize is done, whichever way it was reached (api_shutdown(), or
+    // sys.exit() finalizing inside PyErr_Print()).
+    Py_AtExit(python_gone);
+}
 
 int register_wrapper(uint64_t& serial, PyObject* self)
 {
@@ -21,7 +38,15 @@ int register_wrapper(uint64_t& serial, PyObject* self)
 
 void unregister_wrapper(uint64_t serial)
 {
+    if (!python_alive()) return;
     PythonObjectCache::getInstance().remove(serial);
+}
+
+std::vector<PyRef> live_wrappers()
+{
+    std::vector<PyRef> out;
+    for (PyObject* o : PythonObjectCache::getInstance().liveObjects()) out.emplace_back(o);
+    return out;
 }
 
 PyObject* live_wrapper(uint64_t serial)
@@ -54,7 +79,7 @@ void PyIdentityPin::sync(bool pinned, uint64_t serial)
         release();
         return;
     }
-    if (wrapper || serial == 0 || !Py_IsInitialized()) return;
+    if (wrapper || serial == 0 || !python_alive()) return;
     // A miss means no wrapper exists (an object attached from C++, or one whose
     // wrapper was already collected). The converter pins the one it makes later.
     wrapper = live_wrapper(serial);  // new reference
@@ -67,7 +92,7 @@ void PyIdentityPin::release()
     // to the owning object, which can re-enter here if that was the last strong ref.
     PyObject* tmp = wrapper;
     wrapper = nullptr;
-    if (Py_IsInitialized()) Py_DECREF(tmp);
+    if (python_alive()) Py_DECREF(tmp);
 }
 
 static bool number_pair(PyObject* seq, sf::Vector2f& out)
