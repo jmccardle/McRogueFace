@@ -351,6 +351,28 @@ PyObject* UICaption::get_h(PyUICaptionObject* self, void* closure)
     return PyFloat_FromDouble(bounds.height);
 }
 
+// #479: pen advance of the widest line (glyph advances + kerning), not ink extent.
+// Outline does not change it; trailing spaces count.
+static float text_advance(const sf::Text& t)
+{
+#if defined(MCRF_SDL2) || defined(MCRF_HEADLESS)
+    return t.getAdvance();
+#else
+    const sf::String str = t.getString();
+    float widest = 0.0f;
+    for (std::size_t i = 0; i <= str.getSize(); i++) {
+        if (i == str.getSize() || str[i] == U'\n')
+            widest = std::max(widest, t.findCharacterPos(i).x);
+    }
+    return widest;
+#endif
+}
+
+PyObject* UICaption::get_advance(PyUICaptionObject* self, void* closure)
+{
+    return PyFloat_FromDouble(text_advance(self->data->text));
+}
+
 PyGetSetDef UICaption::getsetters[] = {
     {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
      MCRF_PROPERTY(x, "X coordinate of top-left corner (float)."),
@@ -376,6 +398,12 @@ PyGetSetDef UICaption::getsetters[] = {
     {"h", (getter)UICaption::get_h, NULL,
      MCRF_PROPERTY(h, "Text height in pixels (float, read-only)."),
      NULL},
+    {"advance", (getter)UICaption::get_advance, NULL,
+     MCRF_PROPERTY(advance,
+         "Pen advance of the text in pixels (float, read-only): sum of glyph advances plus kerning "
+         "for the widest line. Unlike w, it includes trailing spaces and side bearings, so it is where "
+         "the next span starts. Unaffected by outline. 0 under MCRF_HEADLESS builds (no font metrics)."
+     ), NULL},
     {"outline", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member,
      MCRF_PROPERTY(outline, "Thickness of the text outline border in pixels (float), 0 to 2048. Raises ValueError outside that range."),
      (void*)4},

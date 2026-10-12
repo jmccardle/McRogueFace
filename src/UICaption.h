@@ -46,6 +46,7 @@ public:
     static int set_vec_member(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_color_member(PyUICaptionObject* self, void* closure);
     static int set_color_member(PyUICaptionObject* self, PyObject* value, void* closure);
+    static PyObject* get_advance(PyUICaptionObject* self, void* closure);
     static PyObject* get_text(PyUICaptionObject* self, void* closure);
     static int set_text(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_font(PyUICaptionObject* self, void* closure);
