@@ -358,16 +358,21 @@ static float text_advance(const sf::Text& t)
 #if defined(MCRF_SDL2) || defined(MCRF_HEADLESS)
     return t.getAdvance();
 #else
-    // findCharacterPos() takes a code-point index; walk the UTF-8 text to find each
-    // line end's index.
+    // findCharacterPos() takes a code-point index and answers in the text's parent
+    // coordinates (its position applied); undo the transform so the result is an
+    // advance, not a right edge. Walk the UTF-8 text to find each line end's index.
+    const sf::Transform to_local = t.getInverseTransform();
+    const auto pen_x = [&](std::size_t cp) {
+        return to_local.transformPoint(t.findCharacterPos(cp)).x;
+    };
     const std::string s = mcrf::to_utf8(t.getString());
     float widest = 0.0f;
     std::size_t cp = 0;
     for (std::size_t i = 0; i < s.size(); cp++) {
         if (mcrf::utf8::next_codepoint(s, i) == U'\n')
-            widest = std::max(widest, t.findCharacterPos(cp).x);
+            widest = std::max(widest, pen_x(cp));
     }
-    return std::max(widest, t.findCharacterPos(cp).x);
+    return std::max(widest, pen_x(cp));
 #endif
 }
 

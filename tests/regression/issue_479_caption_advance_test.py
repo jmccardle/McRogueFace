@@ -23,6 +23,12 @@ assert adv("ab", outline=3) == ab
 assert mcrfpy.Caption(text="ab", font_size=32).advance > ab
 # non-ASCII (UTF-8 code points, #477)
 assert adv("éé") > adv("é") > 0
+# position doesn't change it: an advance, not the right edge in parent
+# coordinates (found by mcrf-term: pos.x leaked in through findCharacterPos)
+assert adv("ab ", pos=(100, 0)) == adv("ab "), (adv("ab ", pos=(100, 0)), adv("ab "))
+moved = mcrfpy.Caption(text="ab\nabab", font_size=16, pos=(37, 11))
+moved.x = 300
+assert moved.advance == adv("ab\nabab"), (moved.advance, adv("ab\nabab"))
 # read-only
 try:
     c.advance = 1.0
