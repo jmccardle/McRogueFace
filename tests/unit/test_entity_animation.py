@@ -109,18 +109,20 @@ def step_seconds(seconds, dt=0.1):
 
 def test_immediate_position():
     """Test setting position directly (no animation)."""
-    # #295: grid_pos (logical cell) is DECOUPLED from draw_pos (visual position).
-    # Setting one does not move the other; they are assigned independently.
+    # #431: setting grid_pos (logical cell) teleports: draw_pos snaps to it.
+    # Setting draw_pos (visual position) does not move the cell.
     entity.grid_pos = (7, 7)
     check(tuple(entity.cell_pos) == (7, 7),
           f"direct grid_pos set: expected cell (7,7), got {tuple(entity.cell_pos)}")
-    check((entity.draw_pos.x, entity.draw_pos.y) == (5.0, 5.0),
-          f"grid_pos is decoupled from draw_pos; draw_pos should be unchanged at "
-          f"(5,5), got {entity.draw_pos}")
-
-    entity.draw_pos = (7.0, 7.0)
     check((entity.draw_pos.x, entity.draw_pos.y) == (7.0, 7.0),
-          f"direct draw_pos set: expected (7.0, 7.0), got {entity.draw_pos}")
+          f"grid_pos set should snap draw_pos to (7,7), got {entity.draw_pos}")
+
+    entity.draw_pos = (7.5, 7.0)
+    check((entity.draw_pos.x, entity.draw_pos.y) == (7.5, 7.0),
+          f"direct draw_pos set: expected (7.5, 7.0), got {entity.draw_pos}")
+    check(tuple(entity.cell_pos) == (7, 7),
+          f"draw_pos set must not move the cell, got {tuple(entity.cell_pos)}")
+    entity.draw_pos = (7.0, 7.0)
 
     # Animation to a new x, driven by explicit steps
     entity.animate("draw_pos", (9.0, entity.draw_pos.y), 1.0, mcrfpy.Easing.LINEAR)
@@ -145,8 +147,7 @@ grid.perspective = None  # omniscient view (perspective takes an Entity or None 
 test_immediate_position()
 
 # --- Square-path waypoint animation -----------------------------------------
-entity.grid_pos = (5, 5)
-entity.draw_pos = (5.0, 5.0)   # decoupled from grid_pos; reset both
+entity.grid_pos = (5, 5)       # #431: snaps draw_pos to (5, 5) too
 completed.clear()
 
 for i, (wx, wy) in enumerate(waypoints):

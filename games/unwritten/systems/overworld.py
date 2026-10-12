@@ -414,7 +414,9 @@ class _World:
                 continue
             if self._occupied(nx, ny, ignore=e):
                 continue
-            e.grid_pos = (nx, ny)
+            start = e.draw_pos
+            e.grid_pos = (nx, ny)    # teleports draw_pos too (#431) ...
+            e.draw_pos = start       # ... so slide the sprite from where it was
             e.animate("draw_pos", (nx, ny), 0.25, mcrfpy.Easing.EASE_OUT)
 
     def _occupied(self, x, y, ignore=None):
@@ -497,7 +499,9 @@ class _World:
             self._nudge(dx, dy)
             return
 
-        self.player.grid_pos = (tx, ty)
+        start = self.player.draw_pos
+        self.player.grid_pos = (tx, ty)    # teleports draw_pos too (#431) ...
+        self.player.draw_pos = start       # ... so slide the sprite from where it was
         self.player.animate("draw_pos", (tx, ty), _STEP_DUR, mcrfpy.Easing.EASE_OUT)
         self.after_move(tx, ty)
 

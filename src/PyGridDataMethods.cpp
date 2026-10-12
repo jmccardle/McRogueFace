@@ -966,14 +966,7 @@ PyObject* PyGridData::py_step(PyGridDataObject* self, PyObject* args, PyObject* 
 
                 switch (output.result) {
                     case BehaviorResult::MOVED: {
-                        int old_x = entity->cell_position.x;
-                        int old_y = entity->cell_position.y;
-                        entity->cell_position = output.target_cell;
-                        grid->spatial_hash.updateCell(entity, old_x, old_y);
-
-                        entity->position = sf::Vector2f(
-                            static_cast<float>(output.target_cell.x),
-                            static_cast<float>(output.target_cell.y));
+                        entity->assignCell(output.target_cell);  // #431: same as grid_pos =
                         content_changed = true;  // #351 - view render cache is now stale
                         break;
                     }
@@ -1155,10 +1148,10 @@ PyMethodDef PyGridData_all_methods[] = {
     {"entities_in_radius", (PyCFunction)PyGridData::py_entities_in_radius, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(GridData, entities_in_radius,
          MCRF_SIG("(pos: tuple | Vector, radius: float)", "list"),
-         MCRF_DESC("Query entities within radius using spatial hash (O(k) where k = nearby entities)."),
+         MCRF_DESC("Query entities whose logical cell (grid_pos) is within radius, using the spatial hash (O(k) where k = nearby entities). Measured from the cell, not from draw_pos: an entity mid-animation is found at its cell."),
          MCRF_ARGS_START
-         MCRF_ARG("pos", "Center position as (x, y) tuple, Vector, or other 2-element sequence")
-         MCRF_ARG("radius", "Search radius")
+         MCRF_ARG("pos", "Center cell as (x, y) tuple, Vector, or other 2-element sequence (cell units; may be fractional)")
+         MCRF_ARG("radius", "Search radius in cells")
          MCRF_RETURNS("List of Entity objects within the radius")
      )},
     {"apply_threshold", (PyCFunction)PyGridData::py_apply_threshold, METH_VARARGS | METH_KEYWORDS,
