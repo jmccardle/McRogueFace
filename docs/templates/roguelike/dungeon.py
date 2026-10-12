@@ -226,7 +226,7 @@ def populate_grid(grid: mcrfpy.Grid, rooms: List[RectangularRoom]) -> None:
         grid: The McRogueFace Grid to populate
         rooms: List of RectangularRoom objects from generate_dungeon()
     """
-    grid_width, grid_height = grid.grid_size
+    grid_width, grid_height = grid.grid_w, grid.grid_h
 
     # Step 1: Fill entire map with walls
     for x in range(grid_width):
@@ -235,7 +235,6 @@ def populate_grid(grid: mcrfpy.Grid, rooms: List[RectangularRoom]) -> None:
             point.tilesprite = SPRITE_WALL
             point.walkable = False
             point.transparent = False
-            point.color = COLOR_WALL
 
     # Step 2: Carve out rooms
     for room in rooms:
@@ -246,7 +245,6 @@ def populate_grid(grid: mcrfpy.Grid, rooms: List[RectangularRoom]) -> None:
                 point.tilesprite = SPRITE_FLOOR
                 point.walkable = True
                 point.transparent = True
-                point.color = COLOR_FLOOR
 
     # Step 3: Carve corridors between adjacent rooms
     for i in range(1, len(rooms)):
@@ -260,7 +258,6 @@ def populate_grid(grid: mcrfpy.Grid, rooms: List[RectangularRoom]) -> None:
                 point.tilesprite = SPRITE_FLOOR
                 point.walkable = True
                 point.transparent = True
-                point.color = COLOR_FLOOR
 
 
 def get_random_floor_position(
@@ -287,7 +284,7 @@ def get_random_floor_position(
 
     if not available_rooms:
         # Fallback: find any walkable tile
-        grid_width, grid_height = grid.grid_size
+        grid_width, grid_height = grid.grid_w, grid.grid_h
         walkable_tiles = []
         for x in range(grid_width):
             for y in range(grid_height):

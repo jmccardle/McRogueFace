@@ -44,17 +44,22 @@ class Game:
         self.font = mcrfpy.Font(FONT_PATH)
 
         # Create scene
-        mcrfpy.createScene("game")
-        self.ui_collection = mcrfpy.sceneUI("game")
+        self.scene = mcrfpy.Scene("game")
+        self.ui_collection = self.scene.children
 
         # Create grid
         self.grid = mcrfpy.Grid(
-            DUNGEON_WIDTH, DUNGEON_HEIGHT,
-            self.texture,
-            GRID_X, GRID_Y,
-            GRID_WIDTH, GRID_HEIGHT
+            grid_size=(DUNGEON_WIDTH, DUNGEON_HEIGHT),
+            texture=self.texture,
+            pos=(GRID_X, GRID_Y),
+            size=(GRID_WIDTH, GRID_HEIGHT)
         )
         self.ui_collection.append(self.grid)
+
+        # Fog-of-war layer, drawn above the tiles and entities' floor
+        self.fog = mcrfpy.ColorLayer(z_index=1, name="fog")
+        self.grid.add_layer(self.fog)
+        self.fog.fill(mcrfpy.Color(*COLOR_FOG))
 
         # Game state
         self.dungeon: Optional[Dungeon] = None
@@ -71,13 +76,13 @@ class Game:
         self.game_over = False
 
         # Set up input handling
-        mcrfpy.keypressScene(self.handle_keypress)
+        self.scene.on_key = self.handle_keypress
 
         # Start the game
         self.new_game()
 
         # Switch to game scene
-        mcrfpy.setScene("game")
+        self.scene.activate()
 
     def new_game(self) -> None:
         """Start a new game from level 1."""
@@ -100,7 +105,7 @@ class Game:
         """Generate a new dungeon level."""
         # Clear existing entities from grid
         while len(self.grid.entities) > 0:
-            self.grid.entities.remove(0)
+            self.grid.entities.pop()
 
         self.enemies.clear()
 
@@ -170,30 +175,28 @@ class Game:
         if not self.player or not self.dungeon:
             return
 
-        # Use entity's built-in FOV calculation
+        # Use entity's built-in FOV calculation (also refreshes entity.at())
         self.player.entity.update_visibility()
 
         # Apply visibility to tiles
         for x in range(self.dungeon.width):
             for y in range(self.dungeon.height):
-                point = self.grid.at(x, y)
                 tile = self.dungeon.get_tile(x, y)
 
                 if tile:
-                    state = self.player.entity.at(x, y)
-
-                    if state.visible:
+                    # entity.at() is the cell if currently visible, else None
+                    if self.player.entity.at(x, y) is not None:
                         # Currently visible
                         tile.explored = True
                         tile.visible = True
-                        point.color_overlay = mcrfpy.Color(*COLOR_VISIBLE)
+                        self.fog.set((x, y), mcrfpy.Color(*COLOR_VISIBLE))
                     elif tile.explored:
                         # Explored but not visible
                         tile.visible = False
-                        point.color_overlay = mcrfpy.Color(*COLOR_REMEMBERED)
+                        self.fog.set((x, y), mcrfpy.Color(*COLOR_REMEMBERED))
                     else:
                         # Never seen
-                        point.color_overlay = mcrfpy.Color(*COLOR_FOG)
+                        self.fog.set((x, y), mcrfpy.Color(*COLOR_FOG))
 
     def center_camera(self) -> None:
         """Center the camera on the player."""
@@ -217,21 +220,21 @@ class Game:
         self.death_screen = DeathScreen(self.font)
         self.death_screen.add_to_scene(self.ui_collection)
 
-    def handle_keypress(self, key: str, state: str) -> None:
+    def handle_keypress(self, key: mcrfpy.Key, state: mcrfpy.InputState) -> None:
         """
         Handle keyboard input.
 
         Args:
-            key: Key name
-            state: "start" for key down, "end" for key up
+            key: The mcrfpy.Key that changed
+            state: mcrfpy.InputState.PRESSED or RELEASED
         """
         # Only handle key down events
-        if state != "start":
+        if state != mcrfpy.InputState.PRESSED:
             return
 
         # Handle restart when dead
         if self.game_over:
-            if key == "R":
+            if key == mcrfpy.Key.R:
                 self.new_game()
             return
 
@@ -263,7 +266,7 @@ class Game:
             # Try to descend
             self.descend()
             return
-        elif key == "Escape":
+        elif key == mcrfpy.Key.ESCAPE:
             # Quit game
             mcrfpy.exit()
             return
