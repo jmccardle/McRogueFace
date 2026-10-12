@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Frame,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Color,Frame,Scene] verified=0.3.0 status=ok
 # Setup Template - the basic scaffold shared by all widget patterns on this page.
 import mcrfpy
 

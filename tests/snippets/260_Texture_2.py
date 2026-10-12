@@ -1,4 +1,4 @@
-# mcrf: objects=[Entity,Grid,Scene,Texture,TileLayer] verified=0.2.8-dev status=ok
+# mcrf: objects=[Entity,Grid,Scene,Texture,TileLayer] verified=0.3.0 status=ok
 import mcrfpy
 
 # Load texture

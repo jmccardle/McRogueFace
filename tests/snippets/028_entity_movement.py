@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene] verified=0.3.0 status=ok
 # Entity Movement - Move entities on grid
 import mcrfpy
 

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Frame,InputState,Key,Scene,Transition] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Frame,InputState,Key,Scene,Transition] verified=0.3.0 status=ok
 import mcrfpy
 
 # Create a scene

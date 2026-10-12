@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Grid,InputState,Key,Scene,Texture] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Grid,InputState,Key,Scene,Texture] verified=0.3.0 status=ok
 """McRogueFace Tutorial - Part 5: Placing Enemies
 
 Add enemies to the dungeon that lurk in the shadows.

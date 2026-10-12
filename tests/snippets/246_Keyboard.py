@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,InputState,Key,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,InputState,Key,Scene] verified=0.3.0 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("demo")

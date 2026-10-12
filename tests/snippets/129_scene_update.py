@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.0 status=ok
 # Scene Update - Per-frame update method
 import mcrfpy
 import math

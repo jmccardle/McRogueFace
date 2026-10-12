@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,InputState,Key,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,InputState,Key,Scene] verified=0.3.0 status=ok
 # Animation Delta - Relative animation
 import mcrfpy
 

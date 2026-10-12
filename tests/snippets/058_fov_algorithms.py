@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,FOV,Frame,Grid,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,FOV,Frame,Grid,Scene] verified=0.3.0 status=ok
 # FOV Algorithms - Compare different algorithms
 import mcrfpy
 

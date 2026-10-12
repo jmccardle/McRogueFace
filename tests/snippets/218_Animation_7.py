@@ -1,4 +1,4 @@
-# mcrf: objects=[Easing,Grid,Scene,Texture] verified=0.2.8-dev status=ok
+# mcrf: objects=[Easing,Grid,Scene,Texture] verified=0.3.0 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("demo")

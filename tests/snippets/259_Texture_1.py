@@ -1,4 +1,4 @@
-# mcrf: objects=[Scene,Sprite,Texture] verified=0.2.8-dev status=ok
+# mcrf: objects=[Scene,Sprite,Texture] verified=0.3.0 status=ok
 import mcrfpy
 
 # Load a sprite sheet

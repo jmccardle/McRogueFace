@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,Scene] verified=0.3.0 status=ok
 # Entity Collection - Manage grid entities
 import mcrfpy
 

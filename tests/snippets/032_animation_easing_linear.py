@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.0 status=ok
 # Easing: LINEAR - Constant speed
 import mcrfpy
 

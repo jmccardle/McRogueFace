@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.3.0 status=ok
 # Keyboard State - Track key presses
 import mcrfpy
 

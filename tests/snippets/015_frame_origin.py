@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Vector] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Vector] verified=0.3.0 status=ok
 # Frame Origin - Rotation pivot point
 import mcrfpy
 

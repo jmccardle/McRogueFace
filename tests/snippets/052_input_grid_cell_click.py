@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,InputState,Scene] verified=0.2.8-dev status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,InputState,Scene] verified=0.3.0 status=ok
 # Input Grid Cell Click - Click on grid cells
 import mcrfpy
 
