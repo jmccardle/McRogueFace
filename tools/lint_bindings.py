@@ -41,6 +41,11 @@ audit_pymethoddef.py) and flags the recipes that have already produced bugs:
                    call removeFromGrid() / removeFromViewport() first. The entity
                    stayed in its old grid too, or twice in this one (#447, #438); use
                    UIEntity::moveToGrid() / Entity3D::moveToViewport().
+  text-unencoded   Text handed to or read from a backend text API (setString,
+                   getString, setTitle, a window's create) without going through
+                   mcrf::from_utf8 / mcrf::to_utf8 (src/Utf8.h). SFML widens a bare
+                   std::string one byte per code point, so "╔" drew as "â•”" (#477).
+                   String literals are exempt; src/platform/ implements the backends.
 
 Findings are matched against tools/lint_bindings_baseline.txt, keyed by
 (rule, file, function, call text) with counts and no line numbers, so unrelated
@@ -393,6 +398,54 @@ def lint_file(path: Path) -> list[Finding]:
     out.extend(check_traverse(src, tree, rel))
     out.extend(check_adopt(src, tree, rel))
     out.extend(check_entity_link(src, tree, rel))
+    out.extend(check_text_encoding(src, tree, rel))
+    return out
+
+
+# #477: the text-taking argument of each backend text API, by method name.
+TEXT_SINKS = {"setString": 0, "setTitle": 0, "create": 1}
+TEXT_LITERALS = ("string_literal", "raw_string_literal", "concatenated_string")
+
+
+def check_text_encoding(src: bytes, tree, rel: str) -> list:
+    """#477: text crosses into and out of the backend only as UTF-8."""
+    if rel.startswith("src/platform/") or rel == "src/Utf8.h":
+        return []
+    out = []
+    for n in walk(tree.root_node):
+        if n.type != "call_expression":
+            continue
+        f = n.child_by_field_name("function")
+        if f is None or f.type != "field_expression":
+            continue
+        field = f.child_by_field_name("field")
+        method = text(src, field) if field is not None else ""
+        args = n.child_by_field_name("arguments")
+        argv = args.named_children if args is not None else []
+        if method == "getString" and not argv:
+            # Only legal as the direct argument of mcrf::to_utf8(...).
+            p = n.parent
+            call = p.parent if p is not None and p.type == "argument_list" else None
+            if call is None or callee_name(src, call) != "mcrf::to_utf8":
+                out.append(Finding("text-unencoded", rel, n.start_point[0] + 1,
+                                   scope_label(src, n), f"{text(src, n)} without mcrf::to_utf8"))
+            continue
+        if method not in TEXT_SINKS:
+            continue
+        if method == "create":
+            # Only a window's create(VideoMode(...), title, ...) carries text.
+            if len(argv) < 2 or "VideoMode" not in text(src, argv[0]):
+                continue
+        i = TEXT_SINKS[method]
+        if i >= len(argv):
+            continue
+        a = argv[i]
+        if a.type in TEXT_LITERALS:
+            continue
+        if a.type == "call_expression" and callee_name(src, a) == "mcrf::from_utf8":
+            continue
+        out.append(Finding("text-unencoded", rel, n.start_point[0] + 1, scope_label(src, n),
+                           f"{method}({text(src, a)}) without mcrf::from_utf8"))
     return out
 
 

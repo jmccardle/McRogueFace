@@ -410,7 +410,8 @@ When developing features that must work in WebGL:
 | ImGui console | ✅ Full | ❌ Disabled | n/a (absent by design) |
 | Threading | ✅ Full | ⚠️ Single-threaded | unverified |
 | Shaders (custom) | ✅ Full | ⚠️ Wired (#390), pixel-unverified | planned: #388 (see #347 §1a) |
-| Text (kerning + UTF-8) | ✅ Full | ❌ Diverges | planned: #388 (see #347 §3d) |
+| Text UTF-8 | ✅ Full | ✅ Full | ✅ `issue_477_utf8_text_test.py` + `run_wasm_tests.py::utf8_text` (#477) |
+| Text kerning | ✅ Full | ❌ Diverges | planned: #388 (see #347 §3d) |
 | RenderTexture / pixel scaling | ✅ Full | ⚠️ Verify | planned: #388 |
 | Multi-window / free-threading / numpy | ⚠️ Planned | ❌ Desktop-only | n/a (#62 / #336 / #337) |
 
@@ -696,6 +697,10 @@ sf::Vector2f v; if (!mcrf::to_vector2f(value, v, "pos")) return -1;
 // or an (r, g, b[, a]) int tuple in 0-255, else the same exception. Never clamp, wrap or
 // default inside it; an optional arg checks for None itself. (fromPy/from_arg are gone.)
 sf::Color c; if (!PyColor::to_color(value, c)) return -1;
+// Text (#477): every std::string of text is UTF-8, regardless of locale (as in Python
+// 3.15). Text crosses into SFML only through src/Utf8.h -- never a bare std::string,
+// which SFML widens byte-per-code-point -- and the SDL2 glyph loops walk code points.
+text.setString(mcrf::from_utf8(s));  std::string s = mcrf::to_utf8(text.getString());
 // New references handed to non-stealing calls:
 mcrf::dict_steal(d, "fps", PyLong_FromLong(fps));      // steals; fails cleanly on nullptr
 _click(self, mcrf::PyRef(PyTuple_New(0)).get(), kw);  // PyRef owns it for the expression
@@ -762,8 +767,10 @@ identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or
 `PyObject_New`), direct `PythonObjectCache::` use, a new reference passed inline to a
 non-stealing call, an unreleased `from_arg()`, the pin touched outside its owner, a
 `tp_traverse`/`tp_clear` reaching into the C++ object without `owns_exclusively`, a parent
-link without `canAdopt` (`adopt-unchecked`), and an entity-list insert without
-`removeFromGrid`/`removeFromViewport` (`entity-unlinked`). Every
+link without `canAdopt` (`adopt-unchecked`), an entity-list insert without
+`removeFromGrid`/`removeFromViewport` (`entity-unlinked`), and backend text
+(`setString`/`getString`/`setTitle`/window `create`) not passed through `mcrf::from_utf8`/`to_utf8`
+(`text-unencoded`, #477). Every
 constructed type must be classified identity/value in its `TYPE_CLASS` table. The baseline
 (`tools/lint_bindings_baseline.txt`) is empty and may only shrink; the pre-commit hook and
 CI fail on any finding. `tools/refactor_check.py FILE --site KEY` is the fast per-file

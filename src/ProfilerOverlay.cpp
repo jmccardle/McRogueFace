@@ -1,4 +1,5 @@
 #include "GameEngine.h"
+#include "Utf8.h"
 #include <sstream>
 #include <iomanip>
 
@@ -120,7 +121,7 @@ void GameEngine::ProfilerOverlay::update(const ProfilingMetrics& metrics) {
     ss << "\n";
     ss << "Press F3 to hide this overlay";
 
-    text.setString(ss.str());
+    text.setString(mcrf::from_utf8(ss.str()));
 
     // Update background size to fit text
     sf::FloatRect textBounds = text.getLocalBounds();

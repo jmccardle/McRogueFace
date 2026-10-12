@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include "PyWrap.h"
+#include "Utf8.h"  // #477
 #include "GameEngine.h"
 #include "PyColor.h"
 #include "PyVector.h"
@@ -303,22 +304,20 @@ PyMethodDef UICaption_methods[] = {
     {NULL}  // Sentinel
 };
 
-//TODO: evaluate use of Resources::caption_buffer... can't I do this with a std::string?
 PyObject* UICaption::get_text(PyUICaptionObject* self, void* closure)
 {
-    Resources::caption_buffer = self->data->text.getString();
-    return PyUnicode_FromString(Resources::caption_buffer.c_str());
+    const std::string text = mcrf::to_utf8(self->data->text.getString());  // #477
+    return PyUnicode_FromStringAndSize(text.data(), text.size());
 }
 
 int UICaption::set_text(PyUICaptionObject* self, PyObject* value, void* closure)
 {
-    PyObject* s = PyObject_Str(value);
-    PyObject * temp_bytes = PyUnicode_AsEncodedString(s, "UTF-8", "strict"); // Owned reference
-    if (temp_bytes != NULL) {
-        Resources::caption_buffer = PyBytes_AS_STRING(temp_bytes); // Borrowed pointer
-        Py_DECREF(temp_bytes);
-    }
-    self->data->text.setString(Resources::caption_buffer);
+    mcrf::PyRef s(PyObject_Str(value));
+    if (!s) return -1;
+    Py_ssize_t len = 0;
+    const char* utf8 = PyUnicode_AsUTF8AndSize(s.get(), &len);  // fails on lone surrogates
+    if (!utf8) return -1;
+    self->data->text.setString(mcrf::from_utf8(std::string(utf8, len)));  // #477
     self->data->markDirty(); // #289: text change invalidates own + parent cache
     return 0;
 }
@@ -432,7 +431,7 @@ PyObject* UICaption::repr(PyUICaptionObject* self)
         auto fc = text.getFillColor();
         auto oc = text.getOutlineColor();
         ss << "<Caption (x=" << text.getPosition().x << ", y=" << text.getPosition().y << ", " <<
-            "text='" << (std::string)text.getString() << "', " <<
+            "text='" << mcrf::to_utf8(text.getString()) << "', " <<
             "outline=" << text.getOutlineThickness() << ", " <<
             "fill_color=(" << (int)fc.r << ", " << (int)fc.g << ", " << (int)fc.b << ", " << (int)fc.a <<"), " <<
             "outline_color=(" << (int)oc.r << ", " << (int)oc.g << ", " << (int)oc.b << ", " << (int)oc.a <<"), " <<
@@ -554,7 +553,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     
     // Set text
     if (text && strlen(text) > 0) {
-        self->data->text.setString(std::string(text));
+        self->data->text.setString(mcrf::from_utf8(text));  // #477
     }
     
     // Handle fill_color
@@ -678,7 +677,7 @@ bool UICaption::setProperty(const std::string& name, const sf::Color& value) {
 
 bool UICaption::setProperty(const std::string& name, const std::string& value) {
     if (name == "text") {
-        text.setString(value);
+        text.setString(mcrf::from_utf8(value));  // #477
         markDirty();  // #144 - Content change
         return true;
     }
@@ -734,7 +733,7 @@ bool UICaption::getProperty(const std::string& name, sf::Color& value) const {
 
 bool UICaption::getProperty(const std::string& name, std::string& value) const {
     if (name == "text") {
-        value = text.getString();
+        value = mcrf::to_utf8(text.getString());  // #477
         return true;
     }
     return UIDrawable::getProperty(name, value);

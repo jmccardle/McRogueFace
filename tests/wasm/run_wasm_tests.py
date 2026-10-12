@@ -157,6 +157,21 @@ def t_reset_environment(page):
     return _expect(rc == 0 and ok == "14", f"resetGame() -> {rc!r}; post-reset '7+7' -> {ok!r}")
 
 
+def t_utf8_text(page):
+    # #477: text is UTF-8 on every backend. The SDL2 glyph loops used to walk bytes,
+    # so each non-ASCII character drew (and measured) as 2-4 garbage glyphs. The
+    # default font is monospace, so a character between two 'e's is one cell wide.
+    out = rp(page, (
+        "import mcrfpy\n"
+        "def w(t): return mcrfpy.Caption(text=t, pos=(0, 0), font_size=16).w\n"
+        "c = mcrfpy.Caption(text='\u2554\u2550\u2557 caf\u00e9', pos=(0, 0))\n"
+        "ref = w('eee')\n"
+        "bad = [ch for ch in '\u00e9\u2554\u2591\u2588\u2192' if abs(w('e' + ch + 'e') - ref) > 0.5]\n"
+        "print(c.text == '\u2554\u2550\u2557 caf\u00e9', ref > 0, bad)\n"
+    )).strip()
+    return _expect(out == "True True []", f"round-trip, width>0, wrong-width chars -> {out!r}")
+
+
 TESTS = [
     ("basic_eval", t_basic_eval),
     ("print_stdout", t_print_stdout),
@@ -168,6 +183,7 @@ TESTS = [
     ("python_state_ok", t_python_state_ok),
     ("globals_count", t_globals_count),
     ("reset_environment", t_reset_environment),
+    ("utf8_text", t_utf8_text),
 ]
 
 

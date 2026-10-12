@@ -5,6 +5,7 @@
 
 #include "SDL2Renderer.h"
 #include "SDL2Types.h"
+#include "../Utf8.h"  // #477: text is UTF-8
 
 #include <iostream>
 #include <cstring>
@@ -2003,8 +2004,8 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
         float b = color.b / 255.0f;
         float a = color.a / 255.0f;
 
-        for (size_t i = 0; i < string_.size(); ++i) {
-            char c = string_[i];
+        for (size_t i = 0; i < string_.size();) {
+            const uint32_t c = mcrf::utf8::next_codepoint(string_, i);  // #477
 
             if (c == '\n') {
                 x = 0;
@@ -2012,24 +2013,11 @@ void Text::draw(RenderTarget& target, RenderStates states) const {
                 continue;
             }
 
+            // Loads on demand (fill is outline 0). A character the font lacks draws
+            // as its .notdef glyph, as in SFML; only a FreeType failure skips it.
             FontAtlas::GlyphInfo glyph;
-            // Use stroked glyph lookup for outlines, regular for fill
-            bool found = false;
-            if (outlineThickness > 0) {
-                found = atlas.getGlyph(static_cast<uint32_t>(c), outlineThickness, glyph);
-            } else {
-                found = atlas.getGlyph(static_cast<uint32_t>(c), glyph);
-            }
-
-            if (!found) {
-                // Try space as fallback
-                if (outlineThickness > 0) {
-                    found = atlas.getGlyph(' ', outlineThickness, glyph);
-                } else {
-                    found = atlas.getGlyph(' ', glyph);
-                }
-                if (!found) continue;
-            }
+            if (!atlas.getGlyph(c, outlineThickness > 0 ? outlineThickness : 0.0f, glyph))
+                continue;
 
             if (glyph.width == 0 || glyph.height == 0) {
                 // Invisible character (space), just advance
@@ -2121,7 +2109,7 @@ FloatRect Text::getLocalBounds() const {
         }
         it = s_fontAtlasCache.emplace(key, std::move(atlas)).first;
     }
-    const FontAtlas& atlas = it->second;
+    FontAtlas& atlas = it->second;  // non-const: measuring loads glyphs on demand
 
     float x = 0;
     float maxX = 0;
@@ -2129,8 +2117,8 @@ FloatRect Text::getLocalBounds() const {
     float maxY = atlas.getLineHeight();
     int lineCount = 1;
 
-    for (size_t i = 0; i < string_.size(); ++i) {
-        char c = string_[i];
+    for (size_t i = 0; i < string_.size();) {
+        const uint32_t c = mcrf::utf8::next_codepoint(string_, i);  // #477
 
         if (c == '\n') {
             maxX = std::max(maxX, x);
@@ -2140,7 +2128,7 @@ FloatRect Text::getLocalBounds() const {
         }
 
         FontAtlas::GlyphInfo glyph;
-        if (atlas.getGlyph(static_cast<uint32_t>(c), glyph)) {
+        if (atlas.getGlyph(c, 0.0f, glyph)) {
             x += glyph.xadvance;
         }
     }
@@ -2545,8 +2533,9 @@ bool FontAtlas::loadGlyph(uint32_t codepoint, float outlineThickness) {
     // Make sure pixel size is set
     FT_Set_Pixel_Sizes(face, 0, static_cast<FT_UInt>(fontSize_));
 
+    // Index 0 is the font's .notdef glyph: a missing character draws as that box,
+    // as SFML does, rather than vanishing (#477).
     FT_UInt glyphIndex = FT_Get_Char_Index(face, codepoint);
-    if (glyphIndex == 0) return false;
 
     // Load glyph without rendering (we may need to stroke it first)
     if (FT_Load_Glyph(face, glyphIndex, FT_LOAD_DEFAULT) != 0) return false;

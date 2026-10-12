@@ -18,6 +18,7 @@
 #include <cmath>
 #include <Python.h>
 #include "Audio.h"
+#include "Utf8.h"  // #477
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -143,9 +144,9 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
         // gameResolution stays at its default (1024x768) - the viewport system maps it to the canvas
         int cw = 1024, ch = 768;
         emscripten_get_canvas_element_size("#canvas", &cw, &ch);
-        window->create(sf::VideoMode(cw, ch), window_title, sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
+        window->create(sf::VideoMode(cw, ch), mcrf::from_utf8(window_title), sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
 #else
-        window->create(sf::VideoMode(1024, 768), window_title, sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
+        window->create(sf::VideoMode(1024, 768), mcrf::from_utf8(window_title), sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
 #endif
         window->setFramerateLimit(60);
         render_target = window.get();
@@ -610,10 +611,6 @@ void GameEngine::doFrame()
     int tenth_fps = (metrics.fps * 10) % 10;
     (void)whole_fps; (void)tenth_fps; (void)fps; // Suppress unused variable warnings
 
-    if (!headless && window) {
-        window->setTitle(window_title);
-    }
-
     // In windowed mode, check if window was closed
     if (!headless && window && !window->isOpen()) {
         running = false;
@@ -849,7 +846,7 @@ void GameEngine::setWindowTitle(const std::string& title)
 {
     window_title = title;
     if (!headless && window) {
-        window->setTitle(title);
+        window->setTitle(mcrf::from_utf8(title));  // #477
     }
 }
 

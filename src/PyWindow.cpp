@@ -5,6 +5,7 @@
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
 #include "Common.h"
+#include "Utf8.h"  // #477
 #include <cstring>
 
 // The singleton is a stateless view onto GameEngine, owned by the process. Its cache
@@ -103,7 +104,7 @@ int PyWindow::set_resolution(PyWindowObject* self, PyObject* value, void* closur
     }
     
     // Recreate window with new size
-    window.create(sf::VideoMode(width, height), game->getWindowTitle(), style);
+    window.create(sf::VideoMode(width, height), mcrf::from_utf8(game->getWindowTitle()), style);
     
     // Restore vsync and framerate settings
     // Note: We'll need to store these settings in GameEngine
@@ -161,7 +162,7 @@ int PyWindow::set_fullscreen(PyWindowObject* self, PyObject* value, void* closur
         window.create(desktop, game->getWindowTitle(), sf::Style::Fullscreen);
     } else {
         // Switch to windowed mode
-        window.create(sf::VideoMode(1024, 768), game->getWindowTitle(), 
+        window.create(sf::VideoMode(1024, 768), mcrf::from_utf8(game->getWindowTitle()), 
                      sf::Style::Titlebar | sf::Style::Close);
     }
     
@@ -214,7 +215,8 @@ PyObject* PyWindow::get_title(PyWindowObject* self, void* closure)
         return NULL;
     }
     
-    return PyUnicode_FromString(game->getWindowTitle().c_str());
+    const std::string& title = game->getWindowTitle();
+    return PyUnicode_FromStringAndSize(title.data(), title.size());
 }
 
 int PyWindow::set_title(PyWindowObject* self, PyObject* value, void* closure)
@@ -225,11 +227,8 @@ int PyWindow::set_title(PyWindowObject* self, PyObject* value, void* closure)
         return -1;
     }
     
-    if (game->isHeadless()) {
-        // Silently ignore in headless mode
-        return 0;
-    }
-    
+    // Headless keeps the title too (setWindowTitle skips the missing window), so
+    // it reads back what was set.
     const char* title = PyUnicode_AsUTF8(value);
     if (!title) {
         PyErr_SetString(PyExc_TypeError, "Title must be a string");

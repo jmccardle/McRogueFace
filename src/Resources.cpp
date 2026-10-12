@@ -5,4 +5,3 @@
 
 sf::Font Resources::font;
 GameEngine* Resources::game;
-std::string Resources::caption_buffer;

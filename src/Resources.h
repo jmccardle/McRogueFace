@@ -10,5 +10,4 @@ class Resources
 public:
     static sf::Font font;
     static GameEngine* game;
-    static std::string caption_buffer;
 };
