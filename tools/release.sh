@@ -111,9 +111,9 @@ make stamp-snippets
 # --- 5. package ----------------------------------------------------------------------
 step package "Linux, Windows and WASM packages, each smoke-tested"
 rm -f -- dist/McRogueFace-"$VERSION"-*
-make package-linux-full package-windows-full package-web
-PACKAGES=(dist/McRogueFace-"$VERSION"-Linux-full.tar.gz
-          dist/McRogueFace-"$VERSION"-Windows-full.zip
+make package-linux package-windows package-web
+PACKAGES=(dist/McRogueFace-"$VERSION"-Linux.tar.gz
+          dist/McRogueFace-"$VERSION"-Windows.zip
           dist/McRogueFace-"$VERSION"-WASM.zip)
 python3 tools/smoke_package.py --version "$VERSION" "${PACKAGES[@]}"
 
