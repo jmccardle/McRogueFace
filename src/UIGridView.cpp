@@ -408,10 +408,12 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
             if (child_grid_x < left_edge - 2 || child_grid_x >= left_edge + width_sq + 2 ||
                 child_grid_y < top_edge - 2 || child_grid_y >= top_edge + height_sq + 2)
                 continue;
+            // #476: render() takes the PARENT's origin and adds the child's own
+            // position, so hand it the offset that lands `position` on its pixel.
             auto pixel_pos = sf::Vector2f(
                 (child->position.x - left_spritepixels) * zoom,
                 (child->position.y - top_spritepixels) * zoom);
-            child->render(pixel_pos, *activeTexture);
+            child->render(pixel_pos - child->position, *activeTexture);
         }
     }
 
