@@ -71,7 +71,7 @@ DEMO_HARNESS = 'tests/demo/_harness.py'
 DEMO_TIMEOUT = 60  # seconds
 
 # tests/packaging/ drives the real `tools/package.sh linux full` pipeline (the same
-# thing `make package-linux-full` calls) end to end: build the tarball, extract it
+# thing `make package-linux` calls) end to end: build the tarball, extract it
 # OUTSIDE the source tree, and prove the packaged binary's own filtered stdlib can
 # still import and USE the networking/async modules (socket/ssl/asyncio/selectors)
 # that docs/CLAUDE.md promise ship in the "full" preset. Nothing previously verified

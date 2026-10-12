@@ -13,8 +13,8 @@ A Python-powered 2D game engine for creating roguelike games, built with C++ and
 ## Quick Start
 
 **Download** the [latest release](https://github.com/jmccardle/McRogueFace/releases/latest):
-- **Windows**: `McRogueFace-*-Win.zip`
-- **Linux**: `McRogueFace-*-Linux.tar.bz2`
+- **Windows**: `McRogueFace-*-Windows.zip`
+- **Linux**: `McRogueFace-*-Linux.tar.gz`
 
 Extract and run `mcrogueface` (or `mcrogueface.exe` on Windows) to see the demo game.
 

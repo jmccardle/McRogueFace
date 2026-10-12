@@ -37,11 +37,9 @@
 #   make clean-wasm   - Clean Emscripten builds
 #
 # Packaging:
-#   make package-windows-light  - Windows with minimal stdlib (~5 MB)
-#   make package-windows-full   - Windows with full stdlib (~15 MB)
-#   make package-linux-light    - Linux with minimal stdlib
-#   make package-linux-full     - Linux with full stdlib
-#   make package-all            - All platform/preset combinations
+#   make package-windows        - dist/McRogueFace-<v>-Windows.zip
+#   make package-linux          - dist/McRogueFace-<v>-Linux.tar.gz
+#   make package-all            - both (one package per platform, #435)
 #
 # Release:
 #   make release VERSION=x.y.z [NEXT_VERSION=x.y.z-dev]
@@ -51,7 +49,7 @@
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
 .PHONY: deps deps-ft python python-ft python-debug python-tsan python-windows python-wasm free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground deploy-playground clean-wasm
-.PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all package-web
+.PHONY: package-windows package-linux package-all package-web
 .PHONY: release
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
 .PHONY: profile callgrind clean-profile gauntlet
@@ -435,17 +433,11 @@ clean-debug:
 	@rm -rf build-debug build-asan build-tsan build-fuzz
 
 # Packaging targets using tools/package.sh
-package-windows-light: windows
-	@./tools/package.sh windows light
+package-windows: windows
+	@./tools/package.sh windows
 
-package-windows-full: windows
-	@./tools/package.sh windows full
-
-package-linux-light: linux
-	@./tools/package.sh linux light
-
-package-linux-full: linux
-	@./tools/package.sh linux full
+package-linux: linux
+	@./tools/package.sh linux
 
 package-all: windows linux
 	@./tools/package.sh all
@@ -455,9 +447,6 @@ package-all: windows linux
 package-web: linux wasm-game
 	@./build/mcrogueface -m mcrf_project package-web --build build-wasm-game \
 		--version "$$(tools/version.sh)" --out dist
-
-# Legacy target for backwards compatibility
-package-windows: package-windows-full
 
 # Emscripten / WebAssembly targets
 # Requires: source ~/emsdk/emsdk_env.sh (or wherever your emsdk is installed)

@@ -4,13 +4,13 @@
 Each archive is unpacked into a fresh directory outside the source tree and run from
 there, so nothing resolves against the build tree:
 
-  *-Linux-*.tar.gz   ./mcrogueface --headless
-  *-Windows-*.zip    wine mcrogueface.exe --headless   (needs wine)
+  *-Linux.tar.gz     ./mcrogueface --headless
+  *-Windows.zip      wine mcrogueface.exe --headless   (needs wine)
   *-WASM.zip         index.html at the zip root, then tests/wasm/run_wasm_tests.py in
                      headless Chromium (needs the .venv-wasmtest Playwright venv)
 
 Desktop packages must report the expected mcrfpy.__version__, run Python 3.15, import
-the networking/async stdlib the full package promises (ssl, socket, asyncio, selectors,
+the networking/async stdlib the package promises (ssl, socket, asyncio, selectors,
 sqlite3) and compute FOV with the shipped libtcod. Exit 0 only if every package passes.
 
     tools/smoke_package.py --version 0.3.1 dist/McRogueFace-0.3.1-*
@@ -118,9 +118,9 @@ def main():
         if ("-%s-" % a.version) not in name:
             fail("%s is not named for version %s" % (name, a.version))
         with tempfile.TemporaryDirectory(prefix="mcrf-smoke-") as work:
-            if name.endswith(".tar.gz") and "-Linux-" in name:
+            if name.endswith("-Linux.tar.gz"):
                 smoke_linux(archive, a.version, work)
-            elif name.endswith(".zip") and "-Windows-" in name:
+            elif name.endswith("-Windows.zip"):
                 smoke_windows(archive, a.version, work)
             elif name.endswith("-WASM.zip"):
                 smoke_wasm(archive, a.version, work)

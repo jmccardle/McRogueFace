@@ -11,13 +11,12 @@
 # interpreter; that build must exist to package either platform.
 #
 # Usage:
-#   ./tools/package.sh windows light    # Windows light build
-#   ./tools/package.sh windows full     # Windows full build
-#   ./tools/package.sh linux light      # Linux light build
-#   ./tools/package.sh linux full       # Linux full build
-#   ./tools/package.sh all              # All variants
+#   ./tools/package.sh windows    # McRogueFace-<version>-Windows.zip
+#   ./tools/package.sh linux      # McRogueFace-<version>-Linux.tar.gz
+#   ./tools/package.sh all        # both
 #
-# (light and full ship the same stdlib for now, #399.)
+# There is one package per platform (#435): the whole stdlib minus the exclusions in
+# runtime.py. There is no light/full split.
 
 set -e
 
@@ -30,7 +29,7 @@ ENGINE="$PROJECT_ROOT/build/mcrogueface"
 VERSION=$("$SCRIPT_DIR/version.sh")
 
 package() {
-    local platform=$1 preset=$2 engine_dir
+    local platform=$1 engine_dir
     case "$platform" in
         linux)   engine_dir="$PROJECT_ROOT/build" ;;
         windows) engine_dir="$PROJECT_ROOT/build-windows" ;;
@@ -39,29 +38,26 @@ package() {
         echo "[ERROR] $ENGINE not found: packaging runs on the Linux build's interpreter. Run 'make' first." >&2
         return 1
     fi
-    "$ENGINE" -m mcrf_project package-engine --engine "$engine_dir" --preset "$preset" \
+    "$ENGINE" -m mcrf_project package-engine --engine "$engine_dir" \
         --version "$VERSION" --out "$DIST_DIR" --docs-from "$PROJECT_ROOT"
 }
 
 show_usage() {
     echo "McRogueFace Distribution Packager"
     echo ""
-    echo "Usage: $0 <platform> <preset>"
+    echo "Usage: $0 <platform>"
     echo ""
     echo "Platforms: windows (needs 'make windows'), linux (needs 'make'), all"
-    echo "Presets:   light, full"
 }
 
 case "${1:-}" in
     windows|linux)
-        package "$1" "${2:-full}"
+        package "$1"
         ;;
     all)
         status=0
         for platform in windows linux; do
-            for preset in light full; do
-                package "$platform" "$preset" || status=1
-            done
+            package "$platform" || status=1
         done
         ls -lh "$DIST_DIR"/*.zip "$DIST_DIR"/*.tar.gz 2>/dev/null || true
         exit $status
