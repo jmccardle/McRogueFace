@@ -43,6 +43,9 @@ public:
     std::vector<bool> chunk_dirty;                              // One flag per chunk
     std::vector<std::unique_ptr<sf::RenderTexture>> chunk_textures;  // One texture per chunk
     std::vector<bool> chunk_texture_initialized;                // Track which textures are created
+    // #470: size (w, h) whose create() failed for each chunk, (0, 0) = none. A failed
+    // size is not retried (and not re-reported) until the required size changes.
+    std::vector<std::pair<unsigned int, unsigned int>> chunk_texture_failed_size;
     int cached_cell_width, cached_cell_height;                  // Cell size used for cached textures
 
     // #430: PythonObjectCache key for this layer's ColorLayer/TileLayer wrapper
