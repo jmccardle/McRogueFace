@@ -44,14 +44,15 @@
 #   make package-all            - All platform/preset combinations
 #
 # Release:
-#   make version-bump NEXT_VERSION=x.y.z-suffix
-#     Tags HEAD with current version, builds all packages, bumps to NEXT_VERSION
+#   make release VERSION=x.y.z [NEXT_VERSION=x.y.z-dev]
+#     Bump, test, docs, smoke-tested packages, commit, tag, site, bump to next -dev
+#     (tools/release.sh, #475). Never pushes or publishes.
 
 .PHONY: all linux windows windows-debug clean clean-windows clean-dist run
 .PHONY: deps deps-ft python python-ft python-debug python-tsan python-windows python-wasm free-threaded
 .PHONY: wasm wasm-game wasm-debug playground playground-debug serve serve-game serve-dev serve-playground deploy-playground clean-wasm
 .PHONY: package-windows-light package-windows-full package-linux-light package-linux-full package-all package-web
-.PHONY: version-bump
+.PHONY: release
 .PHONY: debug debug-test asan asan-test tsan tsan-test valgrind-test massif-test analyze clean-debug
 .PHONY: profile callgrind clean-profile gauntlet
 .PHONY: test-wasm-setup test-wasm test-wasm-diff
@@ -668,49 +669,10 @@ serve-playground-debug:
 	@echo "Press Ctrl+C to stop"
 	@cd build-playground-debug && python3 -m http.server 8080
 
-# Current version extracted from source
-CURRENT_VERSION := $(shell tools/version.sh)
-
-# Release workflow: tag current version, build all packages, bump to next version
-# Usage: make version-bump NEXT_VERSION=0.2.6-prerelease-7drl2026
-version-bump:
-ifndef NEXT_VERSION
-	$(error Usage: make version-bump NEXT_VERSION=x.y.z-suffix)
+# Cut a release (#475): bump, test, docs, packages + smoke tests, commit, tag (last),
+# site, bump to NEXT_VERSION. See tools/release.sh. It never pushes or publishes.
+release:
+ifndef VERSION
+	$(error Usage: make release VERSION=x.y.z [NEXT_VERSION=x.y.z-dev])
 endif
-	@if ! command -v emcmake >/dev/null 2>&1; then \
-		echo "Error: emcmake not found. Run 'source ~/emsdk/emsdk_env.sh' first."; \
-		exit 1; \
-	fi
-	# git status (clean working dir check), but ignore modules/, because building submodules dirties their subdirs
-	@if [ -n "$$(git status --porcelain | grep -v modules)" ]; then \
-		echo "Error: Working tree is not clean. Commit or stash changes first."; \
-		exit 1; \
-	fi
-	@echo "=== Releasing $(CURRENT_VERSION) ==="
-	@# Idempotent tag: ok if it already points at HEAD (resuming partial run)
-	@if git rev-parse "$(CURRENT_VERSION)" >/dev/null 2>&1; then \
-		TAG_COMMIT=$$(git rev-parse "$(CURRENT_VERSION)^{}"); \
-		HEAD_COMMIT=$$(git rev-parse HEAD); \
-		if [ "$$TAG_COMMIT" != "$$HEAD_COMMIT" ]; then \
-			echo "Error: Tag $(CURRENT_VERSION) already exists but points to a different commit."; \
-			exit 1; \
-		fi; \
-		echo "Tag $(CURRENT_VERSION) already exists at HEAD (resuming)."; \
-	else \
-		git tag "$(CURRENT_VERSION)"; \
-	fi
-	$(MAKE) package-linux-full
-	$(MAKE) package-windows-full
-	$(MAKE) package-web
-	@echo ""
-	@echo "Bumping version: $(CURRENT_VERSION) -> $(NEXT_VERSION)"
-	@sed -i 's|MCRFPY_VERSION "$(CURRENT_VERSION)"|MCRFPY_VERSION "$(NEXT_VERSION)"|' src/McRogueFaceVersion.h
-	@TAGGED_HASH=$$(git rev-parse --short HEAD); \
-	git add src/McRogueFaceVersion.h && \
-	git commit -m "Version bump: $(CURRENT_VERSION) ($$TAGGED_HASH) -> $(NEXT_VERSION)"
-	@echo ""
-	@echo "=== Release $(CURRENT_VERSION) complete ==="
-	@echo "Tag:  $(CURRENT_VERSION)"
-	@echo "Next: $(NEXT_VERSION)"
-	@echo "Packages:"
-	@ls -lh dist/*$(CURRENT_VERSION)* 2>/dev/null
+	@SITE_DIR="$(SITE_DIR)" tools/release.sh "$(VERSION)" "$(NEXT_VERSION)"

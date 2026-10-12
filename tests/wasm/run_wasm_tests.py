@@ -198,7 +198,15 @@ TESTS = [
 ]
 
 
-def run(url: str, headed: bool, timeout_ms: int, verbose: bool) -> int:
+def t_version(expected):
+    def t(page):
+        # The release pipeline (#475) checks a package reports the version it is named for.
+        out = rp(page, "import mcrfpy; print(mcrfpy.__version__)").strip()
+        return _expect(out == expected, f"mcrfpy.__version__ -> {out!r}, expected {expected!r}")
+    return t
+
+
+def run(url: str, headed: bool, timeout_ms: int, verbose: bool, expect_version=None) -> int:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -243,7 +251,8 @@ def run(url: str, headed: bool, timeout_ms: int, verbose: bool) -> int:
 
         print("[wasm-test] runtime ready; running tests\n")
         passed = failed = 0
-        for name, fn in TESTS:
+        tests = TESTS + ([("version", t_version(expect_version))] if expect_version else [])
+        for name, fn in tests:
             try:
                 ok, detail = fn(page)
             except Exception as e:  # a thrown test is a failure, not a crash
@@ -283,10 +292,11 @@ def main() -> int:
     ap.add_argument("--headed", action="store_true", help="show the browser window")
     ap.add_argument("--timeout", type=int, default=60000, help="runtime-ready timeout in ms")
     ap.add_argument("-v", "--verbose", action="store_true", help="print detail for passing tests")
+    ap.add_argument("--expect-version", help="also require mcrfpy.__version__ to equal this")
     args = ap.parse_args()
 
     if args.url:
-        return run(args.url, args.headed, args.timeout, args.verbose)
+        return run(args.url, args.headed, args.timeout, args.verbose, args.expect_version)
 
     build_dir = args.build_dir
     # A packaged web build's entry point is index.html (#474); a build tree's is
@@ -302,7 +312,7 @@ def main() -> int:
     port = args.port or _free_port()
     with _Server(build_dir, port):
         url = f"http://127.0.0.1:{port}/{entry.name}"
-        return run(url, args.headed, args.timeout, args.verbose)
+        return run(url, args.headed, args.timeout, args.verbose, args.expect_version)
 
 
 if __name__ == "__main__":
