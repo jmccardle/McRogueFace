@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,NoiseSource,Scene] verified=0.3.1 status=ok
+# mcrf: objects=[Caption,NoiseSource,Scene] verified=0.3.2 status=ok
 import mcrfpy
 
 # Create terrain with multiple noise layers

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.3.1 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.3.2 status=ok
 # Input Mouse Click - Click on frames
 import mcrfpy
 

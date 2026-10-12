@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.1 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.2 status=ok
 # Hovered State - Check if element is hovered
 import mcrfpy
 

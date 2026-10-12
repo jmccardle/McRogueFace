@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Sprite] verified=0.3.1 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Sprite] verified=0.3.2 status=ok
 # Version Info - Engine version and info
 import mcrfpy
 

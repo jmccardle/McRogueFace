@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene,Texture] verified=0.3.1 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene,Texture] verified=0.3.2 status=ok
 """McRogueFace Tutorial - Part 2: Walls, Floors, and Collision"""
 import mcrfpy
 

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,Frame,Grid,InputState,MouseButton,Scene,TileLayer] verified=0.3.1 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,Frame,Grid,InputState,MouseButton,Scene,TileLayer] verified=0.3.2 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("game")

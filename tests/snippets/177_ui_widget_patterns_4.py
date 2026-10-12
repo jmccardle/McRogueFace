@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.1 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.2 status=ok
 # Vertical Menu pattern - a list of selectable options with keyboard navigation.
 import mcrfpy
 

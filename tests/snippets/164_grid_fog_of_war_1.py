@@ -1,4 +1,4 @@
-# mcrf: objects=[Entity,Grid,Scene] verified=0.3.1 status=ok
+# mcrf: objects=[Entity,Grid,Scene] verified=0.3.2 status=ok
 import mcrfpy
 
 # Create scene and grid
