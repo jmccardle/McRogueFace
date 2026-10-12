@@ -1833,7 +1833,7 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"uniforms", (getter)UIEntity_get_uniforms, NULL,
      MCRF_PROPERTY(uniforms, "Collection of shader uniforms (UniformCollection, read-only). Set values via dict-like syntax: entity.uniforms['name'] = value."), NULL},
     {"sprite_offset", (getter)UIEntity::get_sprite_offset, (setter)UIEntity::set_sprite_offset,
-     MCRF_PROPERTY(sprite_offset, "Pixel offset for oversized sprites (Vector). Applied pre-zoom during grid rendering."), NULL},
+     MCRF_PROPERTY(sprite_offset, "Offset for oversized sprites (Vector), in texture pixels: stretched with the sprite when the cell size differs from the grid texture's sprite size, then zoomed."), NULL},
     {"sprite_offset_x", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
      MCRF_PROPERTY(sprite_offset_x, "X component of sprite pixel offset (float)."), (void*)0},
     {"sprite_offset_y", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,

@@ -66,6 +66,14 @@ public:
     int getDisplayWidth() const { return display_width >= 0 ? display_width : sprite_width; }
     int getDisplayHeight() const { return display_height >= 0 ? display_height : sprite_height; }
 
+    // #480: the scale that stretches one of this texture's sprites to a cell_w x cell_h
+    // cell. Measured against the sprite size, not the display bounds (#235): a cropped
+    // sprite keeps its proportion of the cell and stays at the cell's top-left.
+    sf::Vector2f cellFit(float cell_w, float cell_h) const {
+        if (sprite_width <= 0 || sprite_height <= 0) return sf::Vector2f(1.0f, 1.0f);
+        return sf::Vector2f(cell_w / sprite_width, cell_h / sprite_height);
+    }
+
     // Getters for properties
     static PyObject* get_sprite_width(PyTextureObject* self, void* closure);
     static PyObject* get_sprite_height(PyTextureObject* self, void* closure);

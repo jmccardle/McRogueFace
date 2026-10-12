@@ -366,6 +366,12 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Render entities
     if (grid_data->entities) {
         ScopedAccumTimer entityTimer(metrics.entityRenderTime);
+        // #480: entities stretch by the grid texture's fit, even one with its own texture,
+        // so sprites keep their size relative to the grid's (a 16x24 hero on 16x16 cells
+        // stays 1.5 cells tall). No grid texture: nothing to stretch against, factor 1.
+        auto grid_tex = grid_data->getTexture();
+        const sf::Vector2f stretch = grid_tex ? grid_tex->cellFit(cell_width, cell_height)
+                                              : sf::Vector2f(1.0f, 1.0f);
         metrics.totalEntities += static_cast<int>(grid_data->entities->size());
         for (auto& e : *grid_data->entities) {
             if (e->position.x < left_edge - 2 || e->position.x >= left_edge + width_sq + 2 ||
@@ -373,10 +379,11 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
                 continue;
             }
             auto& drawent = e->sprite;
-            drawent.setScale(sf::Vector2f(zoom, zoom));
+            drawent.setScale(stretch * zoom);
+            // sprite_offset is in texture pixels, so it stretches with the sprite.
             auto pixel_pos = sf::Vector2f(
-                (e->position.x*cell_width - left_spritepixels + e->sprite_offset.x) * zoom,
-                (e->position.y*cell_height - top_spritepixels + e->sprite_offset.y) * zoom);
+                (e->position.x*cell_width - left_spritepixels + e->sprite_offset.x * stretch.x) * zoom,
+                (e->position.y*cell_height - top_spritepixels + e->sprite_offset.y * stretch.y) * zoom);
             // #454: an entity with no texture of its own draws with the grid's.
             drawent.render(pixel_pos, *activeTexture, grid_data->getTexture());
             ++metrics.entitiesRendered;

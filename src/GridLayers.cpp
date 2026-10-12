@@ -566,6 +566,9 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
 
     chunk_textures[chunk_idx]->clear(sf::Color::Transparent);
 
+    // #480: every tile fills exactly its cell, whatever this layer's texture's sprite size.
+    const sf::Vector2f fit = texture->cellFit(cell_width, cell_height);
+
     // Render only tiles within this chunk (local coordinates in texture)
     for (int x = start_x; x < end_x; ++x) {
         for (int y = start_y; y < end_y; ++y) {
@@ -574,7 +577,7 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
 
             // Position relative to chunk origin
             auto pixel_pos = sf::Vector2f((x - start_x) * cell_width, (y - start_y) * cell_height);
-            sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, sf::Vector2f(1.0f, 1.0f));
+            sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, fit);
             chunk_textures[chunk_idx]->draw(sprite);
         }
     }
@@ -622,7 +625,8 @@ void TileLayer::render(sf::RenderTarget& target,
             }
 
             if (!chunk_texture_initialized[chunk_idx]) {
-                // Fallback: direct rendering for this chunk
+                // Fallback: direct rendering for this chunk (#480: same cell fit as the chunk)
+                const sf::Vector2f fit = texture->cellFit(cell_width, cell_height);
                 int start_x, start_y, end_x, end_y;
                 getChunkBounds(cx, cy, start_x, start_y, end_x, end_y);
 
@@ -635,7 +639,7 @@ void TileLayer::render(sf::RenderTarget& target,
                             (x * cell_width - left_spritepixels) * zoom,
                             (y * cell_height - top_spritepixels) * zoom
                         );
-                        sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, sf::Vector2f(zoom, zoom));
+                        sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, fit * zoom);
                         target.draw(sprite);
                     }
                 }
