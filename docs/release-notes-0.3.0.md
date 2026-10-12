@@ -1,6 +1,6 @@
-# McRogueFace 0.3.0 — release notes (DRAFT)
+# McRogueFace 0.3.0 — release notes
 
-> Draft assembled from the commits between the `0.2.8` tag and master (183 at `5108e48`).
+> 207 commits since the `0.2.8` tag.
 
 ## Headline: Python 3.15
 
