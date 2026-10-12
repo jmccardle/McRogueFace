@@ -535,12 +535,20 @@ test-wasm-setup:
 	@$(WASM_TEST_VENV)/bin/python -m playwright install chromium-headless-shell
 	@echo "WASM test env ready in $(WASM_TEST_VENV)/. Run 'make test-wasm' / 'make test-wasm-diff'."
 
+# Both web builds: the playground (the docs site's REPL) and the game build that the
+# release WASM zip ships (#473). Override to test one: make test-wasm WASM_TEST_BUILDS=build-wasm-game
+WASM_TEST_BUILDS ?= build-playground build-wasm-game
 test-wasm:
 	@test -x $(WASM_TEST_VENV)/bin/python || { \
 		echo "Playwright venv missing. Run 'make test-wasm-setup' first."; exit 1; }
-	@test -f build-playground/mcrogueface.html || { \
-		echo "Playground not built. Run 'make playground' first."; exit 1; }
-	@$(WASM_TEST_VENV)/bin/python tests/wasm/run_wasm_tests.py
+	@for d in $(WASM_TEST_BUILDS); do \
+		test -f $$d/mcrogueface.html || { \
+			echo "$$d not built. Run 'make playground' / 'make wasm-game' first."; exit 1; }; \
+	done
+	@for d in $(WASM_TEST_BUILDS); do \
+		echo "=== $$d ==="; \
+		$(WASM_TEST_VENV)/bin/python tests/wasm/run_wasm_tests.py --build-dir $$d || exit 1; \
+	done
 
 # #388: cross-backend screenshot diff. Renders the snippet corpus on web (SDL2/
 # WebGL) in headless Chromium and diffs each frame against the desktop-headless

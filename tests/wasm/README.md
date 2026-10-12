@@ -1,9 +1,13 @@
-# WASM playground browser tests (#239)
+# WASM browser tests (#239, #473)
 
-Host-side smoke tests that boot the built WebAssembly playground in a headless
+Host-side smoke tests that boot a built WebAssembly build in a headless
 Chromium (via Playwright) and exercise the JS interop surface exported from
-`src/platform/EmscriptenStubs.cpp` (`window.runPython`, `resetGame`,
-`getPythonState`, `clearPythonError`, `getPythonGlobalsCount`).
+`src/platform/EmscriptenStubs.cpp` (`run_python_string_with_output`,
+`reset_python_environment`, `get_python_state`, `clear_python_error`,
+`get_python_globals_count`), called through `Module.ccall`. That works with
+either HTML shell, so the same suite covers the playground (`build-playground`)
+and the shipped game build (`build-wasm-game`, which the release WASM zip
+contains). `make test-wasm` runs both.
 
 This validates that the web build boots, that Python runs, that UI objects
 construct, and that the interpreter reports **and recovers from** errors — the
@@ -34,13 +38,15 @@ python3 -m venv .venv-wasmtest
 ```bash
 source ~/emsdk/emsdk_env.sh
 make playground        # build build-playground/ if needed
-make test-wasm         # serves the build + runs the suite headless
+make wasm-game         # build build-wasm-game/ if needed
+make test-wasm         # serves each build + runs the suite headless
 ```
 
 Or directly:
 
 ```bash
 .venv-wasmtest/bin/python tests/wasm/run_wasm_tests.py            # serves build-playground/
+.venv-wasmtest/bin/python tests/wasm/run_wasm_tests.py --build-dir build-wasm-game
 .venv-wasmtest/bin/python tests/wasm/run_wasm_tests.py --url URL  # test an already-served page
 .venv-wasmtest/bin/python tests/wasm/run_wasm_tests.py --headed -v
 ```

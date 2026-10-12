@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Headless-browser smoke tests for the McRogueFace WASM playground (issue #239).
+"""Headless-browser smoke tests for McRogueFace WASM builds (issues #239, #473).
 
-Serves a built playground directory, drives it with a headless Chromium via
-Playwright, and exercises the real JS interop surface exported from
-``src/platform/EmscriptenStubs.cpp``:
+Serves a built web directory, drives it with a headless Chromium via Playwright,
+and exercises the real JS interop surface exported from
+``src/platform/EmscriptenStubs.cpp``, called through ``Module.ccall``:
 
-    window.runPython(code)          -> run_python_string_with_output (stdout+stderr+repr/traceback)
-    window.resetGame()              -> reset_python_environment (int)
-    window.getPythonState()         -> "OK" | "NOT_INITIALIZED" | "ERROR_SET: <msg>"
-    window.clearPythonError()       -> clear_python_error
-    window.getPythonGlobalsCount()  -> get_python_globals_count (int)
+    run_python_string_with_output(code) -> stdout+stderr+repr/traceback
+    reset_python_environment()          -> int
+    get_python_state()                  -> "OK" | "NOT_INITIALIZED" | "ERROR_SET: <msg>"
+    clear_python_error()
+    get_python_globals_count()          -> int
+
+Calling the exports directly, rather than the ``window.runPython`` wrappers that
+only the dev/playground shell (src/shell.html) defines, is what lets the same
+suite test the shipped game build (build-wasm-game, src/shell_game.html), which
+is what the release WASM zip contains (#473).
 
 This is a HOST-side tool (system Python + Playwright), separate from mcrfpy's
 embedded interpreter. It validates that the web build boots, that Python runs,
@@ -17,7 +22,7 @@ and that the interpreter recovers from errors -- the substrate the #388
 cross-backend screenshot-diff harness will build on.
 
 Usage:
-    python run_wasm_tests.py [--build-dir DIR] [--url URL] [--port N]
+    python run_wasm_tests.py [--build-dir DIR] [--url URL] [--port N]   # DIR: build-playground
                              [--headed] [--timeout MS] [-v]
 
 Setup (see tests/wasm/README.md):
@@ -86,10 +91,16 @@ def _free_port() -> int:
 # Test cases. Each takes the Playwright `page` and returns (passed, detail).
 # `rp` runs Python in the page and returns the combined output string.
 # --------------------------------------------------------------------------- #
+def ccall(page, name: str, ret, argtypes=(), args=()):
+    """Call an EMSCRIPTEN_KEEPALIVE export. Works with either shell (#473)."""
+    return page.evaluate(
+        "([n, r, t, a]) => Module.ccall(n, r, t, a)", [name, ret, list(argtypes), list(args)])
+
+
 def rp(page, code: str) -> str:
     # json-encode the code so arbitrary source (quotes, newlines) survives the
     # JS string boundary; evaluate arg-passing form, never string interpolation.
-    return page.evaluate("code => window.runPython(code)", code)
+    return ccall(page, "run_python_string_with_output", "string", ["string"], [code])
 
 
 def _expect(condition, detail):
@@ -139,19 +150,19 @@ def t_state_persistence(page):
 def t_python_state_ok(page):
     # After forcing an error then clearing, the interpreter must report healthy.
     rp(page, "1 / 0")
-    page.evaluate("() => window.clearPythonError()")
-    state = page.evaluate("() => window.getPythonState()")
+    ccall(page, "clear_python_error", None)
+    state = ccall(page, "get_python_state", "string")
     return _expect(state == "OK", f"getPythonState() -> {state!r}")
 
 
 def t_globals_count(page):
-    n = page.evaluate("() => window.getPythonGlobalsCount()")
+    n = ccall(page, "get_python_globals_count", "number")
     return _expect(isinstance(n, (int, float)) and n > 0, f"globals count -> {n!r}")
 
 
 def t_reset_environment(page):
-    # reset_python_environment re-execs the playground game.py; expect int 0.
-    rc = page.evaluate("() => window.resetGame()")
+    # reset_python_environment re-execs the build's /scripts/game.py; expect int 0.
+    rc = ccall(page, "reset_python_environment", "number")
     # After reset the interpreter must still be usable.
     ok = rp(page, "7 + 7").strip()
     return _expect(rc == 0 and ok == "14", f"resetGame() -> {rc!r}; post-reset '7+7' -> {ok!r}")
@@ -209,13 +220,12 @@ def run(url: str, headed: bool, timeout_ms: int, verbose: bool) -> int:
         page.goto(url, timeout=timeout_ms, wait_until="load")
 
         # Wait for the emscripten runtime to boot AND Python to initialize.
-        # runPython is defined in the run-dependency callback; getPythonState()
-        # returns "OK" only once Py_Initialize has completed.
+        # ccall is only safe once main() has run (Module.calledRun);
+        # get_python_state() returns "OK" once Py_Initialize has completed.
         try:
             page.wait_for_function(
-                "() => typeof window.runPython === 'function'"
-                " && typeof window.getPythonState === 'function'"
-                " && window.getPythonState() === 'OK'",
+                "() => typeof Module !== 'undefined' && Module.calledRun"
+                " && Module.ccall('get_python_state', 'string', [], []) === 'OK'",
                 timeout=timeout_ms,
             )
         except Exception as e:
@@ -263,9 +273,10 @@ def run(url: str, headed: bool, timeout_ms: int, verbose: bool) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Headless-browser WASM playground tests (#239)")
+    ap = argparse.ArgumentParser(description="Headless-browser WASM build tests (#239, #473)")
     ap.add_argument("--build-dir", type=Path, default=DEFAULT_BUILD_DIR,
-                    help=f"playground build dir to serve (default: {DEFAULT_BUILD_DIR})")
+                    help="web build dir to serve: build-playground, build-wasm-game, an "
+                         f"unpacked release zip... (default: {DEFAULT_BUILD_DIR})")
     ap.add_argument("--url", default=None,
                     help="test an already-served URL instead of serving --build-dir")
     ap.add_argument("--port", type=int, default=0, help="serve port (default: ephemeral)")
@@ -278,15 +289,19 @@ def main() -> int:
         return run(args.url, args.headed, args.timeout, args.verbose)
 
     build_dir = args.build_dir
-    entry = build_dir / "mcrogueface.html"
-    if not entry.is_file():
-        print(f"ERROR: {entry} not found. Run 'make playground' first "
-              f"(or pass --build-dir / --url).", file=sys.stderr)
+    # A packaged web build's entry point is index.html (#474); a build tree's is
+    # mcrogueface.html.
+    entry = next((build_dir / n for n in ("index.html", "mcrogueface.html")
+                  if (build_dir / n).is_file()), None)
+    if entry is None:
+        print(f"ERROR: no index.html or mcrogueface.html in {build_dir}. Run "
+              f"'make playground' / 'make wasm-game' first (or pass --build-dir / --url).",
+              file=sys.stderr)
         return 2
 
     port = args.port or _free_port()
     with _Server(build_dir, port):
-        url = f"http://127.0.0.1:{port}/mcrogueface.html"
+        url = f"http://127.0.0.1:{port}/{entry.name}"
         return run(url, args.headed, args.timeout, args.verbose)
 
 
