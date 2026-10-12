@@ -337,6 +337,23 @@ the window blocks holders forever; that was #398, gated by
 `tests/regression/issue_398_headless_frame_lock_test.py` (pre-fix: 12.2M `step()`
 calls and the lock never opens; post-fix: 1).
 
+### Releasing (#475)
+
+```bash
+source ~/emsdk/emsdk_env.sh
+make release VERSION=0.3.1            # NEXT_VERSION defaults to 0.3.2-dev
+```
+
+`src/McRogueFaceVersion.h` is the only source of truth for the version (`tools/version.sh`
+prints it): master says `X.Y.Z-dev` between releases, and nothing reads git tags for it.
+`tools/release.sh` runs, failing at the first error: preflight (clean master, tag free,
+emsdk / wine / `.venv-wasmtest` / a **clean** `SITE_DIR`) -> header to VERSION -> suite +
+`check-snippets` -> docs, manifest (`commit: null` for a release), snippet stamps + shots
+-> Linux/Windows/WASM packages, each unpacked and run by `tools/smoke_package.py` -> commit
+"Release X" -> **tag, last** -> site rebuilt pinned to the tag (left uncommitted) -> header
+to NEXT_VERSION, commit. It never pushes or publishes. Before the tag, `git checkout .`
+undoes a failed run; after it, the error says what remains.
+
 ### Troubleshooting
 
 **"No rule to make target 'linux'"**: You're in the wrong directory. Run `make` from project root.
