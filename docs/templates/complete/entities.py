@@ -112,7 +112,7 @@ class Actor:
     @x.setter
     def x(self, value: int) -> None:
         self._x = value
-        self.entity.pos = (value, self._y)
+        self.entity.cell_pos = (value, self._y)
 
     @property
     def y(self) -> int:
@@ -121,7 +121,7 @@ class Actor:
     @y.setter
     def y(self, value: int) -> None:
         self._y = value
-        self.entity.pos = (self._x, value)
+        self.entity.cell_pos = (self._x, value)
 
     @property
     def pos(self) -> Tuple[int, int]:
@@ -130,7 +130,7 @@ class Actor:
     @pos.setter
     def pos(self, value: Tuple[int, int]) -> None:
         self._x, self._y = value
-        self.entity.pos = value
+        self.entity.cell_pos = value
 
     @property
     def is_alive(self) -> bool:
@@ -232,12 +232,13 @@ class Player(Actor):
         # Apply FOV to dungeon tiles
         for x in range(dungeon.width):
             for y in range(dungeon.height):
-                state = self.entity.at(x, y)
+                # entity.at() is the cell if currently visible, else None
+                visible = self.entity.at(x, y) is not None
                 tile = dungeon.get_tile(x, y)
 
                 if tile:
-                    tile.visible = state.visible
-                    if state.visible:
+                    tile.visible = visible
+                    if visible:
                         tile.explored = True
 
 

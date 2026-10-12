@@ -53,23 +53,23 @@ class HealthBar:
         self.font = font or mcrfpy.default_font
 
         # Background frame
-        self.bg_frame = mcrfpy.Frame(x, y, width, height)
+        self.bg_frame = mcrfpy.Frame(pos=(x, y), size=(width, height))
         self.bg_frame.fill_color = mcrfpy.Color(*COLOR_HP_BAR_BG)
         self.bg_frame.outline = 2
         self.bg_frame.outline_color = mcrfpy.Color(*COLOR_UI_BORDER)
 
         # Fill frame (inside background)
-        self.fill_frame = mcrfpy.Frame(x + 2, y + 2, width - 4, height - 4)
+        self.fill_frame = mcrfpy.Frame(pos=(x + 2, y + 2), size=(width - 4, height - 4))
         self.fill_frame.fill_color = mcrfpy.Color(*COLOR_HP_BAR_FILL)
         self.fill_frame.outline = 0
 
         # HP text
-        self.hp_text = mcrfpy.Caption("HP: 0 / 0", self.font, x + 8, y + 4)
+        self.hp_text = mcrfpy.Caption(text="HP: 0 / 0", font=self.font, pos=(x + 8, y + 4))
         self.hp_text.fill_color = mcrfpy.Color(*COLOR_TEXT)
 
         self._max_fill_width = width - 4
 
-    def add_to_scene(self, ui: mcrfpy.UICollection) -> None:
+    def add_to_scene(self, ui) -> None:
         """Add all health bar components to a scene."""
         ui.append(self.bg_frame)
         ui.append(self.fill_frame)
@@ -136,7 +136,7 @@ class MessageLog:
         self.font = font or mcrfpy.default_font
 
         # Container frame
-        self.frame = mcrfpy.Frame(x, y, width, height)
+        self.frame = mcrfpy.Frame(pos=(x, y), size=(width, height))
         self.frame.fill_color = mcrfpy.Color(*COLOR_UI_BG)
         self.frame.outline = 1
         self.frame.outline_color = mcrfpy.Color(*COLOR_UI_BORDER)
@@ -155,15 +155,14 @@ class MessageLog:
         """Initialize caption objects for message display."""
         for i in range(self.max_lines):
             caption = mcrfpy.Caption(
-                "",
-                self.font,
-                self.x + 5,
-                self.y + 5 + i * self.line_height
+                text="",
+                font=self.font,
+                pos=(self.x + 5, self.y + 5 + i * self.line_height)
             )
             caption.fill_color = mcrfpy.Color(*COLOR_MSG_DEFAULT)
             self.captions.append(caption)
 
-    def add_to_scene(self, ui: mcrfpy.UICollection) -> None:
+    def add_to_scene(self, ui) -> None:
         """Add the message log to a scene."""
         ui.append(self.frame)
         for caption in self.captions:
@@ -221,10 +220,10 @@ class LevelDisplay:
         """
         self.font = font or mcrfpy.default_font
 
-        self.caption = mcrfpy.Caption("Level: 1", self.font, x, y)
+        self.caption = mcrfpy.Caption(text="Level: 1", font=self.font, pos=(x, y))
         self.caption.fill_color = mcrfpy.Color(*COLOR_TEXT)
 
-    def add_to_scene(self, ui: mcrfpy.UICollection) -> None:
+    def add_to_scene(self, ui) -> None:
         """Add to a scene."""
         ui.append(self.caption)
 
@@ -254,7 +253,7 @@ class GameUI:
         self.message_log = MessageLog(font=self.font)
         self.level_display = LevelDisplay(font=self.font)
 
-    def add_to_scene(self, ui: mcrfpy.UICollection) -> None:
+    def add_to_scene(self, ui) -> None:
         """Add all UI elements to a scene."""
         self.health_bar.add_to_scene(ui)
         self.message_log.add_to_scene(ui)
@@ -292,15 +291,15 @@ class DeathScreen:
         self.elements: List = []
 
         # Semi-transparent overlay
-        self.overlay = mcrfpy.Frame(0, 0, 1024, 768)
+        self.overlay = mcrfpy.Frame(pos=(0, 0), size=(1024, 768))
         self.overlay.fill_color = mcrfpy.Color(0, 0, 0, 180)
         self.elements.append(self.overlay)
 
         # Death message
         self.death_text = mcrfpy.Caption(
-            "YOU HAVE DIED",
-            self.font,
-            362, 300
+            text="YOU HAVE DIED",
+            font=self.font,
+            pos=(362, 300)
         )
         self.death_text.fill_color = mcrfpy.Color(255, 0, 0, 255)
         self.death_text.outline = 2
@@ -309,19 +308,19 @@ class DeathScreen:
 
         # Restart prompt
         self.restart_text = mcrfpy.Caption(
-            "Press R to restart",
-            self.font,
-            400, 400
+            text="Press R to restart",
+            font=self.font,
+            pos=(400, 400)
         )
         self.restart_text.fill_color = mcrfpy.Color(200, 200, 200, 255)
         self.elements.append(self.restart_text)
 
-    def add_to_scene(self, ui: mcrfpy.UICollection) -> None:
+    def add_to_scene(self, ui) -> None:
         """Add death screen elements to a scene."""
         for element in self.elements:
             ui.append(element)
 
-    def remove_from_scene(self, ui: mcrfpy.UICollection) -> None:
+    def remove_from_scene(self, ui) -> None:
         """Remove death screen elements from a scene."""
         for element in self.elements:
             try:

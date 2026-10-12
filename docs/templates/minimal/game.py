@@ -73,8 +73,7 @@ def try_move(dx: int, dy: int) -> bool:
         player_y = new_y
 
         # Update the entity's position on the grid
-        player_entity.x = player_x
-        player_entity.y = player_y
+        player_entity.cell_pos = (player_x, player_y)
         return True
 
     return False
@@ -83,32 +82,32 @@ def try_move(dx: int, dy: int) -> bool:
 # INPUT HANDLING
 # =============================================================================
 
-def handle_keypress(key: str, action: str) -> None:
+def handle_keypress(key: mcrfpy.Key, action: mcrfpy.InputState) -> None:
     """
     Handle keyboard input for the game scene.
 
     Args:
-        key: The key that was pressed (e.g., "Up", "Down", "Escape", "a", "W")
-        action: Either "start" (key pressed) or "end" (key released)
+        key: The mcrfpy.Key that changed (e.g. Key.UP, Key.ESCAPE, Key.A)
+        action: mcrfpy.InputState.PRESSED or RELEASED
 
     Note:
-        We only process on "start" to avoid double-triggering on key release.
+        We only process PRESSED to avoid double-triggering on key release.
     """
-    if action != "start":
+    if action != mcrfpy.InputState.PRESSED:
         return
 
     # Movement keys (both arrow keys and WASD)
-    if key == "Up" or key == "W" or key == "w":
+    if key in (mcrfpy.Key.UP, mcrfpy.Key.W):
         try_move(0, -1)
-    elif key == "Down" or key == "S" or key == "s":
+    elif key in (mcrfpy.Key.DOWN, mcrfpy.Key.S):
         try_move(0, 1)
-    elif key == "Left" or key == "A" or key == "a":
+    elif key in (mcrfpy.Key.LEFT, mcrfpy.Key.A):
         try_move(-1, 0)
-    elif key == "Right" or key == "D" or key == "d":
+    elif key in (mcrfpy.Key.RIGHT, mcrfpy.Key.D):
         try_move(1, 0)
 
     # Exit on Escape
-    elif key == "Escape":
+    elif key == mcrfpy.Key.ESCAPE:
         mcrfpy.exit()
 
 # =============================================================================
@@ -153,7 +152,7 @@ def setup_game() -> mcrfpy.Scene:
 
     # Create the player entity
     player_entity = mcrfpy.Entity(
-        pos=(player_x, player_y),
+        grid_pos=(player_x, player_y),
         texture=texture,
         sprite_index=SPRITE_PLAYER
     )

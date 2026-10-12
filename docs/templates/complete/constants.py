@@ -4,6 +4,8 @@ constants.py - Game Constants for McRogueFace Complete Roguelike Template
 All configuration values in one place for easy tweaking.
 """
 
+from mcrfpy import Key
+
 # =============================================================================
 # WINDOW AND DISPLAY
 # =============================================================================
@@ -151,22 +153,22 @@ FOV_LIGHT_WALLS = True   # Whether walls at FOV edge are visible
 
 # =============================================================================
 # INPUT KEYS
-# Key names as returned by McRogueFace keypressScene
+# mcrfpy.Key members, as delivered to scene.on_key handlers
 # =============================================================================
-KEY_UP = ['Up', 'W', 'Numpad8']
-KEY_DOWN = ['Down', 'S', 'Numpad2']
-KEY_LEFT = ['Left', 'A', 'Numpad4']
-KEY_RIGHT = ['Right', 'D', 'Numpad6']
+KEY_UP = [Key.UP, Key.W, Key.NUMPAD_8]
+KEY_DOWN = [Key.DOWN, Key.S, Key.NUMPAD_2]
+KEY_LEFT = [Key.LEFT, Key.A, Key.NUMPAD_4]
+KEY_RIGHT = [Key.RIGHT, Key.D, Key.NUMPAD_6]
 
 # Diagonal movement (numpad)
-KEY_UP_LEFT = ['Numpad7']
-KEY_UP_RIGHT = ['Numpad9']
-KEY_DOWN_LEFT = ['Numpad1']
-KEY_DOWN_RIGHT = ['Numpad3']
+KEY_UP_LEFT = [Key.NUMPAD_7]
+KEY_UP_RIGHT = [Key.NUMPAD_9]
+KEY_DOWN_LEFT = [Key.NUMPAD_1]
+KEY_DOWN_RIGHT = [Key.NUMPAD_3]
 
 # Actions
-KEY_WAIT = ['Period', 'Numpad5']     # Skip turn
-KEY_DESCEND = ['Greater', 'Space']   # Go down stairs (> key or space)
+KEY_WAIT = [Key.PERIOD, Key.NUMPAD_5]     # Skip turn
+KEY_DESCEND = [Key.SPACE]                 # Go down stairs
 
 # =============================================================================
 # GAME MESSAGES

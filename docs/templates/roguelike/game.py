@@ -58,6 +58,8 @@ class GameState:
         self.grid: mcrfpy.Grid = None
         self.player: mcrfpy.Entity = None
         self.rooms: List[RectangularRoom] = []
+        self.fog: mcrfpy.ColorLayer = None      # fog-of-war overlay
+        self.seen = set()                       # cells the player has seen
         self.enemies: List[Tuple[mcrfpy.Entity, EntityStats]] = []
 
         # Texture reference
@@ -94,32 +96,29 @@ def update_fov() -> None:
     # Tell McRogueFace/TCOD to recompute visibility from player position
     game.player.update_visibility()
 
-    grid_width, grid_height = game.grid.grid_size
+    grid_width, grid_height = game.grid.grid_w, game.grid.grid_h
 
-    # Apply visibility colors to each tile
+    # Apply visibility to the fog layer, one cell at a time
     for x in range(grid_width):
         for y in range(grid_height):
-            point = game.grid.at(x, y)
-
-            # Get the player's visibility state for this tile
-            state = game.player.at(x, y)
-
-            if state.visible:
-                # Currently visible - no overlay (full brightness)
-                point.color_overlay = COLOR_VISIBLE
-            elif state.discovered:
+            if game.player.at(x, y) is not None:
+                # Currently visible (entity.at() is None for cells not in FOV):
+                # clear fog, and remember that we have seen this cell
+                game.seen.add((x, y))
+                game.fog.set((x, y), COLOR_VISIBLE)
+            elif (x, y) in game.seen:
                 # Previously seen - dimmed overlay (memory)
-                point.color_overlay = COLOR_EXPLORED
+                game.fog.set((x, y), COLOR_EXPLORED)
             else:
                 # Never seen - completely dark
-                point.color_overlay = COLOR_UNKNOWN
+                game.fog.set((x, y), COLOR_UNKNOWN)
 
 
 # =============================================================================
 # INPUT HANDLING
 # =============================================================================
 
-def handle_keys(key: str, state: str) -> None:
+def handle_keys(key: mcrfpy.Key, state: mcrfpy.InputState) -> None:
     """
     Handle keyboard input for player movement and game controls.
 
@@ -127,34 +126,34 @@ def handle_keys(key: str, state: str) -> None:
     It processes key events and updates game state accordingly.
 
     Args:
-        key: The key that was pressed (e.g., "W", "Up", "Escape")
-        state: Either "start" (key pressed) or "end" (key released)
+        key: The mcrfpy.Key that changed (e.g. Key.W, Key.UP, Key.ESCAPE)
+        state: mcrfpy.InputState.PRESSED or RELEASED
     """
     # Only process key press events, not releases
-    if state != "start":
+    if state != mcrfpy.InputState.PRESSED:
         return
 
     # Movement deltas: (dx, dy)
     movement = {
         # Arrow keys
-        "Up": (0, -1),
-        "Down": (0, 1),
-        "Left": (-1, 0),
-        "Right": (1, 0),
+        mcrfpy.Key.UP: (0, -1),
+        mcrfpy.Key.DOWN: (0, 1),
+        mcrfpy.Key.LEFT: (-1, 0),
+        mcrfpy.Key.RIGHT: (1, 0),
         # WASD keys
-        "W": (0, -1),
-        "S": (0, 1),
-        "A": (-1, 0),
-        "D": (1, 0),
+        mcrfpy.Key.W: (0, -1),
+        mcrfpy.Key.S: (0, 1),
+        mcrfpy.Key.A: (-1, 0),
+        mcrfpy.Key.D: (1, 0),
         # Numpad (for diagonal movement if desired)
-        "Numpad8": (0, -1),
-        "Numpad2": (0, 1),
-        "Numpad4": (-1, 0),
-        "Numpad6": (1, 0),
-        "Numpad7": (-1, -1),
-        "Numpad9": (1, -1),
-        "Numpad1": (-1, 1),
-        "Numpad3": (1, 1),
+        mcrfpy.Key.NUMPAD_8: (0, -1),
+        mcrfpy.Key.NUMPAD_2: (0, 1),
+        mcrfpy.Key.NUMPAD_4: (-1, 0),
+        mcrfpy.Key.NUMPAD_6: (1, 0),
+        mcrfpy.Key.NUMPAD_7: (-1, -1),
+        mcrfpy.Key.NUMPAD_9: (1, -1),
+        mcrfpy.Key.NUMPAD_1: (-1, 1),
+        mcrfpy.Key.NUMPAD_3: (1, 1),
     }
 
     if key in movement:
@@ -169,10 +168,10 @@ def handle_keys(key: str, state: str) -> None:
             update_fov()
 
             # Center camera on player
-            px, py = game.player.pos
+            px, py = game.player.cell_pos
             game.grid.center = (px, py)
 
-    elif key == "Escape":
+    elif key == mcrfpy.Key.ESCAPE:
         # Quit the game
         mcrfpy.exit()
 
@@ -193,8 +192,8 @@ def initialize_game() -> None:
     5. Sets up input handling
     """
     # Create the game scene
-    mcrfpy.createScene("game")
-    ui = mcrfpy.sceneUI("game")
+    scene = mcrfpy.Scene("game")
+    ui = scene.children
 
     # Load the tileset texture
     # The default McRogueFace texture works great for roguelikes
@@ -213,6 +212,11 @@ def initialize_game() -> None:
         texture=game.texture
     )
     ui.append(game.grid)
+
+    # Fog-of-war layer, drawn over the tiles; update_fov() paints it
+    game.fog = mcrfpy.ColorLayer(z_index=1, name="fog")
+    game.grid.add_layer(game.fog)
+    game.fog.fill(COLOR_UNKNOWN)
 
     # Generate dungeon layout
     game.rooms = generate_dungeon()
@@ -250,10 +254,10 @@ def initialize_game() -> None:
     update_fov()
 
     # Register input handler
-    mcrfpy.keypressScene(handle_keys)
+    scene.on_key = handle_keys
 
     # Switch to game scene
-    mcrfpy.setScene("game")
+    scene.activate()
 
 
 # =============================================================================
