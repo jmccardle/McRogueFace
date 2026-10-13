@@ -54,7 +54,8 @@ MAKERS = {
 LAYOUT = {"margin", "horiz_margin", "vert_margin"}
 # Writable attributes that are deliberately not animatable.
 EXCLUDED = {
-    "Frame": LAYOUT, "Caption": LAYOUT, "Sprite": LAYOUT, "Arc": LAYOUT, "Circle": LAYOUT,
+    # Caption.baseline (#478) is a discrete anchor (TextBaseline), not a quantity.
+    "Frame": LAYOUT, "Caption": LAYOUT | {"baseline"}, "Sprite": LAYOUT, "Arc": LAYOUT, "Circle": LAYOUT,
     "Line": LAYOUT, "Grid": LAYOUT, "Viewport3D": {"cell_size"},
     # Logical state: the integer cell, turn order and behaviour configuration.
     "Entity": {"grid_pos", "grid_x", "grid_y", "cell_pos", "cell_x", "cell_y",

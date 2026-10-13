@@ -25,10 +25,11 @@ const keyboard: Keyboard
 const mouse: Mouse
 const window: Window
 
-=== MODULE DYNAMIC ATTRIBUTES (9) ===
+=== MODULE DYNAMIC ATTRIBUTES (10) ===
 attr animations (ro) :: Tuple of all currently running Animation objects (tuple, read-only).
 attr current_scene (rw) :: The active scene (Scene). Assign a Scene object, or a scene name as a string, to switch scenes.
 attr default_font (rw) :: Font used by Caption when none is given (Font). Loaded from assets/JetbrainsMono.ttf on first use; assign a Font to replace it.
+attr default_text_baseline (rw) :: TextBaseline a Caption gets when created without baseline= (TextBaseline). Built-in default TOP. A Caption copies it at construction, so changing it does not move existing captions. Set TextBaseline.EM_TOP for the pre-0.3.3 placement.
 attr default_texture (rw) :: Texture used by Sprite, Entity and Grid when none is given (Texture). Loaded from assets/kenney_tinydungeon.png on first use; assign a Texture to replace it.
 attr default_transition (rw) :: Default transition (Transition) applied when switching scenes without an explicit transition.
 attr default_transition_duration (rw) :: Default scene-transition duration in seconds (float). Must be non-negative.
@@ -39,7 +40,7 @@ attr timers (ro) :: Tuple of all active Timer objects (tuple, read-only).
 === SUBMODULES (1) ===
 submodule automation
 
-=== ENUMS (FROZEN) (12) ===
+=== ENUMS (FROZEN) (13) ===
 [Alignment]
   BOTTOM_CENTER = 7
   BOTTOM_LEFT = 6
@@ -239,6 +240,10 @@ submodule automation
   DISCOVERED = 1
   UNKNOWN = 0
   VISIBLE = 2
+[TextBaseline]
+  BASELINE = 1
+  EM_TOP = 2
+  TOP = 0
 [Transition]
   FADE = 1
   NONE = 0
@@ -317,7 +322,11 @@ submodule automation
 [Caption]
   prop advance: float (ro)
   prop align: Any (rw)
+  prop ascent: float (ro)
+  prop baseline: TextBaseline (rw)
+  prop baseline_y: float (ro)
   prop bounds: tuple (ro)
+  prop descent: float (ro)
   prop fill_color: Color (rw)
   prop font: Font (ro)
   prop font_size: int (rw)
@@ -328,6 +337,7 @@ submodule automation
   prop h: float (ro)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
+  prop line_height: float (ro)
   prop margin: float (rw)
   prop name: str (rw)
   prop on_click: Any (rw)
@@ -516,6 +526,7 @@ submodule automation
 [Font]
   prop family: str (ro)
   prop source: str (ro)
+  meth metrics :: metrics(size: int) -> tuple[float, float, float]
 [Frame]
   prop align: Any (rw)
   prop bounds: tuple (ro)

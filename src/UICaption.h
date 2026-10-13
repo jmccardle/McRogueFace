@@ -4,12 +4,33 @@
 #include "UIDrawable.h"
 #include "Display.h"
 #include "PyDrawable.h"
+#include "PyTextBaseline.h"
+
+class PyFont;
 
 class UICaption: public UIDrawable
 {
 public:
     sf::Text text;
     UICaption(); // Default constructor with safe initialization
+
+    // #478: the font the text is drawn with, and where its metrics come from. Set
+    // both through setFont(); never text.setFont() directly.
+    std::shared_ptr<PyFont> font_data;
+    void setFont(std::shared_ptr<PyFont> font);
+
+    // #478: which line of the first text line sits at pos.y. Copied from
+    // PyTextBaseline::default_baseline at construction.
+    TextBaseline baseline;
+    // Vertical offset (px, in text-local space) from where the backend's text puts the
+    // first baseline to where `baseline` wants it. False when that needs the font's
+    // ascent and the font has none at this size.
+    bool baselineShift(float& dy) const;
+    // Applies origin (plus the baseline shift) and rotation to `text`. False, leaving
+    // `text` unchanged, when baselineShift() fails.
+    bool syncTextLayout();
+    // syncTextLayout() for the Python-facing paths: ValueError when it fails.
+    bool syncTextLayoutOrRaise();
     void render(sf::Vector2f, sf::RenderTarget&) override final;
     PyObjectsEnum derived_type() override final;
     virtual UIDrawable* click_at(sf::Vector2f point) override final;
@@ -47,6 +68,10 @@ public:
     static PyObject* get_color_member(PyUICaptionObject* self, void* closure);
     static int set_color_member(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_advance(PyUICaptionObject* self, void* closure);
+    static PyObject* get_baseline(PyUICaptionObject* self, void* closure);
+    static PyObject* get_metric(PyUICaptionObject* self, void* closure);
+    static PyObject* get_baseline_y(PyUICaptionObject* self, void* closure);
+    static int set_baseline(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_text(PyUICaptionObject* self, void* closure);
     static int set_text(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_font(PyUICaptionObject* self, void* closure);
@@ -57,6 +82,8 @@ public:
     static PyObject* repr(PyUICaptionObject* self);
     static int init(PyUICaptionObject* self, PyObject* args, PyObject* kwds);
 
+private:
+    bool layout_warned = false;  // #478: render's one warning per caption
 };
 
 extern PyMethodDef UICaption_methods[];
@@ -96,6 +123,10 @@ namespace mcrfpydef {
         .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
         .tp_doc = PyDoc_STR("Caption(pos=None, font=None, text='', **kwargs)\n\n"
                             "A text display UI element with customizable font and styling.\n\n"
+                            "pos is the top-left of the text's line box: with the default\n"
+                            "baseline=TextBaseline.TOP the first baseline sits at pos.y + the\n"
+                            "font's ascent, so a Caption at a grid cell's top-left draws over that\n"
+                            "cell. See TextBaseline for the other anchors.\n\n"
                             "Args:\n"
                             "    pos (tuple, optional): Position as (x, y) tuple. Default: (0, 0)\n"
                             "    font (Font, optional): Font object for text rendering. Default: engine default font\n"
@@ -115,7 +146,10 @@ namespace mcrfpydef {
                             "    align (Alignment): Alignment relative to parent. Default: None\n"
                             "    margin (float): Margin from parent edge when aligned. Default: 0\n"
                             "    horiz_margin (float): Horizontal margin override. Default: 0 (use margin)\n"
-                            "    vert_margin (float): Vertical margin override. Default: 0 (use margin)\n\n"
+                            "    vert_margin (float): Vertical margin override. Default: 0 (use margin)\n"
+                            "    baseline (TextBaseline): Which line of the text sits at pos.y.\n"
+                            "        Default: mcrfpy.default_text_baseline at construction (TOP unless\n"
+                            "        changed); changing that default later does not move this caption.\n\n"
                             "Attributes:\n"
                             "    text (str): The displayed text content\n"
                             "    x, y (float): Position in pixels\n"
@@ -130,6 +164,9 @@ namespace mcrfpydef {
                             "    z_index (int): Rendering order\n"
                             "    name (str): Element name\n"
                             "    w, h (float): Read-only computed size based on text and font\n"
+                            "    baseline (TextBaseline): Vertical anchor of the text at pos.y\n"
+                            "    ascent, descent, line_height (float): Read-only font metrics at font_size\n"
+                            "    baseline_y (float): Read-only y of the first baseline\n"
                             "    align (Alignment): Alignment relative to parent (or None)\n"
                             "    margin (float): General margin for alignment\n"
                             "    horiz_margin (float): Horizontal margin override\n"
