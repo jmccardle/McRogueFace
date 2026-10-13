@@ -48,6 +48,7 @@
 #include "PyHeuristic.h"
 #include "PyBehavior.h"
 #include "PyTrigger.h"
+#include "PyTextBaseline.h"  // #478
 #include "UIGridView.h"
 #include "PySound.h"
 #include "PySoundBuffer.h"
@@ -243,6 +244,24 @@ static int mcrfpy_set_default_transition_duration(PyObject* self, PyObject* valu
     return 0;
 }
 
+// #478: what a Caption made without baseline= copies at construction.
+static PyObject* mcrfpy_get_default_text_baseline(PyObject* self, void* closure)
+{
+    return PyTextBaseline::to_python(PyTextBaseline::default_baseline);
+}
+
+static int mcrfpy_set_default_text_baseline(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'default_text_baseline'");
+        return -1;
+    }
+    TextBaseline baseline;
+    if (!PyTextBaseline::from_arg(value, &baseline)) return -1;
+    PyTextBaseline::default_baseline = baseline;
+    return 0;
+}
+
 static PyObject* mcrfpy_get_save_dir(PyObject* self, void* closure)
 {
 #ifdef __EMSCRIPTEN__
@@ -323,6 +342,12 @@ static PyGetSetDef mcrfpy_module_getset[] = {
      MCRF_PROPERTY(default_texture,
          "Texture used by Sprite, Entity and Grid when none is given (Texture). Loaded "
          "from assets/kenney_tinydungeon.png on first use; assign a Texture to replace it."
+     ), NULL},
+    {"default_text_baseline", mcrfpy_get_default_text_baseline, mcrfpy_set_default_text_baseline,
+     MCRF_PROPERTY(default_text_baseline,
+         "TextBaseline a Caption gets when created without baseline= (TextBaseline). "
+         "Built-in default TOP. A Caption copies it at construction, so changing it "
+         "does not move existing captions. Set TextBaseline.EM_TOP for the pre-0.3.3 placement."
      ), NULL},
     {"save_dir", mcrfpy_get_save_dir, NULL,
      MCRF_PROPERTY(save_dir,
@@ -756,7 +781,8 @@ void McRFPy_API::release_python_references()
                            &PyFOV::fov_enum_class,
                            &PyHeuristic::heuristic_enum_class, &PyAlignment::alignment_enum_class,
                            &PyBehavior::behavior_enum_class, &PyTrigger::trigger_enum_class,
-                           &PyPerspective::perspective_enum_class}) {
+                           &PyPerspective::perspective_enum_class,
+                           &PyTextBaseline::text_baseline_enum_class}) {
         Py_CLEAR(*cls);
     }
     PyTraversal::cleanup();  // borrowed: the module owns Traversal
@@ -1185,6 +1211,12 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
     PyObject* alignment_class = PyAlignment::create_enum_class(m);
     if (!alignment_class) {
         // If enum creation fails, continue without it (non-fatal)
+        PyErr_Clear();
+    }
+
+    // Add TextBaseline enum class for Caption vertical anchoring (#478)
+    PyObject* text_baseline_class = PyTextBaseline::create_enum_class(m);
+    if (!text_baseline_class) {
         PyErr_Clear();
     }
 

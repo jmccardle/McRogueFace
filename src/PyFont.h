@@ -1,6 +1,7 @@
 #pragma once
 #include "Common.h"
 #include "Python.h"
+#include <map>
 
 class PyFont;
 
@@ -16,12 +17,23 @@ class PyFont : public std::enable_shared_from_this<PyFont>
 {
 private:
     std::string source;
+    bool load_ok = false;
+    // #478, SFML desktop only: SFML 2.6 does not expose a font's ascent, so a second
+    // FreeType face on the same file answers it (FT_Face, typeless as in sf::Font).
+    void* metrics_face = nullptr;
+    std::map<unsigned int, float> ascent_cache;
 public:
     PyFont(std::string filename);
     ~PyFont();
     PyFont(const PyFont&) = delete;
     PyFont& operator=(const PyFont&) = delete;
     sf::Font font;
+    // #478: the font's ascent in px at `characterSize` (FreeType's
+    // face->size->metrics.ascender after FT_Set_Pixel_Sizes(face, 0, characterSize), the
+    // call SFML and the SDL2 backend both make). False when the font has no face.
+    bool ascent(unsigned int characterSize, float& out);
+    // #478: whether the file loaded (SFML's face, and on desktop our own metrics face).
+    bool loaded() const { return load_ok; }
     // #430: PythonObjectCache key for this font's one Python wrapper (0 = none yet).
     uint64_t serial_number = 0;
     // #430: the one cache-aware conversion (see PyTexture::pyobject_for). nullptr -> None.

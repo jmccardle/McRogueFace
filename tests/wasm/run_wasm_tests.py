@@ -183,6 +183,26 @@ def t_utf8_text(page):
     return _expect(out == "True True []", f"round-trip, width>0, wrong-width chars -> {out!r}")
 
 
+def t_text_baseline(page):
+    # #478: Caption.baseline places text the same way on every backend. The SDL2 Text
+    # draws its first baseline at the font's ascent, sf::Text at font_size; UICaption
+    # corrects each to the mode. A generated font (tests/regression/_synthetic_font.py)
+    # has ascent 16 px at size 20, so pos.y=60 puts the line top (SDL2 bounds are the
+    # line box) at 60 for TOP, 60 - 16 for BASELINE, 60 + 20 - 16 for EM_TOP.
+    font_src = (REPO_ROOT / "tests" / "regression" / "_synthetic_font.py").read_text()
+    out = rp(page, font_src + (
+        "\nimport mcrfpy\n"
+        "write('/tmp/f478.ttf', units_per_em=1000, ascender=800, descender=-200,"
+        " box=(100, 0, 500, 700), advance=600)\n"
+        "f = mcrfpy.Font('/tmp/f478.ttf')\n"
+        "tops = [mcrfpy.Caption(text='X', pos=(10, 60), font=f, font_size=20,"
+        " baseline=getattr(mcrfpy.TextBaseline, m)).bounds[0].y"
+        " for m in ('TOP', 'BASELINE', 'EM_TOP')]\n"
+        "print(tops, mcrfpy.default_text_baseline)\n"
+    )).strip()
+    return _expect(out == "[60.0, 44.0, 64.0] TOP", f"line tops per mode, default -> {out!r}")
+
+
 TESTS = [
     ("basic_eval", t_basic_eval),
     ("print_stdout", t_print_stdout),
@@ -195,6 +215,7 @@ TESTS = [
     ("globals_count", t_globals_count),
     ("reset_environment", t_reset_environment),
     ("utf8_text", t_utf8_text),
+    ("text_baseline", t_text_baseline),
 ]
 
 
