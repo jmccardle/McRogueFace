@@ -322,8 +322,11 @@ submodule automation
 [Caption]
   prop advance: float (ro)
   prop align: Any (rw)
+  prop ascent: float (ro)
   prop baseline: TextBaseline (rw)
+  prop baseline_y: float (ro)
   prop bounds: tuple (ro)
+  prop descent: float (ro)
   prop fill_color: Color (rw)
   prop font: Font (ro)
   prop font_size: int (rw)
@@ -334,6 +337,7 @@ submodule automation
   prop h: float (ro)
   prop horiz_margin: float (rw)
   prop hovered: Any (ro)
+  prop line_height: float (ro)
   prop margin: float (rw)
   prop name: str (rw)
   prop on_click: Any (rw)
@@ -522,6 +526,7 @@ submodule automation
 [Font]
   prop family: str (ro)
   prop source: str (ro)
+  meth metrics :: metrics(size: int) -> tuple[float, float, float]
 [Frame]
   prop align: Any (rw)
   prop bounds: tuple (ro)

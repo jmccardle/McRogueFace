@@ -37,10 +37,10 @@ PyFont::PyFont(std::string filename)
 #endif
 }
 
-bool PyFont::ascent(unsigned int characterSize, float& out)
+bool PyFont::metrics(unsigned int characterSize, Metrics& out)
 {
-    auto it = ascent_cache.find(characterSize);
-    if (it != ascent_cache.end()) { out = it->second; return true; }
+    auto it = metrics_cache.find(characterSize);
+    if (it != metrics_cache.end()) { out = it->second; return true; }
 #if defined(MCRF_HEADLESS)
     return false;  // no font rasterizer, no metrics
 #else
@@ -51,15 +51,72 @@ bool PyFont::ascent(unsigned int characterSize, float& out)
   #endif
     if (!face) return false;
     if (characterSize == 0) {
-        out = 0.0f;  // nothing is drawn at size 0
+        out = Metrics{};  // nothing is drawn at size 0
     } else {
         if (FT_Set_Pixel_Sizes(face, 0, characterSize) != 0) return false;
-        out = face->size->metrics.ascender / 64.0f;  // 26.6 fixed point
+        // 26.6 fixed point. `height` is what both backends advance per line: SFML's
+        // Font::getLineSpacing() and the SDL2 FontAtlas line height read the same field.
+        out.ascent = face->size->metrics.ascender / 64.0f;
+        out.descent = -face->size->metrics.descender / 64.0f;
+        out.line_height = face->size->metrics.height / 64.0f;
     }
-    ascent_cache[characterSize] = out;
+    metrics_cache[characterSize] = out;
     return true;
 #endif
 }
+
+bool PyFont::ascent(unsigned int characterSize, float& out)
+{
+    Metrics m;
+    if (!metrics(characterSize, m)) return false;
+    out = m.ascent;
+    return true;
+}
+
+bool PyFont::metricsOrRaise(unsigned int characterSize, Metrics& out)
+{
+    if (metrics(characterSize, out)) return true;
+#if defined(MCRF_HEADLESS)
+    PyErr_SetString(PyExc_RuntimeError,
+        "font metrics are not available in an MCRF_HEADLESS build (no font rasterizer)");
+#else
+    PyErr_Format(PyExc_ValueError, "font '%s' has no metrics at size %u",
+                 source.c_str(), characterSize);
+#endif
+    return false;
+}
+
+PyObject* PyFont::py_metrics(PyFontObject* self, PyObject* args, PyObject* kwds)
+{
+    static const char* keywords[] = { "size", nullptr };
+    int size;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "i", const_cast<char**>(keywords), &size))
+        return NULL;
+    if (size < 1 || size > 2048) {
+        PyErr_Format(PyExc_ValueError, "size must be between 1 and 2048 pixels, got %d", size);
+        return NULL;
+    }
+    Metrics m;
+    if (!self->data->metricsOrRaise(static_cast<unsigned int>(size), m)) return NULL;
+    return Py_BuildValue("(fff)", m.ascent, m.descent, m.line_height);
+}
+
+PyMethodDef PyFont::methods[] = {
+    {"metrics", (PyCFunction)PyFont::py_metrics, METH_VARARGS | METH_KEYWORDS,
+     MCRF_METHOD(Font, metrics,
+         MCRF_SIG("(size: int)", "tuple[float, float, float]"),
+         MCRF_DESC("Vertical metrics of this font at a pixel size, as a Caption of that "
+                   "font_size lays it out: (ascent, descent, line_height)."),
+         MCRF_ARGS_START
+         MCRF_ARG("size", "Pixel size (a Caption's font_size), 1 to 2048")
+         MCRF_RETURNS("(ascent, descent, line_height) in px: ascent above the baseline, "
+                      "descent below it (positive), and the baseline-to-baseline distance "
+                      "between lines of multi-line text")
+         MCRF_RAISES("ValueError", "size is out of range, or the font has no metrics at it")
+         MCRF_RAISES("RuntimeError", "in an MCRF_HEADLESS build, which has no font rasterizer")
+     )},
+    {NULL}
+};
 
 PyFont::~PyFont()
 {

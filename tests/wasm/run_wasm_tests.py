@@ -198,9 +198,14 @@ def t_text_baseline(page):
         "tops = [mcrfpy.Caption(text='X', pos=(10, 60), font=f, font_size=20,"
         " baseline=getattr(mcrfpy.TextBaseline, m)).bounds[0].y"
         " for m in ('TOP', 'BASELINE', 'EM_TOP')]\n"
-        "print(tops, mcrfpy.default_text_baseline)\n"
+        "ys = [mcrfpy.Caption(text='X', pos=(10, 60), font=f, font_size=20,"
+        " baseline=getattr(mcrfpy.TextBaseline, m)).baseline_y"
+        " for m in ('TOP', 'BASELINE', 'EM_TOP')]\n"
+        "print(tops, ys, f.metrics(20), mcrfpy.default_text_baseline)\n"
     )).strip()
-    return _expect(out == "[60.0, 44.0, 64.0] TOP", f"line tops per mode, default -> {out!r}")
+    # Same values as desktop (tests/regression/issue_478_font_metrics_test.py).
+    want = "[60.0, 44.0, 64.0] [76.0, 60.0, 80.0] (16.0, 4.0, 20.0) TOP"
+    return _expect(out == want, f"line tops, baseline_y, metrics, default -> {out!r}")
 
 
 TESTS = [

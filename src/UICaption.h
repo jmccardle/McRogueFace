@@ -69,6 +69,8 @@ public:
     static int set_color_member(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_advance(PyUICaptionObject* self, void* closure);
     static PyObject* get_baseline(PyUICaptionObject* self, void* closure);
+    static PyObject* get_metric(PyUICaptionObject* self, void* closure);
+    static PyObject* get_baseline_y(PyUICaptionObject* self, void* closure);
     static int set_baseline(PyUICaptionObject* self, PyObject* value, void* closure);
     static PyObject* get_text(PyUICaptionObject* self, void* closure);
     static int set_text(PyUICaptionObject* self, PyObject* value, void* closure);
@@ -163,6 +165,8 @@ namespace mcrfpydef {
                             "    name (str): Element name\n"
                             "    w, h (float): Read-only computed size based on text and font\n"
                             "    baseline (TextBaseline): Vertical anchor of the text at pos.y\n"
+                            "    ascent, descent, line_height (float): Read-only font metrics at font_size\n"
+                            "    baseline_y (float): Read-only y of the first baseline\n"
                             "    align (Alignment): Alignment relative to parent (or None)\n"
                             "    margin (float): General margin for alignment\n"
                             "    horiz_margin (float): Horizontal margin override\n"

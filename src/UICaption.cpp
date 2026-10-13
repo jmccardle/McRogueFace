@@ -426,6 +426,42 @@ PyObject* UICaption::get_advance(PyUICaptionObject* self, void* closure)
     return PyFloat_FromDouble(text_advance(self->data->text));
 }
 
+// #478: the caption's font metrics at its font_size; raises like the setters do.
+static bool caption_metrics(PyUICaptionObject* self, PyFont::Metrics& m)
+{
+    if (!self->data->font_data) {
+        PyErr_SetString(PyExc_ValueError, "Caption has no font");
+        return false;
+    }
+    return self->data->font_data->metricsOrRaise(self->data->text.getCharacterSize(), m);
+}
+
+PyObject* UICaption::get_metric(PyUICaptionObject* self, void* closure)
+{
+    PyFont::Metrics m;
+    if (!caption_metrics(self, m)) return NULL;
+    switch (reinterpret_cast<intptr_t>(closure)) {
+        case 0: return PyFloat_FromDouble(m.ascent);
+        case 1: return PyFloat_FromDouble(m.descent);
+        default: return PyFloat_FromDouble(m.line_height);
+    }
+}
+
+PyObject* UICaption::get_baseline_y(PyUICaptionObject* self, void* closure)
+{
+    PyFont::Metrics m;
+    if (!caption_metrics(self, m)) return NULL;
+    if (!self->data->syncTextLayoutOrRaise()) return NULL;
+    // Where the backend's text puts its first baseline, in text-local space; the text's
+    // transform (position, origin + baseline shift, rotation) takes it to parent space.
+#if defined(MCRF_SDL2)
+    const float local = m.ascent;
+#else
+    const float local = static_cast<float>(self->data->text.getCharacterSize());
+#endif
+    return PyFloat_FromDouble(self->data->text.getTransform().transformPoint(0.0f, local).y);
+}
+
 PyObject* UICaption::get_baseline(PyUICaptionObject* self, void* closure)
 {
     return PyTextBaseline::to_python(self->data->baseline);
@@ -479,6 +515,28 @@ PyGetSetDef UICaption::getsetters[] = {
          "Pen advance of the text in pixels (float, read-only): sum of glyph advances plus kerning "
          "for the widest line. Unlike w, it includes trailing spaces and side bearings, so it is where "
          "the next span starts. Unaffected by outline. 0 under MCRF_HEADLESS builds (no font metrics)."
+     ), NULL},
+    {"ascent", (getter)UICaption::get_metric, NULL,
+     MCRF_PROPERTY(ascent,
+         "Font ascent at this caption's font_size, in px above the baseline (float, read-only). "
+         "Raises ValueError if the font has no metrics at that size; RuntimeError in an "
+         "MCRF_HEADLESS build (no font rasterizer)."
+     ), (void*)0},
+    {"descent", (getter)UICaption::get_metric, NULL,
+     MCRF_PROPERTY(descent,
+         "Font descent at this caption's font_size, in px below the baseline, positive "
+         "(float, read-only). Raises like ascent."
+     ), (void*)1},
+    {"line_height", (getter)UICaption::get_metric, NULL,
+     MCRF_PROPERTY(line_height,
+         "Baseline-to-baseline distance between lines of multi-line text at this font_size, "
+         "in px (float, read-only). Raises like ascent."
+     ), (void*)2},
+    {"baseline_y", (getter)UICaption::get_baseline_y, NULL,
+     MCRF_PROPERTY(baseline_y,
+         "Y of the first line's baseline where the text starts, in parent coordinates "
+         "(float, read-only): y + ascent for TOP, y for BASELINE, y + font_size for EM_TOP "
+         "(less origin.y, and rotated with the text). Raises like ascent."
      ), NULL},
     {"baseline", (getter)UICaption::get_baseline, (setter)UICaption::set_baseline,
      MCRF_PROPERTY(baseline,
