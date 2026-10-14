@@ -20,9 +20,10 @@ from pathlib import Path
 
 from .errors import ProjectError
 
-# Left out of the stdlib a package ships.
+# Left out of the stdlib a package ships. (ensurepip stays: its bundled pip wheel is the pip
+# `mcrf_project deps` runs, #499.)
 STDLIB_EXCLUDED_DIRS = ("test", "tests", "idlelib", "tkinter", "turtledemo", "pydoc_data",
-                        "lib2to3", "ensurepip", "_pyrepl", "__pycache__")
+                        "lib2to3", "_pyrepl", "__pycache__")
 STDLIB_EXCLUDED_FILES = ("*.pyc", "*.pyo", "test_*.py", "*_test.py")
 # Left out of the extension modules (Linux).
 EXTENSION_EXCLUDED = ("*test*", "xxlimited*", "_ctypes_test*", "_xxtestfuzz*")

@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from .errors import ProjectError
+from . import deps
 from .locate import locate
 from .project import Project
 from .runtime import Runtime, archive, copy_content, copy_release_docs, fresh_dir, web_archive
@@ -31,6 +32,13 @@ def cmd_run(args):
     located = locate(project, flag=args.engine)
     log("engine: %s" % located.describe())
     return project.run(located.runtime, args.engine_args)
+
+
+def cmd_deps(args):
+    project = Project(args.project)
+    located = locate(project, flag=args.engine)
+    log("engine: %s" % located.describe())
+    log("installed %s" % deps.install(project, located.runtime, log))
 
 
 def cmd_dist(args):
@@ -115,6 +123,11 @@ def main(argv=None):
     p.add_argument("engine_args", nargs=argparse.REMAINDER,
                    help="arguments for the engine (after --), e.g. -- --headless")
     p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("deps", help="install the project's requirements (mcrf.toml) into .venv/")
+    p.add_argument("--project", default=".", help="project directory (default: .)")
+    p.add_argument("--engine", help=ENGINE_HELP)
+    p.set_defaults(func=cmd_deps)
 
     p = sub.add_parser("dist", help="package the game")
     p.add_argument("--project", default=".", help="project directory (default: .)")
