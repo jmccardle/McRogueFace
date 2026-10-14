@@ -1,8 +1,8 @@
 # McRogueFace - Development Roadmap
 
-**Version**: 0.2.8 | **Era**: McRogueFace (2D roguelikes) -- on the road to 1.0
+**Version**: 0.3.3 released, master is 0.3.4-dev | **Era**: McRogueFace (2D roguelikes) -- on the road to 1.0
 
-For detailed architecture, philosophy, and decision framework, see the [Strategic Direction](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Strategic-Direction) wiki page. For per-issue tracking, see the [issue tracker](https://dev.ffwf.net/forgejo/john/McRogueFace/issues) and the [0.3.0 release board](https://dev.ffwf.net/forgejo/john/McRogueFace/projects/8).
+For detailed architecture, philosophy, and decision framework, see the [Strategic Direction](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Strategic-Direction) wiki page. For per-issue tracking, see the [issue tracker](https://dev.ffwf.net/forgejo/john/McRogueFace/issues) and the [0.3.0 release board](https://dev.ffwf.net/forgejo/john/McRogueFace/projects/8) (release notes per version: `docs/release-notes-*.md`).
 
 ---
 
@@ -25,36 +25,54 @@ For detailed architecture, philosophy, and decision framework, see the [Strategi
 
 ---
 
-## Current Focus: API Freeze + Memory Safety Sweep
+## Current State (2026-10-14)
 
-7DRL 2026 is behind us (Feb 28 -- Mar 8). The engine has two concurrent tracks to 1.0:
+**0.3.3 is released** (tag `0.3.3` = 88baca4; Linux, Windows and WASM packages in `dist/`), pushed to Forgejo and GitHub with tags 0.3.1-0.3.3. Master is `0.3.4-dev`. Releases are cut by `make release VERSION=x.y.z` (#475); the version header is the only source of truth, the tag comes last, and the script never pushes or publishes.
 
-### Track 1: API Freeze
-The process is underway. Closed in this pass: camelCase module functions (#304), deprecated `sprite_number` (#305), legacy string enum comparisons (#306), `Color.__eq__`/`__ne__` (#307), `Grid.position` alias (#308). The freeze decisions are now locked behind a public API-surface snapshot regression test (#314), so accidental signature drift fails CI.
+### The 0.3 series (October 2026)
+- **0.3.0** (26cd8b6): CPython 3.15 embed, frame pointers (#421), exit teardown (#468), `mcrfpy.lock()` windows, one package per platform (#435). Notes: `docs/release-notes-0.3.0.md`.
+- **0.3.1 / 0.3.2**: release pipeline (#475), sprites fill their cells (tile layers and entities scale to the cell), `Caption.advance` (#479), `lock()` serves each thread once per frame (#410), working shipped templates (#380).
+- **0.3.3**: `Caption.advance` is a pure pen advance (the 0.3.2 `pos.x` bug), Caption font metrics (`ascent`, `descent`, `line_height`, `baseline`; #478/#494), `Font` metrics from Python.
+- Known doc debt: pages listed in #491 still describe the old entity-position behaviour; the 0.3.2 docs describe the buggy `Caption.advance`.
 
-Remaining freeze work:
-1. Catalog every public Python class, method, and property -- audit against `stubs/mcrfpy.pyi` and generated docs (snapshot test now enforces the catalog)
-2. Identify any last naming/signature/default changes before committing
-3. Final breaking-change pass, bundled
-4. Document the stable API as the contract
-5. Experimental modules (3D/Voxel) stay out of the freeze with an `experimental` label
+### API freeze and fuzzing (carried over, still the 1.0 path)
+The public surface is locked behind the API-surface snapshot test (#314) and `api/manifest.json` (`tools/api_delta.py REF1 REF2` diffs it by ref). Remaining freeze work: a last bundled breaking-change pass, then document the stable API as the contract; 3D/Voxel stays `experimental` and outside the freeze. The libFuzzer+ASan harness (#283, #312) covers grids, property types, anim/timer/scene lifecycles, FOV, procgen, pathfinding, audio DSP, import parsers, texture factory and shader bindings; its bugs (#258-#325) are fixed.
 
-### Track 2: Fuzz-Driven Bug Sweep
-The libFuzzer+ASan harness (#283) has nine work tranches merged: build plumbing (W1), native harness (W2/W3), then six targeted fuzzers under `tests/fuzz/`:
-- `fuzz_grid_entity` -- EntityCollection lifetime (W4, fixed #258-#263, #273, #274)
-- `fuzz_property_types` -- refcount / type confusion (W5, fixed #267, #268, #272)
-- `fuzz_anim_timer_scene` -- animation/timer/scene lifecycles (W6)
-- `fuzz_fov` -- compute_fov parameters (W8, fixed #310)
-- `fuzz_maps_procgen` -- HeightMap/DiscreteMap interfaces (W7)
-- `fuzz_pathfinding_behavior` -- Dijkstra + turn manager (W9, fixed #311)
+## Next Releases
 
-Coverage extension (#312) added four more: `fuzz_audio_dsp` (SoundBuffer DSP), `fuzz_import_parsers` (Tiled/LDtk file parsers), `fuzz_texture_factory` (byte ingestion), `fuzz_shader_bindings` (uniform-binding lifetime), plus Tier C surface folded into the existing targets. That run found five new bugs: #321 (HIGH -- ColorLayer.draw_fov bad-free), #322 (WangSet.terrain_enum error-pending abort), #323/#324/#325 (float→int UB in pitch_shift/hsl_shift/Vector) -- all five now fixed and merged, see Recently Shipped.
+Milestones are not set up in Forgejo; these groupings are from the labels and the work in flight. 0.4.0 is a **proposal** for John to confirm.
 
-### 0.3.0 Release Set (October 2026)
-`sim/integration` merged to master as `678ef74` (2026-10-09). Draft notes: `docs/release-notes-0.3.0.md`; Python 3.15 is the headline. Tracked on the [0.3.0 board](https://dev.ffwf.net/forgejo/john/McRogueFace/projects/8):
-- **Fixes**: #414 (Vector leak per position set; the `cell_pos` hotspot), #413 (`get_metrics()` leak), #420 (`mcrf-init.sh` hardcodes 3.14), #411 (off-thread `step()` outside the lock runs a frame), #392 (WASM REPL traceback; verify in a browser), #422 (`--exec` tracebacks say `<string>`), #400 (flaky OpenAL teardown in the suite).
-- **Decided enhancements**: #407 `play_varied()` plays on a separate voice (stop documenting the restore); #397 timers **catch up** across a wide step/advance (an interval T over a span fires N times); #418 `clear()` on UICollection/EntityCollection; #405 VisibilityMask value equality + hash; #406 `--audio-off` / `config.audio_enabled` actually silence audio.
-- **Docs**: wiki + site + engine prose updated against master `73acab0` (wiki was last verified before the Grid type split).
+### 0.3.4 (in flight: five agents, branches unmerged)
+| Group | Issues |
+|---|---|
+| Packaging and project tooling | #498 (package lacks `_sysconfigdata`, tier1 bug), #500 (`mcrf_project run` finds an installed engine), #499 (project dependencies -> `.venv`, bundled by `dist`) |
+| Engine startup / `sys.path` | #502 (document the order; make #452's test hermetic; tier1 bug), #501 (expose engine flags and run configuration to scripts) |
+| Input (requested by mcrf-term) | #497 (modifier keys from the event), #495 (text-entry event), #496 (configurable console hotkeys) |
+| Grid | #493 (`default_fov` is dead, tier1 bug) |
+| Color names | #489 / #458, branch `issue-458-color-names`: catch-up merge, one deduplicated list, lowercase/no-space names normalized at parse time. Held for John's review |
+
+### 0.4.0 candidates (proposed)
+Theme: a stable foundation for simulation and tooling, ahead of the 1.0 freeze.
+- **Clock and determinism**: #448 clock ownership (one simulation clock, realtime or manual driver), #408 unrecorded RNG seeds, #403 `GridData` identity, #393 deterministic animated-snippet capture.
+- **Textures and rendering**: #454 textures resolve when drawn (own -> GridView -> GridData -> default), #455 non-16 / non-square cells, #352 perspective grids take the render early-out, #347 SFML vs SDL2 renderer parity, #390 SDL2 Fail-Early hardening.
+- **Web**: epic #387 (parity and divergence testing; the only open tier1 epic).
+- **Grid and FOV design**: #434 `compute_fov()` vs entity perspective, #444 Dijkstra at 8192x8192.
+- **Python environment**: #337 numpy strategy (builds on #499/#500 project tooling).
+- **Threading**: #416 unlocked-mutation use-after-free (tier2 bug). #417 and #336 (free-threading) stay tier3.
+- **Design proposals**: #349 hybrid scene serialization, #459 evolved-programs epic.
+
+Later (tier3/4): #471, #415, #439, #338, #152, #124, #107, #67, #62, #54, #70, #55, #220.
+
+### Follow-ups not yet filed
+- An entity "move to cell and slide" helper.
+- Multi-tile entities (`sprite_grid` / `tile_width`) are never drawn.
+- Open #494 decisions: `Font(path)` raising IOError, the Windows build needing the `modules/SFML` submodule for FreeType headers, `bounds` being the ink box on desktop but the line box on web, and `Font.metrics` returning a plain tuple.
+- Machine concern: `~/.local/bin/python3.15` is a symlink into a `/tmp` scratchpad (3.15.0rc3); mcrf-term's `.venv` depends on it.
+- Gauntlet baseline (`tests/benchmarks/gauntlet/run_gauntlet.py`) should be recaptured on a quiet machine; resolution is ~2x too coarse (#472).
+
+---
+
+## Previously Shipped
 
 ### Merged from `sim/integration` (October 2026)
 - **CPython 3.15 embed (`feat/python-315`, merged as `fb63add`)** -- `modules/cpython` pinned to **v3.15.0** final (`d220409`; was 3.15.0rc3 `8a8eb0b` -- the rc3->final diff touches only `_remote_debugging`, no build files). 3.15 builds with frame pointers by default (PEP 831); the engine now does too (#421). Interpreter version is derived from `Include/patchlevel.h`, not hardcoded. Per-platform staging: Linux `make deps` -> `__lib/`; Windows `make python-windows` (python.org embeddable zip, import lib built via `objdump` export table -> `dlltool`); WASM `make python-wasm` (CPython's `Platforms/emscripten`, bootstrapped through the native build python because it needs >=3.12; Node from emsdk via `--host-runner`). Follow-up fixes on the branch: **6f0dc3f** staging is pinned to the submodule version (a leftover 3.14 `__lib` made `make deps` skip the build, then fail linking `-lpython3.15`) and the build refuses a stray in-tree `Include/pyconfig.h` (it shadows the build's own and broke wasm32 with a `LONG_BIT` error); **3be5cb5** Windows packages never shipped the `.pyd` extension modules -- `socket`/`ssl`/`asyncio`/`ctypes`/`sqlite3` were unimportable, including in 0.2.8 (#419) -- now staged to `lib/Python/DLLs`; **b538691** WASM links export `__PyRuntime` + the Emscripten trampoline offset, and `wasm_stdlib/lib/python3.15` adds `_colorize`/`pathlib`/`email`/full `importlib` (fixes the #392 REPL traceback). Verified: Linux suite 638/638; Windows under Wine (asyncio TCP, OpenSSL 3.5.9, 30/30 sampled unit tests, packaged zip runs outside the tree); WASM boots and renders in headless Chromium with a real REPL traceback.
@@ -84,17 +102,6 @@ Coverage extension (#312) added four more: `fuzz_audio_dsp` (SoundBuffer DSP), `
 - **#316** -- Sparse (windowed) perspective writeback in `UIEntity::updateVisibility`. The demote+promote passes are now clipped to an AABB sized to `fov_radius` (with a `prev_fov` window cache so a moving entity leaves no trailing "ghost vision"), replacing two full-`W*H` walks per entity. The Phase 5.2 benchmark's flat ~25-36 ms/entity writeback overhead on a 1000x1000 grid collapses to single-digit microseconds (384x-6577x on the cheap algorithms; lost in timing noise on the rest). Adversarial verify caught a regression the happy-path test missed -- externally-assigned maps (the documented `from_bytes` load/resume path) need a one-shot full demote (`perspective_full_demote_pending`) since `prev_fov` only bounds engine-promoted cells; fixed and locked with a 7-section regression test.
 - **#313** -- `UIEntity::grid` migrated from `shared_ptr<UIGrid>` to `shared_ptr<GridData>` (post-#252 refactor cleanup), adding a new public `entity.texture` read/write property. Merged to master.
 - **#314** -- API audit follow-through complete. (1) Snapshot lock: a public API-surface regression test (`tests/unit/api_surface_snapshot_test.py`) enshrines the frozen contract. (2) **F15**: all 289 raw docstring slots across the 20 frozen binding files converted to `MCRF_*` macros (frozen surface 100% compliant), driven by two one-agent-per-file workflows with build/doc gates and an adversarial signature-accuracy verify pass. Property types now resolve to real types (not `Any`) and read-only flags are correct. (3) A strict frozen-docstring gate (`tools/check_frozen_docstrings.sh`, wired into `generate_all_docs.sh`) locks it against regression. Breaking-change findings (F1/F4/F6/F11/F13) closed earlier; F7/F8/F10 deferred as non-1.0. Code-level bugs surfaced by the verify pass filed as #317/#318/#319.
-
-### Active Follow-Ups
-- The memory-model review (#326-#338) is nearly closed out: the five tier1 freeze decisions (#326-#330), #331 (hot-getter fast path), #332 (GridData SoA), #333 (lazy TCOD map rebuild), #334 (DiscreteMap buffer protocol), and #335 (numpy layer views) are all **resolved** on master. Still open: **#338** (per-instance memory diet -- shipped as a safe subset, the `render_sprite` relocation deferred), **#336** (free-threading hardening), **#337** (numpy availability strategy), and **#352** (perspective-grid render early-out).
-- The grid type-split bugs and the profiling/Gauntlet testability gaps are now **closed**: #369 (`.parent` identity churn), #372 (rotted `tests/demo/`, superseded by #374), #356 (doc/stub generators miss module-level dynamic attributes), #341 (get_metrics render counters read 0), and #350 (headless `step()` bypasses `updatePythonScenes()`).
-- #349 (declarative scene serialization) is an open tier2 design proposal.
-- Gauntlet baseline should be recaptured on a quiet system (`tests/benchmarks/gauntlet/run_gauntlet.py`) -- the committed first baseline is real but desktop-noisy for the callback-heavy trials. (#341, render counters read 0 in get_metrics, which blocked richer per-subsystem HUD attribution, is now closed.)
-- 0.2.8 is released and published: commit `cf844f4` and the `0.2.8` tag are both pushed, and the distribution artifacts are uploaded. Master has since advanced past `36e74e0` (grid input revival + type split) through the July perf/grid sprints and the docs-as-tests thread; the `closes #...` commit trailers take their issues down on merge.
-
-### Other Post-7DRL Priorities
-- Progress on the r/roguelikedev tutorial series (#167)
-- Better pip/virtualenv integration for adding packages to McRogueFace's embedded interpreter
 
 ---
 
@@ -142,20 +149,18 @@ Rather than inverting the architecture to make McRogueFace a pip-installable pac
 
 ## Open Issues by Area
 
-62 open issues across the tracker. Key groupings:
+50 open issues (2026-10-14). Key groupings:
 
-- **Threading / frame lock** (#398, #410, #411, #412, #416, #417, #395, #336) -- the `mcrfpy.lock()` barrier: headless window, starvation, off-main-thread `step()`, lock-order deadlock, unlocked-mutation UAF, holder-vs-holder races, coverage, and free-threaded hardening
-- **Simulation determinism / sim-spec** (#394, #396, #397, #402-#409, #413, #414) -- seeded behavior RNG, a Python-visible simulation clock, timer re-phasing, VisibilityMask/GridData identity, per-call leaks in `cell_pos` and `get_metrics()`
-- **3.15 migration fallout** (#419, #420, #401, #392, #418) -- #401 and #419 are fixed on `sim/integration`; close them by hand at the master merge
-
-- **Docs-as-tests fallout** (#380, #374) -- shipped `templates/*/` example programs are gated by nothing; 19 orphan scripts under `tests/demo/screens/` need adoption or retirement. Both spun out of the July snippets-as-tests thread (the docs site's code samples are now in the gated suite). The earlier bug batch (#369 `.parent` identity, #372 rotted `tests/demo/`, #356 doc generators miss module attrs, #341 get_metrics counters, #350 headless `step()` bypass) is **closed**.
-- **Memory-model review, July 2026** (#336, #337, #338 remaining; #326-#335 resolved) -- per-instance memory diet, free-threading hardening, numpy availability strategy
-- **Grid / rendering** (#352, #152, #67, #124, #107, #347) -- perspective-grid render early-out; sparse layers; infinite worlds; grid point animation; particle system; SFML vs SDL2/WebGL renderer parity
-- **Design proposals** (#349) -- hybrid declarative scene serialization (test oracle + save/load)
-- **Demos / tutorials** (#167, #248, #154, #156, #55) -- r/roguelikedev series, Crypt of Sokoban remaster, LLM agent simulations
-- **Platform/distribution** (#70, #54, #62, #53) -- Packaging without the embedded interpreter, Jupyter, multiple windows, input methods
-- **WASM tooling** (#239, #346) -- Automated browser testing; web-build profiling docs (sibling to #345)
-- **Deferred** (#220, #46, #45) -- Subinterpreter support / tests, accessibility modes
+- **Packaging / project tooling** (#498-#502, #70, #337) -- the package `_sysconfigdata`, project dependencies, finding an installed engine, `sys.path` order, run configuration visible to scripts
+- **Input** (#495, #496, #497, #53) -- text-entry events, console hotkeys, event-sourced modifier keys
+- **Threading / frame lock** (#416, #417, #336) -- unlocked-mutation UAF, holder-vs-holder races, free-threaded hardening
+- **Simulation determinism** (#448, #408, #403) -- one clock, recorded RNG seeds, `GridData` identity
+- **Grid / FOV / rendering** (#493, #454, #455, #434, #444, #471, #352, #152, #124, #67, #107, #347, #390, #393) -- default FOV, texture resolution, cell shapes, FOV design, big Dijkstra maps, chunk cache
+- **Color** (#458, #489) -- color names, on a branch awaiting review
+- **Docs / tooling** (#380, #381, #349, #472) -- template gating, snippet screenshots, scene serialization, Gauntlet resolution
+- **Epics** (#387 web parity, #459 evolved programs)
+- **Demos / tutorials** (#167, #248, #154, #156, #55, #54, #62) -- r/roguelikedev series, Crypt of Sokoban remaster, LLM agent simulations
+- **Deferred** (#220, #124) -- subinterpreters, grid point animation
 
 See the [Forgejo issue tracker](https://dev.ffwf.net/forgejo/john/McRogueFace/issues) for current status.
 
