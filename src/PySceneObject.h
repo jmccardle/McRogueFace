@@ -41,6 +41,7 @@ public:
     static void call_on_enter(PySceneObject* self);
     static void call_on_exit(PySceneObject* self);
     static void call_on_key(PySceneObject* self, const std::string& key, const std::string& action);
+    static void call_on_text(PySceneObject* self, const std::string& utf8);  // #495
     static void call_update(PySceneObject* self, float dt);
     static void call_on_resize(PySceneObject* self, sf::Vector2u new_size);
 
@@ -77,6 +78,7 @@ namespace mcrfpydef {
             "    active (bool, read-only): Whether this scene is currently displayed.\n"
             "    children (UICollection, read-only): UI elements in this scene. Modify to add/remove elements.\n"
             "    on_key (callable): Keyboard handler. Set on ANY scene, regardless of which is active!\n"
+            "    on_text (callable): Text-entry handler, called with (text: str) for typed characters.\n"
             "    pos (Vector): Position offset for all UI elements.\n"
             "    visible (bool): Whether the scene renders.\n"
             "    opacity (float): Scene transparency (0.0-1.0).\n\n"
@@ -84,6 +86,7 @@ namespace mcrfpydef {
             "    on_enter(): Called when scene becomes active via activate().\n"
             "    on_exit(): Called when scene is deactivated (another scene activates).\n"
             "    on_key(key: str, action: str): Called for keyboard events (subclass method).\n"
+            "    on_text(text: str): Called with typed text (subclass method).\n"
             "    update(dt: float): Called every frame with delta time in seconds.\n"
             "    on_resize(new_size: Vector): Called when window is resized.\n\n"
             "Example:\n"

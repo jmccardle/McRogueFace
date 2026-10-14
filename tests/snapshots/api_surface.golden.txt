@@ -814,6 +814,7 @@ submodule automation
   prop children: UICollection (ro)
   prop name: str (ro)
   prop on_key: Any (rw)
+  prop on_text: Enter (rw)
   prop opacity: Any (rw)
   prop pos: Vector (rw)
   prop registered: bool (ro)
@@ -953,6 +954,8 @@ submodule automation
   meth magnitude_squared :: magnitude_squared() -> float
   meth normalize :: normalize() -> Vector
 [Window]
+  prop console_key: Key (rw)
+  prop explorer_key: Key (rw)
   prop framerate_limit: int (rw)
   prop fullscreen: bool (rw)
   prop game_resolution: Any (rw)
@@ -1299,6 +1302,7 @@ func screenshot :: screenshot(filename: str) -> bool
 func scroll :: scroll(clicks: int, pos: tuple | list | Vector | None = None) -> None
 func size :: size() -> Vector
 func tripleClick :: tripleClick(pos: tuple | list | Vector | None = None) -> None
+func typeText :: typeText(text: str) -> None
 func typewrite :: typewrite(message: str, interval: float = 0.0) -> None
 
 === DELEGATION INTEGRITY (Grid instance -> GridData) ===

@@ -41,6 +41,10 @@ public:
     static int set_framerate_limit(PyWindowObject* self, PyObject* value, void* closure);
     static PyObject* get_game_resolution(PyWindowObject* self, void* closure);
     static int set_game_resolution(PyWindowObject* self, PyObject* value, void* closure);
+    static PyObject* get_console_key(PyWindowObject* self, void* closure);
+    static int set_console_key(PyWindowObject* self, PyObject* value, void* closure);
+    static PyObject* get_explorer_key(PyWindowObject* self, void* closure);
+    static int set_explorer_key(PyWindowObject* self, PyObject* value, void* closure);
     static PyObject* get_scaling_mode(PyWindowObject* self, void* closure);
     static int set_scaling_mode(PyWindowObject* self, PyObject* value, void* closure);
     

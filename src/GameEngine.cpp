@@ -734,12 +734,66 @@ void GameEngine::testTimers(int now)
     }
 }
 
+// #497 - mcrfpy.keyboard reports what the event stream says, not the hardware. A key event
+// carries the modifiers in effect for it (SFML sets them, the SDL2 pump copies SDL's mod
+// mask, automation computes them), and that value stands until the next key event. A window
+// that loses focus stops receiving key releases, so it also forgets what was held.
+void GameEngine::noteKeyModifiers(const sf::Event& event)
+{
+    if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
+        key_mods.shift = event.key.shift;
+        key_mods.ctrl = event.key.control;
+        key_mods.alt = event.key.alt;
+        key_mods.system = event.key.system;
+    } else if (event.type == sf::Event::LostFocus) {
+        key_mods = KeyModifiers{};
+    }
+}
+
+// #495 - Deliver one typed code point to the current scene's on_text. SFML reports
+// control characters (Backspace 8, Tab 9, Enter 13, Escape 27, Delete 127) as text; SDL's
+// SDL_TEXTINPUT never does. Those are keys, and on_key already carries them, so both
+// backends deliver the same thing: printable code points only. A value that is not a
+// Unicode scalar can't be UTF-8 and is a backend bug, not something to repair.
+void GameEngine::dispatchText(uint32_t cp)
+{
+    if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F)) return;
+    if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
+        std::cerr << "TextEntered: dropped invalid code point U+" << std::hex << cp << std::dec << std::endl;
+        return;
+    }
+    std::string utf8;
+    if (cp < 0x80) { utf8 += static_cast<char>(cp); }
+    else if (cp < 0x800) {
+        utf8 += static_cast<char>(0xC0 | (cp >> 6));
+        utf8 += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        utf8 += static_cast<char>(0xE0 | (cp >> 12));
+        utf8 += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        utf8 += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+        utf8 += static_cast<char>(0xF0 | (cp >> 18));
+        utf8 += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+        utf8 += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        utf8 += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+
+    Scene* scene = currentScene();
+    if (!scene) return;
+    if (scene->text_callable && !scene->text_callable->isNone()) {
+        scene->text_callable->call(utf8);   // scene.on_text = callable
+    } else {
+        McRFPy_API::triggerTextEvent(utf8);  // subclass on_text method
+    }
+}
+
 void GameEngine::processEvent(const sf::Event& event)
 {
     std::string actionType;
     int actionCode = 0;
 
     if (event.type == sf::Event::Closed) { running = false; return; }
+    noteKeyModifiers(event);
 
     // Handle F3 for profiler overlay toggle
     if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F3) {
@@ -798,6 +852,13 @@ void GameEngine::processEvent(const sf::Event& event)
         }
         return;
     }
+    // #495 - Typed text: what a key press produced after layout, dead-key and IME
+    // processing. Independent of on_key, which keeps reporting physical keys.
+    else if (event.type == sf::Event::TextEntered)
+    {
+        dispatchText(event.text.unicode);
+        return;
+    }
     else
         return;
 
@@ -819,37 +880,49 @@ void GameEngine::processEvent(const sf::Event& event)
     }
 }
 
+bool GameEngine::filterDevInput(const sf::Event& event)
+{
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
+    if (!imguiInitialized || !ImGuiConsole::isEnabled()) return false;
+
+    if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
+        const bool pressed = event.type == sf::Event::KeyPressed;
+        if (console_key != sf::Keyboard::Unknown && event.key.code == console_key) {
+            if (pressed) console.toggle();
+            return true;  // the release is part of the same keystroke
+        }
+        if (explorer_key != sf::Keyboard::Unknown && event.key.code == explorer_key) {
+            if (pressed) sceneExplorer.toggle();
+            return true;
+        }
+    }
+
+    // While the console has focus it owns the keyboard
+    if (console.wantsKeyboardInput() &&
+        (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased ||
+         event.type == sf::Event::TextEntered)) {
+        return true;
+    }
+#endif
+    (void)event;
+    return false;
+}
+
 void GameEngine::sUserInput()
 {
     sf::Event event;
     while (window && window->pollEvent(event))
     {
+        // #497: before any filtering below, so a key the console swallows still updates them
+        noteKeyModifiers(event);
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
         // Process event through ImGui first (SFML builds only)
         if (imguiInitialized) {
             ImGui::SFML::ProcessEvent(*window, event);
         }
 
-        // Handle grave/tilde key for console toggle (before other processing)
-        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Grave) {
-            console.toggle();
-            continue;  // Don't pass grave key to game
-        }
-
-        // Handle F4 for scene explorer toggle
-        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F4) {
-            sceneExplorer.toggle();
-            continue;  // Don't pass F4 to game
-        }
-
-        // If console wants keyboard, don't pass keyboard events to game
-        if (console.wantsKeyboardInput()) {
-            // Still process non-keyboard events (mouse, window close, etc.)
-            if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased ||
-                event.type == sf::Event::TextEntered) {
-                continue;
-            }
-        }
+        // Dev-tool hotkeys and console focus (#496): before the game sees the event
+        if (filterDevInput(event)) continue;
 #endif
 
         processEvent(event);

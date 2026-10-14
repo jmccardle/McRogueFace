@@ -92,6 +92,7 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
         {";", sf::Keyboard::SemiColon}, {"'", sf::Keyboard::Quote},
         {"[", sf::Keyboard::LBracket}, {"]", sf::Keyboard::RBracket},
         {"-", sf::Keyboard::Dash}, {"=", sf::Keyboard::Equal},
+        {"`", sf::Keyboard::Grave}, {"grave", sf::Keyboard::Grave},
 
         // Numpad
         {"num0", sf::Keyboard::Numpad0}, {"num1", sf::Keyboard::Numpad1},
@@ -175,23 +176,47 @@ void McRFPy_Automation::injectKeyEvent(sf::Event::EventType type, sf::Keyboard::
     event.type = type;
 
     if (type == sf::Event::KeyPressed || type == sf::Event::KeyReleased) {
+        // #497: a synthesized event never touches the hardware, so its modifiers are the
+        // injected modifier keys that are held, in the order they were injected. As with
+        // a real keyboard, the modifier's own press already counts and its release does not.
+        static bool held[sf::Keyboard::KeyCount] = {};
+        if (key >= 0 && key < sf::Keyboard::KeyCount)
+            held[key] = (type == sf::Event::KeyPressed);
         event.key.code = key;
-        event.key.alt = sf::Keyboard::isKeyPressed(sf::Keyboard::LAlt) ||
-                        sf::Keyboard::isKeyPressed(sf::Keyboard::RAlt);
-        event.key.control = sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
-                           sf::Keyboard::isKeyPressed(sf::Keyboard::RControl);
-        event.key.shift = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) ||
-                         sf::Keyboard::isKeyPressed(sf::Keyboard::RShift);
-        event.key.system = sf::Keyboard::isKeyPressed(sf::Keyboard::LSystem) ||
-                          sf::Keyboard::isKeyPressed(sf::Keyboard::RSystem);
+        event.key.shift = held[sf::Keyboard::LShift] || held[sf::Keyboard::RShift];
+        event.key.control = held[sf::Keyboard::LControl] || held[sf::Keyboard::RControl];
+        event.key.alt = held[sf::Keyboard::LAlt] || held[sf::Keyboard::RAlt];
+        event.key.system = held[sf::Keyboard::LSystem] || held[sf::Keyboard::RSystem];
     }
 
+    engine->noteKeyModifiers(event);
+    if (engine->filterDevInput(event)) return;  // #496: same front door as a window event
     engine->processEvent(event);
 }
 
+// #495 - Inject a typed code point (sf::Event::TextEntered -> scene.on_text).
+void McRFPy_Automation::injectTextEvent(uint32_t codepoint) {
+    auto engine = getGameEngine();
+    if (!engine) return;
+
+    sf::Event event;
+    event.type = sf::Event::TextEntered;
+    event.text.unicode = codepoint;
+    if (engine->filterDevInput(event)) return;  // #496: the console owns the keyboard while open
+    engine->processEvent(event);
+}
+
+// #495 - Text is what on_text receives: a Unicode scalar that is not a control character
+// (Enter, Tab, Backspace, Escape, DEL and C1 are keys, delivered to on_key only).
+bool McRFPy_Automation::isTypeable(Py_UCS4 ch) {
+    if (ch < 0x20 || (ch >= 0x7F && ch <= 0x9F)) return false;
+    if (ch >= 0xD800 && ch <= 0xDFFF) return false;
+    return ch <= 0x10FFFF;
+}
+
 // #433 - typewrite() simulates key presses, so each character maps to the key that
-// types it on a US layout, with Shift for uppercase and shifted symbols. There is no
-// text-entry event: the engine delivers key presses (on_key) only.
+// types it on a US layout, with Shift for uppercase and shifted symbols. As a keyboard
+// does, a character that types text also delivers it (#495) between press and release.
 bool McRFPy_Automation::charToKeyStroke(Py_UCS4 ch, sf::Keyboard::Key* key, bool* shift) {
     *shift = false;
     if (ch >= 'a' && ch <= 'z') { *key = static_cast<sf::Keyboard::Key>(sf::Keyboard::A + (ch - 'a')); return true; }
@@ -524,13 +549,14 @@ PyObject* McRFPy_Automation::_typewrite(PyObject* self, PyObject* args, PyObject
 
     // #433: resolve every character before sending anything, so a string with an
     // untypeable character fails whole instead of half-typed.
-    struct KeyStroke { sf::Keyboard::Key key; bool shift; };
+    struct KeyStroke { sf::Keyboard::Key key; bool shift; Py_UCS4 ch; };
     std::vector<KeyStroke> strokes;
     Py_ssize_t len = PyUnicode_GET_LENGTH(message);
     strokes.reserve(len);
     for (Py_ssize_t i = 0; i < len; i++) {
         Py_UCS4 ch = PyUnicode_READ_CHAR(message, i);
         KeyStroke s;
+        s.ch = ch;
         if (!charToKeyStroke(ch, &s.key, &s.shift)) {
             PyObject* one = PyUnicode_FromOrdinal(ch);
             if (one) {
@@ -551,10 +577,36 @@ PyObject* McRFPy_Automation::_typewrite(PyObject* self, PyObject* args, PyObject
         const KeyStroke& s = strokes[i];
         if (s.shift) injectKeyEvent(sf::Event::KeyPressed, sf::Keyboard::LShift);
         injectKeyEvent(sf::Event::KeyPressed, s.key);
+        if (isTypeable(s.ch)) injectTextEvent(s.ch);
         injectKeyEvent(sf::Event::KeyReleased, s.key);
         if (s.shift) injectKeyEvent(sf::Event::KeyReleased, sf::Keyboard::LShift);
     }
 
+    Py_RETURN_NONE;
+}
+
+// #495 - Type text without keys: layout-, dead-key- and IME-produced characters that no
+// US key stroke can express. Delivered to on_text only, one call per code point.
+PyObject* McRFPy_Automation::_typeText(PyObject* self, PyObject* args) {
+    PyObject* message;
+    if (!PyArg_ParseTuple(args, "U", &message)) {
+        return NULL;
+    }
+
+    // Validate the whole string before sending any of it.
+    Py_ssize_t len = PyUnicode_GET_LENGTH(message);
+    for (Py_ssize_t i = 0; i < len; i++) {
+        Py_UCS4 ch = PyUnicode_READ_CHAR(message, i);
+        if (!isTypeable(ch)) {
+            PyErr_Format(PyExc_ValueError,
+                         "typeText(): U+%04X (index %zd) is not text; control characters are "
+                         "keys, use keyDown()/keyUp()", (unsigned)ch, i);
+            return NULL;
+        }
+    }
+    for (Py_ssize_t i = 0; i < len; i++) {
+        injectTextEvent(PyUnicode_READ_CHAR(message, i));
+    }
     Py_RETURN_NONE;
 }
 
@@ -1059,8 +1111,20 @@ static PyMethodDef automationMethods[] = {
          MCRF_ARG("message", "Text to type: letters, digits, space, US-keyboard punctuation, '\\n', '\\t'")
          MCRF_ARG("interval", "Seconds to wait between characters (default 0.0)")
          MCRF_RAISES("ValueError", "If a character has no key (e.g. 'é', '\\r'); checked before any key is sent")
-         MCRF_NOTE("There is no separate text-entry event: typewrite('a') is on_key(Key.A, PRESSED) "
-                   "then on_key(Key.A, RELEASED).")
+         MCRF_NOTE("typewrite('a') is on_key(Key.A, PRESSED), on_text('a'), on_key(Key.A, RELEASED), "
+                   "as a US keyboard delivers it. '\\n' and '\\t' are keys and send no text. "
+                   "For characters no US key types, use typeText().")
+     )},
+    {"typeText", McRFPy_Automation::_typeText, METH_VARARGS,
+     MCRF_METHOD(automation, typeText,
+         MCRF_SIG("(text: str)", "None"),
+         MCRF_DESC("Type text with no key presses: deliver each code point of text to the scene's "
+                   "on_text handler, as a keyboard layout, dead key or IME would."),
+         MCRF_ARGS_START
+         MCRF_ARG("text", "Characters to type, delivered one code point per on_text call")
+         MCRF_RAISES("ValueError", "If a character is a control character or not a Unicode scalar "
+                     "(Enter, Tab, Backspace, Escape are keys); checked before anything is sent")
+         MCRF_NOTE("on_key receives nothing. Use typewrite() to also exercise the US key presses.")
      )},
     {"hotkey", McRFPy_Automation::_hotkey, METH_VARARGS,
      MCRF_METHOD(automation, hotkey,

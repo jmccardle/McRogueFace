@@ -364,6 +364,35 @@ public:
     void setAutoExitAfterExec(bool enabled) { config.auto_exit_after_exec = enabled; }
     void setExitOnException(bool enabled) { config.exit_on_exception = enabled; }  // #501
     void processEvent(const sf::Event& event);
+
+    // #497: the modifiers carried by the key event handled most recently (mcrfpy.keyboard).
+    // They come from the event stream, never from polling the hardware, so synthesized
+    // events and queued events agree with what on_key is being told. Cleared on focus loss.
+    struct KeyModifiers { bool shift = false, ctrl = false, alt = false, system = false; };
+    const KeyModifiers& keyModifiers() const { return key_mods; }
+    void noteKeyModifiers(const sf::Event& event);
+    void dispatchText(uint32_t codepoint);  // #495
+
+    // #496: the keys that toggle the developer overlays (ImGui console, scene explorer).
+    // Unknown means "no hotkey". Defaults are Grave and F4; a game that needs every key
+    // (a terminal, a text editor) sets them to Unknown, or moves them.
+    sf::Keyboard::Key getConsoleKey() const { return console_key; }
+    sf::Keyboard::Key getExplorerKey() const { return explorer_key; }
+    void setConsoleKey(sf::Keyboard::Key k) { console_key = k; }
+    void setExplorerKey(sf::Keyboard::Key k) { explorer_key = k; }
+
+    // The one place developer-tool input is intercepted. Returns true when `event` belongs
+    // to a dev tool (its hotkey, or any keyboard input while the console has focus) and
+    // must not reach the game. Called for window events (sUserInput) and for events
+    // synthesized by automation, so a headless-injected hotkey is treated like a real one.
+    // Always false where the tools do not exist: headless, SDL2/web, no ImGui, or after
+    // mcrfpy.set_dev_console(False).
+    bool filterDevInput(const sf::Event& event);
+private:
+    KeyModifiers key_mods;
+    sf::Keyboard::Key console_key = sf::Keyboard::Grave;
+    sf::Keyboard::Key explorer_key = sf::Keyboard::F4;
+public:
     
     // Window property accessors
     const std::string& getWindowTitle() const { return window_title; }

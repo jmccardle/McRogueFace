@@ -41,6 +41,7 @@ public:
     // Keyboard
     static PyObject* _typewrite(PyObject* self, PyObject* args, PyObject* kwargs);
     static PyObject* _hotkey(PyObject* self, PyObject* args);
+    static PyObject* _typeText(PyObject* self, PyObject* args);  // #495
     static PyObject* _keyDown(PyObject* self, PyObject* args);
     static PyObject* _keyUp(PyObject* self, PyObject* args);
     
@@ -50,6 +51,8 @@ public:
     // they do not belong in injectMouseEvent's coordinate-bearing signature.
     static void injectWindowEvent(sf::Event::EventType type);
     static void injectKeyEvent(sf::Event::EventType type, sf::Keyboard::Key key);
+    static void injectTextEvent(uint32_t codepoint);  // #495
+    static bool isTypeable(Py_UCS4 ch);  // #495: printable, i.e. text rather than a key
     // #433 - The key typing a character (US layout); false if no key types it.
     static bool charToKeyStroke(Py_UCS4 ch, sf::Keyboard::Key* key, bool* shift);
     static sf::Keyboard::Key stringToKey(const std::string& keyName);

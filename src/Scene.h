@@ -51,6 +51,11 @@ public:
     void key_register(PyObject*);
     void key_unregister();
 
+    // #495: scene.on_text -- called with the text a key press types (layout, dead keys, IME)
+    std::unique_ptr<PyTextCallable> text_callable;
+    void text_register(PyObject*);
+    void text_unregister();
+
     // #118: Scene-level UIDrawable-like properties for animations/transitions
     sf::Vector2f position{0.0f, 0.0f};  // Offset applied to all ui_elements
     bool visible = true;                 // Controls rendering of scene

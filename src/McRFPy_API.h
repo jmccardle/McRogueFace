@@ -114,6 +114,7 @@ public:
     static void updatePythonScenes(float dt);
     static void triggerResize(sf::Vector2u new_size);
     static void triggerKeyEvent(const std::string& key, const std::string& action);
+    static void triggerTextEvent(const std::string& utf8);  // #495
 
     // #151: Module-level scene property accessors
     static PyObject* api_get_current_scene();

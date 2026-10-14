@@ -1,4 +1,5 @@
 #include "PyWindow.h"
+#include "PyKey.h"
 #include "Display.h"
 #include "PyWrap.h"
 #include "GameEngine.h"
@@ -485,6 +486,73 @@ int PyWindow::set_scaling_mode(PyWindowObject* self, PyObject* value, void* clos
     return 0;
 }
 
+// #496 - Developer-tool hotkeys. Key (or None for no hotkey), runtime-changeable.
+static PyObject* devkey_get(sf::Keyboard::Key k)
+{
+    if (k == sf::Keyboard::Unknown) Py_RETURN_NONE;
+    return PyKey::get_enum_member(static_cast<int>(k));
+}
+
+// `other` is the key the other tool uses: two tools can't share one hotkey.
+static int devkey_set(PyObject* value, sf::Keyboard::Key other, const char* what,
+                      sf::Keyboard::Key* out)
+{
+    if (value == NULL) {
+        PyErr_Format(PyExc_AttributeError, "cannot delete %s; set it to None for no hotkey", what);
+        return -1;
+    }
+    if (value == Py_None) {
+        *out = sf::Keyboard::Unknown;
+        return 0;
+    }
+    sf::Keyboard::Key k;
+    if (!PyKey::from_arg(value, &k)) return -1;
+    if (k == sf::Keyboard::Unknown) {
+        PyErr_Format(PyExc_ValueError, "%s: Key.UNKNOWN is not a key; use None for no hotkey", what);
+        return -1;
+    }
+    if (k == other) {
+        PyErr_Format(PyExc_ValueError, "%s: that key already toggles the other developer tool", what);
+        return -1;
+    }
+    *out = k;
+    return 0;
+}
+
+PyObject* PyWindow::get_console_key(PyWindowObject* self, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) { PyErr_SetString(PyExc_RuntimeError, "No game engine initialized"); return NULL; }
+    return devkey_get(game->getConsoleKey());
+}
+
+int PyWindow::set_console_key(PyWindowObject* self, PyObject* value, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) { PyErr_SetString(PyExc_RuntimeError, "No game engine initialized"); return -1; }
+    sf::Keyboard::Key k;
+    if (devkey_set(value, game->getExplorerKey(), "console_key", &k) < 0) return -1;
+    game->setConsoleKey(k);
+    return 0;
+}
+
+PyObject* PyWindow::get_explorer_key(PyWindowObject* self, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) { PyErr_SetString(PyExc_RuntimeError, "No game engine initialized"); return NULL; }
+    return devkey_get(game->getExplorerKey());
+}
+
+int PyWindow::set_explorer_key(PyWindowObject* self, PyObject* value, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) { PyErr_SetString(PyExc_RuntimeError, "No game engine initialized"); return -1; }
+    sf::Keyboard::Key k;
+    if (devkey_set(value, game->getConsoleKey(), "explorer_key", &k) < 0) return -1;
+    game->setExplorerKey(k);
+    return 0;
+}
+
 // Property definitions
 PyGetSetDef PyWindow::getsetters[] = {
     {"resolution", (getter)get_resolution, (setter)set_resolution,
@@ -503,6 +571,15 @@ PyGetSetDef PyWindow::getsetters[] = {
      MCRF_PROPERTY(game_resolution, "Fixed game resolution as (width, height) tuple. Enables resolution-independent rendering with scaling."), NULL},
     {"scaling_mode", (getter)get_scaling_mode, (setter)set_scaling_mode,
      MCRF_PROPERTY(scaling_mode, "Viewport scaling mode (str): 'center' (no scaling), 'stretch' (fill window), or 'fit' (maintain aspect ratio)."), NULL},
+    {"console_key", (getter)get_console_key, (setter)set_console_key,
+     MCRF_PROPERTY(console_key, "Key that toggles the developer console (Key, or None for no hotkey). "
+         "Default Key.GRAVE. Takes effect immediately; while it is a dev hotkey it does not reach "
+         "on_key. Windowed desktop builds only: headless and web builds have no console, and the "
+         "key always reaches the game there. mcrfpy.set_dev_console(False) disables the console "
+         "and releases the key."), NULL},
+    {"explorer_key", (getter)get_explorer_key, (setter)set_explorer_key,
+     MCRF_PROPERTY(explorer_key, "Key that toggles the scene explorer (Key, or None for no hotkey). "
+         "Default Key.F4. Same rules as console_key; the two tools cannot share a key."), NULL},
     {NULL}
 };
 
