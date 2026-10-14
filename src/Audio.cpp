@@ -12,7 +12,6 @@ namespace {
 struct Registry {
     bool enabled = true;
     bool shut_down = false;
-    bool atexit_registered = false;
     std::unordered_set<Source*> live;
     std::vector<std::shared_ptr<Source>> retained;
 };
@@ -25,21 +24,11 @@ Registry& reg()
     return *r;
 }
 
-void shutdown_atexit() { shutdown(); }
-
 } // namespace
 
 Source::Source()
 {
-    Registry& r = reg();
-    r.live.insert(this);
-    // Sources are only made from Python, so the interpreter is up. Py_AtExit covers
-    // both exits: api_shutdown()'s Py_Finalize, and sys.exit() in an --exec script,
-    // which Py_Exit()s straight past `delete engine`.
-    if (!r.atexit_registered) {
-        r.atexit_registered = true;
-        Py_AtExit(shutdown_atexit);
-    }
+    reg().live.insert(this);
 }
 
 Source::~Source()
@@ -86,10 +75,10 @@ void shutdown()
     Registry& r = reg();
     if (r.shut_down) return;
     r.shut_down = true;
-    // Release device resources only. The Sources themselves (and the retained
-    // references) are left alone: freeing them could run Python-side cleanup
-    // after the interpreter is gone, and the process is exiting anyway.
     for (Source* s : r.live) s->releaseDevice();
+    // Moved out first: destroying a Source erases it from `live` (see sweep()).
+    std::vector<std::shared_ptr<Source>> done;
+    done.swap(r.retained);
 }
 
 bool probe_file(const std::string& path, float& seconds)

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Grid,InputState,Key,Scene,Texture] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Grid,InputState,Key,Scene,Texture] verified=0.3.3 status=ok
 """McRogueFace Tutorial - Part 4: Field of View
 
 Implement fog of war with visible, explored, and unknown tiles.

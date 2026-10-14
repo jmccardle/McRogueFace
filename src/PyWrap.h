@@ -14,12 +14,30 @@
 #include "PythonObjectCache.h"
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 class UIDrawable;
 class UIEntity;
 class GridData;
 
 namespace mcrf {
+
+// ---------------------------------------------------------------------------
+// Interpreter lifetime (#468)
+// ---------------------------------------------------------------------------
+
+// May a C++ owner still release its Python references? True from the moment the
+// mcrfpy module is created until Py_Finalize has finished. Use it, never
+// Py_IsInitialized(), to guard a DECREF in a destructor: CPython clears
+// Py_IsInitialized() BEFORE its final garbage collection and module clearing, so
+// guarding on it skipped every release made while finalization tears objects down
+// and stranded their C++ halves. This flag drops only once the interpreter is gone
+// (a Py_AtExit handler), so it guards the C++ owners destroyed after that: statics,
+// and an engine deleted after Py_Finalize.
+bool python_alive();
+
+// Called once, when the mcrfpy module is created.
+void mark_python_alive();
 
 // ---------------------------------------------------------------------------
 // Wrapper cache
@@ -30,7 +48,8 @@ namespace mcrf {
 // called for you by cached_wrapper()). Returns 0, or -1 with a Python error set.
 int register_wrapper(uint64_t& serial, PyObject* self);
 
-// Drop the cache entry when the C++ object is destroyed.
+// Drop the cache entry when the C++ object is destroyed. A no-op once the
+// interpreter is gone (the cache's weak references went with it).
 void unregister_wrapper(uint64_t serial);
 
 // The live wrapper for `serial` as a new reference, or nullptr if none exists.
@@ -168,16 +187,19 @@ private:
     PyObject* p;
 };
 
+// Every live registered wrapper, as new references (#468: exit teardown).
+std::vector<PyRef> live_wrappers();
+
 // A shared_ptr that holds one strong reference to a Python object, released when the
 // last copy dies (#465: a no-op deleter here leaked every Shader ever assigned). The
 // release takes the GIL, since a C++ owner can die outside it, and is skipped once the
-// interpreter is finalized (the object is gone with it).
+// interpreter is gone (the object went with it; see python_alive()).
 template <typename T>
 std::shared_ptr<T> py_shared(T* obj)
 {
     Py_INCREF((PyObject*)obj);
     return std::shared_ptr<T>(obj, [](T* p) {
-        if (!Py_IsInitialized()) return;
+        if (!python_alive()) return;
         PyGILState_STATE gil = PyGILState_Ensure();
         Py_DECREF((PyObject*)p);
         PyGILState_Release(gil);
@@ -190,6 +212,13 @@ std::shared_ptr<T> py_shared(T* obj)
 // form also accepts a Python int or float only (TypeError otherwise).
 bool to_int(double value, int& out, const char* what);
 bool to_int(PyObject* value, int& out, const char* what);
+
+// A grid cell coordinate (#431): a Python int, or a float with an integral value
+// (5.0, e.g. a Vector component). A non-integral, NaN or infinite float raises
+// ValueError (never truncated), anything else TypeError, outside int's range
+// OverflowError. to_cell_pos reads a Vector or an (x, y) pair the same way.
+bool to_cell(PyObject* value, int& out, const char* what);
+bool to_cell_pos(PyObject* value, sf::Vector2i& out, const char* what);
 
 // Print the pending error from a Python callback, headed "<what> callback raised an
 // exception:". sys.exit() in a callback is a request to quit, not an error: it gets

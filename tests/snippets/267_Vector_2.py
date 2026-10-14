@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Vector] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Vector] verified=0.3.3 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("vector-arithmetic")

@@ -19,6 +19,7 @@
 #include <algorithm>
 
 UICaption::UICaption()
+: baseline(PyTextBaseline::default_baseline)  // #478: copied, so a later default change won't move it
 {
     // Initialize text with safe defaults
     text.setString("");
@@ -35,38 +36,68 @@ UIDrawable* UICaption::click_at(sf::Vector2f point)
     // #184: Also check for Python subclass (might have on_click method)
     if (!click_callable && !is_python_subclass) return nullptr;
 
-    // Get text dimensions from local bounds
-    sf::FloatRect localBounds = text.getLocalBounds();
-    float w = localBounds.width;
-    float h = localBounds.height;
-    // Account for text origin offset (SFML text has non-zero left/top in local bounds)
-    float textOffsetX = localBounds.left;
-    float textOffsetY = localBounds.top;
+    // #478: hit-test the text where it is drawn: the text's own transform carries
+    // position, rotation, origin and the baseline shift. Text that can't be placed
+    // isn't drawn, so it can't be clicked.
+    if (!syncTextLayout()) return nullptr;
+    const sf::Vector2f localPoint = text.getInverseTransform().transformPoint(point);
+    return text.getLocalBounds().contains(localPoint) ? this : nullptr;
+}
 
-    // Transform click point to local coordinates accounting for rotation
-    sf::Vector2f localPoint;
-    if (rotation != 0.0f) {
-        // Build transform: translate to position, then rotate around origin
-        sf::Transform transform;
-        transform.translate(position);
-        transform.translate(origin);
-        transform.rotate(rotation);
-        transform.translate(-origin);
+void UICaption::setFont(std::shared_ptr<PyFont> font)
+{
+    font_data = std::move(font);
+    if (font_data) text.setFont(font_data->font);
+}
 
-        // Apply inverse transform to get local coordinates
-        sf::Transform inverse = transform.getInverse();
-        localPoint = inverse.transformPoint(point);
-    } else {
-        // No rotation - simple subtraction
-        localPoint = point - position;
+bool UICaption::baselineShift(float& dy) const
+{
+#if defined(MCRF_HEADLESS)
+    dy = 0.0f;  // no rasterizer: nothing is laid out and text bounds are empty
+    return true;
+#else
+    if (!text.getFont()) { dy = 0.0f; return true; }  // no font, no glyphs to place
+    const float size = static_cast<float>(text.getCharacterSize());
+  #if !defined(MCRF_SDL2)
+    // sf::Text puts the first baseline at y = character size: EM_TOP needs no metrics.
+    if (baseline == TextBaseline::EM_TOP) { dy = 0.0f; return true; }
+  #endif
+    float ascent;
+    if (!font_data || !font_data->ascent(text.getCharacterSize(), ascent)) return false;
+  #if defined(MCRF_SDL2)
+    const float backend = ascent;  // the SDL2 Text puts the first baseline at the ascent
+  #else
+    const float backend = size;
+  #endif
+    float want = 0.0f;
+    switch (baseline) {
+        case TextBaseline::TOP:      want = ascent; break;
+        case TextBaseline::BASELINE: want = 0.0f;   break;
+        case TextBaseline::EM_TOP:   want = size;   break;
     }
+    dy = want - backend;
+    return true;
+#endif
+}
 
-    // Check if local point is within bounds (accounting for text offset)
-    if (localPoint.x >= textOffsetX && localPoint.y >= textOffsetY &&
-        localPoint.x < textOffsetX + w && localPoint.y < textOffsetY + h) {
-        return this;
-    }
-    return nullptr;
+bool UICaption::syncTextLayout()
+{
+    float dy;
+    if (!baselineShift(dy)) return false;
+    // sf::Transformable maps local p to position + R(p - origin): moving the glyphs by
+    // dy in local space (before rotation) is origin - dy.
+    text.setOrigin(origin.x, origin.y - dy);
+    text.setRotation(rotation);
+    return true;
+}
+
+bool UICaption::syncTextLayoutOrRaise()
+{
+    if (syncTextLayout()) return true;
+    PyErr_Format(PyExc_ValueError,
+        "Caption: the font has no ascent at font_size %u, so its text can't be placed "
+        "(baseline needs the font's metrics)", text.getCharacterSize());
+    return false;
 }
 
 void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
@@ -80,9 +111,18 @@ void UICaption::render(sf::Vector2f offset, sf::RenderTarget& target)
     color.a = static_cast<sf::Uint8>(original_alpha * opacity);
     text.setFillColor(color);
 
-    // Apply rotation and origin
-    text.setOrigin(origin);
-    text.setRotation(rotation);
+    // Apply rotation, origin and the baseline (#478). Text that can't be placed is not
+    // drawn at a guessed position; say so once.
+    if (!syncTextLayout()) {
+        if (!layout_warned) {
+            layout_warned = true;
+            std::cerr << "Caption: font has no ascent at font_size " << text.getCharacterSize()
+                      << "; its text is not drawn (#478)" << std::endl;
+        }
+        color.a = original_alpha;
+        text.setFillColor(color);
+        return;
+    }
 
     // #106: Shader rendering path
     if (shader && shader->shader) {
@@ -223,7 +263,12 @@ int UICaption::set_float_member(PyUICaptionObject* self, PyObject* value, void* 
     }
     else if (member_ptr == 5) { // character size
         if (!checkGlyphSize("font_size", val)) return -1;  // #463 (was a silent clamp, #309)
+        const unsigned int old_size = self->data->text.getCharacterSize();
         self->data->text.setCharacterSize(static_cast<unsigned int>(val));
+        if (!self->data->syncTextLayoutOrRaise()) {  // #478
+            self->data->text.setCharacterSize(old_size);
+            return -1;
+        }
         self->data->markDirty(); // #289: content change invalidates own + parent cache
     }
     return 0;
@@ -351,6 +396,95 @@ PyObject* UICaption::get_h(PyUICaptionObject* self, void* closure)
     return PyFloat_FromDouble(bounds.height);
 }
 
+// #479: pen advance of the widest line (glyph advances + kerning), not ink extent.
+// Outline does not change it; trailing spaces count.
+static float text_advance(const sf::Text& t)
+{
+#if defined(MCRF_SDL2) || defined(MCRF_HEADLESS)
+    return t.getAdvance();
+#else
+    // findCharacterPos() takes a code-point index and answers in the text's parent
+    // coordinates (its position applied); undo the transform so the result is an
+    // advance, not a right edge. Walk the UTF-8 text to find each line end's index.
+    const sf::Transform to_local = t.getInverseTransform();
+    const auto pen_x = [&](std::size_t cp) {
+        return to_local.transformPoint(t.findCharacterPos(cp)).x;
+    };
+    const std::string s = mcrf::to_utf8(t.getString());
+    float widest = 0.0f;
+    std::size_t cp = 0;
+    for (std::size_t i = 0; i < s.size(); cp++) {
+        if (mcrf::utf8::next_codepoint(s, i) == U'\n')
+            widest = std::max(widest, pen_x(cp));
+    }
+    return std::max(widest, pen_x(cp));
+#endif
+}
+
+PyObject* UICaption::get_advance(PyUICaptionObject* self, void* closure)
+{
+    return PyFloat_FromDouble(text_advance(self->data->text));
+}
+
+// #478: the caption's font metrics at its font_size; raises like the setters do.
+static bool caption_metrics(PyUICaptionObject* self, PyFont::Metrics& m)
+{
+    if (!self->data->font_data) {
+        PyErr_SetString(PyExc_ValueError, "Caption has no font");
+        return false;
+    }
+    return self->data->font_data->metricsOrRaise(self->data->text.getCharacterSize(), m);
+}
+
+PyObject* UICaption::get_metric(PyUICaptionObject* self, void* closure)
+{
+    PyFont::Metrics m;
+    if (!caption_metrics(self, m)) return NULL;
+    switch (reinterpret_cast<intptr_t>(closure)) {
+        case 0: return PyFloat_FromDouble(m.ascent);
+        case 1: return PyFloat_FromDouble(m.descent);
+        default: return PyFloat_FromDouble(m.line_height);
+    }
+}
+
+PyObject* UICaption::get_baseline_y(PyUICaptionObject* self, void* closure)
+{
+    PyFont::Metrics m;
+    if (!caption_metrics(self, m)) return NULL;
+    if (!self->data->syncTextLayoutOrRaise()) return NULL;
+    // Where the backend's text puts its first baseline, in text-local space; the text's
+    // transform (position, origin + baseline shift, rotation) takes it to parent space.
+#if defined(MCRF_SDL2)
+    const float local = m.ascent;
+#else
+    const float local = static_cast<float>(self->data->text.getCharacterSize());
+#endif
+    return PyFloat_FromDouble(self->data->text.getTransform().transformPoint(0.0f, local).y);
+}
+
+PyObject* UICaption::get_baseline(PyUICaptionObject* self, void* closure)
+{
+    return PyTextBaseline::to_python(self->data->baseline);
+}
+
+int UICaption::set_baseline(PyUICaptionObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'baseline'");
+        return -1;
+    }
+    TextBaseline b;
+    if (!PyTextBaseline::from_arg(value, &b)) return -1;
+    const TextBaseline old = self->data->baseline;
+    self->data->baseline = b;
+    if (!self->data->syncTextLayoutOrRaise()) {
+        self->data->baseline = old;
+        return -1;
+    }
+    self->data->markCompositeDirty();  // the text moved, as a position change does
+    return 0;
+}
+
 PyGetSetDef UICaption::getsetters[] = {
     {"x", (getter)UIDrawable::get_float_member, (setter)UIDrawable::set_float_member,
      MCRF_PROPERTY(x, "X coordinate of top-left corner (float)."),
@@ -376,6 +510,42 @@ PyGetSetDef UICaption::getsetters[] = {
     {"h", (getter)UICaption::get_h, NULL,
      MCRF_PROPERTY(h, "Text height in pixels (float, read-only)."),
      NULL},
+    {"advance", (getter)UICaption::get_advance, NULL,
+     MCRF_PROPERTY(advance,
+         "Pen advance of the text in pixels (float, read-only): sum of glyph advances plus kerning "
+         "for the widest line. Unlike w, it includes trailing spaces and side bearings, so it is where "
+         "the next span starts. Unaffected by outline. 0 under MCRF_HEADLESS builds (no font metrics)."
+     ), NULL},
+    {"ascent", (getter)UICaption::get_metric, NULL,
+     MCRF_PROPERTY(ascent,
+         "Font ascent at this caption's font_size, in px above the baseline (float, read-only). "
+         "Raises ValueError if the font has no metrics at that size; RuntimeError in an "
+         "MCRF_HEADLESS build (no font rasterizer)."
+     ), (void*)0},
+    {"descent", (getter)UICaption::get_metric, NULL,
+     MCRF_PROPERTY(descent,
+         "Font descent at this caption's font_size, in px below the baseline, positive "
+         "(float, read-only). Raises like ascent."
+     ), (void*)1},
+    {"line_height", (getter)UICaption::get_metric, NULL,
+     MCRF_PROPERTY(line_height,
+         "Baseline-to-baseline distance between lines of multi-line text at this font_size, "
+         "in px (float, read-only). Raises like ascent."
+     ), (void*)2},
+    {"baseline_y", (getter)UICaption::get_baseline_y, NULL,
+     MCRF_PROPERTY(baseline_y,
+         "Y of the first line's baseline where the text starts, in parent coordinates "
+         "(float, read-only): y + ascent for TOP, y for BASELINE, y + font_size for EM_TOP "
+         "(less origin.y, and rotated with the text). Raises like ascent."
+     ), NULL},
+    {"baseline", (getter)UICaption::get_baseline, (setter)UICaption::set_baseline,
+     MCRF_PROPERTY(baseline,
+         "Which line of the first text line sits at pos.y (TextBaseline). TOP: the line "
+         "top, baseline at pos.y + font ascent, so a caption at a grid cell's top-left draws "
+         "over that cell. BASELINE: pos.y is the baseline. EM_TOP: baseline at pos.y + "
+         "font_size (the pre-0.3.3 placement). Defaults to mcrfpy.default_text_baseline as it "
+         "was when the caption was made. Bounds, w, h and advance follow the drawn text."
+     ), NULL},
     {"outline", (getter)UICaption::get_float_member, (setter)UICaption::set_float_member,
      MCRF_PROPERTY(outline, "Thickness of the text outline border in pixels (float), 0 to 2048. Raises ValueError outside that range."),
      (void*)4},
@@ -464,6 +634,7 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     float horiz_margin = -1.0f;
     float vert_margin = -1.0f;
     PyObject* parent_obj = nullptr;  // Auto-attach parent (Frame, Scene, or Grid)
+    PyObject* baseline_obj = nullptr;  // #478: TextBaseline; default_text_baseline if omitted
 
     // Keywords list: pos, font, and text are positional-or-keyword (matching the
     // documented Caption(pos, font, text, ...) signature and the Sprite/Entity
@@ -474,17 +645,17 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         "fill_color", "outline_color", "outline", "font_size", "on_click",
         "visible", "opacity", "z_index", "name", "x", "y",
         "align", "margin", "horiz_margin", "vert_margin",
-        "parent",
+        "parent", "baseline",
         nullptr
     };
 
     // '$' marker makes all following args keyword-only (Python 3.3+ format extension).
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOz$OOffOifizffOfffO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OOz$OOffOifizffOfffOO", const_cast<char**>(kwlist),
                                      &pos_obj, &font, &text,  // pos+font+text are positional-or-keyword
                                      &fill_color, &outline_color, &outline, &font_size, &click_handler,
                                      &visible, &opacity, &z_index, &name, &x, &y,
                                      &align_obj, &margin, &horiz_margin, &vert_margin,
-                                     &parent_obj)) {
+                                     &parent_obj, &baseline_obj)) {
         return -1;
     }
     
@@ -537,19 +708,23 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
     // `font` getter (#320). When no font was provided, expose the engine default
     // font rather than None so the getter reflects what is actually rendered.
     if (pyfont) {
-        self->data->text.setFont(pyfont->font);
+        self->data->setFont(pyfont);
         Py_INCREF(font);
         Py_XSETREF(self->font, font);
     } else {
         // Use default font when None or not provided
         if (auto default_font = McRFPy_API::defaultFont()) {
-            self->data->text.setFont(default_font->font);
+            self->data->setFont(default_font);
             Py_XSETREF(self->font, default_font->pyObject());
         }
     }
 
     if (!checkGlyphSize("font_size", font_size)) return -1;  // #463
     self->data->text.setCharacterSize(static_cast<unsigned int>(font_size));
+
+    // #478: an explicit baseline= beats the default the constructor copied.
+    if (baseline_obj && !PyTextBaseline::from_arg(baseline_obj, &self->data->baseline)) return -1;
+    if (!self->data->syncTextLayoutOrRaise()) return -1;
     
     // Set text
     if (text && strlen(text) > 0) {
@@ -594,8 +769,8 @@ int UICaption::init(PyUICaptionObject* self, PyObject* args, PyObject* kwds)
         self->data->click_register(click_handler);
     }
 
-    // Initialize weak reference list
-    self->weakreflist = NULL;
+    // Never reset weakreflist here: tp_new zero-fills it, and a re-run __init__ would
+    // orphan the wrapper cache's weak reference (a use-after-free, #468).
     
     // Register in Python object cache
     if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
@@ -631,6 +806,7 @@ bool UICaption::setProperty(const std::string& name, float value) {
     // elastic) passes through values outside the range, so clamp those (#463).
     if (name == "font_size") {
         text.setCharacterSize(static_cast<unsigned int>(std::clamp(value, 0.0f, MAX_GLYPH_PX)));
+        syncTextLayout();  // #478; a size the font can't place is reported by render()
         markDirty();  // #144 - Content change
         return true;
     }

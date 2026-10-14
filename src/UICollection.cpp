@@ -1202,6 +1202,13 @@ PyObject* UICollection::repr(PyUICollectionObject* self)
 	return PyUnicode_DecodeUTF8(repr_str.c_str(), repr_str.size(), "replace");
 }
 
+void UICollection::release_view(PyUICollectionObject* self)
+{
+    self->data = std::make_shared<std::vector<std::shared_ptr<UIDrawable>>>();
+    self->owner.reset();
+    self->scene.reset();
+}
+
 int UICollection::init(PyUICollectionObject* self, PyObject* args, PyObject* kwds)
 {
     PyErr_SetString(PyExc_TypeError, "UICollection cannot be instantiated: a C++ data source is required.");

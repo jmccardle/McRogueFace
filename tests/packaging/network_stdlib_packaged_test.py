@@ -1,14 +1,14 @@
 """
 Packaging test: does the SHIPPED artifact's own filtered stdlib actually work?
 
-`make package-linux-full` (== `tools/package.sh linux full`) copies a filtered
+`make package-linux` (== `tools/package.sh linux`) copies a filtered
 copy of the CPython stdlib into the distribution tarball (`docs/` and CLAUDE.md
 promise socket/ssl/asyncio/selectors keep working there). Nothing previously
 built the real tarball, extracted it somewhere with NO dev tree in reach, and
 proved the packaged binary can still import and USE those modules from its own
 copy -- not the dev tree's `__lib/`.
 
-This test drives the real packaging pipeline (`tools/package.sh linux full`),
+This test drives the real packaging pipeline (`tools/package.sh linux`),
 extracts the resulting tarball into a tempdir OUTSIDE the source tree, and:
   1. Runs a probe script through the packaged `mcrogueface` binary with
      PYTHONPATH/PYTHONHOME/PYTHONSTARTUP stripped from the environment, and
@@ -148,8 +148,8 @@ def engine_version():
 
 def check_makefile_guard():
     """
-    Guard against drift from the documented `make package-linux-full` recipe.
-    This test shortcuts straight to `tools/package.sh linux full` (avoids a
+    Guard against drift from the documented `make package-linux` recipe.
+    This test shortcuts straight to `tools/package.sh linux` (avoids a
     re-entrant `make`); if the Makefile target ever stops delegating there,
     this test's shortcut silently diverges from what CI/docs claim to run.
     """
@@ -157,24 +157,24 @@ def check_makefile_guard():
         fail("Makefile not found at %s" % MAKEFILE)
     text = MAKEFILE.read_text()
 
-    m = re.search(r'^package-linux-full:.*\n((?:\t.*\n?)*)', text, re.MULTILINE)
+    m = re.search(r'^package-linux:.*\n((?:\t.*\n?)*)', text, re.MULTILINE)
     if not m:
-        fail("Could not find a 'package-linux-full:' target in the Makefile. "
+        fail("Could not find a 'package-linux:' target in the Makefile. "
              "This test assumes that target exists and delegates to tools/package.sh; "
              "if it was renamed or restructured, update this guard (and re-verify the shortcut is still valid).")
 
     recipe = m.group(1)
     if "tools/package.sh" not in recipe:
-        fail("'package-linux-full:' target no longer invokes tools/package.sh "
+        fail("'package-linux:' target no longer invokes tools/package.sh "
              "(recipe body: %r). This test's shortcut of calling package.sh directly "
-             "is no longer equivalent to `make package-linux-full` -- update both." % recipe)
-    if not re.search(r'\blinux\b', recipe) or not re.search(r'\bfull\b', recipe):
-        fail("'package-linux-full:' target's tools/package.sh invocation no longer "
-             "passes 'linux full' args (recipe body: %r)." % recipe)
+             "is no longer equivalent to `make package-linux` -- update both." % recipe)
+    if not re.search(r'\blinux\b', recipe):
+        fail("'package-linux:' target's tools/package.sh invocation no longer "
+             "passes the 'linux' arg (recipe body: %r)." % recipe)
 
 
 def find_expected_tarball(version):
-    return DIST_DIR / ("McRogueFace-%s-Linux-full.tar.gz" % version)
+    return DIST_DIR / ("McRogueFace-%s-Linux.tar.gz" % version)
 
 
 def check_release_build_present():
@@ -196,13 +196,13 @@ def check_release_build_present():
 
 
 def run_packaging():
-    result = run(["bash", "tools/package.sh", "linux", "full"], cwd=str(PROJECT_ROOT), timeout=120)
+    result = run(["bash", "tools/package.sh", "linux"], cwd=str(PROJECT_ROOT), timeout=120)
     if result.returncode != 0:
         print("--- tools/package.sh stdout ---")
         print(result.stdout)
         print("--- tools/package.sh stderr ---")
         print(result.stderr)
-        fail("tools/package.sh linux full exited with code %d" % result.returncode)
+        fail("tools/package.sh linux exited with code %d" % result.returncode)
 
 
 def extract_tarball(tarball_path, dest_dir):
@@ -245,7 +245,7 @@ def main():
     print("=== network_stdlib_packaged_test: proving packaged stdlib import/use ===")
 
     check_makefile_guard()
-    print("OK: Makefile package-linux-full delegates to tools/package.sh linux full")
+    print("OK: Makefile package-linux delegates to tools/package.sh linux")
 
     check_release_build_present()
 
@@ -260,7 +260,7 @@ def main():
     build_start = time.time()
     run_packaging()
     build_elapsed = time.time() - build_start
-    print("OK: tools/package.sh linux full completed in %.2fs" % build_elapsed)
+    print("OK: tools/package.sh linux completed in %.2fs" % build_elapsed)
 
     if not expected_tarball.exists():
         fail("Expected tarball not found after packaging: %s" % expected_tarball)
@@ -345,7 +345,7 @@ def main():
             print("Cleaned up freshly-created tarball: %s" % expected_tarball)
 
     print("=" * 60)
-    print("Proven: `tools/package.sh linux full` (== `make package-linux-full`) produces")
+    print("Proven: `tools/package.sh linux` (== `make package-linux`) produces")
     print("a tarball whose OWN packaged stdlib -- not the dev tree's __lib/ -- provides")
     print("working socket, ssl, asyncio, and selectors modules (Python source AND C")
     print("extensions), each independently load-bearing (removing any one breaks the")

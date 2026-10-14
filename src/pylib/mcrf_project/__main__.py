@@ -75,7 +75,7 @@ def cmd_info(args):
 def cmd_package_engine(args):
     """The engine's own release package: its runtime, demo content and API docs."""
     engine = Runtime(args.engine) if args.engine else Runtime.running()
-    name = "McRogueFace-%s-%s-%s" % (args.version, engine.title, args.preset)
+    name = "McRogueFace-%s-%s" % (args.version, engine.title)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     staged = fresh_dir(out / name)
@@ -132,7 +132,6 @@ def main(argv=None):
 
     p = sub.add_parser("package-engine", help="build an engine release package (tools/package.sh)")
     p.add_argument("--engine", help="engine directory (default: this engine)")
-    p.add_argument("--preset", choices=("light", "full"), default="full")
     p.add_argument("--version", required=True)
     p.add_argument("--out", required=True, help="output directory")
     p.add_argument("--docs-from", help="engine source tree holding the rendered docs "

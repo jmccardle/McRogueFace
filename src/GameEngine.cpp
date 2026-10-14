@@ -30,7 +30,6 @@ bool GameEngine::shaderIntermediateInitialized = false;
 // #219 - FrameLock implementation for thread-safe UI updates
 
 void FrameLock::acquire() {
-    waiting++;
 
     // #412 - THE GIL IS RELEASED BEFORE `mtx` IS TAKEN, AND RE-ACQUIRED ONLY AFTER IT
     // IS DROPPED. Do not reorder these; it is a lock-ordering constraint, not a
@@ -60,12 +59,23 @@ void FrameLock::acquire() {
     Py_BEGIN_ALLOW_THREADS
     {
         std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [this]{ return safe_window; });
-        // Under `mtx`, so closeWindow()'s two predicates observe the handoff from
-        // `waiting` to `active` as a single step and cannot see a moment where this
-        // thread counts as neither.
-        waiting--;
-        active++;
+        if (depth() > 0 || (safe_window && !closing)) {
+            // Nested lock() (this thread is already a holder), or the window is open
+            // and not yet closing: admitted now.
+            active++;
+        } else {
+            // #410 - a late arrival (window closing or closed) is deferred to the
+            // NEXT window; it must not be served by the one being closed, or a
+            // thread that re-acquires without yielding keeps that window open forever.
+            const uint64_t my_epoch = epoch;
+            waiting++;
+            cv.wait(lock, [this, my_epoch]{ return epoch != my_epoch; });
+            // Under `mtx`: closeWindow() sees the handoff from eligible to active as
+            // a single step.
+            waiting--;
+            eligible--;
+            active++;
+        }
     }
     Py_END_ALLOW_THREADS
 
@@ -83,20 +93,26 @@ void FrameLock::release() {
 
 void FrameLock::openWindow() {
     std::lock_guard<std::mutex> lock(mtx);
+    // #410 - every thread waiting right now arrived before this window and is owed
+    // service in it; closeWindow() waits for exactly those (`eligible`).
+    eligible = waiting.load();
+    epoch++;
+    closing = false;
     safe_window = true;
     cv.notify_all();  // Wake up all waiting threads
 }
 
 void FrameLock::closeWindow() {
     std::unique_lock<std::mutex> lock(mtx);
-    // First wait for all waiting threads to have entered the critical section
-    // (or confirm none were waiting). This prevents the race where we set
-    // safe_window=false before a waiting thread can check the condition.
-    cv.wait(lock, [this]{ return waiting == 0; });
-    // Then wait for all active threads to finish their critical sections
-    cv.wait(lock, [this]{ return active == 0; });
-    // Now safe to close the window
+    // #410 - close against late arrivals FIRST. From here on, acquire() defers any
+    // new non-nested arrival to the next window, so the waits below are bounded by
+    // the threads that were already waiting (plus nested acquires of current holders).
+    closing = true;
+    // Let every thread that was waiting when the window opened enter, then let all
+    // holders finish.
+    cv.wait(lock, [this]{ return eligible == 0 && active == 0; });
     safe_window = false;
+    closing = false;
 }
 
 GameEngine::GameEngine() : GameEngine(McRogueFaceConfig{})
@@ -227,6 +243,22 @@ void GameEngine::executeStartupScripts()
         }
         std::cout << "All --exec scripts completed" << std::endl;
     }
+}
+
+void GameEngine::releasePythonReferences()
+{
+    // Animations first: they hold callbacks and (weakly) their targets in the scenes.
+    AnimationManager::getInstance().clear();
+    // A running timer and its wrapper keep each other alive (#251); stop() breaks that.
+    auto stopped = std::move(timers);
+    timers.clear();
+    for (auto& [name, timer] : stopped) timer->stop();
+    stopped.clear();
+    // Moved out first: a scene's destructor runs Python (__del__ of what it held),
+    // which must not find the map mid-clear.
+    auto doomed = std::move(scenes);
+    scenes.clear();
+    doomed.clear();
 }
 
 GameEngine::~GameEngine()

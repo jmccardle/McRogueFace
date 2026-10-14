@@ -48,10 +48,9 @@ UIGridView::~UIGridView() {
         grid_data->unregisterView(this);
     }
 
-    // #348: release the persistent internal-Grid wrapper. Guard with
-    // Py_IsInitialized() because this destructor may run during interpreter
-    // shutdown (mirrors Animation::~Animation).
-    if (cached_grid_wrapper && Py_IsInitialized()) {
+    // #348: release the persistent internal-Grid wrapper, unless the interpreter
+    // is already gone (#468: mcrf::python_alive()).
+    if (cached_grid_wrapper && mcrf::python_alive()) {
         PyGILState_STATE gstate = PyGILState_Ensure();
         Py_DECREF(cached_grid_wrapper);
         PyGILState_Release(gstate);
@@ -366,6 +365,12 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
     // Render entities
     if (grid_data->entities) {
         ScopedAccumTimer entityTimer(metrics.entityRenderTime);
+        // #480: entities stretch by the grid texture's fit, even one with its own texture,
+        // so sprites keep their size relative to the grid's (a 16x24 hero on 16x16 cells
+        // stays 1.5 cells tall). No grid texture: nothing to stretch against, factor 1.
+        auto grid_tex = grid_data->getTexture();
+        const sf::Vector2f stretch = grid_tex ? grid_tex->cellFit(cell_width, cell_height)
+                                              : sf::Vector2f(1.0f, 1.0f);
         metrics.totalEntities += static_cast<int>(grid_data->entities->size());
         for (auto& e : *grid_data->entities) {
             if (e->position.x < left_edge - 2 || e->position.x >= left_edge + width_sq + 2 ||
@@ -373,10 +378,11 @@ void UIGridView::render(sf::Vector2f offset, sf::RenderTarget& target)
                 continue;
             }
             auto& drawent = e->sprite;
-            drawent.setScale(sf::Vector2f(zoom, zoom));
+            drawent.setScale(stretch * zoom);
+            // sprite_offset is in texture pixels, so it stretches with the sprite.
             auto pixel_pos = sf::Vector2f(
-                (e->position.x*cell_width - left_spritepixels + e->sprite_offset.x) * zoom,
-                (e->position.y*cell_height - top_spritepixels + e->sprite_offset.y) * zoom);
+                (e->position.x*cell_width - left_spritepixels + e->sprite_offset.x * stretch.x) * zoom,
+                (e->position.y*cell_height - top_spritepixels + e->sprite_offset.y * stretch.y) * zoom);
             // #454: an entity with no texture of its own draws with the grid's.
             drawent.render(pixel_pos, *activeTexture, grid_data->getTexture());
             ++metrics.entitiesRendered;
@@ -839,7 +845,8 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
     // creating view is views.front().
     grid_data->registerView(self->data);
 
-    self->weakreflist = NULL;
+    // Never reset weakreflist here: tp_new zero-fills it, and a re-run __init__ would
+    // orphan the wrapper cache's weak reference (a use-after-free, #468).
 
     if (mcrf::register_wrapper(self->data->serial_number, (PyObject*)self) < 0) return -1;
     self->data->is_python_subclass =

@@ -107,7 +107,7 @@ def create_player(
     import mcrfpy
 
     player = mcrfpy.Entity(
-        pos=(x, y),
+        grid_pos=(x, y),
         texture=texture,
         sprite_index=SPRITE_PLAYER
     )
@@ -147,7 +147,7 @@ def create_enemy(
     enemy_def = ENEMY_TYPES.get(enemy_type, ENEMY_TYPES["orc"])
 
     entity = mcrfpy.Entity(
-        pos=(x, y),
+        grid_pos=(x, y),
         texture=texture,
         sprite_index=enemy_def["sprite"]
     )
@@ -243,7 +243,7 @@ def get_blocking_entity_at(
         The entity at that position, or None if empty
     """
     for entity in entities:
-        if entity.pos[0] == x and entity.pos[1] == y:
+        if entity.cell_pos.x == x and entity.cell_pos.y == y:
             return entity
     return None
 
@@ -273,11 +273,11 @@ def move_entity(
     Returns:
         True if movement succeeded, False otherwise
     """
-    dest_x = entity.pos[0] + dx
-    dest_y = entity.pos[1] + dy
+    dest_x = entity.cell_pos.x + dx
+    dest_y = entity.cell_pos.y + dy
 
     # Check grid bounds
-    grid_width, grid_height = grid.grid_size
+    grid_width, grid_height = grid.grid_w, grid.grid_h
     if not (0 <= dest_x < grid_width and 0 <= dest_y < grid_height):
         return False
 
@@ -290,7 +290,7 @@ def move_entity(
         return False
 
     # Move is valid
-    entity.pos = (dest_x, dest_y)
+    entity.cell_pos = (dest_x, dest_y)
     return True
 
 
@@ -311,8 +311,8 @@ def distance_between(
     Returns:
         Distance in tiles (diagonal = 1)
     """
-    dx = abs(entity1.pos[0] - entity2.pos[0])
-    dy = abs(entity1.pos[1] - entity2.pos[1])
+    dx = abs(entity1.cell_pos.x - entity2.cell_pos.x)
+    dy = abs(entity1.cell_pos.y - entity2.cell_pos.y)
     return max(dx, dy)
 
 

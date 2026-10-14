@@ -165,6 +165,10 @@ public:
     // animation both write through these. draw_pos is in tiles; x/y/pos are pixels,
     // draw_pos * the grid's cell size, so they exist only while the entity is on a grid.
     void assignDrawPos(sf::Vector2f tiles);
+    // #431: the one writer of cell_position after construction. Setting the cell is a
+    // teleport: draw_pos snaps to it (smooth movement = animating draw_pos). The
+    // grid's spatial hash is keyed on cell_position, so it is re-bucketed here.
+    void assignCell(sf::Vector2i cell);
     bool cellPixelSize(sf::Vector2f& out) const;  // false when not on a grid
     void assignOpacity(float o);
     void assignSpriteOffset(sf::Vector2f px);
@@ -211,17 +215,12 @@ public:
     // #313 - texture property (thin wrapper over the entity's own UISprite)
     static PyObject* get_texture(PyUIEntityObject* self, void* closure);
     static int set_texture(PyUIEntityObject* self, PyObject* value, void* closure);
-    static PyObject* get_float_member(PyUIEntityObject* self, void* closure);
-    static int set_float_member(PyUIEntityObject* self, PyObject* value, void* closure);
 
     // #176 - Pixel position (pos, x, y) computed from draw_pos * tile_size
     static PyObject* get_pixel_pos(PyUIEntityObject* self, void* closure);
     static int set_pixel_pos(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_pixel_member(PyUIEntityObject* self, void* closure);
     static int set_pixel_member(PyUIEntityObject* self, PyObject* value, void* closure);
-    // #176 - Integer grid position (grid_x, grid_y)
-    static PyObject* get_grid_int_member(PyUIEntityObject* self, void* closure);
-    static int set_grid_int_member(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_grid(PyUIEntityObject* self, void* closure);
     static int set_grid(PyUIEntityObject* self, PyObject* value, void* closure);
     static PyObject* get_sprite_offset(PyUIEntityObject* self, void* closure);

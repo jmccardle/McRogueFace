@@ -1,4 +1,4 @@
-# mcrf: objects=[Alignment,Caption,Color,Frame,Scene,Sprite] verified=0.3.0 status=ok
+# mcrf: objects=[Alignment,Caption,Color,Frame,Scene,Sprite] verified=0.3.3 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("alignment_demo")

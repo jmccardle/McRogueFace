@@ -1,6 +1,7 @@
 #include "UITestScene.h"
 #include "ActionCode.h"
 #include "Resources.h"
+#include "McRFPy_API.h"
 
 UITestScene::UITestScene(GameEngine* g) : Scene(g)
 {
@@ -59,7 +60,7 @@ void UITestScene::buildElements()
     e1a->children->push_back(e1aa);
     
     auto e2 = std::make_shared<UICaption>();
-    e2->text.setFont(game->getFont());
+    e2->setFont(McRFPy_API::defaultFont());  // #478: font and metrics together
     e2->text.setString("Hello World.");
     //e2.text.setColor(sf::Color(255, 255, 255));
     e2->text.setPosition(50, 250);

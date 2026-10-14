@@ -56,6 +56,14 @@ static void take_scene_name(PySceneObject* self, const std::string& name, GameEn
     Py_XDECREF(old_scene);
 }
 
+void PySceneClass::release_registry()
+{
+    // Moved out first: a wrapper's dealloc erases itself from python_scenes.
+    std::map<std::string, PySceneObject*> doomed;
+    doomed.swap(python_scenes);
+    for (auto& [name, wrapper] : doomed) Py_DECREF(wrapper);
+}
+
 PyObject* PySceneClass::__new__(PyTypeObject* type, PyObject* args, PyObject* kwds)
 {
     PySceneObject* self = (PySceneObject*)type->tp_alloc(type, 0);

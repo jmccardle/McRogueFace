@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Scene,Transition] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Scene,Transition] verified=0.3.3 status=ok
 import mcrfpy
 
 

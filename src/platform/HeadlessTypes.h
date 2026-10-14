@@ -602,6 +602,7 @@ public:
 
     FloatRect getLocalBounds() const { return FloatRect(); }
     FloatRect getGlobalBounds() const { return FloatRect(); }
+    float getAdvance() const { return 0.0f; }  // #479: no font metrics in MCRF_HEADLESS
 
 protected:
     void draw(RenderTarget& target, RenderStates states) const override {}

@@ -3,6 +3,7 @@
 #include "McRFPy_Doc.h"
 #include "PyGridData.h"
 #include "UIGridView.h"
+#include "GameEngine.h"
 #include "UIEntity.h"
 #include "PyColor.h"
 #include "PyTexture.h"
@@ -128,6 +129,7 @@ void GridLayer::initChunks() {
     // Initialize per-chunk tracking
     chunk_dirty.assign(total_chunks, true);  // All chunks start dirty
     chunk_texture_initialized.assign(total_chunks, false);
+    chunk_texture_failed_size.assign(total_chunks, {0u, 0u});
     // #451: each chunk's texture is created when the chunk is first drawn
     // (ensureChunkTexture), so a layer that is never drawn needs no display.
     chunk_textures.clear();
@@ -214,11 +216,34 @@ void GridLayer::ensureChunkTexture(int chunk_idx, int cell_width, int cell_heigh
         return;  // Already properly sized
     }
 
-    // Create the texture for this chunk
-    if (!chunk_textures[chunk_idx]->create(required_width, required_height)) {
+    // #470: this size already failed; the caller keeps drawing the chunk cell by cell.
+    // Don't retry (SFML logs every attempt) until the required size changes.
+    if (chunk_texture_failed_size[chunk_idx] ==
+        std::make_pair(required_width, required_height)) {
         chunk_texture_initialized[chunk_idx] = false;
         return;
     }
+
+    // Create the texture for this chunk
+    if (!chunk_textures[chunk_idx]->create(required_width, required_height)) {
+        chunk_texture_initialized[chunk_idx] = false;
+        chunk_texture_failed_size[chunk_idx] = {required_width, required_height};
+        // Report once per chunk and size, not once per frame.
+        std::ostringstream msg;
+        msg << (type == GridLayerType::Color ? "ColorLayer" : "TileLayer")
+            << " '" << name << "' (z_index " << z_index << "): could not create the "
+            << required_width << "x" << required_height << " RenderTexture for chunk ("
+            << cx << ", " << cy << "); drawing it cell by cell, which is much slower. "
+            << "Use a smaller cell size or grid.";
+        if (PyErr_WarnEx(McRFPy_API::texture_warning, msg.str().c_str(), 1) < 0) {
+            PyErr_Print();
+            if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+                McRFPy_API::signalPythonException();
+            }
+        }
+        return;
+    }
+    chunk_texture_failed_size[chunk_idx] = {0u, 0u};
 
     chunk_texture_initialized[chunk_idx] = true;
     chunk_dirty[chunk_idx] = true;  // Force re-render after resize
@@ -566,6 +591,9 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
 
     chunk_textures[chunk_idx]->clear(sf::Color::Transparent);
 
+    // #480: every tile fills exactly its cell, whatever this layer's texture's sprite size.
+    const sf::Vector2f fit = texture->cellFit(cell_width, cell_height);
+
     // Render only tiles within this chunk (local coordinates in texture)
     for (int x = start_x; x < end_x; ++x) {
         for (int y = start_y; y < end_y; ++y) {
@@ -574,7 +602,7 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
 
             // Position relative to chunk origin
             auto pixel_pos = sf::Vector2f((x - start_x) * cell_width, (y - start_y) * cell_height);
-            sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, sf::Vector2f(1.0f, 1.0f));
+            sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, fit);
             chunk_textures[chunk_idx]->draw(sprite);
         }
     }
@@ -622,7 +650,8 @@ void TileLayer::render(sf::RenderTarget& target,
             }
 
             if (!chunk_texture_initialized[chunk_idx]) {
-                // Fallback: direct rendering for this chunk
+                // Fallback: direct rendering for this chunk (#480: same cell fit as the chunk)
+                const sf::Vector2f fit = texture->cellFit(cell_width, cell_height);
                 int start_x, start_y, end_x, end_y;
                 getChunkBounds(cx, cy, start_x, start_y, end_x, end_y);
 
@@ -635,7 +664,7 @@ void TileLayer::render(sf::RenderTarget& target,
                             (x * cell_width - left_spritepixels) * zoom,
                             (y * cell_height - top_spritepixels) * zoom
                         );
-                        sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, sf::Vector2f(zoom, zoom));
+                        sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, fit * zoom);
                         target.draw(sprite);
                     }
                 }

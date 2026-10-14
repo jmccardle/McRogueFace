@@ -48,6 +48,7 @@
 #include "PyHeuristic.h"
 #include "PyBehavior.h"
 #include "PyTrigger.h"
+#include "PyTextBaseline.h"  // #478
 #include "UIGridView.h"
 #include "PySound.h"
 #include "PySoundBuffer.h"
@@ -243,6 +244,24 @@ static int mcrfpy_set_default_transition_duration(PyObject* self, PyObject* valu
     return 0;
 }
 
+// #478: what a Caption made without baseline= copies at construction.
+static PyObject* mcrfpy_get_default_text_baseline(PyObject* self, void* closure)
+{
+    return PyTextBaseline::to_python(PyTextBaseline::default_baseline);
+}
+
+static int mcrfpy_set_default_text_baseline(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'default_text_baseline'");
+        return -1;
+    }
+    TextBaseline baseline;
+    if (!PyTextBaseline::from_arg(value, &baseline)) return -1;
+    PyTextBaseline::default_baseline = baseline;
+    return 0;
+}
+
 static PyObject* mcrfpy_get_save_dir(PyObject* self, void* closure)
 {
 #ifdef __EMSCRIPTEN__
@@ -323,6 +342,12 @@ static PyGetSetDef mcrfpy_module_getset[] = {
      MCRF_PROPERTY(default_texture,
          "Texture used by Sprite, Entity and Grid when none is given (Texture). Loaded "
          "from assets/kenney_tinydungeon.png on first use; assign a Texture to replace it."
+     ), NULL},
+    {"default_text_baseline", mcrfpy_get_default_text_baseline, mcrfpy_set_default_text_baseline,
+     MCRF_PROPERTY(default_text_baseline,
+         "TextBaseline a Caption gets when created without baseline= (TextBaseline). "
+         "Built-in default TOP. A Caption copies it at construction, so changing it "
+         "does not move existing captions. Set TextBaseline.EM_TOP for the pre-0.3.3 placement."
      ), NULL},
     {"save_dir", mcrfpy_get_save_dir, NULL,
      MCRF_PROPERTY(save_dir,
@@ -698,6 +723,74 @@ PyObject* PyInit_mcrfpy()
     return PyModuleDef_Init(&mcrfpyModule);
 }
 
+// The module, created once per process (Py_mod_create below). Released by
+// release_python_references(); after that the engine refuses to build it again.
+static PyObject* mcrfpy_module_instance = nullptr;
+static bool python_references_released = false;
+
+static PyObject* mcrfpy_atexit_release(PyObject*, PyObject*)
+{
+    McRFPy_API::release_python_references();
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef mcrfpy_atexit_def = {
+    "_release_engine_references", mcrfpy_atexit_release, METH_NOARGS,
+    "Release the engine's Python references before finalization (#468)."};
+
+// Register release_python_references() with atexit. atexit runs LIFO, and this is
+// registered while mcrfpy is first imported, so it runs after any handler a game
+// registers (which may still use the engine), and before finalization starts
+// clearing anything (Py_IsInitialized() is still true there).
+static int register_atexit_release()
+{
+    mcrf::PyRef atexit_mod(PyImport_ImportModule("atexit"));
+    if (!atexit_mod) return -1;
+    mcrf::PyRef fn(PyCFunction_New(&mcrfpy_atexit_def, nullptr));
+    if (!fn) return -1;
+    mcrf::PyRef r(PyObject_CallMethod(atexit_mod.get(), "register", "O", fn.get()));
+    return r ? 0 : -1;
+}
+
+void McRFPy_API::release_python_references()
+{
+    if (python_references_released) return;
+    python_references_released = true;
+
+    // Owners of game objects first, so what they release can still reach the statics.
+    if (game) game->releasePythonReferences();
+    PySceneClass::release_registry();
+    // A children view (scene.children held in a global) shares its owner's vector, so
+    // no one may report the children to the GC (#441) and a cycle through them -- a
+    // child's callback reaching that global -- is never collected. Take the vectors back.
+    for (auto& w : mcrf::live_wrappers()) {
+        if (Py_IS_TYPE(w.get(), &mcrfpydef::PyUICollectionType)) {
+            UICollection::release_view((PyUICollectionObject*)w.get());
+        }
+    }
+    mcrf::audio::shutdown();
+    default_font.reset();
+    default_texture.reset();
+
+    // Statics.
+    PyKey::release_statics();
+    PyInputState::release_statics();
+    PyMouseButton::release_statics();
+    PyWindow::release_instance();
+    for (PyObject** cls : {&PyTransition::transition_enum_class, &PyEasing::easing_enum_class,
+                           &PyFOV::fov_enum_class,
+                           &PyHeuristic::heuristic_enum_class, &PyAlignment::alignment_enum_class,
+                           &PyBehavior::behavior_enum_class, &PyTrigger::trigger_enum_class,
+                           &PyPerspective::perspective_enum_class,
+                           &PyTextBaseline::text_baseline_enum_class}) {
+        Py_CLEAR(*cls);
+    }
+    PyTraversal::cleanup();  // borrowed: the module owns Traversal
+    Py_CLEAR(texture_warning);
+    Py_CLEAR(mcrf_module);
+    Py_CLEAR(mcrfpy_module_instance);
+}
+
 // Py_mod_create: builds the module once per process. Multi-phase modules are
 // re-created if removed from sys.modules and imported again; returning the
 // existing module keeps the static types and enum caches from being rebuilt.
@@ -714,9 +807,13 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
         return NULL;
     }
 
-    static PyObject* created = nullptr;
-    if (created) {
-        return Py_NewRef(created);
+    if (mcrfpy_module_instance) {
+        return Py_NewRef(mcrfpy_module_instance);
+    }
+    if (python_references_released) {
+        // Only reachable from code run during finalization (a __del__ importing it).
+        PyErr_SetString(PyExc_ImportError, "mcrfpy cannot be imported again: the engine has shut down");
+        return NULL;
     }
 
     PyObject* name = PyObject_GetAttrString(spec, "name");
@@ -1117,6 +1214,12 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
         PyErr_Clear();
     }
 
+    // Add TextBaseline enum class for Caption vertical anchoring (#478)
+    PyObject* text_baseline_class = PyTextBaseline::create_enum_class(m);
+    if (!text_baseline_class) {
+        PyErr_Clear();
+    }
+
     // Add Behavior enum class for entity behavior types (#297)
     PyObject* behavior_class = PyBehavior::create_enum_class(m);
     if (!behavior_class) {
@@ -1190,8 +1293,13 @@ del _builtins
 )");
 #endif
 
-    //McRFPy_API::mcrf_module = m;
-    created = Py_NewRef(m);
+    // #468: from here the engine may hold Python references, and must release them.
+    mcrf::mark_python_alive();
+    if (register_atexit_release() < 0) {
+        Py_DECREF(m);
+        return NULL;
+    }
+    mcrfpy_module_instance = Py_NewRef(m);
     return m;
 }
 
@@ -1696,7 +1804,10 @@ std::shared_ptr<PyTexture> McRFPy_API::defaultTexture()
 
 void McRFPy_API::api_shutdown()
 {
-    // Audio devices are closed by mcrf::audio::shutdown(), registered with Py_AtExit (#400).
+    // The engine's references (and the audio device, #400) are released by the atexit
+    // callback release_python_references() (#468): Py_Finalize runs it after joining
+    // non-daemon threads (which may still be using the engine) and before it clears
+    // anything. sys.exit() reaches the same callback without coming through here.
     Py_Finalize();
 }
 
@@ -1903,6 +2014,14 @@ PyObject* McRFPy_API::api_get_animations()
 // is actually breaking.
 static bool frameAdvanceAllowed(const char* fname)
 {
+    if (python_references_released) {
+        // #468: the scenes and timers are gone; only finalization code (a __del__) can
+        // get here.
+        PyErr_Format(PyExc_RuntimeError,
+            "mcrfpy.%s() cannot run during interpreter shutdown: the engine has released "
+            "its scenes and timers", fname);
+        return false;
+    }
     if (Resources::game->getFrameLock().heldByCurrentThread()) {
         PyErr_Format(PyExc_RuntimeError,
             "mcrfpy.%s() cannot be called while this thread holds mcrfpy.lock(): it would "

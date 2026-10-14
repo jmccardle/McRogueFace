@@ -30,8 +30,10 @@ void Timer::retainPyWrapper(PyObject* wrapper) {
 }
 
 void Timer::releasePyWrapper() {
-    Py_XDECREF(py_wrapper);
+    // Null first: the wrapper's dealloc can drop the last reference to this Timer.
+    PyObject* w = py_wrapper;
     py_wrapper = nullptr;
+    if (mcrf::python_alive()) Py_XDECREF(w);  // #468
 }
 
 bool Timer::hasElapsed(int now) const
@@ -186,6 +188,15 @@ PyObject* Timer::getCallback()
 {
     if (!callback) return Py_None;
     return callback->borrow();
+}
+
+int Timer::visitCallback(visitproc visit, void* arg) const
+{
+    // Only a callable this timer alone holds: test() copies it for the duration of a call.
+    if (!callback || callback.use_count() != 1) return 0;
+    PyObject* fn = callback->borrow();
+    if (fn && fn != Py_None) Py_VISIT(fn);
+    return 0;
 }
 
 void Timer::setCallback(PyObject* new_callback)

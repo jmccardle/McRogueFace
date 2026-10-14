@@ -306,6 +306,12 @@ elseif(MCRF_CROSS_WINDOWS)
         python${MCRF_PYTHON_NODOT}
         ${OPENGL_LIBRARIES})
 
+    # #478: Caption metrics read the font with FreeType (SFML 2.6 has no ascent getter).
+    # Link the static FreeType SFML's Windows build ships, with the headers of the same
+    # SFML source tree (modules/SFML, a submodule).
+    list(APPEND LINK_LIBS freetype)
+    include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/modules/SFML/extlibs/headers/freetype2)
+
     # Add Windows system libraries needed by SFML and MinGW
     list(APPEND LINK_LIBS
         winmm      # Windows multimedia (for audio)
@@ -334,8 +340,10 @@ elseif(WIN32)
         sfml-audio
         tcod
         python${MCRF_PYTHON_NODOT}
+        freetype   # #478: Caption metrics (see the MinGW branch)
         ${OPENGL_LIBRARIES})
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/windows)
+    include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/modules/SFML/extlibs/headers/freetype2)
     link_directories(${CMAKE_SOURCE_DIR}/__lib)
 else()
     # Unix/Linux build
@@ -350,6 +358,10 @@ else()
         m dl util pthread
         X11   # mcrf::display_available() probes the display SFML would open (#451)
         ${OPENGL_LIBRARIES})
+    # #478: Caption metrics read the font with FreeType, the library sfml-graphics
+    # already loads (SFML 2.6 has no ascent getter). No new runtime dependency.
+    find_package(Freetype REQUIRED)
+    list(APPEND LINK_LIBS Freetype::Freetype)
     include_directories(${CMAKE_SOURCE_DIR}/deps/platform/linux)
     if(MCRF_DEBUG_PYTHON OR MCRF_FREE_THREADED_PYTHON)
         link_directories(${MCRF_PYTHON_LIB_DIR})

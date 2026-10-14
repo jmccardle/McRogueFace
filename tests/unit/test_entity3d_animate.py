@@ -11,7 +11,7 @@ vp.set_grid_size(16, 16)
 e = mcrfpy.Entity3D(pos=(0,0), scale=1.0)
 vp.entities.append(e)
 start_x = e.world_pos[0]
-anim = e.animate('x', 10.0, 1.0, 'linear')
+anim = e.animate('world_x', 10.0, 1.0, 'linear')
 if anim is None:
     errors.append("animate() should return Animation object")
 for _ in range(5):
@@ -41,7 +41,7 @@ if abs(e3.rotation - 90.0) > 0.5:
 e4 = mcrfpy.Entity3D(pos=(3,3), scale=1.0)
 vp.entities.append(e4)
 start_x = e4.world_pos[0]
-e4.animate('x', 2.0, 0.5, 'linear', delta=True)
+e4.animate('world_x', 2.0, 0.5, 'linear', delta=True)
 for _ in range(3):
     mcrfpy.step(0.25)
 expected = start_x + 2.0
@@ -57,7 +57,7 @@ except ValueError:
 
 # Test 6: Invalid target type raises TypeError
 try:
-    e.animate('x', "not_a_number", 1.0, 'linear')
+    e.animate('world_x', "not_a_number", 1.0, 'linear')
     errors.append("String target should raise TypeError")
 except TypeError:
     pass
@@ -69,7 +69,7 @@ def on_complete(target, prop, value):
 
 e5 = mcrfpy.Entity3D(pos=(0,0), scale=1.0)
 vp.entities.append(e5)
-e5.animate('x', 5.0, 0.25, 'linear', callback=on_complete)
+e5.animate('world_x', 5.0, 0.25, 'linear', callback=on_complete)
 for _ in range(3):
     mcrfpy.step(0.15)
 if not callback_called[0]:
@@ -79,7 +79,7 @@ if not callback_called[0]:
 e6 = mcrfpy.Entity3D(pos=(0,0), scale=1.0)
 vp.entities.append(e6)
 try:
-    e6.animate('x', 5.0, 1.0, mcrfpy.Easing.EASE_IN_OUT)
+    e6.animate('world_x', 5.0, 1.0, mcrfpy.Easing.EASE_IN_OUT)
 except Exception as ex:
     errors.append(f"Easing enum should work: {ex}")
 for _ in range(5):

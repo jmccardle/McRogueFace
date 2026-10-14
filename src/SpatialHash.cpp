@@ -11,7 +11,8 @@ void SpatialHash::insert(std::shared_ptr<UIEntity> entity)
 {
     if (!entity) return;
 
-    auto bucket_coord = getBucket(entity->position.x, entity->position.y);
+    auto bucket_coord = getBucket(static_cast<float>(entity->cell_position.x),
+                                  static_cast<float>(entity->cell_position.y));
     buckets[bucket_coord].push_back(entity);
 }
 
@@ -19,7 +20,8 @@ void SpatialHash::remove(std::shared_ptr<UIEntity> entity)
 {
     if (!entity) return;
 
-    auto bucket_coord = getBucket(entity->position.x, entity->position.y);
+    auto bucket_coord = getBucket(static_cast<float>(entity->cell_position.x),
+                                  static_cast<float>(entity->cell_position.y));
     auto it = buckets.find(bucket_coord);
     if (it == buckets.end()) return;
 
@@ -39,37 +41,6 @@ void SpatialHash::remove(std::shared_ptr<UIEntity> entity)
     if (bucket.empty()) {
         buckets.erase(it);
     }
-}
-
-void SpatialHash::update(std::shared_ptr<UIEntity> entity, float old_x, float old_y)
-{
-    if (!entity) return;
-
-    auto old_bucket = getBucket(old_x, old_y);
-    auto new_bucket = getBucket(entity->position.x, entity->position.y);
-
-    // Only update if bucket changed
-    if (old_bucket == new_bucket) return;
-
-    // Remove from old bucket
-    auto it = buckets.find(old_bucket);
-    if (it != buckets.end()) {
-        auto& bucket = it->second;
-        bucket.erase(
-            std::remove_if(bucket.begin(), bucket.end(),
-                [&entity](const std::weak_ptr<UIEntity>& wp) {
-                    auto sp = wp.lock();
-                    return !sp || sp == entity;
-                }),
-            bucket.end()
-        );
-        if (bucket.empty()) {
-            buckets.erase(it);
-        }
-    }
-
-    // Add to new bucket
-    buckets[new_bucket].push_back(entity);
 }
 
 void SpatialHash::updateCell(std::shared_ptr<UIEntity> entity, int old_x, int old_y)
@@ -163,8 +134,9 @@ std::vector<std::shared_ptr<UIEntity>> SpatialHash::queryRadius(float x, float y
             if (!entity) continue;
 
             // Check if entity is actually within the circular radius
-            float dx = entity->position.x - x;
-            float dy = entity->position.y - y;
+            // #431: measured from the logical cell, like every other query
+            float dx = static_cast<float>(entity->cell_position.x) - x;
+            float dy = static_cast<float>(entity->cell_position.y) - y;
             if (dx * dx + dy * dy <= radius_sq) {
                 result.push_back(entity);
             }

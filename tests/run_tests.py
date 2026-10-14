@@ -60,14 +60,18 @@ SNIPPET_HARNESS = 'tests/snippets/_harness.py'
 # not even import. Smoke-gate the entry point that exercises screens/base.py and every
 # wired DemoScreen, so "read the demos for correct usage" stays true.
 #
-# An allowlist, not a glob: the other scripts under tests/demo/ are standalone
-# showcases that are not part of the demo_main path (see the follow-up issue for
-# adopting them). Demos render, so they need a longer timeout than a unit test.
+# An allowlist, not a glob, for the top level of tests/demo/ (it also holds ad-hoc
+# showcase and screenshot scripts). #374: tests/demo/standalone/ is the opposite: every
+# *.py there is a gated demo, run with tests/demo/_harness.py chained as a second
+# --exec (they wait for ESC, which never comes headless). Adding a file adds a test.
+# Demos render, so they need a longer timeout than a unit test.
 DEMO_SMOKE_TESTS = ['demo_main.py']
+DEMO_STANDALONE_DIR = 'standalone'
+DEMO_HARNESS = 'tests/demo/_harness.py'
 DEMO_TIMEOUT = 60  # seconds
 
 # tests/packaging/ drives the real `tools/package.sh linux full` pipeline (the same
-# thing `make package-linux-full` calls) end to end: build the tarball, extract it
+# thing `make package-linux` calls) end to end: build the tarball, extract it
 # OUTSIDE the source tree, and prove the packaged binary's own filtered stdlib can
 # still import and USE the networking/async modules (socket/ssl/asyncio/selectors)
 # that docs/CLAUDE.md promise ship in the "full" preset. Nothing previously verified
@@ -94,6 +98,7 @@ EXTERNAL_INPUTS = {
     "unit/generate_sprite_screenshot.py": (["assets/kenney_TD_MR_IP.png"], _ASSET_PACK),
     "unit/ui_Sprite_issue19_test.py": (["assets/kenney_TD_MR_IP.png"], _ASSET_PACK),
     "regression/issue_148_layer_dirty_flags.py": (["assets/kenney_TD_MR_IP.png"], _ASSET_PACK),
+    "demo/skeletal_animation_demo.py": (["assets/models/RiggedSimple.glb", "assets/models/CesiumMan.glb"], _ASSET_PACK),
     "unit/test_api_docs.py": (["docs/API_REFERENCE_DYNAMIC.md"], _GENERATED_DOCS),
     "unit/test_stubs.py": (["stubs/mcrfpy.pyi"], _GENERATED_DOCS),
 }
@@ -167,6 +172,8 @@ def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT,
     # A snippet has no ending of its own; chain the harness to supply one.
     if test_path.parent.name == 'snippets':
         cmd.extend(['--exec', str(TESTS_DIR / 'snippets' / '_harness.py')])
+    elif test_path.parent.name == DEMO_STANDALONE_DIR:
+        cmd.extend(['--exec', str(TESTS_DIR.parent / DEMO_HARNESS)])
 
     try:
         result = subprocess.run(
@@ -227,7 +234,8 @@ def find_tests(directory):
         return []
     if directory == 'demo':
         # #372: allowlisted entry points only -- see DEMO_SMOKE_TESTS.
-        return [test_dir / name for name in DEMO_SMOKE_TESTS if (test_dir / name).exists()]
+        found = [test_dir / name for name in DEMO_SMOKE_TESTS if (test_dir / name).exists()]
+        return found + sorted((test_dir / DEMO_STANDALONE_DIR).glob("*.py"))
     # Leading underscore = support file, not a test (tests/snippets/_harness.py).
     return sorted(p for p in test_dir.glob("*.py") if not p.name.startswith('_'))
 

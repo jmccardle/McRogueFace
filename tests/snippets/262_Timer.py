@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Frame,Scene,Timer] verified=0.3.0 status=ok
+# mcrf: objects=[Color,Frame,Scene,Timer] verified=0.3.3 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("demo")

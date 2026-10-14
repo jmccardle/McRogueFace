@@ -39,7 +39,7 @@ UIEntity::UIEntity()
 
 UIEntity::~UIEntity() {
     // #299/#436: the step callback belongs to the entity, not to its grid membership.
-    if (step_callback && Py_IsInitialized()) Py_DECREF(step_callback);
+    if (step_callback && mcrf::python_alive()) Py_DECREF(step_callback);
     step_callback = nullptr;
     if (serial_number != 0) mcrf::unregister_wrapper(serial_number);
 }
@@ -620,59 +620,6 @@ int UIEntity::set_texture(PyUIEntityObject* self, PyObject* value, void* closure
     return 0;
 }
 
-PyObject* UIEntity::get_float_member(PyUIEntityObject* self, void* closure)
-{
-    auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (member_ptr == 0) // x
-        return PyFloat_FromDouble(self->data->position.x);
-    else if (member_ptr == 1) // y
-        return PyFloat_FromDouble(self->data->position.y);
-    else
-    {
-        PyErr_SetString(PyExc_AttributeError, "Invalid attribute");
-        return nullptr;
-    }
-}
-
-int UIEntity::set_float_member(PyUIEntityObject* self, PyObject* value, void* closure)
-{
-    float val;
-    auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (PyFloat_Check(value))
-    {
-        val = PyFloat_AsDouble(value);
-    }
-    else if (PyLong_Check(value))
-    {
-        val = PyLong_AsLong(value);
-    }
-    else
-    {
-        PyErr_SetString(PyExc_TypeError, "Position must be a number (int or float)");
-        return -1;
-    }
-
-    // Save old position for spatial hash update (#115)
-    float old_x = self->data->position.x;
-    float old_y = self->data->position.y;
-
-    if (member_ptr == 0) // x
-    {
-        self->data->position.x = val;
-    }
-    else if (member_ptr == 1) // y
-    {
-        self->data->position.y = val;
-    }
-
-    // Update spatial hash if grid exists (#115)
-    if (self->data->getGrid()) {
-        self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
-    }
-
-    return 0;
-}
-
 // #176 - Pixel position: pos = draw_pos * tile_size
 PyObject* UIEntity::get_pixel_pos(PyUIEntityObject* self, void* closure) {
     sf::Vector2f cell;
@@ -738,37 +685,6 @@ int UIEntity::set_pixel_member(PyUIEntityObject* self, PyObject* value, void* cl
     else // y
         tiles.y = val / cell.y;
     self->data->assignDrawPos(tiles);  // #423: shared with animation
-    return 0;
-}
-
-// #176 - Integer grid position (grid_x, grid_y)
-PyObject* UIEntity::get_grid_int_member(PyUIEntityObject* self, void* closure) {
-    auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (member_ptr == 0) // grid_x
-        return PyLong_FromLong(static_cast<int>(self->data->position.x));
-    else // grid_y
-        return PyLong_FromLong(static_cast<int>(self->data->position.y));
-}
-
-int UIEntity::set_grid_int_member(PyUIEntityObject* self, PyObject* value, void* closure) {
-    int val;
-    if (!mcrf::to_int(value, val, "grid position")) return -1;
-
-    // Save old position for spatial hash update
-    float old_x = self->data->position.x;
-    float old_y = self->data->position.y;
-
-    auto member_ptr = reinterpret_cast<intptr_t>(closure);
-    if (member_ptr == 0) // grid_x
-        self->data->position.x = static_cast<float>(val);
-    else // grid_y
-        self->data->position.y = static_cast<float>(val);
-
-    // Update spatial hash if grid exists
-    if (self->data->getGrid()) {
-        self->data->getGrid()->spatial_hash.update(self->data, old_x, old_y);
-    }
-
     return 0;
 }
 
@@ -1608,21 +1524,9 @@ PyObject* UIEntity::get_cell_pos(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_cell_pos(PyUIEntityObject* self, PyObject* value, void* closure) {
-    int old_x = self->data->cell_position.x;
-    int old_y = self->data->cell_position.y;
-
-    sf::Vector2f vec = PyObject_to_sfVector2f(value);
-    if (PyErr_Occurred()) return -1;
-
-    int cx, cy;
-    if (!mcrf::to_int(vec.x, cx, "cell_pos") || !mcrf::to_int(vec.y, cy, "cell_pos")) return -1;
-    self->data->cell_position.x = cx;
-    self->data->cell_position.y = cy;
-
-    // Update spatial hash
-    if (self->data->getGrid()) {
-        self->data->getGrid()->spatial_hash.updateCell(self->data, old_x, old_y);
-    }
+    sf::Vector2i cell;
+    if (!mcrf::to_cell_pos(value, cell, "grid_pos")) return -1;
+    self->data->assignCell(cell);  // #431: teleport; draw_pos follows
     return 0;
 }
 
@@ -1635,23 +1539,12 @@ PyObject* UIEntity::get_cell_member(PyUIEntityObject* self, void* closure) {
 }
 
 int UIEntity::set_cell_member(PyUIEntityObject* self, PyObject* value, void* closure) {
-    long lval = PyLong_AsLong(value);
-    if (lval == -1 && PyErr_Occurred()) return -1;
+    const bool is_x = reinterpret_cast<intptr_t>(closure) == 0;
     int val;
-    if (!mcrf::to_int(static_cast<double>(lval), val, "cell position")) return -1;
-
-    int old_x = self->data->cell_position.x;
-    int old_y = self->data->cell_position.y;
-
-    if (reinterpret_cast<intptr_t>(closure) == 0) {
-        self->data->cell_position.x = static_cast<int>(val);
-    } else {
-        self->data->cell_position.y = static_cast<int>(val);
-    }
-
-    if (self->data->getGrid()) {
-        self->data->getGrid()->spatial_hash.updateCell(self->data, old_x, old_y);
-    }
+    if (!mcrf::to_cell(value, val, is_x ? "grid_x" : "grid_y")) return -1;
+    sf::Vector2i cell = self->data->cell_position;
+    (is_x ? cell.x : cell.y) = val;
+    self->data->assignCell(cell);  // #431: teleport; draw_pos follows
     return 0;
 }
 
@@ -1796,11 +1689,11 @@ PyGetSetDef UIEntity::getsetters[] = {
     // argument); cell_pos/cell_x/cell_y are documented aliases. Both share the
     // same getter/setter and remain fully interchangeable.
     {"grid_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
-     MCRF_PROPERTY(grid_pos, "Integer logical cell position (Vector). Canonical cell-position property matching the 'grid_pos' constructor argument. Decoupled from draw_pos. Determines which cell this entity logically occupies for collision and pathfinding."), NULL},
+     MCRF_PROPERTY(grid_pos, "Integer logical cell position (Vector). Canonical cell-position property matching the 'grid_pos' constructor argument. Determines which cell this entity occupies for collision, pathfinding, GridPoint.entities and entities_in_radius. Setting it teleports: draw_pos snaps to the new cell (as grid.step() does); for smooth movement animate draw_pos. Accepts a Vector or (x, y) of ints or whole-number floats; a fractional value raises ValueError."), NULL},
     {"grid_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     MCRF_PROPERTY(grid_x, "Integer X cell coordinate (int). Canonical; matches grid_pos."), (void*)0},
+     MCRF_PROPERTY(grid_x, "Integer X cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a whole-number float (5.0); a fractional float raises ValueError."), (void*)0},
     {"grid_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     MCRF_PROPERTY(grid_y, "Integer Y cell coordinate (int). Canonical; matches grid_pos."), (void*)1},
+     MCRF_PROPERTY(grid_y, "Integer Y cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a whole-number float (5.0); a fractional float raises ValueError."), (void*)1},
     {"cell_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
      MCRF_PROPERTY(cell_pos, "Integer logical cell position (Vector). Alias for grid_pos (the canonical name)."), NULL},
     {"cell_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
@@ -1810,7 +1703,7 @@ PyGetSetDef UIEntity::getsetters[] = {
 
     // Float tile coordinates (for smooth animation between tiles)
     {"draw_pos", (getter)UIEntity::get_position, (setter)UIEntity::set_position,
-     MCRF_PROPERTY(draw_pos, "Fractional tile position for rendering (Vector). Use for smooth animation between grid cells."), (void*)0},
+     MCRF_PROPERTY(draw_pos, "Fractional tile position for rendering (Vector). Where the sprite is drawn, nothing more: it does not change the logical cell (grid_pos) or what spatial queries find. Animate it for smooth movement between cells; setting grid_pos snaps it to the cell."), (void*)0},
 
     {"perspective_map", (getter)UIEntity::get_perspective_map, (setter)UIEntity::set_perspective_map,
      MCRF_PROPERTY(perspective_map, "Per-entity FOV memory (DiscreteMap). 3-state values per cell: 0=unknown, 1=discovered, 2=visible. Lazy-allocated on first access once entity has a grid; returns None otherwise. The returned DiscreteMap is a live reference. Assigning a DiscreteMap replaces the entity's memory (e.g. loading a saved perspective via from_bytes); size must match the grid or ValueError is raised, and the next updateVisibility() demotes any loaded visible cells to discovered before recomputing FOV. Assign None to clear. Note: updateVisibility() only auto-demotes visible cells the engine itself promoted; if you write 2 (visible) into the live map by hand at a cell outside the entity's current FOV, it will not be auto-demoted -- use 1 (discovered) to reveal remembered cells, or assign a whole map to set arbitrary state."),
@@ -1833,7 +1726,7 @@ PyGetSetDef UIEntity::getsetters[] = {
     {"uniforms", (getter)UIEntity_get_uniforms, NULL,
      MCRF_PROPERTY(uniforms, "Collection of shader uniforms (UniformCollection, read-only). Set values via dict-like syntax: entity.uniforms['name'] = value."), NULL},
     {"sprite_offset", (getter)UIEntity::get_sprite_offset, (setter)UIEntity::set_sprite_offset,
-     MCRF_PROPERTY(sprite_offset, "Pixel offset for oversized sprites (Vector). Applied pre-zoom during grid rendering."), NULL},
+     MCRF_PROPERTY(sprite_offset, "Offset for oversized sprites (Vector), in texture pixels: stretched with the sprite when the cell size differs from the grid texture's sprite size, then zoomed."), NULL},
     {"sprite_offset_x", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
      MCRF_PROPERTY(sprite_offset_x, "X component of sprite pixel offset (float)."), (void*)0},
     {"sprite_offset_y", (getter)UIEntity::get_sprite_offset_member, (setter)UIEntity::set_sprite_offset_member,
@@ -1886,11 +1779,22 @@ PyObject* UIEntity::repr(PyUIEntityObject* self) {
 
 void UIEntity::assignDrawPos(sf::Vector2f tiles)
 {
-    const sf::Vector2f old = position;
+    // #431: draw_pos is where the sprite is drawn, nothing more. The spatial hash is
+    // keyed on cell_position, so moving (or animating) the sprite leaves it alone.
     position = tiles;
     if (auto grid = getGrid()) {
-        grid->spatial_hash.update(shared_from_this(), old.x, old.y);  // #115, #256
         grid->markCompositeDirty();  // #351 - entity moved; re-raster view
+    }
+}
+
+void UIEntity::assignCell(sf::Vector2i cell)
+{
+    const sf::Vector2i old = cell_position;
+    cell_position = cell;
+    position = sf::Vector2f(static_cast<float>(cell.x), static_cast<float>(cell.y));
+    if (auto grid = getGrid()) {
+        grid->spatial_hash.updateCell(shared_from_this(), old.x, old.y);
+        grid->markCompositeDirty();  // #351
     }
 }
 

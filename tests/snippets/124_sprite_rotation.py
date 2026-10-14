@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Sprite] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Sprite] verified=0.3.3 status=ok
 # Sprite Rotation - Rotate sprite images
 import mcrfpy
 

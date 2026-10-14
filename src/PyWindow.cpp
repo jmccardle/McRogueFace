@@ -28,6 +28,11 @@ PyObject* PyWindow::instance()
     return w;
 }
 
+void PyWindow::release_instance()
+{
+    Py_CLEAR(window_instance);
+}
+
 PyObject* PyWindow::get(PyObject* cls, PyObject* args)
 {
     return instance();

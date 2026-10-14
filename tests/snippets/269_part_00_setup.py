@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Scene] verified=0.3.3 status=ok
 """McRogueFace Tutorial - Part 0: Hello Roguelike
 
 This script demonstrates the basic structure of a McRogueFace program.

@@ -82,6 +82,12 @@ public:
     
     // Clear the callback (called when PyAnimation is deallocated)
     void clearCallback();
+    // #468: report the callback to the GC (the wrapper's tp_traverse; PyAnimation.cpp
+    // says when it may).
+    int visitCallback(visitproc visit, void* arg) const {
+        if (pythonCallback) Py_VISIT(pythonCallback);
+        return 0;
+    }
     
     // Animation properties
     std::string getTargetProperty() const { return targetProperty; }

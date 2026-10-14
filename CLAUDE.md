@@ -199,11 +199,9 @@ make windows-debug      # Debug build with console output
 make clean-windows      # Remove Windows build artifacts
 
 # Distribution packages
-make package-linux-light    # Linux with minimal stdlib (~25 MB)
-make package-linux-full     # Linux with full stdlib (~26 MB)
-make package-windows-light  # Windows with minimal stdlib
-make package-windows-full   # Windows with full stdlib
-make package-all            # All platform/preset combinations
+make package-linux      # dist/McRogueFace-<v>-Linux.tar.gz
+make package-windows    # dist/McRogueFace-<v>-Windows.zip
+make package-all        # both (one package per platform, #435)
 
 # Cleanup
 make clean-all          # Remove all builds and packages
@@ -269,10 +267,10 @@ The packaging system creates self-contained archives with:
 - Required shared libraries
 - Assets (sprites, fonts, audio)
 - Python scripts
-- Filtered Python stdlib (light or full variant)
+- Python stdlib (all of it, minus the exclusions in `runtime.py`: tests, idle, tkinter, ...)
 
-**Light variant** (~25 MB): Core + gamedev + utility modules only
-**Full variant** (~26 MB): Includes networking, async, debugging modules
+There is one package per platform and no light/full variants (#435, #399):
+`McRogueFace-<v>-Linux.tar.gz`, `McRogueFace-<v>-Windows.zip`, `McRogueFace-<v>-WASM.zip`.
 
 Packaging tools:
 - `src/pylib/mcrf_project/runtime.py` - **the** definition of what a package contains
@@ -289,15 +287,10 @@ Packaging tools:
   the root is what itch.io, static hosts and folder URLs serve.
 - `tools/version.sh` - prints `MCRFPY_VERSION` from `src/McRogueFaceVersion.h`, the only
   source of truth for the version, `-dev` included (#475). Nothing reads git tags for it.
-- `tools/package_stdlib.py`, `tools/stdlib_modules.yaml` - unused (see #399)
-
-**Caveat (#399): the light/full split is currently aspirational, not mechanical.**
-Both presets ship the same stdlib; the preset only names the package. Do not assume
-editing `stdlib_modules.yaml` changes what ships.
 
 #### Networking / async guarantee
 
-The **`make package-linux-full`** configuration is the named, gated one for embedders
+The **`make package-linux`** package is the named, gated one for embedders
 who run a network client (message bus, telemetry feed) on a background thread inside
 the engine process. In that artifact, `socket`, `ssl`, `asyncio` and `selectors` all
 import and work from the package's own `lib/Python/Lib` — Python sources and the
@@ -784,9 +777,24 @@ with a live wrapper has two owners, and neither may report its callbacks.
 makes `Sound(...).play()` work without a held reference. Device resources (`sf::Sound`,
 `sf::Music`, `sf::SoundBuffer`, each of which opens the OpenAL device when constructed)
 exist only while `mcrf::audio::enabled()`. They live behind a `unique_ptr` in an
-`mcrf::audio::Source`, so that `shutdown()` (run via `Py_AtExit`) can close the device
-before `exit()`. Never add an `sf::` audio member anywhere else: an unused one on
-`GameEngine` kept a device open in every run, and it is what caused #400.
+`mcrf::audio::Source`, so that `shutdown()` (part of the exit teardown below) can close
+the device before `exit()`. Never add an `sf::` audio member anywhere else: an unused one
+on `GameEngine` kept a device open in every run, and it is what caused #400.
+
+**Exit teardown (#468).** Every Python reference the engine holds is released by ONE
+function, `McRFPy_API::release_python_references()`, registered with `atexit` when mcrfpy
+is created, so every exit path reaches it (`api_shutdown()`'s `Py_Finalize`, and
+`sys.exit()`, which finalizes inside `PyErr_Print()`), after non-daemon threads are joined
+and before CPython clears anything. A new engine-held reference (a static, a registry, an
+owner in `GameEngine`) must be released there. It also takes back the vectors children
+views share with their owners (`UICollection::release_view`), so cycles through module
+globals become visible to the GC; `Timer` and `Animation` wrappers report their callback
+when they alone own the object. Never reset `weakreflist` in `tp_init`: a re-run
+`__init__` orphans the wrapper cache's weak reference. Guard a destructor's DECREF with
+`mcrf::python_alive()`, never `Py_IsInitialized()`: CPython clears that before its final
+GC and module clearing, so the old guards skipped every release made during finalization.
+Gate: `tests/regression/issue_468_exit_teardown_test.py` (markers on every exit path, and
+no LSan report under `make asan-test`).
 
 `tools/lint_bindings.py` (tree-sitter, `make lint-bindings`) enforces all of this:
 identity-type construction outside a converter (via `tp_alloc`, `Foo::pynew`, or

@@ -270,6 +270,9 @@ for h, nframes, med, nacq, ratio, still_alive in greedy_rows:
                nframes >= 1)
     check_true(f"greedy H={h}ms: the greedy thread really did acquire "
                f"({nacq} acquires) -- non-vacuity", nacq >= 10)
+    check_true(f"greedy H={h}ms: at most one acquire is served per frame "
+               f"({nacq} acquires, {nframes} frames) -- #410",
+               nacq <= nframes + 1)
     check_true(f"greedy H={h}ms: the greedy thread shut down and is not parked "
                f"in acquire()", not still_alive)
 

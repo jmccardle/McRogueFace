@@ -1,4 +1,4 @@
-# mcrf: objects=[Grid,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Grid,Scene] verified=0.3.3 status=ok
 import mcrfpy
 
 # Create a scene first

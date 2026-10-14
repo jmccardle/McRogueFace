@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Frame,Grid,Scene] verified=0.3.0 status=ok
+# mcrf: objects=[Caption,Color,Entity,Frame,Grid,Scene] verified=0.3.3 status=ok
 # Grid Fill Color - Background color
 import mcrfpy
 

@@ -1,5 +1,6 @@
 #include "PyWrap.h"
 #include <iostream>
+#include <atomic>
 #include <climits>
 #include <cmath>
 #include "PyVector.h"
@@ -8,6 +9,22 @@
 #include "PyGridData.h"
 
 namespace mcrf {
+
+// #468: see python_alive(). Written only on the main thread (module creation, and the
+// Py_AtExit handler at the end of Py_Finalize); read from destructors.
+static std::atomic<bool> g_python_alive{false};
+
+static void python_gone() { g_python_alive.store(false); }
+
+bool python_alive() { return g_python_alive.load(std::memory_order_relaxed); }
+
+void mark_python_alive()
+{
+    if (g_python_alive.exchange(true)) return;
+    // Runs after Py_Finalize is done, whichever way it was reached (api_shutdown(), or
+    // sys.exit() finalizing inside PyErr_Print()).
+    Py_AtExit(python_gone);
+}
 
 int register_wrapper(uint64_t& serial, PyObject* self)
 {
@@ -21,7 +38,15 @@ int register_wrapper(uint64_t& serial, PyObject* self)
 
 void unregister_wrapper(uint64_t serial)
 {
+    if (!python_alive()) return;
     PythonObjectCache::getInstance().remove(serial);
+}
+
+std::vector<PyRef> live_wrappers()
+{
+    std::vector<PyRef> out;
+    for (PyObject* o : PythonObjectCache::getInstance().liveObjects()) out.emplace_back(o);
+    return out;
 }
 
 PyObject* live_wrapper(uint64_t serial)
@@ -54,7 +79,7 @@ void PyIdentityPin::sync(bool pinned, uint64_t serial)
         release();
         return;
     }
-    if (wrapper || serial == 0 || !Py_IsInitialized()) return;
+    if (wrapper || serial == 0 || !python_alive()) return;
     // A miss means no wrapper exists (an object attached from C++, or one whose
     // wrapper was already collected). The converter pins the one it makes later.
     wrapper = live_wrapper(serial);  // new reference
@@ -67,7 +92,7 @@ void PyIdentityPin::release()
     // to the owning object, which can re-enter here if that was the last strong ref.
     PyObject* tmp = wrapper;
     wrapper = nullptr;
-    if (Py_IsInitialized()) Py_DECREF(tmp);
+    if (python_alive()) Py_DECREF(tmp);
 }
 
 static bool number_pair(PyObject* seq, sf::Vector2f& out)
@@ -138,6 +163,44 @@ bool to_int(PyObject* value, int& out, const char* what)
     }
     if (PyFloat_Check(value)) return to_int(PyFloat_AsDouble(value), out, what);
     PyErr_Format(PyExc_TypeError, "%s must be a number", what);
+    return false;
+}
+
+static bool integral_to_cell(double value, int& out, const char* what)
+{
+    if (!std::isfinite(value) || std::floor(value) != value) {
+        PyErr_Format(PyExc_ValueError, "%s must be a whole number of cells, got %R",
+                     what, mcrf::PyRef(PyFloat_FromDouble(value)).get());
+        return false;
+    }
+    return to_int(value, out, what);
+}
+
+bool to_cell(PyObject* value, int& out, const char* what)
+{
+    if (PyFloat_Check(value)) {
+        double d = PyFloat_AsDouble(value);
+        if (d == -1.0 && PyErr_Occurred()) return false;
+        return integral_to_cell(d, out, what);
+    }
+    if (PyLong_Check(value)) return to_int(value, out, what);
+    PyErr_Format(PyExc_TypeError, "%s must be an int (or a whole-number float), not %.200s",
+                 what, Py_TYPE(value)->tp_name);
+    return false;
+}
+
+bool to_cell_pos(PyObject* value, sf::Vector2i& out, const char* what)
+{
+    if (PyObject_TypeCheck(value, &mcrfpydef::PyVectorType)) {
+        const sf::Vector2f& v = ((PyVectorObject*)value)->data;
+        return integral_to_cell(v.x, out.x, what) && integral_to_cell(v.y, out.y, what);
+    }
+    if ((PyTuple_Check(value) || PyList_Check(value)) && PySequence_Fast_GET_SIZE(value) == 2) {
+        PyObject** items = PySequence_Fast_ITEMS(value);
+        return to_cell(items[0], out.x, what) && to_cell(items[1], out.y, what);
+    }
+    PyErr_Format(PyExc_TypeError, "%s must be a Vector or an (x, y) pair of ints, not %.200s",
+                 what, Py_TYPE(value)->tp_name);
     return false;
 }
 

@@ -142,6 +142,11 @@ void raise_not_animatable(const char* type_name, const char* property)
         {"Line",    "end_y",           "use 'end'"},
         {"Entity",  "draw_x",          "use 'draw_pos' for tile coordinates, or 'x' for pixels"},
         {"Entity",  "draw_y",          "use 'draw_pos' for tile coordinates, or 'y' for pixels"},
+        {"Entity3D", "x",              "use 'world_x' (Entity3D.pos is the integer cell)"},
+        {"Entity3D", "y",              "use 'world_y' (Entity3D.pos is the integer cell)"},
+        {"Entity3D", "z",              "use 'world_z' (Entity3D.pos is the integer cell)"},
+        {"Entity3D", "rot_y",          "use 'rotation'"},
+        {"Entity3D", "color",          "Entity3D.color is not animatable"},
         {"Entity",  "sprite_scale",    "an entity's sprite is scaled by its grid's zoom"},
     };
     // tp_name is "mcrfpy.Frame"; report the name users write.
