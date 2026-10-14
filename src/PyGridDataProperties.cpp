@@ -129,19 +129,7 @@ int PyGridData::set_cell_member(PyGridDataObject* self, PyObject* value, void* c
 
 PyObject* PyGridData::get_fov(PyGridDataObject* self, void* closure)
 {
-    if (PyFOV::fov_enum_class) {
-        PyObject* value = PyLong_FromLong(self->data->fov_algorithm);
-        if (!value) return NULL;
-
-        PyObject* args = PyTuple_Pack(1, value);
-        Py_DECREF(value);
-        if (!args) return NULL;
-
-        PyObject* result = PyObject_Call(PyFOV::fov_enum_class, args, NULL);
-        Py_DECREF(args);
-        return result;
-    }
-    return PyLong_FromLong(self->data->fov_algorithm);
+    return PyFOV::to_python(self->data->fov_algorithm);
 }
 
 int PyGridData::set_fov(PyGridDataObject* self, PyObject* value, void* closure)

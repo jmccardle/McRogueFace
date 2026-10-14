@@ -197,6 +197,29 @@ static PyObject* mcrfpy_get_animations(PyObject* self, void* closure)
     return McRFPy_API::api_get_animations();
 }
 
+static PyObject* mcrfpy_get_default_fov(PyObject* self, void* closure)
+{
+    return PyFOV::to_python(PyFOV::default_fov);
+}
+
+static int mcrfpy_set_default_fov(PyObject* self, PyObject* value, void* closure)
+{
+    if (!value) {
+        PyErr_SetString(PyExc_AttributeError, "cannot delete 'default_fov'");
+        return -1;
+    }
+    if (value == Py_None) {
+        PyErr_SetString(PyExc_TypeError, "default_fov must be an mcrfpy.FOV member, not None");
+        return -1;
+    }
+    TCOD_fov_algorithm_t algo;
+    if (!PyFOV::from_arg(value, &algo, nullptr)) {
+        return -1;
+    }
+    PyFOV::default_fov = algo;
+    return 0;
+}
+
 static PyObject* mcrfpy_get_default_transition(PyObject* self, void* closure)
 {
     return PyTransition::to_python(PyTransition::default_transition);
@@ -322,6 +345,12 @@ static PyGetSetDef mcrfpy_module_getset[] = {
     {"animations", mcrfpy_get_animations, NULL,
      MCRF_PROPERTY(animations,
          "Tuple of all currently running Animation objects (tuple, read-only)."
+     ), NULL},
+    {"default_fov", mcrfpy_get_default_fov, mcrfpy_set_default_fov,
+     MCRF_PROPERTY(default_fov,
+         "FOV algorithm (FOV) a new Grid or GridData starts with. Built-in default "
+         "FOV.BASIC. A grid copies it at construction, so changing it does not affect "
+         "existing grids; set grid.fov to change one."
      ), NULL},
     {"default_transition", mcrfpy_get_default_transition, mcrfpy_set_default_transition,
      MCRF_PROPERTY(default_transition,
@@ -1128,27 +1157,12 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
     // Add version string (#164)
     PyModule_AddStringConstant(m, "__version__", MCRFPY_VERSION);
 
-    // Add FOV enum class (uses Python's IntEnum) (#114)
-    PyObject* fov_class = PyFOV::create_enum_class(m);
-    if (!fov_class) {
-        // If enum creation fails, continue without it (non-fatal)
-        PyErr_Clear();
-    }
-
-    // Add default_fov module property - defaults to FOV.BASIC
-    // New grids copy this value at creation time
-    if (fov_class) {
-        PyObject* default_fov = PyObject_GetAttrString(fov_class, "BASIC");
-        if (default_fov) {
-            PyModule_AddObject(m, "default_fov", default_fov);
-        } else {
-            PyErr_Clear();
-            // Fallback to integer
-            PyModule_AddIntConstant(m, "default_fov", FOV_BASIC);
-        }
-    } else {
-        // Fallback to integer if enum failed
-        PyModule_AddIntConstant(m, "default_fov", FOV_BASIC);
+    // Add FOV enum class (uses Python's IntEnum) (#114). A failure here is fatal:
+    // default_fov, Grid.fov and every fov= argument need the enum (#493).
+    // mcrfpy.default_fov is a module property backed by PyFOV::default_fov.
+    if (!PyFOV::create_enum_class(m)) {
+        Py_DECREF(m);
+        return NULL;
     }
 
     // Add Transition enum class (uses Python's IntEnum)

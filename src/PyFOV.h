@@ -17,6 +17,12 @@ public:
     // If arg is None, sets *out_algo to the default (FOV_BASIC) and sets *was_none to true
     static int from_arg(PyObject* arg, TCOD_fov_algorithm_t* out_algo, bool* was_none = nullptr);
 
+    // FOV member (new reference) for an algorithm value
+    static PyObject* to_python(TCOD_fov_algorithm_t algo);
+
+    // mcrfpy.default_fov: the algorithm new grids start with (#493)
+    static TCOD_fov_algorithm_t default_fov;
+
     // Cached reference to the FOV enum class for fast type checking
     static PyObject* fov_enum_class;
 };
