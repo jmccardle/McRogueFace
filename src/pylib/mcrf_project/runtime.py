@@ -186,9 +186,14 @@ class Runtime:
                    lib / "Python")
         out_ext = out_lib / "Python" / ext.name
         out_ext.mkdir(parents=True)
-        for so in sorted(ext.glob("*.so")):
-            if not any(fnmatch.fnmatch(so.name, pat) for pat in EXTENSION_EXCLUDED):
-                shutil.copy2(so, out_ext / so.name)
+        # Everything in the directory but bytecode and the excluded test modules: the
+        # extension modules, and the build-config files `sysconfig` imports from here
+        # (_sysconfigdata_*.py and its _sysconfig_vars_*.json, #498).
+        for item in sorted(ext.iterdir()):
+            if not item.is_file() or item.suffix in (".pyc", ".pyo"):
+                continue
+            if not any(fnmatch.fnmatch(item.name, pat) for pat in EXTENSION_EXCLUDED):
+                shutil.copy2(item, out_ext / item.name)
 
         self._stage_stdlib(dest)
         run_sh = dest / "run.sh"
