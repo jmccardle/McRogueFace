@@ -4,6 +4,7 @@
       scripts/game.py      the game (sys.path[0] when it runs, #452)
       assets/              its assets, starting with the engine's default font and texture
       VERSION              the game's version, used in package names
+      mcrf.toml            optional settings: which engine, the requirements (see CONFIG_KEYS)
       Makefile             `make run`, `make dist`, ... calling the engine
       .mcrf.mk             which engine (local, ignored by git)
       typings/mcrfpy.pyi   type stubs for the editor (refreshed by `init`)
@@ -17,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 from .errors import ProjectError
@@ -46,8 +48,32 @@ scene.on_key = on_key
 mcrfpy.current_scene = scene
 '''
 
+CONFIG_NAME = "mcrf.toml"
+# What mcrf.toml may hold, and the type of each. An unknown key is an error, so a typo
+# can't silently do nothing.
+CONFIG_KEYS = {
+    "engine": str,             # directory of the engine to use (#500); prefer $MCROGUEFACE
+    "engine-version": str,     # which per-user install to use, e.g. "0.3.3" (#500)
+    "requirements": list,      # pip requirement strings, installed by `deps` (#499)
+    "requirements-file": str,  # a pip requirements file, relative to the project (#499)
+}
+CONFIG_TEMPLATE = """# McRogueFace project settings. Every key is optional.
+#
+# Which engine runs and packages this project. Without these, mcrf_project uses
+# $MCROGUEFACE, then the newest engine under ~/.local/share/mcrogueface/<version>/, then
+# the engine running it (`info` says which). Prefer the environment variable to `engine`:
+# a path here is a path on one machine.
+# engine-version = "0.3.3"
+# engine = "/path/to/engine"
+#
+# Third-party packages, installed into .venv/ by `mcrf_project deps` and shipped by `dist`.
+# requirements = ["some-package>=1.0"]
+# requirements-file = "requirements.txt"
+"""
+
 GITIGNORE = """# McRogueFace game project
 .mcrf.mk
+.venv/
 dist/
 build-web/
 save/
@@ -113,6 +139,30 @@ class Project:
         except FileNotFoundError:
             return "0.1.0"
 
+    @property
+    def config_path(self):
+        return self.dir / CONFIG_NAME
+
+    @property
+    def config(self):
+        """The validated contents of mcrf.toml ({} if there is none)."""
+        if not self.config_path.is_file():
+            return {}
+        try:
+            with open(self.config_path, "rb") as f:
+                data = tomllib.load(f)
+        except tomllib.TOMLDecodeError as exc:
+            raise ProjectError("%s: %s" % (self.config_path, exc))
+        for key, value in data.items():
+            if key not in CONFIG_KEYS:
+                raise ProjectError("%s: unknown key %r (known: %s)"
+                                   % (self.config_path, key, ", ".join(CONFIG_KEYS)))
+            kind = CONFIG_KEYS[key]
+            if not isinstance(value, kind) or (kind is list and not all(isinstance(v, str) for v in value)):
+                raise ProjectError("%s: %s must be %s" % (self.config_path, key,
+                                   "a list of strings" if kind is list else "a string"))
+        return data
+
     def require(self):
         """Raise unless this is a game project."""
         if not (self.scripts / "game.py").is_file():
@@ -146,6 +196,7 @@ class Project:
 
         self._write_once(".gitignore", GITIGNORE, log)
         self._write_once("VERSION", "0.1.0\n", log)
+        self._write_once(CONFIG_NAME, CONFIG_TEMPLATE, log)
 
         makefile = self.dir / "Makefile"
         existing = makefile.read_text() if makefile.exists() else None
