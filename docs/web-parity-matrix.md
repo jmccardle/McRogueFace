@@ -29,6 +29,9 @@ or `planned: #388`. It never marks a row covered without a test to point at.
 |---|---|---|---|---|
 | **Audio** | ✅ Full | ✅ Full | manual only (browser) | SDL2_mixer via `-sUSE_SDL_MIXER=2`; `SoundBuffer`/`Sound`/`Music` work. MP3 + procedural audio confirmed in-browser (Feb 2026), correcting the old "Stubbed on web" claim. No automated audio assertion on either backend yet. |
 | **Input** (Key / MouseButton / modifiers) | ✅ Full | ✅ Full | ✅ `tests/unit/input_parity_test.py` (#389) + source audit | Enum inventory, integer values, contiguity, and IntEnum `__ne__` are asserted; SDL→SFML translation coverage is source-audited in the same file (every exposed key/button/modifier is mapped). See [Input parity detail](#input-parity-the-one-fully-covered-row). |
+| **Text entry** (`scene.on_text`, `automation.typeText`) (#495) | ✅ Full (`sf::Event::TextEntered`) | ✅ Full (`SDL_TEXTINPUT`) | ✅ `tests/unit/scene_on_text_test.py` (delivery, UTF-8/astral code points, ordering, validation) + `input_parity_test.py` source audit of the SDL translation | One printable code point per call, as a UTF-8-decoded `str`. SDL's `SDL_TEXTINPUT` carries a whole string (IME commit, compose result); the pump now decodes **every** code point and queues the rest (it used to take the first byte only). SFML reports control characters (Backspace, Tab, Enter, Escape, DEL) as text and SDL never does, so the engine drops them on both: they are keys, delivered to `on_key`. The web path itself is not run by CI; the translation is source-audited and the engine side is shared code the desktop test runs. |
+| **Modifier state** (`mcrfpy.keyboard.shift/ctrl/alt/system`) (#497) | ✅ From the key event | ✅ From the key event (`KMOD_*`) | ✅ `tests/regression/issue_497_keyboard_modifiers_from_events_test.py` (injected events) + `input_parity_test.py` audit that SDL key events carry all four flags | Reports the modifiers of the key event being handled, not a hardware poll, so it agrees with `on_key` under event lag and in headless tests. The value persists until the next key event and is cleared on focus loss. A modifier key's *own* press/release carries whatever the backend reports for it (injected events: pressed counts, released does not). |
+| **Dev-tool hotkeys** (`Window.console_key` / `explorer_key`) (#496) | ✅ Configurable, default Grave / F4 | n/a (no console to toggle; every key reaches `on_key`) | ✅ `tests/regression/issue_496_dev_hotkeys_test.py` (property contract headless; hotkey behaviour in a windowed child process) | `None` frees the key for the game. `mcrfpy.set_dev_console(False)` now also releases Grave/F4 (it used to disable the console but still swallow the keys). The properties exist on web but have no effect. |
 | **Dynamic assets** (filesystem) | ✅ Filesystem | ⚠️ Preloaded only | `unverified` (build-time invariant) | All assets are bundled into the Emscripten virtual FS at build time via `--preload-file`; no runtime disk loading. Use absolute VFS paths (`/assets/…`, `/scripts/…`). Not a bug — a platform constraint. |
 | **ImGui console** | ✅ Full | ❌ Disabled | n/a (absent by design) | Debug overlay is compiled out on web. Nothing to test — the surface does not exist. Web debugging goes through the JS interop surface exercised by the WASM smoke suite. |
 | **Threading** | ✅ Full | ⚠️ Single-threaded | `unverified` | Browser JS execution is single-threaded; no pthreads in this build config. Game logic is single-threaded on both backends, so no divergence is *expected*, but nothing asserts it. |
@@ -71,11 +74,11 @@ The same file records the **source audit** (verified 2026-07-19) proving the SDL
 translation is complete: `sdlScancodeToSfKey()` / `sfKeyToSdlScancode()`
 (`SDL2Renderer.cpp:825-1042`) map every exposed key in both directions;
 `sdlButtonToSfButton()` (`:1044-1052`) maps all 5 buttons; modifiers (`:783-786`) carry
-all four flags. It also flags three non-blocking follow-ups for #390: a dead
-`SDL_SCANCODE_TO_SF_KEY[]` placeholder array, a `sdlButtonToSfButton` default that
-fabricates a `LEFT` click for unknown ids (Fail-Early violation), and the
-`SDL_TEXTINPUT` single-byte UTF-8 truncation (which is the text-entry face of the text
-row above).
+all four flags. It also flags two non-blocking follow-ups for #390: a dead
+`SDL_SCANCODE_TO_SF_KEY[]` placeholder array and a `sdlButtonToSfButton` default that
+fabricates a `LEFT` click for unknown ids (Fail-Early violation). The third,
+the `SDL_TEXTINPUT` single-byte UTF-8 truncation, was fixed in #495 and is now guarded by
+`test_text_entry_audit`.
 
 ---
 

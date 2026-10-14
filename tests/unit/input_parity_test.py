@@ -49,9 +49,27 @@ Non-blocking issues noted for follow-up (NOT enum gaps, do not fail this test):
     unknown SDL button id would silently become a LEFT click (Fail-Early violation).
     Unreachable today because all 5 SDL button ids are mapped, but it should raise/
     return an Unknown sentinel rather than fabricate a Left click.
-  * SDL2Renderer.cpp:791-792  SDL_TEXTINPUT copies only `text.text[0]` as one
-    unsigned char, so TextEntered mangles any non-ASCII / multibyte UTF-8 input on
-    web. Text-entry divergence (separate from the Key/MouseButton enum path).
+  * (resolved in #495) SDL_TEXTINPUT used to copy only `text.text[0]` as one unsigned
+    char, mangling every non-ASCII character and dropping all but the first character
+    of an IME commit. translateSDLEvent now decodes every code point (the first is
+    returned, the rest wait in g_pendingText and are drained by pollEvent/waitEvent),
+    and drops malformed UTF-8 instead of inventing U+FFFD. test_text_entry_audit below
+    keeps that from regressing.
+
+Text entry (#495) -- scene.on_text(text: str), one printable code point per call.
+  SFML delivers sf::Event::TextEntered, SDL2 delivers SDL_TEXTINPUT translated to the
+  same event. SFML also reports control characters (Backspace 8, Tab 9, Enter 13,
+  Escape 27, DEL 127) as text and SDL never does, so GameEngine::dispatchText drops
+  C0/DEL/C1 and both backends deliver the same thing; those are keys, on on_key.
+
+Modifiers (#497) -- mcrfpy.keyboard.{shift,ctrl,alt,system} report the modifiers of the key
+  event being handled, never a hardware poll. SDL2Renderer.cpp copies KMOD_* into
+  key.{alt,control,shift,system} (above), SFML sets the same fields, so both backends
+  feed GameEngine::noteKeyModifiers the same way.
+
+Developer-tool hotkeys (#496) -- Window.console_key / explorer_key. The ImGui console and
+  scene explorer exist only in windowed SFML builds. On web (SDL2) and headless there is no
+  tool to toggle, so every key, Grave and F4 included, always reaches on_key there.
 
 Conclusion: for the enum-based input path (Key / MouseButton / modifiers) the web
 SDL2 backend is at full parity with desktop SFML -- no unmapped keys, buttons, or
@@ -204,6 +222,40 @@ def test_ne_operator_gotcha():
     print("  __ne__ correct for same-enum and cross-type compares")
 
 
+def test_text_and_modifier_surface():
+    """The Python-visible #495/#496/#497 API exists on every backend (it is backend-agnostic)."""
+    print("Testing text-entry / modifier / dev-hotkey surface...")
+    from mcrfpy import automation
+    assert hasattr(mcrfpy.Scene, "on_text"), "Scene.on_text must exist"
+    assert hasattr(automation, "typeText"), "automation.typeText must exist"
+    for name in ("console_key", "explorer_key"):
+        assert hasattr(mcrfpy.Window, name), f"Window.{name} must exist"
+    for name in ("shift", "ctrl", "alt", "system"):
+        assert isinstance(getattr(mcrfpy.keyboard, name), bool), f"keyboard.{name} must be a bool"
+    print("  on_text, typeText, console_key/explorer_key and keyboard modifiers present")
+
+
+def test_text_entry_audit():
+    """Static audit of the SDL2 TEXTINPUT translation (web cannot be run from here)."""
+    print("Auditing SDL_TEXTINPUT translation (source)...")
+    import os
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
+                        "src", "platform", "SDL2Renderer.cpp")
+    with open(path, encoding="utf-8") as f:
+        src = f.read()
+    a = src.index("case SDL_TEXTINPUT")
+    block = src[a:src.index("case SDL_MOUSEMOTION", a)]
+    assert "next_codepoint" in block, "TEXTINPUT must decode every code point"
+    assert "g_pendingText" in block, "extra code points must be queued, not dropped"
+    assert "text.text[0]" not in block, "TEXTINPUT must not read only the first byte"
+    poll = src[src.index("bool RenderWindow::pollEvent"):src.index("bool RenderWindow::waitEvent")]
+    assert "g_pendingText" in poll, "pollEvent must drain the queued code points"
+    kb = src[src.index("case SDL_KEYDOWN"):src.index("case SDL_TEXTINPUT")]
+    for field in ("key.alt", "key.control", "key.shift", "key.system"):
+        assert field in kb, f"SDL key events must carry {field} (#497)"
+    print("  TEXTINPUT decodes all code points; key events carry all four modifiers")
+
+
 def main():
     print("=" * 60)
     print("Input Parity Test (#389) -- Key / MouseButton / InputState")
@@ -214,6 +266,8 @@ def main():
         test_mouse_button_inventory()
         test_input_state_inventory()
         test_ne_operator_gotcha()
+        test_text_and_modifier_surface()
+        test_text_entry_audit()
         print()
         print("=" * 60)
         print("All tests PASSED")

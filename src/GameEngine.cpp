@@ -880,6 +880,34 @@ void GameEngine::processEvent(const sf::Event& event)
     }
 }
 
+bool GameEngine::filterDevInput(const sf::Event& event)
+{
+#if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
+    if (!imguiInitialized || !ImGuiConsole::isEnabled()) return false;
+
+    if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
+        const bool pressed = event.type == sf::Event::KeyPressed;
+        if (console_key != sf::Keyboard::Unknown && event.key.code == console_key) {
+            if (pressed) console.toggle();
+            return true;  // the release is part of the same keystroke
+        }
+        if (explorer_key != sf::Keyboard::Unknown && event.key.code == explorer_key) {
+            if (pressed) sceneExplorer.toggle();
+            return true;
+        }
+    }
+
+    // While the console has focus it owns the keyboard
+    if (console.wantsKeyboardInput() &&
+        (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased ||
+         event.type == sf::Event::TextEntered)) {
+        return true;
+    }
+#endif
+    (void)event;
+    return false;
+}
+
 void GameEngine::sUserInput()
 {
     sf::Event event;
@@ -893,26 +921,8 @@ void GameEngine::sUserInput()
             ImGui::SFML::ProcessEvent(*window, event);
         }
 
-        // Handle grave/tilde key for console toggle (before other processing)
-        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Grave) {
-            console.toggle();
-            continue;  // Don't pass grave key to game
-        }
-
-        // Handle F4 for scene explorer toggle
-        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F4) {
-            sceneExplorer.toggle();
-            continue;  // Don't pass F4 to game
-        }
-
-        // If console wants keyboard, don't pass keyboard events to game
-        if (console.wantsKeyboardInput()) {
-            // Still process non-keyboard events (mouse, window close, etc.)
-            if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased ||
-                event.type == sf::Event::TextEntered) {
-                continue;
-            }
-        }
+        // Dev-tool hotkeys and console focus (#496): before the game sees the event
+        if (filterDevInput(event)) continue;
 #endif
 
         processEvent(event);

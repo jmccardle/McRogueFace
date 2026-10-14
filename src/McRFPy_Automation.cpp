@@ -92,6 +92,7 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
         {";", sf::Keyboard::SemiColon}, {"'", sf::Keyboard::Quote},
         {"[", sf::Keyboard::LBracket}, {"]", sf::Keyboard::RBracket},
         {"-", sf::Keyboard::Dash}, {"=", sf::Keyboard::Equal},
+        {"`", sf::Keyboard::Grave}, {"grave", sf::Keyboard::Grave},
 
         // Numpad
         {"num0", sf::Keyboard::Numpad0}, {"num1", sf::Keyboard::Numpad1},
@@ -188,6 +189,8 @@ void McRFPy_Automation::injectKeyEvent(sf::Event::EventType type, sf::Keyboard::
         event.key.system = held[sf::Keyboard::LSystem] || held[sf::Keyboard::RSystem];
     }
 
+    engine->noteKeyModifiers(event);
+    if (engine->filterDevInput(event)) return;  // #496: same front door as a window event
     engine->processEvent(event);
 }
 
@@ -199,6 +202,7 @@ void McRFPy_Automation::injectTextEvent(uint32_t codepoint) {
     sf::Event event;
     event.type = sf::Event::TextEntered;
     event.text.unicode = codepoint;
+    if (engine->filterDevInput(event)) return;  // #496: the console owns the keyboard while open
     engine->processEvent(event);
 }
 
