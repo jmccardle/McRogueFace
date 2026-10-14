@@ -6,6 +6,7 @@ engine. A source that is set but wrong is an error, never a fall-through. `info`
 which one it chose. Fake engines (a shell script and an empty libpython) tell them apart.
 """
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,9 +28,9 @@ BASE_ENV = {k: v for k, v in os.environ.items()
 BASE_ENV["ALSOFT_DRIVERS"] = "null"
 
 
-def tool(*args, cwd, **env):
+def tool(*args, cwd, engine=None, **env):
     e = dict(BASE_ENV, **env)
-    out = subprocess.run([str(ENGINE), "-m", "mcrf_project"] + list(args), cwd=str(cwd),
+    out = subprocess.run([str(engine or ENGINE), "-m", "mcrf_project"] + list(args), cwd=str(cwd),
                          capture_output=True, text=True, timeout=120, env=e)
     return out.returncode, out.stdout + out.stderr
 
@@ -110,11 +111,19 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # platform: a Linux engine from $MCROGUEFACE is passed over for a Windows package, and
     # the error says what was tried; --engine naming the wrong platform is an error.
+    # The running engine is a private copy with nothing beside it: a dev checkout that has a
+    # build-windows/ next to build/ would otherwise satisfy the "source tree" rule.
+    private = tmp / "private" / "engine"
+    private.mkdir(parents=True)
+    shutil.copy2(ENGINE, private / ENGINE.name)
+    for name in ("lib", "assets", "scripts"):
+        os.symlink(str(ENGINE.parent / name), str(private / name))
+    pengine = private / ENGINE.name
     (game / "mcrf.toml").write_text("")
-    rc, out = tool("dist", "--platform", "windows", cwd=game, MCROGUEFACE=str(ENGINE.parent), **xdg)
+    rc, out = tool("dist", "--platform", "windows", cwd=game, engine=pengine, MCROGUEFACE=str(ENGINE.parent), **xdg)
     check(rc == 1 and "$MCROGUEFACE" in out and "linux" in out and "Traceback" not in out,
           "dist --platform windows names what it rejected\n" + out)
-    rc, out = tool("dist", "--platform", "windows", "--engine", str(ENGINE.parent), cwd=game, **xdg)
+    rc, out = tool("dist", "--platform", "windows", "--engine", str(ENGINE.parent), cwd=game, engine=pengine, **xdg)
     check(rc == 1 and "not windows" in out, "--engine of the wrong platform is an error")
 
     # the engine is read-only to a project: nothing was written under the fakes
