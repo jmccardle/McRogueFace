@@ -20,9 +20,10 @@ from pathlib import Path
 
 from .errors import ProjectError
 
-# Left out of the stdlib a package ships.
+# Left out of the stdlib a package ships. (ensurepip stays: its bundled pip wheel is the pip
+# `mcrf_project deps` runs, #499.)
 STDLIB_EXCLUDED_DIRS = ("test", "tests", "idlelib", "tkinter", "turtledemo", "pydoc_data",
-                        "lib2to3", "ensurepip", "_pyrepl", "__pycache__")
+                        "lib2to3", "_pyrepl", "__pycache__")
 STDLIB_EXCLUDED_FILES = ("*.pyc", "*.pyo", "test_*.py", "*_test.py")
 # Left out of the extension modules (Linux).
 EXTENSION_EXCLUDED = ("*test*", "xxlimited*", "_ctypes_test*", "_xxtestfuzz*")
@@ -186,9 +187,14 @@ class Runtime:
                    lib / "Python")
         out_ext = out_lib / "Python" / ext.name
         out_ext.mkdir(parents=True)
-        for so in sorted(ext.glob("*.so")):
-            if not any(fnmatch.fnmatch(so.name, pat) for pat in EXTENSION_EXCLUDED):
-                shutil.copy2(so, out_ext / so.name)
+        # Everything in the directory but bytecode and the excluded test modules: the
+        # extension modules, and the build-config files `sysconfig` imports from here
+        # (_sysconfigdata_*.py and its _sysconfig_vars_*.json, #498).
+        for item in sorted(ext.iterdir()):
+            if not item.is_file() or item.suffix in (".pyc", ".pyo"):
+                continue
+            if not any(fnmatch.fnmatch(item.name, pat) for pat in EXTENSION_EXCLUDED):
+                shutil.copy2(item, out_ext / item.name)
 
         self._stage_stdlib(dest)
         run_sh = dest / "run.sh"

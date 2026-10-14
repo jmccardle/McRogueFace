@@ -29,7 +29,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WASM_VENV_PY = ROOT / ".venv-wasmtest" / "bin" / "python"
 
 PROBE = (
-    "import mcrfpy, sys, ssl, socket, asyncio, selectors, sqlite3\n"
+    "import mcrfpy, sys, ssl, socket, asyncio, selectors, sqlite3, pydoc, sysconfig\n"
+    "sysconfig.get_path('stdlib')\n"
     "g = mcrfpy.Grid(grid_size=(10, 10))\n"
     "g.compute_fov((5, 5), radius=4)\n"
     "print('SMOKE', mcrfpy.__version__, sys.version.split()[0], sys.platform)\n"

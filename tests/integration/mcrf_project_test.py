@@ -25,7 +25,8 @@ def check(cond, msg):
 
 ENGINE = Path(sys.executable).resolve()
 PY = "%d.%d" % sys.version_info[:2]
-ENV = {k: v for k, v in os.environ.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
+ENV = {k: v for k, v in os.environ.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY", "MCROGUEFACE")}
+ENV["XDG_DATA_HOME"] = tempfile.mkdtemp()  # no per-user engine installs (#500)
 ENV["ALSOFT_DRIVERS"] = "null"
 
 

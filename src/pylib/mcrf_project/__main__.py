@@ -5,30 +5,18 @@ import sys
 from pathlib import Path
 
 from .errors import ProjectError
+from . import deps
+from .locate import locate
 from .project import Project
 from .runtime import Runtime, archive, copy_content, copy_release_docs, fresh_dir, web_archive
 
 
+ENGINE_HELP = ("engine directory to use. Default: $MCROGUEFACE, then engine in mcrf.toml, "
+               "then the newest ~/.local/share/mcrogueface/<version>/, then this engine")
+
+
 def log(message):
     print("[mcrf] " + message, flush=True)
-
-
-def engine_for(platform, engine_dir):
-    """The runtime to package for `platform`: --engine if given, else the running engine,
-    else (Windows from a Linux source tree) the sibling build-windows/."""
-    if engine_dir:
-        engine = Runtime(engine_dir)
-    else:
-        engine = Runtime.running()
-        if engine.platform != platform:
-            sibling = engine.source_root / "build-windows" if engine.source_root and platform == "windows" else None
-            if sibling is None or not (sibling / "mcrogueface.exe").is_file():
-                raise ProjectError("no %s engine to package with: pass --engine DIR (a %s build "
-                                   "or an extracted %s release package)" % (platform, platform, platform))
-            engine = Runtime(sibling)
-    if engine.platform != platform:
-        raise ProjectError("%s is a %s engine, not %s" % (engine.dir, engine.platform, platform))
-    return engine
 
 
 def cmd_init(args):
@@ -40,7 +28,17 @@ def cmd_init(args):
 
 
 def cmd_run(args):
-    return Project(args.project).run(Runtime.running(), args.engine_args)
+    project = Project(args.project)
+    located = locate(project, flag=args.engine)
+    log("engine: %s" % located.describe())
+    return project.run(located.runtime, args.engine_args)
+
+
+def cmd_deps(args):
+    project = Project(args.project)
+    located = locate(project, flag=args.engine)
+    log("engine: %s" % located.describe())
+    log("installed %s" % deps.install(project, located.runtime, log))
 
 
 def cmd_dist(args):
@@ -54,18 +52,26 @@ def cmd_dist(args):
         if platform == "web":
             path = project.dist_web(Runtime.running(), out, log)
         else:
-            path = project.dist(engine_for(platform, args.engine), out, log)
+            located = locate(project, platform, flag=args.engine)
+            log("engine: %s" % located.describe())
+            path = project.dist(located.runtime, out, log)
         log("created %s" % path)
 
 
 def cmd_info(args):
-    engine = Runtime.running()
-    import mcrfpy
-    print("Engine:  McRogueFace %s (%s) at %s" % (mcrfpy.__version__, engine.title, engine.dir))
-    print("Python:  %s" % sys.version.split()[0])
+    project = Project(args.project)
+    located = locate(project, flag=args.engine)
+    engine = located.runtime
+    if engine.is_running:
+        import mcrfpy
+        print("Engine:  McRogueFace %s (%s) at %s" % (mcrfpy.__version__, engine.title, engine.dir))
+        print("Python:  %s" % sys.version.split()[0])
+    else:
+        print("Engine:  McRogueFace (%s) at %s" % (engine.title, engine.dir))
+        print("Python:  %s" % engine.python_version)
+    print("Chosen:  %s" % located.describe())
     if engine.source_root:
         print("Source:  %s" % engine.source_root)
-    project = Project(args.project)
     if (project.scripts / "game.py").is_file():
         print("Project: %s %s at %s" % (project.name, project.version, project.dir))
     else:
@@ -113,21 +119,27 @@ def main(argv=None):
 
     p = sub.add_parser("run", help="run the game")
     p.add_argument("--project", default=".", help="project directory (default: .)")
+    p.add_argument("--engine", help=ENGINE_HELP)
     p.add_argument("engine_args", nargs=argparse.REMAINDER,
                    help="arguments for the engine (after --), e.g. -- --headless")
     p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("deps", help="install the project's requirements (mcrf.toml) into .venv/")
+    p.add_argument("--project", default=".", help="project directory (default: .)")
+    p.add_argument("--engine", help=ENGINE_HELP)
+    p.set_defaults(func=cmd_deps)
 
     p = sub.add_parser("dist", help="package the game")
     p.add_argument("--project", default=".", help="project directory (default: .)")
     p.add_argument("--platform", action="append", choices=("linux", "windows", "web"),
                    help="repeatable; default: this engine's platform")
-    p.add_argument("--engine", help="engine directory to take the runtime from "
-                                    "(default: this engine; for Windows, ../build-windows)")
+    p.add_argument("--engine", help=ENGINE_HELP)
     p.add_argument("--out", help="output directory (default: <project>/dist)")
     p.set_defaults(func=cmd_dist)
 
-    p = sub.add_parser("info", help="show the engine and project")
+    p = sub.add_parser("info", help="show the engine and project, and why that engine")
     p.add_argument("--project", default=".", help="project directory (default: .)")
+    p.add_argument("--engine", help=ENGINE_HELP)
     p.set_defaults(func=cmd_info)
 
     p = sub.add_parser("package-engine", help="build an engine release package (tools/package.sh)")
