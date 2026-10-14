@@ -19,7 +19,8 @@ func set_scale :: set_scale(multiplier: float) -> None
 func start_benchmark :: start_benchmark() -> None
 func step :: step(dt: float = None) -> float
 
-=== MODULE SINGLETONS / CONSTANTS (4) ===
+=== MODULE SINGLETONS / CONSTANTS (5) ===
+const config: EngineConfig
 const default_fov: FOV
 const keyboard: Keyboard
 const mouse: Mouse
@@ -262,7 +263,7 @@ submodule automation
   DONE = 0
   TARGET = 2
 
-=== FROZEN TYPES (32) ===
+=== FROZEN TYPES (33) ===
 [AStarPath]
   prop destination: Vector (ro)
   prop origin: Vector (ro)
@@ -474,6 +475,16 @@ submodule automation
   prop z_index: Any (rw)
   meth move :: move(dx, dy) or (delta) -> None
   meth resize :: resize(width, height) or (size) -> None
+[EngineConfig]
+  prop audio_enabled: bool (ro)
+  prop exec_scripts: Any (ro)
+  prop exit_on_exception: bool (rw)
+  prop headless: bool (ro)
+  prop interactive: bool (ro)
+  prop run_forever: bool (ro)
+  prop screenshot_path: str | None (ro)
+  prop script_args: Any (ro)
+  prop script_path: str | None (ro)
 [Entity]
   prop behavior_type: int (ro)
   prop cell_pos: Vector (rw)

@@ -362,6 +362,7 @@ public:
     bool isHeadless() const { return headless; }
     const McRogueFaceConfig& getConfig() const { return config; }
     void setAutoExitAfterExec(bool enabled) { config.auto_exit_after_exec = enabled; }
+    void setExitOnException(bool enabled) { config.exit_on_exception = enabled; }  // #501
     void processEvent(const sf::Event& event);
     
     // Window property accessors

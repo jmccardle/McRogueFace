@@ -8,6 +8,7 @@ sys.path[0]:
   - `mcrogueface dir/script.py`.
 """
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,9 +22,21 @@ def check(cond, msg):
         failures.append(msg)
 
 
-engine = sys.executable
-engine_scripts = os.path.join(os.path.dirname(engine), "scripts")
+# #502: this test must not depend on what else sits next to the binary it runs under (a
+# build/venv with site-packages is prepended to sys.path, and is legitimate). So it runs a
+# private engine layout: a copy of the binary (the engine resolves its directory through
+# symlinks, so the binary itself must be a real file) with symlinks to the read-only
+# lib/, assets/ and scripts/ of the engine under test. Nothing else is in that directory.
+real_engine = os.path.realpath(sys.executable)
+real_dir = os.path.dirname(real_engine)
 env = dict(os.environ, ALSOFT_DRIVERS="null")
+_engine_tmp = tempfile.TemporaryDirectory()
+engine_dir = os.path.realpath(_engine_tmp.name)
+engine = os.path.join(engine_dir, os.path.basename(real_engine))
+shutil.copy2(real_engine, engine)
+for name in ("lib", "assets", "scripts"):
+    os.symlink(os.path.join(real_dir, name), os.path.join(engine_dir, name))
+engine_scripts = os.path.join(engine_dir, "scripts")
 
 PROBE = """import sys
 import helper
@@ -41,7 +54,7 @@ with tempfile.TemporaryDirectory() as tmp:
     project = os.path.join(tmp, "proj")
     scripts = os.path.join(project, "scripts")
     os.makedirs(scripts)
-    os.symlink(os.path.join(os.path.dirname(engine), "assets"), os.path.join(project, "assets"))
+    os.symlink(os.path.join(engine_dir, "assets"), os.path.join(project, "assets"))
     with open(os.path.join(scripts, "helper.py"), "w") as f:
         f.write("VALUE = 'project helper'\n")
     with open(os.path.join(scripts, "game.py"), "w") as f:
@@ -61,7 +74,15 @@ with tempfile.TemporaryDirectory() as tmp:
               "%s: an engine demo module name doesn't import the engine's copy" % label)
 
 # --exec isn't the main script: sys.path is unchanged.
-check(sys.path[0] == engine_scripts, "--exec: sys.path[0] is still the engine's scripts (%r)" % sys.path[0])
+with tempfile.TemporaryDirectory() as tmp2:
+    probe = os.path.join(tmp2, "probe_exec.py")
+    with open(probe, "w") as f:
+        f.write("import sys\nprint('PATH0', sys.path[0])\nsys.exit(0)\n")
+    out = subprocess.run([engine, "--headless", "--exec", probe], capture_output=True, text=True,
+                         timeout=30, env=env, cwd=tmp2)
+    check("PATH0 " + engine_scripts in out.stdout + out.stderr,
+          "--exec: sys.path[0] is still the engine's scripts (%r)" % (out.stdout + out.stderr))
+_engine_tmp.cleanup()
 if failures:
     print("FAIL: %d check(s)" % len(failures))
     sys.exit(1)
