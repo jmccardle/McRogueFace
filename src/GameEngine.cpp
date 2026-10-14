@@ -750,6 +750,43 @@ void GameEngine::noteKeyModifiers(const sf::Event& event)
     }
 }
 
+// #495 - Deliver one typed code point to the current scene's on_text. SFML reports
+// control characters (Backspace 8, Tab 9, Enter 13, Escape 27, Delete 127) as text; SDL's
+// SDL_TEXTINPUT never does. Those are keys, and on_key already carries them, so both
+// backends deliver the same thing: printable code points only. A value that is not a
+// Unicode scalar can't be UTF-8 and is a backend bug, not something to repair.
+void GameEngine::dispatchText(uint32_t cp)
+{
+    if (cp < 0x20 || (cp >= 0x7F && cp <= 0x9F)) return;
+    if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {
+        std::cerr << "TextEntered: dropped invalid code point U+" << std::hex << cp << std::dec << std::endl;
+        return;
+    }
+    std::string utf8;
+    if (cp < 0x80) { utf8 += static_cast<char>(cp); }
+    else if (cp < 0x800) {
+        utf8 += static_cast<char>(0xC0 | (cp >> 6));
+        utf8 += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp < 0x10000) {
+        utf8 += static_cast<char>(0xE0 | (cp >> 12));
+        utf8 += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        utf8 += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+        utf8 += static_cast<char>(0xF0 | (cp >> 18));
+        utf8 += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+        utf8 += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        utf8 += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+
+    Scene* scene = currentScene();
+    if (!scene) return;
+    if (scene->text_callable && !scene->text_callable->isNone()) {
+        scene->text_callable->call(utf8);   // scene.on_text = callable
+    } else {
+        McRFPy_API::triggerTextEvent(utf8);  // subclass on_text method
+    }
+}
+
 void GameEngine::processEvent(const sf::Event& event)
 {
     std::string actionType;
@@ -813,6 +850,13 @@ void GameEngine::processEvent(const sf::Event& event)
         if (auto* pyscene = dynamic_cast<PyScene*>(currentScene())) {
             pyscene->do_mouse_leave();
         }
+        return;
+    }
+    // #495 - Typed text: what a key press produced after layout, dead-key and IME
+    // processing. Independent of on_key, which keeps reporting physical keys.
+    else if (event.type == sf::Event::TextEntered)
+    {
+        dispatchText(event.text.unicode);
         return;
     }
     else

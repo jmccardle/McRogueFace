@@ -62,6 +62,16 @@ void Scene::key_unregister()
     key_callable.reset();
 }
 
+void Scene::text_register(PyObject* callable)
+{
+    text_callable = std::make_unique<PyTextCallable>(callable);
+}
+
+void Scene::text_unregister()
+{
+    text_callable.reset();
+}
+
 // #118: Scene animation property support
 bool Scene::setProperty(const std::string& name, float value)
 {

@@ -370,6 +370,7 @@ public:
     struct KeyModifiers { bool shift = false, ctrl = false, alt = false, system = false; };
     const KeyModifiers& keyModifiers() const { return key_mods; }
     void noteKeyModifiers(const sf::Event& event);
+    void dispatchText(uint32_t codepoint);  // #495
 private:
     KeyModifiers key_mods;
 public:

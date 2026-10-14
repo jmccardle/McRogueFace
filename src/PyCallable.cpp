@@ -162,6 +162,39 @@ void PyKeyCallable::call(std::string key, std::string action)
     }
 }
 
+// #495 - PyTextCallable: scene.on_text(text: str)
+PyTextCallable::PyTextCallable(PyObject* _target)
+: PyCallable(_target)
+{}
+
+PyTextCallable::PyTextCallable()
+: PyCallable(Py_None)
+{}
+
+void PyTextCallable::call(const std::string& utf8)
+{
+    if (target == Py_None || target == NULL) return;
+
+    mcrf::PyRef text(PyUnicode_DecodeUTF8(utf8.data(), utf8.size(), "strict"));
+    if (!text) {
+        mcrf::print_callback_error("Text");
+        PyErr_Clear();
+        return;
+    }
+    mcrf::PyRef args(PyTuple_Pack(1, text.get()));
+    PyObject* retval = args ? PyCallable::call(args.get(), NULL) : NULL;
+    if (!retval)
+    {
+        mcrf::print_callback_error("Text");
+        PyErr_Clear();
+        if (McRFPy_API::game && McRFPy_API::game->getConfig().exit_on_exception) {
+            McRFPy_API::signalPythonException();
+        }
+        return;
+    }
+    Py_DECREF(retval);
+}
+
 // #230 - PyHoverCallable implementation (position-only for on_enter/on_exit/on_move)
 PyHoverCallable::PyHoverCallable(PyObject* _target)
 : PyCallable(_target)

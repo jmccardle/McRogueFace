@@ -141,6 +141,7 @@ int PySceneClass::traverse(PyObject* self_obj, visitproc visit, void* arg)
     PySceneObject* self = (PySceneObject*)self_obj;
     if (!self->scene || !mcrf::owns_exclusively(self->scene.use_count(), 0)) return 0;
     MCRF_VISIT(mcrf::visit_callable(self->scene->key_callable, visit, arg));
+    MCRF_VISIT(mcrf::visit_callable(self->scene->text_callable, visit, arg));
     return UIDrawable::traverseChildren(self->scene->ui_elements, nullptr, self->scene.get(), visit, arg);
 }
 
@@ -149,6 +150,7 @@ int PySceneClass::clear(PyObject* self_obj)
     PySceneObject* self = (PySceneObject*)self_obj;
     if (!self->scene || !mcrf::owns_exclusively(self->scene.use_count(), 0)) return 0;
     self->scene->key_callable.reset();
+    self->scene->text_callable.reset();
     UIDrawable::clearChildren(self->scene->ui_elements, nullptr, self->scene.get());
     return 0;
 }
@@ -263,6 +265,38 @@ static int PySceneClass_set_on_key(PySceneObject* self, PyObject* value, void* c
         self->scene->key_register(value);
     } else {
         PyErr_SetString(PyExc_TypeError, "on_key must be callable or None");
+        return -1;
+    }
+    return 0;
+}
+
+// #495 on_text property getter
+static PyObject* PySceneClass_get_on_text(PySceneObject* self, void* closure)
+{
+    if (!self->scene || !self->scene->text_callable) {
+        Py_RETURN_NONE;
+    }
+    PyObject* callable = self->scene->text_callable->borrow();
+    if (callable && callable != Py_None) {
+        Py_INCREF(callable);
+        return callable;
+    }
+    Py_RETURN_NONE;
+}
+
+// #495 on_text property setter
+static int PySceneClass_set_on_text(PySceneObject* self, PyObject* value, void* closure)
+{
+    if (!self->scene) {
+        PyErr_SetString(PyExc_RuntimeError, "Scene not initialized");
+        return -1;
+    }
+    if (value == Py_None || value == NULL) {
+        self->scene->text_unregister();
+    } else if (PyCallable_Check(value)) {
+        self->scene->text_register(value);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "on_text must be callable or None");
         return -1;
     }
     return 0;
@@ -478,6 +512,21 @@ void PySceneClass::call_on_key(PySceneObject* self, const std::string& key, cons
     PyGILState_Release(gstate);
 }
 
+// #495: subclass method on_text(self, text) or an instance attribute shadowing the property
+void PySceneClass::call_on_text(PySceneObject* self, const std::string& utf8)
+{
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    mcrf::PyRef attr(PyObject_GetAttrString((PyObject*)self, "on_text"));
+    if (attr && PyCallable_Check(attr.get()) && attr.get() != Py_None) {
+        mcrf::PyRef text(PyUnicode_DecodeUTF8(utf8.data(), utf8.size(), "strict"));
+        mcrf::PyRef result(text ? PyObject_CallFunctionObjArgs(attr.get(), text.get(), NULL) : NULL);
+        if (!result) PyErr_Print();
+    } else {
+        PyErr_Clear();
+    }
+    PyGILState_Release(gstate);
+}
+
 void PySceneClass::call_update(PySceneObject* self, float dt)
 {
     // #343: base mcrfpy.Scene defines no update() and has no instance __dict__,
@@ -571,6 +620,13 @@ PyGetSetDef PySceneClass::getsetters[] = {
     {"on_key", (getter)PySceneClass_get_on_key, (setter)PySceneClass_set_on_key,
      MCRF_PROPERTY(on_key, "Keyboard event handler (callable or None). "
          "Function receives (key: Key, action: InputState) for keyboard events. "
+         "Set to None to remove the handler."), NULL},
+    {"on_text", (getter)PySceneClass_get_on_text, (setter)PySceneClass_set_on_text,
+     MCRF_PROPERTY(on_text, "Text-entry handler (callable or None). "
+         "Function receives (text: str): the characters a key press typed, after keyboard "
+         "layout, dead-key and IME processing (one UTF-8 str, normally a single code point). "
+         "Separate from on_key, which reports physical keys; control characters (Enter, "
+         "Backspace, Tab, Escape) are not text and arrive only through on_key. "
          "Set to None to remove the handler."), NULL},
     {NULL}
 };
@@ -736,6 +792,16 @@ void McRFPy_API::triggerKeyEvent(const std::string& key, const std::string& acti
     // Only notify the active scene if it has an on_key method (subclass)
     if (python_scenes.count(game->scene) > 0) {
         PySceneClass::call_on_key(python_scenes[game->scene], key, action);
+    }
+}
+
+// #495: subclass on_text(self, text) for the active scene
+void McRFPy_API::triggerTextEvent(const std::string& utf8)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) return;
+    if (python_scenes.count(game->scene) > 0) {
+        PySceneClass::call_on_text(python_scenes[game->scene], utf8);
     }
 }
 

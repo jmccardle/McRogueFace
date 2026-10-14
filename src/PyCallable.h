@@ -40,6 +40,15 @@ public:
     PyKeyCallable();
 };
 
+// #495 - Text-entry callback: receives one str (UTF-8 decoded) per typed code point
+class PyTextCallable: public PyCallable
+{
+public:
+    void call(const std::string& utf8);
+    PyTextCallable(PyObject*);
+    PyTextCallable();
+};
+
 // #230 - Hover callbacks (on_enter, on_exit, on_move) take only position
 class PyHoverCallable: public PyCallable
 {

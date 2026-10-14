@@ -11,6 +11,8 @@
 #include <cstring>
 #include <cmath>
 #include <map>
+#include <deque>
+#include <vector>
 
 // SDL2 and OpenGL ES 2 headers
 #ifdef __EMSCRIPTEN__
@@ -41,6 +43,9 @@
 #include FT_OUTLINE_H
 
 namespace sf {
+
+// #495: code points of a multi-character SDL_TEXTINPUT still to be delivered as TextEntered.
+static std::deque<uint32_t> g_pendingText;
 
 // =============================================================================
 // Built-in Shaders (GLSL ES 2.0 / GLSL 1.20 compatible)
@@ -706,6 +711,12 @@ void RenderWindow::setSize(const Vector2u& size) {
 
 // Event polling - translate SDL events to sf::Event
 bool RenderWindow::pollEvent(Event& event) {
+    if (!g_pendingText.empty()) {  // rest of a multi-code-point SDL_TEXTINPUT
+        event.type = Event::TextEntered;
+        event.text.unicode = g_pendingText.front();
+        g_pendingText.pop_front();
+        return true;
+    }
     SDL_Event sdlEvent;
     while (SDL_PollEvent(&sdlEvent)) {
         if (translateSDLEvent(&sdlEvent, &event)) {
@@ -716,6 +727,12 @@ bool RenderWindow::pollEvent(Event& event) {
 }
 
 bool RenderWindow::waitEvent(Event& event) {
+    if (!g_pendingText.empty()) {
+        event.type = Event::TextEntered;
+        event.text.unicode = g_pendingText.front();
+        g_pendingText.pop_front();
+        return true;
+    }
     SDL_Event sdlEvent;
     if (SDL_WaitEvent(&sdlEvent)) {
         return translateSDLEvent(&sdlEvent, &event);
@@ -803,24 +820,22 @@ bool translateSDLEvent(const void* sdlEventPtr, void* sfEventPtr) {
             return true;
 
         case SDL_TEXTINPUT: {
-            // Decode the first UTF-8 sequence in the SDL text buffer into a full
-            // Unicode codepoint. The old code copied text[0] as a single byte,
-            // mangling every non-ASCII character. Drop invalid sequences rather
-            // than emit a garbage codepoint (Fail-Early).
-            const unsigned char* t = reinterpret_cast<const unsigned char*>(sdlEvent.text.text);
-            uint32_t cp = 0;
-            int extra = 0;
-            if (t[0] < 0x80)               { cp = t[0]; extra = 0; }
-            else if ((t[0] & 0xE0) == 0xC0){ cp = t[0] & 0x1F; extra = 1; }
-            else if ((t[0] & 0xF0) == 0xE0){ cp = t[0] & 0x0F; extra = 2; }
-            else if ((t[0] & 0xF8) == 0xF0){ cp = t[0] & 0x07; extra = 3; }
-            else return false;  // invalid leading byte
-            for (int i = 1; i <= extra; ++i) {
-                if ((t[i] & 0xC0) != 0x80) return false;  // truncated/invalid continuation
-                cp = (cp << 6) | (t[i] & 0x3F);
+            // One SDL_TEXTINPUT carries a whole UTF-8 string (an IME commit, a compose
+            // result), but TextEntered is one code point. Decode all of them: the first
+            // is returned now and the rest wait in g_pendingText, which pollEvent drains
+            // before asking SDL for more. Malformed UTF-8 from SDL is a bug, not input:
+            // drop the whole string rather than deliver U+FFFD as if it were typed.
+            const std::string text(sdlEvent.text.text);
+            std::vector<uint32_t> cps;
+            for (size_t i = 0; i < text.size();) {
+                const uint32_t cp = mcrf::utf8::next_codepoint(text, i);
+                if (cp == mcrf::utf8::REPLACEMENT) return false;
+                cps.push_back(cp);
             }
+            if (cps.empty()) return false;
+            for (size_t k = 1; k < cps.size(); ++k) g_pendingText.push_back(cps[k]);
             sfEvent.type = Event::TextEntered;
-            sfEvent.text.unicode = cp;
+            sfEvent.text.unicode = cps[0];
             return true;
         }
 
