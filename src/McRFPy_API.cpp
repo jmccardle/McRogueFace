@@ -55,6 +55,7 @@
 #include "PyMusic.h"
 #include "Audio.h"
 #include "PyKeyboard.h"
+#include "PyEngineConfig.h"
 #include "PyMouse.h"
 #include "UIGridPathfinding.h"  // AStarPath and DijkstraMap types
 #include "PyHeightMap.h"  // Procedural generation heightmap (#193)
@@ -910,6 +911,9 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
         /*mouse state (#186)*/
         &PyMouseType,
 
+        /*engine run configuration (#501)*/
+        &mcrfpydef::PyEngineConfigType,
+
         /*pathfinding result types*/
         &mcrfpydef::PyAStarPathType,
         &mcrfpydef::PyDijkstraMapType,
@@ -1115,6 +1119,14 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
     PyObject* mouse_instance = PyObject_CallObject((PyObject*)&PyMouseType, NULL);
     if (mouse_instance) {
         PyModule_AddObject(m, "mouse", mouse_instance);
+    }
+
+    // Add the run-configuration singleton (#501)
+    PyObject* config_instance = PyObject_CallObject((PyObject*)&mcrfpydef::PyEngineConfigType, NULL);
+    if (!config_instance || PyModule_AddObject(m, "config", config_instance) < 0) {
+        Py_XDECREF(config_instance);
+        Py_DECREF(m);
+        return NULL;
     }
 
     // Add window singleton (#184). The same object Window.get() returns (#430).
