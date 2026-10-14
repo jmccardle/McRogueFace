@@ -22,7 +22,7 @@ public:
     // #450: THE conversion for every Python value written to a Color: attribute setters,
     // constructor kwargs, item assignment, method arguments and animate() targets.
     // Accepts a Color (or subclass) or anything Color(value) accepts -- an (r, g, b[, a])
-    // tuple of ints in 0-255, or a colour string (name, "source:name", "#hex"; #458) --
+    // tuple of ints in 0-255, or a colour string (name, "#hex"; #458) --
     // and raises exactly what Color(value) raises otherwise.
     // Never clamps, wraps, or substitutes a default. Optional arguments decide what None
     // means before calling this; to_color itself rejects None as Color(None) does.
@@ -37,7 +37,7 @@ public:
     
     // Color helper methods
     static PyObject* from_hex(PyObject* cls, PyObject* args);
-    static PyObject* names(PyObject* cls, PyObject* args, PyObject* kwds);
+    static PyObject* names(PyObject* cls, PyObject* Py_UNUSED(ignored));
     static PyObject* to_hex(PyColorObject* self, PyObject* Py_UNUSED(ignored));
     static PyObject* lerp(PyColorObject* self, PyObject* args);
     
@@ -66,12 +66,11 @@ namespace mcrfpydef {
             "    g: Green component (0-255)\n"
             "    b: Blue component (0-255)\n"
             "    a: Alpha component (0-255, default 255 = opaque)\n"
-            "    color: A color name ('red', 'Dark Green'), a source-qualified name\n"
-            "        ('xkcd:dust', 'crayola:Red'), or hex ('#f00', '#f008', '#ff0000',\n"
-            "        '#ff000080'). Names ignore case and everything but letters and digits.\n"
-            "        An unprefixed name takes the first source that has it: css, then\n"
-            "        xkcd, then crayola, then jenny. Color.names() lists them. Unknown\n"
-            "        names raise ValueError naming close matches.\n"
+            "    color: A color name ('red', 'Dark Green', 'dust') or hex\n"
+            "        ('#f00', '#f008', '#ff0000', '#ff000080'). Names ignore case and\n"
+            "        everything but letters and digits. A name in several sources takes\n"
+            "        the first of css, xkcd, crayola, jenny. Color.names() lists them.\n"
+            "        Unknown names raise ValueError naming close matches.\n"
             "\n"
             "    Every Color property accepts the same values: frame.fill_color = 'red'.\n"
             "\n"

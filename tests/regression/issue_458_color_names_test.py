@@ -4,9 +4,10 @@ Before: any str passed to Color(), and so to every Color setter (#450), raised
 NotImplementedError("Color names aren't ready yet").
 
 Decided rules (see src/ColorNames.h, tools/generate_color_table.py):
-  * Names ignore case and every ASCII character but letters and digits.
-  * An unprefixed name takes the first source that has it: css, xkcd, crayola, jenny.
-  * "source:name" looks only in that source.
+  * ONE list of names, each stored once in normalized form (lowercase letters and digits).
+  * Parsing normalizes: ignore case and every ASCII character but letters and digits.
+  * A name in several sources takes the first source: css, xkcd, crayola, jenny.
+  * There are no "source:name" prefixes; a ':' is not part of any name.
   * "#rgb", "#rgba", "#rrggbb", "#rrggbbaa" are hex; the '#' is required.
   * Alpha for a name is a= only; hex alpha plus a= is "given twice" (TypeError).
   * An unknown name / source / malformed hex raises ValueError; no fallback colour.
@@ -15,8 +16,16 @@ import sys
 
 import mcrfpy
 
+import os
+import importlib.util
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+spec = importlib.util.spec_from_file_location(
+    "generate_color_table", os.path.join(ROOT, "tools", "generate_color_table.py"))
+gen = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gen)
 C = mcrfpy.Color
 failures = []
+N_NAMES = len(gen.build().split("entries[] = {")[1].split("};")[0].strip().splitlines())
 
 
 def check(cond, msg):
@@ -47,20 +56,24 @@ check(rgba(C("rebeccapurple")) == (102, 51, 153, 255), "CSS Level 4 rebeccapurpl
 check(C("grey") == C("gray") == C(128, 128, 128), "grey and gray are both CSS #808080")
 check(C("sandybrown") == C(0xF4, 0xA4, 0x60), "sandybrown is the spec's #F4A460 (archive had salmon)")
 
-# --- precedence: css > xkcd > crayola > jenny ---
-check(C("blue") == C(0, 0, 255), "unprefixed 'blue' is CSS")
-check(C("xkcd:blue") == C(0x03, 0x43, 0xDF), "'xkcd:blue' is the survey's blue")
-check(C("crayola:red") == C(0xED, 0x0A, 0x3F), "'crayola:red' is the Wikipedia Crayola red")
-check(C("jenny:red") == C(0xEE, 0x20, 0x4D), "'jenny:red' is the jenny-list red")
-check(C("dust") == C(0xB2, 0x99, 0x6E), "xkcd-only name 'dust' is unprefixed")
+# --- precedence: css > xkcd > crayola > jenny (one list, no prefixes) ---
+check(C("blue") == C(0, 0, 255), "'blue' is CSS, not xkcd's 0343DF")
+check(C("red") == C(255, 0, 0), "'red' is CSS, not xkcd's E50000 or crayola's ED0A3F")
+check(C("dust") == C(0xB2, 0x99, 0x6E), "xkcd-only name 'dust'")
 check(C("Brick Red") == C(0x8F, 0x14, 0x02), "xkcd 'brick red' beats crayola's")
 check(C("Pacific Blue") == C(0x00, 0x9D, 0xC4), "crayola 'Pacific Blue' beats jenny's")
-check(C("Atomic Tangerine") == C(0xFF, 0xA4, 0x74), "jenny-only name reachable unprefixed")
-check(C("XKCD : dust") == C("dust"), "source prefix ignores case and spaces")
+check(C("Atomic Tangerine") == C(0xFF, 0xA4, 0x74), "jenny-only name reachable")
 # Within xkcd, the later (more common) spelling wins a shared key.
-check(C("xkcd:dark green") == C("xkcd:darkgreen") == C(0x03, 0x35, 0x00),
-      "xkcd 'dark green' / 'darkgreen' share a key, later spelling kept")
+check(C("dark green") == C("darkgreen") == C(0, 100, 0), "css darkgreen beats xkcd's")
+check(C("bluegrey") == C("blue/grey") == C("blue grey") == C(0x60, 0x7C, 0x8E),
+      "xkcd 'blue grey' variants share a key, later spelling kept")
 check(C("Robin's Egg Blue") == C("robins egg blue"), "apostrophes ignored")
+check(C("Screamin' Green") == C("screamingreen") == C("SCREAMIN-GREEN"), "separators ignored")
+check(C("Dark Slate Gray") == C("darkslategray") == C("DARKSLATEGRAY") == C("dark-slate_gray"),
+      "case, spaces, '-' and '_' all ignored")
+for prefixed in ("xkcd:dust", "css:red", "crayola:red", "jenny:red", "pantone:red"):
+    ok, msg = raises(ValueError, lambda: C(prefixed), ["unknown color name"])
+    check(ok, "source prefixes are gone, %r raises ValueError: %s" % (prefixed, msg))
 
 # --- hex ---
 check(rgba(C("#f00")) == (255, 0, 0, 255), "#rgb")
@@ -91,24 +104,25 @@ check(ok, "a=-1 with a name is ValueError: %s" % msg)
 # --- unknown names: ValueError with close matches, never a fallback ---
 ok, msg = raises(ValueError, lambda: C("redd"), ["redd", "did you mean", "'red'"])
 check(ok, "unknown 'redd' suggests 'red': %s" % msg)
-ok, msg = raises(ValueError, lambda: C("xkcd:dusst"), ["xkcd:dust"])
-check(ok, "unknown 'xkcd:dusst' suggests 'xkcd:dust': %s" % msg)
+ok, msg = raises(ValueError, lambda: C("dusst"), ["dust"])
+check(ok, "unknown 'dusst' suggests 'dust': %s" % msg)
 ok, msg = raises(ValueError, lambda: C("qqqqqqqqqqqq"), ["unknown color name"])
 check(ok and "did you mean" not in msg, "nothing close: no suggestion: %s" % msg)
-ok, msg = raises(ValueError, lambda: C("pantone:red"), ["css", "xkcd", "crayola", "jenny"])
-check(ok, "unknown source lists sources: %s" % msg)
-for bad in ("", "   ", "!!!", "xkcd:"):
+for bad in ("", "   ", "!!!", ":"):
     ok, msg = raises(ValueError, lambda: C(bad))
     check(ok, "Color(%r) raises ValueError: %s" % (bad, msg))
 ok, msg = raises(ValueError, lambda: C("réd"))
 check(ok, "non-ASCII never matches: %s" % msg)
 
-# --- Color.names() ---
+# --- Color.names(): the one list ---
 names = C.names()
-check(isinstance(names, list) and len(names) > 1000, "Color.names() lists %d names" % len(names))
+check(isinstance(names, list) and len(names) == N_NAMES, "Color.names() lists %d names (want %d)" % (len(names), N_NAMES))
 check("red" in names and "dust" in names and "rebeccapurple" in names, "names() has css+xkcd")
-bad = [n for n in names if not isinstance(n, str)]
-check(not bad, "names() are all str")
+check(all(isinstance(n, str) for n in names), "names() are all str")
+check(len(set(names)) == len(names), "no duplicate entries")
+check(names == sorted(names), "names() is sorted")
+notnorm = [n for n in names if gen.key(n) != n or not n]
+check(not notnorm, "every stored name is already normalized (lowercase a-z0-9): %s" % notnorm[:3])
 unresolved = []
 for n in names:
     try:
@@ -116,21 +130,21 @@ for n in names:
     except Exception as e:
         unresolved.append((n, str(e)))
 check(not unresolved, "every Color.names() entry resolves %s" % unresolved[:3])
-for src, count in (("css", 148), ("xkcd", 923), ("crayola", 168), ("jenny", 120)):
-    got = C.names(src)
-    check(len(got) == count, "Color.names(%r) has %d (want %d)" % (src, len(got), count))
-    broken = [n for n in got if not isinstance(C("%s:%s" % (src, n)), C)]
-    check(not broken, "every %s name resolves with its prefix" % src)
-check(C.names(source="XKCD") == C.names("xkcd"), "names(source=) ignores case")
-ok, msg = raises(ValueError, lambda: C.names("pantone"), ["css"])
-check(ok, "names('pantone') raises ValueError: %s" % msg)
+ok, msg = raises(TypeError, lambda: C.names("css"))
+check(ok, "names() takes no source argument any more: %s" % msg)
+# Parse-time normalization is the generator's key(): compare on awkward spellings.
+for spelling in ("Dark Slate Gray", "DARK_SLATE-GRAY", "  d a r k s l a t e g r a y ", "Robin's Egg Blue",
+                 "Screamin' Green", "blue/grey", "Wild Blue Yonder"):
+    k = gen.key(spelling)
+    check(k in names and C(spelling) == C(k),
+          "parse-time key matches generator key for %r -> %r" % (spelling, k))
 
 # --- every Color setter accepts names (to_color is exactly Color(value), #450) ---
 frame = mcrfpy.Frame(pos=(0, 0), size=(10, 10), fill_color="navy", outline_color="#0f0")
 check(frame.fill_color == C(0, 0, 128) and frame.outline_color == C(0, 255, 0),
       "Frame(fill_color='navy', outline_color='#0f0')")
-frame.fill_color = "xkcd:dust"
-check(frame.fill_color == C(0xB2, 0x99, 0x6E), "frame.fill_color = 'xkcd:dust'")
+frame.fill_color = "dust"
+check(frame.fill_color == C(0xB2, 0x99, 0x6E), "frame.fill_color = 'dust'")
 before = frame.fill_color
 ok, msg = raises(ValueError, lambda: setattr(frame, "fill_color", "not a colour at all"))
 check(ok and frame.fill_color == before, "bad name in a setter raises and leaves value: %s" % msg)
@@ -145,13 +159,6 @@ v = layer.at(1, 1)
 check((C(*v) if isinstance(v, tuple) else v) == C(0, 128, 128), "ColorLayer.fill('teal')")
 
 # --- the committed header is what the generator makes from the committed tables ---
-import os
-import importlib.util
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-spec = importlib.util.spec_from_file_location(
-    "generate_color_table", os.path.join(ROOT, "tools", "generate_color_table.py"))
-gen = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(gen)
 with open(gen.OUT, encoding="utf-8") as f:
     check(f.read() == gen.build(),
           "src/ColorNameTable.h is current (python3 tools/generate_color_table.py)")

@@ -31,7 +31,7 @@ scene = mcrfpy.Scene("t450")
 scene.activate()
 
 ACCEPTED = [C(10, 20, 30, 40), (1, 2, 3), (1, 2, 3, 4), (0, 0, 0, 0), (255, 255, 255, 255),
-            "red", "xkcd:dust", "#10203040"]   # colour strings since #458
+            "red", "dust", "#10203040"]   # colour strings since #458
 REJECTED = [(300, 0, 0), (1.5, 0, 0), None, 5, 1.5, [1, 2, 3], (1, 2), (1, 2, 3, 4, 5),
             (-1, 0, 0), (0, 0, 0, 256), "no such colour", "#ggg", object()]
 BASELINE = C(7, 8, 9, 10)

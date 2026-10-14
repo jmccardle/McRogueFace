@@ -31,15 +31,12 @@ PyMethodDef PyColor::methods[] = {
          MCRF_RAISES("ValueError", "If the string is not 6 or 8 hex digits (RGB or RGBA)")
          MCRF_NOTE("This is a class method. Call as Color.from_hex('#FF0000')")
      )},
-    {"names", (PyCFunction)(void(*)(void))PyColor::names, METH_VARARGS | METH_KEYWORDS | METH_CLASS,
+    {"names", (PyCFunction)PyColor::names, METH_NOARGS | METH_CLASS,
      MCRF_METHOD(Color, names,
-         MCRF_SIG("(source: str | None = None)", "list[str]"),
-         MCRF_DESC("List the color names Color(name) accepts, one per lookup key, in each source's own spelling."),
-         MCRF_ARGS_START
-         MCRF_ARG("source", "None for the unprefixed names (each resolved by precedence css, xkcd, crayola, jenny), or one source: 'css', 'xkcd', 'crayola' or 'jenny', whose names work as Color('source:name')")
-         MCRF_RETURNS("list[str]: names, ordered by lookup key")
-         MCRF_RAISES("ValueError", "If source is not a known source")
-         MCRF_NOTE("Lookup ignores case and every character but letters and digits: 'Dark Green', 'dark_green' and 'darkgreen' are one name.")
+         MCRF_SIG("()", "list[str]"),
+         MCRF_DESC("List every color name Color(name) accepts, each once, in normalized form (lowercase letters and digits), sorted."),
+         MCRF_RETURNS("list[str]: names, e.g. 'darkgreen'")
+         MCRF_NOTE("Lookup ignores case and every character but letters and digits: 'Dark Green', 'dark_green' and 'darkgreen' are one name. A name in several sources takes the first of css, xkcd, crayola, jenny.")
      )},
     {"to_hex", (PyCFunction)PyColor::to_hex, METH_NOARGS,
      MCRF_METHOD(Color, to_hex,
@@ -172,7 +169,7 @@ std::string join(const std::vector<std::string>& items, const char* sep, const c
 }
 
 // #458: a colour string -- "#rgb", "#rgba", "#rrggbb", "#rrggbbaa", a name ("red",
-// "Dark Green"), or "source:name" ("xkcd:dust"). Sets ValueError and returns false
+// "Dark Green"). Sets ValueError and returns false
 // otherwise. has_alpha is true only for 4/8-digit hex.
 bool color_from_string(PyObject* str, sf::Color& out, bool& has_alpha)
 {
@@ -190,36 +187,21 @@ bool color_from_string(PyObject* str, sf::Color& out, bool& has_alpha)
     }
 
     namespace cn = mcrf::color_names;
-    int source = -1;
-    std::string_view name = text;
-    if (auto colon = text.find(':'); colon != std::string_view::npos) {
-        source = cn::source_index(text.substr(0, colon));
-        if (source < 0) {
-            std::vector<std::string> prefixes(cn::source_prefixes, cn::source_prefixes + cn::source_count);
-            std::string known = join(prefixes, ", ", "");
-            PyErr_Format(PyExc_ValueError, "unknown color source in %R: sources are %s",
-                         str, known.c_str());
-            return false;
-        }
-        name = text.substr(colon + 1);
-    }
-    std::string key = cn::normalize(name);
+    std::string key = cn::normalize(text);
     if (key.empty()) {
         PyErr_Format(PyExc_ValueError,
-            "%R is not a color: a color string is a name ('red'), 'source:name' "
-            "('xkcd:dust') or hex ('#ff0000')", str);
+            "%R is not a color: a color string is a name ('red') or hex ('#ff0000')", str);
         return false;
     }
-    if (const cn::Entry* e = cn::find(key, source)) {
+    if (const cn::Entry* e = cn::find(key)) {
         out = sf::Color(e->r, e->g, e->b, 255);
         return true;
     }
-    std::vector<std::string> close = cn::suggestions(key, source);
+    std::vector<std::string> close = cn::suggestions(key);
     std::string hint = close.empty() ? std::string()
                                      : " (did you mean " + join(close, ", ", "'") + "?)";
-    PyErr_Format(PyExc_ValueError, "unknown color name %R%s; Color.names(%s) lists them",
-                 str, hint.c_str(),
-                 source < 0 ? "" : ("'" + std::string(cn::source_prefixes[source]) + "'").c_str());
+    PyErr_Format(PyExc_ValueError, "unknown color name %R%s; Color.names() lists them",
+                 str, hint.c_str());
     return false;
 }
 
@@ -230,7 +212,7 @@ constexpr int UNSET = INT_MIN;
 int PyColor::init(PyColorObject* self, PyObject* args, PyObject* kwds) {
     static const char* keywords[] = { "r", "g", "b", "a", nullptr };
     static const char* usage = "mcrfpy.Color requires (r, g, b[, a]) ints in 0-255, a 3- or "
-        "4-tuple of them, or a color string: a name ('red'), 'source:name' ('xkcd:dust') "
+        "4-tuple of them, or a color string: a name ('red') "
         "or hex ('#ff0000')";
     PyObject* leader;
     int r = -1, g = UNSET, b = UNSET, a = UNSET;
@@ -262,7 +244,7 @@ int PyColor::init(PyColorObject* self, PyObject* args, PyObject* kwds) {
         }
         r = (int)c[0]; g = (int)c[1]; b = (int)c[2]; a = (int)c[3];
     }
-    // #458: a colour name, "source:name", or "#hex"; alpha only by keyword (a=).
+    // #458: a colour name or "#hex"; alpha only by keyword (a=).
     else if (PyUnicode_Check(leader)) {
         if (g != UNSET || b != UNSET) {
             PyErr_Format(PyExc_TypeError,
@@ -396,28 +378,13 @@ PyObject* PyColor::from_hex(PyObject* cls, PyObject* args)
     return (PyObject*)color;
 }
 
-PyObject* PyColor::names(PyObject* cls, PyObject* args, PyObject* kwds)
+PyObject* PyColor::names(PyObject* cls, PyObject* Py_UNUSED(ignored))
 {
-    static const char* keywords[] = { "source", nullptr };
-    const char* source_str = nullptr;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|z", const_cast<char**>(keywords), &source_str))
-        return NULL;
     namespace cn = mcrf::color_names;
-    int source = -1;
-    if (source_str) {
-        source = cn::source_index(source_str);
-        if (source < 0) {
-            std::vector<std::string> prefixes(cn::source_prefixes, cn::source_prefixes + cn::source_count);
-            PyErr_Format(PyExc_ValueError, "unknown color source '%s': sources are %s",
-                         source_str, join(prefixes, ", ", "").c_str());
-            return NULL;
-        }
-    }
-    auto found = cn::names(source);
-    PyObject* list = PyList_New((Py_ssize_t)found.size());
+    PyObject* list = PyList_New((Py_ssize_t)cn::entry_count);
     if (!list) return NULL;
-    for (std::size_t i = 0; i < found.size(); ++i) {
-        PyObject* s = PyUnicode_FromString(found[i]->name);
+    for (std::size_t i = 0; i < cn::entry_count; ++i) {
+        PyObject* s = PyUnicode_FromString(cn::entries[i].name);
         if (!s) { Py_DECREF(list); return NULL; }
         PyList_SET_ITEM(list, (Py_ssize_t)i, s);
     }

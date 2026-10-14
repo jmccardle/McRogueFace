@@ -190,12 +190,12 @@ class Color:
     def __init__(self, rgba: tuple[int, int, int] | tuple[int, int, int, int]) -> None: ...
     @overload
     def __init__(self, color: str, *, a: int = 255) -> None:
-        """A name ('red', 'Dark Green'), 'source:name' ('xkcd:dust'), or '#rgb[a]' / '#rrggbb[aa]'."""
+        """A name ('red', 'Dark Green'), or '#rgb[a]' / '#rrggbb[aa]'."""
         ...
 
     @classmethod
-    def names(cls, source: str | None = None) -> list[str]:
-        """Color names Color(name) accepts; source is 'css', 'xkcd', 'crayola' or 'jenny'."""
+    def names(cls) -> list[str]:
+        """Every color name Color(name) accepts, normalized (lowercase letters and digits), sorted."""
         ...
 
     @classmethod
