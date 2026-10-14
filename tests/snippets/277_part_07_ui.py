@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Frame,Grid,InputState,Key,Scene,Texture] verified=0.3.2 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Frame,Grid,InputState,Key,Scene,Texture] verified=0.3.3 status=ok
 """McRogueFace Tutorial - Part 7: User Interface
 
 Create a polished UI with health bar, message log, and stats display.

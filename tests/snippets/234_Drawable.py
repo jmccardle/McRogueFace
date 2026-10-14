@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Frame,Scene,Sprite] verified=0.3.2 status=ok
+# mcrf: objects=[Caption,Frame,Scene,Sprite] verified=0.3.3 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("drawable_demo")

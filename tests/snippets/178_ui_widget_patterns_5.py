@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.2 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.3 status=ok
 # Modal Dialog pattern - a dialog that captures all input until dismissed.
 import mcrfpy
 

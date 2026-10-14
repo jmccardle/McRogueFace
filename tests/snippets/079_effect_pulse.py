@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.2 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.3 status=ok
 # Effect Pulse - Pulsing highlight
 import mcrfpy
 import math

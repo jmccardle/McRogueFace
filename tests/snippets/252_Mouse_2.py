@@ -1,4 +1,4 @@
-# mcrf: objects=[Scene,Sprite,Timer] verified=0.3.2 status=ok
+# mcrf: objects=[Scene,Sprite,Timer] verified=0.3.3 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("custom_cursor")

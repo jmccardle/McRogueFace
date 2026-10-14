@@ -1,4 +1,4 @@
-# mcrf: objects=[Easing,Frame,Scene,Timer] verified=0.3.2 status=ok
+# mcrf: objects=[Easing,Frame,Scene,Timer] verified=0.3.3 status=ok
 import mcrfpy
 import random
 

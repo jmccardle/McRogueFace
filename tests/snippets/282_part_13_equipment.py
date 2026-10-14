@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Frame,Grid,InputState,Key,Scene,Texture] verified=0.3.2 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Frame,Grid,InputState,Key,Scene,Texture] verified=0.3.3 status=ok
 """McRogueFace Tutorial - Part 13: Equipment System
 
 Add weapons and armor with stat bonuses.

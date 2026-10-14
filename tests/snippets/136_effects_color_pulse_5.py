@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,ColorLayer,Grid,Scene,Timer] verified=0.3.2 status=ok
+# mcrf: objects=[Color,ColorLayer,Grid,Scene,Timer] verified=0.3.3 status=ok
 import mcrfpy
 
 def ripple_effect(grid, center_x, center_y, color, max_radius=5, duration=1.0):

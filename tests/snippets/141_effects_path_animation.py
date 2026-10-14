@@ -1,4 +1,4 @@
-# mcrf: objects=[Easing,Entity,Grid,Scene] verified=0.3.2 status=ok
+# mcrf: objects=[Easing,Entity,Grid,Scene] verified=0.3.3 status=ok
 import mcrfpy
 
 class PathAnimator:
