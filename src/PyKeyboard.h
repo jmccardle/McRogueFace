@@ -10,7 +10,7 @@ typedef struct {
 class PyKeyboard
 {
 public:
-    // Python getters - query real-time keyboard state via SFML
+    // Python getters - report the modifiers of the key event being handled (#497)
     static PyObject* get_shift(PyObject* self, void* closure);
     static PyObject* get_ctrl(PyObject* self, void* closure);
     static PyObject* get_alt(PyObject* self, void* closure);
@@ -28,7 +28,7 @@ namespace mcrfpydef {
         .tp_itemsize = 0,
         .tp_repr = PyKeyboard::repr,
         .tp_flags = Py_TPFLAGS_DEFAULT,
-        .tp_doc = PyDoc_STR("Keyboard state singleton for checking modifier keys"),
+        .tp_doc = PyDoc_STR("Keyboard modifier state singleton: the modifiers (shift, ctrl, alt, system) carried by the key event being handled; they persist until the next key event."),
         .tp_getset = PyKeyboard::getsetters,
         .tp_new = PyType_GenericNew,
     };

@@ -734,12 +734,29 @@ void GameEngine::testTimers(int now)
     }
 }
 
+// #497 - mcrfpy.keyboard reports what the event stream says, not the hardware. A key event
+// carries the modifiers in effect for it (SFML sets them, the SDL2 pump copies SDL's mod
+// mask, automation computes them), and that value stands until the next key event. A window
+// that loses focus stops receiving key releases, so it also forgets what was held.
+void GameEngine::noteKeyModifiers(const sf::Event& event)
+{
+    if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
+        key_mods.shift = event.key.shift;
+        key_mods.ctrl = event.key.control;
+        key_mods.alt = event.key.alt;
+        key_mods.system = event.key.system;
+    } else if (event.type == sf::Event::LostFocus) {
+        key_mods = KeyModifiers{};
+    }
+}
+
 void GameEngine::processEvent(const sf::Event& event)
 {
     std::string actionType;
     int actionCode = 0;
 
     if (event.type == sf::Event::Closed) { running = false; return; }
+    noteKeyModifiers(event);
 
     // Handle F3 for profiler overlay toggle
     if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F3) {
@@ -824,6 +841,8 @@ void GameEngine::sUserInput()
     sf::Event event;
     while (window && window->pollEvent(event))
     {
+        // #497: before any filtering below, so a key the console swallows still updates them
+        noteKeyModifiers(event);
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
         // Process event through ImGui first (SFML builds only)
         if (imguiInitialized) {

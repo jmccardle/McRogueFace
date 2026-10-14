@@ -363,6 +363,16 @@ public:
     const McRogueFaceConfig& getConfig() const { return config; }
     void setAutoExitAfterExec(bool enabled) { config.auto_exit_after_exec = enabled; }
     void processEvent(const sf::Event& event);
+
+    // #497: the modifiers carried by the key event handled most recently (mcrfpy.keyboard).
+    // They come from the event stream, never from polling the hardware, so synthesized
+    // events and queued events agree with what on_key is being told. Cleared on focus loss.
+    struct KeyModifiers { bool shift = false, ctrl = false, alt = false, system = false; };
+    const KeyModifiers& keyModifiers() const { return key_mods; }
+    void noteKeyModifiers(const sf::Event& event);
+private:
+    KeyModifiers key_mods;
+public:
     
     // Window property accessors
     const std::string& getWindowTitle() const { return window_title; }

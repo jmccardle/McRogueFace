@@ -175,15 +175,17 @@ void McRFPy_Automation::injectKeyEvent(sf::Event::EventType type, sf::Keyboard::
     event.type = type;
 
     if (type == sf::Event::KeyPressed || type == sf::Event::KeyReleased) {
+        // #497: a synthesized event never touches the hardware, so its modifiers are the
+        // injected modifier keys that are held, in the order they were injected. As with
+        // a real keyboard, the modifier's own press already counts and its release does not.
+        static bool held[sf::Keyboard::KeyCount] = {};
+        if (key >= 0 && key < sf::Keyboard::KeyCount)
+            held[key] = (type == sf::Event::KeyPressed);
         event.key.code = key;
-        event.key.alt = sf::Keyboard::isKeyPressed(sf::Keyboard::LAlt) ||
-                        sf::Keyboard::isKeyPressed(sf::Keyboard::RAlt);
-        event.key.control = sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
-                           sf::Keyboard::isKeyPressed(sf::Keyboard::RControl);
-        event.key.shift = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) ||
-                         sf::Keyboard::isKeyPressed(sf::Keyboard::RShift);
-        event.key.system = sf::Keyboard::isKeyPressed(sf::Keyboard::LSystem) ||
-                          sf::Keyboard::isKeyPressed(sf::Keyboard::RSystem);
+        event.key.shift = held[sf::Keyboard::LShift] || held[sf::Keyboard::RShift];
+        event.key.control = held[sf::Keyboard::LControl] || held[sf::Keyboard::RControl];
+        event.key.alt = held[sf::Keyboard::LAlt] || held[sf::Keyboard::RAlt];
+        event.key.system = held[sf::Keyboard::LSystem] || held[sf::Keyboard::RSystem];
     }
 
     engine->processEvent(event);
