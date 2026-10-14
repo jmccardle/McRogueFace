@@ -9,6 +9,7 @@
 #include "Python.h"
 #include <list>
 #include <libtcod.h>
+#include "PyFOV.h"
 #include <mutex>
 #include <optional>
 #include <map>
@@ -148,7 +149,7 @@ public:
                         TCOD_fov_algorithm_t algo, std::vector<uint8_t>& out) const;
 
     // #114 - FOV algorithm and radius defaults
-    TCOD_fov_algorithm_t fov_algorithm = FOV_BASIC;
+    TCOD_fov_algorithm_t fov_algorithm = PyFOV::default_fov;   // #493: mcrfpy.default_fov at construction
     int fov_radius = 10;
 
     // #292 - FOV deduplication

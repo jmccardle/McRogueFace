@@ -4,6 +4,16 @@
 // Static storage for cached enum class reference
 PyObject* PyFOV::fov_enum_class = nullptr;
 
+TCOD_fov_algorithm_t PyFOV::default_fov = FOV_BASIC;
+
+PyObject* PyFOV::to_python(TCOD_fov_algorithm_t algo) {
+    if (!fov_enum_class) {
+        PyErr_SetString(PyExc_RuntimeError, "mcrfpy.FOV enum is not initialised");
+        return NULL;
+    }
+    return PyObject_CallFunction(fov_enum_class, "i", (int)algo);
+}
+
 PyObject* PyFOV::create_enum_class(PyObject* module) {
     // Import IntEnum from enum module
     PyObject* enum_module = PyImport_ImportModule("enum");
