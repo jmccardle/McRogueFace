@@ -373,13 +373,16 @@ public:
     void noteKeyModifiers(const sf::Event& event);
     void dispatchText(uint32_t codepoint);  // #495
 
-    // #496: the keys that toggle the developer overlays (ImGui console, scene explorer).
+    // #496: the keys that toggle the developer overlays (ImGui console, scene explorer, profiler overlay).
     // Unknown means "no hotkey". Defaults are Grave and F4; a game that needs every key
     // (a terminal, a text editor) sets them to Unknown, or moves them.
     sf::Keyboard::Key getConsoleKey() const { return console_key; }
     sf::Keyboard::Key getExplorerKey() const { return explorer_key; }
     void setConsoleKey(sf::Keyboard::Key k) { console_key = k; }
     void setExplorerKey(sf::Keyboard::Key k) { explorer_key = k; }
+    // #503: the profiler overlay's hotkey (default F3), same rules.
+    sf::Keyboard::Key getProfilerKey() const { return profiler_key; }
+    void setProfilerKey(sf::Keyboard::Key k) { profiler_key = k; }
 
     // The one place developer-tool input is intercepted. Returns true when `event` belongs
     // to a dev tool (its hotkey, or any keyboard input while the console has focus) and
@@ -392,6 +395,7 @@ private:
     KeyModifiers key_mods;
     sf::Keyboard::Key console_key = sf::Keyboard::Grave;
     sf::Keyboard::Key explorer_key = sf::Keyboard::F4;
+    sf::Keyboard::Key profiler_key = sf::Keyboard::F3;
 public:
     
     // Window property accessors

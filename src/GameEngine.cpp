@@ -795,15 +795,8 @@ void GameEngine::processEvent(const sf::Event& event)
     if (event.type == sf::Event::Closed) { running = false; return; }
     noteKeyModifiers(event);
 
-    // Handle F3 for profiler overlay toggle
-    if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F3) {
-        if (profilerOverlay) {
-            profilerOverlay->toggle();
-        }
-        return;
-    }
     // Handle window resize events
-    else if (event.type == sf::Event::Resized) {
+    if (event.type == sf::Event::Resized) {
         // Update the viewport to handle the new window size
         updateViewport();
         
@@ -882,6 +875,14 @@ void GameEngine::processEvent(const sf::Event& event)
 
 bool GameEngine::filterDevInput(const sf::Event& event)
 {
+    // #503: the profiler overlay exists wherever there is a window (SFML and SDL2); headless
+    // has none, so there F3 always reaches the game.
+    if (profilerOverlay && profiler_key != sf::Keyboard::Unknown &&
+        (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) &&
+        event.key.code == profiler_key) {
+        if (event.type == sf::Event::KeyPressed) profilerOverlay->toggle();
+        return true;  // the release is part of the same keystroke
+    }
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
     if (!imguiInitialized || !ImGuiConsole::isEnabled()) return false;
 
@@ -921,9 +922,9 @@ void GameEngine::sUserInput()
             ImGui::SFML::ProcessEvent(*window, event);
         }
 
-        // Dev-tool hotkeys and console focus (#496): before the game sees the event
-        if (filterDevInput(event)) continue;
 #endif
+        // Dev-tool hotkeys and console focus (#496, #503): before the game sees the event
+        if (filterDevInput(event)) continue;
 
         processEvent(event);
     }

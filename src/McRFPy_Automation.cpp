@@ -105,9 +105,8 @@ sf::Keyboard::Key McRFPy_Automation::stringToKey(const std::string& keyName) {
 
         // Other
         {"pause", sf::Keyboard::Pause},
-        {"capslock", sf::Keyboard::LControl},  // Note: SFML doesn't have CapsLock
-        {"numlock", sf::Keyboard::LControl},   // Note: SFML doesn't have NumLock
-        {"scrolllock", sf::Keyboard::LControl}, // Note: SFML doesn't have ScrollLock
+        // No capslock/numlock/scrolllock: sf::Keyboard has no such keys (#504). An unknown
+        // name returns Unknown and the callers raise ValueError, instead of faking a Ctrl.
     };
 
     auto it = keyMap.find(keyName);

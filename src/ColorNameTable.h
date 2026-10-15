@@ -5,6 +5,315 @@
 //   xkcd: 923 distinct names
 //   crayola: 168 distinct names
 //   jenny: 120 distinct names
+// 1073 entries.
+//
+// Colours that lost a name collision with a different value (to a later spelling in
+// the same source, or to a higher-precedence source):
+//   almond: jenny 'Almond' #EFDBC5 lost to crayola #EED9C4
+//   antiquebrass: jenny 'Antique Brass' #CD9575 lost to crayola #C88A65
+//   apricot: crayola 'Apricot' #FDD5B1 lost to xkcd #FFB16D
+//   apricot: jenny 'Apricot' #FDD9B5 lost to xkcd #FFB16D
+//   aqua: xkcd 'aqua' #13EAC9 lost to css #00FFFF
+//   aquamarine: crayola 'Aquamarine' #458B74 lost to css #7FFFD4
+//   aquamarine: jenny 'Aquamarine' #78DBE2 lost to css #7FFFD4
+//   aquamarine: xkcd 'aqua marine' #2EE8BB lost to xkcd #04D8B2
+//   aquamarine: xkcd 'aquamarine' #04D8B2 lost to css #7FFFD4
+//   asparagus: crayola 'Asparagus' #7BA05B lost to xkcd #77AB56
+//   asparagus: jenny 'Asparagus' #87A96B lost to xkcd #77AB56
+//   azure: xkcd 'azure' #069AF3 lost to css #F0FFFF
+//   bananamania: jenny 'Banana Mania' #FAE7B5 lost to crayola #FBE7B2
+//   beaver: jenny 'Beaver' #9F8170 lost to crayola #926F5B
+//   beige: xkcd 'beige' #E6DAA6 lost to css #F5F5DC
+//   bittersweet: jenny 'Bittersweet' #FD7C6E lost to crayola #FE6F5E
+//   black: jenny 'Black' #232323 lost to css #000000
+//   blue: jenny 'Blue' #1F75FE lost to css #0000FF
+//   blue: xkcd 'blue' #0343DF lost to css #0000FF
+//   bluebell: jenny 'Blue Bell' #ADADD6 lost to crayola #9999CC
+//   bluegreen: crayola 'Blue-Green' #0095B7 lost to xkcd #137E6D
+//   bluegreen: jenny 'Blue Green' #199EBD lost to xkcd #137E6D
+//   bluegreen: xkcd 'blue/green' #0F9B8E lost to xkcd #137E6D
+//   bluegreen: xkcd 'bluegreen' #017A79 lost to xkcd #137E6D
+//   bluegrey: xkcd 'bluegrey' #85A3B2 lost to xkcd #607C8E
+//   bluegrey: xkcd 'blue/grey' #758DA3 lost to xkcd #607C8E
+//   bluepurple: xkcd 'blue/purple' #5A06EF lost to xkcd #5729CE
+//   bluetiful: jenny 'Bluetiful' #7366BD lost to crayola #3C69E7
+//   blueviolet: crayola 'Blue-Violet' #6456B7 lost to css #8A2BE2
+//   blueviolet: jenny 'Blue Violet' #2E5090 lost to css #8A2BE2
+//   blueviolet: xkcd 'blue violet' #5D06E9 lost to css #8A2BE2
+//   blush: crayola 'Blush' #DB5079 lost to xkcd #F29E8E
+//   blush: jenny 'Blush' #DE5D83 lost to xkcd #F29E8E
+//   brickred: crayola 'Brick Red' #C62D42 lost to xkcd #8F1402
+//   brickred: jenny 'Brick Red' #CB4154 lost to xkcd #8F1402
+//   brown: crayola 'Brown' #AF593E lost to css #A52A2A
+//   brown: jenny 'Brown' #B5674D lost to css #A52A2A
+//   brown: xkcd 'brown' #653700 lost to css #A52A2A
+//   bubblegumpink: xkcd 'bubble gum pink' #FF69AF lost to xkcd #FE83CC
+//   burntorange: crayola 'Burnt Orange' #FF7034 lost to xkcd #C04E01
+//   burntorange: jenny 'Burnt Orange' #FF7F49 lost to xkcd #C04E01
+//   burntsienna: crayola 'Burnt Sienna' #E97451 lost to xkcd #B04E0F
+//   burntsienna: jenny 'Burnt Sienna' #EA7E5D lost to xkcd #B04E0F
+//   burntumber: crayola 'Burnt Umber' #805533 lost to xkcd #A0450E
+//   cadetblue: crayola 'Cadet Blue' #A9B2C3 lost to css #5F9EA0
+//   cadetblue: jenny 'Cadet Blue' #B0B7C6 lost to css #5F9EA0
+//   cadetblue: xkcd 'cadet blue' #4E7496 lost to css #5F9EA0
+//   canary: crayola 'Canary' #FFFF99 lost to xkcd #FDFF63
+//   canary: jenny 'Canary' #FFFF99 lost to xkcd #FDFF63
+//   caribbeangreen: jenny 'Caribbean Green' #1CD3A2 lost to crayola #00CC99
+//   carmine: crayola 'Carmine' #E62E6B lost to xkcd #9D0216
+//   carnationpink: crayola 'Carnation Pink' #FFA6C9 lost to xkcd #FF7FA7
+//   carnationpink: jenny 'Carnation Pink' #FFAACC lost to xkcd #FF7FA7
+//   cerise: crayola 'Cerise' #DA3287 lost to xkcd #DE0C62
+//   cerise: jenny 'Cerise' #FF43A4 lost to xkcd #DE0C62
+//   cerulean: crayola 'Cerulean' #02A4D3 lost to xkcd #0485D1
+//   cerulean: jenny 'Cerulean' #1DACD6 lost to xkcd #0485D1
+//   ceruleanblue: crayola 'Cerulean Blue' #339ACC lost to xkcd #056EEE
+//   chartreuse: xkcd 'chartreuse' #C1F80A lost to css #7FFF00
+//   chestnut: crayola 'Chestnut' #B94E48 lost to xkcd #742802
+//   chestnut: jenny 'Chestnut' #BC5D58 lost to xkcd #742802
+//   chocolate: xkcd 'chocolate' #3D1C02 lost to css #D2691E
+//   cobaltblue: crayola 'Cobalt Blue' #8C90C8 lost to xkcd #030AA7
+//   copper: crayola 'Copper' #DA8A67 lost to xkcd #B66325
+//   copper: jenny 'Copper' #DD9475 lost to xkcd #B66325
+//   coral: xkcd 'coral' #FC5A50 lost to css #FF7F50
+//   cornflower: crayola 'Cornflower' #93CCEA lost to xkcd #6A79F7
+//   cornflower: jenny 'Cornflower' #9ACEEB lost to xkcd #6A79F7
+//   cornflowerblue: xkcd 'cornflower blue' #5170D7 lost to css #6495ED
+//   cottoncandy: jenny 'Cotton Candy' #FFBCD9 lost to crayola #FFB7D5
+//   crimson: xkcd 'crimson' #8C000F lost to css #DC143C
+//   dandelion: crayola 'Dandelion' #FED85D lost to xkcd #FEDF08
+//   darkblue: xkcd 'darkblue' #030764 lost to xkcd #00035B
+//   darkblue: xkcd 'dark blue' #00035B lost to css #00008B
+//   darkcyan: xkcd 'dark cyan' #0A888A lost to css #008B8B
+//   darkgreen: xkcd 'darkgreen' #054907 lost to xkcd #033500
+//   darkgreen: xkcd 'dark green' #033500 lost to css #006400
+//   darkgrey: xkcd 'dark grey' #363737 lost to css #A9A9A9
+//   darkkhaki: xkcd 'dark khaki' #9B8F55 lost to css #BDB76B
+//   darkmagenta: xkcd 'dark magenta' #960056 lost to css #8B008B
+//   darkolivegreen: xkcd 'dark olive green' #3C4D03 lost to css #556B2F
+//   darkorange: xkcd 'dark orange' #C65102 lost to css #FF8C00
+//   darkred: xkcd 'dark red' #840000 lost to css #8B0000
+//   darksalmon: xkcd 'dark salmon' #C85A53 lost to css #E9967A
+//   darkseagreen: xkcd 'dark sea green' #11875D lost to css #8FBC8F
+//   darkslateblue: xkcd 'dark slate blue' #214761 lost to css #483D8B
+//   darkturquoise: xkcd 'dark turquoise' #045C5A lost to css #00CED1
+//   darkviolet: xkcd 'dark violet' #34013F lost to css #9400D3
+//   deeppink: xkcd 'deep pink' #CB0162 lost to css #FF1493
+//   deepskyblue: xkcd 'deep sky blue' #0D75F8 lost to css #00BFFF
+//   denim: crayola 'Denim' #1560BD lost to xkcd #3B638C
+//   denim: jenny 'Denim' #2B6CC4 lost to xkcd #3B638C
+//   desertsand: jenny 'Desert Sand' #EFCDB8 lost to crayola #EDC9AF
+//   dodgerblue: xkcd 'dodger blue' #3E82FC lost to css #1E90FF
+//   eggplant: crayola 'Eggplant' #614051 lost to xkcd #380835
+//   eggplant: jenny 'Eggplant' #DD4492 lost to xkcd #380835
+//   eggshell: xkcd 'egg shell' #FFFCC4 lost to xkcd #FFFFD4
+//   electriclime: jenny 'Electric Lime' #1DF914 lost to xkcd #A8FF04
+//   fern: crayola 'Fern' #63B76C lost to xkcd #63A950
+//   fern: jenny 'Fern' #71BC78 lost to xkcd #63A950
+//   forestgreen: crayola 'Forest Green' #5FA777 lost to css #228B22
+//   forestgreen: jenny 'Forest Green' #6DAE81 lost to css #228B22
+//   forestgreen: xkcd 'forest green' #06470C lost to css #228B22
+//   fuchsia: crayola 'Fuchsia' #C154C1 lost to css #FF00FF
+//   fuchsia: jenny 'Fuchsia' #C364C5 lost to css #FF00FF
+//   fuchsia: xkcd 'fuchsia' #ED0DD9 lost to css #FF00FF
+//   fuzzywuzzy: jenny 'Fuzzy Wuzzy' #CC6666 lost to crayola #87421F
+//   gold: jenny 'Gold' #E7C697 lost to css #FFD700
+//   gold: xkcd 'gold' #DBB40C lost to css #FFD700
+//   goldenrod: crayola 'Goldenrod' #FCD667 lost to css #DAA520
+//   goldenrod: jenny 'Goldenrod' #FCD975 lost to css #DAA520
+//   goldenrod: xkcd 'golden rod' #F9BC08 lost to xkcd #FAC205
+//   goldenrod: xkcd 'goldenrod' #FAC205 lost to css #DAA520
+//   grannysmithapple: jenny 'Granny Smith Apple' #A8E4A0 lost to crayola #9DE093
+//   gray: crayola 'Gray' #8B8680 lost to css #808080
+//   gray: jenny 'Gray' #95918C lost to css #808080
+//   green: crayola 'Green' #01A638 lost to css #008000
+//   green: jenny 'Green' #1CAC78 lost to css #008000
+//   green: xkcd 'green' #15B01A lost to css #008000
+//   greenblue: crayola 'Green-Blue' #2887C8 lost to xkcd #06B48B
+//   greenblue: xkcd 'green/blue' #01C08D lost to xkcd #06B48B
+//   greenblue: xkcd 'greenblue' #23C48B lost to xkcd #06B48B
+//   greenyellow: crayola 'Green-Yellow' #F1E788 lost to css #ADFF2F
+//   greenyellow: jenny 'Green Yellow' #F0E891 lost to css #ADFF2F
+//   greenyellow: xkcd 'green/yellow' #B5CE08 lost to xkcd #C9FF27
+//   greenyellow: xkcd 'green yellow' #C9FF27 lost to css #ADFF2F
+//   grey: xkcd 'grey' #929591 lost to css #808080
+//   greyblue: xkcd 'grey/blue' #647D8E lost to xkcd #6B8BA4
+//   greyblue: xkcd 'greyblue' #77A1B5 lost to xkcd #6B8BA4
+//   greygreen: xkcd 'grey/green' #86A17D lost to xkcd #789B73
+//   hotmagenta: jenny 'Hot Magenta' #FF1DCE lost to xkcd #F504C9
+//   hotpink: xkcd 'hot pink' #FF028D lost to css #FF69B4
+//   inchworm: jenny 'Inchworm' #B2EC5D lost to crayola #B0E313
+//   indianred: xkcd 'indian red' #850E04 lost to css #CD5C5C
+//   indigo: crayola 'Indigo' #4F69C6 lost to css #4B0082
+//   indigo: jenny 'Indigo' #5D76CB lost to css #4B0082
+//   indigo: xkcd 'indigo' #380282 lost to css #4B0082
+//   ivory: xkcd 'ivory' #FFFFCB lost to css #FFFFF0
+//   jazzberryjam: jenny 'Jazzberry Jam' #CA3767 lost to crayola #A50B5E
+//   junglegreen: crayola 'Jungle Green' #29AB87 lost to xkcd #048243
+//   junglegreen: jenny 'Jungle Green' #3BB08F lost to xkcd #048243
+//   khaki: xkcd 'khaki' #AAA662 lost to css #F0E68C
+//   lavender: jenny 'Lavender' #FCB4D5 lost to css #E6E6FA
+//   lavender: xkcd 'lavender' #C79FEF lost to css #E6E6FA
+//   lawngreen: xkcd 'lawn green' #4DA409 lost to css #7CFC00
+//   lemonyellow: crayola 'Lemon Yellow' #FFFF9F lost to xkcd #FDFF38
+//   lightblue: crayola 'Light Blue' #8FD8D8 lost to css #ADD8E6
+//   lightblue: xkcd 'lightblue' #7BC8F6 lost to xkcd #95D0FC
+//   lightblue: xkcd 'light blue' #95D0FC lost to css #ADD8E6
+//   lightcyan: xkcd 'light cyan' #ACFFFC lost to css #E0FFFF
+//   lightgreen: xkcd 'lightgreen' #76FF7B lost to xkcd #96F97B
+//   lightgreen: xkcd 'light green' #96F97B lost to css #90EE90
+//   lightgrey: xkcd 'light grey' #D8DCD6 lost to css #D3D3D3
+//   lightpink: xkcd 'light pink' #FFD1DF lost to css #FFB6C1
+//   lightsalmon: xkcd 'light salmon' #FEA993 lost to css #FFA07A
+//   lightseagreen: xkcd 'light sea green' #98F6B0 lost to css #20B2AA
+//   lightskyblue: xkcd 'light sky blue' #C6FCFF lost to css #87CEFA
+//   lightyellow: xkcd 'light yellow' #FFFE7A lost to css #FFFFE0
+//   lime: xkcd 'lime' #AAFF32 lost to css #00FF00
+//   limegreen: xkcd 'lime green' #89FE05 lost to css #32CD32
+//   macaroniandcheese: crayola 'Macaroni and Cheese' #FFB97B lost to xkcd #EFB435
+//   macaroniandcheese: jenny 'Macaroni and Cheese' #FFBD88 lost to xkcd #EFB435
+//   magenta: crayola 'Magenta' #F653A6 lost to css #FF00FF
+//   magenta: jenny 'Magenta' #FCB4D5 lost to css #FF00FF
+//   magenta: xkcd 'magenta' #C20078 lost to css #FF00FF
+//   mahogany: crayola 'Mahogany' #CA3435 lost to xkcd #4A0100
+//   mahogany: jenny 'Mahogany' #CD4A4A lost to xkcd #4A0100
+//   maize: crayola 'Maize' #F2C649 lost to xkcd #F4D054
+//   manatee: jenny 'Manatee' #979AAA lost to crayola #8D90A1
+//   mangotango: jenny 'Mango Tango' #FF8243 lost to crayola #E77200
+//   maroon: crayola 'Maroon' #C32148 lost to css #800000
+//   maroon: jenny 'Maroon' #C8385A lost to css #800000
+//   maroon: xkcd 'maroon' #650021 lost to css #800000
+//   mauvelous: jenny 'Mauvelous' #EF98AA lost to crayola #F091A9
+//   mediumblue: xkcd 'medium blue' #2C6FBB lost to css #0000CD
+//   mediumpurple: xkcd 'medium purple' #9E43A2 lost to css #9370DB
+//   melon: crayola 'Melon' #FEBAAD lost to xkcd #FF7855
+//   melon: jenny 'Melon' #FDBCB4 lost to xkcd #FF7855
+//   midnightblue: crayola 'Midnight Blue' #003366 lost to css #191970
+//   midnightblue: jenny 'Midnight Blue' #1A4876 lost to css #191970
+//   midnightblue: xkcd 'midnight blue' #020035 lost to css #191970
+//   mountainmeadow: jenny 'Mountain Meadow' #30BA8F lost to crayola #1AB385
+//   mulberry: crayola 'Mulberry' #C8509B lost to xkcd #920A4E
+//   navy: xkcd 'navy' #01153E lost to css #000080
+//   navyblue: crayola 'Navy Blue' #0066CC lost to xkcd #001146
+//   navyblue: jenny 'Navy Blue' #1974D2 lost to xkcd #001146
+//   olive: xkcd 'olive' #6E750E lost to css #808000
+//   olivedrab: xkcd 'olive drab' #6F7632 lost to css #6B8E23
+//   olivegreen: crayola 'Olive Green' #B5B35C lost to xkcd #677A04
+//   olivegreen: jenny 'Olive Green' #BAB86C lost to xkcd #677A04
+//   orange: crayola 'Orange' #FF8833 lost to css #FFA500
+//   orange: jenny 'Orange' #FF7538 lost to css #FFA500
+//   orange: xkcd 'orange' #F97306 lost to css #FFA500
+//   orangered: crayola 'Orange-Red' #FF5349 lost to css #FF4500
+//   orangered: xkcd 'orangered' #FE420F lost to xkcd #FD411E
+//   orangered: xkcd 'orange red' #FD411E lost to css #FF4500
+//   orangeyellow: crayola 'Orange-Yellow' #F8D568 lost to xkcd #FFAD01
+//   orchid: crayola 'Orchid' #E29CD2 lost to css #DA70D6
+//   orchid: jenny 'Orchid' #C0448F lost to css #DA70D6
+//   orchid: xkcd 'orchid' #C875C4 lost to css #DA70D6
+//   outerspace: jenny 'Outer Space' #414AAC lost to crayola #2D383A
+//   pacificblue: jenny 'Pacific Blue' #1CA9C9 lost to crayola #009DC4
+//   palegreen: xkcd 'pale green' #C7FDB5 lost to css #98FB98
+//   paleturquoise: xkcd 'pale turquoise' #A5FBD5 lost to css #AFEEEE
+//   peach: crayola 'Peach' #FFCBA4 lost to xkcd #FFB07C
+//   peach: jenny 'Peach' #FFCFAB lost to xkcd #FFB07C
+//   periwinkle: crayola 'Periwinkle' #C3CDE6 lost to xkcd #8E82FE
+//   periwinkle: jenny 'Periwinkle' #C5D0E6 lost to xkcd #8E82FE
+//   pinegreen: crayola 'Pine Green' #01796F lost to xkcd #0A481E
+//   pinegreen: jenny 'Pine Green' #158078 lost to xkcd #0A481E
+//   pink: xkcd 'pink' #FF81C0 lost to css #FFC0CB
+//   pinkflamingo: jenny 'Pink Flamingo' #FC74FD lost to crayola #F2583E
+//   pinkpurple: xkcd 'pink/purple' #EF1DE7 lost to xkcd #DB4BDA
+//   plum: crayola 'Plum' #843179 lost to css #DDA0DD
+//   plum: jenny 'Plum' #8E4584 lost to css #DDA0DD
+//   plum: xkcd 'plum' #580F41 lost to css #DDA0DD
+//   powderblue: crayola 'Powder Blue' #C0D5F0 lost to css #B0E0E6
+//   powderblue: xkcd 'powder blue' #B1D1FC lost to css #B0E0E6
+//   purple: xkcd 'purple' #7E1E9C lost to css #800080
+//   purpleblue: xkcd 'purple/blue' #5D21D0 lost to xkcd #632DE9
+//   purpleheart: jenny 'Purple Heart' #7442C8 lost to crayola #652DC1
+//   purplemountainsmajesty: jenny "Purple Mountains' Majesty" #9D81BA lost to crayola #D6AEDD
+//   purplepink: xkcd 'purple/pink' #D725DE lost to xkcd #E03FD8
+//   rawsienna: crayola 'Raw Sienna' #D27D46 lost to xkcd #9A6200
+//   rawsienna: jenny 'Raw Sienna' #D68A59 lost to xkcd #9A6200
+//   rawumber: crayola 'Raw Umber' #665233 lost to xkcd #A75E09
+//   razzmatazz: jenny 'Razzmatazz' #E3256B lost to crayola #E30B5C
+//   red: crayola 'Red' #ED0A3F lost to css #FF0000
+//   red: jenny 'Red' #EE204D lost to css #FF0000
+//   red: xkcd 'red' #E50000 lost to css #FF0000
+//   redorange: crayola 'Red-Orange' #FF3F34 lost to xkcd #FD3C06
+//   redorange: jenny 'Red Orange' #FF5349 lost to xkcd #FD3C06
+//   redviolet: crayola 'Red-Violet' #BB3385 lost to xkcd #9E0168
+//   redviolet: jenny 'Red Violet' #C0448F lost to xkcd #9E0168
+//   robinseggblue: crayola "Robin's Egg Blue" #00CCCC lost to xkcd #98EFF9
+//   robinseggblue: jenny "Robin's Egg Blue" #1FCECB lost to xkcd #98EFF9
+//   royalblue: xkcd 'royal blue' #0504AA lost to css #4169E1
+//   royalpurple: crayola 'Royal Purple' #6B3FA0 lost to xkcd #4B006E
+//   royalpurple: jenny 'Royal Purple' #7851A9 lost to xkcd #4B006E
+//   salmon: crayola 'Salmon' #FF91A4 lost to css #FA8072
+//   salmon: jenny 'Salmon' #FF9BAA lost to css #FA8072
+//   salmon: xkcd 'salmon' #FF796C lost to css #FA8072
+//   sandybrown: xkcd 'sandy brown' #C4A661 lost to css #F4A460
+//   scarlet: crayola 'Scarlet' #FD0E35 lost to xkcd #BE0119
+//   scarlet: jenny 'Scarlet' #FC2847 lost to xkcd #BE0119
+//   seagreen: crayola 'Sea Green' #93DFB8 lost to css #2E8B57
+//   seagreen: jenny 'Sea Green' #9FE2BF lost to css #2E8B57
+//   seagreen: xkcd 'sea green' #53FCA1 lost to css #2E8B57
+//   sepia: crayola 'Sepia' #9E5B40 lost to xkcd #985E2B
+//   sepia: jenny 'Sepia' #A5694F lost to xkcd #985E2B
+//   shadow: jenny 'Shadow' #8A795D lost to crayola #837050
+//   shamrock: crayola 'Shamrock' #33CC99 lost to xkcd #01B44C
+//   shamrock: jenny 'Shamrock' #45CEA2 lost to xkcd #01B44C
+//   shockingpink: jenny 'Shocking Pink' #FB7EFD lost to xkcd #FE02A2
+//   sienna: xkcd 'sienna' #A9561E lost to css #A0522D
+//   silver: crayola 'Silver' #C9C0BB lost to css #C0C0C0
+//   silver: jenny 'Silver' #CDC5C2 lost to css #C0C0C0
+//   silver: xkcd 'silver' #C5C9C7 lost to css #C0C0C0
+//   skyblue: crayola 'Sky Blue' #76D7EA lost to css #87CEEB
+//   skyblue: jenny 'Sky Blue' #80DAEB lost to css #87CEEB
+//   skyblue: xkcd 'sky blue' #75BBFD lost to css #87CEEB
+//   slateblue: xkcd 'slate blue' #5B7C99 lost to css #6A5ACD
+//   slategrey: xkcd 'slate grey' #59656D lost to css #708090
+//   springgreen: crayola 'Spring Green' #ECEBBD lost to css #00FF7F
+//   springgreen: jenny 'Spring Green' #ECEABE lost to css #00FF7F
+//   springgreen: xkcd 'spring green' #A9F971 lost to css #00FF7F
+//   steelblue: xkcd 'steel blue' #5A7D9A lost to css #4682B4
+//   sunsetorange: jenny 'Sunset Orange' #FD5E53 lost to crayola #FE4C40
+//   tan: crayola 'Tan' #FA9D5A lost to css #D2B48C
+//   tan: jenny 'Tan' #FAA76C lost to css #D2B48C
+//   tan: xkcd 'tan' #D1B26F lost to css #D2B48C
+//   teal: xkcd 'teal' #029386 lost to css #008080
+//   tealblue: crayola 'Teal Blue' #008080 lost to xkcd #01889F
+//   terracotta: xkcd 'terra cotta' #C9643B lost to xkcd #CA6641
+//   ticklemepink: jenny 'Tickle Me Pink' #FC89AC lost to crayola #FC80A5
+//   timberwolf: jenny 'Timberwolf' #DBD7D2 lost to crayola #D9D6CF
+//   tomato: xkcd 'tomato' #EF4026 lost to css #FF6347
+//   tropicalrainforest: jenny 'Tropical Rain Forest' #17806D lost to crayola #00755E
+//   tumbleweed: jenny 'Tumbleweed' #DEAA88 lost to crayola #DEA681
+//   turquoise: xkcd 'turquoise' #06C2AC lost to css #40E0D0
+//   turquoiseblue: crayola 'Turquoise Blue' #6CDAE7 lost to xkcd #06B1C4
+//   turquoiseblue: jenny 'Turquoise Blue' #77DDE7 lost to xkcd #06B1C4
+//   ultramarineblue: crayola 'Ultramarine Blue' #3F26BF lost to xkcd #1805DB
+//   violet: xkcd 'violet' #9A0EEA lost to css #EE82EE
+//   violetblue: crayola 'Violet-Blue' #766EC8 lost to xkcd #510AC9
+//   violetred: crayola 'Violet-Red' #F7468A lost to xkcd #A50055
+//   violetred: jenny 'Violet Red' #F75394 lost to xkcd #A50055
+//   vividtangerine: jenny 'Vivid Tangerine' #FFA089 lost to crayola #FF9980
+//   vividviolet: jenny 'Vivid Violet' #8F509D lost to crayola #803790
+//   wheat: xkcd 'wheat' #FBDD7E lost to css #F5DEB3
+//   white: jenny 'White' #EDEDED lost to css #FFFFFF
+//   wildblueyonder: jenny 'Wild Blue Yonder' #A2ADD0 lost to crayola #7A89B8
+//   wildstrawberry: jenny 'Wild Strawberry' #F664AF lost to crayola #FF3399
+//   wisteria: crayola 'Wisteria' #C9A0DC lost to xkcd #A87DC2
+//   wisteria: jenny 'Wisteria' #CDA4DE lost to xkcd #A87DC2
+//   yellow: crayola 'Yellow' #FBE870 lost to css #FFFF00
+//   yellow: jenny 'Yellow' #FCE883 lost to css #FFFF00
+//   yellow: xkcd 'yellow' #FFFF14 lost to css #FFFF00
+//   yellowgreen: crayola 'Yellow-Green' #C5E17A lost to css #9ACD32
+//   yellowgreen: jenny 'Yellow Green' #C5E384 lost to css #9ACD32
+//   yellowgreen: xkcd 'yellowgreen' #BBF90F lost to xkcd #C0FB2D
+//   yellowgreen: xkcd 'yellow/green' #C8FD3D lost to xkcd #C0FB2D
+//   yellowgreen: xkcd 'yellow green' #C0FB2D lost to css #9ACD32
+//   yelloworange: crayola 'Yellow-Orange' #FFAE42 lost to xkcd #FCB001
+//   yelloworange: jenny 'Yellow Orange' #FFB653 lost to xkcd #FCB001
 #pragma once
 #include <cstddef>
 #include <cstdint>

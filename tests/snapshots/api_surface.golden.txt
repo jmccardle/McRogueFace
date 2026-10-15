@@ -960,6 +960,7 @@ submodule automation
   prop framerate_limit: int (rw)
   prop fullscreen: bool (rw)
   prop game_resolution: Any (rw)
+  prop profiler_key: Key (rw)
   prop resolution: Any (rw)
   prop scaling_mode: str (rw)
   prop title: str (rw)
