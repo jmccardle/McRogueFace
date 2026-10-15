@@ -81,6 +81,16 @@ with tempfile.TemporaryDirectory() as tmp:
           "deps installs the requirement into .venv/lib/python%s/site-packages%s"
           % (PY, "" if rc == 0 else "\n" + out[-800:]))
     check(not (ENGINE.parent / "venv").exists(), "nothing was created beside the engine")
+    check((game / ".venv" / "pyvenv.cfg").is_file(), "deps writes .venv/pyvenv.cfg (the engine requires it)")
+
+    # run sets VIRTUAL_ENV to that .venv, for game mode and for --exec alike
+    rc, out = tool("run", "--", "--headless", cwd=game)
+    check(rc == 0 and "DEP from the wheel %s" % (sp / "mcrf_dep_demo" / "__init__.py") in out,
+          "run imports the dependency from .venv (game mode)%s" % ("" if rc == 0 else "\n" + out[-800:]))
+    probe = tmp / "probe.py"
+    probe.write_text("import sys, mcrf_dep_demo\nprint('EXEC', mcrf_dep_demo.VALUE)\nsys.exit(0)\n")
+    rc, out = tool("run", "--", "--headless", "--exec", str(probe), cwd=game)
+    check(rc == 0 and "EXEC from the wheel" in out, "run imports the dependency from .venv (--exec)")
 
     # a failing requirement is an error and leaves no half install
     (game / "mcrf.toml").write_text('requirements = ["no-such-package-mcrf-499"]\n')
