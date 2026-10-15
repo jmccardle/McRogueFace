@@ -254,8 +254,9 @@ class Project:
     def run(self, engine, args):
         """Run the game: the engine in the project directory loads scripts/game.py."""
         self.require()
-        deps.require_installed(self, engine)
-        return subprocess.call([str(engine.exe)] + list(args), cwd=self.dir)
+        # `args` may be --exec/-m/a script: the environment covers every way of starting
+        env = deps.run_environment(self, engine)  # fails early if deps is missing or stale
+        return subprocess.call([str(engine.exe)] + list(args), cwd=self.dir, env=env)
 
     # --- dist ---------------------------------------------------------------------------
 

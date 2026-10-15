@@ -8,7 +8,9 @@ packages are for exactly its Python. Nothing is written under the engine.
 
 ``.venv`` is not a real virtual environment (the engine can't be a venv's interpreter);
 it is a site-packages directory laid out the way the engine's sibling ``venv/`` rule
-expects, which is how ``mcrf_project dist`` ships it: ``<package>/venv/...``.
+expects, which is how ``mcrf_project dist`` ships it: ``<package>/venv/...``. It carries a
+``pyvenv.cfg`` so the engine accepts it as ``VIRTUAL_ENV``, which ``run`` sets (the engine
+never guesses a directory name; see docs/sys-path-order.md).
 
 Binary wheels only (``--only-binary=:all:``): building from source needs a build
 environment made from a Python executable, and the engine isn't one. Pure-Python
@@ -16,6 +18,7 @@ packages and wheels for the engine's Python (same ABI) both work.
 """
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -41,6 +44,16 @@ def package_site_packages(engine):
     if engine.platform == "windows":
         return Path("venv") / "Lib" / "site-packages"
     return Path("venv") / "lib" / ("python%s" % engine.python_version) / "site-packages"
+
+
+def run_environment(project, engine):
+    """The environment to run the engine with: `.venv` as VIRTUAL_ENV if `deps` installed it
+    (`require_installed` has checked), otherwise the caller's environment minus VIRTUAL_ENV."""
+    env = dict(os.environ)
+    env.pop("VIRTUAL_ENV", None)
+    if require_installed(project, engine) is not None:
+        env["VIRTUAL_ENV"] = str(venv_dir(project))
+    return env
 
 
 def pip_wheel(engine):
@@ -97,10 +110,15 @@ def install(project, engine, log):
     log("installing into %s with pip from %s" % (target, wheel.name))
     code = ("import sys\nsys.path.insert(0, %r)\n"
             "from pip._internal.cli.main import main\nsys.exit(main(%r))\n" % (str(wheel), pip_args))
-    result = subprocess.call([str(engine.exe), "--headless", "-c", code], cwd=project.dir)
+    env = dict(os.environ)
+    env.pop("VIRTUAL_ENV", None)  # pip installs to --target; the engine must not need a venv for it
+    result = subprocess.call([str(engine.exe), "--headless", "-c", code], cwd=project.dir, env=env)
     if result != 0:
         shutil.rmtree(venv_dir(project))  # never leave a half-installed set looking installed
         raise ProjectError("pip failed (exit %d); see its output above" % result)
+    (venv_dir(project) / "pyvenv.cfg").write_text(
+        "home = %s\ninclude-system-site-packages = false\nversion = %s\n"
+        % (engine.dir, engine.python_version))
     (venv_dir(project) / STAMP).write_text(json.dumps(_fingerprint(project, engine), indent=2))
     return target
 
@@ -114,7 +132,7 @@ def require_installed(project, engine):
     stamp = venv_dir(project) / STAMP
     installed = [p for p in (venv_dir(project) / "lib" / ("python%s" % engine.python_version) / "site-packages",
                              venv_dir(project) / "Lib" / "site-packages") if p.is_dir()]
-    if not installed or not stamp.is_file():
+    if not installed or not stamp.is_file() or not (venv_dir(project) / "pyvenv.cfg").is_file():
         raise ProjectError("%s names requirements but %s has none installed for Python %s; "
                            "run: mcrogueface -m mcrf_project deps"
                            % (project.config_path.name, venv_dir(project), engine.python_version))
