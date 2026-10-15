@@ -1347,6 +1347,38 @@ static int mcrf_requested_gil_setting()
 }
 #endif
 
+#ifndef __EMSCRIPTEN__
+// #499: an activated virtualenv. The engine looks at VIRTUAL_ENV and nothing else (it never
+// guesses `.venv`/`venv`); callers such as `mcrf_project run` set it explicitly. Returns the
+// venv's site-packages, or an empty path if VIRTUAL_ENV is unset/empty. A VIRTUAL_ENV that
+// is not a usable venv is an error, not something to skip: exit with the path and reason.
+static std::filesystem::path virtual_env_site_packages()
+{
+    const char* ve = std::getenv("VIRTUAL_ENV");
+    if (!ve || !*ve) return {};
+    const std::filesystem::path root(ve);
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(root / "pyvenv.cfg", ec)) {
+        std::cerr << "mcrogueface: VIRTUAL_ENV=" << root.string() << " has no pyvenv.cfg ("
+                  << (root / "pyvenv.cfg").string() << " does not exist); it is not a virtual "
+                  << "environment. Unset VIRTUAL_ENV or point it at one." << std::endl;
+        std::exit(1);
+    }
+#ifdef _WIN32
+    auto site_packages = root / "Lib" / "site-packages";
+#else
+    auto site_packages = root / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
+#endif
+    if (!std::filesystem::is_directory(site_packages, ec)) {
+        std::cerr << "mcrogueface: VIRTUAL_ENV=" << root.string() << " has no site-packages for "
+                  << "this engine's Python (" << MCRF_PY_VER << "): " << site_packages.string()
+                  << " does not exist. Recreate the venv with this Python version." << std::endl;
+        std::exit(1);
+    }
+    return site_packages;
+}
+#endif
+
 PyStatus init_python(const char *program_name)
 {
     PyStatus status;
@@ -1421,6 +1453,13 @@ PyStatus init_python(const char *program_name)
                                    site_packages.wstring().c_str());
             config.module_search_paths_set = 1;
         }
+    }
+
+    // #499: VIRTUAL_ENV goes ahead of the sibling venv (behind only the main script dir)
+    auto active_venv_sp = virtual_env_site_packages();
+    if (!active_venv_sp.empty()) {
+        PyWideStringList_Insert(&config.module_search_paths, 0, active_venv_sp.wstring().c_str());
+        config.module_search_paths_set = 1;
     }
 
     // under Windows, the search paths are correct; under Linux, they need manual insertion
@@ -1565,13 +1604,18 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     auto exe_dir = exe_path_fs.parent_path();
     auto venv_root = exe_dir.parent_path();
 
+    const auto active_venv_sp = virtual_env_site_packages();  // #499 (exits if unusable)
+
     if (std::filesystem::exists(venv_root / "pyvenv.cfg")) {
         // We're running from within a venv!
         // Add venv's site-packages to module search paths
         auto site_packages = venv_root / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
-        PyWideStringList_Append(&pyconfig.module_search_paths,
-                               site_packages.wstring().c_str());
-        pyconfig.module_search_paths_set = 1;
+        // listed once: VIRTUAL_ENV naming this same venv adds it below, ahead of the sibling
+        if (!(active_venv_sp == site_packages)) {
+            PyWideStringList_Append(&pyconfig.module_search_paths,
+                                   site_packages.wstring().c_str());
+            pyconfig.module_search_paths_set = 1;
+        }
     }
 
     // Check for sibling venv/ directory (self-contained deployment)
@@ -1589,6 +1633,12 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
                                    site_packages.wstring().c_str());
             pyconfig.module_search_paths_set = 1;
         }
+    }
+
+    // #499: VIRTUAL_ENV goes ahead of the sibling venv (behind only the main script dir)
+    if (!active_venv_sp.empty()) {
+        PyWideStringList_Insert(&pyconfig.module_search_paths, 0, active_venv_sp.wstring().c_str());
+        pyconfig.module_search_paths_set = 1;
     }
 #endif // !__EMSCRIPTEN__
 #ifdef __EMSCRIPTEN__
