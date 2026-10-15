@@ -20,7 +20,7 @@ Precedence when sources share a normalized name (SOURCES order, first wins):
     css > xkcd > crayola > jenny
 CSS names are canonical, so they always keep their CSS value. Within one source, two
 spellings with one key keep the LAST one in the file (for xkcd that is the more common
-survey answer). Every colour that lost a collision is listed in the generated header.
+survey answer).
 """
 import os
 import re
@@ -102,12 +102,6 @@ def build():
       + " > ".join(p for p, _ in SOURCES) + ".")
     for prefix, n in counts:
         w(f"//   {prefix}: {n} distinct names")
-    w(f"// {len(rows)} entries.")
-    w("//")
-    w("// Colours that lost a name collision with a different value (to a later spelling in")
-    w("// the same source, or to a higher-precedence source):")
-    for k, lp, ln, lrgb, kp, krgb in sorted(shadowed, key=lambda t: (t[0].encode(), t[1])):
-        w(f"//   {k}: {lp} {ln!r} {hx(lrgb)} lost to {kp} {hx(krgb)}")
     w("#pragma once")
     w("#include <cstddef>")
     w("#include <cstdint>")
