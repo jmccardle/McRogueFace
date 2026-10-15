@@ -493,8 +493,9 @@ static PyObject* devkey_get(sf::Keyboard::Key k)
     return PyKey::get_enum_member(static_cast<int>(k));
 }
 
-// `other` is the key the other tool uses: two tools can't share one hotkey.
-static int devkey_set(PyObject* value, sf::Keyboard::Key other, const char* what,
+// `other`/`other2` are the keys the other tools use: two tools can't share one hotkey.
+static int devkey_set(PyObject* value, sf::Keyboard::Key other, sf::Keyboard::Key other2,
+                      const char* what,
                       sf::Keyboard::Key* out)
 {
     if (value == NULL) {
@@ -511,8 +512,8 @@ static int devkey_set(PyObject* value, sf::Keyboard::Key other, const char* what
         PyErr_Format(PyExc_ValueError, "%s: Key.UNKNOWN is not a key; use None for no hotkey", what);
         return -1;
     }
-    if (k == other) {
-        PyErr_Format(PyExc_ValueError, "%s: that key already toggles the other developer tool", what);
+    if (k == other || k == other2) {
+        PyErr_Format(PyExc_ValueError, "%s: that key already toggles another developer tool", what);
         return -1;
     }
     *out = k;
@@ -531,7 +532,7 @@ int PyWindow::set_console_key(PyWindowObject* self, PyObject* value, void* closu
     GameEngine* game = McRFPy_API::game;
     if (!game) { PyErr_SetString(PyExc_RuntimeError, "No game engine initialized"); return -1; }
     sf::Keyboard::Key k;
-    if (devkey_set(value, game->getExplorerKey(), "console_key", &k) < 0) return -1;
+    if (devkey_set(value, game->getExplorerKey(), game->getProfilerKey(), "console_key", &k) < 0) return -1;
     game->setConsoleKey(k);
     return 0;
 }
@@ -548,8 +549,25 @@ int PyWindow::set_explorer_key(PyWindowObject* self, PyObject* value, void* clos
     GameEngine* game = McRFPy_API::game;
     if (!game) { PyErr_SetString(PyExc_RuntimeError, "No game engine initialized"); return -1; }
     sf::Keyboard::Key k;
-    if (devkey_set(value, game->getConsoleKey(), "explorer_key", &k) < 0) return -1;
+    if (devkey_set(value, game->getConsoleKey(), game->getProfilerKey(), "explorer_key", &k) < 0) return -1;
     game->setExplorerKey(k);
+    return 0;
+}
+
+PyObject* PyWindow::get_profiler_key(PyWindowObject* self, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) { PyErr_SetString(PyExc_RuntimeError, "No game engine initialized"); return NULL; }
+    return devkey_get(game->getProfilerKey());
+}
+
+int PyWindow::set_profiler_key(PyWindowObject* self, PyObject* value, void* closure)
+{
+    GameEngine* game = McRFPy_API::game;
+    if (!game) { PyErr_SetString(PyExc_RuntimeError, "No game engine initialized"); return -1; }
+    sf::Keyboard::Key k;
+    if (devkey_set(value, game->getConsoleKey(), game->getExplorerKey(), "profiler_key", &k) < 0) return -1;
+    game->setProfilerKey(k);
     return 0;
 }
 
@@ -579,7 +597,12 @@ PyGetSetDef PyWindow::getsetters[] = {
          "and releases the key."), NULL},
     {"explorer_key", (getter)get_explorer_key, (setter)set_explorer_key,
      MCRF_PROPERTY(explorer_key, "Key that toggles the scene explorer (Key, or None for no hotkey). "
-         "Default Key.F4. Same rules as console_key; the two tools cannot share a key."), NULL},
+         "Default Key.F4. Same rules as console_key; the tools cannot share a key."), NULL},
+    {"profiler_key", (getter)get_profiler_key, (setter)set_profiler_key,
+     MCRF_PROPERTY(profiler_key, "Key that toggles the profiler overlay (Key, or None for no hotkey). "
+         "Default Key.F3. Same rules as console_key; the tools cannot share a key. Works wherever "
+         "there is a window, desktop and web; headless has no overlay, so the key always reaches "
+         "the game there."), NULL},
     {NULL}
 };
 

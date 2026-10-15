@@ -228,7 +228,7 @@ def test_text_and_modifier_surface():
     from mcrfpy import automation
     assert hasattr(mcrfpy.Scene, "on_text"), "Scene.on_text must exist"
     assert hasattr(automation, "typeText"), "automation.typeText must exist"
-    for name in ("console_key", "explorer_key"):
+    for name in ("console_key", "explorer_key", "profiler_key"):
         assert hasattr(mcrfpy.Window, name), f"Window.{name} must exist"
     for name in ("shift", "ctrl", "alt", "system"):
         assert isinstance(getattr(mcrfpy.keyboard, name), bool), f"keyboard.{name} must be a bool"
