@@ -1,0 +1,955 @@
+# xkcd color survey, the 949 most common RGB names: https://xkcd.com/color/rgb/
+# (raw: https://xkcd.com/color/rgb.txt). License: CC0 1.0, public domain dedication.
+# Order is the published order, which runs from least to most common (the file ends with
+# purple, green, blue); where two spellings normalize to one key, the later one wins.
+# Identical to matplotlib's XKCD_COLORS table.
+# name<TAB>#RRGGBB
+cloudy blue	#ACC2D9
+dark pastel green	#56AE57
+dust	#B2996E
+electric lime	#A8FF04
+fresh green	#69D84F
+light eggplant	#894585
+nasty green	#70B23F
+really light blue	#D4FFFF
+tea	#65AB7C
+warm purple	#952E8F
+yellowish tan	#FCFC81
+cement	#A5A391
+dark grass green	#388004
+dusty teal	#4C9085
+grey teal	#5E9B8A
+macaroni and cheese	#EFB435
+pinkish tan	#D99B82
+spruce	#0A5F38
+strong blue	#0C06F7
+toxic green	#61DE2A
+windows blue	#3778BF
+blue blue	#2242C7
+blue with a hint of purple	#533CC6
+booger	#9BB53C
+bright sea green	#05FFA6
+dark green blue	#1F6357
+deep turquoise	#017374
+green teal	#0CB577
+strong pink	#FF0789
+bland	#AFA88B
+deep aqua	#08787F
+lavender pink	#DD85D7
+light moss green	#A6C875
+light seafoam green	#A7FFB5
+olive yellow	#C2B709
+pig pink	#E78EA5
+deep lilac	#966EBD
+desert	#CCAD60
+dusty lavender	#AC86A8
+purpley grey	#947E94
+purply	#983FB2
+candy pink	#FF63E9
+light pastel green	#B2FBA5
+boring green	#63B365
+kiwi green	#8EE53F
+light grey green	#B7E1A1
+orange pink	#FF6F52
+tea green	#BDF8A3
+very light brown	#D3B683
+egg shell	#FFFCC4
+eggplant purple	#430541
+powder pink	#FFB2D0
+reddish grey	#997570
+baby shit brown	#AD900D
+liliac	#C48EFD
+stormy blue	#507B9C
+ugly brown	#7D7103
+custard	#FFFD78
+darkish pink	#DA467D
+deep brown	#410200
+greenish beige	#C9D179
+manilla	#FFFA86
+off blue	#5684AE
+battleship grey	#6B7C85
+browny green	#6F6C0A
+bruise	#7E4071
+kelley green	#009337
+sickly yellow	#D0E429
+sunny yellow	#FFF917
+azul	#1D5DEC
+darkgreen	#054907
+green/yellow	#B5CE08
+lichen	#8FB67B
+light light green	#C8FFB0
+pale gold	#FDDE6C
+sun yellow	#FFDF22
+tan green	#A9BE70
+burple	#6832E3
+butterscotch	#FDB147
+toupe	#C7AC7D
+dark cream	#FFF39A
+indian red	#850E04
+light lavendar	#EFC0FE
+poison green	#40FD14
+baby puke green	#B6C406
+bright yellow green	#9DFF00
+charcoal grey	#3C4142
+squash	#F2AB15
+cinnamon	#AC4F06
+light pea green	#C4FE82
+radioactive green	#2CFA1F
+raw sienna	#9A6200
+baby purple	#CA9BF7
+cocoa	#875F42
+light royal blue	#3A2EFE
+orangeish	#FD8D49
+rust brown	#8B3103
+sand brown	#CBA560
+swamp	#698339
+tealish green	#0CDC73
+burnt siena	#B75203
+camo	#7F8F4E
+dusk blue	#26538D
+fern	#63A950
+old rose	#C87F89
+pale light green	#B1FC99
+peachy pink	#FF9A8A
+rosy pink	#F6688E
+light bluish green	#76FDA8
+light bright green	#53FE5C
+light neon green	#4EFD54
+light seafoam	#A0FEBF
+tiffany blue	#7BF2DA
+washed out green	#BCF5A6
+browny orange	#CA6B02
+nice blue	#107AB0
+sapphire	#2138AB
+greyish teal	#719F91
+orangey yellow	#FDB915
+parchment	#FEFCAF
+straw	#FCF679
+very dark brown	#1D0200
+terracota	#CB6843
+ugly blue	#31668A
+clear blue	#247AFD
+creme	#FFFFB6
+foam green	#90FDA9
+grey/green	#86A17D
+light gold	#FDDC5C
+seafoam blue	#78D1B6
+topaz	#13BBAF
+violet pink	#FB5FFC
+wintergreen	#20F986
+yellow tan	#FFE36E
+dark fuchsia	#9D0759
+indigo blue	#3A18B1
+light yellowish green	#C2FF89
+pale magenta	#D767AD
+rich purple	#720058
+sunflower yellow	#FFDA03
+green/blue	#01C08D
+leather	#AC7434
+racing green	#014600
+vivid purple	#9900FA
+dark royal blue	#02066F
+hazel	#8E7618
+muted pink	#D1768F
+booger green	#96B403
+canary	#FDFF63
+cool grey	#95A3A6
+dark taupe	#7F684E
+darkish purple	#751973
+true green	#089404
+coral pink	#FF6163
+dark sage	#598556
+dark slate blue	#214761
+flat blue	#3C73A8
+mushroom	#BA9E88
+rich blue	#021BF9
+dirty purple	#734A65
+greenblue	#23C48B
+icky green	#8FAE22
+light khaki	#E6F2A2
+warm blue	#4B57DB
+dark hot pink	#D90166
+deep sea blue	#015482
+carmine	#9D0216
+dark yellow green	#728F02
+pale peach	#FFE5AD
+plum purple	#4E0550
+golden rod	#F9BC08
+neon red	#FF073A
+old pink	#C77986
+very pale blue	#D6FFFE
+blood orange	#FE4B03
+grapefruit	#FD5956
+sand yellow	#FCE166
+clay brown	#B2713D
+dark blue grey	#1F3B4D
+flat green	#699D4C
+light green blue	#56FCA2
+warm pink	#FB5581
+dodger blue	#3E82FC
+gross green	#A0BF16
+ice	#D6FFFA
+metallic blue	#4F738E
+pale salmon	#FFB19A
+sap green	#5C8B15
+algae	#54AC68
+bluey grey	#89A0B0
+greeny grey	#7EA07A
+highlighter green	#1BFC06
+light light blue	#CAFFFB
+light mint	#B6FFBB
+raw umber	#A75E09
+vivid blue	#152EFF
+deep lavender	#8D5EB7
+dull teal	#5F9E8F
+light greenish blue	#63F7B4
+mud green	#606602
+pinky	#FC86AA
+red wine	#8C0034
+shit green	#758000
+tan brown	#AB7E4C
+darkblue	#030764
+rosa	#FE86A4
+lipstick	#D5174E
+pale mauve	#FED0FC
+claret	#680018
+dandelion	#FEDF08
+orangered	#FE420F
+poop green	#6F7C00
+ruby	#CA0147
+dark	#1B2431
+greenish turquoise	#00FBB0
+pastel red	#DB5856
+piss yellow	#DDD618
+bright cyan	#41FDFE
+dark coral	#CF524E
+algae green	#21C36F
+darkish red	#A90308
+reddy brown	#6E1005
+blush pink	#FE828C
+camouflage green	#4B6113
+lawn green	#4DA409
+putty	#BEAE8A
+vibrant blue	#0339F8
+dark sand	#A88F59
+purple/blue	#5D21D0
+saffron	#FEB209
+twilight	#4E518B
+warm brown	#964E02
+bluegrey	#85A3B2
+bubble gum pink	#FF69AF
+duck egg blue	#C3FBF4
+greenish cyan	#2AFEB7
+petrol	#005F6A
+royal	#0C1793
+butter	#FFFF81
+dusty orange	#F0833A
+off yellow	#F1F33F
+pale olive green	#B1D27B
+orangish	#FC824A
+leaf	#71AA34
+light blue grey	#B7C9E2
+dried blood	#4B0101
+lightish purple	#A552E6
+rusty red	#AF2F0D
+lavender blue	#8B88F8
+light grass green	#9AF764
+light mint green	#A6FBB2
+sunflower	#FFC512
+velvet	#750851
+brick orange	#C14A09
+lightish red	#FE2F4A
+pure blue	#0203E2
+twilight blue	#0A437A
+violet red	#A50055
+yellowy brown	#AE8B0C
+carnation	#FD798F
+muddy yellow	#BFAC05
+dark seafoam green	#3EAF76
+deep rose	#C74767
+dusty red	#B9484E
+grey/blue	#647D8E
+lemon lime	#BFFE28
+purple/pink	#D725DE
+brown yellow	#B29705
+purple brown	#673A3F
+wisteria	#A87DC2
+banana yellow	#FAFE4B
+lipstick red	#C0022F
+water blue	#0E87CC
+brown grey	#8D8468
+vibrant purple	#AD03DE
+baby green	#8CFF9E
+barf green	#94AC02
+eggshell blue	#C4FFF7
+sandy yellow	#FDEE73
+cool green	#33B864
+pale	#FFF9D0
+blue/grey	#758DA3
+hot magenta	#F504C9
+greyblue	#77A1B5
+purpley	#8756E4
+baby shit green	#889717
+brownish pink	#C27E79
+dark aquamarine	#017371
+diarrhea	#9F8303
+light mustard	#F7D560
+pale sky blue	#BDF6FE
+turtle green	#75B84F
+bright olive	#9CBB04
+dark grey blue	#29465B
+greeny brown	#696006
+lemon green	#ADF802
+light periwinkle	#C1C6FC
+seaweed green	#35AD6B
+sunshine yellow	#FFFD37
+ugly purple	#A442A0
+medium pink	#F36196
+puke brown	#947706
+very light pink	#FFF4F2
+viridian	#1E9167
+bile	#B5C306
+faded yellow	#FEFF7F
+very pale green	#CFFDBC
+vibrant green	#0ADD08
+bright lime	#87FD05
+spearmint	#1EF876
+light aquamarine	#7BFDC7
+light sage	#BCECAC
+yellowgreen	#BBF90F
+baby poo	#AB9004
+dark seafoam	#1FB57A
+deep teal	#00555A
+heather	#A484AC
+rust orange	#C45508
+dirty blue	#3F829D
+fern green	#548D44
+bright lilac	#C95EFB
+weird green	#3AE57F
+peacock blue	#016795
+avocado green	#87A922
+faded orange	#F0944D
+grape purple	#5D1451
+hot green	#25FF29
+lime yellow	#D0FE1D
+mango	#FFA62B
+shamrock	#01B44C
+bubblegum	#FF6CB5
+purplish brown	#6B4247
+vomit yellow	#C7C10C
+pale cyan	#B7FFFA
+key lime	#AEFF6E
+tomato red	#EC2D01
+lightgreen	#76FF7B
+merlot	#730039
+night blue	#040348
+purpleish pink	#DF4EC8
+apple	#6ECB3C
+baby poop green	#8F9805
+green apple	#5EDC1F
+heliotrope	#D94FF5
+yellow/green	#C8FD3D
+almost black	#070D0D
+cool blue	#4984B8
+leafy green	#51B73B
+mustard brown	#AC7E04
+dusk	#4E5481
+dull brown	#876E4B
+frog green	#58BC08
+vivid green	#2FEF10
+bright light green	#2DFE54
+fluro green	#0AFF02
+kiwi	#9CEF43
+seaweed	#18D17B
+navy green	#35530A
+ultramarine blue	#1805DB
+iris	#6258C4
+pastel orange	#FF964F
+yellowish orange	#FFAB0F
+perrywinkle	#8F8CE7
+tealish	#24BCA8
+dark plum	#3F012C
+pear	#CBF85F
+pinkish orange	#FF724C
+midnight purple	#280137
+light urple	#B36FF6
+dark mint	#48C072
+greenish tan	#BCCB7A
+light burgundy	#A8415B
+turquoise blue	#06B1C4
+ugly pink	#CD7584
+sandy	#F1DA7A
+electric pink	#FF0490
+muted purple	#805B87
+mid green	#50A747
+greyish	#A8A495
+neon yellow	#CFFF04
+banana	#FFFF7E
+carnation pink	#FF7FA7
+tomato	#EF4026
+sea	#3C9992
+muddy brown	#886806
+turquoise green	#04F489
+buff	#FEF69E
+fawn	#CFAF7B
+muted blue	#3B719F
+pale rose	#FDC1C5
+dark mint green	#20C073
+amethyst	#9B5FC0
+blue/green	#0F9B8E
+chestnut	#742802
+sick green	#9DB92C
+pea	#A4BF20
+rusty orange	#CD5909
+stone	#ADA587
+rose red	#BE013C
+pale aqua	#B8FFEB
+deep orange	#DC4D01
+earth	#A2653E
+mossy green	#638B27
+grassy green	#419C03
+pale lime green	#B1FF65
+light grey blue	#9DBCD4
+pale grey	#FDFDFE
+asparagus	#77AB56
+blueberry	#464196
+purple red	#990147
+pale lime	#BEFD73
+greenish teal	#32BF84
+caramel	#AF6F09
+deep magenta	#A0025C
+light peach	#FFD8B1
+milk chocolate	#7F4E1E
+ocher	#BF9B0C
+off green	#6BA353
+purply pink	#F075E6
+lightblue	#7BC8F6
+dusky blue	#475F94
+golden	#F5BF03
+light beige	#FFFEB6
+butter yellow	#FFFD74
+dusky purple	#895B7B
+french blue	#436BAD
+ugly yellow	#D0C101
+greeny yellow	#C6F808
+orangish red	#F43605
+shamrock green	#02C14D
+orangish brown	#B25F03
+tree green	#2A7E19
+deep violet	#490648
+gunmetal	#536267
+blue/purple	#5A06EF
+cherry	#CF0234
+sandy brown	#C4A661
+warm grey	#978A84
+dark indigo	#1F0954
+midnight	#03012D
+bluey green	#2BB179
+grey pink	#C3909B
+soft purple	#A66FB5
+blood	#770001
+brown red	#922B05
+medium grey	#7D7F7C
+berry	#990F4B
+poo	#8F7303
+purpley pink	#C83CB9
+light salmon	#FEA993
+snot	#ACBB0D
+easter purple	#C071FE
+light yellow green	#CCFD7F
+dark navy blue	#00022E
+drab	#828344
+light rose	#FFC5CB
+rouge	#AB1239
+purplish red	#B0054B
+slime green	#99CC04
+baby poop	#937C00
+irish green	#019529
+pink/purple	#EF1DE7
+dark navy	#000435
+greeny blue	#42B395
+light plum	#9D5783
+pinkish grey	#C8ACA9
+dirty orange	#C87606
+rust red	#AA2704
+pale lilac	#E4CBFF
+orangey red	#FA4224
+primary blue	#0804F9
+kermit green	#5CB200
+brownish purple	#76424E
+murky green	#6C7A0E
+wheat	#FBDD7E
+very dark purple	#2A0134
+bottle green	#044A05
+watermelon	#FD4659
+deep sky blue	#0D75F8
+fire engine red	#FE0002
+yellow ochre	#CB9D06
+pumpkin orange	#FB7D07
+pale olive	#B9CC81
+light lilac	#EDC8FF
+lightish green	#61E160
+carolina blue	#8AB8FE
+mulberry	#920A4E
+shocking pink	#FE02A2
+auburn	#9A3001
+bright lime green	#65FE08
+celadon	#BEFDB7
+pinkish brown	#B17261
+poo brown	#885F01
+bright sky blue	#02CCFE
+celery	#C1FD95
+dirt brown	#836539
+strawberry	#FB2943
+dark lime	#84B701
+copper	#B66325
+medium brown	#7F5112
+muted green	#5FA052
+robin's egg	#6DEDFD
+bright aqua	#0BF9EA
+bright lavender	#C760FF
+ivory	#FFFFCB
+very light purple	#F6CEFC
+light navy	#155084
+pink red	#F5054F
+olive brown	#645403
+poop brown	#7A5901
+mustard green	#A8B504
+ocean green	#3D9973
+very dark blue	#000133
+dusty green	#76A973
+light navy blue	#2E5A88
+minty green	#0BF77D
+adobe	#BD6C48
+barney	#AC1DB8
+jade green	#2BAF6A
+bright light blue	#26F7FD
+light lime	#AEFD6C
+dark khaki	#9B8F55
+orange yellow	#FFAD01
+ocre	#C69C04
+maize	#F4D054
+faded pink	#DE9DAC
+british racing green	#05480D
+sandstone	#C9AE74
+mud brown	#60460F
+light sea green	#98F6B0
+robin egg blue	#8AF1FE
+aqua marine	#2EE8BB
+dark sea green	#11875D
+soft pink	#FDB0C0
+orangey brown	#B16002
+cherry red	#F7022A
+burnt yellow	#D5AB09
+brownish grey	#86775F
+camel	#C69F59
+purplish grey	#7A687F
+marine	#042E60
+greyish pink	#C88D94
+pale turquoise	#A5FBD5
+pastel yellow	#FFFE71
+bluey purple	#6241C7
+canary yellow	#FFFE40
+faded red	#D3494E
+sepia	#985E2B
+coffee	#A6814C
+bright magenta	#FF08E8
+mocha	#9D7651
+ecru	#FEFFCA
+purpleish	#98568D
+cranberry	#9E003A
+darkish green	#287C37
+brown orange	#B96902
+dusky rose	#BA6873
+melon	#FF7855
+sickly green	#94B21C
+silver	#C5C9C7
+purply blue	#661AEE
+purpleish blue	#6140EF
+hospital green	#9BE5AA
+shit brown	#7B5804
+mid blue	#276AB3
+amber	#FEB308
+easter green	#8CFD7E
+soft blue	#6488EA
+cerulean blue	#056EEE
+golden brown	#B27A01
+bright turquoise	#0FFEF9
+red pink	#FA2A55
+red purple	#820747
+greyish brown	#7A6A4F
+vermillion	#F4320C
+russet	#A13905
+steel grey	#6F828A
+lighter purple	#A55AF4
+bright violet	#AD0AFD
+prussian blue	#004577
+slate green	#658D6D
+dirty pink	#CA7B80
+dark blue green	#005249
+pine	#2B5D34
+yellowy green	#BFF128
+dark gold	#B59410
+bluish	#2976BB
+darkish blue	#014182
+dull red	#BB3F3F
+pinky red	#FC2647
+bronze	#A87900
+pale teal	#82CBB2
+military green	#667C3E
+barbie pink	#FE46A5
+bubblegum pink	#FE83CC
+pea soup green	#94A617
+dark mustard	#A88905
+shit	#7F5F00
+medium purple	#9E43A2
+very dark green	#062E03
+dirt	#8A6E45
+dusky pink	#CC7A8B
+red violet	#9E0168
+lemon yellow	#FDFF38
+pistachio	#C0FA8B
+dull yellow	#EEDC5B
+dark lime green	#7EBD01
+denim blue	#3B5B92
+teal blue	#01889F
+lightish blue	#3D7AFD
+purpley blue	#5F34E7
+light indigo	#6D5ACF
+swamp green	#748500
+brown green	#706C11
+dark maroon	#3C0008
+hot purple	#CB00F5
+dark forest green	#002D04
+faded blue	#658CBB
+drab green	#749551
+light lime green	#B9FF66
+snot green	#9DC100
+yellowish	#FAEE66
+light blue green	#7EFBB3
+bordeaux	#7B002C
+light mauve	#C292A1
+ocean	#017B92
+marigold	#FCC006
+muddy green	#657432
+dull orange	#D8863B
+steel	#738595
+electric purple	#AA23FF
+fluorescent green	#08FF08
+yellowish brown	#9B7A01
+blush	#F29E8E
+soft green	#6FC276
+bright orange	#FF5B00
+lemon	#FDFF52
+purple grey	#866F85
+acid green	#8FFE09
+pale lavender	#EECFFE
+violet blue	#510AC9
+light forest green	#4F9153
+burnt red	#9F2305
+khaki green	#728639
+cerise	#DE0C62
+faded purple	#916E99
+apricot	#FFB16D
+dark olive green	#3C4D03
+grey brown	#7F7053
+green grey	#77926F
+true blue	#010FCC
+pale violet	#CEAEFA
+periwinkle blue	#8F99FB
+light sky blue	#C6FCFF
+blurple	#5539CC
+green brown	#544E03
+bluegreen	#017A79
+bright teal	#01F9C6
+brownish yellow	#C9B003
+pea soup	#929901
+forest	#0B5509
+barney purple	#A00498
+ultramarine	#2000B1
+purplish	#94568C
+puke yellow	#C2BE0E
+bluish grey	#748B97
+dark periwinkle	#665FD1
+dark lilac	#9C6DA5
+reddish	#C44240
+light maroon	#A24857
+dusty purple	#825F87
+terra cotta	#C9643B
+avocado	#90B134
+marine blue	#01386A
+teal green	#25A36F
+slate grey	#59656D
+lighter green	#75FD63
+electric green	#21FC0D
+dusty blue	#5A86AD
+golden yellow	#FEC615
+bright yellow	#FFFD01
+light lavender	#DFC5FE
+umber	#B26400
+poop	#7F5E00
+dark peach	#DE7E5D
+jungle green	#048243
+eggshell	#FFFFD4
+denim	#3B638C
+yellow brown	#B79400
+dull purple	#84597E
+chocolate brown	#411900
+wine red	#7B0323
+neon blue	#04D9FF
+dirty green	#667E2C
+light tan	#FBEEAC
+ice blue	#D7FFFE
+cadet blue	#4E7496
+dark mauve	#874C62
+very light blue	#D5FFFF
+grey purple	#826D8C
+pastel pink	#FFBACD
+very light green	#D1FFBD
+dark sky blue	#448EE4
+evergreen	#05472A
+dull pink	#D5869D
+aubergine	#3D0734
+mahogany	#4A0100
+reddish orange	#F8481C
+deep green	#02590F
+vomit green	#89A203
+purple pink	#E03FD8
+dusty pink	#D58A94
+faded green	#7BB274
+camo green	#526525
+pinky purple	#C94CBE
+pink purple	#DB4BDA
+brownish red	#9E3623
+dark rose	#B5485D
+mud	#735C12
+brownish	#9C6D57
+emerald green	#028F1E
+pale brown	#B1916E
+dull blue	#49759C
+burnt umber	#A0450E
+medium green	#39AD48
+clay	#B66A50
+light aqua	#8CFFDB
+light olive green	#A4BE5C
+brownish orange	#CB7723
+dark aqua	#05696B
+purplish pink	#CE5DAE
+dark salmon	#C85A53
+greenish grey	#96AE8D
+jade	#1FA774
+ugly green	#7A9703
+dark beige	#AC9362
+emerald	#01A049
+pale red	#D9544D
+light magenta	#FA5FF7
+sky	#82CAFC
+light cyan	#ACFFFC
+yellow orange	#FCB001
+reddish purple	#910951
+reddish pink	#FE2C54
+orchid	#C875C4
+dirty yellow	#CDC50A
+orange red	#FD411E
+deep red	#9A0200
+orange brown	#BE6400
+cobalt blue	#030AA7
+neon pink	#FE019A
+rose pink	#F7879A
+greyish purple	#887191
+raspberry	#B00149
+aqua green	#12E193
+salmon pink	#FE7B7C
+tangerine	#FF9408
+brownish green	#6A6E09
+red brown	#8B2E16
+greenish brown	#696112
+pumpkin	#E17701
+pine green	#0A481E
+charcoal	#343837
+baby pink	#FFB7CE
+cornflower	#6A79F7
+blue violet	#5D06E9
+chocolate	#3D1C02
+greyish green	#82A67D
+scarlet	#BE0119
+green yellow	#C9FF27
+dark olive	#373E02
+sienna	#A9561E
+pastel purple	#CAA0FF
+terracotta	#CA6641
+aqua blue	#02D8E9
+sage green	#88B378
+blood red	#980002
+deep pink	#CB0162
+grass	#5CAC2D
+moss	#769958
+pastel blue	#A2BFFE
+bluish green	#10A674
+green blue	#06B48B
+dark tan	#AF884A
+greenish blue	#0B8B87
+pale orange	#FFA756
+vomit	#A2A415
+forrest green	#154406
+dark lavender	#856798
+dark violet	#34013F
+purple blue	#632DE9
+dark cyan	#0A888A
+olive drab	#6F7632
+pinkish	#D46A7E
+cobalt	#1E488F
+neon purple	#BC13FE
+light turquoise	#7EF4CC
+apple green	#76CD26
+dull green	#74A662
+wine	#80013F
+powder blue	#B1D1FC
+off white	#FFFFE4
+electric blue	#0652FF
+dark turquoise	#045C5A
+blue purple	#5729CE
+azure	#069AF3
+bright red	#FF000D
+pinkish red	#F10C45
+cornflower blue	#5170D7
+light olive	#ACBF69
+grape	#6C3461
+greyish blue	#5E819D
+purplish blue	#601EF9
+yellowish green	#B0DD16
+greenish yellow	#CDFD02
+medium blue	#2C6FBB
+dusty rose	#C0737A
+light violet	#D6B4FC
+midnight blue	#020035
+bluish purple	#703BE7
+red orange	#FD3C06
+dark magenta	#960056
+greenish	#40A368
+ocean blue	#03719C
+coral	#FC5A50
+cream	#FFFFC2
+reddish brown	#7F2B0A
+burnt sienna	#B04E0F
+brick	#A03623
+sage	#87AE73
+grey green	#789B73
+white	#FFFFFF
+robin's egg blue	#98EFF9
+moss green	#658B38
+steel blue	#5A7D9A
+eggplant	#380835
+light yellow	#FFFE7A
+leaf green	#5CA904
+light grey	#D8DCD6
+puke	#A5A502
+pinkish purple	#D648D7
+sea blue	#047495
+pale purple	#B790D4
+slate blue	#5B7C99
+blue grey	#607C8E
+hunter green	#0B4008
+fuchsia	#ED0DD9
+crimson	#8C000F
+pale yellow	#FFFF84
+ochre	#BF9005
+mustard yellow	#D2BD0A
+light red	#FF474C
+cerulean	#0485D1
+pale pink	#FFCFDC
+deep blue	#040273
+rust	#A83C09
+light teal	#90E4C1
+slate	#516572
+goldenrod	#FAC205
+dark yellow	#D5B60A
+dark grey	#363737
+army green	#4B5D16
+grey blue	#6B8BA4
+seafoam	#80F9AD
+puce	#A57E52
+spring green	#A9F971
+dark orange	#C65102
+sand	#E2CA76
+pastel green	#B0FF9D
+mint	#9FFEB0
+light orange	#FDAA48
+bright pink	#FE01B1
+chartreuse	#C1F80A
+deep purple	#36013F
+dark brown	#341C02
+taupe	#B9A281
+pea green	#8EAB12
+puke green	#9AAE07
+kelly green	#02AB2E
+seafoam green	#7AF9AB
+blue green	#137E6D
+khaki	#AAA662
+burgundy	#610023
+dark teal	#014D4E
+brick red	#8F1402
+royal purple	#4B006E
+plum	#580F41
+mint green	#8FFF9F
+gold	#DBB40C
+baby blue	#A2CFFE
+yellow green	#C0FB2D
+bright purple	#BE03FD
+dark red	#840000
+pale blue	#D0FEFE
+grass green	#3F9B0B
+navy	#01153E
+aquamarine	#04D8B2
+burnt orange	#C04E01
+neon green	#0CFF0C
+bright blue	#0165FC
+rose	#CF6275
+light pink	#FFD1DF
+mustard	#CEB301
+indigo	#380282
+lime	#AAFF32
+sea green	#53FCA1
+periwinkle	#8E82FE
+dark pink	#CB416B
+olive green	#677A04
+peach	#FFB07C
+pale green	#C7FDB5
+light brown	#AD8150
+hot pink	#FF028D
+black	#000000
+lilac	#CEA2FD
+navy blue	#001146
+royal blue	#0504AA
+beige	#E6DAA6
+salmon	#FF796C
+olive	#6E750E
+maroon	#650021
+bright green	#01FF07
+dark purple	#35063E
+mauve	#AE7181
+forest green	#06470C
+aqua	#13EAC9
+cyan	#00FFFF
+tan	#D1B26F
+dark blue	#00035B
+lavender	#C79FEF
+turquoise	#06C2AC
+dark green	#033500
+violet	#9A0EEA
+light purple	#BF77F6
+lime green	#89FE05
+grey	#929591
+sky blue	#75BBFD
+yellow	#FFFF14
+magenta	#C20078
+light green	#96F97B
+orange	#F97306
+teal	#029386
+light blue	#95D0FC
+red	#E50000
+brown	#653700
+pink	#FF81C0
+blue	#0343DF
+green	#15B01A
+purple	#7E1E9C

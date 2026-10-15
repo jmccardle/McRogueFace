@@ -409,6 +409,7 @@ submodule automation
   prop r: Any (rw)
   meth from_hex :: from_hex(hex_string: str) -> Color
   meth lerp :: lerp(other: Color, t: float) -> Color
+  meth names :: names() -> list[str]
   meth to_hex :: to_hex() -> str
 [ColorLayer]
   prop grid: Grid | None (rw)

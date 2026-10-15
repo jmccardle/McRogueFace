@@ -1,111 +1,153 @@
-# data sources: CSS docs, jennyscrayoncollection 2017 article on Crayola colors, XKCD color survey
+#!/usr/bin/env python3
+"""Generate src/ColorNameTable.h, the named-colour table behind Color("red") (#458).
 
-# target: Single C++ header file to provide a struct of color RGB codes and names.
-# This file pre-computes the nearest neighbor of every color.
-# if an RGB code being searched for is closer than the nearest neighbor, it's the closest color name.
+Sources are the TSV files in tools/color_names/ (each documents its own provenance and
+license in its header). Run from anywhere:
 
-def hex_to_rgb(txt):
-    if '#' in txt: txt = txt.replace('#', '')
-    r = txt[0:2]
-    g = txt[2:4]
-    b = txt[4:6]
-    return tuple([int(s, 16) for s in (r,g,b)])
+    python3 tools/generate_color_table.py          # rewrite src/ColorNameTable.h
+    python3 tools/generate_color_table.py --check  # exit 1 if the header is stale
 
-class palette:
-    def __init__(self, name, filename, priority):
-        self.name = name
-        self.priority = priority
-        with open(filename, "r") as f:
-            print(f"scanning {filename}")
-            self.colors = {}
-            for line in f.read().split('\n'):
-                if len(line.split('\t')) < 2: continue
-                name, code = line.split('\t')
-                #print(name, code)
-                self.colors[name] = hex_to_rgb(code)
-                
-    def __repr__(self):
-        return f"<Palette '{self.name}' - {len(self.colors)} colors, priority = {self.priority}>"
-    
-palettes = [
-    #palette("jenny", "jenny_colors.txt", 3), # I should probably use wikipedia as a source for copyright reasons
-    palette("crayon", "wikicrayons_colors.txt", 2),
-    palette("xkcd", "xkcd_colors.txt", 1),
-    palette("css", "css_colors.txt", 0),
-    #palette("matplotlib", "matplotlib_colors.txt", 2) # there's like 10 colors total, I think we'll survive without them
-    ]
+ONE list: each name is stored once, in its normalized form, with one colour.
 
-all_colors = []
+Normalization (key() here, mcrf::color_names::normalize in src/ColorNames.cpp -- the same
+rule at generation and at parse time; tests/regression/issue_458_color_names_test.py
+checks they agree): ASCII-lowercase, then drop every ASCII character that is not a letter
+or digit. "Dark Green", "dark_green", "dark-green", "DARKGREEN" and "Screamin' Green" ->
+"screamingreen" are all one spelling. Non-ASCII source names are rejected here, so the
+table is pure ASCII and a non-ASCII query can never match.
 
-from math import sqrt
-def rgbdist(c1, c2):
-    return sqrt((c1.r - c2.r)**2 + (c1.g - c2.g)**2 + (c1.b - c2.b)**2)
+Precedence when sources share a normalized name (SOURCES order, first wins):
+    css > xkcd > crayola > jenny
+CSS names are canonical, so they always keep their CSS value. Within one source, two
+spellings with one key keep the LAST one in the file (for xkcd that is the more common
+survey answer). Every colour that lost a collision is listed in the generated header.
+"""
+import os
+import re
+import sys
 
-class Color:
-    def __init__(self, r, g, b, name, prefix, priority):
-        self.r = r
-        self.g = g
-        self.b = b
-        self.name = name
-        self.prefix = prefix
-        self.priority = priority
-        self.nearest_neighbor = None
-        
-    def __repr__(self):
-        return f"<Color ({self.r}, {self.g}, {self.b}) - '{self.prefix}:{self.name}', priority = {self.priority}, nearest_neighbor={self.nearest_neighbor.name if self.nearest_neighbor is not None else None}>"
-    
-    def nn(self, colors):
-        nearest = None
-        nearest_dist = 999999
-        for c in colors:
-            dist = rgbdist(self, c)
-            if dist == 0: continue
-            if dist < nearest_dist:
-                nearest = c
-                nearest_dist = dist
-        self.nearest_neighbor = nearest
-        
-for p in palettes:
-    prefix = p.name
-    priority = p.priority
-    for name, rgb in p.colors.items():
-        all_colors.append(Color(*rgb, name, prefix, priority))
-    print(f"{prefix}->{len(all_colors)}")
-        
-for c in all_colors:
-    c.nn(all_colors)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA = os.path.join(ROOT, "tools", "color_names")
+OUT = os.path.join(ROOT, "src", "ColorNameTable.h")
 
-smallest_dist = 9999999999999
-largest_dist = 0
-for c in all_colors:
-    dist = rgbdist(c, c.nearest_neighbor)
-    if dist > largest_dist: largest_dist = dist
-    if dist < smallest_dist: smallest_dist = dist
-    #print(f"{c.prefix}:{c.name} -> {c.nearest_neighbor.prefix}:{c.nearest_neighbor.name}\t{rgbdist(c, c.nearest_neighbor):.2f}")
-# questions -
+# (prefix, file) in precedence order: earlier wins an unprefixed name.
+SOURCES = [
+    ("css", "css.tsv"),
+    ("xkcd", "xkcd.tsv"),
+    ("crayola", "crayola.tsv"),
+    ("jenny", "jenny.tsv"),
+]
 
-# are there any colors where their nearest neighbor's nearest neighbor isn't them? (There should be)
-nonnear_pairs = 0
-for c in all_colors:
-    neighbor = c.nearest_neighbor
-    their_neighbor = neighbor.nearest_neighbor
-    if c is not their_neighbor:
-        #print(f"{c.prefix}:{c.name} -> {neighbor.prefix}:{neighbor.name} -> {their_neighbor.prefix}:{their_neighbor.name}")
-        nonnear_pairs += 1
-print("Non-near pairs:", nonnear_pairs)
-    #print(f"{c.prefix}:{c.name} -> {c.nearest_neighbor.prefix}:{c.nearest_neighbor.name}\t{rgbdist(c, c.nearest_neighbor):.2f}")
 
-# Are there duplicates? They should be removed from the palette that won't be used
-dupes = 0
-for c in all_colors:
-    for c2 in all_colors:
-        if c is c2: continue
-        if c.r == c2.r and c.g == c2.g and c.b == c2.b:
-            dupes += 1
-print("dupes:", dupes, "this many will need to be removed:", dupes / 2)
+def key(name):
+    """Must match mcrf::color_names::normalize in src/ColorNames.cpp."""
+    return re.sub(r"[^a-z0-9]", "", name.lower())
 
-# What order to put them in? Do we want large radiuses first, or some sort of "common color" table?
 
-# does manhattan distance change any answers over the 16.7M RGB values?
+def read_source(fname):
+    entries = []  # (name, (r, g, b)) in file order
+    path = os.path.join(DATA, fname)
+    with open(path, encoding="utf-8") as f:
+        for lineno, line in enumerate(f, 1):
+            line = line.rstrip("\n")
+            if not line.strip() or line.startswith("# "):
+                continue
+            parts = line.split("\t")
+            if len(parts) != 2 or not re.fullmatch(r"#[0-9A-Fa-f]{6}", parts[1]):
+                sys.exit(f"{path}:{lineno}: expected 'name<TAB>#RRGGBB', got {line!r}")
+            name = parts[0].strip()
+            if not key(name):
+                sys.exit(f"{path}:{lineno}: name {name!r} has no letters or digits")
+            if not name.isascii():
+                sys.exit(f"{path}:{lineno}: non-ASCII name {name!r} (the table is ASCII-only)")
+            h = parts[1][1:]
+            entries.append((name, tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))))
+    return entries
 
-# What's the worst case lookup? (Checking all 1200 colors to find the name?)
+
+def c_str(s):
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def build():
+    chosen = {}    # key -> (source_index, name, rgb)
+    shadowed = []  # (key, lost_prefix, lost_name, lost_rgb, kept_prefix, kept_rgb)
+    counts = []
+    for si, (prefix, fname) in enumerate(SOURCES):
+        spellings = {}  # key -> [(name, rgb), ...] in file order
+        for name, rgb in read_source(fname):
+            spellings.setdefault(key(name), []).append((name, rgb))
+        counts.append((prefix, len(spellings)))
+        for k, found in spellings.items():
+            for lost in found[:-1]:
+                if lost[1] != found[-1][1]:
+                    shadowed.append((k, prefix, lost[0], lost[1], prefix, found[-1][1]))
+            name, rgb = found[-1]
+            if k in chosen:
+                csi, _, crgb = chosen[k]
+                if rgb != crgb:
+                    shadowed.append((k, prefix, name, rgb, SOURCES[csi][0], crgb))
+            else:
+                chosen[k] = (si, name, rgb)
+    rows = sorted(chosen.items(), key=lambda kv: kv[0].encode())
+
+    def hx(rgb):
+        return "#%02X%02X%02X" % rgb
+
+    out = []
+    w = out.append
+    w("// GENERATED by tools/generate_color_table.py from tools/color_names/*.tsv -- do not edit.")
+    w("// Named colours for Color(\"name\") (#458): one list, one entry per normalized name")
+    w("// (lowercase letters and digits only). Source precedence: "
+      + " > ".join(p for p, _ in SOURCES) + ".")
+    for prefix, n in counts:
+        w(f"//   {prefix}: {n} distinct names")
+    w(f"// {len(rows)} entries.")
+    w("//")
+    w("// Colours that lost a name collision with a different value (to a later spelling in")
+    w("// the same source, or to a higher-precedence source):")
+    for k, lp, ln, lrgb, kp, krgb in sorted(shadowed, key=lambda t: (t[0].encode(), t[1])):
+        w(f"//   {k}: {lp} {ln!r} {hx(lrgb)} lost to {kp} {hx(krgb)}")
+    w("#pragma once")
+    w("#include <cstddef>")
+    w("#include <cstdint>")
+    w("")
+    w("namespace mcrf::color_names {")
+    w("")
+    w("struct Entry {")
+    w("    const char* name;  // normalized: lowercase ASCII letters and digits only")
+    w("    std::uint8_t r, g, b;")
+    w("};")
+    w("")
+    w("// Sorted bytewise by name.")
+    w("inline constexpr Entry entries[] = {")
+    for k, (si, name, (r, g, b)) in rows:
+        w(f"    {{{c_str(k)}, {r}, {g}, {b}}},")
+    w("};")
+    w(f"inline constexpr std::size_t entry_count = {len(rows)};")
+    w("")
+    w("} // namespace mcrf::color_names")
+    return "\n".join(out) + "\n"
+
+
+def main():
+    text = build()
+    if "--check" in sys.argv[1:]:
+        try:
+            with open(OUT, encoding="utf-8") as f:
+                current = f.read()
+        except FileNotFoundError:
+            current = None
+        if current != text:
+            print(f"{OUT} is stale: run python3 tools/generate_color_table.py", file=sys.stderr)
+            return 1
+        print(f"{OUT} is up to date")
+        return 0
+    with open(OUT, "w", encoding="utf-8") as f:
+        f.write(text)
+    print(f"wrote {OUT}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
