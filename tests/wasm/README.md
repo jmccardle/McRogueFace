@@ -49,6 +49,7 @@ Or directly:
 .venv-wasmtest/bin/python tests/wasm/run_wasm_tests.py --build-dir build-wasm-game
 .venv-wasmtest/bin/python tests/wasm/run_wasm_tests.py --url URL  # test an already-served page
 .venv-wasmtest/bin/python tests/wasm/run_wasm_tests.py --headed -v
+.venv-wasmtest/bin/python tests/wasm/run_wasm_key_tests.py       # real key presses: on_key/on_text/modifiers/dev hotkeys (playground only; also run by make test-wasm)
 ```
 
 Exit code `0` = all passed, `1` = a test failed, `2` = setup/harness error.

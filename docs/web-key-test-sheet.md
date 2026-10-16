@@ -1,6 +1,6 @@
 # Web key-input tester sheet (0.3.4)
 
-Covers #495 (`on_text`), #496/#503 (configurable dev hotkeys) and #497 (modifiers from the event) in a **real browser**. The wasm suite builds and boots these but never presses a key; this sheet is that gap until a Playwright test exists. Do it in Chrome and Firefox, on a US layout, then once on another layout or an IME if you have one.
+Covers #495 (`on_text`), #496/#503 (configurable dev hotkeys) and #497 (modifiers from the event) in a **real browser**. `tests/wasm/run_wasm_key_tests.py` (Chromium, `make test-wasm`) now automates checks 1-5 and 7-13. What stays manual here: **6** (dead keys / IME / non-ASCII text, which synthetic input cannot reach), **14** (browser shortcuts), Firefox, and other layouts. Do it in Chrome and Firefox, on a US layout, then once on another layout or an IME if you have one.
 
 ## Setup
 
@@ -44,7 +44,7 @@ Record PASS / FAIL and what you saw. "Expected" is what the desktop build does.
 | 7 | Hold Ctrl, tap `a`; hold Alt, tap `a`; hold Shift, tap `a` | `c=True`, `a=True`, `s=True` on the `a` event only while held; all False after release | #497 |
 | 8 | Hold Ctrl, switch to another tab/window, release Ctrl there, come back, press `a` | `c=False` (focus loss clears modifiers) | #497 |
 | 9 | Press Grave (`` ` ``) and F4 | both reach `on_key` (web has no console or explorer) | #496 |
-| 10 | Press F3 | **Report which:** (a) a profiler overlay toggles and no `key F3` line appears, or (b) `key F3` appears and nothing toggles. Both press and release must go the same way. | #503 |
+| 10 | Press F3 | *(Chromium result: the profiler overlay swallows F3 and F6 on web, press and release both.)* **Report which:** (a) a profiler overlay toggles and no `key F3` line appears, or (b) `key F3` appears and nothing toggles. Both press and release must go the same way. | #503 |
 | 11 | Run `mcrfpy.window.profiler_key = None`, press F3 | `key F3 PRESSED` / `RELEASED` appear | #503 |
 | 12 | Run `mcrfpy.window.profiler_key = mcrfpy.Key.F6`, press F6, then F3 | F6 behaves as in #10; F3 now reaches `on_key` | #503 |
 | 13 | Run `mcrfpy.window.console_key = mcrfpy.window.profiler_key` | raises (the three tools cannot share a key) | #496 |

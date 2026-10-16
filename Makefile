@@ -547,6 +547,8 @@ test-wasm:
 		echo "=== $$d ==="; \
 		$(WASM_TEST_VENV)/bin/python tests/wasm/run_wasm_tests.py --build-dir $$d || exit 1; \
 	done
+	@echo "=== build-playground: key input (#495 #496 #497 #503) ==="
+	@$(WASM_TEST_VENV)/bin/python tests/wasm/run_wasm_key_tests.py --build-dir build-playground
 
 # #388: cross-backend screenshot diff. Renders the snippet corpus on web (SDL2/
 # WebGL) in headless Chromium and diffs each frame against the desktop-headless

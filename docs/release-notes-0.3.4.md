@@ -36,6 +36,7 @@ Color.names()         # 1073 names
 - **`scene.on_text(text)`** (#495): typed text as an event, one UTF-8 code point per call, separate from `on_key` (a German `z` arrives as `Key.Y`; dead keys and IME can't be expressed as keys). Control characters (Enter, Tab, Backspace, Escape, DEL) stay keys. `automation.typeText(text)` synthesizes text with no key presses; `typewrite()` now delivers `on_text` between each key's press and release. Web: multi-character `SDL_TEXTINPUT` (IME commits) is decoded in full and malformed UTF-8 is dropped.
 - **Configurable dev-tool hotkeys** (#496, #503): `Window.console_key` (Grave), `Window.explorer_key` (F4) and `Window.profiler_key` (F3) are a `Key` or `None`, changeable at runtime. An app that needs every key (a terminal, an editor) can set them to `None`. The three can't share a key, and a hotkey's release is swallowed together with its press. This also fixes `set_dev_console(False)` still swallowing Grave and F4. Headless builds have no tools, so every key reaches `on_key`. The web build gets the same filter (it was compiled out for SDL2).
 - Automation key names `grave` and a backtick.
+- `automation.hotkey` validates every key before pressing any (#506); a bad name used to leave the earlier keys held.
 
 ## Engine and project tooling
 
@@ -47,6 +48,5 @@ Color.names()         # 1073 names
 
 ## Known gaps
 
-- Web: #495, #496, #497 and F3 are compile-verified on web only; the wasm suite does not press keys in a browser.
-- `automation.hotkey` presses keys before validating the later ones (tracked as its own issue).
+- Web key input is tested in headless Chromium only (`tests/wasm/run_wasm_key_tests.py`). IME / dead-key text, Firefox and non-US layouts are still manual (`docs/web-key-test-sheet.md`).
 - Using `mcrogueface` as a venv's `python` is not supported yet (#505).
