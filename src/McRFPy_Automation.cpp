@@ -652,7 +652,9 @@ PyObject* McRFPy_Automation::_hotkey(PyObject* self, PyObject* args) {
         return NULL;
     }
 
-    // Press all keys
+    // #506: resolve every key before pressing any, so a bad name raises with nothing held.
+    std::vector<sf::Keyboard::Key> keys;
+    keys.reserve(numKeys);
     for (Py_ssize_t i = 0; i < numKeys; i++) {
         PyObject* keyObj = PyTuple_GetItem(args, i);
         const char* keyName = PyUnicode_AsUTF8(keyObj);
@@ -665,18 +667,18 @@ PyObject* McRFPy_Automation::_hotkey(PyObject* self, PyObject* args) {
             PyErr_Format(PyExc_ValueError, "Unknown key: %s", keyName);
             return NULL;
         }
+        keys.push_back(key);
+    }
 
+    // Press all keys
+    for (sf::Keyboard::Key key : keys) {
         injectKeyEvent(sf::Event::KeyPressed, key);
         sleep_ms(10);  // Small delay between key presses
     }
 
     // Release all keys in reverse order
-    for (Py_ssize_t i = numKeys - 1; i >= 0; i--) {
-        PyObject* keyObj = PyTuple_GetItem(args, i);
-        const char* keyName = PyUnicode_AsUTF8(keyObj);
-
-        sf::Keyboard::Key key = stringToKey(keyName);
-        injectKeyEvent(sf::Event::KeyReleased, key);
+    for (auto it = keys.rbegin(); it != keys.rend(); ++it) {
+        injectKeyEvent(sf::Event::KeyReleased, *it);
         sleep_ms(10);
     }
 
