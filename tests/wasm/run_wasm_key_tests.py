@@ -144,6 +144,20 @@ def t_profiler_key_rebind(page):
             ([], [("F6", "PRESSED"), ("F6", "RELEASED")])), f"F3 -> {f3}; F6 -> {f6}"
 
 
+def t_printable_hotkey_swallows_text(page):
+    # #508: a printable hotkey's keystroke is press, text, release; all three belong to the
+    # tool. The F-key tests above can't see this: F-keys type no text.
+    rp(page, "mcrfpy.window.profiler_key = mcrfpy.Key.P")
+    page.keyboard.press("p")
+    on = log(page)
+    page.keyboard.press("p")
+    off = log(page)
+    rp(page, "mcrfpy.window.profiler_key = mcrfpy.Key.F3")
+    page.keyboard.press("p")
+    plain = log(page)
+    return (on == [] and off == [] and texts(plain) == ["p"]), \
+        f"profiler_key=P: p -> {on}, again -> {off}; profiler_key=F3: p -> {plain}"
+
 def t_shared_key_rejected(page):
     out = rp(page, (
         "try:\n"
@@ -166,6 +180,7 @@ TESTS = [
     ("f3_press_release_consistent", t_f3_press_release_consistent),
     ("profiler_key_none_releases_f3", t_profiler_key_none_releases_f3),
     ("profiler_key_rebind", t_profiler_key_rebind),
+    ("printable_hotkey_swallows_text", t_printable_hotkey_swallows_text),
     ("shared_key_rejected", t_shared_key_rejected),
 ]
 

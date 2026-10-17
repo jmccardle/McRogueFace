@@ -591,8 +591,8 @@ PyGetSetDef PyWindow::getsetters[] = {
      MCRF_PROPERTY(scaling_mode, "Viewport scaling mode (str): 'center' (no scaling), 'stretch' (fill window), or 'fit' (maintain aspect ratio)."), NULL},
     {"console_key", (getter)get_console_key, (setter)set_console_key,
      MCRF_PROPERTY(console_key, "Key that toggles the developer console (Key, or None for no hotkey). "
-         "Default Key.GRAVE. Takes effect immediately; while it is a dev hotkey it does not reach "
-         "on_key. Windowed desktop builds only: headless and web builds have no console, and the "
+         "Default Key.GRAVE. Takes effect immediately; while it is a dev hotkey neither its key "
+         "events nor the text it types reach on_key/on_text. Windowed desktop builds only: headless and web builds have no console, and the "
          "key always reaches the game there. mcrfpy.set_dev_console(False) disables the console "
          "and releases the key."), NULL},
     {"explorer_key", (getter)get_explorer_key, (setter)set_explorer_key,

@@ -875,12 +875,24 @@ void GameEngine::processEvent(const sf::Event& event)
 
 bool GameEngine::filterDevInput(const sf::Event& event)
 {
+    // #508: a keystroke is KeyPressed, the text it typed (TextEntered, possibly several code
+    // points from one IME commit), then KeyReleased. The text of a swallowed hotkey is part
+    // of the same keystroke; the next key event ends it, so later text (typeText) passes.
+    if (event.type == sf::Event::TextEntered) {
+        if (hotkey_text_pending) return true;
+    } else if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
+        hotkey_text_pending = false;
+    }
+
     // #503: the profiler overlay exists wherever there is a window (SFML and SDL2); headless
     // has none, so there F3 always reaches the game.
     if (profilerOverlay && profiler_key != sf::Keyboard::Unknown &&
         (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) &&
         event.key.code == profiler_key) {
-        if (event.type == sf::Event::KeyPressed) profilerOverlay->toggle();
+        if (event.type == sf::Event::KeyPressed) {
+            profilerOverlay->toggle();
+            hotkey_text_pending = true;
+        }
         return true;  // the release is part of the same keystroke
     }
 #if !defined(MCRF_HEADLESS) && !defined(MCRF_SDL2)
@@ -889,11 +901,11 @@ bool GameEngine::filterDevInput(const sf::Event& event)
     if (event.type == sf::Event::KeyPressed || event.type == sf::Event::KeyReleased) {
         const bool pressed = event.type == sf::Event::KeyPressed;
         if (console_key != sf::Keyboard::Unknown && event.key.code == console_key) {
-            if (pressed) console.toggle();
+            if (pressed) { console.toggle(); hotkey_text_pending = true; }
             return true;  // the release is part of the same keystroke
         }
         if (explorer_key != sf::Keyboard::Unknown && event.key.code == explorer_key) {
-            if (pressed) sceneExplorer.toggle();
+            if (pressed) { sceneExplorer.toggle(); hotkey_text_pending = true; }
             return true;
         }
     }
