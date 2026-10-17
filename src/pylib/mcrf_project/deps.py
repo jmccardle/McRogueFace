@@ -87,6 +87,20 @@ def _fingerprint(project, engine):
             "python": engine.python_version}
 
 
+def _require_replaceable(project):
+    """`install` replaces .venv; refuse unless it is absent, empty, or ours (#509). A
+    developer's own virtualenv often lives at <project>/.venv."""
+    path = venv_dir(project)
+    if not path.exists() and not path.is_symlink():
+        return
+    if path.is_dir() and not path.is_symlink() and (
+            (path / STAMP).is_file() or not any(path.iterdir())):
+        return
+    raise ProjectError("%s exists and was not made by `deps` (it has no %s); `deps` replaces "
+                       "that directory, so move or remove it yourself first"
+                       % (path, STAMP))
+
+
 def install(project, engine, log):
     """Install the project's requirements with `engine`. Returns the site-packages path."""
     args = requirements(project)
@@ -102,9 +116,13 @@ def install(project, engine, log):
                            "engines" % (engine.dir, engine.python_version, flags))
     target = site_packages(project, engine)
     wheel = pip_wheel(engine)
+    _require_replaceable(project)
     if venv_dir(project).exists():
         shutil.rmtree(venv_dir(project))  # ours; a removed requirement must not linger
     target.mkdir(parents=True)
+    # Claimed before pip runs: an interrupted install is still ours to replace, and its
+    # stamp matches no fingerprint, so require_installed() calls it not installed.
+    (venv_dir(project) / STAMP).write_text(json.dumps({"incomplete": True}))
     pip_args = ["install", "--target", str(target), "--only-binary=:all:",
                 "--disable-pip-version-check"] + args
     log("installing into %s with pip from %s" % (target, wheel.name))
