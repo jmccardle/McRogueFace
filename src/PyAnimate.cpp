@@ -95,9 +95,11 @@ bool animation_target(PyObject* value, AnimKind kind, const char* property, Anim
         }
 
         case AnimKind::Color: {
-            // A Color or an (r, g, b[, a]) tuple, converted exactly as assignment does (#450).
-            // Other types break out to the TypeError that names the property.
-            if (!PyObject_TypeCheck(value, &mcrfpydef::PyColorType) && !PyTuple_Check(value)) break;
+            // A Color, an (r, g, b[, a]) tuple or a colour string (#458, #507), converted
+            // exactly as assignment does (#450). Other types break out to the TypeError
+            // that names the property.
+            if (!PyObject_TypeCheck(value, &mcrfpydef::PyColorType) && !PyTuple_Check(value)
+                && !PyUnicode_Check(value)) break;
             sf::Color color;
             if (!PyColor::to_color(value, color)) return false;
             out = color;
@@ -119,7 +121,7 @@ bool animation_target(PyObject* value, AnimKind kind, const char* property, Anim
 
     static const char* const takes[] = {
         "", "a number", "an int, or a list of ints", "a Vector or (x, y)",
-        "a Color or an (r, g, b[, a]) tuple", "a str"};
+        "a Color, an (r, g, b[, a]) tuple or a color string", "a str"};
     PyErr_Format(PyExc_TypeError, "animation target for '%s' must be %s, not %s",
                  property, takes[static_cast<int>(kind)], Py_TYPE(value)->tp_name);
     return false;

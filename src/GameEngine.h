@@ -388,11 +388,12 @@ public:
     // to a dev tool (its hotkey, or any keyboard input while the console has focus) and
     // must not reach the game. Called for window events (sUserInput) and for events
     // synthesized by automation, so a headless-injected hotkey is treated like a real one.
-    // Always false where the tools do not exist: headless, SDL2/web, no ImGui, or after
-    // mcrfpy.set_dev_console(False).
+    // Always false where the tools do not exist: headless, or (for the console and explorer)
+    // SDL2/web, no ImGui, or after mcrfpy.set_dev_console(False).
     bool filterDevInput(const sf::Event& event);
 private:
     KeyModifiers key_mods;
+    bool hotkey_text_pending = false;  // #508: drop the text of the swallowed hotkey keystroke
     sf::Keyboard::Key console_key = sf::Keyboard::Grave;
     sf::Keyboard::Key explorer_key = sf::Keyboard::F4;
     sf::Keyboard::Key profiler_key = sf::Keyboard::F3;

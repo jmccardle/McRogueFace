@@ -270,6 +270,7 @@ class Project:
         engine.stage(staged)
         rt.copy_content(staged, self.assets, self.scripts)
         deps.stage(self, engine, staged)
+        rt.mark_game(staged, self.name, self.version)
         return rt.archive(staged, engine.platform)
 
     def dist_web(self, engine, out_dir, log, jobs=None):

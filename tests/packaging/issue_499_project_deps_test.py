@@ -134,6 +134,17 @@ with tempfile.TemporaryDirectory() as tmp:
               "the packaged game imports its dependency from the package (rc=%d)\n%s"
               % (out.returncode, "" if out.returncode == 0 else text[-600:]))
 
+        # #510: a game package marks itself, and then owns its interpreter: the player's
+        # VIRTUAL_ENV (here one that isn't even a venv) is ignored, not fatal
+        check((pkg / "mcrf-game.json").is_file(), "dist writes the game-package marker mcrf-game.json")
+        out = subprocess.run([str(pkg / "mcrogueface"), "--headless"], cwd=str(pkg),
+                             capture_output=True, text=True, timeout=60,
+                             env=dict(env, VIRTUAL_ENV=str(tmp / "not-a-venv")))
+        text = out.stdout + out.stderr
+        check(out.returncode == 0 and "DEP from the wheel %s" % pkg in text,
+              "the packaged game ignores the player's VIRTUAL_ENV (rc=%d)\n%s"
+              % (out.returncode, "" if out.returncode == 0 else text[-600:]))
+
         # the package ships pip: it can install the project's dependencies itself
         rc, out = tool("deps", "--engine", str(pkg), cwd=game)
         check(rc == 0 and (sp / "mcrf_dep_demo").is_dir(),

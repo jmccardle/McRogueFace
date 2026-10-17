@@ -116,7 +116,7 @@ static PyObject* UIDrawable_animate(T* self, PyObject* args, PyObject* kwds)
          MCRF_DESC("Create and start an animation on this drawable's property."), \
          MCRF_ARGS_START \
          MCRF_ARG("property", "Name of the attribute to animate (e.g., 'x', 'pos', 'fill_color', 'opacity'), or one channel of a Color attribute ('fill_color.r')") \
-         MCRF_ARG("target", "Target value, of the attribute's type: a number, a Vector or (x, y), a Color or (r, g, b[, a]), an int (or list of ints to step through), or a str") \
+         MCRF_ARG("target", "Target value, of the attribute's type: a number, a Vector or (x, y), a Color, (r, g, b[, a]) or a color string, an int (or list of ints to step through), or a str") \
          MCRF_ARG("duration", "Animation duration in seconds") \
          MCRF_ARG("easing", "Easing function: Easing enum value, string name, or None for linear") \
          MCRF_ARG("delta", "If True, target is relative to current value; if False, target is absolute") \
