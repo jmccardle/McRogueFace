@@ -25,6 +25,7 @@ int main(int argc, char* argv[])
     if (parse_result.should_exit) {
         return parse_result.exit_code;
     }
+    McRFPy_API::use_virtual_env = config.use_virtual_env;  // #510: read before Python starts
 
     // Special handling for -m module: let Python handle modules properly
     if (!config.python_module.empty()) {

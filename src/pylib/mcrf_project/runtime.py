@@ -11,6 +11,7 @@ and SFML library names, the extension-module directory) is read from that direct
 never written down here.
 """
 import fnmatch
+import json
 import os
 import shutil
 import sys
@@ -322,6 +323,17 @@ def web_archive(build, out):
             zf.write(build / name, name)
     tmp.replace(out)
     return out
+
+
+# A game package (`dist`, never an engine package: that is a developer's engine) marks
+# itself with this file beside the binary. The engine then owns its interpreter and ignores
+# the player's VIRTUAL_ENV unless run with --use-virtual-env (#510; GAME_PACKAGE_MARKER in
+# McRFPy_API.cpp).
+GAME_MARKER = "mcrf-game.json"
+
+
+def mark_game(dest, name, version):
+    (Path(dest) / GAME_MARKER).write_text(json.dumps({"game": name, "version": version}) + "\n")
 
 
 def fresh_dir(path):

@@ -3,14 +3,14 @@
 The engine builds `sys.path` itself (isolated Python config, no `site`, no `PYTHONPATH`).
 `E` is the directory of the real binary (symlinks are resolved: `/proc/self/exe` is
 canonicalised). Asserted by `tests/regression/issue_502_sys_path_order_test.py`,
-`tests/regression/issue_499_virtual_env_test.py` and
+`tests/regression/issue_499_virtual_env_test.py`, `tests/regression/issue_510_virtual_env_policy_test.py` and
 `tests/regression/issue_452_main_script_path_test.py`.
 
 ## Linux and Windows
 
 | # | Entry | When |
 |---|-------|------|
-| 0 | `$VIRTUAL_ENV/lib/python3.X/site-packages` (`$VIRTUAL_ENV/Lib/site-packages` on Windows) | only if the environment variable `VIRTUAL_ENV` is set and non-empty (#499); see *VIRTUAL_ENV* below |
+| 0 | `$VIRTUAL_ENV/lib/python3.X/site-packages` (`$VIRTUAL_ENV/Lib/site-packages` on Windows) | only if the environment variable `VIRTUAL_ENV` names a venv for this engine's Python, and the engine is not a packaged game (#499, #510); see *VIRTUAL_ENV* below |
 | 1 | `E/venv/lib/python3.X/site-packages` (`E/venv/Lib/site-packages` on Windows) | only if that directory exists; a bare `E/venv/` is ignored |
 | 2 | `<V>/lib/python3.X/site-packages` | only if `E/..` holds a `pyvenv.cfg` (the real binary sits in a venv's `bin/`); listed even if the directory does not exist; skipped when it is the same directory as row 0 |
 | 3 | `E/scripts` | always; see *main script* below |
@@ -41,20 +41,42 @@ that build. Do not put project dependencies in the engine directory; the engine 
 read-only to projects. Tests must not depend on the contents of the engine directory: they run
 a private engine layout (a copied binary with symlinks to `lib/`, `assets/`, `scripts/`).
 
-## `VIRTUAL_ENV` (#499)
+## `VIRTUAL_ENV` (#499, #510)
 
-An activated virtualenv is honoured: row 0, behind only the main script directory and ahead
-of the sibling `venv/`. It is the **only** project-level lookup; the engine never searches for
-directories named `.venv` or `venv` (callers name the environment: `mcrf_project run` sets
-`VIRTUAL_ENV` to the `.venv` that `mcrf_project deps` created, which carries a `pyvenv.cfg`).
-Only `sys.path` changes: `sys.prefix`, `sysconfig`, `.pth` files and command-line flags are
-untouched (#505).
+An activated virtualenv for this engine's Python is honoured: row 0, behind only the main
+script directory and ahead of the sibling `venv/`. It is the **only** project-level lookup;
+the engine never searches for directories named `.venv` or `venv` (callers name the
+environment: `mcrf_project run` sets `VIRTUAL_ENV` to the `.venv` that `mcrf_project deps`
+created, which carries a `pyvenv.cfg`). Only `sys.path` changes: `sys.prefix`, `sysconfig`,
+`.pth` files and command-line flags are untouched (#505).
 
-It fails early. If `VIRTUAL_ENV` is set but the directory has no `pyvenv.cfg`, or has no
-`site-packages` for this engine's Python (`python3.X`, `python3.Xt` when free-threaded), the
-engine prints a one-line error naming the path to stderr and exits with status 1. It does not
-fall back or skip the entry. An empty `VIRTUAL_ENV` counts as unset. WASM has a fixed list and
-ignores the variable.
+`VIRTUAL_ENV` is ambient shell state, often left over from another project, so what the
+engine does depends on whether the venv can be meant for it (#510):
+
+| `VIRTUAL_ENV` names | Result |
+|---|---|
+| nothing (unset or empty) | nothing changes |
+| a venv for **another Python**: `pyvenv.cfg` says so (`version = 3.11.4` from `venv`, `version_info = 3.11.4.final.0` from virtualenv/uv), or, with no version line, its only site-packages is under another `lib/pythonX.Y`; also the same version's other build (`python3.X` vs free-threaded `python3.Xt`) | **ignored**: its packages could not load here. One line on stderr (`mcrogueface: ignoring VIRTUAL_ENV=...: it is for Python 3.11; this engine is 3.15`), and `mcrfpy.config.virtual_env_ignored` is `(path, reason)` |
+| a venv for **this Python** with its site-packages | **honoured**: row 0; `mcrfpy.config.virtual_env` is its path |
+| a directory with no `pyvenv.cfg`, or a venv for this Python with no site-packages | **fatal**: the engine prints one line naming the path to stderr and exits with status 1. It was meant for this engine and is broken; it does not fall back or skip the entry |
+
+An empty `VIRTUAL_ENV` counts as unset. WASM has a fixed list and ignores the variable.
+
+### Packaged games
+
+A game package made by `mcrf_project dist` has `mcrf-game.json` beside the binary
+(`runtime.GAME_MARKER`). A packaged game owns its interpreter: it ignores `VIRTUAL_ENV`
+entirely, and silently (a player has nothing to fix), so its own
+`venv/` (row 1) is what it imports, even when a valid venv for the same Python is active.
+`mcrfpy.config.virtual_env_ignored` still records it. A modder who wants a venv in front of
+the game's own packages passes `--use-virtual-env`; the rules above then apply as for a
+development engine. Engine release packages (`package-engine`) are not game packages and
+carry no marker: they are a developer's engine, and `mcrf_project run` relies on
+`VIRTUAL_ENV` there.
+
+The test runner (`tests/run_tests.py`) removes `VIRTUAL_ENV` from the environment of every
+test, so an activated venv in the shell can't change a result; tests about it set it
+themselves.
 
 ## Known gap: row 2 through a symlink (#505)
 

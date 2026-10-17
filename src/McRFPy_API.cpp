@@ -3,6 +3,7 @@
 #include "PyWrap.h"
 #include "EngineRandom.h"
 #include <climits>
+#include <fstream>
 #include <cmath>
 
 // Embedded-interpreter version strings, derived from the CPython headers we
@@ -113,6 +114,10 @@ PyObject* McRFPy_API::texture_warning = nullptr;
 // Exception handling state
 std::atomic<bool> McRFPy_API::exception_occurred{false};
 std::atomic<int> McRFPy_API::exit_code{0};
+bool McRFPy_API::use_virtual_env = false;
+std::string McRFPy_API::virtual_env;
+std::string McRFPy_API::virtual_env_ignored;
+std::string McRFPy_API::virtual_env_ignored_reason;
 
 // ============================================================================
 // #184: Metaclass for UI types - tracks callback generation for cache invalidation
@@ -1348,26 +1353,89 @@ static int mcrf_requested_gil_setting()
 #endif
 
 #ifndef __EMSCRIPTEN__
-// #499: an activated virtualenv. The engine looks at VIRTUAL_ENV and nothing else (it never
-// guesses `.venv`/`venv`); callers such as `mcrf_project run` set it explicitly. Returns the
-// venv's site-packages, or an empty path if VIRTUAL_ENV is unset/empty. A VIRTUAL_ENV that
-// is not a usable venv is an error, not something to skip: exit with the path and reason.
+// #510: a packaged game (`mcrf_project dist`) carries this file beside the binary. It owns
+// its interpreter: VIRTUAL_ENV from the player's shell is ignored unless --use-virtual-env.
+static const char* const GAME_PACKAGE_MARKER = "mcrf-game.json";
+
+// major.minor of the Python a venv was made for, from pyvenv.cfg: `version` (venv) or
+// `version_info` (virtualenv, uv). Empty if neither is there.
+static std::string pyvenv_cfg_version(const std::filesystem::path& cfg)
+{
+    std::ifstream in(cfg);
+    std::string line;
+    while (std::getline(in, line)) {
+        auto eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        auto trim = [](std::string t) {
+            t.erase(0, t.find_first_not_of(" \t\r"));
+            t.erase(t.find_last_not_of(" \t\r") + 1);
+            return t;
+        };
+        std::string key = trim(line.substr(0, eq));
+        if (key != "version" && key != "version_info") continue;
+        std::string value = trim(line.substr(eq + 1));
+        auto dot = value.find('.');
+        if (dot == std::string::npos) continue;
+        auto end = value.find_first_not_of("0123456789", dot + 1);
+        return value.substr(0, end);
+    }
+    return {};
+}
+
+// #499, #510: an activated virtualenv. The engine looks at VIRTUAL_ENV and nothing else (it
+// never guesses `.venv`/`venv`); callers such as `mcrf_project run` set it explicitly.
+// Returns the venv's site-packages to put on sys.path, or an empty path. Records the outcome
+// for mcrfpy.config. A VIRTUAL_ENV for another Python can't be meant for this engine (its
+// packages can't load here): ignored with one line on stderr. One that is for this Python
+// but unusable is meant for it: exit with the path and reason. A packaged game ignores it.
 static std::filesystem::path virtual_env_site_packages()
 {
     const char* ve = std::getenv("VIRTUAL_ENV");
     if (!ve || !*ve) return {};
     const std::filesystem::path root(ve);
     std::error_code ec;
+    auto ignore = [&](const std::string& reason, bool say) {
+        McRFPy_API::virtual_env_ignored = root.string();
+        McRFPy_API::virtual_env_ignored_reason = reason;
+        if (say) {
+            std::cerr << "mcrogueface: ignoring VIRTUAL_ENV=" << root.string() << ": " << reason
+                      << std::endl;
+        }
+        return std::filesystem::path();
+    };
+
+    // The player's shell is not the game's business; a modder opts in with the flag.
+    if (!McRFPy_API::use_virtual_env &&
+        std::filesystem::is_regular_file(std::filesystem::path(executable_path()) / GAME_PACKAGE_MARKER, ec)) {
+        return ignore(std::string("this is a packaged game (") + GAME_PACKAGE_MARKER +
+                      "); pass --use-virtual-env to use it", false);
+    }
+
     if (!std::filesystem::is_regular_file(root / "pyvenv.cfg", ec)) {
         std::cerr << "mcrogueface: VIRTUAL_ENV=" << root.string() << " has no pyvenv.cfg ("
                   << (root / "pyvenv.cfg").string() << " does not exist); it is not a virtual "
                   << "environment. Unset VIRTUAL_ENV or point it at one." << std::endl;
         std::exit(1);
     }
+    const std::string version = pyvenv_cfg_version(root / "pyvenv.cfg");
+    if (!version.empty() && version != MCRF_PY_VER) {
+        return ignore("it is for Python " + version + "; this engine is " MCRF_PY_VER, true);
+    }
 #ifdef _WIN32
     auto site_packages = root / "Lib" / "site-packages";
 #else
     auto site_packages = root / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
+    if (!std::filesystem::is_directory(site_packages, ec)) {
+        // Made for another Python after all: a different version (no version line in
+        // pyvenv.cfg), or the same version's other build (python3.X vs free-threaded 3.Xt).
+        for (const auto& entry : std::filesystem::directory_iterator(root / "lib", ec)) {
+            const std::string name = entry.path().filename().string();
+            if (name.rfind("python", 0) == 0 && name != MCRF_PY_STDLIB_DIRNAME &&
+                std::filesystem::is_directory(entry.path() / "site-packages", ec)) {
+                return ignore("it is for " + name + "; this engine is " MCRF_PY_STDLIB_DIRNAME, true);
+            }
+        }
+    }
 #endif
     if (!std::filesystem::is_directory(site_packages, ec)) {
         std::cerr << "mcrogueface: VIRTUAL_ENV=" << root.string() << " has no site-packages for "
@@ -1375,6 +1443,7 @@ static std::filesystem::path virtual_env_site_packages()
                   << " does not exist. Recreate the venv with this Python version." << std::endl;
         std::exit(1);
     }
+    McRFPy_API::virtual_env = root.string();
     return site_packages;
 }
 #endif
