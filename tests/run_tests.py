@@ -94,6 +94,7 @@ _GENERATED_DOCS = "generated docs: run tools/generate_all_docs.sh"
 EXTERNAL_INPUTS = {
     "unit/animated_model_test.py": (["assets/models/RiggedSimple.glb", "assets/models/CesiumMan.glb"], _ASSET_PACK),
     "unit/audio_and_keyboard_test.py": (["assets/sfx/splat1.ogg"], _ASSET_PACK),
+    "regression/issue_430_identity_tilesets_audio_test.py": (["assets/sfx/splat1.ogg"], _ASSET_PACK),
     "snippets/253_Music.py": (["assets/sfx/splat1.ogg"], _ASSET_PACK),
     "unit/generate_sprite_screenshot.py": (["assets/kenney_TD_MR_IP.png"], _ASSET_PACK),
     "unit/ui_Sprite_issue19_test.py": (["assets/kenney_TD_MR_IP.png"], _ASSET_PACK),
@@ -101,6 +102,16 @@ EXTERNAL_INPUTS = {
     "demo/skeletal_animation_demo.py": (["assets/models/RiggedSimple.glb", "assets/models/CesiumMan.glb"], _ASSET_PACK),
     "unit/test_api_docs.py": (["docs/API_REFERENCE_DYNAMIC.md"], _GENERATED_DOCS),
     "unit/test_stubs.py": (["stubs/mcrfpy.pyi"], _GENERATED_DOCS),
+}
+
+
+# Tests that legitimately run 6-13 s (subprocess `deps` installs, many screenshots) and so
+# sit on the 10 s default's edge: they pass alone and time out under suite load (#513).
+# Timeouts here are a per-test budget, not a flake mask: each is still bounded.
+SLOW_TESTS = {
+    "regression/issue_478_caption_baseline_test.py": 40,
+    "integration/mcrf_project_test.py": 40,
+    "integration/issue_509_deps_keeps_foreign_venv_test.py": 40,
 }
 
 
@@ -324,6 +335,8 @@ def main():
                 test_timeout = PACKAGING_TIMEOUT * timeout_multiplier
             else:
                 test_timeout = effective_timeout
+                if f"{test_dir}/{test_name}" in SLOW_TESTS:
+                    test_timeout = max(test_timeout, SLOW_TESTS[f"{test_dir}/{test_name}"] * timeout_multiplier)
 
             missing, reason = missing_external_inputs(test_dir, test_name)
             if missing:
