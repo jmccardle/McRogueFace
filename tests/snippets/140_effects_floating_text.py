@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Scene,Timer] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Easing,Scene,Timer] verified=0.3.4 status=ok
 import mcrfpy
 
 def show_damage(scene, x, y, amount, color=(255, 50, 50)):

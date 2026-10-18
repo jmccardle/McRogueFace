@@ -1,4 +1,4 @@
-# mcrf: objects=[ColorLayer,Entity,Grid,Scene,TileLayer] verified=0.3.3 status=ok
+# mcrf: objects=[ColorLayer,Entity,Grid,Scene,TileLayer] verified=0.3.4 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("demo")

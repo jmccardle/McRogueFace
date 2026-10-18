@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Timer] verified=0.3.4 status=ok
 # Timer Once - Single-shot timer
 import mcrfpy
 

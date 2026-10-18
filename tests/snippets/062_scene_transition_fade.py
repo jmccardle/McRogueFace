@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Transition] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Transition] verified=0.3.4 status=ok
 # Scene Transition Fade - Smooth scene transitions
 import mcrfpy
 

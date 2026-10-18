@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Caption,Scene,Traversal] verified=0.3.3 status=ok
+# mcrf: objects=[BSP,Caption,Scene,Traversal] verified=0.3.4 status=ok
 # Traversal - BSP traversal order enumeration, including string shortcuts
 import mcrfpy
 

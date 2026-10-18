@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,Scene,Timer] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,Scene,Timer] verified=0.3.4 status=ok
 # Entity Visibility - Check what entities can see
 import mcrfpy
 

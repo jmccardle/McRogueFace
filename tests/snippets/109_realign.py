@@ -1,4 +1,4 @@
-# mcrf: objects=[Alignment,Caption,Color,Frame,InputState,Key,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Alignment,Caption,Color,Frame,InputState,Key,Scene] verified=0.3.4 status=ok
 # Realign - Reapply alignment after changes
 import mcrfpy
 

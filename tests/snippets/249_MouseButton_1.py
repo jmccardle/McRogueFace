@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Frame,InputState,MouseButton,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Color,Frame,InputState,MouseButton,Scene] verified=0.3.4 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("mousebutton_demo")

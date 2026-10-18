@@ -1,4 +1,4 @@
-# mcrf: objects=[Alignment,Color,Frame,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Alignment,Color,Frame,Scene] verified=0.3.4 status=ok
 # Frame Alignment - Automatic positioning
 import mcrfpy
 

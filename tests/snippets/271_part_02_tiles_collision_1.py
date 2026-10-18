@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene,Texture] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene,Texture] verified=0.3.4 status=ok
 """McRogueFace Tutorial - Part 2: Walls, Floors, and Collision
 
 Learn to create maps with impassable walls and collision detection.

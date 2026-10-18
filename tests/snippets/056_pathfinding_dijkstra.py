@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,Scene] verified=0.3.4 status=ok
 # Dijkstra Map - Distance-based pathfinding
 import mcrfpy
 

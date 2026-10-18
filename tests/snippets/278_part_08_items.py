@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Frame,Grid,InputState,Key,Scene,Texture] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Frame,Grid,InputState,Key,Scene,Texture] verified=0.3.4 status=ok
 """McRogueFace Tutorial - Part 8: Items and Inventory
 
 Add health potions and inventory management.

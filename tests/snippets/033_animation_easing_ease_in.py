@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Easing,Frame,Scene,Timer] verified=0.3.4 status=ok
 # Easing: EASE_IN - Slow start, fast end
 import mcrfpy
 

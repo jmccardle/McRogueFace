@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Sprite] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Sprite] verified=0.3.4 status=ok
 import mcrfpy
 
 # Create scene

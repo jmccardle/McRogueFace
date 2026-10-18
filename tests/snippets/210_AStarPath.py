@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Entity,Grid,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Entity,Grid,Scene] verified=0.3.4 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("astar_demo")

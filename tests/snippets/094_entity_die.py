@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene] verified=0.3.4 status=ok
 # Entity Die - Remove entity from grid
 import mcrfpy
 

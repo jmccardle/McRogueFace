@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Scene] verified=0.3.4 status=ok
 # Input Keyboard - Key press handling
 import mcrfpy
 

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,MouseButton,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,MouseButton,Scene] verified=0.3.4 status=ok
 # Toggle / Checkbox pattern - a button that toggles state and updates its appearance.
 import mcrfpy
 

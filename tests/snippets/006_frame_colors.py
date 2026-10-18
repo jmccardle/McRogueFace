@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene] verified=0.3.4 status=ok
 # Frame Colors - Fill and outline colors
 import mcrfpy
 

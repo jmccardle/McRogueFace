@@ -1,4 +1,4 @@
-# mcrf: objects=[BSP,Caption,Scene] verified=0.3.3 status=ok
+# mcrf: objects=[BSP,Caption,Scene] verified=0.3.4 status=ok
 # BSP adjacency - connect rooms with corridors via the wall-tile map
 import mcrfpy
 
