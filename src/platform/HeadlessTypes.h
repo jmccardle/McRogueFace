@@ -509,6 +509,7 @@ public:
         size_ = Vector2u(256, 256);
         return true;
     }
+    static unsigned int getMaximumSize() { return 16384; }
     bool loadFromImage(const Image& image) {
         size_ = image.getSize();
         return true;

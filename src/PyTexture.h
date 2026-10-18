@@ -40,7 +40,8 @@ public:
     // #144: Factory method to create texture from rendered content (snapshot)
     static std::shared_ptr<PyTexture> from_rendered(sf::RenderTexture& render_tex);
 
-    // Factory method to create texture from an sf::Image (for LDtk flip-baked atlases)
+    // Factory method to create texture from an sf::Image (for LDtk flip-baked atlases).
+    // #514: on failure (bad sprite size, upload refused) sets a Python exception and returns nullptr.
     static std::shared_ptr<PyTexture> from_image(
         const sf::Image& img, int sprite_w, int sprite_h,
         const std::string& name = "<generated>");

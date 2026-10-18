@@ -63,7 +63,19 @@ std::shared_ptr<PyTexture> PyTexture::from_image(
     };
     auto ptex = std::make_shared<MakeSharedEnabler>();
 
-    ptex->texture.loadFromImage(img);
+    auto isz = img.getSize();
+    if (sprite_w < 1 || sprite_h < 1 || (unsigned)sprite_w > isz.x || (unsigned)sprite_h > isz.y) {
+        PyErr_Format(PyExc_ValueError,
+            "sprite size %dx%d must be at least 1x1 and no larger than the %ux%u image",
+            sprite_w, sprite_h, isz.x, isz.y);
+        return nullptr;
+    }
+    if (!ptex->texture.loadFromImage(img)) {
+        PyErr_Format(PyExc_ValueError,
+            "%ux%u exceeds the maximum texture size %u on this device (or the texture could not be created)",
+            isz.x, isz.y, (unsigned)sf::Texture::getMaximumSize());
+        return nullptr;
+    }
     ptex->texture.setSmooth(false);
 
     ptex->source = name;
@@ -320,6 +332,7 @@ PyObject* PyTexture::from_bytes(PyObject* cls, PyObject* args, PyObject* kwds)
     PyBuffer_Release(&buf);
 
     auto ptex = PyTexture::from_image(img, sprite_w, sprite_h, name);
+    if (!ptex) return NULL;
     return PyTexture::pyobject_for(ptex);
 }
 
@@ -421,6 +434,7 @@ PyObject* PyTexture::composite(PyObject* cls, PyObject* args, PyObject* kwds)
     }
 
     auto ptex = PyTexture::from_image(result, sprite_w, sprite_h, name);
+    if (!ptex) return NULL;
     return PyTexture::pyobject_for(ptex);
 }
 
@@ -539,6 +553,7 @@ PyObject* PyTexture::hsl_shift(PyTextureObject* self, PyObject* args, PyObject* 
     auto ptex = PyTexture::from_image(img,
         self->data->sprite_width, self->data->sprite_height,
         self->data->source + "+hsl");
+    if (!ptex) return NULL;
     return PyTexture::pyobject_for(ptex);
 }
 

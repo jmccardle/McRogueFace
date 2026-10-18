@@ -320,7 +320,12 @@ unsigned int SDL2Renderer::createTexture(unsigned int width, unsigned int height
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     // Upload pixel data (RGBA format)
+    while (glGetError() != GL_NO_ERROR) {}  // drop errors left by earlier calls
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    if (glGetError() != GL_NO_ERROR) {  // #514: e.g. over GL_MAX_TEXTURE_SIZE
+        glDeleteTextures(1, &textureId);
+        return 0;
+    }
 
     return textureId;
 }
@@ -1379,6 +1384,12 @@ bool Texture::loadFromMemory(const void* data, size_t size) {
 
     stbi_image_free(pixels);
     return textureId_ != 0;
+}
+
+unsigned int Texture::getMaximumSize() {
+    GLint size = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &size);
+    return size > 0 ? (unsigned int)size : 0;
 }
 
 bool Texture::loadFromImage(const Image& image) {
