@@ -1,6 +1,6 @@
 # McRogueFace - Development Roadmap
 
-**Version**: 0.3.3 released, master is 0.3.4-dev | **Era**: McRogueFace (2D roguelikes) -- on the road to 1.0
+**Version**: 0.3.4 released, master is 0.3.5-dev | **Era**: McRogueFace (2D roguelikes) -- on the road to 1.0
 
 For detailed architecture, philosophy, and decision framework, see the [Strategic Direction](https://dev.ffwf.net/forgejo/john/McRogueFace/wiki/Strategic-Direction) wiki page. For per-issue tracking, see the [issue tracker](https://dev.ffwf.net/forgejo/john/McRogueFace/issues) and the [0.3.0 release board](https://dev.ffwf.net/forgejo/john/McRogueFace/projects/8) (release notes per version: `docs/release-notes-*.md`).
 
@@ -25,14 +25,15 @@ For detailed architecture, philosophy, and decision framework, see the [Strategi
 
 ---
 
-## Current State (2026-10-14)
+## Current State (2026-10-17)
 
-**0.3.3 is released** (tag `0.3.3` = 88baca4; Linux, Windows and WASM packages in `dist/`), pushed to Forgejo and GitHub with tags 0.3.1-0.3.3. Master is `0.3.4-dev`. Releases are cut by `make release VERSION=x.y.z` (#475); the version header is the only source of truth, the tag comes last, and the script never pushes or publishes.
+**0.3.4 is released** (tag `0.3.4` = 9228230; suite 734/734, snippets 282/282; Linux, Windows and WASM packages in `dist/`), pushed to Forgejo, goblin and GitHub. The GitHub release pages for 0.3.1-0.3.4 are not published yet. Master is `0.3.5-dev`. Releases are cut by `make release VERSION=x.y.z` (#475); the version header is the only source of truth, the tag comes last, and the script never pushes or publishes.
 
 ### The 0.3 series (October 2026)
 - **0.3.0** (26cd8b6): CPython 3.15 embed, frame pointers (#421), exit teardown (#468), `mcrfpy.lock()` windows, one package per platform (#435). Notes: `docs/release-notes-0.3.0.md`.
 - **0.3.1 / 0.3.2**: release pipeline (#475), sprites fill their cells (tile layers and entities scale to the cell), `Caption.advance` (#479), `lock()` serves each thread once per frame (#410), working shipped templates (#380).
 - **0.3.3**: `Caption.advance` is a pure pen advance (the 0.3.2 `pos.x` bug), Caption font metrics (`ascent`, `descent`, `line_height`, `baseline`; #478/#494), `Font` metrics from Python.
+- **0.3.4**: project tooling (`mcrf_project deps` -> `.venv`, bundled by `dist`; #498-#500, #509), `sys.path` order documented (#502), run configuration as `mcrfpy.config` (#501), `VIRTUAL_ENV` policy (#510, design note `docs/design-virtualenv-policy.md`), input for mcrf-term (`on_text` #495, configurable dev hotkeys #496/#503/#508, event-sourced modifiers #497, `hotkey` validation #506), colour names (#458/#489), typed `default_fov` (#493), real-browser key tests (`tests/wasm/run_wasm_key_tests.py`). Notes: `docs/release-notes-0.3.4.md`.
 - Known doc debt: pages listed in #491 still describe the old entity-position behaviour; the 0.3.2 docs describe the buggy `Caption.advance`.
 
 ### API freeze and fuzzing (carried over, still the 1.0 path)
@@ -42,14 +43,12 @@ The public surface is locked behind the API-surface snapshot test (#314) and `ap
 
 Milestones are not set up in Forgejo; these groupings are from the labels and the work in flight. 0.4.0 is a **proposal** for John to confirm.
 
-### 0.3.4 (in flight: five agents, branches unmerged)
+### 0.3.5 candidates (filed, not yet scheduled)
 | Group | Issues |
 |---|---|
-| Packaging and project tooling | #498 (package lacks `_sysconfigdata`, tier1 bug), #500 (`mcrf_project run` finds an installed engine), #499 (project dependencies -> `.venv`, bundled by `dist`) |
-| Engine startup / `sys.path` | #502 (document the order; make #452's test hermetic; tier1 bug), #501 (expose engine flags and run configuration to scripts) |
-| Input (requested by mcrf-term) | #497 (modifier keys from the event), #495 (text-entry event), #496 (configurable console hotkeys) |
-| Grid | #493 (`default_fov` is dead, tier1 bug) |
-| Color names | #489 / #458, branch `issue-458-color-names`: catch-up merge, one deduplicated list, lowercase/no-space names normalized at parse time. Held for John's review |
+| 0.3.4 review leftovers | #511 (X11 Shift state inverted, profiler overlay hard-codes "F3", web IME drops strings with U+FFFD), #512 (fresh-clone build gaps: rsync, Windows deps, emsdk pin, `test-wasm` vs emsdk 6 `Module.calledRun`), #513 (test-suite hygiene on a fresh clone) |
+| Textures (requested by mcrf-term) | #514 (factories return an empty texture when the GPU upload fails, bug), then #515 (`pixels()`, `copy()`, `tinted()`), then #516 (in-place `blank()`/`blit()` with cache invalidation). Each ends with open questions for John |
+| Python environment | #505 (`mcrogueface` as a venv's `python`, PEP 405; the long-term answer to #510) |
 
 ### 0.4.0 candidates (proposed)
 Theme: a stable foundation for simulation and tooling, ahead of the 1.0 freeze.
@@ -143,21 +142,21 @@ The next major capability expansion. Sparse grid layers, a polygon/shape renderi
 A built-in collection of reusable GUI widgets and game UI patterns: menus, dialogs, inventory screens, stat bars, text input fields, scrollable lists. These would ship with the engine as importable Python modules, saving every game from reimplementing the same UI primitives. Think of it as `mcrfpy.widgets` -- batteries included.
 
 ### Pip/Virtualenv Integration
-Rather than inverting the architecture to make McRogueFace a pip-installable package, the nearer-term goal is better integration in the other direction: making it easy to install and use third-party Python packages within McRogueFace's embedded interpreter. This could mean virtualenv awareness, a `mcrf install` command, or bundling pip itself.
+Rather than inverting the architecture to make McRogueFace a pip-installable package, the nearer-term goal is better integration in the other direction: making it easy to install and use third-party Python packages within McRogueFace's embedded interpreter. Shipped so far: `mcrf_project deps` builds a project `.venv` that `dist` bundles (#499), and the engine honours a matching `VIRTUAL_ENV` while packaged games ignore it (#510). Next: #505, making `mcrogueface` a venv's own `python` (PEP 405), after which activation is unnecessary.
 
 ---
 
 ## Open Issues by Area
 
-50 open issues (2026-10-14). Key groupings:
+48 open issues (2026-10-17). Key groupings:
 
-- **Packaging / project tooling** (#498-#502, #70, #337) -- the package `_sysconfigdata`, project dependencies, finding an installed engine, `sys.path` order, run configuration visible to scripts
-- **Input** (#495, #496, #497, #53) -- text-entry events, console hotkeys, event-sourced modifier keys
+- **Packaging / project tooling / environment** (#505, #512, #70, #337) -- venv-native interpreter, fresh-clone build gaps, numpy
+- **Textures** (#514, #515, #516) -- upload failures, pixel access and tinting, in-place composition
+- **Input** (#511, #53) -- review leftovers, alternative input methods
 - **Threading / frame lock** (#416, #417, #336) -- unlocked-mutation UAF, holder-vs-holder races, free-threaded hardening
 - **Simulation determinism** (#448, #408, #403) -- one clock, recorded RNG seeds, `GridData` identity
 - **Grid / FOV / rendering** (#493, #454, #455, #434, #444, #471, #352, #152, #124, #67, #107, #347, #390, #393) -- default FOV, texture resolution, cell shapes, FOV design, big Dijkstra maps, chunk cache
-- **Color** (#458, #489) -- color names, on a branch awaiting review
-- **Docs / tooling** (#380, #381, #349, #472) -- template gating, snippet screenshots, scene serialization, Gauntlet resolution
+- **Docs / tooling** (#380, #381, #349, #472, #513) -- template gating, snippet screenshots, scene serialization, Gauntlet resolution
 - **Epics** (#387 web parity, #459 evolved programs)
 - **Demos / tutorials** (#167, #248, #154, #156, #55, #54, #62) -- r/roguelikedev series, Crypt of Sokoban remaster, LLM agent simulations
 - **Deferred** (#220, #124) -- subinterpreters, grid point animation
