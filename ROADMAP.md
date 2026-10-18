@@ -47,7 +47,7 @@ Milestones are not set up in Forgejo; these groupings are from the labels and th
 | Group | Issues |
 |---|---|
 | 0.3.4 review leftovers | #511 (X11 Shift state inverted, profiler overlay hard-codes "F3", web IME drops strings with U+FFFD), #512 (fresh-clone build gaps: rsync, Windows deps, emsdk pin, `test-wasm` vs emsdk 6 `Module.calledRun`), #513 (test-suite hygiene on a fresh clone) |
-| Textures (requested by mcrf-term) | #514 (factories return an empty texture when the GPU upload fails, bug), then #515 (`pixels()`, `copy()`, `tinted()`), then #516 (in-place `blank()`/`blit()` with cache invalidation). Each ends with open questions for John |
+| Textures (requested by mcrf-term) | #514 (factories returned an empty texture when the GPU upload failed; fixed in af54bcc), then #515 (`pixels()`, `copy()`, `tinted()`), then #516 (in-place `blank()`/`blit()` with cache invalidation). Each ends with open questions for John |
 | Python environment | #505 (`mcrogueface` as a venv's `python`, PEP 405; the long-term answer to #510) |
 | In progress | **Windows package size** (be0ec2b, pushed to Forgejo; ships in 0.3.5): `python3NN.zip` no longer packaged, Windows zip 26.49 -> 21.79 MB; the 0.3.4 GitHub draft's Windows asset still has the old 26.5 MB zip. No issue filed. |
 | In progress (other session) | #480 (TileLayer glyphs stretched to cell size); its decisions are tracked on the issue, not here |
