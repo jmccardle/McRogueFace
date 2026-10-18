@@ -49,6 +49,14 @@ Milestones are not set up in Forgejo; these groupings are from the labels and th
 | 0.3.4 review leftovers | #511 (X11 Shift state inverted, profiler overlay hard-codes "F3", web IME drops strings with U+FFFD), #512 (fresh-clone build gaps: rsync, Windows deps, emsdk pin, `test-wasm` vs emsdk 6 `Module.calledRun`), #513 (test-suite hygiene on a fresh clone) |
 | Textures (requested by mcrf-term) | #514 (factories return an empty texture when the GPU upload fails, bug), then #515 (`pixels()`, `copy()`, `tinted()`), then #516 (in-place `blank()`/`blit()` with cache invalidation). Each ends with open questions for John |
 | Python environment | #505 (`mcrogueface` as a venv's `python`, PEP 405; the long-term answer to #510) |
+| In progress | **Windows package size** (be0ec2b, pushed to Forgejo; ships in 0.3.5): `python3NN.zip` no longer packaged, Windows zip 26.49 -> 21.79 MB; the 0.3.4 GitHub draft's Windows asset still has the old 26.5 MB zip. No issue filed. |
+| In progress (other session) | #480 (TileLayer glyphs stretched to cell size); its decisions are tracked on the issue, not here |
+
+### Open decisions and size audit (for John)
+- Package size, not yet done: audit the Linux and WASM packages for dead files (Windows only was audited); `lib/Python/Lib/profiling` (~375 KB compressed), stray non-code files in the filtered Lib (`.rst`, `.css`); the pip wheel in `ensurepip` (1.76 MB) is needed by `mcrf_project deps` and `libcrypto`/`libssl`/`sqlite3` (~3.5 MB) are the networking guarantee, so both stay unless John says otherwise.
+- 0.3.4 GitHub draft: replace the Windows asset with a rebuilt smaller one (would not match the tagged commit), or publish as is and let 0.3.5 carry the cut. GitHub release pages for 0.3.1-0.3.3 are undrafted.
+- Push be0ec2b and ade4681 to goblin + github at the next milestone (Forgejo only so far).
+- Whether the 0.3.0 `lib/Python/DLLs` addition (+5.1 MB) was intended (assumed #435 / networking guarantee; unconfirmed).
 
 ### 0.4.0 candidates (proposed)
 Theme: a stable foundation for simulation and tooling, ahead of the 1.0 freeze.
