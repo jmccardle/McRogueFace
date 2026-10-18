@@ -212,9 +212,9 @@ class Runtime:
             raise ProjectError("%s is missing: socket, ssl, asyncio and ctypes would not import"
                                % dlls)
         shutil.copytree(dlls, dest / "lib" / "Python" / "DLLs")
-        stdlib_zip = self.dir / ("python%s.zip" % self.python_nodot)
-        if stdlib_zip.is_file():
-            shutil.copy2(stdlib_zip, dest / stdlib_zip.name)
+        # No python3NN.zip: the build directory has one (bytecode of the whole stdlib, 4.7 MB),
+        # but the engine sets module_search_paths itself (McRFPy_API.cpp), which skips
+        # python3NN._pth, so nothing ever reads it and lib/Python/Lib above is the stdlib.
 
     def _stage_stdlib(self, dest):
         src = self.dir / "lib" / "Python" / "Lib"

@@ -81,6 +81,9 @@ def smoke_windows(archive, version, work):
     with zipfile.ZipFile(archive) as zf:
         zf.extractall(work)
     pkg = only_dir(work)
+    if list(pkg.glob("python3*.zip")):
+        fail("%s: ships a python3NN.zip; the engine imports the stdlib from lib/Python/Lib, "
+             "so it is dead weight" % archive.name)
     env = dict(os.environ, WINEDEBUG="-all")
     r = subprocess.run(["wine", "mcrogueface.exe", "--headless", "-c", PROBE], cwd=pkg, env=env,
                        capture_output=True, text=True, timeout=300)
