@@ -102,6 +102,7 @@ EXTERNAL_INPUTS = {
     "demo/skeletal_animation_demo.py": (["assets/models/RiggedSimple.glb", "assets/models/CesiumMan.glb"], _ASSET_PACK),
     "unit/test_api_docs.py": (["docs/API_REFERENCE_DYNAMIC.md"], _GENERATED_DOCS),
     "unit/test_stubs.py": (["stubs/mcrfpy.pyi"], _GENERATED_DOCS),
+    "packaging/network_stdlib_packaged_windows_test.py": (["build-windows/mcrogueface.exe"], "needs a `make windows` build (and wine)"),
 }
 
 
