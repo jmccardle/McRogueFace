@@ -27,7 +27,7 @@ For detailed architecture, philosophy, and decision framework, see the [Strategi
 
 ## Current State (2026-10-17)
 
-**0.3.4 is released** (tag `0.3.4` = 9228230; suite 734/734, snippets 282/282; Linux, Windows and WASM packages in `dist/`), pushed to Forgejo, goblin and GitHub. The GitHub release pages for 0.3.1-0.3.4 are not published yet. Master is `0.3.5-dev`. Releases are cut by `make release VERSION=x.y.z` (#475); the version header is the only source of truth, the tag comes last, and the script never pushes or publishes.
+**0.3.4 is released** (tag `0.3.4` = 9228230; suite 734/734, snippets 282/282; Linux, Windows and WASM packages in `dist/`), pushed to Forgejo, goblin and GitHub. The GitHub release page for 0.3.4 is published (by John, 2026-10-18, with the 26.5 MB Windows zip that matches the tag); 0.3.1-0.3.3 are not. Master is `0.3.5-dev`. Releases are cut by `make release VERSION=x.y.z` (#475); the version header is the only source of truth, the tag comes last, and the script never pushes or publishes.
 
 ### The 0.3 series (October 2026)
 - **0.3.0** (26cd8b6): CPython 3.15 embed, frame pointers (#421), exit teardown (#468), `mcrfpy.lock()` windows, one package per platform (#435). Notes: `docs/release-notes-0.3.0.md`.
@@ -54,7 +54,7 @@ Milestones are not set up in Forgejo; these groupings are from the labels and th
 
 ### Open decisions and size audit (for John)
 - Package size, not yet done: audit the Linux and WASM packages for dead files (Windows only was audited); `lib/Python/Lib/profiling` (~375 KB compressed), stray non-code files in the filtered Lib (`.rst`, `.css`); the pip wheel in `ensurepip` (1.76 MB) is needed by `mcrf_project deps` and `libcrypto`/`libssl`/`sqlite3` (~3.5 MB) are the networking guarantee, so both stay unless John says otherwise.
-- 0.3.4 GitHub draft: replace the Windows asset with a rebuilt smaller one (would not match the tagged commit), or publish as is and let 0.3.5 carry the cut. GitHub release pages for 0.3.1-0.3.3 are undrafted.
+- GitHub release pages for 0.3.1-0.3.3 are not published (0.3.4 is; 0.3.5 carries the smaller Windows zip).
 - Push be0ec2b and ade4681 to goblin + github at the next milestone (Forgejo only so far).
 - Whether the 0.3.0 `lib/Python/DLLs` addition (+5.1 MB) was intended (assumed #435 / networking guarantee; unconfirmed).
 
