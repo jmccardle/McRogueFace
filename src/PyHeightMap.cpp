@@ -1971,6 +1971,19 @@ PyObject* PyHeightMap::gradients(PyHeightMapObject* self, PyObject* args, PyObje
 // =============================================================================
 
 // Helper: Validate other HeightMap (type check only, no dimension check)
+
+// An operation whose operand is the map itself must read the operand as it was before the
+// operation began (memmove semantics), or an overlapping region re-reads cells it has
+// already written (#519).
+#define SNAPSHOT_IF_ALIASED(name, self_obj, other_obj)                                      \
+    std::vector<float> name##_snapshot;                                                     \
+    const float* name = (other_obj)->heightmap->values;                                     \
+    if ((other_obj) == (self_obj)) {                                                        \
+        name##_snapshot.assign((other_obj)->heightmap->values,                              \
+                               (other_obj)->heightmap->values + (size_t)(other_obj)->heightmap->w * (other_obj)->heightmap->h); \
+        name = name##_snapshot.data();                                                      \
+    }
+
 static PyHeightMapObject* validateOtherHeightMapType(PyObject* other_obj, const char* method_name)
 {
     // Check that other is a HeightMap
@@ -2015,6 +2028,7 @@ PyObject* PyHeightMap::add(PyHeightMapObject* self, PyObject* args, PyObject* kw
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "add");
     if (!other) return nullptr;
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
@@ -2026,7 +2040,7 @@ PyObject* PyHeightMap::add(PyHeightMapObject* self, PyObject* args, PyObject* kw
     for (int y = 0; y < region.height; y++) {
         for (int x = 0; x < region.width; x++) {
             self->heightmap->values[region.dest_idx(x, y)] +=
-                other->heightmap->values[region.src_idx(x, y)];
+                srcv[region.src_idx(x, y)];
         }
     }
 
@@ -2055,6 +2069,7 @@ PyObject* PyHeightMap::subtract(PyHeightMapObject* self, PyObject* args, PyObjec
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "subtract");
     if (!other) return nullptr;
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
@@ -2066,7 +2081,7 @@ PyObject* PyHeightMap::subtract(PyHeightMapObject* self, PyObject* args, PyObjec
     for (int y = 0; y < region.height; y++) {
         for (int x = 0; x < region.width; x++) {
             self->heightmap->values[region.dest_idx(x, y)] -=
-                other->heightmap->values[region.src_idx(x, y)];
+                srcv[region.src_idx(x, y)];
         }
     }
 
@@ -2095,6 +2110,7 @@ PyObject* PyHeightMap::multiply(PyHeightMapObject* self, PyObject* args, PyObjec
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "multiply");
     if (!other) return nullptr;
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
@@ -2106,7 +2122,7 @@ PyObject* PyHeightMap::multiply(PyHeightMapObject* self, PyObject* args, PyObjec
     for (int y = 0; y < region.height; y++) {
         for (int x = 0; x < region.width; x++) {
             self->heightmap->values[region.dest_idx(x, y)] *=
-                other->heightmap->values[region.src_idx(x, y)];
+                srcv[region.src_idx(x, y)];
         }
     }
 
@@ -2136,6 +2152,7 @@ PyObject* PyHeightMap::lerp(PyHeightMapObject* self, PyObject* args, PyObject* k
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "lerp");
     if (!other) return nullptr;
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
@@ -2148,7 +2165,7 @@ PyObject* PyHeightMap::lerp(PyHeightMapObject* self, PyObject* args, PyObject* k
     for (int y = 0; y < region.height; y++) {
         for (int x = 0; x < region.width; x++) {
             float& dest = self->heightmap->values[region.dest_idx(x, y)];
-            float src = other->heightmap->values[region.src_idx(x, y)];
+            float src = srcv[region.src_idx(x, y)];
             dest = dest * one_minus_t + src * t;
         }
     }
@@ -2178,6 +2195,7 @@ PyObject* PyHeightMap::copy_from(PyHeightMapObject* self, PyObject* args, PyObje
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "copy_from");
     if (!other) return nullptr;
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
@@ -2189,7 +2207,7 @@ PyObject* PyHeightMap::copy_from(PyHeightMapObject* self, PyObject* args, PyObje
     for (int y = 0; y < region.height; y++) {
         for (int x = 0; x < region.width; x++) {
             self->heightmap->values[region.dest_idx(x, y)] =
-                other->heightmap->values[region.src_idx(x, y)];
+                srcv[region.src_idx(x, y)];
         }
     }
 
@@ -2218,6 +2236,7 @@ PyObject* PyHeightMap::hmap_max(PyHeightMapObject* self, PyObject* args, PyObjec
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "max");
     if (!other) return nullptr;
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
@@ -2229,7 +2248,7 @@ PyObject* PyHeightMap::hmap_max(PyHeightMapObject* self, PyObject* args, PyObjec
     for (int y = 0; y < region.height; y++) {
         for (int x = 0; x < region.width; x++) {
             float& dest = self->heightmap->values[region.dest_idx(x, y)];
-            float src = other->heightmap->values[region.src_idx(x, y)];
+            float src = srcv[region.src_idx(x, y)];
             if (src > dest) dest = src;
         }
     }
@@ -2259,6 +2278,7 @@ PyObject* PyHeightMap::hmap_min(PyHeightMapObject* self, PyObject* args, PyObjec
 
     PyHeightMapObject* other = validateOtherHeightMapType(other_obj, "min");
     if (!other) return nullptr;
+    SNAPSHOT_IF_ALIASED(srcv, self, other);
 
     // Parse region parameters
     HMRegion region;
@@ -2270,7 +2290,7 @@ PyObject* PyHeightMap::hmap_min(PyHeightMapObject* self, PyObject* args, PyObjec
     for (int y = 0; y < region.height; y++) {
         for (int x = 0; x < region.width; x++) {
             float& dest = self->heightmap->values[region.dest_idx(x, y)];
-            float src = other->heightmap->values[region.src_idx(x, y)];
+            float src = srcv[region.src_idx(x, y)];
             if (src < dest) dest = src;
         }
     }
