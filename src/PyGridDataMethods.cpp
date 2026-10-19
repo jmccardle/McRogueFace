@@ -635,6 +635,31 @@ PyObject* PyGridData::py_entities_in_radius(PyGridDataObject* self, PyObject* ar
 // HeightMap application methods
 // =========================================================================
 
+// A (min, max) range as a tuple or list, min <= max: the same contract as the layers'
+// apply_* methods (#523).
+static bool parseValueRange(PyObject* range_obj, float* out_min, float* out_max, const char* what) {
+    if (!PyTuple_Check(range_obj) && !PyList_Check(range_obj)) {
+        PyErr_Format(PyExc_TypeError, "%s must be a (min, max) tuple or list", what);
+        return false;
+    }
+    if (PySequence_Size(range_obj) != 2) {
+        PyErr_Format(PyExc_ValueError, "%s must have exactly 2 elements (min, max)", what);
+        return false;
+    }
+    *out_min = (float)PyFloat_AsDouble(PySequence_Fast_GET_ITEM(range_obj, 0));
+    *out_max = (float)PyFloat_AsDouble(PySequence_Fast_GET_ITEM(range_obj, 1));
+    if (PyErr_Occurred()) return false;
+    if (*out_min > *out_max) {
+        // PyErr_Format has no %g
+        char buf[256];
+        snprintf(buf, sizeof(buf), "%s min (%g) must not exceed max (%g)", what,
+                 (double)*out_min, (double)*out_max);
+        PyErr_SetString(PyExc_ValueError, buf);
+        return false;
+    }
+    return true;
+}
+
 PyObject* PyGridData::py_apply_threshold(PyGridDataObject* self, PyObject* args, PyObject* kwds) {
     static const char* keywords[] = {"source", "range", "walkable", "transparent", nullptr};
     PyObject* source_obj = nullptr;
@@ -658,15 +683,8 @@ PyObject* PyGridData::py_apply_threshold(PyGridDataObject* self, PyObject* args,
         return nullptr;
     }
 
-    if (!PyTuple_Check(range_obj) || PyTuple_Size(range_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "range must be a tuple of (min, max)");
-        return nullptr;
-    }
-
-    float range_min = (float)PyFloat_AsDouble(PyTuple_GetItem(range_obj, 0));
-    float range_max = (float)PyFloat_AsDouble(PyTuple_GetItem(range_obj, 1));
-
-    if (PyErr_Occurred()) {
+    float range_min, range_max;
+    if (!parseValueRange(range_obj, &range_min, &range_max, "range")) {
         return nullptr;
     }
 
@@ -762,12 +780,6 @@ PyObject* PyGridData::py_apply_ranges(PyGridDataObject* self, PyObject* args) {
         PyObject* range_tuple = PyTuple_GetItem(entry, 0);
         PyObject* props_dict = PyTuple_GetItem(entry, 1);
 
-        if (!PyTuple_Check(range_tuple) || PyTuple_Size(range_tuple) != 2) {
-            PyErr_Format(PyExc_TypeError,
-                "ranges[%zd] range must be a tuple of (min, max)", i);
-            return nullptr;
-        }
-
         if (!PyDict_Check(props_dict)) {
             PyErr_Format(PyExc_TypeError,
                 "ranges[%zd] properties must be a dict", i);
@@ -775,10 +787,9 @@ PyObject* PyGridData::py_apply_ranges(PyGridDataObject* self, PyObject* args) {
         }
 
         RangeEntry re;
-        re.min = (float)PyFloat_AsDouble(PyTuple_GetItem(range_tuple, 0));
-        re.max = (float)PyFloat_AsDouble(PyTuple_GetItem(range_tuple, 1));
-
-        if (PyErr_Occurred()) {
+        char range_name[32];
+        snprintf(range_name, sizeof(range_name), "ranges[%zd] range", i);
+        if (!parseValueRange(range_tuple, &re.min, &re.max, range_name)) {
             return nullptr;
         }
 

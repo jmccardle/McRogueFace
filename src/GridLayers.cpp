@@ -1,3 +1,4 @@
+#include <climits>
 #include "GridLayers.h"
 #include "PyWrap.h"
 #include "McRFPy_Doc.h"
@@ -914,7 +915,7 @@ PyMethodDef PyGridLayerAPI::ColorLayer_methods[] = {
          MCRF_DESC("Apply multiple color assignments from a HeightMap in a single pass. Later ranges override earlier ones if overlapping.")
          MCRF_ARGS_START
          MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
-         MCRF_ARG("ranges", "List of range specs: ((min, max), color) for fixed or ((min, max), (color_low, color_high)) for gradient")
+         MCRF_ARG("ranges", "List of range specs: ((min, max), color) for fixed or ((min, max), (color_low, color_high)) for gradient; colors may be Color objects, tuples or names")
          MCRF_RETURNS("self for method chaining")
          MCRF_NOTE("Cells not matching any range are left unchanged.")
      )},
@@ -1569,25 +1570,18 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_ranges(PyColorLayerObject* self, PyOb
         cr.min_val = min_val;
         cr.max_val = max_val;
 
-        // Determine if this is a gradient (tuple of 2 tuples) or fixed color
-        // Check if color_spec is a tuple of 2 elements where each element is also a sequence
-        bool is_gradient = false;
-        if (PyTuple_Check(color_spec) && PyTuple_Size(color_spec) == 2) {
-            PyObject* first = PyTuple_GetItem(color_spec, 0);
-            PyObject* second = PyTuple_GetItem(color_spec, 1);
-            // If both elements are tuples/lists (not ints), it's a gradient
-            if ((PyTuple_Check(first) || PyList_Check(first)) &&
-                (PyTuple_Check(second) || PyList_Check(second))) {
-                is_gradient = true;
-            }
-        }
+        // A gradient is a pair of colours; a single colour is never a 2-element sequence
+        // (a tuple has 3 or 4 channels), so the pair is unambiguous whatever its elements are:
+        // tuples, Color objects or colour names (#522).
+        bool is_gradient = (PyTuple_Check(color_spec) || PyList_Check(color_spec)) &&
+                           PySequence_Size(color_spec) == 2;
 
         cr.is_gradient = is_gradient;
 
         if (is_gradient) {
             // Parse as gradient: ((r1,g1,b1), (r2,g2,b2))
-            PyObject* color_low_obj = PyTuple_GetItem(color_spec, 0);
-            PyObject* color_high_obj = PyTuple_GetItem(color_spec, 1);
+            PyObject* color_low_obj = PySequence_Fast_GET_ITEM(color_spec, 0);
+            PyObject* color_high_obj = PySequence_Fast_GET_ITEM(color_spec, 1);
 
             char color_name[48];
             snprintf(color_name, sizeof(color_name), "ranges[%zd] color_low", i);
@@ -1857,6 +1851,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
          MCRF_ARG("index", "Tile index (-1 for no tile)")
          MCRF_RAISES("IndexError", "If coordinates are out of bounds")
+         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
      )},
     {"fill", (PyCFunction)PyGridLayerAPI::TileLayer_fill, METH_VARARGS,
      MCRF_METHOD(TileLayer, fill,
@@ -1864,6 +1859,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_DESC("Fill the entire layer with the specified tile index.")
          MCRF_ARGS_START
          MCRF_ARG("index", "Tile index to fill with (-1 for no tile)")
+         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
      )},
     {"fill_rect", (PyCFunction)PyGridLayerAPI::TileLayer_fill_rect, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TileLayer, fill_rect,
@@ -1873,6 +1869,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_ARG("pos", "Top-left corner as (x, y)")
          MCRF_ARG("size", "Dimensions as (width, height)")
          MCRF_ARG("index", "Tile index to fill with (-1 for no tile)")
+         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
      )},
     {"apply_threshold", (PyCFunction)PyGridLayerAPI::TileLayer_apply_threshold, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TileLayer, apply_threshold,
@@ -1883,6 +1880,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_ARG("range", "Value range as (min, max) inclusive")
          MCRF_ARG("tile", "Tile index to set for cells in range")
          MCRF_RETURNS("self for method chaining")
+         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
      )},
     {"apply_ranges", (PyCFunction)PyGridLayerAPI::TileLayer_apply_ranges, METH_VARARGS,
      MCRF_METHOD(TileLayer, apply_ranges,
@@ -1892,6 +1890,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
          MCRF_ARG("ranges", "List of ((min, max), tile_index) tuples")
          MCRF_RETURNS("self for method chaining")
+         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
          MCRF_NOTE("Cells not matching any range are left unchanged.")
      )},
     {NULL}
@@ -2017,6 +2016,33 @@ PyObject* PyGridLayerAPI::TileLayer_at(PyTileLayerObject* self, PyObject* args, 
     return PyLong_FromLong(self->data->at(x, y));
 }
 
+// A tile index a TileLayer may store (#521): -1 ("no tile"), or a cell of the texture it draws
+// with. A layer with no texture yet (its grid's is assigned at first draw) can only reject
+// what is never valid. ValueError names the value and the valid range.
+static bool CheckTileIndex(const TileLayer& layer, long long value) {
+    if (value == -1) return true;
+    if (value < -1) {
+        PyErr_Format(PyExc_ValueError,
+                     "tile index %lld is invalid: use -1 for no tile, or a non-negative sprite index",
+                     value);
+        return false;
+    }
+    std::shared_ptr<PyTexture> tex = layer.drawTexture();
+    if (tex) {
+        long long count = tex->getSpriteCount();
+        if (value >= count) {
+            PyErr_Format(PyExc_ValueError,
+                         "tile index %lld is out of range for a texture with %lld sprites "
+                         "(valid: -1, or 0 to %lld)", value, count, count - 1);
+            return false;
+        }
+    } else if (value > INT_MAX) {
+        PyErr_Format(PyExc_ValueError, "tile index %lld is too large", value);
+        return false;
+    }
+    return true;
+}
+
 PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args) {
     PyObject* pos_obj;
     int index;
@@ -2039,6 +2065,7 @@ PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args)
         return NULL;
     }
 
+    if (!CheckTileIndex(*self->data, index)) return NULL;
     self->data->at(x, y) = index;
     self->data->markDirty(x, y);  // Mark only the affected chunk
     Py_RETURN_NONE;
@@ -2089,9 +2116,16 @@ int PyGridLayerAPI::TileLayer_subscript_assign(PyTileLayerObject* self, PyObject
         PyErr_SetString(PyExc_TypeError, "tile index must be an int");
         return -1;
     }
-    int index = (int)PyLong_AsLong(value);
+    int overflow = 0;
+    long long index = PyLong_AsLongLongAndOverflow(value, &overflow);
+    if (overflow) {
+        PyErr_SetString(PyExc_ValueError, "tile index is out of range");
+        return -1;
+    }
+    if (index == -1 && PyErr_Occurred()) return -1;
+    if (!CheckTileIndex(*self->data, index)) return -1;
 
-    self->data->at(x, y) = index;
+    self->data->at(x, y) = (int)index;
     self->data->markDirty(x, y);
     return 0;
 }
@@ -2113,6 +2147,7 @@ PyObject* PyGridLayerAPI::TileLayer_fill(PyTileLayerObject* self, PyObject* args
         return NULL;
     }
 
+    if (!CheckTileIndex(*self->data, index)) return NULL;
     self->data->fill(index);
     Py_RETURN_NONE;
 }
@@ -2155,6 +2190,7 @@ PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject*
         return NULL;
     }
 
+    if (!CheckTileIndex(*self->data, tile_index)) return NULL;
     self->data->fillRect(x, y, width, height, tile_index);
     Py_RETURN_NONE;
 }
@@ -2197,6 +2233,8 @@ PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyO
     if (!ParseRange(range_obj, &range_min, &range_max, "range")) {
         return NULL;
     }
+
+    if (!CheckTileIndex(*self->data, tile_index)) return NULL;
 
     // Apply threshold
     int width = self->data->grid_x;
@@ -2281,11 +2319,18 @@ PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObje
             return NULL;
         }
 
-        int tile_index = (int)PyLong_AsLong(tile_obj);
-        if (PyErr_Occurred()) {
+        if (!PyLong_Check(tile_obj)) {
             PyErr_Format(PyExc_TypeError, "ranges[%zd] tile must be an integer", i);
             return NULL;
         }
+        int overflow = 0;
+        long long tile_value = PyLong_AsLongLongAndOverflow(tile_obj, &overflow);
+        if (overflow) {
+            PyErr_Format(PyExc_ValueError, "ranges[%zd] tile index is out of range", i);
+            return NULL;
+        }
+        if (!CheckTileIndex(*self->data, tile_value)) return NULL;
+        int tile_index = (int)tile_value;
 
         ranges.push_back({min_val, max_val, tile_index});
     }

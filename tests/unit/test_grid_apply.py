@@ -241,12 +241,15 @@ def test_apply_ranges_invalid_format():
     except TypeError:
         pass
 
-    # Invalid: range not a tuple
+    # A list range is accepted, like the layers' (#523); a non-sequence range is not
+    grid.apply_ranges(hmap, [
+        ([0.0, 1.0], {"walkable": True}),
+    ])
     try:
         grid.apply_ranges(hmap, [
-            ([0.0, 1.0], {"walkable": True}),  # list instead of tuple for range
+            (0.5, {"walkable": True}),
         ])
-        print("FAIL: should have raised TypeError for non-tuple range")
+        print("FAIL: should have raised TypeError for non-sequence range")
         sys.exit(1)
     except TypeError:
         pass

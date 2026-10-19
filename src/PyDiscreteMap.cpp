@@ -1,4 +1,6 @@
 #include "PyDiscreteMap.h"
+#include <vector>
+#include <algorithm>
 #include "PyWrap.h"
 #include "McRFPy_API.h"
 #include "McRFPy_Doc.h"
@@ -12,9 +14,21 @@
 // ============================================================================
 // Helper: Parse an integer value from PyObject (handles int and IntEnum)
 // ============================================================================
+// An int object as an int, saturated to +-2^30. Every caller range-checks or saturates to
+// 0-255 afterwards, so saturating here keeps "too big" meaning too big (a bare (int) cast
+// of a long wrapped it, and an overflowing object left an exception pending).
+static int clampedInt(PyObject* long_obj) {
+    const long long limit = 1LL << 30;
+    int overflow = 0;
+    long long v = PyLong_AsLongLongAndOverflow(long_obj, &overflow);
+    if (overflow > 0) return (int)limit;
+    if (overflow < 0) return (int)-limit;
+    return (int)std::clamp(v, -limit, limit);
+}
+
 static bool parseIntValue(PyObject* value_obj, int* out_val) {
     if (PyLong_Check(value_obj)) {
-        *out_val = (int)PyLong_AsLong(value_obj);
+        *out_val = clampedInt(value_obj);
         return true;
     }
 
@@ -22,7 +36,7 @@ static bool parseIntValue(PyObject* value_obj, int* out_val) {
     PyObject* val_attr = PyObject_GetAttrString(value_obj, "value");
     if (val_attr) {
         if (PyLong_Check(val_attr)) {
-            *out_val = (int)PyLong_AsLong(val_attr);
+            *out_val = clampedInt(val_attr);
             Py_DECREF(val_attr);
             return true;
         }
@@ -106,6 +120,19 @@ static PyDiscreteMapObject* validateOtherDiscreteMapType(PyObject* other_obj, co
 
     return other;
 }
+
+// A map used as its own operand must be read as it was before the operation began
+// (memmove semantics, #519), so an aliased operand is snapshotted first.
+struct OperandView {
+    std::vector<uint8_t> snapshot;
+    const uint8_t* p;
+    OperandView(const PyDiscreteMapObject* self, const PyDiscreteMapObject* other) : p(other->values) {
+        if (self == other) {
+            snapshot.assign(other->values, other->values + (size_t)other->w * other->h);
+            p = snapshot.data();
+        }
+    }
+};
 
 // ============================================================================
 // Property definitions
@@ -766,11 +793,21 @@ PyObject* PyDiscreteMap::add(PyDiscreteMapObject* self, PyObject* args, PyObject
         if (!parseMapRegionScalar(self->w, self->h, pos, size, region)) {
             return nullptr;
         }
-        MapOps::add_scalar<Uint8Policy>(self->values, self->w, self->h,
-                                        Uint8Policy::clamp(scalar_val), region);
+        // A negative scalar subtracts: widen to int, then saturate (#520).
+        for (int y = 0; y < region.height; y++) {
+            for (int x = 0; x < region.width; x++) {
+                int idx = region.dest_idx(x, y);
+                self->values[idx] = Uint8Policy::clamp(static_cast<int>(self->values[idx]) + scalar_val);
+            }
+        }
     } else {
         PyErr_Clear();  // Clear the parseIntValue error
 
+        if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+            PyErr_Format(PyExc_TypeError, "add() requires a DiscreteMap or an int, not %.100s",
+                         Py_TYPE(other_obj)->tp_name);
+            return nullptr;
+        }
         PyDiscreteMapObject* other = validateOtherDiscreteMapType(other_obj, "add");
         if (!other) return nullptr;
 
@@ -779,7 +816,7 @@ PyObject* PyDiscreteMap::add(PyDiscreteMapObject* self, PyObject* args, PyObject
                            pos, source_pos, size, region)) {
             return nullptr;
         }
-        MapOps::add<Uint8Policy>(self->values, other->values, region);
+        MapOps::add<Uint8Policy>(self->values, OperandView(self, other).p, region);
     }
 
     Py_INCREF(self);
@@ -823,6 +860,11 @@ PyObject* PyDiscreteMap::subtract(PyDiscreteMapObject* self, PyObject* args, PyO
     } else {
         PyErr_Clear();
 
+        if (!PyObject_IsInstance(other_obj, (PyObject*)&mcrfpydef::PyDiscreteMapType)) {
+            PyErr_Format(PyExc_TypeError, "subtract() requires a DiscreteMap or an int, not %.100s",
+                         Py_TYPE(other_obj)->tp_name);
+            return nullptr;
+        }
         PyDiscreteMapObject* other = validateOtherDiscreteMapType(other_obj, "subtract");
         if (!other) return nullptr;
 
@@ -831,7 +873,7 @@ PyObject* PyDiscreteMap::subtract(PyDiscreteMapObject* self, PyObject* args, PyO
                            pos, source_pos, size, region)) {
             return nullptr;
         }
-        MapOps::subtract<Uint8Policy>(self->values, other->values, region);
+        MapOps::subtract<Uint8Policy>(self->values, OperandView(self, other).p, region);
     }
 
     Py_INCREF(self);
@@ -893,7 +935,7 @@ PyObject* PyDiscreteMap::copy_from(PyDiscreteMapObject* self, PyObject* args, Py
         return nullptr;
     }
 
-    MapOps::copy<Uint8Policy>(self->values, other->values, region);
+    MapOps::copy<Uint8Policy>(self->values, OperandView(self, other).p, region);
 
     Py_INCREF(self);
     return (PyObject*)self;
@@ -926,7 +968,7 @@ PyObject* PyDiscreteMap::dmap_max(PyDiscreteMapObject* self, PyObject* args, PyO
         return nullptr;
     }
 
-    MapOps::element_max<Uint8Policy>(self->values, other->values, region);
+    MapOps::element_max<Uint8Policy>(self->values, OperandView(self, other).p, region);
 
     Py_INCREF(self);
     return (PyObject*)self;
@@ -959,7 +1001,7 @@ PyObject* PyDiscreteMap::dmap_min(PyDiscreteMapObject* self, PyObject* args, PyO
         return nullptr;
     }
 
-    MapOps::element_min<Uint8Policy>(self->values, other->values, region);
+    MapOps::element_min<Uint8Policy>(self->values, OperandView(self, other).p, region);
 
     Py_INCREF(self);
     return (PyObject*)self;
@@ -996,7 +1038,7 @@ PyObject* PyDiscreteMap::bitwise_and(PyDiscreteMapObject* self, PyObject* args, 
         return nullptr;
     }
 
-    MapBitwise::bitwise_and(self->values, other->values, region);
+    MapBitwise::bitwise_and(self->values, OperandView(self, other).p, region);
 
     Py_INCREF(self);
     return (PyObject*)self;
@@ -1029,7 +1071,7 @@ PyObject* PyDiscreteMap::bitwise_or(PyDiscreteMapObject* self, PyObject* args, P
         return nullptr;
     }
 
-    MapBitwise::bitwise_or(self->values, other->values, region);
+    MapBitwise::bitwise_or(self->values, OperandView(self, other).p, region);
 
     Py_INCREF(self);
     return (PyObject*)self;
@@ -1062,7 +1104,7 @@ PyObject* PyDiscreteMap::bitwise_xor(PyDiscreteMapObject* self, PyObject* args, 
         return nullptr;
     }
 
-    MapBitwise::bitwise_xor(self->values, other->values, region);
+    MapBitwise::bitwise_xor(self->values, OperandView(self, other).p, region);
 
     Py_INCREF(self);
     return (PyObject*)self;

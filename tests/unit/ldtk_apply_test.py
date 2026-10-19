@@ -46,17 +46,17 @@ def test_apply_preserves_unmatched():
 
     # Pre-fill layer with a sentinel value
     layer = mcrfpy.TileLayer(name="test", texture=texture, grid_size=(3, 3))
-    layer.fill(99)
+    layer.fill(14)
 
     # Create empty map - no rules will match
     dm = mcrfpy.DiscreteMap((3, 3), fill=0)
     rs.apply(dm, layer, seed=0)
 
-    # All cells should still be 99 (no rules matched)
+    # All cells should still be 14 (no rules matched)
     for y in range(3):
         for x in range(3):
             val = layer.at(x, y)
-            assert val == 99, f"Expected 99 at ({x},{y}), got {val}"
+            assert val == 14, f"Expected 14 at ({x},{y}), got {val}"
     print("  unmatched cells preserved: OK")
 
 def test_apply_type_errors():
@@ -105,7 +105,7 @@ def test_apply_clipping():
     # DiscreteMap smaller than TileLayer
     dm2 = mcrfpy.DiscreteMap((2, 2), fill=1)
     layer2 = mcrfpy.TileLayer(name="big", texture=texture, grid_size=(5, 5))
-    layer2.fill(88)
+    layer2.fill(13)
 
     rs.apply(dm2, layer2, seed=0)
 
@@ -116,7 +116,7 @@ def test_apply_clipping():
             assert val >= 0, f"Expected tile at ({x},{y}), got {val}"
 
     # (3,3) should still be the fill value
-    assert layer2.at(3, 3) == 88, f"Expected 88 at (3,3), got {layer2.at(3, 3)}"
+    assert layer2.at(3, 3) == 13, f"Expected 13 at (3,3), got {layer2.at(3, 3)}"
     print("  clipping (small map, large layer): OK")
 
 def test_resolve_type_error():
