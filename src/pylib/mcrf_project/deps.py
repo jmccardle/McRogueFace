@@ -56,14 +56,6 @@ def run_executable(project, engine):
     return engine.exe
 
 
-def run_environment():
-    """The caller's environment minus VIRTUAL_ENV: the engine finds .venv from the path it is
-    launched by, so a stray VIRTUAL_ENV must neither help nor get in the way."""
-    env = dict(os.environ)
-    env.pop("VIRTUAL_ENV", None)
-    return env
-
-
 def requirements(project):
     """The pip arguments naming the project's requirements, or [] if it has none."""
     config = project.config
@@ -126,13 +118,12 @@ def install(project, engine, log):
     # Claimed before anything runs: an interrupted install is still ours to replace, and its
     # stamp matches no fingerprint, so require_installed() calls it not installed.
     (venv_dir(project) / STAMP).write_text(json.dumps({"incomplete": True}))
-    env = run_environment()
     log("creating %s with %s" % (venv_dir(project), engine.exe))
     steps = [([str(engine.exe), "-m", "venv", str(venv_dir(project))], "venv creation"),
              ([str(venv_python(project)), "-m", "pip", "install", "--only-binary=:all:",
                "--disable-pip-version-check"] + args, "pip")]
     for cmd, what in steps:
-        result = subprocess.call(cmd, cwd=project.dir, env=env)
+        result = subprocess.call(cmd, cwd=project.dir)
         if result != 0:
             shutil.rmtree(venv_dir(project))  # never leave a half-installed set looking installed
             raise ProjectError("%s failed (exit %d); see its output above" % (what, result))

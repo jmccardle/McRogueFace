@@ -64,8 +64,6 @@ struct McRogueFaceConfig {
     // Use --continue-after-exceptions to disable
     bool exit_on_exception = true;
 
-    // --use-virtual-env: honour VIRTUAL_ENV even in a packaged game (#510)
-    bool use_virtual_env = false;
 };
 
 #endif // MCROGUEFACE_CONFIG_H

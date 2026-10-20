@@ -257,7 +257,7 @@ class Project:
         self.require()
         # `args` may be --exec/-m/a script: launching through the venv covers every way of starting
         exe = deps.run_executable(self, engine)  # fails early if deps is missing or stale
-        return subprocess.call([str(exe)] + list(args), cwd=self.dir, env=deps.run_environment())
+        return subprocess.call([str(exe)] + list(args), cwd=self.dir)
 
     # --- dist ---------------------------------------------------------------------------
 

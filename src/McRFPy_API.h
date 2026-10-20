@@ -132,13 +132,6 @@ public:
     static std::atomic<bool> exception_occurred;
     static std::atomic<int> exit_code;
 
-    // #510: VIRTUAL_ENV policy, decided before Python starts (so not in mcrfpy's config object
-    // until it reads them). use_virtual_env is --use-virtual-env, set by main() after parsing;
-    // the rest is the outcome: the venv honoured, or the one ignored and why (empty: none).
-    static bool use_virtual_env;
-    static std::string virtual_env;
-    static std::string virtual_env_ignored;
-    static std::string virtual_env_ignored_reason;
     static void signalPythonException();  // Called by exception handlers
     static bool shouldExit();             // Checked by game loop
 };

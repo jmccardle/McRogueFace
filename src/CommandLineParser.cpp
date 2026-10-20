@@ -156,12 +156,6 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
             continue;
         }
 
-        if (arg == "--use-virtual-env") {
-            config.use_virtual_env = true;
-            current_arg++;
-            continue;
-        }
-
         if (arg == "--continue-after-exceptions") {
             config.exit_on_exception = false;
             current_arg++;
@@ -272,8 +266,6 @@ void CommandLineParser::print_help() {
               << "  --screenshot [path] : take a screenshot in headless mode\n"
               << "  --continue-after-exceptions : don't exit on Python callback exceptions\n"
               << "                       (default: exit on first exception)\n"
-              << "  --use-virtual-env : honour VIRTUAL_ENV in a packaged game, which ignores it\n"
-              << "                       by default"
               << "\n"
               << "Arguments:\n"
               << "  file   : program read from script file\n"

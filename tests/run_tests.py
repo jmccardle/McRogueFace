@@ -160,8 +160,8 @@ def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT,
 
     # Set up environment with library path
     env = os.environ.copy()
-    # Tests must not depend on the shell's activated virtualenv (#510); the ones about
-    # VIRTUAL_ENV set it themselves.
+    # The engine reads no VIRTUAL_ENV (#505), but the tests' own child pythons might; keep
+    # the shell's activated virtualenv out of them. The ones about VIRTUAL_ENV set it themselves.
     env.pop('VIRTUAL_ENV', None)
     existing_ld = env.get('LD_LIBRARY_PATH', '')
     env['LD_LIBRARY_PATH'] = f"{LIB_DIR}:{existing_ld}" if existing_ld else str(LIB_DIR)

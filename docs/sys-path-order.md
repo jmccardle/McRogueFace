@@ -3,14 +3,15 @@
 The engine builds `sys.path` itself (isolated Python config, no `PYTHONPATH`; `site` runs only to add a launch venv's site-packages).
 `E` is the directory of the real binary (symlinks are resolved: `/proc/self/exe` is
 canonicalised). Asserted by `tests/regression/issue_502_sys_path_order_test.py`,
-`tests/regression/issue_499_virtual_env_test.py`, `tests/regression/issue_510_virtual_env_policy_test.py` and
+`tests/regression/issue_505_virtual_env_ignored_test.py` and
 `tests/regression/issue_452_main_script_path_test.py`.
+
+(Rows are numbered from 1; there is no row 0. Row 0 was `$VIRTUAL_ENV`'s site-packages, removed in #505.)
 
 ## Linux and Windows
 
 | # | Entry | When |
 |---|-------|------|
-| 0 | `$VIRTUAL_ENV/lib/python3.X/site-packages` (`$VIRTUAL_ENV/Lib/site-packages` on Windows) | only if the environment variable `VIRTUAL_ENV` names a venv for this engine's Python, and the engine is not a packaged game (#499, #510); see *VIRTUAL_ENV* below |
 | 1 | `E/venv/lib/python3.X/site-packages` (`E/venv/Lib/site-packages` on Windows) | only if that directory exists; a bare `E/venv/` is ignored |
 | 2 | `E/scripts` | always; see *main script* below |
 | 3 | `E/lib/Python/lib.<platform>-3.X` (extension modules) | always |
@@ -26,10 +27,10 @@ Python home in the virtual filesystem.
 The main script's directory is `sys.path[0]` (#452), as with `python dir/script.py`. It
 **replaces** the `E/scripts` entry (the engine's own `scripts/` is not importable from a game
 unless the game is that directory). Game mode runs `scripts/game.py` from the working directory,
-so its directory is the main script directory. Entries 0 and 1 stay behind it.
+so its directory is the main script directory. Entry 1 stays behind it.
 
 `--exec script.py` does not run a main script: `sys.path` is unchanged (`E/scripts` stays where
-it is, entries 0 and 1 ahead of it). `-m module` follows the same list.
+it is, entry 1 ahead of it). `-m module` follows the same list.
 
 ## The sibling `venv/` rule
 
@@ -41,42 +42,26 @@ that build. Do not put project dependencies in the engine directory; the engine 
 read-only to projects. Tests must not depend on the contents of the engine directory: they run
 a private engine layout (a copied binary with symlinks to `lib/`, `assets/`, `scripts/`).
 
-## `VIRTUAL_ENV` (#499, #510)
+## `VIRTUAL_ENV` is not read (#505)
 
-An activated virtualenv for this engine's Python is honoured: row 0, behind only the main
-script directory and ahead of the sibling `venv/`. It is the **only** project-level lookup;
-the engine never searches for directories named `.venv` or `venv` (callers name the
-environment: `mcrf_project run` sets `VIRTUAL_ENV` to the `.venv` that `mcrf_project deps`
-created, which carries a `pyvenv.cfg`). Only `sys.path` changes: `sys.prefix`, `sysconfig`,
-`.pth` files are untouched.
+The engine never looks at the `VIRTUAL_ENV` environment variable, as CPython doesn't: an
+activated shell, a variable naming a valid venv, a broken directory or another Python's venv
+all change nothing (same `sys.path`, same `sys.prefix`, no message, exit status 0). A venv is
+found from the **launch path** (below); the way to use one is to run its own `bin/python` or
+`bin/mcrogueface`, which `mcrf_project run` does with the project's `.venv`. This replaces the
+#499/#510 policy (honour, ignore-with-a-note, hard error, `--use-virtual-env`); see the note
+at the top of `design-virtualenv-policy.md`.
 
-`VIRTUAL_ENV` is ambient shell state, often left over from another project, so what the
-engine does depends on whether the venv can be meant for it (#510):
+`mcrfpy.config.virtual_env` is the venv the interpreter runs in (`sys.prefix` when it differs
+from `sys.base_prefix`), or `None`. It is read from what CPython computed, not from the
+environment. `--use-virtual-env`, `mcrfpy.config.use_virtual_env` and
+`mcrfpy.config.virtual_env_ignored` no longer exist.
 
-| `VIRTUAL_ENV` names | Result |
-|---|---|
-| nothing (unset or empty) | nothing changes |
-| a venv for **another Python**: `pyvenv.cfg` says so (`version = 3.11.4` from `venv`, `version_info = 3.11.4.final.0` from virtualenv/uv), or, with no version line, its only site-packages is under another `lib/pythonX.Y`; also the same version's other build (`python3.X` vs free-threaded `python3.Xt`) | **ignored**: its packages could not load here. One line on stderr (`mcrogueface: ignoring VIRTUAL_ENV=...: it is for Python 3.11; this engine is 3.15`), and `mcrfpy.config.virtual_env_ignored` is `(path, reason)` |
-| a venv for **this Python** with its site-packages | **honoured**: row 0; `mcrfpy.config.virtual_env` is its path |
-| a directory with no `pyvenv.cfg`, or a venv for this Python with no site-packages | **fatal**: the engine prints one line naming the path to stderr and exits with status 1. It was meant for this engine and is broken; it does not fall back or skip the entry |
+A packaged game still has `mcrf-game.json` beside the binary (`runtime.GAME_MARKER`), for tools;
+the engine does not read it.
 
-An empty `VIRTUAL_ENV` counts as unset. WASM has a fixed list and ignores the variable.
-
-### Packaged games
-
-A game package made by `mcrf_project dist` has `mcrf-game.json` beside the binary
-(`runtime.GAME_MARKER`). A packaged game owns its interpreter: it ignores `VIRTUAL_ENV`
-entirely, and silently (a player has nothing to fix), so its own
-`venv/` (row 1) is what it imports, even when a valid venv for the same Python is active.
-`mcrfpy.config.virtual_env_ignored` still records it. A modder who wants a venv in front of
-the game's own packages passes `--use-virtual-env`; the rules above then apply as for a
-development engine. Engine release packages (`package-engine`) are not game packages and
-carry no marker: they are a developer's engine, and `mcrf_project run` relies on
-`VIRTUAL_ENV` there.
-
-The test runner (`tests/run_tests.py`) removes `VIRTUAL_ENV` from the environment of every
-test, so an activated venv in the shell can't change a result; tests about it set it
-themselves.
+The test runner (`tests/run_tests.py`) still removes `VIRTUAL_ENV` from the environment of every
+test, so an activated venv in the shell can't leak into child Pythons that do read it.
 
 ## Launching through a venv (#505)
 
@@ -91,7 +76,7 @@ getpath looks for `pyvenv.cfg` beside it or one directory above. The real engine
   `sys._base_executable` is the real engine; `sysconfig` paths and pip's install scheme follow
   `sys.prefix`, so nothing is ever installed into `E`.
 - `site.py` adds `ENV/lib/python3.X/site-packages` (row 6), after the stdlib, as for CPython.
-  Rows 0 and 1 are untouched and still come first.
+  Row 1 is untouched and still comes first (but see the isolation rule above).
 - `E` (where `lib/`, `assets/`, `scripts/` live) remains the resolved binary directory.
 
 A binary copied into a venv's `bin/` is found the same way. Windows keeps the real binary path

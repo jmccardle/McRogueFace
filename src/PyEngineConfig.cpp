@@ -44,20 +44,20 @@ CFG_BOOL_GETTER(get_audio_enabled, audio_enabled)
 CFG_BOOL_GETTER(get_run_forever, run_forever)
 CFG_BOOL_GETTER(get_interactive, interactive_mode)
 CFG_BOOL_GETTER(get_exit_on_exception, exit_on_exception)
-CFG_BOOL_GETTER(get_use_virtual_env, use_virtual_env)
 
-// #510: what became of VIRTUAL_ENV, decided before Python started (McRFPy_API statics)
+// #505: the venv this interpreter runs in: CPython's own verdict (getpath found a pyvenv.cfg
+// from the launch path, so prefix differs from base_prefix), not the VIRTUAL_ENV variable.
 static PyObject* get_virtual_env(PyObject*, void*)
 {
-    return str_or_none(McRFPy_API::virtual_env);
-}
-
-static PyObject* get_virtual_env_ignored(PyObject*, void*)
-{
-    if (McRFPy_API::virtual_env_ignored.empty()) Py_RETURN_NONE;
-    mcrf::PyRef path(PyUnicode_DecodeFSDefault(McRFPy_API::virtual_env_ignored.c_str()));
-    if (!path) return NULL;
-    return Py_BuildValue("(Os)", path.get(), McRFPy_API::virtual_env_ignored_reason.c_str());
+    PyObject* prefix = PyConfig_Get("prefix");
+    if (!prefix) return NULL;
+    PyObject* base_prefix = PyConfig_Get("base_prefix");
+    if (!base_prefix) { Py_DECREF(prefix); return NULL; }
+    int same = PyObject_RichCompareBool(prefix, base_prefix, Py_EQ);
+    Py_DECREF(base_prefix);
+    if (same < 0) { Py_DECREF(prefix); return NULL; }
+    if (same) { Py_DECREF(prefix); Py_RETURN_NONE; }
+    return prefix;
 }
 
 static PyObject* get_exec_scripts(PyObject*, void*)
@@ -138,15 +138,10 @@ PyGetSetDef PyEngineConfig::getsetters[] = {
      MCRF_PROPERTY(interactive, "True with -i (bool, read-only)."), NULL},
     {"screenshot_path", (getter)get_screenshot_path, NULL,
      MCRF_PROPERTY(screenshot_path, "The --screenshot path, or None (str | None, read-only)."), NULL},
-    {"use_virtual_env", (getter)get_use_virtual_env, NULL,
-     MCRF_PROPERTY(use_virtual_env, "True with --use-virtual-env: a packaged game honours VIRTUAL_ENV (bool, read-only)."), NULL},
     {"virtual_env", (getter)get_virtual_env, NULL,
-     MCRF_PROPERTY(virtual_env, "The VIRTUAL_ENV whose site-packages is on sys.path, or None (str | None, read-only). "
-         "See docs/sys-path-order.md."), NULL},
-    {"virtual_env_ignored", (getter)get_virtual_env_ignored, NULL,
-     MCRF_PROPERTY(virtual_env_ignored, "When VIRTUAL_ENV was set but not used, a (path, reason) pair of str: it "
-         "is for another Python, or this is a packaged game without --use-virtual-env. Otherwise None "
-         "(tuple | None, read-only)."), NULL},
+     MCRF_PROPERTY(virtual_env, "The virtual environment this interpreter runs in (sys.prefix when it "
+         "differs from sys.base_prefix), or None (str | None, read-only). Found from the launch path, "
+         "never from the VIRTUAL_ENV variable. See docs/sys-path-order.md."), NULL},
     {"exit_on_exception", (getter)get_exit_on_exception, (setter)set_exit_on_exception,
      MCRF_PROPERTY(exit_on_exception,
          "Whether an uncaught exception in a Python callback ends the process (bool). "
