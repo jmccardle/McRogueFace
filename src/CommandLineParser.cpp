@@ -10,6 +10,7 @@ CommandLineParser::CommandLineParser(int argc, char* argv[])
 CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& config) {
     ParseResult result;
     current_arg = 1;  // Reset for each parse
+    if (argc > 0) config.launch_argv0 = argv[0];  // #505
     
     // Detect if running as Python interpreter
 #ifndef __EMSCRIPTEN__
@@ -17,6 +18,7 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
     if (exec_name.string().find("python") == 0) {
         config.headless = true;
         config.python_mode = true;
+        config.plain_interpreter = true;  // #505: a script runs and exits
     }
 #endif
     

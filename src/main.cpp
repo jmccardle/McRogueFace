@@ -192,6 +192,15 @@ int run_python_interpreter(const McRogueFaceConfig& config)
             PyRun_InteractiveLoop(stdin, "<stdin>");
         }
 
+        // #505: invoked as python*, a script is a plain interpreter run: it ends with the
+        // script. (sys.exit() already left through PyErr_Print inside runScriptSource, with
+        // the script's own status; an uncaught exception has printed its traceback.)
+        if (config.plain_interpreter && !config.run_forever) {
+            McRFPy_API::api_shutdown();
+            delete engine;
+            return result == 0 ? 0 : 1;
+        }
+
         // Run the game engine after script execution
         engine->run();
 

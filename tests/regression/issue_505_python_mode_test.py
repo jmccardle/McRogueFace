@@ -79,7 +79,10 @@ def python_mode_checks(label, python, cwd):
     rc, out, err = run([python, os.path.join(cwd, "raise505.py")], cwd, EXIT_TIMEOUT)
     check(rc is not None and rc != 0, "%s: a raising script exits nonzero (rc=%r)" % (label, rc))
     check("ValueError: boom505" in err and "Traceback" in err,
-          "%s: the traceback is on stderr (%r)" % (label, err[-200:]))
+          "%s: the traceback is on stderr" % label)
+    # (the runner scores any output containing a traceback as a failure, so it is not echoed on success)
+    if not ("ValueError: boom505" in err and "Traceback" in err):
+        print("FAIL: stderr was: %r" % err[-200:])
 
     rc, out, err = run([python, "--run-forever", script], cwd, STAY_UP_TIMEOUT)
     check(rc is None and "MARK505" in out,

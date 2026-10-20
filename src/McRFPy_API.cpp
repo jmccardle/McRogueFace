@@ -3,6 +3,10 @@
 #include "PyWrap.h"
 #include "EngineRandom.h"
 #include <climits>
+#include <cstdlib>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 #include <fstream>
 #include <cmath>
 
@@ -1358,6 +1362,56 @@ static int mcrf_requested_gil_setting()
 // its interpreter: VIRTUAL_ENV from the player's shell is ignored unless --use-virtual-env.
 static const char* const GAME_PACKAGE_MARKER = "mcrf-game.json";
 
+#ifndef __EMSCRIPTEN__
+// #505: the path handed to CPython as PyConfig.executable. getpath looks for pyvenv.cfg
+// beside (or one directory above) this path, so it must be the UNRESOLVED launch path:
+// ENV/bin/python is a symlink to the engine, and the resolved binary never sits in a venv.
+// argv[0] made absolute lexically (like os.path.abspath); with no '/' it is searched on
+// PATH as execvp did. Never realpath'd. Windows has no venv support (documented), so it
+// keeps the real binary.
+static std::wstring launch_executable(const McRogueFaceConfig& config)
+{
+#ifdef _WIN32
+    (void)config;
+    return executable_filename();
+#else
+    namespace fs = std::filesystem;
+    if (config.launch_argv0.empty()) {
+        std::cerr << "mcrogueface: cannot start Python: the launch path (argv[0]) is empty\n";
+        std::exit(1);
+    }
+    fs::path p(config.launch_argv0);
+    if (config.launch_argv0.find('/') == std::string::npos) {
+        const char* path_env = std::getenv("PATH");
+        std::string dirs = path_env ? path_env : "";
+        fs::path found;
+        size_t start = 0;
+        while (start <= dirs.size()) {
+            size_t end = dirs.find(':', start);
+            if (end == std::string::npos) end = dirs.size();
+            fs::path dir = dirs.substr(start, end - start);
+            if (dir.empty()) dir = ".";
+            fs::path cand = dir / p;
+            std::error_code ec;
+            if (fs::is_regular_file(cand, ec) && access(cand.c_str(), X_OK) == 0) {
+                found = cand;
+                break;
+            }
+            start = end + 1;
+        }
+        if (found.empty()) {
+            std::cerr << "mcrogueface: cannot start Python: '" << config.launch_argv0
+                      << "' (argv[0]) has no '/' and is not an executable on PATH\n";
+            std::exit(1);
+        }
+        p = found;
+    }
+    if (p.is_relative()) p = fs::current_path() / p;
+    return p.lexically_normal().wstring();
+#endif
+}
+#endif
+
 // major.minor of the Python a venv was made for, from pyvenv.cfg: `version` (venv) or
 // `version_info` (virtualenv, uv). Empty if neither is there.
 static std::string pyvenv_cfg_version(const std::filesystem::path& cfg)
@@ -1539,8 +1593,12 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
     }
 #else
     // Set sys.executable to the McRogueFace binary path
+    // #505: executable is the unresolved launch path (so getpath finds a venv's pyvenv.cfg),
+    // base_executable the real binary (so `venv` links to the engine, not to a venv).
     auto exe_filename = executable_filename();
-    PyConfig_SetString(&config, &config.executable, exe_filename.c_str());
+    auto launch_exe = launch_executable(mcrf_config);
+    PyConfig_SetString(&config, &config.executable, launch_exe.c_str());
+    PyConfig_SetString(&config, &config.base_executable, exe_filename.c_str());
 
     PyConfig_SetBytesString(&config, &config.home,
         narrow_string(executable_path() + L"/lib/Python").c_str());
@@ -1647,8 +1705,11 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     pyconfig.configure_c_stdio = 1;
 
     // Set sys.executable to the McRogueFace binary path
+    // #505: see init_python.
     auto exe_path = executable_filename();
-    PyConfig_SetString(&pyconfig, &pyconfig.executable, exe_path.c_str());
+    auto launch_exe = launch_executable(config);
+    PyConfig_SetString(&pyconfig, &pyconfig.executable, launch_exe.c_str());
+    PyConfig_SetString(&pyconfig, &pyconfig.base_executable, exe_path.c_str());
 
     // Set interactive mode (replaces deprecated Py_InspectFlag)
     if (config.interactive_mode) {
@@ -1718,21 +1779,9 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     auto exe_wpath = executable_filename();
     auto exe_path_fs = std::filesystem::path(exe_wpath);
     auto exe_dir = exe_path_fs.parent_path();
-    auto venv_root = exe_dir.parent_path();
-
+    // #505: a PEP 405 venv is found by getpath from the launch path; site.py adds its
+    // site-packages. Nothing to do here.
     const auto active_venv_sp = virtual_env_site_packages();  // #499 (exits if unusable)
-
-    if (std::filesystem::exists(venv_root / "pyvenv.cfg")) {
-        // We're running from within a venv!
-        // Add venv's site-packages to module search paths
-        auto site_packages = venv_root / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
-        // listed once: VIRTUAL_ENV naming this same venv adds it below, ahead of the sibling
-        if (!(active_venv_sp == site_packages)) {
-            PyWideStringList_Append(&pyconfig.module_search_paths,
-                                   site_packages.wstring().c_str());
-            pyconfig.module_search_paths_set = 1;
-        }
-    }
 
     // Check for sibling venv/ directory (self-contained deployment)
     auto sibling_venv = exe_dir / "venv";

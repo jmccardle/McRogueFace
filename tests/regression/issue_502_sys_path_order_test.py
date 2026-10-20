@@ -105,17 +105,22 @@ with tempfile.TemporaryDirectory() as tmp:
           "bare venv/ without site-packages is ignored (%r)" % (p and p[:2]))
 
     # --- engine inside a venv (pyvenv.cfg one level above the binary) ---------------------
-    # Its site-packages is listed whether or not it exists, ahead of E/scripts; a sibling
-    # E/venv site-packages, when there is one, is still ahead of it.
+    # #505: getpath finds the venv from the launch path and site.py (not the engine) adds its
+    # site-packages, after the stdlib; a sibling E/venv site-packages is still first. (Before
+    # #505 the engine prepended it ahead of E/scripts; the order is now CPython's.)
     root = os.path.join(tmp, "invenv")
     os.makedirs(root)
     with open(os.path.join(root, "pyvenv.cfg"), "w") as f:
         f.write("home = /usr/bin\n")
     e, exe, sp = make_engine(os.path.join(root, "bin"), venv_site_packages=True)
     parent_sp = os.path.join(os.path.realpath(root), "lib", STDLIB_DIRNAME, "site-packages")
+    os.makedirs(parent_sp)
     p = sys_path(exe, ["--exec", probe], tmp)
-    check(p is not None and p[:3] == [sp, parent_sp, e + "/scripts"],
-          "pyvenv.cfg above binary: sibling sp, venv sp, E/scripts (%r)" % (p and p[:3]))
+    check(p is not None and p[:2] == [sp, e + "/scripts"],
+          "pyvenv.cfg above binary: sibling sp, E/scripts first (%r)" % (p and p[:2]))
+    check(p is not None and p.count(parent_sp) == 1 and
+          index_of(p, parent_sp) > index_of(p, e + "/lib/Python/Lib"),
+          "pyvenv.cfg above binary: venv sp once, after the stdlib (%r)" % (p and p[-3:]))
 
 if failures:
     print("FAIL: %d check(s)" % len(failures))

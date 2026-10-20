@@ -78,12 +78,16 @@ def make_engine(root):
 def snapshot(e):
     """{relative path: (mtime_ns, size)} of E, following the symlinks into the real dirs.
     __pycache__ is left out: the interpreter may legitimately cache bytecode of its own
-    stdlib; what must not appear is anything pip or venv installed."""
+    stdlib; what must not appear is anything pip or venv installed. A directory is recorded
+    by name only: creating a __pycache__ inside it bumps its mtime, and anything pip adds or
+    removes shows up as an added/removed entry (or a changed file) anyway."""
     snap = {}
     for top in ("lib", "scripts"):
         for dirpath, dirnames, filenames in os.walk(os.path.join(e, top), followlinks=True):
             dirnames[:] = [d for d in dirnames if d != "__pycache__"]
-            for n in dirnames + filenames:
+            for n in dirnames:
+                snap[os.path.relpath(os.path.join(dirpath, n), e)] = None
+            for n in filenames:
                 p = os.path.join(dirpath, n)
                 st = os.stat(p)
                 snap[os.path.relpath(p, e)] = (st.st_mtime_ns, st.st_size)
