@@ -13,6 +13,7 @@ struct McRogueFaceConfig {
     
     // Python interpreter emulation
     bool python_mode = false;
+    bool plain_interpreter = false;  // launched as python*: a script runs headless and exits (#505)
     std::string python_command;      // -c command
     std::string python_module;       // -m module
     bool interactive_mode = false;   // -i flag
@@ -32,6 +33,11 @@ struct McRogueFaceConfig {
     int optimize = 0;                // -O  PyConfig.optimization_level (-OO = 2)
     std::vector<std::string> warnoptions;  // -W arg  PyConfig.warnoptions
     std::vector<std::string> xoptions;     // -X opt  PyConfig.xoptions
+
+    // argv[0] exactly as the process was launched (#505). The engine hands CPython the
+    // unresolved path built from it, so a venv's bin/python symlink is found the way
+    // CPython finds it. Empty when nothing set it (tests building a config by hand).
+    std::string launch_argv0;
 
     // Script execution
     std::filesystem::path script_path;
@@ -58,8 +64,6 @@ struct McRogueFaceConfig {
     // Use --continue-after-exceptions to disable
     bool exit_on_exception = true;
 
-    // --use-virtual-env: honour VIRTUAL_ENV even in a packaged game (#510)
-    bool use_virtual_env = false;
 };
 
 #endif // MCROGUEFACE_CONFIG_H

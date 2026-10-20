@@ -1,5 +1,11 @@
 # Design note: how much should the engine listen to the user's environment? (#510)
 
+> **Superseded by #505.** The engine no longer reads `VIRTUAL_ENV` at all (CPython doesn't): a
+> venv is found from the launch path, `--use-virtual-env` and `mcrfpy.config.use_virtual_env` /
+> `virtual_env_ignored` are gone, and `mcrfpy.config.virtual_env` now reports the venv the
+> interpreter runs in. Current behavior: `docs/sys-path-order.md`. The text below is the
+> record of the #510 policy, kept as history.
+
 Status: proposal, needs John's decision. Context: #499 made the engine honour `$VIRTUAL_ENV`; the 0.3.4 cloud review (#510) showed the cost: an unrelated active venv of another Python makes the engine exit (test suite 0/230; a shipped game refuses to launch).
 
 ## The tension

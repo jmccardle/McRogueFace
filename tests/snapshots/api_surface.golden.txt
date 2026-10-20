@@ -486,9 +486,7 @@ submodule automation
   prop screenshot_path: str | None (ro)
   prop script_args: Any (ro)
   prop script_path: str | None (ro)
-  prop use_virtual_env: bool (ro)
   prop virtual_env: str | None (ro)
-  prop virtual_env_ignored: tuple | None (ro)
 [Entity]
   prop behavior_type: int (ro)
   prop cell_pos: Vector (rw)

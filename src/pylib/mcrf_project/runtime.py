@@ -326,9 +326,8 @@ def web_archive(build, out):
 
 
 # A game package (`dist`, never an engine package: that is a developer's engine) marks
-# itself with this file beside the binary. The engine then owns its interpreter and ignores
-# the player's VIRTUAL_ENV unless run with --use-virtual-env (#510; GAME_PACKAGE_MARKER in
-# McRFPy_API.cpp).
+# itself with this file beside the binary. The engine does not read it (#505: it reads no
+# VIRTUAL_ENV either); it tells tools a directory is a game package.
 GAME_MARKER = "mcrf-game.json"
 
 

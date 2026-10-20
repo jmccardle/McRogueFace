@@ -123,7 +123,7 @@ def main(argv=None):
                    help="arguments for the engine (after --), e.g. -- --headless")
     p.set_defaults(func=cmd_run)
 
-    p = sub.add_parser("deps", help="install the project's requirements (mcrf.toml) into .venv/")
+    p = sub.add_parser("deps", help="install the project's requirements (mcrf.toml) into a .venv/ virtualenv")
     p.add_argument("--project", default=".", help="project directory (default: .)")
     p.add_argument("--engine", help=ENGINE_HELP)
     p.set_defaults(func=cmd_deps)

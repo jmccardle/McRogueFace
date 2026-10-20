@@ -3,6 +3,10 @@
 #include "PyWrap.h"
 #include "EngineRandom.h"
 #include <climits>
+#include <cstdlib>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 #include <fstream>
 #include <cmath>
 
@@ -114,10 +118,6 @@ PyObject* McRFPy_API::texture_warning = nullptr;
 // Exception handling state
 std::atomic<bool> McRFPy_API::exception_occurred{false};
 std::atomic<int> McRFPy_API::exit_code{0};
-bool McRFPy_API::use_virtual_env = false;
-std::string McRFPy_API::virtual_env;
-std::string McRFPy_API::virtual_env_ignored;
-std::string McRFPy_API::virtual_env_ignored_reason;
 
 // ============================================================================
 // #184: Metaclass for UI types - tracks callback generation for cache invalidation
@@ -1354,98 +1354,90 @@ static int mcrf_requested_gil_setting()
 #endif
 
 #ifndef __EMSCRIPTEN__
-// #510: a packaged game (`mcrf_project dist`) carries this file beside the binary. It owns
-// its interpreter: VIRTUAL_ENV from the player's shell is ignored unless --use-virtual-env.
-static const char* const GAME_PACKAGE_MARKER = "mcrf-game.json";
-
-// major.minor of the Python a venv was made for, from pyvenv.cfg: `version` (venv) or
-// `version_info` (virtualenv, uv). Empty if neither is there.
-static std::string pyvenv_cfg_version(const std::filesystem::path& cfg)
+// #505: the path handed to CPython as PyConfig.executable. getpath looks for pyvenv.cfg
+// beside (or one directory above) this path, so it must be the UNRESOLVED launch path:
+// ENV/bin/python is a symlink to the engine, and the resolved binary never sits in a venv.
+// argv[0] made absolute lexically (like os.path.abspath); with no '/' it is searched on
+// PATH as execvp did. Never realpath'd. With no usable argv[0] (empty, or a bare name not
+// on PATH, as from exec with a made-up argv[0]) no venv can be found from it, so it is the
+// real binary, as in CPython. Windows has no venv support (documented): the real binary.
+static std::wstring launch_executable(const McRogueFaceConfig& config)
 {
-    std::ifstream in(cfg);
+#ifdef _WIN32
+    (void)config;
+    return executable_filename();
+#else
+    namespace fs = std::filesystem;
+    if (config.launch_argv0.empty()) return executable_filename();
+    fs::path p(config.launch_argv0);
+    if (config.launch_argv0.find('/') == std::string::npos) {
+        const char* path_env = std::getenv("PATH");
+        std::string dirs = path_env ? path_env : "";
+        fs::path found;
+        size_t start = 0;
+        while (start <= dirs.size()) {
+            size_t end = dirs.find(':', start);
+            if (end == std::string::npos) end = dirs.size();
+            fs::path dir = dirs.substr(start, end - start);
+            if (dir.empty()) dir = ".";
+            fs::path cand = dir / p;
+            std::error_code ec;
+            if (fs::is_regular_file(cand, ec) && access(cand.c_str(), X_OK) == 0) {
+                found = cand;
+                break;
+            }
+            start = end + 1;
+        }
+        if (found.empty()) return executable_filename();
+        p = found;
+    }
+    if (p.is_relative()) p = fs::current_path() / p;
+    return p.lexically_normal().wstring();
+#endif
+}
+
+// #505: the engine's sibling E/venv/ is its equivalent of the base interpreter's
+// site-packages, so a PEP 405 venv with include-system-site-packages = false (the default)
+// does not see it. getpath only runs inside Py_InitializeFromConfig, so whether we run in a
+// venv is known only afterwards: CPython's verdict is prefix != base_prefix, and the pyvenv.cfg
+// it used is the one in prefix. Its include-system-site-packages key (which getpath doesn't
+// report; site.py reads it the same way) decides whether the sibling row stays on sys.path.
+static void isolate_from_sibling_venv(const std::filesystem::path& sibling_site_packages)
+{
+    mcrf::PyRef prefix(PyConfig_Get("prefix"));
+    mcrf::PyRef base_prefix(PyConfig_Get("base_prefix"));
+    if (!prefix || !base_prefix) { PyErr_Print(); std::exit(1); }
+    int same = PyObject_RichCompareBool(prefix.get(), base_prefix.get(), Py_EQ);
+    if (same < 0) { PyErr_Print(); std::exit(1); }
+    if (same) return;  // not in a venv: the sibling row stays
+
+    mcrf::PyRef venv_dir(PyOS_FSPath(prefix.get()));
+    if (!venv_dir) { PyErr_Print(); std::exit(1); }
+    std::ifstream in(std::filesystem::path(PyUnicode_AsUTF8(venv_dir.get())) / "pyvenv.cfg");
     std::string line;
+    auto trim = [](std::string t) {
+        t.erase(0, t.find_first_not_of(" \t\r"));
+        t.erase(t.find_last_not_of(" \t\r") + 1);
+        return t;
+    };
     while (std::getline(in, line)) {
         auto eq = line.find('=');
         if (eq == std::string::npos) continue;
-        auto trim = [](std::string t) {
-            t.erase(0, t.find_first_not_of(" \t\r"));
-            t.erase(t.find_last_not_of(" \t\r") + 1);
-            return t;
-        };
         std::string key = trim(line.substr(0, eq));
-        if (key != "version" && key != "version_info") continue;
         std::string value = trim(line.substr(eq + 1));
-        auto dot = value.find('.');
-        if (dot == std::string::npos) continue;
-        auto end = value.find_first_not_of("0123456789", dot + 1);
-        return value.substr(0, end);
-    }
-    return {};
-}
-
-// #499, #510: an activated virtualenv. The engine looks at VIRTUAL_ENV and nothing else (it
-// never guesses `.venv`/`venv`); callers such as `mcrf_project run` set it explicitly.
-// Returns the venv's site-packages to put on sys.path, or an empty path. Records the outcome
-// for mcrfpy.config. A VIRTUAL_ENV for another Python can't be meant for this engine (its
-// packages can't load here): ignored with one line on stderr. One that is for this Python
-// but unusable is meant for it: exit with the path and reason. A packaged game ignores it.
-static std::filesystem::path virtual_env_site_packages()
-{
-    const char* ve = std::getenv("VIRTUAL_ENV");
-    if (!ve || !*ve) return {};
-    const std::filesystem::path root(ve);
-    std::error_code ec;
-    auto ignore = [&](const std::string& reason, bool say) {
-        McRFPy_API::virtual_env_ignored = root.string();
-        McRFPy_API::virtual_env_ignored_reason = reason;
-        if (say) {
-            std::cerr << "mcrogueface: ignoring VIRTUAL_ENV=" << root.string() << ": " << reason
-                      << std::endl;
-        }
-        return std::filesystem::path();
-    };
-
-    // The player's shell is not the game's business; a modder opts in with the flag.
-    if (!McRFPy_API::use_virtual_env &&
-        std::filesystem::is_regular_file(std::filesystem::path(executable_path()) / GAME_PACKAGE_MARKER, ec)) {
-        return ignore(std::string("this is a packaged game (") + GAME_PACKAGE_MARKER +
-                      "); pass --use-virtual-env to use it", false);
+        for (auto& c : key) c = (char)std::tolower((unsigned char)c);
+        for (auto& c : value) c = (char)std::tolower((unsigned char)c);
+        if (key == "include-system-site-packages" && value == "true") return;
     }
 
-    if (!std::filesystem::is_regular_file(root / "pyvenv.cfg", ec)) {
-        std::cerr << "mcrogueface: VIRTUAL_ENV=" << root.string() << " has no pyvenv.cfg ("
-                  << (root / "pyvenv.cfg").string() << " does not exist); it is not a virtual "
-                  << "environment. Unset VIRTUAL_ENV or point it at one." << std::endl;
-        std::exit(1);
+    PyObject* path = PySys_GetObject("path");  // borrowed
+    if (!path || !PyList_Check(path)) { std::cerr << "mcrogueface: sys.path is not a list" << std::endl; std::exit(1); }
+    mcrf::PyRef sibling(PyUnicode_FromString(sibling_site_packages.string().c_str()));
+    if (!sibling) { PyErr_Print(); std::exit(1); }
+    for (Py_ssize_t i = PyList_GET_SIZE(path) - 1; i >= 0; i--) {
+        int eq = PyObject_RichCompareBool(PyList_GET_ITEM(path, i), sibling.get(), Py_EQ);
+        if (eq < 0 || (eq && PySequence_DelItem(path, i) < 0)) { PyErr_Print(); std::exit(1); }
     }
-    const std::string version = pyvenv_cfg_version(root / "pyvenv.cfg");
-    if (!version.empty() && version != MCRF_PY_VER) {
-        return ignore("it is for Python " + version + "; this engine is " MCRF_PY_VER, true);
-    }
-#ifdef _WIN32
-    auto site_packages = root / "Lib" / "site-packages";
-#else
-    auto site_packages = root / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
-    if (!std::filesystem::is_directory(site_packages, ec)) {
-        // Made for another Python after all: a different version (no version line in
-        // pyvenv.cfg), or the same version's other build (python3.X vs free-threaded 3.Xt).
-        for (const auto& entry : std::filesystem::directory_iterator(root / "lib", ec)) {
-            const std::string name = entry.path().filename().string();
-            if (name.rfind("python", 0) == 0 && name != MCRF_PY_STDLIB_DIRNAME &&
-                std::filesystem::is_directory(entry.path() / "site-packages", ec)) {
-                return ignore("it is for " + name + "; this engine is " MCRF_PY_STDLIB_DIRNAME, true);
-            }
-        }
-    }
-#endif
-    if (!std::filesystem::is_directory(site_packages, ec)) {
-        std::cerr << "mcrogueface: VIRTUAL_ENV=" << root.string() << " has no site-packages for "
-                  << "this engine's Python (" << MCRF_PY_VER << "): " << site_packages.string()
-                  << " does not exist. Recreate the venv with this Python version." << std::endl;
-        std::exit(1);
-    }
-    McRFPy_API::virtual_env = root.string();
-    return site_packages;
 }
 #endif
 
@@ -1501,6 +1493,7 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
 
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
+    std::filesystem::path sibling_site_packages;  // #505: the sibling E/venv/ row, if on sys.path
 #ifdef Py_GIL_DISABLED
     // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
     // so the GIL would be re-enabled anyway; pin it explicitly instead of
@@ -1539,8 +1532,12 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
     }
 #else
     // Set sys.executable to the McRogueFace binary path
+    // #505: executable is the unresolved launch path (so getpath finds a venv's pyvenv.cfg),
+    // base_executable the real binary (so `venv` links to the engine, not to a venv).
     auto exe_filename = executable_filename();
-    PyConfig_SetString(&config, &config.executable, exe_filename.c_str());
+    auto launch_exe = launch_executable(mcrf_config);
+    PyConfig_SetString(&config, &config.executable, launch_exe.c_str());
+    PyConfig_SetString(&config, &config.base_executable, exe_filename.c_str());
 
     PyConfig_SetBytesString(&config, &config.home,
         narrow_string(executable_path() + L"/lib/Python").c_str());
@@ -1563,14 +1560,8 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
             PyWideStringList_Insert(&config.module_search_paths, 0,
                                    site_packages.wstring().c_str());
             config.module_search_paths_set = 1;
+            sibling_site_packages = site_packages;
         }
-    }
-
-    // #499: VIRTUAL_ENV goes ahead of the sibling venv (behind only the main script dir)
-    auto active_venv_sp = virtual_env_site_packages();
-    if (!active_venv_sp.empty()) {
-        PyWideStringList_Insert(&config.module_search_paths, 0, active_venv_sp.wstring().c_str());
-        config.module_search_paths_set = 1;
     }
 
     // under Windows, the search paths are correct; under Linux, they need manual insertion
@@ -1599,6 +1590,9 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
 #endif // __EMSCRIPTEN__
 
     status = Py_InitializeFromConfig(&config);
+    if (!PyStatus_Exception(status) && !sibling_site_packages.empty()) {
+        isolate_from_sibling_venv(sibling_site_packages);
+    }
 
     PyConfig_Clear(&config);
 
@@ -1629,6 +1623,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 
     PyConfig pyconfig;
     PyConfig_InitIsolatedConfig(&pyconfig);
+    std::filesystem::path sibling_site_packages;  // #505: the sibling E/venv/ row, if on sys.path
 #ifdef Py_GIL_DISABLED
     // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
     // so the GIL would be re-enabled anyway; pin it explicitly instead of
@@ -1647,8 +1642,11 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     pyconfig.configure_c_stdio = 1;
 
     // Set sys.executable to the McRogueFace binary path
+    // #505: see init_python.
     auto exe_path = executable_filename();
-    PyConfig_SetString(&pyconfig, &pyconfig.executable, exe_path.c_str());
+    auto launch_exe = launch_executable(config);
+    PyConfig_SetString(&pyconfig, &pyconfig.executable, launch_exe.c_str());
+    PyConfig_SetString(&pyconfig, &pyconfig.base_executable, exe_path.c_str());
 
     // Set interactive mode (replaces deprecated Py_InspectFlag)
     if (config.interactive_mode) {
@@ -1718,21 +1716,8 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     auto exe_wpath = executable_filename();
     auto exe_path_fs = std::filesystem::path(exe_wpath);
     auto exe_dir = exe_path_fs.parent_path();
-    auto venv_root = exe_dir.parent_path();
-
-    const auto active_venv_sp = virtual_env_site_packages();  // #499 (exits if unusable)
-
-    if (std::filesystem::exists(venv_root / "pyvenv.cfg")) {
-        // We're running from within a venv!
-        // Add venv's site-packages to module search paths
-        auto site_packages = venv_root / "lib" / MCRF_PY_STDLIB_DIRNAME / "site-packages";
-        // listed once: VIRTUAL_ENV naming this same venv adds it below, ahead of the sibling
-        if (!(active_venv_sp == site_packages)) {
-            PyWideStringList_Append(&pyconfig.module_search_paths,
-                                   site_packages.wstring().c_str());
-            pyconfig.module_search_paths_set = 1;
-        }
-    }
+    // #505: a PEP 405 venv is found by getpath from the launch path; site.py adds its
+    // site-packages. Nothing to do here.
 
     // Check for sibling venv/ directory (self-contained deployment)
     auto sibling_venv = exe_dir / "venv";
@@ -1748,13 +1733,8 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
             PyWideStringList_Insert(&pyconfig.module_search_paths, 0,
                                    site_packages.wstring().c_str());
             pyconfig.module_search_paths_set = 1;
+            sibling_site_packages = site_packages;
         }
-    }
-
-    // #499: VIRTUAL_ENV goes ahead of the sibling venv (behind only the main script dir)
-    if (!active_venv_sp.empty()) {
-        PyWideStringList_Insert(&pyconfig.module_search_paths, 0, active_venv_sp.wstring().c_str());
-        pyconfig.module_search_paths_set = 1;
     }
 #endif // !__EMSCRIPTEN__
 #ifdef __EMSCRIPTEN__
@@ -1805,6 +1785,9 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
 
     status = Py_InitializeFromConfig(&pyconfig);
+    if (!PyStatus_Exception(status) && !sibling_site_packages.empty()) {
+        isolate_from_sibling_venv(sibling_site_packages);
+    }
     PyConfig_Clear(&pyconfig);
 
     return status;

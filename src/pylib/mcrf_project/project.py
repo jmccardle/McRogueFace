@@ -5,7 +5,8 @@
       assets/              its assets, starting with the engine's default font and texture
       VERSION              the game's version, used in package names
       mcrf.toml            optional settings: which engine, the requirements (see CONFIG_KEYS)
-      .venv/               installed requirements (`deps`), shipped by `dist` as venv/
+      .venv/               a virtualenv with the requirements (`deps`); `run` uses its
+                           bin/mcrogueface, `dist` ships its site-packages as venv/
       Makefile             `make run`, `make dist`, ... calling the engine
       .mcrf.mk             which engine (local, ignored by git)
       typings/mcrfpy.pyi   type stubs for the editor (refreshed by `init`)
@@ -254,9 +255,9 @@ class Project:
     def run(self, engine, args):
         """Run the game: the engine in the project directory loads scripts/game.py."""
         self.require()
-        # `args` may be --exec/-m/a script: the environment covers every way of starting
-        env = deps.run_environment(self, engine)  # fails early if deps is missing or stale
-        return subprocess.call([str(engine.exe)] + list(args), cwd=self.dir, env=env)
+        # `args` may be --exec/-m/a script: launching through the venv covers every way of starting
+        exe = deps.run_executable(self, engine)  # fails early if deps is missing or stale
+        return subprocess.call([str(exe)] + list(args), cwd=self.dir)
 
     # --- dist ---------------------------------------------------------------------------
 

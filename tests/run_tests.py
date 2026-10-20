@@ -113,6 +113,10 @@ SLOW_TESTS = {
     "regression/issue_478_caption_baseline_test.py": 40,
     "integration/mcrf_project_test.py": 40,
     "integration/issue_509_deps_keeps_foreign_venv_test.py": 40,
+    "integration/issue_517_console_scripts_test.py": 40,
+    "integration/venv_pip_end_to_end_test.py": 90,
+    "regression/issue_505_python_mode_test.py": 40,
+    "packaging/venv_packaged_test.py": 240,
 }
 
 
@@ -157,8 +161,8 @@ def run_test(test_path, verbose=False, timeout=DEFAULT_TIMEOUT,
 
     # Set up environment with library path
     env = os.environ.copy()
-    # Tests must not depend on the shell's activated virtualenv (#510); the ones about
-    # VIRTUAL_ENV set it themselves.
+    # The engine reads no VIRTUAL_ENV (#505), but the tests' own child pythons might; keep
+    # the shell's activated virtualenv out of them. The ones about VIRTUAL_ENV set it themselves.
     env.pop('VIRTUAL_ENV', None)
     existing_ld = env.get('LD_LIBRARY_PATH', '')
     env['LD_LIBRARY_PATH'] = f"{LIB_DIR}:{existing_ld}" if existing_ld else str(LIB_DIR)

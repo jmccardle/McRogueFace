@@ -25,7 +25,6 @@ int main(int argc, char* argv[])
     if (parse_result.should_exit) {
         return parse_result.exit_code;
     }
-    McRFPy_API::use_virtual_env = config.use_virtual_env;  // #510: read before Python starts
 
     // Special handling for -m module: let Python handle modules properly
     if (!config.python_module.empty()) {
@@ -190,6 +189,15 @@ int run_python_interpreter(const McRogueFaceConfig& config)
             }
             // Run interactive mode after script
             PyRun_InteractiveLoop(stdin, "<stdin>");
+        }
+
+        // #505: invoked as python*, a script is a plain interpreter run: it ends with the
+        // script. (sys.exit() already left through PyErr_Print inside runScriptSource, with
+        // the script's own status; an uncaught exception has printed its traceback.)
+        if (config.plain_interpreter && !config.run_forever) {
+            McRFPy_API::api_shutdown();
+            delete engine;
+            return result == 0 ? 0 : 1;
         }
 
         // Run the game engine after script execution

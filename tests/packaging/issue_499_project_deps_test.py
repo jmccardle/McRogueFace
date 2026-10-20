@@ -1,4 +1,4 @@
-"""#499: project dependencies. mcrf.toml requirements -> <project>/.venv, bundled by dist.
+"""#499: project dependencies. mcrf.toml requirements -> <project>/.venv (a real venv, #517), bundled by dist.
 
 No network: the "package" is a pure-Python wheel this test writes. Checks `deps` installs
 with the engine's own interpreter and shipped pip into the project (not the engine), that a
@@ -8,6 +8,7 @@ packaged binary then imports one), and that an extracted package can run `deps` 
 (it ships pip).
 """
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -81,9 +82,10 @@ with tempfile.TemporaryDirectory() as tmp:
           "deps installs the requirement into .venv/lib/python%s/site-packages%s"
           % (PY, "" if rc == 0 else "\n" + out[-800:]))
     check(not (ENGINE.parent / "venv").exists(), "nothing was created beside the engine")
-    check((game / ".venv" / "pyvenv.cfg").is_file(), "deps writes .venv/pyvenv.cfg (the engine requires it)")
+    check((game / ".venv" / "pyvenv.cfg").is_file() and (game / ".venv" / "bin" / "python").exists(),
+          "deps makes a real venv (.venv/pyvenv.cfg, .venv/bin/python)")
 
-    # run sets VIRTUAL_ENV to that .venv, for game mode and for --exec alike
+    # run launches .venv/bin/mcrogueface, for game mode and for --exec alike
     rc, out = tool("run", "--", "--headless", cwd=game)
     check(rc == 0 and "DEP from the wheel %s" % (sp / "mcrf_dep_demo" / "__init__.py") in out,
           "run imports the dependency from .venv (game mode)%s" % ("" if rc == 0 else "\n" + out[-800:]))
@@ -146,6 +148,8 @@ with tempfile.TemporaryDirectory() as tmp:
               % (out.returncode, "" if out.returncode == 0 else text[-600:]))
 
         # the package ships pip: it can install the project's dependencies itself
+        # The package still has its own venv/; the new .venv does not see it (#505: a venv
+        # isolates from the engine's sibling venv/), so pip installs the dependency into .venv.
         rc, out = tool("deps", "--engine", str(pkg), cwd=game)
         check(rc == 0 and (sp / "mcrf_dep_demo").is_dir(),
               "an extracted package can run deps (it ships pip)%s" % ("" if rc == 0 else "\n" + out[-800:]))

@@ -10,6 +10,7 @@ CommandLineParser::CommandLineParser(int argc, char* argv[])
 CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& config) {
     ParseResult result;
     current_arg = 1;  // Reset for each parse
+    if (argc > 0) config.launch_argv0 = argv[0];  // #505
     
     // Detect if running as Python interpreter
 #ifndef __EMSCRIPTEN__
@@ -17,6 +18,7 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
     if (exec_name.string().find("python") == 0) {
         config.headless = true;
         config.python_mode = true;
+        config.plain_interpreter = true;  // #505: a script runs and exits
     }
 #endif
     
@@ -154,12 +156,6 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
             continue;
         }
 
-        if (arg == "--use-virtual-env") {
-            config.use_virtual_env = true;
-            current_arg++;
-            continue;
-        }
-
         if (arg == "--continue-after-exceptions") {
             config.exit_on_exception = false;
             current_arg++;
@@ -261,6 +257,9 @@ void CommandLineParser::print_help() {
               << "  -V     : print the Python version number and exit (also --version)\n"
               << "\n"
               << "McRogueFace specific options:\n"
+              << "  (invoked as python, python3, ... a script runs headless and exits, like CPython;\n"
+              << "   as mcrogueface it is game mode. A venv's bin/python is such a link; see\n"
+              << "   docs/python-environments.md)\n"
               << "  --exec file  : run this script instead of scripts/game.py (can be used multiple times)\n"
               << "  --headless   : run without creating a window (implies --audio-off)\n"
               << "  --run-forever : keep running after --exec scripts finish, instead of\n"
@@ -270,8 +269,6 @@ void CommandLineParser::print_help() {
               << "  --screenshot [path] : take a screenshot in headless mode\n"
               << "  --continue-after-exceptions : don't exit on Python callback exceptions\n"
               << "                       (default: exit on first exception)\n"
-              << "  --use-virtual-env : honour VIRTUAL_ENV in a packaged game, which ignores it\n"
-              << "                       by default"
               << "\n"
               << "Arguments:\n"
               << "  file   : program read from script file\n"
