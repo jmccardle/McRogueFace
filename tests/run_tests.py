@@ -113,6 +113,8 @@ SLOW_TESTS = {
     "regression/issue_478_caption_baseline_test.py": 40,
     "integration/mcrf_project_test.py": 40,
     "integration/issue_509_deps_keeps_foreign_venv_test.py": 40,
+    "integration/venv_pip_end_to_end_test.py": 90,
+    "regression/issue_505_python_mode_test.py": 40,
 }
 
 
