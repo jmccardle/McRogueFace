@@ -594,12 +594,15 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
 
     // #480: every tile fills exactly its cell, whatever this layer's texture's sprite size.
     const sf::Vector2f fit = texture->cellFit(cell_width, cell_height);
+    const int sprite_count = texture->getSpriteCount();
 
     // Render only tiles within this chunk (local coordinates in texture)
     for (int x = start_x; x < end_x; ++x) {
         for (int y = start_y; y < end_y; ++y) {
             int tile_index = at(x, y);
-            if (tile_index < 0) continue;  // No tile
+            // -1 is "no tile"; anything outside the texture's cells is not rendered either
+            // (#524): the layer stores any int, and PyTexture::sprite() does not bounds-check.
+            if (tile_index < 0 || tile_index >= sprite_count) continue;
 
             // Position relative to chunk origin
             auto pixel_pos = sf::Vector2f((x - start_x) * cell_width, (y - start_y) * cell_height);
@@ -653,13 +656,14 @@ void TileLayer::render(sf::RenderTarget& target,
             if (!chunk_texture_initialized[chunk_idx]) {
                 // Fallback: direct rendering for this chunk (#480: same cell fit as the chunk)
                 const sf::Vector2f fit = texture->cellFit(cell_width, cell_height);
+                const int sprite_count = texture->getSpriteCount();
                 int start_x, start_y, end_x, end_y;
                 getChunkBounds(cx, cy, start_x, start_y, end_x, end_y);
 
                 for (int x = start_x; x < end_x; ++x) {
                     for (int y = start_y; y < end_y; ++y) {
                         int tile_index = at(x, y);
-                        if (tile_index < 0) continue;
+                        if (tile_index < 0 || tile_index >= sprite_count) continue;  // #524
 
                         auto pixel_pos = sf::Vector2f(
                             (x * cell_width - left_spritepixels) * zoom,
@@ -1851,7 +1855,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_ARG("pos", "Position as (x, y) tuple, list, or Vector")
          MCRF_ARG("index", "Tile index (-1 for no tile)")
          MCRF_RAISES("IndexError", "If coordinates are out of bounds")
-         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
+         MCRF_NOTE("Any int is stored. An index outside 0 to sprite_count-1 is not rendered (like -1); one above the highest sprite index of a known texture also warns (TextureWarning).")
      )},
     {"fill", (PyCFunction)PyGridLayerAPI::TileLayer_fill, METH_VARARGS,
      MCRF_METHOD(TileLayer, fill,
@@ -1859,7 +1863,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_DESC("Fill the entire layer with the specified tile index.")
          MCRF_ARGS_START
          MCRF_ARG("index", "Tile index to fill with (-1 for no tile)")
-         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
+         MCRF_NOTE("Any int is stored. An index outside 0 to sprite_count-1 is not rendered (like -1); one above the highest sprite index of a known texture also warns (TextureWarning).")
      )},
     {"fill_rect", (PyCFunction)PyGridLayerAPI::TileLayer_fill_rect, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TileLayer, fill_rect,
@@ -1869,7 +1873,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_ARG("pos", "Top-left corner as (x, y)")
          MCRF_ARG("size", "Dimensions as (width, height)")
          MCRF_ARG("index", "Tile index to fill with (-1 for no tile)")
-         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
+         MCRF_NOTE("Any int is stored. An index outside 0 to sprite_count-1 is not rendered (like -1); one above the highest sprite index of a known texture also warns (TextureWarning).")
      )},
     {"apply_threshold", (PyCFunction)PyGridLayerAPI::TileLayer_apply_threshold, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(TileLayer, apply_threshold,
@@ -1880,7 +1884,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_ARG("range", "Value range as (min, max) inclusive")
          MCRF_ARG("tile", "Tile index to set for cells in range")
          MCRF_RETURNS("self for method chaining")
-         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
+         MCRF_NOTE("Any int is stored. An index outside 0 to sprite_count-1 is not rendered (like -1); one above the highest sprite index of a known texture also warns (TextureWarning).")
      )},
     {"apply_ranges", (PyCFunction)PyGridLayerAPI::TileLayer_apply_ranges, METH_VARARGS,
      MCRF_METHOD(TileLayer, apply_ranges,
@@ -1890,7 +1894,7 @@ PyMethodDef PyGridLayerAPI::TileLayer_methods[] = {
          MCRF_ARG("source", "Source heightmap (must match layer dimensions)")
          MCRF_ARG("ranges", "List of ((min, max), tile_index) tuples")
          MCRF_RETURNS("self for method chaining")
-         MCRF_RAISES("ValueError", "If an index is not -1 or a cell of the layer's texture (when it has one)")
+         MCRF_NOTE("Any int is stored. An index outside 0 to sprite_count-1 is not rendered (like -1); one above the highest sprite index of a known texture also warns (TextureWarning).")
          MCRF_NOTE("Cells not matching any range are left unchanged.")
      )},
     {NULL}
@@ -2016,30 +2020,30 @@ PyObject* PyGridLayerAPI::TileLayer_at(PyTileLayerObject* self, PyObject* args, 
     return PyLong_FromLong(self->data->at(x, y));
 }
 
-// A tile index a TileLayer may store (#521): -1 ("no tile"), or a cell of the texture it draws
-// with. A layer with no texture yet (its grid's is assigned at first draw) can only reject
-// what is never valid. ValueError names the value and the valid range.
-static bool CheckTileIndex(const TileLayer& layer, long long value) {
-    if (value == -1) return true;
-    if (value < -1) {
-        PyErr_Format(PyExc_ValueError,
-                     "tile index %lld is invalid: use -1 for no tile, or a non-negative sprite index",
-                     value);
-        return false;
-    }
+// Tile indices (#524, reversing part of #521): a layer stores ANY int (it does not know what
+// its values mean: it may stage a DiscreteMap, or be filled with its texture removed). An index
+// outside 0..sprite_count-1 is simply not rendered. A value ABOVE the highest sprite index of
+// the texture the layer would draw with is probably a mistake, so it warns (TextureWarning),
+// once per call, on the write only (no scan at bind time). Returns false when the warning
+// is raised as an exception (-W error).
+static bool WarnTileIndexAbove(const TileLayer& layer, long long highest_written) {
     std::shared_ptr<PyTexture> tex = layer.drawTexture();
-    if (tex) {
-        long long count = tex->getSpriteCount();
-        if (value >= count) {
-            PyErr_Format(PyExc_ValueError,
-                         "tile index %lld is out of range for a texture with %lld sprites "
-                         "(valid: -1, or 0 to %lld)", value, count, count - 1);
-            return false;
-        }
-    } else if (value > INT_MAX) {
-        PyErr_Format(PyExc_ValueError, "tile index %lld is too large", value);
+    if (!tex) return true;
+    long long count = tex->getSpriteCount();
+    if (highest_written < count) return true;
+    return PyErr_WarnFormat(McRFPy_API::texture_warning, 2,
+                            "tile index %lld is above the highest sprite index (%lld) of the "
+                            "layer's texture (%lld sprites); it will not be rendered",
+                            highest_written, count - 1, count) == 0;
+}
+
+// An index must fit the C int a layer stores: OverflowError otherwise.
+static bool TileIndexToInt(long long value, int* out) {
+    if (value < INT_MIN || value > INT_MAX) {
+        PyErr_Format(PyExc_OverflowError, "tile index %lld does not fit in a C int", value);
         return false;
     }
+    *out = (int)value;
     return true;
 }
 
@@ -2065,7 +2069,7 @@ PyObject* PyGridLayerAPI::TileLayer_set(PyTileLayerObject* self, PyObject* args)
         return NULL;
     }
 
-    if (!CheckTileIndex(*self->data, index)) return NULL;
+    if (!WarnTileIndexAbove(*self->data, index)) return NULL;
     self->data->at(x, y) = index;
     self->data->markDirty(x, y);  // Mark only the affected chunk
     Py_RETURN_NONE;
@@ -2119,13 +2123,15 @@ int PyGridLayerAPI::TileLayer_subscript_assign(PyTileLayerObject* self, PyObject
     int overflow = 0;
     long long index = PyLong_AsLongLongAndOverflow(value, &overflow);
     if (overflow) {
-        PyErr_SetString(PyExc_ValueError, "tile index is out of range");
+        PyErr_SetString(PyExc_OverflowError, "tile index does not fit in a C int");
         return -1;
     }
     if (index == -1 && PyErr_Occurred()) return -1;
-    if (!CheckTileIndex(*self->data, index)) return -1;
+    int stored;
+    if (!TileIndexToInt(index, &stored)) return -1;
+    if (!WarnTileIndexAbove(*self->data, stored)) return -1;
 
-    self->data->at(x, y) = (int)index;
+    self->data->at(x, y) = stored;
     self->data->markDirty(x, y);
     return 0;
 }
@@ -2147,7 +2153,7 @@ PyObject* PyGridLayerAPI::TileLayer_fill(PyTileLayerObject* self, PyObject* args
         return NULL;
     }
 
-    if (!CheckTileIndex(*self->data, index)) return NULL;
+    if (!WarnTileIndexAbove(*self->data, index)) return NULL;
     self->data->fill(index);
     Py_RETURN_NONE;
 }
@@ -2190,7 +2196,7 @@ PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject*
         return NULL;
     }
 
-    if (!CheckTileIndex(*self->data, tile_index)) return NULL;
+    if (!WarnTileIndexAbove(*self->data, tile_index)) return NULL;
     self->data->fillRect(x, y, width, height, tile_index);
     Py_RETURN_NONE;
 }
@@ -2234,7 +2240,7 @@ PyObject* PyGridLayerAPI::TileLayer_apply_threshold(PyTileLayerObject* self, PyO
         return NULL;
     }
 
-    if (!CheckTileIndex(*self->data, tile_index)) return NULL;
+    if (!WarnTileIndexAbove(*self->data, tile_index)) return NULL;
 
     // Apply threshold
     int width = self->data->grid_x;
@@ -2298,6 +2304,7 @@ PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObje
         int tile_index;
     };
     std::vector<TileRange> ranges;
+    long long highest = -1;  // for the single above-the-texture warning (#524)
 
     Py_ssize_t n_ranges = PyList_Size(ranges_obj);
     for (Py_ssize_t i = 0; i < n_ranges; ++i) {
@@ -2326,14 +2333,17 @@ PyObject* PyGridLayerAPI::TileLayer_apply_ranges(PyTileLayerObject* self, PyObje
         int overflow = 0;
         long long tile_value = PyLong_AsLongLongAndOverflow(tile_obj, &overflow);
         if (overflow) {
-            PyErr_Format(PyExc_ValueError, "ranges[%zd] tile index is out of range", i);
+            PyErr_Format(PyExc_OverflowError, "ranges[%zd] tile index does not fit in a C int", i);
             return NULL;
         }
-        if (!CheckTileIndex(*self->data, tile_value)) return NULL;
-        int tile_index = (int)tile_value;
+        int tile_index;
+        if (!TileIndexToInt(tile_value, &tile_index)) return NULL;
+        highest = std::max(highest, tile_value);
 
         ranges.push_back({min_val, max_val, tile_index});
     }
+
+    if (!WarnTileIndexAbove(*self->data, highest)) return NULL;
 
     // Apply all ranges in order (later ranges override)
     int width = self->data->grid_x;

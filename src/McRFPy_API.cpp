@@ -1133,7 +1133,8 @@ static PyObject* mcrfpy_module_create(PyObject* spec, PyModuleDef* def)
     // #453: mcrfpy.TextureWarning
     McRFPy_API::texture_warning = PyErr_NewExceptionWithDoc("mcrfpy.TextureWarning",
         "Warns about the texture a grid draws with: drawn with no texture, so "
-        "mcrfpy.default_texture was assigned. Silence with "
+        "mcrfpy.default_texture was assigned; or a TileLayer was written a tile index "
+        "above its texture's highest sprite index (it will not be rendered). Silence with "
         "warnings.simplefilter('ignore', mcrfpy.TextureWarning).",
         PyExc_UserWarning, NULL);
     if (!McRFPy_API::texture_warning) return NULL;
