@@ -106,12 +106,14 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # --- engine inside a venv (pyvenv.cfg one level above the binary) ---------------------
     # #505: getpath finds the venv from the launch path and site.py (not the engine) adds its
-    # site-packages, after the stdlib; a sibling E/venv site-packages is still first. (Before
-    # #505 the engine prepended it ahead of E/scripts; the order is now CPython's.)
+    # site-packages, after the stdlib; a sibling E/venv site-packages is still first when the
+    # venv includes system site-packages. (Before #505 the engine prepended it ahead of
+    # E/scripts; the order is now CPython's. A venv without that key is isolated from the
+    # sibling, as CPython's default: checked at the end.)
     root = os.path.join(tmp, "invenv")
     os.makedirs(root)
     with open(os.path.join(root, "pyvenv.cfg"), "w") as f:
-        f.write("home = /usr/bin\n")
+        f.write("home = /usr/bin\ninclude-system-site-packages = true\n")
     e, exe, sp = make_engine(os.path.join(root, "bin"), venv_site_packages=True)
     parent_sp = os.path.join(os.path.realpath(root), "lib", STDLIB_DIRNAME, "site-packages")
     os.makedirs(parent_sp)
@@ -121,6 +123,11 @@ with tempfile.TemporaryDirectory() as tmp:
     check(p is not None and p.count(parent_sp) == 1 and
           index_of(p, parent_sp) > index_of(p, e + "/lib/Python/Lib"),
           "pyvenv.cfg above binary: venv sp once, after the stdlib (%r)" % (p and p[-3:]))
+    with open(os.path.join(root, "pyvenv.cfg"), "w") as f:
+        f.write("home = /usr/bin\n")
+    p = sys_path(exe, ["--exec", probe], tmp)
+    check(p is not None and sp not in p,
+          "pyvenv.cfg without include-system-site-packages: sibling sp is not on sys.path (#505)")
 
 if failures:
     print("FAIL: %d check(s)" % len(failures))
