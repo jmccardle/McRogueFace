@@ -161,6 +161,14 @@ with tempfile.TemporaryDirectory() as tmp:
           "no pyvenv.cfg: sys.prefix stays E/lib/Python (%r)" % (i and i["prefix"]))
     check(i is not None and sp2 not in i["path"], "no pyvenv.cfg: ENV site-packages is not on sys.path")
 
+    # --- an argv[0] that names no file (exec with a made-up name) is the real binary --------
+    out = run(["python-not-on-path-505"] + cmd, tmp, path="/nonexistent",
+              executable=os.path.join(env_dir, "bin", "python"))
+    i = info(out)
+    check(out is not None and out.returncode == 0, "argv[0] not on PATH: still starts (%r)" % (out and out.stderr))
+    check(i is not None and i["executable"] == os.path.join(e, ENGINE_NAME),
+          "argv[0] not on PATH: sys.executable is the real engine (%r)" % (i and i["executable"]))
+
 if failures:
     print("FAIL: %d check(s)" % len(failures))
     sys.exit(1)

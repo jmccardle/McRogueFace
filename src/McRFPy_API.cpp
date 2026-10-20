@@ -1367,8 +1367,9 @@ static const char* const GAME_PACKAGE_MARKER = "mcrf-game.json";
 // beside (or one directory above) this path, so it must be the UNRESOLVED launch path:
 // ENV/bin/python is a symlink to the engine, and the resolved binary never sits in a venv.
 // argv[0] made absolute lexically (like os.path.abspath); with no '/' it is searched on
-// PATH as execvp did. Never realpath'd. Windows has no venv support (documented), so it
-// keeps the real binary.
+// PATH as execvp did. Never realpath'd. With no usable argv[0] (empty, or a bare name not
+// on PATH, as from exec with a made-up argv[0]) no venv can be found from it, so it is the
+// real binary, as in CPython. Windows has no venv support (documented): the real binary.
 static std::wstring launch_executable(const McRogueFaceConfig& config)
 {
 #ifdef _WIN32
@@ -1376,10 +1377,7 @@ static std::wstring launch_executable(const McRogueFaceConfig& config)
     return executable_filename();
 #else
     namespace fs = std::filesystem;
-    if (config.launch_argv0.empty()) {
-        std::cerr << "mcrogueface: cannot start Python: the launch path (argv[0]) is empty\n";
-        std::exit(1);
-    }
+    if (config.launch_argv0.empty()) return executable_filename();
     fs::path p(config.launch_argv0);
     if (config.launch_argv0.find('/') == std::string::npos) {
         const char* path_env = std::getenv("PATH");
@@ -1399,11 +1397,7 @@ static std::wstring launch_executable(const McRogueFaceConfig& config)
             }
             start = end + 1;
         }
-        if (found.empty()) {
-            std::cerr << "mcrogueface: cannot start Python: '" << config.launch_argv0
-                      << "' (argv[0]) has no '/' and is not an executable on PATH\n";
-            std::exit(1);
-        }
+        if (found.empty()) return executable_filename();
         p = found;
     }
     if (p.is_relative()) p = fs::current_path() / p;
