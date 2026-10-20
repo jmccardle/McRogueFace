@@ -11,7 +11,7 @@ there, so nothing resolves against the build tree:
 
 Desktop packages must report the expected mcrfpy.__version__, run Python 3.15, import
 the networking/async stdlib the package promises (ssl, socket, asyncio, selectors,
-sqlite3) and compute FOV with the shipped libtcod. Exit 0 only if every package passes.
+sqlite3), venv and ensurepip (#505) and compute FOV with the shipped libtcod. Exit 0 only if every package passes.
 
     tools/smoke_package.py --version 0.3.1 dist/McRogueFace-0.3.1-*
 """
@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WASM_VENV_PY = ROOT / ".venv-wasmtest" / "bin" / "python"
 
 PROBE = (
-    "import mcrfpy, sys, ssl, socket, asyncio, selectors, sqlite3, pydoc, sysconfig\n"
+    "import mcrfpy, sys, ssl, socket, asyncio, selectors, sqlite3, pydoc, sysconfig, venv, ensurepip\n"
     "sysconfig.get_path('stdlib')\n"
     "g = mcrfpy.Grid(grid_size=(10, 10))\n"
     "g.compute_fov((5, 5), radius=4)\n"
@@ -59,7 +59,7 @@ def check_probe(label, out, rc, version):
         fail("%s: mcrfpy.__version__ is %s, expected %s" % (label, got, version))
     if not py.startswith("3.15"):
         fail("%s: ships Python %s, expected 3.15" % (label, py))
-    print("  ok: %s: McRogueFace %s, Python %s, %s; ssl/socket/asyncio/selectors/sqlite3 "
+    print("  ok: %s: McRogueFace %s, Python %s, %s; ssl/socket/asyncio/selectors/sqlite3/venv/ensurepip "
           "import, FOV runs" % (label, got, py, plat))
 
 

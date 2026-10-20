@@ -116,6 +116,7 @@ SLOW_TESTS = {
     "integration/issue_517_console_scripts_test.py": 40,
     "integration/venv_pip_end_to_end_test.py": 90,
     "regression/issue_505_python_mode_test.py": 40,
+    "packaging/venv_packaged_test.py": 240,
 }
 
 
