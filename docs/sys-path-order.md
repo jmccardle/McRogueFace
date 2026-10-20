@@ -6,6 +6,8 @@ canonicalised). Asserted by `tests/regression/issue_502_sys_path_order_test.py`,
 `tests/regression/issue_505_virtual_env_ignored_test.py` and
 `tests/regression/issue_452_main_script_path_test.py`.
 
+For setting up a project venv and running games and tools through it, see [python-environments.md](python-environments.md).
+
 (Rows are numbered from 1; there is no row 0. Row 0 was `$VIRTUAL_ENV`'s site-packages, removed in #505.)
 
 ## Linux and Windows
