@@ -79,6 +79,14 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
             continue;
         }
         
+        // CPython interpreter flags (#505): -I -E -s -S -B -u -q -v -O (clusterable, as in
+        // `python -Es`) and -W/-X, whose value is attached (-Wignore) or the next argument.
+        if (arg.size() >= 2 && arg[0] == '-' && arg[1] != '-' &&
+            std::string("IEsSBuqvOWX").find(arg[1]) != std::string::npos) {
+            if (!parse_interpreter_flags(arg, config, result)) return result;
+            continue;
+        }
+
         // McRogueFace specific flags
         if (arg == "--headless") {
             config.headless = true;
@@ -189,6 +197,48 @@ CommandLineParser::ParseResult CommandLineParser::parse(McRogueFaceConfig& confi
     return result;
 }
 
+// Parses one argv entry made of CPython interpreter flags. Returns false (with result set)
+// on error. Advances current_arg past the entry and any separate -W/-X value.
+bool CommandLineParser::parse_interpreter_flags(const std::string& arg, McRogueFaceConfig& config,
+                                                ParseResult& result) {
+    current_arg++;
+    for (size_t i = 1; i < arg.size(); i++) {
+        char c = arg[i];
+        switch (c) {
+            case 'I': config.isolated = true; break;
+            case 'E': config.ignore_environment = true; break;
+            case 's': config.no_user_site = true; break;
+            case 'S': config.no_site = true; break;
+            case 'B': config.dont_write_bytecode = true; break;
+            case 'u': config.unbuffered = true; break;
+            case 'q': config.quiet = true; break;
+            case 'v': config.verbose++; break;
+            case 'O': config.optimize++; break;
+            case 'W':
+            case 'X': {
+                std::string value = arg.substr(i + 1);
+                if (value.empty()) {
+                    if (current_arg >= argc) {
+                        std::cerr << "Argument expected for the -" << c << " option" << std::endl;
+                        result.should_exit = true;
+                        result.exit_code = 1;
+                        return false;
+                    }
+                    value = argv[current_arg++];
+                }
+                (c == 'W' ? config.warnoptions : config.xoptions).push_back(value);
+                return true;  // the value consumed the rest of this entry
+            }
+            default:
+                std::cerr << "Unknown option: -" << c << std::endl;
+                result.should_exit = true;
+                result.exit_code = 1;
+                return false;
+        }
+    }
+    return true;
+}
+
 void CommandLineParser::print_help() {
     std::cout << "usage: mcrogueface [option] ... [-c cmd | -m mod | file | -] [arg] ...\n"
               << "Options:\n"
@@ -196,6 +246,18 @@ void CommandLineParser::print_help() {
               << "  -h     : print this help message and exit (also --help)\n"
               << "  -i     : inspect interactively after running script\n"
               << "  -m mod : run library module as a script (terminates option list; implies --headless)\n"
+              << "  -I     : isolate from the user's environment and site (implies -E and -s)\n"
+              << "  -E     : ignore PYTHON* environment variables (PYTHONPATH, PYTHONHOME, ...)\n"
+              << "  -s     : don't add the user site-packages directory to sys.path\n"
+              << "  -S     : don't imply 'import site' on initialization\n"
+              << "  -B     : don't write .pyc files on import\n"
+              << "  -u     : force the stdout and stderr streams to be unbuffered\n"
+              << "  -q     : don't print version and copyright messages on interactive startup\n"
+              << "  -v     : verbose (trace import statements); can be repeated\n"
+              << "  -O     : remove assert statements; -OO also discards docstrings\n"
+              << "  -W arg : warning control (action:message:category:module:lineno); repeatable\n"
+              << "  -X opt : set an implementation-specific option (e.g. -X dev); repeatable\n"
+              << "           (flags may be clustered as in python: -Es; unknown flags are errors)\n"
               << "  -V     : print the Python version number and exit (also --version)\n"
               << "\n"
               << "McRogueFace specific options:\n"

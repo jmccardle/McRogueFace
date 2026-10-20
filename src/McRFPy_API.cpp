@@ -1448,7 +1448,43 @@ static std::filesystem::path virtual_env_site_packages()
 }
 #endif
 
-PyStatus init_python(const char *program_name)
+// #505: CPython interpreter flags (-I -E -s -S -B -u -q -v -O -W -X) onto the PyConfig
+// fields they mean. Both init paths call this, so the flags behave the same for
+// -c/-m/--exec/scripts and for the game. The engine starts from an isolated config, so
+// -I/-E/-s only restate what is already in force; they are set anyway so the config
+// never contradicts the flag the user typed.
+static PyStatus append_utf8(PyWideStringList* list, const std::string& value)
+{
+    wchar_t* wide = Py_DecodeLocale(value.c_str(), nullptr);
+    if (!wide) return PyStatus_NoMemory();
+    PyStatus status = PyWideStringList_Append(list, wide);
+    PyMem_RawFree(wide);
+    return status;
+}
+
+static PyStatus apply_interpreter_flags(PyConfig& pyconfig, const McRogueFaceConfig& config)
+{
+    if (config.isolated) pyconfig.isolated = 1;
+    if (config.ignore_environment) pyconfig.use_environment = 0;
+    if (config.no_user_site) pyconfig.user_site_directory = 0;
+    if (config.no_site) pyconfig.site_import = 0;
+    if (config.dont_write_bytecode) pyconfig.write_bytecode = 0;
+    if (config.unbuffered) pyconfig.buffered_stdio = 0;
+    if (config.quiet) pyconfig.quiet = 1;
+    if (config.verbose) pyconfig.verbose = config.verbose;
+    if (config.optimize) pyconfig.optimization_level = config.optimize;
+    for (const auto& w : config.warnoptions) {
+        PyStatus st = append_utf8(&pyconfig.warnoptions, w);
+        if (PyStatus_Exception(st)) return st;
+    }
+    for (const auto& x : config.xoptions) {
+        PyStatus st = append_utf8(&pyconfig.xoptions, x);
+        if (PyStatus_Exception(st)) return st;
+    }
+    return PyStatus_Ok();
+}
+
+PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_config)
 {
     PyStatus status;
 
@@ -1471,6 +1507,11 @@ PyStatus init_python(const char *program_name)
     config.enable_gil = mcrf_requested_gil_setting();
 #endif
     config.dev_mode = 0;
+
+    status = apply_interpreter_flags(config, mcrf_config);
+    if (PyStatus_Exception(status)) {
+        Py_ExitStatusException(status);
+    }
 
     // Configure UTF-8 for stdio
     PyConfig_SetString(&config, &config.stdio_encoding, L"UTF-8");
@@ -1593,6 +1634,11 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     // emitting CPython's "GIL has been enabled" RuntimeWarning at startup.
     pyconfig.enable_gil = mcrf_requested_gil_setting();
 #endif
+
+    status = apply_interpreter_flags(pyconfig, config);
+    if (PyStatus_Exception(status)) {
+        return status;
+    }
 
     // Configure UTF-8 for stdio
     PyConfig_SetString(&pyconfig, &pyconfig.stdio_encoding, L"UTF-8");
@@ -1777,13 +1823,13 @@ void McRFPy_API::setSpriteTexture(int ti)
 // functionality
 //void McRFPy_API::
 
-void McRFPy_API::api_init() {
+void McRFPy_API::api_init_game(const McRogueFaceConfig& config) {
 
     // build API exposure before python initialization
     if (!Py_IsInitialized()) {
         PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
         // use full path version of argv[0] from OS to init python
-        init_python(narrow_string(executable_filename()).c_str());
+        init_python(narrow_string(executable_filename()).c_str(), config);
     }
 
     //texture.loadFromFile("./assets/kenney_tinydungeon.png");

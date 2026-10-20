@@ -213,7 +213,7 @@ GameEngine::GameEngine(const McRogueFaceConfig& cfg)
     
     if (should_load_game) {
         if (!Py_IsInitialized()) {
-            McRFPy_API::api_init();
+            McRFPy_API::api_init_game(config);
         }
         McRFPy_API::executePyString("import mcrfpy");
         McRFPy_API::executeScript("scripts/game.py", /*main_script=*/true);
@@ -233,7 +233,7 @@ void GameEngine::executeStartupScripts()
     // This is called ONCE from main.cpp after the final engine is set up
     if (!config.exec_scripts.empty()) {
         if (!Py_IsInitialized()) {
-            McRFPy_API::api_init();
+            McRFPy_API::api_init_game(config);
         }
         McRFPy_API::executePyString("import mcrfpy");
 
