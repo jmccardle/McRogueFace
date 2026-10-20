@@ -36,7 +36,8 @@ public:
     //inline static sf::Texture texture;
     //static void setSpriteTexture(int);
     inline static GameEngine* game;
-    static void api_init();
+    // Game path (no script/command): the config carries the interpreter flags (#505).
+    static void api_init_game(const McRogueFaceConfig& config);
     static void api_init(const McRogueFaceConfig& config);
     static PyStatus init_python_with_config(const McRogueFaceConfig& config);
     static void api_shutdown();

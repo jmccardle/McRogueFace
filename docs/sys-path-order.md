@@ -48,7 +48,7 @@ script directory and ahead of the sibling `venv/`. It is the **only** project-le
 the engine never searches for directories named `.venv` or `venv` (callers name the
 environment: `mcrf_project run` sets `VIRTUAL_ENV` to the `.venv` that `mcrf_project deps`
 created, which carries a `pyvenv.cfg`). Only `sys.path` changes: `sys.prefix`, `sysconfig`,
-`.pth` files and command-line flags are untouched (#505).
+`.pth` files are untouched (#505 part 2 is the pyvenv.cfg work).
 
 `VIRTUAL_ENV` is ambient shell state, often left over from another project, so what the
 engine does depends on whether the venv can be meant for it (#510):
@@ -86,3 +86,16 @@ engine's directory and row 2 does **not** fire; it fires only when the real bina
 sits in a venv's `bin/`. Use `VIRTUAL_ENV` (activate the venv) instead. Tracked in #505.
 
 `sys.path` itself shows what was picked up.
+
+## CPython interpreter flags (#505)
+
+`mcrogueface` accepts the core `python` flags, so tools that re-invoke `sys.executable`
+(ensurepip, pip, venv) work: `-I -E -s -S -B -u -q -v -O/-OO -W arg -X opt`. They may be
+clustered (`-Es`), and `-W`/`-X` take their value attached (`-Wignore`) or as the next
+argument and may repeat. Each sets the `PyConfig` field of the same meaning, so it shows in
+`sys.flags`, `sys.warnoptions` and `sys._xoptions`, in the `-c`/`-m`/`--exec`/script path and
+in the game path alike. Anything else still fails with `Unknown option`.
+
+The engine's baseline is an isolated config (no `PYTHON*` environment variables, no user
+site), so `-I`, `-E` and `-s` only restate what is already in force: `sys.flags.isolated`
+reads 1 with or without `-I`. `-S`, `-B`, `-u`, `-q`, `-v`, `-O`, `-W` and `-X` change behaviour.

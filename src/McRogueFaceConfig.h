@@ -19,6 +19,20 @@ struct McRogueFaceConfig {
     bool show_version = false;       // -V flag
     bool show_help = false;          // -h flag
     
+    // CPython interpreter flags (#505). Each maps to the PyConfig field of the same
+    // meaning, and reaches both interpreter init paths (-c/-m/--exec and the game).
+    bool isolated = false;           // -I  PyConfig.isolated
+    bool ignore_environment = false; // -E  PyConfig.use_environment = 0
+    bool no_user_site = false;       // -s  PyConfig.user_site_directory = 0
+    bool no_site = false;            // -S  PyConfig.site_import = 0
+    bool dont_write_bytecode = false;// -B  PyConfig.write_bytecode = 0
+    bool unbuffered = false;         // -u  PyConfig.buffered_stdio = 0
+    bool quiet = false;              // -q  PyConfig.quiet
+    int verbose = 0;                 // -v  PyConfig.verbose (repeatable)
+    int optimize = 0;                // -O  PyConfig.optimization_level (-OO = 2)
+    std::vector<std::string> warnoptions;  // -W arg  PyConfig.warnoptions
+    std::vector<std::string> xoptions;     // -X opt  PyConfig.xoptions
+
     // Script execution
     std::filesystem::path script_path;
     std::vector<std::string> script_args;

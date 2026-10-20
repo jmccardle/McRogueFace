@@ -23,6 +23,7 @@ private:
     bool has_flag(const std::string& short_flag, const std::string& long_flag = "");
     std::string get_next_arg(const std::string& flag_name);
     void parse_positional_args(McRogueFaceConfig& config);
+    bool parse_interpreter_flags(const std::string& arg, McRogueFaceConfig& config, ParseResult& result);
     void print_help();
     void print_version();
 };
