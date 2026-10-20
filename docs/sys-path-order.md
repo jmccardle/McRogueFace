@@ -12,7 +12,7 @@ canonicalised). Asserted by `tests/regression/issue_502_sys_path_order_test.py`,
 
 | # | Entry | When |
 |---|-------|------|
-| 1 | `E/venv/lib/python3.X/site-packages` (`E/venv/Lib/site-packages` on Windows) | only if that directory exists; a bare `E/venv/` is ignored |
+| 1 | `E/venv/lib/python3.X/site-packages` (`E/venv/Lib/site-packages` on Windows) | only if that directory exists (a bare `E/venv/` is ignored), and the engine is not running in a PEP 405 venv whose `pyvenv.cfg` lacks `include-system-site-packages = true`; see *The sibling `venv/` rule* |
 | 2 | `E/scripts` | always; see *main script* below |
 | 3 | `E/lib/Python/lib.<platform>-3.X` (extension modules) | always |
 | 4 | `E/lib/Python` | always |
@@ -38,7 +38,18 @@ it is, entry 1 ahead of it). `-m module` follows the same list.
 is honoured silently and wins over everything but the main script directory, **including when
 `E` is the engine's own `build/`**. A venv created there for other purposes (for example a
 terminal host's dependencies) therefore changes `sys.path` for every test and script run from
-that build. Do not put project dependencies in the engine directory; the engine tree is
+that build. 
+**A venv isolates from it (#505).** `E/venv/` is the engine's equivalent of the base
+interpreter's site-packages. A PEP 405 venv made from the engine (`ENV/bin/python`) has
+`include-system-site-packages = false` by default, and then, as for CPython, does not see it:
+row 1 is absent, and pip in the new venv sees only what the venv holds. With
+`include-system-site-packages = true` row 1 is present as for a direct launch. Whether the
+engine runs in a venv is CPython's verdict (getpath found a `pyvenv.cfg` from the launch path:
+`sys.prefix` differs from `sys.base_prefix`); the engine then reads that one `pyvenv.cfg` for
+the key. getpath only runs inside interpreter start-up, so the engine adds the row to the
+configuration and removes it from `sys.path` right after start-up when the venv excludes it.
+
+Do not put project dependencies in the engine directory; the engine tree is
 read-only to projects. Tests must not depend on the contents of the engine directory: they run
 a private engine layout (a copied binary with symlinks to `lib/`, `assets/`, `scripts/`).
 

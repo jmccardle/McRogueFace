@@ -148,10 +148,8 @@ with tempfile.TemporaryDirectory() as tmp:
               % (out.returncode, "" if out.returncode == 0 else text[-600:]))
 
         # the package ships pip: it can install the project's dependencies itself
-        # The package's own venv/ is on that engine's sys.path (the sibling rule), so pip in a
-        # new .venv would find the dependency "already satisfied" there and install nothing:
-        # remove it, leaving the package as just an engine.
-        shutil.rmtree(pkg / "venv")
+        # The package still has its own venv/; the new .venv does not see it (#505: a venv
+        # isolates from the engine's sibling venv/), so pip installs the dependency into .venv.
         rc, out = tool("deps", "--engine", str(pkg), cwd=game)
         check(rc == 0 and (sp / "mcrf_dep_demo").is_dir(),
               "an extracted package can run deps (it ships pip)%s" % ("" if rc == 0 else "\n" + out[-800:]))

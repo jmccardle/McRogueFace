@@ -12,6 +12,10 @@ getpath looks for pyvenv.cfg beside (or one directory above) the unresolved exec
   ENV/lib/python3.X/site-packages is on sys.path once, after the stdlib (site.py adds it)
   sysconfig purelib/scripts are under ENV; site.py prints nothing to stderr
 
+A venv also isolates from the engine's sibling E/venv/ (the engine's equivalent of the base
+interpreter's site-packages): with `include-system-site-packages = false` (the default) its
+site-packages is not on sys.path; with `= true` it is, as when launched directly.
+
 Without a pyvenv.cfg the same symlink leaves sys.prefix at E/lib/Python. The venv here is
 hand-made (no pip, no network) inside a private engine directory; nothing touches build/.
 """
@@ -168,6 +172,61 @@ with tempfile.TemporaryDirectory() as tmp:
     check(out is not None and out.returncode == 0, "argv[0] not on PATH: still starts (%r)" % (out and out.stderr))
     check(i is not None and i["executable"] == os.path.join(e, ENGINE_NAME),
           "argv[0] not on PATH: sys.executable is the real engine (%r)" % (i and i["executable"]))
+
+# --- the sibling E/venv/ is the engine's "system site-packages" ----------------------------
+SIB_PROBE = ("import sys\n"
+             "try:\n"
+             "    import sibling505mod; found = True\n"
+             "except ImportError:\n"
+             "    found = False\n"
+             "print('SIB %s %s' % (found, sys.prefix != sys.base_prefix))\n"
+             "sys.exit(0)\n")
+
+
+def sibling_result(out):
+    for line in (out.stdout if out else "").splitlines():
+        if line.startswith("SIB "):
+            return line[4:]
+    print(out and out.stdout, out and out.stderr)
+    return None
+
+
+with tempfile.TemporaryDirectory() as tmp:
+    tmp = os.path.realpath(tmp)
+    e, exe = make_engine(os.path.join(tmp, "engine"))
+    sib = os.path.join(e, "venv", "lib", STDLIB_DIRNAME, "site-packages")
+    os.makedirs(sib)
+    with open(os.path.join(sib, "sibling505mod.py"), "w") as f:
+        f.write("VALUE = 1\n")
+    env_dir, sp = make_venv(os.path.join(tmp, "ENV"), e)
+    cfg = os.path.join(env_dir, "pyvenv.cfg")
+
+    out = run([exe, "-c", SIB_PROBE], tmp)
+    check(sibling_result(out) == "True False", "launched directly: E/venv/ imports (%r)" % sibling_result(out))
+    for mode in ("--exec",):
+        script = os.path.join(tmp, "sib.py")
+        with open(script, "w") as f:
+            f.write(SIB_PROBE)
+        out = run([exe, "--headless", "--exec", script], tmp)
+        check(sibling_result(out) == "True False", "launched directly, --exec: E/venv/ imports")
+
+    venv_python = os.path.join(env_dir, "bin", "python")
+    out = run([venv_python, "-c", SIB_PROBE], tmp)
+    check(sibling_result(out) == "False True",
+          "through a venv (include-system-site-packages = false): E/venv/ is not visible (%r)" % sibling_result(out))
+    check(out is not None and out.stderr == "", "through a venv: nothing on stderr")
+    out = run([venv_python, "--headless", "--exec", script], tmp)
+    check(sibling_result(out) == "False True", "through a venv, --exec: E/venv/ is not visible")
+
+    with open(cfg) as f:
+        text = f.read()
+    with open(cfg, "w") as f:
+        f.write(text.replace("include-system-site-packages = false", "include-system-site-packages = true"))
+    out = run([venv_python, "-c", SIB_PROBE], tmp)
+    check(sibling_result(out) == "True True",
+          "through a venv with include-system-site-packages = true: E/venv/ is visible (%r)" % sibling_result(out))
+    out = run([venv_python, "--headless", "--exec", script], tmp)
+    check(sibling_result(out) == "True True", "include-system-site-packages = true, --exec: visible")
 
 if failures:
     print("FAIL: %d check(s)" % len(failures))

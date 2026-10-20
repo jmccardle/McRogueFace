@@ -1395,6 +1395,50 @@ static std::wstring launch_executable(const McRogueFaceConfig& config)
     return p.lexically_normal().wstring();
 #endif
 }
+
+// #505: the engine's sibling E/venv/ is its equivalent of the base interpreter's
+// site-packages, so a PEP 405 venv with include-system-site-packages = false (the default)
+// does not see it. getpath only runs inside Py_InitializeFromConfig, so whether we run in a
+// venv is known only afterwards: CPython's verdict is prefix != base_prefix, and the pyvenv.cfg
+// it used is the one in prefix. Its include-system-site-packages key (which getpath doesn't
+// report; site.py reads it the same way) decides whether the sibling row stays on sys.path.
+static void isolate_from_sibling_venv(const std::filesystem::path& sibling_site_packages)
+{
+    mcrf::PyRef prefix(PyConfig_Get("prefix"));
+    mcrf::PyRef base_prefix(PyConfig_Get("base_prefix"));
+    if (!prefix || !base_prefix) { PyErr_Print(); std::exit(1); }
+    int same = PyObject_RichCompareBool(prefix.get(), base_prefix.get(), Py_EQ);
+    if (same < 0) { PyErr_Print(); std::exit(1); }
+    if (same) return;  // not in a venv: the sibling row stays
+
+    mcrf::PyRef venv_dir(PyOS_FSPath(prefix.get()));
+    if (!venv_dir) { PyErr_Print(); std::exit(1); }
+    std::ifstream in(std::filesystem::path(PyUnicode_AsUTF8(venv_dir.get())) / "pyvenv.cfg");
+    std::string line;
+    auto trim = [](std::string t) {
+        t.erase(0, t.find_first_not_of(" \t\r"));
+        t.erase(t.find_last_not_of(" \t\r") + 1);
+        return t;
+    };
+    while (std::getline(in, line)) {
+        auto eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        std::string key = trim(line.substr(0, eq));
+        std::string value = trim(line.substr(eq + 1));
+        for (auto& c : key) c = (char)std::tolower((unsigned char)c);
+        for (auto& c : value) c = (char)std::tolower((unsigned char)c);
+        if (key == "include-system-site-packages" && value == "true") return;
+    }
+
+    PyObject* path = PySys_GetObject("path");  // borrowed
+    if (!path || !PyList_Check(path)) { std::cerr << "mcrogueface: sys.path is not a list" << std::endl; std::exit(1); }
+    mcrf::PyRef sibling(PyUnicode_FromString(sibling_site_packages.string().c_str()));
+    if (!sibling) { PyErr_Print(); std::exit(1); }
+    for (Py_ssize_t i = PyList_GET_SIZE(path) - 1; i >= 0; i--) {
+        int eq = PyObject_RichCompareBool(PyList_GET_ITEM(path, i), sibling.get(), Py_EQ);
+        if (eq < 0 || (eq && PySequence_DelItem(path, i) < 0)) { PyErr_Print(); std::exit(1); }
+    }
+}
 #endif
 
 // #505: CPython interpreter flags (-I -E -s -S -B -u -q -v -O -W -X) onto the PyConfig
@@ -1449,6 +1493,7 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
 
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
+    std::filesystem::path sibling_site_packages;  // #505: the sibling E/venv/ row, if on sys.path
 #ifdef Py_GIL_DISABLED
     // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
     // so the GIL would be re-enabled anyway; pin it explicitly instead of
@@ -1515,6 +1560,7 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
             PyWideStringList_Insert(&config.module_search_paths, 0,
                                    site_packages.wstring().c_str());
             config.module_search_paths_set = 1;
+            sibling_site_packages = site_packages;
         }
     }
 
@@ -1544,6 +1590,9 @@ PyStatus init_python(const char *program_name, const McRogueFaceConfig& mcrf_con
 #endif // __EMSCRIPTEN__
 
     status = Py_InitializeFromConfig(&config);
+    if (!PyStatus_Exception(status) && !sibling_site_packages.empty()) {
+        isolate_from_sibling_venv(sibling_site_packages);
+    }
 
     PyConfig_Clear(&config);
 
@@ -1574,6 +1623,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
 
     PyConfig pyconfig;
     PyConfig_InitIsolatedConfig(&pyconfig);
+    std::filesystem::path sibling_site_packages;  // #505: the sibling E/venv/ row, if on sys.path
 #ifdef Py_GIL_DISABLED
     // mcrfpy declares Py_MOD_GIL_USED and is imported before any user code,
     // so the GIL would be re-enabled anyway; pin it explicitly instead of
@@ -1683,6 +1733,7 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
             PyWideStringList_Insert(&pyconfig.module_search_paths, 0,
                                    site_packages.wstring().c_str());
             pyconfig.module_search_paths_set = 1;
+            sibling_site_packages = site_packages;
         }
     }
 #endif // !__EMSCRIPTEN__
@@ -1734,6 +1785,9 @@ PyStatus McRFPy_API::init_python_with_config(const McRogueFaceConfig& config)
     PyImport_AppendInittab("mcrfpy", &PyInit_mcrfpy);
 
     status = Py_InitializeFromConfig(&pyconfig);
+    if (!PyStatus_Exception(status) && !sibling_site_packages.empty()) {
+        isolate_from_sibling_venv(sibling_site_packages);
+    }
     PyConfig_Clear(&pyconfig);
 
     return status;
