@@ -1,6 +1,5 @@
 """mcrogueface -m mcrf_project <command> ...   (see --help)"""
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -24,7 +23,7 @@ def cmd_init(args):
     log("project: %s" % project.dir)
     project.init(Runtime.running(), log)
     log("ready: cd %s, then `make run` or `%s -m mcrf_project run`"
-        % (os.path.relpath(project.dir), sys.executable))
+        % (project.dir.resolve(), sys.executable))  # absolute: valid from any cwd (#518)
 
 
 def cmd_run(args):
