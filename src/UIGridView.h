@@ -172,6 +172,7 @@ public:
     // map at 1:1; cell (0, 0) at the top left) instead of keeping the old pixels.
     bool size_follows_map = false;
     bool camera_is_default = false;
+    void applyDefaultCamera();  // cell (0,0) at the widget top-left for the current zoom/size
 
     // =========================================================================
     // Python API

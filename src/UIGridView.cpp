@@ -130,6 +130,13 @@ sf::Vector2i UIGridView::cellSize() const
     return grid_data ? grid_data->cellSize() : sf::Vector2i(1, 1);
 }
 
+void UIGridView::applyDefaultCamera()
+{
+    // Cell (0, 0) at the top left, as at construction (#169). Depends on zoom (#530).
+    center_x = box.getSize().x / (2.0f * zoom);
+    center_y = box.getSize().y / (2.0f * zoom);
+}
+
 void UIGridView::onCellSizeChanged(sf::Vector2i old, sf::Vector2i now)
 {
     // A view sized to show the whole map (the default) keeps showing it.
@@ -138,9 +145,7 @@ void UIGridView::onCellSizeChanged(sf::Vector2i old, sf::Vector2i now)
         ensureRenderTextureSize();
     }
     if (camera_is_default) {
-        // Cell (0, 0) at the top left, as at construction.
-        center_x = box.getSize().x / (2.0f * zoom);
-        center_y = box.getSize().y / (2.0f * zoom);
+        applyDefaultCamera();
     } else {
         // The camera is in data pixels: keep the same cells centered.
         center_x = center_x / old.x * now.x;
@@ -600,7 +605,7 @@ bool UIGridView::setProperty(const std::string& name, float value)
     // Each camera change marks the view dirty: a cache_subtree ancestor only redraws when told.
     if (name == "center_x") { center_x = value; camera_is_default = false; markDirty(); return true; }
     if (name == "center_y") { center_y = value; camera_is_default = false; markDirty(); return true; }
-    if (name == "zoom") { zoom = value; markDirty(); return true; }
+    if (name == "zoom") { zoom = value; if (camera_is_default) applyDefaultCamera(); markDirty(); return true; }
     if (name == "camera_rotation") { camera_rotation = value; markDirty(); return true; }
     if (setShaderProperty(name, value)) return true;
     return UIDrawable::setProperty(name, value);
@@ -1041,6 +1046,7 @@ int UIGridView::set_zoom(PyUIGridViewObject* self, PyObject* value, void* closur
     double val = PyFloat_AsDouble(value);
     if (val == -1.0 && PyErr_Occurred()) return -1;
     self->data->zoom = static_cast<float>(val);
+    if (self->data->camera_is_default) self->data->applyDefaultCamera();  // #530
     self->data->markDirty();
     return 0;
 }
@@ -1624,6 +1630,9 @@ PyMethodDef UIGridView_all_methods[] = {
                          "middle rather than its top-left corner.")
          MCRF_NOTE("The camera belongs to the VIEW, not the map: two views of one GridData "
                    "pan independently.")
+         MCRF_NOTE("Until a camera is set, the default puts cell (0, 0) at the widget's "
+                   "top-left at the current zoom (setting zoom later keeps it so). Maps "
+                   "larger than the widget need this call to show anything but their corner.")
      )},
     {NULL}
 };
