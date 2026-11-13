@@ -11,6 +11,10 @@ name: Package
 #
 # Windows is not built here yet: `make windows` needs MinGW builds of SFML and
 # libtcod in __lib_windows/, which nothing in the repo produces.
+#
+# .github/workflows/package.yaml is this file with GitHub's runner label; keep
+# the two in step. Steps run as root in the Forgejo runner's container (no
+# sudo) and as a sudoer on GitHub's VMs, hence $SUDO.
 
 on:
   push:
@@ -25,20 +29,23 @@ env:
     zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev
     libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev
     libgl-dev libopenal-dev libzstd-dev uuid-dev
+    libssl-dev libffi-dev libsqlite3-dev libbz2-dev liblzma-dev
+    libreadline-dev libncurses-dev libgdbm-dev
   # CPython 3.15's Platforms/emscripten/config.toml pins this version.
   EMSDK_VERSION: "4.0.19"
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    runs-on: [docker, ubuntu]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y $APT_PACKAGES
+          SUDO=$(command -v sudo || true)
+          $SUDO apt-get update
+          $SUDO apt-get install -y $APT_PACKAGES
 
       - name: Dependency cache key
         id: deps-key
@@ -72,6 +79,7 @@ jobs:
           cat /etc/os-release | head -3
           tar -tzf dist/McRogueFace-*-Linux.tar.gz | grep -E '/lib/[^/]+$' || true
           readelf -d build/lib/libsfml-audio.so.* | grep NEEDED || true
+          readelf -d build/lib/Python/lib.linux-x86_64-*/_ssl.*.so | grep NEEDED || true
 
       - name: Upload package
         uses: actions/upload-artifact@v4
@@ -81,15 +89,16 @@ jobs:
           if-no-files-found: error
 
   web:
-    runs-on: ubuntu-latest
+    runs-on: [docker, ubuntu]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y $APT_PACKAGES
+          SUDO=$(command -v sudo || true)
+          $SUDO apt-get update
+          $SUDO apt-get install -y $APT_PACKAGES
 
       - name: Dependency cache key
         id: deps-key
@@ -137,7 +146,7 @@ jobs:
       - name: Smoke-test the package (headless Chromium)
         run: |
           make test-wasm-setup
-          sudo .venv-wasmtest/bin/python -m playwright install-deps chromium-headless-shell
+          $(command -v sudo || true) .venv-wasmtest/bin/python -m playwright install-deps chromium-headless-shell
           python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-WASM.zip
 
       - name: Upload package
