@@ -38,13 +38,15 @@ ln -sfn ../modules/SFML/extlibs/headers/stb_image deps/stb
 # --- libtcod ----------------------------------------------------------------
 # CMakeLists.txt links build-emscripten/libtcod.a and the FetchContent builds
 # under build-emscripten/_deps/, so lodepng and utf8proc stay "ON" (fetched),
-# not vendored as in the native build.
+# not vendored as in the native build. ZLIB=OFF: zlib's own CMake build adds a
+# SHARED library, which Emscripten refuses, and the engine uses none of
+# libtcod's zlib features (TCOD_zip, REXPaint).
 B="$PROJECT_ROOT/modules/libtcod-headless/build-emscripten"
 if [ "$CLEAN" -eq 1 ] || [ ! -f "$B/libtcod.a" ]; then
     log "libtcod"
     [ "$CLEAN" -eq 1 ] && rm -rf "$B"
     emcmake cmake -S modules/libtcod-headless -B "$B" -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=OFF -DLIBTCOD_SDL3=OFF > /dev/null
+        -DBUILD_SHARED_LIBS=OFF -DLIBTCOD_SDL3=OFF -DLIBTCOD_ZLIB=OFF > /dev/null
     cmake --build "$B" -j"$JOBS" > "$B/build.log" 2>&1 || { tail -30 "$B/build.log"; exit 1; }
     for f in libtcod.a _deps/lodepng-c-build/liblodepng-c.a _deps/utf8proc-build/libutf8proc.a; do
         [ -f "$B/$f" ] || { echo "ERROR: libtcod build did not produce $f" >&2; exit 1; }
