@@ -101,23 +101,34 @@ jobs:
           $SUDO apt-get update
           $SUDO apt-get install -y $APT_PACKAGES
 
-      - name: Dependency cache key
+      - name: Dependency cache keys
         id: deps-key
         run: |
           echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "wasm=$(git ls-tree HEAD modules/cpython | cat - tools/build_python_wasm.sh | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
+          echo "wasm=$(git ls-tree HEAD modules/cpython modules/libtcod-headless | cat - tools/build_deps_wasm.sh tools/build_python_wasm.sh | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Cache built dependencies
-        uses: actions/cache@v4
+      # Restore and save are separate steps so that a build which gets this far
+      # is cached even when a later step fails.
+      - name: Restore built dependencies
+        id: deps-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: __lib
+          key: deps-release-${{ steps.deps-key.outputs.key }}
+
+      - name: Build dependencies
+        run: make deps
+
+      - name: Save built dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
         with:
           path: __lib
           key: deps-release-${{ steps.deps-key.outputs.key }}
 
       # package-web runs the Linux build's interpreter to assemble the zip.
-      - name: Build dependencies and the Linux engine
-        run: |
-          make deps
-          make linux
+      - name: Build the Linux engine
+        run: make linux
 
       - name: Install emsdk ${{ env.EMSDK_VERSION }}
         run: |
@@ -125,19 +136,30 @@ jobs:
           "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
           "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
 
-      - name: Cache the Emscripten CPython build
-        uses: actions/cache@v4
+      - name: Restore the Emscripten dependency builds
+        id: wasm-cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             modules/cpython/cross-build
+            modules/libtcod-headless/build-emscripten
             ~/.cache/emscripten
-          key: cpython-wasm-${{ steps.deps-key.outputs.wasm }}
+          key: wasm-deps-${{ steps.deps-key.outputs.wasm }}
 
-      - name: Build CPython for Emscripten
+      - name: Build the Emscripten dependencies (CPython, libtcod, stb)
         run: |
           source "$HOME/emsdk/emsdk_env.sh"
-          ls modules/cpython/cross-build/wasm32-emscripten/build/python/libpython3.*.a 2>/dev/null \
-            || tools/build_python_wasm.sh
+          tools/build_deps_wasm.sh
+
+      - name: Save the Emscripten dependency builds
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            modules/cpython/cross-build
+            modules/libtcod-headless/build-emscripten
+            ~/.cache/emscripten
+          key: wasm-deps-${{ steps.deps-key.outputs.wasm }}
 
       - name: Package
         run: |
