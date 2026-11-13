@@ -25,7 +25,7 @@ on:
 env:
   ALSOFT_DRIVERS: "null"
   APT_PACKAGES: >-
-    build-essential cmake git xvfb pandoc
+    build-essential cmake git rsync xvfb pandoc
     zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev
     libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev
     libgl-dev libopenal-dev libzstd-dev uuid-dev
@@ -70,7 +70,8 @@ jobs:
         run: make package-linux
 
       - name: Smoke-test the package
-        run: python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-Linux.tar.gz
+        # The SFML build needs an X display to create a Grid, even with --headless.
+        run: xvfb-run -a python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-Linux.tar.gz
 
       - name: Report what the package links against (#525)
         if: always()
