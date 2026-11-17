@@ -192,6 +192,14 @@ void GridLayer::getChunkBounds(int chunk_x, int chunk_y, int& start_x, int& star
     end_y = std::min(start_y + CHUNK_SIZE, grid_y);
 }
 
+// #539: the vertices of the chunk being repainted. One buffer for every layer: a chunk
+// is built and drawn before the next one starts, and painting is main-thread only. Its
+// capacity tops out at one full chunk (CHUNK_SIZE^2 cells x 6 vertices).
+static std::vector<sf::Vertex>& chunkVertexScratch() {
+    static std::vector<sf::Vertex> verts;
+    return verts;
+}
+
 void GridLayer::ensureChunkTexture(int chunk_idx, int cell_width, int cell_height) {
     if (chunk_idx < 0 || chunk_idx >= static_cast<int>(chunk_textures.size())) return;
     if (!chunk_textures[chunk_idx]) chunk_textures[chunk_idx] = std::make_unique<sf::RenderTexture>();
@@ -410,21 +418,27 @@ void ColorLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, 
 
     chunk_textures[chunk_idx]->clear(sf::Color::Transparent);
 
-    sf::RectangleShape rect;
-    rect.setSize(sf::Vector2f(cell_width, cell_height));
-    rect.setOutlineThickness(0);
-
-    // Render only cells within this chunk (local coordinates in texture)
+    // #539: one vertex array for the whole chunk (two triangles per non-transparent cell,
+    // positions relative to the chunk origin), drawn once.
+    std::vector<sf::Vertex>& verts = chunkVertexScratch();
+    verts.clear();
+    const float cw = static_cast<float>(cell_width), ch = static_cast<float>(cell_height);
     for (int x = start_x; x < end_x; ++x) {
+        const float px = (x - start_x) * cw;
         for (int y = start_y; y < end_y; ++y) {
             const sf::Color& color = at(x, y);
             if (color.a == 0) continue;  // Skip fully transparent
-
-            // Position relative to chunk origin
-            rect.setPosition(sf::Vector2f((x - start_x) * cell_width, (y - start_y) * cell_height));
-            rect.setFillColor(color);
-            chunk_textures[chunk_idx]->draw(rect);
+            const float py = (y - start_y) * ch;
+            verts.emplace_back(sf::Vector2f(px, py), color);
+            verts.emplace_back(sf::Vector2f(px, py + ch), color);
+            verts.emplace_back(sf::Vector2f(px + cw, py), color);
+            verts.emplace_back(sf::Vector2f(px + cw, py), color);
+            verts.emplace_back(sf::Vector2f(px, py + ch), color);
+            verts.emplace_back(sf::Vector2f(px + cw, py + ch), color);
         }
+    }
+    if (!verts.empty()) {
+        chunk_textures[chunk_idx]->draw(verts.data(), verts.size(), sf::Triangles);
     }
 
     chunk_textures[chunk_idx]->display();
@@ -596,23 +610,46 @@ void TileLayer::renderChunkToTexture(int chunk_x, int chunk_y, int cell_width, i
 
     chunk_textures[chunk_idx]->clear(sf::Color::Transparent);
 
-    // #480: every tile fills exactly its cell, whatever this layer's texture's sprite size.
+    // #539: one vertex array for the whole chunk, drawn once with the layer's texture.
+    // Each quad is what PyTexture::sprite() built: the sprite's display rectangle
+    // (#235), scaled by cellFit (#480: a tile fills exactly its cell, whatever the
+    // texture's sprite size), with its top-left at the cell's top-left.
     const sf::Vector2f fit = texture->cellFit(cell_width, cell_height);
     const int sprite_count = texture->getSpriteCount();
+    const int sheet_w = texture->getSheetWidth();
+    const float dw = static_cast<float>(texture->getDisplayWidth());
+    const float dh = static_cast<float>(texture->getDisplayHeight());
+    const float qw = dw * fit.x, qh = dh * fit.y;
 
-    // Render only tiles within this chunk (local coordinates in texture)
+    std::vector<sf::Vertex>& verts = chunkVertexScratch();
+    verts.clear();
+    // Same cell order as the per-sprite loop this replaces, so that sprites whose display
+    // rectangle is larger than the cell overlap their neighbours the same way.
     for (int x = start_x; x < end_x; ++x) {
+        const float px = static_cast<float>((x - start_x) * cell_width);
         for (int y = start_y; y < end_y; ++y) {
             int tile_index = at(x, y);
             // -1 is "no tile"; anything outside the texture's cells is not rendered either
-            // (#524): the layer stores any int, and PyTexture::sprite() does not bounds-check.
+            // (#524): the layer stores any int.
             if (tile_index < 0 || tile_index >= sprite_count) continue;
 
-            // Position relative to chunk origin
-            auto pixel_pos = sf::Vector2f((x - start_x) * cell_width, (y - start_y) * cell_height);
-            sf::Sprite sprite = texture->sprite(tile_index, pixel_pos, fit);
-            chunk_textures[chunk_idx]->draw(sprite);
+            const float py = static_cast<float>((y - start_y) * cell_height);
+            const float u = static_cast<float>((tile_index % sheet_w) * texture->sprite_width
+                                               + texture->display_offset_x);
+            const float v = static_cast<float>((tile_index / sheet_w) * texture->sprite_height
+                                               + texture->display_offset_y);
+            const sf::Color white = sf::Color::White;
+            verts.emplace_back(sf::Vector2f(px, py), white, sf::Vector2f(u, v));
+            verts.emplace_back(sf::Vector2f(px, py + qh), white, sf::Vector2f(u, v + dh));
+            verts.emplace_back(sf::Vector2f(px + qw, py), white, sf::Vector2f(u + dw, v));
+            verts.emplace_back(sf::Vector2f(px + qw, py), white, sf::Vector2f(u + dw, v));
+            verts.emplace_back(sf::Vector2f(px, py + qh), white, sf::Vector2f(u, v + dh));
+            verts.emplace_back(sf::Vector2f(px + qw, py + qh), white, sf::Vector2f(u + dw, v + dh));
         }
+    }
+    if (!verts.empty()) {
+        chunk_textures[chunk_idx]->draw(verts.data(), verts.size(), sf::Triangles,
+                                        sf::RenderStates(&texture->sfTexture()));
     }
 
     chunk_textures[chunk_idx]->display();

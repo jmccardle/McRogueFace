@@ -420,15 +420,19 @@ inline const BlendMode BlendMode::None{};
 // Forward declare Shader for RenderStates
 class Shader;
 
+class Texture;
+
 class RenderStates {
 public:
     Transform transform;
     BlendMode blendMode;
+    const Texture* texture = nullptr;   // #539: for textured vertex arrays, as in SFML
     const Shader* shader = nullptr;
 
     RenderStates() = default;
     RenderStates(const Transform& t) : transform(t) {}
     RenderStates(const BlendMode& mode) : blendMode(mode) {}
+    RenderStates(const Texture* t) : texture(t) {}
     RenderStates(const Shader* s) : shader(s) {}
     static const RenderStates Default;
 };

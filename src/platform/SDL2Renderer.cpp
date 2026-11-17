@@ -1168,11 +1168,10 @@ void RenderTarget::clear(const Color& color) {
     );
 }
 
-void RenderTarget::draw(const Vertex* vertices, size_t vertexCount, PrimitiveType type, const RenderStates& states) {
-    // TODO: Implement with proper vertex buffer handling
-}
+// RenderTarget::draw(const Vertex*, ...) is defined below, next to VertexArray::draw.
 
 void RenderTarget::draw(const VertexArray& vertices, const RenderStates& states) {
+    if (vertices.getVertexCount() == 0) return;
     draw(&vertices[0], vertices.getVertexCount(), vertices.getPrimitiveType(), states);
 }
 
@@ -1747,8 +1746,8 @@ void Shape::draw(RenderTarget& target, RenderStates states) const {
     }
 }
 
-void VertexArray::draw(RenderTarget& target, RenderStates states) const {
-    if (vertices_.empty()) return;
+void RenderTarget::draw(const Vertex* vertices, size_t vertexCount, PrimitiveType type, const RenderStates& states) {
+    if (!vertices || vertexCount == 0) return;
 
     // A custom mcrfpy.Shader set on this drawable overrides the built-in program.
     unsigned int userProgram = (states.shader && states.shader->isLoaded())
@@ -1771,38 +1770,38 @@ void VertexArray::draw(RenderTarget& target, RenderStates states) const {
         texcoords.push_back(v.texCoords.y);
     };
 
-    switch (primitiveType_) {
+    switch (type) {
         case Triangles:
             // Already in triangle format
-            for (size_t i = 0; i < vertices_.size(); ++i) {
-                addVertex(vertices_[i]);
+            for (size_t i = 0; i < vertexCount; ++i) {
+                addVertex(vertices[i]);
             }
             break;
 
         case TriangleFan:
             // Convert fan to triangles: v0, v1, v2, then v0, v2, v3, etc.
-            if (vertices_.size() >= 3) {
-                for (size_t i = 1; i < vertices_.size() - 1; ++i) {
-                    addVertex(vertices_[0]);
-                    addVertex(vertices_[i]);
-                    addVertex(vertices_[i + 1]);
+            if (vertexCount >= 3) {
+                for (size_t i = 1; i < vertexCount - 1; ++i) {
+                    addVertex(vertices[0]);
+                    addVertex(vertices[i]);
+                    addVertex(vertices[i + 1]);
                 }
             }
             break;
 
         case TriangleStrip:
             // Convert strip to triangles
-            if (vertices_.size() >= 3) {
-                for (size_t i = 0; i < vertices_.size() - 2; ++i) {
+            if (vertexCount >= 3) {
+                for (size_t i = 0; i < vertexCount - 2; ++i) {
                     if (i % 2 == 0) {
-                        addVertex(vertices_[i]);
-                        addVertex(vertices_[i + 1]);
-                        addVertex(vertices_[i + 2]);
+                        addVertex(vertices[i]);
+                        addVertex(vertices[i + 1]);
+                        addVertex(vertices[i + 2]);
                     } else {
                         // Flip winding for odd triangles
-                        addVertex(vertices_[i + 1]);
-                        addVertex(vertices_[i]);
-                        addVertex(vertices_[i + 2]);
+                        addVertex(vertices[i + 1]);
+                        addVertex(vertices[i]);
+                        addVertex(vertices[i + 2]);
                     }
                 }
             }
@@ -1810,23 +1809,23 @@ void VertexArray::draw(RenderTarget& target, RenderStates states) const {
 
         case Quads:
             // Convert quads to triangles (4 vertices -> 2 triangles)
-            for (size_t i = 0; i + 3 < vertices_.size(); i += 4) {
+            for (size_t i = 0; i + 3 < vertexCount; i += 4) {
                 // Triangle 1: v0, v1, v2
-                addVertex(vertices_[i]);
-                addVertex(vertices_[i + 1]);
-                addVertex(vertices_[i + 2]);
+                addVertex(vertices[i]);
+                addVertex(vertices[i + 1]);
+                addVertex(vertices[i + 2]);
                 // Triangle 2: v0, v2, v3
-                addVertex(vertices_[i]);
-                addVertex(vertices_[i + 2]);
-                addVertex(vertices_[i + 3]);
+                addVertex(vertices[i]);
+                addVertex(vertices[i + 2]);
+                addVertex(vertices[i + 3]);
             }
             break;
 
         case Lines:
             // Draw lines as thin quads (2 triangles per line)
-            for (size_t i = 0; i + 1 < vertices_.size(); i += 2) {
-                Vector2f p1 = states.transform.transformPoint(vertices_[i].position);
-                Vector2f p2 = states.transform.transformPoint(vertices_[i + 1].position);
+            for (size_t i = 0; i + 1 < vertexCount; i += 2) {
+                Vector2f p1 = states.transform.transformPoint(vertices[i].position);
+                Vector2f p2 = states.transform.transformPoint(vertices[i + 1].position);
 
                 // Calculate perpendicular for line thickness (1 pixel)
                 Vector2f dir(p2.x - p1.x, p2.y - p1.y);
@@ -1843,8 +1842,8 @@ void VertexArray::draw(RenderTarget& target, RenderStates states) const {
                 Vector2f v2(p2.x + perp.x, p2.y + perp.y);
                 Vector2f v3(p2.x - perp.x, p2.y - perp.y);
 
-                const Vertex& vert1 = vertices_[i];
-                const Vertex& vert2 = vertices_[i + 1];
+                const Vertex& vert1 = vertices[i];
+                const Vertex& vert2 = vertices[i + 1];
 
                 // Triangle 1
                 positions.insert(positions.end(), {v0.x, v0.y, v1.x, v1.y, v2.x, v2.y});
@@ -1865,9 +1864,9 @@ void VertexArray::draw(RenderTarget& target, RenderStates states) const {
 
         case LineStrip:
             // Similar to Lines but connected
-            for (size_t i = 0; i + 1 < vertices_.size(); ++i) {
-                Vector2f p1 = states.transform.transformPoint(vertices_[i].position);
-                Vector2f p2 = states.transform.transformPoint(vertices_[i + 1].position);
+            for (size_t i = 0; i + 1 < vertexCount; ++i) {
+                Vector2f p1 = states.transform.transformPoint(vertices[i].position);
+                Vector2f p2 = states.transform.transformPoint(vertices[i + 1].position);
 
                 Vector2f dir(p2.x - p1.x, p2.y - p1.y);
                 float len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
@@ -1882,8 +1881,8 @@ void VertexArray::draw(RenderTarget& target, RenderStates states) const {
                 Vector2f v2(p2.x + perp.x, p2.y + perp.y);
                 Vector2f v3(p2.x - perp.x, p2.y - perp.y);
 
-                const Vertex& vert1 = vertices_[i];
-                const Vertex& vert2 = vertices_[i + 1];
+                const Vertex& vert1 = vertices[i];
+                const Vertex& vert2 = vertices[i + 1];
 
                 positions.insert(positions.end(), {v0.x, v0.y, v1.x, v1.y, v2.x, v2.y});
                 for (int j = 0; j < 2; ++j) {
@@ -1902,9 +1901,9 @@ void VertexArray::draw(RenderTarget& target, RenderStates states) const {
 
         case Points:
             // Draw points as small quads
-            for (size_t i = 0; i < vertices_.size(); ++i) {
-                Vector2f p = states.transform.transformPoint(vertices_[i].position);
-                const Vertex& v = vertices_[i];
+            for (size_t i = 0; i < vertexCount; ++i) {
+                Vector2f p = states.transform.transformPoint(vertices[i].position);
+                const Vertex& v = vertices[i];
 
                 // 2x2 pixel quad centered on point
                 positions.insert(positions.end(), {
@@ -1919,14 +1918,40 @@ void VertexArray::draw(RenderTarget& target, RenderStates states) const {
             break;
     }
 
-    if (!positions.empty()) {
-        // Use shape shader (no texture), or the drawable's custom shader
+    if (positions.empty()) return;
+
+    // #539: a textured array (states.texture, as in SFML). Texture coordinates arrive in
+    // pixels and are normalised here; a RenderTexture's texture is stored bottom-up.
+    const Texture* tex = states.texture;
+    if (tex && tex->getNativeHandle() && tex->getSize().x > 0 && tex->getSize().y > 0) {
+        const float tw = static_cast<float>(tex->getSize().x);
+        const float th = static_cast<float>(tex->getSize().y);
+        const bool flip = tex->isFlippedY();
+        for (size_t i = 0; i + 1 < texcoords.size(); i += 2) {
+            texcoords[i] /= tw;
+            texcoords[i + 1] /= th;
+            if (flip) texcoords[i + 1] = 1.0f - texcoords[i + 1];
+        }
         SDL2Renderer::getInstance().drawTriangles(
             positions.data(), positions.size() / 2,
-            colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram
+            colors.data(), texcoords.data(), tex->getNativeHandle(),
+            SDL2Renderer::ShaderType::Sprite, userProgram
         );
+        return;
     }
+
+    // Use shape shader (no texture), or the drawable's custom shader
+    SDL2Renderer::getInstance().drawTriangles(
+        positions.data(), positions.size() / 2,
+        colors.data(), nullptr, 0, SDL2Renderer::ShaderType::Shape, userProgram
+    );
 }
+
+void VertexArray::draw(RenderTarget& target, RenderStates states) const {
+    if (vertices_.empty()) return;
+    target.draw(vertices_.data(), vertices_.size(), primitiveType_, states);
+}
+
 
 void Sprite::draw(RenderTarget& target, RenderStates states) const {
     if (!texture_) return;
