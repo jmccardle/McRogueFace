@@ -44,34 +44,9 @@ static bool parseOptionalPos(PyObject* pos_obj, int* out_x, int* out_y, const ch
         return true;  // Default to (0, 0)
     }
 
-    // Try to parse as tuple/list of 2 ints
-    if (PyTuple_Check(pos_obj) && PyTuple_Size(pos_obj) == 2) {
-        PyObject* x_obj = PyTuple_GetItem(pos_obj, 0);
-        PyObject* y_obj = PyTuple_GetItem(pos_obj, 1);
-        if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
-            *out_x = (int)PyLong_AsLong(x_obj);
-            *out_y = (int)PyLong_AsLong(y_obj);
-            return true;
-        }
-    } else if (PyList_Check(pos_obj) && PyList_Size(pos_obj) == 2) {
-        PyObject* x_obj = PyList_GetItem(pos_obj, 0);
-        PyObject* y_obj = PyList_GetItem(pos_obj, 1);
-        if (PyLong_Check(x_obj) && PyLong_Check(y_obj)) {
-            *out_x = (int)PyLong_AsLong(x_obj);
-            *out_y = (int)PyLong_AsLong(y_obj);
-            return true;
-        }
-    }
-
-    // Try PyPositionHelper for Vector support
-    if (PyPosition_FromObjectInt(pos_obj, out_x, out_y)) {
-        return true;
-    }
-
-    // Clear any error from PyPosition_FromObjectInt and set our own
-    PyErr_Clear();
-    PyErr_Format(PyExc_TypeError, "%s must be a (x, y) tuple, list, or Vector", param_name);
-    return false;
+    // The helper range-checks every component (OverflowError / ValueError) and names the
+    // argument in its TypeError; its exception is never replaced (#540 items 10, 11).
+    return PyPosition_FromObjectInt(pos_obj, out_x, out_y, param_name);
 }
 
 // Parse optional size tuple
@@ -1630,8 +1605,9 @@ PyObject* PyHeightMap::dig_bezier(PyHeightMapObject* self, PyObject* args, PyObj
     for (int i = 0; i < 4; i++) {
         PyObject* point = PyTuple_Check(points_obj) ? PyTuple_GetItem(points_obj, i) : PyList_GetItem(points_obj, i);
         int x, y;
-        if (!PyPosition_FromObjectInt(point, &x, &y)) {
-            PyErr_Format(PyExc_TypeError, "control point %d must be a (x, y) position", i);
+        char what[32];
+        snprintf(what, sizeof what, "control point %d", i);
+        if (!PyPosition_FromObjectInt(point, &x, &y, what)) {
             return nullptr;
         }
         px[i] = x;

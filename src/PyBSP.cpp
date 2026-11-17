@@ -437,15 +437,13 @@ int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
 
     // Parse position using PyPositionHelper pattern
     int x, y;
-    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) {
-        PyErr_SetString(PyExc_TypeError, "pos must be a tuple (x, y), list, or Vector");
+    if (!PyPosition_FromObjectInt(pos_obj, &x, &y, "pos")) {
         return -1;
     }
 
     // Parse size using PyPositionHelper pattern
     int w, h;
-    if (!PyPosition_FromObjectInt(size_obj, &w, &h)) {
-        PyErr_SetString(PyExc_TypeError, "size must be a tuple (w, h), list, or Vector");
+    if (!PyPosition_FromObjectInt(size_obj, &w, &h, "size")) {
         return -1;
     }
 
@@ -641,8 +639,7 @@ PyObject* PyBSP::split_recursive(PyBSPObject* self, PyObject* args, PyObject* kw
 
     // Parse min_size using PyPositionHelper pattern
     int min_w, min_h;
-    if (!PyPosition_FromObjectInt(min_size_obj, &min_w, &min_h)) {
-        PyErr_SetString(PyExc_TypeError, "min_size must be (width, height) tuple, list, or Vector");
+    if (!PyPosition_FromObjectInt(min_size_obj, &min_w, &min_h, "min_size")) {
         return nullptr;
     }
 
@@ -915,8 +912,7 @@ PyObject* PyBSP::to_heightmap(PyBSPObject* self, PyObject* args, PyObject* kwds)
     int width = self->root->w;
     int height = self->root->h;
     if (size_obj != nullptr && size_obj != Py_None) {
-        if (!PyPosition_FromObjectInt(size_obj, &width, &height)) {
-            PyErr_SetString(PyExc_TypeError, "size must be (width, height) tuple, list, or Vector");
+        if (!PyPosition_FromObjectInt(size_obj, &width, &height, "size")) {
             return nullptr;
         }
     }
