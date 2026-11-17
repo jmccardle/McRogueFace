@@ -1,4 +1,4 @@
-# mcrf: objects=[Grid,Scene,TileLayer] verified=0.3.4 status=ok
+# mcrf: objects=[Grid,Scene,TileLayer] verified=0.3.5 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("tilelayer_demo")

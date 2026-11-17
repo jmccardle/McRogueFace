@@ -1,4 +1,4 @@
-# mcrf: objects=[Easing,Entity,Grid,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Easing,Entity,Grid,Scene] verified=0.3.5 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("entity-demo")

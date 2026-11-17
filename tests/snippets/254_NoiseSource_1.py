@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,NoiseSource,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,NoiseSource,Scene] verified=0.3.5 status=ok
 import mcrfpy
 
 # Create a noise source

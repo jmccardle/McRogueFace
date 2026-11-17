@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Frame,Grid,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Color,Entity,Frame,Grid,Scene] verified=0.3.5 status=ok
 # Grid Display Size - Viewport dimensions
 import mcrfpy
 

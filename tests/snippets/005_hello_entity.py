@@ -1,4 +1,4 @@
-# mcrf: objects=[Entity,Grid,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Entity,Grid,Scene] verified=0.3.5 status=ok
 # Hello Entity - Add entities to a grid
 import mcrfpy
 

@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,Scene,Vector] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Color,Frame,Scene,Vector] verified=0.3.5 status=ok
 # Vector Normalized - Unit vectors
 import mcrfpy
 

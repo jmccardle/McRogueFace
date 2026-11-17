@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Grid,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Grid,Scene] verified=0.3.5 status=ok
 # Pathfinding A* - Find path between points
 import mcrfpy
 

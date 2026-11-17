@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Grid,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Grid,Scene] verified=0.3.5 status=ok
 # Procgen Cellular - Cave generation
 import mcrfpy
 import random

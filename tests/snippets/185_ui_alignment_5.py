@@ -1,4 +1,4 @@
-# mcrf: objects=[Alignment,Caption,Color,Frame,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Alignment,Caption,Color,Frame,Scene] verified=0.3.5 status=ok
 import mcrfpy
 
 

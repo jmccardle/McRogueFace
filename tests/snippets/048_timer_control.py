@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Timer] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene,Timer] verified=0.3.5 status=ok
 # Timer Control - Pause, resume, stop
 import mcrfpy
 

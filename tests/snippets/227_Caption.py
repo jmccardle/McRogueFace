@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Font,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Color,Font,Scene] verified=0.3.5 status=ok
 import mcrfpy
 
 scene = mcrfpy.Scene("caption_demo")

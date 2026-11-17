@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Grid,InputState,Key,Scene,Texture] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,FOV,Grid,InputState,Key,Scene,Texture] verified=0.3.5 status=ok
 """McRogueFace Tutorial - Part 6: Combat System
 
 Implement bump-to-attack combat with HP, damage, and death.

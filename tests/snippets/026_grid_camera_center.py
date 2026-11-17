@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Color,Entity,Grid,InputState,Key,Scene] verified=0.3.5 status=ok
 # Grid Camera Center - Pan the view
 import mcrfpy
 

@@ -1,4 +1,4 @@
-# mcrf: objects=[Grid,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Grid,Scene] verified=0.3.5 status=ok
 import mcrfpy
 import random
 

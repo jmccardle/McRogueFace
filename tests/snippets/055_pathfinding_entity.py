@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,ColorLayer,Entity,Grid,Scene] verified=0.3.4 status=ok
+# mcrf: objects=[Caption,Color,ColorLayer,Entity,Grid,Scene] verified=0.3.5 status=ok
 # Entity Pathfinding - Entity path_to method
 import mcrfpy
 
