@@ -1234,6 +1234,24 @@ PyObject* PyGridLayerAPI::ColorLayer_fill(PyColorLayerObject* self, PyObject* ar
     Py_RETURN_NONE;
 }
 
+// fill_rect's pos/size: the shared position parser, with the argument named in the
+// error. The exception type is preserved (TypeError for a wrong shape, OverflowError /
+// ValueError for a bad number) and the helper's detail is kept after the name.
+static bool ParseRectArg(PyObject* obj, const char* name, int* a, int* b) {
+    if (PyPosition_FromObjectInt(obj, a, b)) return true;
+    PyObject* exc = PyErr_GetRaisedException();
+    PyObject* msg = PyObject_Str(exc);
+    if (msg) {
+        PyErr_Format((PyObject*)Py_TYPE(exc), "%s: %U", name, msg);
+        Py_DECREF(msg);
+    } else {
+        PyErr_SetRaisedException(exc);  // str() itself failed: that error is the report
+        return false;
+    }
+    Py_DECREF(exc);
+    return false;
+}
+
 PyObject* PyGridLayerAPI::ColorLayer_fill_rect(PyColorLayerObject* self, PyObject* args, PyObject* kwds) {
     static const char* kwlist[] = {"pos", "size", "color", NULL};
     PyObject* pos_obj;
@@ -1252,11 +1270,11 @@ PyObject* PyGridLayerAPI::ColorLayer_fill_rect(PyColorLayerObject* self, PyObjec
 
     // Parse pos
     int x, y;
-    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) return NULL;
+    if (!ParseRectArg(pos_obj, "pos", &x, &y)) return NULL;
 
     // Parse size
     int width, height;
-    if (!PyPosition_FromObjectInt(size_obj, &width, &height)) return NULL;
+    if (!ParseRectArg(size_obj, "size", &width, &height)) return NULL;
 
     sf::Color color;
     if (!PyColor::to_color(color_obj, color)) return NULL;  // #450
@@ -2211,11 +2229,11 @@ PyObject* PyGridLayerAPI::TileLayer_fill_rect(PyTileLayerObject* self, PyObject*
 
     // Parse pos
     int x, y;
-    if (!PyPosition_FromObjectInt(pos_obj, &x, &y)) return NULL;
+    if (!ParseRectArg(pos_obj, "pos", &x, &y)) return NULL;
 
     // Parse size
     int width, height;
-    if (!PyPosition_FromObjectInt(size_obj, &width, &height)) return NULL;
+    if (!ParseRectArg(size_obj, "size", &width, &height)) return NULL;
 
     if (!WarnTileIndexAbove(*self->data, tile_index)) return NULL;
     self->data->fillRect(x, y, width, height, tile_index);

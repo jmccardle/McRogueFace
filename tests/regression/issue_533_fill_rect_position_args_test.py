@@ -42,6 +42,22 @@ for kind in ("TileLayer", "ColorLayer"):
         except (TypeError, ValueError):
             pass
 
+# Error messages name the argument that was bad.
+for kind in ("TileLayer", "ColorLayer"):
+    layer, val, _ = make(kind)
+    for name, call in (
+        ("size", lambda: layer.fill_rect((0, 0), mcrfpy.Vector(float("nan"), 1), val)),
+        ("size", lambda: layer.fill_rect((0, 0), "ab", val)),
+        ("size", lambda: layer.fill_rect([0, 0], [1], val)),
+        ("pos", lambda: layer.fill_rect(mcrfpy.Vector(float("inf"), 0), (1, 1), val)),
+        ("pos", lambda: layer.fill_rect(None, (1, 1), val)),
+    ):
+        try:
+            call()
+            fails.append(f"{kind}: bad {name} did not raise")
+        except (TypeError, ValueError, OverflowError) as e:
+            check(str(e).startswith(name + ":"), f"{kind}: error for bad {name} is {e!r}")
+
 for f in fails:
     print("FAIL:", f)
 print("FAIL" if fails else "PASS")
