@@ -294,9 +294,11 @@ void ColorLayer::fillRect(int x, int y, int width, int height, const sf::Color& 
     // Clamp to valid bounds
     int x1 = std::max(0, x);
     int y1 = std::max(0, y);
-    // 64-bit: x + width overflows int for a width near INT_MAX.
-    int x2 = static_cast<int>(std::min<long long>(grid_x, static_cast<long long>(x) + width));
-    int y2 = static_cast<int>(std::min<long long>(grid_y, static_cast<long long>(y) + height));
+    // The far edge is computed in 64-bit and clamped on BOTH sides before narrowing: x + width
+    // overflows int (above INT_MAX or below INT_MIN) for extreme arguments. A zero or negative
+    // size ends up with x2 <= x1: nothing is written and markDirty() returns early.
+    int x2 = static_cast<int>(std::clamp<long long>(static_cast<long long>(x) + width, 0, grid_x));
+    int y2 = static_cast<int>(std::clamp<long long>(static_cast<long long>(y) + height, 0, grid_y));
 
     // Fill the rectangle
     for (int fy = y1; fy < y2; ++fy) {
@@ -560,9 +562,11 @@ void TileLayer::fillRect(int x, int y, int width, int height, int tile_index) {
     // Clamp to valid bounds
     int x1 = std::max(0, x);
     int y1 = std::max(0, y);
-    // 64-bit: x + width overflows int for a width near INT_MAX.
-    int x2 = static_cast<int>(std::min<long long>(grid_x, static_cast<long long>(x) + width));
-    int y2 = static_cast<int>(std::min<long long>(grid_y, static_cast<long long>(y) + height));
+    // The far edge is computed in 64-bit and clamped on BOTH sides before narrowing: x + width
+    // overflows int (above INT_MAX or below INT_MIN) for extreme arguments. A zero or negative
+    // size ends up with x2 <= x1: nothing is written and markDirty() returns early.
+    int x2 = static_cast<int>(std::clamp<long long>(static_cast<long long>(x) + width, 0, grid_x));
+    int y2 = static_cast<int>(std::clamp<long long>(static_cast<long long>(y) + height, 0, grid_y));
 
     // Fill the rectangle
     for (int fy = y1; fy < y2; ++fy) {

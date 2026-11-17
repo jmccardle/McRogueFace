@@ -125,32 +125,64 @@ expect("HeightMap INT_MAX+1", lambda: hm.get(INT_MAX + 1, 0), OverflowError)
 expect("tuple INT_MAX+1 (list)", lambda: hm.get(pos=[INT_MAX + 1, 0]), OverflowError)
 
 # --- Frame.move / resize: float paths ---------------------------------------------------------
+# Ints convert like floats: anything that fits a float is accepted (2**70 is 1.18e21), and
+# anything beyond FLT_MAX raises OverflowError for ints and floats alike.
 f = mcrfpy.Frame(pos=(3, 4), size=(10, 10))
-expect("move 2**70", lambda: f.move(2**70, 0), OverflowError)
-expect("move -2**70 (y)", lambda: f.move(0, -(2**70)), OverflowError)
-expect("move tuple 2**70", lambda: f.move((2**70, 0)), OverflowError)
-expect("resize 2**70", lambda: f.resize((2**70, 5)), OverflowError)
+HUGE = 10**40
+expect("move 10**40", lambda: f.move(HUGE, 0), OverflowError)
+expect("move -10**40 (y)", lambda: f.move(0, -HUGE), OverflowError)
+expect("move tuple 10**40", lambda: f.move((HUGE, 0)), OverflowError)
+expect("move kw x/y 10**40", lambda: f.move(x=HUGE, y=0), OverflowError)
+expect("move kw pos 10**40", lambda: f.move(pos=(HUGE, 0)), OverflowError)
+expect("resize 10**40", lambda: f.resize((HUGE, 5)), OverflowError)
+expect("move 1e40", lambda: f.move(1e40, 0), OverflowError)
+expect("move 1e300", lambda: f.move(1e300, 0), OverflowError)
+expect("move 10**400 (beyond a double)", lambda: f.move(10**400, 0), OverflowError)
 expect("move nan", lambda: f.move(float("nan"), 0), ValueError)
 expect("move inf", lambda: f.move(0, float("inf")), ValueError)
+expect("move kw x/y nan", lambda: f.move(x=0, y=float("nan")), ValueError)
+expect("move kw pos inf", lambda: f.move(pos=(float("inf"), 0)), ValueError)
 expect("move Vector nan", lambda: f.move(mcrfpy.Vector(float("nan"), 0)), ValueError)
-expect("move 1e300", lambda: f.move(1e300, 0), OverflowError)
 if (f.x, f.y, f.w, f.h) != (3.0, 4.0, 10.0, 10.0):
     fails.append(f"Frame changed by failed move/resize: {(f.x, f.y, f.w, f.h)}")
 expect("move ok", lambda: f.move(2, 3))
 if (f.x, f.y) != (5.0, 7.0):
     fails.append(f"Frame.move(2, 3) gave {(f.x, f.y)}")
+expect("move kw x/y ok", lambda: f.move(x=1, y=1))
+expect("move kw pos ok", lambda: f.move(pos=(1, 2)))
+if (f.x, f.y) != (7.0, 10.0):
+    fails.append(f"keyword moves gave {(f.x, f.y)}")
+expect("move bool", lambda: f.move(True, False))
+if (f.x, f.y) != (8.0, 10.0):
+    fails.append(f"Frame.move(True, False) gave {(f.x, f.y)}")
+# int and float of the same magnitude behave the same
+fa = mcrfpy.Frame(pos=(0, 0), size=(10, 10))
+fb = mcrfpy.Frame(pos=(0, 0), size=(10, 10))
+expect("move 10**20 accepted", lambda: fa.move(10**20, 0))
+expect("move 1e20 accepted", lambda: fb.move(1e20, 0))
+if fa.x != fb.x or fa.x == 0.0:
+    fails.append(f"10**20 -> {fa.x}, 1e20 -> {fb.x}")
+expect("move 2**70 accepted (it fits a float)", lambda: mcrfpy.Frame(pos=(0, 0), size=(1, 1)).move(2**70, 0))
+
+# HeightMap float-position methods: nan/inf must raise, not reach an unchecked cast (segfault)
+expect("get_interpolated nan", lambda: hm.get_interpolated(float("nan"), 0), ValueError)
+expect("get_interpolated inf", lambda: hm.get_interpolated(0, float("inf")), ValueError)
+expect("get_normal nan", lambda: hm.get_normal(float("nan"), 0), ValueError)
+expect("get_normal inf", lambda: hm.get_normal(0, -float("inf")), ValueError)
 
 # --- Vector detection is a type check ----------------------------------------------------------
 expect("__class__ lies: read as its sequence, not as Vector memory", lambda: hm[LiesVector()], value=5.0)
-try:
-    r = hm[RaisingClass()]
-    if r != 5.0:
-        fails.append(f"raising __class__ object gave {r!r}")
-except TypeError:
-    pass
-except BaseException as e:  # SystemError was the bug
-    fails.append(f"raising __class__ object raised {type(e).__name__}: {e}")
-expect("move with lying __class__", lambda: f.move(LiesVector()), None)
+# The helper never consults __class__ (a type check on the real type), so an object whose
+# __class__ raises is just a 2-sequence: the lookup succeeds with the sequence's cell.
+expect("raising __class__ is a plain sequence", lambda: hm[RaisingClass()], value=5.0)
+fl = mcrfpy.Frame(pos=(0, 0), size=(10, 10))
+expect("move with lying __class__", lambda: fl.move(LiesVector()))
+if (fl.x, fl.y) != (1.0, 1.0):
+    fails.append(f"move(LiesVector()) -> {(fl.x, fl.y)}, want (1.0, 1.0)")
+fr = mcrfpy.Frame(pos=(0, 0), size=(10, 10))
+expect("move with raising __class__", lambda: fr.move(RaisingClass()))
+if (fr.x, fr.y) != (1.0, 1.0):
+    fails.append(f"move(RaisingClass()) -> {(fr.x, fr.y)}, want (1.0, 1.0)")
 
 # --- __index__, bool, IntEnum, generic sequence ------------------------------------------------
 hm2 = mcrfpy.HeightMap((4, 4))
@@ -163,7 +195,7 @@ expect("__index__ raising propagates its own error", lambda: hm2.get(BadIdx(), 0
 expect("bool", lambda: hm2[(True, True)], value=7.0)
 expect("IntEnum", lambda: hm2[(Color3.ONE, Color3.TWO)], value=7.0)
 expect("generic sequence", lambda: hm2[Seq(1, 2)], value=7.0)
-expect("generic sequence huge", lambda: hm2[Seq(2**70, 0)], OverflowError)
+expect("generic sequence huge", lambda: hm2[Seq(2**70, 0)], OverflowError)  # int paths: past int
 expect("generic sequence nan float", lambda: hm2[Seq(float("nan"), 0)], ValueError)
 expect("whole float in generic sequence", lambda: hm2[Seq(1.0, 2.0)], value=7.0)
 
@@ -172,8 +204,8 @@ expect("float path __index__", lambda: f2.move(Idx(2), Idx(3)))
 if (f2.x, f2.y) != (2.0, 3.0):
     fails.append(f"Frame.move with __index__ gave {(f2.x, f2.y)}")
 expect("float path generic sequence", lambda: f2.move(Seq(1, 1)))
-expect("float path generic sequence huge", lambda: f2.move(Seq(2**70, 0)), OverflowError)
-expect("float path __index__ huge", lambda: f2.move(Idx(2**70), 0), OverflowError)
+expect("float path generic sequence huge", lambda: f2.move(Seq(HUGE, 0)), OverflowError)
+expect("float path __index__ huge", lambda: f2.move(Idx(HUGE), 0), OverflowError)
 expect("float path bad __index__", lambda: f2.move(BadIdx(), 0), RuntimeError)
 
 layer = mcrfpy.TileLayer("t", -1, mcrfpy.default_texture, (6, 6))
@@ -203,6 +235,36 @@ if any(tl2.at((x, y)) == 2 for x in range(6) for y in range(6)):
 tl2.fill_rect((-3, -3), (5, 5), 2)  # covers cells 0..1
 if tl2.at((1, 1)) != 2 or tl2.at((2, 2)) == 2:
     fails.append("negative-origin rectangle filled the wrong cells")
+
+# extreme rectangles must not write out of bounds (the far edge sum can wrap int)
+for kind in ("TileLayer", "ColorLayer"):
+    def fresh():
+        if kind == "TileLayer":
+            lay = mcrfpy.TileLayer("t", -1, mcrfpy.default_texture, (6, 6))
+            lay.fill(1)
+            return lay, 9, lambda: [lay.at((x, y)) for y in range(6) for x in range(6)]
+        lay = mcrfpy.ColorLayer("c", -1, (6, 6))
+        lay.fill(mcrfpy.Color(5, 6, 7, 255))
+        return lay, mcrfpy.Color(250, 1, 2, 255), lambda: [tuple((lay.at((x, y)).r, lay.at((x, y)).g, lay.at((x, y)).b))
+                                                          for y in range(6) for x in range(6)]
+    for label, pos, size in (
+        ("origin INT_MIN, size -1", (INT_MIN, 0), (-1, 1)),
+        ("origin -5, size INT_MIN", (-5, 0), (INT_MIN, 1)),
+        ("origin INT_MIN, size INT_MIN", (INT_MIN, INT_MIN), (INT_MIN, INT_MIN)),
+        ("origin INT_MAX, size INT_MAX", (INT_MAX, INT_MAX), (INT_MAX, INT_MAX)),
+        ("zero size", (2, 2), (0, 3)),
+        ("negative size", (4, 4), (-3, -3)),
+    ):
+        lay, val, snap = fresh()
+        before = snap()
+        expect(f"{kind}.fill_rect {label}", lambda: lay.fill_rect(pos, size, val))
+        if snap() != before:
+            fails.append(f"{kind}.fill_rect {label} changed cells")
+    lay, val, snap = fresh()
+    lay.fill_rect((-3, 0), (5, 1), val)  # overlaps columns 0-1 of row 0 only
+    changed = [i for i, (a, b) in enumerate(zip(snap(), fresh()[2]())) if a != b]
+    if changed != [0, 1]:
+        fails.append(f"{kind}.fill_rect((-3, 0), (5, 1)) changed cells {changed}, want [0, 1]")
 
 for m in fails:
     print("FAIL:", m)
