@@ -68,15 +68,11 @@ private:
         // Generic iterable fallback: check __len__ and index
         // This handles any object that implements sequence protocol
         if (PySequence_Check(obj)) {
-            Py_ssize_t len = PySequence_Size(obj);
-            if (len != 2) {
-                PyErr_Clear();  // Clear size error
-                return false;
-            }
+            if (!sequence_is_pair(obj)) return false;
             PyObject* x_obj = PySequence_GetItem(obj, 0);
-            if (!x_obj) { PyErr_Clear(); return false; }
+            if (!x_obj) return false;  // __getitem__ raised: the error propagates (#540 item 14)
             PyObject* y_obj = PySequence_GetItem(obj, 1);
-            if (!y_obj) { Py_DECREF(x_obj); PyErr_Clear(); return false; }
+            if (!y_obj) { Py_DECREF(x_obj); return false; }
 
             bool success = extract_number(x_obj, out_x) && extract_number(y_obj, out_y);
             Py_DECREF(x_obj);
@@ -121,15 +117,11 @@ private:
 
         // Generic sequence fallback
         if (PySequence_Check(obj)) {
-            Py_ssize_t len = PySequence_Size(obj);
-            if (len != 2) {
-                PyErr_Clear();
-                return false;
-            }
+            if (!sequence_is_pair(obj)) return false;
             PyObject* x_obj = PySequence_GetItem(obj, 0);
-            if (!x_obj) { PyErr_Clear(); return false; }
+            if (!x_obj) return false;  // __getitem__ raised: the error propagates (#540 item 14)
             PyObject* y_obj = PySequence_GetItem(obj, 1);
-            if (!y_obj) { Py_DECREF(x_obj); PyErr_Clear(); return false; }
+            if (!y_obj) { Py_DECREF(x_obj); return false; }
 
             bool success = extract_int(x_obj, out_x) && extract_int(y_obj, out_y);
             Py_DECREF(x_obj);
@@ -138,6 +130,19 @@ private:
         }
 
         return false;
+    }
+
+    // For a generic sequence: true if it has exactly two items. False WITHOUT an error when it
+    // is not a pair (wrong length, or no __len__ at all: a TypeError from len() means "not a
+    // sized sequence", i.e. not a position). False WITH an error when __len__ itself failed for
+    // any other reason (MemoryError, a bug in the user's class): that propagates (#540 item 14).
+    static bool sequence_is_pair(PyObject* obj) {
+        Py_ssize_t len = PySequence_Size(obj);
+        if (len < 0) {
+            if (PyErr_ExceptionMatches(PyExc_TypeError)) PyErr_Clear();
+            return false;
+        }
+        return len == 2;
     }
 
     // A float Vector/tuple component for a position: nan/inf are not positions (ValueError),
@@ -248,25 +253,40 @@ public:
 
     // Extract float position from any supported format
     // Sets Python error and returns false on failure
-    static bool FromObject(PyObject* obj, float* out_x, float* out_y) {
+    //
+    // `what` names the argument for callers that have one ("size", "pos"): the TypeError for an
+    // object that is not a position then says "<what> must be ...". A component that is a number
+    // but unusable (OverflowError / ValueError) is never replaced: callers just propagate.
+    static bool FromObject(PyObject* obj, float* out_x, float* out_y, const char* what = nullptr) {
         if (extract_from_iterable(obj, out_x, out_y)) {
             return true;
         }
         if (PyErr_Occurred()) return false;
-        PyErr_SetString(PyExc_TypeError,
-            "Expected a position as (x, y) tuple, [x, y] list, Vector, or other 2-element sequence");
+        if (what) {
+            PyErr_Format(PyExc_TypeError,
+                "%s must be a position: (x, y) tuple, [x, y] list, Vector, or other 2-element sequence", what);
+        } else {
+            PyErr_SetString(PyExc_TypeError,
+                "Expected a position as (x, y) tuple, [x, y] list, Vector, or other 2-element sequence");
+        }
         return false;
     }
 
     // Extract integer position from any supported format
     // Sets Python error and returns false on failure
-    static bool FromObjectInt(PyObject* obj, int* out_x, int* out_y) {
+    // `what`: see FromObject.
+    static bool FromObjectInt(PyObject* obj, int* out_x, int* out_y, const char* what = nullptr) {
         if (extract_from_iterable_int(obj, out_x, out_y)) {
             return true;
         }
         if (PyErr_Occurred()) return false;  // OverflowError / ValueError from a component
-        PyErr_SetString(PyExc_TypeError,
-            "Expected integer position as (x, y) tuple, [x, y] list, Vector, or other 2-element sequence");
+        if (what) {
+            PyErr_Format(PyExc_TypeError,
+                "%s must be an integer position: (x, y) tuple, [x, y] list, Vector, or other 2-element sequence", what);
+        } else {
+            PyErr_SetString(PyExc_TypeError,
+                "Expected integer position as (x, y) tuple, [x, y] list, Vector, or other 2-element sequence");
+        }
         return false;
     }
 
@@ -397,12 +417,12 @@ inline bool PyPosition_ParseFloat(PyObject* args, PyObject* kwds, float* x, floa
 
 // Extract integer position from a single Python object
 // Usage: if (!PyPosition_FromObjectInt(obj, &x, &y)) return NULL;
-inline bool PyPosition_FromObjectInt(PyObject* obj, int* x, int* y) {
-    return PyPositionHelper::FromObjectInt(obj, x, y);
+inline bool PyPosition_FromObjectInt(PyObject* obj, int* x, int* y, const char* what = nullptr) {
+    return PyPositionHelper::FromObjectInt(obj, x, y, what);
 }
 
 // Extract float position from a single Python object
 // Usage: if (!PyPosition_FromObject(obj, &x, &y)) return NULL;
-inline bool PyPosition_FromObject(PyObject* obj, float* x, float* y) {
-    return PyPositionHelper::FromObject(obj, x, y);
+inline bool PyPosition_FromObject(PyObject* obj, float* x, float* y, const char* what = nullptr) {
+    return PyPositionHelper::FromObject(obj, x, y, what);
 }
