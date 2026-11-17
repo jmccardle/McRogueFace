@@ -26,6 +26,13 @@ def expect(label, fn, exc, needle=None):
     fails.append(f"{label}: accepted")
 
 
+def ok(label, fn):
+    try:
+        return fn()
+    except BaseException as e:
+        fails.append(f"{label}: raised {type(e).__name__}: {e}; want success")
+
+
 def cell(e):
     return tuple(e.cell_pos)
 
@@ -90,25 +97,25 @@ expect("cell_pos = 'ab'", lambda: setattr(e, "cell_pos", "ab"), TypeError)
 expect("cell_pos = 5", lambda: setattr(e, "cell_pos", 5), TypeError)
 
 # ---- path_to and pathfinding endpoints ----
-g = mcrfpydef = mcrfpy.Grid(grid_size=(8, 8), texture=tex)
+g = mcrfpy.Grid(grid_size=(8, 8), texture=tex)
 for y in range(8):
     for x in range(8):
         p = g.at(x, y)
         p.walkable = True
         p.transparent = True
-ent = mcrfpy.Entity(grid_pos=(1, 1))
+# An entity's pathfinding position is its logical CELL (grid_pos), never its draw position
+# (which can sit between cells, or anywhere finite, while it animates).
+ent = mcrfpy.Entity(grid_pos=(2.7, 3.2))     # floors to cell (2, 3); draw_pos snaps there
 g.entities.append(ent)
-ent.draw_pos = (2.7, 3.2)      # a tile position that is between cells
 path = ent.path_to(5, 5)
 if not path or tuple(path[0]) != (3, 4):   # the first step away from cell (2, 3) towards (5, 5)
-    fails.append(f"path_to from draw_pos (2.7, 3.2): first step {path[:1]}, want (3, 4)")
-ent.draw_pos = (1e10, 0)       # finite, but not a cell
-expect("path_to from a huge draw_pos", lambda: ent.path_to(5, 5), OverflowError)
-expect("grid.get_dijkstra_map(root=entity at a huge draw_pos)", lambda: g.get_dijkstra_map(ent), OverflowError)
-ent.draw_pos = (2.7, 3.2)
+    fails.append(f"path_to from cell (2, 3): first step {path[:1]}, want (3, 4)")
+ent.draw_pos = (1e10, 0)       # finite, and not the cell: pathfinding ignores it
+ok("path_to ignores a huge draw_pos", lambda: ent.path_to(5, 5))
+ok("get_dijkstra_map(entity) ignores a huge draw_pos", lambda: g.get_dijkstra_map(ent))
 dm = g.get_dijkstra_map(ent)
 if dm.distance((2, 3)) != 0.0:
-    fails.append(f"dijkstra rooted at an entity on draw_pos (2.7, 3.2): distance to (2, 3) is {dm.distance((2, 3))}")
+    fails.append(f"dijkstra rooted at an entity in cell (2, 3): distance there is {dm.distance((2, 3))}")
 if dm.distance((2.7, 3.2)) != dm.distance((2, 3)):
     fails.append("DijkstraMap.distance((2.7, 3.2)) != distance((2, 3))")
 if dm.distance(V(5.9, 5.9)) != dm.distance((5, 5)):

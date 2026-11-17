@@ -1,5 +1,6 @@
 #include "Display.h"
 #include "McRFPy_API.h"
+#include "PyPositionHelper.h"
 #include "PyWrap.h"
 #include "EngineRandom.h"
 #include <climits>
@@ -2689,42 +2690,9 @@ PyObject* McRFPy_API::_setDevConsole(PyObject* self, PyObject* args) {
 // #215: Bresenham line algorithm implementation
 // Helper to extract (x, y) from tuple, list, or Vector
 static bool extract_point(PyObject* obj, int* x, int* y, const char* arg_name) {
-    // Try tuple/list first
-    if (PySequence_Check(obj) && PySequence_Size(obj) == 2) {
-        PyObject* x_obj = PySequence_GetItem(obj, 0);
-        PyObject* y_obj = PySequence_GetItem(obj, 1);
-
-        bool ok = false;
-        if (x_obj && y_obj && PyNumber_Check(x_obj) && PyNumber_Check(y_obj)) {
-            PyObject* x_long = PyNumber_Long(x_obj);
-            PyObject* y_long = PyNumber_Long(y_obj);
-            if (x_long && y_long) {
-                *x = PyLong_AsLong(x_long);
-                *y = PyLong_AsLong(y_long);
-                ok = !PyErr_Occurred();
-            }
-            Py_XDECREF(x_long);
-            Py_XDECREF(y_long);
-        }
-
-        Py_XDECREF(x_obj);
-        Py_XDECREF(y_obj);
-
-        if (ok) return true;
-    }
-
-    // Try Vector type
-    if (PyObject_TypeCheck(obj, &mcrfpydef::PyVectorType)) {
-        PyVectorObject* vec = (PyVectorObject*)obj;
-        *x = static_cast<int>(vec->data.x);
-        *y = static_cast<int>(vec->data.y);
-        return true;
-    }
-
-    PyErr_Format(PyExc_TypeError,
-        "%s: expected (x, y) tuple or Vector, got %s",
-        arg_name, Py_TYPE(obj)->tp_name);
-    return false;
+    // The integer position helper: a Vector or a 2-sequence of numbers, floats floored, nan/inf
+    // ValueError, out of int range OverflowError, anything else a TypeError naming the argument.
+    return PyPosition_FromObjectInt(obj, x, y, arg_name);
 }
 
 PyObject* McRFPy_API::_bresenham(PyObject* self, PyObject* args, PyObject* kwargs) {
@@ -2744,6 +2712,11 @@ PyObject* McRFPy_API::_bresenham(PyObject* self, PyObject* args, PyObject* kwarg
     int x1, y1, x2, y2;
     if (!extract_point(start_obj, &x1, &y1, "start")) return NULL;
     if (!extract_point(end_obj, &x2, &y2, "end")) return NULL;
+    // libtcod's line walker computes the deltas in int
+    if (std::llabs((long long)x2 - x1) > INT_MAX || std::llabs((long long)y2 - y1) > INT_MAX) {
+        PyErr_SetString(PyExc_OverflowError, "start and end are too far apart: their difference must fit in a C int");
+        return NULL;
+    }
 
     // Build result list using TCOD's Bresenham implementation
     PyObject* result = PyList_New(0);

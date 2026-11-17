@@ -609,7 +609,7 @@ int UISprite::init(PyUISpriteObject* self, PyObject* args, PyObject* kwds)
     
     // Set other properties
     self->data->visible = visible;
-    self->data->opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     self->data->z_index = z_index;
     if (name) {
         self->data->name = std::string(name);

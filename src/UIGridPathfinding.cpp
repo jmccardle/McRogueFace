@@ -347,8 +347,10 @@ bool UIGridPathfinding::ExtractPosition(PyObject* obj, int* x, int* y,
                 "%s: Entity belongs to a different grid", arg_name);
             return false;
         }
-        return mcrf::float_to_cell(entity->data->position.x, *x, arg_name) &&
-               mcrf::float_to_cell(entity->data->position.y, *y, arg_name);
+        // The entity's logical cell (grid_pos), not its draw position (see UIEntity::path_to)
+        *x = entity->data->cell_position.x;
+        *y = entity->data->cell_position.y;
+        return true;
     }
 
     // A Vector, tuple, list or other 2-sequence: the integer position helper (floored,
@@ -897,12 +899,12 @@ PyObject* UIGridPathfinding::Grid_find_path(PyGridDataObject* self, PyObject* ar
                                    "heuristic", "weight", NULL};
     PyObject* start_obj = NULL;
     PyObject* end_obj = NULL;
-    float diagonal_cost = 1.41f;
+    double diagonal_cost = 1.41;
     const char* collide_label = NULL;
     PyObject* heuristic_obj = NULL;
     float heuristic_weight = 1.0f;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|fzOf", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|dzOf", const_cast<char**>(kwlist),
                                      &start_obj, &end_obj, &diagonal_cost, &collide_label,
                                      &heuristic_obj, &heuristic_weight)) {
         return NULL;
@@ -911,7 +913,7 @@ PyObject* UIGridPathfinding::Grid_find_path(PyGridDataObject* self, PyObject* ar
     // diagonal_cost reaches (int)(diagonal_cost * 100 + 0.1) (and libtcod's own cost maths):
     // finite, and small enough that the product fits an int (#540 item 7)
     if (!mcrf::require_finite(diagonal_cost, "diagonal_cost")) return NULL;
-    if (std::fabs(diagonal_cost) > 1.0e6f) {
+    if (std::fabs(diagonal_cost) > 1.0e6) {
         PyErr_SetString(PyExc_OverflowError, "diagonal_cost must be within +/-1e6");
         return NULL;
     }
@@ -1091,12 +1093,12 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
                                    "heuristic", NULL};
     PyObject* root_obj = NULL;
     PyObject* roots_obj = NULL;
-    float diagonal_cost = 1.41f;
+    double diagonal_cost = 1.41;
     const char* collide_label = NULL;
     PyObject* radius_obj = NULL;
     PyObject* heuristic_obj = NULL;  // NULL = not passed (OCTILE); Py_None = no estimate
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OfzOOO", const_cast<char**>(kwlist),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OdzOOO", const_cast<char**>(kwlist),
                                      &root_obj, &diagonal_cost, &collide_label, &roots_obj,
                                      &radius_obj, &heuristic_obj)) {
         return NULL;
@@ -1105,7 +1107,7 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
     // diagonal_cost reaches (int)(diagonal_cost * 100 + 0.1) (and libtcod's own cost maths):
     // finite, and small enough that the product fits an int (#540 item 7)
     if (!mcrf::require_finite(diagonal_cost, "diagonal_cost")) return NULL;
-    if (std::fabs(diagonal_cost) > 1.0e6f) {
+    if (std::fabs(diagonal_cost) > 1.0e6) {
         PyErr_SetString(PyExc_OverflowError, "diagonal_cost must be within +/-1e6");
         return NULL;
     }
@@ -1183,7 +1185,7 @@ PyObject* UIGridPathfinding::Grid_get_dijkstra_map(PyGridDataObject* self, PyObj
     // returned only while it still describes the grid, and the cache bounds itself).
     const bool cacheable = !mask_obj && roots.size() == 1;
     const auto key = cacheable
-        ? std::make_tuple(roots[0].x, roots[0].y, label_str, diagonal_cost, radius, heuristic)
+        ? std::make_tuple(roots[0].x, roots[0].y, label_str, static_cast<float>(diagonal_cost), radius, heuristic)
         : std::make_tuple(0, 0, std::string(), 0.0f, 0, 0);
     std::vector<sf::Vector2i> blocked = labelledCells(grid, label_str);
     if (cacheable) {

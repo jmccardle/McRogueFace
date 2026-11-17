@@ -365,6 +365,9 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
         sf::Vector2i cell;
         if (!mcrf::float_to_cell(x, cell.x, "grid_pos x") || !mcrf::float_to_cell(y, cell.y, "grid_pos y")) return -1;
         self->data->cell_position = cell;
+        // The constructor behaves like the grid_pos setter: the entity sits ON its cell (draw_pos
+        // snaps), it does not keep the fractional position it was given.
+        self->data->position = sf::Vector2f(static_cast<float>(cell.x), static_cast<float>(cell.y));
     }
 
     // Handle sprite_offset argument (optional tuple, default (0,0))
@@ -378,7 +381,7 @@ int UIEntity::init(PyUIEntityObject* self, PyObject* args, PyObject* kwds) {
 
     // Set other properties (delegate to sprite)
     self->data->sprite.visible = visible;
-    self->data->sprite.opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     if (name) {
         self->data->sprite.name = std::string(name);
     }
@@ -954,9 +957,11 @@ PyObject* UIEntity::path_to(PyUIEntityObject* self, PyObject* args, PyObject* kw
     }
 
     // Get current position
-    int current_x, current_y;
-    if (!mcrf::float_to_cell(self->data->position.x, current_x, "entity x") ||
-        !mcrf::float_to_cell(self->data->position.y, current_y, "entity y")) return NULL;
+    // From the entity's logical CELL (grid_pos), as documented -- not its draw position, which
+    // can sit between cells while it animates (git history: pathfinding predates the cell /
+    // draw split (#295, #431) and simply used the only position there was).
+    const int current_x = self->data->cell_position.x;
+    const int current_y = self->data->cell_position.y;
 
     // Validate target position
     auto grid = self->data->getGrid();
@@ -1418,16 +1423,11 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
         }
         PyObject* item;
         while ((item = PyIter_Next(iter)) != NULL) {
-            if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
-                Py_DECREF(item);
-                Py_DECREF(iter);
-                PyErr_SetString(PyExc_TypeError, "Each waypoint must be a (x, y) tuple");
-                return NULL;
-            }
-            int wx = PyLong_AsLong(PyTuple_GetItem(item, 0));
-            int wy = PyLong_AsLong(PyTuple_GetItem(item, 1));
+            // A cell: the integer position helper (floor, range-checked; held references)
+            int wx, wy;
+            const bool parsed = PyPosition_FromObjectInt(item, &wx, &wy, "waypoint");
             Py_DECREF(item);
-            if (PyErr_Occurred()) { Py_DECREF(iter); return NULL; }
+            if (!parsed) { Py_DECREF(iter); return NULL; }
             behavior.waypoints.push_back({wx, wy});
         }
         Py_DECREF(iter);
@@ -1443,16 +1443,10 @@ PyObject* UIEntity::py_set_behavior(PyUIEntityObject* self, PyObject* args, PyOb
         }
         PyObject* item;
         while ((item = PyIter_Next(iter)) != NULL) {
-            if (!PyTuple_Check(item) || PyTuple_Size(item) != 2) {
-                Py_DECREF(item);
-                Py_DECREF(iter);
-                PyErr_SetString(PyExc_TypeError, "Each path step must be a (x, y) tuple");
-                return NULL;
-            }
-            int px = PyLong_AsLong(PyTuple_GetItem(item, 0));
-            int py_val = PyLong_AsLong(PyTuple_GetItem(item, 1));
+            int px, py_val;
+            const bool parsed = PyPosition_FromObjectInt(item, &px, &py_val, "path step");
             Py_DECREF(item);
-            if (PyErr_Occurred()) { Py_DECREF(iter); return NULL; }
+            if (!parsed) { Py_DECREF(iter); return NULL; }
             behavior.current_path.push_back({px, py_val});
         }
         Py_DECREF(iter);
@@ -1665,11 +1659,11 @@ PyGetSetDef UIEntity::getsetters[] = {
     // argument); cell_pos/cell_x/cell_y are documented aliases. Both share the
     // same getter/setter and remain fully interchangeable.
     {"grid_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
-     MCRF_PROPERTY(grid_pos, "Integer logical cell position (Vector). Canonical cell-position property matching the 'grid_pos' constructor argument. Determines which cell this entity occupies for collision, pathfinding, GridPoint.entities and entities_in_radius. Setting it teleports: draw_pos snaps to the new cell (as grid.step() does); for smooth movement animate draw_pos. Accepts a Vector or (x, y) of ints or whole-number floats; a fractional value raises ValueError."), NULL},
+     MCRF_PROPERTY(grid_pos, "Integer logical cell position (Vector). Canonical cell-position property matching the 'grid_pos' constructor argument. Determines which cell this entity occupies for collision, pathfinding, GridPoint.entities and entities_in_radius. Setting it teleports: draw_pos snaps to the new cell (as grid.step() does); for smooth movement animate draw_pos. Accepts a Vector or a 2-sequence of numbers; fractional values are floored (2.7 -> 2, -0.5 -> -1); nan/inf raises ValueError, a value outside int range OverflowError."), NULL},
     {"grid_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     MCRF_PROPERTY(grid_x, "Integer X cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a whole-number float (5.0); a fractional float raises ValueError."), (void*)0},
+     MCRF_PROPERTY(grid_x, "Integer X cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a float, which is floored (5.7 -> 5); nan/inf raises ValueError, a value outside int range OverflowError."), (void*)0},
     {"grid_y", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,
-     MCRF_PROPERTY(grid_y, "Integer Y cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a whole-number float (5.0); a fractional float raises ValueError."), (void*)1},
+     MCRF_PROPERTY(grid_y, "Integer Y cell coordinate (int). Canonical; matches grid_pos. Setting it teleports (draw_pos snaps to the cell). Accepts an int or a float, which is floored (5.7 -> 5); nan/inf raises ValueError, a value outside int range OverflowError."), (void*)1},
     {"cell_pos", (getter)UIEntity::get_cell_pos, (setter)UIEntity::set_cell_pos,
      MCRF_PROPERTY(cell_pos, "Integer logical cell position (Vector). Alias for grid_pos (the canonical name)."), NULL},
     {"cell_x", (getter)UIEntity::get_cell_member, (setter)UIEntity::set_cell_member,

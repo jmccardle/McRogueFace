@@ -177,12 +177,15 @@ PyObject* PyVector::repr(PyObject* obj)
 // OverflowError for an int too large for a double. Never leaves an error pending on success.
 static bool vector_component(PyObject* v, float* out)
 {
-    if (!PyFloat_Check(v) && !PyLong_Check(v)) {
+    // One rule for "a real number" (the same as the position helper): int / bool, float, and
+    // anything with __index__ or __float__ (numpy ints and float32, Fraction, Decimal).
+    // str / bytes / None are not numbers.
+    if (!PyFloat_Check(v) && !PyLong_Check(v) && !PyIndex_Check(v) && !PyNumber_Check(v)) {
         PyErr_Format(PyExc_TypeError, "Vector components must be numbers, not %.200s",
                      Py_TYPE(v)->tp_name);
         return false;
     }
-    const double d = PyFloat_Check(v) ? PyFloat_AS_DOUBLE(v) : PyLong_AsDouble(v);
+    const double d = PyFloat_Check(v) ? PyFloat_AS_DOUBLE(v) : PyFloat_AsDouble(v);
     if (d == -1.0 && PyErr_Occurred()) return false;
     *out = static_cast<float>(d);
     return true;
@@ -219,7 +222,7 @@ int PyVector::init(PyVectorObject* self, PyObject* args, PyObject* kwds)
         return 0;
     }
     // else - 
-    else if (!PyFloat_Check(leader) && !(PyLong_Check(leader)))
+    else if (!PyFloat_Check(leader) && !PyLong_Check(leader) && !PyIndex_Check(leader) && !PyNumber_Check(leader))
     {
         PyErr_SetString(PyExc_TypeError, "mcrfpy.Vector requires a 2-tuple or two numeric values");
         return -1;
@@ -251,10 +254,6 @@ int PyVector::set_member(PyObject* obj, PyObject* value, void* closure)
     PyVectorObject* self = (PyVectorObject*)obj;
     float val;
     
-    if (!PyFloat_Check(value) && !PyLong_Check(value)) {
-        PyErr_SetString(PyExc_TypeError, "Vector members must be numeric");
-        return -1;
-    }
     if (!vector_component(value, &val)) return -1;
     
     if (reinterpret_cast<intptr_t>(closure) == 0) {

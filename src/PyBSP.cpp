@@ -335,7 +335,8 @@ PyMethodDef PyBSP::methods[] = {
          MCRF_SIG("(horizontal: bool, position: int)", "BSP"),
          MCRF_DESC("Split the root node once at the specified position. "
                    "horizontal=True creates a horizontal divider, producing top/bottom rooms. "
-                   "horizontal=False creates a vertical divider, producing left/right rooms."),
+                   "horizontal=False creates a vertical divider, producing left/right rooms. "
+                   "A re-split replaces any existing children, and invalidates existing BSPNode references."),
          MCRF_ARGS_START
          MCRF_ARG("horizontal", "True for horizontal divider (top/bottom), False for vertical (left/right)")
          MCRF_ARG("position", "Split coordinate (y for horizontal, x for vertical)")
@@ -344,7 +345,7 @@ PyMethodDef PyBSP::methods[] = {
     {"split_recursive", (PyCFunction)PyBSP::split_recursive, METH_VARARGS | METH_KEYWORDS,
      MCRF_METHOD(BSP, split_recursive,
          MCRF_SIG("(depth: int, min_size: tuple[int, int], max_ratio: float = 1.5, seed: int | None = None)", "BSP"),
-         MCRF_DESC("Recursively split to the specified depth. "
+         MCRF_DESC("Recursively split to the specified depth, replacing any existing children. "
                    "WARNING: Invalidates all existing BSPNode references from this tree."),
          MCRF_ARGS_START
          MCRF_ARG("depth", "Maximum recursion depth (1-16). Creates up to 2^depth leaves.")
@@ -492,7 +493,10 @@ int PyBSP::init(PyBSPObject* self, PyObject* args, PyObject* kwds)
     self->orig_y = y;
     self->orig_w = w;
     self->orig_h = h;
-    self->generation = 0;
+    // Never reset the counter: a re-run __init__ frees the old tree (TCOD_bsp_delete above), and
+    // BSPNodes from it must read as stale. A counter that went back to 0 made them valid again,
+    // pointing at freed memory.
+    self->generation++;
 
     return 0;
 }
@@ -1145,7 +1149,7 @@ bool PyBSPNode::checkValid(PyBSPNodeObject* self)
     PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
     if (self->generation != bsp->generation) {
         PyErr_SetString(PyExc_RuntimeError,
-            "BSPNode is stale: parent BSP was modified (clear() or split_recursive() called). "
+            "BSPNode is stale: parent BSP was modified (clear(), split_once(), split_recursive() or __init__ called). "
             "Re-fetch nodes from the BSP object.");
         return false;
     }
@@ -1460,7 +1464,7 @@ PyObject* PyBSPIter::next(PyBSPIterObject* self)
         PyBSPObject* bsp = (PyBSPObject*)self->bsp_owner;
         if (self->generation != bsp->generation) {
             PyErr_SetString(PyExc_RuntimeError,
-                "BSP tree was modified during iteration (clear() or split_recursive() called)");
+                "BSP tree was modified during iteration (clear(), split_once() or split_recursive() called)");
             return NULL;
         }
     }

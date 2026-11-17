@@ -1338,11 +1338,11 @@ static TCOD_Random* CreateTCODRandom(PyObject* seed_obj)
 // libtcod's add_hill / dig_hill cast (int)(hx - radius) and ceilf(hx + radius) (and the y forms)
 // with no range check (heightmap_c.c): the radius and height must be finite, and centre +/- radius
 // must stay within int range, or the cast is undefined (#540 item 7).
-static bool checkHill(float cx, float cy, float radius, float height, const char* height_name)
+static bool checkHill(double cx, double cy, double radius, double height, const char* height_name)
 {
     if (!mcrf::require_finite(radius, "radius") || !mcrf::require_finite(height, height_name)) return false;
     const double lo = static_cast<double>(INT_MIN) - 1.0, hi = static_cast<double>(INT_MAX) + 1.0;
-    for (double v : {(double)cx - radius, (double)cx + radius, (double)cy - radius, (double)cy + radius}) {
+    for (double v : {cx - radius, cx + radius, cy - radius, cy + radius}) {
         if (!(v > lo && v < hi)) {
             char buf[200];
             snprintf(buf, sizeof buf, "center +/- radius must fit in a C int (center=(%g, %g), radius=%g)",
@@ -1358,9 +1358,9 @@ PyObject* PyHeightMap::add_hill(PyHeightMapObject* self, PyObject* args, PyObjec
 {
     static const char* keywords[] = {"center", "radius", "height", nullptr};
     PyObject* center_obj = nullptr;
-    float radius, height;
+    double radius, height;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off", const_cast<char**>(keywords),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Odd", const_cast<char**>(keywords),
                                      &center_obj, &radius, &height)) {
         return nullptr;
     }
@@ -1396,9 +1396,9 @@ PyObject* PyHeightMap::dig_hill(PyHeightMapObject* self, PyObject* args, PyObjec
 {
     static const char* keywords[] = {"center", "radius", "target_height", nullptr};
     PyObject* center_obj = nullptr;
-    float radius, target_height;
+    double radius, target_height;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off", const_cast<char**>(keywords),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Odd", const_cast<char**>(keywords),
                                      &center_obj, &radius, &target_height)) {
         return nullptr;
     }
@@ -1586,9 +1586,9 @@ PyObject* PyHeightMap::dig_bezier(PyHeightMapObject* self, PyObject* args, PyObj
 {
     static const char* keywords[] = {"points", "start_radius", "end_radius", "start_height", "end_height", nullptr};
     PyObject* points_obj = nullptr;
-    float start_radius, end_radius, start_height, end_height;
+    double start_radius, end_radius, start_height, end_height;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Offff", const_cast<char**>(keywords),
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Odddd", const_cast<char**>(keywords),
                                      &points_obj, &start_radius, &end_radius, &start_height, &end_height)) {
         return nullptr;
     }
@@ -1601,7 +1601,7 @@ PyObject* PyHeightMap::dig_bezier(PyHeightMapObject* self, PyObject* args, PyObj
     // The radii and heights reach (int)(x +/- radius) in libtcod (#540 item 7); the control points
     // are limited to INT_MAX / 3 below, so a radius within that bound keeps every probe in range.
     {
-        const float bezier_radius_limit = static_cast<float>(INT_MAX / 3);
+        const double bezier_radius_limit = static_cast<double>(INT_MAX / 3);
         if (!mcrf::require_finite(start_radius, "start_radius") || !mcrf::require_finite(end_radius, "end_radius") ||
             !mcrf::require_finite(start_height, "start_height") || !mcrf::require_finite(end_height, "end_height")) {
             return nullptr;
@@ -1727,64 +1727,30 @@ static Py_ssize_t ParseWeightsDict(PyObject* weights_dict,
     dy.resize(kernel_size);
     weight.resize(kernel_size);
 
-    PyObject* key;
-    PyObject* value;
-    Py_ssize_t pos = 0;
-    Py_ssize_t idx = 0;
+    // Snapshot the dict (owned references to every key and value) before running any user code:
+    // a key's x / __index__ / __float__ can mutate the dict, and PyDict_Next across that is a
+    // heap overflow or a use-after-free.
+    mcrf::PyRef items(PyDict_Items(weights_dict));
+    if (!items) return -1;
+    if (PyList_GET_SIZE(items.get()) != kernel_size) {
+        PyErr_SetString(PyExc_RuntimeError, "weights dict changed size");
+        return -1;
+    }
+    for (Py_ssize_t idx = 0; idx < kernel_size; idx++) {
+        PyObject* pair = PyList_GET_ITEM(items.get(), idx);   // our own list: user code cannot reach it
+        PyObject* key = PyTuple_GET_ITEM(pair, 0);
+        PyObject* value = PyTuple_GET_ITEM(pair, 1);
 
-    while (PyDict_Next(weights_dict, &pos, &key, &value)) {
+        // A key is a position (Vector, tuple, list, 2-sequence of ints; floats floor)
         int key_dx = 0, key_dy = 0;
-
-        if (PyTuple_Check(key) && PyTuple_Size(key) == 2) {
-            PyObject* x_obj = PyTuple_GetItem(key, 0);
-            PyObject* y_obj = PyTuple_GetItem(key, 1);
-            if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-                PyErr_SetString(PyExc_TypeError, "weights keys must be (int, int) tuples");
-                return -1;
-            }
-            key_dx = PyLong_AsLong(x_obj);
-            key_dy = PyLong_AsLong(y_obj);
-        } else if (PyList_Check(key) && PyList_Size(key) == 2) {
-            PyObject* x_obj = PyList_GetItem(key, 0);
-            PyObject* y_obj = PyList_GetItem(key, 1);
-            if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-                PyErr_SetString(PyExc_TypeError, "weights keys must be [int, int] lists");
-                return -1;
-            }
-            key_dx = PyLong_AsLong(x_obj);
-            key_dy = PyLong_AsLong(y_obj);
-        } else if (PyObject_HasAttrString(key, "x") && PyObject_HasAttrString(key, "y")) {
-            PyObject* x_attr = PyObject_GetAttrString(key, "x");
-            PyObject* y_attr = PyObject_GetAttrString(key, "y");
-            if (!x_attr || !y_attr) {
-                Py_XDECREF(x_attr);
-                Py_XDECREF(y_attr);
-                PyErr_SetString(PyExc_TypeError, "weights keys must be (dx, dy) tuples, lists, or Vectors");
-                return -1;
-            }
-            key_dx = static_cast<int>(PyFloat_Check(x_attr) ? PyFloat_AsDouble(x_attr) : PyLong_AsLong(x_attr));
-            key_dy = static_cast<int>(PyFloat_Check(y_attr) ? PyFloat_AsDouble(y_attr) : PyLong_AsLong(y_attr));
-            Py_DECREF(x_attr);
-            Py_DECREF(y_attr);
-        } else {
-            PyErr_SetString(PyExc_TypeError, "weights keys must be (dx, dy) tuples, lists, or Vectors");
-            return -1;
-        }
+        if (!PyPosition_FromObjectInt(key, &key_dx, &key_dy, "weights key")) return -1;
 
         float w = 0.0f;
-        if (PyFloat_Check(value)) {
-            w = static_cast<float>(PyFloat_AsDouble(value));
-        } else if (PyLong_Check(value)) {
-            w = static_cast<float>(PyLong_AsLong(value));
-        } else {
-            PyErr_SetString(PyExc_TypeError, "weights values must be numeric (int or float)");
-            return -1;
-        }
+        if (!mcrf::to_float(value, w, "weights value")) return -1;
 
         dx[idx] = key_dx;
         dy[idx] = key_dy;
         weight[idx] = w;
-        idx++;
     }
 
     return kernel_size;

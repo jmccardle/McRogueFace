@@ -1061,13 +1061,9 @@ int PyGridLayerAPI::ColorLayer_init(PyColorLayerObject* self, PyObject* args, Py
 
     // Parse grid_size if provided
     if (grid_size_obj && grid_size_obj != Py_None) {
-        if (!PyTuple_Check(grid_size_obj) || PyTuple_Size(grid_size_obj) != 2) {
-            PyErr_SetString(PyExc_TypeError, "grid_size must be a (width, height) tuple");
-            return -1;
-        }
-        grid_x = PyLong_AsLong(PyTuple_GetItem(grid_size_obj, 0));
-        grid_y = PyLong_AsLong(PyTuple_GetItem(grid_size_obj, 1));
-        if (PyErr_Occurred()) return -1;
+        // the integer position helper: out of int range is OverflowError (the old long -> int
+        // assignment wrapped 2**32 + 3 to 3), floats floor, held references (#540)
+        if (!PyPosition_FromObjectInt(grid_size_obj, &grid_x, &grid_y, "grid_size")) return -1;
 
         // #212 - Validate against GRID_MAX
         if (grid_x > GRID_MAX || grid_y > GRID_MAX) {
@@ -1162,20 +1158,9 @@ PyObject* PyGridLayerAPI::ColorLayer_set(PyColorLayerObject* self, PyObject* arg
 
 // Helper: parse a 2-tuple key into (x, y) ints. Sets TypeError on bad keys.
 static bool parse_subscript_key(PyObject* key, int* x, int* y) {
-    if (!PyTuple_Check(key) || PyTuple_Size(key) != 2) {
-        PyErr_SetString(PyExc_TypeError,
-            "Layer indices must be a 2-tuple (x, y)");
-        return false;
-    }
-    PyObject* x_obj = PyTuple_GetItem(key, 0);
-    PyObject* y_obj = PyTuple_GetItem(key, 1);
-    if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-        PyErr_SetString(PyExc_TypeError, "Layer indices must be integers");
-        return false;
-    }
-    *x = (int)PyLong_AsLong(x_obj);
-    *y = (int)PyLong_AsLong(y_obj);
-    return true;
+    // The integer position helper: floats floor, out of int range is OverflowError (the old
+    // (int)PyLong_AsLong wrapped 2**32 to 0, a valid cell), Vector by type (#540)
+    return PyPosition_FromObjectInt(key, x, y, "Layer index");
 }
 
 PyObject* PyGridLayerAPI::ColorLayer_subscript(PyColorLayerObject* self, PyObject* key) {
@@ -1310,16 +1295,9 @@ PyObject* PyGridLayerAPI::ColorLayer_draw_fov(PyColorLayerObject* self, PyObject
         return NULL;
     }
 
-    // Parse source position
+    // Parse source position: the integer position helper (floor, range-checked, Vector by type)
     int source_x, source_y;
-    if (PyTuple_Check(source_obj) && PyTuple_Size(source_obj) == 2) {
-        source_x = PyLong_AsLong(PyTuple_GetItem(source_obj, 0));
-        source_y = PyLong_AsLong(PyTuple_GetItem(source_obj, 1));
-        if (PyErr_Occurred()) return NULL;
-    } else {
-        PyErr_SetString(PyExc_TypeError, "source must be a (x, y) tuple");
-        return NULL;
-    }
+    if (!PyPosition_FromObjectInt(source_obj, &source_x, &source_y, "source")) return NULL;
 
     // Get radius from grid if not specified
     if (radius < 0) {
@@ -1642,8 +1620,12 @@ PyObject* PyGridLayerAPI::ColorLayer_apply_ranges(PyColorLayerObject* self, PyOb
 
         if (is_gradient) {
             // Parse as gradient: ((r1,g1,b1), (r2,g2,b2))
+            // Both colours held before either is converted: a conversion (__index__) can run user
+            // code that mutates color_spec (#543 class).
             PyObject* color_low_obj = PySequence_Fast_GET_ITEM(color_spec, 0);
             PyObject* color_high_obj = PySequence_Fast_GET_ITEM(color_spec, 1);
+            mcrf::PyRef color_low_hold = mcrf::hold(color_low_obj);
+            mcrf::PyRef color_high_hold = mcrf::hold(color_high_obj);
 
             char color_name[48];
             snprintf(color_name, sizeof(color_name), "ranges[%zd] color_low", i);
@@ -2014,13 +1996,9 @@ int PyGridLayerAPI::TileLayer_init(PyTileLayerObject* self, PyObject* args, PyOb
 
     // Parse grid_size if provided
     if (grid_size_obj && grid_size_obj != Py_None) {
-        if (!PyTuple_Check(grid_size_obj) || PyTuple_Size(grid_size_obj) != 2) {
-            PyErr_SetString(PyExc_TypeError, "grid_size must be a (width, height) tuple");
-            return -1;
-        }
-        grid_x = PyLong_AsLong(PyTuple_GetItem(grid_size_obj, 0));
-        grid_y = PyLong_AsLong(PyTuple_GetItem(grid_size_obj, 1));
-        if (PyErr_Occurred()) return -1;
+        // the integer position helper: out of int range is OverflowError (the old long -> int
+        // assignment wrapped 2**32 + 3 to 3), floats floor, held references (#540)
+        if (!PyPosition_FromObjectInt(grid_size_obj, &grid_x, &grid_y, "grid_size")) return -1;
 
         // #212 - Validate against GRID_MAX
         if (grid_x > GRID_MAX || grid_y > GRID_MAX) {

@@ -7,6 +7,7 @@
 // construction, properties, and the shared helpers the Grid() factory path in
 // UIGridView needs.
 #include "PyGridData.h"
+#include "PyPositionHelper.h"
 #include "PyWrap.h"
 #include "UIGridView.h"
 #include "UIGridPathfinding.h"
@@ -30,18 +31,8 @@ int PyGridData::parse_grid_shape(PyObject* grid_size_obj, PyObject* texture_obj,
                                  std::shared_ptr<PyTexture>& texture_out)
 {
     if (grid_size_obj) {
-        if (!PyTuple_Check(grid_size_obj) || PyTuple_Size(grid_size_obj) != 2) {
-            PyErr_SetString(PyExc_TypeError, "grid_size must be a tuple (grid_w, grid_h)");
-            return -1;
-        }
-        PyObject* gx_val = PyTuple_GetItem(grid_size_obj, 0);
-        PyObject* gy_val = PyTuple_GetItem(grid_size_obj, 1);
-        if (!PyLong_Check(gx_val) || !PyLong_Check(gy_val)) {
-            PyErr_SetString(PyExc_TypeError, "grid_size tuple must contain integers");
-            return -1;
-        }
-        grid_w = PyLong_AsLong(gx_val);
-        grid_h = PyLong_AsLong(gy_val);
+        // the integer position helper (range-checked; floats floor), #540
+        if (!PyPosition_FromObjectInt(grid_size_obj, &grid_w, &grid_h, "grid_size")) return -1;
     }
 
     if (grid_w <= 0 || grid_h <= 0) {

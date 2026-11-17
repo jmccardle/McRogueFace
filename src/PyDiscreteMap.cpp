@@ -435,18 +435,9 @@ int PyDiscreteMap::init(PyDiscreteMapObject* self, PyObject* args, PyObject* kwd
         return -1;
     }
 
-    // Parse size tuple
-    if (!PyTuple_Check(size_obj) || PyTuple_Size(size_obj) != 2) {
-        PyErr_SetString(PyExc_TypeError, "size must be a tuple of (width, height)");
-        return -1;
-    }
-
-    int width = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 0));
-    int height = (int)PyLong_AsLong(PyTuple_GetItem(size_obj, 1));
-
-    if (PyErr_Occurred()) {
-        return -1;
-    }
+    // Parse size: the integer position helper (range-checked; floats floor), #540
+    int width, height;
+    if (!PyPosition_FromObjectInt(size_obj, &width, &height, "size")) return -1;
 
     if (width <= 0 || height <= 0) {
         PyErr_SetString(PyExc_ValueError, "width and height must be positive integers");
@@ -1669,11 +1660,16 @@ PyObject* PyDiscreteMap::to_heightmap(PyDiscreteMapObject* self, PyObject* args,
             value_map[i] = static_cast<float>(i);
         }
 
-        // Override with mapping values
-        PyObject* key;
-        PyObject* value;
-        Py_ssize_t pos = 0;
-        while (PyDict_Next(mapping_obj, &pos, &key, &value)) {
+        // Override with mapping values. Snapshot the dict first (owned references): a key's
+        // value property or __index__ can mutate the dict, and PyDict_Next across user code is a
+        // use-after-free.
+        mcrf::PyRef items(PyDict_Items(mapping_obj));
+        if (!items) return nullptr;
+        const Py_ssize_t n_items = PyList_GET_SIZE(items.get());
+        for (Py_ssize_t i = 0; i < n_items; i++) {
+            PyObject* pair = PyList_GET_ITEM(items.get(), i);  // our own list
+            PyObject* key = PyTuple_GET_ITEM(pair, 0);
+            PyObject* value = PyTuple_GET_ITEM(pair, 1);
             int k;
             if (!parseIntValue(key, &k)) {
                 return nullptr;
@@ -1684,12 +1680,7 @@ PyObject* PyDiscreteMap::to_heightmap(PyDiscreteMapObject* self, PyObject* args,
             }
 
             float v;
-            if (PyFloat_Check(value)) v = (float)PyFloat_AsDouble(value);
-            else if (PyLong_Check(value)) v = (float)PyLong_AsLong(value);
-            else {
-                PyErr_SetString(PyExc_TypeError, "mapping values must be numeric");
-                return nullptr;
-            }
+            if (!mcrf::to_float(value, v, "mapping value")) return nullptr;
 
             value_map[k] = v;
         }

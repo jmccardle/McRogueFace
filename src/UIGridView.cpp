@@ -1,5 +1,6 @@
 // UIGridView.cpp - Rendering view for GridData (#252)
 #include "UIGridView.h"
+#include <cfloat>
 #include "PyWrap.h"
 #include "UICollection.h"  // #430: UICollection::pyobject_for (GridView.children)
 #include "PyGridData.h"
@@ -602,15 +603,32 @@ UIDrawable* UIGridView::click_at(sf::Vector2f point)
 
 // Property system. The shared names (x, y, pos, w, h, size, rotation, origin,
 // opacity, z_index) are handled by UIDrawable (#426, lost in the #355 type split).
-bool UIGridView::checkFloatTarget(const std::string& name, float final_value) const
+// A zoom must be positive AFTER narrowing to float (1e-46 is 0.0f), and the arithmetic derived from
+// it must stay finite: the default camera centres on w / (2 * zoom) and h / (2 * zoom) (applyDefaultCamera)
+// and the view spans w / zoom by h / zoom tiles, all in float. So zoom >= max(|w|, |h|) / FLT_MAX is
+// the real lower bound for a view of this size (no magic minimum); a smaller positive zoom would make
+// center (inf, inf). Raises ValueError and returns false when it does not hold.
+static bool checkZoom(float zoom, float w, float h)
 {
-    // zoom <= 0 makes the default center (w / (2 * zoom)) infinite: reject it as a target. (A
-    // delta animation's end is only known when it starts; an easing that overshoots can still
-    // pass through values <= 0 on the way, which setProperty tolerates.)
-    if (name == "zoom" && !(final_value > 0.0f)) {
-        mcrf::raise_got(PyExc_ValueError, "zoom must be greater than 0", (double)final_value);
+    if (!(zoom > 0.0f)) {
+        mcrf::raise_got(PyExc_ValueError, "zoom must be greater than 0", (double)zoom);
         return false;
     }
+    const double extent = std::max(std::fabs((double)w), std::fabs((double)h));
+    if (!(extent / (double)zoom <= (double)FLT_MAX)) {
+        mcrf::raise_got(PyExc_ValueError,
+            "zoom is too small for this view: the camera centre (size / (2 * zoom)) would not be finite", (double)zoom);
+        return false;
+    }
+    return true;
+}
+
+bool UIGridView::checkFloatTarget(const std::string& name, float final_value) const
+{
+    // zoom <= 0 (or a zoom whose derived centre is not finite) is rejected as a target. (A delta
+    // animation's end is only known when it starts; an easing that overshoots can still pass
+    // through values <= 0 on the way, which setProperty tolerates.)
+    if (name == "zoom") return checkZoom(final_value, box.getSize().x, box.getSize().y);
     return true;
 }
 
@@ -814,9 +832,10 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         self->data->size_follows_map = true;
     }
 
-    // center_x / center_y: nan is the "not given" sentinel (#169), so only infinity is an error.
-    if (std::isinf(center_x) || std::isinf(center_y)) {
-        PyErr_SetString(PyExc_ValueError, "center_x / center_y must not be infinite");
+    // center_x / center_y: nan is the "not given" sentinel (#169); infinity is ValueError and a
+    // finite value beyond float range OverflowError, like every other constructor float.
+    if ((!std::isnan(center_x) && !mcrf::require_finite(center_x, "center_x")) ||
+        (!std::isnan(center_y) && !mcrf::require_finite(center_y, "center_y"))) {
         return -1;
     }
     if (!mcrf::require_finite(x, "x") || !mcrf::require_finite(y, "y") ||
@@ -826,17 +845,15 @@ int UIGridView::init(PyUIGridViewObject* self, PyObject* args, PyObject* kwds)
         !mcrf::require_finite(vert_margin, "vert_margin")) {
         return -1;
     }
-    if (!(zoom > 0.0)) {
-        mcrf::raise_got(PyExc_ValueError, "zoom must be greater than 0", zoom);
-        return -1;
-    }
+    // zoom: positive and derived-finite AFTER narrowing to float (a double 1e-46 is 0.0f)
+    if (!checkZoom(static_cast<float>(zoom), static_cast<float>(w), static_cast<float>(h))) return -1;
 
-    self->data->zoom = zoom;
+    self->data->zoom = static_cast<float>(zoom);
     self->data->position = sf::Vector2f(x, y);
     self->data->box.setPosition(self->data->position);
     self->data->box.setSize(sf::Vector2f(w, h));
     self->data->visible = visible;
-    self->data->opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     self->data->z_index = z_index;
     if (name) self->data->UIDrawable::name = std::string(name);
 
@@ -1063,11 +1080,7 @@ int UIGridView::set_zoom(PyUIGridViewObject* self, PyObject* value, void* closur
 {
     float val = 0.0f;
     if (!mcrf::to_float(value, val, "zoom")) return -1;
-    if (!(val > 0.0f)) {
-        // zoom <= 0 makes center (w / (2 * zoom)) infinite and a camera that shows nothing
-        mcrf::raise_got(PyExc_ValueError, "zoom must be greater than 0", (double)val);
-        return -1;
-    }
+    if (!checkZoom(val, self->data->box.getSize().x, self->data->box.getSize().y)) return -1;
     self->data->zoom = static_cast<float>(val);
     if (self->data->camera_is_default) self->data->applyDefaultCamera();  // #530
     self->data->markDirty();
@@ -1221,10 +1234,7 @@ int UIGridView::set_float_member_gv(PyUIGridViewObject* self, PyObject* value, v
         case 4: self->data->center_x = val; self->data->camera_is_default = false; break;
         case 5: self->data->center_y = val; self->data->camera_is_default = false; break;
         case 6:
-            if (!(val > 0.0f)) {
-                mcrf::raise_got(PyExc_ValueError, "zoom must be greater than 0", (double)val);
-                return -1;
-            }
+            if (!checkZoom(val, self->data->box.getSize().x, self->data->box.getSize().y)) return -1;
             self->data->zoom = val;
             break;
         case 7: self->data->camera_rotation = val; break;
@@ -1572,18 +1582,8 @@ PyObject* UIGridView::subscript(PyUIGridViewObject* self, PyObject* key)
         PyErr_SetString(PyExc_RuntimeError, "Grid has no underlying data");
         return NULL;
     }
-    if (!PyTuple_Check(key) || PyTuple_Size(key) != 2) {
-        PyErr_SetString(PyExc_TypeError, "Grid indices must be a 2-tuple (x, y)");
-        return NULL;
-    }
-    PyObject* x_obj = PyTuple_GetItem(key, 0);
-    PyObject* y_obj = PyTuple_GetItem(key, 1);
-    if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-        PyErr_SetString(PyExc_TypeError, "Grid indices must be integers");
-        return NULL;
-    }
-    int x = (int)PyLong_AsLong(x_obj);
-    int y = (int)PyLong_AsLong(y_obj);
+    int x, y;
+    if (!PyPosition_FromObjectInt(key, &x, &y, "Grid index")) return NULL;  // floors, range-checked (#540)
 
     auto& grid_data = self->data->grid_data;
     if (x < 0 || x >= grid_data->grid_w) {

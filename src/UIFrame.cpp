@@ -677,7 +677,7 @@ int UIFrame::init(PyUIFrameObject* self, PyObject* args, PyObject* kwds)
     
     // Set other properties
     self->data->visible = visible;
-    self->data->opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     self->data->z_index = z_index;
     self->data->clip_children = clip_children;
     self->data->cache_subtree = cache_subtree;  // #144: texture caching

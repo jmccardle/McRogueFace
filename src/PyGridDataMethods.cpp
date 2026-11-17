@@ -54,21 +54,8 @@ PyObject* PyGridData::py_at(PyGridDataObject* self, PyObject* args, PyObject* kw
 
 PyObject* PyGridData::subscript(PyGridDataObject* self, PyObject* key)
 {
-    if (!PyTuple_Check(key) || PyTuple_Size(key) != 2) {
-        PyErr_SetString(PyExc_TypeError, "Grid indices must be a tuple of (x, y)");
-        return NULL;
-    }
-
-    PyObject* x_obj = PyTuple_GetItem(key, 0);
-    PyObject* y_obj = PyTuple_GetItem(key, 1);
-
-    if (!PyLong_Check(x_obj) || !PyLong_Check(y_obj)) {
-        PyErr_SetString(PyExc_TypeError, "Grid indices must be integers");
-        return NULL;
-    }
-
-    int x = PyLong_AsLong(x_obj);
-    int y = PyLong_AsLong(y_obj);
+    int x, y;
+    if (!PyPosition_FromObjectInt(key, &x, &y, "Grid index")) return NULL;  // floors, range-checked (#540)
 
     if (x < 0 || x >= self->data->grid_w) {
         PyErr_Format(PyExc_IndexError, "x index %d is out of range [0, %d)", x, self->data->grid_w);

@@ -545,7 +545,7 @@ int UIArc::init(PyUIArcObject* self, PyObject* args, PyObject* kwds) {
     }
 
     self->data->visible = (visible != 0);
-    self->data->opacity = opacity;
+    self->data->assignOpacity(opacity);  // the setter's clamp, not a raw store (#540)
     self->data->z_index = z_index;
 
     if (name) {

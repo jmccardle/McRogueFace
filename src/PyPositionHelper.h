@@ -186,7 +186,16 @@ private:
         // check as floats, so 10**20 and 1e20 behave alike; 10**40 and 1e40 both overflow.
         bool intlike;
         PyObject* idx = as_pylong(obj, &intlike);
-        if (!idx) return false;
+        if (!idx) {
+            if (intlike) return false;  // __index__ raised
+            // The one rule for "a real number": also anything with __float__ (numpy float32,
+            // Fraction, Decimal), converted with PyNumber_Float semantics. str / bytes / None are
+            // not numbers (no error: the caller reports "not a position").
+            if (!PyNumber_Check(obj)) return false;
+            const double d = PyFloat_AsDouble(obj);
+            if (d == -1.0 && PyErr_Occurred()) return false;
+            return vector_to_float(d, out, what);
+        }
         double d = PyLong_AsDouble(idx);
         Py_DECREF(idx);
         if (d == -1.0 && PyErr_Occurred()) {  // beyond even a double (exact int: OverflowError)
@@ -232,6 +241,12 @@ private:
         }
         if (intlike) return false;  // error set (OverflowError, or from __index__)
         if (PyFloat_Check(obj)) return float_to_int(PyFloat_AS_DOUBLE(obj), out, what);
+        // __float__-only objects (numpy float32, Fraction, Decimal) floor like floats (decision B)
+        if (PyNumber_Check(obj)) {
+            const double d = PyFloat_AsDouble(obj);
+            if (d == -1.0 && PyErr_Occurred()) return false;
+            return float_to_int(d, out, what);
+        }
         return false;
     }
 

@@ -483,7 +483,7 @@ int UICircle::init(PyUICircleObject* self, PyObject* args, PyObject* kwds) {
     }
 
     self->data->visible = (visible != 0);
-    self->data->opacity = opacity_val;
+    self->data->assignOpacity(opacity_val);  // the setter's clamp (#540)
     self->data->z_index = z_index;
 
     if (name) {
