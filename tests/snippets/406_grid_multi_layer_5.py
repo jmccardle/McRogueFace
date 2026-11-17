@@ -49,7 +49,7 @@ class DecorationManager:
         'stains': {
             'blood': 130,
             'water': 131,
-            'acid': 132,
+            'acid': 126,   # green potion; the tileset has sprites 0-131
         }
     }
 
