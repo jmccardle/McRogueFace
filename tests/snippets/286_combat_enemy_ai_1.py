@@ -333,7 +333,6 @@ def run_all_enemy_ai(enemies, player, grid):
 # endregion
 
 
-# region: enemy
 class Enemy:
     """Enemy with health, AI, and entity representation."""
 
@@ -375,7 +374,6 @@ guard = Enemy(grid, 5, 5, enemy_texture, 0, patrol_ai)
 
 hunter_ai = HunterAI(trigger_range=3, chase_range=10)
 lurker = Enemy(grid, 20, 20, enemy_texture, 1, hunter_ai)
-# endregion
 
 
 ex, ey = guard.entity.grid_x, guard.entity.grid_y

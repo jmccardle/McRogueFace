@@ -23,6 +23,11 @@ grid = mcrfpy.Grid(
 grid.fill_color = mcrfpy.Color(20, 20, 30)
 ui.append(grid)
 
+# Every cell is open floor, so the key handler below has somewhere to walk.
+for gy in range(15):
+    for gx in range(20):
+        grid.at(gx, gy).walkable = True
+
 # Create player entity
 player = mcrfpy.Entity(grid_pos=(10, 7), sprite_index=0)
 grid.entities.append(player)

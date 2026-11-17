@@ -38,8 +38,12 @@ grid.entities.append(enemy)
 # region: move_enemy
 def move_enemy_toward_player(grid, enemy, player):
     """Move enemy one step toward the player."""
+    # Distance map rooted at the player's current position
     dijkstra = grid.get_dijkstra_map(player.grid_pos)
+
+    # Single step from the enemy toward the root (the player)
     step = dijkstra.step_from(enemy.grid_pos)
+
     if step is not None:
         enemy.grid_pos = step
 # endregion

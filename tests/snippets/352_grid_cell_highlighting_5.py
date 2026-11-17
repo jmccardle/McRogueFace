@@ -131,7 +131,6 @@ def get_cone_range(origin_x, origin_y, direction, length, spread):
 
 current_ability = None
 
-# region: multi-color
 class HighlightManager:
     """Manage multiple highlight layers."""
 
@@ -211,6 +210,5 @@ def on_cell_hover(x, y):
         if (x, y) in highlights.highlights.get('move', set()):
             aoe = get_radius_range(x, y, 2, include_center=True)
             highlights.add('danger', aoe)
-# endregion
 
 on_ability_select("attack")

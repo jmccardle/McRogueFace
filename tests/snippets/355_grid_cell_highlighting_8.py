@@ -18,6 +18,7 @@ for y in range(12):
         cell = grid.at(x, y)
         cell.tilesprite = 48
         cell.walkable = True
+        cell.transparent = True
 
 player = mcrfpy.Entity(grid_pos=(8, 6), texture=mcrfpy.default_texture, sprite_index=84)
 grid.entities.append(player)

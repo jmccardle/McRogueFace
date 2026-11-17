@@ -31,7 +31,9 @@ def ai_flee(grid, entity, threat_x, threat_y):
     """Move entity away from threat using an inverted Dijkstra map."""
     toward_threat = grid.get_dijkstra_map((threat_x, threat_y))
     away_from_threat = toward_threat.invert()
+
     step = away_from_threat.descent_step(entity.grid_pos)
+
     if step is not None:
         entity.grid_pos = step
 # endregion

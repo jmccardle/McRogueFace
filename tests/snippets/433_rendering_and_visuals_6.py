@@ -33,7 +33,6 @@ def update_hud(health_label, current_hp, max_hp):
 health_label = create_hud(scene)
 update_hud(health_label, 25, 100)
 
-# region: particles
 def create_explosion(scene, x, y):
     """Create explosion effect using animated frames."""
     import random
@@ -61,7 +60,6 @@ def create_explosion(scene, x, y):
         for p in particles:
             ui.remove(p)
     timer = mcrfpy.Timer("explosion_cleanup", cleanup, 600)
-# endregion
 
 create_explosion(scene, 400, 300)
 

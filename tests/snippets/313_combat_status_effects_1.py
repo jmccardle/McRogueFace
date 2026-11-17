@@ -15,7 +15,7 @@ for y in range(12):
 
 # Supporting pieces the recipe assumes from the other combat pages.
 class Fighter:
-    def __init__(self, hp=10, attack=5, defense=2, name=None):
+    def __init__(self, hp=10, attack=5, defense=2):
         self.hp = hp
         self.max_hp = hp
         self.attack = attack
@@ -283,7 +283,6 @@ def find_target(enemy, potential_targets):
 # endregion
 
 
-# region: combat_entity
 class CombatEntity:
     """Entity with combat and effect support."""
 
@@ -293,8 +292,8 @@ class CombatEntity:
         self.grid = grid
 
         # Combat stats
+        self.name = stats.pop('name', 'Entity')
         self.fighter = Fighter(**stats)
-        self.name = stats.get('name', 'Entity')
 
         # Status effects
         self.effects = EffectManager(self)
@@ -316,7 +315,6 @@ class CombatEntity:
     def has_effect(self, name):
         """Check for an effect."""
         return self.effects.has_effect(name)
-# endregion
 
 
 # Tips: the same entity, with the two methods the tips add.
