@@ -169,8 +169,6 @@ class FrameLock {
 private:
     std::mutex mtx;
     std::condition_variable cv;
-    bool safe_window = false;
-    bool closing = false;        // #410: closeWindow() has begun; no new admissions
     uint64_t epoch = 0;          // #410: bumped by openWindow(); deferred waiters wait for a change
     int eligible = 0;            // #410: waiters owed service in the current window (under mtx)
     std::atomic<int> waiting{0}; // blocked in acquire(); written under mtx

@@ -66,11 +66,11 @@ void FrameLock::acquire() {
         } else {
             // #410/#535 - EVERY non-nested arrival waits for the next openWindow(), even
             // if a window is open right now. A window serves exactly the threads that
-            // were waiting when it opened (`eligible`). Admitting a late arrival because
-            // `safe_window && !closing` let a thread that released and re-acquired
-            // before closeWindow() had set `closing` (a gap that grows to whole
-            // scheduler quanta when the main thread is starved) be served twice by one
-            // window.
+            // were waiting when it opened (`eligible`). The old rule admitted a late
+            // arrival while a window was open and not yet marked closing, so a thread that
+            // released and re-acquired inside one window was served again by it: several
+            // times per frame with a handful of threads even on an idle machine, and
+            // without bound once the main thread was starved.
             const uint64_t my_epoch = epoch;
             waiting++;
             cv.wait(lock, [this, my_epoch]{ return epoch != my_epoch; });
@@ -103,22 +103,15 @@ void FrameLock::openWindow() {
     eligible = waiting.load();
     epoch++;
     windows_opened++;
-    closing = false;
-    safe_window = true;
     cv.notify_all();  // Wake up all waiting threads
 }
 
 void FrameLock::closeWindow() {
     std::unique_lock<std::mutex> lock(mtx);
-    // #410 - close against late arrivals FIRST. From here on, acquire() defers any
-    // new non-nested arrival to the next window, so the waits below are bounded by
-    // the threads that were already waiting (plus nested acquires of current holders).
-    closing = true;
-    // Let every thread that was waiting when the window opened enter, then let all
-    // holders finish.
+    // Every non-nested arrival is deferred to the next window (see acquire()), so this
+    // wait is bounded by the threads that were waiting when the window opened (plus
+    // nested acquires of current holders): let them all enter, then let all holders finish.
     cv.wait(lock, [this]{ return eligible == 0 && active == 0; });
-    safe_window = false;
-    closing = false;
 }
 
 GameEngine::GameEngine() : GameEngine(McRogueFaceConfig{})

@@ -664,6 +664,12 @@ static PyMethodDef mcrfpyMethods[] = {
                    "thread the context manager blocks (GIL released) until the render loop opens a "
                    "safe window between frames. On the thread that drives the clock (the main thread, "
                    "unless a background thread runs frames with step()/advance()) it is a no-op.")
+         MCRF_NOTE("EVERY non-nested lock() waits for the NEXT safe window, even if one is open "
+                   "right now: up to one frame, or until the next step()/advance() when headless. "
+                   "A window serves each waiting thread once, so a thread that releases and "
+                   "re-acquires gets one acquire per frame. A holder that waits, inside its block, "
+                   "for another thread's lock() deadlocks (that thread cannot enter until the "
+                   "holder leaves).")
          MCRF_NOTE("INSIDE THE LOCK, MUTATE ONLY. The main thread parks until every holder "
                    "releases, so hold time is added to frame time roughly 1:1 -- a 10 ms hold "
                    "costs the frame 10 ms, and presents as engine stutter rather than as a "

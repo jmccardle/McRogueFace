@@ -25,7 +25,10 @@ import threading
 import time
 import mcrfpy
 
-HANG_SECONDS = 30.0
+import os
+# Hang detector only, never a performance bound. Scaled like the runner's own per-test
+# timeout (valgrind runs at x50) and always below it (run_tests.py SLOW_TESTS gives 60 s).
+HANG_SECONDS = 30.0 * float(os.environ.get("MCRF_TIMEOUT_MULTIPLIER", "1"))
 ROUNDS = 25
 
 
@@ -93,8 +96,80 @@ def run(workers, hold):
     return problems
 
 
+def mid_window_arrival():
+    """A holds (blocked on an Event) keeping the window open; B, admitted by the same
+    window, leaves and re-enters lock() while A still holds. B must be deferred."""
+    a_in = threading.Event()
+    a_release = threading.Event()
+    b_first_done = threading.Event()
+    b_second_in = threading.Event()
+    snap = {}
+    problems = []
+
+    def a():
+        with mcrfpy.lock():
+            a_in.set()
+            if not a_release.wait(HANG_SECONDS):
+                snap["a_hang"] = True
+
+    def b():
+        with mcrfpy.lock():
+            pass
+        b_first_done.set()
+        with mcrfpy.lock():      # second acquire, while A still holds the first window
+            b_second_in.set()
+
+    def watcher(before):
+        # Wait on counters: B deferred ('lock_waiting' == 1) or, under a broken rule,
+        # B admitted again (b_second_in).
+        deadline = time.monotonic() + HANG_SECONDS
+        while not (b_first_done.is_set() and a_in.is_set()
+                   and (mcrfpy.get_metrics()["lock_waiting"] == 1 or b_second_in.is_set())):
+            if time.monotonic() > deadline:
+                snap["watch_hang"] = True
+                break
+            time.sleep(0.0005)
+        m = mcrfpy.get_metrics()
+        snap["adm"] = m["lock_admissions"] - before["lock_admissions"]
+        snap["win"] = m["lock_windows"] - before["lock_windows"]
+        snap["waiting"] = m["lock_waiting"]
+        snap["b_second_early"] = b_second_in.is_set()
+        a_release.set()
+
+    ta = threading.Thread(target=a, daemon=True)
+    tb = threading.Thread(target=b, daemon=True)
+    ta.start()
+    tb.start()
+    wait_until(lambda: mcrfpy.get_metrics()["lock_waiting"] == 2, "A and B never both blocked in lock()")
+    before = mcrfpy.get_metrics()
+    tw = threading.Thread(target=watcher, args=(before,), daemon=True)
+    tw.start()
+    mcrfpy.step(0.016)          # parks until A (released by the watcher) and B are out
+    tw.join()
+    if snap.get("a_hang") or snap.get("watch_hang"):
+        hang("mid-window scenario never reached its rendezvous")
+    if snap["b_second_early"]:
+        problems.append("B was admitted a second time by the window that had already served it")
+    if snap["adm"] != 2 or snap["win"] != 1 or snap["waiting"] != 1:
+        problems.append("while A held the window: admissions +%d (want 2), windows +%d (want 1), "
+                        "lock_waiting %d (want 1)" % (snap["adm"], snap["win"], snap["waiting"]))
+    mcrfpy.step(0.016)          # next window: only now may B's second acquire run
+    wait_until(b_second_in.is_set, "B never served by the next window")
+    after = mcrfpy.get_metrics()
+    if after["lock_admissions"] - before["lock_admissions"] != 3 or after["lock_windows"] - before["lock_windows"] != 2:
+        problems.append("after the next step: admissions +%d (want 3), windows +%d (want 2)"
+                        % (after["lock_admissions"] - before["lock_admissions"],
+                           after["lock_windows"] - before["lock_windows"]))
+    ta.join(HANG_SECONDS)
+    tb.join(HANG_SECONDS)
+    return problems
+
+
 mcrfpy.current_scene = mcrfpy.Scene("issue_410")
 ok = True
+problems = mid_window_arrival()
+print("mid_window_arrival: %s" % ("ok" if not problems else "; ".join(problems)))
+ok = ok and not problems
 for name, w, h in (("greedy W=1 hold=2ms", 1, 0.002),
                    ("W=8 hold=1ms", 8, 0.001),
                    ("W=64 hold=0", 64, 0)):
