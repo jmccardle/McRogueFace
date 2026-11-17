@@ -98,3 +98,7 @@ leak:^_add_methods_to_object$
 # true through finalization. A leak report of one of these is an engine bug:
 # a reference that teardown does not release.
 # ---------------------------------------------------------------------------
+
+# Mesa's GLX driver (Debian 13's Mesa 25): allocations made at display/context setup and
+# never freed, reported with no symbols, so only the module can be matched. Not engine code.
+leak:libGLX_mesa.so
