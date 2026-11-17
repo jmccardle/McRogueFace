@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,MouseButton,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,MouseButton,Scene] verified=0.3.6-dev status=ok
 # Toggle / Checkbox pattern - a button that toggles state and updates its appearance.
 import mcrfpy
 
@@ -12,6 +12,7 @@ root.outline = 2
 ui.append(root)
 
 
+# region: toggle
 def make_toggle(parent, pos, label_text, initial=False, on_change=None):
     """Create a toggle with visual state indicator."""
     state = {"checked": initial}
@@ -57,5 +58,6 @@ def set_music_volume(v):
 # Usage
 music_toggle = make_toggle(root, (20, 20), "Music", initial=True,
                             on_change=lambda on: set_music_volume(1.0 if on else 0.0))
+# endregion
 
 mcrfpy.current_scene = scene
