@@ -254,9 +254,10 @@ jobs:
         run: make package-windows
 
       - name: Smoke-test the package (Wine)
-        # Run as tools/release.sh runs it: smoke_package.py starts the unpacked
-        # mcrogueface.exe under wine and checks the version and the stdlib.
-        run: python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-Windows.zip
+        # As tools/release.sh runs it: smoke_package.py starts the unpacked
+        # mcrogueface.exe under wine and checks the version and the stdlib. Wine needs
+        # an X display to create a window, even with --headless (release.sh has one).
+        run: xvfb-run -a -s "-noreset" python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-Windows.zip
 
       - name: Upload package
         uses: actions/upload-artifact@v4
