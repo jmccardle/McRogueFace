@@ -1,5 +1,8 @@
 #pragma once
 #include "Python.h"
+#include <cmath>
+#include <climits>
+#include <cfloat>
 #include "PyVector.h"
 #include "McRFPy_API.h"
 
@@ -24,44 +27,20 @@
 //   float x, y;
 //   if (!PyPosition_FromObject(obj, &x, &y)) return NULL;
 //
-//   // For more complex parsing with additional args:
-//   auto result = PyPositionHelper::parse_position(args, kwds);
-//   if (!result.has_position) { ... }
 // ============================================================================
 
 class PyPositionHelper {
-public:
-    // Template structure for parsing results
-    struct ParseResult {
-        float x = 0.0f;
-        float y = 0.0f;
-        bool has_position = false;
-    };
-
-    struct ParseResultInt {
-        int x = 0;
-        int y = 0;
-        bool has_position = false;
-    };
-
 private:
     // Internal helper: extract two numeric values from a 2-element iterable
-    // Returns true on success, false on failure (does NOT set Python error)
+    // Returns true on success. On failure returns false: with an error set (OverflowError /
+    // ValueError / an error from __index__) if a component was a bad number, without one if the
+    // object is simply not a position. Callers check PyErr_Occurred() after a false return.
     static bool extract_from_iterable(PyObject* obj, float* out_x, float* out_y) {
-        // First check if it's a Vector (most specific)
-        PyTypeObject* vector_type = (PyTypeObject*)PyObject_GetAttrString(
-            McRFPy_API::mcrf_module, "Vector");
-        if (vector_type) {
-            if (PyObject_IsInstance(obj, (PyObject*)vector_type)) {
-                PyVectorObject* vec = (PyVectorObject*)obj;
-                *out_x = vec->data.x;
-                *out_y = vec->data.y;
-                Py_DECREF(vector_type);
-                return true;
-            }
-            Py_DECREF(vector_type);
-        } else {
-            PyErr_Clear();  // Clear any error from GetAttrString
+        // Vector (most specific). A type check, not isinstance: __class__ can lie or raise,
+        // and the cast below must be of a real Vector (or subclass).
+        if (PyObject_TypeCheck(obj, &mcrfpydef::PyVectorType)) {
+            PyVectorObject* vec = (PyVectorObject*)obj;
+            return vector_to_float(vec->data.x, out_x) && vector_to_float(vec->data.y, out_y);
         }
 
         // Check for tuple (common case, optimized)
@@ -110,20 +89,12 @@ private:
 
     // Internal helper: extract integer values from a 2-element iterable
     static bool extract_from_iterable_int(PyObject* obj, int* out_x, int* out_y) {
-        // First check if it's a Vector
-        PyTypeObject* vector_type = (PyTypeObject*)PyObject_GetAttrString(
-            McRFPy_API::mcrf_module, "Vector");
-        if (vector_type) {
-            if (PyObject_IsInstance(obj, (PyObject*)vector_type)) {
-                PyVectorObject* vec = (PyVectorObject*)obj;
-                *out_x = static_cast<int>(vec->data.x);
-                *out_y = static_cast<int>(vec->data.y);
-                Py_DECREF(vector_type);
-                return true;
-            }
-            Py_DECREF(vector_type);
-        } else {
-            PyErr_Clear();
+        // Vector: a type check, not isinstance (see extract_from_iterable).
+        if (PyObject_TypeCheck(obj, &mcrfpydef::PyVectorType)) {
+            PyVectorObject* vec = (PyVectorObject*)obj;
+            // Fractional components truncate toward zero (#540 item 3 is undecided);
+            // non-finite or out-of-range ones raise before the float->int cast.
+            return float_to_int(vec->data.x, out_x) && float_to_int(vec->data.y, out_y);
         }
 
         // Check for tuple
@@ -169,30 +140,101 @@ private:
         return false;
     }
 
-    // Extract a float from a numeric Python object
-    static bool extract_number(PyObject* obj, float* out) {
-        if (PyFloat_Check(obj)) {
-            *out = static_cast<float>(PyFloat_AsDouble(obj));
-            return true;
+    // A float Vector/tuple component for a position: nan/inf are not positions (ValueError),
+    // and a finite double that does not fit a float is an OverflowError.
+    static bool vector_to_float(double v, float* out) {
+        if (!std::isfinite(v)) {
+            PyErr_SetString(PyExc_ValueError, "position component must be finite");
+            return false;
         }
-        if (PyLong_Check(obj)) {
-            *out = static_cast<float>(PyLong_AsLong(obj));
-            return true;
+        if (std::fabs(v) > static_cast<double>(FLT_MAX)) {
+            PyErr_SetString(PyExc_OverflowError, "position component out of range for a float");
+            return false;
         }
-        return false;
+        *out = static_cast<float>(v);
+        return true;
     }
 
-    // Extract an int from a numeric Python object (integers only)
+    // An int-like object as a C long: ints (and subclasses: bool, IntEnum) directly, anything
+    // else with __index__ (numpy integers) through it. Returns false WITHOUT an error when obj
+    // is not int-like; false WITH an error (OverflowError, or whatever __index__ raised).
+    // The int an int-like object stands for, as a NEW reference (nullptr: none).
+    static PyObject* as_pylong(PyObject* obj, bool* is_intlike) {
+        *is_intlike = true;
+        if (PyLong_Check(obj)) { Py_INCREF(obj); return obj; }
+        if (PyIndex_Check(obj)) return PyNumber_Index(obj);  // nullptr: __index__ raised
+        *is_intlike = false;
+        return nullptr;
+    }
+
+    static bool as_long(PyObject* obj, long* out, bool* is_intlike) {
+        PyObject* idx = as_pylong(obj, is_intlike);
+        if (!idx) return false;
+        long v = PyLong_AsLong(idx);
+        Py_DECREF(idx);
+        if (v == -1 && PyErr_Occurred()) return false;
+        *out = v;
+        return true;
+    }
+
+    // Extract a float from a numeric Python object (float, int, or __index__ object).
+    // Returns false WITHOUT an error when obj is not a number; false WITH an error set
+    // (OverflowError / ValueError) for a number that is not a usable position component.
+    // Callers must check PyErr_Occurred() after a false return and propagate.
+    static bool extract_number(PyObject* obj, float* out) {
+        if (PyFloat_Check(obj)) {
+            return vector_to_float(PyFloat_AS_DOUBLE(obj), out);
+        }
+        // Ints (and __index__ results) convert as doubles and get the same finite / FLT_MAX
+        // check as floats, so 10**20 and 1e20 behave alike; 10**40 and 1e40 both overflow.
+        bool intlike;
+        PyObject* idx = as_pylong(obj, &intlike);
+        if (!idx) return false;
+        double d = PyLong_AsDouble(idx);
+        Py_DECREF(idx);
+        if (d == -1.0 && PyErr_Occurred()) return false;  // beyond even a double: OverflowError
+        return vector_to_float(d, out);
+    }
+
+    // Checked double -> int: ValueError for nan/inf, OverflowError outside int range.
+    // Truncates toward zero; sets the Python error and returns false on failure.
+    static bool float_to_int(double v, int* out) {
+        if (!std::isfinite(v)) {
+            PyErr_SetString(PyExc_ValueError, "position component must be finite");
+            return false;
+        }
+        if (!(v > static_cast<double>(INT_MIN) - 1.0 && v < static_cast<double>(INT_MAX) + 1.0)) {
+            PyErr_SetString(PyExc_OverflowError, "position component out of range for a C int");
+            return false;
+        }
+        *out = static_cast<int>(v);
+        return true;
+    }
+
+    // Extract an int from a numeric Python object (integers, or whole-number floats).
+    // Returns false WITHOUT an error set when obj is not an acceptable number (caller
+    // may try another interpretation); returns false WITH an error set (OverflowError /
+    // ValueError) when it is a number that does not fit an int. Callers must check
+    // PyErr_Occurred() after a false return and propagate.
     static bool extract_int(PyObject* obj, int* out) {
-        if (PyLong_Check(obj)) {
-            *out = static_cast<int>(PyLong_AsLong(obj));
+        long v;
+        bool intlike;
+        if (as_long(obj, &v, &intlike)) {
+            if (v < INT_MIN || v > INT_MAX) {
+                PyErr_SetString(PyExc_OverflowError, "position component out of range for a C int");
+                return false;
+            }
+            *out = static_cast<int>(v);
             return true;
         }
+        if (intlike) return false;  // error set (OverflowError, or from __index__)
         // Also accept float but only if it's a whole number
         if (PyFloat_Check(obj)) {
-            double val = PyFloat_AsDouble(obj);
-            if (val == static_cast<double>(static_cast<int>(val))) {
-                *out = static_cast<int>(val);
+            double val = PyFloat_AS_DOUBLE(obj);
+            int iv;
+            if (!float_to_int(val, &iv)) return false;
+            if (val == static_cast<double>(iv)) {
+                *out = iv;
                 return true;
             }
         }
@@ -210,6 +252,7 @@ public:
         if (extract_from_iterable(obj, out_x, out_y)) {
             return true;
         }
+        if (PyErr_Occurred()) return false;
         PyErr_SetString(PyExc_TypeError,
             "Expected a position as (x, y) tuple, [x, y] list, Vector, or other 2-element sequence");
         return false;
@@ -221,6 +264,7 @@ public:
         if (extract_from_iterable_int(obj, out_x, out_y)) {
             return true;
         }
+        if (PyErr_Occurred()) return false;  // OverflowError / ValueError from a component
         PyErr_SetString(PyExc_TypeError,
             "Expected integer position as (x, y) tuple, [x, y] list, Vector, or other 2-element sequence");
         return false;
@@ -244,12 +288,14 @@ public:
                 if (extract_number(x_obj, out_x) && extract_number(y_obj, out_y)) {
                     return true;
                 }
+                if (PyErr_Occurred()) return false;
             }
 
             if (pos_obj) {
                 if (extract_from_iterable(pos_obj, out_x, out_y)) {
                     return true;
                 }
+                if (PyErr_Occurred()) return false;
             }
         }
 
@@ -263,6 +309,7 @@ public:
             if (extract_number(first, out_x) && extract_number(second, out_y)) {
                 return true;
             }
+            if (PyErr_Occurred()) return false;
         }
 
         // Try single iterable argument: func((x, y)) or func(Vector) or func([x, y])
@@ -271,6 +318,7 @@ public:
             if (extract_from_iterable(first, out_x, out_y)) {
                 return true;
             }
+            if (PyErr_Occurred()) return false;
         }
 
         PyErr_SetString(PyExc_TypeError,
@@ -292,12 +340,14 @@ public:
                 if (extract_int(x_obj, out_x) && extract_int(y_obj, out_y)) {
                     return true;
                 }
+                if (PyErr_Occurred()) return false;
             }
 
             if (pos_obj) {
                 if (extract_from_iterable_int(pos_obj, out_x, out_y)) {
                     return true;
                 }
+                if (PyErr_Occurred()) return false;
             }
         }
 
@@ -311,6 +361,7 @@ public:
             if (extract_int(first, out_x) && extract_int(second, out_y)) {
                 return true;
             }
+            if (PyErr_Occurred()) return false;
         }
 
         // Try single iterable argument: func((x, y)) or func(Vector) or func([x, y])
@@ -319,107 +370,12 @@ public:
             if (extract_from_iterable_int(first, out_x, out_y)) {
                 return true;
             }
+            if (PyErr_Occurred()) return false;
         }
 
         PyErr_SetString(PyExc_TypeError,
             "Position must be integers specified as: (x, y), ((x,y)), pos=(x,y), Vector, or 2-element sequence");
         return false;
-    }
-
-    // ========================================================================
-    // Legacy struct-based API (for compatibility with existing code)
-    // ========================================================================
-
-    // Parse position from multiple formats for UI class constructors
-    // Supports: (x, y), x=x, y=y, ((x,y)), (pos=(x,y)), (Vector), pos=Vector
-    static ParseResult parse_position(PyObject* args, PyObject* kwds,
-                                      int* arg_index = nullptr)
-    {
-        ParseResult result;
-        float x = 0.0f, y = 0.0f;
-        int start_index = arg_index ? *arg_index : 0;
-
-        // Check for positional tuple (x, y) first
-        if (PyTuple_Size(args) > start_index + 1) {
-            PyObject* first = PyTuple_GetItem(args, start_index);
-            PyObject* second = PyTuple_GetItem(args, start_index + 1);
-
-            // Check if both are numbers
-            if (extract_number(first, &x) && extract_number(second, &y)) {
-                result.x = x;
-                result.y = y;
-                result.has_position = true;
-                if (arg_index) *arg_index += 2;
-                return result;
-            }
-        }
-
-        // Check for single positional argument that might be tuple, list, or Vector
-        if (PyTuple_Size(args) > start_index) {
-            PyObject* first = PyTuple_GetItem(args, start_index);
-            if (extract_from_iterable(first, &x, &y)) {
-                result.x = x;
-                result.y = y;
-                result.has_position = true;
-                if (arg_index) *arg_index += 1;
-                return result;
-            }
-        }
-
-        // Try keyword arguments
-        if (kwds) {
-            PyObject* x_obj = PyDict_GetItemString(kwds, "x");
-            PyObject* y_obj = PyDict_GetItemString(kwds, "y");
-            PyObject* pos_kw = PyDict_GetItemString(kwds, "pos");
-
-            if (x_obj && y_obj) {
-                if (extract_number(x_obj, &x) && extract_number(y_obj, &y)) {
-                    result.x = x;
-                    result.y = y;
-                    result.has_position = true;
-                    return result;
-                }
-            }
-
-            if (pos_kw) {
-                if (extract_from_iterable(pos_kw, &x, &y)) {
-                    result.x = x;
-                    result.y = y;
-                    result.has_position = true;
-                    return result;
-                }
-            }
-        }
-
-        return result;
-    }
-
-    // Parse integer position for Grid.at() and similar
-    static ParseResultInt parse_position_int(PyObject* args, PyObject* kwds)
-    {
-        ParseResultInt result;
-        int x = 0, y = 0;
-
-        // Try the new simplified parser first
-        if (ParseInt(args, kwds, &x, &y)) {
-            result.x = x;
-            result.y = y;
-            result.has_position = true;
-            PyErr_Clear();  // Clear any error set by ParseInt
-        }
-
-        return result;
-    }
-
-    // Error message helper
-    static void set_position_error() {
-        PyErr_SetString(PyExc_TypeError,
-            "Position can be specified as: (x, y), x=x, y=y, ((x,y)), pos=(x,y), Vector, or 2-element sequence");
-    }
-
-    static void set_position_int_error() {
-        PyErr_SetString(PyExc_TypeError,
-            "Position must be integers specified as: (x, y), x=x, y=y, ((x,y)), pos=(x,y), Vector, or 2-element sequence");
     }
 };
 
