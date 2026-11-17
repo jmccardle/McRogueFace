@@ -1,4 +1,13 @@
-# mcrf: objects=[Color,ColorLayer,Grid,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,ColorLayer,Grid,Scene,Timer] verified=0.3.6-dev status=ok
+import mcrfpy
+
+scene = mcrfpy.Scene("demo")
+mcrfpy.current_scene = scene
+
+grid = mcrfpy.Grid(grid_size=(16, 12), pos=(0, 0), size=(512, 384))
+scene.children.append(grid)
+
+# region: pulsing-cell
 import mcrfpy
 import math
 
@@ -23,6 +32,7 @@ class PulsingCell:
         self.is_pulsing = False
         self.layer = self._get_or_create_layer()
         self.timer = None
+        self.t0 = None
 
     def _get_or_create_layer(self):
         """Ensure a named color layer exists on the grid."""
@@ -36,9 +46,11 @@ class PulsingCell:
     def _tick(self, timer, runtime):
         if not self.is_pulsing:
             return
+        if self.t0 is None:
+            self.t0 = runtime
         r, g, b = self.color
         # Sine wave oscillating between 0 and max_alpha
-        t = runtime / 1000.0
+        t = (runtime - self.t0) / 1000.0
         wave = (math.sin(2 * math.pi * t / self.period) + 1.0) / 2.0
         alpha = int(self.max_alpha * wave)
         self.layer.set((self.x, self.y), mcrfpy.Color(r, g, b, alpha))
@@ -48,6 +60,7 @@ class PulsingCell:
         if self.is_pulsing:
             return
         self.is_pulsing = True
+        self.t0 = None
         self.timer = mcrfpy.Timer(f"pulse_{id(self)}", self._tick, 33)
 
     def stop(self):
@@ -65,14 +78,9 @@ class PulsingCell:
 
 
 # Usage
-scene = mcrfpy.Scene("demo")
-mcrfpy.current_scene = scene
-
-grid = mcrfpy.Grid(grid_size=(16, 12), pos=(0, 0), size=(512, 384))
-scene.children.append(grid)
-
 objective_pulse = PulsingCell(grid, 10, 10, (0, 255, 100), period=1.5)
 objective_pulse.start()
 
 # Later, when objective is reached:
 objective_pulse.stop()
+# endregion
