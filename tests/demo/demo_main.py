@@ -115,8 +115,8 @@ class DemoRunner:
 
         #372/#350: this used to drive a Timer and wait for render frames. Headless
         timers only advance under mcrfpy.step(), so that loop never fired. It is also
-        unnecessary: a screenshot renders the current state synchronously and costs
-        zero simulation time, so we can just activate each scene and shoot it.
+        unnecessary: a screenshot draws the scene after a finished step() and costs zero
+        simulation time (#529), so we can activate each scene, step(0), and shoot it.
         """
         print(f"Generating {len(self.screens)} demo screenshots...")
         os.makedirs(self.screenshot_dir, exist_ok=True)
@@ -126,6 +126,7 @@ class DemoRunner:
             # which raised TypeError and broke the headless path outright.
             screen.scene.activate()
             filename = os.path.join(self.screenshot_dir, screen.get_screenshot_name())
+            mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
             automation.screenshot(filename)
             print(f"  [{i+1}/{len(self.screens)}] {filename}")
 

@@ -150,7 +150,6 @@ def visual_test(timer, runtime):
     seen_perspectives.append(grid.perspective)
     label = "omniscient" if grid.perspective is None else f"Entity {idx - 1}"
     print(f"  Switched to {label} perspective at {runtime}ms")
-    automation.screenshot(f"visibility_perspective_{idx}.png")
 
 # Set scene and UI
 ui = visibility_test.children
@@ -172,8 +171,13 @@ visibility_test.activate()
 
 cycle_timer = mcrfpy.Timer("cycle", visual_test, 100)
 # Headless: mcrfpy.step() is the only clock; one timer event per step.
+# The timer callback only mutates the perspective; the frame that step() finishes is what
+# the screenshot below draws (#529), so it is taken out here, after the step.
 for _ in range(len(cycle_order) + 1):
+    shots_before = len(seen_perspectives)
     mcrfpy.step(0.1)
+    if len(seen_perspectives) > shots_before:
+        automation.screenshot(f"visibility_perspective_{len(seen_perspectives) - 1}.png")
 
 check(seen_perspectives == cycle_order,
       f"cycled through all perspectives (got {len(seen_perspectives)} of {len(cycle_order)})")

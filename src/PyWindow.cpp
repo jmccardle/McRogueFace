@@ -374,6 +374,8 @@ PyObject* PyWindow::screenshot(PyWindowObject* self, PyObject* args, PyObject* k
     // Get the render target (#451: a headless one is created here, which needs a display)
     if (!mcrf::require_display_py("Window.screenshot()")) return NULL;
     sf::RenderTarget* target = &game->getRenderTarget();
+    GameEngine::CaptureScope capture(*game);  // #529: same rule as automation.screenshot()
+    if (!capture.ok) return NULL;
     
     sf::Image screenshot;
     
@@ -629,7 +631,7 @@ PyMethodDef PyWindow::methods[] = {
          MCRF_ARGS_START
          MCRF_ARG("filename", "Optional path to save screenshot. If omitted, returns raw RGBA bytes.")
          MCRF_RETURNS("bytes | None: Raw RGBA pixel data if no filename given, otherwise None after saving")
-         MCRF_NOTE("Screenshot is taken at the actual window resolution. Use after render loop update for current frame.")
+         MCRF_NOTE("Taken at the actual window resolution. Captures the last complete frame, never a mid-frame render: a second call after changing objects, with no frame in between, returns the same image, and in a Timer callback you get the previous frame. If no frame has been rendered yet in this process, the first call renders one, so a script that builds a scene and shoots at once gets the scene. Headless step() and advance() do not draw: a headless screenshot after a step draws the scene as it is at the time of the shot, and further calls with no step in between return that image again. Raises RuntimeError if called while a frame is being rendered (e.g. from a warnings hook): there is no complete frame yet.")
      )},
     {NULL}
 };

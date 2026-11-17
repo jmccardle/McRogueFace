@@ -73,6 +73,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mcrf_prof_") as tmp:
         # warmup (build chunk caches etc.)
         for _ in range(3):
+            mcrfpy.step(0.016)  # a finished step is what makes the screenshot render (#529)
             automation.screenshot(os.path.join(tmp, "w.png"))
 
         for frame in range(FRAMES):

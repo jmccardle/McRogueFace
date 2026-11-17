@@ -133,7 +133,10 @@ great for "did this do less work," not for real-time behavior.
 
 In headless mode `mcrfpy.step()` does **not** render (the render path is stubbed); the
 only way to force a real render is `automation.screenshot()`, which flushes the
-off-screen target to a PNG. That has a sharp consequence for profiling: **PNG encoding
+off-screen target to a PNG. (A screenshot draws only when there is no complete frame to
+show: before the first render, or after a `step()`/`advance()` finished since the last
+one; a second screenshot with no `step()` in between re-saves the same frame and
+renders nothing, #529.) That has a sharp consequence for profiling: **PNG encoding
 dominates the profile**. On a representative full-loop workload, ~96% of instructions
 landed in libsfml's `stbi_zlib_compress` / `stbiw__encode_png_line` — the actual engine
 render/update/animation work was buried under 3%.
