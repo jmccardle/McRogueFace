@@ -4,7 +4,7 @@ A development tool for rapid sprite sheet labeling during game jams.
 Creates a dictionary mapping sprite indices to custom labels.
 
 Usage:
-    ./mcrogueface docs/cookbook/tools/sprite_labeler.py
+    ./mcrogueface tools/sprite_labeler.py
 
 Console commands (while running):
     # Save labels to file
