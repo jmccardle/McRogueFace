@@ -111,7 +111,7 @@ EXTERNAL_INPUTS = {
 # Timeouts here are a per-test budget, not a flake mask: each is still bounded.
 SLOW_TESTS = {
     "regression/issue_478_caption_baseline_test.py": 40,
-    "regression/issue_529_first_frame_screenshot_test.py": 40,  # eight child engines, half windowed
+    "regression/issue_529_first_frame_screenshot_test.py": 120,  # 20 child engines, half windowed: 19 s idle, ~55 s with all 8 cores busy
     "integration/mcrf_project_test.py": 40,
     "integration/issue_509_deps_keeps_foreign_venv_test.py": 40,
     "integration/issue_517_console_scripts_test.py": 40,

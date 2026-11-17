@@ -75,7 +75,7 @@ def resolve_steps():
 # The snippet built its scene at import. Advance the resolved number of frames so the
 # capture lands where we want it -- a first timer fire that fills a caption, a layout
 # pass, or mid-animation. The screenshot below draws the frames those steps completed
-# (GameEngine::presentForCapture(), #529), so a pure static scene captures correctly even
+# (GameEngine::beginCapture(), #529), so a pure static scene captures correctly even
 # at the 3-step floor; the steps are for whatever needs the clock.
 for _ in range(resolve_steps()):
     try:

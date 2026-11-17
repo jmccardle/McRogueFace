@@ -102,13 +102,13 @@ def run_tests():
     step_time = time.perf_counter() - start
     print(f"  {iterations} step() calls: {step_time*1000:.2f}ms ({step_time*1000/iterations:.3f}ms each)")
 
-    # Time screenshot calls
+    # Time screenshot calls (each preceded by a zero-time step, so each one draws a frame)
     start = time.perf_counter()
     for i in range(iterations):
         mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529); dt 0 adds no time
         automation.screenshot(f"/tmp/speed_test.png")
     screenshot_time = time.perf_counter() - start
-    print(f"  {iterations} screenshot() calls: {screenshot_time*1000:.2f}ms ({screenshot_time*1000/iterations:.3f}ms each)")
+    print(f"  {iterations} step(0) + screenshot() calls: {screenshot_time*1000:.2f}ms ({screenshot_time*1000/iterations:.3f}ms each)")
 
     # Time step + screenshot combined
     start = time.perf_counter()

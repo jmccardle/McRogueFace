@@ -134,6 +134,13 @@ elif CASE == "midframe":
     # render of the state the callback just changed.
     p0, b0 = shot()
     got = {}
+    if HEADLESS:
+        # Headless, a finished step() is drawn lazily. Leave one pending (render_stale), so
+        # the screenshot below, taken inside a SECOND step(), is only the previous image if
+        # the engine refuses to render from inside a frame. Without this the case could not
+        # tell a deleted in-frame check from a working one.
+        green()
+        mcrfpy.step(0.016)
 
     def in_callback():
         green()
@@ -149,7 +156,8 @@ elif CASE == "midframe":
 
 elif CASE == "nested":
     # A callback that runs a nested step(), mutates, then shoots is STILL inside a frame: the
-    # scope guard restores in_frame, it does not clear it. (Windowed step() is a no-op.)
+    # scope guard restores in_frame, it does not clear it. HEADLESS ONLY HAS TEETH: windowed
+    # step() is a no-op, so no nested frame runs and the old clearing guard would pass too.
     p0, b0 = shot()
     got = {}
 
@@ -206,6 +214,35 @@ elif CASE == "diff_ii":
         up = Updating("updating")
         up.children.append(frame)
         up.activate()
+
+elif CASE == "midrender":
+    # A warnings hook that takes a screenshot while an ORDINARY frame is being rendered (a
+    # textureless Grid warns at its first draw, inside doFrame's render) would read half a
+    # frame. It must get a RuntimeError. Driven by Scene.update(), which runs once per frame
+    # in doFrame(): windowed, and headless under --run-forever (no step(), the engine's loop).
+    inner = []
+
+    def hook(message, category, filename, lineno, file=None, line=None):
+        try:
+            automation.screenshot(os.path.join(OUT, "inner.png"))
+            inner.append("returned")
+        except RuntimeError as e:
+            inner.append("RuntimeError: %s" % e)
+    warnings.showwarning = hook
+    warnings.simplefilter("always")
+
+    class Counting(mcrfpy.Scene):
+        n = 0
+
+        def update(self, dt):
+            self.n += 1
+            if self.n == 3:      # a few frames have rendered by now
+                self.children.append(mcrfpy.Grid(grid_size=(4, 4), pos=(300, 50), size=(64, 64)))
+            elif self.n == 6:    # the frame that drew the grid has completed
+                finish(inner=inner, frames=current_frame())
+    counting = Counting("counting")
+    counting.children.append(frame)
+    counting.activate()
 
 elif CASE == "reentrant":
     # A warnings hook that takes a screenshot while the first-frame capture is rendering (a

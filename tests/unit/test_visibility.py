@@ -171,13 +171,12 @@ visibility_test.activate()
 
 cycle_timer = mcrfpy.Timer("cycle", visual_test, 100)
 # Headless: mcrfpy.step() is the only clock; one timer event per step.
-# A screenshot shows the last finished frame (#529), and the callback runs inside a
-# step: it mutates, then step(0) finishes a frame and the shot is taken out here.
+# The timer callback only mutates the perspective; the frame that step() finishes is what
+# the screenshot below draws (#529), so it is taken out here, after the step.
 for _ in range(len(cycle_order) + 1):
     shots_before = len(seen_perspectives)
     mcrfpy.step(0.1)
     if len(seen_perspectives) > shots_before:
-        mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
         automation.screenshot(f"visibility_perspective_{len(seen_perspectives) - 1}.png")
 
 check(seen_perspectives == cycle_order,

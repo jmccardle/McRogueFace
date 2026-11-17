@@ -258,11 +258,19 @@ private:
     bool paused = false;
     int currentFrame = 0;
     // #529: display-buffer bookkeeping, written only by renderScene(), doFrame() and
-    // runSimFrame(); read only by presentForCapture().
+    // runSimFrame(); read only by beginCapture().
     bool frame_rendered = false;  // a complete frame has been rendered into the display buffer
     bool render_stale = false;    // headless: a simulation frame finished after the last render
     bool in_frame = false;        // inside doFrame()/runSimFrame(): timers and callbacks run here
-    bool capture_rendering = false;       // beginCapture() is rendering: do not re-enter
+    bool render_in_progress = false;      // doFrame()/renderScene() is drawing: no capture now
+    struct RenderScope {  // restores the previous value; end() leaves the render early
+        bool& flag;
+        bool saved;
+        bool active = true;
+        explicit RenderScope(bool& f) : flag(f), saved(f) { flag = true; }
+        void end() { if (active) { flag = saved; active = false; } }
+        ~RenderScope() { end(); }
+    };
     bool capture_present_pending = false; // windowed: first-frame render awaits its swap
     sf::View visible;
     sf::Clock clock;
@@ -448,7 +456,7 @@ public:
     // display, #451), and a step has completed since the last render. Never renders from
     // inside a frame (a Timer callback sees the previous complete frame), except case (1),
     // which has no previous frame to show. Returns false with a Python RuntimeError set if
-    // called while that capture render is itself running. Throws mcrf::NoDisplayError
+    // called while any render pass (doFrame() or renderScene()) is running. Throws mcrf::NoDisplayError
     // without a display. endCapture() presents a windowed first-frame render after the read.
     bool beginCapture();
     void endCapture();

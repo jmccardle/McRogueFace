@@ -132,5 +132,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # Use a timer to ensure the scene system is ready
-    mcrfpy.Timer("run_capture", lambda rt: main(), 50)
+    # Headless: no timer needed. main() steps before each screenshot (#529), which is what
+    # makes the shot draw the demo it just activated.
+    main()

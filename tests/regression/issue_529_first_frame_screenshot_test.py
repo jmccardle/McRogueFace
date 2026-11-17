@@ -33,15 +33,15 @@ def check(cond, msg):
         failures.append(msg)
 
 
-def run(case, windowed):
+def run(case, windowed, forever=False):
     out_dir = tempfile.mkdtemp(prefix="mcrf529_")
     env = dict(os.environ, CASE_529=case, OUT_529=out_dir)
-    cmd = [sys.executable] + ([] if windowed else ["--headless"]) + ["--exec", CHILD]
+    cmd = [sys.executable] + ([] if windowed else ["--headless"]) + (["--run-forever"] if forever else []) + ["--exec", CHILD]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=env,
                            cwd=os.getcwd())
     except subprocess.TimeoutExpired:
-        check(False, "%s/%s timed out (the scenario never reached its end)" % (case, windowed))
+        check(False, "%s/%s/%s timed out (the scenario never reached its end)" % (case, windowed, forever))
         return None
     finally:
         shutil.rmtree(out_dir, ignore_errors=True)
@@ -105,6 +105,16 @@ for windowed in (False, True):
         check(len(r["inner"]) >= 1 and all(
               i.startswith("RuntimeError") and "no complete frame" in i for i in r["inner"]),
               "%s reentrant: the warnings hook's screenshot raised RuntimeError: %r" % (mode, r["inner"]))
+
+    # The same, during an ORDINARY frame's render: windowed, and headless under --run-forever
+    # (the engine's own loop, no step()). Half a frame must never be captured.
+    for forever in ((True,) if not windowed else (False,)):
+        r = run("midrender", windowed, forever)
+        if r:
+            check(len(r["inner"]) >= 1 and all(
+                  i.startswith("RuntimeError") and "no complete frame" in i for i in r["inner"]),
+                  "%s%s midrender: a screenshot from a hook during a normal frame's render raised "
+                  "RuntimeError: %r" % (mode, " --run-forever" if forever else "", r["inner"]))
 
     # Known differences between the modes. DOCUMENTED BEHAVIOUR FOR NOW (the owner may change
     # them); these pin it so a change is a decision, not an accident.

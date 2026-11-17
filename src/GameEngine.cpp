@@ -561,6 +561,8 @@ void GameEngine::doFrame()
     {
     }
 
+    // #529: a screenshot taken while this frame is being drawn would read half a frame.
+    RenderScope renderScope(render_in_progress);
     metrics.beginRender();  // #341
 
     // Handle scene transitions
@@ -627,6 +629,7 @@ void GameEngine::doFrame()
         window->display();
         Py_END_ALLOW_THREADS
     }
+    renderScope.end();
     frame_rendered = true;  // #529
     render_stale = false;
 
@@ -1341,6 +1344,7 @@ int GameEngine::advance(int ms) {
 void GameEngine::renderScene(bool present) {
     sf::RenderTarget& target = getRenderTarget();  // #451: created here when headless
 
+    RenderScope renderScope(render_in_progress);
     metrics.beginRender();
 
     // Handle scene transitions
@@ -1364,6 +1368,7 @@ void GameEngine::renderScene(bool present) {
         window->display();
     }
 
+    renderScope.end();
     frame_rendered = true;
     render_stale = false;
 }
@@ -1371,21 +1376,19 @@ void GameEngine::renderScene(bool present) {
 // #529: see GameEngine.h. The one place that decides whether a screenshot needs a render.
 bool GameEngine::beginCapture() {
     getRenderTarget();  // raises NoDisplayError here, before any state is touched
+    if (render_in_progress) {
+        // From inside a render pass (a warnings hook run by a first-draw TextureWarning, in
+        // the capture's own render or in a normal frame's): the frame is half drawn, and
+        // rendering again would recurse. There is no complete frame to capture.
+        PyErr_SetString(PyExc_RuntimeError,
+            "screenshot requested while a frame is being rendered (for example from a "
+            "warnings hook): there is no complete frame to capture yet");
+        return false;
+    }
     const bool no_frame_yet = !frame_rendered;
     const bool headless_step_pending = headless && render_stale && !in_frame;
     if (!(no_frame_yet || headless_step_pending)) return true;
 
-    if (capture_rendering) {
-        // Reached from inside the capture render itself (a warnings hook run by a first-draw
-        // TextureWarning that takes a screenshot): no complete frame exists yet, and
-        // rendering again would recurse.
-        PyErr_SetString(PyExc_RuntimeError,
-            "screenshot requested while the frame it needs is still being rendered "
-            "(for example from a warnings hook): there is no complete frame to capture yet");
-        return false;
-    }
-    capture_rendering = true;
-    struct Reset { bool& f; ~Reset() { f = false; } } reset{capture_rendering};
     renderScene(/*present=*/false);
     // Headless presented inside renderScene (RenderTexture::display() is well defined).
     // Windowed holds the swap until endCapture(), after the caller has read the frame.

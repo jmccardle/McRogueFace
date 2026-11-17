@@ -115,8 +115,8 @@ class DemoRunner:
 
         #372/#350: this used to drive a Timer and wait for render frames. Headless
         timers only advance under mcrfpy.step(), so that loop never fired. It is also
-        unnecessary: a screenshot renders the current state synchronously and costs
-        zero simulation time, so we can just activate each scene and shoot it.
+        unnecessary: a screenshot draws the scene after a finished step() and costs zero
+        simulation time (#529), so we can activate each scene, step(0), and shoot it.
         """
         print(f"Generating {len(self.screens)} demo screenshots...")
         os.makedirs(self.screenshot_dir, exist_ok=True)
