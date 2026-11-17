@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Easing,Frame,Scene,Timer] verified=0.3.5 status=ok
+# mcrf: objects=[Color,Easing,Frame,Scene,Timer] verified=0.3.6-dev status=ok
 import mcrfpy
 
 
@@ -18,7 +18,8 @@ class FadeTransition:
     def _create_overlay(self, scene):
         """Create a full-screen black overlay in the given scene."""
         self.overlay = mcrfpy.Frame(pos=(0, 0), size=(1024, 768))
-        self.overlay.fill_color = mcrfpy.Color(0, 0, 0, 0)
+        self.overlay.fill_color = mcrfpy.Color(0, 0, 0, 255)
+        self.overlay.opacity = 0.0
         self.overlay.z_index = 9999  # On top of everything
         scene.children.append(self.overlay)
 
