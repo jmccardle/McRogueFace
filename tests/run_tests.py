@@ -116,6 +116,14 @@ SLOW_TESTS = {
     "integration/issue_517_console_scripts_test.py": 40,
     "integration/venv_pip_end_to_end_test.py": 90,
     "regression/issue_505_python_mode_test.py": 40,
+    # FrameLock tests (#535): each runs in well under a second, but its hang detector
+    # (30 s, or 20 s per child process) must be able to fire, and say "deadlock/hang",
+    # before the runner's own timeout does. The tests scale their detectors by the same
+    # MCRF_TIMEOUT_MULTIPLIER this table is multiplied by.
+    "regression/issue_410_framelock_readmission_test.py": 120,
+    "integration/frame_lock_hold_ordering_test.py": 120,
+    "integration/frame_lock_stress_test.py": 120,
+    "integration/frame_lock_soak_test.py": 120,
     "packaging/venv_packaged_test.py": 240,
     "packaging/issue_525_linux_closure_packaged_test.py": 240,  # builds the package (170s cap)
 }

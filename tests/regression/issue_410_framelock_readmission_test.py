@@ -32,6 +32,32 @@ HANG_SECONDS = 30.0 * float(os.environ.get("MCRF_TIMEOUT_MULTIPLIER", "1"))
 ROUNDS = 25
 
 
+def start_watchdog():
+    """Progress-based hang detector for calls that block (step() parked in closeWindow()).
+
+    Fires only if NOTHING advanced for HANG_SECONDS: no frame, no admission, no window.
+    A slow machine still makes progress; a deadlock does not.
+    """
+    def progress():
+        m = mcrfpy.get_metrics()
+        return (m["current_frame"], m["lock_admissions"], m["lock_windows"], m["lock_waiting"])
+
+    def run():
+        last = progress()
+        since = time.monotonic()
+        while True:
+            time.sleep(0.5)
+            now = progress()
+            if now != last:
+                last, since = now, time.monotonic()
+            elif time.monotonic() - since > HANG_SECONDS:
+                print("FAIL: deadlock/hang: no frame, window or admission for %.0fs (%r)"
+                      % (HANG_SECONDS, now), flush=True)
+                os._exit(1)
+
+    threading.Thread(target=run, name="hang-watchdog", daemon=True).start()
+
+
 def hang(what):
     print("FAIL: deadlock/hang: %s (no progress for %.0fs)" % (what, HANG_SECONDS))
     sys.exit(1)
@@ -166,6 +192,7 @@ def mid_window_arrival():
 
 
 mcrfpy.current_scene = mcrfpy.Scene("issue_410")
+start_watchdog()
 ok = True
 problems = mid_window_arrival()
 print("mid_window_arrival: %s" % ("ok" if not problems else "; ".join(problems)))

@@ -24,13 +24,16 @@ protecting are about ORDER, and are checked here with no time budget:
 The wall clock appears only as HANG_SECONDS, a hang detector ("deadlock/hang"), never as
 a performance bound.
 """
+import os
 import sys
 import threading
 import time
 
 import mcrfpy
 
-HANG_SECONDS = 30.0
+# Hang detector only, never a performance bound. Scaled like the runner's own timeout
+# (valgrind runs at x50) and below it (run_tests.py SLOW_TESTS gives 60 s).
+HANG_SECONDS = 30.0 * float(os.environ.get("MCRF_TIMEOUT_MULTIPLIER", "1"))
 ROUNDS = 20
 failures = []
 
@@ -56,11 +59,38 @@ def wait_until(pred, what):
         time.sleep(0.0005)
 
 
+def start_watchdog():
+    """Progress-based hang detector for calls that block (step() parked in closeWindow()).
+
+    Fires only if NOTHING advanced for HANG_SECONDS: no frame, no admission, no window.
+    A slow machine still makes progress; a deadlock does not.
+    """
+    def progress():
+        m = mcrfpy.get_metrics()
+        return (m["current_frame"], m["lock_admissions"], m["lock_windows"], m["lock_waiting"])
+
+    def run():
+        last = progress()
+        since = time.monotonic()
+        while True:
+            time.sleep(0.5)
+            now = progress()
+            if now != last:
+                last, since = now, time.monotonic()
+            elif time.monotonic() - since > HANG_SECONDS:
+                print("FAIL: deadlock/hang: no frame, window or admission for %.0fs (%r)"
+                      % (HANG_SECONDS, now), flush=True)
+                os._exit(1)
+
+    threading.Thread(target=run, name="hang-watchdog", daemon=True).start()
+
+
 def metrics():
     return mcrfpy.get_metrics()
 
 
 mcrfpy.current_scene = mcrfpy.Scene("hold_ordering")
+start_watchdog()
 
 # --- E: no waiter, no window --------------------------------------------------------
 m0 = metrics()
@@ -79,6 +109,7 @@ go = threading.Event()
 let_go = threading.Event()
 stop = threading.Event()
 in_block = threading.Event()
+hung = threading.Event()
 
 
 def holder():
@@ -93,7 +124,7 @@ def holder():
             in_block.set()
             # Stay inside until a helper (NOT the main thread: it is parked) lets go.
             if not let_go.wait(HANG_SECONDS):
-                events.append("hang")
+                hung.set()      # the helper never released us: a hang, not a property result
             events.append("exit")
 
 
@@ -122,6 +153,8 @@ for rnd in range(ROUNDS):
     before = metrics()
     mcrfpy.step(0.016)
     after = metrics()
+    if hung.is_set():
+        hang("the holder was never released by its helper")
     snapshot = list(events)       # what had happened by the time step() returned
     if snapshot == ["enter", "exit"]:
         served_in_one_frame += 1
@@ -153,7 +186,9 @@ finished_outside = threading.Event()
 
 
 def outside_worker():
-    release_outside.wait(HANG_SECONDS)    # "busy outside the lock", until main says otherwise
+    # "Busy outside the lock" until main says otherwise. No timeout on purpose: how long the
+    # 200-frame loop takes is machine speed, and must not change what this thread does.
+    release_outside.wait()
     with mcrfpy.lock():
         pass
     finished_outside.set()
@@ -163,7 +198,7 @@ ot = threading.Thread(target=outside_worker, daemon=True)
 ot.start()
 f0 = metrics()["current_frame"]
 for _ in range(200):
-    mcrfpy.step(0.016)
+    mcrfpy.step(0.016)      # the watchdog is this loop's hang detector, not a time budget
 f1 = metrics()["current_frame"]
 check(f"C: 200 frames completed while a thread worked outside the lock (current_frame +{f1 - f0})",
       f1 - f0 == 200)
