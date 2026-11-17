@@ -60,7 +60,11 @@ for kind in ("TileLayer", "ColorLayer"):
             fails.append(f"{kind}: bad {name} did not raise")
         except Exception as e:
             check(type(e) is exc, f"{kind}: bad {name} raised {type(e).__name__}, want {exc.__name__}")
-            check(str(e).startswith(name + ":"), f"{kind}: error for bad {name} is {e!r}")
+            # The helper names the argument itself: "<name>: <detail>" for a bad number,
+            # "<name> must be ..." for something that is not a position (format changed with
+            # #540 follow-up: fill_rect no longer rebuilds the helper's exception).
+            prefix = name + " must be" if exc is TypeError else name + ":"
+            check(str(e).startswith(prefix), f"{kind}: error for bad {name} is {e!r}")
 
 for f in fails:
     print("FAIL:", f)

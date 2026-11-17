@@ -766,8 +766,7 @@ PyObject* UIGridPathfinding::DijkstraMap_to_heightmap(PyDijkstraMapObject* self,
     }
 
     if (size_obj && size_obj != Py_None) {
-        if (!PyPosition_FromObjectInt(size_obj, &width, &height)) {
-            PyErr_SetString(PyExc_TypeError, "size must be (width, height) tuple, list, or Vector");
+        if (!PyPosition_FromObjectInt(size_obj, &width, &height, "size")) {
             return nullptr;
         }
         if (width <= 0 || height <= 0) {
