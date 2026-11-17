@@ -1,15 +1,22 @@
-"""McRogueFace - Multi-Layer Tiles (complete)
-
-Documentation: https://mcrogueface.github.io/cookbook/grid_multi_layer
-Repository: https://github.com/jmccardle/McRogueFace/blob/master/docs/cookbook/grid/grid_multi_layer_complete.py
-
-This code is extracted from the McRogueFace documentation and can be
-run directly with: ./mcrogueface path/to/this/file.py
-"""
-
+# mcrf: objects=[Color,ColorLayer,Grid,Scene,TileLayer] verified=0.3.6-dev status=ok
 import mcrfpy
 
+scene = mcrfpy.Scene("layer-perf")
+mcrfpy.current_scene = scene
 
+grid = mcrfpy.Grid(grid_size=(20, 15), pos=(10, 10), size=(640, 480),
+                   texture=mcrfpy.default_texture)
+scene.children.append(grid)
+
+base = mcrfpy.TileLayer(z_index=0, name="base", texture=mcrfpy.default_texture)
+grid.add_layer(base)
+base.fill(48)
+
+effect_layer = mcrfpy.ColorLayer(name="effects", z_index=2)
+grid.add_layer(effect_layer)
+
+
+# region: optimized
 class OptimizedLayers:
     """Performance-optimized layer management."""
 
@@ -39,13 +46,8 @@ class OptimizedLayers:
             color = effect_calculator(x, y)
             effect_layer.set((x, y), color)
         self.dirty_effects.clear()
+# endregion
 
-
-# Usage
-grid = mcrfpy.Grid(grid_size=(20, 15), pos=(10, 10), size=(640, 480),
-                   texture=mcrfpy.default_texture)
-effect_layer = mcrfpy.ColorLayer(name="effects", z_index=2)
-grid.add_layer(effect_layer)
 
 layers = OptimizedLayers(grid)
 layers.batch_set(effect_layer, [(1, 1, mcrfpy.Color(255, 0, 0, 128)),
