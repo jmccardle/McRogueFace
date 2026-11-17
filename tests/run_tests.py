@@ -120,6 +120,27 @@ SLOW_TESTS = {
     "packaging/issue_525_linux_closure_packaged_test.py": 240,  # builds the package (170s cap)
 }
 
+# Tests that do not fit a `--sanitizer` run (make asan-test / tsan-test): the test, not the
+# engine, is what the instrumented build breaks. Measured on `make asan-test` 2026-11-17
+# (#513): 737/745 with zero ASan/UBSan reports, these being the eight failures. One table,
+# one reason per test, reported as SKIP in the summary. The reasons are ASan's; the same
+# tests are skipped under tsan-test, where they were not separately measured.
+_SAN_STDERR = ("asserts nothing on stderr, but LSan prints its \"Suppressions used\" table there; "
+               "child engines also run the debug Python (3.15d)")
+_SAN_DEPS = ("`mcrf_project deps` needs a packaging-capable engine, but the sanitizer engine "
+             "is a Python 3.15d build; plus the stderr noise (see issue_505)")
+_SAN_TIMING = "timing budget; the sanitizer's slowdown breaks it (#535)"
+SANITIZER_SKIPS = {
+    "regression/issue_505_venv_prefix_test.py": _SAN_STDERR,
+    "regression/issue_505_virtual_env_ignored_test.py": _SAN_STDERR,
+    "integration/issue_517_console_scripts_test.py": _SAN_DEPS,
+    "integration/issue_509_deps_keeps_foreign_venv_test.py": _SAN_DEPS,
+    "unit/grid_observe_mask_test.py": "RSS-growth budget (4 MB over 5000 projections); ASan's quarantine grows RSS by ~200 MB",
+    "regression/issue_421_frame_pointer_test.py": "times out (50 s) under ASan; it measures Release frame pointers, not memory safety",
+    "regression/issue_410_framelock_readmission_test.py": _SAN_TIMING,
+    "integration/frame_lock_hold_budget_test.py": _SAN_TIMING,
+}
+
 
 def missing_external_inputs(test_dir, test_name):
     """(missing paths, reason) for a test in EXTERNAL_INPUTS, else ([], None)."""
@@ -357,6 +378,13 @@ def main():
                     print(f"  {YELLOW}SKIP{RESET} {test_name} ({note})")
                 continue
 
+            if sanitizer_mode and f"{test_dir}/{test_name}" in SANITIZER_SKIPS:
+                note = f"does not fit --sanitizer: {SANITIZER_SKIPS[f'{test_dir}/{test_name}']}"
+                results['skip'] += 1
+                skipped.append((test_dir, test_name, note))
+                print(f"  {YELLOW}SKIP{RESET} {test_name} ({note})")
+                continue
+
             passed, duration, output, san_errors = run_test(
                 test_path, verbose, test_timeout,
                 sanitizer_mode=sanitizer_mode,
@@ -405,7 +433,7 @@ def main():
         print(f"{BOLD}Valgrind logs:{RESET} {BUILD_DIR}/valgrind-*.log")
 
     if skipped:
-        print(f"\n{YELLOW}{BOLD}Skipped (inputs not in git; --no-skip to fail instead):{RESET}")
+        print(f"\n{YELLOW}{BOLD}Skipped (missing inputs: --no-skip fails them; sanitizer skips: SANITIZER_SKIPS):{RESET}")
         for test_dir, test_name, note in skipped:
             print(f"  {test_dir}/{test_name}: {note}")
 

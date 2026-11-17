@@ -7,12 +7,22 @@ This code is extracted from the McRogueFace documentation and can be
 run directly with: ./mcrogueface path/to/this/file.py
 """
 
+import mcrfpy
+
+scene = mcrfpy.Scene("effects_demo")
+grid = mcrfpy.Grid(grid_size=(20, 15), pos=(10, 10), size=(640, 480),
+                   texture=mcrfpy.default_texture)
+scene.children.append(grid)
+mcrfpy.current_scene = scene
+
+
 class EffectLayer:
     """Manage visual effects with color overlays."""
 
     def __init__(self, grid, z_index=2):
         self.grid = grid
-        self.layer = grid.add_layer("color", z_index=z_index)
+        self.layer = mcrfpy.ColorLayer(name="effects", z_index=z_index)
+        grid.add_layer(self.layer)
         self.effects = {}  # (x, y) -> effect_data
 
     def add_effect(self, x, y, effect_type, duration=None, **kwargs):
@@ -28,7 +38,7 @@ class EffectLayer:
         """Remove an effect."""
         if (x, y) in self.effects:
             del self.effects[(x, y)]
-            self.layer.set(x, y, mcrfpy.Color(0, 0, 0, 0))
+            self.layer.set((x, y), mcrfpy.Color(0, 0, 0, 0))
 
     def update(self, dt):
         """Update all effects."""
@@ -46,7 +56,7 @@ class EffectLayer:
 
             # Calculate color based on effect type
             color = self._calculate_color(effect)
-            self.layer.set(x, y, color)
+            self.layer.set((x, y), color)
 
         for pos in to_remove:
             self.remove_effect(*pos)
@@ -108,7 +118,7 @@ for x in range(8, 12):
         effects.add_effect(x, y, 'poison', duration=5)
 
 # Update in game loop
-def game_update(runtime):
+def game_update(timer, runtime):
     effects.update(0.016)  # 60 FPS
 
-mcrfpy.setTimer("effects", game_update, 16)
+effects_timer = mcrfpy.Timer("effects", game_update, 16)

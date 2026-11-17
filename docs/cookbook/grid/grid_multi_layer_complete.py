@@ -7,6 +7,9 @@ This code is extracted from the McRogueFace documentation and can be
 run directly with: ./mcrogueface path/to/this/file.py
 """
 
+import mcrfpy
+
+
 class OptimizedLayers:
     """Performance-optimized layer management."""
 
@@ -27,12 +30,27 @@ class OptimizedLayers:
         """Apply all queued updates."""
         for layer, updates in self.batch_updates:
             for x, y, value in updates:
-                layer.set(x, y, value)
+                layer.set((x, y), value)
         self.batch_updates = []
 
     def update_dirty_only(self, effect_layer, effect_calculator):
         """Only update cells marked dirty."""
         for x, y in self.dirty_effects:
             color = effect_calculator(x, y)
-            effect_layer.set(x, y, color)
+            effect_layer.set((x, y), color)
         self.dirty_effects.clear()
+
+
+# Usage
+grid = mcrfpy.Grid(grid_size=(20, 15), pos=(10, 10), size=(640, 480),
+                   texture=mcrfpy.default_texture)
+effect_layer = mcrfpy.ColorLayer(name="effects", z_index=2)
+grid.add_layer(effect_layer)
+
+layers = OptimizedLayers(grid)
+layers.batch_set(effect_layer, [(1, 1, mcrfpy.Color(255, 0, 0, 128)),
+                                (2, 1, mcrfpy.Color(0, 255, 0, 128))])
+layers.flush()
+
+layers.mark_dirty(3, 3)
+layers.update_dirty_only(effect_layer, lambda x, y: mcrfpy.Color(0, 0, 255, 128))
