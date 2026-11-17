@@ -14,7 +14,11 @@
 # .zip, ._pth, .def, libpython3YY.a) are removed: the *.pyd modules unpacked
 # here only load against this version's DLL.
 #
-# Requires: curl, unzip, x86_64-w64-mingw32-objdump, x86_64-w64-mingw32-dlltool
+# The archive is verified against EMBED_SHA256 below; a version with no entry there
+# is an error, not a download. When modules/cpython moves to a new release, add its
+# sha256 (of python.org's file, which `sha256sum` prints after a manual download).
+#
+# Requires: curl, sha256sum, unzip, x86_64-w64-mingw32-objdump, x86_64-w64-mingw32-dlltool
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,10 +27,15 @@ PATCHLEVEL="$ROOT/modules/cpython/Include/patchlevel.h"
 OBJDUMP="${OBJDUMP:-x86_64-w64-mingw32-objdump}"
 DLLTOOL="${DLLTOOL:-x86_64-w64-mingw32-dlltool}"
 
-[ $# -eq 0 ] || { sed -n '2,15p' "$0"; exit 2; }
+# python.org embeddable amd64 packages: file name -> sha256.
+declare -A EMBED_SHA256=(
+    [python-3.15.0-embed-amd64.zip]=a6999bcbcbe56f937159ef79c2630260eca99f65f7860bc5cd20430324079a44
+)
+
+[ $# -eq 0 ] || { sed -n '2,19p' "$0"; exit 2; }
 
 [ -f "$PATCHLEVEL" ] || { echo "error: $PATCHLEVEL missing (git submodule update --init modules/cpython)" >&2; exit 1; }
-for tool in curl unzip "$OBJDUMP" "$DLLTOOL"; do
+for tool in curl sha256sum unzip "$OBJDUMP" "$DLLTOOL"; do
     command -v "$tool" >/dev/null || { echo "error: $tool not found" >&2; exit 1; }
 done
 
@@ -38,6 +47,8 @@ PY_RELEASE="$(echo "$PY_VERSION" | sed 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')"
 PY_NODOT="$(echo "$PY_VERSION" | sed 's/^\([0-9]*\)\.\([0-9]*\).*/\1\2/')"
 
 ZIP="python-${PY_VERSION}-embed-amd64.zip"
+EXPECTED="${EMBED_SHA256[$ZIP]:-}"
+[ -n "$EXPECTED" ] || { echo "error: no pinned sha256 for $ZIP in $0 (EMBED_SHA256)" >&2; exit 1; }
 URL="https://www.python.org/ftp/python/${PY_RELEASE}/${ZIP}"
 
 TMP="$(mktemp -d)"
@@ -49,6 +60,9 @@ curl -fsSL --retry 3 -o "$TMP/$ZIP" "$URL" || {
     echo "       embeddable packages only for tagged releases." >&2
     exit 1
 }
+
+ACTUAL="$(sha256sum "$TMP/$ZIP" | cut -d' ' -f1)"
+[ "$ACTUAL" = "$EXPECTED" ] || { echo "error: $ZIP sha256 is $ACTUAL, expected $EXPECTED" >&2; exit 1; }
 
 mkdir -p "$DEST"
 for stale in "$DEST"/python3[0-9]*.{dll,zip,_pth,def} "$DEST"/python3[0-9]*_exports.txt "$DEST"/libpython3[0-9]*.a; do

@@ -9,8 +9,10 @@ name: Package
 # that machine's gitignored assets/ (#527) and links its distro's codec
 # library versions (#525). These packages contain only what git tracks.
 #
-# Windows is not built here yet: `make windows` needs MinGW builds of SFML and
-# libtcod in __lib_windows/, which nothing in the repo produces.
+# The Windows package is cross-compiled with MinGW-w64 and run under Wine, as
+# tools/release.sh does it (#538). Its libraries in __lib_windows/ come from
+# tools/build_deps_windows.sh: CPython is python.org's embeddable package, pinned by
+# sha256; SFML and libtcod are built from the submodules.
 #
 # .gitea/workflows/package.yaml is this file with the Forgejo runner's label;
 # keep the two in step. Steps run as root in the Forgejo runner's container (no
@@ -33,6 +35,10 @@ env:
     libreadline-dev libncurses-dev libgdbm-dev
   # CPython 3.15's Platforms/emscripten/config.toml pins this version.
   EMSDK_VERSION: "4.0.19"
+  # MinGW-w64 cross compiler (the posix thread model, as the toolchain file names) and
+  # Wine, which runs the Windows package's smoke test.
+  WINDOWS_APT_PACKAGES: >-
+    g++-mingw-w64-x86-64-posix wine
 
 jobs:
   linux:
@@ -49,9 +55,15 @@ jobs:
           $SUDO apt-get update
           $SUDO apt-get install -y $APT_PACKAGES
 
+      # Keys are computed into variables first: with `shell: bash` (-e -o pipefail) a failing
+      # input command fails the step, instead of hashing less and silently weakening the key.
       - name: Dependency cache key
         id: deps-key
-        run: echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          tree=$(git ls-tree HEAD modules/)
+          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
       - name: Cache built dependencies
         uses: actions/cache@v4
@@ -107,11 +119,18 @@ jobs:
           $SUDO apt-get update
           $SUDO apt-get install -y $APT_PACKAGES
 
+      # Keys are computed into variables first: with `shell: bash` (-e -o pipefail) a failing
+      # input command fails the step, instead of hashing less and silently weakening the key.
       - name: Dependency cache keys
         id: deps-key
+        shell: bash
         run: |
-          echo "key=$(git ls-tree HEAD modules/ | cat - tools/build_deps.sh tools/build_python.sh /etc/os-release | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
-          echo "wasm=$(git ls-tree HEAD modules/cpython modules/libtcod-headless | cat - tools/build_deps_wasm.sh tools/build_python_wasm.sh /etc/os-release | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
+          tree=$(git ls-tree HEAD modules/)
+          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          wasm_tree=$(git ls-tree HEAD modules/cpython modules/libtcod-headless)
+          wasm_files=$(cat tools/build_deps_wasm.sh tools/build_python_wasm.sh /etc/os-release)
+          echo "wasm=$(printf '%s\n' "$wasm_tree" "$wasm_files" | sha256sum | cut -c1-16)-$EMSDK_VERSION" >> "$GITHUB_OUTPUT"
 
       # Restore and save are separate steps so that a build which gets this far
       # is cached even when a later step fails.
@@ -185,3 +204,91 @@ jobs:
           name: McRogueFace-WASM
           path: dist/McRogueFace-*-WASM.zip
           if-no-files-found: warn
+
+  windows:
+    # Pinned: Wine and MinGW-w64 come from this release's repositories, and the
+    # dependency cache is keyed on them.
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The Linux build is needed too: packaging runs on its interpreter, and `make windows`
+      # copies the Linux CPython's stdlib into the package's lib/.
+      - name: Install build dependencies
+        run: |
+          SUDO=$(command -v sudo || true)
+          $SUDO apt-get update
+          $SUDO apt-get install -y $APT_PACKAGES $WINDOWS_APT_PACKAGES
+
+      # Keys are computed into variables first: with `shell: bash` (-e -o pipefail) a failing
+      # input command fails the step, instead of hashing less and silently weakening the key.
+      - name: Dependency cache keys
+        id: deps-key
+        shell: bash
+        run: |
+          tree=$(git ls-tree HEAD modules/)
+          files=$(cat tools/build_deps.sh tools/build_python.sh /etc/os-release)
+          echo "key=$(printf '%s\n' "$tree" "$files" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          win_tree=$(git ls-tree HEAD modules/SFML modules/libtcod-headless modules/cpython)
+          win_files=$(cat tools/build_deps_windows.sh tools/fetch_windows_python.sh cmake/toolchains/mingw-w64-x86_64.cmake /etc/os-release)
+          # The compilers, headers and import libraries the dependencies are built with.
+          win_tools=$(dpkg-query -W -f='${Package} ${Version}\n' g++-mingw-w64-x86-64-posix gcc-mingw-w64-x86-64-posix mingw-w64-x86-64-dev binutils-mingw-w64-x86-64)
+          win_cmake=$(cmake --version)
+          echo "windows=$(printf '%s\n' "$win_tree" "$win_files" "$win_tools" "$win_cmake" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore built dependencies
+        id: deps-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: __lib
+          key: deps-release-${{ steps.deps-key.outputs.key }}
+
+      - name: Build dependencies
+        run: make deps
+
+      - name: Save built dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: __lib
+          key: deps-release-${{ steps.deps-key.outputs.key }}
+
+      - name: Restore the Windows dependency builds
+        id: windows-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: __lib_windows
+          key: windows-deps-${{ steps.deps-key.outputs.windows }}
+
+      - name: Build the Windows dependencies (CPython, SFML, libtcod)
+        run: make deps-windows
+
+      - name: Save the Windows dependency builds
+        if: steps.windows-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: __lib_windows
+          key: windows-deps-${{ steps.deps-key.outputs.windows }}
+
+      - name: Build the Linux engine
+        run: make linux
+
+      - name: Generate the docs the package bundles
+        run: xvfb-run -a -s "-noreset" make docs
+
+      - name: Package
+        run: make package-windows
+
+      - name: Smoke-test the package (Wine)
+        # As tools/release.sh runs it: smoke_package.py starts the unpacked
+        # mcrogueface.exe under wine and checks the version and the stdlib. Wine needs
+        # an X display to create a window, even with --headless (release.sh has one).
+        run: xvfb-run -a -s "-noreset" python3 tools/smoke_package.py --version "$(tools/version.sh)" dist/McRogueFace-*-Windows.zip
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: McRogueFace-Windows
+          path: dist/McRogueFace-*-Windows.zip
+          if-no-files-found: error
