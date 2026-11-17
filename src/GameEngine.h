@@ -471,6 +471,7 @@ public:
     void toggle();
     void setVisible(bool vis);
     bool isVisible() const;
-    void update(const ProfilingMetrics& metrics);
+    // toggleKey: name of the hotkey that hides the overlay, or nullptr when none is bound.
+    void update(const ProfilingMetrics& metrics, const char* toggleKey);
     void render(sf::RenderTarget& target);
 };

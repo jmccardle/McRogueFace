@@ -829,12 +829,14 @@ bool translateSDLEvent(const void* sdlEventPtr, void* sfEventPtr) {
             // result), but TextEntered is one code point. Decode all of them: the first
             // is returned now and the rest wait in g_pendingText, which pollEvent drains
             // before asking SDL for more. Malformed UTF-8 from SDL is a bug, not input:
-            // drop the whole string rather than deliver U+FFFD as if it were typed.
+            // drop the whole string rather than deliver U+FFFD as if it were typed. A
+            // U+FFFD that SDL really sent (well-formed) is ordinary input and is delivered.
             const std::string text(sdlEvent.text.text);
             std::vector<uint32_t> cps;
             for (size_t i = 0; i < text.size();) {
-                const uint32_t cp = mcrf::utf8::next_codepoint(text, i);
-                if (cp == mcrf::utf8::REPLACEMENT) return false;
+                bool malformed;
+                const uint32_t cp = mcrf::utf8::next_codepoint(text, i, &malformed);
+                if (malformed) return false;
                 cps.push_back(cp);
             }
             if (cps.empty()) return false;

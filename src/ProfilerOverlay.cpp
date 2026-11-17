@@ -50,7 +50,7 @@ std::string GameEngine::ProfilerOverlay::formatPercentage(float part, float tota
     return formatFloat(pct, 0) + "%";
 }
 
-void GameEngine::ProfilerOverlay::update(const ProfilingMetrics& metrics) {
+void GameEngine::ProfilerOverlay::update(const ProfilingMetrics& metrics, const char* toggleKey) {
     if (!visible) return;
 
     // Only update text every N frames to reduce overhead
@@ -118,8 +118,10 @@ void GameEngine::ProfilerOverlay::update(const ProfilingMetrics& metrics) {
            << formatPercentage(unaccountedTime, frameMs) << ")\n";
     }
 
-    ss << "\n";
-    ss << "Press F3 to hide this overlay";
+    if (toggleKey) {
+        ss << "\n";
+        ss << "Press " << toggleKey << " to hide this overlay";
+    }
 
     text.setString(mcrf::from_utf8(ss.str()));
 

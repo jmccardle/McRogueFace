@@ -43,6 +43,11 @@ public:
     // failure. Caller owns the returned reference.
     static PyObject* get_enum_member(int value);
 
+    // The Key enum member name ("F3", "ESCAPE", ...) for an sf::Keyboard::Key
+    // value, as shown to the user. Throws std::out_of_range for a value that is
+    // not in the key table (callers only hold validated keys).
+    static const char* name_of(int value);
+
     // Number of keys (matches sf::Keyboard::KeyCount)
     static const int NUM_KEYS = sf::Keyboard::KeyCount;
 };

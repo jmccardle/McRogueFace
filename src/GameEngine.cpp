@@ -19,6 +19,7 @@
 #include <Python.h>
 #include "Audio.h"
 #include "Utf8.h"  // #477
+#include "PyKey.h"
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #endif
@@ -586,7 +587,8 @@ void GameEngine::doFrame()
 
     // Update and render profiler overlay (if enabled)
     if (profilerOverlay && !headless) {
-        profilerOverlay->update(metrics);
+        profilerOverlay->update(metrics, profiler_key == sf::Keyboard::Unknown ? nullptr
+                                                       : PyKey::name_of(profiler_key));
         profilerOverlay->render(*render_target);
     }
 
