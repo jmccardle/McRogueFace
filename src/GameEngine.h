@@ -175,8 +175,19 @@ private:
     int eligible = 0;            // #410: waiters owed service in the current window (under mtx)
     std::atomic<int> waiting{0}; // blocked in acquire(); written under mtx
     std::atomic<int> active{0};
+    // Cumulative counters (#535), written under mtx, readable from any thread: the
+    // load-independent way to observe the barrier (counts and ordering, not time).
+    std::atomic<uint64_t> windows_opened{0};
+    std::atomic<uint64_t> admissions_total{0};
 
 public:
+    /// Threads currently blocked in acquire() (0 when none).
+    int waitingCount() const { return waiting.load(); }
+    /// Safe windows opened since engine start (one per frame that had a waiter).
+    uint64_t windowsOpened() const { return windows_opened.load(); }
+    /// Holders admitted since engine start (nested acquires are not counted).
+    uint64_t admissions() const { return admissions_total.load(); }
+
     /**
      * @brief Acquire the lock, blocking until safe window opens
      *

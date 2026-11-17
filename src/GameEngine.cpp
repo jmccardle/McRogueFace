@@ -60,14 +60,17 @@ void FrameLock::acquire() {
     Py_BEGIN_ALLOW_THREADS
     {
         std::unique_lock<std::mutex> lock(mtx);
-        if (depth() > 0 || (safe_window && !closing)) {
-            // Nested lock() (this thread is already a holder), or the window is open
-            // and not yet closing: admitted now.
+        if (depth() > 0) {
+            // Nested lock(): this thread is already a holder.
             active++;
         } else {
-            // #410 - a late arrival (window closing or closed) is deferred to the
-            // NEXT window; it must not be served by the one being closed, or a
-            // thread that re-acquires without yielding keeps that window open forever.
+            // #410/#535 - EVERY non-nested arrival waits for the next openWindow(), even
+            // if a window is open right now. A window serves exactly the threads that
+            // were waiting when it opened (`eligible`). Admitting a late arrival because
+            // `safe_window && !closing` let a thread that released and re-acquired
+            // before closeWindow() had set `closing` (a gap that grows to whole
+            // scheduler quanta when the main thread is starved) be served twice by one
+            // window.
             const uint64_t my_epoch = epoch;
             waiting++;
             cv.wait(lock, [this, my_epoch]{ return epoch != my_epoch; });
@@ -76,6 +79,7 @@ void FrameLock::acquire() {
             waiting--;
             eligible--;
             active++;
+            admissions_total++;
         }
     }
     Py_END_ALLOW_THREADS
@@ -98,6 +102,7 @@ void FrameLock::openWindow() {
     // service in it; closeWindow() waits for exactly those (`eligible`).
     eligible = waiting.load();
     epoch++;
+    windows_opened++;
     closing = false;
     safe_window = true;
     cv.notify_all();  // Wake up all waiting threads
