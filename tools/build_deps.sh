@@ -38,6 +38,26 @@ done
 
 log() { echo "=== $* ==="; }
 
+# build_python.sh stages the pure-Python stdlib with rsync, as its last step. Without it
+# the interpreter is staged (so a re-run sees libpython and skips) but the stdlib is not.
+if ! command -v rsync >/dev/null 2>&1; then
+    echo "ERROR: rsync is required (it stages the Python stdlib). sudo apt install rsync"
+    exit 1
+fi
+
+# The staged interpreter is only usable with its stdlib beside it. Check for the files
+# an embedded CPython cannot start without, instead of trusting that the stager finished.
+verify_stdlib() {
+    local lib_dir="$1" f
+    for f in os.py site.py encodings/__init__.py importlib/__init__.py; do
+        if [ ! -f "$lib_dir/Python/Lib/$f" ]; then
+            echo "ERROR: Python stdlib not staged: $lib_dir/Python/Lib/$f is missing."
+            echo "       Fix the cause (is rsync installed?), then re-run: tools/build_deps.sh --clean"
+            exit 1
+        fi
+    done
+}
+
 # CMake flags for a local -dev sysroot (no-op when MCRF_SYSROOT is unset)
 SYSROOT_CMAKE=()
 if [ -n "${MCRF_SYSROOT:-}" ]; then
@@ -162,6 +182,8 @@ if [ "$FT" -eq 1 ]; then
     log "CPython (free-threaded)"
     "$SCRIPT_DIR/build_python.sh" --free-threaded "${PY_ARGS[@]}"
 fi
+verify_stdlib "$LIB_DIR"
+[ "$FT" -eq 1 ] && verify_stdlib "$PROJECT_ROOT/__lib_ft"
 
 # --- deps/ include links ----------------------------------------------------
 log "deps/ links"

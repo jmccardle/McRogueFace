@@ -4,7 +4,7 @@ From a fresh clone on Debian/Ubuntu:
 
 ```bash
 git clone <repository-url> McRogueFace && cd McRogueFace
-sudo apt install build-essential cmake git xvfb \
+sudo apt install build-essential cmake git rsync xvfb \
     zlib1g-dev libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
     libfreetype-dev libudev-dev libvorbis-dev libflac-dev libogg-dev \
     libgl-dev libopenal-dev libzstd-dev uuid-dev
