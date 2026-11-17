@@ -1,4 +1,4 @@
-# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Caption,Color,Frame,InputState,Key,Scene] verified=0.3.6-dev status=ok
 import mcrfpy
 
 class Menu:
@@ -103,7 +103,7 @@ class Menu:
         Handle keyboard input.
 
         Args:
-            key: Key name string
+            key: A mcrfpy.Key enum value (as delivered to scene.on_key)
 
         Returns:
             True if key was handled, False otherwise
