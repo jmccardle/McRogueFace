@@ -1,4 +1,4 @@
-# mcrf: objects=[Easing,Entity,Grid,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Easing,Entity,Grid,Scene] verified=0.3.6-dev status=ok
 import mcrfpy
 
 class PathAnimator:
@@ -35,16 +35,18 @@ class PathAnimator:
 
         target_x, target_y = self.path[self.index]
 
-        # Create animations for this step
+        # Called after each leg; a diagonal waypoint takes two legs (X, then Y)
         def on_step_complete(target, prop, value):
-            # Callback for step completion
-            if self.on_step:
-                self.on_step(self, self.index)
-            self.index += 1
+            pos = self.entity.draw_pos
+            if (pos.x, pos.y) == (target_x, target_y):
+                # Arrived at this waypoint
+                if self.on_step:
+                    self.on_step(self, self.index)
+                self.index += 1
             self._animate_next()
 
-        # Animate along X, then Y. draw_pos is the tile-coordinate position used
-        # for smooth movement between grid cells (entity.x/.y/.pos are pixels).
+        # Move along X, then along Y: one leg per animation. draw_pos is in
+        # tiles (entity.x/entity.y are pixel coordinates).
         pos = self.entity.draw_pos
         if pos.x != target_x:
             self.entity.animate("draw_pos", (target_x, pos.y), self.step_duration,
