@@ -10,8 +10,8 @@ rendered pixels actually changed -- proving every mutation still invalidates the
 cached raster. It also asserts an idle (no-mutation) pair is byte-identical, so
 the skip path itself does not corrupt output.
 
-Headless screenshots are synchronous (#153): screenshot() renders-then-captures,
-so all mutations + checks run inline (no Timer dance required).
+A headless screenshot shows the last complete frame (#529): shot() steps first, so the
+screenshot draws the mutations made since, and all checks run inline (no Timer dance).
 """
 import mcrfpy
 from mcrfpy import automation
@@ -28,6 +28,7 @@ def shot():
     global _counter
     path = os.path.join(TMPDIR, "s%d.png" % _counter)
     _counter += 1
+    mcrfpy.step(0)  # the screenshot shows the last complete frame; draw this one (#529)
     automation.screenshot(path)
     with open(path, "rb") as f:
         return f.read()

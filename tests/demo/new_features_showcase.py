@@ -91,6 +91,7 @@ def screenshot_alignment():
 
     scene.activate()
     output_path = os.path.join(OUTPUT_DIR, "ui_alignment.png")
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     automation.screenshot(output_path)
     print(f"  -> {output_path}")
 
@@ -225,6 +226,7 @@ def screenshot_dijkstra_heightmap():
 
     scene.activate()
     output_path = os.path.join(OUTPUT_DIR, "grid_dijkstra_heightmap.png")
+    mcrfpy.step(0)  # a finished frame is what a screenshot shows (#529)
     automation.screenshot(output_path)
     print(f"  -> {output_path}")
 

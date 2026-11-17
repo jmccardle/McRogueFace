@@ -1,4 +1,4 @@
-# mcrf: objects=[Color,Frame,Scene] verified=0.3.5 status=ok
+# mcrf: objects=[Color,Frame,Scene] verified=0.3.6-dev status=ok
 import mcrfpy
 from mcrfpy import automation
 
@@ -10,11 +10,15 @@ frame = mcrfpy.Frame(pos=(100, 100), size=(200, 200),
 ui.append(frame)
 mcrfpy.current_scene = scene
 
-# Screenshot captures current state immediately (no timer needed)
+# No frame has been rendered yet, so the first screenshot renders one (no timer needed)
 automation.screenshot("/tmp/red_frame.png")
 
 # Change to green
 frame.fill_color = mcrfpy.Color(0, 255, 0)
 
-# Next screenshot shows green
+# A screenshot shows the last complete frame, so shooting now would save the red image
+# again. Headless, step() runs a frame; the next screenshot draws it.
+mcrfpy.step(0.016)
+
+# Now the screenshot shows green
 automation.screenshot("/tmp/green_frame.png")
